@@ -5,8 +5,9 @@
 
 import type { ShotContract } from "./prompt.js";
 import type { Prediction } from "./provider.js";
+import type { Storyboard } from "./storyboard.js";
 
-export type GuardianStage = "preflight" | "test_take" | "render" | "timeline";
+export type GuardianStage = "storyboard" | "preflight" | "test_take" | "render" | "timeline";
 
 export type GuardianStatus = "pass" | "warn" | "repair" | "rerender" | "block";
 
@@ -51,6 +52,11 @@ export interface PreflightInput {
   readonly prompt: string;
   readonly negativePrompt: string;
   readonly ledger: ContinuityLedger;
+}
+
+export interface StoryboardInspectionInput {
+  readonly storyboard: Storyboard;
+  readonly shots: readonly ShotContract[];
 }
 
 export interface RenderInspectionInput {

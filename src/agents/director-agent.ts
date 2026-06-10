@@ -108,12 +108,20 @@ export class DirectorAgent {
       storyPlan,
       shots
     });
+    const storyboardPreflight = this.consistencyGuardian.inspectStoryboard({
+      storyboard,
+      shots
+    });
+    if (storyboardPreflight.status === "block" || storyboardPreflight.status === "repair") {
+      throw new Error(this.describeStoryboardBlock(storyboardPreflight));
+    }
     const modelId = resolveSeedanceModelId(intake.settings, this.atlasSettings);
     const productionGraph = this.productionGraphBuilder.build({
       intake,
       storyPlan,
       shots,
-      storyboard
+      storyboard,
+      storyboardPreflight
     });
     const compiledPrompts = shots.map((shot) =>
       this.promptCompiler.compile({
@@ -252,6 +260,7 @@ export class DirectorAgent {
       projectId: intake.projectId,
       storyPlan,
       storyboard,
+      storyboardPreflight,
       productionGraph: finalProductionGraph,
       costEstimate,
       compiledPrompts,
@@ -689,6 +698,14 @@ export class DirectorAgent {
       })
       .join("; ");
     return `Consistency Guardian preflight blocked ${reports.length} shot(s). ${details}`;
+  }
+
+  private describeStoryboardBlock(report: ReturnType<ConsistencyGuardian["inspectStoryboard"]>): string {
+    const details = report.findings
+      .slice(0, 5)
+      .map((finding) => `${finding.checkpoint} (${finding.severity}) - ${finding.repair}`)
+      .join("; ");
+    return `Consistency Guardian storyboard preflight blocked production before render spend. ${details}`;
   }
 
   private describeRenderBlock(renderedShots: readonly RenderedShot[]): string {

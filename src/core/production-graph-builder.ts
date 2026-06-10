@@ -5,6 +5,7 @@
 
 import type { IntakeResult, StoryPlan } from "../types/agent.js";
 import type { GraphEdgeType, ProductionGraphNode, ProductionGraphSnapshot } from "../types/graph.js";
+import type { GuardianReport, GuardianSeverity } from "../types/guardian.js";
 import type { PromptReference, ShotContract } from "../types/prompt.js";
 import type { Storyboard } from "../types/storyboard.js";
 import { createStableId } from "../utils/ids.js";
@@ -17,6 +18,7 @@ export class ProductionGraphBuilder {
     readonly storyPlan: StoryPlan;
     readonly shots: readonly ShotContract[];
     readonly storyboard?: Storyboard;
+    readonly storyboardPreflight?: GuardianReport;
   }): ProductionGraphSnapshot {
     const graph = new ProductionGraph();
     const projectNode = this.node("project", input.intake.projectId, {
@@ -33,6 +35,11 @@ export class ProductionGraphBuilder {
     graph.addNode(projectNode);
     graph.addNode(storyNode);
     graph.addEdge(projectNode.id, storyNode.id, "depends_on");
+    if (input.storyboardPreflight) {
+      const inspectionNode = this.inspectionNode(input.intake.projectId, input.storyboardPreflight);
+      graph.addNode(inspectionNode);
+      graph.addEdge(storyNode.id, inspectionNode.id, "depends_on");
+    }
 
     const referenceNodeIds = this.addReferenceNodes({
       graph,
@@ -163,6 +170,25 @@ export class ProductionGraphBuilder {
       reference.providerReference.kind,
       reference.providerReference.providerAssetId ?? reference.providerReference.uri
     ].join(":");
+  }
+
+  private inspectionNode(
+    projectId: string,
+    report: GuardianReport
+  ): Extract<ProductionGraphNode, { type: "inspection_report" }> {
+    return this.node("inspection_report", createStableId("inspection", `${projectId}:${report.stage}:${report.status}`), {
+      status: report.status,
+      findings: report.findings.map((finding) => `${finding.checkpoint}: ${finding.evidence}`),
+      severity: this.maxSeverity(report)
+    });
+  }
+
+  private maxSeverity(report: GuardianReport): GuardianSeverity {
+    const order: Record<GuardianSeverity, number> = { S0: 0, S1: 1, S2: 2, S3: 3 };
+    return report.findings.reduce<GuardianSeverity>(
+      (max, finding) => (order[finding.severity] < order[max] ? finding.severity : max),
+      "S3"
+    );
   }
 
   private node<TNode extends ProductionGraphNode["type"]>(

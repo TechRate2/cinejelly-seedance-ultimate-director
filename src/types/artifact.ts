@@ -7,6 +7,7 @@ export type ProjectArtifactKind =
   | "run_summary"
   | "story_plan"
   | "storyboard"
+  | "storyboard_preflight"
   | "production_graph"
   | "compiled_prompts"
   | "rendered_shots"

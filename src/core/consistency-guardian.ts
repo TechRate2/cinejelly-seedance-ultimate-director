@@ -9,11 +9,22 @@ import type {
   GuardianSeverity,
   GuardianStatus,
   PreflightInput,
-  RenderInspectionInput
+  RenderInspectionInput,
+  StoryboardInspectionInput
 } from "../types/guardian.js";
 import type { ShotContract } from "../types/prompt.js";
+import type { StoryboardPanel } from "../types/storyboard.js";
 
 export class ConsistencyGuardian {
+  public inspectStoryboard(input: StoryboardInspectionInput): GuardianReport {
+    const findings: GuardianFinding[] = [
+      ...this.validateStoryboardCoverage(input),
+      ...this.validateStoryboardPanels(input)
+    ];
+
+    return this.toReport(input.storyboard.projectId, "storyboard", findings);
+  }
+
   public preflight(input: PreflightInput): GuardianReport {
     const findings: GuardianFinding[] = [
       ...this.validateShotBasics(input.shot),
@@ -24,6 +35,173 @@ export class ConsistencyGuardian {
     ];
 
     return this.toReport(input.shot.shotId, "preflight", findings);
+  }
+
+  private validateStoryboardCoverage(input: StoryboardInspectionInput): readonly GuardianFinding[] {
+    const findings: GuardianFinding[] = [];
+    const shotIds = new Set(input.shots.map((shot) => shot.shotId));
+    const panelShotIds = new Set<string>();
+    const duplicates = new Set<string>();
+
+    for (const panel of input.storyboard.panels) {
+      if (panelShotIds.has(panel.shotId)) {
+        duplicates.add(panel.shotId);
+      }
+      panelShotIds.add(panel.shotId);
+      if (!shotIds.has(panel.shotId)) {
+        findings.push({
+          stage: "storyboard",
+          status: "block",
+          severity: "S0",
+          checkpoint: "storyboard_panel_unknown_shot",
+          evidence: `Storyboard panel ${panel.panelId} references unknown shot ${panel.shotId}.`,
+          repair: "Regenerate storyboard panels from the approved shot contract set before rendering."
+        });
+      }
+    }
+
+    for (const shot of input.shots) {
+      if (!panelShotIds.has(shot.shotId)) {
+        findings.push({
+          stage: "storyboard",
+          status: "block",
+          severity: "S0",
+          checkpoint: "storyboard_panel_missing",
+          evidence: `Shot ${shot.shotId} has no storyboard panel.`,
+          repair: "Generate a storyboard panel for every renderable shot before rendering."
+        });
+      }
+    }
+
+    for (const duplicate of duplicates) {
+      findings.push({
+        stage: "storyboard",
+        status: "repair",
+        severity: "S1",
+        checkpoint: "storyboard_panel_duplicate",
+        evidence: `Shot ${duplicate} appears in more than one storyboard panel.`,
+        repair: "Deduplicate storyboard panels so each shot has exactly one panel."
+      });
+    }
+
+    if (input.storyboard.panels.length !== input.shots.length) {
+      findings.push({
+        stage: "storyboard",
+        status: "repair",
+        severity: "S1",
+        checkpoint: "storyboard_panel_count",
+        evidence: `Storyboard has ${input.storyboard.panels.length} panel(s) for ${input.shots.length} shot(s).`,
+        repair: "Regenerate storyboard coverage from the shot contract list."
+      });
+    }
+
+    return findings;
+  }
+
+  private validateStoryboardPanels(input: StoryboardInspectionInput): readonly GuardianFinding[] {
+    const findings: GuardianFinding[] = [];
+    const shotsById = new Map(input.shots.map((shot) => [shot.shotId, shot]));
+    const orderedPanels = [...input.storyboard.panels].sort((left, right) => left.order - right.order);
+
+    for (const [index, panel] of orderedPanels.entries()) {
+      const shot = shotsById.get(panel.shotId);
+      if (!shot) {
+        continue;
+      }
+      findings.push(...this.validateStoryboardPanel(panel, shot, index));
+    }
+
+    return findings;
+  }
+
+  private validateStoryboardPanel(
+    panel: StoryboardPanel,
+    shot: ShotContract,
+    expectedOrder: number
+  ): readonly GuardianFinding[] {
+    const findings: GuardianFinding[] = [];
+
+    if (panel.order !== expectedOrder) {
+      findings.push({
+        stage: "storyboard",
+        status: "repair",
+        severity: "S2",
+        checkpoint: "storyboard_order",
+        evidence: `Panel ${panel.panelId} has order ${panel.order}; expected ${expectedOrder}.`,
+        repair: "Regenerate storyboard panel ordering from the timeline order."
+      });
+    }
+    if (panel.durationSeconds !== shot.durationSeconds) {
+      findings.push({
+        stage: "storyboard",
+        status: "repair",
+        severity: "S1",
+        checkpoint: "storyboard_duration",
+        evidence: `Panel ${panel.panelId} duration ${panel.durationSeconds}s does not match shot ${shot.durationSeconds}s.`,
+        repair: "Regenerate the storyboard panel from the approved shot contract duration."
+      });
+    }
+    if (!panel.visualDescription.trim() || !panel.action.trim() || !panel.camera.trim() || !panel.lighting.trim()) {
+      findings.push({
+        stage: "storyboard",
+        status: "repair",
+        severity: "S1",
+        checkpoint: "storyboard_panel_completeness",
+        evidence: `Panel ${panel.panelId} is missing visual description, action, camera, or lighting.`,
+        repair: "Regenerate the storyboard panel before prompt compilation."
+      });
+    }
+    if (panel.action !== shot.action || panel.camera !== shot.camera || panel.lighting !== shot.lighting) {
+      findings.push({
+        stage: "storyboard",
+        status: "repair",
+        severity: "S1",
+        checkpoint: "storyboard_contract_alignment",
+        evidence: `Panel ${panel.panelId} does not match the approved action, camera, or lighting contract for ${shot.shotId}.`,
+        repair: "Rebuild the panel directly from the shot contract to avoid prompt/render drift."
+      });
+    }
+    if (this.referenceBindingKey(panel.referenceBindings) !== this.referenceBindingKey(shot.references)) {
+      findings.push({
+        stage: "storyboard",
+        status: "repair",
+        severity: "S1",
+        checkpoint: "storyboard_reference_alignment",
+        evidence: `Panel ${panel.panelId} reference bindings differ from shot ${shot.shotId}.`,
+        repair: "Regenerate storyboard reference bindings from the approved shot references."
+      });
+    }
+    if (shot.transitionIntent && panel.transitionIntent !== shot.transitionIntent) {
+      findings.push({
+        stage: "storyboard",
+        status: "repair",
+        severity: "S2",
+        checkpoint: "storyboard_transition_alignment",
+        evidence: `Panel ${panel.panelId} does not preserve the shot transition intent.`,
+        repair: "Copy the approved transition intent into the storyboard panel before rendering."
+      });
+    }
+    if (panel.inspectionFocus.length === 0) {
+      findings.push({
+        stage: "storyboard",
+        status: "warn",
+        severity: "S3",
+        checkpoint: "storyboard_inspection_focus",
+        evidence: `Panel ${panel.panelId} has no inspection focus items.`,
+        repair: "Add inspection focus items so downstream Guardian checks remain actionable."
+      });
+    }
+
+    return findings;
+  }
+
+  private referenceBindingKey(
+    bindings: readonly { readonly role: string; readonly label: string; readonly priority: string }[]
+  ): string {
+    return bindings
+      .map((binding) => `${binding.role}:${binding.label}:${binding.priority}`)
+      .sort()
+      .join("|");
   }
 
   public inspectRender(input: RenderInspectionInput): GuardianReport {

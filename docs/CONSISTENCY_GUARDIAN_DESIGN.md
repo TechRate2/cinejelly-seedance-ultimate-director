@@ -25,6 +25,7 @@ Runs before generation.
 
 Checks:
 
+- storyboard panel coverage and alignment with shot contracts
 - provider capability vs requested settings
 - duration within provider-supported range
 - resolution supported by model/schema
@@ -44,6 +45,12 @@ Outputs:
 - `needs_reference_repair`
 - `needs_user_rights_review`
 - `blocked`
+
+Runtime storyboard preflight:
+
+- Storyboard panels are generated from approved shot contracts before prompt/render spend.
+- Guardian blocks render if panels are missing, duplicated, attached to unknown shots, or misaligned with approved duration, action, camera, lighting, references, or transition intent.
+- Passing storyboard preflight is stored as graph inspection evidence and as `storyboard-preflight.json`.
 
 ### 2. Test Take Guardian
 

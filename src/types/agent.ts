@@ -74,6 +74,7 @@ export interface DirectorRunResult {
   readonly projectId: string;
   readonly storyPlan: StoryPlan;
   readonly storyboard: Storyboard;
+  readonly storyboardPreflight: GuardianReport;
   readonly productionGraph: ProductionGraphSnapshot;
   readonly costEstimate: RenderCostEstimate;
   readonly compiledPrompts: readonly CompiledPrompt[];

@@ -268,7 +268,7 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 1. `createProject`: persist the user request and settings.
 2. `ingestReferences`: validate references, classify roles, register required Atlas assets.
 3. `compileGraph`: build story, scenes, beats, shot contracts, continuity ledgers.
-4. `storyboard`: generate reviewable panels from shot contracts and store them in graph/artifacts.
+4. `storyboard`: generate reviewable panels from shot contracts, run Guardian storyboard preflight, and store panels/evidence in graph/artifacts.
 5. `preflight`: run prompt/reference safety, contradiction, and schema checks.
 6. `testTake`: for high-risk shots, render a short test take before full duration.
 7. `render`: submit parallel-safe jobs; preserve dependencies for continuity-bound shots.
