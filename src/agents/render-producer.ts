@@ -28,10 +28,16 @@ export class RenderProducer {
     const preparedPrompt = await this.prepareReferences(compiledPrompt, signal);
     const initialPrediction = await this.submit(preparedPrompt, signal);
     if (initialPrediction.status === "succeeded") {
-      return { compiledPrompt: preparedPrompt, prediction: initialPrediction };
+      return {
+        compiledPrompt: preparedPrompt,
+        prediction: this.normalizeCompletedPrediction(initialPrediction, preparedPrompt.videoRequest.modelId)
+      };
     }
     const prediction = await this.videoProvider.waitForPrediction(initialPrediction.predictionId, signal);
-    return { compiledPrompt: preparedPrompt, prediction };
+    return {
+      compiledPrompt: preparedPrompt,
+      prediction: this.normalizeCompletedPrediction(prediction, preparedPrompt.videoRequest.modelId)
+    };
   }
 
   private async prepareReferences(compiledPrompt: CompiledPrompt, signal?: AbortSignal): Promise<CompiledPrompt> {
@@ -134,6 +140,19 @@ export class RenderProducer {
       return "audio";
     }
     return undefined;
+  }
+
+  private normalizeCompletedPrediction(prediction: Prediction, modelId: string): Prediction {
+    const normalized = prediction.modelId === "unknown" ? { ...prediction, modelId } : prediction;
+    if (normalized.status === "succeeded" && normalized.outputUrls.length === 0) {
+      throw new ProviderError({
+        code: "OUTPUT_MISSING",
+        provider: normalized.provider,
+        message: `Prediction ${normalized.predictionId} succeeded but did not return an output video URL.`,
+        details: normalized.raw
+      });
+    }
+    return normalized;
   }
 
   private submit(compiledPrompt: CompiledPrompt, signal?: AbortSignal): Promise<Prediction> {

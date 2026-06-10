@@ -12,6 +12,7 @@ import type {
   Prediction,
   ProviderCapability,
   ProviderMode,
+  ProviderReference,
   StructuredChatRequest,
   StructuredChatResponse,
   VideoGenerationRequest
@@ -299,6 +300,13 @@ export class AtlasCloudProvider implements ModelProvider {
         message: `No capability is configured for model ${request.modelId}.`
       });
     }
+    if (!capability.modes.includes(request.mode)) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Mode ${request.mode} is not supported by configured capability for model ${request.modelId}.`
+      });
+    }
     const duration = request.settings.durationSeconds;
     if (duration < capability.durations.min || duration > capability.durations.max) {
       throw new ProviderError({
@@ -321,6 +329,35 @@ export class AtlasCloudProvider implements ModelProvider {
         message: `Aspect ratio ${request.settings.ratio} is not supported by configured capability.`
       });
     }
+    for (const reference of request.references) {
+      this.validateReferenceCapability(reference, capability);
+    }
+  }
+
+  private validateReferenceCapability(reference: ProviderReference, capability: ProviderCapability): void {
+    const supportedByKind = capability.references.includes(reference.kind);
+    const supportedByRole = reference.role ? capability.references.some((kind) => kind === reference.role) : false;
+    if (!supportedByKind && !supportedByRole) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Reference ${reference.label || reference.role || reference.kind} is not supported by configured capability for model ${capability.modelId}.`
+      });
+    }
+    if (this.requiresRegisteredAsset(reference) && !reference.providerAssetId) {
+      throw new ProviderError({
+        code: "ASSET_NOT_ACTIVE",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Reference ${reference.label || reference.role || reference.kind} must be registered in Atlas Asset Library before generation.`
+      });
+    }
+  }
+
+  private requiresRegisteredAsset(reference: ProviderReference): boolean {
+    if (reference.kind === "video" || reference.kind === "audio") {
+      return true;
+    }
+    return Boolean(reference.role && ["motion", "camera", "source_video_structure", "audio_tempo", "voice"].includes(reference.role));
   }
 
   private toAtlasVideoPayload(request: VideoGenerationRequest): Record<string, unknown> {
