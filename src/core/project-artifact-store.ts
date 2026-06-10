@@ -5,10 +5,12 @@
  */
 
 import { join } from "node:path";
-import type { DirectorRunResult } from "../types/agent.js";
+import { normalizeSeedanceSettings } from "../config/seedance-settings.js";
+import type { CineJellyProjectRequest, DirectorRunResult } from "../types/agent.js";
 import type { ProjectArtifactBundle, ProjectArtifactEntry, ProjectArtifactKind } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import { writeFileEnsuringDirectory } from "../utils/files.js";
+import { createStableId } from "../utils/ids.js";
 import { redactText } from "../utils/redaction.js";
 
 interface ProjectArtifactPayload {
@@ -40,6 +42,45 @@ export class ProjectArtifactStore {
     };
     const manifestJson = this.safeJson(manifest);
     await writeFileEnsuringDirectory(manifest.manifestPath, manifestJson);
+    return manifest;
+  }
+
+  public async writeFailureArtifacts(input: {
+    readonly request: CineJellyProjectRequest;
+    readonly costLedger: readonly CostLedgerEntry[];
+    readonly artifactDirectory: string;
+    readonly error: unknown;
+    readonly stage: string;
+  }): Promise<ProjectArtifactBundle> {
+    const projectId = this.failureProjectId(input.request);
+    const artifactDirectory = join(input.artifactDirectory, this.safePathSegment(projectId));
+    const payloads: readonly ProjectArtifactPayload[] = [
+      {
+        kind: "failure_report",
+        fileName: "failure-report.json",
+        value: this.failureReport({
+          projectId,
+          request: input.request,
+          error: input.error,
+          stage: input.stage
+        })
+      },
+      { kind: "cost_ledger", fileName: "cost-ledger.json", value: input.costLedger }
+    ];
+    const entries: ProjectArtifactEntry[] = [];
+
+    for (const payload of payloads) {
+      const entry = await this.writeJsonArtifact(artifactDirectory, payload);
+      entries.push(entry);
+    }
+
+    const manifest: ProjectArtifactBundle = {
+      projectId,
+      artifactDirectory,
+      manifestPath: join(artifactDirectory, "manifest.json"),
+      entries
+    };
+    await writeFileEnsuringDirectory(manifest.manifestPath, this.safeJson(manifest));
     return manifest;
   }
 
@@ -92,6 +133,45 @@ export class ProjectArtifactStore {
     return payloads;
   }
 
+  private failureReport(input: {
+    readonly projectId: string;
+    readonly request: CineJellyProjectRequest;
+    readonly error: unknown;
+    readonly stage: string;
+  }): Record<string, unknown> {
+    return {
+      artifactSchemaVersion: "cinejelly.artifacts.v1",
+      projectId: input.projectId,
+      generatedAt: new Date(),
+      status: "failed",
+      stage: input.stage,
+      request: {
+        userInput: input.request.userInput,
+        settings: input.request.settings,
+        referenceCount: input.request.references?.length ?? 0,
+        metadata: input.request.metadata,
+        hasOutputPath: Boolean(input.request.outputPath),
+        hasWorkDirectory: Boolean(input.request.workDirectory),
+        hasArtifactDirectory: Boolean(input.request.artifactDirectory)
+      },
+      error: this.errorPayload(input.error)
+    };
+  }
+
+  private errorPayload(error: unknown): Record<string, unknown> {
+    if (error instanceof Error) {
+      return {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      };
+    }
+    return {
+      name: "UnknownError",
+      message: String(error)
+    };
+  }
+
   private async writeJsonArtifact(artifactDirectory: string, payload: ProjectArtifactPayload): Promise<ProjectArtifactEntry> {
     const createdAt = new Date();
     const json = this.safeJson(payload.value);
@@ -137,5 +217,15 @@ export class ProjectArtifactStore {
       throw new Error("Project artifact path segment cannot be empty.");
     }
     return safe;
+  }
+
+  private failureProjectId(request: CineJellyProjectRequest): string {
+    const userInput = request.userInput.trim();
+    try {
+      const settings = normalizeSeedanceSettings(request.settings);
+      return createStableId("project", `${userInput}:${settings.durationTargetSeconds}:${settings.ratio}`);
+    } catch {
+      return createStableId("project_failure", userInput || "invalid_request");
+    }
   }
 }

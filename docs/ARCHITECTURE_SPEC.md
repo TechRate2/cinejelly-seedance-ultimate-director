@@ -274,6 +274,12 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 10. `finish`: audio, captions, color/polish, upscale if selected.
 11. `deliver`: export final video and review packet.
 
+Failure artifact policy:
+
+- If `/v1/render` fails after request normalization, CineJelly still writes redacted failure artifacts.
+- Failure artifacts include `failure-report.json`, `cost-ledger.json`, and `manifest.json` so blocked cost gates, render gates, delivery gates, or provider errors remain auditable.
+- This is an extension based on VibeFrame/OpenMontage build and review report discipline.
+
 ## Non-Negotiable Production Principles
 
 - No hardcoded niche templates.

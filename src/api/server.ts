@@ -44,18 +44,35 @@ export function startServer(port = readPort(process.env.PORT)): void {
       const body = await readJsonBody<RenderRequestBody>(request);
       const normalizedRequest = normalizeRenderRequest(body);
       const runtime = createDirectorRuntime();
-      const result = await runtime.director.run(normalizedRequest);
-      const costLedger = runtime.ledger.list();
-      const artifacts = await artifactStore.writeRunArtifacts({
-        result,
-        costLedger,
-        artifactDirectory: normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts")
-      });
-      sendJson(response, 200, {
-        ...result,
-        costLedger,
-        artifacts
-      });
+      const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
+      try {
+        const result = await runtime.director.run(normalizedRequest);
+        const costLedger = runtime.ledger.list();
+        const artifacts = await artifactStore.writeRunArtifacts({
+          result,
+          costLedger,
+          artifactDirectory
+        });
+        sendJson(response, 200, {
+          ...result,
+          costLedger,
+          artifacts
+        });
+      } catch (renderError: unknown) {
+        const costLedger = runtime.ledger.list();
+        const artifacts = await artifactStore.writeFailureArtifacts({
+          request: normalizedRequest,
+          costLedger,
+          artifactDirectory,
+          error: renderError,
+          stage: "render_pipeline"
+        });
+        sendJson(response, 500, {
+          error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
+          costLedger,
+          artifacts
+        });
+      }
     } catch (error) {
       sendJson(response, 500, {
         error: redactUnknown(error instanceof Error ? error.message : String(error))

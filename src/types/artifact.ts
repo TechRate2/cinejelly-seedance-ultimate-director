@@ -11,6 +11,7 @@ export type ProjectArtifactKind =
   | "rendered_shots"
   | "deliverable"
   | "delivery_gate"
+  | "failure_report"
   | "semantic_visual_inspection"
   | "cost_plan"
   | "cost_ledger"
