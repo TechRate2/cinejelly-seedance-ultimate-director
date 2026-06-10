@@ -4,6 +4,7 @@
  */
 
 import type { DeliveryInspectionReport, PostproductionResult, PostproductionSettings } from "./media.js";
+import type { CaptionArtifact, CaptionCue, CaptionOptions } from "./caption.js";
 
 export interface AssemblyClip {
   readonly clipId: string;
@@ -17,6 +18,8 @@ export interface AssemblyInput {
   readonly outputPath: string;
   readonly workDirectory: string;
   readonly postproductionSettings?: PostproductionSettings;
+  readonly captionCues?: readonly CaptionCue[];
+  readonly captionOptions?: CaptionOptions;
 }
 
 export interface AssembledDeliverable {
@@ -25,5 +28,6 @@ export interface AssembledDeliverable {
   readonly clipCount: number;
   readonly assembledAt: Date;
   readonly postproduction?: PostproductionResult;
+  readonly captions?: CaptionArtifact;
   readonly inspection: DeliveryInspectionReport;
 }

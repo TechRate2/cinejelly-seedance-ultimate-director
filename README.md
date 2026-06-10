@@ -126,9 +126,9 @@ Production API:
 - `GET /health`
 - `POST /v1/render`
 
-`POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, and optional `outputPath`/`workDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`.
+`POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `captionCues`/`captionOptions`, and optional `outputPath`/`workDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`.
 
-The current codebase provides the provider layer, prompt compiler, Production Graph, Consistency Guardian, director orchestration, FFmpeg assembly engine, FFprobe media inspection, postproduction polish, and production HTTP entrypoint. The correct operating loop is:
+The current codebase provides the provider layer, prompt compiler, Production Graph, Consistency Guardian, director orchestration, FFmpeg assembly engine, FFprobe media inspection, postproduction polish, caption sidecar/burn-in automation, and production HTTP entrypoint. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -137,7 +137,7 @@ The current codebase provides the provider layer, prompt compiler, Production Gr
 5. run secret audit
 6. commit and push
 
-Once semantic visual inspection, captions, and audio mix automation are implemented, this README must be updated with those runtime requirements.
+Once semantic visual inspection and audio mix automation are implemented, this README must be updated with those runtime requirements.
 
 ## Implementation Order
 
@@ -152,7 +152,8 @@ Once semantic visual inspection, captions, and audio mix automation are implemen
 9. Assembly engine - implemented
 10. Production API/server entrypoint - implemented
 11. Media inspection and postproduction polish - implemented
-12. Semantic visual inspection, captions, and audio mix automation - next
+12. Caption sidecar and optional burn-in automation - implemented
+13. Semantic visual inspection and audio mix automation - next
 
 ## Source Fidelity
 

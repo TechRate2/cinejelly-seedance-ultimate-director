@@ -10,6 +10,7 @@ import type { Prediction } from "./provider.js";
 import type { ScenePlan } from "../core/shot-planner.js";
 import type { AssembledDeliverable } from "./assembly.js";
 import type { ProductionGraphSnapshot } from "./graph.js";
+import type { CaptionCue, CaptionOptions } from "./caption.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -18,6 +19,8 @@ export interface CineJellyProjectRequest {
   readonly metadata?: Record<string, string>;
   readonly outputPath?: string;
   readonly workDirectory?: string;
+  readonly captionCues?: readonly CaptionCue[];
+  readonly captionOptions?: CaptionOptions;
 }
 
 export interface IntakeResult {

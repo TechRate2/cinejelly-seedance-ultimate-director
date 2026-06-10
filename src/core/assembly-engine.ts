@@ -8,6 +8,7 @@ import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path
 import type { AssembledDeliverable, AssemblyClip, AssemblyInput } from "../types/assembly.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS, PostproductionEngine } from "./postproduction-engine.js";
 import { MediaInspector } from "./media-inspector.js";
+import { CaptionEngine } from "./caption-engine.js";
 import { ensureDirectory, writeFileEnsuringDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
 import { runProcess } from "../utils/process.js";
@@ -15,10 +16,18 @@ import { runProcess } from "../utils/process.js";
 export class AssemblyEngine {
   private readonly postproductionEngine: PostproductionEngine;
   private readonly mediaInspector: MediaInspector;
+  private readonly captionEngine: CaptionEngine;
 
-  public constructor(input: { readonly postproductionEngine?: PostproductionEngine; readonly mediaInspector?: MediaInspector } = {}) {
+  public constructor(
+    input: {
+      readonly postproductionEngine?: PostproductionEngine;
+      readonly mediaInspector?: MediaInspector;
+      readonly captionEngine?: CaptionEngine;
+    } = {}
+  ) {
     this.postproductionEngine = input.postproductionEngine ?? new PostproductionEngine();
     this.mediaInspector = input.mediaInspector ?? new MediaInspector();
+    this.captionEngine = input.captionEngine ?? new CaptionEngine();
   }
 
   public async assemble(input: AssemblyInput, signal?: AbortSignal): Promise<AssembledDeliverable> {
@@ -37,6 +46,7 @@ export class AssemblyEngine {
     );
     const concatListPath = join(input.workDirectory, `${input.projectId}_concat.txt`);
     const postproductionSettings = input.postproductionSettings ?? DEFAULT_POSTPRODUCTION_SETTINGS;
+    const captionOptions = input.captionOptions ?? { enabled: false, burnIn: false };
     const concatOutputPath = postproductionSettings.enabled
       ? join(input.workDirectory, `${input.projectId}_assembled_raw.mp4`)
       : input.outputPath;
@@ -68,8 +78,25 @@ export class AssemblyEngine {
           },
           signal
         )
+        : undefined;
+    const postproductionOutputPath = postproduction?.outputPath ?? concatOutputPath;
+    const captionedOutputPath = input.captionCues && captionOptions.enabled && captionOptions.burnIn
+      ? join(input.workDirectory, `${input.projectId}_captioned.mp4`)
+      : postproductionOutputPath;
+    const captions = input.captionCues && captionOptions.enabled
+      ? await this.captionEngine.render(
+          {
+            projectId: input.projectId,
+            inputVideoPath: postproductionOutputPath,
+            outputVideoPath: captionedOutputPath,
+            workDirectory: input.workDirectory,
+            cues: input.captionCues,
+            options: captionOptions
+          },
+          signal
+        )
       : undefined;
-    const outputPath = postproduction?.outputPath ?? concatOutputPath;
+    const outputPath = captions?.burnedIn ? captionedOutputPath : postproductionOutputPath;
     const inspection = this.mediaInspector.inspectDelivery(await this.mediaInspector.probe(outputPath, signal));
 
     return {
@@ -78,6 +105,7 @@ export class AssemblyEngine {
       clipCount: orderedClips.length,
       assembledAt: new Date(),
       ...(postproduction ? { postproduction } : {}),
+      ...(captions ? { captions } : {}),
       inspection
     };
   }

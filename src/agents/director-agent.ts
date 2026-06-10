@@ -110,6 +110,8 @@ export class DirectorAgent {
               projectId: intake.projectId,
               outputPath: request.outputPath,
               workDirectory: request.workDirectory,
+              ...(request.captionCues ? { captionCues: request.captionCues } : {}),
+              ...(request.captionOptions ? { captionOptions: request.captionOptions } : {}),
               clips: renderedShots.flatMap((renderedShot, index) =>
                 renderedShot.prediction.outputUrls.map((url, outputIndex) => ({
                   clipId: `${renderedShot.compiledPrompt.shotId}_${outputIndex}`,
