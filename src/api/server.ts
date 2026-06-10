@@ -141,7 +141,7 @@ async function readJsonBody<TValue>(request: IncomingMessage): Promise<TValue> {
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
-  response.end(JSON.stringify(payload));
+  response.end(JSON.stringify(redactUnknown(payload)));
 }
 
 function readPort(value: string | undefined): number {

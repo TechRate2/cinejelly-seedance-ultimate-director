@@ -203,7 +203,7 @@ export class ProjectArtifactStore {
     }
     if (value && typeof value === "object") {
       const entries = Object.entries(value as Record<string, unknown>).map(([key, item]) => {
-        if (/api[_-]?key|token|secret|password|authorization/i.test(key)) {
+        if (/api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization/i.test(key)) {
           return [key, "[REDACTED]"] as const;
         }
         return [key, this.redactSerializable(item)] as const;
