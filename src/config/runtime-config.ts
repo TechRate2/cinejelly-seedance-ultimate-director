@@ -4,6 +4,7 @@
  */
 
 import type { ProviderCapability } from "../types/provider.js";
+import type { CostEstimationSettings } from "../types/cost.js";
 import type { AtlasCloudRuntimeSettings, RuntimeSettings } from "../types/settings.js";
 
 const DEFAULT_ATLAS_API_BASE_URL = "https://api.atlascloud.ai/v1";
@@ -29,6 +30,29 @@ function optionalIntegerEnv(name: string, env: NodeJS.ProcessEnv, fallback: numb
   return parsed;
 }
 
+function optionalNumberEnv(name: string, env: NodeJS.ProcessEnv): number | undefined {
+  const value = env[name]?.trim();
+  if (!value) {
+    return undefined;
+  }
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`Environment variable ${name} must be a non-negative number.`);
+  }
+  return parsed;
+}
+
+function optionalNumberEnvWithFallback(name: string, env: NodeJS.ProcessEnv, fallback: number): number {
+  const value = optionalNumberEnv(name, env);
+  if (value === undefined) {
+    return fallback;
+  }
+  if (value <= 0) {
+    throw new Error(`Environment variable ${name} must be greater than zero.`);
+  }
+  return value;
+}
+
 export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): AtlasCloudRuntimeSettings {
   const seedanceCapabilities = parseCapabilitiesEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
   return {
@@ -49,7 +73,21 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
 
 export function loadRuntimeSettings(env: NodeJS.ProcessEnv = process.env): RuntimeSettings {
   return {
-    atlasCloud: loadAtlasCloudSettings(env)
+    atlasCloud: loadAtlasCloudSettings(env),
+    costEstimation: loadCostEstimationSettings(env)
+  };
+}
+
+export function loadCostEstimationSettings(env: NodeJS.ProcessEnv = process.env): CostEstimationSettings {
+  const renderCostUsdPerSecond = optionalNumberEnv("CINEJELLY_RENDER_COST_USD_PER_SECOND", env);
+  const assetRegistrationCostUsd = optionalNumberEnv("CINEJELLY_ASSET_REGISTRATION_COST_USD", env);
+  const llmPlanCostUsd = optionalNumberEnv("CINEJELLY_LLM_PLAN_COST_USD", env);
+
+  return {
+    ...(renderCostUsdPerSecond !== undefined ? { renderCostUsdPerSecond } : {}),
+    ...(assetRegistrationCostUsd !== undefined ? { assetRegistrationCostUsd } : {}),
+    ...(llmPlanCostUsd !== undefined ? { llmPlanCostUsd } : {}),
+    costBufferMultiplier: optionalNumberEnvWithFallback("CINEJELLY_COST_BUFFER_MULTIPLIER", env, 1)
   };
 }
 

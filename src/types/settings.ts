@@ -1,4 +1,5 @@
 import type { ProviderCapability } from "./provider.js";
+import type { CostEstimationSettings } from "./cost.js";
 
 /**
  * Shared runtime setting types for CineJelly's flexible Seedance workflow.
@@ -53,6 +54,7 @@ export interface AtlasCloudRuntimeSettings {
 
 export interface RuntimeSettings {
   readonly atlasCloud: AtlasCloudRuntimeSettings;
+  readonly costEstimation: CostEstimationSettings;
 }
 
 export const DEFAULT_SEEDANCE_SETTINGS: FlexibleSeedanceSettings = {

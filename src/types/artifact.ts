@@ -11,6 +11,7 @@ export type ProjectArtifactKind =
   | "rendered_shots"
   | "deliverable"
   | "semantic_visual_inspection"
+  | "cost_plan"
   | "cost_ledger"
   | "manifest";
 

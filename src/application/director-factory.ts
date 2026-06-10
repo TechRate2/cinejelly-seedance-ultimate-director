@@ -9,6 +9,7 @@ import { ProviderCostLedger } from "../providers/cost-ledger.js";
 import { DirectorAgent } from "../agents/director-agent.js";
 import { RenderProducer } from "../agents/render-producer.js";
 import { StoryArchitect } from "../agents/story-architect.js";
+import { RenderCostGate } from "../core/render-cost-gate.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { RuntimePreflight } from "./runtime-preflight.js";
 
@@ -24,12 +25,14 @@ export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): Dir
   const atlasProvider = new AtlasCloudProvider(settings.atlasCloud, ledger);
   const storyArchitect = new StoryArchitect(atlasProvider, settings.atlasCloud.models.llmModel);
   const renderProducer = new RenderProducer(atlasProvider, atlasProvider);
+  const renderCostGate = new RenderCostGate(settings.costEstimation);
   const semanticVisualInspector = new SemanticVisualInspector(atlasProvider, settings.atlasCloud.models.llmModel);
 
   return {
     director: new DirectorAgent({
       storyArchitect,
       renderProducer,
+      renderCostGate,
       semanticVisualInspector,
       atlasSettings: settings.atlasCloud
     }),

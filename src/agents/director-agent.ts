@@ -9,6 +9,7 @@ import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
+import { RenderCostGate } from "../core/render-cost-gate.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import type { AtlasCloudRuntimeSettings } from "../types/settings.js";
@@ -25,6 +26,7 @@ export class DirectorAgent {
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
+  private readonly renderCostGate: RenderCostGate;
   private readonly promptCompiler: SeedancePromptCompiler;
   private readonly consistencyGuardian: ConsistencyGuardian;
   private readonly renderProducer: RenderProducer;
@@ -41,6 +43,7 @@ export class DirectorAgent {
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
+    readonly renderCostGate?: RenderCostGate;
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
     readonly assemblyEngine?: AssemblyEngine;
@@ -52,6 +55,7 @@ export class DirectorAgent {
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
+    this.renderCostGate = input.renderCostGate ?? new RenderCostGate({ costBufferMultiplier: 1 });
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
     this.renderProducer = input.renderProducer;
@@ -89,6 +93,11 @@ export class DirectorAgent {
     if (compiledPrompts.length === 0) {
       throw new Error("Story planning produced no renderable shots. Regenerate the story plan before rendering.");
     }
+    const costEstimate = this.renderCostGate.estimate({
+      compiledPrompts,
+      settings: intake.settings
+    });
+    this.renderCostGate.assertWithinBudget(costEstimate);
 
     const preflightReports = compiledPrompts.map((compiledPrompt) => {
       const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
@@ -176,6 +185,7 @@ export class DirectorAgent {
       projectId: intake.projectId,
       storyPlan,
       productionGraph: finalProductionGraph,
+      costEstimate,
       compiledPrompts,
       renderedShots,
       ...(deliverable ? { deliverable } : {}),

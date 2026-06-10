@@ -24,6 +24,10 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_REQUEST_TIMEOUT_MS", this.env.CINEJELLY_REQUEST_TIMEOUT_MS),
       this.optionalPositiveInteger("CINEJELLY_POLLING_INTERVAL_MS", this.env.CINEJELLY_POLLING_INTERVAL_MS),
       this.optionalPositiveInteger("CINEJELLY_POLLING_TIMEOUT_MS", this.env.CINEJELLY_POLLING_TIMEOUT_MS),
+      this.optionalNonNegativeNumber("CINEJELLY_RENDER_COST_USD_PER_SECOND", this.env.CINEJELLY_RENDER_COST_USD_PER_SECOND),
+      this.optionalNonNegativeNumber("CINEJELLY_ASSET_REGISTRATION_COST_USD", this.env.CINEJELLY_ASSET_REGISTRATION_COST_USD),
+      this.optionalNonNegativeNumber("CINEJELLY_LLM_PLAN_COST_USD", this.env.CINEJELLY_LLM_PLAN_COST_USD),
+      this.optionalPositiveNumber("CINEJELLY_COST_BUFFER_MULTIPLIER", this.env.CINEJELLY_COST_BUFFER_MULTIPLIER),
       this.capabilityCheck(this.env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON)
     ];
 
@@ -64,6 +68,28 @@ export class RuntimePreflight {
       return { name, status: "fail", message: `${name} must be a positive integer.` };
     }
     return { name, status: "pass", message: `${name} is a positive integer.` };
+  }
+
+  private optionalNonNegativeNumber(name: string, value: string | undefined): PreflightCheck {
+    if (!value?.trim()) {
+      return { name, status: "pass", message: `${name} is not set; cost gate will use available configured rates only.` };
+    }
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return { name, status: "fail", message: `${name} must be a non-negative number.` };
+    }
+    return { name, status: "pass", message: `${name} is a non-negative number.` };
+  }
+
+  private optionalPositiveNumber(name: string, value: string | undefined): PreflightCheck {
+    if (!value?.trim()) {
+      return { name, status: "pass", message: `${name} is not set; default multiplier will be used.` };
+    }
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return { name, status: "fail", message: `${name} must be greater than zero.` };
+    }
+    return { name, status: "pass", message: `${name} is greater than zero.` };
   }
 
   private capabilityCheck(value: string | undefined): PreflightCheck {

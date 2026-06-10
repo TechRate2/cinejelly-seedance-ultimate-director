@@ -51,6 +51,8 @@ export class ProjectArtifactStore {
       targetDurationSeconds: result.storyPlan.targetDurationSeconds,
       compiledPromptCount: result.compiledPrompts.length,
       renderedShotCount: result.renderedShots.length,
+      costGateStatus: result.costEstimate.status,
+      estimatedTotalCostUsd: result.costEstimate.estimatedTotalCostUsd,
       hasDeliverable: Boolean(result.deliverable),
       deliverablePath: result.deliverable?.outputPath,
       hasSemanticVisualInspection: Boolean(result.semanticVisualInspection)
@@ -59,6 +61,7 @@ export class ProjectArtifactStore {
       { kind: "run_summary", fileName: "run-summary.json", value: runSummary },
       { kind: "story_plan", fileName: "story-plan.json", value: result.storyPlan },
       { kind: "production_graph", fileName: "production-graph.json", value: result.productionGraph },
+      { kind: "cost_plan", fileName: "cost-plan.json", value: result.costEstimate },
       { kind: "compiled_prompts", fileName: "compiled-prompts.json", value: result.compiledPrompts },
       { kind: "rendered_shots", fileName: "rendered-shots.json", value: result.renderedShots },
       { kind: "cost_ledger", fileName: "cost-ledger.json", value: costLedger }
