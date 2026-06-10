@@ -1,3 +1,5 @@
+import type { ProviderCapability } from "./provider.js";
+
 /**
  * Shared runtime setting types for CineJelly's flexible Seedance workflow.
  * The unions mirror docs/FLEXIBLE_SEEDANCE_SETTINGS.md and stay provider-neutral.
@@ -43,6 +45,7 @@ export interface AtlasCloudRuntimeSettings {
   readonly apiBaseUrl: string;
   readonly assetBaseUrl: string;
   readonly models: ProviderModelSettings;
+  readonly seedanceCapabilities?: readonly ProviderCapability[];
   readonly requestTimeoutMs: number;
   readonly pollingIntervalMs: number;
   readonly pollingTimeoutMs: number;

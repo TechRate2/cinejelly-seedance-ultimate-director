@@ -43,6 +43,11 @@ export class AtlasCloudProvider implements ModelProvider {
   }
 
   public capabilities(modelId?: string): readonly ProviderCapability[] {
+    if (this.settings.seedanceCapabilities && this.settings.seedanceCapabilities.length > 0) {
+      return modelId
+        ? this.settings.seedanceCapabilities.filter((capability) => capability.modelId === modelId)
+        : this.settings.seedanceCapabilities;
+    }
     const standardModel = this.settings.models.seedanceStandardModel;
     const fastModel = this.settings.models.seedanceFastModel;
     const models = modelId ? [modelId] : [standardModel, fastModel];

@@ -108,9 +108,12 @@ Optional environment variables:
 
 - `ATLASCLOUD_API_BASE_URL`
 - `ATLASCLOUD_ASSET_BASE_URL`
+- `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`
 - `CINEJELLY_REQUEST_TIMEOUT_MS`
 - `CINEJELLY_POLLING_INTERVAL_MS`
 - `CINEJELLY_POLLING_TIMEOUT_MS`
+
+`ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` can be used in production to pin the exact verified Atlas Cloud Seedance model capabilities instead of relying on default documented capability assumptions.
 
 Build commands:
 
@@ -157,7 +160,8 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 14. Frame sampling QC - implemented
 15. Smooth transition assembly - implemented
 16. Semantic visual inspection - implemented
-17. Provider schema hardening and real end-to-end validation - next
+17. Provider schema hardening - implemented
+18. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
 
 ## Source Fidelity
 
