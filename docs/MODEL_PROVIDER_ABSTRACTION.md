@@ -209,7 +209,7 @@ Future provider routing:
 
 1. Application creates a provider-neutral request.
 2. Provider registry resolves provider and model.
-3. Capability validator checks duration, resolution, ratio, references, and mode.
+3. Capability validator checks duration, resolution, ratio, references, and mode before Asset Library registration or paid generation calls.
 4. AssetProvider registers required video/audio assets.
 5. VideoProvider submits generation.
 6. Worker polls prediction.
@@ -261,6 +261,7 @@ This follows VibeFrame/OpenMontage cost-gate thinking and is required for commer
 - No model ID is hardcoded in business logic.
 - No code assumes 1080p is available for every model path.
 - No code assumes reference count limits without reading provider capability.
+- Capability validation must run before Asset Library registration so unsupported requests do not spend provider calls unnecessarily.
 - No code passes raw video/audio URL directly to Seedance if the selected Atlas path requires Asset Library registration.
 - No fallback provider is used without graph metadata recording.
 
@@ -277,4 +278,3 @@ This follows VibeFrame/OpenMontage cost-gate thinking and is required for commer
 9. Add output URL persistence.
 10. Add Consistency Guardian expectations.
 11. Run production validation with real paid provider calls before enabling customers.
-

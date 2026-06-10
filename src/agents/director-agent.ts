@@ -109,6 +109,7 @@ export class DirectorAgent {
     if (compiledPrompts.length === 0) {
       throw new Error("Story planning produced no renderable shots. Regenerate the story plan before rendering.");
     }
+    this.validateProviderCapabilities(compiledPrompts);
     const costEstimate = this.renderCostGate.estimate({
       compiledPrompts,
       settings: intake.settings
@@ -232,6 +233,12 @@ export class DirectorAgent {
       ...(deliveryGate ? { deliveryGate } : {}),
       ...(semanticVisualInspection ? { semanticVisualInspection } : {})
     };
+  }
+
+  private validateProviderCapabilities(compiledPrompts: readonly CompiledPrompt[]): void {
+    for (const compiledPrompt of compiledPrompts) {
+      this.renderProducer.validateCapability(compiledPrompt);
+    }
   }
 
   private postproductionSettingsForDelivery(settings: FlexibleSeedanceSettings): PostproductionSettings {

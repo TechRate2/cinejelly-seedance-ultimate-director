@@ -264,6 +264,11 @@ Before submitting a render:
 8. Confirm safety policy passed.
 9. Confirm estimated cost is within project gate.
 
+Runtime implementation:
+
+- CineJelly validates mode, duration, resolution, ratio, and reference compatibility through the provider-neutral capability gate before Atlas Asset Library registration or paid render submission.
+- Atlas still performs provider-specific schema and active-asset validation at submit time as a defensive second gate.
+
 ## Settings API Shape
 
 ```json

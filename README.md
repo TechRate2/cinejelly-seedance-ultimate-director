@@ -142,7 +142,7 @@ Production API:
 
 `POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, optional `semanticVisualInspectionOptions`, and optional `outputPath`/`workDirectory`/`artifactDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`; deterministic run artifacts are written under the request work directory.
 
-The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization, Atlas Asset Library registration/polling for video and audio references before Seedance generation, quality-mode candidate rendering, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with candidate and repair multipliers, prompt compiler, Production Graph planning plus run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, selected-resolution postproduction scaling, FFprobe media inspection, deterministic delivery gate validation, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
+The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization, provider-neutral capability validation before Asset Library or render spend, Atlas Asset Library registration/polling for video and audio references before Seedance generation, quality-mode candidate rendering, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with candidate and repair multipliers, prompt compiler, Production Graph planning plus run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, selected-resolution postproduction scaling, FFprobe media inspection, deterministic delivery gate validation, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -184,7 +184,8 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 27. Targeted repair-only rerendering and render gate blocking - implemented
 28. Delivery gate and selected-resolution output validation - implemented
 29. Failure report artifacts for blocked render runs - implemented
-30. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
+30. Provider-neutral capability gate before asset/render spend - implemented
+31. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
 
 ## Source Fidelity
 

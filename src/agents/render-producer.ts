@@ -8,6 +8,7 @@ import type { AssetProvider, VideoProvider } from "../providers/contracts.js";
 import type { CompiledPrompt } from "../types/prompt.js";
 import type { Prediction, ProviderMetadata, ProviderReference } from "../types/provider.js";
 import { ProviderError } from "../utils/errors.js";
+import { ProviderCapabilityValidator } from "../providers/capability-validator.js";
 
 export interface RenderProducerResult {
   readonly compiledPrompt: CompiledPrompt;
@@ -17,14 +18,17 @@ export interface RenderProducerResult {
 export class RenderProducer {
   private readonly videoProvider: VideoProvider;
   private readonly assetProvider: AssetProvider | undefined;
+  private readonly capabilityValidator: ProviderCapabilityValidator;
   private readonly assetCache = new Map<string, Promise<string>>();
 
-  public constructor(videoProvider: VideoProvider, assetProvider?: AssetProvider) {
+  public constructor(videoProvider: VideoProvider, assetProvider?: AssetProvider, capabilityValidator = new ProviderCapabilityValidator()) {
     this.videoProvider = videoProvider;
     this.assetProvider = assetProvider;
+    this.capabilityValidator = capabilityValidator;
   }
 
   public async render(compiledPrompt: CompiledPrompt, signal?: AbortSignal): Promise<RenderProducerResult> {
+    this.validateCapability(compiledPrompt);
     const preparedPrompt = await this.prepareReferences(compiledPrompt, signal);
     const initialPrediction = await this.submit(preparedPrompt, signal);
     if (initialPrediction.status === "succeeded") {
@@ -38,6 +42,14 @@ export class RenderProducer {
       compiledPrompt: preparedPrompt,
       prediction: this.normalizeCompletedPrediction(prediction, preparedPrompt.videoRequest.modelId)
     };
+  }
+
+  public validateCapability(compiledPrompt: CompiledPrompt): void {
+    this.capabilityValidator.validateVideoRequest({
+      providerName: this.videoProvider.name,
+      request: compiledPrompt.videoRequest,
+      capabilities: this.videoProvider.capabilities(compiledPrompt.videoRequest.modelId)
+    });
   }
 
   private async prepareReferences(compiledPrompt: CompiledPrompt, signal?: AbortSignal): Promise<CompiledPrompt> {
