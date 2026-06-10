@@ -74,14 +74,16 @@ export class DirectorAgent {
         provider: "atlascloud"
       })
     );
+    if (compiledPrompts.length === 0) {
+      throw new Error("Story planning produced no renderable shots. Regenerate the story plan before rendering.");
+    }
 
-    const renderedShots: RenderedShot[] = [];
-    for (const [promptIndex, compiledPrompt] of compiledPrompts.entries()) {
+    const preflightReports = compiledPrompts.map((compiledPrompt) => {
       const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
       if (!shot) {
         throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
       }
-      const preflight = this.consistencyGuardian.preflight({
+      return this.consistencyGuardian.preflight({
         shot,
         prompt: compiledPrompt.prompt,
         negativePrompt: compiledPrompt.negativePrompt,
@@ -91,8 +93,23 @@ export class DirectorAgent {
           approvedShotIds: []
         }
       });
-      if (preflight.status === "block" || preflight.status === "repair") {
-        continue;
+    });
+    const blockingPreflightReports = preflightReports.filter(
+      (report) => report.status === "block" || report.status === "repair"
+    );
+    if (blockingPreflightReports.length > 0) {
+      throw new Error(this.describePreflightBlock(blockingPreflightReports));
+    }
+
+    const renderedShots: RenderedShot[] = [];
+    for (const [promptIndex, compiledPrompt] of compiledPrompts.entries()) {
+      const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
+      if (!shot) {
+        throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
+      }
+      const preflight = preflightReports[promptIndex];
+      if (!preflight) {
+        throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
       }
       const renderResult = await this.renderProducer.render(compiledPrompt, signal);
       compiledPrompts[promptIndex] = renderResult.compiledPrompt;
@@ -157,5 +174,18 @@ export class DirectorAgent {
       throw new Error("Semantic visual inspection was requested but no SemanticVisualInspector is configured.");
     }
     return this.semanticVisualInspector;
+  }
+
+  private describePreflightBlock(reports: readonly ReturnType<ConsistencyGuardian["preflight"]>[]): string {
+    const details = reports
+      .slice(0, 5)
+      .map((report) => {
+        const finding = report.findings.find((candidate) => candidate.status === "block" || candidate.status === "repair");
+        return finding
+          ? `${report.nodeId}: ${finding.checkpoint} (${finding.severity}) - ${finding.repair}`
+          : `${report.nodeId}: ${report.status}`;
+      })
+      .join("; ");
+    return `Consistency Guardian preflight blocked ${reports.length} shot(s). ${details}`;
   }
 }
