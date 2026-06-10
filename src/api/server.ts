@@ -54,6 +54,11 @@ export function startServer(port = readPort(process.env.PORT)): void {
         sendJson(response, job ? 200 : 404, job ?? { error: "Render job not found." });
         return;
       }
+      if (request.method === "DELETE" && jobMatch) {
+        const job = jobManager.cancel(decodeURIComponent(jobMatch[1] ?? ""));
+        sendJson(response, job ? 202 : 404, job ?? { error: "Render job not found." });
+        return;
+      }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
         const body = await readJsonBody<RenderRequestBody>(request);
         const normalizedRequest = normalizeRenderRequest(body);

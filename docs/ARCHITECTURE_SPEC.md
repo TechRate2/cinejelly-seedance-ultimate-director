@@ -278,7 +278,8 @@ API execution modes:
 
 - `/v1/render` runs the full pipeline synchronously for controlled callers.
 - `/v1/render-jobs` submits the same normalized request into an in-process queue and returns a pollable job ID for long-form production.
-- Job status includes queued, running, succeeded, or failed, plus redacted result, cost ledger, and artifact bundle when available.
+- Job status includes queued, running, succeeded, failed, or canceled, plus redacted result, cost ledger, and artifact bundle when available.
+- `/v1/render-jobs/{jobId}` can be canceled with `DELETE`; cancellation propagates through `AbortSignal` to provider calls, polling, assembly, and postproduction where supported.
 - Queue concurrency and retained history are process-level settings; multi-process deployments should place a durable queue in front of the same Director Agent contract.
 
 Failure artifact policy:

@@ -11,7 +11,7 @@ import type { ProjectArtifactBundle } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
 
-export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed";
+export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
 
 export interface RenderJobSummary {
   readonly jobId: string;
@@ -35,6 +35,7 @@ export interface RenderJobSummary {
 
 interface RenderJobRecord extends RenderJobSummary {
   readonly request: CineJellyProjectRequest;
+  readonly abortController: AbortController;
 }
 
 export class RenderJobManager {
@@ -70,6 +71,7 @@ export class RenderJobManager {
       referenceCount: input.request.references?.length ?? 0,
       artifactDirectory: input.artifactDirectory,
       request: input.request,
+      abortController: new AbortController(),
       ...(input.request.settings?.durationTargetSeconds !== undefined
         ? { requestedDurationSeconds: input.request.settings.durationTargetSeconds }
         : {}),
@@ -95,6 +97,39 @@ export class RenderJobManager {
       .map((record) => this.toSummary(record));
   }
 
+  public cancel(jobId: string): RenderJobSummary | undefined {
+    const record = this.jobs.get(jobId);
+    if (!record) {
+      return undefined;
+    }
+    if (record.status === "succeeded" || record.status === "failed" || record.status === "canceled") {
+      return this.toSummary(record);
+    }
+
+    record.abortController.abort(new Error("Render job was canceled by API request."));
+    const completedAt = new Date();
+    if (record.status === "queued") {
+      const queueIndex = this.queue.indexOf(jobId);
+      if (queueIndex >= 0) {
+        this.queue.splice(queueIndex, 1);
+      }
+      this.updateJob(jobId, {
+        status: "canceled",
+        updatedAt: completedAt,
+        completedAt,
+        error: this.errorPayload(record.abortController.signal.reason)
+      });
+    } else {
+      this.updateJob(jobId, {
+        status: "canceled",
+        updatedAt: completedAt,
+        error: this.errorPayload(record.abortController.signal.reason)
+      });
+    }
+
+    return this.get(jobId);
+  }
+
   private pumpQueue(): void {
     while (this.activeJobCount < this.maxConcurrentJobs && this.queue.length > 0) {
       const jobId = this.queue.shift();
@@ -102,7 +137,7 @@ export class RenderJobManager {
         return;
       }
       const record = this.jobs.get(jobId);
-      if (!record || record.status !== "queued") {
+      if (!record || record.status !== "queued" || record.abortController.signal.aborted) {
         continue;
       }
       this.activeJobCount += 1;
@@ -125,7 +160,10 @@ export class RenderJobManager {
     let costLedger: readonly CostLedgerEntry[] = [];
     try {
       const runtime = createDirectorRuntime();
-      const result = await runtime.director.run(record.request);
+      const result = await runtime.director.run(record.request, record.abortController.signal);
+      if (record.abortController.signal.aborted) {
+        throw record.abortController.signal.reason;
+      }
       costLedger = runtime.ledger.list();
       const artifacts = await this.artifactStore.writeRunArtifacts({
         result,
@@ -150,8 +188,9 @@ export class RenderJobManager {
         error
       });
       const completedAt = new Date();
+      const status: RenderJobStatus = record.abortController.signal.aborted ? "canceled" : "failed";
       this.updateJob(record.jobId, {
-        status: "failed",
+        status,
         updatedAt: completedAt,
         completedAt,
         error: this.errorPayload(error),
@@ -196,7 +235,7 @@ export class RenderJobManager {
       return;
     }
     const removable = [...this.jobs.values()]
-      .filter((record) => record.status === "succeeded" || record.status === "failed")
+      .filter((record) => record.status === "succeeded" || record.status === "failed" || record.status === "canceled")
       .sort((left, right) => left.updatedAt.getTime() - right.updatedAt.getTime());
 
     for (const record of removable) {
