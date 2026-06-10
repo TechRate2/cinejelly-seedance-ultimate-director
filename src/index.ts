@@ -7,6 +7,7 @@ export * from "./agents/director-agent.js";
 export * from "./agents/intake-director.js";
 export * from "./agents/render-producer.js";
 export * from "./agents/story-architect.js";
+export * from "./application/director-factory.js";
 export * from "./config/runtime-config.js";
 export * from "./config/seedance-settings.js";
 export * from "./core/chunking.js";

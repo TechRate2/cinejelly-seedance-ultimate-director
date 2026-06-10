@@ -117,9 +117,17 @@ Build commands:
 npm install
 npm run typecheck
 npm run build
+npm start
 ```
 
-The current codebase provides the provider layer, prompt compiler, Production Graph, Consistency Guardian, director orchestration, and FFmpeg assembly engine. A production API/server entrypoint is not implemented yet. The correct operating loop is:
+Production API:
+
+- `GET /health`
+- `POST /v1/render`
+
+`POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, and optional `outputPath`/`workDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`.
+
+The current codebase provides the provider layer, prompt compiler, Production Graph, Consistency Guardian, director orchestration, FFmpeg assembly engine, and production HTTP entrypoint. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -128,7 +136,7 @@ The current codebase provides the provider layer, prompt compiler, Production Gr
 5. run secret audit
 6. commit and push
 
-Once the production API/server entrypoint is implemented, this README must be updated with the startup command.
+Once media inspectors and postproduction polish are implemented, this README must be updated with those runtime requirements.
 
 ## Implementation Order
 
@@ -141,7 +149,8 @@ Once the production API/server entrypoint is implemented, this README must be up
 7. Consistency Guardian - implemented
 8. Agent Orchestrator - implemented
 9. Assembly engine - implemented
-10. Production API/server entrypoint - next
+10. Production API/server entrypoint - implemented
+11. Media inspection and postproduction polish - next
 
 ## Source Fidelity
 
