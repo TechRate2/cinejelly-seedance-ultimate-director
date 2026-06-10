@@ -1,0 +1,209 @@
+# Credits and Source Attribution
+
+## Purpose
+
+This document records the public projects, papers, and articles used to design CineJelly Seedance Ultimate Director. It is also the attribution boundary for production implementation. Public prompt examples, repo text, and article content must not be copied into product outputs unless the license allows it and the usage has been reviewed.
+
+## Local Workspace Review
+
+- Path reviewed: `C:\Users\Administrator\Desktop\topview v3`
+- Result: the workspace was empty and not a git repository before the production directory structure and these documents were created.
+
+## Primary Architecture References
+
+### Emily2040/seedance-2.0
+
+- URL: https://github.com/Emily2040/seedance-2.0
+- License shown in repo: MIT.
+- Used for: intent-first Seedance workflow, role-based reference mapping, prompt routing, professional filmmaker artifacts, safety/copyright rewrites, troubleshooting levers, delivery/QC thinking, dated source claims.
+- Source-derived patterns adopted:
+  - Direct the model rather than micromanage frames.
+  - Route vague ideas through a brief/interview step.
+  - Separate references by identity, environment, motion, camera rhythm, audio tempo, style, or endpoint.
+  - Produce the production object before a prompt for film/client/campaign work.
+  - Keep model/provider claims source-dated.
+- CineJelly extension:
+  - Adds a typed Production Graph and Consistency Guardian around the Seedance Skill OS idea.
+
+### YouMind-OpenLab/awesome-seedance-2-prompts
+
+- URL: https://github.com/YouMind-OpenLab/awesome-seedance-2-prompts
+- License shown in repo: CC BY 4.0 badge in README; repository includes a copyright notice that prompts are collected from the community for educational purposes.
+- Used for: prompt pattern mining only.
+- Source-derived patterns adopted:
+  - High-performing prompts often include time ranges, shot numbers, camera movements, identity consistency constraints, character micro-expression, environment, audio, dialogue, sound effects, and negative quality constraints.
+  - Seedance 2.0 is described as supporting text, image, video, and audio inputs, up to 1080p, and 4 to 15 second clip duration.
+- Restrictions:
+  - Do not copy community prompts into product docs, code, UI, or generated customer outputs.
+  - Use only generalized structural patterns.
+- CineJelly extension:
+  - Converts mined prompt patterns into an adaptive Prompt Compiler that avoids hardcoded niche templates.
+
+### HKUDS/ViMax
+
+- URL: https://github.com/HKUDS/ViMax
+- License shown in repo listing: MIT.
+- Used for: multi-agent long-form video architecture.
+- Source-derived patterns adopted:
+  - Multi-agent director/screenwriter/producer/video-generator workflow.
+  - RAG-based long script generation and segmentation.
+  - Shot-level storyboard design.
+  - Multi-camera filming simulation.
+  - Intelligent reference image selection based on previous timeline context.
+  - Parallel candidate generation and VLM/MLLM consistency checking.
+  - High-efficiency parallel shot generation where dependency constraints allow it.
+- CineJelly extension:
+  - Reframes these patterns into a provider-agnostic Production Graph with Atlas Cloud Seedance 2.0 as the default render provider.
+
+### vericontext/vibeframe
+
+- URL: https://github.com/vericontext/vibeframe
+- License shown in repo: MIT.
+- Used for: CLI-first, deterministic artifact, cost, report, and repair patterns.
+- Source-derived patterns adopted:
+  - Brief-to-video workflow through storyboard/design artifacts.
+  - JSON output, dry runs, cost gates, build reports, review reports.
+  - Separate lanes for full build, standalone asset generation, and edit/remix.
+  - Deterministic repair commands and inspect-render loop.
+- CineJelly extension:
+  - Uses VibeFrame-style artifact discipline inside a commercial API-first service rather than a CLI-only runtime.
+
+### DirectorBench
+
+- URL: https://arxiv.org/html/2605.30090v1
+- Used for: long-form quality diagnosis.
+- Source-derived patterns adopted:
+  - Evaluate long-form video across script, visual, audio, cross-modal, and stability dimensions.
+  - Use structured metadata, user profiles, dynamic checkpoint activation, tool-based evidence, confidence-aware aggregation, and profile-weighted scoring.
+  - Report checkpoint-level bottlenecks rather than only an aggregate score.
+  - Pay special attention to transition quality because the paper reports transition quality as a key bottleneck across workflows.
+- CineJelly extension:
+  - Converts DirectorBench's evaluation philosophy into runtime Consistency Guardian inspections and repair routing.
+
+### HKUDS/VideoAgent
+
+- URL: https://github.com/HKUDS/VideoAgent
+- License shown in repo: MIT.
+- Used for: video understanding, editing, remaking, and intent-to-tool workflow planning.
+- Source-derived patterns adopted:
+  - Analyze both explicit and implicit user sub-intents.
+  - Use graph-powered workflow generation.
+  - Use multimodal understanding to transform raw video into semantically aligned retrieval queries.
+  - Support video understanding, editing, and remaking in one agentic framework.
+- CineJelly extension:
+  - Adds source-video deconstruction to the CineJelly intake path so a user can provide a long reference video and ask for an original production with similar pacing, structure, or style.
+
+### OpenMontage
+
+- URL: https://github.com/calesthio/OpenMontage
+- License shown in repo: GNU AGPLv3.
+- Used for: commercial-grade production orchestration ideas.
+- Source-derived patterns adopted:
+  - Agent handles research, scripting, asset generation, editing, and final composition.
+  - Reference-video path analyzes transcript, pacing, scenes, keyframes, and style.
+  - Produces concepts, cost estimates, and sample paths before full production.
+  - Uses approval gates, provider scoring, and self-review.
+  - Self-review can include ffprobe validation, frame sampling, audio level analysis, delivery promise verification, and subtitle checks.
+  - Supports real-footage retrieval paths when appropriate instead of treating every video as animated stills.
+- License caution:
+  - Because OpenMontage uses AGPLv3, CineJelly may learn high-level patterns but must not copy implementation code into a closed commercial product unless legal review approves the license obligations.
+- CineJelly extension:
+  - Adopts approval, costing, reference analysis, and QA ideas without copying AGPL implementation code.
+
+## Atlas Cloud References
+
+### Atlas Cloud Docs Overview
+
+- URL: https://www.atlascloud.ai/docs/en
+- Used for: Atlas Cloud positioning as one API key, one endpoint, one billing account for 300+ models across LLM, image, video, audio, and media processing.
+
+### Atlas Cloud LLM / Chat Docs
+
+- URL: https://www.atlascloud.ai/docs/en/models/llm
+- Used for:
+  - OpenAI-compatible ChatCompletion format.
+  - Base URL: `https://api.atlascloud.ai/v1`.
+  - Streaming and non-streaming support.
+  - Model selection guidance for DeepSeek, Qwen, Kimi, GLM, MiniMax, and Doubao families.
+
+### Atlas Cloud Developer Page
+
+- URL: https://www.atlascloud.ai/developer
+- Used for:
+  - One OpenAI-compatible API across LLM, image, video, and audio.
+  - Model string swapping without changing most code.
+  - Async image/video prediction model.
+  - MCP and agent integration notes.
+
+### Atlas Cloud CLI Docs
+
+- URL: https://www.atlascloud.ai/docs/en/cli
+- Used for:
+  - Model schema inspection through `atlas models get`.
+  - Async video generation and polling patterns.
+  - First-class flags such as image, images, end image, video, audio, resolution, size, and duration.
+  - Known model ID examples including `bytedance/seedance-2.0-fast/image-to-video`.
+
+### Atlas Cloud Seedance 2.0 Model Page
+
+- URL: https://www.atlascloud.ai/models/seedance2
+- Used for:
+  - Seedance 2.0 multimodal video generation.
+  - Universal Reference concept.
+  - Text-to-video, image-to-video, reference-to-video, and fast variants.
+  - Mixed image/video/audio reference inputs.
+  - 4 to 15 second output duration.
+  - 480p and 720p listed in model comparison, and 1080p referenced in model family and examples.
+  - Aspect ratios including 21:9, 16:9, 4:3, 1:1, 3:4, and 9:16.
+  - Audio-visual synchronization and beat matching claims.
+
+### Atlas Cloud Asset Library for Seedance 2.0
+
+- URL: https://www.atlascloud.ai/blog/guides/atlas-cloud-asset-library-seedance-2-0
+- Used for:
+  - Register, poll until Active, then reference asset IDs in generation.
+  - Video and audio references must be registered before generation.
+  - Images may be passed inline.
+  - Asset Library host and generation host differ.
+  - Input validation happens at registration.
+  - Video asset requirements include mp4/mov, 480p or 720p, 2 to 15 seconds, 24 to 60 FPS, and file size limits.
+  - Audio asset requirements include wav/mp3, 2 to 15 seconds, and file size limits.
+
+### Atlas Cloud Seedance All-Round Reference Guide
+
+- URL: https://www.atlascloud.ai/blog/case-studies/generative-ai-model-seedance-2-0-a-guide-to-all-round-reference
+- Used for:
+  - Reference Cluster concept.
+  - Identity Locking plus Motion Transfer.
+  - Binding Logic and @-tag syntax.
+  - Identity vs motion weighting guidance.
+  - Prompt implementation using @Image, @Video, and @Audio roles.
+  - 4-second test-take iteration before committing to full 15-second clips.
+  - Troubleshooting causes such as contradictory prompts, weak reference images, overcrowded prompts, and mismatched motion references.
+
+### Atlas Cloud Character Consistency Article
+
+- URL: https://www.atlascloud.ai/blog/guides/how-character-consistency-in-ai-video-apis-is-revolutionizing-episodic-content
+- Used for:
+  - Master Identity and Identity Anchor concept.
+  - Unified API orchestration for model swapping while maintaining one codebase.
+  - Atlas Cloud image-to-video request example fields: model, prompt, image, last image, duration, resolution, ratio, generate audio, watermark, and return last frame.
+  - Async generation and polling example.
+  - Post-generation refinement options such as temporal smoothing, upscaling, and audio-visual sync checks.
+
+## Other Frameworks Worth Monitoring
+
+These were discovered during source review and are not primary sources for this first design:
+
+- LTX Studio: mentioned in Atlas Cloud's consistency article as focused on cinematic scene-to-scene character locking. It may be worth comparing for UI/UX and scene consistency workflows.
+- VBench: https://vchitect.github.io/VBench-project/ - useful for visual quality dimensions such as subject consistency, motion smoothness, temporal flicker, and spatial relationship. It is a benchmark, not a production agent framework.
+- AgentVidBench: https://github.com/krafton-ai/agentvidbench - focused on multi-hop video question answering, useful for video understanding evaluation rather than production.
+
+## Attribution Policy for CineJelly
+
+- Cite public repos and articles in internal architecture docs.
+- Do not ship public prompt examples as bundled product content without license review.
+- Do not copy AGPL implementation code from OpenMontage into proprietary code.
+- Do not claim exact model IDs, pricing, or limits unless they are verified against the current Atlas Cloud schema or a dated provider source.
+- Store source URLs and last-checked dates in future production config or provider metadata.
+

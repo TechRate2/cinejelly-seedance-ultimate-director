@@ -1,0 +1,75 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.production.template
+*.pem
+*.key
+*.p8
+*.p12
+*.crt
+*.cer
+*.jks
+*.keystore
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.ppk
+
+# Local credentials and cloud provider state
+.aws/
+.azure/
+.gcloud/
+.kube/
+.docker/config.json
+service-account*.json
+credentials*.json
+token*.json
+secrets*.json
+
+# Python runtime
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.python-version
+
+# Node runtime
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build and cache artifacts
+dist/
+build/
+.cache/
+.turbo/
+.next/
+.vite/
+coverage/
+
+# CineJelly generated media and transient production artifacts
+assets/reference_inputs/*
+assets/output_deliverables/*
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.mp3
+*.wav
+*.flac
+*.aac
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
