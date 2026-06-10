@@ -12,6 +12,7 @@ import type { AssembledDeliverable } from "./assembly.js";
 import type { ProductionGraphSnapshot } from "./graph.js";
 import type { CaptionCue, CaptionOptions } from "./caption.js";
 import type { AudioMixOptions, AudioMixTrack } from "./audio.js";
+import type { FrameSamplingOptions } from "./media.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -24,6 +25,7 @@ export interface CineJellyProjectRequest {
   readonly captionOptions?: CaptionOptions;
   readonly audioTracks?: readonly AudioMixTrack[];
   readonly audioMixOptions?: AudioMixOptions;
+  readonly frameSamplingOptions?: FrameSamplingOptions;
 }
 
 export interface IntakeResult {

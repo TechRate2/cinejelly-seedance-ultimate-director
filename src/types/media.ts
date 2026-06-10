@@ -35,6 +35,18 @@ export interface DeliveryInspectionReport {
   readonly findings: readonly string[];
 }
 
+export interface FrameSamplingOptions {
+  readonly enabled: boolean;
+  readonly outputDirectory: string;
+  readonly intervalSeconds: number;
+  readonly maxFrames: number;
+}
+
+export interface FrameSample {
+  readonly path: string;
+  readonly index: number;
+}
+
 export interface PostproductionSettings {
   readonly enabled: boolean;
   readonly videoCodec: "libx264";

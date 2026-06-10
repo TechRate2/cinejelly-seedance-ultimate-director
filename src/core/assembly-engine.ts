@@ -132,6 +132,9 @@ export class AssemblyEngine {
       : undefined;
     const outputPath = audioMix?.outputPath ?? videoAfterCaptions;
     const inspection = this.mediaInspector.inspectDelivery(await this.mediaInspector.probe(outputPath, signal));
+    const frameSamples = input.frameSamplingOptions
+      ? await this.mediaInspector.sampleFrames(outputPath, input.frameSamplingOptions, signal)
+      : undefined;
 
     return {
       projectId: input.projectId,
@@ -141,7 +144,8 @@ export class AssemblyEngine {
       ...(postproduction ? { postproduction } : {}),
       ...(captions ? { captions } : {}),
       ...(audioMix ? { audioMix } : {}),
-      inspection
+      inspection,
+      ...(frameSamples && frameSamples.length > 0 ? { frameSamples } : {})
     };
   }
 

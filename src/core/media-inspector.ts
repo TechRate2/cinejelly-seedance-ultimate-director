@@ -3,12 +3,17 @@
  * It verifies output structure without claiming semantic visual quality.
  */
 
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
 import type {
   AudioInspectionReport,
   DeliveryInspectionReport,
+  FrameSample,
+  FrameSamplingOptions,
   MediaMetadata,
   MediaStreamInfo
 } from "../types/media.js";
+import { ensureDirectory } from "../utils/files.js";
 import { runProcess } from "../utils/process.js";
 
 type JsonObject = Record<string, unknown>;
@@ -80,6 +85,41 @@ export class MediaInspector {
       status: findings.some((finding) => finding.startsWith("No video") || finding.includes("zero")) ? "fail" : findings.length > 0 ? "warn" : "pass",
       findings
     };
+  }
+
+  public async sampleFrames(path: string, options: FrameSamplingOptions, signal?: AbortSignal): Promise<readonly FrameSample[]> {
+    if (!options.enabled) {
+      return [];
+    }
+    if (options.intervalSeconds <= 0 || options.maxFrames <= 0) {
+      throw new Error("Frame sampling intervalSeconds and maxFrames must be positive.");
+    }
+    await ensureDirectory(options.outputDirectory);
+    const prefix = `frame_${Date.now()}`;
+    const pattern = join(options.outputDirectory, `${prefix}_%03d.jpg`);
+    await runProcess(
+      "ffmpeg",
+      [
+        "-y",
+        "-i",
+        path,
+        "-vf",
+        `fps=1/${options.intervalSeconds}`,
+        "-frames:v",
+        String(options.maxFrames),
+        pattern
+      ],
+      signal
+    );
+
+    const files = await readdir(options.outputDirectory);
+    return files
+      .filter((file) => file.startsWith(prefix) && file.endsWith(".jpg"))
+      .sort()
+      .map((file, index) => ({
+        path: join(options.outputDirectory, file),
+        index
+      }));
   }
 
   private mapStream(stream: unknown, fallbackIndex: number): MediaStreamInfo {

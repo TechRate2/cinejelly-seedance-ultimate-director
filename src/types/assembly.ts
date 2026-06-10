@@ -3,7 +3,13 @@
  * The engine uses local media files or provider output URLs and produces a customer-facing video file.
  */
 
-import type { DeliveryInspectionReport, PostproductionResult, PostproductionSettings } from "./media.js";
+import type {
+  DeliveryInspectionReport,
+  FrameSample,
+  FrameSamplingOptions,
+  PostproductionResult,
+  PostproductionSettings
+} from "./media.js";
 import type { CaptionArtifact, CaptionCue, CaptionOptions } from "./caption.js";
 import type { AudioMixArtifact, AudioMixOptions, AudioMixTrack } from "./audio.js";
 
@@ -23,6 +29,7 @@ export interface AssemblyInput {
   readonly captionOptions?: CaptionOptions;
   readonly audioTracks?: readonly AudioMixTrack[];
   readonly audioMixOptions?: AudioMixOptions;
+  readonly frameSamplingOptions?: FrameSamplingOptions;
 }
 
 export interface AssembledDeliverable {
@@ -34,4 +41,5 @@ export interface AssembledDeliverable {
   readonly captions?: CaptionArtifact;
   readonly audioMix?: AudioMixArtifact;
   readonly inspection: DeliveryInspectionReport;
+  readonly frameSamples?: readonly FrameSample[];
 }
