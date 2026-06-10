@@ -16,6 +16,7 @@ export * from "./core/assembly-engine.js";
 export * from "./core/audio-mix-engine.js";
 export * from "./core/caption-engine.js";
 export * from "./core/consistency-guardian.js";
+export * from "./core/continuity-ledger-builder.js";
 export * from "./core/media-inspector.js";
 export * from "./core/postproduction-engine.js";
 export * from "./core/production-graph.js";

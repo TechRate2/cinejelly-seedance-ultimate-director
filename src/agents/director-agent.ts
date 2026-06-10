@@ -6,6 +6,7 @@
 import { resolveSeedanceModelId } from "../config/seedance-settings.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
+import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
@@ -20,6 +21,7 @@ export class DirectorAgent {
   private readonly intakeDirector: IntakeDirector;
   private readonly storyArchitect: StoryArchitect;
   private readonly shotPlanner: ShotPlanner;
+  private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly promptCompiler: SeedancePromptCompiler;
   private readonly consistencyGuardian: ConsistencyGuardian;
@@ -34,6 +36,7 @@ export class DirectorAgent {
     readonly atlasSettings: AtlasCloudRuntimeSettings;
     readonly intakeDirector?: IntakeDirector;
     readonly shotPlanner?: ShotPlanner;
+    readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
@@ -43,6 +46,7 @@ export class DirectorAgent {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
     this.storyArchitect = input.storyArchitect;
     this.shotPlanner = input.shotPlanner ?? new ShotPlanner();
+    this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
@@ -55,6 +59,10 @@ export class DirectorAgent {
   public async run(request: CineJellyProjectRequest, signal?: AbortSignal): Promise<DirectorRunResult> {
     const intake = this.intakeDirector.intake(request);
     const storyPlan = await this.storyArchitect.plan(intake, signal);
+    const continuityLedger = this.continuityLedgerBuilder.build({
+      intake,
+      storyPlan
+    });
     const shots = this.shotPlanner.plan({
       projectId: intake.projectId,
       scenes: storyPlan.scenes,
@@ -87,11 +95,7 @@ export class DirectorAgent {
         shot,
         prompt: compiledPrompt.prompt,
         negativePrompt: compiledPrompt.negativePrompt,
-        ledger: {
-          characters: [],
-          styles: [],
-          approvedShotIds: []
-        }
+        ledger: continuityLedger
       });
     });
     const blockingPreflightReports = preflightReports.filter(
