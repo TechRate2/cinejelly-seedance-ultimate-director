@@ -6,6 +6,7 @@
 import { resolveSeedanceModelId } from "../config/seedance-settings.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
+import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import type { AtlasCloudRuntimeSettings } from "../types/settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult, RenderedShot } from "../types/agent.js";
@@ -18,6 +19,7 @@ export class DirectorAgent {
   private readonly intakeDirector: IntakeDirector;
   private readonly storyArchitect: StoryArchitect;
   private readonly shotPlanner: ShotPlanner;
+  private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly promptCompiler: SeedancePromptCompiler;
   private readonly consistencyGuardian: ConsistencyGuardian;
   private readonly renderProducer: RenderProducer;
@@ -30,6 +32,7 @@ export class DirectorAgent {
     readonly atlasSettings: AtlasCloudRuntimeSettings;
     readonly intakeDirector?: IntakeDirector;
     readonly shotPlanner?: ShotPlanner;
+    readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
     readonly assemblyEngine?: AssemblyEngine;
@@ -37,6 +40,7 @@ export class DirectorAgent {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
     this.storyArchitect = input.storyArchitect;
     this.shotPlanner = input.shotPlanner ?? new ShotPlanner();
+    this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
     this.renderProducer = input.renderProducer;
@@ -53,6 +57,11 @@ export class DirectorAgent {
       settings: intake.settings
     });
     const modelId = resolveSeedanceModelId(intake.settings, this.atlasSettings);
+    const productionGraph = this.productionGraphBuilder.build({
+      intake,
+      storyPlan,
+      shots
+    });
     const compiledPrompts = shots.map((shot) =>
       this.promptCompiler.compile({
         shot,
@@ -116,6 +125,7 @@ export class DirectorAgent {
     return {
       projectId: intake.projectId,
       storyPlan,
+      productionGraph,
       compiledPrompts,
       renderedShots,
       ...(deliverable ? { deliverable } : {})

@@ -16,6 +16,7 @@ export * from "./core/consistency-guardian.js";
 export * from "./core/media-inspector.js";
 export * from "./core/postproduction-engine.js";
 export * from "./core/production-graph.js";
+export * from "./core/production-graph-builder.js";
 export * from "./core/shot-planner.js";
 export * from "./providers/atlascloud/atlas-cloud-provider.js";
 export * from "./providers/contracts.js";

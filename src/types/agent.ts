@@ -9,6 +9,7 @@ import type { GuardianReport } from "./guardian.js";
 import type { Prediction } from "./provider.js";
 import type { ScenePlan } from "../core/shot-planner.js";
 import type { AssembledDeliverable } from "./assembly.js";
+import type { ProductionGraphSnapshot } from "./graph.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -42,6 +43,7 @@ export interface RenderedShot {
 export interface DirectorRunResult {
   readonly projectId: string;
   readonly storyPlan: StoryPlan;
+  readonly productionGraph: ProductionGraphSnapshot;
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];
   readonly deliverable?: AssembledDeliverable;
