@@ -3,7 +3,7 @@
  * It exposes a small JSON API without adding framework dependencies.
  */
 
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDirectorRuntime } from "../application/director-factory.js";
@@ -14,6 +14,7 @@ import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { ApiRateLimiter, readRateLimitDisabled } from "./api-rate-limit.js";
+import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
 import { RenderJobManager } from "./render-job-manager.js";
 import { RenderRequestAdmission, RenderRequestAdmissionError } from "./render-request-admission.js";
 import {
@@ -55,9 +56,12 @@ export function startServer(port = readPort(process.env.PORT)): void {
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
     historyLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100)
   });
+  const shutdownCoordinator = new ApiShutdownCoordinator();
 
   const server = createServer(async (request, response) => {
     const requestContext = createApiRequestContext(request);
+    const requestLifecycle = createHttpRequestLifecycle(request, response);
+    const unregisterLifecycle = shutdownCoordinator.register(requestLifecycle);
     attachRequestContextHeaders(response, requestContext);
     try {
       const requestUrl = new URL(request.url ?? "/", "http://localhost");
@@ -79,7 +83,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/preflight") {
-        const report = await preflight.run();
+        const report = await preflight.run(requestLifecycle.signal);
         sendJson(response, report.status === "fail" ? 503 : 200, report, requestContext);
         return;
       }
@@ -121,7 +125,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
         let costLedger: readonly CostLedgerEntry[] = [];
         try {
           const runtime = createDirectorRuntime();
-          const result = await runtime.director.run(normalizedRequest);
+          const result = await runtime.director.run(normalizedRequest, requestLifecycle.signal);
           costLedger = runtime.ledger.list();
           const artifacts = await artifactStore.writeRunArtifacts({
             result,
@@ -154,12 +158,17 @@ export function startServer(port = readPort(process.env.PORT)): void {
       sendJson(response, errorStatusCode(error), {
         error: redactUnknown(error instanceof Error ? error.message : String(error))
       }, requestContext);
+    } finally {
+      requestLifecycle.complete();
+      requestLifecycle.dispose();
+      unregisterLifecycle();
     }
   });
 
   server.listen(port, () => {
     console.log(`CineJelly API listening on port ${port}`);
   });
+  registerShutdownHandlers(server, jobManager, shutdownCoordinator);
 }
 
 function normalizeRenderRequest(body: RenderRequestBody, requestContext: ApiRequestContext): CineJellyProjectRequest {
@@ -230,6 +239,9 @@ function sendJson(
   payload: unknown,
   requestContext: ApiRequestContext
 ): void {
+  if (response.destroyed) {
+    return;
+  }
   response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(redactUnknown(withRequestContext(payload, requestContext))));
 }
@@ -271,6 +283,35 @@ function withRequestContext(payload: unknown, requestContext: ApiRequestContext)
     requestId: requestContext.requestId,
     data: payload
   };
+}
+
+function registerShutdownHandlers(
+  server: Server,
+  jobManager: RenderJobManager,
+  shutdownCoordinator: ApiShutdownCoordinator
+): void {
+  let shuttingDown = false;
+  const shutdown = (signal: NodeJS.Signals): void => {
+    if (shuttingDown) {
+      return;
+    }
+    shuttingDown = true;
+    const reason = `CineJelly API received ${signal}; canceling active render work for deployment shutdown.`;
+    const abortedRequestCount = shutdownCoordinator.abortActiveRequests(reason);
+    const canceledJobs = jobManager.cancelAll(reason);
+    console.log(
+      `CineJelly API shutting down after ${signal}; aborted ${abortedRequestCount} active request(s), canceled ${canceledJobs.length} render job(s).`
+    );
+    server.close((error) => {
+      if (error) {
+        console.error("CineJelly API shutdown failed.", error);
+        process.exitCode = 1;
+      }
+    });
+  };
+
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 }
 
 if (process.argv[1] && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1])) {

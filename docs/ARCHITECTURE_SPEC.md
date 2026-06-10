@@ -284,6 +284,7 @@ API execution modes:
 - `/v1/render-jobs` submits the same normalized request into an in-process queue and returns a pollable job ID for long-form production.
 - Job status includes queued, running, succeeded, failed, or canceled, plus redacted result, cost ledger, and artifact bundle when available.
 - `/v1/render-jobs/{jobId}` can be canceled with `DELETE`; cancellation propagates through `AbortSignal` to provider calls, polling, assembly, and postproduction where supported.
+- Client disconnects and `SIGINT`/`SIGTERM` shutdowns propagate through request lifecycle `AbortSignal` objects so synchronous render orchestration and active async jobs stop as early as the selected provider path allows after the caller or deployment lifecycle has ended.
 - Queue concurrency and retained history are process-level settings; multi-process deployments should place a durable queue in front of the same Director Agent contract.
 
 Failure artifact policy:

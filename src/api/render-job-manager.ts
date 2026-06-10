@@ -100,15 +100,33 @@ export class RenderJobManager {
   }
 
   public cancel(jobId: string): RenderJobSummary | undefined {
+    return this.cancelWithReason(jobId, "Render job was canceled by API request.");
+  }
+
+  public cancelAll(reason: string): readonly RenderJobSummary[] {
+    const canceled: RenderJobSummary[] = [];
+    for (const record of this.jobs.values()) {
+      if (this.isTerminal(record.status)) {
+        continue;
+      }
+      const summary = this.cancelWithReason(record.jobId, reason);
+      if (summary) {
+        canceled.push(summary);
+      }
+    }
+    return canceled;
+  }
+
+  private cancelWithReason(jobId: string, reason: string): RenderJobSummary | undefined {
     const record = this.jobs.get(jobId);
     if (!record) {
       return undefined;
     }
-    if (record.status === "succeeded" || record.status === "failed" || record.status === "canceled") {
+    if (this.isTerminal(record.status)) {
       return this.toSummary(record);
     }
 
-    record.abortController.abort(new Error("Render job was canceled by API request."));
+    record.abortController.abort(new Error(reason));
     const completedAt = new Date();
     if (record.status === "queued") {
       const queueIndex = this.queue.indexOf(jobId);
@@ -130,6 +148,10 @@ export class RenderJobManager {
     }
 
     return this.get(jobId);
+  }
+
+  private isTerminal(status: RenderJobStatus): boolean {
+    return status === "succeeded" || status === "failed" || status === "canceled";
   }
 
   private pumpQueue(): void {
