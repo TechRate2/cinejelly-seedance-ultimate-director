@@ -7,6 +7,7 @@ import { resolveSeedanceModelId } from "../config/seedance-settings.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
+import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import type { AtlasCloudRuntimeSettings } from "../types/settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult, RenderedShot } from "../types/agent.js";
@@ -24,6 +25,7 @@ export class DirectorAgent {
   private readonly consistencyGuardian: ConsistencyGuardian;
   private readonly renderProducer: RenderProducer;
   private readonly assemblyEngine: AssemblyEngine;
+  private readonly semanticVisualInspector: SemanticVisualInspector | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
 
   public constructor(input: {
@@ -36,6 +38,7 @@ export class DirectorAgent {
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
     readonly assemblyEngine?: AssemblyEngine;
+    readonly semanticVisualInspector?: SemanticVisualInspector;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
     this.storyArchitect = input.storyArchitect;
@@ -45,6 +48,7 @@ export class DirectorAgent {
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
     this.renderProducer = input.renderProducer;
     this.assemblyEngine = input.assemblyEngine ?? new AssemblyEngine();
+    this.semanticVisualInspector = input.semanticVisualInspector;
     this.atlasSettings = input.atlasSettings;
   }
 
@@ -127,6 +131,14 @@ export class DirectorAgent {
             signal
           )
         : undefined;
+    const semanticVisualInspection =
+      deliverable?.frameSamples && request.semanticVisualInspectionOptions?.enabled
+        ? await this.requireSemanticVisualInspector().inspect(
+            deliverable.frameSamples,
+            request.semanticVisualInspectionOptions,
+            signal
+          )
+        : undefined;
 
     return {
       projectId: intake.projectId,
@@ -134,7 +146,15 @@ export class DirectorAgent {
       productionGraph,
       compiledPrompts,
       renderedShots,
-      ...(deliverable ? { deliverable } : {})
+      ...(deliverable ? { deliverable } : {}),
+      ...(semanticVisualInspection ? { semanticVisualInspection } : {})
     };
+  }
+
+  private requireSemanticVisualInspector(): SemanticVisualInspector {
+    if (!this.semanticVisualInspector) {
+      throw new Error("Semantic visual inspection was requested but no SemanticVisualInspector is configured.");
+    }
+    return this.semanticVisualInspector;
   }
 }

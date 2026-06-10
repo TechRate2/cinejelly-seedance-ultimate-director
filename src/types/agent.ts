@@ -14,6 +14,7 @@ import type { CaptionCue, CaptionOptions } from "./caption.js";
 import type { AudioMixOptions, AudioMixTrack } from "./audio.js";
 import type { FrameSamplingOptions } from "./media.js";
 import type { TransitionSettings } from "./transition.js";
+import type { SemanticVisualInspectionOptions, SemanticVisualInspectionReport } from "./visual-inspection.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -28,6 +29,7 @@ export interface CineJellyProjectRequest {
   readonly audioMixOptions?: AudioMixOptions;
   readonly frameSamplingOptions?: FrameSamplingOptions;
   readonly transitionSettings?: TransitionSettings;
+  readonly semanticVisualInspectionOptions?: SemanticVisualInspectionOptions;
 }
 
 export interface IntakeResult {
@@ -57,4 +59,5 @@ export interface DirectorRunResult {
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];
   readonly deliverable?: AssembledDeliverable;
+  readonly semanticVisualInspection?: SemanticVisualInspectionReport;
 }

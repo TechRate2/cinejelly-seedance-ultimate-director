@@ -90,9 +90,21 @@ export interface VideoGenerationRequest {
   readonly metadata?: ProviderMetadata;
 }
 
+export type ChatContentPart =
+  | {
+      readonly type: "text";
+      readonly text: string;
+    }
+  | {
+      readonly type: "image_url";
+      readonly image_url: {
+        readonly url: string;
+      };
+    };
+
 export interface ChatMessage {
   readonly role: "system" | "user" | "assistant";
-  readonly content: string;
+  readonly content: string | readonly ChatContentPart[];
 }
 
 export interface ChatRequest {
