@@ -5,18 +5,29 @@
 
 import { access, copyFile } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
-import { spawn } from "node:child_process";
 import type { AssembledDeliverable, AssemblyClip, AssemblyInput } from "../types/assembly.js";
+import { DEFAULT_POSTPRODUCTION_SETTINGS, PostproductionEngine } from "./postproduction-engine.js";
+import { MediaInspector } from "./media-inspector.js";
 import { ensureDirectory, writeFileEnsuringDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
+import { runProcess } from "../utils/process.js";
 
 export class AssemblyEngine {
+  private readonly postproductionEngine: PostproductionEngine;
+  private readonly mediaInspector: MediaInspector;
+
+  public constructor(input: { readonly postproductionEngine?: PostproductionEngine; readonly mediaInspector?: MediaInspector } = {}) {
+    this.postproductionEngine = input.postproductionEngine ?? new PostproductionEngine();
+    this.mediaInspector = input.mediaInspector ?? new MediaInspector();
+  }
+
   public async assemble(input: AssemblyInput, signal?: AbortSignal): Promise<AssembledDeliverable> {
     if (input.clips.length === 0) {
       throw new Error("Assembly requires at least one rendered clip.");
     }
 
     await this.assertFfmpegAvailable(signal);
+    await this.assertFfprobeAvailable(signal);
     await ensureDirectory(input.workDirectory);
     await ensureDirectory(dirname(resolve(input.outputPath)));
 
@@ -25,9 +36,14 @@ export class AssemblyEngine {
       orderedClips.map((clip) => this.materializeClip(input.projectId, input.workDirectory, clip, signal))
     );
     const concatListPath = join(input.workDirectory, `${input.projectId}_concat.txt`);
+    const postproductionSettings = input.postproductionSettings ?? DEFAULT_POSTPRODUCTION_SETTINGS;
+    const concatOutputPath = postproductionSettings.enabled
+      ? join(input.workDirectory, `${input.projectId}_assembled_raw.mp4`)
+      : input.outputPath;
     await writeFileEnsuringDirectory(concatListPath, this.toConcatList(localClipPaths));
 
-    await this.runFfmpeg(
+    await runProcess(
+      "ffmpeg",
       [
         "-y",
         "-f",
@@ -38,16 +54,31 @@ export class AssemblyEngine {
         concatListPath,
         "-c",
         "copy",
-        input.outputPath
+        concatOutputPath
       ],
       signal
     );
 
+    const postproduction = postproductionSettings.enabled
+      ? await this.postproductionEngine.polish(
+          {
+            inputPath: concatOutputPath,
+            outputPath: input.outputPath,
+            settings: postproductionSettings
+          },
+          signal
+        )
+      : undefined;
+    const outputPath = postproduction?.outputPath ?? concatOutputPath;
+    const inspection = this.mediaInspector.inspectDelivery(await this.mediaInspector.probe(outputPath, signal));
+
     return {
       projectId: input.projectId,
-      outputPath: input.outputPath,
+      outputPath,
       clipCount: orderedClips.length,
-      assembledAt: new Date()
+      assembledAt: new Date(),
+      ...(postproduction ? { postproduction } : {}),
+      inspection
     };
   }
 
@@ -81,29 +112,11 @@ export class AssemblyEngine {
   }
 
   private async assertFfmpegAvailable(signal?: AbortSignal): Promise<void> {
-    await this.runFfmpeg(["-version"], signal);
+    await runProcess("ffmpeg", ["-version"], signal);
   }
 
-  private runFfmpeg(args: readonly string[], signal?: AbortSignal): Promise<void> {
-    return new Promise((resolvePromise, reject) => {
-      const child = spawn("ffmpeg", [...args], {
-        stdio: ["ignore", "ignore", "pipe"],
-        windowsHide: true,
-        signal
-      });
-      let stderr = "";
-      child.stderr.on("data", (chunk: Buffer) => {
-        stderr += chunk.toString("utf8");
-      });
-      child.on("error", reject);
-      child.on("close", (code) => {
-        if (code === 0) {
-          resolvePromise();
-          return;
-        }
-        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(0, 2000)}`));
-      });
-    });
+  private async assertFfprobeAvailable(signal?: AbortSignal): Promise<void> {
+    await runProcess("ffprobe", ["-version"], signal);
   }
 
   private isRemoteUrl(value: string): boolean {

@@ -3,6 +3,8 @@
  * The engine uses local media files or provider output URLs and produces a customer-facing video file.
  */
 
+import type { DeliveryInspectionReport, PostproductionResult, PostproductionSettings } from "./media.js";
+
 export interface AssemblyClip {
   readonly clipId: string;
   readonly sourceUrlOrPath: string;
@@ -14,6 +16,7 @@ export interface AssemblyInput {
   readonly clips: readonly AssemblyClip[];
   readonly outputPath: string;
   readonly workDirectory: string;
+  readonly postproductionSettings?: PostproductionSettings;
 }
 
 export interface AssembledDeliverable {
@@ -21,4 +24,6 @@ export interface AssembledDeliverable {
   readonly outputPath: string;
   readonly clipCount: number;
   readonly assembledAt: Date;
+  readonly postproduction?: PostproductionResult;
+  readonly inspection: DeliveryInspectionReport;
 }
