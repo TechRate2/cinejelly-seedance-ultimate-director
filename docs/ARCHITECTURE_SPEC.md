@@ -81,22 +81,17 @@ flowchart LR
 
 ## Production Directory Structure
 
-The initial production structure is:
+The production implementation structure is:
 
-- `src/cinejelly/agents`: agent implementations and orchestration adapters.
-- `src/cinejelly/api`: production API surface.
-- `src/cinejelly/application`: use cases and workflow services.
-- `src/cinejelly/config`: runtime configuration loading.
-- `src/cinejelly/domain`: pure business objects.
-- `src/cinejelly/domain/production_graph`: graph entities, state transitions, and contracts.
-- `src/cinejelly/domain/continuity`: identity, environment, motion, and continuity ledgers.
-- `src/cinejelly/providers/contracts`: provider-neutral interfaces.
-- `src/cinejelly/providers/atlascloud`: Atlas Cloud implementation.
-- `src/cinejelly/rendering`: render job submission, polling, and artifact registration.
-- `src/cinejelly/postproduction`: edit, stitch, transition, audio, caption, polish, and export.
-- `src/cinejelly/storage`: asset, clip, graph, and deliverable persistence.
-- `src/cinejelly/observability`: structured logs, audit traces, cost ledger, and QA telemetry.
-- `src/cinejelly/workers`: async job workers.
+- `src/agents`: Director, Intake, Reference Librarian, Shot Planner, Render Producer, Editor, and orchestration agents.
+- `src/core`: Production Graph, continuity ledgers, Consistency Guardian, assembly contracts, cost ledger, and repair decisions.
+- `src/prompt_compiler`: Seedance 2.0 prompt compiler, reference binding, negative constraints, and prompt repair hints.
+- `src/providers`: provider-neutral interfaces plus Atlas Cloud default implementation for LLM, Seedance 2.0, async predictions, and Asset Library.
+- `src/config`: typed runtime settings, flexible Seedance settings, provider model configuration, and secret-safe environment loading.
+- `src/utils`: production utility functions such as redaction, retry policy, IDs, timing, and structured error helpers.
+- `src/types`: shared type definitions for settings, graph nodes, provider requests, reports, and deliverables.
+- `data`: production-approved local knowledge artifacts such as prompt-pattern snapshots or bibles when required.
+- `external`: legally reviewed Git subtree snapshots of upstream references only when needed; no live runtime dependency on upstream repos.
 - `schemas`: production JSON schemas for graph, prompts, settings, provider requests, and review reports.
 - `config`: production configuration templates without secrets.
 - `ops`: deployment and runtime operations.
@@ -310,4 +305,3 @@ The first implementation should not include:
 - Hardcoded niche campaign templates.
 - Unsupported model-provider claims.
 - Unattributed prompt examples copied from public corpora.
-

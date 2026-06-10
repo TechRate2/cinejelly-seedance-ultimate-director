@@ -84,24 +84,24 @@ The repo currently contains architecture and design documentation plus productio
 
 Current production folders:
 
-- `src/cinejelly/agents`
-- `src/cinejelly/api`
-- `src/cinejelly/application`
-- `src/cinejelly/config`
-- `src/cinejelly/domain`
-- `src/cinejelly/domain/production_graph`
-- `src/cinejelly/domain/continuity`
-- `src/cinejelly/providers`
-- `src/cinejelly/providers/atlascloud`
-- `src/cinejelly/providers/contracts`
-- `src/cinejelly/rendering`
-- `src/cinejelly/postproduction`
-- `src/cinejelly/storage`
-- `src/cinejelly/observability`
-- `src/cinejelly/workers`
+- `src/agents`
+- `src/core`
+- `src/prompt_compiler`
+- `src/providers`
+- `src/config`
+- `src/utils`
+- `src/types`
+- `data`
+- `external`
 - `schemas`
 - `config`
 - `ops`
+
+Implementation status:
+
+- `docs/` contains the architecture and design source of truth.
+- `src/` has no production implementation code yet.
+- The next code phase starts with the Model Provider Abstraction Layer and Atlas Cloud provider implementation.
 
 ## How To Interpret This Context
 
