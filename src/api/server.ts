@@ -12,6 +12,7 @@ import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
+import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { RenderJobManager } from "./render-job-manager.js";
 
 const DEFAULT_PORT = 8787;
@@ -26,6 +27,10 @@ interface RenderRequestBody extends CineJellyProjectRequest {
 export function startServer(port = readPort(process.env.PORT)): void {
   const preflight = new RuntimePreflight();
   const artifactStore = new ProjectArtifactStore();
+  const apiAuthGuard = new ApiAuthGuard({
+    disabled: readApiAuthDisabled(process.env.CINEJELLY_DISABLE_API_AUTH),
+    ...(process.env.CINEJELLY_API_AUTH_TOKEN ? { sharedKey: process.env.CINEJELLY_API_AUTH_TOKEN } : {})
+  });
   const jobManager = new RenderJobManager({
     artifactStore,
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
@@ -35,6 +40,11 @@ export function startServer(port = readPort(process.env.PORT)): void {
   const server = createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url ?? "/", "http://localhost");
+      const authDecision = apiAuthGuard.authorize(request, requestUrl.pathname);
+      if (!authDecision.allowed) {
+        sendJson(response, authDecision.statusCode ?? 401, { error: authDecision.message ?? "Unauthorized." });
+        return;
+      }
       if (request.method === "GET" && requestUrl.pathname === "/health") {
         sendJson(response, 200, { status: "ok" });
         return;

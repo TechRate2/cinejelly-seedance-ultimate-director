@@ -1,0 +1,93 @@
+/**
+ * API authentication guard for protecting endpoints that can spend provider credits or reveal run metadata.
+ * It uses a single deployment token from the environment and never logs or returns the configured token.
+ */
+
+import { timingSafeEqual } from "node:crypto";
+import type { IncomingMessage } from "node:http";
+
+export interface ApiAuthDecision {
+  readonly allowed: boolean;
+  readonly statusCode?: 401 | 503;
+  readonly message?: string;
+}
+
+export interface ApiAuthGuardSettings {
+  readonly sharedKey?: string;
+  readonly disabled?: boolean;
+}
+
+const MIN_TOKEN_LENGTH = 24;
+
+export class ApiAuthGuard {
+  private readonly expectedKey: string | undefined;
+  private readonly disabled: boolean;
+
+  public constructor(settings: ApiAuthGuardSettings = {}) {
+    this.expectedKey = settings.sharedKey?.trim();
+    this.disabled = Boolean(settings.disabled);
+  }
+
+  public authorize(request: IncomingMessage, pathname: string): ApiAuthDecision {
+    if (pathname === "/health" || this.disabled) {
+      return { allowed: true };
+    }
+    if (!pathname.startsWith("/v1/")) {
+      return { allowed: true };
+    }
+    if (!this.expectedKey) {
+      if (pathname === "/v1/preflight") {
+        return { allowed: true };
+      }
+      return {
+        allowed: false,
+        statusCode: 503,
+        message: "CINEJELLY_API_AUTH_TOKEN is required before protected API endpoints can be used."
+      };
+    }
+    if (this.expectedKey.length < MIN_TOKEN_LENGTH) {
+      return {
+        allowed: false,
+        statusCode: 503,
+        message: `CINEJELLY_API_AUTH_TOKEN must be at least ${MIN_TOKEN_LENGTH} characters.`
+      };
+    }
+    if (this.matchesKey(this.readPresentedKey(request))) {
+      return { allowed: true };
+    }
+
+    return {
+      allowed: false,
+      statusCode: 401,
+      message: "Unauthorized."
+    };
+  }
+
+  private readPresentedKey(request: IncomingMessage): string | undefined {
+    const authorization = request.headers.authorization;
+    if (authorization?.startsWith("Bearer ")) {
+      return authorization.slice("Bearer ".length).trim();
+    }
+    const apiKeyHeader = request.headers["x-cinejelly-api-key"];
+    if (typeof apiKeyHeader === "string") {
+      return apiKeyHeader.trim();
+    }
+    return undefined;
+  }
+
+  private matchesKey(presentedKey: string | undefined): boolean {
+    if (!this.expectedKey || !presentedKey) {
+      return false;
+    }
+    const expected = Buffer.from(this.expectedKey);
+    const actual = Buffer.from(presentedKey);
+    if (expected.length !== actual.length) {
+      return false;
+    }
+    return timingSafeEqual(expected, actual);
+  }
+}
+
+export function readApiAuthDisabled(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === "true";
+}

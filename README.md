@@ -107,6 +107,7 @@ Required environment variables:
 - `ATLASCLOUD_LLM_MODEL`
 - `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`
 - `ATLASCLOUD_SEEDANCE_FAST_MODEL`
+- `CINEJELLY_API_AUTH_TOKEN`
 
 Optional environment variables:
 
@@ -119,6 +120,7 @@ Optional environment variables:
 - `CINEJELLY_RENDER_CONCURRENCY`
 - `CINEJELLY_API_JOB_CONCURRENCY`
 - `CINEJELLY_API_JOB_HISTORY_LIMIT`
+- `CINEJELLY_DISABLE_API_AUTH`
 - `CINEJELLY_OUTPUT_DIR`
 - `CINEJELLY_RENDER_COST_USD_PER_SECOND`
 - `CINEJELLY_ASSET_REGISTRATION_COST_USD`
@@ -147,13 +149,13 @@ Production API:
 - `GET /v1/render-jobs/{jobId}`
 - `DELETE /v1/render-jobs/{jobId}`
 
-`GET /v1/preflight` verifies required Atlas configuration and local FFmpeg/FFprobe availability without exposing secret values. It is available before the render runtime is initialized, so a fresh deployment can diagnose missing environment variables safely.
+`GET /v1/preflight` verifies required Atlas configuration, API authentication configuration, and local FFmpeg/FFprobe availability without exposing secret values. It is available before the render runtime is initialized, so a fresh deployment can diagnose missing environment variables safely. `/health` is public; protected `/v1` endpoints require `Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>` or `X-CineJelly-Api-Key: <CINEJELLY_API_AUTH_TOKEN>`. If `CINEJELLY_API_AUTH_TOKEN` is missing, only `/v1/preflight` remains available and render/job endpoints return 503. `CINEJELLY_DISABLE_API_AUTH=true` is reserved for private trusted networks.
 
 `POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, optional `semanticVisualInspectionOptions`, and optional `outputPath`/`workDirectory`/`artifactDirectory`. Reference URIs must be absolute `http(s)` URLs or pre-registered `asset://` references in the current Atlas path. Output, work, and artifact paths are confined to `CINEJELLY_OUTPUT_DIR` or `assets/output_deliverables` by default; relative paths are resolved inside that root and absolute paths outside it are rejected.
 
 For long-running 2 to 8 minute production jobs, `POST /v1/render-jobs` accepts the same body as `/v1/render`, returns `202` plus a `statusUrl`, and runs the render in an in-process queue. `GET /v1/render-jobs` lists retained jobs; `GET /v1/render-jobs/{jobId}` returns queued/running/succeeded/failed/canceled status plus redacted result, cost ledger, and artifacts when available. `DELETE /v1/render-jobs/{jobId}` cancels a queued or running job through `AbortController`. `CINEJELLY_API_JOB_CONCURRENCY` controls how many render jobs run at once per API process, and `CINEJELLY_API_JOB_HISTORY_LIMIT` controls retained in-memory job history.
 
-The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization, Reference Librarian validation for role/kind compatibility and secret-safe reference URIs, provider-neutral capability validation before Asset Library or render spend, provider telemetry with prediction IDs and provider-returned cost metadata when available, Atlas Asset Library registration/polling for video and audio references before Seedance generation, quality-mode candidate rendering, high-risk test-take gating before full render, conservative dependency-aware render scheduling, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with test-take, candidate, and repair multipliers, prompt compiler, Production Graph planning plus reference asset lineage and run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, selected-resolution postproduction scaling, FFprobe media inspection, deterministic delivery gate validation, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, output/artifact path confinement, redacted API responses and run artifacts, in-process render job submit/poll/cancel orchestration, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
+The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization, Reference Librarian validation for role/kind compatibility and secret-safe reference URIs, provider-neutral capability validation before Asset Library or render spend, provider telemetry with prediction IDs and provider-returned cost metadata when available, Atlas Asset Library registration/polling for video and audio references before Seedance generation, quality-mode candidate rendering, high-risk test-take gating before full render, conservative dependency-aware render scheduling, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with test-take, candidate, and repair multipliers, prompt compiler, Production Graph planning plus reference asset lineage and run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, selected-resolution postproduction scaling, FFprobe media inspection, deterministic delivery gate validation, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, output/artifact path confinement, redacted API responses and run artifacts, API auth guard for credit-spending endpoints, in-process render job submit/poll/cancel orchestration, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -204,7 +206,8 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 36. API response and artifact secret redaction hardening - implemented
 37. Async render job submit/poll API - implemented
 38. Async render job cancellation - implemented
-39. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
+39. API auth guard for protected render endpoints - implemented
+40. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
 
 ## Source Fidelity
 

@@ -19,6 +19,7 @@ export class RuntimePreflight {
       this.present("ATLASCLOUD_LLM_MODEL", this.env.ATLASCLOUD_LLM_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
+      this.apiAuthCheck(),
       this.optionalUrl("ATLASCLOUD_API_BASE_URL", this.env.ATLASCLOUD_API_BASE_URL),
       this.optionalUrl("ATLASCLOUD_ASSET_BASE_URL", this.env.ATLASCLOUD_ASSET_BASE_URL),
       this.optionalPositiveInteger("CINEJELLY_REQUEST_TIMEOUT_MS", this.env.CINEJELLY_REQUEST_TIMEOUT_MS),
@@ -49,6 +50,36 @@ export class RuntimePreflight {
     return value?.trim()
       ? { name, status: "pass", message: `${name} is configured.` }
       : { name, status: "fail", message: `${name} is missing.` };
+  }
+
+  private apiAuthCheck(): PreflightCheck {
+    if (this.env.CINEJELLY_DISABLE_API_AUTH?.trim().toLowerCase() === "true") {
+      return {
+        name: "CINEJELLY_API_AUTH_TOKEN",
+        status: "warn",
+        message: "API auth is disabled; use only behind a private trusted network."
+      };
+    }
+    const value = this.env.CINEJELLY_API_AUTH_TOKEN;
+    if (!value?.trim()) {
+      return {
+        name: "CINEJELLY_API_AUTH_TOKEN",
+        status: "fail",
+        message: "CINEJELLY_API_AUTH_TOKEN is missing."
+      };
+    }
+    if (value.trim().length < 24) {
+      return {
+        name: "CINEJELLY_API_AUTH_TOKEN",
+        status: "fail",
+        message: "CINEJELLY_API_AUTH_TOKEN must be at least 24 characters."
+      };
+    }
+    return {
+      name: "CINEJELLY_API_AUTH_TOKEN",
+      status: "pass",
+      message: "CINEJELLY_API_AUTH_TOKEN is configured."
+    };
   }
 
   private optionalUrl(name: string, value: string | undefined): PreflightCheck {
