@@ -51,6 +51,12 @@ export class ProjectArtifactStore {
       targetDurationSeconds: result.storyPlan.targetDurationSeconds,
       compiledPromptCount: result.compiledPrompts.length,
       renderedShotCount: result.renderedShots.length,
+      plannedCandidateCount: result.costEstimate.candidateCount,
+      selectedCandidateIndexes: result.renderedShots.map((shot) => ({
+        shotId: shot.compiledPrompt.shotId,
+        selectedCandidateIndex: shot.selectedCandidateIndex,
+        candidateCount: shot.candidates.length
+      })),
       costGateStatus: result.costEstimate.status,
       estimatedTotalCostUsd: result.costEstimate.estimatedTotalCostUsd,
       hasDeliverable: Boolean(result.deliverable),

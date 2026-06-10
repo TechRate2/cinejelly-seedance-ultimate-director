@@ -8,6 +8,7 @@ import type { RenderCostEstimate, CostEstimationSettings } from "../types/cost.j
 import type { CompiledPrompt } from "../types/prompt.js";
 import type { ProviderReference } from "../types/provider.js";
 import type { FlexibleSeedanceSettings } from "../types/settings.js";
+import { candidateCountForQuality } from "../config/seedance-settings.js";
 
 export class RenderCostGate {
   private readonly settings: CostEstimationSettings;
@@ -20,10 +21,13 @@ export class RenderCostGate {
     readonly compiledPrompts: readonly CompiledPrompt[];
     readonly settings: FlexibleSeedanceSettings;
   }): RenderCostEstimate {
-    const plannedRenderSeconds = input.compiledPrompts.reduce(
+    const candidateCount = candidateCountForQuality(input.settings.qualityMode);
+    const plannedSinglePassRenderSeconds = input.compiledPrompts.reduce(
       (sum, prompt) => sum + prompt.videoRequest.settings.durationSeconds,
       0
     );
+    const plannedClipCount = input.compiledPrompts.length * candidateCount;
+    const plannedRenderSeconds = plannedSinglePassRenderSeconds * candidateCount;
     const referenceRegistrationCount = this.countRegisterableReferences(input.compiledPrompts);
     const estimatedRenderCostUsd = this.multiply(plannedRenderSeconds, this.settings.renderCostUsdPerSecond);
     const estimatedAssetRegistrationCostUsd = this.multiply(referenceRegistrationCount, this.settings.assetRegistrationCostUsd);
@@ -45,7 +49,10 @@ export class RenderCostGate {
 
     return {
       status: this.status(findings),
-      plannedClipCount: input.compiledPrompts.length,
+      plannedShotCount: input.compiledPrompts.length,
+      candidateCount,
+      plannedClipCount,
+      plannedSinglePassRenderSeconds,
       plannedRenderSeconds,
       referenceRegistrationCount,
       ...(estimatedRenderCostUsd !== undefined ? { estimatedRenderCostUsd } : {}),

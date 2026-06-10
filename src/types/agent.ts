@@ -47,11 +47,20 @@ export interface StoryPlan {
   readonly scenes: readonly ScenePlan[];
 }
 
+export interface RenderCandidate {
+  readonly candidateIndex: number;
+  readonly compiledPrompt: CompiledPrompt;
+  readonly prediction: Prediction;
+  readonly renderInspection: GuardianReport;
+}
+
 export interface RenderedShot {
   readonly compiledPrompt: CompiledPrompt;
   readonly preflight: GuardianReport;
   readonly prediction: Prediction;
   readonly renderInspection: GuardianReport;
+  readonly candidates: readonly RenderCandidate[];
+  readonly selectedCandidateIndex: number;
 }
 
 export interface DirectorRunResult {

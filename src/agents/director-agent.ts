@@ -3,7 +3,7 @@
  * input -> story plan -> shot planning -> prompt compile -> preflight -> Seedance render -> render inspection.
  */
 
-import { resolveSeedanceModelId } from "../config/seedance-settings.js";
+import { candidateCountForQuality, resolveSeedanceModelId } from "../config/seedance-settings.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
@@ -13,7 +13,13 @@ import { RenderCostGate } from "../core/render-cost-gate.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import type { AtlasCloudRuntimeSettings } from "../types/settings.js";
-import type { CineJellyProjectRequest, DirectorRunResult, RenderedShot } from "../types/agent.js";
+import type { CineJellyProjectRequest, DirectorRunResult, RenderCandidate, RenderedShot } from "../types/agent.js";
+import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
+import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
+import type { Prediction } from "../types/provider.js";
+import { asProviderError } from "../utils/errors.js";
+import { createStableId } from "../utils/ids.js";
+import { redactUnknown } from "../utils/redaction.js";
 import { SeedancePromptCompiler } from "../prompt_compiler/prompt-compiler.js";
 import { IntakeDirector } from "./intake-director.js";
 import { RenderProducer } from "./render-producer.js";
@@ -118,6 +124,7 @@ export class DirectorAgent {
       throw new Error(this.describePreflightBlock(blockingPreflightReports));
     }
 
+    const candidateCount = candidateCountForQuality(intake.settings.qualityMode);
     const renderedShots: RenderedShot[] = [];
     for (const [promptIndex, compiledPrompt] of compiledPrompts.entries()) {
       const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
@@ -128,17 +135,21 @@ export class DirectorAgent {
       if (!preflight) {
         throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
       }
-      const renderResult = await this.renderProducer.render(compiledPrompt, signal);
-      compiledPrompts[promptIndex] = renderResult.compiledPrompt;
-      const renderInspection = this.consistencyGuardian.inspectRender({
+      const candidates = await this.renderCandidates({
         shot,
-        prediction: renderResult.prediction
+        compiledPrompt,
+        candidateCount,
+        signal
       });
+      const selectedCandidate = this.selectBestCandidate(candidates);
+      compiledPrompts[promptIndex] = selectedCandidate.compiledPrompt;
       renderedShots.push({
-        compiledPrompt: renderResult.compiledPrompt,
+        compiledPrompt: selectedCandidate.compiledPrompt,
         preflight,
-        prediction: renderResult.prediction,
-        renderInspection
+        prediction: selectedCandidate.prediction,
+        renderInspection: selectedCandidate.renderInspection,
+        candidates,
+        selectedCandidateIndex: selectedCandidate.candidateIndex
       });
     }
 
@@ -191,6 +202,167 @@ export class DirectorAgent {
       ...(deliverable ? { deliverable } : {}),
       ...(semanticVisualInspection ? { semanticVisualInspection } : {})
     };
+  }
+
+  private async renderCandidates(input: {
+    readonly shot: ShotContract;
+    readonly compiledPrompt: CompiledPrompt;
+    readonly candidateCount: number;
+    readonly signal: AbortSignal | undefined;
+  }): Promise<readonly RenderCandidate[]> {
+    const candidates: RenderCandidate[] = [];
+    let preparedPrompt = input.compiledPrompt;
+
+    for (let candidateIndex = 1; candidateIndex <= input.candidateCount; candidateIndex += 1) {
+      const candidate = await this.renderCandidate({
+        shot: input.shot,
+        compiledPrompt: preparedPrompt,
+        candidateIndex,
+        signal: input.signal
+      });
+      candidates.push(candidate);
+      preparedPrompt = candidate.compiledPrompt;
+    }
+
+    return candidates;
+  }
+
+  private async renderCandidate(input: {
+    readonly shot: ShotContract;
+    readonly compiledPrompt: CompiledPrompt;
+    readonly candidateIndex: number;
+    readonly signal: AbortSignal | undefined;
+  }): Promise<RenderCandidate> {
+    const submittedAt = new Date();
+
+    try {
+      const renderResult = await this.renderProducer.render(input.compiledPrompt, input.signal);
+      const renderInspection = this.consistencyGuardian.inspectRender({
+        shot: input.shot,
+        prediction: renderResult.prediction
+      });
+      return {
+        candidateIndex: input.candidateIndex,
+        compiledPrompt: renderResult.compiledPrompt,
+        prediction: renderResult.prediction,
+        renderInspection
+      };
+    } catch (error: unknown) {
+      if (input.signal?.aborted) {
+        throw error;
+      }
+      const prediction = this.failedPrediction({
+        shot: input.shot,
+        compiledPrompt: input.compiledPrompt,
+        candidateIndex: input.candidateIndex,
+        submittedAt,
+        error
+      });
+      return {
+        candidateIndex: input.candidateIndex,
+        compiledPrompt: input.compiledPrompt,
+        prediction,
+        renderInspection: this.consistencyGuardian.inspectRender({
+          shot: input.shot,
+          prediction
+        })
+      };
+    }
+  }
+
+  private failedPrediction(input: {
+    readonly shot: ShotContract;
+    readonly compiledPrompt: CompiledPrompt;
+    readonly candidateIndex: number;
+    readonly submittedAt: Date;
+    readonly error: unknown;
+  }): Prediction {
+    const providerError = asProviderError(String(input.compiledPrompt.videoRequest.provider), input.error);
+    const completedAt = new Date();
+    const rawError: Record<string, unknown> = {
+      code: providerError.code,
+      message: providerError.message,
+      retryable: providerError.retryable
+    };
+    if (providerError.statusCode !== undefined) {
+      rawError.statusCode = providerError.statusCode;
+    }
+    if (providerError.details !== undefined) {
+      rawError.details = providerError.details;
+    }
+
+    return {
+      provider: input.compiledPrompt.videoRequest.provider,
+      predictionId: createStableId(
+        "failed_prediction",
+        `${input.shot.shotId}:${input.candidateIndex}:${input.submittedAt.toISOString()}`
+      ),
+      modelId: input.compiledPrompt.videoRequest.modelId,
+      status: "failed",
+      outputUrls: [],
+      raw: redactUnknown(rawError),
+      submittedAt: input.submittedAt,
+      completedAt,
+      latencyMs: completedAt.getTime() - input.submittedAt.getTime()
+    };
+  }
+
+  private selectBestCandidate(candidates: readonly RenderCandidate[]): RenderCandidate {
+    const sortedCandidates = [...candidates].sort((left, right) => this.compareCandidates(left, right));
+    const bestCandidate = sortedCandidates[0];
+    if (!bestCandidate) {
+      throw new Error("No render candidates were produced for shot selection.");
+    }
+    return bestCandidate;
+  }
+
+  private compareCandidates(left: RenderCandidate, right: RenderCandidate): number {
+    const statusDifference = this.statusRank(left.renderInspection.status) - this.statusRank(right.renderInspection.status);
+    if (statusDifference !== 0) {
+      return statusDifference;
+    }
+
+    const severityDifference = this.severityPenalty(left.renderInspection) - this.severityPenalty(right.renderInspection);
+    if (severityDifference !== 0) {
+      return severityDifference;
+    }
+
+    const outputDifference = this.outputPenalty(left.prediction) - this.outputPenalty(right.prediction);
+    if (outputDifference !== 0) {
+      return outputDifference;
+    }
+
+    const latencyDifference = (left.prediction.latencyMs ?? Number.MAX_SAFE_INTEGER) - (right.prediction.latencyMs ?? Number.MAX_SAFE_INTEGER);
+    if (latencyDifference !== 0) {
+      return latencyDifference;
+    }
+
+    return left.candidateIndex - right.candidateIndex;
+  }
+
+  private statusRank(status: GuardianStatus): number {
+    const order: Record<GuardianStatus, number> = {
+      pass: 0,
+      warn: 1,
+      repair: 2,
+      rerender: 3,
+      block: 4
+    };
+    return order[status];
+  }
+
+  private severityPenalty(report: GuardianReport): number {
+    const penalty: Record<GuardianSeverity, number> = {
+      S3: 0,
+      S2: 1,
+      S1: 2,
+      S0: 3
+    };
+    return report.findings.reduce((worstPenalty, finding) => Math.max(worstPenalty, penalty[finding.severity]), 0);
+  }
+
+  private outputPenalty(prediction: Prediction): number {
+    return prediction.outputUrls.length > 0 ? 0 : 1;
   }
 
   private requireSemanticVisualInspector(): SemanticVisualInspector {

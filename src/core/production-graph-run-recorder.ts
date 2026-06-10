@@ -3,7 +3,7 @@
  * It enriches the planning graph with render, inspection, repair, and deliverable evidence after execution.
  */
 
-import type { RenderedShot } from "../types/agent.js";
+import type { RenderCandidate, RenderedShot } from "../types/agent.js";
 import type { AssembledDeliverable } from "../types/assembly.js";
 import type {
   GraphEdgeType,
@@ -28,27 +28,38 @@ export class ProductionGraphRunRecorder {
 
     for (const renderedShot of input.renderedShots) {
       const shotId = renderedShot.compiledPrompt.shotId;
-      const costUsd = this.costUsd(renderedShot);
-      const clipNode = this.node("clip_render", createStableId("clip_render", `${shotId}:${renderedShot.prediction.predictionId}`), {
-        provider: renderedShot.prediction.provider,
-        modelId: renderedShot.prediction.modelId,
-        predictionId: renderedShot.prediction.predictionId,
-        status: renderedShot.prediction.status,
-        outputUrls: renderedShot.prediction.outputUrls,
-        ...(costUsd !== undefined ? { costUsd } : {})
-      });
-      nodes.push(clipNode);
-      edges.push(this.edge(shotId, clipNode.id, "depends_on"));
-
       const preflightNode = this.inspectionNode(shotId, renderedShot.preflight);
       nodes.push(preflightNode);
       edges.push(this.edge(shotId, preflightNode.id, "depends_on"));
       this.maybeAddRepair(nodes, edges, preflightNode, shotId);
 
-      const renderInspectionNode = this.inspectionNode(clipNode.id, renderedShot.renderInspection);
-      nodes.push(renderInspectionNode);
-      edges.push(this.edge(clipNode.id, renderInspectionNode.id, "depends_on"));
-      this.maybeAddRepair(nodes, edges, renderInspectionNode, shotId);
+      for (const candidate of renderedShot.candidates) {
+        const selected = candidate.candidateIndex === renderedShot.selectedCandidateIndex;
+        const costUsd = this.costUsd(candidate);
+        const clipNode = this.node(
+          "clip_render",
+          createStableId("clip_render", `${shotId}:${candidate.candidateIndex}:${candidate.prediction.predictionId}`),
+          {
+            provider: candidate.prediction.provider,
+            modelId: candidate.prediction.modelId,
+            predictionId: candidate.prediction.predictionId,
+            status: candidate.prediction.status,
+            outputUrls: candidate.prediction.outputUrls,
+            candidateIndex: candidate.candidateIndex,
+            selected,
+            ...(costUsd !== undefined ? { costUsd } : {})
+          }
+        );
+        nodes.push(clipNode);
+        edges.push(this.edge(shotId, clipNode.id, "depends_on"));
+
+        const renderInspectionNode = this.inspectionNode(clipNode.id, candidate.renderInspection);
+        nodes.push(renderInspectionNode);
+        edges.push(this.edge(clipNode.id, renderInspectionNode.id, "depends_on"));
+        if (selected) {
+          this.maybeAddRepair(nodes, edges, renderInspectionNode, shotId);
+        }
+      }
     }
 
     if (input.deliverable) {
@@ -101,8 +112,8 @@ export class ProductionGraphRunRecorder {
     );
   }
 
-  private costUsd(renderedShot: RenderedShot): number | undefined {
-    return renderedShot.prediction.usage?.actualCostUsd ?? renderedShot.prediction.usage?.estimatedCostUsd;
+  private costUsd(candidate: RenderCandidate): number | undefined {
+    return candidate.prediction.usage?.actualCostUsd ?? candidate.prediction.usage?.estimatedCostUsd;
   }
 
   private resolution(deliverable: AssembledDeliverable): string {

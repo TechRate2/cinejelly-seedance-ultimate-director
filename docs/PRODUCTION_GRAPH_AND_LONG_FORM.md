@@ -304,6 +304,13 @@ Parallel rendering is blocked when:
 
 This follows ViMax's high-efficiency parallel shot generation idea while preserving graph correctness.
 
+Runtime candidate evidence:
+
+- Quality mode controls how many candidates are rendered per shot.
+- Each candidate becomes a `ClipRender` node with candidate index, provider status, output URLs, cost metadata when available, and selected/rejected state.
+- Render inspection reports are attached to each candidate clip node.
+- Repair actions are created only from the selected candidate, so rejected alternatives remain audit evidence without forcing unnecessary repair loops.
+
 ## Cost and Approval Gates
 
 Source basis:
@@ -357,4 +364,3 @@ Default policy:
 - Preserve approved clips.
 - Reuse approved frames as anchors.
 - Escalate to human only for rights, brand, or unresolved identity failures.
-

@@ -61,7 +61,7 @@ export function toVideoGenerationSettings(
   };
 }
 
-function candidateCountForQuality(qualityMode: QualityMode): number {
+export function candidateCountForQuality(qualityMode: QualityMode): number {
   switch (qualityMode) {
     case "economy":
       return 1;

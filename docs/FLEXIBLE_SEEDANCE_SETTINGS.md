@@ -77,6 +77,16 @@ Source notes:
 
 The user request explicitly requires Fast/Standard selection. The additional quality modes are an extension for commercial product control.
 
+Runtime implementation:
+
+- Economy renders 1 candidate per shot.
+- Standard renders 2 candidates per shot.
+- High renders 3 candidates per shot.
+- Ultimate renders 4 candidates per shot.
+- The Consistency Guardian scores each candidate after render, and the Director Agent selects the best candidate by status, severity, usable output presence, latency, then candidate order.
+- The Production Graph records every candidate as `clip_render` evidence while marking the selected candidate explicitly.
+- The render cost gate multiplies planned render seconds and clip count by the quality-mode candidate count before enforcing `maxCostUsd`.
+
 ### Aspect Ratio
 
 Supported user options:
@@ -290,4 +300,3 @@ Blocked:
 - Unsupported model setting.
 - Passing unregistered video/audio assets to an Atlas path that requires Asset Library.
 - Publishing with a watermark when commercial output requires watermark-free delivery.
-

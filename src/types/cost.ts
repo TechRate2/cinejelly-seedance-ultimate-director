@@ -14,7 +14,10 @@ export interface CostEstimationSettings {
 
 export interface RenderCostEstimate {
   readonly status: CostGateStatus;
+  readonly plannedShotCount: number;
+  readonly candidateCount: number;
   readonly plannedClipCount: number;
+  readonly plannedSinglePassRenderSeconds: number;
   readonly plannedRenderSeconds: number;
   readonly referenceRegistrationCount: number;
   readonly estimatedRenderCostUsd?: number;
