@@ -9,6 +9,7 @@ import type { AssembledDeliverable, AssemblyClip, AssemblyInput } from "../types
 import { DEFAULT_POSTPRODUCTION_SETTINGS, PostproductionEngine } from "./postproduction-engine.js";
 import { MediaInspector } from "./media-inspector.js";
 import { CaptionEngine } from "./caption-engine.js";
+import { AudioMixEngine, DEFAULT_AUDIO_MIX_OPTIONS } from "./audio-mix-engine.js";
 import { ensureDirectory, writeFileEnsuringDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
 import { runProcess } from "../utils/process.js";
@@ -17,17 +18,20 @@ export class AssemblyEngine {
   private readonly postproductionEngine: PostproductionEngine;
   private readonly mediaInspector: MediaInspector;
   private readonly captionEngine: CaptionEngine;
+  private readonly audioMixEngine: AudioMixEngine;
 
   public constructor(
     input: {
       readonly postproductionEngine?: PostproductionEngine;
       readonly mediaInspector?: MediaInspector;
       readonly captionEngine?: CaptionEngine;
+      readonly audioMixEngine?: AudioMixEngine;
     } = {}
   ) {
     this.postproductionEngine = input.postproductionEngine ?? new PostproductionEngine();
     this.mediaInspector = input.mediaInspector ?? new MediaInspector();
     this.captionEngine = input.captionEngine ?? new CaptionEngine();
+    this.audioMixEngine = input.audioMixEngine ?? new AudioMixEngine();
   }
 
   public async assemble(input: AssemblyInput, signal?: AbortSignal): Promise<AssembledDeliverable> {
@@ -46,8 +50,14 @@ export class AssemblyEngine {
     );
     const concatListPath = join(input.workDirectory, `${input.projectId}_concat.txt`);
     const postproductionSettings = input.postproductionSettings ?? DEFAULT_POSTPRODUCTION_SETTINGS;
+    const audioMixOptions = input.audioMixOptions ?? {
+      ...DEFAULT_AUDIO_MIX_OPTIONS,
+      enabled: Boolean(input.audioTracks && input.audioTracks.length > 0)
+    };
     const captionOptions = input.captionOptions ?? { enabled: false, burnIn: false };
-    const concatOutputPath = postproductionSettings.enabled
+    const needsCaptionBurn = Boolean(input.captionCues && captionOptions.enabled && captionOptions.burnIn);
+    const needsAudioMix = Boolean(input.audioTracks && input.audioTracks.length > 0 && audioMixOptions.enabled);
+    const concatOutputPath = postproductionSettings.enabled || needsCaptionBurn || needsAudioMix
       ? join(input.workDirectory, `${input.projectId}_assembled_raw.mp4`)
       : input.outputPath;
     await writeFileEnsuringDirectory(concatListPath, this.toConcatList(localClipPaths));
@@ -69,25 +79,32 @@ export class AssemblyEngine {
       signal
     );
 
+    const postproductionOutputPath = postproductionSettings.enabled
+      ? needsCaptionBurn || needsAudioMix
+        ? join(input.workDirectory, `${input.projectId}_polished.mp4`)
+        : input.outputPath
+      : concatOutputPath;
     const postproduction = postproductionSettings.enabled
       ? await this.postproductionEngine.polish(
           {
             inputPath: concatOutputPath,
-            outputPath: input.outputPath,
+            outputPath: postproductionOutputPath,
             settings: postproductionSettings
           },
           signal
         )
-        : undefined;
-    const postproductionOutputPath = postproduction?.outputPath ?? concatOutputPath;
-    const captionedOutputPath = input.captionCues && captionOptions.enabled && captionOptions.burnIn
-      ? join(input.workDirectory, `${input.projectId}_captioned.mp4`)
-      : postproductionOutputPath;
+      : undefined;
+    const videoAfterPostproduction = postproduction?.outputPath ?? concatOutputPath;
+    const captionedOutputPath = needsCaptionBurn
+      ? needsAudioMix
+        ? join(input.workDirectory, `${input.projectId}_captioned.mp4`)
+        : input.outputPath
+      : videoAfterPostproduction;
     const captions = input.captionCues && captionOptions.enabled
       ? await this.captionEngine.render(
           {
             projectId: input.projectId,
-            inputVideoPath: postproductionOutputPath,
+            inputVideoPath: videoAfterPostproduction,
             outputVideoPath: captionedOutputPath,
             workDirectory: input.workDirectory,
             cues: input.captionCues,
@@ -96,7 +113,24 @@ export class AssemblyEngine {
           signal
         )
       : undefined;
-    const outputPath = captions?.burnedIn ? captionedOutputPath : postproductionOutputPath;
+    const videoAfterCaptions = captions?.burnedIn ? captionedOutputPath : videoAfterPostproduction;
+    const mediaBeforeAudio = await this.mediaInspector.probe(videoAfterCaptions, signal);
+    const audioReportBeforeMix = this.mediaInspector.inspectAudio(mediaBeforeAudio);
+    const audioMix = input.audioTracks && needsAudioMix
+      ? await this.audioMixEngine.mix(
+          {
+            projectId: input.projectId,
+            inputVideoPath: videoAfterCaptions,
+            outputVideoPath: input.outputPath,
+            workDirectory: input.workDirectory,
+            tracks: input.audioTracks,
+            options: audioMixOptions,
+            includeOriginalAudio: audioReportBeforeMix.hasAudio
+          },
+          signal
+        )
+      : undefined;
+    const outputPath = audioMix?.outputPath ?? videoAfterCaptions;
     const inspection = this.mediaInspector.inspectDelivery(await this.mediaInspector.probe(outputPath, signal));
 
     return {
@@ -106,6 +140,7 @@ export class AssemblyEngine {
       assembledAt: new Date(),
       ...(postproduction ? { postproduction } : {}),
       ...(captions ? { captions } : {}),
+      ...(audioMix ? { audioMix } : {}),
       inspection
     };
   }

@@ -11,6 +11,7 @@ import type { ScenePlan } from "../core/shot-planner.js";
 import type { AssembledDeliverable } from "./assembly.js";
 import type { ProductionGraphSnapshot } from "./graph.js";
 import type { CaptionCue, CaptionOptions } from "./caption.js";
+import type { AudioMixOptions, AudioMixTrack } from "./audio.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -21,6 +22,8 @@ export interface CineJellyProjectRequest {
   readonly workDirectory?: string;
   readonly captionCues?: readonly CaptionCue[];
   readonly captionOptions?: CaptionOptions;
+  readonly audioTracks?: readonly AudioMixTrack[];
+  readonly audioMixOptions?: AudioMixOptions;
 }
 
 export interface IntakeResult {
