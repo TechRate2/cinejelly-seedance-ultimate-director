@@ -21,6 +21,7 @@ export * from "./core/media-inspector.js";
 export * from "./core/postproduction-engine.js";
 export * from "./core/production-graph.js";
 export * from "./core/production-graph-builder.js";
+export * from "./core/production-graph-run-recorder.js";
 export * from "./core/project-artifact-store.js";
 export * from "./core/semantic-visual-inspector.js";
 export * from "./core/shot-planner.js";

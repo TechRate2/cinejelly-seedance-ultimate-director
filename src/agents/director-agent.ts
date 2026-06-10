@@ -8,6 +8,7 @@ import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
+import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import type { AtlasCloudRuntimeSettings } from "../types/settings.js";
@@ -23,6 +24,7 @@ export class DirectorAgent {
   private readonly shotPlanner: ShotPlanner;
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
+  private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
   private readonly promptCompiler: SeedancePromptCompiler;
   private readonly consistencyGuardian: ConsistencyGuardian;
   private readonly renderProducer: RenderProducer;
@@ -38,6 +40,7 @@ export class DirectorAgent {
     readonly shotPlanner?: ShotPlanner;
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
+    readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
     readonly assemblyEngine?: AssemblyEngine;
@@ -48,6 +51,7 @@ export class DirectorAgent {
     this.shotPlanner = input.shotPlanner ?? new ShotPlanner();
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
+    this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
     this.renderProducer = input.renderProducer;
@@ -161,11 +165,17 @@ export class DirectorAgent {
             signal
           )
         : undefined;
+    const finalProductionGraph = this.productionGraphRunRecorder.record({
+      graph: productionGraph,
+      renderedShots,
+      ...(deliverable ? { deliverable } : {}),
+      settings: intake.settings
+    });
 
     return {
       projectId: intake.projectId,
       storyPlan,
-      productionGraph,
+      productionGraph: finalProductionGraph,
       compiledPrompts,
       renderedShots,
       ...(deliverable ? { deliverable } : {}),
