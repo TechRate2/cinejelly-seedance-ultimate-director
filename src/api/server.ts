@@ -14,6 +14,7 @@ import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { RenderJobManager } from "./render-job-manager.js";
+import { RenderRequestAdmission, RenderRequestAdmissionError } from "./render-request-admission.js";
 
 const DEFAULT_PORT = 8787;
 const MAX_BODY_BYTES = 1_000_000;
@@ -27,6 +28,13 @@ interface RenderRequestBody extends CineJellyProjectRequest {
 export function startServer(port = readPort(process.env.PORT)): void {
   const preflight = new RuntimePreflight();
   const artifactStore = new ProjectArtifactStore();
+  const requestAdmission = new RenderRequestAdmission({
+    maxUserInputCharacters: readPositiveInteger(process.env.CINEJELLY_MAX_USER_INPUT_CHARS, 24_000),
+    maxReferences: readPositiveInteger(process.env.CINEJELLY_MAX_REFERENCES, 24),
+    maxCaptionCues: readPositiveInteger(process.env.CINEJELLY_MAX_CAPTION_CUES, 600),
+    maxAudioTracks: readPositiveInteger(process.env.CINEJELLY_MAX_AUDIO_TRACKS, 16),
+    maxMetadataEntries: readPositiveInteger(process.env.CINEJELLY_MAX_METADATA_ENTRIES, 50)
+  });
   const apiAuthGuard = new ApiAuthGuard({
     disabled: readApiAuthDisabled(process.env.CINEJELLY_DISABLE_API_AUTH),
     ...(process.env.CINEJELLY_API_AUTH_TOKEN ? { sharedKey: process.env.CINEJELLY_API_AUTH_TOKEN } : {})
@@ -71,6 +79,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
         const body = await readJsonBody<RenderRequestBody>(request);
+        requestAdmission.assertAcceptable(body);
         const normalizedRequest = normalizeRenderRequest(body);
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         const job = jobManager.submit({
@@ -85,6 +94,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render") {
         const body = await readJsonBody<RenderRequestBody>(request);
+        requestAdmission.assertAcceptable(body);
         const normalizedRequest = normalizeRenderRequest(body);
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         let costLedger: readonly CostLedgerEntry[] = [];
@@ -120,7 +130,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
       }
       sendJson(response, 404, { error: "Not found" });
     } catch (error) {
-      sendJson(response, 500, {
+      sendJson(response, errorStatusCode(error), {
         error: redactUnknown(error instanceof Error ? error.message : String(error))
       });
     }
@@ -133,7 +143,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
 
 function normalizeRenderRequest(body: RenderRequestBody): CineJellyProjectRequest {
   if (!body.userInput || typeof body.userInput !== "string") {
-    throw new Error("Request body must include userInput.");
+    throw new RenderRequestAdmissionError("Request body must include userInput.");
   }
   const outputRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
   const safeName = `${Date.now()}_cinejelly.mp4`;
@@ -155,14 +165,14 @@ function normalizeRenderRequest(body: RenderRequestBody): CineJellyProjectReques
 
 function resolveInsideOutputRoot(outputRoot: string, value: string, fieldName: string): string {
   if (!value.trim()) {
-    throw new Error(`${fieldName} cannot be empty.`);
+    throw new RenderRequestAdmissionError(`${fieldName} cannot be empty.`);
   }
   const resolvedPath = isAbsolute(value) ? resolve(value) : resolve(outputRoot, value);
   const relativePath = relative(outputRoot, resolvedPath);
   if (relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))) {
     return resolvedPath;
   }
-  throw new Error(`${fieldName} must stay inside CINEJELLY_OUTPUT_DIR.`);
+  throw new RenderRequestAdmissionError(`${fieldName} must stay inside CINEJELLY_OUTPUT_DIR.`);
 }
 
 async function readJsonBody<TValue>(request: IncomingMessage): Promise<TValue> {
@@ -173,16 +183,20 @@ async function readJsonBody<TValue>(request: IncomingMessage): Promise<TValue> {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
     if (size > MAX_BODY_BYTES) {
-      throw new Error("Request body exceeds maximum size.");
+      throw new RenderRequestAdmissionError("Request body exceeds maximum size.");
     }
     chunks.push(buffer);
   }
 
   const raw = Buffer.concat(chunks).toString("utf8");
   if (!raw.trim()) {
-    throw new Error("Request body cannot be empty.");
+    throw new RenderRequestAdmissionError("Request body cannot be empty.");
   }
-  return JSON.parse(raw) as TValue;
+  try {
+    return JSON.parse(raw) as TValue;
+  } catch {
+    throw new RenderRequestAdmissionError("Request body must be valid JSON.");
+  }
 }
 
 function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
@@ -210,6 +224,10 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
     throw new Error("API job settings must be positive integers.");
   }
   return parsed;
+}
+
+function errorStatusCode(error: unknown): number {
+  return error instanceof RenderRequestAdmissionError ? error.statusCode : 500;
 }
 
 if (process.argv[1] && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1])) {

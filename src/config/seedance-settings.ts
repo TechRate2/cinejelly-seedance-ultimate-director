@@ -13,6 +13,12 @@ const MIN_CLIP_DURATION_SECONDS = 4;
 const MAX_CLIP_DURATION_SECONDS = 15;
 export const SEEDANCE_TEST_TAKE_DURATION_SECONDS = MIN_CLIP_DURATION_SECONDS;
 
+const SPEED_TIERS = ["fast", "standard"] as const;
+const QUALITY_MODES = ["economy", "standard", "high", "ultimate"] as const;
+const RESOLUTIONS = ["480p", "720p", "1080p"] as const;
+const RATIOS = ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"] as const;
+const AUDIO_MODES = ["none", "native", "guided", "post", "hybrid"] as const;
+
 export interface NormalizedSeedanceSettings extends FlexibleSeedanceSettings {
   readonly candidateCount: number;
   readonly repairAttemptCount: number;
@@ -28,7 +34,7 @@ export function normalizeSeedanceSettings(
     ...input
   };
 
-  validateTotalDuration(settings.durationTargetSeconds);
+  validateFlexibleSettings(settings);
 
   return {
     ...settings,
@@ -52,6 +58,7 @@ export function toVideoGenerationSettings(
   settings: FlexibleSeedanceSettings,
   clipDurationSeconds: number
 ): VideoGenerationSettings {
+  validateFlexibleSettings(settings);
   validateClipDuration(clipDurationSeconds);
 
   return {
@@ -62,6 +69,39 @@ export function toVideoGenerationSettings(
     watermark: settings.watermark,
     returnLastFrame: settings.returnLastFrame
   };
+}
+
+function validateFlexibleSettings(settings: FlexibleSeedanceSettings): void {
+  validateOption("tier", settings.tier, SPEED_TIERS);
+  validateOption("resolution", settings.resolution, RESOLUTIONS);
+  validateOption("qualityMode", settings.qualityMode, QUALITY_MODES);
+  validateOption("ratio", settings.ratio, RATIOS);
+  validateOption("audioMode", settings.audioMode, AUDIO_MODES);
+  validateBoolean("watermark", settings.watermark);
+  validateBoolean("returnLastFrame", settings.returnLastFrame);
+  validateTotalDuration(settings.durationTargetSeconds);
+  if (
+    settings.maxCostUsd !== undefined &&
+    (!Number.isFinite(settings.maxCostUsd) || settings.maxCostUsd <= 0)
+  ) {
+    throw new Error("maxCostUsd must be greater than zero when provided.");
+  }
+}
+
+function validateOption<TValue extends string>(
+  name: string,
+  value: unknown,
+  allowedValues: readonly TValue[]
+): asserts value is TValue {
+  if (typeof value !== "string" || !allowedValues.includes(value as TValue)) {
+    throw new Error(`${name} must be one of: ${allowedValues.join(", ")}.`);
+  }
+}
+
+function validateBoolean(name: string, value: unknown): asserts value is boolean {
+  if (typeof value !== "boolean") {
+    throw new Error(`${name} must be a boolean.`);
+  }
 }
 
 export function candidateCountForQuality(qualityMode: QualityMode): number {
