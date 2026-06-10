@@ -4,7 +4,7 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDirectorRuntime } from "../application/director-factory.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
@@ -91,14 +91,32 @@ function normalizeRenderRequest(body: RenderRequestBody): CineJellyProjectReques
   }
   const outputRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
   const safeName = `${Date.now()}_cinejelly.mp4`;
-  const workDirectory = body.workDirectory || join(outputRoot, "work");
+  const workDirectory = body.workDirectory
+    ? resolveInsideOutputRoot(outputRoot, body.workDirectory, "workDirectory")
+    : join(outputRoot, "work");
 
   return {
     ...body,
-    outputPath: body.outputPath || join(outputRoot, safeName),
+    outputPath: body.outputPath
+      ? resolveInsideOutputRoot(outputRoot, body.outputPath, "outputPath")
+      : join(outputRoot, safeName),
     workDirectory,
-    artifactDirectory: body.artifactDirectory || join(workDirectory, "artifacts")
+    artifactDirectory: body.artifactDirectory
+      ? resolveInsideOutputRoot(outputRoot, body.artifactDirectory, "artifactDirectory")
+      : join(workDirectory, "artifacts")
   };
+}
+
+function resolveInsideOutputRoot(outputRoot: string, value: string, fieldName: string): string {
+  if (!value.trim()) {
+    throw new Error(`${fieldName} cannot be empty.`);
+  }
+  const resolvedPath = isAbsolute(value) ? resolve(value) : resolve(outputRoot, value);
+  const relativePath = relative(outputRoot, resolvedPath);
+  if (relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))) {
+    return resolvedPath;
+  }
+  throw new Error(`${fieldName} must stay inside CINEJELLY_OUTPUT_DIR.`);
 }
 
 async function readJsonBody<TValue>(request: IncomingMessage): Promise<TValue> {

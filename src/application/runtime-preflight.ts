@@ -25,6 +25,7 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_POLLING_INTERVAL_MS", this.env.CINEJELLY_POLLING_INTERVAL_MS),
       this.optionalPositiveInteger("CINEJELLY_POLLING_TIMEOUT_MS", this.env.CINEJELLY_POLLING_TIMEOUT_MS),
       this.optionalPositiveInteger("CINEJELLY_RENDER_CONCURRENCY", this.env.CINEJELLY_RENDER_CONCURRENCY),
+      this.optionalOutputDirectory("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR),
       this.optionalNonNegativeNumber("CINEJELLY_RENDER_COST_USD_PER_SECOND", this.env.CINEJELLY_RENDER_COST_USD_PER_SECOND),
       this.optionalNonNegativeNumber("CINEJELLY_ASSET_REGISTRATION_COST_USD", this.env.CINEJELLY_ASSET_REGISTRATION_COST_USD),
       this.optionalNonNegativeNumber("CINEJELLY_LLM_PLAN_COST_USD", this.env.CINEJELLY_LLM_PLAN_COST_USD),
@@ -91,6 +92,16 @@ export class RuntimePreflight {
       return { name, status: "fail", message: `${name} must be greater than zero.` };
     }
     return { name, status: "pass", message: `${name} is greater than zero.` };
+  }
+
+  private optionalOutputDirectory(name: string, value: string | undefined): PreflightCheck {
+    if (!value?.trim()) {
+      return { name, status: "pass", message: `${name} is not set; assets/output_deliverables will be used.` };
+    }
+    if (/[\u0000-\u001f\u007f]/.test(value)) {
+      return { name, status: "fail", message: `${name} must not contain control characters.` };
+    }
+    return { name, status: "pass", message: `${name} is configured.` };
   }
 
   private capabilityCheck(value: string | undefined): PreflightCheck {

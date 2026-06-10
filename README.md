@@ -87,6 +87,7 @@ Security rules:
 - never commit `.env` files
 - never commit API keys, provider tokens, private keys, or local credentials
 - keep provider model IDs and runtime capabilities in configuration, not hardcoded business logic
+- keep generated deliverables and run artifacts inside `CINEJELLY_OUTPUT_DIR`
 - verify Atlas Cloud model schema before enabling customer-facing settings
 
 `.gitignore` and `.gitleaks.toml` are included to reduce accidental secret exposure. Use a redacted secret audit before every push.
@@ -116,6 +117,7 @@ Optional environment variables:
 - `CINEJELLY_POLLING_INTERVAL_MS`
 - `CINEJELLY_POLLING_TIMEOUT_MS`
 - `CINEJELLY_RENDER_CONCURRENCY`
+- `CINEJELLY_OUTPUT_DIR`
 - `CINEJELLY_RENDER_COST_USD_PER_SECOND`
 - `CINEJELLY_ASSET_REGISTRATION_COST_USD`
 - `CINEJELLY_LLM_PLAN_COST_USD`
@@ -141,9 +143,9 @@ Production API:
 
 `GET /v1/preflight` verifies required Atlas configuration and local FFmpeg/FFprobe availability without exposing secret values. It is available before the render runtime is initialized, so a fresh deployment can diagnose missing environment variables safely.
 
-`POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, optional `semanticVisualInspectionOptions`, and optional `outputPath`/`workDirectory`/`artifactDirectory`. Reference URIs must be absolute `http(s)` URLs or pre-registered `asset://` references in the current Atlas path. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`; deterministic run artifacts are written under the request work directory.
+`POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, optional `semanticVisualInspectionOptions`, and optional `outputPath`/`workDirectory`/`artifactDirectory`. Reference URIs must be absolute `http(s)` URLs or pre-registered `asset://` references in the current Atlas path. Output, work, and artifact paths are confined to `CINEJELLY_OUTPUT_DIR` or `assets/output_deliverables` by default; relative paths are resolved inside that root and absolute paths outside it are rejected.
 
-The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization, Reference Librarian validation for role/kind compatibility and secret-safe reference URIs, provider-neutral capability validation before Asset Library or render spend, provider telemetry with prediction IDs and provider-returned cost metadata when available, Atlas Asset Library registration/polling for video and audio references before Seedance generation, quality-mode candidate rendering, high-risk test-take gating before full render, conservative dependency-aware render scheduling, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with test-take, candidate, and repair multipliers, prompt compiler, Production Graph planning plus reference asset lineage and run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, selected-resolution postproduction scaling, FFprobe media inspection, deterministic delivery gate validation, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
+The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization, Reference Librarian validation for role/kind compatibility and secret-safe reference URIs, provider-neutral capability validation before Asset Library or render spend, provider telemetry with prediction IDs and provider-returned cost metadata when available, Atlas Asset Library registration/polling for video and audio references before Seedance generation, quality-mode candidate rendering, high-risk test-take gating before full render, conservative dependency-aware render scheduling, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with test-take, candidate, and repair multipliers, prompt compiler, Production Graph planning plus reference asset lineage and run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, selected-resolution postproduction scaling, FFprobe media inspection, deterministic delivery gate validation, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, output/artifact path confinement, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -190,7 +192,8 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 32. Conservative dependency-aware render scheduling - implemented
 33. High-risk test-take gating before full render - implemented
 34. Reference Librarian validation and Production Graph reference lineage - implemented
-35. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
+35. API output and artifact path confinement - implemented
+36. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
 
 ## Source Fidelity
 
