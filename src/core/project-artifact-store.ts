@@ -94,6 +94,8 @@ export class ProjectArtifactStore {
       renderedShotCount: result.renderedShots.length,
       plannedCandidateCount: result.costEstimate.candidateCount,
       plannedRepairAttemptCount: result.costEstimate.repairAttemptCount,
+      plannedTestTakeCount: result.costEstimate.plannedTestTakeCount,
+      renderedTestTakeCount: result.renderedShots.filter((shot) => shot.testTake).length,
       selectedCandidateIndexes: result.renderedShots.map((shot) => ({
         shotId: shot.compiledPrompt.shotId,
         selectedCandidateIndex: shot.selectedCandidateIndex,

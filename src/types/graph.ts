@@ -85,6 +85,7 @@ export interface ClipRenderNodeData {
   readonly outputUrls: readonly string[];
   readonly candidateIndex?: number;
   readonly repairAttempt?: number;
+  readonly testTake?: boolean;
   readonly selected?: boolean;
   readonly costUsd?: number;
 }

@@ -83,11 +83,12 @@ Runtime implementation:
 - Standard renders 2 candidates per shot.
 - High renders 3 candidates per shot.
 - Ultimate renders 4 candidates per shot.
+- Standard, High, and Ultimate render 4-second test takes for high-risk shots before full render when the shot is longer than 4 seconds.
 - Economy allows 0 targeted repair attempts per shot, Standard allows 1, High allows 2, and Ultimate allows 3.
 - The Consistency Guardian scores each candidate after render, and the Director Agent selects the best candidate by status, severity, usable output presence, latency, then candidate order.
 - If the selected candidate still requires repair, the Director Agent appends Guardian repair directives to the provider-neutral prompt and rerenders only that shot within the quality-mode repair budget.
 - The Production Graph records every candidate as `clip_render` evidence while marking the selected candidate and repair attempt explicitly.
-- The render cost gate multiplies planned render seconds and clip count by both the quality-mode candidate count and worst-case repair attempt count before enforcing `maxCostUsd`.
+- The render cost gate includes planned test-take seconds, quality-mode candidate count, and worst-case repair attempt count before enforcing `maxCostUsd`.
 
 ### Aspect Ratio
 

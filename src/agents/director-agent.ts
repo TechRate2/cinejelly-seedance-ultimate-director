@@ -6,7 +6,9 @@
 import {
   candidateCountForQuality,
   repairAttemptCountForQuality,
-  resolveSeedanceModelId
+  SEEDANCE_TEST_TAKE_DURATION_SECONDS,
+  resolveSeedanceModelId,
+  usesTestTakesForQuality
 } from "../config/seedance-settings.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
@@ -114,9 +116,12 @@ export class DirectorAgent {
       throw new Error("Story planning produced no renderable shots. Regenerate the story plan before rendering.");
     }
     this.validateProviderCapabilities(compiledPrompts);
+    const plannedTestTakeCount = shots.filter((shot) => this.shouldRunTestTake(shot, intake.settings)).length;
     const costEstimate = this.renderCostGate.estimate({
       compiledPrompts,
-      settings: intake.settings
+      settings: intake.settings,
+      plannedTestTakeCount,
+      plannedTestTakeRenderSeconds: plannedTestTakeCount * SEEDANCE_TEST_TAKE_DURATION_SECONDS
     });
     this.renderCostGate.assertWithinBudget(costEstimate);
 
@@ -156,7 +161,8 @@ export class DirectorAgent {
           shot,
           value: {
             compiledPrompt,
-            preflight
+            preflight,
+            shouldRunTestTake: this.shouldRunTestTake(shot, intake.settings)
           }
         };
       }),
@@ -165,6 +171,7 @@ export class DirectorAgent {
           shot: item.shot,
           compiledPrompt: item.value.compiledPrompt,
           preflight: item.value.preflight,
+          shouldRunTestTake: item.value.shouldRunTestTake,
           candidateCount,
           repairAttemptCount,
           signal
@@ -267,17 +274,50 @@ export class DirectorAgent {
     }
   }
 
+  private shouldRunTestTake(shot: ShotContract, settings: FlexibleSeedanceSettings): boolean {
+    if (!usesTestTakesForQuality(settings.qualityMode) || shot.durationSeconds <= SEEDANCE_TEST_TAKE_DURATION_SECONDS) {
+      return false;
+    }
+    const referenceRoles = new Set(shot.references.map((reference) => reference.role));
+    return (
+      shot.risks.some((risk) => ["face", "product_logo", "audio_sync", "transition", "multi_character_blocking"].includes(risk)) ||
+      referenceRoles.has("motion") ||
+      referenceRoles.has("camera") ||
+      referenceRoles.has("audio_tempo") ||
+      referenceRoles.has("voice") ||
+      referenceRoles.has("source_video_structure")
+    );
+  }
+
   private async renderShot(input: {
     readonly shot: ShotContract;
     readonly compiledPrompt: CompiledPrompt;
     readonly preflight: GuardianReport;
+    readonly shouldRunTestTake: boolean;
     readonly candidateCount: number;
     readonly repairAttemptCount: number;
     readonly signal: AbortSignal | undefined;
   }): Promise<RenderedShot> {
+    let compiledPrompt = input.compiledPrompt;
+    const testTake = input.shouldRunTestTake
+      ? await this.renderTestTake({
+          shot: input.shot,
+          compiledPrompt,
+          signal: input.signal
+        })
+      : undefined;
+    if (testTake && this.needsTestTakeBlock(testTake.renderInspection)) {
+      throw new Error(this.describeTestTakeBlock(input.shot, testTake.renderInspection));
+    }
+    if (testTake && testTake.renderInspection.status === "repair") {
+      compiledPrompt = this.compileTestTakeRepair({
+        compiledPrompt,
+        report: testTake.renderInspection
+      });
+    }
     const candidates = await this.renderCandidates({
       shot: input.shot,
-      compiledPrompt: input.compiledPrompt,
+      compiledPrompt,
       candidateCount: input.candidateCount,
       repairAttemptCount: input.repairAttemptCount,
       signal: input.signal
@@ -289,9 +329,88 @@ export class DirectorAgent {
       preflight: input.preflight,
       prediction: selectedCandidate.prediction,
       renderInspection: selectedCandidate.renderInspection,
+      ...(testTake ? { testTake } : {}),
       candidates,
       selectedCandidateIndex: selectedCandidate.candidateIndex,
       repairAttemptCount: candidates.filter((candidate) => candidate.repairAttempt !== undefined).length
+    };
+  }
+
+  private async renderTestTake(input: {
+    readonly shot: ShotContract;
+    readonly compiledPrompt: CompiledPrompt;
+    readonly signal: AbortSignal | undefined;
+  }): Promise<RenderCandidate> {
+    const compiledPrompt = this.compileTestTakePrompt(input.compiledPrompt);
+    const renderResult = await this.renderProducer.render(compiledPrompt, input.signal);
+    const renderInspection = this.consistencyGuardian.inspectTestTake({
+      shot: input.shot,
+      prediction: renderResult.prediction
+    });
+
+    return {
+      candidateIndex: 0,
+      testTake: true,
+      compiledPrompt: renderResult.compiledPrompt,
+      prediction: renderResult.prediction,
+      renderInspection
+    };
+  }
+
+  private compileTestTakePrompt(compiledPrompt: CompiledPrompt): CompiledPrompt {
+    const prompt = [
+      compiledPrompt.prompt,
+      "",
+      `Render a ${SEEDANCE_TEST_TAKE_DURATION_SECONDS}-second test take for production validation.`,
+      "Prioritize identity, product geometry, motion feasibility, audio sync feasibility, and transition handles over final pacing."
+    ].join("\n");
+    const metadata = {
+      ...(compiledPrompt.videoRequest.metadata ?? {}),
+      testTake: true
+    };
+
+    return {
+      ...compiledPrompt,
+      prompt,
+      videoRequest: {
+        ...compiledPrompt.videoRequest,
+        prompt,
+        metadata,
+        settings: {
+          ...compiledPrompt.videoRequest.settings,
+          durationSeconds: SEEDANCE_TEST_TAKE_DURATION_SECONDS
+        }
+      }
+    };
+  }
+
+  private compileTestTakeRepair(input: {
+    readonly compiledPrompt: CompiledPrompt;
+    readonly report: GuardianReport;
+  }): CompiledPrompt {
+    const directives = this.repairDirectives(input.compiledPrompt, input.report);
+    const repairBlock = [
+      "Apply targeted repair from the approved test take before full render.",
+      "Preserve all approved references, duration, camera language, lighting, and continuity.",
+      ...directives.map((directive) => `- ${directive}`)
+    ].join("\n");
+    const prompt = `${input.compiledPrompt.prompt}\n\n${repairBlock}`;
+    const metadata = {
+      ...(input.compiledPrompt.videoRequest.metadata ?? {}),
+      testTakeRepair: true,
+      testTakeSourceStatus: input.report.status,
+      testTakeSourceNodeId: input.report.nodeId
+    };
+
+    return {
+      ...input.compiledPrompt,
+      prompt,
+      repairHints: directives,
+      videoRequest: {
+        ...input.compiledPrompt.videoRequest,
+        prompt,
+        metadata
+      }
     };
   }
 
@@ -478,6 +597,10 @@ export class DirectorAgent {
     return report.status === "repair" || report.status === "rerender" || report.status === "block";
   }
 
+  private needsTestTakeBlock(report: GuardianReport): boolean {
+    return report.status === "rerender" || report.status === "block";
+  }
+
   private selectBestCandidate(candidates: readonly RenderCandidate[]): RenderCandidate {
     const sortedCandidates = [...candidates].sort((left, right) => this.compareCandidates(left, right));
     const bestCandidate = sortedCandidates[0];
@@ -569,5 +692,12 @@ export class DirectorAgent {
       })
       .join("; ");
     return `Consistency Guardian render gate blocked ${renderedShots.length} shot(s) after targeted repair budget. ${details}`;
+  }
+
+  private describeTestTakeBlock(shot: ShotContract, report: GuardianReport): string {
+    const finding = report.findings.find((candidate) => candidate.status === "block" || candidate.status === "rerender");
+    return finding
+      ? `Consistency Guardian test-take gate blocked ${shot.shotId}: ${finding.checkpoint} (${finding.severity}) - ${finding.repair}`
+      : `Consistency Guardian test-take gate blocked ${shot.shotId}: ${report.status}`;
   }
 }

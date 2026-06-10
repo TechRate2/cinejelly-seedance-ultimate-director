@@ -312,9 +312,10 @@ Runtime implementation:
 
 Runtime candidate evidence:
 
+- High-risk shots can produce a 4-second test-take `ClipRender` node before full candidate rendering.
 - Quality mode controls how many candidates are rendered per shot.
 - Quality mode also controls the maximum targeted repair attempts per shot before delivery.
-- Each candidate becomes a `ClipRender` node with candidate index, optional repair attempt index, provider status, output URLs, cost metadata when available, and selected/rejected state.
+- Each test take and candidate becomes a `ClipRender` node with candidate index, optional test-take flag, optional repair attempt index, provider status, output URLs, cost metadata when available, and selected/rejected state.
 - Render inspection reports are attached to each candidate clip node.
 - Repair prompts are generated from Guardian findings and original compiler repair hints, then rerender only the affected shot.
 - Repair actions are created only from the selected candidate after the repair budget is exhausted, so rejected alternatives remain audit evidence without forcing unnecessary repair loops.

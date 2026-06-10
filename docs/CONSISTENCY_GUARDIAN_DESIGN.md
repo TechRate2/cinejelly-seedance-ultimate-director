@@ -73,6 +73,15 @@ Checks:
 - audio sync feasibility
 - artifact severity
 
+Runtime implementation:
+
+- Economy skips test takes.
+- Standard, High, and Ultimate render a 4-second test take for high-risk shots longer than 4 seconds.
+- High-risk triggers include face, product/logo, audio sync, transition, multi-character blocking, motion/camera/audio/voice/source-video references.
+- Test takes are inspected with Guardian stage `test_take` and stored as Production Graph `clip_render` evidence.
+- `block` or `rerender` test-take results stop full render spend for that shot.
+- `repair` test-take results append targeted Guardian repair directives to the full-render prompt before candidate generation.
+
 ### 3. Render Guardian
 
 Runs after clip generation.

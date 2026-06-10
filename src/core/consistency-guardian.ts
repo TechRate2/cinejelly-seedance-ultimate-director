@@ -65,6 +65,18 @@ export class ConsistencyGuardian {
     return this.toReport(input.shot.shotId, "render", findings);
   }
 
+  public inspectTestTake(input: RenderInspectionInput): GuardianReport {
+    const renderReport = this.inspectRender(input);
+    return {
+      ...renderReport,
+      stage: "test_take",
+      findings: renderReport.findings.map((finding) => ({
+        ...finding,
+        stage: "test_take"
+      }))
+    };
+  }
+
   private validateShotBasics(shot: ShotContract): readonly GuardianFinding[] {
     const findings: GuardianFinding[] = [];
 

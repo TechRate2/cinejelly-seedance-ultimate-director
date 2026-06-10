@@ -20,17 +20,21 @@ export class RenderCostGate {
   public estimate(input: {
     readonly compiledPrompts: readonly CompiledPrompt[];
     readonly settings: FlexibleSeedanceSettings;
+    readonly plannedTestTakeCount?: number;
+    readonly plannedTestTakeRenderSeconds?: number;
   }): RenderCostEstimate {
     const candidateCount = candidateCountForQuality(input.settings.qualityMode);
     const repairAttemptCount = repairAttemptCountForQuality(input.settings.qualityMode);
+    const plannedTestTakeCount = input.plannedTestTakeCount ?? 0;
+    const plannedTestTakeRenderSeconds = input.plannedTestTakeRenderSeconds ?? 0;
     const plannedSinglePassRenderSeconds = input.compiledPrompts.reduce(
       (sum, prompt) => sum + prompt.videoRequest.settings.durationSeconds,
       0
     );
-    const plannedClipCount = input.compiledPrompts.length * (candidateCount + repairAttemptCount);
+    const plannedClipCount = input.compiledPrompts.length * (candidateCount + repairAttemptCount) + plannedTestTakeCount;
     const plannedCandidateRenderSeconds = plannedSinglePassRenderSeconds * candidateCount;
     const plannedRepairRenderSeconds = plannedSinglePassRenderSeconds * repairAttemptCount;
-    const plannedRenderSeconds = plannedCandidateRenderSeconds + plannedRepairRenderSeconds;
+    const plannedRenderSeconds = plannedCandidateRenderSeconds + plannedRepairRenderSeconds + plannedTestTakeRenderSeconds;
     const referenceRegistrationCount = this.countRegisterableReferences(input.compiledPrompts);
     const estimatedRenderCostUsd = this.multiply(plannedRenderSeconds, this.settings.renderCostUsdPerSecond);
     const estimatedAssetRegistrationCostUsd = this.multiply(referenceRegistrationCount, this.settings.assetRegistrationCostUsd);
@@ -55,8 +59,10 @@ export class RenderCostGate {
       plannedShotCount: input.compiledPrompts.length,
       candidateCount,
       repairAttemptCount,
+      plannedTestTakeCount,
       plannedClipCount,
       plannedSinglePassRenderSeconds,
+      plannedTestTakeRenderSeconds,
       plannedCandidateRenderSeconds,
       plannedRepairRenderSeconds,
       plannedRenderSeconds,

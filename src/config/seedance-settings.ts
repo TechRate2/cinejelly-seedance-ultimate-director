@@ -11,6 +11,7 @@ const MIN_TOTAL_DURATION_SECONDS = 15;
 const MAX_TOTAL_DURATION_SECONDS = 480;
 const MIN_CLIP_DURATION_SECONDS = 4;
 const MAX_CLIP_DURATION_SECONDS = 15;
+export const SEEDANCE_TEST_TAKE_DURATION_SECONDS = MIN_CLIP_DURATION_SECONDS;
 
 export interface NormalizedSeedanceSettings extends FlexibleSeedanceSettings {
   readonly candidateCount: number;
@@ -34,7 +35,7 @@ export function normalizeSeedanceSettings(
     candidateCount: candidateCountForQuality(settings.qualityMode),
     repairAttemptCount: repairAttemptCountForQuality(settings.qualityMode),
     requiresStrictInspection: settings.qualityMode === "high" || settings.qualityMode === "ultimate",
-    usesTestTakes: settings.qualityMode !== "economy"
+    usesTestTakes: usesTestTakesForQuality(settings.qualityMode)
   };
 }
 
@@ -87,6 +88,10 @@ export function repairAttemptCountForQuality(qualityMode: QualityMode): number {
     case "ultimate":
       return 3;
   }
+}
+
+export function usesTestTakesForQuality(qualityMode: QualityMode): boolean {
+  return qualityMode !== "economy";
 }
 
 function validateTotalDuration(durationSeconds: number): void {

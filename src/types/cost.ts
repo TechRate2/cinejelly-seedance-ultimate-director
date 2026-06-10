@@ -17,8 +17,10 @@ export interface RenderCostEstimate {
   readonly plannedShotCount: number;
   readonly candidateCount: number;
   readonly repairAttemptCount: number;
+  readonly plannedTestTakeCount: number;
   readonly plannedClipCount: number;
   readonly plannedSinglePassRenderSeconds: number;
+  readonly plannedTestTakeRenderSeconds: number;
   readonly plannedCandidateRenderSeconds: number;
   readonly plannedRepairRenderSeconds: number;
   readonly plannedRenderSeconds: number;

@@ -33,24 +33,20 @@ export class ProductionGraphRunRecorder {
       edges.push(this.edge(shotId, preflightNode.id, "depends_on"));
       this.maybeAddRepair(nodes, edges, preflightNode, shotId);
 
+      if (renderedShot.testTake) {
+        const testTakeNode = this.clipRenderNode(shotId, renderedShot.testTake, false);
+        nodes.push(testTakeNode);
+        edges.push(this.edge(shotId, testTakeNode.id, "depends_on"));
+
+        const testTakeInspectionNode = this.inspectionNode(testTakeNode.id, renderedShot.testTake.renderInspection);
+        nodes.push(testTakeInspectionNode);
+        edges.push(this.edge(testTakeNode.id, testTakeInspectionNode.id, "depends_on"));
+        this.maybeAddRepair(nodes, edges, testTakeInspectionNode, shotId);
+      }
+
       for (const candidate of renderedShot.candidates) {
         const selected = candidate.candidateIndex === renderedShot.selectedCandidateIndex;
-        const costUsd = this.costUsd(candidate);
-        const clipNode = this.node(
-          "clip_render",
-          createStableId("clip_render", `${shotId}:${candidate.candidateIndex}:${candidate.prediction.predictionId}`),
-          {
-            provider: candidate.prediction.provider,
-            modelId: candidate.prediction.modelId,
-            predictionId: candidate.prediction.predictionId,
-            status: candidate.prediction.status,
-            outputUrls: candidate.prediction.outputUrls,
-            candidateIndex: candidate.candidateIndex,
-            ...(candidate.repairAttempt !== undefined ? { repairAttempt: candidate.repairAttempt } : {}),
-            selected,
-            ...(costUsd !== undefined ? { costUsd } : {})
-          }
-        );
+        const clipNode = this.clipRenderNode(shotId, candidate, selected);
         nodes.push(clipNode);
         edges.push(this.edge(shotId, clipNode.id, "depends_on"));
 
@@ -115,6 +111,30 @@ export class ProductionGraphRunRecorder {
 
   private costUsd(candidate: RenderCandidate): number | undefined {
     return candidate.prediction.usage?.actualCostUsd ?? candidate.prediction.usage?.estimatedCostUsd;
+  }
+
+  private clipRenderNode(
+    shotId: string,
+    candidate: RenderCandidate,
+    selected: boolean
+  ): Extract<ProductionGraphNode, { type: "clip_render" }> {
+    const costUsd = this.costUsd(candidate);
+    return this.node(
+      "clip_render",
+      createStableId("clip_render", `${shotId}:${candidate.testTake ? "test_take" : candidate.candidateIndex}:${candidate.prediction.predictionId}`),
+      {
+        provider: candidate.prediction.provider,
+        modelId: candidate.prediction.modelId,
+        predictionId: candidate.prediction.predictionId,
+        status: candidate.prediction.status,
+        outputUrls: candidate.prediction.outputUrls,
+        candidateIndex: candidate.candidateIndex,
+        ...(candidate.repairAttempt !== undefined ? { repairAttempt: candidate.repairAttempt } : {}),
+        ...(candidate.testTake ? { testTake: true } : {}),
+        selected,
+        ...(costUsd !== undefined ? { costUsd } : {})
+      }
+    );
   }
 
   private resolution(deliverable: AssembledDeliverable): string {
