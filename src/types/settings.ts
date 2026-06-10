@@ -52,10 +52,15 @@ export interface AtlasCloudRuntimeSettings {
   readonly pollingTimeoutMs: number;
 }
 
+export interface AssemblyRuntimeSettings {
+  readonly maxRenderedClipBytes: number;
+}
+
 export interface RuntimeSettings {
   readonly atlasCloud: AtlasCloudRuntimeSettings;
   readonly costEstimation: CostEstimationSettings;
   readonly renderConcurrency: number;
+  readonly assembly: AssemblyRuntimeSettings;
 }
 
 export const DEFAULT_SEEDANCE_SETTINGS: FlexibleSeedanceSettings = {

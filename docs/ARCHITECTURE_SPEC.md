@@ -208,6 +208,7 @@ Source basis:
 Responsibilities:
 
 - Assemble clips into a complete timeline.
+- Materialize provider output URLs with bounded streaming downloads before FFmpeg processing.
 - Apply transitions, handles, audio alignment, captions, color/polish, upscaling when selected, and delivery validation.
 - Produce final video plus a review packet.
 
@@ -273,6 +274,12 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 9. `assemble`: stitch clips with handles and transitions.
 10. `finish`: audio, captions, color/polish, upscale if selected.
 11. `deliver`: export final video and review packet.
+
+Assembly materialization:
+
+- Provider output URLs are streamed to local work files instead of buffered fully in memory.
+- Each rendered clip download is bounded by deployment configuration so long-form jobs cannot consume unbounded memory or disk.
+- Completed downloads are moved into place only after the full file has been received, keeping FFmpeg inputs deterministic.
 
 API execution modes:
 

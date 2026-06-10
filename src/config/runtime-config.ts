@@ -5,10 +5,11 @@
 
 import type { ProviderCapability } from "../types/provider.js";
 import type { CostEstimationSettings } from "../types/cost.js";
-import type { AtlasCloudRuntimeSettings, RuntimeSettings } from "../types/settings.js";
+import type { AssemblyRuntimeSettings, AtlasCloudRuntimeSettings, RuntimeSettings } from "../types/settings.js";
 
 const DEFAULT_ATLAS_API_BASE_URL = "https://api.atlascloud.ai/v1";
 const DEFAULT_ATLAS_ASSET_BASE_URL = "https://console.atlascloud.ai/api/v1";
+const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
 
 function requireEnv(name: string, env: NodeJS.ProcessEnv): string {
   const value = env[name]?.trim();
@@ -75,7 +76,18 @@ export function loadRuntimeSettings(env: NodeJS.ProcessEnv = process.env): Runti
   return {
     atlasCloud: loadAtlasCloudSettings(env),
     costEstimation: loadCostEstimationSettings(env),
-    renderConcurrency: optionalIntegerEnv("CINEJELLY_RENDER_CONCURRENCY", env, 2)
+    renderConcurrency: optionalIntegerEnv("CINEJELLY_RENDER_CONCURRENCY", env, 2),
+    assembly: loadAssemblyRuntimeSettings(env)
+  };
+}
+
+export function loadAssemblyRuntimeSettings(env: NodeJS.ProcessEnv = process.env): AssemblyRuntimeSettings {
+  return {
+    maxRenderedClipBytes: optionalIntegerEnv(
+      "CINEJELLY_MAX_RENDERED_CLIP_BYTES",
+      env,
+      DEFAULT_MAX_RENDERED_CLIP_BYTES
+    )
   };
 }
 

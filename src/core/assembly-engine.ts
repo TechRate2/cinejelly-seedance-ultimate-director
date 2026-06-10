@@ -3,7 +3,7 @@
  * It materializes provider clip outputs and concatenates them into a final video deliverable.
  */
 
-import { access, copyFile } from "node:fs/promises";
+import { access, copyFile, open, rename, rm } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import type { AssembledDeliverable, AssemblyClip, AssemblyInput } from "../types/assembly.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS, PostproductionEngine } from "./postproduction-engine.js";
@@ -15,12 +15,15 @@ import { ensureDirectory, writeFileEnsuringDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
 import { runProcess } from "../utils/process.js";
 
+const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
+
 export class AssemblyEngine {
   private readonly postproductionEngine: PostproductionEngine;
   private readonly mediaInspector: MediaInspector;
   private readonly captionEngine: CaptionEngine;
   private readonly audioMixEngine: AudioMixEngine;
   private readonly transitionEngine: TransitionEngine;
+  private readonly maxRenderedClipBytes: number;
 
   public constructor(
     input: {
@@ -29,6 +32,7 @@ export class AssemblyEngine {
       readonly captionEngine?: CaptionEngine;
       readonly audioMixEngine?: AudioMixEngine;
       readonly transitionEngine?: TransitionEngine;
+      readonly maxRenderedClipBytes?: number;
     } = {}
   ) {
     this.postproductionEngine = input.postproductionEngine ?? new PostproductionEngine();
@@ -36,6 +40,7 @@ export class AssemblyEngine {
     this.captionEngine = input.captionEngine ?? new CaptionEngine();
     this.audioMixEngine = input.audioMixEngine ?? new AudioMixEngine();
     this.transitionEngine = input.transitionEngine ?? new TransitionEngine(this.mediaInspector);
+    this.maxRenderedClipBytes = Math.max(1, input.maxRenderedClipBytes ?? DEFAULT_MAX_RENDERED_CLIP_BYTES);
   }
 
   public async assemble(input: AssemblyInput, signal?: AbortSignal): Promise<AssembledDeliverable> {
@@ -181,19 +186,77 @@ export class AssemblyEngine {
     const targetPath = join(workDirectory, `${projectId}_${clip.order}_${createStableId("clip", clip.clipId)}${extension}`);
 
     if (this.isRemoteUrl(clip.sourceUrlOrPath)) {
-      const response = await fetch(clip.sourceUrlOrPath, signal ? { signal } : undefined);
-      if (!response.ok) {
-        throw new Error(`Failed to download rendered clip ${clip.clipId}: HTTP ${response.status}`);
-      }
-      const data = new Uint8Array(await response.arrayBuffer());
-      await writeFileEnsuringDirectory(targetPath, data);
+      await this.downloadRemoteClip(clip, targetPath, signal);
       return targetPath;
     }
 
     const sourcePath = isAbsolute(clip.sourceUrlOrPath) ? clip.sourceUrlOrPath : resolve(clip.sourceUrlOrPath);
     await access(sourcePath);
+    await ensureDirectory(dirname(targetPath));
     await copyFile(sourcePath, targetPath);
     return targetPath;
+  }
+
+  private async downloadRemoteClip(
+    clip: AssemblyClip,
+    targetPath: string,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const response = await fetch(clip.sourceUrlOrPath, signal ? { signal } : undefined);
+    if (!response.ok) {
+      throw new Error(`Failed to download rendered clip ${clip.clipId}: HTTP ${response.status}`);
+    }
+    const contentLength = this.parseContentLength(response.headers.get("content-length"));
+    if (contentLength !== undefined && contentLength > this.maxRenderedClipBytes) {
+      throw new Error(
+        `Rendered clip ${clip.clipId} is ${this.formatBytes(contentLength)}, above the configured ${this.formatBytes(this.maxRenderedClipBytes)} limit.`
+      );
+    }
+    if (!response.body) {
+      throw new Error(`Rendered clip ${clip.clipId} did not include a readable response body.`);
+    }
+
+    await ensureDirectory(dirname(targetPath));
+    const tempPath = `${targetPath}.${createStableId("download", `${clip.clipId}:${Date.now()}`)}.tmp`;
+    const file = await open(tempPath, "w");
+    let closed = false;
+    const closeFile = async (): Promise<void> => {
+      if (!closed) {
+        closed = true;
+        await file.close();
+      }
+    };
+
+    try {
+      const reader = response.body.getReader();
+      let writtenBytes = 0;
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) {
+            break;
+          }
+          if (!chunk.value) {
+            continue;
+          }
+          writtenBytes += chunk.value.byteLength;
+          if (writtenBytes > this.maxRenderedClipBytes) {
+            throw new Error(
+              `Rendered clip ${clip.clipId} exceeded the configured ${this.formatBytes(this.maxRenderedClipBytes)} download limit.`
+            );
+          }
+          await file.write(chunk.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      await closeFile();
+      await rename(tempPath, targetPath);
+    } catch (error) {
+      await closeFile().catch(() => undefined);
+      await rm(tempPath, { force: true }).catch(() => undefined);
+      throw error;
+    }
   }
 
   private toConcatList(paths: readonly string[]): string {
@@ -215,5 +278,20 @@ export class AssemblyEngine {
   private safeExtension(source: string): string {
     const parsedExtension = extname(this.isRemoteUrl(source) ? new URL(source).pathname : basename(source)).toLowerCase();
     return parsedExtension || ".mp4";
+  }
+
+  private parseContentLength(value: string | null): number | undefined {
+    if (!value) {
+      return undefined;
+    }
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 0 || String(parsed) !== value.trim()) {
+      throw new Error("Rendered clip response has an invalid content-length header.");
+    }
+    return parsed;
+  }
+
+  private formatBytes(value: number): string {
+    return `${value} bytes`;
   }
 }
