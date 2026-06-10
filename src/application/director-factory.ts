@@ -34,6 +34,7 @@ export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): Dir
       renderProducer,
       renderCostGate,
       semanticVisualInspector,
+      renderConcurrency: settings.renderConcurrency,
       atlasSettings: settings.atlasCloud
     }),
     ledger,

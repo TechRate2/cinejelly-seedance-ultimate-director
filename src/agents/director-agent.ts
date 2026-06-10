@@ -16,6 +16,7 @@ import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS } from "../core/postproduction-engine.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
+import { RenderScheduler } from "../core/render-scheduler.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
@@ -43,6 +44,7 @@ export class DirectorAgent {
   private readonly promptCompiler: SeedancePromptCompiler;
   private readonly consistencyGuardian: ConsistencyGuardian;
   private readonly renderProducer: RenderProducer;
+  private readonly renderScheduler: RenderScheduler;
   private readonly assemblyEngine: AssemblyEngine;
   private readonly deliveryGate: DeliveryGate;
   private readonly semanticVisualInspector: SemanticVisualInspector | undefined;
@@ -60,6 +62,7 @@ export class DirectorAgent {
     readonly renderCostGate?: RenderCostGate;
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
+    readonly renderConcurrency?: number;
     readonly assemblyEngine?: AssemblyEngine;
     readonly deliveryGate?: DeliveryGate;
     readonly semanticVisualInspector?: SemanticVisualInspector;
@@ -74,6 +77,7 @@ export class DirectorAgent {
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
     this.renderProducer = input.renderProducer;
+    this.renderScheduler = new RenderScheduler(input.renderConcurrency ?? 1);
     this.assemblyEngine = input.assemblyEngine ?? new AssemblyEngine();
     this.deliveryGate = input.deliveryGate ?? new DeliveryGate();
     this.semanticVisualInspector = input.semanticVisualInspector;
@@ -137,34 +141,38 @@ export class DirectorAgent {
 
     const candidateCount = candidateCountForQuality(intake.settings.qualityMode);
     const repairAttemptCount = repairAttemptCountForQuality(intake.settings.qualityMode);
-    const renderedShots: RenderedShot[] = [];
-    for (const [promptIndex, compiledPrompt] of compiledPrompts.entries()) {
-      const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
-      if (!shot) {
-        throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
-      }
-      const preflight = preflightReports[promptIndex];
-      if (!preflight) {
-        throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
-      }
-      const candidates = await this.renderCandidates({
-        shot,
-        compiledPrompt,
-        candidateCount,
-        repairAttemptCount,
-        signal
-      });
-      const selectedCandidate = this.selectBestCandidate(candidates);
-      compiledPrompts[promptIndex] = selectedCandidate.compiledPrompt;
-      renderedShots.push({
-        compiledPrompt: selectedCandidate.compiledPrompt,
-        preflight,
-        prediction: selectedCandidate.prediction,
-        renderInspection: selectedCandidate.renderInspection,
-        candidates,
-        selectedCandidateIndex: selectedCandidate.candidateIndex,
-        repairAttemptCount: candidates.filter((candidate) => candidate.repairAttempt !== undefined).length
-      });
+    const renderResults = await this.renderScheduler.run(
+      compiledPrompts.map((compiledPrompt, promptIndex) => {
+        const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
+        const preflight = preflightReports[promptIndex];
+        if (!shot) {
+          throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
+        }
+        if (!preflight) {
+          throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
+        }
+        return {
+          index: promptIndex,
+          shot,
+          value: {
+            compiledPrompt,
+            preflight
+          }
+        };
+      }),
+      async (item) =>
+        this.renderShot({
+          shot: item.shot,
+          compiledPrompt: item.value.compiledPrompt,
+          preflight: item.value.preflight,
+          candidateCount,
+          repairAttemptCount,
+          signal
+        })
+    );
+    const renderedShots = renderResults.map((result) => result.value);
+    for (const [index, renderedShot] of renderedShots.entries()) {
+      compiledPrompts[index] = renderedShot.compiledPrompt;
     }
     const blockingRenderReports = renderedShots.filter((renderedShot) =>
       this.needsRenderRepair(renderedShot.renderInspection)
@@ -257,6 +265,34 @@ export class DirectorAgent {
       case "1080p":
         return 1080;
     }
+  }
+
+  private async renderShot(input: {
+    readonly shot: ShotContract;
+    readonly compiledPrompt: CompiledPrompt;
+    readonly preflight: GuardianReport;
+    readonly candidateCount: number;
+    readonly repairAttemptCount: number;
+    readonly signal: AbortSignal | undefined;
+  }): Promise<RenderedShot> {
+    const candidates = await this.renderCandidates({
+      shot: input.shot,
+      compiledPrompt: input.compiledPrompt,
+      candidateCount: input.candidateCount,
+      repairAttemptCount: input.repairAttemptCount,
+      signal: input.signal
+    });
+    const selectedCandidate = this.selectBestCandidate(candidates);
+
+    return {
+      compiledPrompt: selectedCandidate.compiledPrompt,
+      preflight: input.preflight,
+      prediction: selectedCandidate.prediction,
+      renderInspection: selectedCandidate.renderInspection,
+      candidates,
+      selectedCandidateIndex: selectedCandidate.candidateIndex,
+      repairAttemptCount: candidates.filter((candidate) => candidate.repairAttempt !== undefined).length
+    };
   }
 
   private async renderCandidates(input: {

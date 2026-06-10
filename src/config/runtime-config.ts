@@ -74,7 +74,8 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
 export function loadRuntimeSettings(env: NodeJS.ProcessEnv = process.env): RuntimeSettings {
   return {
     atlasCloud: loadAtlasCloudSettings(env),
-    costEstimation: loadCostEstimationSettings(env)
+    costEstimation: loadCostEstimationSettings(env),
+    renderConcurrency: optionalIntegerEnv("CINEJELLY_RENDER_CONCURRENCY", env, 2)
   };
 }
 

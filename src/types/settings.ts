@@ -55,6 +55,7 @@ export interface AtlasCloudRuntimeSettings {
 export interface RuntimeSettings {
   readonly atlasCloud: AtlasCloudRuntimeSettings;
   readonly costEstimation: CostEstimationSettings;
+  readonly renderConcurrency: number;
 }
 
 export const DEFAULT_SEEDANCE_SETTINGS: FlexibleSeedanceSettings = {

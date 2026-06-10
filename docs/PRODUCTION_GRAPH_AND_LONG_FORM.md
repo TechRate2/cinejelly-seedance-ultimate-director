@@ -304,6 +304,12 @@ Parallel rendering is blocked when:
 
 This follows ViMax's high-efficiency parallel shot generation idea while preserving graph correctness.
 
+Runtime implementation:
+
+- `CINEJELLY_RENDER_CONCURRENCY` controls the maximum concurrent renderable shot workers; the default is conservative.
+- The render scheduler parallelizes only shots without first/last-frame references, endpoint continuity fields, transition risk, or transition wording that implies previous/next/anchor continuity.
+- Sequential shots flush pending parallel batches first, preserving graph correctness and final assembly order.
+
 Runtime candidate evidence:
 
 - Quality mode controls how many candidates are rendered per shot.
