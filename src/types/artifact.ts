@@ -10,6 +10,7 @@ export type ProjectArtifactKind =
   | "compiled_prompts"
   | "rendered_shots"
   | "deliverable"
+  | "delivery_gate"
   | "semantic_visual_inspection"
   | "cost_plan"
   | "cost_ledger"

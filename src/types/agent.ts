@@ -16,6 +16,7 @@ import type { FrameSamplingOptions } from "./media.js";
 import type { TransitionSettings } from "./transition.js";
 import type { SemanticVisualInspectionOptions, SemanticVisualInspectionReport } from "./visual-inspection.js";
 import type { RenderCostEstimate } from "./cost.js";
+import type { DeliveryGateReport } from "./delivery.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -73,5 +74,6 @@ export interface DirectorRunResult {
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];
   readonly deliverable?: AssembledDeliverable;
+  readonly deliveryGate?: DeliveryGateReport;
   readonly semanticVisualInspection?: SemanticVisualInspectionReport;
 }

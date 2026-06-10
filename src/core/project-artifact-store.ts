@@ -63,6 +63,7 @@ export class ProjectArtifactStore {
       estimatedTotalCostUsd: result.costEstimate.estimatedTotalCostUsd,
       hasDeliverable: Boolean(result.deliverable),
       deliverablePath: result.deliverable?.outputPath,
+      deliveryGateStatus: result.deliveryGate?.status,
       hasSemanticVisualInspection: Boolean(result.semanticVisualInspection)
     };
     const payloads: ProjectArtifactPayload[] = [
@@ -77,6 +78,9 @@ export class ProjectArtifactStore {
 
     if (result.deliverable) {
       payloads.push({ kind: "deliverable", fileName: "deliverable.json", value: result.deliverable });
+    }
+    if (result.deliveryGate) {
+      payloads.push({ kind: "delivery_gate", fileName: "delivery-gate.json", value: result.deliveryGate });
     }
     if (result.semanticVisualInspection) {
       payloads.push({

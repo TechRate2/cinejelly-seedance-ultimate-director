@@ -11,14 +11,17 @@ import {
 import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
+import { DeliveryGate } from "../core/delivery-gate.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
+import { DEFAULT_POSTPRODUCTION_SETTINGS } from "../core/postproduction-engine.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
-import type { AtlasCloudRuntimeSettings } from "../types/settings.js";
+import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult, RenderCandidate, RenderedShot } from "../types/agent.js";
 import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
+import type { PostproductionSettings } from "../types/media.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type { Prediction } from "../types/provider.js";
 import { asProviderError } from "../utils/errors.js";
@@ -41,6 +44,7 @@ export class DirectorAgent {
   private readonly consistencyGuardian: ConsistencyGuardian;
   private readonly renderProducer: RenderProducer;
   private readonly assemblyEngine: AssemblyEngine;
+  private readonly deliveryGate: DeliveryGate;
   private readonly semanticVisualInspector: SemanticVisualInspector | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
 
@@ -57,6 +61,7 @@ export class DirectorAgent {
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
     readonly assemblyEngine?: AssemblyEngine;
+    readonly deliveryGate?: DeliveryGate;
     readonly semanticVisualInspector?: SemanticVisualInspector;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
@@ -70,6 +75,7 @@ export class DirectorAgent {
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
     this.renderProducer = input.renderProducer;
     this.assemblyEngine = input.assemblyEngine ?? new AssemblyEngine();
+    this.deliveryGate = input.deliveryGate ?? new DeliveryGate();
     this.semanticVisualInspector = input.semanticVisualInspector;
     this.atlasSettings = input.atlasSettings;
   }
@@ -179,6 +185,7 @@ export class DirectorAgent {
               ...(request.audioMixOptions ? { audioMixOptions: request.audioMixOptions } : {}),
               ...(request.frameSamplingOptions ? { frameSamplingOptions: request.frameSamplingOptions } : {}),
               ...(request.transitionSettings ? { transitionSettings: request.transitionSettings } : {}),
+              postproductionSettings: this.postproductionSettingsForDelivery(intake.settings),
               clips: renderedShots.flatMap((renderedShot, index) =>
                 renderedShot.prediction.outputUrls.map((url, outputIndex) => ({
                   clipId: `${renderedShot.compiledPrompt.shotId}_${outputIndex}`,
@@ -190,6 +197,15 @@ export class DirectorAgent {
             signal
           )
         : undefined;
+    const deliveryGate = deliverable
+      ? this.deliveryGate.evaluate({
+          deliverable,
+          settings: intake.settings
+        })
+      : undefined;
+    if (deliveryGate) {
+      this.deliveryGate.assertPass(deliveryGate);
+    }
     const semanticVisualInspection =
       deliverable?.frameSamples && request.semanticVisualInspectionOptions?.enabled
         ? await this.requireSemanticVisualInspector().inspect(
@@ -213,8 +229,27 @@ export class DirectorAgent {
       compiledPrompts,
       renderedShots,
       ...(deliverable ? { deliverable } : {}),
+      ...(deliveryGate ? { deliveryGate } : {}),
       ...(semanticVisualInspection ? { semanticVisualInspection } : {})
     };
+  }
+
+  private postproductionSettingsForDelivery(settings: FlexibleSeedanceSettings): PostproductionSettings {
+    return {
+      ...DEFAULT_POSTPRODUCTION_SETTINGS,
+      targetHeight: this.targetHeight(settings.resolution)
+    };
+  }
+
+  private targetHeight(resolution: Resolution): 480 | 720 | 1080 {
+    switch (resolution) {
+      case "480p":
+        return 480;
+      case "720p":
+        return 720;
+      case "1080p":
+        return 1080;
+    }
   }
 
   private async renderCandidates(input: {

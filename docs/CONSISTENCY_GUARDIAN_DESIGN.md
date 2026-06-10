@@ -101,6 +101,13 @@ Checks:
 - caption timing
 - final export integrity
 
+Runtime delivery gate:
+
+- FFprobe delivery inspection is evaluated before the Director Agent returns a deliverable.
+- The gate blocks final output when the assembled media has no video stream, zero/missing duration, or does not match the selected 480p/720p/1080p output height after postproduction scaling.
+- Audio absence is a warning when the requested audio mode expects sound, and is allowed when audio mode is `none`.
+- The gate emits a machine-readable `delivery-gate.json` artifact for commercial handoff audit.
+
 ## Checkpoint Model
 
 Inspired by DirectorBench, each inspection report contains:
