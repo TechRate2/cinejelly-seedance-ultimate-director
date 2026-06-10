@@ -277,6 +277,7 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 API execution modes:
 
 - `/health` is public, while `/v1` endpoints require deployment API authentication before provider spend or run metadata access.
+- Credit-spending render submission endpoints are rate limited before request body parsing, runtime creation, job queue occupancy, or provider spend.
 - Render requests pass admission control before runtime creation, LLM planning, job queue occupancy, or provider spend.
 - `/v1/render` runs the full pipeline synchronously for controlled callers.
 - `/v1/render-jobs` submits the same normalized request into an in-process queue and returns a pollable job ID for long-form production.

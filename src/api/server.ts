@@ -13,6 +13,7 @@ import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
+import { ApiRateLimiter, readRateLimitDisabled } from "./api-rate-limit.js";
 import { RenderJobManager } from "./render-job-manager.js";
 import { RenderRequestAdmission, RenderRequestAdmissionError } from "./render-request-admission.js";
 
@@ -39,6 +40,11 @@ export function startServer(port = readPort(process.env.PORT)): void {
     disabled: readApiAuthDisabled(process.env.CINEJELLY_DISABLE_API_AUTH),
     ...(process.env.CINEJELLY_API_AUTH_TOKEN ? { sharedKey: process.env.CINEJELLY_API_AUTH_TOKEN } : {})
   });
+  const apiRateLimiter = new ApiRateLimiter({
+    windowMs: readPositiveInteger(process.env.CINEJELLY_API_RATE_LIMIT_WINDOW_MS, 60_000),
+    maxRequests: readPositiveInteger(process.env.CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS, 6),
+    disabled: readRateLimitDisabled(process.env.CINEJELLY_DISABLE_API_RATE_LIMIT)
+  });
   const jobManager = new RenderJobManager({
     artifactStore,
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
@@ -51,6 +57,14 @@ export function startServer(port = readPort(process.env.PORT)): void {
       const authDecision = apiAuthGuard.authorize(request, requestUrl.pathname);
       if (!authDecision.allowed) {
         sendJson(response, authDecision.statusCode ?? 401, { error: authDecision.message ?? "Unauthorized." });
+        return;
+      }
+      const rateLimitDecision = apiRateLimiter.check(request, requestUrl.pathname, request.method);
+      if (!rateLimitDecision.allowed) {
+        sendJson(response, rateLimitDecision.statusCode ?? 429, {
+          error: rateLimitDecision.message ?? "Too many requests.",
+          retryAfterSeconds: rateLimitDecision.retryAfterSeconds
+        });
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/health") {
