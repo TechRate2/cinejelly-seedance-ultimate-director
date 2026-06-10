@@ -279,6 +279,7 @@ API execution modes:
 - `/health` is public, while `/v1` endpoints require deployment API authentication before provider spend or run metadata access.
 - Credit-spending render submission endpoints are rate limited before request body parsing, runtime creation, job queue occupancy, or provider spend.
 - Render requests pass admission control before runtime creation, LLM planning, job queue occupancy, or provider spend.
+- Every API request creates or accepts a sanitized `X-CineJelly-Request-Id`/`X-Request-Id`; responses include `requestId`, and the normalized request propagates it into LLM/Seedance metadata, render job summaries, Production Graph project metadata, and durable success/failure artifacts.
 - `/v1/render` runs the full pipeline synchronously for controlled callers.
 - `/v1/render-jobs` submits the same normalized request into an in-process queue and returns a pollable job ID for long-form production.
 - Job status includes queued, running, succeeded, failed, or canceled, plus redacted result, cost ledger, and artifact bundle when available.

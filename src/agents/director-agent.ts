@@ -96,7 +96,8 @@ export class DirectorAgent {
     const shots = this.shotPlanner.plan({
       projectId: intake.projectId,
       scenes: storyPlan.scenes,
-      settings: intake.settings
+      settings: intake.settings,
+      ...(intake.metadata ? { metadata: intake.metadata } : {})
     });
     const modelId = resolveSeedanceModelId(intake.settings, this.atlasSettings);
     const productionGraph = this.productionGraphBuilder.build({

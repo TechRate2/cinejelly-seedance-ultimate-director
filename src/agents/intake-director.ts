@@ -23,10 +23,12 @@ export class IntakeDirector {
 
     const settings = normalizeSeedanceSettings(request.settings);
     const projectId = createStableId("project", `${userInput}:${settings.durationTargetSeconds}:${settings.ratio}`);
+    const metadata = request.metadata ? { metadata: request.metadata } : {};
     return {
       projectId,
       userInput,
       settings,
+      ...metadata,
       references: this.referenceLibrarian.normalize({
         projectId,
         references: request.references ?? []

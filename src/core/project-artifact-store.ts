@@ -85,9 +85,11 @@ export class ProjectArtifactStore {
   }
 
   private payloads(result: DirectorRunResult, costLedger: readonly CostLedgerEntry[]): readonly ProjectArtifactPayload[] {
+    const requestId = this.requestIdFromGraph(result);
     const runSummary = {
       artifactSchemaVersion: "cinejelly.artifacts.v1",
       projectId: result.projectId,
+      ...(requestId ? { requestId } : {}),
       generatedAt: new Date(),
       targetDurationSeconds: result.storyPlan.targetDurationSeconds,
       compiledPromptCount: result.compiledPrompts.length,
@@ -141,9 +143,11 @@ export class ProjectArtifactStore {
     readonly error: unknown;
     readonly stage: string;
   }): Record<string, unknown> {
+    const requestId = input.request.metadata?.requestId;
     return {
       artifactSchemaVersion: "cinejelly.artifacts.v1",
       projectId: input.projectId,
+      ...(requestId ? { requestId } : {}),
       generatedAt: new Date(),
       status: "failed",
       stage: input.stage,
@@ -158,6 +162,15 @@ export class ProjectArtifactStore {
       },
       error: this.errorPayload(input.error)
     };
+  }
+
+  private requestIdFromGraph(result: DirectorRunResult): string | undefined {
+    for (const node of result.productionGraph.nodes) {
+      if (node.type === "project") {
+        return node.data.metadata?.requestId;
+      }
+    }
+    return undefined;
   }
 
   private errorPayload(error: unknown): Record<string, unknown> {

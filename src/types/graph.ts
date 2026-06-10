@@ -41,6 +41,7 @@ export interface ProjectNodeData {
   readonly userInput: string;
   readonly settings: FlexibleSeedanceSettings;
   readonly targetDurationSeconds: number;
+  readonly metadata?: Record<string, string>;
 }
 
 export interface ReferenceAssetNodeData {

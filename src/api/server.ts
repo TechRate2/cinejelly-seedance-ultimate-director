@@ -16,6 +16,11 @@ import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { ApiRateLimiter, readRateLimitDisabled } from "./api-rate-limit.js";
 import { RenderJobManager } from "./render-job-manager.js";
 import { RenderRequestAdmission, RenderRequestAdmissionError } from "./render-request-admission.js";
+import {
+  attachRequestContextHeaders,
+  createApiRequestContext,
+  type ApiRequestContext
+} from "./request-context.js";
 
 const DEFAULT_PORT = 8787;
 const MAX_BODY_BYTES = 1_000_000;
@@ -52,11 +57,13 @@ export function startServer(port = readPort(process.env.PORT)): void {
   });
 
   const server = createServer(async (request, response) => {
+    const requestContext = createApiRequestContext(request);
+    attachRequestContextHeaders(response, requestContext);
     try {
       const requestUrl = new URL(request.url ?? "/", "http://localhost");
       const authDecision = apiAuthGuard.authorize(request, requestUrl.pathname);
       if (!authDecision.allowed) {
-        sendJson(response, authDecision.statusCode ?? 401, { error: authDecision.message ?? "Unauthorized." });
+        sendJson(response, authDecision.statusCode ?? 401, { error: authDecision.message ?? "Unauthorized." }, requestContext);
         return;
       }
       const rateLimitDecision = apiRateLimiter.check(request, requestUrl.pathname, request.method);
@@ -64,37 +71,37 @@ export function startServer(port = readPort(process.env.PORT)): void {
         sendJson(response, rateLimitDecision.statusCode ?? 429, {
           error: rateLimitDecision.message ?? "Too many requests.",
           retryAfterSeconds: rateLimitDecision.retryAfterSeconds
-        });
+        }, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/health") {
-        sendJson(response, 200, { status: "ok" });
+        sendJson(response, 200, { status: "ok" }, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/preflight") {
         const report = await preflight.run();
-        sendJson(response, report.status === "fail" ? 503 : 200, report);
+        sendJson(response, report.status === "fail" ? 503 : 200, report, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-jobs") {
-        sendJson(response, 200, { jobs: jobManager.list() });
+        sendJson(response, 200, { jobs: jobManager.list() }, requestContext);
         return;
       }
       const jobMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)$/);
       if (request.method === "GET" && jobMatch) {
         const job = jobManager.get(decodeURIComponent(jobMatch[1] ?? ""));
-        sendJson(response, job ? 200 : 404, job ?? { error: "Render job not found." });
+        sendJson(response, job ? 200 : 404, job ?? { error: "Render job not found." }, requestContext);
         return;
       }
       if (request.method === "DELETE" && jobMatch) {
         const job = jobManager.cancel(decodeURIComponent(jobMatch[1] ?? ""));
-        sendJson(response, job ? 202 : 404, job ?? { error: "Render job not found." });
+        sendJson(response, job ? 202 : 404, job ?? { error: "Render job not found." }, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
         const body = await readJsonBody<RenderRequestBody>(request);
         requestAdmission.assertAcceptable(body);
-        const normalizedRequest = normalizeRenderRequest(body);
+        const normalizedRequest = normalizeRenderRequest(body, requestContext);
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         const job = jobManager.submit({
           request: normalizedRequest,
@@ -103,13 +110,13 @@ export function startServer(port = readPort(process.env.PORT)): void {
         sendJson(response, 202, {
           ...job,
           statusUrl: `/v1/render-jobs/${encodeURIComponent(job.jobId)}`
-        });
+        }, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render") {
         const body = await readJsonBody<RenderRequestBody>(request);
         requestAdmission.assertAcceptable(body);
-        const normalizedRequest = normalizeRenderRequest(body);
+        const normalizedRequest = normalizeRenderRequest(body, requestContext);
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         let costLedger: readonly CostLedgerEntry[] = [];
         try {
@@ -125,7 +132,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
             ...result,
             costLedger,
             artifacts
-          });
+          }, requestContext);
         } catch (renderError: unknown) {
           const artifacts = await artifactStore.writeFailureArtifacts({
             request: normalizedRequest,
@@ -138,15 +145,15 @@ export function startServer(port = readPort(process.env.PORT)): void {
             error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
             costLedger,
             artifacts
-          });
+          }, requestContext);
         }
         return;
       }
-      sendJson(response, 404, { error: "Not found" });
+      sendJson(response, 404, { error: "Not found" }, requestContext);
     } catch (error) {
       sendJson(response, errorStatusCode(error), {
         error: redactUnknown(error instanceof Error ? error.message : String(error))
-      });
+      }, requestContext);
     }
   });
 
@@ -155,7 +162,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
   });
 }
 
-function normalizeRenderRequest(body: RenderRequestBody): CineJellyProjectRequest {
+function normalizeRenderRequest(body: RenderRequestBody, requestContext: ApiRequestContext): CineJellyProjectRequest {
   if (!body.userInput || typeof body.userInput !== "string") {
     throw new RenderRequestAdmissionError("Request body must include userInput.");
   }
@@ -167,6 +174,10 @@ function normalizeRenderRequest(body: RenderRequestBody): CineJellyProjectReques
 
   return {
     ...body,
+    metadata: {
+      ...(body.metadata ?? {}),
+      requestId: body.metadata?.requestId ?? requestContext.requestId
+    },
     outputPath: body.outputPath
       ? resolveInsideOutputRoot(outputRoot, body.outputPath, "outputPath")
       : join(outputRoot, safeName),
@@ -213,9 +224,14 @@ async function readJsonBody<TValue>(request: IncomingMessage): Promise<TValue> {
   }
 }
 
-function sendJson(response: ServerResponse, statusCode: number, payload: unknown): void {
+function sendJson(
+  response: ServerResponse,
+  statusCode: number,
+  payload: unknown,
+  requestContext: ApiRequestContext
+): void {
   response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
-  response.end(JSON.stringify(redactUnknown(payload)));
+  response.end(JSON.stringify(redactUnknown(withRequestContext(payload, requestContext))));
 }
 
 function readPort(value: string | undefined): number {
@@ -242,6 +258,19 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
 
 function errorStatusCode(error: unknown): number {
   return error instanceof RenderRequestAdmissionError ? error.statusCode : 500;
+}
+
+function withRequestContext(payload: unknown, requestContext: ApiRequestContext): unknown {
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    return {
+      requestId: requestContext.requestId,
+      ...payload
+    };
+  }
+  return {
+    requestId: requestContext.requestId,
+    data: payload
+  };
 }
 
 if (process.argv[1] && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1])) {

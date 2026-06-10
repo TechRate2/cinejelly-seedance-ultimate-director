@@ -40,6 +40,7 @@ export interface IntakeResult {
   readonly userInput: string;
   readonly settings: FlexibleSeedanceSettings;
   readonly references: readonly PromptReference[];
+  readonly metadata?: Record<string, string>;
 }
 
 export interface StoryPlan {

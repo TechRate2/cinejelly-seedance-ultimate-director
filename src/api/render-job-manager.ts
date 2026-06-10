@@ -15,6 +15,7 @@ export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "c
 
 export interface RenderJobSummary {
   readonly jobId: string;
+  readonly requestId?: string;
   readonly status: RenderJobStatus;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -64,6 +65,7 @@ export class RenderJobManager {
     const jobId = `render_job_${randomUUID()}`;
     const record: RenderJobRecord = {
       jobId,
+      ...(input.request.metadata?.requestId ? { requestId: input.request.metadata.requestId } : {}),
       status: "queued",
       createdAt: now,
       updatedAt: now,
@@ -249,6 +251,7 @@ export class RenderJobManager {
   private toSummary(record: RenderJobRecord): RenderJobSummary {
     const {
       jobId,
+      requestId,
       status,
       createdAt,
       updatedAt,
@@ -268,6 +271,7 @@ export class RenderJobManager {
     } = record;
     return {
       jobId,
+      ...(requestId ? { requestId } : {}),
       status,
       createdAt,
       updatedAt,

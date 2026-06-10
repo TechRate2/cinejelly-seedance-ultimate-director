@@ -4,6 +4,7 @@
  */
 
 import type { ContinuityRisk, PromptReference, ShotContract, ShotContinuity } from "../types/prompt.js";
+import type { ProviderMetadata } from "../types/provider.js";
 import type { FlexibleSeedanceSettings } from "../types/settings.js";
 import { createStableId } from "../utils/ids.js";
 import { planDurationChunks } from "./chunking.js";
@@ -33,12 +34,15 @@ export interface ShotPlanningInput {
   readonly projectId: string;
   readonly scenes: readonly ScenePlan[];
   readonly settings: FlexibleSeedanceSettings;
+  readonly metadata?: ProviderMetadata;
 }
 
 export class ShotPlanner {
   public plan(input: ShotPlanningInput): readonly ShotContract[] {
     return input.scenes.flatMap((scene) =>
-      scene.beats.flatMap((beat) => this.planBeat(input.projectId, scene.sceneId, beat, input.settings))
+      scene.beats.flatMap((beat) =>
+        this.planBeat(input.projectId, scene.sceneId, beat, input.settings, input.metadata)
+      )
     );
   }
 
@@ -46,7 +50,8 @@ export class ShotPlanner {
     projectId: string,
     sceneId: string,
     beat: BeatPlan,
-    settings: FlexibleSeedanceSettings
+    settings: FlexibleSeedanceSettings,
+    metadata: ProviderMetadata | undefined
   ): readonly ShotContract[] {
     const highRisk = beat.risks.length > 0;
     const chunks = planDurationChunks({
@@ -72,6 +77,7 @@ export class ShotPlanner {
       continuity: beat.continuity,
       risks: beat.risks,
       metadata: {
+        ...(metadata ?? {}),
         projectId,
         graphNodeId: `${sceneId}:${beat.beatId}`,
         shotId: `${beat.beatId}:${chunk.index}`

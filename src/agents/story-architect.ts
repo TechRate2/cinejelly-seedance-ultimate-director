@@ -101,6 +101,7 @@ export class StoryArchitect {
           }
         ],
         metadata: {
+          ...(intake.metadata ?? {}),
           projectId: intake.projectId,
           graphNodeId: "story_plan"
         }
