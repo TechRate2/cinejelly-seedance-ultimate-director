@@ -13,6 +13,7 @@ import type { ProductionGraphSnapshot } from "./graph.js";
 import type { CaptionCue, CaptionOptions } from "./caption.js";
 import type { AudioMixOptions, AudioMixTrack } from "./audio.js";
 import type { FrameSamplingOptions } from "./media.js";
+import type { TransitionSettings } from "./transition.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -26,6 +27,7 @@ export interface CineJellyProjectRequest {
   readonly audioTracks?: readonly AudioMixTrack[];
   readonly audioMixOptions?: AudioMixOptions;
   readonly frameSamplingOptions?: FrameSamplingOptions;
+  readonly transitionSettings?: TransitionSettings;
 }
 
 export interface IntakeResult {

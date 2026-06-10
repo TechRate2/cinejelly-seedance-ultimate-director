@@ -115,6 +115,7 @@ export class DirectorAgent {
               ...(request.audioTracks ? { audioTracks: request.audioTracks } : {}),
               ...(request.audioMixOptions ? { audioMixOptions: request.audioMixOptions } : {}),
               ...(request.frameSamplingOptions ? { frameSamplingOptions: request.frameSamplingOptions } : {}),
+              ...(request.transitionSettings ? { transitionSettings: request.transitionSettings } : {}),
               clips: renderedShots.flatMap((renderedShot, index) =>
                 renderedShot.prediction.outputUrls.map((url, outputIndex) => ({
                   clipId: `${renderedShot.compiledPrompt.shotId}_${outputIndex}`,

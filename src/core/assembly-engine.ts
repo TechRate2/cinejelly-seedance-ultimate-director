@@ -10,6 +10,7 @@ import { DEFAULT_POSTPRODUCTION_SETTINGS, PostproductionEngine } from "./postpro
 import { MediaInspector } from "./media-inspector.js";
 import { CaptionEngine } from "./caption-engine.js";
 import { AudioMixEngine, DEFAULT_AUDIO_MIX_OPTIONS } from "./audio-mix-engine.js";
+import { DEFAULT_TRANSITION_SETTINGS, TransitionEngine } from "./transition-engine.js";
 import { ensureDirectory, writeFileEnsuringDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
 import { runProcess } from "../utils/process.js";
@@ -19,6 +20,7 @@ export class AssemblyEngine {
   private readonly mediaInspector: MediaInspector;
   private readonly captionEngine: CaptionEngine;
   private readonly audioMixEngine: AudioMixEngine;
+  private readonly transitionEngine: TransitionEngine;
 
   public constructor(
     input: {
@@ -26,12 +28,14 @@ export class AssemblyEngine {
       readonly mediaInspector?: MediaInspector;
       readonly captionEngine?: CaptionEngine;
       readonly audioMixEngine?: AudioMixEngine;
+      readonly transitionEngine?: TransitionEngine;
     } = {}
   ) {
     this.postproductionEngine = input.postproductionEngine ?? new PostproductionEngine();
     this.mediaInspector = input.mediaInspector ?? new MediaInspector();
     this.captionEngine = input.captionEngine ?? new CaptionEngine();
     this.audioMixEngine = input.audioMixEngine ?? new AudioMixEngine();
+    this.transitionEngine = input.transitionEngine ?? new TransitionEngine(this.mediaInspector);
   }
 
   public async assemble(input: AssemblyInput, signal?: AbortSignal): Promise<AssembledDeliverable> {
@@ -54,30 +58,47 @@ export class AssemblyEngine {
       ...DEFAULT_AUDIO_MIX_OPTIONS,
       enabled: Boolean(input.audioTracks && input.audioTracks.length > 0)
     };
+    const transitionSettings = input.transitionSettings ?? {
+      ...DEFAULT_TRANSITION_SETTINGS,
+      enabled: localClipPaths.length > 1
+    };
     const captionOptions = input.captionOptions ?? { enabled: false, burnIn: false };
+    const needsTransitions = localClipPaths.length > 1 && transitionSettings.enabled;
     const needsCaptionBurn = Boolean(input.captionCues && captionOptions.enabled && captionOptions.burnIn);
     const needsAudioMix = Boolean(input.audioTracks && input.audioTracks.length > 0 && audioMixOptions.enabled);
-    const concatOutputPath = postproductionSettings.enabled || needsCaptionBurn || needsAudioMix
+    const concatOutputPath = postproductionSettings.enabled || needsCaptionBurn || needsAudioMix || needsTransitions
       ? join(input.workDirectory, `${input.projectId}_assembled_raw.mp4`)
       : input.outputPath;
     await writeFileEnsuringDirectory(concatListPath, this.toConcatList(localClipPaths));
 
-    await runProcess(
-      "ffmpeg",
-      [
-        "-y",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-        concatListPath,
-        "-c",
-        "copy",
-        concatOutputPath
-      ],
-      signal
-    );
+    const transition = needsTransitions
+      ? await this.transitionEngine.assemble(
+          {
+            inputPaths: localClipPaths,
+            outputPath: concatOutputPath,
+            settings: transitionSettings
+          },
+          signal
+        )
+      : undefined;
+    if (!transition) {
+      await runProcess(
+        "ffmpeg",
+        [
+          "-y",
+          "-f",
+          "concat",
+          "-safe",
+          "0",
+          "-i",
+          concatListPath,
+          "-c",
+          "copy",
+          concatOutputPath
+        ],
+        signal
+      );
+    }
 
     const postproductionOutputPath = postproductionSettings.enabled
       ? needsCaptionBurn || needsAudioMix
@@ -144,6 +165,7 @@ export class AssemblyEngine {
       ...(postproduction ? { postproduction } : {}),
       ...(captions ? { captions } : {}),
       ...(audioMix ? { audioMix } : {}),
+      ...(transition ? { transition } : {}),
       inspection,
       ...(frameSamples && frameSamples.length > 0 ? { frameSamples } : {})
     };

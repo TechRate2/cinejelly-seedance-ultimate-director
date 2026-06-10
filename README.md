@@ -126,9 +126,9 @@ Production API:
 - `GET /health`
 - `POST /v1/render`
 
-`POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, and optional `outputPath`/`workDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`.
+`POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, and optional `outputPath`/`workDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`.
 
-The current codebase provides the provider layer, prompt compiler, Production Graph, Consistency Guardian, director orchestration, FFmpeg assembly engine, FFprobe media inspection, frame sampling QC, postproduction polish, caption sidecar/burn-in automation, audio mix automation, and production HTTP entrypoint. The correct operating loop is:
+The current codebase provides the provider layer, prompt compiler, Production Graph, Consistency Guardian, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, FFprobe media inspection, frame sampling QC, postproduction polish, caption sidecar/burn-in automation, audio mix automation, and production HTTP entrypoint. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -137,7 +137,7 @@ The current codebase provides the provider layer, prompt compiler, Production Gr
 5. run secret audit
 6. commit and push
 
-Once semantic visual inspection and advanced timeline transitions are implemented, this README must be updated with those runtime requirements.
+Once semantic visual inspection is implemented, this README must be updated with those runtime requirements.
 
 ## Implementation Order
 
@@ -155,7 +155,8 @@ Once semantic visual inspection and advanced timeline transitions are implemente
 12. Caption sidecar and optional burn-in automation - implemented
 13. Audio mix automation - implemented
 14. Frame sampling QC - implemented
-15. Semantic visual inspection and advanced timeline transitions - next
+15. Smooth transition assembly - implemented
+16. Semantic visual inspection - next
 
 ## Source Fidelity
 
