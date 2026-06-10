@@ -68,8 +68,8 @@ assets/output_deliverables/*
 .DS_Store
 Thumbs.db
 desktop.ini
+.gh-auth-device*.log
 .idea/
 .vscode/
 *.swp
 *.swo
-
