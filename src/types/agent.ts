@@ -23,6 +23,7 @@ export interface CineJellyProjectRequest {
   readonly metadata?: Record<string, string>;
   readonly outputPath?: string;
   readonly workDirectory?: string;
+  readonly artifactDirectory?: string;
   readonly captionCues?: readonly CaptionCue[];
   readonly captionOptions?: CaptionOptions;
   readonly audioTracks?: readonly AudioMixTrack[];

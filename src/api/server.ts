@@ -6,8 +6,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDirectorRuntime, type DirectorRuntime } from "../application/director-factory.js";
+import { createDirectorRuntime } from "../application/director-factory.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
+import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import { redactUnknown } from "../utils/redaction.js";
 
@@ -17,15 +18,12 @@ const MAX_BODY_BYTES = 1_000_000;
 interface RenderRequestBody extends CineJellyProjectRequest {
   readonly outputPath?: string;
   readonly workDirectory?: string;
+  readonly artifactDirectory?: string;
 }
 
 export function startServer(port = readPort(process.env.PORT)): void {
   const preflight = new RuntimePreflight();
-  let runtime: DirectorRuntime | undefined;
-  const getRuntime = (): DirectorRuntime => {
-    runtime ??= createDirectorRuntime();
-    return runtime;
-  };
+  const artifactStore = new ProjectArtifactStore();
 
   const server = createServer(async (request, response) => {
     try {
@@ -45,11 +43,18 @@ export function startServer(port = readPort(process.env.PORT)): void {
 
       const body = await readJsonBody<RenderRequestBody>(request);
       const normalizedRequest = normalizeRenderRequest(body);
-      const runtime = getRuntime();
+      const runtime = createDirectorRuntime();
       const result = await runtime.director.run(normalizedRequest);
+      const costLedger = runtime.ledger.list();
+      const artifacts = await artifactStore.writeRunArtifacts({
+        result,
+        costLedger,
+        artifactDirectory: normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts")
+      });
       sendJson(response, 200, {
         ...result,
-        costLedger: runtime.ledger.list()
+        costLedger,
+        artifacts
       });
     } catch (error) {
       sendJson(response, 500, {
@@ -69,11 +74,13 @@ function normalizeRenderRequest(body: RenderRequestBody): CineJellyProjectReques
   }
   const outputRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
   const safeName = `${Date.now()}_cinejelly.mp4`;
+  const workDirectory = body.workDirectory || join(outputRoot, "work");
 
   return {
     ...body,
     outputPath: body.outputPath || join(outputRoot, safeName),
-    workDirectory: body.workDirectory || join(outputRoot, "work")
+    workDirectory,
+    artifactDirectory: body.artifactDirectory || join(workDirectory, "artifacts")
   };
 }
 

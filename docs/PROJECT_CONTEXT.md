@@ -102,7 +102,7 @@ Implementation status:
 - `docs/` contains the architecture and design source of truth.
 - `src/providers` implements provider-neutral contracts, an Atlas Cloud default provider, async polling, error normalization, configurable Seedance capabilities, and cost ledger tracking.
 - `src/prompt_compiler` implements the Seedance prompt compiler, role-based reference binding, negative constraints, and repair hints.
-- `src/core` implements Production Graph building, smart chunking, shot planning, Consistency Guardian preflight, FFmpeg assembly, smooth transition assembly, FFprobe inspection, frame sampling, postproduction polish, captions, audio mix automation, and semantic visual inspection through the configured Atlas LLM provider.
+- `src/core` implements Production Graph building, smart chunking, shot planning, Consistency Guardian preflight, FFmpeg assembly, smooth transition assembly, FFprobe inspection, frame sampling, postproduction polish, captions, audio mix automation, semantic visual inspection through the configured Atlas LLM provider, and deterministic project artifact persistence.
 - `src/agents` and `src/application` wire intake, story architecture, rendering, director orchestration, runtime factory, and deployment preflight.
 - `src/api/server.ts` exposes `/health`, `/v1/preflight`, and `/v1/render`.
 - `src/config` loads secret-safe Atlas Cloud runtime configuration from environment variables.
