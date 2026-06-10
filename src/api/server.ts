@@ -26,6 +26,11 @@ export function startServer(port = readPort(process.env.PORT)): void {
         sendJson(response, 200, { status: "ok" });
         return;
       }
+      if (request.method === "GET" && request.url === "/v1/preflight") {
+        const report = await runtime.preflight.run();
+        sendJson(response, report.status === "fail" ? 503 : 200, report);
+        return;
+      }
       if (request.method !== "POST" || request.url !== "/v1/render") {
         sendJson(response, 404, { error: "Not found" });
         return;

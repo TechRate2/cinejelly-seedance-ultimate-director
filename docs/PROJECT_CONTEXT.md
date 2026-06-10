@@ -80,7 +80,7 @@ flowchart LR
 
 ## Current Repo State
 
-The repo currently contains architecture and design documentation plus production-ready folder boundaries. Source implementation is not yet built.
+The repo contains architecture/design documentation plus a production TypeScript implementation scaffold for the first commercial pipeline. The implementation is original CineJelly code inspired by the credited sources; it does not clone upstream repository code or bundled public prompt corpora.
 
 Current production folders:
 
@@ -100,8 +100,19 @@ Current production folders:
 Implementation status:
 
 - `docs/` contains the architecture and design source of truth.
-- `src/` has no production implementation code yet.
-- The next code phase starts with the Model Provider Abstraction Layer and Atlas Cloud provider implementation.
+- `src/providers` implements provider-neutral contracts, an Atlas Cloud default provider, async polling, error normalization, configurable Seedance capabilities, and cost ledger tracking.
+- `src/prompt_compiler` implements the Seedance prompt compiler, role-based reference binding, negative constraints, and repair hints.
+- `src/core` implements Production Graph building, smart chunking, shot planning, Consistency Guardian preflight, FFmpeg assembly, smooth transition assembly, FFprobe inspection, frame sampling, postproduction polish, captions, audio mix automation, and semantic visual inspection through the configured Atlas LLM provider.
+- `src/agents` and `src/application` wire intake, story architecture, rendering, director orchestration, runtime factory, and deployment preflight.
+- `src/api/server.ts` exposes `/health`, `/v1/preflight`, and `/v1/render`.
+- `src/config` loads secret-safe Atlas Cloud runtime configuration from environment variables.
+- `src/types` defines the provider, production, prompt, graph, guardian, assembly, media, caption, audio, transition, visual-inspection, agent, and runtime-preflight contracts.
+
+Current blockers before real customer rendering:
+
+- Real Atlas Cloud credentials and verified model IDs must be provided through environment variables.
+- FFmpeg and FFprobe must be installed on the deployment host for assembly, inspection, captions, audio mix, postproduction, and frame sampling.
+- A real end-to-end Atlas render validation must be run against paid provider credentials before enabling customers.
 
 ## How To Interpret This Context
 

@@ -127,7 +127,10 @@ npm start
 Production API:
 
 - `GET /health`
+- `GET /v1/preflight`
 - `POST /v1/render`
+
+`GET /v1/preflight` verifies required Atlas configuration and local FFmpeg/FFprobe availability without exposing secret values.
 
 `POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, optional `semanticVisualInspectionOptions`, and optional `outputPath`/`workDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`.
 
@@ -161,7 +164,8 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 15. Smooth transition assembly - implemented
 16. Semantic visual inspection - implemented
 17. Provider schema hardening - implemented
-18. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
+18. Runtime deployment preflight - implemented
+19. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
 
 ## Source Fidelity
 

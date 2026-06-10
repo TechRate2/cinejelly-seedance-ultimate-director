@@ -10,10 +10,12 @@ import { DirectorAgent } from "../agents/director-agent.js";
 import { RenderProducer } from "../agents/render-producer.js";
 import { StoryArchitect } from "../agents/story-architect.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
+import { RuntimePreflight } from "./runtime-preflight.js";
 
 export interface DirectorRuntime {
   readonly director: DirectorAgent;
   readonly ledger: ProviderCostLedger;
+  readonly preflight: RuntimePreflight;
 }
 
 export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): DirectorRuntime {
@@ -31,6 +33,7 @@ export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): Dir
       semanticVisualInspector,
       atlasSettings: settings.atlasCloud
     }),
-    ledger
+    ledger,
+    preflight: new RuntimePreflight(settings)
   };
 }
