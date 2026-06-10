@@ -103,3 +103,33 @@ Current production folders:
 - `config`
 - `ops`
 
+## How To Interpret This Context
+
+This file is a compact memory layer for token-efficient work. It helps an agent quickly understand the product direction, repo structure, and source boundaries. It does not replace the detailed specs, and it does not mean CineJelly has already implemented or copied every upstream function.
+
+For accurate work:
+
+1. Read this file first.
+2. Read only the detailed spec relevant to the change.
+3. Re-open upstream sources only when changing provider claims, source-derived behavior, license-sensitive features, or long-form architecture assumptions.
+
+## Source Fidelity And No-Copy Boundary
+
+CineJelly should be source-faithful, not source-copied.
+
+Source-faithful means:
+
+- design decisions are traceable to credited repos/articles
+- source-inspired patterns are named and attributed
+- provider claims are checked against current Atlas Cloud docs/schema when they affect runtime behavior
+- long-form quality logic follows the ideas from ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, Emily2040/seedance-2.0, and Atlas Cloud without pretending those systems are already fully cloned
+
+Not allowed:
+
+- copying entire upstream repos into this project
+- copying public prompt corpora as bundled product content
+- copying AGPL OpenMontage implementation code into proprietary code without legal approval
+- claiming 100% feature parity before implementation and verification
+- using upstream names to imply endorsement
+
+If the product needs 100% behavior parity with a source repo, create a dedicated implementation plan that maps each upstream capability to a CineJelly production feature, license status, provider dependency, acceptance criteria, and verification method.

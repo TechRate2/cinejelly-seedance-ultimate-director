@@ -29,6 +29,14 @@ Use this order:
    - attribution/licensing: `docs/CREDITS.md`
 3. Original external sources only when the change modifies source-derived claims, provider behavior, license-sensitive reuse, or model capability assumptions.
 
+## Source Fidelity Policy
+
+- `docs/PROJECT_CONTEXT.md` is a compact memory map, not a full replacement for reading the detailed specs or upstream repositories.
+- Architecture and behavior must stay traceable to the credited sources, but implementation must be original CineJelly code unless a dependency/license review explicitly allows reuse.
+- Do not claim CineJelly has cloned or copied 100% of ViMax, VibeFrame, OpenMontage, VideoAgent, Emily2040/seedance-2.0, or any Atlas Cloud workflow unless the matching production feature is implemented, verified, and attributed.
+- Copying public prompt corpora or AGPL implementation code into this product is prohibited without legal approval.
+- When implementing a source-inspired feature, write a short note in the relevant design doc or code comment naming the source pattern and the CineJelly-specific extension.
+
 ## Security Gate Before Push
 
 Run checks equivalent to:
@@ -46,4 +54,3 @@ If `gitleaks` is installed, run it with `.gitleaks.toml` and redaction. If not i
 - Prefer small commits that match a completed production change.
 - Push the current branch immediately after a successful commit and security audit.
 - Never force-push unless the user explicitly asks and the risk is explained.
-
