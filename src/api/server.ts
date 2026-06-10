@@ -10,7 +10,9 @@ import { createDirectorRuntime } from "../application/director-factory.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
+import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
+import { RenderJobManager } from "./render-job-manager.js";
 
 const DEFAULT_PORT = 8787;
 const MAX_BODY_BYTES = 1_000_000;
@@ -24,55 +26,84 @@ interface RenderRequestBody extends CineJellyProjectRequest {
 export function startServer(port = readPort(process.env.PORT)): void {
   const preflight = new RuntimePreflight();
   const artifactStore = new ProjectArtifactStore();
+  const jobManager = new RenderJobManager({
+    artifactStore,
+    maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
+    historyLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100)
+  });
 
   const server = createServer(async (request, response) => {
     try {
-      if (request.method === "GET" && request.url === "/health") {
+      const requestUrl = new URL(request.url ?? "/", "http://localhost");
+      if (request.method === "GET" && requestUrl.pathname === "/health") {
         sendJson(response, 200, { status: "ok" });
         return;
       }
-      if (request.method === "GET" && request.url === "/v1/preflight") {
+      if (request.method === "GET" && requestUrl.pathname === "/v1/preflight") {
         const report = await preflight.run();
         sendJson(response, report.status === "fail" ? 503 : 200, report);
         return;
       }
-      if (request.method !== "POST" || request.url !== "/v1/render") {
-        sendJson(response, 404, { error: "Not found" });
+      if (request.method === "GET" && requestUrl.pathname === "/v1/render-jobs") {
+        sendJson(response, 200, { jobs: jobManager.list() });
         return;
       }
-
-      const body = await readJsonBody<RenderRequestBody>(request);
-      const normalizedRequest = normalizeRenderRequest(body);
-      const runtime = createDirectorRuntime();
-      const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
-      try {
-        const result = await runtime.director.run(normalizedRequest);
-        const costLedger = runtime.ledger.list();
-        const artifacts = await artifactStore.writeRunArtifacts({
-          result,
-          costLedger,
+      const jobMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)$/);
+      if (request.method === "GET" && jobMatch) {
+        const job = jobManager.get(decodeURIComponent(jobMatch[1] ?? ""));
+        sendJson(response, job ? 200 : 404, job ?? { error: "Render job not found." });
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
+        const body = await readJsonBody<RenderRequestBody>(request);
+        const normalizedRequest = normalizeRenderRequest(body);
+        const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
+        const job = jobManager.submit({
+          request: normalizedRequest,
           artifactDirectory
         });
-        sendJson(response, 200, {
-          ...result,
-          costLedger,
-          artifacts
+        sendJson(response, 202, {
+          ...job,
+          statusUrl: `/v1/render-jobs/${encodeURIComponent(job.jobId)}`
         });
-      } catch (renderError: unknown) {
-        const costLedger = runtime.ledger.list();
-        const artifacts = await artifactStore.writeFailureArtifacts({
-          request: normalizedRequest,
-          costLedger,
-          artifactDirectory,
-          error: renderError,
-          stage: "render_pipeline"
-        });
-        sendJson(response, 500, {
-          error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
-          costLedger,
-          artifacts
-        });
+        return;
       }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/render") {
+        const body = await readJsonBody<RenderRequestBody>(request);
+        const normalizedRequest = normalizeRenderRequest(body);
+        const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
+        let costLedger: readonly CostLedgerEntry[] = [];
+        try {
+          const runtime = createDirectorRuntime();
+          const result = await runtime.director.run(normalizedRequest);
+          costLedger = runtime.ledger.list();
+          const artifacts = await artifactStore.writeRunArtifacts({
+            result,
+            costLedger,
+            artifactDirectory
+          });
+          sendJson(response, 200, {
+            ...result,
+            costLedger,
+            artifacts
+          });
+        } catch (renderError: unknown) {
+          const artifacts = await artifactStore.writeFailureArtifacts({
+            request: normalizedRequest,
+            costLedger,
+            artifactDirectory,
+            error: renderError,
+            stage: "render_pipeline"
+          });
+          sendJson(response, 500, {
+            error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
+            costLedger,
+            artifacts
+          });
+        }
+        return;
+      }
+      sendJson(response, 404, { error: "Not found" });
     } catch (error) {
       sendJson(response, 500, {
         error: redactUnknown(error instanceof Error ? error.message : String(error))
@@ -153,6 +184,17 @@ function readPort(value: string | undefined): number {
     throw new Error("PORT must be a positive integer.");
   }
   return port;
+}
+
+function readPositiveInteger(value: string | undefined, fallback: number): number {
+  if (!value?.trim()) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== value.trim()) {
+    throw new Error("API job settings must be positive integers.");
+  }
+  return parsed;
 }
 
 if (process.argv[1] && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1])) {

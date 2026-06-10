@@ -274,6 +274,13 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 10. `finish`: audio, captions, color/polish, upscale if selected.
 11. `deliver`: export final video and review packet.
 
+API execution modes:
+
+- `/v1/render` runs the full pipeline synchronously for controlled callers.
+- `/v1/render-jobs` submits the same normalized request into an in-process queue and returns a pollable job ID for long-form production.
+- Job status includes queued, running, succeeded, or failed, plus redacted result, cost ledger, and artifact bundle when available.
+- Queue concurrency and retained history are process-level settings; multi-process deployments should place a durable queue in front of the same Director Agent contract.
+
 Failure artifact policy:
 
 - If `/v1/render` fails after request normalization, CineJelly still writes redacted failure artifacts.

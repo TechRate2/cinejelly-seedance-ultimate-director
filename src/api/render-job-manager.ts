@@ -1,0 +1,269 @@
+/**
+ * In-process render job manager for long-running CineJelly productions.
+ * It lets API clients submit a render, poll status, and retrieve the final result without holding one HTTP request open.
+ */
+
+import { randomUUID } from "node:crypto";
+import { createDirectorRuntime } from "../application/director-factory.js";
+import { ProjectArtifactStore } from "../core/project-artifact-store.js";
+import type { CineJellyProjectRequest, DirectorRunResult } from "../types/agent.js";
+import type { ProjectArtifactBundle } from "../types/artifact.js";
+import type { CostLedgerEntry } from "../types/provider.js";
+import { redactUnknown } from "../utils/redaction.js";
+
+export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed";
+
+export interface RenderJobSummary {
+  readonly jobId: string;
+  readonly status: RenderJobStatus;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly startedAt?: Date;
+  readonly completedAt?: Date;
+  readonly projectId?: string;
+  readonly userInputPreview: string;
+  readonly requestedDurationSeconds?: number;
+  readonly requestedQualityMode?: string;
+  readonly requestedResolution?: string;
+  readonly referenceCount: number;
+  readonly artifactDirectory: string;
+  readonly error?: unknown;
+  readonly costLedger?: readonly CostLedgerEntry[];
+  readonly artifacts?: ProjectArtifactBundle;
+  readonly result?: DirectorRunResult;
+}
+
+interface RenderJobRecord extends RenderJobSummary {
+  readonly request: CineJellyProjectRequest;
+}
+
+export class RenderJobManager {
+  private readonly artifactStore: ProjectArtifactStore;
+  private readonly maxConcurrentJobs: number;
+  private readonly historyLimit: number;
+  private readonly jobs = new Map<string, RenderJobRecord>();
+  private readonly queue: string[] = [];
+  private activeJobCount = 0;
+
+  public constructor(input: {
+    readonly artifactStore?: ProjectArtifactStore;
+    readonly maxConcurrentJobs?: number;
+    readonly historyLimit?: number;
+  } = {}) {
+    this.artifactStore = input.artifactStore ?? new ProjectArtifactStore();
+    this.maxConcurrentJobs = Math.max(1, input.maxConcurrentJobs ?? 1);
+    this.historyLimit = Math.max(10, input.historyLimit ?? 100);
+  }
+
+  public submit(input: {
+    readonly request: CineJellyProjectRequest;
+    readonly artifactDirectory: string;
+  }): RenderJobSummary {
+    const now = new Date();
+    const jobId = `render_job_${randomUUID()}`;
+    const record: RenderJobRecord = {
+      jobId,
+      status: "queued",
+      createdAt: now,
+      updatedAt: now,
+      userInputPreview: this.preview(input.request.userInput),
+      referenceCount: input.request.references?.length ?? 0,
+      artifactDirectory: input.artifactDirectory,
+      request: input.request,
+      ...(input.request.settings?.durationTargetSeconds !== undefined
+        ? { requestedDurationSeconds: input.request.settings.durationTargetSeconds }
+        : {}),
+      ...(input.request.settings?.qualityMode ? { requestedQualityMode: input.request.settings.qualityMode } : {}),
+      ...(input.request.settings?.resolution ? { requestedResolution: input.request.settings.resolution } : {})
+    };
+
+    this.jobs.set(jobId, record);
+    this.queue.push(jobId);
+    this.pruneHistory();
+    this.pumpQueue();
+    return this.toSummary(record);
+  }
+
+  public get(jobId: string): RenderJobSummary | undefined {
+    const record = this.jobs.get(jobId);
+    return record ? this.toSummary(record) : undefined;
+  }
+
+  public list(): readonly RenderJobSummary[] {
+    return [...this.jobs.values()]
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .map((record) => this.toSummary(record));
+  }
+
+  private pumpQueue(): void {
+    while (this.activeJobCount < this.maxConcurrentJobs && this.queue.length > 0) {
+      const jobId = this.queue.shift();
+      if (!jobId) {
+        return;
+      }
+      const record = this.jobs.get(jobId);
+      if (!record || record.status !== "queued") {
+        continue;
+      }
+      this.activeJobCount += 1;
+      void this.runJob(record).finally(() => {
+        this.activeJobCount -= 1;
+        this.pruneHistory();
+        this.pumpQueue();
+      });
+    }
+  }
+
+  private async runJob(record: RenderJobRecord): Promise<void> {
+    const startedAt = new Date();
+    this.updateJob(record.jobId, {
+      status: "running",
+      startedAt,
+      updatedAt: startedAt
+    });
+
+    let costLedger: readonly CostLedgerEntry[] = [];
+    try {
+      const runtime = createDirectorRuntime();
+      const result = await runtime.director.run(record.request);
+      costLedger = runtime.ledger.list();
+      const artifacts = await this.artifactStore.writeRunArtifacts({
+        result,
+        costLedger,
+        artifactDirectory: record.artifactDirectory
+      });
+      const completedAt = new Date();
+      this.updateJob(record.jobId, {
+        status: "succeeded",
+        updatedAt: completedAt,
+        completedAt,
+        projectId: result.projectId,
+        result,
+        costLedger,
+        artifacts
+      });
+    } catch (error) {
+      const artifacts = await this.tryWriteFailureArtifacts({
+        request: record.request,
+        costLedger,
+        artifactDirectory: record.artifactDirectory,
+        error
+      });
+      const completedAt = new Date();
+      this.updateJob(record.jobId, {
+        status: "failed",
+        updatedAt: completedAt,
+        completedAt,
+        error: this.errorPayload(error),
+        costLedger,
+        ...(artifacts ? { artifacts } : {})
+      });
+    }
+  }
+
+  private async tryWriteFailureArtifacts(input: {
+    readonly request: CineJellyProjectRequest;
+    readonly costLedger: readonly CostLedgerEntry[];
+    readonly artifactDirectory: string;
+    readonly error: unknown;
+  }): Promise<ProjectArtifactBundle | undefined> {
+    try {
+      return await this.artifactStore.writeFailureArtifacts({
+        request: input.request,
+        costLedger: input.costLedger,
+        artifactDirectory: input.artifactDirectory,
+        error: input.error,
+        stage: "render_job_pipeline"
+      });
+    } catch {
+      return undefined;
+    }
+  }
+
+  private updateJob(jobId: string, patch: Partial<RenderJobSummary>): void {
+    const current = this.jobs.get(jobId);
+    if (!current) {
+      return;
+    }
+    this.jobs.set(jobId, {
+      ...current,
+      ...patch
+    });
+  }
+
+  private pruneHistory(): void {
+    if (this.jobs.size <= this.historyLimit) {
+      return;
+    }
+    const removable = [...this.jobs.values()]
+      .filter((record) => record.status === "succeeded" || record.status === "failed")
+      .sort((left, right) => left.updatedAt.getTime() - right.updatedAt.getTime());
+
+    for (const record of removable) {
+      if (this.jobs.size <= this.historyLimit) {
+        return;
+      }
+      this.jobs.delete(record.jobId);
+    }
+  }
+
+  private toSummary(record: RenderJobRecord): RenderJobSummary {
+    const {
+      jobId,
+      status,
+      createdAt,
+      updatedAt,
+      startedAt,
+      completedAt,
+      projectId,
+      userInputPreview,
+      requestedDurationSeconds,
+      requestedQualityMode,
+      requestedResolution,
+      referenceCount,
+      artifactDirectory,
+      error,
+      costLedger,
+      artifacts,
+      result
+    } = record;
+    return {
+      jobId,
+      status,
+      createdAt,
+      updatedAt,
+      ...(startedAt ? { startedAt } : {}),
+      ...(completedAt ? { completedAt } : {}),
+      ...(projectId ? { projectId } : {}),
+      userInputPreview,
+      ...(requestedDurationSeconds !== undefined ? { requestedDurationSeconds } : {}),
+      ...(requestedQualityMode ? { requestedQualityMode } : {}),
+      ...(requestedResolution ? { requestedResolution } : {}),
+      referenceCount,
+      artifactDirectory,
+      ...(error !== undefined ? { error } : {}),
+      ...(costLedger ? { costLedger } : {}),
+      ...(artifacts ? { artifacts } : {}),
+      ...(result ? { result } : {})
+    };
+  }
+
+  private errorPayload(error: unknown): unknown {
+    if (error instanceof Error) {
+      return redactUnknown({
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
+    return redactUnknown({
+      name: "UnknownError",
+      message: String(error)
+    });
+  }
+
+  private preview(value: string): string {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    return normalized.length <= 160 ? normalized : `${normalized.slice(0, 157)}...`;
+  }
+}
