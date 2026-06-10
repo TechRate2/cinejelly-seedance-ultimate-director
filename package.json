@@ -1,0 +1,18 @@
+{
+  "name": "cinejelly-seedance-ultimate-director",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Production-grade agentic video pipeline for Seedance 2.0 through Atlas Cloud.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  }
+}
