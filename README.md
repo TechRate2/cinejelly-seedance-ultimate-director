@@ -7,7 +7,7 @@ Commercial agentic video production architecture for high-quality Seedance 2.0 w
 The repository contains the first production TypeScript foundation:
 
 - Atlas Cloud is the default provider target for both LLM reasoning and Seedance 2.0 rendering.
-- The provider layer, robust structured LLM parsing, Atlas Asset Library reference registration, configurable render cost gating, prompt compiler, Production Graph planning and run-recording, continuity ledger generation, Consistency Guardian, director orchestration, assembly/postproduction engines, and production HTTP API are implemented under `src/`.
+- The provider layer, robust structured LLM parsing, Reference Librarian validation and graph lineage, Atlas Asset Library reference registration, configurable render cost gating, prompt compiler, Production Graph planning and run-recording, continuity ledger generation, Consistency Guardian, director orchestration, assembly/postproduction engines, and production HTTP API are implemented under `src/`.
 - Quality mode now drives actual render behavior: Economy/Standard/High/Ultimate produce one to four Seedance candidates per shot, authorize zero to three targeted repair attempts, the Consistency Guardian selects the best candidate, and the Production Graph records selected, rejected, and repair candidate evidence.
 - No test, mock, demo, sample, or example files are part of the project.
 - Runtime validation still requires real Atlas Cloud credentials, verified model IDs, FFmpeg, and FFprobe before customer use.
@@ -30,7 +30,7 @@ The target long-form range is 2 to 8 minutes, handled through graph chunking, co
 
 ## Architecture Pillars
 
-- `Production Graph`: project, references, story, sequences, scenes, beats, shots, renders, inspection reports, repair actions, and deliverables.
+- `Production Graph`: project, validated reference assets, story, sequences, scenes, beats, shots, renders, inspection reports, repair actions, and deliverables.
 - `Model Provider Abstraction`: Atlas Cloud default, future-ready for Kie.ai, fal.ai, Runway, Replicate, direct Volcengine, or other providers.
 - `Prompt Compiler`: source-faithful Seedance prompt compilation from shot contracts, not hardcoded niche templates.
 - `Consistency Guardian`: preflight, test-take inspection, post-render inspection, timeline inspection, and targeted repair.
@@ -141,9 +141,9 @@ Production API:
 
 `GET /v1/preflight` verifies required Atlas configuration and local FFmpeg/FFprobe availability without exposing secret values. It is available before the render runtime is initialized, so a fresh deployment can diagnose missing environment variables safely.
 
-`POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, optional `semanticVisualInspectionOptions`, and optional `outputPath`/`workDirectory`/`artifactDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`; deterministic run artifacts are written under the request work directory.
+`POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, optional `semanticVisualInspectionOptions`, and optional `outputPath`/`workDirectory`/`artifactDirectory`. Reference URIs must be absolute `http(s)` URLs or pre-registered `asset://` references in the current Atlas path. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`; deterministic run artifacts are written under the request work directory.
 
-The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization, provider-neutral capability validation before Asset Library or render spend, provider telemetry with prediction IDs and provider-returned cost metadata when available, Atlas Asset Library registration/polling for video and audio references before Seedance generation, quality-mode candidate rendering, high-risk test-take gating before full render, conservative dependency-aware render scheduling, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with test-take, candidate, and repair multipliers, prompt compiler, Production Graph planning plus run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, selected-resolution postproduction scaling, FFprobe media inspection, deterministic delivery gate validation, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
+The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization, Reference Librarian validation for role/kind compatibility and secret-safe reference URIs, provider-neutral capability validation before Asset Library or render spend, provider telemetry with prediction IDs and provider-returned cost metadata when available, Atlas Asset Library registration/polling for video and audio references before Seedance generation, quality-mode candidate rendering, high-risk test-take gating before full render, conservative dependency-aware render scheduling, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with test-take, candidate, and repair multipliers, prompt compiler, Production Graph planning plus reference asset lineage and run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, selected-resolution postproduction scaling, FFprobe media inspection, deterministic delivery gate validation, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -189,7 +189,8 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 31. Provider ledger prediction IDs and response cost metadata - implemented
 32. Conservative dependency-aware render scheduling - implemented
 33. High-risk test-take gating before full render - implemented
-34. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
+34. Reference Librarian validation and Production Graph reference lineage - implemented
+35. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
 
 ## Source Fidelity
 

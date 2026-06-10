@@ -4,8 +4,8 @@
  */
 
 import type { IntakeResult, StoryPlan } from "../types/agent.js";
-import type { ProductionGraphNode, ProductionGraphSnapshot } from "../types/graph.js";
-import type { ShotContract } from "../types/prompt.js";
+import type { GraphEdgeType, ProductionGraphNode, ProductionGraphSnapshot } from "../types/graph.js";
+import type { PromptReference, ShotContract } from "../types/prompt.js";
 import { createStableId } from "../utils/ids.js";
 import { now } from "../utils/time.js";
 import { ProductionGraph } from "./production-graph.js";
@@ -30,6 +30,13 @@ export class ProductionGraphBuilder {
     graph.addNode(projectNode);
     graph.addNode(storyNode);
     graph.addEdge(projectNode.id, storyNode.id, "depends_on");
+
+    const referenceNodeIds = this.addReferenceNodes({
+      graph,
+      projectId: input.intake.projectId,
+      projectNodeId: projectNode.id,
+      references: input.intake.references
+    });
 
     const shotNodes: ProductionGraphNode[] = [];
     for (const [sceneIndex, scene] of input.storyPlan.scenes.entries()) {
@@ -59,6 +66,12 @@ export class ProductionGraphBuilder {
           const shotNode = this.node("shot", shot.shotId, shot);
           graph.addNode(shotNode);
           graph.addEdge(beatNode.id, shotNode.id, "depends_on");
+          this.addReferenceEdges({
+            graph,
+            shot,
+            shotNodeId: shotNode.id,
+            referenceNodeIds
+          });
           shotNodes.push(shotNode);
         }
       }
@@ -73,6 +86,74 @@ export class ProductionGraphBuilder {
     }
 
     return graph.snapshot();
+  }
+
+  private addReferenceNodes(input: {
+    readonly graph: ProductionGraph;
+    readonly projectId: string;
+    readonly projectNodeId: string;
+    readonly references: readonly PromptReference[];
+  }): ReadonlyMap<string, string> {
+    const referenceNodeIds = new Map<string, string>();
+
+    for (const reference of input.references) {
+      const referenceKey = this.referenceKey(reference);
+      const nodeId = createStableId("reference", `${input.projectId}:${referenceKey}`);
+      const referenceNode = this.node("reference_asset", nodeId, {
+        reference: reference.providerReference,
+        role: reference.role,
+        label: reference.label,
+        priority: reference.priority,
+        lineage: "user_reference",
+        validated: true
+      });
+      input.graph.addNode(referenceNode);
+      input.graph.addEdge(input.projectNodeId, referenceNode.id, "depends_on");
+      referenceNodeIds.set(referenceKey, referenceNode.id);
+    }
+
+    return referenceNodeIds;
+  }
+
+  private addReferenceEdges(input: {
+    readonly graph: ProductionGraph;
+    readonly shot: ShotContract;
+    readonly shotNodeId: string;
+    readonly referenceNodeIds: ReadonlyMap<string, string>;
+  }): void {
+    for (const reference of input.shot.references) {
+      const referenceNodeId = input.referenceNodeIds.get(this.referenceKey(reference));
+      if (!referenceNodeId) {
+        continue;
+      }
+      input.graph.addEdge(referenceNodeId, input.shotNodeId, "depends_on");
+      const edgeType = this.referenceEdgeType(reference.role);
+      if (edgeType) {
+        input.graph.addEdge(referenceNodeId, input.shotNodeId, edgeType);
+      }
+    }
+  }
+
+  private referenceEdgeType(role: PromptReference["role"]): GraphEdgeType | undefined {
+    if (role === "identity" || role === "wardrobe") {
+      return "continues_identity";
+    }
+    if (role === "environment" || role === "style") {
+      return "continues_environment";
+    }
+    if (["motion", "camera", "audio_tempo", "voice", "source_video_structure"].includes(role)) {
+      return "matches_motion";
+    }
+    return undefined;
+  }
+
+  private referenceKey(reference: PromptReference): string {
+    return [
+      reference.role,
+      reference.label.toLowerCase(),
+      reference.providerReference.kind,
+      reference.providerReference.providerAssetId ?? reference.providerReference.uri
+    ].join(":");
   }
 
   private node<TNode extends ProductionGraphNode["type"]>(

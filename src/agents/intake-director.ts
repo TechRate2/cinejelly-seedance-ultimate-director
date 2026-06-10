@@ -6,8 +6,15 @@
 import { normalizeSeedanceSettings } from "../config/seedance-settings.js";
 import type { CineJellyProjectRequest, IntakeResult } from "../types/agent.js";
 import { createStableId } from "../utils/ids.js";
+import { ReferenceLibrarian } from "./reference-librarian.js";
 
 export class IntakeDirector {
+  private readonly referenceLibrarian: ReferenceLibrarian;
+
+  public constructor(referenceLibrarian = new ReferenceLibrarian()) {
+    this.referenceLibrarian = referenceLibrarian;
+  }
+
   public intake(request: CineJellyProjectRequest): IntakeResult {
     const userInput = request.userInput.trim();
     if (!userInput) {
@@ -15,11 +22,15 @@ export class IntakeDirector {
     }
 
     const settings = normalizeSeedanceSettings(request.settings);
+    const projectId = createStableId("project", `${userInput}:${settings.durationTargetSeconds}:${settings.ratio}`);
     return {
-      projectId: createStableId("project", `${userInput}:${settings.durationTargetSeconds}:${settings.ratio}`),
+      projectId,
       userInput,
       settings,
-      references: request.references ?? []
+      references: this.referenceLibrarian.normalize({
+        projectId,
+        references: request.references ?? []
+      })
     };
   }
 }

@@ -94,6 +94,13 @@ Reference roles:
 - last frame
 - source video structure
 
+Runtime implementation:
+
+- Intake routes every supplied reference through the Reference Librarian before LLM planning or render spend.
+- The Reference Librarian normalizes missing labels, infers safe media kind defaults, validates role/kind compatibility, accepts only absolute `http(s)` or `asset://` reference URIs for the current Atlas path, rejects credential-like reference URIs, and deduplicates repeated references.
+- Production Graph Builder creates one validated `reference_asset` node per normalized reference, then connects references to dependent shots.
+- Identity and wardrobe references add `continues_identity` edges, environment and style references add `continues_environment` edges, and motion/camera/audio/source-structure references add `matches_motion` edges.
+
 ### StoryArc
 
 Contains:
@@ -312,6 +319,7 @@ Runtime implementation:
 
 Runtime candidate evidence:
 
+- Validated user references are preserved as `reference_asset` graph nodes before clip rendering begins.
 - High-risk shots can produce a 4-second test-take `ClipRender` node before full candidate rendering.
 - Quality mode controls how many candidates are rendered per shot.
 - Quality mode also controls the maximum targeted repair attempts per shot before delivery.

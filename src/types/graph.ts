@@ -4,7 +4,7 @@
  */
 
 import type { FlexibleSeedanceSettings } from "./settings.js";
-import type { ShotContract } from "./prompt.js";
+import type { PromptReference, ShotContract } from "./prompt.js";
 import type { PredictionStatus, ProviderReference } from "./provider.js";
 
 export type GraphNodeType =
@@ -45,6 +45,9 @@ export interface ProjectNodeData {
 
 export interface ReferenceAssetNodeData {
   readonly reference: ProviderReference;
+  readonly role: PromptReference["role"];
+  readonly label: string;
+  readonly priority: PromptReference["priority"];
   readonly lineage: string;
   readonly validated: boolean;
 }
