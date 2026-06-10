@@ -114,7 +114,7 @@ export class AtlasCloudProvider implements ModelProvider {
     try {
       return {
         ...response,
-        value: JSON.parse(response.content) as TValue
+        value: this.parseStructuredJson<TValue>(response.content)
       };
     } catch (error) {
       throw new ProviderError({
@@ -124,6 +124,37 @@ export class AtlasCloudProvider implements ModelProvider {
         details: { parseError: error instanceof Error ? error.message : String(error) }
       });
     }
+  }
+
+  private parseStructuredJson<TValue>(content: string): TValue {
+    const candidates = [
+      content.trim(),
+      this.extractFencedJson(content),
+      this.extractJsonObject(content)
+    ].filter((candidate): candidate is string => Boolean(candidate?.trim()));
+
+    for (const candidate of candidates) {
+      try {
+        return JSON.parse(candidate) as TValue;
+      } catch {
+        continue;
+      }
+    }
+    throw new Error("No parseable JSON object found in structured response.");
+  }
+
+  private extractFencedJson(content: string): string | undefined {
+    const match = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    return match?.[1]?.trim();
+  }
+
+  private extractJsonObject(content: string): string | undefined {
+    const start = content.indexOf("{");
+    const end = content.lastIndexOf("}");
+    if (start < 0 || end <= start) {
+      return undefined;
+    }
+    return content.slice(start, end + 1);
   }
 
   public generateTextToVideo(request: VideoGenerationRequest, signal?: AbortSignal): Promise<Prediction> {

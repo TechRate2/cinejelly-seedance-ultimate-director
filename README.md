@@ -7,7 +7,7 @@ Commercial agentic video production architecture for high-quality Seedance 2.0 w
 The repository contains the first production TypeScript foundation:
 
 - Atlas Cloud is the default provider target for both LLM reasoning and Seedance 2.0 rendering.
-- The provider layer, Atlas Asset Library reference registration, prompt compiler, Production Graph, Consistency Guardian, director orchestration, assembly/postproduction engines, and production HTTP API are implemented under `src/`.
+- The provider layer, robust structured LLM parsing, Atlas Asset Library reference registration, prompt compiler, Production Graph, Consistency Guardian, director orchestration, assembly/postproduction engines, and production HTTP API are implemented under `src/`.
 - No test, mock, demo, sample, or example files are part of the project.
 - Runtime validation still requires real Atlas Cloud credentials, verified model IDs, FFmpeg, and FFprobe before customer use.
 
@@ -136,7 +136,7 @@ Production API:
 
 `POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, optional `semanticVisualInspectionOptions`, and optional `outputPath`/`workDirectory`/`artifactDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`; deterministic run artifacts are written under the request work directory.
 
-The current codebase provides the provider layer, Atlas Asset Library registration/polling for video and audio references before Seedance generation, prompt compiler, Production Graph, Consistency Guardian, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, FFprobe media inspection, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, deterministic project artifact persistence, and production HTTP entrypoint. The correct operating loop is:
+The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization, Atlas Asset Library registration/polling for video and audio references before Seedance generation, prompt compiler, Production Graph, Consistency Guardian, director orchestration, FFmpeg assembly engine, xfade/acrossfade transition assembly, FFprobe media inspection, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, postproduction polish, caption sidecar/burn-in automation, audio mix automation, deterministic project artifact persistence, and production HTTP entrypoint. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -169,7 +169,8 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 18. Runtime deployment preflight - implemented
 19. Deterministic project artifact persistence - implemented
 20. Render-time Asset Library reference resolution - implemented
-21. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
+21. Structured story planning hardening - implemented
+22. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
 
 ## Source Fidelity
 
