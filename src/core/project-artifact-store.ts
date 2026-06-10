@@ -52,10 +52,12 @@ export class ProjectArtifactStore {
       compiledPromptCount: result.compiledPrompts.length,
       renderedShotCount: result.renderedShots.length,
       plannedCandidateCount: result.costEstimate.candidateCount,
+      plannedRepairAttemptCount: result.costEstimate.repairAttemptCount,
       selectedCandidateIndexes: result.renderedShots.map((shot) => ({
         shotId: shot.compiledPrompt.shotId,
         selectedCandidateIndex: shot.selectedCandidateIndex,
-        candidateCount: shot.candidates.length
+        candidateCount: shot.candidates.length,
+        repairAttemptCount: shot.repairAttemptCount
       })),
       costGateStatus: result.costEstimate.status,
       estimatedTotalCostUsd: result.costEstimate.estimatedTotalCostUsd,

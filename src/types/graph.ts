@@ -84,6 +84,7 @@ export interface ClipRenderNodeData {
   readonly status: PredictionStatus;
   readonly outputUrls: readonly string[];
   readonly candidateIndex?: number;
+  readonly repairAttempt?: number;
   readonly selected?: boolean;
   readonly costUsd?: number;
 }

@@ -307,9 +307,11 @@ This follows ViMax's high-efficiency parallel shot generation idea while preserv
 Runtime candidate evidence:
 
 - Quality mode controls how many candidates are rendered per shot.
-- Each candidate becomes a `ClipRender` node with candidate index, provider status, output URLs, cost metadata when available, and selected/rejected state.
+- Quality mode also controls the maximum targeted repair attempts per shot before delivery.
+- Each candidate becomes a `ClipRender` node with candidate index, optional repair attempt index, provider status, output URLs, cost metadata when available, and selected/rejected state.
 - Render inspection reports are attached to each candidate clip node.
-- Repair actions are created only from the selected candidate, so rejected alternatives remain audit evidence without forcing unnecessary repair loops.
+- Repair prompts are generated from Guardian findings and original compiler repair hints, then rerender only the affected shot.
+- Repair actions are created only from the selected candidate after the repair budget is exhausted, so rejected alternatives remain audit evidence without forcing unnecessary repair loops.
 
 ## Cost and Approval Gates
 

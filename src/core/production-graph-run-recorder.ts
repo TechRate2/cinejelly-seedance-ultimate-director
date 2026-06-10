@@ -46,6 +46,7 @@ export class ProductionGraphRunRecorder {
             status: candidate.prediction.status,
             outputUrls: candidate.prediction.outputUrls,
             candidateIndex: candidate.candidateIndex,
+            ...(candidate.repairAttempt !== undefined ? { repairAttempt: candidate.repairAttempt } : {}),
             selected,
             ...(costUsd !== undefined ? { costUsd } : {})
           }

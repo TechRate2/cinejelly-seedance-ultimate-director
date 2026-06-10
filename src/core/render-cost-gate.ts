@@ -8,7 +8,7 @@ import type { RenderCostEstimate, CostEstimationSettings } from "../types/cost.j
 import type { CompiledPrompt } from "../types/prompt.js";
 import type { ProviderReference } from "../types/provider.js";
 import type { FlexibleSeedanceSettings } from "../types/settings.js";
-import { candidateCountForQuality } from "../config/seedance-settings.js";
+import { candidateCountForQuality, repairAttemptCountForQuality } from "../config/seedance-settings.js";
 
 export class RenderCostGate {
   private readonly settings: CostEstimationSettings;
@@ -22,12 +22,15 @@ export class RenderCostGate {
     readonly settings: FlexibleSeedanceSettings;
   }): RenderCostEstimate {
     const candidateCount = candidateCountForQuality(input.settings.qualityMode);
+    const repairAttemptCount = repairAttemptCountForQuality(input.settings.qualityMode);
     const plannedSinglePassRenderSeconds = input.compiledPrompts.reduce(
       (sum, prompt) => sum + prompt.videoRequest.settings.durationSeconds,
       0
     );
-    const plannedClipCount = input.compiledPrompts.length * candidateCount;
-    const plannedRenderSeconds = plannedSinglePassRenderSeconds * candidateCount;
+    const plannedClipCount = input.compiledPrompts.length * (candidateCount + repairAttemptCount);
+    const plannedCandidateRenderSeconds = plannedSinglePassRenderSeconds * candidateCount;
+    const plannedRepairRenderSeconds = plannedSinglePassRenderSeconds * repairAttemptCount;
+    const plannedRenderSeconds = plannedCandidateRenderSeconds + plannedRepairRenderSeconds;
     const referenceRegistrationCount = this.countRegisterableReferences(input.compiledPrompts);
     const estimatedRenderCostUsd = this.multiply(plannedRenderSeconds, this.settings.renderCostUsdPerSecond);
     const estimatedAssetRegistrationCostUsd = this.multiply(referenceRegistrationCount, this.settings.assetRegistrationCostUsd);
@@ -51,8 +54,11 @@ export class RenderCostGate {
       status: this.status(findings),
       plannedShotCount: input.compiledPrompts.length,
       candidateCount,
+      repairAttemptCount,
       plannedClipCount,
       plannedSinglePassRenderSeconds,
+      plannedCandidateRenderSeconds,
+      plannedRepairRenderSeconds,
       plannedRenderSeconds,
       referenceRegistrationCount,
       ...(estimatedRenderCostUsd !== undefined ? { estimatedRenderCostUsd } : {}),

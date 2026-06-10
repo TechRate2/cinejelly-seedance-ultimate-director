@@ -3,7 +3,11 @@
  * input -> story plan -> shot planning -> prompt compile -> preflight -> Seedance render -> render inspection.
  */
 
-import { candidateCountForQuality, resolveSeedanceModelId } from "../config/seedance-settings.js";
+import {
+  candidateCountForQuality,
+  repairAttemptCountForQuality,
+  resolveSeedanceModelId
+} from "../config/seedance-settings.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
@@ -125,6 +129,7 @@ export class DirectorAgent {
     }
 
     const candidateCount = candidateCountForQuality(intake.settings.qualityMode);
+    const repairAttemptCount = repairAttemptCountForQuality(intake.settings.qualityMode);
     const renderedShots: RenderedShot[] = [];
     for (const [promptIndex, compiledPrompt] of compiledPrompts.entries()) {
       const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
@@ -139,6 +144,7 @@ export class DirectorAgent {
         shot,
         compiledPrompt,
         candidateCount,
+        repairAttemptCount,
         signal
       });
       const selectedCandidate = this.selectBestCandidate(candidates);
@@ -149,8 +155,15 @@ export class DirectorAgent {
         prediction: selectedCandidate.prediction,
         renderInspection: selectedCandidate.renderInspection,
         candidates,
-        selectedCandidateIndex: selectedCandidate.candidateIndex
+        selectedCandidateIndex: selectedCandidate.candidateIndex,
+        repairAttemptCount: candidates.filter((candidate) => candidate.repairAttempt !== undefined).length
       });
+    }
+    const blockingRenderReports = renderedShots.filter((renderedShot) =>
+      this.needsRenderRepair(renderedShot.renderInspection)
+    );
+    if (blockingRenderReports.length > 0) {
+      throw new Error(this.describeRenderBlock(blockingRenderReports));
     }
 
     const deliverable =
@@ -208,6 +221,7 @@ export class DirectorAgent {
     readonly shot: ShotContract;
     readonly compiledPrompt: CompiledPrompt;
     readonly candidateCount: number;
+    readonly repairAttemptCount: number;
     readonly signal: AbortSignal | undefined;
   }): Promise<readonly RenderCandidate[]> {
     const candidates: RenderCandidate[] = [];
@@ -224,13 +238,86 @@ export class DirectorAgent {
       preparedPrompt = candidate.compiledPrompt;
     }
 
+    let selectedCandidate = this.selectBestCandidate(candidates);
+    for (
+      let repairAttempt = 1;
+      repairAttempt <= input.repairAttemptCount && this.needsRenderRepair(selectedCandidate.renderInspection);
+      repairAttempt += 1
+    ) {
+      const repairCompiledPrompt = this.compileRepairAttempt({
+        compiledPrompt: selectedCandidate.compiledPrompt,
+        report: selectedCandidate.renderInspection,
+        repairAttempt
+      });
+      const repairCandidate = await this.renderCandidate({
+        shot: input.shot,
+        compiledPrompt: repairCompiledPrompt,
+        candidateIndex: candidates.length + 1,
+        repairAttempt,
+        signal: input.signal
+      });
+      candidates.push(repairCandidate);
+      selectedCandidate = this.selectBestCandidate(candidates);
+    }
+
     return candidates;
+  }
+
+  private compileRepairAttempt(input: {
+    readonly compiledPrompt: CompiledPrompt;
+    readonly report: GuardianReport;
+    readonly repairAttempt: number;
+  }): CompiledPrompt {
+    const directives = this.repairDirectives(input.compiledPrompt, input.report);
+    const repairBlock = [
+      `Targeted repair attempt ${input.repairAttempt}.`,
+      "Preserve all approved shot intent, references, duration, camera language, lighting, and continuity.",
+      "Repair only the failed checkpoints from the previous render:",
+      ...directives.map((directive) => `- ${directive}`)
+    ].join("\n");
+    const prompt = `${input.compiledPrompt.prompt}\n\n${repairBlock}`;
+    const metadata = {
+      ...(input.compiledPrompt.videoRequest.metadata ?? {}),
+      repairAttempt: input.repairAttempt,
+      repairSourceStatus: input.report.status,
+      repairSourceNodeId: input.report.nodeId
+    };
+
+    return {
+      ...input.compiledPrompt,
+      prompt,
+      repairHints: directives,
+      videoRequest: {
+        ...input.compiledPrompt.videoRequest,
+        prompt,
+        metadata
+      }
+    };
+  }
+
+  private repairDirectives(compiledPrompt: CompiledPrompt, report: GuardianReport): readonly string[] {
+    const directives = new Set<string>();
+    for (const finding of report.findings) {
+      if (finding.repair.trim()) {
+        directives.add(finding.repair.trim());
+      }
+    }
+    for (const hint of compiledPrompt.repairHints) {
+      if (hint.trim()) {
+        directives.add(hint.trim());
+      }
+    }
+    if (directives.size === 0) {
+      directives.add("Rerender only this shot with a simpler directorial prompt and the same reference bindings.");
+    }
+    return [...directives].slice(0, 6);
   }
 
   private async renderCandidate(input: {
     readonly shot: ShotContract;
     readonly compiledPrompt: CompiledPrompt;
     readonly candidateIndex: number;
+    readonly repairAttempt?: number;
     readonly signal: AbortSignal | undefined;
   }): Promise<RenderCandidate> {
     const submittedAt = new Date();
@@ -243,6 +330,7 @@ export class DirectorAgent {
       });
       return {
         candidateIndex: input.candidateIndex,
+        ...(input.repairAttempt !== undefined ? { repairAttempt: input.repairAttempt } : {}),
         compiledPrompt: renderResult.compiledPrompt,
         prediction: renderResult.prediction,
         renderInspection
@@ -260,6 +348,7 @@ export class DirectorAgent {
       });
       return {
         candidateIndex: input.candidateIndex,
+        ...(input.repairAttempt !== undefined ? { repairAttempt: input.repairAttempt } : {}),
         compiledPrompt: input.compiledPrompt,
         prediction,
         renderInspection: this.consistencyGuardian.inspectRender({
@@ -305,6 +394,10 @@ export class DirectorAgent {
       completedAt,
       latencyMs: completedAt.getTime() - input.submittedAt.getTime()
     };
+  }
+
+  private needsRenderRepair(report: GuardianReport): boolean {
+    return report.status === "repair" || report.status === "rerender" || report.status === "block";
   }
 
   private selectBestCandidate(candidates: readonly RenderCandidate[]): RenderCandidate {
@@ -383,5 +476,20 @@ export class DirectorAgent {
       })
       .join("; ");
     return `Consistency Guardian preflight blocked ${reports.length} shot(s). ${details}`;
+  }
+
+  private describeRenderBlock(renderedShots: readonly RenderedShot[]): string {
+    const details = renderedShots
+      .slice(0, 5)
+      .map((renderedShot) => {
+        const finding = renderedShot.renderInspection.findings.find((candidate) =>
+          candidate.status === "block" || candidate.status === "repair" || candidate.status === "rerender"
+        );
+        return finding
+          ? `${renderedShot.compiledPrompt.shotId}: ${finding.checkpoint} (${finding.severity}) - ${finding.repair}`
+          : `${renderedShot.compiledPrompt.shotId}: ${renderedShot.renderInspection.status}`;
+      })
+      .join("; ");
+    return `Consistency Guardian render gate blocked ${renderedShots.length} shot(s) after targeted repair budget. ${details}`;
   }
 }

@@ -49,6 +49,7 @@ export interface StoryPlan {
 
 export interface RenderCandidate {
   readonly candidateIndex: number;
+  readonly repairAttempt?: number;
   readonly compiledPrompt: CompiledPrompt;
   readonly prediction: Prediction;
   readonly renderInspection: GuardianReport;
@@ -61,6 +62,7 @@ export interface RenderedShot {
   readonly renderInspection: GuardianReport;
   readonly candidates: readonly RenderCandidate[];
   readonly selectedCandidateIndex: number;
+  readonly repairAttemptCount: number;
 }
 
 export interface DirectorRunResult {

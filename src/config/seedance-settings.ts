@@ -14,6 +14,7 @@ const MAX_CLIP_DURATION_SECONDS = 15;
 
 export interface NormalizedSeedanceSettings extends FlexibleSeedanceSettings {
   readonly candidateCount: number;
+  readonly repairAttemptCount: number;
   readonly requiresStrictInspection: boolean;
   readonly usesTestTakes: boolean;
 }
@@ -31,6 +32,7 @@ export function normalizeSeedanceSettings(
   return {
     ...settings,
     candidateCount: candidateCountForQuality(settings.qualityMode),
+    repairAttemptCount: repairAttemptCountForQuality(settings.qualityMode),
     requiresStrictInspection: settings.qualityMode === "high" || settings.qualityMode === "ultimate",
     usesTestTakes: settings.qualityMode !== "economy"
   };
@@ -71,6 +73,19 @@ export function candidateCountForQuality(qualityMode: QualityMode): number {
       return 3;
     case "ultimate":
       return 4;
+  }
+}
+
+export function repairAttemptCountForQuality(qualityMode: QualityMode): number {
+  switch (qualityMode) {
+    case "economy":
+      return 0;
+    case "standard":
+      return 1;
+    case "high":
+      return 2;
+    case "ultimate":
+      return 3;
   }
 }
 

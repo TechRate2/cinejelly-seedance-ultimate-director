@@ -333,6 +333,13 @@ Every report should be machine-readable:
 }
 ```
 
+Runtime repair behavior:
+
+- Render reports with `repair`, `rerender`, or `block` trigger targeted shot-level regeneration when the selected quality mode has remaining repair budget.
+- Repair prompts preserve the approved shot contract and append only Guardian repair directives plus compiler repair hints.
+- The Director Agent rerenders only the affected shot, never the whole video.
+- If all candidates and repair attempts still fail the render gate, assembly is blocked before a deliverable can be published.
+
 ## Human Review Escalation
 
 Escalate when:
@@ -350,4 +357,3 @@ Escalate when:
 - Never ignore provider errors.
 - Never publish with unresolved S0/S1 findings.
 - Never claim a clip passed without an inspection report.
-
