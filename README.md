@@ -130,7 +130,7 @@ Production API:
 - `GET /v1/preflight`
 - `POST /v1/render`
 
-`GET /v1/preflight` verifies required Atlas configuration and local FFmpeg/FFprobe availability without exposing secret values.
+`GET /v1/preflight` verifies required Atlas configuration and local FFmpeg/FFprobe availability without exposing secret values. It is available before the render runtime is initialized, so a fresh deployment can diagnose missing environment variables safely.
 
 `POST /v1/render` accepts JSON with `userInput`, optional `settings`, optional `references`, optional `transitionSettings`, optional `captionCues`/`captionOptions`, optional `audioTracks`/`audioMixOptions`, optional `frameSamplingOptions`, optional `semanticVisualInspectionOptions`, and optional `outputPath`/`workDirectory`. If output paths are omitted, local deliverables are written under `assets/output_deliverables/`.
 

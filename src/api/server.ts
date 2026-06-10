@@ -6,7 +6,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDirectorRuntime } from "../application/director-factory.js";
+import { createDirectorRuntime, type DirectorRuntime } from "../application/director-factory.js";
+import { RuntimePreflight } from "../application/runtime-preflight.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import { redactUnknown } from "../utils/redaction.js";
 
@@ -19,7 +20,13 @@ interface RenderRequestBody extends CineJellyProjectRequest {
 }
 
 export function startServer(port = readPort(process.env.PORT)): void {
-  const runtime = createDirectorRuntime();
+  const preflight = new RuntimePreflight();
+  let runtime: DirectorRuntime | undefined;
+  const getRuntime = (): DirectorRuntime => {
+    runtime ??= createDirectorRuntime();
+    return runtime;
+  };
+
   const server = createServer(async (request, response) => {
     try {
       if (request.method === "GET" && request.url === "/health") {
@@ -27,7 +34,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
         return;
       }
       if (request.method === "GET" && request.url === "/v1/preflight") {
-        const report = await runtime.preflight.run();
+        const report = await preflight.run();
         sendJson(response, report.status === "fail" ? 503 : 200, report);
         return;
       }
@@ -38,6 +45,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
 
       const body = await readJsonBody<RenderRequestBody>(request);
       const normalizedRequest = normalizeRenderRequest(body);
+      const runtime = getRuntime();
       const result = await runtime.director.run(normalizedRequest);
       sendJson(response, 200, {
         ...result,

@@ -34,6 +34,6 @@ export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): Dir
       atlasSettings: settings.atlasCloud
     }),
     ledger,
-    preflight: new RuntimePreflight(settings)
+    preflight: new RuntimePreflight(env)
   };
 }
