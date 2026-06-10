@@ -4,6 +4,7 @@
  */
 
 import { resolveSeedanceModelId } from "../config/seedance-settings.js";
+import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import type { AtlasCloudRuntimeSettings } from "../types/settings.js";
@@ -20,6 +21,7 @@ export class DirectorAgent {
   private readonly promptCompiler: SeedancePromptCompiler;
   private readonly consistencyGuardian: ConsistencyGuardian;
   private readonly renderProducer: RenderProducer;
+  private readonly assemblyEngine: AssemblyEngine;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
 
   public constructor(input: {
@@ -30,6 +32,7 @@ export class DirectorAgent {
     readonly shotPlanner?: ShotPlanner;
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
+    readonly assemblyEngine?: AssemblyEngine;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
     this.storyArchitect = input.storyArchitect;
@@ -37,6 +40,7 @@ export class DirectorAgent {
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
     this.renderProducer = input.renderProducer;
+    this.assemblyEngine = input.assemblyEngine ?? new AssemblyEngine();
     this.atlasSettings = input.atlasSettings;
   }
 
@@ -90,11 +94,31 @@ export class DirectorAgent {
       });
     }
 
+    const deliverable =
+      request.outputPath && request.workDirectory && renderedShots.length > 0
+        ? await this.assemblyEngine.assemble(
+            {
+              projectId: intake.projectId,
+              outputPath: request.outputPath,
+              workDirectory: request.workDirectory,
+              clips: renderedShots.flatMap((renderedShot, index) =>
+                renderedShot.prediction.outputUrls.map((url, outputIndex) => ({
+                  clipId: `${renderedShot.compiledPrompt.shotId}_${outputIndex}`,
+                  sourceUrlOrPath: url,
+                  order: index + outputIndex / 100
+                }))
+              )
+            },
+            signal
+          )
+        : undefined;
+
     return {
       projectId: intake.projectId,
       storyPlan,
       compiledPrompts,
-      renderedShots
+      renderedShots,
+      ...(deliverable ? { deliverable } : {})
     };
   }
 }

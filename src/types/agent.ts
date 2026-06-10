@@ -8,12 +8,15 @@ import type { PromptReference, CompiledPrompt } from "./prompt.js";
 import type { GuardianReport } from "./guardian.js";
 import type { Prediction } from "./provider.js";
 import type { ScenePlan } from "../core/shot-planner.js";
+import type { AssembledDeliverable } from "./assembly.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
   readonly settings?: Partial<FlexibleSeedanceSettings>;
   readonly references?: readonly PromptReference[];
   readonly metadata?: Record<string, string>;
+  readonly outputPath?: string;
+  readonly workDirectory?: string;
 }
 
 export interface IntakeResult {
@@ -41,4 +44,5 @@ export interface DirectorRunResult {
   readonly storyPlan: StoryPlan;
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];
+  readonly deliverable?: AssembledDeliverable;
 }

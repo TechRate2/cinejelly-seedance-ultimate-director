@@ -90,7 +90,36 @@ Security rules:
 
 ## Running The Project
 
-There is no runnable service yet because implementation code has not started. At this stage, the correct operating loop is:
+Current runtime requirements:
+
+- Node.js 20+
+- FFmpeg available on `PATH` for final clip assembly
+- Atlas Cloud credentials and configured model IDs
+
+Required environment variables:
+
+- `ATLASCLOUD_API_KEY`
+- `ATLASCLOUD_LLM_MODEL`
+- `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`
+- `ATLASCLOUD_SEEDANCE_FAST_MODEL`
+
+Optional environment variables:
+
+- `ATLASCLOUD_API_BASE_URL`
+- `ATLASCLOUD_ASSET_BASE_URL`
+- `CINEJELLY_REQUEST_TIMEOUT_MS`
+- `CINEJELLY_POLLING_INTERVAL_MS`
+- `CINEJELLY_POLLING_TIMEOUT_MS`
+
+Build commands:
+
+```bash
+npm install
+npm run typecheck
+npm run build
+```
+
+The current codebase provides the provider layer, prompt compiler, Production Graph, Consistency Guardian, director orchestration, and FFmpeg assembly engine. A production API/server entrypoint is not implemented yet. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -99,21 +128,21 @@ There is no runnable service yet because implementation code has not started. At
 5. run secret audit
 6. commit and push
 
-Once the provider layer and runtime entrypoint are implemented, this README must be updated with the production startup command and required environment variables.
+Once the production API/server entrypoint is implemented, this README must be updated with the startup command.
 
 ## Implementation Order
 
-1. Model Provider Abstraction Layer
-2. Atlas Cloud LLM provider
-3. Atlas Cloud Seedance 2.0 video provider
-4. Atlas Cloud Asset Library integration
-5. Prompt Compiler
-6. Production Graph and Shot Planner
-7. Consistency Guardian
-8. Agent Orchestrator
-9. Assembly and delivery pipeline
+1. Model Provider Abstraction Layer - implemented
+2. Atlas Cloud LLM provider - implemented
+3. Atlas Cloud Seedance 2.0 video provider - implemented
+4. Atlas Cloud Asset Library integration - implemented
+5. Prompt Compiler - implemented
+6. Production Graph and Shot Planner - implemented
+7. Consistency Guardian - implemented
+8. Agent Orchestrator - implemented
+9. Assembly engine - implemented
+10. Production API/server entrypoint - next
 
 ## Source Fidelity
 
 CineJelly is source-faithful, not source-copied. It learns architecture and workflow patterns from credited sources, then implements original production code for this product. Public prompt corpora and AGPL implementation code must not be copied into the product without legal approval.
-
