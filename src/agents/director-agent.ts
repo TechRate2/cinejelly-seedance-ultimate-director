@@ -76,7 +76,7 @@ export class DirectorAgent {
     );
 
     const renderedShots: RenderedShot[] = [];
-    for (const compiledPrompt of compiledPrompts) {
+    for (const [promptIndex, compiledPrompt] of compiledPrompts.entries()) {
       const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
       if (!shot) {
         throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
@@ -94,15 +94,16 @@ export class DirectorAgent {
       if (preflight.status === "block" || preflight.status === "repair") {
         continue;
       }
-      const prediction = await this.renderProducer.render(compiledPrompt, signal);
+      const renderResult = await this.renderProducer.render(compiledPrompt, signal);
+      compiledPrompts[promptIndex] = renderResult.compiledPrompt;
       const renderInspection = this.consistencyGuardian.inspectRender({
         shot,
-        prediction
+        prediction: renderResult.prediction
       });
       renderedShots.push({
-        compiledPrompt,
+        compiledPrompt: renderResult.compiledPrompt,
         preflight,
-        prediction,
+        prediction: renderResult.prediction,
         renderInspection
       });
     }

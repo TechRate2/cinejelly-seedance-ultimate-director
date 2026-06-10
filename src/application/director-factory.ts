@@ -23,7 +23,7 @@ export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): Dir
   const ledger = new ProviderCostLedger();
   const atlasProvider = new AtlasCloudProvider(settings.atlasCloud, ledger);
   const storyArchitect = new StoryArchitect(atlasProvider, settings.atlasCloud.models.llmModel);
-  const renderProducer = new RenderProducer(atlasProvider);
+  const renderProducer = new RenderProducer(atlasProvider, atlasProvider);
   const semanticVisualInspector = new SemanticVisualInspector(atlasProvider, settings.atlasCloud.models.llmModel);
 
   return {
