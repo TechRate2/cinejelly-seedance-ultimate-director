@@ -27,6 +27,12 @@ import { mapAssetRegistration, mapPrediction, mapUsage, readChatContent } from "
 
 const ATLAS_PROVIDER_NAME = "atlascloud";
 
+interface LedgerMetadata {
+  readonly predictionId?: string;
+  readonly estimatedCostUsd?: number;
+  readonly actualCostUsd?: number;
+}
+
 export class AtlasCloudProvider implements ModelProvider {
   public readonly name = ATLAS_PROVIDER_NAME;
 
@@ -73,24 +79,31 @@ export class AtlasCloudProvider implements ModelProvider {
       max_tokens: request.maxTokens
     };
 
-    return this.trackProviderCall("llm.chat", request.modelId, request.metadata?.graphNodeId, startedAt, async () => {
-      const response = await withRetry(
-        () => this.http.postJson<unknown>(this.url(this.settings.apiBaseUrl, "/chat/completions"), payload, signal),
-        DEFAULT_RETRY_POLICY,
-        signal
-      );
-      const finishedAt = now();
-      const objectResponse = response && typeof response === "object" ? (response as Record<string, unknown>) : {};
-      const usage = mapUsage(objectResponse);
-      const baseResponse = {
-        provider: ATLAS_PROVIDER_NAME,
-        modelId: request.modelId,
-        content: readChatContent(response),
-        raw: response,
-        latencyMs: elapsedMs(startedAt, finishedAt)
-      };
-      return usage ? { ...baseResponse, usage } : baseResponse;
-    });
+    return this.trackProviderCall(
+      "llm.chat",
+      request.modelId,
+      request.metadata?.graphNodeId,
+      startedAt,
+      async () => {
+        const response = await withRetry(
+          () => this.http.postJson<unknown>(this.url(this.settings.apiBaseUrl, "/chat/completions"), payload, signal),
+          DEFAULT_RETRY_POLICY,
+          signal
+        );
+        const finishedAt = now();
+        const objectResponse = response && typeof response === "object" ? (response as Record<string, unknown>) : {};
+        const usage = mapUsage(objectResponse);
+        const baseResponse = {
+          provider: ATLAS_PROVIDER_NAME,
+          modelId: request.modelId,
+          content: readChatContent(response),
+          raw: response,
+          latencyMs: elapsedMs(startedAt, finishedAt)
+        };
+        return usage ? { ...baseResponse, usage } : baseResponse;
+      },
+      (response) => this.chatLedgerMetadata(response)
+    );
   }
 
   public async structured<TValue, TSchema extends Record<string, unknown>>(
@@ -179,14 +192,21 @@ export class AtlasCloudProvider implements ModelProvider {
 
   public async getPrediction(predictionId: string, signal?: AbortSignal): Promise<Prediction> {
     const startedAt = now();
-    return this.trackProviderCall("video.get_prediction", undefined, undefined, startedAt, async () => {
-      const response = await withRetry(
-        () => this.http.getJson<unknown>(this.url(this.settings.apiBaseUrl, `/predictions/${encodeURIComponent(predictionId)}`), signal),
-        DEFAULT_RETRY_POLICY,
-        signal
-      );
-      return mapPrediction(response, "unknown", startedAt);
-    });
+    return this.trackProviderCall(
+      "video.get_prediction",
+      undefined,
+      undefined,
+      startedAt,
+      async () => {
+        const response = await withRetry(
+          () => this.http.getJson<unknown>(this.url(this.settings.apiBaseUrl, `/predictions/${encodeURIComponent(predictionId)}`), signal),
+          DEFAULT_RETRY_POLICY,
+          signal
+        );
+        return mapPrediction(response, "unknown", startedAt);
+      },
+      (prediction) => this.predictionLedgerMetadata(prediction)
+    );
   }
 
   public async waitForPrediction(predictionId: string, signal?: AbortSignal): Promise<Prediction> {
@@ -298,14 +318,21 @@ export class AtlasCloudProvider implements ModelProvider {
     const startedAt = now();
     const payload = this.toAtlasVideoPayload(request);
 
-    return this.trackProviderCall("video.submit", request.modelId, request.metadata?.graphNodeId, startedAt, async () => {
-      const response = await withRetry(
-        () => this.http.postJson<unknown>(this.url(this.settings.apiBaseUrl, "/predictions"), payload, signal),
-        DEFAULT_RETRY_POLICY,
-        signal
-      );
-      return mapPrediction(response, request.modelId, startedAt);
-    });
+    return this.trackProviderCall(
+      "video.submit",
+      request.modelId,
+      request.metadata?.graphNodeId,
+      startedAt,
+      async () => {
+        const response = await withRetry(
+          () => this.http.postJson<unknown>(this.url(this.settings.apiBaseUrl, "/predictions"), payload, signal),
+          DEFAULT_RETRY_POLICY,
+          signal
+        );
+        return mapPrediction(response, request.modelId, startedAt);
+      },
+      (prediction) => this.predictionLedgerMetadata(prediction)
+    );
   }
 
   private validateVideoRequest(expectedMode: ProviderMode, request: VideoGenerationRequest): void {
@@ -420,12 +447,14 @@ export class AtlasCloudProvider implements ModelProvider {
     modelId: string | undefined,
     graphNodeId: string | undefined,
     startedAt: Date,
-    callback: () => Promise<TValue>
+    callback: () => Promise<TValue>,
+    ledgerMetadata?: (value: TValue) => LedgerMetadata
   ): Promise<TValue> {
     let retryCount = 0;
     try {
       const result = await callback();
       const completedAt = now();
+      const metadata = ledgerMetadata?.(result);
       this.ledger?.record({
         provider: ATLAS_PROVIDER_NAME,
         operation,
@@ -435,7 +464,10 @@ export class AtlasCloudProvider implements ModelProvider {
         status: "succeeded",
         retryCount,
         ...(modelId ? { modelId } : {}),
-        ...(graphNodeId ? { graphNodeId } : {})
+        ...(graphNodeId ? { graphNodeId } : {}),
+        ...(metadata?.predictionId ? { predictionId: metadata.predictionId } : {}),
+        ...(metadata?.estimatedCostUsd !== undefined ? { estimatedCostUsd: metadata.estimatedCostUsd } : {}),
+        ...(metadata?.actualCostUsd !== undefined ? { actualCostUsd: metadata.actualCostUsd } : {})
       });
       return result;
     } catch (error) {
@@ -460,5 +492,26 @@ export class AtlasCloudProvider implements ModelProvider {
     const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     return `${normalizedBase}${normalizedPath}`;
+  }
+
+  private predictionLedgerMetadata(prediction: Prediction): LedgerMetadata {
+    return {
+      ...(prediction.predictionId !== "unknown" ? { predictionId: prediction.predictionId } : {}),
+      ...this.usageLedgerMetadata(prediction.usage)
+    };
+  }
+
+  private chatLedgerMetadata(response: ChatResponse): LedgerMetadata {
+    return this.usageLedgerMetadata(response.usage);
+  }
+
+  private usageLedgerMetadata(usage: { readonly estimatedCostUsd?: number; readonly actualCostUsd?: number } | undefined): LedgerMetadata {
+    if (!usage) {
+      return {};
+    }
+    return {
+      ...(usage.estimatedCostUsd !== undefined ? { estimatedCostUsd: usage.estimatedCostUsd } : {}),
+      ...(usage.actualCostUsd !== undefined ? { actualCostUsd: usage.actualCostUsd } : {})
+    };
   }
 }
