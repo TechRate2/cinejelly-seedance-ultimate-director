@@ -6,6 +6,7 @@
 import type { IntakeResult, StoryPlan } from "../types/agent.js";
 import type { GraphEdgeType, ProductionGraphNode, ProductionGraphSnapshot } from "../types/graph.js";
 import type { PromptReference, ShotContract } from "../types/prompt.js";
+import type { Storyboard } from "../types/storyboard.js";
 import { createStableId } from "../utils/ids.js";
 import { now } from "../utils/time.js";
 import { ProductionGraph } from "./production-graph.js";
@@ -15,6 +16,7 @@ export class ProductionGraphBuilder {
     readonly intake: IntakeResult;
     readonly storyPlan: StoryPlan;
     readonly shots: readonly ShotContract[];
+    readonly storyboard?: Storyboard;
   }): ProductionGraphSnapshot {
     const graph = new ProductionGraph();
     const projectNode = this.node("project", input.intake.projectId, {
@@ -64,9 +66,15 @@ export class ProductionGraphBuilder {
 
         const beatShots = input.shots.filter((shot) => shot.beatId === beat.beatId && shot.sceneId === scene.sceneId);
         for (const shot of beatShots) {
+          const storyboardPanel = input.storyboard?.panels.find((panel) => panel.shotId === shot.shotId);
+          const storyboardNode = storyboardPanel ? this.node("storyboard_panel", storyboardPanel.panelId, storyboardPanel) : undefined;
           const shotNode = this.node("shot", shot.shotId, shot);
+          if (storyboardNode) {
+            graph.addNode(storyboardNode);
+            graph.addEdge(beatNode.id, storyboardNode.id, "depends_on");
+          }
           graph.addNode(shotNode);
-          graph.addEdge(beatNode.id, shotNode.id, "depends_on");
+          graph.addEdge(storyboardNode?.id ?? beatNode.id, shotNode.id, "depends_on");
           this.addReferenceEdges({
             graph,
             shot,

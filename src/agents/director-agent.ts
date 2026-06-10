@@ -21,6 +21,7 @@ import { RenderCostGate } from "../core/render-cost-gate.js";
 import { RenderScheduler } from "../core/render-scheduler.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
+import { StoryboardPlanner } from "../core/storyboard-planner.js";
 import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult, RenderCandidate, RenderedShot } from "../types/agent.js";
 import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
@@ -39,6 +40,7 @@ export class DirectorAgent {
   private readonly intakeDirector: IntakeDirector;
   private readonly storyArchitect: StoryArchitect;
   private readonly shotPlanner: ShotPlanner;
+  private readonly storyboardPlanner: StoryboardPlanner;
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
@@ -58,6 +60,7 @@ export class DirectorAgent {
     readonly atlasSettings: AtlasCloudRuntimeSettings;
     readonly intakeDirector?: IntakeDirector;
     readonly shotPlanner?: ShotPlanner;
+    readonly storyboardPlanner?: StoryboardPlanner;
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
@@ -72,6 +75,7 @@ export class DirectorAgent {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
     this.storyArchitect = input.storyArchitect;
     this.shotPlanner = input.shotPlanner ?? new ShotPlanner();
+    this.storyboardPlanner = input.storyboardPlanner ?? new StoryboardPlanner();
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
@@ -99,11 +103,17 @@ export class DirectorAgent {
       settings: intake.settings,
       ...(intake.metadata ? { metadata: intake.metadata } : {})
     });
+    const storyboard = this.storyboardPlanner.plan({
+      projectId: intake.projectId,
+      storyPlan,
+      shots
+    });
     const modelId = resolveSeedanceModelId(intake.settings, this.atlasSettings);
     const productionGraph = this.productionGraphBuilder.build({
       intake,
       storyPlan,
-      shots
+      shots,
+      storyboard
     });
     const compiledPrompts = shots.map((shot) =>
       this.promptCompiler.compile({
@@ -241,6 +251,7 @@ export class DirectorAgent {
     return {
       projectId: intake.projectId,
       storyPlan,
+      storyboard,
       productionGraph: finalProductionGraph,
       costEstimate,
       compiledPrompts,

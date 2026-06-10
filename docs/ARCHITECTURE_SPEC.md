@@ -150,6 +150,7 @@ Source basis:
 Responsibilities:
 
 - Produce shot contracts with duration, shot size, camera movement, lens feel, blocking, action, lighting, audio, reference bindings, first/last frame needs, and transition handles.
+- Produce deterministic storyboard panels from approved shot contracts before provider render spend.
 - Split any output longer than a model clip limit into graph nodes that can be rendered, inspected, repaired, and stitched.
 
 Source basis:
@@ -231,6 +232,7 @@ Node types:
 - `Sequence`: grouped scenes for long-form structure.
 - `Scene`: location, time, characters, continuity anchors.
 - `Beat`: story unit with emotional or informational purpose.
+- `StoryboardPanel`: reviewable visual panel for a shot before render spend.
 - `Shot`: renderable visual contract.
 - `ClipRender`: provider job, status, output, cost, metadata.
 - `InspectionReport`: scored quality findings.
@@ -266,14 +268,15 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 1. `createProject`: persist the user request and settings.
 2. `ingestReferences`: validate references, classify roles, register required Atlas assets.
 3. `compileGraph`: build story, scenes, beats, shot contracts, continuity ledgers.
-4. `preflight`: run prompt/reference safety, contradiction, and schema checks.
-5. `testTake`: for high-risk shots, render a short test take before full duration.
-6. `render`: submit parallel-safe jobs; preserve dependencies for continuity-bound shots.
-7. `inspect`: run Consistency Guardian and DirectorBench-style checkpoint scoring.
-8. `repair`: rerender only failed nodes or use deterministic postproduction fixes.
-9. `assemble`: stitch clips with handles and transitions.
-10. `finish`: audio, captions, color/polish, upscale if selected.
-11. `deliver`: export final video and review packet.
+4. `storyboard`: generate reviewable panels from shot contracts and store them in graph/artifacts.
+5. `preflight`: run prompt/reference safety, contradiction, and schema checks.
+6. `testTake`: for high-risk shots, render a short test take before full duration.
+7. `render`: submit parallel-safe jobs; preserve dependencies for continuity-bound shots.
+8. `inspect`: run Consistency Guardian and DirectorBench-style checkpoint scoring.
+9. `repair`: rerender only failed nodes or use deterministic postproduction fixes.
+10. `assemble`: stitch clips with handles and transitions.
+11. `finish`: audio, captions, color/polish, upscale if selected.
+12. `deliver`: export final video and review packet.
 
 Assembly materialization:
 

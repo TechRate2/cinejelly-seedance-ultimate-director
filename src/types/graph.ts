@@ -6,6 +6,7 @@
 import type { FlexibleSeedanceSettings } from "./settings.js";
 import type { PromptReference, ShotContract } from "./prompt.js";
 import type { PredictionStatus, ProviderReference } from "./provider.js";
+import type { StoryboardPanel } from "./storyboard.js";
 
 export type GraphNodeType =
   | "project"
@@ -15,6 +16,7 @@ export type GraphNodeType =
   | "sequence"
   | "scene"
   | "beat"
+  | "storyboard_panel"
   | "shot"
   | "clip_render"
   | "inspection_report"
@@ -81,6 +83,8 @@ export interface BeatNodeData {
   readonly order: number;
 }
 
+export type StoryboardPanelNodeData = StoryboardPanel;
+
 export interface ClipRenderNodeData {
   readonly provider: string;
   readonly modelId: string;
@@ -120,6 +124,7 @@ export type ProductionGraphNode =
   | GraphNodeBase<"sequence", SequenceNodeData>
   | GraphNodeBase<"scene", SceneNodeData>
   | GraphNodeBase<"beat", BeatNodeData>
+  | GraphNodeBase<"storyboard_panel", StoryboardPanelNodeData>
   | GraphNodeBase<"shot", ShotContract>
   | GraphNodeBase<"clip_render", ClipRenderNodeData>
   | GraphNodeBase<"inspection_report", InspectionReportNodeData>

@@ -92,6 +92,7 @@ export class ProjectArtifactStore {
       ...(requestId ? { requestId } : {}),
       generatedAt: new Date(),
       targetDurationSeconds: result.storyPlan.targetDurationSeconds,
+      storyboardPanelCount: result.storyboard.panels.length,
       compiledPromptCount: result.compiledPrompts.length,
       renderedShotCount: result.renderedShots.length,
       plannedCandidateCount: result.costEstimate.candidateCount,
@@ -114,6 +115,7 @@ export class ProjectArtifactStore {
     const payloads: ProjectArtifactPayload[] = [
       { kind: "run_summary", fileName: "run-summary.json", value: runSummary },
       { kind: "story_plan", fileName: "story-plan.json", value: result.storyPlan },
+      { kind: "storyboard", fileName: "storyboard.json", value: result.storyboard },
       { kind: "production_graph", fileName: "production-graph.json", value: result.productionGraph },
       { kind: "cost_plan", fileName: "cost-plan.json", value: result.costEstimate },
       { kind: "compiled_prompts", fileName: "compiled-prompts.json", value: result.compiledPrompts },

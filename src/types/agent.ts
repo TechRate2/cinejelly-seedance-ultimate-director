@@ -10,6 +10,7 @@ import type { Prediction } from "./provider.js";
 import type { ScenePlan } from "../core/shot-planner.js";
 import type { AssembledDeliverable } from "./assembly.js";
 import type { ProductionGraphSnapshot } from "./graph.js";
+import type { Storyboard } from "./storyboard.js";
 import type { CaptionCue, CaptionOptions } from "./caption.js";
 import type { AudioMixOptions, AudioMixTrack } from "./audio.js";
 import type { FrameSamplingOptions } from "./media.js";
@@ -72,6 +73,7 @@ export interface RenderedShot {
 export interface DirectorRunResult {
   readonly projectId: string;
   readonly storyPlan: StoryPlan;
+  readonly storyboard: Storyboard;
   readonly productionGraph: ProductionGraphSnapshot;
   readonly costEstimate: RenderCostEstimate;
   readonly compiledPrompts: readonly CompiledPrompt[];
