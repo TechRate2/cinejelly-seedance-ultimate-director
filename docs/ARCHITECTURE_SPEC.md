@@ -284,6 +284,7 @@ Assembly materialization:
 - Remote clip and public API audio track URLs must use HTTPS and must not embed credentials before materialization.
 - Each rendered clip download is bounded by deployment configuration so long-form jobs cannot consume unbounded memory or disk.
 - Each remote audio track download is separately bounded by deployment configuration so postproduction mix inputs cannot consume unbounded memory or disk.
+- FFmpeg and FFprobe process stdout/stderr capture is bounded so malformed media or noisy tool failures cannot exhaust API memory.
 - Completed downloads are moved into place only after the full file has been received, keeping FFmpeg inputs deterministic.
 
 API execution modes:
