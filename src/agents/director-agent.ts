@@ -280,7 +280,8 @@ export class DirectorAgent {
   private postproductionSettingsForDelivery(settings: FlexibleSeedanceSettings): PostproductionSettings {
     return {
       ...DEFAULT_POSTPRODUCTION_SETTINGS,
-      targetHeight: this.targetHeight(settings.resolution)
+      targetHeight: this.targetHeight(settings.resolution),
+      targetRatio: settings.ratio
     };
   }
 

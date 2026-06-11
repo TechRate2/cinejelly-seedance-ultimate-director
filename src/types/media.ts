@@ -3,6 +3,8 @@
  * These reports become delivery evidence for customer-facing video outputs.
  */
 
+import type { AspectRatio } from "./settings.js";
+
 export interface MediaStreamInfo {
   readonly index: number;
   readonly type: "video" | "audio" | "subtitle" | "data" | "unknown";
@@ -57,6 +59,7 @@ export interface PostproductionSettings {
   readonly audioBitrate: string;
   readonly fastStart: boolean;
   readonly targetHeight?: 480 | 720 | 1080;
+  readonly targetRatio?: AspectRatio;
 }
 
 export interface PostproductionInput {

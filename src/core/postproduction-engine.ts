@@ -4,6 +4,7 @@
  */
 
 import type { PostproductionInput, PostproductionResult, PostproductionSettings } from "../types/media.js";
+import type { AspectRatio } from "../types/settings.js";
 import { ensureDirectory } from "../utils/files.js";
 import { runProcess } from "../utils/process.js";
 import { dirname, resolve } from "node:path";
@@ -44,8 +45,9 @@ export class PostproductionEngine {
 
   private buildFfmpegArgs(input: PostproductionInput): readonly string[] {
     const args: string[] = ["-y", "-i", input.inputPath, "-map", "0:v:0", "-map", "0:a?"];
-    if (input.settings.targetHeight) {
-      args.push("-vf", `scale=-2:${input.settings.targetHeight}`);
+    const videoFilter = this.videoFilter(input.settings);
+    if (videoFilter) {
+      args.push("-vf", videoFilter);
     }
     args.push(
       "-c:v",
@@ -66,5 +68,44 @@ export class PostproductionEngine {
     }
     args.push(input.outputPath);
     return args;
+  }
+
+  private videoFilter(settings: PostproductionSettings): string | undefined {
+    if (!settings.targetHeight) {
+      return undefined;
+    }
+    if (!settings.targetRatio || settings.targetRatio === "adaptive") {
+      return `scale=-2:${settings.targetHeight}`;
+    }
+    const targetWidth = this.evenWidthForRatio(settings.targetHeight, settings.targetRatio);
+    return [
+      `scale=${targetWidth}:${settings.targetHeight}:force_original_aspect_ratio=decrease`,
+      `pad=${targetWidth}:${settings.targetHeight}:(ow-iw)/2:(oh-ih)/2`,
+      "setsar=1"
+    ].join(",");
+  }
+
+  private evenWidthForRatio(targetHeight: 480 | 720 | 1080, ratio: AspectRatio): number {
+    const width = Math.round(targetHeight * this.ratioValue(ratio));
+    return width % 2 === 0 ? width : width + 1;
+  }
+
+  private ratioValue(ratio: AspectRatio): number {
+    switch (ratio) {
+      case "adaptive":
+        throw new Error("Adaptive aspect ratio does not have a fixed postproduction canvas.");
+      case "21:9":
+        return 21 / 9;
+      case "16:9":
+        return 16 / 9;
+      case "4:3":
+        return 4 / 3;
+      case "1:1":
+        return 1;
+      case "3:4":
+        return 3 / 4;
+      case "9:16":
+        return 9 / 16;
+    }
   }
 }

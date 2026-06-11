@@ -109,6 +109,7 @@ Policy:
 - `9:16` is default for TikTok, Reels, and Shorts.
 - `1:1` is default for feed-safe product focus.
 - `21:9` is only used for cinematic/theatrical outputs.
+- Runtime postproduction preserves content and pads non-adaptive outputs onto the selected aspect-ratio canvas before Delivery Gate validation.
 
 ### Duration
 
