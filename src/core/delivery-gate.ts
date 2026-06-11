@@ -5,7 +5,9 @@
 
 import type { AssembledDeliverable } from "../types/assembly.js";
 import type { DeliveryGateFinding, DeliveryGateReport } from "../types/delivery.js";
-import type { FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
+import type { AspectRatio, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
+
+const ASPECT_RATIO_TOLERANCE = 0.02;
 
 export class DeliveryGate {
   public evaluate(input: {
@@ -14,7 +16,7 @@ export class DeliveryGate {
   }): DeliveryGateReport {
     const findings: DeliveryGateFinding[] = [
       ...this.inspectDeliveryStatus(input.deliverable),
-      ...this.inspectVideoContract(input.deliverable, input.settings.resolution),
+      ...this.inspectVideoContract(input.deliverable, input.settings),
       ...this.inspectAudioContract(input.deliverable, input.settings)
     ];
 
@@ -48,7 +50,10 @@ export class DeliveryGate {
     }));
   }
 
-  private inspectVideoContract(deliverable: AssembledDeliverable, resolution: Resolution): readonly DeliveryGateFinding[] {
+  private inspectVideoContract(
+    deliverable: AssembledDeliverable,
+    settings: FlexibleSeedanceSettings
+  ): readonly DeliveryGateFinding[] {
     const findings: DeliveryGateFinding[] = [];
     const videoStream = deliverable.inspection.metadata.streams.find((stream) => stream.type === "video");
     if (!videoStream) {
@@ -61,14 +66,27 @@ export class DeliveryGate {
       return findings;
     }
 
-    const expectedHeight = this.expectedHeight(resolution);
+    const expectedHeight = this.expectedHeight(settings.resolution);
     if (videoStream.height !== expectedHeight) {
       findings.push({
         status: "block",
         checkpoint: "selected_resolution",
-        evidence: `Expected ${resolution} output height ${expectedHeight}px but found ${videoStream.height ?? "unknown"}px.`,
+        evidence: `Expected ${settings.resolution} output height ${expectedHeight}px but found ${videoStream.height ?? "unknown"}px.`,
         repair: "Run postproduction scaling with the selected resolution before delivery."
       });
+    }
+    const expectedAspectRatio = this.expectedAspectRatio(settings.ratio);
+    if (expectedAspectRatio !== undefined && videoStream.width && videoStream.height) {
+      const actualAspectRatio = videoStream.width / videoStream.height;
+      const drift = Math.abs(actualAspectRatio - expectedAspectRatio) / expectedAspectRatio;
+      if (drift > ASPECT_RATIO_TOLERANCE) {
+        findings.push({
+          status: "block",
+          checkpoint: "selected_aspect_ratio",
+          evidence: `Expected ${settings.ratio} aspect ratio but found ${videoStream.width}x${videoStream.height}.`,
+          repair: "Regenerate or scale the final timeline to the selected aspect ratio before delivery."
+        });
+      }
     }
     return findings;
   }
@@ -98,6 +116,25 @@ export class DeliveryGate {
         return 720;
       case "1080p":
         return 1080;
+    }
+  }
+
+  private expectedAspectRatio(ratio: AspectRatio): number | undefined {
+    switch (ratio) {
+      case "adaptive":
+        return undefined;
+      case "21:9":
+        return 21 / 9;
+      case "16:9":
+        return 16 / 9;
+      case "4:3":
+        return 4 / 3;
+      case "1:1":
+        return 1;
+      case "3:4":
+        return 3 / 4;
+      case "9:16":
+        return 9 / 16;
     }
   }
 
