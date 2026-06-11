@@ -19,6 +19,7 @@ Public sources:
 - DirectorBench paper: https://arxiv.org/html/2605.30090v1
 - HKUDS/VideoAgent: https://github.com/HKUDS/VideoAgent
 - OpenMontage: https://github.com/calesthio/OpenMontage
+- MoneyPrinterTurbo: https://github.com/harry0703/MoneyPrinterTurbo
 - Atlas Cloud Seedance 2.0 model page: https://www.atlascloud.ai/models/seedance2
 - Atlas Cloud docs overview: https://www.atlascloud.ai/docs/en
 - Atlas Cloud LLM docs: https://www.atlascloud.ai/docs/en/models/llm
@@ -42,11 +43,12 @@ Snapshot-derived integration targets:
 - From DirectorBench: long-form quality must be diagnosed across script, visual, audio, cross-modal, and stability dimensions using checkpoint-level reports rather than one aggregate score.
 - From HKUDS/VideoAgent: video understanding, editing, and remaking require intent analysis that captures explicit and implicit sub-intents, graph-powered workflow planning, and multimodal retrieval over video content.
 - From OpenMontage: production systems should support reference-video analysis, transcript/pacing/keyframe/style extraction, approval gates, cost estimates, provider scoring, real-footage paths when appropriate, and self-review through ffprobe, frame sampling, audio analysis, subtitles, and delivery checks.
+- From MoneyPrinterTurbo: one-input video systems benefit from a complete staged pipeline, explicit task progress, optional stop-at stages, batch output generation, local-or-remote material sourcing, aspect-aware material selection, subtitle/TTS/BGM automation, and multiple operator surfaces such as API, CLI, WebUI, Docker, and one-click launchers.
 - From Atlas Cloud: Atlas Cloud is the default API gateway for LLM and media models. Its LLM endpoint is OpenAI-compatible at `https://api.atlascloud.ai/v1`; media generations are asynchronous; Seedance 2.0 supports text, image, video, and audio inputs through a Universal Reference style workflow; Atlas exposes Seedance 2.0 and Seedance 2.0 Fast options; Atlas documents 480p, 720p, and 1080p options for Seedance image-to-video examples and a 4 to 15 second clip duration range.
 
 Extension based on these sources:
 
-- CineJelly adds a typed Production Graph, a Consistency Guardian, a Model Provider Abstraction Layer, and commercial delivery contracts. These are product architecture extensions based on ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, Emily2040/seedance-2.0, and Atlas Cloud docs.
+- CineJelly adds a typed Production Graph, a Consistency Guardian, a Model Provider Abstraction Layer, governed material sourcing, batch production evidence, and commercial delivery contracts. These are product architecture extensions based on ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, MoneyPrinterTurbo, Emily2040/seedance-2.0, and Atlas Cloud docs.
 
 ## Git Subtree And Snapshot Workflow
 
@@ -66,7 +68,7 @@ The snapshot workflow is:
 5. Record the origin, local snapshot path, and CineJelly-specific extension in the relevant design doc or attribution file.
 6. Keep production imports and public packaging based on CineJelly-owned modules. Production code must not import directly from `external/upstream/`.
 
-This lets the product combine the best parts of Emily2040/seedance-2.0, YouMind-OpenLab/awesome-seedance-2-prompts, HKUDS/ViMax, vericontext/vibeframe, HKUDS/VideoAgent, and calesthio/OpenMontage while remaining an autonomous CineJelly commercial system.
+This lets the product combine the best parts of Emily2040/seedance-2.0, YouMind-OpenLab/awesome-seedance-2-prompts, HKUDS/ViMax, vericontext/vibeframe, HKUDS/VideoAgent, calesthio/OpenMontage, and harry0703/MoneyPrinterTurbo while remaining an autonomous CineJelly commercial system.
 
 When a source pattern moves from `external/` into `src/`, the implementation must be written as CineJelly-owned TypeScript that fits existing provider, graph, agent, and runtime contracts. Engineers should not copy large upstream files wholesale into `src/`; they should extract the useful behavior, redesign it for CineJelly, preserve attribution, and develop it further.
 
@@ -110,7 +112,7 @@ flowchart LR
 The production implementation structure is:
 
 - `src/agents`: Director, Intake, Reference Librarian, Shot Planner, Render Producer, Editor, and orchestration agents.
-- `src/core`: Production Graph, continuity ledgers, Consistency Guardian, assembly contracts, cost ledger, and repair decisions.
+- `src/core`: Production Graph, continuity ledgers, Consistency Guardian, governed material sourcing, batch output planning, assembly contracts, cost ledger, and repair decisions.
 - `src/prompt_compiler`: Seedance 2.0 prompt compiler, reference binding, negative constraints, and prompt repair hints.
 - `src/providers`: provider-neutral interfaces plus Atlas Cloud default implementation for LLM, Seedance 2.0, async predictions, and Asset Library.
 - `src/config`: typed runtime settings, flexible Seedance settings, provider model configuration, and secret-safe environment loading.
@@ -246,6 +248,7 @@ Source basis:
 
 - VibeFrame render, inspect, repair, and edit lanes.
 - OpenMontage final composition and self-review.
+- MoneyPrinterTurbo staged script/material/audio/subtitle/final-video pipeline and batch output handling.
 - Emily2040 delivery/QC scope.
 
 ## Production Graph

@@ -22,6 +22,7 @@
 | `external/upstream/vibeframe` | `vericontext/vibeframe` | MIT license file present | Reference for deterministic artifacts, cost gates, dry runs, build reports, review reports, and repair loops. |
 | `external/upstream/videoagent` | `HKUDS/VideoAgent` | MIT license file present; nested tool licenses also exist | Reference for video understanding, intent decomposition, and graph-powered tool planning; nested tool licenses require separate review. |
 | `external/upstream/openmontage` | `calesthio/OpenMontage` | AGPL-3.0 license file present | Source for orchestration, approval gates, provider scoring, and self-review; direct implementation reuse must follow AGPL obligations or a legal review decision. |
+| `external/upstream/moneyprinterturbo` | `harry0703/MoneyPrinterTurbo` | MIT license file present | Source for staged one-input video pipeline, material sourcing, batch outputs, subtitles/TTS/BGM, task progress, API/CLI/WebUI, and Docker deployment patterns. |
 | `external/upstream/directorbench` | `jiaminchen-1031/DirectorBench` | No top-level license file in snapshot | Snapshot/audit source for evaluation dimensions and checkpoint ideas until license status is clarified. |
 
 ## Update Policy

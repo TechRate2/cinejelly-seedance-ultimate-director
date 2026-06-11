@@ -121,6 +121,22 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 - CineJelly extension:
   - Adapts approval, costing, reference analysis, and QA ideas into CineJelly-owned production modules while preserving the OpenMontage attribution trail.
 
+### MoneyPrinterTurbo
+
+- URL: https://github.com/harry0703/MoneyPrinterTurbo
+- Local snapshot: `external/upstream/moneyprinterturbo`
+- License shown in repo: MIT.
+- Used for: end-to-end one-input video pipeline, material sourcing, batch generation, subtitles, TTS, background music, API/CLI/WebUI surfaces, Docker deployment patterns, task queue/progress handling, and stage-specific execution.
+- Source-derived patterns adopted:
+  - Generate script and search terms before selecting materials.
+  - Support local materials and remote stock material sources such as Pexels, Pixabay, and Coverr with aspect/duration filtering.
+  - Treat audio, subtitles, material gathering, composition, and final export as explicit pipeline stages.
+  - Support batch output generation so one request can produce multiple candidate videos.
+  - Expose task state, progress, and generated artifacts through an API.
+  - Use CLI/WebUI/Docker/operator surfaces to make the pipeline runnable by different user types.
+- CineJelly extension:
+  - Reworks these short-video automation patterns into a commercial Seedance 2.0 director pipeline with Atlas Cloud as the default LLM/render provider, Production Graph lineage, long-form chunking, consistency repair, governed material/reference sourcing, and review packets.
+
 ## Atlas Cloud References
 
 ### Atlas Cloud Docs Overview

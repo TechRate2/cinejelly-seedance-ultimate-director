@@ -11,6 +11,7 @@ The Prompt Compiler turns a Production Graph shot contract into a provider-ready
 - Atlas Cloud Seedance all-round reference guide for Reference Cluster, Binding Logic, @-tag roles, identity vs motion weighting, prompt hierarchy, test takes, and troubleshooting.
 - ViMax for long-script segmentation, storyboard planning, reference selection, and consistency-aware generation.
 - DirectorBench for checkpoint-level quality dimensions that inform prompt repair.
+- MoneyPrinterTurbo Git Subtree snapshot for script-first generation, search-term extraction, stage-specific execution, and batch candidate output patterns.
 
 ## Source-Derived Principles
 
@@ -23,7 +24,8 @@ The Prompt Compiler turns a Production Graph shot contract into a provider-ready
 7. Avoid prompt overcrowding.
 8. Prefer human-readable directorial language over keyword soup.
 9. Add negative constraints only when they protect actual failure modes.
-10. Store model/provider claims outside prompt text unless required by provider schema.
+10. Derive material/search terms from the approved story and shot contracts when stock footage, local footage, or reference sourcing is needed.
+11. Store model/provider claims outside prompt text unless required by provider schema.
 
 ## Compiler Inputs
 
@@ -35,6 +37,7 @@ The compiler reads:
 - `ContinuityLedger`: canonical identity, wardrobe, product, environment, lighting, and camera rules.
 - `SafetyPolicy`: likeness, brand, copyrighted IP, voice, logos, music, and unsafe content constraints.
 - `ProviderCapability`: model ID, supported modalities, supported durations, resolution, ratio, asset input format, async behavior, and provider-specific schema fields.
+- `MaterialSourcingBrief`: optional stock/local-material search terms, rights requirements, aspect/duration filters, and source preferences when the shot needs non-generated inserts or reference plates.
 
 ## Compiler Outputs
 
@@ -46,6 +49,7 @@ The compiler writes:
 - `provider_params`: duration, resolution, ratio, audio generation, watermark, return last frame, and quality fields supported by the selected schema.
 - `inspection_expectations`: checklist for Consistency Guardian.
 - `repair_hints`: likely prompt levers if the shot fails.
+- `material_search_terms`: optional query terms and constraints for governed material sourcing.
 
 ## Prompt Contract Shape
 
@@ -94,6 +98,7 @@ Extension based on the Emily2040/seedance-2.0 and YouMind snapshots:
 - Emily's skill routing becomes a compiler decision tree.
 - YouMind's prompt corpus can be distilled into reusable structures or copied into curated product knowledge when attribution and product review allow exact text.
 - Atlas @-tag Binding Logic becomes a typed `ReferenceBindingMap`.
+- MoneyPrinterTurbo's script-to-search-term path becomes a governed `MaterialSourcingBrief` rather than direct stock-download code in the prompt compiler.
 
 ## Compilation Pipeline
 
@@ -106,9 +111,10 @@ Extension based on the Emily2040/seedance-2.0 and YouMind snapshots:
 7. Build lighting/style clause.
 8. Build audio clause.
 9. Build transition handle clause.
-10. Build short negative constraints.
-11. Run safety and contradiction checks.
-12. Emit provider request and inspection expectations.
+10. Build optional material/search-term brief for stock, local, or reference sourcing.
+11. Build short negative constraints.
+12. Run safety and contradiction checks.
+13. Emit provider request and inspection expectations.
 
 ## Reference Binding Rules
 

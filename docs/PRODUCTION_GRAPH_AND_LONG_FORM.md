@@ -11,6 +11,7 @@ This document defines how CineJelly creates coherent 2 to 8 minute videos from a
 - DirectorBench for long-form checkpoint evaluation across script, visual, audio, cross-modal, and stability dimensions.
 - VideoAgent Git Subtree snapshot for intent analysis, graph-powered workflow planning, video understanding, editing, and remaking.
 - OpenMontage Git Subtree snapshot for reference-video analysis, transcript/pacing/keyframe/style extraction, approval gates, cost estimates, provider scoring, real-footage retrieval, and self-review.
+- MoneyPrinterTurbo Git Subtree snapshot for end-to-end script/material/audio/subtitle/final-video stages, task progress, batch outputs, local/stock material sourcing, and API/CLI/WebUI operator surfaces.
 - Atlas Cloud Seedance docs for clip duration, multimodal references, asset registration, async prediction, and resolution settings.
 
 ## Why a Production Graph
@@ -25,14 +26,15 @@ Long-form video fails when the system treats the whole job as one prompt. A grap
 - User-facing review checkpoints.
 - Fine-grained diagnostics.
 
-Extension based on ViMax + VibeFrame + DirectorBench + VideoAgent + OpenMontage snapshots:
+Extension based on ViMax + VibeFrame + DirectorBench + VideoAgent + OpenMontage + MoneyPrinterTurbo snapshots:
 
 - ViMax contributes multi-agent scene/shot decomposition and consistency-aware reference reuse.
 - VibeFrame contributes deterministic artifacts, build/inspect reports, and cost gates.
 - DirectorBench contributes checkpoint-level evaluation.
 - VideoAgent contributes intent decomposition and graph-powered planning.
 - OpenMontage contributes reference-video analysis, approval gates, and self-review loops.
-- CineJelly combines these into a typed graph that drives production, rendering, inspection, repair, and commercial delivery.
+- MoneyPrinterTurbo contributes staged one-input automation, material sourcing, task progress, and batch output patterns.
+- CineJelly combines these into a typed graph that drives production, material/reference sourcing, rendering, inspection, repair, batch evidence, and commercial delivery.
 
 ## Graph Hierarchy
 
@@ -40,6 +42,7 @@ Extension based on ViMax + VibeFrame + DirectorBench + VideoAgent + OpenMontage 
 Project
   AudienceProfile
   ReferenceLibrary
+  MaterialLibrary
   StoryArc
     Sequence
       Scene
@@ -103,6 +106,24 @@ Runtime implementation:
 - Production Graph Builder creates one validated `reference_asset` node per normalized reference, then connects references to dependent shots.
 - Identity and wardrobe references add `continues_identity` edges, environment and style references add `continues_environment` edges, and motion/camera/audio/source-structure references add `matches_motion` edges.
 - Optional source-video deconstruction is normalized through the Source Video Analyst, matched to a `source_video_structure` reference label when supplied, and stored on the project node so planning, artifacts, review packets, and repairs can trace the structural source and the upstream snapshot patterns that shaped the feature.
+
+### MaterialLibrary
+
+Inspired by MoneyPrinterTurbo's local/remote material sourcing, CineJelly can maintain a governed material library for non-generated footage, reference plates, stock clips, product plates, audio beds, and subtitle/BGM assets.
+
+Contains:
+
+- search terms derived from approved story and shot contracts
+- source preference: user-provided, local library, Pexels, Pixabay, Coverr, or future licensed stock providers
+- aspect ratio, duration, resolution, rights, and credential requirements
+- selected material candidates with provider, URI, duration, hash, and usage lineage
+- rejection reasons for weak, unsafe, duplicate, or rights-incompatible materials
+
+Rules:
+
+- Material sourcing is optional and never bypasses Atlas Cloud as the default Seedance render provider.
+- Remote material sources must satisfy licensing, HTTPS, credential, duration, and size constraints before becoming Production Graph evidence.
+- Product code must implement this as CineJelly-owned TypeScript; MoneyPrinterTurbo service code stays in the snapshot layer.
 
 ### StoryArc
 
@@ -335,6 +356,7 @@ Runtime candidate evidence:
 - Quality mode controls how many candidates are rendered per shot.
 - Quality mode also controls the maximum targeted repair attempts per shot before delivery.
 - Each test take and candidate becomes a `ClipRender` node with candidate index, optional test-take flag, optional repair attempt index, provider status, output URLs, cost metadata when available, and selected/rejected state.
+- Batch output generation follows MoneyPrinterTurbo's useful candidate-output idea but records every candidate, selected render, rejected render, material candidate, and final deliverable as graph evidence.
 - Render inspection reports are attached to each candidate clip node.
 - Repair prompts are generated from Guardian findings and original compiler repair hints, then rerender only the affected shot.
 - Repair actions are created only from the selected candidate after the repair budget is exhausted, so rejected alternatives remain audit evidence without forcing unnecessary repair loops.

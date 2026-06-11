@@ -12,6 +12,7 @@ Consistency Guardian is the quality and continuity subsystem that makes CineJell
 - Emily2040/seedance-2.0 for production QC, troubleshooting levers, safety gates, and role-specific reference mapping.
 - VibeFrame for build/review reports, render inspection, and deterministic repair loops.
 - OpenMontage for ffprobe validation, frame sampling, audio level analysis, subtitle checks, provider scoring, and delivery promise validation.
+- MoneyPrinterTurbo for staged audio/subtitle/material/final-video generation, batch output selection, and task-progress observability patterns.
 
 ## Operating Principle
 
@@ -37,6 +38,7 @@ Checks:
 - first/last-frame endpoints present when transition continuity matters
 - unsafe IP, likeness, brand, voice, logo, or song risk
 - overcrowded prompt risk
+- material sourcing rights, duration, aspect, and duplication risk when stock/local materials are used
 
 Outputs:
 
@@ -206,6 +208,8 @@ Dimensions:
 - platform variant conforms
 - watermark policy honored
 - captions/subtitles validated when requested
+- material sources and licenses recorded when stock/local material is used
+- batch candidates recorded with selected/rejected status
 - final file playable
 - review packet complete
 

@@ -27,6 +27,7 @@ git subtree pull --prefix=external/upstream/<snapshot-name> <repo-url> <branch> 
 | `external/upstream/vibeframe` | `vericontext/vibeframe` | `main` | `LICENSE` is MIT | Use for deterministic artifacts, cost gates, dry-run discipline, build/review reports, and repair-loop structure. |
 | `external/upstream/videoagent` | `HKUDS/VideoAgent` | `main` | Top-level `LICENSE` is MIT; nested tool folders include separate licenses | Use for video understanding, intent decomposition, multimodal retrieval, and graph-powered tool planning patterns. Nested tools need separate license review before reuse. |
 | `external/upstream/openmontage` | `calesthio/OpenMontage` | `main` | `LICENSE` is GNU AGPL-3.0 | Use for reference-video analysis, approval gates, provider scoring, real-footage path, and self-review. Direct implementation reuse must follow AGPL obligations or a legal review decision. |
+| `external/upstream/moneyprinterturbo` | `harry0703/MoneyPrinterTurbo` | `main` | `LICENSE` is MIT | Use for end-to-end one-input pipeline staging, material sourcing, batch generation, task queue/progress, subtitles, TTS, BGM, and API/CLI/WebUI deployment patterns. Productized code must be CineJelly-owned TypeScript with MIT attribution where required. |
 | `external/upstream/directorbench` | `jiaminchen-1031/DirectorBench` | `master` | No top-level license file found in the snapshot | Use for long-form evaluation dimensions, dynamic checkpoints, and bottleneck reporting in architecture notes until permission or a compatible reuse path is clarified. |
 
 ## How Engineers Should Use These Snapshots
@@ -48,6 +49,7 @@ git subtree pull --prefix=external/upstream/<snapshot-name> <repo-url> <branch> 
 | Consistency Guardian | ViMax consistency checks, DirectorBench checkpoints, OpenMontage self-review ideas | Runtime preflight, storyboard preflight, test-take gates, candidate selection, render inspection, semantic visual inspection, and repair-only regeneration. |
 | Source Video Analyst | VideoAgent video understanding plus OpenMontage reference-video analysis | Bounded transcript, scene, keyframe, pacing, style, structural beat, and safety guidance that informs original planning while preserving source-video rights boundaries. |
 | Artifact and Review Discipline | VibeFrame build/review reports and OpenMontage approval gates | Redacted success/failure artifacts, review packets, cost ledgers, manifest hashes, delivery gates, and queue telemetry for commercial operations. |
+| Material and Batch Pipeline | MoneyPrinterTurbo material sourcing, staged generation, task progress, and batch output patterns | Governed material candidates, rights metadata, Atlas-first rendering, batch candidate evidence, subtitle/audio/BGM lineage, and long-form delivery review packets. |
 | Provider Layer | Atlas Cloud docs and Seedance 2.0 reference guides | Atlas Cloud default with provider-neutral contracts for future Kie.ai, fal.ai, Runway, Replicate, or direct Volcengine adapters. |
 
 ## License-Sensitive Boundaries

@@ -15,6 +15,7 @@ The repository contains the first production TypeScript foundation:
 - The assembly path materializes HTTPS provider clip URLs and remote audio tracks with bounded streaming downloads instead of loading whole rendered media into memory.
 - FFmpeg/FFprobe child-process stdout and stderr are capped so noisy media failures cannot exhaust API memory.
 - The planning path now emits and Guardian-validates a typed storyboard from shot contracts before render spend; storyboard panels and preflight evidence are stored in the Production Graph and durable artifacts.
+- The codebase now includes a MoneyPrinterTurbo-inspired, CineJelly-owned material sourcing planner that turns shot contracts into governed material briefs without importing upstream code or calling stock APIs directly.
 - The intake path now supports a bounded `sourceVideoAnalysis` contract for VideoAgent/OpenMontage-style transcript, scene, keyframe, pacing, style, and safety deconstruction; Story Architect uses it as original structural guidance, and graph/artifacts preserve the source-video lineage.
 - Successful runs emit `review-packet.json`, a redacted commercial handoff summary that ties planning, render, cost, delivery, and QC evidence together.
 - Atlas provider cost ledger entries now record actual retry counts for retryable LLM, Seedance, prediction polling, and Asset Library HTTP calls, with prediction polling tied back to the originating model and graph node when context is available.
@@ -56,7 +57,7 @@ CineJelly Seedance Ultimate Director turns one user input plus optional referenc
 6. inspect consistency and repair only affected graph nodes
 7. assemble, polish, and export final deliverables
 
-The target long-form range is 2 to 8 minutes, handled through graph chunking, continuity ledgers, reference binding, and Consistency Guardian checkpoints.
+The target long-form range is 2 to 8 minutes, handled through graph chunking, continuity ledgers, reference binding, governed material sourcing, batch candidate evidence, and Consistency Guardian checkpoints.
 
 ## Architecture Pillars
 
@@ -64,6 +65,7 @@ The target long-form range is 2 to 8 minutes, handled through graph chunking, co
 - `Model Provider Abstraction`: Atlas Cloud default, future-ready for Kie.ai, fal.ai, Runway, Replicate, direct Volcengine, or other providers.
 - `Prompt Compiler`: source-traceable Seedance prompt compilation from shot contracts, copied/adapted prompt anatomy, and CineJelly-owned rules, not hardcoded niche templates.
 - `Consistency Guardian`: preflight, test-take inspection, post-render inspection, timeline inspection, and targeted repair.
+- `Material and Batch Pipeline`: MoneyPrinterTurbo-inspired material sourcing, stage progress, subtitles/TTS/BGM lineage, and batch output evidence adapted into CineJelly-owned graph contracts.
 - `Flexible Settings`: Fast/Standard tier, 480p/720p/1080p, quality mode, aspect ratio, duration, audio mode, watermark policy, and last-frame return policy.
 
 ## Repository Structure
@@ -323,7 +325,8 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 87. Case-insensitive Bearer API authentication - implemented
 88. Pre-auth render POST rate limiting - implemented
 89. Source-video deconstruction intake, graph lineage, and artifacts - implemented
-90. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
+90. Material sourcing planner foundation inspired by MoneyPrinterTurbo - implemented
+91. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
 
 ## Source Snapshot Strategy
 

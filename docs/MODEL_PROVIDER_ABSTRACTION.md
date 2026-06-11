@@ -13,12 +13,14 @@ CineJelly uses Atlas Cloud as the default provider for both LLM reasoning and Se
 - Atlas Cloud Asset Library guide for Seedance 2.0 reference asset registration.
 - Atlas Cloud Seedance model page for T2V, I2V, reference-to-video, fast variants, Universal Reference, duration, resolution, and aspect ratio information.
 - VibeFrame and OpenMontage Git Subtree snapshots for provider routing, cost gates, reportable provider decisions, and model flexibility.
+- MoneyPrinterTurbo Git Subtree snapshot for multi-provider LLM configuration patterns, queue-aware API behavior, and material-source provider ideas.
 
 Snapshot integration note:
 
 - Provider architecture can copy/adapt useful routing, costing, reporting, and validation patterns from upstream snapshots.
 - Production provider code must remain CineJelly-owned TypeScript under `src/providers`.
 - Production provider code must not import directly from `external/upstream/`.
+- MoneyPrinterTurbo's many-provider LLM surface is useful for fallback thinking, but CineJelly keeps Atlas Cloud as the default provider for both LLM reasoning and Seedance 2.0 rendering.
 
 ## Design Goal
 
@@ -209,6 +211,7 @@ Future provider routing:
 | Complex motion realism | Atlas Cloud model router | Kling, Veo, Wan, Runway |
 | Long-context script analysis | Atlas Cloud LLM | direct OpenAI, Anthropic, Google, local LLM |
 | Video understanding | Atlas Cloud or local pipeline | VideoAgent-like VLM stack |
+| Licensed material sourcing | CineJelly governed material layer | Pexels, Pixabay, Coverr, user-provided library, paid stock APIs |
 | Postproduction utilities | local tools | cloud render farms |
 
 ## Request Lifecycle
@@ -221,8 +224,9 @@ Future provider routing:
 6. Worker polls prediction.
 7. Provider mapper extracts output URLs from documented direct fields and common nested response containers such as `output`, `result`, `data`, `videos`, and `files`.
 8. Output is persisted to ClipRender.
-9. Cost and status are logged.
-10. Consistency Guardian inspects output.
+9. Optional material-source provider calls are recorded as material candidate evidence with source, rights, duration, hash, and rejection/selection status.
+10. Cost and status are logged.
+11. Consistency Guardian inspects output.
 
 ## Error Normalization
 
@@ -284,6 +288,7 @@ This follows VibeFrame/OpenMontage cost-gate thinking and is required for commer
 - No code passes raw video/audio URL directly to Seedance if the selected Atlas path requires Asset Library registration.
 - No fallback provider is used without graph metadata recording.
 - No provider implementation imports directly from `external/upstream/`; snapshot-derived logic must be written as CineJelly-owned provider code.
+- Material-source adapters, when added, must follow the same provider-neutral contract, credential redaction, cost/status logging, and rights metadata rules as render providers.
 
 ## Future Provider Onboarding Checklist
 
