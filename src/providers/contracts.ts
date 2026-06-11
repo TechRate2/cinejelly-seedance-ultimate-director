@@ -9,6 +9,7 @@ import type {
   ChatRequest,
   ChatResponse,
   Prediction,
+  PredictionPollingContext,
   ProviderCapability,
   StructuredChatRequest,
   StructuredChatResponse,
@@ -32,8 +33,8 @@ export interface VideoProvider {
   generateReferenceToVideo(request: VideoGenerationRequest, signal?: AbortSignal): Promise<Prediction>;
   editVideo(request: VideoGenerationRequest, signal?: AbortSignal): Promise<Prediction>;
   extendVideo(request: VideoGenerationRequest, signal?: AbortSignal): Promise<Prediction>;
-  getPrediction(predictionId: string, signal?: AbortSignal): Promise<Prediction>;
-  waitForPrediction(predictionId: string, signal?: AbortSignal): Promise<Prediction>;
+  getPrediction(predictionId: string, signal?: AbortSignal, context?: PredictionPollingContext): Promise<Prediction>;
+  waitForPrediction(predictionId: string, signal?: AbortSignal, context?: PredictionPollingContext): Promise<Prediction>;
   capabilities(modelId?: string): readonly ProviderCapability[];
 }
 

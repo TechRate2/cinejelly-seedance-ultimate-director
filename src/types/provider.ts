@@ -154,6 +154,11 @@ export interface Prediction {
   readonly usage?: ProviderUsage;
 }
 
+export interface PredictionPollingContext {
+  readonly modelId?: string;
+  readonly metadata?: ProviderMetadata;
+}
+
 export interface AssetRegistrationRequest {
   readonly uri: string;
   readonly kind: "video" | "audio";

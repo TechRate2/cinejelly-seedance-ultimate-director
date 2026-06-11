@@ -10,6 +10,7 @@ import type {
   ChatRequest,
   ChatResponse,
   Prediction,
+  PredictionPollingContext,
   ProviderCapability,
   ProviderMode,
   ProviderReference,
@@ -191,12 +192,16 @@ export class AtlasCloudProvider implements ModelProvider {
     return this.submitVideoGeneration("extend", request, signal);
   }
 
-  public async getPrediction(predictionId: string, signal?: AbortSignal): Promise<Prediction> {
+  public async getPrediction(
+    predictionId: string,
+    signal?: AbortSignal,
+    context?: PredictionPollingContext
+  ): Promise<Prediction> {
     const startedAt = now();
     return this.trackProviderCall(
       "video.get_prediction",
-      undefined,
-      undefined,
+      context?.modelId,
+      context?.metadata?.graphNodeId,
       startedAt,
       async (recordRetry) => {
         const response = await withRetry(
@@ -205,18 +210,22 @@ export class AtlasCloudProvider implements ModelProvider {
           signal,
           recordRetry
         );
-        return mapPrediction(response, "unknown", startedAt);
+        return mapPrediction(response, context?.modelId ?? "unknown", startedAt);
       },
       (prediction) => this.predictionLedgerMetadata(prediction)
     );
   }
 
-  public async waitForPrediction(predictionId: string, signal?: AbortSignal): Promise<Prediction> {
+  public async waitForPrediction(
+    predictionId: string,
+    signal?: AbortSignal,
+    context?: PredictionPollingContext
+  ): Promise<Prediction> {
     const startedAt = now();
     const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
 
     while (Date.now() <= deadline) {
-      const prediction = await this.getPrediction(predictionId, signal);
+      const prediction = await this.getPrediction(predictionId, signal, context);
       if (prediction.status === "succeeded") {
         return prediction;
       }

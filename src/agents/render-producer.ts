@@ -37,7 +37,10 @@ export class RenderProducer {
         prediction: this.normalizeCompletedPrediction(initialPrediction, preparedPrompt.videoRequest.modelId)
       };
     }
-    const prediction = await this.videoProvider.waitForPrediction(initialPrediction.predictionId, signal);
+    const prediction = await this.videoProvider.waitForPrediction(initialPrediction.predictionId, signal, {
+      modelId: preparedPrompt.videoRequest.modelId,
+      ...(preparedPrompt.videoRequest.metadata ? { metadata: preparedPrompt.videoRequest.metadata } : {})
+    });
     return {
       compiledPrompt: preparedPrompt,
       prediction: this.normalizeCompletedPrediction(prediction, preparedPrompt.videoRequest.modelId)
