@@ -9,6 +9,7 @@ export interface ApiRateLimitSettings {
   readonly windowMs?: number;
   readonly maxRequests?: number;
   readonly disabled?: boolean;
+  readonly trustProxyHeaders?: boolean;
 }
 
 export interface ApiRateLimitDecision {
@@ -30,12 +31,14 @@ export class ApiRateLimiter {
   private readonly windowMs: number;
   private readonly maxRequests: number;
   private readonly disabled: boolean;
+  private readonly trustProxyHeaders: boolean;
   private readonly buckets = new Map<string, RateLimitBucket>();
 
   public constructor(settings: ApiRateLimitSettings = {}) {
     this.windowMs = positiveOrDefault(settings.windowMs, DEFAULT_WINDOW_MS);
     this.maxRequests = positiveOrDefault(settings.maxRequests, DEFAULT_MAX_REQUESTS);
     this.disabled = Boolean(settings.disabled);
+    this.trustProxyHeaders = Boolean(settings.trustProxyHeaders);
   }
 
   public check(request: IncomingMessage, pathname: string, method: string | undefined): ApiRateLimitDecision {
@@ -74,11 +77,13 @@ export class ApiRateLimiter {
   }
 
   private bucketKeyFor(request: IncomingMessage): string {
-    const forwardedFor = request.headers["x-forwarded-for"];
-    if (typeof forwardedFor === "string" && forwardedFor.trim()) {
-      return forwardedFor.split(",")[0]?.trim() || "unknown";
+    if (this.trustProxyHeaders) {
+      const forwardedFor = request.headers["x-forwarded-for"];
+      if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+        return `xff:${forwardedFor.split(",")[0]?.trim() || "unknown"}`;
+      }
     }
-    return request.socket.remoteAddress || "unknown";
+    return `remote:${request.socket.remoteAddress || "unknown"}`;
   }
 
   private pruneExpired(nowMs: number): void {
@@ -91,6 +96,10 @@ export class ApiRateLimiter {
 }
 
 export function readRateLimitDisabled(value: string | undefined): boolean {
+  return value?.trim().toLowerCase() === "true";
+}
+
+export function readTrustProxyHeaders(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === "true";
 }
 

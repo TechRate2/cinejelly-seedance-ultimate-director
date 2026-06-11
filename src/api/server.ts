@@ -23,7 +23,7 @@ import { redactApiLocalPaths } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle } from "./artifact-response.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { ApiConcurrencyGate } from "./api-concurrency-gate.js";
-import { ApiRateLimiter, readRateLimitDisabled } from "./api-rate-limit.js";
+import { ApiRateLimiter, readRateLimitDisabled, readTrustProxyHeaders } from "./api-rate-limit.js";
 import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
 import {
   RenderJobCapacityError,
@@ -84,7 +84,8 @@ export function startServer(port = readPort(process.env.PORT)): void {
   const apiRateLimiter = new ApiRateLimiter({
     windowMs: readPositiveInteger(process.env.CINEJELLY_API_RATE_LIMIT_WINDOW_MS, 60_000),
     maxRequests: readPositiveInteger(process.env.CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS, 6),
-    disabled: readRateLimitDisabled(process.env.CINEJELLY_DISABLE_API_RATE_LIMIT)
+    disabled: readRateLimitDisabled(process.env.CINEJELLY_DISABLE_API_RATE_LIMIT),
+    trustProxyHeaders: readTrustProxyHeaders(process.env.CINEJELLY_TRUST_PROXY_HEADERS)
   });
   const syncRenderGate = new ApiConcurrencyGate({
     maxConcurrent: readPositiveInteger(process.env.CINEJELLY_API_SYNC_RENDER_CONCURRENCY, 1)

@@ -305,6 +305,7 @@ API execution modes:
 - `/v1/render-jobs` accepts `Idempotency-Key`; the API stores only a digest of the key, replays the retained existing job for the same payload, and returns `409` when the same key is reused for a different payload.
 - Async job submission enforces a process-level queued/running capacity limit before job records, runtime objects, or provider calls are created; saturated queues return a 503 pressure signal with `Retry-After` and JSON `retryAfterSeconds` for upstream retry behavior.
 - Rate-limited credit-spending requests return 429 with `Retry-After` and JSON `retryAfterSeconds`.
+- API rate limiting uses the socket remote address by default; `X-Forwarded-For` is trusted only when `CINEJELLY_TRUST_PROXY_HEADERS=true` is configured behind a trusted reverse proxy that strips and rewrites client IP headers.
 - Job list status includes queue telemetry plus compact queued, running, succeeded, failed, or canceled summaries with detail-availability flags, including `hasError`, but excludes error detail.
 - Per-job status includes queued, running, succeeded, failed, or canceled state plus redacted stack-free error name/message, result, cost ledger, and artifact bundle when available.
 - Public JSON responses redact secrets, inline `data:` URIs, non-HTTPS URIs, embedded-credential URIs, signed/credential-query URIs, and deployment-local filesystem paths, while preserving deploy-safe URI values such as clean `https://` reference URLs and `asset://` Atlas Asset Library references.

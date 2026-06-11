@@ -41,6 +41,7 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_API_RATE_LIMIT_WINDOW_MS", this.env.CINEJELLY_API_RATE_LIMIT_WINDOW_MS),
       this.optionalPositiveInteger("CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS", this.env.CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS),
       this.optionalBooleanFlag("CINEJELLY_DISABLE_API_RATE_LIMIT", this.env.CINEJELLY_DISABLE_API_RATE_LIMIT),
+      this.optionalBooleanFlag("CINEJELLY_TRUST_PROXY_HEADERS", this.env.CINEJELLY_TRUST_PROXY_HEADERS),
       this.optionalPositiveInteger("CINEJELLY_MAX_USER_INPUT_CHARS", this.env.CINEJELLY_MAX_USER_INPUT_CHARS),
       this.optionalPositiveInteger("CINEJELLY_MAX_REFERENCES", this.env.CINEJELLY_MAX_REFERENCES),
       this.optionalPositiveInteger("CINEJELLY_MAX_CAPTION_CUES", this.env.CINEJELLY_MAX_CAPTION_CUES),
