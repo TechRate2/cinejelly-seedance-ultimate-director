@@ -4,6 +4,7 @@
  * redacted JSON artifacts for review, repair, cost audit, and customer handoff.
  */
 
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { normalizeSeedanceSettings } from "../config/seedance-settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult } from "../types/agent.js";
@@ -204,8 +205,13 @@ export class ProjectArtifactStore {
       fileName: payload.fileName,
       contentType: "application/json",
       byteSize: Buffer.byteLength(json, "utf8"),
+      sha256: this.sha256(json),
       createdAt
     };
+  }
+
+  private sha256(value: string): string {
+    return createHash("sha256").update(value, "utf8").digest("hex");
   }
 
   private safeJson(value: unknown): string {

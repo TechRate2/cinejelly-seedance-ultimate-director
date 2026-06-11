@@ -25,6 +25,7 @@ export interface ProjectArtifactEntry {
   readonly fileName: string;
   readonly contentType: "application/json";
   readonly byteSize: number;
+  readonly sha256: string;
   readonly createdAt: Date;
 }
 
