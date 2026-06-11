@@ -30,7 +30,9 @@ The target long-form range is 2 to 8 minutes with high consistency.
 - Do not hardcode niche templates.
 - Copy/adapt public prompt examples into product content only when license, attribution, and product review are satisfied.
 - Reuse AGPL code from OpenMontage only when the product accepts AGPL obligations or legal review approves the reuse path.
-- Keep `external/upstream/` as Git Subtree source snapshots; productized behavior should move into CineJelly-owned `src/`, `data/`, or `docs/` with attribution.
+- Keep `external/upstream/` as Git Subtree source snapshots; productized behavior must move into CineJelly-owned `src/`, `data/`, or `docs/` with attribution.
+- Production code must not import directly from `external/upstream/`.
+- Code under `src/` must be new or substantially adapted CineJelly implementation, not unchanged large upstream files.
 
 ## Architecture In One Screen
 
@@ -91,7 +93,7 @@ Local upstream snapshots are stored under `external/upstream/` and governed by `
 
 ## Current Repo State
 
-The repo contains architecture/design documentation, upstream Git Subtree snapshots, and a production TypeScript implementation for the first commercial pipeline. The implementation is CineJelly-owned product code adapted from credited source snapshots where useful; external snapshots are not live dependencies by default, and bundled prompt corpora or upstream implementation code require the license review path described in `docs/SUBTREE_POLICY.md`.
+The repo contains architecture/design documentation, upstream Git Subtree snapshots, and a production TypeScript implementation for the first commercial pipeline. The implementation is CineJelly-owned product code adapted from credited source snapshots where useful; external snapshots are not live dependencies, direct production imports from `external/upstream/` are disallowed, and bundled prompt corpora or upstream implementation logic require the license review path described in `docs/SUBTREE_POLICY.md`.
 
 Current production folders:
 
@@ -160,8 +162,12 @@ Requires explicit review before release:
 
 - bundled public prompt corpora or exact community prompt text
 - direct runtime reuse of OpenMontage AGPL implementation code
-- importing directly from `external/upstream/`
 - claiming 100% feature parity before implementation and verification
 - using upstream names to imply endorsement
+
+Not allowed in production runtime:
+
+- importing directly from `external/upstream/`
+- copying large upstream implementation files unchanged into `src/`
 
 If the product needs 100% behavior parity with a source repo, create a dedicated implementation plan that maps each upstream capability to a CineJelly production feature, license status, provider dependency, acceptance criteria, and verification method. Public source visibility is not enough; license status controls commercial reuse.

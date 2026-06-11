@@ -6,11 +6,22 @@ CineJelly keeps upstream repositories as local Git Subtree snapshots under `exte
 
 The production rule is deliberate: `external/upstream/` is the snapshot and audit layer, while productized components live in CineJelly-owned `src/`, `data/`, and `docs/` paths after a copy/adapt step governed by `docs/SUBTREE_POLICY.md`.
 
+Production code must not import directly from `external/upstream/`. When useful upstream logic becomes production behavior, write a CineJelly-owned implementation in `src/`, preserve attribution, and avoid copying large upstream files unchanged.
+
+## Git Subtree Command Policy
+
+All upstream snapshots must be added or refreshed with `--squash`:
+
+```bash
+git subtree add --prefix=external/upstream/<snapshot-name> <repo-url> <branch> --squash
+git subtree pull --prefix=external/upstream/<snapshot-name> <repo-url> <branch> --squash
+```
+
 ## Snapshot Table
 
 | Snapshot | Upstream | Branch captured | Local license evidence | Reuse and integration boundary |
 | --- | --- | --- | --- | --- |
-| `external/upstream/seedance-2.0` | `Emily2040/seedance-2.0` | `main` | `LICENSE` is MIT | Use for Seedance workflow, reference roles, professional handoff, and troubleshooting patterns. Direct code reuse must preserve MIT attribution. |
+| `external/upstream/seedance-2.0` | `Emily2040/seedance-2.0` | `main` | `LICENSE` is MIT | Use for Seedance workflow, reference roles, professional handoff, and troubleshooting patterns. Compatible code or logic reuse must preserve MIT attribution and be productized as CineJelly-owned modules. |
 | `external/upstream/awesome-seedance-2-prompts` | `YouMind-OpenLab/awesome-seedance-2-prompts` | `main` | `LICENSE` is CC BY 4.0 | Use for generalized prompt anatomy, weighting patterns, and attribution-reviewed prompt-pattern snapshots. Exact community prompt text requires CC BY attribution and product review before bundled use. |
 | `external/upstream/vimax` | `HKUDS/ViMax` | `main` | `LICENSE` is MIT | Use for long-form multi-agent planning, shot/storyboard segmentation, reference selection, parallel candidate generation, and consistency validation patterns. |
 | `external/upstream/vibeframe` | `vericontext/vibeframe` | `main` | `LICENSE` is MIT | Use for deterministic artifacts, cost gates, dry-run discipline, build/review reports, and repair-loop structure. |
@@ -22,9 +33,11 @@ The production rule is deliberate: `external/upstream/` is the snapshot and audi
 
 1. Read `docs/PROJECT_CONTEXT.md` first for the compact system map.
 2. Read the relevant design spec in `docs/`.
-3. Open the matching upstream snapshot when changing a source-derived claim, a long-form planning pattern, prompt compiler behavior, provider capability assumption, or license-sensitive reuse decision.
-4. Copy or adapt the useful document, pattern, structure, schema, prompt anatomy, or implementation logic into CineJelly-owned `docs/`, `data/`, or `src/`.
-5. Add attribution notes in the relevant design document, `docs/CREDITS.md`, or code comment when a feature is intentionally source-integrated.
+3. Review the relevant upstream repository and license obligations.
+4. Add or refresh the matching snapshot under `external/upstream/` with Git Subtree and `--squash`.
+5. Decide what should be copied/adapted: document, pattern, structure, schema, prompt anatomy, or implementation logic.
+6. Move product-ready material into CineJelly-owned `docs/`, `data/`, or newly written/adapted `src/` modules.
+7. Add attribution notes in the relevant design document, `docs/CREDITS.md`, or code comment when a feature is intentionally source-integrated.
 
 ## Current Source-Inspired Implementation Map
 

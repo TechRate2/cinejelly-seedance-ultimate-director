@@ -12,7 +12,13 @@ CineJelly uses Atlas Cloud as the default provider for both LLM reasoning and Se
 - Atlas Cloud CLI docs for schema inspection, media generation, and async polling.
 - Atlas Cloud Asset Library guide for Seedance 2.0 reference asset registration.
 - Atlas Cloud Seedance model page for T2V, I2V, reference-to-video, fast variants, Universal Reference, duration, resolution, and aspect ratio information.
-- VibeFrame and OpenMontage for provider routing, cost gates, reportable provider decisions, and model flexibility.
+- VibeFrame and OpenMontage Git Subtree snapshots for provider routing, cost gates, reportable provider decisions, and model flexibility.
+
+Snapshot integration note:
+
+- Provider architecture can copy/adapt useful routing, costing, reporting, and validation patterns from upstream snapshots.
+- Production provider code must remain CineJelly-owned TypeScript under `src/providers`.
+- Production provider code must not import directly from `external/upstream/`.
 
 ## Design Goal
 
@@ -277,6 +283,7 @@ This follows VibeFrame/OpenMontage cost-gate thinking and is required for commer
 - Capability validation must run before Asset Library registration so unsupported requests do not spend provider calls unnecessarily.
 - No code passes raw video/audio URL directly to Seedance if the selected Atlas path requires Asset Library registration.
 - No fallback provider is used without graph metadata recording.
+- No provider implementation imports directly from `external/upstream/`; snapshot-derived logic must be written as CineJelly-owned provider code.
 
 ## Future Provider Onboarding Checklist
 

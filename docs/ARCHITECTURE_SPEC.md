@@ -64,9 +64,11 @@ The snapshot workflow is:
 3. Identify reusable documents, prompt structures, agent roles, graph patterns, provider workflows, quality gates, schemas, or implementation logic.
 4. Copy or adapt the useful pieces into CineJelly-owned `docs/`, `data/`, and `src/` paths.
 5. Record the origin, local snapshot path, and CineJelly-specific extension in the relevant design doc or attribution file.
-6. Keep production imports and public packaging based on CineJelly-owned modules unless a deliberate dependency decision says otherwise.
+6. Keep production imports and public packaging based on CineJelly-owned modules. Production code must not import directly from `external/upstream/`.
 
 This lets the product combine the best parts of Emily2040/seedance-2.0, YouMind-OpenLab/awesome-seedance-2-prompts, HKUDS/ViMax, vericontext/vibeframe, HKUDS/VideoAgent, and calesthio/OpenMontage while remaining an autonomous CineJelly commercial system.
+
+When a source pattern moves from `external/` into `src/`, the implementation must be written as CineJelly-owned TypeScript that fits existing provider, graph, agent, and runtime contracts. Engineers should not copy large upstream files wholesale into `src/`; they should extract the useful behavior, redesign it for CineJelly, preserve attribution, and develop it further.
 
 ## Product Objective
 
@@ -115,7 +117,7 @@ The production implementation structure is:
 - `src/utils`: production utility functions such as redaction, retry policy, IDs, timing, and structured error helpers.
 - `src/types`: shared type definitions for settings, graph nodes, provider requests, reports, and deliverables.
 - `data`: production-approved local knowledge artifacts such as copied prompt-pattern snapshots, bibles, source-derived evaluation rubrics, or curated product knowledge when required.
-- `external`: Git subtree snapshots of upstream repositories used for source review, copy/adaptation, and integration planning; productized behavior moves into CineJelly-owned `src/`, `data/`, and `docs/`.
+- `external`: Git subtree snapshots of upstream repositories used for source review, copy/adaptation, and integration planning; production code does not import from this tree, and productized behavior moves into CineJelly-owned `src/`, `data/`, and `docs/`.
 - `schemas`: production JSON schemas for graph, prompts, settings, provider requests, and review reports.
 - `config`: production configuration templates without secrets.
 - `ops`: deployment and runtime operations.

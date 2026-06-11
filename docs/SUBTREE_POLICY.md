@@ -69,7 +69,7 @@ git subtree add --prefix=external/upstream/seedance-2.0 https://github.com/Emily
 
 `external/upstream/` may contain upstream tests, demos, samples, experiments, and development files because those are part of the original repositories. These files become CineJelly product material only after a deliberate copy/adapt step into `src/`, `data/`, or `docs/`.
 
-Production code should normally import CineJelly-owned modules from `src/`. Direct runtime imports from `external/upstream/` require an explicit architecture decision because they create tighter coupling to an upstream snapshot. The preferred commercial product path is to copy or adapt the useful logic into owned modules and keep the source trail in docs.
+Production code must import CineJelly-owned modules from `src/`, not upstream files from `external/upstream/`. The commercial product path is to copy or adapt the useful logic into owned modules, keep the source trail in docs, and avoid direct production coupling to a snapshot.
 
 ## Allowed Copy And Adaptation Paths
 
@@ -78,7 +78,7 @@ The project explicitly allows these movements:
 - `external/upstream/<repo>/docs` or README material into `docs/` when attribution is preserved.
 - Prompt structures, timing patterns, negative constraints, and prompt bibles into `data/` when licensing and attribution permit.
 - Agent roles, graph structures, schemas, validation logic, and workflow patterns into `src/` as CineJelly-owned modules.
-- Compatible MIT implementation logic into `src/` with license notices and attribution.
+- Compatible MIT implementation logic into `src/` as new CineJelly code or focused adaptations with license notices and attribution.
 - CC BY prompt or documentation material into `docs/` or `data/` with required attribution and product review.
 - AGPL material into architecture notes, product planning, or implementation only when the product accepts the AGPL obligations or legal review approves the reuse path.
 
@@ -94,6 +94,16 @@ Every material copy/adaptation should record:
 - CineJelly-specific extension or modification
 
 Attribution can live in `docs/CREDITS.md`, `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`, a focused design document, or a concise source comment when the relationship is local to one implementation.
+
+## `src/` Implementation Rule
+
+`src/` is the owned production implementation layer. Engineers may study, copy small compatible snippets when useful, and adapt upstream logic, but they should not drop large upstream files into `src/` unchanged. The right flow is:
+
+1. Inspect the upstream snapshot.
+2. Decide which pattern, data shape, algorithm, or workflow is useful.
+3. Design the CineJelly version around existing product contracts.
+4. Write or refactor CineJelly-owned TypeScript modules under `src/`.
+5. Preserve attribution and license notices when the implementation materially follows a source.
 
 ## License Discipline
 

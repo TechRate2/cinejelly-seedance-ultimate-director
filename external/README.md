@@ -6,7 +6,8 @@
 
 - CineJelly production runtime code lives in `src/`.
 - Productized runtime behavior should normally be copied or adapted into CineJelly-owned modules under `src/`, with attribution and license notes recorded in `docs/`.
-- Direct runtime imports from `external/upstream/` require an explicit architecture decision because they couple production behavior to a snapshot.
+- Production runtime code must not import directly from `external/upstream/`.
+- Code moved into `src/` should be new or substantially adapted CineJelly implementation, not unchanged large upstream files.
 - Implementation files, prompt corpora, tests, demo scripts, or sample assets can become product material only after license/product review and an intentional copy/adapt step.
 - Upstream tests, demos, examples, and development files may exist inside the snapshots because they are part of the original repositories. They are not CineJelly production modules.
 - Source-integrated production behavior should name the upstream snapshot and the CineJelly-specific extension in the relevant design document or source comment.
@@ -25,4 +26,16 @@
 
 ## Update Policy
 
-Refresh snapshots intentionally with `git subtree pull --prefix=<path> <repo-url> <branch> --squash` after reviewing license changes and secret exposure risk. After any snapshot update, update `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`, run the redacted secret audit, then commit and push.
+Add snapshots intentionally with:
+
+```bash
+git subtree add --prefix=external/upstream/<snapshot-name> <repo-url> <branch> --squash
+```
+
+Refresh snapshots intentionally with:
+
+```bash
+git subtree pull --prefix=external/upstream/<snapshot-name> <repo-url> <branch> --squash
+```
+
+Use this flow: review the upstream repo and license, snapshot with `--squash`, decide what to copy/adapt, write the CineJelly-owned implementation or curated data/docs, update attribution, run the redacted secret audit, then commit and push.

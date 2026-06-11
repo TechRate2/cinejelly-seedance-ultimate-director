@@ -4,7 +4,7 @@
 
 This document records the public projects, papers, and articles used to design and build CineJelly Seedance Ultimate Director. It is also the attribution boundary for Git Subtree snapshots, copied documentation, adapted structures, prompt-pattern snapshots, and reusable logic that are integrated into the product. Public prompt examples, repo text, and article content may be copied or adapted when the license allows the intended use, attribution is preserved, and the usage has been reviewed.
 
-Các thành phần được snapshot từ repo gốc sẽ được ghi nhận nguồn gốc và phát triển thêm thành sản phẩm riêng.
+Các thành phần được snapshot từ repo gốc sẽ được ghi nhận nguồn và phát triển thành sản phẩm riêng của CineJelly.
 
 ## Current Repository Review
 
@@ -215,6 +215,8 @@ These were discovered during source review and are not primary sources for this 
 - Cite public repos and articles in internal architecture docs.
 - Use Git Subtree snapshots under `external/upstream/` as the durable source trail for copied/adapted components.
 - Copy or adapt documentation, patterns, structures, data, and compatible code into `docs/`, `data/`, or `src/` when the license permits the intended commercial product use.
+- Code moved into `src/` must become CineJelly-owned implementation: new or substantially adapted product code, not unchanged large upstream files.
+- Production code must not import directly from `external/upstream/`.
 - Public prompt examples used as bundled product content require license review, attribution, and a clear reason to include exact text rather than a distilled pattern.
 - AGPL implementation reuse from OpenMontage requires acceptance of the AGPL obligations, legal approval, or a product decision to reimplement the pattern in CineJelly-owned code.
 - Do not claim exact model IDs, pricing, or limits unless they are verified against the current Atlas Cloud schema or a dated provider source.

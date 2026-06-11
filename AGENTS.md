@@ -38,7 +38,8 @@ Use this order:
 - `external/upstream/` stores snapshot source material. Productized components should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution and license notes.
 - Do not claim CineJelly has cloned or integrated 100% of ViMax, VibeFrame, OpenMontage, VideoAgent, Emily2040/seedance-2.0, or any Atlas Cloud workflow unless the matching production feature is implemented, verified, and attributed.
 - Public prompt corpora, AGPL implementation code, nested third-party tools, and no-license material require explicit license/product review before release use; compatible MIT/CC BY material may be reused with the required notices and attribution.
-- Runtime imports from `external/upstream/` require an intentional architecture decision. The default product path is to copy/adapt useful pieces into CineJelly-owned modules so the product remains autonomous.
+- Production runtime must not import directly from `external/upstream/`. The product path is to copy/adapt useful ideas into CineJelly-owned modules so the product remains autonomous.
+- Code under `src/` must be CineJelly-owned implementation: write new modules and develop them further from source patterns instead of copying large upstream files wholesale.
 - When implementing a source-integrated feature, write a short note in the relevant design doc or code comment naming the source snapshot, copied/adapted element, and CineJelly-specific extension.
 
 ## Security Gate Before Push
