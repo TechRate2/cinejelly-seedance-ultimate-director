@@ -11,7 +11,7 @@ The repository contains the first production TypeScript foundation:
 - Quality mode now drives actual render behavior: Economy/Standard/High/Ultimate produce one to four Seedance candidates per shot, authorize zero to three targeted repair attempts, the Consistency Guardian selects the best candidate, and the Production Graph records selected, rejected, and repair candidate evidence.
 - The HTTP API now creates or accepts a sanitized request correlation ID and propagates it through JSON responses, render job summaries, provider metadata, Production Graph project metadata, and success/failure artifacts.
 - The API propagates client disconnects and deployment shutdown signals into active render work so request-bound orchestration, provider calls, polling, assembly, and postproduction stop as early as the selected provider path allows.
-- The assembly path materializes provider clip URLs with bounded streaming downloads instead of loading whole rendered videos into memory.
+- The assembly path materializes HTTPS provider clip URLs and remote audio tracks with bounded streaming downloads instead of loading whole rendered media into memory.
 - The planning path now emits and Guardian-validates a typed storyboard from shot contracts before render spend; storyboard panels and preflight evidence are stored in the Production Graph and durable artifacts.
 - Successful runs emit `review-packet.json`, a redacted commercial handoff summary that ties planning, render, cost, delivery, and QC evidence together.
 - Atlas provider cost ledger entries now record actual retry counts for retryable LLM, Seedance, prediction polling, and Asset Library HTTP calls, with prediction polling tied back to the originating model and graph node when context is available.
