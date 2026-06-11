@@ -8,6 +8,7 @@ export * from "./agents/intake-director.js";
 export * from "./agents/render-producer.js";
 export * from "./agents/story-architect.js";
 export * from "./application/director-factory.js";
+export * from "./application/preflight-entrypoint.js";
 export * from "./application/runtime-preflight.js";
 export * from "./config/runtime-config.js";
 export * from "./config/seedance-settings.js";
