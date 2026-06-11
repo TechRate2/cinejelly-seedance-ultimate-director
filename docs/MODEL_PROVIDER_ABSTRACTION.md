@@ -213,9 +213,10 @@ Future provider routing:
 4. AssetProvider registers required video/audio assets.
 5. VideoProvider submits generation.
 6. Worker polls prediction.
-7. Output is persisted to ClipRender.
-8. Cost and status are logged.
-9. Consistency Guardian inspects output.
+7. Provider mapper extracts output URLs from documented direct fields and common nested response containers such as `output`, `result`, `data`, `videos`, and `files`.
+8. Output is persisted to ClipRender.
+9. Cost and status are logged.
+10. Consistency Guardian inspects output.
 
 ## Error Normalization
 

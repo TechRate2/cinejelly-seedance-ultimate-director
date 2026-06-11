@@ -13,6 +13,35 @@ import type {
 
 type JsonObject = Record<string, unknown>;
 
+const OUTPUT_CONTAINER_KEYS = [
+  "output",
+  "outputs",
+  "result",
+  "results",
+  "data",
+  "video",
+  "videos",
+  "file",
+  "files",
+  "media"
+];
+
+const OUTPUT_URL_KEYS = [
+  "output_urls",
+  "outputUrls",
+  "urls",
+  "url",
+  "video_url",
+  "videoUrl",
+  "video",
+  "download_url",
+  "downloadUrl",
+  "signed_url",
+  "signedUrl",
+  "asset_url",
+  "assetUrl"
+];
+
 function readString(payload: JsonObject, keys: readonly string[]): string | undefined {
   for (const key of keys) {
     const value = payload[key];
@@ -33,21 +62,50 @@ function readNumber(payload: JsonObject, keys: readonly string[]): number | unde
   return undefined;
 }
 
-function readStringArray(payload: JsonObject, keys: readonly string[]): readonly string[] {
-  for (const key of keys) {
-    const value = payload[key];
-    if (Array.isArray(value)) {
-      return value.filter((item): item is string => typeof item === "string");
-    }
-    if (typeof value === "string" && value.length > 0) {
-      return [value];
-    }
+function readOutputUrls(payload: JsonObject): readonly string[] {
+  const urls = new Set<string>();
+  collectOutputUrls(payload, urls, 0);
+  return [...urls];
+}
+
+function collectOutputUrls(value: unknown, urls: Set<string>, depth: number): void {
+  if (depth > 4 || value === null || value === undefined) {
+    return;
   }
-  const nestedOutput = payload.output;
-  if (nestedOutput && typeof nestedOutput === "object") {
-    return readStringArray(nestedOutput as JsonObject, ["urls", "url", "video_url", "video"]);
+  if (typeof value === "string") {
+    if (isLikelyMediaOutputUrl(value)) {
+      urls.add(value);
+    }
+    return;
   }
-  return [];
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectOutputUrls(item, urls, depth + 1);
+    }
+    return;
+  }
+  if (typeof value !== "object") {
+    return;
+  }
+  const payload = value as JsonObject;
+  for (const key of OUTPUT_URL_KEYS) {
+    collectOutputUrls(payload[key], urls, depth + 1);
+  }
+  for (const key of OUTPUT_CONTAINER_KEYS) {
+    collectOutputUrls(payload[key], urls, depth + 1);
+  }
+}
+
+function isLikelyMediaOutputUrl(value: string): boolean {
+  if (!value.trim()) {
+    return false;
+  }
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
 export function mapPredictionStatus(value: unknown): PredictionStatus {
@@ -142,7 +200,7 @@ export function mapPrediction(payload: unknown, modelId: string, submittedAt: Da
     predictionId,
     modelId,
     status,
-    outputUrls: readStringArray(objectPayload, ["output_urls", "outputUrls", "urls", "url", "video_url", "video"]),
+    outputUrls: readOutputUrls(objectPayload),
     raw: payload,
     submittedAt
   };
