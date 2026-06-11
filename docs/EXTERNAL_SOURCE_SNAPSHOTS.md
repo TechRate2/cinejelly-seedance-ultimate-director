@@ -1,65 +1,45 @@
-# External Source Snapshots
+# External Source Snapshots Inventory and Integration Policy
 
 ## Purpose
 
-CineJelly keeps upstream repositories as local Git Subtree snapshots under `external/upstream/` so architecture, documentation, prompt patterns, workflow structures, and implementation decisions can be checked against original public sources and then copied or adapted into the product. This improves source fidelity and product velocity while keeping license and attribution obligations visible.
+This document provides the authoritative inventory of Git Subtree snapshots under `external/upstream/` and the **explicit policy** for snapshotting, reviewing, and integrating patterns, structures, logic, and workflows from the original upstream repositories into CineJelly Seedance Ultimate Director.
 
-The production rule is deliberate: `external/upstream/` is the snapshot and audit layer, while productized components live in CineJelly-owned `src/`, `data/`, and `docs/` paths after a copy/adapt step governed by `docs/SUBTREE_POLICY.md`.
+**We are explicitly permitted and encouraged to snapshot the upstream repositories using Git Subtree with `--squash`, review their content, and integrate/adapt/improve the useful patterns, structures, and logic into our own autonomous CineJelly-owned implementation.**
 
-Production code must not import directly from `external/upstream/`. When useful upstream logic becomes production behavior, write a CineJelly-owned implementation in `src/`, preserve attribution, and avoid copying large upstream files unchanged.
+## Core Integration Policy (Mandatory for All Engineers)
 
-## Git Subtree Command Policy
+1. **Subtree**: Bring original repo into `external/upstream/<name>` using `git subtree add --prefix=external/upstream/<name> <url> <branch> --squash` (or pull to refresh).
+2. **Snapshot**: The full history is squashed into one commit for clean audit trail. The snapshot is read-only source material.
+3. **Review**: Examine license, structure, prompt patterns, agent workflows, graph designs, provider logic, quality gates, long-form strategies, and error/cost handling.
+4. **Adapt + Improve**: Extract the *useful essence* (not whole files). Redesign it to fit CineJelly contracts (Production Graph, Provider Abstraction, Prompt Compiler rules, Guardian checkpoints, flexible settings for 2-8min videos).
+5. **Viết code mới (Write New Code)**: Implement as clean, production-grade TypeScript **in `src/`**. This must be original CineJelly work — new or substantially adapted implementation that combines + improves upon the snapshotted ideas. **Never copy large upstream files unchanged into `src/`**.
+6. **Attribute**: Record origin + CineJelly extension in `docs/CREDITS.md`, this file, design docs, and code comments.
+7. **Enforce**: Production code **must never import directly from `external/upstream/`**. All runtime behavior lives in owned `src/` modules.
 
-All upstream snapshots must be added or refreshed with `--squash`:
+**Result**: The final product is a self-reliant commercial system that is stronger or equal to the individual upstream repos, with Atlas Cloud as default, full support for flexible settings and long videos (2–8 phút), and professional delivery artifacts.
 
-```bash
-git subtree add --prefix=external/upstream/<snapshot-name> <repo-url> <branch> --squash
-git subtree pull --prefix=external/upstream/<snapshot-name> <repo-url> <branch> --squash
-```
+## Snapshot Inventory
 
-## Snapshot Table
+| Local Path | Upstream Repo | License | Key Patterns/Logic Integrated (after review) | CineJelly Extension & Status |
+|------------|---------------|---------|---------------------------------------------|------------------------------|
+| external/upstream/seedance-2.0 | Emily2040/seedance-2.0 | MIT | Intent-first workflow, role-based references, professional shot/QC handoff, "direct the model" philosophy | Production Graph + Consistency Guardian; typed lineage and targeted repair |
+| external/upstream/awesome-seedance-2-prompts | YouMind-OpenLab/awesome-seedance-2-prompts | CC BY 4.0 | Structured prompt anatomy (time-bounded, consistency constraints, camera/motion/audio/negative) | Adaptive Prompt Compiler (no hardcoded niches); generalized + repair hints |
+| external/upstream/vimax | HKUDS/ViMax | MIT | Multi-agent long-form planning, RAG segmentation, storyboard, parallel candidates + consistency selection | Provider-agnostic Production Graph + smart chunking for 2-8min videos |
+| external/upstream/vibeframe | vericontext/vibeframe | MIT | Deterministic artifacts, dry runs, cost gates, build/review reports, repair loops | API-first service with review-packet.json, cost-ledger, preflight, redaction, HTTP lifecycle |
+| external/upstream/videoagent | HKUDS/VideoAgent | MIT (nested review) | Intent decomposition, graph-powered planning, multimodal video understanding | Source Video Analyst for bounded reference-video deconstruction guidance |
+| external/upstream/openmontage | calesthio/OpenMontage | AGPL-3.0 | Reference-video analysis, approval gates, provider scoring, self-review (ffprobe etc.) | Consistency Guardian + Delivery Gate adapted from approval/self-review ideas (AGPL caution applied) |
+| external/upstream/moneyprinterturbo | harry0703/MoneyPrinterTurbo | MIT | Staged pipeline, material sourcing, batch outputs, task progress, subtitles/TTS/BGM | Governed material planner + batch evidence in Graph; long-form continuity instead of short-video |
+| external/upstream/directorbench | jiaminchen-1031/DirectorBench | Review pending | Checkpoint-level diagnosis (script/visual/audio/cross-modal/stability), transition focus | Consistency Guardian with checkpoint scoring and targeted repair routing |
 
-| Snapshot | Upstream | Branch captured | Local license evidence | Reuse and integration boundary |
-| --- | --- | --- | --- | --- |
-| `external/upstream/seedance-2.0` | `Emily2040/seedance-2.0` | `main` | `LICENSE` is MIT | Use for Seedance workflow, reference roles, professional handoff, and troubleshooting patterns. Compatible code or logic reuse must preserve MIT attribution and be productized as CineJelly-owned modules. |
-| `external/upstream/awesome-seedance-2-prompts` | `YouMind-OpenLab/awesome-seedance-2-prompts` | `main` | `LICENSE` is CC BY 4.0 | Use for generalized prompt anatomy, weighting patterns, and attribution-reviewed prompt-pattern snapshots. Exact community prompt text requires CC BY attribution and product review before bundled use. |
-| `external/upstream/vimax` | `HKUDS/ViMax` | `main` | `LICENSE` is MIT | Use for long-form multi-agent planning, shot/storyboard segmentation, reference selection, parallel candidate generation, and consistency validation patterns. |
-| `external/upstream/vibeframe` | `vericontext/vibeframe` | `main` | `LICENSE` is MIT | Use for deterministic artifacts, cost gates, dry-run discipline, build/review reports, and repair-loop structure. |
-| `external/upstream/videoagent` | `HKUDS/VideoAgent` | `main` | Top-level `LICENSE` is MIT; nested tool folders include separate licenses | Use for video understanding, intent decomposition, multimodal retrieval, and graph-powered tool planning patterns. Nested tools need separate license review before reuse. |
-| `external/upstream/openmontage` | `calesthio/OpenMontage` | `main` | `LICENSE` is GNU AGPL-3.0 | Use for reference-video analysis, approval gates, provider scoring, real-footage path, and self-review. Direct implementation reuse must follow AGPL obligations or a legal review decision. |
-| `external/upstream/moneyprinterturbo` | `harry0703/MoneyPrinterTurbo` | `main` | `LICENSE` is MIT | Use for end-to-end one-input pipeline staging, material sourcing, batch generation, task queue/progress, subtitles, TTS, BGM, and API/CLI/WebUI deployment patterns. Productized code must be CineJelly-owned TypeScript with MIT attribution where required. |
-| `external/upstream/directorbench` | `jiaminchen-1031/DirectorBench` | `master` | No top-level license file found in the snapshot | Use for long-form evaluation dimensions, dynamic checkpoints, and bottleneck reporting in architecture notes until permission or a compatible reuse path is clarified. |
+## Atlas Cloud Integration
 
-## How Engineers Should Use These Snapshots
+Atlas Cloud (docs + API guides) is the **default provider**. Its async prediction model, Universal Reference, Asset Library, and Seedance 2.0 capabilities are deeply integrated into the Model Provider Abstraction Layer (see docs/MODEL_PROVIDER_ABSTRACTION.md).
 
-1. Read `docs/PROJECT_CONTEXT.md` first for the compact system map.
-2. Read the relevant design spec in `docs/`.
-3. Review the relevant upstream repository and license obligations.
-4. Add or refresh the matching snapshot under `external/upstream/` with Git Subtree and `--squash`.
-5. Decide what should be copied/adapted: document, pattern, structure, schema, prompt anatomy, or implementation logic.
-6. Move product-ready material into CineJelly-owned `docs/`, `data/`, or newly written/adapted `src/` modules.
-7. Add attribution notes in the relevant design document, `docs/CREDITS.md`, or code comment when a feature is intentionally source-integrated.
+## Enforcement & Quality
 
-## Current Source-Inspired Implementation Map
+- Allowed without friction: Snapshot, study, extract generalized patterns/structures/logic, redesign into own `src/` code with attribution.
+- Requires explicit review: Exact community prompt text, AGPL implementation details in distributed product.
+- Forbidden: Direct runtime imports from external/upstream/, wholesale large-file copies into src/.
+- Goal: Autonomous commercial product ≥ any single upstream in long-form consistency, flexibility, cost control, and professional output.
 
-| CineJelly area | Source patterns used | CineJelly-specific extension |
-| --- | --- | --- |
-| Prompt Compiler | Emily2040 Seedance workflow plus YouMind prompt anatomy | Typed shot contracts, reference binding, negative constraints, repair hints, adaptive niche planning without hardcoded prompt templates. |
-| Production Graph | ViMax long-form segmentation plus VideoAgent graph planning | Provider-neutral graph of project, references, story, storyboard, shots, renders, inspections, repairs, and deliverables. |
-| Consistency Guardian | ViMax consistency checks, DirectorBench checkpoints, OpenMontage self-review ideas | Runtime preflight, storyboard preflight, test-take gates, candidate selection, render inspection, semantic visual inspection, and repair-only regeneration. |
-| Source Video Analyst | VideoAgent video understanding plus OpenMontage reference-video analysis | Bounded transcript, scene, keyframe, pacing, style, structural beat, and safety guidance that informs original planning while preserving source-video rights boundaries. |
-| Artifact and Review Discipline | VibeFrame build/review reports and OpenMontage approval gates | Redacted success/failure artifacts, review packets, cost ledgers, manifest hashes, delivery gates, and queue telemetry for commercial operations. |
-| Material and Batch Pipeline | MoneyPrinterTurbo material sourcing, staged generation, task progress, and batch output patterns | Governed material candidates, rights metadata, Atlas-first rendering, batch candidate evidence, subtitle/audio/BGM lineage, and long-form delivery review packets. |
-| Provider Layer | Atlas Cloud docs and Seedance 2.0 reference guides | Atlas Cloud default with provider-neutral contracts for future Kie.ai, fal.ai, Runway, Replicate, or direct Volcengine adapters. |
-
-## License-Sensitive Boundaries
-
-- MIT snapshots can inform implementation and can be reused with the required copyright/license notice and attribution.
-- CC BY 4.0 prompt content requires attribution and may carry community-content constraints; exact prompt text should be bundled only after product review.
-- AGPL-3.0 source, including OpenMontage implementation code, can be reused only when the product accepts the AGPL obligations or legal review approves the reuse path.
-- No-license snapshots, including the current DirectorBench repository snapshot, should stay in the snapshot/audit layer until permission or a compatible reuse path is clarified.
-- Public source means publicly viewable; license status still controls commercial copying, modification, distribution, and embedding.
-
-## Security Handling
-
-Upstream snapshots may contain their own sample configuration files, tests, demos, and development assets. Keep those files inside the snapshot/audit layer until they are explicitly reviewed and copied/adapted into CineJelly-owned product paths. Before every push, run a redacted secret audit that reports file paths and counts only, never raw secret-like values.
+Last updated: June 2026
