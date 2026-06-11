@@ -1,0 +1,482 @@
+import { describe, expect, it } from "vitest";
+import { mkdtemp, readFile, writeFile, mkdir, access } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { parse as yamlParse } from "yaml";
+
+import {
+  aspectToDims,
+  buildDesignMd,
+  buildEmptyRootHtml,
+  buildHyperframesConfig,
+  buildHyperframesMeta,
+  buildProjectAgentsMd,
+  buildProjectClaudeMd,
+  buildStoryboardMd,
+  buildSceneGitignore,
+  defaultVibeProjectConfig,
+  mergeHyperframesConfig,
+  scaffoldSceneProject,
+  type HyperframesConfig,
+} from "./scene-project.js";
+import { getVisualStyle } from "./visual-styles.js";
+
+async function makeTmp(label = "vibe-scene-test-"): Promise<string> {
+  return mkdtemp(join(tmpdir(), label));
+}
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+describe("aspectToDims", () => {
+  it.each([
+    ["16:9", 1920, 1080],
+    ["9:16", 1080, 1920],
+    ["1:1", 1080, 1080],
+    ["4:5", 1080, 1350],
+  ] as const)("%s → %dx%d", (ratio, w, h) => {
+    expect(aspectToDims(ratio)).toEqual({ width: w, height: h });
+  });
+});
+
+describe("buildHyperframesConfig", () => {
+  it("produces the shape expected by hyperframes CLI", () => {
+    const cfg = buildHyperframesConfig();
+    expect(cfg.$schema).toContain("hyperframes.json");
+    expect(cfg.paths).toEqual({
+      blocks: "compositions",
+      components: "compositions/components",
+      assets: "assets",
+    });
+  });
+});
+
+describe("buildHyperframesMeta", () => {
+  it("uses project name as both id and name", () => {
+    const meta = buildHyperframesMeta("my-video", new Date("2026-04-25T00:00:00Z"));
+    expect(meta).toEqual({
+      id: "my-video",
+      name: "my-video",
+      createdAt: "2026-04-25T00:00:00.000Z",
+    });
+  });
+});
+
+describe("defaultVibeProjectConfig", () => {
+  it("declares Hyperframes as the default composition engine", () => {
+    expect(defaultVibeProjectConfig("my-video").composition).toEqual({
+      engine: "hyperframes",
+      entry: "index.html",
+    });
+  });
+});
+
+describe("mergeHyperframesConfig", () => {
+  it("preserves existing top-level keys", () => {
+    const existing: HyperframesConfig = {
+      $schema: "custom-schema",
+      registry: "https://my.registry/",
+      customField: "user-value",
+    };
+    const merged = mergeHyperframesConfig(existing, buildHyperframesConfig());
+    expect(merged.$schema).toBe("custom-schema");
+    expect(merged.registry).toBe("https://my.registry/");
+    expect(merged.customField).toBe("user-value");
+  });
+
+  it("shallow-merges nested paths preserving user keys", () => {
+    const existing: HyperframesConfig = {
+      paths: { blocks: "custom-blocks", assets: "media" },
+    };
+    const merged = mergeHyperframesConfig(existing, buildHyperframesConfig());
+    expect(merged.paths).toEqual({
+      blocks: "custom-blocks", // preserved
+      components: "compositions/components", // from defaults
+      assets: "media", // preserved
+    });
+  });
+
+  it("falls back to defaults when existing is empty", () => {
+    const merged = mergeHyperframesConfig({}, buildHyperframesConfig());
+    expect(merged).toEqual(buildHyperframesConfig());
+  });
+});
+
+describe("buildEmptyRootHtml", () => {
+  it("embeds aspect-correct canvas dimensions", () => {
+    const html = buildEmptyRootHtml({ aspect: "9:16", duration: 12 });
+    expect(html).toContain("width: 1080px");
+    expect(html).toContain("height: 1920px");
+    expect(html).toContain('data-duration="12"');
+    expect(html).toContain('data-composition-id="main"');
+  });
+
+  it("registers a paused main timeline", () => {
+    const html = buildEmptyRootHtml({ aspect: "16:9", duration: 5 });
+    expect(html).toContain('window.__timelines["main"] = gsap.timeline({ paused: true });');
+  });
+});
+
+describe("buildProjectAgentsMd", () => {
+  it("names the project and references both toolchains", () => {
+    const md = buildProjectAgentsMd("my-promo");
+    expect(md).toContain("# my-promo");
+    expect(md).toContain("/vibe-scene");
+    expect(md).toContain("/hyperframes");
+    expect(md).toContain("vibe scene add");
+    expect(md).toContain("npx hyperframes");
+  });
+
+  it("introduces the DESIGN.md hard-gate and hyperframes skill install", () => {
+    const md = buildProjectAgentsMd("my-promo");
+    expect(md).toContain("DESIGN.md");
+    expect(md).toContain("STORYBOARD.md");
+    expect(md).toContain("hard-gate");
+    expect(md).toContain("npx skills add heygen-com/hyperframes");
+  });
+
+  it("keeps nested scene agents on parent project-scope config and vibe generation", () => {
+    const md = buildProjectAgentsMd("my-promo");
+    expect(md).toContain("vibe setup --scope project");
+    expect(md).toContain("../.vibeframe/config.yaml");
+    expect(md).toContain("data.scope.project.configPath");
+    expect(md).toContain("host agent's built-in image/audio generation tool");
+  });
+
+  it("documents brief.md and media/ as local source inputs", () => {
+    const md = buildProjectAgentsMd("my-promo");
+    expect(md).toContain("brief.md");
+    expect(md).toContain("raw intent");
+    expect(md).toContain("Use `media/` for user-provided source files");
+    expect(md).toContain('backdrop: "media/product-shot.png"');
+    expect(md).toContain('video: "media/broll.mp4"');
+    expect(md).toContain('narration: "media/voice.wav"');
+    expect(md).toContain('asset: "media/logo.png"');
+    expect(md).toContain("media in `references/`");
+    expect(md).toContain("copy files into `media/` first");
+  });
+
+  it("guides scene agents away from continuous transforms on live text", () => {
+    const md = buildProjectAgentsMd("my-promo");
+    expect(md).toContain("render-stable text");
+    expect(md).toContain("do not apply continuous");
+    expect(md).toContain(".scene-content");
+    expect(md).toContain("Animate background/media layers instead");
+  });
+});
+
+describe("buildProjectClaudeMd", () => {
+  it("imports AGENTS.md so scene guidance stays cross-tool", () => {
+    const md = buildProjectClaudeMd("my-promo");
+    expect(md.startsWith("@AGENTS.md")).toBe(true);
+    expect(md).toContain("Claude Code Overrides");
+    expect(md).toContain("Codex");
+  });
+});
+
+describe("buildStoryboardMd", () => {
+  it("emits a starter storyboard with three cue-bearing beats", () => {
+    const md = buildStoryboardMd("my-promo", 12);
+    expect(md).toContain("# my-promo");
+    expect(md).toContain("## Beat hook");
+    expect(md).toContain("## Beat proof");
+    expect(md).toContain("## Beat close");
+    expect(md).toContain("```yaml");
+    expect(md).toContain("narration:");
+    expect(md).toContain("backdrop:");
+    expect(md).toContain("duration:");
+    expect(md).toContain("background plate");
+    expect(md).toContain("no readable text");
+    expect(md).toContain("no product photos");
+  });
+});
+
+describe("buildDesignMd", () => {
+  it("emits placeholder sections when no style is provided", () => {
+    const md = buildDesignMd({ name: "my-promo" });
+    expect(md).toContain("# my-promo — Design");
+    expect(md).toContain("Hard-gate (BUILD flow only).");
+    // Section headings are stable.
+    expect(md).toContain("## Style");
+    expect(md).toContain("## Palette");
+    expect(md).toContain("## Typography");
+    expect(md).toContain("## Composition");
+    expect(md).toContain("## Motion");
+    expect(md).toContain("## Transition");
+    expect(md).toContain("## What NOT to do");
+    // Placeholder hint to seed from a named style.
+    expect(md).toContain("--visual-style");
+  });
+
+  it("seeds from a named style: pulls palette, typography, motion, transition, avoid", () => {
+    const swiss = getVisualStyle("Swiss Pulse");
+    expect(swiss).toBeDefined();
+    const md = buildDesignMd({ name: "my-promo", style: swiss });
+
+    expect(md).toContain("Swiss Pulse");
+    expect(md).toContain("Josef Müller-Brockmann");
+    // Palette hex appears verbatim.
+    expect(md).toContain("#0066FF");
+    // Typography rule.
+    expect(md).toContain("Helvetica or Inter Bold");
+    // Motion / GSAP signature.
+    expect(md).toContain("expo.out");
+    // Transition.
+    expect(md).toContain("Cinematic Zoom");
+    // Anti-patterns.
+    expect(md).toContain("Decorative transitions");
+    // Footer attribution.
+    expect(md).toContain('--visual-style "Swiss Pulse"');
+  });
+
+  it("accepts the slug form when looked up via getVisualStyle", () => {
+    const slug = getVisualStyle("data-drift");
+    expect(slug).toBeDefined();
+    const md = buildDesignMd({ name: "ai-promo", style: slug });
+    expect(md).toContain("Data Drift");
+    expect(md).toContain("#7c3aed");
+  });
+});
+
+describe("buildSceneGitignore", () => {
+  it("excludes the .vibeframe/ tree (caches, checkpoints, project-scope config) and rendered outputs", () => {
+    const out = buildSceneGitignore();
+    expect(out).toContain(".vibeframe/");
+    expect(out).toContain("renders/*.mp4");
+  });
+});
+
+describe("defaultVibeProjectConfig", () => {
+  it("produces sane defaults", () => {
+    const cfg = defaultVibeProjectConfig("promo");
+    expect(cfg.name).toBe("promo");
+    expect(cfg.aspect).toBe("16:9");
+    expect(cfg.defaultSceneDuration).toBe(5);
+    expect(cfg.providers).toEqual({ image: null, tts: null, transcribe: null });
+    expect(cfg.budget.maxUsd).toBe(0);
+  });
+});
+
+describe("scaffoldSceneProject", () => {
+  it("creates all expected files in an empty directory", async () => {
+    const dir = await makeTmp();
+    const result = await scaffoldSceneProject({
+      dir,
+      name: "fixture",
+      aspect: "16:9",
+      duration: 8,
+      now: new Date("2026-04-25T00:00:00Z"),
+    });
+
+    const expected = [
+      "hyperframes.json",
+      "meta.json",
+      "index.html",
+      "vibe.config.json",
+      "vibe.project.yaml",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "DESIGN.md",
+      "STORYBOARD.md",
+      ".gitignore",
+    ];
+    for (const f of expected) {
+      expect(await pathExists(resolve(dir, f))).toBe(true);
+    }
+    expect(await pathExists(resolve(dir, "compositions"))).toBe(true);
+    expect(await pathExists(resolve(dir, "assets"))).toBe(true);
+
+    expect(result.created.length).toBe(expected.length);
+    expect(result.merged).toEqual([]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it("seeds DESIGN.md from --visual-style when provided", async () => {
+    const dir = await makeTmp();
+    const style = getVisualStyle("Swiss Pulse");
+    expect(style).toBeDefined();
+    await scaffoldSceneProject({ dir, name: "fixture", visualStyle: style });
+    const design = await readFile(resolve(dir, "DESIGN.md"), "utf-8");
+    expect(design).toContain("Swiss Pulse");
+    expect(design).toContain("#0066FF");
+    expect(design).toContain("Helvetica or Inter Bold");
+  });
+
+  it("DESIGN.md falls back to placeholders when no style provided", async () => {
+    const dir = await makeTmp();
+    await scaffoldSceneProject({ dir, name: "fixture" });
+    const design = await readFile(resolve(dir, "DESIGN.md"), "utf-8");
+    expect(design).toContain("# fixture — Design");
+    expect(design).toContain("--visual-style");
+    // Should NOT pre-fill from any specific style:
+    expect(design).not.toContain("Swiss Pulse");
+    expect(design).not.toContain("Velvet Standard");
+  });
+
+  it("preserves a user-edited DESIGN.md across re-init", async () => {
+    const dir = await makeTmp();
+    await scaffoldSceneProject({ dir, name: "fixture" });
+    const designPath = resolve(dir, "DESIGN.md");
+    await writeFile(designPath, "# Custom design\n\nMy notes.\n", "utf-8");
+
+    const second = await scaffoldSceneProject({ dir, name: "fixture" });
+    const after = await readFile(designPath, "utf-8");
+    expect(after).toBe("# Custom design\n\nMy notes.\n");
+    expect(second.skipped.some((p) => p.endsWith("DESIGN.md"))).toBe(true);
+  });
+
+  it("preserves a user-edited STORYBOARD.md across re-init", async () => {
+    const dir = await makeTmp();
+    await scaffoldSceneProject({ dir, name: "fixture" });
+    const storyboardPath = resolve(dir, "STORYBOARD.md");
+    await writeFile(storyboardPath, "# Custom storyboard\n\n## Beat x — X\n", "utf-8");
+
+    const second = await scaffoldSceneProject({ dir, name: "fixture" });
+    const after = await readFile(storyboardPath, "utf-8");
+    expect(after).toBe("# Custom storyboard\n\n## Beat x — X\n");
+    expect(second.skipped.some((p) => p.endsWith("STORYBOARD.md"))).toBe(true);
+  });
+
+  it("vibe.project.yaml parses as valid YAML and carries the chosen aspect", async () => {
+    const dir = await makeTmp();
+    await scaffoldSceneProject({ dir, name: "fixture", aspect: "9:16", duration: 10 });
+    const raw = await readFile(resolve(dir, "vibe.project.yaml"), "utf-8");
+    const parsed = yamlParse(raw);
+    expect(parsed).toMatchObject({
+      name: "fixture",
+      aspect: "9:16",
+      defaultSceneDuration: 5,
+      providers: { image: null, tts: null, transcribe: null },
+    });
+  });
+
+  it("vibe.config.json parses as the canonical project contract", async () => {
+    const dir = await makeTmp();
+    await scaffoldSceneProject({ dir, name: "fixture", aspect: "9:16", duration: 10 });
+    const raw = await readFile(resolve(dir, "vibe.config.json"), "utf-8");
+    const parsed = JSON.parse(raw);
+    expect(parsed).toMatchObject({
+      schemaVersion: "1",
+      name: "fixture",
+      aspect: "9:16",
+      composition: { engine: "hyperframes", entry: "index.html" },
+    });
+  });
+
+  it("is idempotent: running twice is a no-op (no overwrites of user-editable files)", async () => {
+    const dir = await makeTmp();
+    const first = await scaffoldSceneProject({ dir, name: "fixture" });
+    const claudeBefore = await readFile(resolve(dir, "CLAUDE.md"), "utf-8");
+
+    // User edits CLAUDE.md
+    await writeFile(
+      resolve(dir, "CLAUDE.md"),
+      claudeBefore + "\n\n## My notes\n\nHand-written.\n",
+      "utf-8"
+    );
+
+    const second = await scaffoldSceneProject({ dir, name: "fixture" });
+    const claudeAfter = await readFile(resolve(dir, "CLAUDE.md"), "utf-8");
+
+    // CLAUDE.md edit survives.
+    expect(claudeAfter).toContain("Hand-written.");
+    // Second run reports every non-hyperframes.json file as skipped.
+    expect(second.created).toEqual([]);
+    expect(second.skipped.length).toBeGreaterThan(0);
+    // hyperframes.json is always merge-updated (idempotent shape).
+    expect(second.merged.map((p) => p.split("/").pop())).toContain("hyperframes.json");
+    // First run created hyperframes.json; second merged it.
+    expect(first.created.map((p) => p.split("/").pop())).toContain("hyperframes.json");
+  });
+
+  it("migrates an existing scene CLAUDE.md to import AGENTS.md without dropping content", async () => {
+    const dir = await makeTmp();
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      resolve(dir, "CLAUDE.md"),
+      "# Old scene guidance\n\nKeep this note.\n",
+      "utf-8"
+    );
+
+    const result = await scaffoldSceneProject({ dir, name: "fixture", profile: "agent" });
+    const claude = await readFile(resolve(dir, "CLAUDE.md"), "utf-8");
+
+    expect(await pathExists(resolve(dir, "AGENTS.md"))).toBe(true);
+    expect(claude.startsWith("@AGENTS.md")).toBe(true);
+    expect(claude).toContain("Keep this note.");
+    expect(result.merged.some((p) => p.endsWith("CLAUDE.md"))).toBe(true);
+  });
+
+  it("preserves user keys in existing hyperframes.json (merge, not overwrite)", async () => {
+    const dir = await makeTmp();
+    await mkdir(dir, { recursive: true });
+    // Pre-seed a Hyperframes project with custom paths + user field.
+    const preExisting = {
+      $schema: "https://hyperframes.heygen.com/schema/hyperframes.json",
+      paths: { blocks: "custom-blocks", assets: "media" },
+      userField: "kept",
+    };
+    await writeFile(
+      resolve(dir, "hyperframes.json"),
+      JSON.stringify(preExisting, null, 2) + "\n",
+      "utf-8"
+    );
+
+    const result = await scaffoldSceneProject({ dir, name: "fixture" });
+
+    const merged = JSON.parse(await readFile(resolve(dir, "hyperframes.json"), "utf-8"));
+    expect(merged.userField).toBe("kept");
+    expect(merged.paths.blocks).toBe("custom-blocks");
+    expect(merged.paths.assets).toBe("media");
+    // Default key backfilled:
+    expect(merged.paths.components).toBe("compositions/components");
+
+    expect(result.merged.some((p) => p.endsWith("hyperframes.json"))).toBe(true);
+  });
+
+  it("creates index.html with the correct aspect", async () => {
+    const dir = await makeTmp();
+    await scaffoldSceneProject({ dir, name: "fixture", aspect: "1:1", duration: 6 });
+    const html = await readFile(resolve(dir, "index.html"), "utf-8");
+    expect(html).toContain("width: 1080px");
+    expect(html).toContain("height: 1080px");
+    expect(html).toContain('data-duration="6"');
+  });
+
+  it("supports a minimal authoring-only profile", async () => {
+    const dir = await makeTmp();
+    const result = await scaffoldSceneProject({ dir, name: "fixture", profile: "minimal" });
+
+    expect(await pathExists(resolve(dir, "STORYBOARD.md"))).toBe(true);
+    expect(await pathExists(resolve(dir, "DESIGN.md"))).toBe(true);
+    expect(await pathExists(resolve(dir, "vibe.config.json"))).toBe(true);
+    expect(await pathExists(resolve(dir, "vibe.project.yaml"))).toBe(true);
+    expect(await pathExists(resolve(dir, "index.html"))).toBe(false);
+    expect(await pathExists(resolve(dir, "hyperframes.json"))).toBe(false);
+    expect(await pathExists(resolve(dir, "CLAUDE.md"))).toBe(false);
+    expect(result.groups.authoring.map((p) => p.split("/").pop())).toContain("STORYBOARD.md");
+    expect(result.groups.render).toEqual([]);
+    expect(result.groups.agent).toEqual([]);
+  });
+
+  it("supports an agent profile without render scaffold", async () => {
+    const dir = await makeTmp();
+    const result = await scaffoldSceneProject({ dir, name: "fixture", profile: "agent" });
+
+    expect(await pathExists(resolve(dir, "STORYBOARD.md"))).toBe(true);
+    expect(await pathExists(resolve(dir, "vibe.config.json"))).toBe(true);
+    expect(await pathExists(resolve(dir, "AGENTS.md"))).toBe(true);
+    expect(await pathExists(resolve(dir, "CLAUDE.md"))).toBe(true);
+    expect(await pathExists(resolve(dir, "index.html"))).toBe(false);
+    expect(await pathExists(resolve(dir, "hyperframes.json"))).toBe(false);
+    expect(result.groups.agent.map((p) => p.split("/").pop())).toContain("AGENTS.md");
+    expect(result.groups.agent.map((p) => p.split("/").pop())).toContain("SKILL.md");
+    expect(result.groups.render).toEqual([]);
+  });
+});

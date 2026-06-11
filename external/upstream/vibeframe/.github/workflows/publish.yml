@@ -1,0 +1,153 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. v0.96.4). Required when dispatched."
+        type: string
+        default: ""
+      dry-run:
+        description: "Dry-run only (skip actual publish)"
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # `contents: write` lets the gh-release step create the GitHub
+      # Release. `id-token: write` is preserved for npm provenance.
+      contents: write
+      id-token: write
+
+    steps:
+      # Resolve the release tag from either the push event ref or the
+      # workflow_dispatch input. auto-tag.yml dispatches this workflow
+      # via the gh CLI because GHA's anti-recursion rule blocks
+      # `push: tags` triggers from GITHUB_TOKEN-pushed tags. We accept
+      # the tag explicitly via input so the GitHub Release step can
+      # tag-name correctly even when github.ref is `refs/heads/main`.
+      - name: Resolve release tag
+        id: resolve
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ -n "$INPUT_TAG" ]]; then
+            TAG="$INPUT_TAG"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            echo "No tag provided and not a tag-push event" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved release tag: $TAG"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Verify generated CLI reference
+        run: pnpm gen:reference:check
+
+      - name: Package smoke
+        run: pnpm package:check
+
+      - name: Test
+        run: pnpm test
+        env:
+          CI: true
+
+      # Claude Desktop Extension bundle — attached to the GitHub Release
+      # below so users can install via Settings → Extensions without
+      # touching claude_desktop_config.json. The version-less `vibeframe.mcpb`
+      # copy gives the website a stable always-latest download URL:
+      # releases/latest/download/vibeframe.mcpb
+      - name: Build MCPB extension bundle
+        run: |
+          pnpm -F @vibeframe/mcp-server build:mcpb
+          cp packages/mcp-server/dist-mcpb/vibeframe-*.mcpb packages/mcp-server/dist-mcpb/vibeframe.mcpb
+
+      # Dry-run both packages first to catch errors before any real publish
+      - name: Validate publish (dry-run)
+        run: |
+          pnpm -F @vibeframe/mcp-server publish --access public --no-git-checks --dry-run
+          pnpm -F @vibeframe/cli publish --access public --no-git-checks --dry-run
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Publish both — if one fails, the other may have succeeded.
+      # Re-running the workflow is safe: npm ignores already-published versions.
+      - name: Publish @vibeframe/mcp-server
+        if: ${{ !inputs.dry-run }}
+        run: pnpm -F @vibeframe/mcp-server publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @vibeframe/cli
+        if: ${{ !inputs.dry-run }}
+        run: pnpm -F @vibeframe/cli publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ── GitHub Release ─────────────────────────────────────────────────
+      # Auto-creates a GitHub Release for every pushed tag, with the
+      # CHANGELOG.md section for that version as the body. Skipped on
+      # workflow_dispatch dry-runs so manual test runs don't spam Releases.
+      - name: Extract release notes from CHANGELOG
+        if: ${{ !inputs.dry-run }}
+        id: notes
+        env:
+          RELEASE_TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          # Extract the section between `## [VERSION]` and the next `## [`
+          # heading. Use index() for a literal substring match — `~` would
+          # treat `[` / `]` as a character class and match unrelated lines.
+          awk -v v="## [$VERSION]" '
+            index($0, v) == 1 {flag=1; next}
+            /^## \[/ && flag {exit}
+            flag {print}
+          ' CHANGELOG.md > /tmp/release-notes.md
+          echo "Extracted $(wc -l < /tmp/release-notes.md) lines for v$VERSION"
+          # Print to logs for diagnosability — body shows up in Release UI.
+          cat /tmp/release-notes.md
+
+      - name: Create GitHub Release
+        if: ${{ !inputs.dry-run }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.resolve.outputs.tag }}
+          name: ${{ steps.resolve.outputs.tag }}
+          body_path: /tmp/release-notes.md
+          files: packages/mcp-server/dist-mcpb/*.mcpb
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

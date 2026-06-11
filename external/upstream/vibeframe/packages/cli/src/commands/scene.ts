@@ -1,0 +1,1342 @@
+/**
+ * @module scene
+ *
+ * `vibe scene <sub>` — lower-level namespace for scene authoring,
+ * linting, and visual-style browsing. Users and AI agents can
+ * hand-author rich per-scene HTML instead of relying on flat YAML steps
+ * or opaque MP4s.
+ *
+ * For the project flow (init / build / render), see the canonical
+ * top-level commands (`packages/cli/src/commands/{init,build,render}.ts`).
+ * This file owns the lower-level subcommands only:
+ *   - add               — author one scene (template + assets)
+ *   - lint              — in-process Hyperframes lint + --fix
+ *   - repair            — deterministic mechanical repairs
+ *   - list-styles       — browse vendored visual identities
+ *   - install-skill     — retroactive composition-rules install
+ *   - compose-prompts   — emit per-beat plan for a host agent (no LLM call)
+ */
+
+import { Command } from "commander";
+import { resolve, relative, dirname } from "node:path";
+import { mkdir, readFile, writeFile, access, copyFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import chalk from "chalk";
+import ora from "ora";
+import { GeminiProvider, OpenAIImageProvider, WhisperProvider } from "@vibeframe/ai-providers";
+import {
+  resolveTtsProvider,
+  TtsKeyMissingError,
+  parseTtsProviderName,
+  type TtsProviderName,
+} from "./_shared/tts-resolve.js";
+import { aspectToDims, type VibeProjectConfig } from "./_shared/scene-project.js";
+import { readProjectConfig } from "./_shared/project-config.js";
+import { applyTiers } from "./_shared/cost-tier.js";
+import { getVisualStyle, listVisualStyles, visualStyleNames } from "./_shared/visual-styles.js";
+import {
+  emitSceneHtml,
+  insertClipIntoRoot,
+  nextSceneStart,
+  readRootDims,
+  slugifySceneName,
+  SCENE_PRESETS,
+  SCENE_OVERLAP_SECONDS,
+  LOTTIE_POSITIONS,
+  type ScenePreset,
+  type LottiePosition,
+  type LottieOverlayInput,
+} from "./_shared/scene-html-emit.js";
+import { runProjectLint, rootExists, type ProjectLintResult } from "./_shared/scene-lint.js";
+// `executeSceneRender` and `executeSceneBuild` are no longer wired into
+// the `scene` Commander group in v0.75 — the canonical entry points are
+// `vibe render` and `vibe build` (top-level). The execute functions
+// themselves live in _shared/ and are still consumed by the top-level
+// commands and the manifest tools.
+import { exitWithError, generalError, usageError, outputSuccess, isJsonMode } from "./output.js";
+import { getApiKey } from "../utils/api-key.js";
+import { getAudioDuration } from "../utils/audio.js";
+import { detectedAgentHosts } from "../utils/agent-host-detect.js";
+import {
+  installHyperframesSkill,
+  deriveInstallHosts,
+  type InstallSkillHost,
+} from "./_shared/install-skill.js";
+import { getComposePrompts } from "./_shared/compose-prompts.js";
+import { executeSceneSubmit } from "./_shared/scene-submit.js";
+import { executeSceneRepair } from "./_shared/scene-repair.js";
+
+function validateDuration(value: string): number {
+  const n = parseFloat(value);
+  if (!Number.isFinite(n) || n <= 0 || n > 3600) {
+    exitWithError(
+      usageError(
+        `Invalid duration: ${value}`,
+        "Duration must be a positive number of seconds (≤3600)"
+      )
+    );
+  }
+  return n;
+}
+
+function validatePreset(value: string): ScenePreset {
+  if (!SCENE_PRESETS.includes(value as ScenePreset)) {
+    exitWithError(usageError(`Invalid style: ${value}`, `Valid: ${SCENE_PRESETS.join(", ")}`));
+  }
+  return value as ScenePreset;
+}
+
+export const sceneCommand = new Command("scene")
+  .description(
+    "Lower-level scene authoring (add, lint, list-styles). For project flow use `vibe init` / `vibe build` / `vibe render`."
+  )
+  .addHelpText(
+    "after",
+    `
+Examples:
+  $ vibe scene add intro --style announcement \\
+      --headline "Welcome to VibeFrame"                   # Headline-only scene
+  $ vibe scene add overview --narration "VibeFrame turns scripts into video." \\
+      --visuals "studio desk, soft lighting"              # AI narration + image
+  $ vibe scene lint                                       # Validate every scene against composition rules
+  $ vibe scene lint --fix                                 # Auto-fix mechanical issues (e.g. missing class="clip")
+  $ vibe scene repair my-video --json                     # Deterministic project scene repairs
+  $ vibe scene repair --project my-video --json           # Deterministic scene repairs
+  $ vibe scene lint --json                                # Structured output for agent loops
+  $ vibe scene list-styles                                     # Browse seed visual styles for DESIGN.md
+
+For the project flow (init / build / render), use the top-level commands.
+The \`scene init\`, \`scene build\`, and \`scene render\` legacy aliases
+are still callable but hidden from this help — they will be removed in v1.0.
+Run 'vibe schema scene.<command>' for structured parameter info.`
+  );
+
+// ---------------------------------------------------------------------------
+// `vibe scene install-skill` — drop the Hyperframes skill into a project
+// ---------------------------------------------------------------------------
+// Phase H1 — exposed as a separate subcommand for retroactive install on
+// existing scene projects (i.e. projects scaffolded before this command
+// existed). `vibe scene init` calls the same library function eagerly.
+
+const VALID_INSTALL_SKILL_HOSTS = ["claude-code", "cursor", "auto", "all"] as const;
+type InstallSkillHostFlag = (typeof VALID_INSTALL_SKILL_HOSTS)[number];
+
+sceneCommand
+  .command("install-skill")
+  .description(
+    "Install the Hyperframes skill into a scene project so the host agent can read it (Phase H1)"
+  )
+  .argument("[project-dir]", "Project directory containing STORYBOARD.md / DESIGN.md", ".")
+  .option("--host <id>", `Host layout target: ${VALID_INSTALL_SKILL_HOSTS.join(" | ")}`, "auto")
+  .option("--force", "Overwrite existing skill files (default: skip-on-exist)")
+  .option("--dry-run", "Preview which files would be written without changing anything")
+  .action(async (projectDirArg: string, options) => {
+    const startedAt = Date.now();
+    const hostFlag = (options.host as InstallSkillHostFlag) ?? "auto";
+    if (!VALID_INSTALL_SKILL_HOSTS.includes(hostFlag)) {
+      exitWithError(
+        usageError(`Invalid --host: ${hostFlag}`, `Valid: ${VALID_INSTALL_SKILL_HOSTS.join(", ")}`)
+      );
+    }
+
+    const projectDir = resolve(projectDirArg);
+    const hosts: InstallSkillHost[] = (() => {
+      if (hostFlag === "all") return ["all"];
+      if (hostFlag === "auto") {
+        return deriveInstallHosts(detectedAgentHosts().map((h) => h.id));
+      }
+      return [hostFlag];
+    })();
+
+    const result = await installHyperframesSkill({
+      projectDir,
+      hosts,
+      force: options.force ?? false,
+      dryRun: options.dryRun ?? false,
+    });
+
+    if (isJsonMode()) {
+      outputSuccess({
+        command: "scene install-skill",
+        startedAt,
+        dryRun: options.dryRun ?? false,
+        data: {
+          projectDir,
+          host: hostFlag,
+          resolvedHosts: hosts,
+          bundleVersion: result.bundleVersion,
+          files: result.files,
+        },
+      });
+      return;
+    }
+
+    console.log();
+    console.log(chalk.bold.cyan("Hyperframes skill install"));
+    console.log(chalk.dim("─".repeat(60)));
+    console.log(chalk.dim(`Project:   ${projectDir}`));
+    console.log(
+      chalk.dim(
+        `Host:      ${hostFlag}${hostFlag === "auto" ? ` (resolved → ${hosts.join(", ") || "universal-only"})` : ""}`
+      )
+    );
+    console.log(chalk.dim(`Bundle:    ${result.bundleVersion}`));
+    console.log();
+
+    for (const f of result.files) {
+      const icon =
+        f.status === "wrote"
+          ? chalk.green("+")
+          : f.status === "skipped-exists"
+            ? chalk.dim("·")
+            : f.status === "would-write"
+              ? chalk.cyan("~")
+              : chalk.dim("·");
+      const note =
+        f.status === "skipped-exists"
+          ? chalk.dim(" (kept existing — pass --force to overwrite)")
+          : f.status === "would-write"
+            ? chalk.dim(" (would write)")
+            : f.status === "would-skip-exists"
+              ? chalk.dim(" (would skip — exists)")
+              : "";
+      console.log(`  ${icon} ${f.path}${note}`);
+    }
+
+    if (options.dryRun) {
+      console.log();
+      console.log(chalk.dim("Dry run — no files written. Re-run without --dry-run to apply."));
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// `vibe scene compose-prompts` — Phase H2 agentic primitive
+// ---------------------------------------------------------------------------
+// Emit the prompt + skill-bundle reference plan for the host agent to
+// author per-beat HTML files itself. No LLM call from the CLI. Pairs
+// with `vibe scene install-skill` (H1) — skill files in the project,
+// reasoning in the host agent.
+
+sceneCommand
+  .command("compose-prompts")
+  .description(
+    "Emit the per-beat compose plan for the host agent to author HTML itself (Phase H2 — no LLM call)"
+  )
+  .argument("[project-dir]", "Project directory containing STORYBOARD.md / DESIGN.md", ".")
+  .option("--beat <id>", "Restrict the plan to a single beat by id (e.g. 'hook', '1')")
+  .action(async (projectDirArg: string, options) => {
+    const startedAt = Date.now();
+    const projectDir = resolve(projectDirArg);
+    const result = await getComposePrompts({
+      projectDir,
+      beatId: options.beat as string | undefined,
+    });
+
+    if (!result.success) {
+      if (isJsonMode()) {
+        outputSuccess({
+          command: "scene compose-prompts",
+          startedAt,
+          data: { ...result },
+        });
+        process.exitCode = 1;
+        return;
+      }
+      exitWithError(generalError(result.error ?? "compose-prompts failed"));
+    }
+
+    if (isJsonMode()) {
+      outputSuccess({
+        command: "scene compose-prompts",
+        startedAt,
+        data: { ...result },
+      });
+      return;
+    }
+
+    console.log();
+    console.log(chalk.bold.cyan("Scene compose plan"));
+    console.log(chalk.dim("─".repeat(60)));
+    console.log(chalk.dim(`Project:    ${projectDir}`));
+    console.log(chalk.dim(`Skill ref:  ${result.skillReference ?? chalk.yellow("not installed")}`));
+    console.log(chalk.dim(`Design ref: ${result.designReference}`));
+    console.log(
+      chalk.dim(`Beats:      ${result.beats.length}${options.beat ? " (filtered)" : ""}`)
+    );
+    console.log(chalk.dim(`Bundle:     ${result.bundleVersion}`));
+    console.log();
+
+    if (result.warnings.length > 0) {
+      console.log(chalk.yellow("Warnings"));
+      console.log(chalk.dim("─".repeat(60)));
+      for (const w of result.warnings) console.log(chalk.yellow(`  ⚠ ${w}`));
+      console.log();
+    }
+
+    console.log(chalk.bold.cyan("Beats"));
+    console.log(chalk.dim("─".repeat(60)));
+    for (const b of result.beats) {
+      const status = b.exists ? chalk.dim("(exists)") : chalk.green("(new)");
+      const dur = b.duration !== undefined ? chalk.dim(` ${b.duration}s`) : "";
+      console.log(`  ${chalk.bold(b.id)}${dur} → ${b.outputPath} ${status}`);
+    }
+    console.log();
+
+    console.log(chalk.bold.cyan("Instructions for the host agent"));
+    console.log(chalk.dim("─".repeat(60)));
+    for (const line of result.instructions) console.log(`  ${line}`);
+    console.log();
+    console.log(
+      chalk.dim(
+        "Re-run with --json to get the full per-beat userPrompt + cues for direct consumption."
+      )
+    );
+  });
+
+// ---------------------------------------------------------------------------
+// `vibe scene submit` — accept host-authored scene HTML (lint-gated write)
+
+sceneCommand
+  .command("submit")
+  .description(
+    "Submit host-authored scene HTML for one beat: validates with the Hyperframes lint and writes compositions/scene-<id>.html on pass"
+  )
+  .argument("[project-dir]", "Project directory containing STORYBOARD.md", ".")
+  .requiredOption("--beat <id>", "Beat id from STORYBOARD.md (e.g. 'hook')")
+  .option("--file <path>", "Read the scene HTML from a file ('-' reads raw HTML from stdin)")
+  .option(
+    "--html <html>",
+    "Scene HTML inline (mainly for the global --stdin JSON payload: {\"html\": \"...\"})"
+  )
+  .option("--validate-only", "Lint without writing the file")
+  .action(async (projectDirArg: string, options) => {
+    const startedAt = Date.now();
+    const projectDir = resolve(projectDirArg);
+
+    let html: string;
+    if (options.html) {
+      html = String(options.html);
+    } else if (options.file === "-") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of process.stdin) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      html = Buffer.concat(chunks).toString("utf-8");
+    } else if (options.file) {
+      html = await readFile(resolve(String(options.file)), "utf-8");
+    } else {
+      exitWithError(
+        usageError(
+          "Provide the scene HTML via --file <path>, --file - (stdin), or --html.",
+          "cat scene.html | vibe scene submit <dir> --beat hook --file -"
+        )
+      );
+      return;
+    }
+
+    const result = await executeSceneSubmit({
+      projectDir,
+      beatId: String(options.beat),
+      html,
+      validateOnly: Boolean(options.validateOnly),
+    });
+
+    if (isJsonMode()) {
+      outputSuccess({ command: "scene submit", startedAt, data: { ...result } });
+      if (!result.success) process.exitCode = 1;
+      return;
+    }
+
+    if (!result.success) {
+      for (const finding of result.lint.findings) {
+        console.error(chalk.red(`  [${finding.severity}] ${finding.code}: ${finding.message}`));
+      }
+      exitWithError(generalError(result.error ?? "scene submit failed"));
+    }
+
+    console.log(
+      chalk.green(
+        `${result.written ? "✅ Scene written" : "✅ Scene valid (not written)"}: ${result.scenePath}`
+      )
+    );
+    console.log(
+      chalk.dim(
+        `   lint: ${result.lint.errorCount} error(s), ${result.lint.warningCount} warning(s)` +
+          (result.mechanicalFixes.length > 0
+            ? `; auto-fixed: ${result.mechanicalFixes.join(", ")}`
+            : "")
+      )
+    );
+    for (const w of result.warnings) console.log(chalk.yellow(`   ⚠ ${w}`));
+  });
+
+// ---------------------------------------------------------------------------
+// `vibe scene list-styles` — list / show vendored visual identities
+// (Renamed from `styles` in v0.77 for verb-first leaf consistency, matching
+// `audio list-voices`. The leaf is verb-first across the CLI now.)
+// ---------------------------------------------------------------------------
+
+sceneCommand
+  .command("list-styles")
+  .description("List vendored visual styles (or show one) for DESIGN.md seeding")
+  .argument("[name]", "Style name to inspect (omit to list all)")
+  .action((name?: string) => {
+    const startedAt = Date.now();
+    if (!name) {
+      const all = listVisualStyles();
+      if (isJsonMode()) {
+        outputSuccess({
+          command: "scene list-styles",
+          startedAt,
+          data: {
+            count: all.length,
+            styles: all.map((s) => ({
+              name: s.name,
+              slug: s.slug,
+              designer: s.designer,
+              mood: s.mood,
+              bestFor: s.bestFor,
+            })),
+          },
+        });
+        return;
+      }
+      console.log();
+      console.log(chalk.bold.cyan("Visual styles"));
+      console.log(chalk.dim("─".repeat(60)));
+      for (const s of all) {
+        console.log(
+          `  ${chalk.bold(s.name.padEnd(18))} ${chalk.dim(s.mood.padEnd(24))} ${chalk.dim(s.bestFor)}`
+        );
+      }
+      console.log();
+      console.log(chalk.dim("Show details: "), chalk.cyan('vibe scene list-styles "<name>"'));
+      console.log(
+        chalk.dim("Seed DESIGN.md:"),
+        chalk.cyan('vibe scene init <dir> --visual-style "<name>"')
+      );
+      return;
+    }
+
+    const style = getVisualStyle(name);
+    if (!style) {
+      exitWithError(usageError(`Unknown visual style: ${name}`, `Valid: ${visualStyleNames()}.`));
+      return;
+    }
+
+    if (isJsonMode()) {
+      outputSuccess({
+        command: "scene list-styles",
+        startedAt,
+        data: { style },
+      });
+      return;
+    }
+
+    console.log();
+    console.log(chalk.bold.cyan(style.name), chalk.dim(`— ${style.designer}`));
+    console.log(chalk.dim("─".repeat(60)));
+    console.log(`${chalk.bold("Mood:")}        ${style.mood}`);
+    console.log(`${chalk.bold("Best for:")}    ${style.bestFor}`);
+    console.log(`${chalk.bold("Palette:")}     ${style.palette.join(", ")}`);
+    console.log(chalk.dim("              ") + style.paletteNotes);
+    console.log(`${chalk.bold("Typography:")}  ${style.typography}`);
+    console.log(`${chalk.bold("Composition:")} ${style.composition}`);
+    console.log(`${chalk.bold("Motion:")}      ${style.motion}`);
+    console.log(`${chalk.bold("GSAP:")}        ${style.gsapSignature}`);
+    console.log(`${chalk.bold("Transition:")}  ${style.transition}`);
+    console.log();
+    console.log(chalk.bold("Avoid:"));
+    for (const a of style.avoid) console.log(`  ${chalk.red("•")} ${a}`);
+    console.log();
+    console.log(
+      chalk.dim("Seed DESIGN.md:"),
+      chalk.cyan(`vibe scene init <dir> --visual-style "${style.name}"`)
+    );
+  });
+
+// ---------------------------------------------------------------------------
+// `vibe scene add`
+// ---------------------------------------------------------------------------
+
+sceneCommand
+  .command("add")
+  .description("Add a new scene to a project: AI narration + image + per-scene HTML")
+  .argument("<name>", "Scene name (slugified into the composition id)")
+  .option("--style <preset>", `Style preset: ${SCENE_PRESETS.join(", ")}`, "simple")
+  .option(
+    "--narration <text>",
+    "Narration text (or path to a .txt file). Drives TTS + scene duration."
+  )
+  .option(
+    "--narration-file <path>",
+    "Existing narration audio file (.wav/.mp3). Skips TTS — useful with hyperframes tts, Mac say, or other external tools."
+  )
+  .option("-d, --duration <sec>", "Explicit scene duration in seconds (overrides narration audio)")
+  .option(
+    "--visuals <prompt>",
+    "Image prompt — generates assets/scene-<id>.png via the configured image provider"
+  )
+  .option("--headline <text>", "Visible headline (defaults to the humanised scene name)")
+  .option("--kicker <text>", "Small label above the headline (explainer / product-shot)")
+  .option("--insert-into <path>", "Root composition file to update", "index.html")
+  .option("--project <dir>", "Project directory", ".")
+  .option("--image-provider <name>", "Image provider: gemini, openai", "gemini")
+  .option(
+    "--tts <provider>",
+    "TTS provider: auto, elevenlabs, kokoro (default auto — picks ElevenLabs when key set, else Kokoro local)",
+    "auto"
+  )
+  .option("--voice <id>", "Voice id (ElevenLabs name/id, or Kokoro id like af_heart, am_michael)")
+  .option(
+    "--no-audio",
+    "Skip TTS even when --narration is provided (useful for tests/agent dry runs)"
+  )
+  .option("--no-image", "Skip image generation even when --visuals is provided")
+  .option(
+    "--no-transcribe",
+    "Skip Whisper word-level transcribe step (no transcript-<id>.json emitted)"
+  )
+  .option("--transcribe-language <code>", "BCP-47 language code passed to Whisper (e.g. en, ko)")
+  .option("--force", "Overwrite an existing compositions/scene-<id>.html")
+  .option("--lottie <path>", "Lottie animation file (.json/.lottie) to overlay on the scene")
+  .option(
+    "--lottie-position <position>",
+    `Lottie position: ${LOTTIE_POSITIONS.join(", ")}`,
+    "full"
+  )
+  .option("--lottie-scale <number>", "Lottie overlay scale (0.01-2)")
+  .option("--lottie-opacity <number>", "Lottie overlay opacity (0-1)", "1")
+  .option("--lottie-no-loop", "Do not loop the Lottie animation")
+  .option("--dry-run", "Preview parameters without writing files or calling APIs")
+  .action(async (name: string, options) => {
+    const startedAt = Date.now();
+    if (options.style) options.style = validatePreset(options.style);
+    if (options.lottiePosition) {
+      if (!LOTTIE_POSITIONS.includes(options.lottiePosition as LottiePosition)) {
+        exitWithError(
+          usageError(
+            `Invalid --lottie-position "${options.lottiePosition}". Valid: ${LOTTIE_POSITIONS.join(", ")}`
+          )
+        );
+      }
+    }
+    let lottieScale: number | undefined;
+    if (options.lottieScale !== undefined) {
+      lottieScale = Number(options.lottieScale);
+      if (!Number.isFinite(lottieScale) || lottieScale < 0.01 || lottieScale > 2) {
+        exitWithError(
+          usageError(`Invalid --lottie-scale "${options.lottieScale}". Must be between 0.01 and 2.`)
+        );
+      }
+    }
+    let lottieOpacity = 1;
+    if (options.lottieOpacity !== undefined) {
+      lottieOpacity = Number(options.lottieOpacity);
+      if (!Number.isFinite(lottieOpacity) || lottieOpacity < 0 || lottieOpacity > 1) {
+        exitWithError(
+          usageError(`Invalid --lottie-opacity "${options.lottieOpacity}". Must be between 0 and 1.`)
+        );
+      }
+    }
+    if (options.duration !== undefined) options.duration = validateDuration(options.duration);
+    let tts: TtsProviderName;
+    try {
+      tts = parseTtsProviderName(options.tts);
+    } catch (error) {
+      exitWithError(usageError(error instanceof Error ? error.message : String(error)));
+    }
+
+    if (options.dryRun) {
+      const id = slugifySceneName(name);
+      outputSuccess({
+        command: "scene add",
+        startedAt,
+        dryRun: true,
+        data: {
+          params: {
+            name,
+            id,
+            preset: options.style,
+            narration: !!options.narration,
+            visuals: !!options.visuals,
+            duration: options.duration,
+            headline: options.headline,
+            kicker: options.kicker,
+            project: options.project,
+            insertInto: options.insertInto,
+            imageProvider: options.imageProvider,
+            tts,
+            audio: options.audio,
+            lottie: options.lottie ?? null,
+            lottiePosition: options.lottiePosition,
+            lottieScale: lottieScale ?? null,
+            lottieOpacity: options.lottieOpacity !== undefined ? lottieOpacity : null,
+            lottieLoop: !options.lottieNoLoop,
+            image: options.image,
+          },
+        },
+      });
+      return;
+    }
+
+    const spinner = isJsonMode() ? null : ora(`Adding scene "${name}"...`).start();
+
+    try {
+      const result = await executeSceneAdd({
+        name,
+        preset: options.style as ScenePreset,
+        narration: options.narration,
+        narrationFile: options.narrationFile,
+        duration: options.duration,
+        visuals: options.visuals,
+        headline: options.headline,
+        kicker: options.kicker,
+        projectDir: options.project,
+        insertInto: options.insertInto,
+        imageProvider: options.imageProvider,
+        tts,
+        voice: options.voice,
+        skipAudio: options.audio === false,
+        skipImage: options.image === false,
+        skipTranscribe: options.transcribe === false,
+        transcribeLanguage: options.transcribeLanguage,
+        force: !!options.force,
+        lottie: options.lottie
+          ? {
+              src: options.lottie as string,
+              position: (options.lottiePosition as LottiePosition) ?? "full",
+              scale: lottieScale,
+              opacity: options.lottieOpacity !== undefined ? lottieOpacity : 1,
+              loop: !options.lottieNoLoop,
+            }
+          : undefined,
+        onProgress: (msg) => {
+          if (spinner) spinner.text = msg;
+        },
+      });
+
+      if (!result.success) {
+        spinner?.fail(`Failed to add scene "${name}"`);
+        exitWithError(generalError(result.error ?? "Scene add failed"));
+      }
+
+      if (isJsonMode()) {
+        outputSuccess({
+          command: "scene add",
+          startedAt,
+          data: { ...result },
+        });
+        return;
+      }
+
+      spinner?.succeed(chalk.green(`Scene added: ${result.id}`));
+      console.log();
+      console.log(chalk.bold.cyan("Files"));
+      console.log(chalk.dim("─".repeat(60)));
+      console.log(chalk.green("  +"), result.scenePath);
+      if (result.audioPath) console.log(chalk.green("  +"), result.audioPath);
+      if (result.imagePath) console.log(chalk.green("  +"), result.imagePath);
+      if (result.transcriptPath) console.log(chalk.green("  +"), result.transcriptPath);
+      console.log(chalk.yellow("  ~"), result.rootPath, chalk.dim("(updated)"));
+      console.log();
+      console.log(chalk.bold.cyan("Composition"));
+      console.log(chalk.dim("─".repeat(60)));
+      console.log(`  id        ${chalk.bold(result.id)}`);
+      console.log(`  preset    ${result.preset}`);
+      console.log(`  start     ${result.start.toFixed(2)}s`);
+      console.log(`  duration  ${result.duration.toFixed(2)}s`);
+      console.log();
+      console.log(chalk.bold.cyan("Next steps"));
+      console.log(chalk.dim("─".repeat(60)));
+      console.log(`  ${chalk.cyan("vibe scene lint")}      ${chalk.dim("# validate HTML")}`);
+      console.log(`  ${chalk.cyan("vibe scene render")}    ${chalk.dim("# render to MP4")}`);
+    } catch (error) {
+      spinner?.fail(`Failed to add scene "${name}"`);
+      const msg = error instanceof Error ? error.message : String(error);
+      exitWithError(generalError(msg));
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// executeSceneAdd — testable orchestration (also targeted by C6 agent tool)
+// ---------------------------------------------------------------------------
+
+export interface SceneAddOptions {
+  name: string;
+  preset: ScenePreset;
+  /** Narration text. If the value is an existing file path, its content is used. */
+  narration?: string;
+  /**
+   * Path to an existing narration audio file (.wav/.mp3). When provided,
+   * skips TTS entirely and copies the file into the project's `assets/`.
+   * Compatible with `npx hyperframes tts`, `say`, or any other external
+   * synthesis tool. The transcript is still generated unless
+   * `skipTranscribe` is set.
+   */
+  narrationFile?: string;
+  /** Explicit duration in seconds. Overrides narration-derived duration. */
+  duration?: number;
+  /** Image generation prompt. */
+  visuals?: string;
+  headline?: string;
+  kicker?: string;
+  /** Project directory. Defaults to cwd. */
+  projectDir?: string;
+  /** Filename of the root composition (relative to projectDir). */
+  insertInto?: string;
+  /** "gemini" | "openai". */
+  imageProvider?: string;
+  /** TTS provider preference. Defaults to `"auto"` (ElevenLabs if key set, else Kokoro). */
+  tts?: TtsProviderName;
+  /** Voice id (ElevenLabs name/id, or Kokoro id like `af_heart`). */
+  voice?: string;
+  /** When true, skip TTS even if narration is provided. */
+  skipAudio?: boolean;
+  /** When true, skip image generation even if visuals is provided. */
+  skipImage?: boolean;
+  /**
+   * When true, skip the Whisper word-level transcribe step that would
+   * otherwise emit `assets/transcript-<id>.json`.
+   */
+  skipTranscribe?: boolean;
+  /** BCP-47 language hint forwarded to Whisper (e.g. `"en"`, `"ko"`). */
+  transcribeLanguage?: string;
+  /** Overwrite existing compositions/scene-<id>.html. */
+  force?: boolean;
+  /** Lottie animation overlay options. */
+  lottie?: LottieOverlayInput;
+  /** Progress sink (CLI spinner / agent stream). */
+  onProgress?: (msg: string) => void;
+}
+
+export interface SceneAddResult {
+  success: boolean;
+  id: string;
+  preset: ScenePreset;
+  start: number;
+  duration: number;
+  scenePath: string;
+  rootPath: string;
+  audioPath?: string;
+  imagePath?: string;
+  /**
+   * Project-relative path to `assets/transcript-<id>.json` when Whisper
+   * word-level transcribe ran. `undefined` when skipped or when the audio
+   * source produced no narration text to transcribe.
+   */
+  transcriptPath?: string;
+  /** Number of word entries emitted into the transcript JSON. */
+  transcriptWordCount?: number;
+  lottiePath?: string;
+  error?: string;
+}
+
+async function pathExists(p: string): Promise<boolean> {
+  try {
+    await access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function loadVibeProjectConfig(projectDir: string): Promise<VibeProjectConfig | null> {
+  const loaded = await readProjectConfig(projectDir);
+  if (loaded.source === "default") return null;
+  return {
+    name: loaded.config.name,
+    aspect: loaded.config.aspect,
+    defaultSceneDuration: loaded.config.defaults.sceneDurationSec,
+    providers: {
+      image: loaded.config.providers.image,
+      tts: loaded.config.providers.narration,
+      transcribe: null,
+    },
+    budget: { maxUsd: loaded.config.build.maxCostUsd ?? 0 },
+    composition: {
+      engine: loaded.config.composition.engine,
+      entry: loaded.config.composition.entry,
+    },
+  };
+}
+
+/** Resolve narration text — value may be inline text or a path to a `.txt`/`.md` file. */
+async function resolveNarrationText(value: string | undefined): Promise<string | undefined> {
+  if (!value) return undefined;
+  // Treat as a file path only when it actually exists AND looks like one. This
+  // avoids accidentally interpreting a sentence with a slash as a path.
+  const looksLikePath = /\.[a-z]{2,4}$/i.test(value) || value.includes("/") || value.includes("\\");
+  if (looksLikePath && existsSync(value)) {
+    return (await readFile(value, "utf-8")).trim();
+  }
+  return value.trim();
+}
+
+/** Map a project aspect to the OpenAI image API size string. */
+function openAiSizeForAspect(
+  width: number,
+  height: number
+): "1024x1024" | "1536x1024" | "1024x1536" {
+  if (width === height) return "1024x1024";
+  return width > height ? "1536x1024" : "1024x1536";
+}
+
+/** Best-effort aspect-ratio string for the image provider. */
+function aspectStringFromDims(width: number, height: number): string {
+  if (width === height) return "1:1";
+  if (width === 1920 && height === 1080) return "16:9";
+  if (width === 1080 && height === 1920) return "9:16";
+  if (width === 1080 && height === 1350) return "4:5";
+  return width > height ? "16:9" : "9:16";
+}
+
+export async function executeSceneAdd(opts: SceneAddOptions): Promise<SceneAddResult> {
+  const projectDir = resolve(opts.projectDir ?? ".");
+  const rootRel = opts.insertInto ?? "index.html";
+  const rootPath = resolve(projectDir, rootRel);
+  const id = slugifySceneName(opts.name);
+  const sceneRel = `compositions/scene-${id}.html`;
+  const scenePath = resolve(projectDir, sceneRel);
+
+  // -- Validate project ----------------------------------------------------
+  const errResult = (error: string): SceneAddResult => ({
+    success: false,
+    id,
+    preset: opts.preset,
+    start: 0,
+    duration: 0,
+    scenePath,
+    rootPath,
+    error,
+  });
+
+  if (!(await pathExists(rootPath))) {
+    return errResult(`Root composition not found: ${rootPath}. Run \`vibe scene init\` first.`);
+  }
+  if (!opts.force && (await pathExists(scenePath))) {
+    return errResult(`Scene already exists: ${sceneRel}. Re-run with --force to overwrite.`);
+  }
+
+  // -- Resolve canvas dims (root takes precedence over project config) -----
+  const rootHtmlBefore = await readFile(rootPath, "utf-8");
+  let dims = readRootDims(rootHtmlBefore);
+  if (!dims) {
+    const cfg = await loadVibeProjectConfig(projectDir);
+    if (cfg?.aspect) dims = aspectToDims(cfg.aspect);
+  }
+  if (!dims) {
+    return errResult("Could not determine canvas dimensions from index.html or vibe.project.yaml.");
+  }
+
+  // -- Resolve narration text ---------------------------------------------
+  const narrationText = await resolveNarrationText(opts.narration);
+
+  // -- Asset generation: narration audio -----------------------------------
+  let audioRelPath: string | undefined;
+  let audioAbsPath: string | undefined;
+  let narrationDuration: number | undefined;
+
+  if (opts.narrationFile && !opts.skipAudio) {
+    // External wav/mp3: skip TTS, copy file into the project's assets/ dir.
+    const sourceAbs = resolve(opts.narrationFile);
+    if (!(await pathExists(sourceAbs))) {
+      return errResult(`Narration file not found: ${sourceAbs}`);
+    }
+    const ext = (sourceAbs.match(/\.([a-z0-9]+)$/i)?.[1] ?? "wav").toLowerCase();
+    if (ext !== "wav" && ext !== "mp3") {
+      return errResult(`Unsupported narration file extension: .${ext}. Use .wav or .mp3.`);
+    }
+    audioRelPath = `assets/narration-${id}.${ext}`;
+    audioAbsPath = resolve(projectDir, audioRelPath);
+    await mkdir(dirname(audioAbsPath), { recursive: true });
+    await copyFile(sourceAbs, audioAbsPath);
+    try {
+      narrationDuration = await getAudioDuration(audioAbsPath);
+    } catch {
+      narrationDuration = undefined;
+    }
+  } else if (narrationText && !opts.skipAudio) {
+    let resolution;
+    try {
+      resolution = await resolveTtsProvider(opts.tts ?? "auto");
+    } catch (error) {
+      if (error instanceof TtsKeyMissingError) {
+        return errResult(error.message);
+      }
+      throw error;
+    }
+    opts.onProgress?.(
+      resolution.provider === "kokoro"
+        ? "Generating narration with Kokoro (local — first run downloads ~330MB)..."
+        : "Generating narration with ElevenLabs..."
+    );
+    const tts = await resolution.call(narrationText, {
+      voice: opts.voice,
+      onProgress: (event) => {
+        if (event.status === "progress" && typeof event.progress === "number") {
+          opts.onProgress?.(`Kokoro model: ${event.file ?? ""} ${Math.round(event.progress)}%`);
+        }
+      },
+    });
+    if (!tts.success || !tts.audioBuffer) {
+      return errResult(`${resolution.provider} TTS failed: ${tts.error ?? "unknown error"}`);
+    }
+    audioRelPath = `assets/narration-${id}.${resolution.audioExtension}`;
+    audioAbsPath = resolve(projectDir, audioRelPath);
+    await mkdir(dirname(audioAbsPath), { recursive: true });
+    await writeFile(audioAbsPath, tts.audioBuffer);
+    try {
+      narrationDuration = await getAudioDuration(audioAbsPath);
+    } catch {
+      narrationDuration = undefined;
+    }
+  }
+
+  // -- Whisper word-level transcribe --------------------------------------
+  // Auto-runs whenever we have audio + an OpenAI key. The transcript JSON
+  // mirrors the Hyperframes shape so a future emitSceneHtml (C5) can drive
+  // GSAP word-sync from it. Failure is non-fatal — narration still plays,
+  // we just lose word-level animation timing.
+  let transcriptRelPath: string | undefined;
+  let transcriptWordCount: number | undefined;
+  let transcriptWords: { text: string; start: number; end: number }[] | undefined;
+
+  if (audioAbsPath && !opts.skipTranscribe) {
+    const whisperKey = await getApiKey("OPENAI_API_KEY", "OpenAI");
+    if (!whisperKey) {
+      opts.onProgress?.(
+        "Skipping transcribe (OPENAI_API_KEY not set — narration plays but word-sync unavailable)"
+      );
+    } else {
+      opts.onProgress?.("Transcribing narration (Whisper word-level)...");
+      try {
+        const whisper = new WhisperProvider();
+        await whisper.initialize({ apiKey: whisperKey });
+        const audioBytes = await readFile(audioAbsPath);
+        const audioBlob = new Blob([new Uint8Array(audioBytes)]);
+        const transcript = await whisper.transcribe(audioBlob, undefined, {
+          granularity: "word",
+          language: opts.transcribeLanguage,
+        });
+        if (transcript.status === "completed" && transcript.words?.length) {
+          transcriptRelPath = `assets/transcript-${id}.json`;
+          const transcriptAbs = resolve(projectDir, transcriptRelPath);
+          await writeFile(transcriptAbs, JSON.stringify(transcript.words, null, 2), "utf-8");
+          transcriptWordCount = transcript.words.length;
+          transcriptWords = transcript.words.map((w) => ({
+            text: w.text,
+            start: w.start,
+            end: w.end,
+          }));
+        } else if (transcript.status === "failed") {
+          opts.onProgress?.(`Transcribe failed: ${transcript.error ?? "unknown error"}`);
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        opts.onProgress?.(`Transcribe failed: ${msg}`);
+      }
+    }
+  }
+
+  // -- Asset generation: backdrop image -----------------------------------
+  let imageRelPath: string | undefined;
+  let imageAbsPath: string | undefined;
+
+  if (opts.visuals && !opts.skipImage) {
+    const provider = (opts.imageProvider ?? "gemini").toLowerCase();
+    if (provider !== "gemini" && provider !== "openai") {
+      return errResult(`Unsupported --image-provider: ${provider}. Valid: gemini, openai.`);
+    }
+    opts.onProgress?.(`Generating image with ${provider}...`);
+
+    if (provider === "openai") {
+      const openaiKey = await getApiKey("OPENAI_API_KEY", "OpenAI");
+      if (!openaiKey) {
+        return errResult(
+          "OpenAI API key required for --visuals --image-provider openai. Set OPENAI_API_KEY or pass --no-image."
+        );
+      }
+      const openai = new OpenAIImageProvider();
+      await openai.initialize({ apiKey: openaiKey });
+      const imageResult = await openai.generateImage(opts.visuals, {
+        size: openAiSizeForAspect(dims.width, dims.height),
+        quality: "standard",
+      });
+      if (!imageResult.success || !imageResult.images?.[0]) {
+        return errResult(`OpenAI image generation failed: ${imageResult.error ?? "unknown error"}`);
+      }
+      const img = imageResult.images[0];
+      imageRelPath = `assets/scene-${id}.png`;
+      imageAbsPath = resolve(projectDir, imageRelPath);
+      await mkdir(dirname(imageAbsPath), { recursive: true });
+      let buffer: Buffer;
+      if (img.base64) {
+        buffer = Buffer.from(img.base64, "base64");
+      } else if (img.url) {
+        const response = await fetch(img.url);
+        buffer = Buffer.from(await response.arrayBuffer());
+      } else {
+        return errResult("OpenAI returned no image data");
+      }
+      await writeFile(imageAbsPath, buffer);
+    } else {
+      const googleKey = await getApiKey("GOOGLE_API_KEY", "Google");
+      if (!googleKey) {
+        return errResult(
+          "Google API key required for Gemini image generation. Set GOOGLE_API_KEY or pass --no-image."
+        );
+      }
+      const gemini = new GeminiProvider();
+      await gemini.initialize({ apiKey: googleKey });
+      const aspectRatio = aspectStringFromDims(dims.width, dims.height) as
+        | "1:1"
+        | "16:9"
+        | "9:16"
+        | "4:5";
+      const imageResult = await gemini.generateImage(opts.visuals, { aspectRatio });
+      if (!imageResult.success || !imageResult.images?.[0]?.base64) {
+        return errResult(`Gemini image generation failed: ${imageResult.error ?? "unknown error"}`);
+      }
+      imageRelPath = `assets/scene-${id}.png`;
+      imageAbsPath = resolve(projectDir, imageRelPath);
+      await mkdir(dirname(imageAbsPath), { recursive: true });
+      const buffer = Buffer.from(imageResult.images[0].base64!, "base64");
+      await writeFile(imageAbsPath, buffer);
+    }
+  }
+
+  // -- Asset: Lottie overlay ------------------------------------------------
+  let lottieRelPath: string | undefined;
+  let lottieAbsPath: string | undefined;
+  let lottieInput: LottieOverlayInput | undefined;
+
+  if (opts.lottie) {
+    const sourceAbs = resolve(opts.lottie.src);
+    if (!(await pathExists(sourceAbs))) {
+      return errResult(`Lottie file not found: ${sourceAbs}`);
+    }
+    const ext = (sourceAbs.match(/\.([a-z0-9]+)$/i)?.[1] ?? "json").toLowerCase();
+    if (ext !== "json" && ext !== "lottie") {
+      return errResult(`Unsupported Lottie file extension: .${ext}. Use .json or .lottie.`);
+    }
+    lottieRelPath = `assets/lottie-${id}.${ext}`;
+    lottieAbsPath = resolve(projectDir, lottieRelPath);
+    await mkdir(dirname(lottieAbsPath), { recursive: true });
+    await copyFile(sourceAbs, lottieAbsPath);
+    lottieInput = {
+      src: lottieRelPath,
+      position: opts.lottie.position,
+      scale: opts.lottie.scale,
+      opacity: opts.lottie.opacity,
+      loop: opts.lottie.loop,
+    };
+  }
+
+  // -- Decide scene duration -----------------------------------------------
+  // Scene duration must be ≥ narration audio length, otherwise the parent
+  // clip's data-duration cuts the audio short. The previous heuristic
+  // (`opts.duration ?? narrationDuration ?? fallback`) honored an explicit
+  // `--duration` even when shorter than the generated TTS, producing
+  // "scene feels rushed / narration cut off". `--duration` is now a
+  // *minimum*; when narration audio is longer, extend to fit narration +
+  // the SCENE_OVERLAP_SECONDS crossfade tail + a small TTS-tail buffer.
+  const cfg = await loadVibeProjectConfig(projectDir);
+  const fallback = cfg?.defaultSceneDuration ?? 5;
+  const NARRATION_TAIL_BUFFER = 0.5;
+  const userDur = opts.duration;
+  const audioMinDur =
+    narrationDuration !== undefined
+      ? narrationDuration + SCENE_OVERLAP_SECONDS + NARRATION_TAIL_BUFFER
+      : undefined;
+  let duration: number;
+  if (userDur !== undefined && audioMinDur !== undefined) {
+    duration = Math.max(userDur, audioMinDur);
+  } else if (audioMinDur !== undefined) {
+    duration = audioMinDur;
+  } else if (userDur !== undefined) {
+    duration = userDur;
+  } else {
+    duration = fallback;
+  }
+  duration = Number(duration.toFixed(2));
+
+  // -- Emit scene HTML -----------------------------------------------------
+  opts.onProgress?.("Emitting scene HTML...");
+  const sceneHtml = emitSceneHtml({
+    id,
+    preset: opts.preset,
+    width: dims.width,
+    height: dims.height,
+    duration,
+    headline: opts.headline,
+    subhead: narrationText,
+    kicker: opts.kicker,
+    imagePath: imageRelPath,
+    audioPath: audioRelPath,
+    transcript: transcriptWords,
+    lottie: lottieInput,
+  });
+  await mkdir(dirname(scenePath), { recursive: true });
+  await writeFile(scenePath, sceneHtml, "utf-8");
+
+  // -- Update root index.html ---------------------------------------------
+  opts.onProgress?.("Updating root composition...");
+  // Each new scene starts SCENE_OVERLAP_SECONDS before the previous scene's
+  // end so the two clips overlap in the parent timeline. Inside each scene,
+  // the matching scope opacity tweens at boundaries produce a smooth
+  // crossfade instead of the hard cut the previous architecture had.
+  // Adjacent clips alternate track-index (1, 2, 1, 2, ...) so the
+  // Hyperframes `overlapping_clips_same_track` lint rule doesn't flag the
+  // deliberate crossfade overlap.
+  const start = nextSceneStart(rootHtmlBefore, SCENE_OVERLAP_SECONDS);
+  const existingClipCount = (rootHtmlBefore.match(/<div\s+class="clip"/g) || []).length;
+  const trackIndex = (existingClipCount % 2) + 1;
+  const updated = insertClipIntoRoot(rootHtmlBefore, { id, start, duration, trackIndex });
+  await writeFile(rootPath, updated, "utf-8");
+
+  const transcriptAbsPath = transcriptRelPath ? resolve(projectDir, transcriptRelPath) : undefined;
+
+  return {
+    success: true,
+    id,
+    preset: opts.preset,
+    start,
+    duration,
+    scenePath: relative(process.cwd(), scenePath) || scenePath,
+    rootPath: relative(process.cwd(), rootPath) || rootPath,
+    audioPath: audioAbsPath ? relative(process.cwd(), audioAbsPath) || audioAbsPath : undefined,
+    imagePath: imageAbsPath ? relative(process.cwd(), imageAbsPath) || imageAbsPath : undefined,
+    lottiePath: lottieAbsPath ? relative(process.cwd(), lottieAbsPath) || lottieAbsPath : undefined,
+    transcriptPath: transcriptAbsPath
+      ? relative(process.cwd(), transcriptAbsPath) || transcriptAbsPath
+      : undefined,
+    transcriptWordCount,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// `vibe scene lint`
+// ---------------------------------------------------------------------------
+
+sceneCommand
+  .command("lint")
+  .description("Validate scene HTML against composition rules (in-process, no Chrome required)")
+  .argument("[root]", "Root composition file relative to --project", "index.html")
+  .option("--project <dir>", "Project directory", ".")
+  .option("--fix", 'Apply mechanical auto-fixes (currently: missing class="clip")')
+  .action(async (root: string, options) => {
+    const startedAt = Date.now();
+    const projectDir = resolve(options.project as string);
+    if (!(await rootExists(projectDir, root))) {
+      exitWithError(
+        generalError(
+          `Root composition not found: ${resolve(projectDir, root)}`,
+          "Run `vibe scene init` first, or pass --project <dir>."
+        )
+      );
+    }
+
+    const spinner = isJsonMode() ? null : ora("Linting scenes...").start();
+    let result: ProjectLintResult;
+    try {
+      result = await runProjectLint({ projectDir, rootRel: root, fix: !!options.fix });
+    } catch (error) {
+      spinner?.fail("Lint failed");
+      const msg = error instanceof Error ? error.message : String(error);
+      exitWithError(generalError(`Lint failed: ${msg}`));
+    }
+
+    if (isJsonMode()) {
+      outputSuccess({
+        command: "scene lint",
+        startedAt,
+        data: { ...result },
+      });
+      if (!result.ok) process.exitCode = 1;
+      return;
+    }
+
+    if (result.ok && result.warningCount === 0 && result.infoCount === 0) {
+      spinner?.succeed(chalk.green(`Lint clean — ${result.files.length} file(s) checked`));
+    } else if (result.ok) {
+      spinner?.warn(
+        chalk.yellow(
+          `${result.warningCount} warning(s), ${result.infoCount} info — ${result.errorCount} error(s)`
+        )
+      );
+    } else {
+      spinner?.fail(
+        chalk.red(
+          `${result.errorCount} error(s), ${result.warningCount} warning(s), ${result.infoCount} info`
+        )
+      );
+    }
+
+    for (const file of result.files) {
+      if (file.findings.length === 0) continue;
+      console.log();
+      console.log(chalk.bold.cyan(file.file));
+      console.log(chalk.dim("─".repeat(60)));
+      for (const f of file.findings) {
+        const tag = severityTag(f.severity);
+        const loc = f.elementId
+          ? chalk.dim(` #${f.elementId}`)
+          : f.selector
+            ? chalk.dim(` ${f.selector}`)
+            : "";
+        console.log(`  ${tag} ${chalk.dim(`[${f.code}]`)}${loc}  ${f.message}`);
+        if (f.fixHint) console.log(`     ${chalk.dim("→ " + f.fixHint)}`);
+      }
+    }
+
+    if (result.fixed.length > 0) {
+      console.log();
+      console.log(chalk.bold.cyan("Auto-fixed"));
+      console.log(chalk.dim("─".repeat(60)));
+      for (const fx of result.fixed) {
+        console.log(`  ${chalk.green("✔")} ${fx.file}  ${chalk.dim(fx.codes.join(", "))}`);
+      }
+    }
+
+    if (!result.ok) process.exitCode = 1;
+  });
+
+// ---------------------------------------------------------------------------
+// `vibe scene repair`
+// ---------------------------------------------------------------------------
+
+sceneCommand
+  .command("repair")
+  .description("Apply deterministic mechanical repairs to scene HTML")
+  .argument(
+    "[root]",
+    "Project directory, or root composition file relative to --project",
+    "index.html"
+  )
+  .option("--project <dir>", "Project directory", ".")
+  .option("--dry-run", "Preview repairs without writing files")
+  .action(async (root: string, options) => {
+    const startedAt = Date.now();
+    const target = await resolveSceneRepairTarget(root, options.project as string);
+    if (!(await rootExists(target.projectDir, target.rootRel))) {
+      exitWithError(
+        generalError(
+          `Root composition not found: ${resolve(target.projectDir, target.rootRel)}`,
+          "Run `vibe build --stage sync` first, pass a project directory, or pass --project <dir> with a root HTML path."
+        )
+      );
+    }
+
+    const spinner = isJsonMode()
+      ? null
+      : ora(options.dryRun ? "Checking repairable scene issues..." : "Repairing scenes...").start();
+    let result;
+    try {
+      result = await executeSceneRepair({
+        projectDir: target.projectDir,
+        rootRel: target.rootRel,
+        dryRun: !!options.dryRun,
+      });
+    } catch (error) {
+      spinner?.fail("Scene repair failed");
+      const msg = error instanceof Error ? error.message : String(error);
+      exitWithError(generalError(`Scene repair failed: ${msg}`));
+    }
+
+    if (isJsonMode()) {
+      outputSuccess({
+        command: "scene repair",
+        startedAt,
+        data: { ...result },
+      });
+      if (result.status === "fail") process.exitCode = 1;
+      return;
+    }
+
+    const repairedCount = result.fixed.length;
+    const wouldFixCount = result.wouldFix.length;
+    if (result.status === "pass") {
+      spinner?.succeed(
+        chalk.green(
+          options.dryRun
+            ? `Repair check clean — ${wouldFixCount} repair(s) available`
+            : `Scene repair complete — ${repairedCount} file(s) changed`
+        )
+      );
+    } else if (result.status === "warn") {
+      spinner?.warn(
+        chalk.yellow(
+          `Scene repair finished with ${result.remainingIssues.length} warning/info finding(s)`
+        )
+      );
+    } else {
+      spinner?.fail(chalk.red(`Scene repair left ${result.remainingIssues.length} issue(s)`));
+    }
+
+    const repairs = options.dryRun ? result.wouldFix : result.fixed;
+    if (repairs.length > 0) {
+      console.log();
+      console.log(chalk.bold.cyan(options.dryRun ? "Would repair" : "Repaired"));
+      console.log(chalk.dim("-".repeat(60)));
+      for (const item of repairs) {
+        console.log(`  ${chalk.green("✔")} ${item.file} ${chalk.dim(item.codes.join(", "))}`);
+      }
+    }
+
+    if (result.remainingIssues.length > 0) {
+      console.log();
+      console.log(chalk.bold.cyan("Remaining issues"));
+      console.log(chalk.dim("-".repeat(60)));
+      for (const issue of result.remainingIssues) {
+        const tag =
+          issue.severity === "error"
+            ? chalk.red("error")
+            : issue.severity === "warning"
+              ? chalk.yellow("warn")
+              : chalk.blue("info");
+        console.log(
+          `  ${tag} ${chalk.dim(`[${issue.code}]`)} ${issue.file ?? ""} ${issue.message}`
+        );
+      }
+    }
+
+    if (result.status === "fail") process.exitCode = 1;
+  });
+
+export async function resolveSceneRepairTarget(
+  rootArg = "index.html",
+  projectArg = "."
+): Promise<{ projectDir: string; rootRel: string }> {
+  const root = rootArg || "index.html";
+  const project = projectArg || ".";
+  const defaultProject = project === ".";
+  if (
+    defaultProject &&
+    root !== "index.html" &&
+    !root.toLowerCase().endsWith(".html") &&
+    existsSync(resolve(root, "index.html"))
+  ) {
+    return { projectDir: resolve(root), rootRel: "index.html" };
+  }
+  return { projectDir: resolve(project), rootRel: root };
+}
+
+function severityTag(severity: "error" | "warning" | "info"): string {
+  if (severity === "error") return chalk.red("✘ error  ");
+  if (severity === "warning") return chalk.yellow("⚠ warn   ");
+  return chalk.blue("ℹ info   ");
+}
+
+// Scene subcommands are template scaffolding + linting — baseline free.
+// `scene.add --narration <text>` does invoke TTS internally (low cost),
+// but the default invocation (no narration) is free. Tag baseline as
+// `free`; users hitting TTS opt in explicitly.
+applyTiers(sceneCommand, {
+  add: "free",
+  "compose-prompts": "free",
+  "install-skill": "free",
+  lint: "free",
+  "list-styles": "free",
+  repair: "free",
+});

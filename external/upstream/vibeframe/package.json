@@ -1,0 +1,59 @@
+{
+  "name": "vibeframe",
+  "version": "0.112.1",
+  "description": "Agentic video workflow layer. CLI-first, MCP-ready.",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vericontext/vibeframe.git"
+  },
+  "homepage": "https://vibeframe.dev",
+  "bugs": {
+    "url": "https://github.com/vericontext/vibeframe/issues"
+  },
+  "keywords": [
+    "vibeframe",
+    "video-editing",
+    "ai",
+    "cli",
+    "mcp",
+    "ffmpeg",
+    "remotion"
+  ],
+  "author": "VibeFrame Contributors",
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "test:dogfood": "tsx scripts/dogfood-smoke.mts",
+    "dogfood:paid": "tsx scripts/paid-dogfood.mts",
+    "lint": "turbo lint",
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "clean": "turbo clean && rm -rf node_modules",
+    "vibe": "tsx packages/cli/src/index.ts",
+    "dev:setup": "tsx scripts/dev-setup-wizard.mts",
+    "mcp": "tsx packages/mcp-server/src/index.ts",
+    "scaffold:provider": "tsx scripts/scaffold-provider.mts",
+    "scaffold:command": "tsx scripts/scaffold-command.mts",
+    "gen:reference": "tsx scripts/gen-cli-reference.mts",
+    "gen:reference:check": "tsx scripts/gen-cli-reference.mts --check",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "package:check": "tsx scripts/package-smoke.mts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
+    "tsx": "^4.21.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

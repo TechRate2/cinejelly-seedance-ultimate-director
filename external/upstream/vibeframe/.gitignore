@@ -1,0 +1,86 @@
+# Secrets / local config
+.mcp.json
+.claude/scheduled_tasks.lock
+
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+dist-mcpb
+.next
+.turbo
+out
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Security
+*.pem
+*.key
+credentials.json
+service-account*.json
+
+# Testing
+coverage
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Cache
+.cache
+.eslintcache
+*.tsbuildinfo
+
+samples/
+# Generated outputs
+/demo/
+/demo-video/
+demo-output/
+test-results/
+
+# Test artifacts
+project.vibe.json
+docker/test-output/
+promo/
+tiktok/
+test-output/
+viral-output/
+generated-*.png
+generated-*.mp4
+kling-*.mp4
+
+# Project-local report files emitted by `vibe build` / `vibe inspect *`.
+# They're per-project artifacts, never committed at repo root or inside
+# packages/.
+build-report.json
+review-report.json
+
+# Media files in wrong locations
+packages/cli/*.mp3
+
+# Docs media (regenerable)
+docs/*.mp4
+
+# Private dev docs — patterns kept so locally-created files stay out
+# of accidental `git add .`. Files like scripts/FUNC_TEST.md /
+# QUICK_TEST.md / CLAUDE_CODE_TEST.md *are* committed dev playbooks
+# (golden-path smoke tests) — they're public on purpose.
+ROADMAP-CLOUD.md
+scripts/DEV_GUIDE.md
+.playwright-mcp/

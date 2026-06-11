@@ -1,0 +1,80 @@
+{
+  "name": "@vibeframe/mcp-server",
+  "version": "0.112.1",
+  "description": "VibeFrame MCP Server - AI-native video editing via Model Context Protocol",
+  "type": "module",
+  "bin": {
+    "vibeframe-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node build.js",
+    "build:mcpb": "node build-mcpb.js",
+    "build:types": "tsc --emitDeclarationOnly",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint --ext .ts,.tsx src/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "node build.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "vibeframe",
+    "video-editing",
+    "ai",
+    "claude-desktop",
+    "cursor"
+  ],
+  "license": "MIT",
+  "author": "VibeFrame Contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vericontext/vibeframe.git",
+    "directory": "packages/mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/vericontext/vibeframe/issues"
+  },
+  "homepage": "https://github.com/vericontext/vibeframe#mcp-integration",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.22.4"
+  },
+  "optionalDependencies": {
+    "kokoro-js": "^1.2.1"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": ">=0.39.0",
+    "@google/generative-ai": ">=0.21.0",
+    "openai": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "@google/generative-ai": {
+      "optional": true
+    },
+    "openai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@vibeframe/cli": "workspace:*",
+    "@vibeframe/core": "workspace:*",
+    "esbuild": "^0.27.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
