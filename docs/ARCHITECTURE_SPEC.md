@@ -288,6 +288,7 @@ API execution modes:
 
 - `/health` is public, while `/v1` endpoints require deployment API authentication before provider spend or run metadata access.
 - Credit-spending render submission endpoints are rate limited before request body parsing, runtime creation, job queue occupancy, or provider spend.
+- Credit-spending render submission endpoints require a JSON media type before request body parsing; unsupported media types return 415.
 - Render requests pass admission control before runtime creation, LLM planning, job queue occupancy, or provider spend.
 - Every API request creates or accepts a sanitized `X-CineJelly-Request-Id`/`X-Request-Id`; responses include `requestId`, and the normalized request propagates it into LLM/Seedance metadata, render job summaries, Production Graph project metadata, and durable success/failure artifacts.
 - `/v1/render` runs the full pipeline synchronously for controlled callers and is protected by a process-level concurrency gate with retry hints after body parsing, admission control, and path normalization but before runtime creation or provider spend.

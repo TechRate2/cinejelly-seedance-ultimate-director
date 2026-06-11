@@ -47,6 +47,15 @@ interface RenderRequestBody extends CineJellyProjectRequest {
   readonly artifactDirectory?: string;
 }
 
+class UnsupportedMediaTypeError extends Error {
+  public readonly statusCode = 415;
+
+  public constructor() {
+    super("Render request Content-Type must be application/json.");
+    this.name = "UnsupportedMediaTypeError";
+  }
+}
+
 export function startServer(port = readPort(process.env.PORT)): void {
   const preflight = new RuntimePreflight();
   const artifactStore = new ProjectArtifactStore();
@@ -122,6 +131,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
+        assertJsonContentType(request);
         const body = await readJsonBody<RenderRequestBody>(request);
         requestAdmission.assertAcceptable(body);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
@@ -142,6 +152,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render") {
+        assertJsonContentType(request);
         const body = await readJsonBody<RenderRequestBody>(request);
         requestAdmission.assertAcceptable(body);
         const normalizedRequest = normalizeRenderRequest(body, requestContext);
@@ -315,7 +326,8 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
 function errorStatusCode(error: unknown): number {
   return error instanceof RenderRequestAdmissionError ||
     error instanceof RenderJobCapacityError ||
-    error instanceof RenderJobIdempotencyConflictError
+    error instanceof RenderJobIdempotencyConflictError ||
+    error instanceof UnsupportedMediaTypeError
     ? error.statusCode
     : 500;
 }
@@ -375,6 +387,13 @@ function stableJson(value: unknown): string {
 function readHeader(request: IncomingMessage, headerName: string): string | undefined {
   const value = request.headers[headerName];
   return typeof value === "string" ? value : undefined;
+}
+
+function assertJsonContentType(request: IncomingMessage): void {
+  const contentType = readHeader(request, "content-type")?.split(";")[0]?.trim().toLowerCase();
+  if (!contentType || (contentType !== "application/json" && !contentType.endsWith("+json"))) {
+    throw new UnsupportedMediaTypeError();
+  }
 }
 
 function registerShutdownHandlers(
