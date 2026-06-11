@@ -306,7 +306,7 @@ API execution modes:
 - Rate-limited credit-spending requests return 429 with `Retry-After` and JSON `retryAfterSeconds`.
 - Job list status includes queue telemetry plus compact queued, running, succeeded, failed, or canceled summaries with detail-availability flags, including `hasError`, but excludes error detail.
 - Per-job status includes queued, running, succeeded, failed, or canceled state plus redacted stack-free error name/message, result, cost ledger, and artifact bundle when available.
-- Public JSON responses redact secrets, inline `data:` URIs, and deployment-local filesystem paths, while preserving deploy-safe URI values such as `https://` reference URLs and `asset://` Atlas Asset Library references.
+- Public JSON responses redact secrets, inline `data:` URIs, non-HTTPS URIs, embedded-credential URIs, signed/credential-query URIs, and deployment-local filesystem paths, while preserving deploy-safe URI values such as clean `https://` reference URLs and `asset://` Atlas Asset Library references.
 - Public JSON responses include `Cache-Control: no-store` and `X-Content-Type-Options: nosniff` so run metadata, provider errors, queue state, and cost evidence are not cached or content-sniffed by intermediaries.
 - `/v1/render-jobs/{jobId}` can be canceled with `DELETE`; cancellation propagates through `AbortSignal` to provider calls, polling, assembly, and postproduction where supported.
 - Client disconnects and `SIGINT`/`SIGTERM` shutdowns propagate through request lifecycle `AbortSignal` objects so synchronous render orchestration and active async jobs stop as early as the selected provider path allows after the caller or deployment lifecycle has ended.
