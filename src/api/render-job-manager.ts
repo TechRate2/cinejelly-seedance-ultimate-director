@@ -188,8 +188,9 @@ export class RenderJobManager {
     });
 
     let costLedger: readonly CostLedgerEntry[] = [];
+    let runtime: ReturnType<typeof createDirectorRuntime> | undefined;
     try {
-      const runtime = createDirectorRuntime();
+      runtime = createDirectorRuntime();
       const result = await runtime.director.run(record.request, record.abortController.signal);
       if (record.abortController.signal.aborted) {
         throw record.abortController.signal.reason;
@@ -211,6 +212,7 @@ export class RenderJobManager {
         artifacts
       });
     } catch (error) {
+      costLedger = runtime?.ledger.list() ?? costLedger;
       const artifacts = await this.tryWriteFailureArtifacts({
         request: record.request,
         costLedger,

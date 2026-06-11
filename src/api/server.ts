@@ -123,8 +123,9 @@ export function startServer(port = readPort(process.env.PORT)): void {
         const normalizedRequest = normalizeRenderRequest(body, requestContext);
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         let costLedger: readonly CostLedgerEntry[] = [];
+        let runtime: ReturnType<typeof createDirectorRuntime> | undefined;
         try {
-          const runtime = createDirectorRuntime();
+          runtime = createDirectorRuntime();
           const result = await runtime.director.run(normalizedRequest, requestLifecycle.signal);
           costLedger = runtime.ledger.list();
           const artifacts = await artifactStore.writeRunArtifacts({
@@ -138,6 +139,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
             artifacts
           }, requestContext);
         } catch (renderError: unknown) {
+          costLedger = runtime?.ledger.list() ?? costLedger;
           const artifacts = await artifactStore.writeFailureArtifacts({
             request: normalizedRequest,
             costLedger,

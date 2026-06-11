@@ -302,6 +302,7 @@ Failure artifact policy:
 
 - If `/v1/render` fails after request normalization, CineJelly still writes redacted failure artifacts.
 - Failure artifacts include `failure-report.json`, `cost-ledger.json`, and `manifest.json` so blocked cost gates, render gates, delivery gates, or provider errors remain auditable.
+- Synchronous and async render failure paths capture any provider cost ledger entries recorded before the error, so partial Atlas spend remains auditable.
 - Success and failure manifests include per-file SHA-256 hashes for redacted JSON artifacts so review packets, graph snapshots, cost ledgers, and failure reports can be integrity-checked after storage or transfer.
 - This is an extension based on VibeFrame/OpenMontage build and review report discipline.
 
