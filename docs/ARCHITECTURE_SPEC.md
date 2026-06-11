@@ -211,7 +211,7 @@ Responsibilities:
 - Assemble clips into a complete timeline.
 - Materialize provider output URLs with bounded streaming downloads before FFmpeg processing.
 - Apply transitions, handles, audio alignment, captions, color/polish, upscaling when selected, and delivery validation.
-- Produce final video plus a review packet.
+- Produce final video plus a review packet summarizing planning, render, cost, QC, and delivery evidence.
 
 Source basis:
 
@@ -302,6 +302,12 @@ Failure artifact policy:
 - If `/v1/render` fails after request normalization, CineJelly still writes redacted failure artifacts.
 - Failure artifacts include `failure-report.json`, `cost-ledger.json`, and `manifest.json` so blocked cost gates, render gates, delivery gates, or provider errors remain auditable.
 - This is an extension based on VibeFrame/OpenMontage build and review report discipline.
+
+Review packet policy:
+
+- Successful runs emit `review-packet.json`.
+- The packet includes a redacted status, premise, flexible settings, storyboard preflight status, graph size, prompt/render counts, selected candidates, provider operation counts, estimated/actual cost when available, delivery gate status, semantic visual inspection status, and operator recommendations.
+- The packet is a handoff summary, not a substitute for the full graph, prompt, render, and delivery artifacts.
 
 ## Non-Negotiable Production Principles
 

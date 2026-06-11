@@ -12,6 +12,7 @@ import type { CostLedgerEntry } from "../types/provider.js";
 import { writeFileEnsuringDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
 import { redactText } from "../utils/redaction.js";
+import { ReviewPacketBuilder } from "./review-packet-builder.js";
 
 interface ProjectArtifactPayload {
   readonly kind: ProjectArtifactKind;
@@ -20,6 +21,8 @@ interface ProjectArtifactPayload {
 }
 
 export class ProjectArtifactStore {
+  private readonly reviewPacketBuilder = new ReviewPacketBuilder();
+
   public async writeRunArtifacts(input: {
     readonly result: DirectorRunResult;
     readonly costLedger: readonly CostLedgerEntry[];
@@ -115,6 +118,7 @@ export class ProjectArtifactStore {
     };
     const payloads: ProjectArtifactPayload[] = [
       { kind: "run_summary", fileName: "run-summary.json", value: runSummary },
+      { kind: "review_packet", fileName: "review-packet.json", value: this.reviewPacketBuilder.build({ result, costLedger }) },
       { kind: "story_plan", fileName: "story-plan.json", value: result.storyPlan },
       { kind: "storyboard", fileName: "storyboard.json", value: result.storyboard },
       { kind: "storyboard_preflight", fileName: "storyboard-preflight.json", value: result.storyboardPreflight },

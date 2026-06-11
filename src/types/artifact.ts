@@ -9,6 +9,7 @@ export type ProjectArtifactKind =
   | "storyboard"
   | "storyboard_preflight"
   | "production_graph"
+  | "review_packet"
   | "compiled_prompts"
   | "rendered_shots"
   | "deliverable"

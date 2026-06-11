@@ -1,0 +1,84 @@
+/**
+ * Commercial review packet contracts.
+ * A review packet gives operators and customers one redacted handoff summary for a completed production run.
+ */
+
+import type { DeliveryGateStatus } from "./delivery.js";
+import type { CostGateStatus } from "./cost.js";
+import type { GuardianStatus } from "./guardian.js";
+import type { QualityMode, Resolution, SpeedTier, AspectRatio } from "./settings.js";
+
+export type ReviewPacketStatus = "ready" | "review_required" | "blocked";
+
+export interface ReviewPacket {
+  readonly artifactSchemaVersion: "cinejelly.review_packet.v1";
+  readonly projectId: string;
+  readonly requestId?: string;
+  readonly generatedAt: Date;
+  readonly status: ReviewPacketStatus;
+  readonly summary: ReviewPacketSummary;
+  readonly settings: ReviewPacketSettings;
+  readonly planning: ReviewPacketPlanning;
+  readonly render: ReviewPacketRender;
+  readonly cost: ReviewPacketCost;
+  readonly delivery: ReviewPacketDelivery;
+  readonly recommendations: readonly string[];
+}
+
+export interface ReviewPacketSummary {
+  readonly premise: string;
+  readonly targetDurationSeconds: number;
+  readonly deliverablePath?: string;
+  readonly hasDeliverable: boolean;
+}
+
+export interface ReviewPacketSettings {
+  readonly tier: SpeedTier;
+  readonly resolution: Resolution;
+  readonly qualityMode: QualityMode;
+  readonly ratio: AspectRatio;
+}
+
+export interface ReviewPacketPlanning {
+  readonly storyboardPanelCount: number;
+  readonly storyboardPreflightStatus: GuardianStatus;
+  readonly productionGraphNodeCount: number;
+  readonly productionGraphEdgeCount: number;
+  readonly compiledPromptCount: number;
+}
+
+export interface ReviewPacketRender {
+  readonly renderedShotCount: number;
+  readonly renderedTestTakeCount: number;
+  readonly selectedCandidateIndexes: readonly ReviewPacketSelectedCandidate[];
+  readonly totalCandidateCount: number;
+  readonly totalRepairAttemptCount: number;
+  readonly failedPredictionCount: number;
+  readonly outputUrlCount: number;
+}
+
+export interface ReviewPacketSelectedCandidate {
+  readonly shotId: string;
+  readonly selectedCandidateIndex: number;
+  readonly candidateCount: number;
+  readonly repairAttemptCount: number;
+}
+
+export interface ReviewPacketCost {
+  readonly costGateStatus: CostGateStatus;
+  readonly plannedRenderSeconds: number;
+  readonly estimatedTotalCostUsd?: number;
+  readonly actualTotalCostUsd?: number;
+  readonly providerOperationCount: number;
+  readonly failedProviderOperationCount: number;
+  readonly timeoutProviderOperationCount: number;
+}
+
+export interface ReviewPacketDelivery {
+  readonly deliveryGateStatus?: DeliveryGateStatus;
+  readonly semanticVisualInspectionStatus?: "pass" | "warn" | "fail";
+  readonly mediaInspectionStatus?: "pass" | "warn" | "fail";
+  readonly clipCount?: number;
+  readonly durationSeconds?: number;
+  readonly resolution?: string;
+}
