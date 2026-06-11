@@ -1,0 +1,497 @@
+/**
+ * @module _shared/walkthroughs
+ *
+ * Universal CLI-equivalents of Claude Code's `/vibe-scene` and
+ * `/vibe-pipeline` slash commands. After Plan H, host agents
+ * (Claude Code, Codex, Cursor, Aider, Gemini CLI, OpenCode) all read
+ * SKILL.md from the user's project and can drive `vibe build`
+ * directly — but discoverability of the *workflow* itself was still
+ * Claude-Code-only via the slash menu.
+ *
+ * `vibe guide <topic>` closes that gap: any host (or a human at
+ * a terminal) gets the same step-by-step authoring guide that the
+ * slash commands deliver in Claude Code. The content is vendored as
+ * TS template-literal strings so the CLI binary ships with zero
+ * filesystem dependencies — same approach as `hf-skill-bundle`.
+ *
+ * Source of truth lives here. The Claude Code slash command files
+ * under `.claude/skills/vibe-{scene,pipeline}/SKILL.md` mirror this
+ * content (so the slash command and the CLI command stay in sync) and
+ * add a one-line frontmatter for the slash menu.
+ */
+
+export type WalkthroughTopic = "motion" | "scene" | "pipeline" | "architecture";
+
+export interface WalkthroughResult {
+  topic: WalkthroughTopic;
+  /** Short title, e.g. "Scene authoring with vibe". */
+  title: string;
+  /** One-line summary suitable for a `--list` output. */
+  summary: string;
+  /** Numbered action items the host agent walks the user through. */
+  steps: string[];
+  /** Related vibe CLI commands referenced by the walkthrough. */
+  relatedCommands: string[];
+  /** Full markdown body — same content the Claude Code slash command loads. */
+  content: string;
+}
+
+const SCENE_WALKTHROUGH = `# Scene authoring with vibe
+
+A scene project is a directory that is **bilingual**: it works with both
+\`vibe\` and \`npx hyperframes\`. Each scene is one HTML file with scoped CSS
+and a paused GSAP timeline. Cheap to edit, cheap to lint, expensive only
+at render.
+
+\`vibe build\` (v0.60+) is the supported one-shot driver from a
+written storyboard to an MP4. Plan H (v0.70) added \`--mode agent\` so the
+host agent itself authors the per-beat HTML — no internal LLM call.
+
+## Three authoring paths
+
+| Path | Command | When to use |
+|---|---|---|
+| **One-shot (default, v0.60+)** | \`vibe build [project-dir]\` | STORYBOARD.md has YAML frontmatter + per-beat cues |
+| **High-craft (manual)** | \`DESIGN.md\` + local composition rules in your agent | Maximum control: hand-author each scene |
+| **Quick draft** | \`vibe scene add --style <preset>\` | No agent or no API keys; fast iteration |
+
+Recommend \`vibe build\` whenever the user has a STORYBOARD with
+narration / backdrop intent.
+
+## High-craft path
+
+1. \`vibe init my-promo --visual-style "Swiss Pulse"\` — seeds
+   \`DESIGN.md\` (palette, typography, motion, transitions) plus the
+   \`vibe.project.yaml\` / \`hyperframes.json\` / \`index.html\` scaffold.
+   In Plan H this **also installs local composition rules** at the
+   right place for your host (\`.claude/skills/hyperframes/\` for Claude
+   Code, \`.cursor/rules/hyperframes.mdc\` for Cursor, universal
+   \`SKILL.md\` for everyone else).
+2. Read \`SKILL.md\` (or the host-specific copy) — Hyperframes
+   framework rules, motion principles, type system, transition recipes.
+3. Read \`DESIGN.md\` — project-specific palette / typography / motion
+   signature (visual identity hard-gate).
+4. Author each scene HTML directly under \`compositions/scene-<id>.html\`
+   using the rules from steps 2 and 3. The skill enforces the visual
+   identity contract — scenes that contradict DESIGN.md fail lint.
+5. \`vibe scene lint --fix\` for mechanical issues, \`vibe render my-promo\`
+   to MP4.
+
+## Quick-draft path
+
+\`\`\`bash
+vibe init my-promo -r 16:9 -d 30
+vibe scene add intro --style announcement \\
+    --headline "Ship videos, not clicks"
+vibe scene lint
+vibe render my-promo
+\`\`\`
+
+\`vibe init\` is **idempotent** — running it on an existing Hyperframes
+directory merges \`hyperframes.json\` instead of clobbering it. Safe to
+invoke on user-provided projects.
+
+## Subcommands
+
+\`\`\`bash
+# Project flow (top-level — preferred entry points)
+vibe init <dir> [-r 16:9|9:16|1:1|4:5] [-d <sec>] [--visual-style "<name>"]
+vibe build [<dir>] [--mode agent|batch|auto]         # H3 dispatch
+vibe render [<dir>] [--fps 30] [--quality standard] [--format mp4]
+
+# Lower-level scene authoring
+vibe scene list-styles [<name>]                   # list / show vendored visual identities
+vibe scene install-skill [<dir>] [--host all]  # retroactive composition-rules install
+vibe scene add <name> --style <preset> [...]
+vibe scene compose-prompts [<dir>] [--beat <id>]   # H2: emit plan, no LLM call
+vibe scene lint [<root>] [--json] [--fix]
+\`\`\`
+
+## Style presets (for \`vibe scene add --style\`)
+
+- **simple** — backdrop + bottom caption (default)
+- **announcement** — single huge headline, gradient text
+- **explainer** — kicker + title + subtitle stack
+- **kinetic-type** — words animate in word-by-word
+- **product-shot** — corner label + bottom headline + slow zoom
+
+All presets accept \`--narration <text|file>\`, \`--visuals <prompt>\`,
+\`--headline\`, \`--kicker\`. With \`--narration\`, scene duration auto-derives
+from the generated TTS audio.
+
+## STORYBOARD-to-MP4 (one command, v0.60+)
+
+\`\`\`bash
+vibe init my-promo --visual-style "Swiss Pulse" -d 12
+# (edit STORYBOARD.md with per-beat YAML cues — narration, backdrop, duration)
+vibe build my-promo
+\`\`\`
+
+\`vibe build\` reads the STORYBOARD frontmatter + per-beat cues,
+dispatches TTS + image-gen per beat, then either:
+
+- **\`--mode agent\`** (default when an agent host is detected) — emits a
+  \`needs-author\` plan via \`vibe scene compose-prompts\`. The host agent
+  authors each \`compositions/scene-<id>.html\` itself, then re-invoking
+  \`vibe build\` proceeds to lint + render.
+- **\`--mode batch\`** — VibeFrame runs an internal LLM (Claude / OpenAI /
+  Gemini) to compose the HTML, then renders.
+
+\`VIBE_BUILD_MODE\` env var overrides the auto-resolve.
+
+## Lint feedback loop
+
+\`\`\`bash
+vibe scene lint --json --fix
+\`\`\`
+
+Returns structured findings. The recommended loop: 1) run lint with
+\`--fix\` (mechanical fixes applied), 2) if \`errorCount > 0\`, edit the
+scene HTML, 3) re-lint. Cap retries at 3 — if errors persist, fall back
+to a template preset (\`vibe scene add <id> --style simple --force\`)
+and surface the error to the user.
+
+## When to use VibeFrame vs raw Hyperframes
+
+| Task | Tool |
+|------|------|
+| Generate narration + image, then author scene | \`vibe scene add\` |
+| Generate a full scenes project from a STORYBOARD | \`vibe build\` |
+| Hand-tweak a single scene's animation | edit \`compositions/<file>.html\` directly |
+| Render the project | \`vibe render\` (one canonical entry point) |
+| Lint | \`vibe scene lint\` *or* \`npx hyperframes lint\` (equivalent) |
+
+The \`vibe\` CLI adds asset generation, AI orchestration, and pipeline
+integration on top of Hyperframes' rendering primitives.
+
+## Quality checklist before render
+
+- [ ] \`vibe scene lint\` exits 0 (or only warnings)
+- [ ] \`vibe doctor\` confirms a usable Chrome (required for render)
+- [ ] Root \`data-duration\` matches the sum of clip durations
+- [ ] Aspect ratio in \`vibe.project.yaml\` matches the destination platform
+`;
+
+const PIPELINE_WALKTHROUGH = `# YAML pipelines (Video as Code)
+
+A pipeline is a YAML manifest with steps that reference each other's
+outputs. \`vibe run pipeline.yaml\` executes them with checkpointing and
+cost estimation.
+
+## Minimal skeleton
+
+\`\`\`yaml
+name: promo-video
+description: 15s product teaser
+steps:
+  - id: backdrop
+    action: generate-image
+    prompt: "sleek product shot on white background"
+    output: backdrop.png
+  - id: scene
+    action: generate-video
+    image: $backdrop.output        # reference previous step output
+    prompt: "slow camera pan"
+    duration: 5
+    output: scene.mp4
+  - id: voice
+    action: generate-tts
+    text: "Meet the new standard."
+    output: voice.mp3
+  - id: final
+    action: compose
+    video: $scene.output
+    audio: $voice.output
+    output: final.mp4
+\`\`\`
+
+## Supported actions
+
+- \`generate-image\`, \`generate-video\`, \`generate-tts\`, \`generate-music\`,
+  \`generate-sound-effect\`, \`generate-storyboard\`, \`generate-motion\`
+- \`edit-silence-cut\`, \`edit-jump-cut\`, \`edit-caption\`, \`edit-grade\`,
+  \`edit-reframe\`, \`edit-speed-ramp\`, \`edit-fade\`, \`edit-noise-reduce\`,
+  \`edit-text-overlay\`, \`edit-motion-overlay\`, \`edit-fill-gaps\`
+- \`analyze-media\`, \`analyze-video\`, \`analyze-review\`, \`analyze-suggest\`
+- \`audio-transcribe\`, \`audio-isolate\`, \`audio-voice-clone\`, \`audio-dub\`,
+  \`audio-duck\`
+- \`detect-scenes\`, \`detect-silence\`, \`detect-beats\`
+- \`compose\`, \`export\`
+- \`scene-build\` (Plan H one-shot driver) and \`scene-render\`
+- \`compose-scenes-with-skills\` (internal-LLM compose pass)
+
+The full set lives in \`packages/cli/src/pipeline/executor.ts\`.
+
+## Variable references
+
+- \`$<step-id>.output\` — previous step's output path
+- \`$<step-id>.result.<field>\` — structured field from JSON result
+- \`\${ENV_VAR}\` — environment variable
+- Values can be templated: \`"\${SCRIPT_TITLE} - Episode \${EPISODE}"\`
+
+## Running
+
+\`\`\`bash
+vibe run pipeline.yaml --dry-run           # plan + cost estimate, no execution
+vibe run pipeline.yaml                     # execute
+vibe run pipeline.yaml --resume            # retry from last successful step
+vibe run pipeline.yaml --from scene        # start at specific step
+vibe run pipeline.yaml --provider-video kling   # override provider
+\`\`\`
+
+Checkpoints land next to the YAML: \`pipeline.yaml.checkpoint.json\`.
+
+## Authoring tips
+
+1. **Start from a tiny YAML** — keep it in your project directory and run
+   \`vibe run pipeline.yaml --dry-run\` before spending provider budget.
+2. **Dry-run first** — you see estimated cost and resolved variable
+   graph before spending API credits.
+3. **Keep step ids short and descriptive** (\`intro\`, \`scene1\`, \`voice\`,
+   \`bgm\`) — they appear in logs and variable refs.
+4. **Name outputs** with extensions matching the action (\`.mp4\`, \`.mp3\`,
+   \`.png\`, \`.json\`).
+5. **Declare \`budget:\`** on expensive pipelines:
+   \`\`\`yaml
+   budget:
+     tokens: 500_000
+     max_tool_errors: 3
+     cost_usd: 5.00
+   \`\`\`
+6. **Split large pipelines** into smaller YAML files and compose via
+   \`action: run-pipeline\` (nested).
+
+## Converting ad-hoc shell sessions to pipelines
+
+When the user has a working shell sequence, extract steps:
+
+- Each \`vibe ...\` command becomes one step
+- File outputs become step outputs; downstream \`-i <file>\` references
+  become \`$<id>.output\`
+- Shared parameters move to a top-level \`defaults:\` section
+- Wrap the entire chain in a \`name:\` + \`steps:\` skeleton
+
+The \`compose\` action is the catch-all assembly step (audio mux, video
+overlay, etc.) — useful at the tail of a pipeline.
+`;
+
+const ARCHITECTURE_WALKTHROUGH = `# vibe agent / build / run — when to pick which
+
+The CLI has three orchestrating commands that coordinate other primitives:
+\`vibe agent\`, \`vibe build\`, \`vibe run\`. New users routinely ask which one
+they want for a given task. This guide is the operator-facing summary.
+
+If you already use Claude Code, Codex, Cursor, Aider, Gemini CLI, OpenCode,
+or another coding agent, let that host drive \`vibe\` directly through shell
+commands plus \`AGENTS.md\` / \`CLAUDE.md\`. \`vibe agent\` is the optional
+built-in fallback when you do not already have an agent host.
+
+## TL;DR
+
+| | \`vibe agent\` | \`vibe build\` | \`vibe run\` |
+|---|---|---|---|
+| **Driving input** | natural-language prompt | \`STORYBOARD.md\` | YAML pipeline file |
+| **Interactivity** | REPL or one-shot | one-shot | one-shot |
+| **Reproducibility** | none | high (idempotent) | highest (checkpointed) |
+| **Budget caps** | per-session max-turns | none | \`--budget-usd\`, \`--budget-tokens\`, \`--max-errors\` |
+| **Resume after crash** | no | re-invoke | \`--resume\` |
+| **Best for** | optional built-in exploration | finished script | repeatable workflows |
+
+## Decision tree
+
+- "I am already in Claude Code/Codex/Cursor/etc." → regular \`vibe\` shell commands + \`vibe guide\` / \`vibe schema\`
+- "I want to play and do not have an external coding agent" → \`vibe agent\`
+- "I have a finished script + visual identity" → \`vibe build\`
+- "I want this to run again next month" → \`vibe run\`
+
+If two seem to fit, pick the rightmost one — more reproducible, less surprise.
+
+## Cost-tier awareness (v0.83+)
+
+Every primitive subcommand carries a cost tier (\`free\` / \`low\` / \`high\` /
+\`very-high\`). \`vibe schema --list\` exposes the tier as JSON, and each
+\`vibe <group> <sub> --help\` page shows it as a colored footer. Use
+\`vibe doctor --test-keys\` before kicking off any high-cost orchestrator —
+a single bad key wastes time and money.
+
+## Cross-command primitives
+
+All three commands ultimately call the same primitives:
+\`generate\` / \`edit\` / \`audio\` / \`inspect\` / \`detect\` / \`remix\`. The
+agent calls them through a tool manifest; \`build\` calls a curated subset
+(TTS + image + compose + render); \`run\` exposes 55+ actions one per primitive.
+
+## Known overlap
+
+- \`vibe build\` is conceptually a 4-step pipeline; \`vibe run\` could express
+  the same flow but build's STORYBOARD.md input + opinionated defaults are
+  the value-add.
+- \`vibe agent\`'s tool registry currently exposes primitives, not
+  orchestrators. Adding \`vibe.build\` / \`vibe.run\` as agent tools is on the
+  table for a future major.
+- \`vibe run --resume\` has no analog in build/agent; build's idempotent
+  re-invoke covers the common case.
+`;
+
+const MOTION_WALKTHROUGH = `# Motion graphics with vibe
+
+Use this guide when the user asks for titles, lower-thirds, animated
+typography, grain, vignettes, logo bugs, or other designed overlays.
+
+## Decision tree
+
+| User intent | Command |
+|---|---|
+| Simple static text burn-in | \`vibe edit text-overlay\` |
+| Designed/animated overlay on an existing clip | \`vibe edit motion-overlay\` |
+| Standalone motion graphic asset | \`vibe generate motion\` |
+| Overlay must fit the actual clip | \`vibe edit motion-overlay --understand auto\` |
+| User already has a Lottie file | \`vibe edit motion-overlay --asset logo.lottie\` |
+
+## Recommended path
+
+1. Inspect or understand the base clip only when placement matters.
+2. Use \`vibe edit motion-overlay <video> "description" --understand auto -o out.mp4\`
+   for animated title/lower-third/brand overlays.
+3. Use \`vibe edit text-overlay\` only for simple static text.
+4. Use \`vibe generate motion\` when the desired output is the motion asset
+   itself, not an edited input video.
+5. For Lottie, bring a user-provided \`.json\` or \`.lottie\` file and overlay it
+   with \`--asset\`; prompt-to-Lottie generation is intentionally out of scope.
+
+## Examples
+
+\`\`\`bash
+vibe edit motion-overlay clip.mp4 \\
+  "minimal lower-third title 'Day One', bottom-left, fade in at 1s, hold 3s, fade out" \\
+  --understand auto \\
+  -o clip-titled.mp4
+
+vibe edit motion-overlay clip.mp4 \\
+  --asset assets/logo.lottie \\
+  --position bottom-right \\
+  --scale 0.18 \\
+  --start 1 \\
+  --duration 4 \\
+  -o clip-logo.mp4
+
+vibe generate motion "animated product logo reveal" --render -o logo-reveal.mp4
+\`\`\`
+`;
+
+const META: Record<WalkthroughTopic, Pick<WalkthroughResult, "title" | "summary" | "steps" | "relatedCommands">> = {
+  motion: {
+    title: "Motion graphics with vibe",
+    summary: "Choose between static text, designed overlays, standalone motion, and Lottie overlays",
+    steps: [
+      "Use `vibe edit text-overlay` only for simple static FFmpeg text burn-in.",
+      "Use `vibe edit motion-overlay <video> \"...\" --understand auto` for designed animated overlays on an existing clip.",
+      "Use `vibe generate motion` only when the motion graphic itself is the output asset.",
+      "Use `vibe edit motion-overlay --asset <file.json|file.lottie>` for user-provided Lottie overlays.",
+      "Run with `--dry-run --json` first when an agent needs to confirm parameters.",
+    ],
+    relatedCommands: [
+      "vibe edit motion-overlay",
+      "vibe edit text-overlay",
+      "vibe generate motion",
+      "vibe inspect video",
+    ],
+  },
+  scene: {
+    title: "Scene authoring with vibe",
+    summary: "Author per-scene HTML compositions and render to MP4 (BUILD flow)",
+    steps: [
+      'Run `vibe init <dir> --visual-style "<style name>"` to scaffold the project + install local composition rules.',
+      "Edit `STORYBOARD.md` with per-beat YAML cues (narration / backdrop / duration).",
+      "Read `SKILL.md` for the framework rules and `DESIGN.md` for the visual-identity hard-gate.",
+      "Run `vibe build <dir>`. With an agent host detected, the CLI emits a `needs-author` plan; the host agent authors each `compositions/scene-<id>.html` and re-invokes to render.",
+      "Run `vibe scene lint --fix` to validate, then `vibe render <dir>` to produce the MP4.",
+    ],
+    relatedCommands: [
+      "vibe init",
+      "vibe build",
+      "vibe render",
+      "vibe scene list-styles",
+      "vibe scene install-skill",
+      "vibe scene compose-prompts",
+      "vibe scene lint",
+      "vibe scene add",
+    ],
+  },
+  pipeline: {
+    title: "YAML pipelines (Video as Code)",
+    summary: "Author and run reproducible multi-step video workflows",
+    steps: [
+      "Sketch the workflow as YAML — `name`, `description`, then `steps:` with `id` + `action` + inputs/outputs.",
+      "Reference previous step outputs via `$<step-id>.output` (or `$<step-id>.result.<field>` for structured returns).",
+      "Run `vibe run pipeline.yaml --dry-run` to see the resolved graph + cost estimate before spending API budget.",
+      "Add a `budget:` block (tokens / cost_usd / max_tool_errors) to cap expensive runs.",
+      "Run `vibe run pipeline.yaml` to execute. Failed steps checkpoint to `pipeline.yaml.checkpoint.json`; resume with `--resume`.",
+    ],
+    relatedCommands: [
+      "vibe run",
+      "vibe schema --list",
+      "vibe doctor",
+    ],
+  },
+  architecture: {
+    title: "external agents / vibe agent / build / run",
+    summary: "Choose between host-agent shell use, optional built-in agent mode, storyboard builds, and YAML pipelines",
+    steps: [
+      "If you are already in Claude Code/Codex/Cursor/etc., let that host drive normal `vibe` shell commands using `AGENTS.md`, `vibe guide`, and `vibe schema`.",
+      "Pick `vibe agent` only for optional built-in exploration when no external agent host is driving the CLI.",
+      "Pick build for STORYBOARD.md → MP4 with opinionated defaults.",
+      "Pick run for repeatable, budget-capped, checkpointed YAML pipelines.",
+      "Run `vibe doctor --test-keys` before any high-cost orchestrator to validate keys upfront.",
+      "Use `vibe schema --list` (cost field, v0.84) to plan the budget per step before kicking off `vibe run --budget-usd`.",
+    ],
+    relatedCommands: [
+      "vibe agent",
+      "vibe build",
+      "vibe run",
+      "vibe doctor",
+      "vibe schema --list",
+    ],
+  },
+};
+
+const CONTENT: Record<WalkthroughTopic, string> = {
+  motion: MOTION_WALKTHROUGH,
+  scene: SCENE_WALKTHROUGH,
+  pipeline: PIPELINE_WALKTHROUGH,
+  architecture: ARCHITECTURE_WALKTHROUGH,
+};
+
+/** All walkthrough topics this CLI knows. */
+export const WALKTHROUGH_TOPICS: readonly WalkthroughTopic[] = ["motion", "scene", "pipeline", "architecture"] as const;
+
+/** Pure data accessor — no I/O. Throws on unknown topic. */
+export function loadWalkthrough(topic: WalkthroughTopic): WalkthroughResult {
+  const meta = META[topic];
+  const content = CONTENT[topic];
+  if (!meta || !content) {
+    throw new Error(`Unknown walkthrough topic: ${topic}`);
+  }
+  return {
+    topic,
+    title: meta.title,
+    summary: meta.summary,
+    steps: meta.steps,
+    relatedCommands: meta.relatedCommands,
+    content,
+  };
+}
+
+/** List all walkthroughs (for `vibe guide --list` / no-arg invocation). */
+export function listWalkthroughs(): Array<{ topic: WalkthroughTopic; title: string; summary: string }> {
+  return WALKTHROUGH_TOPICS.map((topic) => ({
+    topic,
+    title: META[topic].title,
+    summary: META[topic].summary,
+  }));
+}
+
+/** Type guard for runtime topic validation. */
+export function isWalkthroughTopic(value: unknown): value is WalkthroughTopic {
+  return typeof value === "string" && (WALKTHROUGH_TOPICS as readonly string[]).includes(value);
+}

@@ -1,0 +1,225 @@
+/**
+ * CLI ↔ manifest sync hook (post-v0.65).
+ *
+ * Pre-v0.65 this file maintained a SYNC_TABLE mapping every CLI subcommand
+ * to its MCP and Agent tool names. After C6 (legacy collapse) the manifest
+ * is the single source of truth for both MCP and Agent surfaces, so the
+ * 3-way mapping collapsed to a 2-way one: CLI ↔ manifest.
+ *
+ * The test still fires when:
+ * - A new CLI subcommand is added without a manifest entry → fail (or add to
+ *   CLI_ONLY_TOP_LEVEL if it's CLI-ergonomics-only).
+ * - A manifest entry's name doesn't match the CLI command's expected
+ *   `<group>_<sub>` pattern → fail.
+ * - The manifest exposes a tool with no surfaces → fail.
+ *
+ * MCP↔Agent symmetry is no longer in scope — the manifest's `surfaces`
+ * field is the source of truth. The `manifest.test.ts` invariants check
+ * adapter consistency.
+ */
+
+import { describe, expect, it } from "vitest";
+import { manifest } from "@vibeframe/cli/tools/manifest";
+import { tools } from "./index.js";
+
+// Hand-maintained mirror of the CLI surface. Each row is a
+// `<group> <subname>` CLI invocation paired with the canonical manifest
+// tool name (or null if explicitly CLI-only).
+const CLI_TREE: Record<string, string[]> = {
+  // v0.75: `scene init/build/render` were removed from the CLI surface
+  // (canonical: top-level `vibe init/build/render`). The manifest still
+  // exposes `init/_build/_render` MCP tools so external hosts keep
+  // working — they delegate to the same shared executeXxx() functions.
+  // v0.77: `styles` → `list-styles` (verb-first leaf consistency).
+  scene:    ["list-styles", "add", "lint", "install-skill", "compose-prompts", "repair"],
+  generate: ["image", "video", "video-status", "video-cancel", "video-extend", "speech", "narration", "sound-effect", "music", "music-status", "storyboard", "motion", "thumbnail", "background"],
+  edit:     ["silence-cut", "caption", "noise-reduce", "fade", "translate-srt", "jump-cut", "fill-gaps", "grade", "text-overlay", "motion-overlay", "speed-ramp", "reframe", "image", "interpolate", "upscale"],
+  // v0.74: `voices` → `list-voices`, `voice-clone` → `clone-voice`
+  // (verb-first leaf consistency). Old names remain as Commander aliases.
+  audio:    ["transcribe", "list-voices", "isolate", "clone-voice", "dub", "duck"],
+  // `pipeline` was renamed to `remix` in v0.74; the old name + `pipe`
+  // remain registered as Commander aliases (deprecation warning fires)
+  // but the canonical name reported by Commander is `remix`.
+  remix:    ["highlights", "auto-shorts", "animated-caption", "regenerate-scene"],
+  detect:   ["scenes", "silence", "beats"],
+  // v0.77: bare verbs (`trim`, `split`, etc.) became verb-noun
+  // (`trim-clip`, `split-clip`, ...) to match the existing `add-*`
+  // pattern. `list` stays bare since it lists multi-type contents.
+  timeline: ["add-source", "add-clip", "add-track", "add-effect", "trim-clip", "list", "split-clip", "duplicate-clip", "delete-clip", "move-clip"],
+  project:  ["create", "info", "set"],
+  // `analyze` was renamed to `inspect` in v0.74 (see remix note above).
+  // `analyze` and `az` remain as deprecated Commander aliases.
+  inspect:  ["media", "video", "review", "suggest", "project", "render"],
+  // `vibe guide <topic>` is a top-level command with a positional
+  // arg, not a real subcommand group. We model the topics as "subs" here
+  // so each one ↔ manifest mapping is verifiable; the single backing
+  // manifest tool (`guide`) handles them all by routing on `topic`.
+  guide: ["motion", "scene", "pipeline", "architecture"],
+  // v0.97: storyboard mutation API for the intent layer.
+  // v0.100: `revise` is also exposed as an MCP tool (LLM-driven).
+  storyboard: ["list", "get", "set", "move", "validate", "revise"],
+  status: ["job", "project"],
+};
+
+// Top-level CLI commands with no manifest equivalent — pure ergonomics
+// (interactive flows, REPLs, schema dumps) that don't fit the
+// "manifest-as-tool" mold.
+const CLI_ONLY_TOP_LEVEL = new Set([
+  "setup", "init", "build", "render", "doctor", "demo", "agent", "run",
+  "batch", "schema", "context", "media", "help", "plan",
+]);
+
+// CLI subcommands → expected manifest tool name (or null = intentionally
+// CLI-only). Renames happen here (e.g., `pipeline animated-caption` →
+// manifest `edit_animated_caption`; `edit upscale` → `edit_upscale`).
+const CLI_TO_MANIFEST: Record<string, string | null> = {
+  // scene (v0.75: init/build/render dropped from CLI; manifest keeps
+  // init/_build/_render for MCP back-compat — see CLI_TREE note)
+  "scene list-styles":   "scene_list_styles",
+  "scene add":           "scene_add",
+  "scene lint":          "scene_lint",
+  "scene install-skill": "scene_install_skill",
+  "scene compose-prompts": "scene_compose_prompts",
+  "scene repair":          "scene_repair",
+  // generate
+  "generate image":         "generate_image",
+  "generate video":         "generate_video",
+  "generate video-status":  "generate_video_status",
+  "generate video-cancel":  "generate_video_cancel",
+  "generate video-extend":  "generate_video_extend",
+  "generate speech":        "generate_speech",
+  "generate narration":     "generate_narration",
+  "generate sound-effect":  "generate_sound_effect",
+  "generate music":         "generate_music",
+  "generate music-status":  "generate_music_status",
+  "generate storyboard":    "generate_storyboard",
+  "generate motion":        "generate_motion",
+  "generate thumbnail":     "generate_thumbnail",
+  "generate background":    "generate_background",
+  // edit
+  "edit silence-cut":   "edit_silence_cut",
+  "edit caption":       "edit_caption",
+  "edit noise-reduce":  "edit_noise_reduce",
+  "edit fade":          "edit_fade",
+  "edit translate-srt": "edit_translate_srt",
+  "edit jump-cut":      "edit_jump_cut",
+  "edit fill-gaps":     "edit_fill_gaps",
+  "edit grade":         "edit_grade",
+  "edit text-overlay":  "edit_text_overlay",
+  "edit motion-overlay": "edit_motion_overlay",
+  "edit speed-ramp":    "edit_speed_ramp",
+  "edit reframe":       "edit_reframe",
+  "edit image":         "edit_image",
+  "edit interpolate":   "edit_interpolate",
+  "edit upscale": "edit_upscale",
+  // audio
+  "audio transcribe":  "audio_transcribe",
+  "audio list-voices": null, // CLI-only: ElevenLabs voice list dump
+  "audio isolate":     "audio_isolate",
+  "audio clone-voice": "audio_clone_voice",
+  "audio dub":         "audio_dub",
+  "audio duck":        "audio_duck",
+  // remix (was: pipeline — manifest tool names keep `pipeline_*` prefix
+  // since MCP tool names are externally locked)
+  "remix highlights":         "remix_highlights",
+  "remix auto-shorts":        "remix_auto_shorts",
+  "remix animated-caption":   "edit_animated_caption",
+  "remix regenerate-scene":   "remix_regenerate_scene",
+  // detect
+  "detect scenes":  "detect_scenes",
+  "detect silence": "detect_silence",
+  "detect beats":   "detect_beats",
+  // timeline (v0.77: now 1:1 token-for-token with manifest names)
+  "timeline create":          "timeline_create",
+  "timeline info":            "timeline_info",
+  "timeline set":             null, // CLI-only settings update; agents can use fs_read/fs_write if needed
+  "timeline add-source":      "timeline_add_source",
+  "timeline add-clip":        "timeline_add_clip",
+  "timeline add-track":       "timeline_add_track",
+  "timeline add-effect":      "timeline_add_effect",
+  "timeline trim-clip":       "timeline_trim_clip",
+  "timeline list":            "timeline_list",
+  "timeline split-clip":      "timeline_split_clip",
+  "timeline duplicate-clip":  "timeline_duplicate_clip",
+  "timeline delete-clip":     "timeline_delete_clip",
+  "timeline move-clip":       "timeline_move_clip",
+  // project
+  "project create": "project_create", // deprecated compatibility alias
+  "project info":   "project_info",   // deprecated compatibility alias
+  "project set":    null, // deprecated CLI-only alias
+  // inspect (was: analyze — manifest tool names keep `analyze_*` prefix)
+  "inspect media":   "inspect_media",
+  "inspect video":   "inspect_video",
+  "inspect review":  "inspect_review",
+  "inspect suggest": "inspect_suggest",
+  "inspect project": "inspect_project",
+  "inspect render":  "inspect_render",
+  // guide — all topics route through the single `guide`
+  // manifest tool (the topic is a tool arg, not a separate tool)
+  "guide motion":   "guide",
+  "guide scene":    "guide",
+  "guide pipeline": "guide",
+  "guide architecture": "guide",
+  // storyboard (v0.100 — `revise` now has a manifest entry)
+  "storyboard list":     "storyboard_list",
+  "storyboard get":      "storyboard_get",
+  "storyboard set":      "storyboard_set",
+  "storyboard move":     "storyboard_move",
+  "storyboard validate": "storyboard_validate",
+  "storyboard revise":   "storyboard_revise",
+  // status
+  "status job":     "status_job",
+  "status project": "status_project",
+};
+
+describe("CLI ↔ manifest sync", () => {
+  it("every CLI subcommand has a CLI_TO_MANIFEST entry (mapped or null)", () => {
+    const missing: string[] = [];
+    for (const [group, subs] of Object.entries(CLI_TREE)) {
+      for (const sub of subs) {
+        const key = `${group} ${sub}`;
+        if (!(key in CLI_TO_MANIFEST)) missing.push(key);
+      }
+    }
+    expect(missing, `New CLI commands found with no CLI_TO_MANIFEST entry: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("every mapped manifest tool name in CLI_TO_MANIFEST exists in the manifest", () => {
+    const manifestNames = new Set(manifest.map((t) => t.name));
+    const broken: Array<{ cli: string; tool: string }> = [];
+    for (const [cli, tool] of Object.entries(CLI_TO_MANIFEST)) {
+      if (tool !== null && !manifestNames.has(tool)) broken.push({ cli, tool });
+    }
+    expect(broken, `CLI_TO_MANIFEST points at manifest tools that do not exist: ${JSON.stringify(broken)}`).toEqual([]);
+  });
+
+  it("every MCP-surfaced manifest entry shows up in mcp-server's tools array", () => {
+    const registered = new Set(tools.map((t) => t.name));
+    const expected = manifest
+      .filter((t) => !t.surfaces || t.surfaces.includes("mcp"))
+      .map((t) => t.name);
+    const missing = expected.filter((n) => !registered.has(n));
+    expect(missing, `MCP-surfaced manifest entries missing from tools array: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("every manifest entry has at least one surface", () => {
+    const orphans = manifest.filter((t) => t.surfaces && t.surfaces.length === 0);
+    expect(orphans.map((t) => t.name)).toEqual([]);
+  });
+
+  it("agent-only manifest entries are NOT exposed via MCP", () => {
+    // surfaces=["agent"] entries (fs_*, batch_*) must never end up in
+    // mcp-server's tools array — MCP clients have host-side filesystem
+    // affordances and these would be unsafe / out of scope. Regression
+    // for v0.66 PR3.
+    const registered = new Set(tools.map((t) => t.name));
+    const agentOnly = manifest.filter((t) => t.surfaces && t.surfaces.length === 1 && t.surfaces[0] === "agent");
+    const leaked = agentOnly.map((t) => t.name).filter((n) => registered.has(n));
+    expect(leaked, `agent-only entries leaked into MCP tools array: ${leaked.join(", ")}`).toEqual([]);
+  });
+
+  it("CLI_ONLY_TOP_LEVEL has no overlap with CLI_TREE groups", () => {
+    const overlap = [...CLI_ONLY_TOP_LEVEL].filter((c) => Object.prototype.hasOwnProperty.call(CLI_TREE, c));
+    expect(overlap, `CLI_ONLY_TOP_LEVEL overlaps mapped groups: ${overlap.join(", ")}`).toEqual([]);
+  });
+});

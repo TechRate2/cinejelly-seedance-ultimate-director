@@ -1,0 +1,407 @@
+/**
+ * @module _shared/init-templates
+ *
+ * Templates the `vibe init` (v0.61 C2) project scaffolder writes. Pure
+ * string constants + tiny functions; no I/O. The orchestrator decides
+ * which files to render based on detected agent hosts.
+ *
+ * Template philosophy: keep generated content *short* and point at
+ * dynamic sources (`vibe schema --list`, `vibe doctor`) instead of
+ * baking exhaustive catalogs that go stale across releases. The user is
+ * expected to extend these with project-specific guidance.
+ */
+
+/**
+ * agents.md spec-compliant cross-tool agent declaration. Recognised by
+ * OpenAI Codex, Cursor, Aider, Sourcegraph Cody, OpenCode, and (via
+ * the @AGENTS.md import) Claude Code. Gemini CLI users may want to
+ * also keep a sibling \`GEMINI.md\` since that's its primary context
+ * file. Keep this as the canonical source of truth for agent guidance —
+ * \`CLAUDE.md\` and \`GEMINI.md\` just import it.
+ */
+export const AGENTS_MD = `# AGENTS.md
+
+This project uses [VibeFrame](https://github.com/vericontext/vibeframe) —
+a CLI for AI-powered video editing. The \`vibe\` command provides 80+
+subcommands for video generation, editing, analysis, and pipeline
+orchestration. Cost tiers below — **always confirm with the user before
+running High / Very High tier commands**.
+
+## Agent host coverage
+
+VibeFrame's CLI works with any bash-capable AI coding agent. Six host
+families have first-class auto-detection and scaffolds today:
+
+- **Claude Code** — \`CLAUDE.md\` (this file's import wrapper) +
+  \`AGENTS.md\` + \`/vibe-*\` slash commands.
+- **OpenAI Codex** — reads \`AGENTS.md\` natively (agents.md spec).
+- **Cursor** — reads \`AGENTS.md\` plus \`.cursor/rules/\` for project
+  rules; supports MCP via \`.cursor/mcp.json\`.
+- **Aider** — reads \`AGENTS.md\` (binary-only detection by VibeFrame).
+- **Gemini CLI** — primary context file is \`GEMINI.md\`; also reads
+  \`AGENTS.md\` if present.
+- **OpenCode** — reads \`AGENTS.md\` (officially supported per
+  \`opencode.ai/docs/rules\`); supports MCP via \`.opencode/mcp.json\`.
+
+Run \`vibe doctor\` to see which host(s) the CLI detects in your
+environment. Anyone running another bash-capable agent (Continue,
+Sourcegraph Cody, etc.) still gets this \`AGENTS.md\` as the universal
+fallback.
+
+## Self-discovery
+
+Don't memorise the command surface — read it from the CLI:
+
+\`\`\`bash
+vibe --help                    # command groups overview
+vibe schema --list             # full machine-readable catalog (80+)
+vibe schema --list --surface public  # small first-run/product command surface
+vibe schema generate.video     # JSON Schema for any single command
+vibe doctor                    # available providers + system health
+vibe host setup all            # print Codex/Claude/Cursor app integration snippets
+vibe host doctor all --json    # verify project guidance + MCP config
+vibe guide motion              # choose text-overlay vs motion-overlay vs generate motion
+vibe guide scene               # step-by-step authoring guide (scene)
+vibe guide pipeline            # step-by-step authoring guide (pipeline)
+\`\`\`
+
+## Route by the user's actual request
+
+Routing the user's request correctly is the most important judgement call
+you'll make. Do not force everything into a scene project.
+
+**ASSET — default for any single-asset request OR ambiguous prompt.**
+If the user asks for a single image, single video clip, sound effect, music
+bed, or narration file — **OR pastes a visual/audio brief without explicit
+storyboard / scene / multi-scene language** — treat it as ASSET. Use
+\`vibe generate ...\` directly. Do **not** edit \`DESIGN.md\`,
+\`STORYBOARD.md\`, run \`vibe scene ...\`, or auto-load the hyperframes
+skill until BUILD intent is explicit. The visual-identity hard-gate
+applies to BUILD only.
+
+Examples:
+- "make this image" → \`vibe generate image "..." -o assets/name.png\`
+- "use this image to make a video" → \`vibe generate video "..." -i image.png -o renders/name.mp4\`
+- "add a lower-third/title/animated overlay/grain/vignette to this clip" → prefer \`vibe edit motion-overlay clip.mp4 "..." --understand auto -o out.mp4\` when the request asks for designed or animated motion graphics.
+- "please add visuals using OpenAI image gen" → \`vibe generate image "..." -p openai ...\`
+- *(verb-less paste)* "aerial view of a misty mountain peak at sunrise..." → \`vibe generate image "<paste>" -o assets/mountain-peak.png\`. **Don't** read it as a brief for DESIGN.md.
+
+If genuinely uncertain, ask one short question: *"single asset or
+multi-scene project?"* before authoring DESIGN.md or loading the
+hyperframes skill.
+
+**BUILD — create new video from text intent.**
+Use \`vibe build\` with a STORYBOARD.md + DESIGN.md. The
+skills-driven pipeline (v0.60+) dispatches narration TTS + backdrop
+image-gen per beat, composes scene HTML via the bundled composition rules
+bundle, then renders to MP4. Idempotent re-runs reuse cached assets.
+
+**REMIX — transform existing video / audio.**
+Use \`vibe remix\`, \`vibe edit\`, or \`vibe audio\`. One-shot,
+batch-oriented operations on a file the user already has on disk.
+\`vibe edit text-overlay\` is the free deterministic path for simple static
+text burn-in. If the user asks for motion design, animated lower-thirds,
+designed titles, grain/vignette as part of a graphic treatment, or says
+"motion graphics", use \`vibe edit motion-overlay ... --understand auto\` instead.
+
+Decision rule: if the user asks for one asset, it's ASSET. If the user asks
+for a multi-scene/storyboard/composed video, it's BUILD. If the user is
+starting from a media file and wants it transformed, it's REMIX.
+
+## Common workflows
+
+### BUILD (new video from text)
+
+| Task | Command |
+|---|---|
+| One-shot storyboard → video | \`vibe build [project-dir]\` |
+| Render an existing scene project | \`vibe render [project-dir] -o out.mp4\` |
+| Lint scene HTML | \`vibe scene lint --json\` |
+| Generate a single image | \`vibe generate image "prompt" -o img.png --quality hd\` |
+| Generate a single video | \`vibe generate video "prompt" -i image.png -o clip.mp4\` |
+| Generate narration | \`vibe generate narration "text" -o voice.mp3\` |
+
+### REMIX (transform existing media)
+
+| Task | Command |
+|---|---|
+| Extract highlights from a long video | \`vibe remix highlights file.mp4 -d 60\` |
+| Long video → vertical shorts | \`vibe remix auto-shorts file.mp4 -n 3 --add-captions\` |
+| Add animated word-by-word captions | \`vibe remix animated-caption file.mp4 -s karaoke-sweep\` |
+| Add designed motion graphics overlay | \`vibe edit motion-overlay file.mp4 "lower-third..." --understand auto -o out.mp4\` |
+| Remove silence | \`vibe edit silence-cut in.mp4 -o out.mp4\` |
+| Add static captions | \`vibe edit caption in.mp4 -o out.mp4\` |
+| Translate audio (transcribe → TTS) | \`vibe audio dub file.mp4 -t ko\` |
+| Transcribe (Whisper, word-level) | \`vibe audio transcribe file.mp4 --granularity word\` |
+| Inspect media with Gemini | \`vibe inspect media file.mp4 "summarise" --json\` |
+
+### Compose pipelines (Video as Code)
+
+| Task | Command |
+|---|---|
+| Run a YAML pipeline | \`vibe run pipeline.yaml --dry-run\` |
+| Resume from last checkpoint | \`vibe run pipeline.yaml --resume\` |
+
+## Cost tiers
+
+| Tier | Examples | Approx. per call |
+|---|---|---|
+| **Free** | \`schema/context/doctor\`, \`detect *\`, \`status *\`, \`plan\`, \`storyboard validate\`, \`inspect project/render --cheap\`, deterministic edits | $0 |
+| **Low** | \`generate narration/sound-effect/music\`, \`audio transcribe\`, \`inspect media\`, optional AI review | $0.01–$0.10 |
+| **High** | \`generate image/motion\`, \`edit image/reframe/grade/speed-ramp\` | $1–$5 |
+| **Very High** | \`generate video\`, \`edit fill-gaps\`, \`remix highlights/auto-shorts\`, \`build\` with generated assets | $5–$50+ |
+
+## Agent invariants
+
+When you run vibe commands programmatically:
+
+1. **Always \`--json\`** for structured output you can parse without regex
+2. **Always \`--dry-run\` first** for any High/Very-High tier command — it returns
+   the cost estimate without spending API budget
+3. **Use \`vibe schema <command>\`** to discover parameters; do not guess flags
+4. **Pass complex options via \`--stdin\`**:
+   \`\`\`bash
+   echo '{"video":"long.mp4","count":3,"aspect":"9:16"}' | vibe remix auto-shorts --stdin --json
+   \`\`\`
+
+## Provider keys and project scope
+
+Prefer \`vibe setup --scope project\` for project-local keys. It writes
+\`.vibeframe/config.yaml\` in the setup directory; when you work from a
+nested scene directory, the \`vibe\` CLI automatically searches parent
+directories and uses the nearest project config. Do not assume the config
+file must exist in the current subdirectory.
+
+Run \`vibe doctor --json\` from the directory where you will run commands
+and check \`data.scope.project.configPath\` / \`data.scope.activeScope\` before
+deciding keys are missing. Never print or copy config file contents.
+
+For generated project assets, use VibeFrame commands such as
+\`vibe generate image|video|speech ...\` so these project-scope keys are
+used. Do not switch to a host agent's built-in image/audio generation tool
+unless the user explicitly asks for a non-VibeFrame asset.
+
+\`.env\` is still supported as a gitignored fallback. Copy \`.env.example\`
+to start if you prefer environment variables.
+
+## App host setup
+
+VibeFrame is CLI-first, not terminal-only. Codex, Claude Code, and Cursor can
+drive the same project through shell commands, and app hosts can also use
+VibeFrame's MCP server as a typed tool surface.
+
+\`\`\`bash
+vibe host setup all         # print snippets only
+vibe host setup all --write # write project/app config
+vibe host doctor all --json # verify readiness
+\`\`\`
+
+Default setup is snippet-only; use \`--write\` when you want VibeFrame to merge
+the generated config. Keep provider keys in \`.vibeframe/config.yaml\`, user
+config, or env files — not in app host config.
+
+### Composition rules (scene HTML)
+
+\`vibe init\` installs local composition rules into your project. The
+universal copy lives at \`SKILL.md\` (with \`references/*.md\`), and
+host-specific copies are placed where each agent expects them
+(\`.claude/skills/hyperframes/\` for Claude Code, \`.cursor/rules/hyperframes.mdc\`
+for Cursor). **Read \`SKILL.md\` before authoring any scene composition HTML
+under \`compositions/\`** — it defines the framework rules, motion
+principles, type system, and visual-identity hard-gate. The same skill
+governs \`vibe scene lint\` so your authored HTML and the linter stay in
+agreement.
+
+For render-stable text, do not apply continuous \`scale\`, \`x\`, \`y\`,
+\`filter\`, or other transform tweens to \`.scene-content\` or any ancestor
+containing live text/cards. Put ambient zoom/parallax on background or media
+layers only; text should enter briefly and then hold still at its final CSS
+position.
+
+To retro-install on a project scaffolded before this command existed, run
+\`vibe scene install-skill [--host all]\`.
+
+### Scene composer (batch / non-agent fallback)
+
+When you don't want to author HTML yourself, \`vibe build --mode batch\` runs an
+LLM internally with the same skill bundle. It auto-picks a provider based
+on available keys (\`claude > gemini > openai\`) — pass \`--composer <name>\`
+to force one:
+
+| Provider | Env var | Spike notes (v0.70) |
+|---|---|---|
+| Claude (default) | \`ANTHROPIC_API_KEY\` | ~9 s/beat. Fastest, validated baseline. |
+| Gemini | \`GOOGLE_API_KEY\` | ~20 s/beat. ~2.6× cheaper than Claude. |
+| OpenAI | \`OPENAI_API_KEY\` | ~70 s/beat. gpt-5 reasoning latency — opt-in only. |
+
+All three pass first-shot lint at every effort tier on the \`vibeframe-promo\`
+fixture. Quality on more complex storyboards may differ — fall back to
+\`--composer claude\` if a non-default provider repeatedly fails lint.
+
+## Project conventions
+
+<!-- Edit this section with YOUR project's specifics. Examples below. -->
+
+- Default aspect ratio: ${"`16:9`"}
+- Default scene duration: ${"`3 seconds`"} (per beat)
+- Brand voice: <describe>
+- Output naming: \`renders/<name>-<timestamp>.mp4\`
+`;
+
+/**
+ * Claude Code project file. Imports AGENTS.md so guidance stays
+ * single-sourced; adds Claude-specific overrides (slash commands, etc.).
+ */
+export const CLAUDE_MD = `@AGENTS.md
+
+# Claude Code overrides
+
+This file imports \`AGENTS.md\` (above) — that's the canonical source.
+Add anything Claude-Code-specific *below*; everything generic should
+stay in AGENTS.md so other agent hosts (Codex, Cursor, Aider, Gemini CLI, OpenCode) see it
+too.
+
+## Skills
+
+If you ran \`vibe init\` with Claude Code detected, the VibeFrame skill
+pack is available as slash commands (consolidated to 2 in v0.62 — the
+overview content moved into AGENTS.md above):
+
+- \`/vibe-pipeline\` — YAML pipeline authoring helper (Video as Code)
+- \`/vibe-scene\` — per-scene HTML authoring + \`vibe build\`
+
+Claude-specific routing note: follow the ASSET / BUILD / REMIX decision
+rules in \`AGENTS.md\`. In particular, a request for one generated image or
+one generated video clip is an ASSET request: use \`vibe generate image\` or
+\`vibe generate video\` directly. A request for designed/animated overlays
+on an existing clip is usually \`vibe edit motion-overlay ... --understand auto\`,
+not \`vibe edit text-overlay\`, unless the user explicitly asks for a simple
+static text burn-in. Do not invoke \`/vibe-scene\`, edit
+\`DESIGN.md\`, or edit \`STORYBOARD.md\` unless the user explicitly asks for a
+scene, storyboard, or composed video.
+
+To install / update them later:
+
+\`\`\`bash
+curl -fsSL https://raw.githubusercontent.com/vericontext/vibeframe/main/scripts/install-skills.sh | bash
+\`\`\`
+
+## Project-specific guidance
+
+<!-- Add Claude-specific notes here: which sub-agents to prefer, custom
+     slash commands you've added, conversational style preferences, etc. -->
+`;
+
+/**
+ * Gemini CLI project file. Gemini CLI's primary context file is
+ * `GEMINI.md` (per https://geminicli.com/docs/cli/gemini-md/), so this
+ * scaffold gives Gemini CLI users a top-level entry point that points
+ * at the canonical `AGENTS.md`. The leading `@AGENTS.md` follows the
+ * same import convention Claude Code's `CLAUDE.md` uses; Gemini CLI
+ * also honours sibling-file references in context, and the
+ * human-readable note below ensures the agent picks up `AGENTS.md`
+ * either way.
+ */
+export const GEMINI_MD = `@AGENTS.md
+
+# Gemini CLI overrides
+
+This project's canonical agent guidance lives in \`AGENTS.md\` — read
+it first. The \`@AGENTS.md\` line above is the import marker; if
+Gemini CLI doesn't inline imported files in your version, open
+\`AGENTS.md\` directly. Both files are kept in sync by \`vibe init\`.
+
+## Project-specific guidance
+
+<!-- Add Gemini-CLI-specific notes here: any conventions specific to
+     how you drive vibe from Gemini CLI (preferred models, tone, etc.). -->
+`;
+
+/** Shape the init renderer can fill in for the .env.example body. */
+export interface EnvExampleOptions {
+  /** When true, surfaces a "tier: free local fallbacks" section at the top. */
+  withLocalFallbackHeader?: boolean;
+}
+
+/**
+ * .env.example covering all 13 providers VibeFrame integrates, grouped
+ * by tier so a new user can skip "premium / paid" without losing sight
+ * of the free path.
+ */
+export function renderEnvExample(opts: EnvExampleOptions = {}): string {
+  const fallback =
+    opts.withLocalFallbackHeader === false
+      ? ""
+      : `# ── Local fallbacks (no key needed) ─────────────────────────────────────
+# Kokoro TTS (local, ~330MB on first call)  →  works without ELEVENLABS_API_KEY
+# FFmpeg silence-cut / fade / noise-reduce  →  works with no AI keys at all
+# Run \`vibe doctor\` to see what's currently detected.
+
+`;
+  return `# VibeFrame API keys — copy this file to \`.env\` and fill in what you need.
+# Free local fallbacks work without any keys. See README for the full list.
+
+${fallback}# ── LLM provider / optional \`vibe agent\` fallback (pick one) ───────────
+ANTHROPIC_API_KEY=                    # Claude — recommended default
+OPENAI_API_KEY=                       # GPT-5-mini · Whisper · gpt-image-2
+GOOGLE_API_KEY=                       # Gemini · Veo
+XAI_API_KEY=                          # Grok image+video
+OPENROUTER_API_KEY=                   # multiplexes any provider above
+# OLLAMA_HOST=http://localhost:11434  # offline, no key needed
+
+# ── Media providers ─────────────────────────────────────────────────────
+ELEVENLABS_API_KEY=                   # paid TTS / SFX / music (Kokoro is the free fallback)
+FAL_API_KEY=                              # Seedance 2.0 — default video provider since v0.57
+IMGBB_API_KEY=                        # image hosting for Seedance/Kling image-to-video
+RUNWAY_API_SECRET=                    # Runway Gen-4.5 video
+KLING_API_KEY=                        # Kling video
+REPLICATE_API_TOKEN=                  # MusicGen, real-esrgan, etc.
+
+# ── Optional private upload host for image-to-video ──────────────────────
+# Default is ImgBB. Set these only if you want temporary URLs from your own S3 bucket.
+# VIBE_UPLOAD_PROVIDER=s3             # imgbb | s3
+# VIBE_UPLOAD_TTL_SECONDS=3600
+# VIBE_UPLOAD_S3_BUCKET=
+# VIBE_UPLOAD_S3_PREFIX=vibeframe/tmp
+# AWS_REGION=
+# AWS_ACCESS_KEY_ID=
+# AWS_SECRET_ACCESS_KEY=
+# AWS_SESSION_TOKEN=
+`;
+}
+
+/** Lines vibe init merges into the project's .gitignore (idempotent). */
+export const GITIGNORE_ADDITIONS = `
+# VibeFrame
+.env
+.env.local
+renders/
+.pipeline-state.yaml
+*.vibe.json
+.vibeframe/
+`;
+
+/**
+ * vibe.project.yaml minimal scaffold. Only written when no project
+ * config exists — `vibe init` never overwrites an existing file unless
+ * --force.
+ */
+export function renderProjectYaml(opts: { name: string }): string {
+  return `# Legacy VibeFrame project config. Used by \`vibe render\` to name
+# outputs and by \`vibe build\` for default providers / budget.
+name: ${opts.name}
+aspect: "16:9"
+defaults:
+  exportQuality: standard
+
+# Optional — uncomment to set per-primitive provider preferences.
+# providers:
+#   tts: elevenlabs       # auto | elevenlabs | kokoro
+#   image: openai         # openai | gemini | grok
+#   music: elevenlabs
+
+# Optional — cap total spend per pipeline run.
+# budget:
+#   maxUsd: 5.00
+`;
+}

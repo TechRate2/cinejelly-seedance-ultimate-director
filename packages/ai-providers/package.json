@@ -1,0 +1,68 @@
+{
+  "name": "@vibeframe/ai-providers",
+  "version": "0.112.1",
+  "description": "VibeFrame AI Providers - pluggable AI integrations (OpenAI, Claude, Gemini, etc.)",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vericontext/vibeframe.git",
+    "directory": "packages/ai-providers"
+  },
+  "bugs": {
+    "url": "https://github.com/vericontext/vibeframe/issues"
+  },
+  "keywords": [
+    "vibeframe",
+    "ai",
+    "openai",
+    "claude",
+    "gemini",
+    "kling",
+    "runway"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./interface": {
+      "types": "./dist/interface/index.d.ts",
+      "import": "./dist/interface/index.js"
+    },
+    "./whisper": {
+      "types": "./dist/whisper/index.d.ts",
+      "import": "./dist/whisper/index.js"
+    },
+    "./gemini": {
+      "types": "./dist/gemini/index.d.ts",
+      "import": "./dist/gemini/index.js"
+    },
+    "./runway": {
+      "types": "./dist/runway/index.d.ts",
+      "import": "./dist/runway/index.js"
+    },
+    "./kling": {
+      "types": "./dist/kling/index.d.ts",
+      "import": "./dist/kling/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint --ext .ts,.tsx src/",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@fal-ai/client": "^1.10.0",
+    "@vibeframe/core": "workspace:*",
+    "kokoro-js": "^1.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
+  }
+}
