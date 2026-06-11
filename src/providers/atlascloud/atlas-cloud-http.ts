@@ -6,6 +6,8 @@
 import { normalizeHttpProviderError, ProviderError } from "../../utils/errors.js";
 import { redactUnknown } from "../../utils/redaction.js";
 
+const ERROR_BODY_PREVIEW_CHARS = 500;
+
 export interface AtlasCloudHttpClientOptions {
   readonly apiKey: string;
   readonly timeoutMs: number;
@@ -61,7 +63,7 @@ export class AtlasCloudHttpClient {
       });
 
       const rawText = await response.text();
-      const payload = rawText ? this.parseJson(rawText, url) : undefined;
+      const payload = rawText ? this.parseJson(rawText, url, response.ok) : undefined;
       if (!response.ok) {
         throw normalizeHttpProviderError("atlascloud", response.status, redactUnknown(payload));
       }
@@ -85,15 +87,21 @@ export class AtlasCloudHttpClient {
     }
   }
 
-  private parseJson(rawText: string, url: string): unknown {
+  private parseJson(rawText: string, url: string, responseOk: boolean): unknown {
     try {
       return JSON.parse(rawText);
     } catch {
+      const redactedPreview = redactUnknown(rawText.slice(0, ERROR_BODY_PREVIEW_CHARS));
+      if (!responseOk) {
+        return {
+          nonJsonBodyPreview: redactedPreview
+        };
+      }
       throw new ProviderError({
         code: "UNKNOWN_PROVIDER_ERROR",
         provider: "atlascloud",
         message: `Atlas Cloud returned non-JSON response from ${url}.`,
-        details: { body: rawText.slice(0, 500) }
+        details: { nonJsonBodyPreview: redactedPreview }
       });
     }
   }

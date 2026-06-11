@@ -234,6 +234,8 @@ All providers must normalize errors:
 - `OUTPUT_MISSING`
 - `UNSUPPORTED_SETTING`
 
+Provider HTTP clients must preserve status-based classification even when a provider returns an HTML, plaintext, or otherwise non-JSON error body. Non-JSON body previews may be kept for operator diagnostics only after redaction and truncation; raw provider error bodies must not enter artifacts, API responses, or logs.
+
 ## Cost Ledger
 
 Every provider call records:
