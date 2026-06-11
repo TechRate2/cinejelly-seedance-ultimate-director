@@ -48,6 +48,16 @@ export interface RenderJobSummary {
   readonly result?: DirectorRunResult;
 }
 
+export interface RenderJobQueueStats {
+  readonly retainedJobCount: number;
+  readonly queuedJobCount: number;
+  readonly runningJobCount: number;
+  readonly terminalJobCount: number;
+  readonly maxConcurrentJobs: number;
+  readonly queueLimit: number;
+  readonly availableQueueSlots: number;
+}
+
 interface RenderJobRecord extends RenderJobSummary {
   readonly request: CineJellyProjectRequest;
   readonly abortController: AbortController;
@@ -120,6 +130,19 @@ export class RenderJobManager {
       .map((record) => this.toSummary(record, { includeDetails: false }));
   }
 
+  public stats(): RenderJobQueueStats {
+    const counts = this.queueCounts();
+    return {
+      retainedJobCount: this.jobs.size,
+      queuedJobCount: counts.queued,
+      runningJobCount: counts.running,
+      terminalJobCount: counts.terminal,
+      maxConcurrentJobs: this.maxConcurrentJobs,
+      queueLimit: this.queueLimit,
+      availableQueueSlots: Math.max(0, this.queueLimit - counts.queued - counts.running)
+    };
+  }
+
   public cancel(jobId: string): RenderJobSummary | undefined {
     return this.cancelWithReason(jobId, "Render job was canceled by API request.");
   }
@@ -176,16 +199,26 @@ export class RenderJobManager {
   }
 
   private assertQueueCapacity(): void {
-    let queuedOrRunningJobs = 0;
-    for (const record of this.jobs.values()) {
-      if (record.status === "queued" || record.status === "running") {
-        queuedOrRunningJobs += 1;
-      }
-    }
-
-    if (queuedOrRunningJobs >= this.queueLimit) {
+    const counts = this.queueCounts();
+    if (counts.queued + counts.running >= this.queueLimit) {
       throw new RenderJobCapacityError(this.queueLimit);
     }
+  }
+
+  private queueCounts(): { readonly queued: number; readonly running: number; readonly terminal: number } {
+    let queued = 0;
+    let running = 0;
+    let terminal = 0;
+    for (const record of this.jobs.values()) {
+      if (record.status === "queued") {
+        queued += 1;
+      } else if (record.status === "running") {
+        running += 1;
+      } else {
+        terminal += 1;
+      }
+    }
+    return { queued, running, terminal };
   }
 
   private pumpQueue(): void {

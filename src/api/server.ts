@@ -89,7 +89,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-jobs") {
-        sendJson(response, 200, { jobs: jobManager.list() }, requestContext);
+        sendJson(response, 200, { queue: jobManager.stats(), jobs: jobManager.list() }, requestContext);
         return;
       }
       const jobMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)$/);
