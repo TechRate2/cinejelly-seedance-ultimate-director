@@ -270,7 +270,12 @@ function sendJson(
   if (response.destroyed) {
     return;
   }
-  response.writeHead(statusCode, { ...headers, "Content-Type": "application/json; charset=utf-8" });
+  response.writeHead(statusCode, {
+    ...headers,
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff"
+  });
   response.end(JSON.stringify(redactApiLocalPaths(redactUnknown(withRequestContext(payload, requestContext)))));
 }
 

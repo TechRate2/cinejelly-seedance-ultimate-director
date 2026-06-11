@@ -297,6 +297,7 @@ API execution modes:
 - Job list status includes queue telemetry plus compact queued, running, succeeded, failed, or canceled summaries with detail-availability flags.
 - Per-job status includes queued, running, succeeded, failed, or canceled state plus redacted result, cost ledger, and artifact bundle when available.
 - Public JSON responses redact secrets and deployment-local filesystem paths, while preserving deploy-safe URI values such as `https://` reference URLs and `asset://` Atlas Asset Library references.
+- Public JSON responses include `Cache-Control: no-store` and `X-Content-Type-Options: nosniff` so run metadata, provider errors, queue state, and cost evidence are not cached or content-sniffed by intermediaries.
 - `/v1/render-jobs/{jobId}` can be canceled with `DELETE`; cancellation propagates through `AbortSignal` to provider calls, polling, assembly, and postproduction where supported.
 - Client disconnects and `SIGINT`/`SIGTERM` shutdowns propagate through request lifecycle `AbortSignal` objects so synchronous render orchestration and active async jobs stop as early as the selected provider path allows after the caller or deployment lifecycle has ended.
 - Synchronous render concurrency, queue concurrency, queued/running capacity, and retained history are process-level settings; `/v1/preflight` validates the configured concurrency/capacity and output-directory writability before customer traffic, and multi-process deployments should place a durable queue in front of the same Director Agent contract.
