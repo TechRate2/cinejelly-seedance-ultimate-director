@@ -28,6 +28,9 @@ export interface RenderJobSummary {
   readonly requestedResolution?: string;
   readonly referenceCount: number;
   readonly artifactDirectory: string;
+  readonly hasResult: boolean;
+  readonly hasCostLedger: boolean;
+  readonly hasArtifacts: boolean;
   readonly error?: unknown;
   readonly costLedger?: readonly CostLedgerEntry[];
   readonly artifacts?: ProjectArtifactBundle;
@@ -72,6 +75,9 @@ export class RenderJobManager {
       userInputPreview: this.preview(input.request.userInput),
       referenceCount: input.request.references?.length ?? 0,
       artifactDirectory: input.artifactDirectory,
+      hasResult: false,
+      hasCostLedger: false,
+      hasArtifacts: false,
       request: input.request,
       abortController: new AbortController(),
       ...(input.request.settings?.durationTargetSeconds !== undefined
@@ -85,18 +91,18 @@ export class RenderJobManager {
     this.queue.push(jobId);
     this.pruneHistory();
     this.pumpQueue();
-    return this.toSummary(record);
+    return this.toSummary(record, { includeDetails: false });
   }
 
   public get(jobId: string): RenderJobSummary | undefined {
     const record = this.jobs.get(jobId);
-    return record ? this.toSummary(record) : undefined;
+    return record ? this.toSummary(record, { includeDetails: true }) : undefined;
   }
 
   public list(): readonly RenderJobSummary[] {
     return [...this.jobs.values()]
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-      .map((record) => this.toSummary(record));
+      .map((record) => this.toSummary(record, { includeDetails: false }));
   }
 
   public cancel(jobId: string): RenderJobSummary | undefined {
@@ -123,7 +129,7 @@ export class RenderJobManager {
       return undefined;
     }
     if (this.isTerminal(record.status)) {
-      return this.toSummary(record);
+      return this.toSummary(record, { includeDetails: true });
     }
 
     record.abortController.abort(new Error(reason));
@@ -270,7 +276,10 @@ export class RenderJobManager {
     }
   }
 
-  private toSummary(record: RenderJobRecord): RenderJobSummary {
+  private toSummary(
+    record: RenderJobRecord,
+    options: { readonly includeDetails: boolean }
+  ): RenderJobSummary {
     const {
       jobId,
       requestId,
@@ -306,10 +315,13 @@ export class RenderJobManager {
       ...(requestedResolution ? { requestedResolution } : {}),
       referenceCount,
       artifactDirectory,
+      hasResult: Boolean(result),
+      hasCostLedger: Boolean(costLedger),
+      hasArtifacts: Boolean(artifacts),
       ...(error !== undefined ? { error } : {}),
-      ...(costLedger ? { costLedger } : {}),
-      ...(artifacts ? { artifacts } : {}),
-      ...(result ? { result } : {})
+      ...(options.includeDetails && costLedger ? { costLedger } : {}),
+      ...(options.includeDetails && artifacts ? { artifacts } : {}),
+      ...(options.includeDetails && result ? { result } : {})
     };
   }
 
