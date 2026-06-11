@@ -78,7 +78,11 @@ export function startServer(port = readPort(process.env.PORT)): void {
     maxReferences: readPositiveInteger(process.env.CINEJELLY_MAX_REFERENCES, 24),
     maxCaptionCues: readPositiveInteger(process.env.CINEJELLY_MAX_CAPTION_CUES, 600),
     maxAudioTracks: readPositiveInteger(process.env.CINEJELLY_MAX_AUDIO_TRACKS, 16),
-    maxMetadataEntries: readPositiveInteger(process.env.CINEJELLY_MAX_METADATA_ENTRIES, 50)
+    maxMetadataEntries: readPositiveInteger(process.env.CINEJELLY_MAX_METADATA_ENTRIES, 50),
+    maxSourceVideoScenes: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_SCENES, 160),
+    maxSourceVideoTranscriptCues: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_TRANSCRIPT_CUES, 1_500),
+    maxSourceVideoKeyframesPerScene: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_KEYFRAMES_PER_SCENE, 12),
+    maxSourceVideoNotes: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_NOTES, 120)
   });
   const apiAuthGuard = new ApiAuthGuard({
     disabled: readApiAuthDisabled(process.env.CINEJELLY_DISABLE_API_AUTH),

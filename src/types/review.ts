@@ -40,6 +40,9 @@ export interface ReviewPacketSettings {
 }
 
 export interface ReviewPacketPlanning {
+  readonly hasSourceVideoAnalysis: boolean;
+  readonly sourceVideoSceneCount: number;
+  readonly sourceVideoTranscriptCueCount: number;
   readonly storyboardPanelCount: number;
   readonly storyboardPreflightStatus: GuardianStatus;
   readonly productionGraphNodeCount: number;

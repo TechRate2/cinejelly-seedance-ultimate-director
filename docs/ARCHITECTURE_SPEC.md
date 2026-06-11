@@ -109,12 +109,14 @@ Responsibilities:
 - Accept one user input and optional reference files/URLs.
 - Extract explicit requirements: niche, target platform, duration, audience, product, offer, story, brand rules, language, voice, aspect ratio, quality tier, and budget constraints.
 - Extract implicit requirements using VideoAgent-style intent decomposition.
+- Normalize optional source-video deconstruction metadata for transcript, scene, keyframe, pacing, style, structural beat, and safety guidance without copying protected source-video expression.
 - If the input is underspecified, create a minimal clarification plan. For autonomous production, use conservative defaults rather than blocking.
 
 Source basis:
 
 - Emily2040/seedance-2.0 interview and intent-first routing.
 - VideoAgent intent analysis across explicit and implicit sub-intents.
+- OpenMontage/VideoAgent source-video deconstruction patterns, implemented as original CineJelly typed contracts rather than copied upstream code.
 
 ### 2. Reference Librarian
 
@@ -268,16 +270,17 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 
 1. `createProject`: persist the user request and settings.
 2. `ingestReferences`: validate references, classify roles, register required Atlas assets.
-3. `compileGraph`: build story, scenes, beats, shot contracts, continuity ledgers.
-4. `storyboard`: generate reviewable panels from shot contracts, run Guardian storyboard preflight, and store panels/evidence in graph/artifacts.
-5. `preflight`: run prompt/reference safety, contradiction, and schema checks.
-6. `testTake`: for high-risk shots, render a short test take before full duration.
-7. `render`: submit parallel-safe jobs; preserve dependencies for continuity-bound shots.
-8. `inspect`: run Consistency Guardian and DirectorBench-style checkpoint scoring.
-9. `repair`: rerender only failed nodes or use deterministic postproduction fixes.
-10. `assemble`: stitch clips with handles and transitions.
-11. `finish`: audio, captions, color/polish, upscale if selected.
-12. `deliver`: export final video and review packet.
+3. `sourceVideoAnalysis`: when supplied, validate bounded transcript/scene/keyframe/pacing/style/safety deconstruction, match it to a `source_video_structure` reference label, and use it only as original structural guidance.
+4. `compileGraph`: build story, scenes, beats, shot contracts, continuity ledgers.
+5. `storyboard`: generate reviewable panels from shot contracts, run Guardian storyboard preflight, and store panels/evidence in graph/artifacts.
+6. `preflight`: run prompt/reference safety, contradiction, and schema checks.
+7. `testTake`: for high-risk shots, render a short test take before full duration.
+8. `render`: submit parallel-safe jobs; preserve dependencies for continuity-bound shots.
+9. `inspect`: run Consistency Guardian and DirectorBench-style checkpoint scoring.
+10. `repair`: rerender only failed nodes or use deterministic postproduction fixes.
+11. `assemble`: stitch clips with handles and transitions.
+12. `finish`: audio, captions, color/polish, upscale if selected.
+13. `deliver`: export final video and review packet.
 
 Assembly materialization:
 
@@ -295,6 +298,7 @@ API execution modes:
 - Credit-spending render submission endpoints require an application JSON media type (`application/json` or `application/*+json`) before request body parsing; unsupported media types return 415.
 - Credit-spending render submission endpoints enforce a configurable request body byte limit before JSON parsing, job queue admission, runtime creation, or provider spend; oversized bodies return 413.
 - Render requests pass admission control before runtime creation, LLM planning, job queue occupancy, or provider spend; admission validates top-level limits plus nested caption, audio mix, frame sampling, semantic visual inspection, and transition option shapes/ranges.
+- Optional `sourceVideoAnalysis` payloads are bounded before LLM planning and can include transcript cues, scenes, keyframes, pacing notes, style notes, structural beats, and safety notes linked to a `source_video_structure` reference.
 - Public reference URIs must be credential-free HTTPS URLs or pre-registered `asset://` references; `http://`, embedded credentials, and credential-like query parameters are rejected before runtime/provider spend.
 - Public render requests may include audio tracks only from credential-free HTTPS URLs; local audio file sources are reserved for internal engine wiring.
 - Atlas Cloud API and Asset Library endpoint overrides must be credential-free HTTPS URLs with no query strings or fragments; runtime configuration and `/v1/preflight` reject unsafe URLs before credentials or provider payloads can be used.

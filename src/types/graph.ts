@@ -6,6 +6,7 @@
 import type { FlexibleSeedanceSettings } from "./settings.js";
 import type { PromptReference, ShotContract } from "./prompt.js";
 import type { PredictionStatus, ProviderReference } from "./provider.js";
+import type { SourceVideoDeconstruction } from "./source-video.js";
 import type { StoryboardPanel } from "./storyboard.js";
 
 export type GraphNodeType =
@@ -44,6 +45,7 @@ export interface ProjectNodeData {
   readonly settings: FlexibleSeedanceSettings;
   readonly targetDurationSeconds: number;
   readonly metadata?: Record<string, string>;
+  readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
 }
 
 export interface ReferenceAssetNodeData {

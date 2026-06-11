@@ -10,6 +10,7 @@ import { normalizeSeedanceSettings } from "../config/seedance-settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult } from "../types/agent.js";
 import type { ProjectArtifactBundle, ProjectArtifactEntry, ProjectArtifactKind } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
+import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import { writeFileEnsuringDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
 import { redactText } from "../utils/redaction.js";
@@ -90,12 +91,16 @@ export class ProjectArtifactStore {
 
   private payloads(result: DirectorRunResult, costLedger: readonly CostLedgerEntry[]): readonly ProjectArtifactPayload[] {
     const requestId = this.requestIdFromGraph(result);
+    const sourceVideoAnalysis = this.sourceVideoAnalysisFromGraph(result);
     const runSummary = {
       artifactSchemaVersion: "cinejelly.artifacts.v1",
       projectId: result.projectId,
       ...(requestId ? { requestId } : {}),
       generatedAt: new Date(),
       targetDurationSeconds: result.storyPlan.targetDurationSeconds,
+      hasSourceVideoAnalysis: Boolean(sourceVideoAnalysis),
+      sourceVideoSceneCount: sourceVideoAnalysis?.scenes?.length ?? 0,
+      sourceVideoTranscriptCueCount: sourceVideoAnalysis?.transcript?.length ?? 0,
       storyboardPanelCount: result.storyboard.panels.length,
       storyboardPreflightStatus: result.storyboardPreflight.status,
       compiledPromptCount: result.compiledPrompts.length,
@@ -130,6 +135,9 @@ export class ProjectArtifactStore {
       { kind: "cost_ledger", fileName: "cost-ledger.json", value: costLedger }
     ];
 
+    if (sourceVideoAnalysis) {
+      payloads.push({ kind: "source_video_analysis", fileName: "source-video-analysis.json", value: sourceVideoAnalysis });
+    }
     if (result.deliverable) {
       payloads.push({ kind: "deliverable", fileName: "deliverable.json", value: result.deliverable });
     }
@@ -164,6 +172,9 @@ export class ProjectArtifactStore {
         userInput: input.request.userInput,
         settings: input.request.settings,
         referenceCount: input.request.references?.length ?? 0,
+        hasSourceVideoAnalysis: Boolean(input.request.sourceVideoAnalysis),
+        sourceVideoSceneCount: input.request.sourceVideoAnalysis?.scenes?.length ?? 0,
+        sourceVideoTranscriptCueCount: input.request.sourceVideoAnalysis?.transcript?.length ?? 0,
         metadata: input.request.metadata,
         hasOutputPath: Boolean(input.request.outputPath),
         hasWorkDirectory: Boolean(input.request.workDirectory),
@@ -177,6 +188,15 @@ export class ProjectArtifactStore {
     for (const node of result.productionGraph.nodes) {
       if (node.type === "project") {
         return node.data.metadata?.requestId;
+      }
+    }
+    return undefined;
+  }
+
+  private sourceVideoAnalysisFromGraph(result: DirectorRunResult): SourceVideoDeconstruction | undefined {
+    for (const node of result.productionGraph.nodes) {
+      if (node.type === "project") {
+        return node.data.sourceVideoAnalysis;
       }
     }
     return undefined;

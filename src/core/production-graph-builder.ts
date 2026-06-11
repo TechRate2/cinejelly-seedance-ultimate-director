@@ -25,7 +25,8 @@ export class ProductionGraphBuilder {
       userInput: input.intake.userInput,
       settings: input.intake.settings,
       targetDurationSeconds: input.storyPlan.targetDurationSeconds,
-      ...(input.intake.metadata ? { metadata: input.intake.metadata } : {})
+      ...(input.intake.metadata ? { metadata: input.intake.metadata } : {}),
+      ...(input.intake.sourceVideoAnalysis ? { sourceVideoAnalysis: input.intake.sourceVideoAnalysis } : {})
     });
     const storyNodeId = createStableId("story", `${input.intake.projectId}:${input.storyPlan.premise}`);
     const storyNode = this.node("story_arc", storyNodeId, {

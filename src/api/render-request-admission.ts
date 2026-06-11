@@ -4,6 +4,7 @@
  */
 
 import { normalizeSeedanceSettings } from "../config/seedance-settings.js";
+import { SOURCE_VIDEO_ANALYSIS_LIMITS } from "../types/source-video.js";
 
 const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
 const AUDIO_TRACK_ROLES = ["music", "narration", "ambience", "sfx"] as const;
@@ -21,6 +22,10 @@ export interface RenderRequestAdmissionSettings {
   readonly maxCaptionCues?: number;
   readonly maxAudioTracks?: number;
   readonly maxMetadataEntries?: number;
+  readonly maxSourceVideoScenes?: number;
+  readonly maxSourceVideoTranscriptCues?: number;
+  readonly maxSourceVideoKeyframesPerScene?: number;
+  readonly maxSourceVideoNotes?: number;
 }
 
 export class RenderRequestAdmissionError extends Error {
@@ -38,6 +43,10 @@ export class RenderRequestAdmission {
   private readonly maxCaptionCues: number;
   private readonly maxAudioTracks: number;
   private readonly maxMetadataEntries: number;
+  private readonly maxSourceVideoScenes: number;
+  private readonly maxSourceVideoTranscriptCues: number;
+  private readonly maxSourceVideoKeyframesPerScene: number;
+  private readonly maxSourceVideoNotes: number;
 
   public constructor(settings: RenderRequestAdmissionSettings = {}) {
     this.maxUserInputCharacters = positiveOrDefault(settings.maxUserInputCharacters, 24_000);
@@ -45,6 +54,16 @@ export class RenderRequestAdmission {
     this.maxCaptionCues = positiveOrDefault(settings.maxCaptionCues, 600);
     this.maxAudioTracks = positiveOrDefault(settings.maxAudioTracks, 16);
     this.maxMetadataEntries = positiveOrDefault(settings.maxMetadataEntries, 50);
+    this.maxSourceVideoScenes = positiveOrDefault(settings.maxSourceVideoScenes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxScenes);
+    this.maxSourceVideoTranscriptCues = positiveOrDefault(
+      settings.maxSourceVideoTranscriptCues,
+      SOURCE_VIDEO_ANALYSIS_LIMITS.maxTranscriptCues
+    );
+    this.maxSourceVideoKeyframesPerScene = positiveOrDefault(
+      settings.maxSourceVideoKeyframesPerScene,
+      SOURCE_VIDEO_ANALYSIS_LIMITS.maxKeyframesPerScene
+    );
+    this.maxSourceVideoNotes = positiveOrDefault(settings.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxNotes);
   }
 
   public assertAcceptable(body: unknown): void {
@@ -62,6 +81,7 @@ export class RenderRequestAdmission {
     this.assertFrameSamplingOptions(payload.frameSamplingOptions);
     this.assertTransitionSettings(payload.transitionSettings);
     this.assertSemanticVisualInspectionOptions(payload.semanticVisualInspectionOptions);
+    this.assertSourceVideoAnalysis(payload.sourceVideoAnalysis, payload.references);
     this.assertOptionalPath(payload.outputPath, "outputPath");
     this.assertOptionalPath(payload.workDirectory, "workDirectory");
     this.assertOptionalPath(payload.artifactDirectory, "artifactDirectory");
@@ -237,6 +257,163 @@ export class RenderRequestAdmission {
       this.assertBoundedString(expectation, `semanticVisualInspectionOptions.expectations[${index}]`, 500, true);
     }
     this.assertPositiveInteger(options.maxFrames, "semanticVisualInspectionOptions.maxFrames", MAX_SEMANTIC_FRAMES);
+  }
+
+  private assertSourceVideoAnalysis(value: unknown, references: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    const analysis = this.objectPayload(value, "sourceVideoAnalysis must be an object.");
+    this.assertOptionalNonEmptyString(
+      analysis.sourceReferenceLabel,
+      "sourceVideoAnalysis.sourceReferenceLabel",
+      SOURCE_VIDEO_ANALYSIS_LIMITS.maxLabelLength
+    );
+    this.assertOptionalNonEmptyString(
+      analysis.transformationIntent,
+      "sourceVideoAnalysis.transformationIntent",
+      SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength
+    );
+    this.assertHasSourceVideoReference(references);
+    this.assertSourceReferenceLabelMatches(analysis.sourceReferenceLabel, references);
+    this.assertSourceVideoTranscript(analysis.transcript);
+    this.assertSourceVideoScenes(analysis.scenes);
+    this.assertStringArray(analysis.pacingNotes, "sourceVideoAnalysis.pacingNotes", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
+    this.assertStringArray(analysis.styleNotes, "sourceVideoAnalysis.styleNotes", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
+    this.assertStringArray(analysis.structuralBeats, "sourceVideoAnalysis.structuralBeats", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
+    this.assertStringArray(analysis.safetyNotes, "sourceVideoAnalysis.safetyNotes", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
+  }
+
+  private assertSourceReferenceLabelMatches(value: unknown, references: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    if (!Array.isArray(references)) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.sourceReferenceLabel requires references to be an array.");
+    }
+    const matches = references.some((item) => {
+      const reference = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      return reference.label === value && reference.role === "source_video_structure";
+    });
+    if (!matches) {
+      throw new RenderRequestAdmissionError(
+        "sourceVideoAnalysis.sourceReferenceLabel must match a reference labeled with role source_video_structure."
+      );
+    }
+  }
+
+  private assertHasSourceVideoReference(references: unknown): void {
+    if (!Array.isArray(references)) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis requires references to include a source_video_structure item.");
+    }
+    const hasSourceVideoReference = references.some((item) => {
+      const reference = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      return reference.role === "source_video_structure";
+    });
+    if (!hasSourceVideoReference) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis requires at least one reference with role source_video_structure.");
+    }
+  }
+
+  private assertSourceVideoTranscript(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    if (!Array.isArray(value)) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.transcript must be an array.");
+    }
+    if (value.length > this.maxSourceVideoTranscriptCues) {
+      throw new RenderRequestAdmissionError(
+        `sourceVideoAnalysis.transcript cannot contain more than ${this.maxSourceVideoTranscriptCues} cues.`
+      );
+    }
+    for (const [index, item] of value.entries()) {
+      const cue = this.objectPayload(item, `sourceVideoAnalysis.transcript[${index}] must be an object.`);
+      this.assertNonNegativeNumber(cue.startSecond, `sourceVideoAnalysis.transcript[${index}].startSecond`);
+      this.assertNonNegativeNumber(cue.endSecond, `sourceVideoAnalysis.transcript[${index}].endSecond`);
+      if (typeof cue.startSecond === "number" && typeof cue.endSecond === "number" && cue.endSecond <= cue.startSecond) {
+        throw new RenderRequestAdmissionError(`sourceVideoAnalysis.transcript[${index}].endSecond must be greater than startSecond.`);
+      }
+      this.assertBoundedString(cue.text, `sourceVideoAnalysis.transcript[${index}].text`, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength, true);
+    }
+  }
+
+  private assertSourceVideoScenes(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    if (!Array.isArray(value)) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.scenes must be an array.");
+    }
+    if (value.length > this.maxSourceVideoScenes) {
+      throw new RenderRequestAdmissionError(`sourceVideoAnalysis.scenes cannot contain more than ${this.maxSourceVideoScenes} items.`);
+    }
+    for (const [index, item] of value.entries()) {
+      const scene = this.objectPayload(item, `sourceVideoAnalysis.scenes[${index}] must be an object.`);
+      this.assertBoundedString(scene.sceneId, `sourceVideoAnalysis.scenes[${index}].sceneId`, SOURCE_VIDEO_ANALYSIS_LIMITS.maxLabelLength, true);
+      this.assertNonNegativeNumber(scene.startSecond, `sourceVideoAnalysis.scenes[${index}].startSecond`);
+      this.assertNonNegativeNumber(scene.endSecond, `sourceVideoAnalysis.scenes[${index}].endSecond`);
+      if (typeof scene.startSecond === "number" && typeof scene.endSecond === "number" && scene.endSecond <= scene.startSecond) {
+        throw new RenderRequestAdmissionError(`sourceVideoAnalysis.scenes[${index}].endSecond must be greater than startSecond.`);
+      }
+      this.assertBoundedString(scene.summary, `sourceVideoAnalysis.scenes[${index}].summary`, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength, true);
+      this.assertBoundedString(scene.pacing, `sourceVideoAnalysis.scenes[${index}].pacing`, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength, false);
+      this.assertBoundedString(scene.camera, `sourceVideoAnalysis.scenes[${index}].camera`, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength, false);
+      this.assertBoundedString(scene.audio, `sourceVideoAnalysis.scenes[${index}].audio`, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength, false);
+      this.assertBoundedString(scene.visualStyle, `sourceVideoAnalysis.scenes[${index}].visualStyle`, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength, false);
+      this.assertSourceVideoKeyframes(scene.keyframes, index);
+    }
+  }
+
+  private assertSourceVideoKeyframes(value: unknown, sceneIndex: number): void {
+    if (value === undefined) {
+      return;
+    }
+    if (!Array.isArray(value)) {
+      throw new RenderRequestAdmissionError(`sourceVideoAnalysis.scenes[${sceneIndex}].keyframes must be an array.`);
+    }
+    if (value.length > this.maxSourceVideoKeyframesPerScene) {
+      throw new RenderRequestAdmissionError(
+        `sourceVideoAnalysis.scenes[${sceneIndex}].keyframes cannot contain more than ${this.maxSourceVideoKeyframesPerScene} items.`
+      );
+    }
+    for (const [index, item] of value.entries()) {
+      const keyframe = this.objectPayload(item, `sourceVideoAnalysis.scenes[${sceneIndex}].keyframes[${index}] must be an object.`);
+      this.assertNonNegativeNumber(
+        keyframe.timestampSecond,
+        `sourceVideoAnalysis.scenes[${sceneIndex}].keyframes[${index}].timestampSecond`
+      );
+      this.assertBoundedString(
+        keyframe.description,
+        `sourceVideoAnalysis.scenes[${sceneIndex}].keyframes[${index}].description`,
+        SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength,
+        true
+      );
+      this.assertBoundedString(
+        keyframe.uri,
+        `sourceVideoAnalysis.scenes[${sceneIndex}].keyframes[${index}].uri`,
+        SOURCE_VIDEO_ANALYSIS_LIMITS.maxUriLength,
+        false
+      );
+      if (keyframe.uri !== undefined) {
+        this.assertReferenceUri(keyframe.uri, `sourceVideoAnalysis.scenes[${sceneIndex}].keyframes[${index}].uri`);
+      }
+    }
+  }
+
+  private assertStringArray(value: unknown, fieldName: string, maxItems: number, maxLength: number): void {
+    if (value === undefined) {
+      return;
+    }
+    if (!Array.isArray(value)) {
+      throw new RenderRequestAdmissionError(`${fieldName} must be an array.`);
+    }
+    if (value.length > maxItems) {
+      throw new RenderRequestAdmissionError(`${fieldName} cannot contain more than ${maxItems} items.`);
+    }
+    for (const [index, item] of value.entries()) {
+      this.assertBoundedString(item, `${fieldName}[${index}]`, maxLength, true);
+    }
   }
 
   private assertOptionalPath(value: unknown, fieldName: string): void {

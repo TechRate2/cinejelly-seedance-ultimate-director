@@ -6,6 +6,7 @@
 import type { LlmProvider } from "../providers/contracts.js";
 import type { IntakeResult, StoryPlan } from "../types/agent.js";
 import type { ContinuityRisk } from "../types/prompt.js";
+import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import type { BeatPlan, ScenePlan } from "../core/shot-planner.js";
 
 interface StoryPlanJson {
@@ -89,14 +90,15 @@ export class StoryArchitect {
           {
             role: "system",
             content:
-              "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, and continuity."
+              "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, and continuity. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
           },
           {
             role: "user",
             content: JSON.stringify({
               userInput: intake.userInput,
               settings: intake.settings,
-              referenceCount: intake.references.length
+              referenceCount: intake.references.length,
+              ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: this.sourceVideoBrief(intake.sourceVideoAnalysis) } : {})
             })
           }
         ],
@@ -278,5 +280,37 @@ export class StoryArchitect {
       return [];
     }
     return value.filter((risk): risk is ContinuityRisk => typeof risk === "string" && KNOWN_RISKS.has(risk));
+  }
+
+  private sourceVideoBrief(value: SourceVideoDeconstruction): Record<string, unknown> {
+    return {
+      ...(value.sourceReferenceLabel ? { sourceReferenceLabel: value.sourceReferenceLabel } : {}),
+      ...(value.transformationIntent ? { transformationIntent: value.transformationIntent } : {}),
+      sceneCount: value.scenes?.length ?? 0,
+      transcriptCueCount: value.transcript?.length ?? 0,
+      scenes: (value.scenes ?? []).slice(0, 80).map((scene) => ({
+        sceneId: scene.sceneId,
+        startSecond: scene.startSecond,
+        endSecond: scene.endSecond,
+        summary: scene.summary,
+        ...(scene.pacing ? { pacing: scene.pacing } : {}),
+        ...(scene.camera ? { camera: scene.camera } : {}),
+        ...(scene.audio ? { audio: scene.audio } : {}),
+        ...(scene.visualStyle ? { visualStyle: scene.visualStyle } : {}),
+        keyframes: (scene.keyframes ?? []).slice(0, 6).map((keyframe) => ({
+          timestampSecond: keyframe.timestampSecond,
+          description: keyframe.description
+        }))
+      })),
+      transcript: (value.transcript ?? []).slice(0, 160).map((cue) => ({
+        startSecond: cue.startSecond,
+        endSecond: cue.endSecond,
+        text: cue.text
+      })),
+      pacingNotes: (value.pacingNotes ?? []).slice(0, 60),
+      styleNotes: (value.styleNotes ?? []).slice(0, 60),
+      structuralBeats: (value.structuralBeats ?? []).slice(0, 80),
+      safetyNotes: (value.safetyNotes ?? []).slice(0, 60)
+    };
   }
 }

@@ -13,6 +13,7 @@ import type {
   ReviewPacketRender,
   ReviewPacketStatus
 } from "../types/review.js";
+import type { SourceVideoDeconstruction } from "../types/source-video.js";
 
 export class ReviewPacketBuilder {
   public build(input: {
@@ -24,6 +25,7 @@ export class ReviewPacketBuilder {
     const delivery = this.delivery(input.result);
     const status = this.status(input.result, cost, delivery);
     const settings = this.settingsFromGraph(input.result);
+    const sourceVideoAnalysis = this.sourceVideoAnalysisFromGraph(input.result);
 
     return {
       artifactSchemaVersion: "cinejelly.review_packet.v1",
@@ -44,6 +46,9 @@ export class ReviewPacketBuilder {
         ratio: settings.ratio
       },
       planning: {
+        hasSourceVideoAnalysis: Boolean(sourceVideoAnalysis),
+        sourceVideoSceneCount: sourceVideoAnalysis?.scenes?.length ?? 0,
+        sourceVideoTranscriptCueCount: sourceVideoAnalysis?.transcript?.length ?? 0,
         storyboardPanelCount: input.result.storyboard.panels.length,
         storyboardPreflightStatus: input.result.storyboardPreflight.status,
         productionGraphNodeCount: input.result.productionGraph.nodes.length,
@@ -165,21 +170,30 @@ export class ReviewPacketBuilder {
     readonly qualityMode: ReviewPacket["settings"]["qualityMode"];
     readonly ratio: ReviewPacket["settings"]["ratio"];
   } {
-    const projectNode = result.productionGraph.nodes.find((node) => node.type === "project");
-    if (!projectNode) {
-      throw new Error("Review packet requires a project node in the Production Graph.");
-    }
+    const projectNodeData = this.projectNodeData(result);
     return {
-      tier: projectNode.data.settings.tier,
-      resolution: projectNode.data.settings.resolution,
-      qualityMode: projectNode.data.settings.qualityMode,
-      ratio: projectNode.data.settings.ratio
+      tier: projectNodeData.settings.tier,
+      resolution: projectNodeData.settings.resolution,
+      qualityMode: projectNodeData.settings.qualityMode,
+      ratio: projectNodeData.settings.ratio
     };
   }
 
   private requestIdFromGraph(result: DirectorRunResult): string | undefined {
     const projectNode = result.productionGraph.nodes.find((node) => node.type === "project");
     return projectNode?.data.metadata?.requestId;
+  }
+
+  private sourceVideoAnalysisFromGraph(result: DirectorRunResult): SourceVideoDeconstruction | undefined {
+    return this.projectNodeData(result).sourceVideoAnalysis;
+  }
+
+  private projectNodeData(result: DirectorRunResult): Extract<DirectorRunResult["productionGraph"]["nodes"][number], { type: "project" }>["data"] {
+    const projectNode = result.productionGraph.nodes.find((node) => node.type === "project");
+    if (!projectNode) {
+      throw new Error("Review packet requires a project node in the Production Graph.");
+    }
+    return projectNode.data;
   }
 
   private sumDefined(values: readonly (number | undefined)[]): number | undefined {

@@ -100,6 +100,7 @@ Runtime implementation:
 - The Reference Librarian normalizes missing labels, infers safe media kind defaults, validates role/kind compatibility, accepts only absolute `http(s)` or `asset://` reference URIs for the current Atlas path, rejects credential-like reference URIs, and deduplicates repeated references.
 - Production Graph Builder creates one validated `reference_asset` node per normalized reference, then connects references to dependent shots.
 - Identity and wardrobe references add `continues_identity` edges, environment and style references add `continues_environment` edges, and motion/camera/audio/source-structure references add `matches_motion` edges.
+- Optional source-video deconstruction is normalized through the Source Video Analyst, matched to a `source_video_structure` reference label when supplied, and stored on the project node so planning, artifacts, review packets, and repairs can trace the structural source without copying upstream implementation code.
 
 ### StoryArc
 
@@ -239,6 +240,14 @@ If the user provides a long source video, CineJelly uses a VideoAgent/OpenMontag
 - create an original script and shot plan rather than copying protected content
 
 The source video becomes a structural reference, not a license to reproduce protected material.
+
+Runtime implementation:
+
+- Public render requests may include `sourceVideoAnalysis` with bounded transcript cues, scene deconstructions, keyframes, pacing notes, style notes, structural beats, and safety notes.
+- `sourceVideoAnalysis.sourceReferenceLabel`, when supplied, must match a user reference labeled with role `source_video_structure`.
+- Source-video keyframe URIs must be credential-free HTTPS or `asset://` references before LLM planning or provider spend.
+- Story Architect receives a compact, bounded source-video brief and is instructed to use it only for original pacing, structure, camera grammar, and style transformation.
+- Successful runs emit `source-video-analysis.json` when this contract is present; `run-summary.json` and `review-packet.json` include source-video scene and transcript counts.
 
 ## Continuity Strategy
 

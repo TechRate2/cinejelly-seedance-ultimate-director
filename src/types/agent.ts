@@ -18,6 +18,7 @@ import type { TransitionSettings } from "./transition.js";
 import type { SemanticVisualInspectionOptions, SemanticVisualInspectionReport } from "./visual-inspection.js";
 import type { RenderCostEstimate } from "./cost.js";
 import type { DeliveryGateReport } from "./delivery.js";
+import type { SourceVideoDeconstruction } from "./source-video.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -34,6 +35,7 @@ export interface CineJellyProjectRequest {
   readonly frameSamplingOptions?: FrameSamplingOptions;
   readonly transitionSettings?: TransitionSettings;
   readonly semanticVisualInspectionOptions?: SemanticVisualInspectionOptions;
+  readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
 }
 
 export interface IntakeResult {
@@ -42,6 +44,7 @@ export interface IntakeResult {
   readonly settings: FlexibleSeedanceSettings;
   readonly references: readonly PromptReference[];
   readonly metadata?: Record<string, string>;
+  readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
 }
 
 export interface StoryPlan {
