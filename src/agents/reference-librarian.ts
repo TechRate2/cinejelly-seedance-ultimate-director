@@ -174,11 +174,14 @@ export class ReferenceLibrarian {
 
     try {
       const parsed = new URL(uri);
-      if (!["http:", "https:", "asset:"].includes(parsed.protocol)) {
-        throw new Error(`Reference ${index + 1} URI protocol ${parsed.protocol} is not supported.`);
+      if (!["https:", "asset:"].includes(parsed.protocol)) {
+        throw new Error(`Reference ${index + 1} URI must use https or asset://.`);
       }
       if (parsed.username || parsed.password) {
         throw new Error(`Reference ${index + 1} URI must not contain embedded credentials.`);
+      }
+      if (parsed.protocol === "asset:" && (parsed.search || parsed.hash)) {
+        throw new Error(`Reference ${index + 1} asset:// URI must not include query strings or fragments.`);
       }
       for (const key of parsed.searchParams.keys()) {
         if (SECRET_QUERY_KEY_PATTERN.test(key)) {
@@ -187,7 +190,7 @@ export class ReferenceLibrarian {
       }
     } catch (error) {
       if (error instanceof TypeError) {
-        throw new Error(`Reference ${index + 1} URI must be an absolute http(s) URL or asset:// reference.`);
+        throw new Error(`Reference ${index + 1} URI must be an absolute HTTPS URL or asset:// reference.`);
       }
       throw error;
     }

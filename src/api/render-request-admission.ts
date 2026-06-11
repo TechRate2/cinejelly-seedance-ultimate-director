@@ -5,6 +5,8 @@
 
 import { normalizeSeedanceSettings } from "../config/seedance-settings.js";
 
+const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
+
 export interface RenderRequestAdmissionSettings {
   readonly maxUserInputCharacters?: number;
   readonly maxReferences?: number;
@@ -109,6 +111,7 @@ export class RenderRequestAdmission {
         `references[${index}].providerReference must be an object.`
       );
       this.assertBoundedString(providerReference.uri, `references[${index}].providerReference.uri`, 4096, true);
+      this.assertReferenceUri(providerReference.uri, `references[${index}].providerReference.uri`);
       this.assertBoundedString(reference.label, `references[${index}].label`, 160, false);
     }
   }
@@ -175,6 +178,32 @@ export class RenderRequestAdmission {
     }
     if (parsed.username || parsed.password) {
       throw new RenderRequestAdmissionError(`${fieldName} must not include embedded credentials.`);
+    }
+  }
+
+  private assertReferenceUri(value: unknown, fieldName: string): void {
+    if (typeof value !== "string") {
+      throw new RenderRequestAdmissionError(`${fieldName} must be a string.`);
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new RenderRequestAdmissionError(`${fieldName} must be a valid HTTPS URL or asset:// reference.`);
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "asset:") {
+      throw new RenderRequestAdmissionError(`${fieldName} must use https or asset://.`);
+    }
+    if (parsed.username || parsed.password) {
+      throw new RenderRequestAdmissionError(`${fieldName} must not include embedded credentials.`);
+    }
+    if (parsed.protocol === "asset:" && (parsed.search || parsed.hash)) {
+      throw new RenderRequestAdmissionError(`${fieldName} asset:// references must not include query strings or fragments.`);
+    }
+    for (const key of parsed.searchParams.keys()) {
+      if (SECRET_QUERY_KEY_PATTERN.test(key)) {
+        throw new RenderRequestAdmissionError(`${fieldName} query contains credential-like parameter ${key}.`);
+      }
     }
   }
 
