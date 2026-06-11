@@ -4,6 +4,14 @@
   "private": false,
   "type": "module",
   "description": "Production-grade agentic video pipeline for Seedance 2.0 through Atlas Cloud.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "engines": {
     "node": ">=20.0.0"
   },
