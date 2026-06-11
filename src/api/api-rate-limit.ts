@@ -96,13 +96,27 @@ export class ApiRateLimiter {
 }
 
 export function readRateLimitDisabled(value: string | undefined): boolean {
-  return value?.trim().toLowerCase() === "true";
+  return readBooleanFlag("CINEJELLY_DISABLE_API_RATE_LIMIT", value);
 }
 
 export function readTrustProxyHeaders(value: string | undefined): boolean {
-  return value?.trim().toLowerCase() === "true";
+  return readBooleanFlag("CINEJELLY_TRUST_PROXY_HEADERS", value);
 }
 
 function positiveOrDefault(value: number | undefined, fallback: number): number {
   return Number.isFinite(value) && value && value > 0 ? Math.floor(value) : fallback;
+}
+
+function readBooleanFlag(name: string, value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (normalized === "true") {
+    return true;
+  }
+  if (normalized === "false") {
+    return false;
+  }
+  throw new Error(`${name} must be true or false when set.`);
 }

@@ -89,5 +89,19 @@ export class ApiAuthGuard {
 }
 
 export function readApiAuthDisabled(value: string | undefined): boolean {
-  return value?.trim().toLowerCase() === "true";
+  return readBooleanFlag("CINEJELLY_DISABLE_API_AUTH", value);
+}
+
+function readBooleanFlag(name: string, value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (normalized === "true") {
+    return true;
+  }
+  if (normalized === "false") {
+    return false;
+  }
+  throw new Error(`${name} must be true or false when set.`);
 }
