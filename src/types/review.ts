@@ -79,6 +79,8 @@ export interface ReviewPacketDelivery {
   readonly semanticVisualInspectionStatus?: "pass" | "warn" | "fail";
   readonly mediaInspectionStatus?: "pass" | "warn" | "fail";
   readonly clipCount?: number;
+  readonly outputByteSize?: number;
+  readonly outputSha256?: string;
   readonly durationSeconds?: number;
   readonly resolution?: string;
 }

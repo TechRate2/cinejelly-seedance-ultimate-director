@@ -97,6 +97,8 @@ export class ReviewPacketBuilder {
       ...(result.semanticVisualInspection ? { semanticVisualInspectionStatus: result.semanticVisualInspection.status } : {}),
       ...(result.deliverable ? { mediaInspectionStatus: result.deliverable.inspection.status } : {}),
       ...(result.deliverable ? { clipCount: result.deliverable.clipCount } : {}),
+      ...(result.deliverable ? { outputByteSize: result.deliverable.outputByteSize } : {}),
+      ...(result.deliverable ? { outputSha256: result.deliverable.outputSha256 } : {}),
       ...(result.deliverable?.inspection.metadata.durationSeconds !== undefined
         ? { durationSeconds: result.deliverable.inspection.metadata.durationSeconds }
         : {}),

@@ -37,6 +37,8 @@ export interface AssemblyInput {
 export interface AssembledDeliverable {
   readonly projectId: string;
   readonly outputPath: string;
+  readonly outputByteSize: number;
+  readonly outputSha256: string;
   readonly clipCount: number;
   readonly assembledAt: Date;
   readonly postproduction?: PostproductionResult;

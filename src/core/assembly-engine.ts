@@ -3,7 +3,9 @@
  * It materializes provider clip outputs and concatenates them into a final video deliverable.
  */
 
-import { access, copyFile, open, rename, rm } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { access, copyFile, open, rename, rm, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import type { AssembledDeliverable, AssemblyClip, AssemblyInput } from "../types/assembly.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS, PostproductionEngine } from "./postproduction-engine.js";
@@ -161,10 +163,14 @@ export class AssemblyEngine {
     const frameSamples = input.frameSamplingOptions
       ? await this.mediaInspector.sampleFrames(outputPath, input.frameSamplingOptions, signal)
       : undefined;
+    const outputByteSize = (await stat(outputPath)).size;
+    const outputSha256 = await this.sha256File(outputPath, signal);
 
     return {
       projectId: input.projectId,
       outputPath,
+      outputByteSize,
+      outputSha256,
       clipCount: orderedClips.length,
       assembledAt: new Date(),
       ...(postproduction ? { postproduction } : {}),
@@ -293,5 +299,28 @@ export class AssemblyEngine {
 
   private formatBytes(value: number): string {
     return `${value} bytes`;
+  }
+
+  private async sha256File(path: string, signal?: AbortSignal): Promise<string> {
+    return new Promise((resolveHash, rejectHash) => {
+      const hash = createHash("sha256");
+      const stream = createReadStream(path);
+      const abort = () => {
+        stream.destroy(signal?.reason instanceof Error ? signal.reason : new Error("File hashing was aborted."));
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) {
+        abort();
+      }
+      stream.on("data", (chunk) => hash.update(chunk));
+      stream.on("error", (error) => {
+        signal?.removeEventListener("abort", abort);
+        rejectHash(error);
+      });
+      stream.on("end", () => {
+        signal?.removeEventListener("abort", abort);
+        resolveHash(hash.digest("hex"));
+      });
+    });
   }
 }
