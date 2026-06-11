@@ -465,8 +465,7 @@ export class RenderJobManager {
     if (error instanceof Error) {
       return redactUnknown({
         name: error.name,
-        message: error.message,
-        stack: error.stack
+        message: error.message
       });
     }
     return redactUnknown({
