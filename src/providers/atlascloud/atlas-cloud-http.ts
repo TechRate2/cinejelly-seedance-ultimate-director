@@ -4,7 +4,7 @@
  */
 
 import { normalizeHttpProviderError, ProviderError } from "../../utils/errors.js";
-import { redactUnknown } from "../../utils/redaction.js";
+import { redactText, redactUnknown } from "../../utils/redaction.js";
 
 const ERROR_BODY_PREVIEW_CHARS = 500;
 const DEFAULT_MAX_JSON_RESPONSE_BYTES = 8 * 1024 * 1024;
@@ -87,13 +87,11 @@ export class AtlasCloudHttpClient {
       if (error instanceof ProviderError) {
         throw error;
       }
+      if (controller.signal.aborted) {
+        throw this.abortProviderError(controller.signal.reason);
+      }
       if (error instanceof Error && error.name === "AbortError") {
-        throw new ProviderError({
-          code: "NETWORK_ERROR",
-          provider: "atlascloud",
-          retryable: true,
-          message: "Atlas Cloud request was aborted or timed out."
-        });
+        throw this.abortProviderError(error);
       }
       throw error;
     } finally {
@@ -209,5 +207,30 @@ export class AtlasCloudHttpClient {
         observedBytes: bytes
       }
     });
+  }
+
+  private abortProviderError(reason: unknown): ProviderError {
+    return new ProviderError({
+      code: "NETWORK_ERROR",
+      provider: "atlascloud",
+      retryable: true,
+      message: "Atlas Cloud request was aborted or timed out.",
+      details: this.abortDetails(reason)
+    });
+  }
+
+  private abortDetails(reason: unknown): Record<string, string> | undefined {
+    if (reason instanceof Error) {
+      return {
+        name: reason.name,
+        message: redactText(reason.message)
+      };
+    }
+    if (typeof reason === "string" && reason.trim()) {
+      return {
+        message: redactText(reason)
+      };
+    }
+    return undefined;
   }
 }

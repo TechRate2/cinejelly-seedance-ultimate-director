@@ -182,6 +182,7 @@ Responsibilities:
 - Submit jobs to Atlas Cloud by default.
 - Poll asynchronous predictions.
 - Record cost, latency, model ID, request schema version, response metadata, and output URLs.
+- Normalize provider HTTP status, timeout, and abort failures into stable provider error codes with redacted details so retry and failure-artifact behavior remains deterministic.
 
 Source basis:
 
