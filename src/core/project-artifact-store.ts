@@ -186,8 +186,7 @@ export class ProjectArtifactStore {
     if (error instanceof Error) {
       return {
         name: error.name,
-        message: error.message,
-        stack: error.stack
+        message: error.message
       };
     }
     return {
