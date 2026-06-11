@@ -25,6 +25,7 @@ import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { ApiConcurrencyGate } from "./api-concurrency-gate.js";
 import { ApiRateLimiter, readRateLimitDisabled, readTrustProxyHeaders } from "./api-rate-limit.js";
 import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
+import { isApplicationJsonMediaType } from "./media-type.js";
 import {
   RenderJobCapacityError,
   RenderJobIdempotencyConflictError,
@@ -427,8 +428,7 @@ function readContentLength(request: IncomingMessage): number | undefined {
 }
 
 function assertJsonContentType(request: IncomingMessage): void {
-  const contentType = readHeader(request, "content-type")?.split(";")[0]?.trim().toLowerCase();
-  if (!contentType || (contentType !== "application/json" && !contentType.endsWith("+json"))) {
+  if (!isApplicationJsonMediaType(readHeader(request, "content-type"))) {
     throw new UnsupportedMediaTypeError();
   }
 }
