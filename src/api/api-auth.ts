@@ -18,6 +18,7 @@ export interface ApiAuthGuardSettings {
 }
 
 const MIN_TOKEN_LENGTH = 24;
+const BEARER_AUTHORIZATION_PATTERN = /^Bearer\s+(.+)$/i;
 
 export class ApiAuthGuard {
   private readonly expectedKey: string | undefined;
@@ -65,8 +66,9 @@ export class ApiAuthGuard {
 
   private readPresentedKey(request: IncomingMessage): string | undefined {
     const authorization = request.headers.authorization;
-    if (authorization?.startsWith("Bearer ")) {
-      return authorization.slice("Bearer ".length).trim();
+    const bearerMatch = typeof authorization === "string" ? BEARER_AUTHORIZATION_PATTERN.exec(authorization.trim()) : undefined;
+    if (bearerMatch) {
+      return bearerMatch[1]?.trim();
     }
     const apiKeyHeader = request.headers["x-cinejelly-api-key"];
     if (typeof apiKeyHeader === "string") {
