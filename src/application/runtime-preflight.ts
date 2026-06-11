@@ -23,8 +23,8 @@ export class RuntimePreflight {
       this.present("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
       this.apiAuthCheck(),
-      this.optionalUrl("ATLASCLOUD_API_BASE_URL", this.env.ATLASCLOUD_API_BASE_URL),
-      this.optionalUrl("ATLASCLOUD_ASSET_BASE_URL", this.env.ATLASCLOUD_ASSET_BASE_URL),
+      this.optionalHttpsUrl("ATLASCLOUD_API_BASE_URL", this.env.ATLASCLOUD_API_BASE_URL),
+      this.optionalHttpsUrl("ATLASCLOUD_ASSET_BASE_URL", this.env.ATLASCLOUD_ASSET_BASE_URL),
       this.optionalPositiveInteger("CINEJELLY_REQUEST_TIMEOUT_MS", this.env.CINEJELLY_REQUEST_TIMEOUT_MS),
       this.optionalPositiveInteger("CINEJELLY_POLLING_INTERVAL_MS", this.env.CINEJELLY_POLLING_INTERVAL_MS),
       this.optionalPositiveInteger("CINEJELLY_POLLING_TIMEOUT_MS", this.env.CINEJELLY_POLLING_TIMEOUT_MS),
@@ -96,15 +96,18 @@ export class RuntimePreflight {
     };
   }
 
-  private optionalUrl(name: string, value: string | undefined): PreflightCheck {
+  private optionalHttpsUrl(name: string, value: string | undefined): PreflightCheck {
     if (!value?.trim()) {
-      return { name, status: "pass", message: `${name} is not set; default URL will be used.` };
+      return { name, status: "pass", message: `${name} is not set; default HTTPS URL will be used.` };
     }
     try {
-      new URL(value);
-      return { name, status: "pass", message: `${name} is a valid URL.` };
+      const parsed = new URL(value);
+      if (parsed.protocol !== "https:") {
+        return { name, status: "fail", message: `${name} must use https.` };
+      }
+      return { name, status: "pass", message: `${name} is a valid HTTPS URL.` };
     } catch {
-      return { name, status: "fail", message: `${name} must be a valid URL.` };
+      return { name, status: "fail", message: `${name} must be a valid HTTPS URL.` };
     }
   }
 

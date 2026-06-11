@@ -58,8 +58,8 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
   const seedanceCapabilities = parseCapabilitiesEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
   return {
     apiKey: requireEnv("ATLASCLOUD_API_KEY", env),
-    apiBaseUrl: env.ATLASCLOUD_API_BASE_URL?.trim() || DEFAULT_ATLAS_API_BASE_URL,
-    assetBaseUrl: env.ATLASCLOUD_ASSET_BASE_URL?.trim() || DEFAULT_ATLAS_ASSET_BASE_URL,
+    apiBaseUrl: optionalHttpsUrlEnv("ATLASCLOUD_API_BASE_URL", env, DEFAULT_ATLAS_API_BASE_URL),
+    assetBaseUrl: optionalHttpsUrlEnv("ATLASCLOUD_ASSET_BASE_URL", env, DEFAULT_ATLAS_ASSET_BASE_URL),
     models: {
       llmModel: requireEnv("ATLASCLOUD_LLM_MODEL", env),
       seedanceStandardModel: requireEnv("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", env),
@@ -70,6 +70,20 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
     pollingIntervalMs: optionalIntegerEnv("CINEJELLY_POLLING_INTERVAL_MS", env, 5_000),
     pollingTimeoutMs: optionalIntegerEnv("CINEJELLY_POLLING_TIMEOUT_MS", env, 1_800_000)
   };
+}
+
+function optionalHttpsUrlEnv(name: string, env: NodeJS.ProcessEnv, fallback: string): string {
+  const value = env[name]?.trim() || fallback;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Environment variable ${name} must be a valid HTTPS URL.`);
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error(`Environment variable ${name} must use https.`);
+  }
+  return parsed.toString().replace(/\/$/, "");
 }
 
 export function loadRuntimeSettings(env: NodeJS.ProcessEnv = process.env): RuntimeSettings {
