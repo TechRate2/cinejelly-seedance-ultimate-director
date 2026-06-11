@@ -18,6 +18,7 @@ import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
+import { toApiProjectArtifactBundle } from "./artifact-response.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { ApiRateLimiter, readRateLimitDisabled } from "./api-rate-limit.js";
 import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
@@ -143,7 +144,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
           sendJson(response, 200, {
             ...result,
             costLedger,
-            artifacts
+            artifacts: toApiProjectArtifactBundle(artifacts)
           }, requestContext);
         } catch (renderError: unknown) {
           costLedger = runtime?.ledger.list() ?? costLedger;
@@ -157,7 +158,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
           sendJson(response, 500, {
             error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
             costLedger,
-            artifacts
+            artifacts: toApiProjectArtifactBundle(artifacts)
           }, requestContext);
         }
         return;

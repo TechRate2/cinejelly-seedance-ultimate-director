@@ -306,6 +306,7 @@ Failure artifact policy:
 - Failure artifacts include `failure-report.json`, `cost-ledger.json`, and `manifest.json` so blocked cost gates, render gates, delivery gates, or provider errors remain auditable.
 - Synchronous and async render failure paths capture any provider cost ledger entries recorded before the error, so partial Atlas spend remains auditable.
 - Success and failure manifests include per-file SHA-256 hashes for redacted JSON artifacts so review packets, graph snapshots, cost ledgers, and failure reports can be integrity-checked after storage or transfer.
+- API artifact bundle responses expose manifest file names, artifact entries, byte sizes, and hashes without returning server-local artifact directories or manifest paths.
 - This is an extension based on VibeFrame/OpenMontage build and review report discipline.
 
 Review packet policy:

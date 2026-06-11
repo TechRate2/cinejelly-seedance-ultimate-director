@@ -10,6 +10,7 @@ import type { CineJellyProjectRequest, DirectorRunResult } from "../types/agent.
 import type { ProjectArtifactBundle } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
+import { toApiProjectArtifactBundle, type ApiProjectArtifactBundle } from "./artifact-response.js";
 
 export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
 
@@ -39,13 +40,12 @@ export interface RenderJobSummary {
   readonly requestedQualityMode?: string;
   readonly requestedResolution?: string;
   readonly referenceCount: number;
-  readonly artifactDirectory: string;
   readonly hasResult: boolean;
   readonly hasCostLedger: boolean;
   readonly hasArtifacts: boolean;
   readonly error?: unknown;
   readonly costLedger?: readonly CostLedgerEntry[];
-  readonly artifacts?: ProjectArtifactBundle;
+  readonly artifacts?: ApiProjectArtifactBundle;
   readonly result?: DirectorRunResult;
 }
 
@@ -59,7 +59,9 @@ export interface RenderJobQueueStats {
   readonly availableQueueSlots: number;
 }
 
-interface RenderJobRecord extends RenderJobSummary {
+interface RenderJobRecord extends Omit<RenderJobSummary, "artifacts"> {
+  readonly artifactDirectory: string;
+  readonly artifacts?: ProjectArtifactBundle;
   readonly request: CineJellyProjectRequest;
   readonly abortController: AbortController;
 }
@@ -313,7 +315,7 @@ export class RenderJobManager {
     }
   }
 
-  private updateJob(jobId: string, patch: Partial<RenderJobSummary>): void {
+  private updateJob(jobId: string, patch: Partial<RenderJobRecord>): void {
     const current = this.jobs.get(jobId);
     if (!current) {
       return;
@@ -358,7 +360,6 @@ export class RenderJobManager {
       requestedQualityMode,
       requestedResolution,
       referenceCount,
-      artifactDirectory,
       error,
       costLedger,
       artifacts,
@@ -378,13 +379,12 @@ export class RenderJobManager {
       ...(requestedQualityMode ? { requestedQualityMode } : {}),
       ...(requestedResolution ? { requestedResolution } : {}),
       referenceCount,
-      artifactDirectory,
       hasResult: Boolean(result),
       hasCostLedger: Boolean(costLedger),
       hasArtifacts: Boolean(artifacts),
       ...(error !== undefined ? { error } : {}),
       ...(options.includeDetails && costLedger ? { costLedger } : {}),
-      ...(options.includeDetails && artifacts ? { artifacts } : {}),
+      ...(options.includeDetails && artifacts ? { artifacts: toApiProjectArtifactBundle(artifacts) } : {}),
       ...(options.includeDetails && result ? { result } : {})
     };
   }
