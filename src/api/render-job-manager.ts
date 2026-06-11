@@ -26,6 +26,15 @@ export class RenderJobCapacityError extends Error {
   }
 }
 
+export class RenderJobIdempotencyConflictError extends Error {
+  public readonly statusCode = 409;
+
+  public constructor() {
+    super("Idempotency-Key was already used for a different render job request.");
+    this.name = "RenderJobIdempotencyConflictError";
+  }
+}
+
 export interface RenderJobSummary {
   readonly jobId: string;
   readonly requestId?: string;
@@ -59,11 +68,21 @@ export interface RenderJobQueueStats {
   readonly availableQueueSlots: number;
 }
 
+export interface RenderJobSubmission {
+  readonly summary: RenderJobSummary;
+  readonly idempotentReplay: boolean;
+}
+
 interface RenderJobRecord extends Omit<RenderJobSummary, "artifacts"> {
   readonly artifactDirectory: string;
   readonly artifacts?: ProjectArtifactBundle;
   readonly request: CineJellyProjectRequest;
   readonly abortController: AbortController;
+}
+
+interface RenderJobIdempotencyRecord {
+  readonly jobId: string;
+  readonly requestFingerprint: string;
 }
 
 export class RenderJobManager {
@@ -72,6 +91,7 @@ export class RenderJobManager {
   private readonly historyLimit: number;
   private readonly queueLimit: number;
   private readonly jobs = new Map<string, RenderJobRecord>();
+  private readonly idempotencyIndex = new Map<string, RenderJobIdempotencyRecord>();
   private readonly queue: string[] = [];
   private activeJobCount = 0;
 
@@ -90,7 +110,17 @@ export class RenderJobManager {
   public submit(input: {
     readonly request: CineJellyProjectRequest;
     readonly artifactDirectory: string;
-  }): RenderJobSummary {
+    readonly idempotencyKeyDigest?: string;
+    readonly requestFingerprint?: string;
+  }): RenderJobSubmission {
+    const replayedJob = this.findIdempotentReplay(input.idempotencyKeyDigest, input.requestFingerprint);
+    if (replayedJob) {
+      return {
+        summary: replayedJob,
+        idempotentReplay: true
+      };
+    }
+
     this.assertQueueCapacity();
     const now = new Date();
     const jobId = `render_job_${randomUUID()}`;
@@ -116,10 +146,19 @@ export class RenderJobManager {
     };
 
     this.jobs.set(jobId, record);
+    if (input.idempotencyKeyDigest && input.requestFingerprint) {
+      this.idempotencyIndex.set(input.idempotencyKeyDigest, {
+        jobId,
+        requestFingerprint: input.requestFingerprint
+      });
+    }
     this.queue.push(jobId);
     this.pruneHistory();
     this.pumpQueue();
-    return this.toSummary(record, { includeDetails: false });
+    return {
+      summary: this.toSummary(record, { includeDetails: false }),
+      idempotentReplay: false
+    };
   }
 
   public get(jobId: string): RenderJobSummary | undefined {
@@ -339,6 +378,37 @@ export class RenderJobManager {
         return;
       }
       this.jobs.delete(record.jobId);
+      this.deleteIdempotencyForJob(record.jobId);
+    }
+  }
+
+  private findIdempotentReplay(
+    idempotencyKeyDigest: string | undefined,
+    requestFingerprint: string | undefined
+  ): RenderJobSummary | undefined {
+    if (!idempotencyKeyDigest || !requestFingerprint) {
+      return undefined;
+    }
+    const indexed = this.idempotencyIndex.get(idempotencyKeyDigest);
+    if (!indexed) {
+      return undefined;
+    }
+    const record = this.jobs.get(indexed.jobId);
+    if (!record) {
+      this.idempotencyIndex.delete(idempotencyKeyDigest);
+      return undefined;
+    }
+    if (indexed.requestFingerprint !== requestFingerprint) {
+      throw new RenderJobIdempotencyConflictError();
+    }
+    return this.toSummary(record, { includeDetails: false });
+  }
+
+  private deleteIdempotencyForJob(jobId: string): void {
+    for (const [key, value] of this.idempotencyIndex.entries()) {
+      if (value.jobId === jobId) {
+        this.idempotencyIndex.delete(key);
+      }
     }
   }
 

@@ -3,6 +3,7 @@
  * It exposes a small JSON API without adding framework dependencies.
  */
 
+import { createHash } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -24,7 +25,11 @@ import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { ApiConcurrencyGate } from "./api-concurrency-gate.js";
 import { ApiRateLimiter, readRateLimitDisabled } from "./api-rate-limit.js";
 import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
-import { RenderJobCapacityError, RenderJobManager } from "./render-job-manager.js";
+import {
+  RenderJobCapacityError,
+  RenderJobIdempotencyConflictError,
+  RenderJobManager
+} from "./render-job-manager.js";
 import { RenderRequestAdmission, RenderRequestAdmissionError } from "./render-request-admission.js";
 import {
   attachRequestContextHeaders,
@@ -34,6 +39,7 @@ import {
 
 const DEFAULT_PORT = 8787;
 const MAX_BODY_BYTES = 1_000_000;
+const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_.:-]{8,160}$/;
 
 interface RenderRequestBody extends CineJellyProjectRequest {
   readonly outputPath?: string;
@@ -118,15 +124,20 @@ export function startServer(port = readPort(process.env.PORT)): void {
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
         const body = await readJsonBody<RenderRequestBody>(request);
         requestAdmission.assertAcceptable(body);
+        const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
+        const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
         const normalizedRequest = normalizeRenderRequest(body, requestContext);
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
-        const job = jobManager.submit({
+        const submission = jobManager.submit({
           request: normalizedRequest,
-          artifactDirectory
+          artifactDirectory,
+          ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
+          ...(requestFingerprint ? { requestFingerprint } : {})
         });
         sendJson(response, 202, {
-          ...job,
-          statusUrl: `/v1/render-jobs/${encodeURIComponent(job.jobId)}`
+          ...submission.summary,
+          ...(submission.idempotentReplay ? { idempotentReplay: true } : {}),
+          statusUrl: `/v1/render-jobs/${encodeURIComponent(submission.summary.jobId)}`
         }, requestContext);
         return;
       }
@@ -302,7 +313,11 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
 }
 
 function errorStatusCode(error: unknown): number {
-  return error instanceof RenderRequestAdmissionError || error instanceof RenderJobCapacityError ? error.statusCode : 500;
+  return error instanceof RenderRequestAdmissionError ||
+    error instanceof RenderJobCapacityError ||
+    error instanceof RenderJobIdempotencyConflictError
+    ? error.statusCode
+    : 500;
 }
 
 function retryAfterSecondsFor(error: unknown): number | undefined {
@@ -324,6 +339,42 @@ function withRequestContext(payload: unknown, requestContext: ApiRequestContext)
     requestId: requestContext.requestId,
     data: payload
   };
+}
+
+function readIdempotencyKeyDigest(request: IncomingMessage): string | undefined {
+  const raw = readHeader(request, "idempotency-key");
+  const normalized = raw?.trim();
+  if (!normalized) {
+    return undefined;
+  }
+  if (!IDEMPOTENCY_KEY_PATTERN.test(normalized)) {
+    throw new RenderRequestAdmissionError(
+      "Idempotency-Key must be 8 to 160 characters using only letters, digits, underscore, dot, colon, or hyphen."
+    );
+  }
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
+function createRequestFingerprint(payload: unknown): string {
+  return createHash("sha256").update(stableJson(payload)).digest("hex");
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableJson(item)).join(",")}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, item]) => item !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right));
+  return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(",")}}`;
+}
+
+function readHeader(request: IncomingMessage, headerName: string): string | undefined {
+  const value = request.headers[headerName];
+  return typeof value === "string" ? value : undefined;
 }
 
 function registerShutdownHandlers(
