@@ -2,12 +2,12 @@
 
 ## Purpose
 
-The Prompt Compiler turns a Production Graph shot contract into a provider-ready Seedance 2.0 prompt plus provider settings. It must support every niche without hardcoded templates.
+The Prompt Compiler turns a Production Graph shot contract into a provider-ready Seedance 2.0 prompt plus provider settings. It combines copied/adapted prompt anatomy and workflow patterns from Git Subtree snapshots with CineJelly-owned contracts, and it must support every niche without hardcoded templates.
 
 ## Sources Used
 
-- Emily2040/seedance-2.0 for intent-first prompt routing, reference role separation, compact prompt paths, safety rewrites, troubleshooting levers, and professional shot contracts.
-- YouMind-OpenLab/awesome-seedance-2-prompts for generalized prompt structure patterns: duration blocks, scene timing, camera motion, character consistency, sound cues, dialogue, lip sync, and negative constraints.
+- Emily2040/seedance-2.0 Git Subtree snapshot for intent-first prompt routing, reference role separation, compact prompt paths, safety rewrites, troubleshooting levers, and professional shot contracts.
+- YouMind-OpenLab/awesome-seedance-2-prompts Git Subtree snapshot for prompt structure patterns: duration blocks, scene timing, camera motion, character consistency, sound cues, dialogue, lip sync, and negative constraints.
 - Atlas Cloud Seedance all-round reference guide for Reference Cluster, Binding Logic, @-tag roles, identity vs motion weighting, prompt hierarchy, test takes, and troubleshooting.
 - ViMax for long-script segmentation, storyboard planning, reference selection, and consistency-aware generation.
 - DirectorBench for checkpoint-level quality dimensions that inform prompt repair.
@@ -89,10 +89,10 @@ CineJelly must not hardcode templates such as "beauty ad", "real estate ad", or 
 - `VisualGrammar`: shot scale, camera support, lens feel, lighting, color, texture, movement, edit rhythm.
 - `AudioGrammar`: dialogue, whisper, narration, music bed, beat cuts, ambience, SFX, silence.
 
-Extension based on Emily2040/seedance-2.0 and YouMind:
+Extension based on the Emily2040/seedance-2.0 and YouMind snapshots:
 
 - Emily's skill routing becomes a compiler decision tree.
-- YouMind's prompt corpus is used only to learn structural patterns, not to copy prompts.
+- YouMind's prompt corpus can be distilled into reusable structures or copied into curated product knowledge when attribution and product review allow exact text.
 - Atlas @-tag Binding Logic becomes a typed `ReferenceBindingMap`.
 
 ## Compilation Pipeline
@@ -218,4 +218,3 @@ The compiler emits provider-neutral intent:
 - `return_last_frame`
 
 The provider layer translates this into the current Atlas Cloud schema.
-

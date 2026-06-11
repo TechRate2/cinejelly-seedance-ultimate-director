@@ -8,7 +8,7 @@ The repository contains the first production TypeScript foundation:
 
 - Atlas Cloud is the default provider target for both LLM reasoning and Seedance 2.0 rendering.
 - The provider layer, robust structured LLM parsing, Reference Librarian validation and graph lineage, Atlas Asset Library reference registration, configurable render cost gating, prompt compiler, Production Graph planning and run-recording, continuity ledger generation, Consistency Guardian, director orchestration, assembly/postproduction engines, and production HTTP API are implemented under `src/`.
-- Local Git subtree snapshots of the upstream reference projects are stored under `external/upstream/` for source-fidelity review. They are not runtime dependencies and must not be imported by production code.
+- Local Git Subtree snapshots of upstream projects are stored under `external/upstream/` for source-fidelity review, copy/adaptation, and product integration. Productized behavior should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution instead of depending on live upstream availability.
 - Quality mode now drives actual render behavior: Economy/Standard/High/Ultimate produce one to four Seedance candidates per shot, authorize zero to three targeted repair attempts, the Consistency Guardian selects the best candidate, and the Production Graph records selected, rejected, and repair candidate evidence.
 - The HTTP API now creates or accepts a sanitized request correlation ID and propagates it through JSON responses, render job summaries, provider metadata, Production Graph project metadata, and success/failure artifacts.
 - The API propagates client disconnects and deployment shutdown signals into active render work so request-bound orchestration, provider calls, polling, assembly, and postproduction stop as early as the selected provider path allows.
@@ -39,7 +39,7 @@ The repository contains the first production TypeScript foundation:
 - API admission now validates nested caption, audio mix, frame sampling, semantic visual inspection, and transition option objects before runtime creation or provider spend.
 - Runtime preflight now verifies the configured/default output directory can be prepared and written before customer traffic.
 - The package declares `main`, `types`, and ESM `exports` for stable production imports from the built `dist/index.js` surface, including API, agents, core engines, providers, prompt compiler, and shared types.
-- No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshots may contain original upstream development files inside `external/upstream/`, but they are isolated reference material.
+- No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshots may contain original upstream development files inside `external/upstream/`; those files become product material only after license/product review and an intentional copy/adapt step.
 - Runtime validation still requires real Atlas Cloud credentials, verified model IDs, FFmpeg, and FFprobe before customer use.
 
 The next implementation phase is real end-to-end validation and hardening around observability and deployment operations.
@@ -62,7 +62,7 @@ The target long-form range is 2 to 8 minutes, handled through graph chunking, co
 
 - `Production Graph`: project, validated reference assets, story, sequences, scenes, beats, shots, renders, inspection reports, repair actions, and deliverables.
 - `Model Provider Abstraction`: Atlas Cloud default, future-ready for Kie.ai, fal.ai, Runway, Replicate, direct Volcengine, or other providers.
-- `Prompt Compiler`: source-faithful Seedance prompt compilation from shot contracts, not hardcoded niche templates.
+- `Prompt Compiler`: source-traceable Seedance prompt compilation from shot contracts, copied/adapted prompt anatomy, and CineJelly-owned rules, not hardcoded niche templates.
 - `Consistency Guardian`: preflight, test-take inspection, post-render inspection, timeline inspection, and targeted repair.
 - `Flexible Settings`: Fast/Standard tier, 480p/720p/1080p, quality mode, aspect ratio, duration, audio mode, watermark policy, and last-frame return policy.
 
@@ -93,14 +93,15 @@ cinejelly-seedance-ultimate-director/
     `-- utils/
 ```
 
-`data/` is reserved for production-approved local knowledge artifacts such as prompt-pattern snapshots or bibles when they become necessary. `external/upstream/` contains legally bounded Git subtree snapshots of upstream references; CineJelly must not depend live on upstream repos or import runtime code from these snapshots.
+`data/` is reserved for production-approved local knowledge artifacts such as copied/adapted prompt-pattern snapshots, bibles, and evaluation rubrics when they become necessary. `external/upstream/` contains legally bounded Git Subtree snapshots of upstream repositories; CineJelly uses them as source material, then productizes useful parts into `src/`, `data/`, and `docs/`.
 
 ## Documentation Map
 
 - `docs/PROJECT_CONTEXT.md`: compact project memory for token-efficient agent work.
 - `docs/ARCHITECTURE_SPEC.md`: full system architecture and agent responsibilities.
 - `docs/CREDITS.md`: attribution, source boundaries, and license cautions.
-- `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: local subtree inventory, license status, and runtime no-copy boundaries.
+- `docs/SUBTREE_POLICY.md`: Git Subtree workflow, required `--squash` usage, and copy/adapt policy.
+- `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: local subtree inventory, license status, and reuse boundaries.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive Seedance prompt compiler design.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph and chunking strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: quality, continuity, inspection, and repair design.
@@ -324,8 +325,8 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 89. Source-video deconstruction intake, graph lineage, and artifacts - implemented
 90. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
 
-## Source Fidelity
+## Source Snapshot Strategy
 
-CineJelly is source-faithful, not source-copied. It keeps full upstream snapshots under `external/upstream/` so engineers can check behavior against original sources, then implements original production code for this product under `src/`.
+CineJelly is source-traceable and product-owned. It keeps full upstream snapshots under `external/upstream/` so engineers can check behavior against original sources, copy or adapt useful pieces, and then develop them into CineJelly-owned modules under `src/`, `data/`, and `docs/`.
 
-Public source is not automatically unrestricted. MIT sources can be reused only with attribution and product review, CC BY prompt content needs attribution review before any copied use, AGPL implementation code stays reference-only for this proprietary runtime unless legal approval accepts the obligations, and no-license sources stay reference-only until permission is clarified.
+Public source is not automatically unrestricted. MIT sources can be reused with attribution and notices, CC BY prompt content needs attribution review before bundled use, AGPL implementation code requires acceptance of AGPL obligations or legal approval, and no-license sources stay in the snapshot/audit layer until permission is clarified.

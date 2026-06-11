@@ -2,15 +2,15 @@
 
 ## Purpose
 
-This document defines how CineJelly creates coherent 2 to 8 minute videos from a single input while Seedance 2.0 operates on short renderable clips.
+This document defines how CineJelly creates coherent 2 to 8 minute videos from a single input while Seedance 2.0 operates on short renderable clips. The strategy combines copied/adapted structures from Git Subtree snapshots with CineJelly-owned graph contracts and commercial delivery rules.
 
 ## Sources Used
 
-- ViMax for RAG-based long script design, multi-scene scripts, storyboard design, multi-camera simulation, intelligent reference selection, parallel candidate generation, and consistency validation.
-- VibeFrame for storyboard/design source-of-truth artifacts, dry runs, build reports, review reports, render inspection, and deterministic repair loops.
+- ViMax Git Subtree snapshot for RAG-based long script design, multi-scene scripts, storyboard design, multi-camera simulation, intelligent reference selection, parallel candidate generation, and consistency validation.
+- VibeFrame Git Subtree snapshot for storyboard/design source-of-truth artifacts, dry runs, build reports, review reports, render inspection, and deterministic repair loops.
 - DirectorBench for long-form checkpoint evaluation across script, visual, audio, cross-modal, and stability dimensions.
-- VideoAgent for intent analysis, graph-powered workflow planning, video understanding, editing, and remaking.
-- OpenMontage for reference-video analysis, transcript/pacing/keyframe/style extraction, approval gates, cost estimates, provider scoring, real-footage retrieval, and self-review.
+- VideoAgent Git Subtree snapshot for intent analysis, graph-powered workflow planning, video understanding, editing, and remaking.
+- OpenMontage Git Subtree snapshot for reference-video analysis, transcript/pacing/keyframe/style extraction, approval gates, cost estimates, provider scoring, real-footage retrieval, and self-review.
 - Atlas Cloud Seedance docs for clip duration, multimodal references, asset registration, async prediction, and resolution settings.
 
 ## Why a Production Graph
@@ -25,12 +25,14 @@ Long-form video fails when the system treats the whole job as one prompt. A grap
 - User-facing review checkpoints.
 - Fine-grained diagnostics.
 
-Extension based on ViMax + VibeFrame + DirectorBench:
+Extension based on ViMax + VibeFrame + DirectorBench + VideoAgent + OpenMontage snapshots:
 
 - ViMax contributes multi-agent scene/shot decomposition and consistency-aware reference reuse.
 - VibeFrame contributes deterministic artifacts, build/inspect reports, and cost gates.
 - DirectorBench contributes checkpoint-level evaluation.
-- CineJelly combines these into a typed graph that drives production, rendering, inspection, and repair.
+- VideoAgent contributes intent decomposition and graph-powered planning.
+- OpenMontage contributes reference-video analysis, approval gates, and self-review loops.
+- CineJelly combines these into a typed graph that drives production, rendering, inspection, repair, and commercial delivery.
 
 ## Graph Hierarchy
 
@@ -100,7 +102,7 @@ Runtime implementation:
 - The Reference Librarian normalizes missing labels, infers safe media kind defaults, validates role/kind compatibility, accepts only absolute `http(s)` or `asset://` reference URIs for the current Atlas path, rejects credential-like reference URIs, and deduplicates repeated references.
 - Production Graph Builder creates one validated `reference_asset` node per normalized reference, then connects references to dependent shots.
 - Identity and wardrobe references add `continues_identity` edges, environment and style references add `continues_environment` edges, and motion/camera/audio/source-structure references add `matches_motion` edges.
-- Optional source-video deconstruction is normalized through the Source Video Analyst, matched to a `source_video_structure` reference label when supplied, and stored on the project node so planning, artifacts, review packets, and repairs can trace the structural source without copying upstream implementation code.
+- Optional source-video deconstruction is normalized through the Source Video Analyst, matched to a `source_video_structure` reference label when supplied, and stored on the project node so planning, artifacts, review packets, and repairs can trace the structural source and the upstream snapshot patterns that shaped the feature.
 
 ### StoryArc
 
@@ -237,7 +239,7 @@ If the user provides a long source video, CineJelly uses a VideoAgent/OpenMontag
 - identify audio rhythm
 - identify structural beats
 - preserve only user-approved creative intent
-- create an original script and shot plan rather than copying protected content
+- create a rights-safe, differentiated script and shot plan from the structural analysis
 
 The source video becomes a structural reference, not a license to reproduce protected material.
 

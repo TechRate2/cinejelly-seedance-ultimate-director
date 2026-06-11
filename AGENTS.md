@@ -27,17 +27,19 @@ Use this order:
    - providers: `docs/MODEL_PROVIDER_ABSTRACTION.md`
    - user settings: `docs/FLEXIBLE_SEEDANCE_SETTINGS.md`
    - attribution/licensing: `docs/CREDITS.md`
+   - subtree policy: `docs/SUBTREE_POLICY.md`
    - upstream snapshots: `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`
 3. Original external sources under `external/upstream/` only when the change modifies source-derived claims, provider behavior, license-sensitive reuse, or model capability assumptions.
 
-## Source Fidelity Policy
+## Source Snapshot And Reuse Policy
 
 - `docs/PROJECT_CONTEXT.md` is a compact memory map, not a full replacement for reading the detailed specs or upstream repositories.
-- Architecture and behavior must stay traceable to the credited sources and local subtree snapshots, but implementation must be original CineJelly code unless a dependency/license review explicitly allows reuse.
-- Do not claim CineJelly has cloned or copied 100% of ViMax, VibeFrame, OpenMontage, VideoAgent, Emily2040/seedance-2.0, or any Atlas Cloud workflow unless the matching production feature is implemented, verified, and attributed.
-- Copying public prompt corpora or AGPL implementation code into this product is prohibited without legal approval.
-- `external/upstream/` snapshots are source-fidelity references. Runtime code in `src/` must not import from them.
-- When implementing a source-inspired feature, write a short note in the relevant design doc or code comment naming the source pattern and the CineJelly-specific extension.
+- Architecture, behavior, copied documents, adapted structures, and reused logic must stay traceable to the credited sources and local Git subtree snapshots.
+- `external/upstream/` stores snapshot source material. Productized components should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution and license notes.
+- Do not claim CineJelly has cloned or integrated 100% of ViMax, VibeFrame, OpenMontage, VideoAgent, Emily2040/seedance-2.0, or any Atlas Cloud workflow unless the matching production feature is implemented, verified, and attributed.
+- Public prompt corpora, AGPL implementation code, nested third-party tools, and no-license material require explicit license/product review before release use; compatible MIT/CC BY material may be reused with the required notices and attribution.
+- Runtime imports from `external/upstream/` require an intentional architecture decision. The default product path is to copy/adapt useful pieces into CineJelly-owned modules so the product remains autonomous.
+- When implementing a source-integrated feature, write a short note in the relevant design doc or code comment naming the source snapshot, copied/adapted element, and CineJelly-specific extension.
 
 ## Security Gate Before Push
 

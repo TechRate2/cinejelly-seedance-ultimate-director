@@ -6,9 +6,9 @@ This document is a production architecture specification for the first commercia
 
 ## Sources Read
 
-Local workspace:
+Current repository:
 
-- `C:\Users\Administrator\Desktop\topview v3`: inspected with file listing and `rg --files`; the workspace was empty and was not a git repository before this structure was created.
+- `TechRate2/cinejelly-seedance-ultimate-director`: inspected as the current commercial product repository. Documentation now assumes upstream repositories are brought in with Git Subtree snapshots under `external/upstream/`.
 
 Public sources:
 
@@ -27,9 +27,13 @@ Public sources:
 - Atlas Cloud all-round Seedance reference guide: https://www.atlascloud.ai/blog/case-studies/generative-ai-model-seedance-2-0-a-guide-to-all-round-reference
 - Atlas Cloud character consistency article: https://www.atlascloud.ai/blog/guides/how-character-consistency-in-ai-video-apis-is-revolutionizing-episodic-content
 
-## Source Boundaries
+## Source Integration Strategy
 
-Source-derived requirements:
+CineJelly uses Git Subtree to bring upstream repositories into `external/upstream/` as durable source snapshots. These snapshots are not passive references only; they are the product's local source library for copying, adapting, and integrating useful documentation, structures, prompt patterns, workflow logic, and compatible implementation ideas into CineJelly-owned `docs/`, `data/`, and `src/` surfaces.
+
+Each snapshot must keep its original license and attribution visible. Copying and reuse are allowed when the upstream license permits the intended product use and the copied/adapted element is credited in `docs/CREDITS.md`, `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`, or a focused design note. For license-sensitive sources, the product can still snapshot and learn the structure, but direct implementation reuse must follow the source license obligations or a legal review decision.
+
+Snapshot-derived integration targets:
 
 - From Emily2040/seedance-2.0: the system should be intent-first, should direct the model instead of over-controlling frames, should route vague ideas through a brief/interview path, should separate reference assets by role, should produce production objects before prompts for professional work, should maintain dated model/provider claims, and should include safety, troubleshooting, and delivery/QC lanes.
 - From YouMind-OpenLab/awesome-seedance-2-prompts: high-performing Seedance prompts are usually structured as time-bounded multi-shot descriptions with character consistency constraints, camera motion, action beats, lighting, sound, dialogue/lip-sync, and negative constraints such as no text, watermark, subtitle, deformation, or drift.
@@ -43,6 +47,26 @@ Source-derived requirements:
 Extension based on these sources:
 
 - CineJelly adds a typed Production Graph, a Consistency Guardian, a Model Provider Abstraction Layer, and commercial delivery contracts. These are product architecture extensions based on ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, Emily2040/seedance-2.0, and Atlas Cloud docs.
+
+## Git Subtree And Snapshot Workflow
+
+CineJelly should vendor upstream repositories with Git Subtree using `--squash`:
+
+```bash
+git subtree add --prefix=external/upstream/<snapshot-name> <upstream-url> <branch> --squash
+git subtree pull --prefix=external/upstream/<snapshot-name> <upstream-url> <branch> --squash
+```
+
+The snapshot workflow is:
+
+1. Capture or refresh the upstream repository under `external/upstream/` with Git Subtree.
+2. Review the snapshot license, notices, and any nested third-party license files.
+3. Identify reusable documents, prompt structures, agent roles, graph patterns, provider workflows, quality gates, schemas, or implementation logic.
+4. Copy or adapt the useful pieces into CineJelly-owned `docs/`, `data/`, and `src/` paths.
+5. Record the origin, local snapshot path, and CineJelly-specific extension in the relevant design doc or attribution file.
+6. Keep production imports and public packaging based on CineJelly-owned modules unless a deliberate dependency decision says otherwise.
+
+This lets the product combine the best parts of Emily2040/seedance-2.0, YouMind-OpenLab/awesome-seedance-2-prompts, HKUDS/ViMax, vericontext/vibeframe, HKUDS/VideoAgent, and calesthio/OpenMontage while remaining an autonomous CineJelly commercial system.
 
 ## Product Objective
 
@@ -90,8 +114,8 @@ The production implementation structure is:
 - `src/config`: typed runtime settings, flexible Seedance settings, provider model configuration, and secret-safe environment loading.
 - `src/utils`: production utility functions such as redaction, retry policy, IDs, timing, and structured error helpers.
 - `src/types`: shared type definitions for settings, graph nodes, provider requests, reports, and deliverables.
-- `data`: production-approved local knowledge artifacts such as prompt-pattern snapshots or bibles when required.
-- `external`: legally reviewed Git subtree snapshots of upstream references only when needed; no live runtime dependency on upstream repos.
+- `data`: production-approved local knowledge artifacts such as copied prompt-pattern snapshots, bibles, source-derived evaluation rubrics, or curated product knowledge when required.
+- `external`: Git subtree snapshots of upstream repositories used for source review, copy/adaptation, and integration planning; productized behavior moves into CineJelly-owned `src/`, `data/`, and `docs/`.
 - `schemas`: production JSON schemas for graph, prompts, settings, provider requests, and review reports.
 - `config`: production configuration templates without secrets.
 - `ops`: deployment and runtime operations.
@@ -109,14 +133,14 @@ Responsibilities:
 - Accept one user input and optional reference files/URLs.
 - Extract explicit requirements: niche, target platform, duration, audience, product, offer, story, brand rules, language, voice, aspect ratio, quality tier, and budget constraints.
 - Extract implicit requirements using VideoAgent-style intent decomposition.
-- Normalize optional source-video deconstruction metadata for transcript, scene, keyframe, pacing, style, structural beat, and safety guidance without copying protected source-video expression.
+- Normalize optional source-video deconstruction metadata for transcript, scene, keyframe, pacing, style, structural beat, and safety guidance into rights-safe structural guidance.
 - If the input is underspecified, create a minimal clarification plan. For autonomous production, use conservative defaults rather than blocking.
 
 Source basis:
 
 - Emily2040/seedance-2.0 interview and intent-first routing.
 - VideoAgent intent analysis across explicit and implicit sub-intents.
-- OpenMontage/VideoAgent source-video deconstruction patterns, implemented as original CineJelly typed contracts rather than copied upstream code.
+- OpenMontage/VideoAgent source-video deconstruction patterns, snapshotted and adapted into CineJelly typed contracts with attribution.
 
 ### 2. Reference Librarian
 
@@ -365,4 +389,4 @@ The first implementation should not include:
 - Test/mock/demo/example code or files.
 - Hardcoded niche campaign templates.
 - Unsupported model-provider claims.
-- Unattributed prompt examples copied from public corpora.
+- Unattributed or license-unreviewed prompt examples from public corpora.

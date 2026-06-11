@@ -157,7 +157,7 @@ Dimensions:
 - story beat not skipped
 - platform hook present when required
 - call to action present when requested
-- source-video transformation is original and not copied
+- source-video transformation is rights-safe and differentiated from protected source expression
 
 ### Visual
 

@@ -2,13 +2,15 @@
 
 ## Purpose
 
-This document records the public projects, papers, and articles used to design CineJelly Seedance Ultimate Director. It is also the attribution boundary for production implementation. Public prompt examples, repo text, and article content must not be copied into product outputs unless the license allows it and the usage has been reviewed.
+This document records the public projects, papers, and articles used to design and build CineJelly Seedance Ultimate Director. It is also the attribution boundary for Git Subtree snapshots, copied documentation, adapted structures, prompt-pattern snapshots, and reusable logic that are integrated into the product. Public prompt examples, repo text, and article content may be copied or adapted when the license allows the intended use, attribution is preserved, and the usage has been reviewed.
 
-## Local Workspace Review
+Các thành phần được snapshot từ repo gốc sẽ được ghi nhận nguồn gốc và phát triển thêm thành sản phẩm riêng.
 
-- Path reviewed: `C:\Users\Administrator\Desktop\topview v3`
-- Result: the workspace was empty and not a git repository before the production directory structure and these documents were created.
-- Current source-fidelity snapshots are stored under `external/upstream/`; see `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` for local paths, license evidence, and runtime no-copy boundaries.
+## Current Repository Review
+
+- Repository reviewed: `TechRate2/cinejelly-seedance-ultimate-director`
+- Result: the current repository contains production TypeScript source, design documentation, and upstream Git Subtree snapshots under `external/upstream/`.
+- Current Git Subtree snapshots are stored under `external/upstream/`; see `docs/SUBTREE_POLICY.md` for the workflow and `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` for local paths, license evidence, and reuse boundaries.
 
 ## Primary Architecture References
 
@@ -32,13 +34,13 @@ This document records the public projects, papers, and articles used to design C
 - URL: https://github.com/YouMind-OpenLab/awesome-seedance-2-prompts
 - Local snapshot: `external/upstream/awesome-seedance-2-prompts`
 - License shown in repo: CC BY 4.0 license file and README attribution guidance; repository includes community prompt material.
-- Used for: prompt pattern mining only.
+- Used for: prompt pattern mining, reusable prompt anatomy, attribution-reviewed example structures, and curated prompt-pattern snapshots.
 - Source-derived patterns adopted:
   - High-performing prompts often include time ranges, shot numbers, camera movements, identity consistency constraints, character micro-expression, environment, audio, dialogue, sound effects, and negative quality constraints.
   - Seedance 2.0 is described as supporting text, image, video, and audio inputs, up to 1080p, and 4 to 15 second clip duration.
-- Restrictions:
-  - Do not copy community prompts into product docs, code, UI, or generated customer outputs.
-  - Use only generalized structural patterns.
+- Reuse requirements:
+  - Copied community prompt text requires CC BY attribution and product review before it is bundled into product docs, data, UI, or generated customer-facing examples.
+  - Generalized structural patterns can be adapted into the Prompt Compiler and `data/` knowledge artifacts with source attribution.
 - CineJelly extension:
   - Converts mined prompt patterns into an adaptive Prompt Compiler that avoids hardcoded niche templates.
 
@@ -77,7 +79,7 @@ This document records the public projects, papers, and articles used to design C
 
 - URL: https://arxiv.org/html/2605.30090v1
 - Code/data snapshot: `external/upstream/directorbench` from https://github.com/jiaminchen-1031/DirectorBench
-- License shown in local snapshot: no top-level license file found; keep repository content reference-only until permission is clarified.
+- License shown in local snapshot: no top-level license file found; use the snapshot for evaluation dimensions and planning notes until permission or a compatible reuse path is clarified.
 - Used for: long-form quality diagnosis.
 - Source-derived patterns adopted:
   - Evaluate long-form video across script, visual, audio, cross-modal, and stability dimensions.
@@ -115,9 +117,9 @@ This document records the public projects, papers, and articles used to design C
   - Self-review can include ffprobe validation, frame sampling, audio level analysis, delivery promise verification, and subtitle checks.
   - Supports real-footage retrieval paths when appropriate instead of treating every video as animated stills.
 - License caution:
-  - Because OpenMontage uses AGPLv3, CineJelly may learn high-level patterns but must not copy implementation code into a closed commercial product unless legal review approves the license obligations.
+  - Because OpenMontage uses AGPLv3, CineJelly may snapshot, study, and adapt architecture, documentation, and workflow patterns with attribution. Direct implementation reuse in a distributed or proprietary product must follow AGPL obligations or a legal review decision.
 - CineJelly extension:
-  - Adopts approval, costing, reference analysis, and QA ideas without copying AGPL implementation code.
+  - Adapts approval, costing, reference analysis, and QA ideas into CineJelly-owned production modules while preserving the OpenMontage attribution trail.
 
 ## Atlas Cloud References
 
@@ -211,8 +213,10 @@ These were discovered during source review and are not primary sources for this 
 ## Attribution Policy for CineJelly
 
 - Cite public repos and articles in internal architecture docs.
-- Do not ship public prompt examples as bundled product content without license review.
-- Do not copy AGPL implementation code from OpenMontage into proprietary code.
+- Use Git Subtree snapshots under `external/upstream/` as the durable source trail for copied/adapted components.
+- Copy or adapt documentation, patterns, structures, data, and compatible code into `docs/`, `data/`, or `src/` when the license permits the intended commercial product use.
+- Public prompt examples used as bundled product content require license review, attribution, and a clear reason to include exact text rather than a distilled pattern.
+- AGPL implementation reuse from OpenMontage requires acceptance of the AGPL obligations, legal approval, or a product decision to reimplement the pattern in CineJelly-owned code.
 - Do not claim exact model IDs, pricing, or limits unless they are verified against the current Atlas Cloud schema or a dated provider source.
 - Store source URLs and last-checked dates in future production config or provider metadata.
-- Use `external/upstream/` snapshots to verify source-derived claims, but keep production implementation in `src/` original unless license review explicitly permits reuse.
+- Record copied/adapted component origin, local snapshot path, and CineJelly extension in the relevant design doc, source comment, or release note.

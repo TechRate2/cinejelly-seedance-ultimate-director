@@ -23,14 +23,14 @@ The target long-form range is 2 to 8 minutes with high consistency.
 ## Non-Negotiable Rules
 
 - Production-grade only.
-- No CineJelly-owned test/mock/demo/sample/example files in the production runtime. Upstream snapshots may contain original upstream development files under `external/upstream/`, but they are isolated reference material.
+- No CineJelly-owned test/mock/demo/sample/example files in the production runtime. Upstream snapshots may contain original upstream development files under `external/upstream/`; those files become product material only after an intentional copy/adapt step.
 - Never commit `.env`, API keys, tokens, private keys, credentials, or generated customer media.
 - Atlas Cloud is the default provider.
 - Use a Model Provider Abstraction so future providers such as Kie.ai, fal.ai, Runway, Replicate, or direct Volcengine can be added later.
 - Do not hardcode niche templates.
-- Do not copy public prompt examples into product content.
-- Do not copy AGPL code from OpenMontage into proprietary implementation.
-- Keep `external/upstream/` as source-fidelity snapshots only; production runtime must remain original CineJelly code under `src/`.
+- Copy/adapt public prompt examples into product content only when license, attribution, and product review are satisfied.
+- Reuse AGPL code from OpenMontage only when the product accepts AGPL obligations or legal review approves the reuse path.
+- Keep `external/upstream/` as Git Subtree source snapshots; productized behavior should move into CineJelly-owned `src/`, `data/`, or `docs/` with attribution.
 
 ## Architecture In One Screen
 
@@ -64,10 +64,10 @@ flowchart LR
 - `Clip Materialization`: streams provider clip URLs into bounded local files before FFmpeg assembly, avoiding full-clip memory buffering during long-form jobs.
 - `Review Packet`: redacted customer/operator handoff artifact summarizing planning, render, cost, delivery, and QC evidence.
 
-## Source-Inspired Design
+## Snapshot-Integrated Design
 
 - Emily2040/seedance-2.0: intent-first Seedance workflow, reference roles, professional shot/QC handoff.
-- YouMind-OpenLab/awesome-seedance-2-prompts: prompt structure patterns only, not copied prompt content.
+- YouMind-OpenLab/awesome-seedance-2-prompts: prompt structure patterns, reusable prompt anatomy, and attribution-reviewed prompt-pattern snapshots.
 - HKUDS/ViMax: multi-agent long-form planning, storyboard, reference selection, consistency validation.
 - VibeFrame: deterministic artifacts, dry runs, cost gates, build/review reports, repair loop.
 - DirectorBench: checkpoint-level long-form diagnosis across script, visual, audio, cross-modal, stability.
@@ -75,13 +75,14 @@ flowchart LR
 - OpenMontage: reference-video analysis, approval gates, provider scoring, real-footage path, self-review.
 - Atlas Cloud: default API gateway, OpenAI-compatible LLM endpoint, async media generation, Seedance 2.0 Universal Reference, Asset Library.
 
-Local upstream snapshots are stored under `external/upstream/` and governed by `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`.
+Local upstream snapshots are stored under `external/upstream/` and governed by `docs/SUBTREE_POLICY.md` plus `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`.
 
 ## Detailed Docs Map
 
 - `docs/ARCHITECTURE_SPEC.md`: full system architecture and agent responsibilities.
 - `docs/CREDITS.md`: attribution, license cautions, and source boundaries.
-- `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: subtree inventory, license status, source-fidelity policy, and runtime no-copy boundary.
+- `docs/SUBTREE_POLICY.md`: Git Subtree workflow, `--squash` requirement, and copy/adapt rules.
+- `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: subtree inventory, license status, source-fidelity policy, and reuse boundaries.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive niche prompt compiler.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: QA, inspection, and repair system.
@@ -90,7 +91,7 @@ Local upstream snapshots are stored under `external/upstream/` and governed by `
 
 ## Current Repo State
 
-The repo contains architecture/design documentation, isolated upstream subtree snapshots, and a production TypeScript implementation for the first commercial pipeline. The implementation is original CineJelly code inspired by the credited sources; it does not import upstream repository code or bundled public prompt corpora into the runtime.
+The repo contains architecture/design documentation, upstream Git Subtree snapshots, and a production TypeScript implementation for the first commercial pipeline. The implementation is CineJelly-owned product code adapted from credited source snapshots where useful; external snapshots are not live dependencies by default, and bundled prompt corpora or upstream implementation code require the license review path described in `docs/SUBTREE_POLICY.md`.
 
 Current production folders:
 
@@ -128,30 +129,38 @@ Current blockers before real customer rendering:
 
 ## How To Interpret This Context
 
-This file is a compact memory layer for token-efficient work. It helps an agent quickly understand the product direction, repo structure, and source boundaries. It does not replace the detailed specs, and it does not mean CineJelly has already implemented or copied every upstream function.
+This file is a compact memory layer for token-efficient work. It helps an agent quickly understand the product direction, repo structure, and source boundaries. It does not replace the detailed specs, and it does not mean CineJelly has already integrated every upstream function.
 
 For accurate work:
 
 1. Read this file first.
 2. Read only the detailed spec relevant to the change.
-3. Re-open upstream sources in `external/upstream/` only when changing provider claims, source-derived behavior, license-sensitive features, or long-form architecture assumptions.
+3. Re-open upstream sources in `external/upstream/` when changing provider claims, source-derived behavior, license-sensitive features, or long-form architecture assumptions.
 
-## Source Fidelity And No-Copy Boundary
+## Source Snapshot And Reuse Boundary
 
-CineJelly should be source-faithful, not source-copied.
+CineJelly should be source-traceable and product-owned. Git Subtree snapshots are raw material for copying, adapting, and integrating the best upstream parts into CineJelly's own Production Graph, Prompt Compiler, Consistency Guardian, provider layer, and long-form workflow.
 
-Source-faithful means:
+Source-traceable means:
 
 - design decisions are traceable to credited repos/articles and local subtree snapshots
-- source-inspired patterns are named and attributed
+- copied/adapted patterns, docs, structures, and logic are named and attributed
 - provider claims are checked against current Atlas Cloud docs/schema when they affect runtime behavior
-- long-form quality logic follows the ideas from ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, Emily2040/seedance-2.0, and Atlas Cloud without pretending those systems are already fully cloned
+- long-form quality logic combines ideas from ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, Emily2040/seedance-2.0, and Atlas Cloud without pretending unimplemented systems are already fully integrated
 
-Not allowed:
+Allowed with attribution and license review:
 
-- importing or copying upstream implementation from `external/upstream/` into `src/` without license review
-- copying public prompt corpora as bundled product content
-- copying AGPL OpenMontage implementation code into proprietary code without legal approval
+- copying or adapting upstream documentation into `docs/`
+- curating prompt-pattern snapshots into `data/`
+- adapting schemas, structures, agent roles, and workflow logic into `src/`
+- reusing compatible implementation code with license notices
+- using AGPL or no-license material only through the applicable legal/permission path
+
+Requires explicit review before release:
+
+- bundled public prompt corpora or exact community prompt text
+- direct runtime reuse of OpenMontage AGPL implementation code
+- importing directly from `external/upstream/`
 - claiming 100% feature parity before implementation and verification
 - using upstream names to imply endorsement
 
