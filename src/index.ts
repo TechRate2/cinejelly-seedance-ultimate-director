@@ -1,10 +1,21 @@
 /**
- * Public production exports for CineJelly's core provider layer.
- * This file intentionally exposes stable abstractions instead of Atlas-specific internals.
+ * Public production exports for CineJelly's core runtime.
+ * This file intentionally exposes stable abstractions so integrations do not import fragile internal paths.
  */
 
+export * from "./api/api-auth.js";
+export * from "./api/api-concurrency-gate.js";
+export * from "./api/api-rate-limit.js";
+export * from "./api/api-response-redaction.js";
+export * from "./api/artifact-response.js";
+export * from "./api/http-lifecycle.js";
+export * from "./api/render-job-manager.js";
+export * from "./api/render-request-admission.js";
+export * from "./api/request-context.js";
+export * from "./api/server.js";
 export * from "./agents/director-agent.js";
 export * from "./agents/intake-director.js";
+export * from "./agents/reference-librarian.js";
 export * from "./agents/render-producer.js";
 export * from "./agents/story-architect.js";
 export * from "./application/director-factory.js";
@@ -18,6 +29,7 @@ export * from "./core/audio-mix-engine.js";
 export * from "./core/caption-engine.js";
 export * from "./core/consistency-guardian.js";
 export * from "./core/continuity-ledger-builder.js";
+export * from "./core/delivery-gate.js";
 export * from "./core/media-inspector.js";
 export * from "./core/postproduction-engine.js";
 export * from "./core/production-graph.js";
@@ -25,10 +37,14 @@ export * from "./core/production-graph-builder.js";
 export * from "./core/production-graph-run-recorder.js";
 export * from "./core/project-artifact-store.js";
 export * from "./core/render-cost-gate.js";
+export * from "./core/render-scheduler.js";
+export * from "./core/review-packet-builder.js";
 export * from "./core/semantic-visual-inspector.js";
 export * from "./core/shot-planner.js";
+export * from "./core/storyboard-planner.js";
 export * from "./core/transition-engine.js";
 export * from "./providers/atlascloud/atlas-cloud-provider.js";
+export * from "./providers/capability-validator.js";
 export * from "./providers/contracts.js";
 export * from "./providers/cost-ledger.js";
 export * from "./providers/provider-registry.js";
@@ -45,10 +61,14 @@ export * from "./types/artifact.js";
 export * from "./types/audio.js";
 export * from "./types/caption.js";
 export * from "./types/cost.js";
+export * from "./types/delivery.js";
 export * from "./types/media.js";
-export * from "./types/provider.js";
 export * from "./types/preflight.js";
+export * from "./types/production.js";
+export * from "./types/provider.js";
+export * from "./types/review.js";
 export * from "./types/settings.js";
+export * from "./types/storyboard.js";
 export * from "./types/transition.js";
 export * from "./types/visual-inspection.js";
 export * from "./utils/errors.js";
