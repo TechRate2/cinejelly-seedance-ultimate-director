@@ -54,6 +54,7 @@ export interface AtlasCloudRuntimeSettings {
 
 export interface AssemblyRuntimeSettings {
   readonly maxRenderedClipBytes: number;
+  readonly maxAudioTrackBytes: number;
 }
 
 export interface RuntimeSettings {

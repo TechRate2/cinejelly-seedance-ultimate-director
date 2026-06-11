@@ -29,7 +29,8 @@ export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): Dir
   const renderCostGate = new RenderCostGate(settings.costEstimation);
   const semanticVisualInspector = new SemanticVisualInspector(atlasProvider, settings.atlasCloud.models.llmModel);
   const assemblyEngine = new AssemblyEngine({
-    maxRenderedClipBytes: settings.assembly.maxRenderedClipBytes
+    maxRenderedClipBytes: settings.assembly.maxRenderedClipBytes,
+    maxAudioTrackBytes: settings.assembly.maxAudioTrackBytes
   });
 
   return {

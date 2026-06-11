@@ -10,6 +10,7 @@ import type { AssemblyRuntimeSettings, AtlasCloudRuntimeSettings, RuntimeSetting
 const DEFAULT_ATLAS_API_BASE_URL = "https://api.atlascloud.ai/v1";
 const DEFAULT_ATLAS_ASSET_BASE_URL = "https://console.atlascloud.ai/api/v1";
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
+const DEFAULT_MAX_AUDIO_TRACK_BYTES = 256 * 1024 * 1024;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const NON_NEGATIVE_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 
@@ -115,6 +116,11 @@ export function loadAssemblyRuntimeSettings(env: NodeJS.ProcessEnv = process.env
       "CINEJELLY_MAX_RENDERED_CLIP_BYTES",
       env,
       DEFAULT_MAX_RENDERED_CLIP_BYTES
+    ),
+    maxAudioTrackBytes: optionalIntegerEnv(
+      "CINEJELLY_MAX_AUDIO_TRACK_BYTES",
+      env,
+      DEFAULT_MAX_AUDIO_TRACK_BYTES
     )
   };
 }

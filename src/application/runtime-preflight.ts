@@ -45,6 +45,7 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_MAX_AUDIO_TRACKS", this.env.CINEJELLY_MAX_AUDIO_TRACKS),
       this.optionalPositiveInteger("CINEJELLY_MAX_METADATA_ENTRIES", this.env.CINEJELLY_MAX_METADATA_ENTRIES),
       this.optionalPositiveInteger("CINEJELLY_MAX_RENDERED_CLIP_BYTES", this.env.CINEJELLY_MAX_RENDERED_CLIP_BYTES),
+      this.optionalPositiveInteger("CINEJELLY_MAX_AUDIO_TRACK_BYTES", this.env.CINEJELLY_MAX_AUDIO_TRACK_BYTES),
       this.optionalNonNegativeNumber("CINEJELLY_RENDER_COST_USD_PER_SECOND", this.env.CINEJELLY_RENDER_COST_USD_PER_SECOND),
       this.optionalNonNegativeNumber("CINEJELLY_ASSET_REGISTRATION_COST_USD", this.env.CINEJELLY_ASSET_REGISTRATION_COST_USD),
       this.optionalNonNegativeNumber("CINEJELLY_LLM_PLAN_COST_USD", this.env.CINEJELLY_LLM_PLAN_COST_USD),

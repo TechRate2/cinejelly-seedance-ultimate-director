@@ -148,6 +148,7 @@ export class RenderRequestAdmission {
       const track = this.objectPayload(item, `audioTracks[${index}] must be an object.`);
       this.assertBoundedString(track.trackId, `audioTracks[${index}].trackId`, 160, true);
       this.assertBoundedString(track.sourceUrlOrPath, `audioTracks[${index}].sourceUrlOrPath`, 4096, true);
+      this.assertHttpsMediaUrl(track.sourceUrlOrPath, `audioTracks[${index}].sourceUrlOrPath`);
       this.assertNonNegativeNumber(track.volume, `audioTracks[${index}].volume`);
       if (typeof track.volume === "number" && track.volume > 2) {
         throw new RenderRequestAdmissionError(`audioTracks[${index}].volume cannot exceed 2.`);
@@ -157,6 +158,24 @@ export class RenderRequestAdmission {
 
   private assertOptionalPath(value: unknown, fieldName: string): void {
     this.assertBoundedString(value, fieldName, 512, false);
+  }
+
+  private assertHttpsMediaUrl(value: unknown, fieldName: string): void {
+    if (typeof value !== "string") {
+      throw new RenderRequestAdmissionError(`${fieldName} must be a string.`);
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new RenderRequestAdmissionError(`${fieldName} must be a valid HTTPS URL.`);
+    }
+    if (parsed.protocol !== "https:") {
+      throw new RenderRequestAdmissionError(`${fieldName} must use https.`);
+    }
+    if (parsed.username || parsed.password) {
+      throw new RenderRequestAdmissionError(`${fieldName} must not include embedded credentials.`);
+    }
   }
 
   private assertBoundedString(value: unknown, fieldName: string, maxLength: number, required: boolean): void {

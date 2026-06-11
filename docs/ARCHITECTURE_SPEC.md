@@ -281,7 +281,9 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 Assembly materialization:
 
 - Provider output URLs are streamed to local work files instead of buffered fully in memory.
+- Remote clip and public API audio track URLs must use HTTPS and must not embed credentials before materialization.
 - Each rendered clip download is bounded by deployment configuration so long-form jobs cannot consume unbounded memory or disk.
+- Each remote audio track download is separately bounded by deployment configuration so postproduction mix inputs cannot consume unbounded memory or disk.
 - Completed downloads are moved into place only after the full file has been received, keeping FFmpeg inputs deterministic.
 
 API execution modes:
@@ -290,6 +292,7 @@ API execution modes:
 - Credit-spending render submission endpoints are rate limited before request body parsing, runtime creation, job queue occupancy, or provider spend.
 - Credit-spending render submission endpoints require a JSON media type before request body parsing; unsupported media types return 415.
 - Render requests pass admission control before runtime creation, LLM planning, job queue occupancy, or provider spend.
+- Public render requests may include audio tracks only from credential-free HTTPS URLs; local audio file sources are reserved for internal engine wiring.
 - Atlas Cloud API and Asset Library endpoint overrides must be credential-free HTTPS URLs with no query strings or fragments; runtime configuration and `/v1/preflight` reject unsafe URLs before credentials or provider payloads can be used.
 - Runtime numeric environment controls must be plain base-10 integer or decimal strings; the configuration loader and `/v1/preflight` reject partial parses such as unit suffixes before traffic reaches provider spend.
 - Every API request creates or accepts a sanitized `X-CineJelly-Request-Id`/`X-Request-Id`; responses include `requestId`, and the normalized request propagates it into LLM/Seedance metadata, render job summaries, Production Graph project metadata, and durable success/failure artifacts.

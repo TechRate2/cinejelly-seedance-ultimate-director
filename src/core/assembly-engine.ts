@@ -18,6 +18,7 @@ import { createStableId } from "../utils/ids.js";
 import { runProcess } from "../utils/process.js";
 
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
+const NON_NEGATIVE_INTEGER_PATTERN = /^(?:0|[1-9]\d*)$/;
 
 export class AssemblyEngine {
   private readonly postproductionEngine: PostproductionEngine;
@@ -35,12 +36,15 @@ export class AssemblyEngine {
       readonly audioMixEngine?: AudioMixEngine;
       readonly transitionEngine?: TransitionEngine;
       readonly maxRenderedClipBytes?: number;
+      readonly maxAudioTrackBytes?: number;
     } = {}
   ) {
     this.postproductionEngine = input.postproductionEngine ?? new PostproductionEngine();
     this.mediaInspector = input.mediaInspector ?? new MediaInspector();
     this.captionEngine = input.captionEngine ?? new CaptionEngine();
-    this.audioMixEngine = input.audioMixEngine ?? new AudioMixEngine();
+    this.audioMixEngine = input.audioMixEngine ?? new AudioMixEngine(
+      input.maxAudioTrackBytes === undefined ? {} : { maxAudioTrackBytes: input.maxAudioTrackBytes }
+    );
     this.transitionEngine = input.transitionEngine ?? new TransitionEngine(this.mediaInspector);
     this.maxRenderedClipBytes = Math.max(1, input.maxRenderedClipBytes ?? DEFAULT_MAX_RENDERED_CLIP_BYTES);
   }
@@ -188,11 +192,14 @@ export class AssemblyEngine {
     clip: AssemblyClip,
     signal?: AbortSignal
   ): Promise<string> {
-    const extension = this.safeExtension(clip.sourceUrlOrPath);
+    const remoteUrl = this.isRemoteUrl(clip.sourceUrlOrPath)
+      ? this.validateRemoteMediaUrl(clip.sourceUrlOrPath, `Rendered clip ${clip.clipId}`)
+      : undefined;
+    const extension = this.safeExtension(remoteUrl ?? clip.sourceUrlOrPath);
     const targetPath = join(workDirectory, `${projectId}_${clip.order}_${createStableId("clip", clip.clipId)}${extension}`);
 
-    if (this.isRemoteUrl(clip.sourceUrlOrPath)) {
-      await this.downloadRemoteClip(clip, targetPath, signal);
+    if (remoteUrl) {
+      await this.downloadRemoteClip(clip, remoteUrl, targetPath, signal);
       return targetPath;
     }
 
@@ -205,10 +212,11 @@ export class AssemblyEngine {
 
   private async downloadRemoteClip(
     clip: AssemblyClip,
+    sourceUrl: URL,
     targetPath: string,
     signal?: AbortSignal
   ): Promise<void> {
-    const response = await fetch(clip.sourceUrlOrPath, signal ? { signal } : undefined);
+    const response = await fetch(sourceUrl, signal ? { signal } : undefined);
     if (!response.ok) {
       throw new Error(`Failed to download rendered clip ${clip.clipId}: HTTP ${response.status}`);
     }
@@ -281,8 +289,25 @@ export class AssemblyEngine {
     return /^https?:\/\//i.test(value);
   }
 
-  private safeExtension(source: string): string {
-    const parsedExtension = extname(this.isRemoteUrl(source) ? new URL(source).pathname : basename(source)).toLowerCase();
+  private validateRemoteMediaUrl(value: string, label: string): URL {
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new Error(`${label} URL must be a valid HTTPS URL.`);
+    }
+    if (parsed.protocol !== "https:") {
+      throw new Error(`${label} URL must use https.`);
+    }
+    if (parsed.username || parsed.password) {
+      throw new Error(`${label} URL must not include embedded credentials.`);
+    }
+    return parsed;
+  }
+
+  private safeExtension(source: string | URL): string {
+    const sourcePath = source instanceof URL ? source.pathname : basename(source);
+    const parsedExtension = extname(sourcePath).toLowerCase();
     return parsedExtension || ".mp4";
   }
 
@@ -290,8 +315,12 @@ export class AssemblyEngine {
     if (!value) {
       return undefined;
     }
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed < 0 || String(parsed) !== value.trim()) {
+    const trimmed = value.trim();
+    if (!NON_NEGATIVE_INTEGER_PATTERN.test(trimmed)) {
+      throw new Error("Rendered clip response has an invalid content-length header.");
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isSafeInteger(parsed) || parsed < 0) {
       throw new Error("Rendered clip response has an invalid content-length header.");
     }
     return parsed;
