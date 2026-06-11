@@ -52,6 +52,7 @@ export interface RenderJobSummary {
   readonly hasResult: boolean;
   readonly hasCostLedger: boolean;
   readonly hasArtifacts: boolean;
+  readonly hasError: boolean;
   readonly error?: unknown;
   readonly costLedger?: readonly CostLedgerEntry[];
   readonly artifacts?: ApiProjectArtifactBundle;
@@ -73,7 +74,7 @@ export interface RenderJobSubmission {
   readonly idempotentReplay: boolean;
 }
 
-interface RenderJobRecord extends Omit<RenderJobSummary, "artifacts"> {
+interface RenderJobRecord extends Omit<RenderJobSummary, "artifacts" | "hasError"> {
   readonly artifactDirectory: string;
   readonly artifacts?: ProjectArtifactBundle;
   readonly request: CineJellyProjectRequest;
@@ -452,7 +453,8 @@ export class RenderJobManager {
       hasResult: Boolean(result),
       hasCostLedger: Boolean(costLedger),
       hasArtifacts: Boolean(artifacts),
-      ...(error !== undefined ? { error } : {}),
+      hasError: error !== undefined,
+      ...(options.includeDetails && error !== undefined ? { error } : {}),
       ...(options.includeDetails && costLedger ? { costLedger } : {}),
       ...(options.includeDetails && artifacts ? { artifacts: toApiProjectArtifactBundle(artifacts) } : {}),
       ...(options.includeDetails && result ? { result } : {})
