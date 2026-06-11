@@ -59,10 +59,33 @@ git subtree add --prefix=external/upstream/seedance-2.0 https://github.com/Emily
 1. Add or refresh the upstream repository under `external/upstream/` with Git Subtree and `--squash`.
 2. Review the upstream license, notices, README attribution requirements, and nested third-party license files.
 3. Identify useful documents, structures, patterns, schemas, prompts, agent roles, graph logic, quality gates, or implementation logic.
-4. Copy or adapt the useful pieces into CineJelly-owned `docs/`, `data/`, or `src/` paths.
-5. Rename and reshape copied/adapted parts so they fit CineJelly product boundaries, provider abstractions, and commercial workflows.
-6. Preserve license notices and source attribution where required.
-7. Update `docs/CREDITS.md` and `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` when a copied/adapted component becomes part of the product direction.
+4. For important behavior, create a Reference Implementation using `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` before writing production code.
+5. Copy or adapt the useful pieces into CineJelly-owned `docs/`, `data/`, or `src/` paths.
+6. Rename and reshape copied/adapted parts so they fit CineJelly product boundaries, provider abstractions, and commercial workflows.
+7. Preserve license notices and source attribution where required.
+8. Update `docs/CREDITS.md` and `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` when a copied/adapted component becomes part of the product direction.
+
+## Faithful Logic Translation
+
+CineJelly wants high fidelity to useful upstream behavior, especially edge cases, ordering, weighting, fallback rules, and repair strategy. That fidelity must be achieved through deliberate translation into CineJelly-owned production modules, not through direct runtime dependency on upstream snapshots.
+
+Use the full process in `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` when translating logic that affects:
+
+- provider request compilation, polling, retry, fallback, error normalization, or cost tracking
+- prompt ordering, reference binding, prompt weighting, negative constraints, or repair prompts
+- long-form chunking, storyboard segmentation, dependency scheduling, or shot planning
+- consistency scoring, candidate ranking, render inspection, delivery gates, or repair-only regeneration
+- material sourcing, task progress, batch generation, subtitles, TTS, BGM, or source-video analysis
+
+The required flow for important logic is:
+
+```text
+Deep Analysis -> Reference Implementation -> Fidelity Review -> CineJelly Rewriting -> Integration -> Validation
+```
+
+A Reference Implementation is a non-production fidelity aid. It can be pseudocode, a source-to-product mapping table, an algorithm note, or an edge-case checklist under `docs/`. It must not be imported by production code. Production behavior belongs in `src/` as new or substantially adapted CineJelly TypeScript.
+
+Reference Implementations should record the upstream repository, snapshot path, source files, license, behavior preserved, behavior changed, acceptance criteria, and attribution destination. This gives engineers permission to preserve behavior closely while keeping source provenance and commercial boundaries clear.
 
 ## Use Of `external/`
 
@@ -83,6 +106,13 @@ The project explicitly allows these movements:
 - CC BY prompt or documentation material into `docs/` or `data/` with required attribution and product review.
 - AGPL material into architecture notes, product planning, or implementation only when the product accepts the AGPL obligations or legal review approves the reuse path.
 
+Faithful Logic Translation is allowed and encouraged when the license path supports it. The implementation route depends on the source:
+
+- MIT sources: compatible implementation logic may be translated or adapted into `src/` with required notices and attribution. Large unchanged file drops are still not the preferred product path.
+- CC BY sources: prompt text and documentation may be copied or adapted with attribution and product review; generalized prompt anatomy can be translated into CineJelly-owned prompt structures.
+- AGPL sources: architecture and behavior can be studied; direct implementation reuse requires accepting AGPL obligations or a legal approval path. Without that path, use clean CineJelly rewriting from behavioral notes.
+- No-license sources: keep protected expression in the snapshot/audit layer unless permission or a compatible reuse path is clarified. Use only high-level learning, evaluation vocabulary, or original CineJelly implementation decisions.
+
 ## Attribution Requirements
 
 Every material copy/adaptation should record:
@@ -102,9 +132,12 @@ Attribution can live in `docs/CREDITS.md`, `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`, 
 
 1. Inspect the upstream snapshot.
 2. Decide which pattern, data shape, algorithm, or workflow is useful.
-3. Design the CineJelly version around existing product contracts.
-4. Write or refactor CineJelly-owned TypeScript modules under `src/`.
-5. Preserve attribution and license notices when the implementation materially follows a source.
+3. Create a Reference Implementation for behavior-critical logic.
+4. Design the CineJelly version around existing product contracts.
+5. Write or refactor CineJelly-owned TypeScript modules under `src/`.
+6. Preserve attribution and license notices when the implementation materially follows a source.
+
+Production code must never import from `external/upstream/`. If a module needs source-derived behavior, translate it into the matching CineJelly layer first: `src/providers`, `src/prompt_compiler`, `src/core`, `src/agents`, `src/application`, or `src/types`.
 
 ## License Discipline
 

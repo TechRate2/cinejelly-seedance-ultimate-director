@@ -233,6 +233,7 @@ These were discovered during source review and are not primary sources for this 
 - Copy or adapt documentation, patterns, structures, data, and compatible code into `docs/`, `data/`, or `src/` when the license permits the intended commercial product use.
 - Code moved into `src/` must become CineJelly-owned implementation: new or substantially adapted product code, not unchanged large upstream files.
 - Production code must not import directly from `external/upstream/`.
+- Behavior-critical logic should use the Faithful Logic Translation process: source analysis, non-production Reference Implementation, fidelity review, CineJelly-owned rewrite, integration, and validation.
 - Public prompt examples used as bundled product content require license review, attribution, and a clear reason to include exact text rather than a distilled pattern.
 - AGPL implementation reuse from OpenMontage requires acceptance of the AGPL obligations, legal approval, or a product decision to reimplement the pattern in CineJelly-owned code.
 - Do not claim exact model IDs, pricing, or limits unless they are verified against the current Atlas Cloud schema or a dated provider source.

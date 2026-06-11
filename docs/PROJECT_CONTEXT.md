@@ -33,6 +33,7 @@ The target long-form range is 2 to 8 minutes with high consistency.
 - Keep `external/upstream/` as Git Subtree source snapshots; productized behavior must move into CineJelly-owned `src/`, `data/`, or `docs/` with attribution.
 - Production code must not import directly from `external/upstream/`.
 - Code under `src/` must be new or substantially adapted CineJelly implementation, not unchanged large upstream files.
+- For behavior-critical source-derived logic, use Faithful Logic Translation before production code: Deep Analysis, Reference Implementation, Fidelity Review, CineJelly Rewriting, Integration, and Validation.
 
 ## Architecture In One Screen
 
@@ -80,12 +81,15 @@ flowchart LR
 
 Local upstream snapshots are stored under `external/upstream/` and governed by `docs/SUBTREE_POLICY.md` plus `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`.
 
+Faithful Logic Translation is the required path for high-fidelity implementation of important upstream behavior. The goal is to preserve useful logic details such as ordering, weighting, edge cases, fallback decisions, and repair strategy while rewriting the production module as CineJelly-owned TypeScript. The Reference Implementation step is a non-production bridge under `docs/`; it must not be imported by runtime code.
+
 ## Detailed Docs Map
 
 - `docs/ARCHITECTURE_SPEC.md`: full system architecture and agent responsibilities.
 - `docs/CREDITS.md`: attribution, license cautions, and source boundaries.
 - `docs/SUBTREE_POLICY.md`: Git Subtree workflow, `--squash` requirement, and copy/adapt rules.
 - `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: subtree inventory, license status, source-fidelity policy, and reuse boundaries.
+- `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`: six-step process for translating source behavior into CineJelly-owned production logic.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive niche prompt compiler.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: QA, inspection, and repair system.
@@ -95,6 +99,8 @@ Local upstream snapshots are stored under `external/upstream/` and governed by `
 ## Current Repo State
 
 The repo contains architecture/design documentation, upstream Git Subtree snapshots, and a production TypeScript implementation for the first commercial pipeline. The implementation is CineJelly-owned product code adapted from credited source snapshots where useful; external snapshots are not live dependencies, direct production imports from `external/upstream/` are disallowed, and bundled prompt corpora or upstream implementation logic require the license review path described in `docs/SUBTREE_POLICY.md`.
+
+The current foundation is ready for the next wave of high-fidelity source translation. Before changing behavior-critical modules, create or update a Reference Implementation using `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`, then rewrite the behavior into the appropriate CineJelly layer under `src/`.
 
 Current production folders:
 
@@ -116,6 +122,7 @@ Implementation status:
 
 - `docs/` contains the architecture and design source of truth.
 - `src/core/material-sourcing-planner.ts` implements the first MoneyPrinterTurbo-inspired material sourcing foundation as CineJelly-owned TypeScript; future work can connect it to material-source adapters, task-stage evidence, and batch candidate modules.
+- `src/core/source-logic-translation-ledger.ts` and `src/types/source-translation.ts` provide a lightweight production contract for recording source-derived logic lineage, Reference Implementation paths, license state, preserved behavior, changed behavior, destination modules, and validation status without importing upstream snapshots.
 - `src/providers` implements provider-neutral contracts, provider-neutral capability validation, an Atlas Cloud default provider, robust structured LLM JSON parsing, async polling, Asset Library operations, error normalization with redacted non-JSON HTTP diagnostics, retryable Atlas timeout/abort ProviderError normalization with redacted reason details, bounded Atlas JSON metadata response parsing, configurable Seedance capabilities, nested Atlas prediction output URL extraction, and cost ledger tracking with prediction IDs, provider-returned cost metadata when available, actual retry counts for retryable Atlas HTTP calls, and graph/model context for prediction polling.
 - `src/prompt_compiler` implements the Seedance prompt compiler, role-based reference binding, negative constraints, and repair hints.
 - `src/core` implements Production Graph building with validated `reference_asset` lineage nodes, source-video analysis lineage on project nodes, storyboard panel and storyboard preflight nodes, Production Graph run evidence recording for test-take/selected/rejected/repair render candidates, clip inspections, deliverables, configurable render cost gating with quality-mode test-take, candidate, and repair multipliers, smart chunking, dependency-aware render scheduling, shot planning, deterministic storyboard planning, continuity ledger generation for Character/Style bibles, Consistency Guardian storyboard/preflight/test-take/render inspection, FFmpeg assembly, bounded HTTPS streaming materialization of remote provider clips and remote audio tracks, bounded FFmpeg/FFprobe process output capture, smooth transition assembly, selected-resolution and selected-aspect-ratio postproduction scaling, final video byte-size and SHA-256 integrity recording, FFprobe inspection, deterministic delivery gate validation for selected resolution and non-adaptive aspect ratio, frame sampling, postproduction polish, captions, audio mix automation, semantic visual inspection through the configured Atlas LLM provider, review packet generation for commercial handoff including source-video analysis counts, and deterministic success/failure project artifact persistence including `source-video-analysis.json` when present.
@@ -149,6 +156,7 @@ Source-traceable means:
 
 - design decisions are traceable to credited repos/articles and local subtree snapshots
 - copied/adapted patterns, docs, structures, and logic are named and attributed
+- behavior-critical translations have a Reference Implementation or source map before production rewriting
 - provider claims are checked against current Atlas Cloud docs/schema when they affect runtime behavior
 - long-form quality logic combines ideas from ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, Emily2040/seedance-2.0, and Atlas Cloud without pretending unimplemented systems are already fully integrated
 
@@ -173,3 +181,11 @@ Not allowed in production runtime:
 - copying large upstream implementation files unchanged into `src/`
 
 If the product needs 100% behavior parity with a source repo, create a dedicated implementation plan that maps each upstream capability to a CineJelly production feature, license status, provider dependency, acceptance criteria, and verification method. Public source visibility is not enough; license status controls commercial reuse.
+
+For priority implementation work, translate source behavior in this order:
+
+1. Model Provider Abstraction edge cases: Atlas request compilation, polling, retry/fallback, error normalization, cancellation, and cost ledger details.
+2. Prompt Compiler fidelity: Emily2040 plus YouMind reference roles, prompt ordering, weights, negative constraints, and repair prompts.
+3. Production Graph and Shot Planner: ViMax, VibeFrame, and VideoAgent long-form segmentation, dependency ordering, source-video analysis boundaries, and deterministic artifacts.
+4. Consistency Guardian: ViMax, VibeFrame, DirectorBench, and OpenMontage-style checkpoints, candidate selection, approval gates, self-review, and repair-only regeneration.
+5. Material and batch workflow: MoneyPrinterTurbo staged pipeline, material sourcing, task progress, subtitles/TTS/BGM, and batch output lifecycle.

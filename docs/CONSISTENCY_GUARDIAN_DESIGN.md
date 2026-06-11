@@ -14,6 +14,8 @@ Consistency Guardian is the quality and continuity subsystem that makes CineJell
 - OpenMontage for ffprobe validation, frame sampling, audio level analysis, subtitle checks, provider scoring, and delivery promise validation.
 - MoneyPrinterTurbo for staged audio/subtitle/material/final-video generation, batch output selection, and task-progress observability patterns.
 
+Faithful translation note: when candidate ranking, consistency checkpoints, approval gates, self-review, delivery validation, or repair-only regeneration is translated from an upstream snapshot, create a Reference Implementation using `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` before changing production code.
+
 ## Operating Principle
 
 The Guardian never acts on vague quality impressions alone. It compares generated artifacts against graph contracts and produces actionable repair decisions.

@@ -64,13 +64,16 @@ The snapshot workflow is:
 1. Capture or refresh the upstream repository under `external/upstream/` with Git Subtree.
 2. Review the snapshot license, notices, and any nested third-party license files.
 3. Identify reusable documents, prompt structures, agent roles, graph patterns, provider workflows, quality gates, schemas, or implementation logic.
-4. Copy or adapt the useful pieces into CineJelly-owned `docs/`, `data/`, and `src/` paths.
-5. Record the origin, local snapshot path, and CineJelly-specific extension in the relevant design doc or attribution file.
-6. Keep production imports and public packaging based on CineJelly-owned modules. Production code must not import directly from `external/upstream/`.
+4. For behavior-critical logic, create a non-production Reference Implementation using `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`.
+5. Copy or adapt the useful pieces into CineJelly-owned `docs/`, `data/`, and `src/` paths.
+6. Record the origin, local snapshot path, and CineJelly-specific extension in the relevant design doc or attribution file.
+7. Keep production imports and public packaging based on CineJelly-owned modules. Production code must not import directly from `external/upstream/`.
 
 This lets the product combine the best parts of Emily2040/seedance-2.0, YouMind-OpenLab/awesome-seedance-2-prompts, HKUDS/ViMax, vericontext/vibeframe, HKUDS/VideoAgent, calesthio/OpenMontage, and harry0703/MoneyPrinterTurbo while remaining an autonomous CineJelly commercial system.
 
 When a source pattern moves from `external/` into `src/`, the implementation must be written as CineJelly-owned TypeScript that fits existing provider, graph, agent, and runtime contracts. Engineers should not copy large upstream files wholesale into `src/`; they should extract the useful behavior, redesign it for CineJelly, preserve attribution, and develop it further.
+
+Faithful Logic Translation is required when source fidelity matters for ordering, weighting, edge cases, provider fallback, long-form chunking, candidate selection, or repair strategy. The Reference Implementation captures the original behavior and license boundary; the production module then rewrites that behavior into CineJelly-owned code.
 
 ## Product Objective
 

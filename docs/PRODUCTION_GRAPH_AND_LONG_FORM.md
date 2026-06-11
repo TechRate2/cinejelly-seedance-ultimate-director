@@ -14,6 +14,8 @@ This document defines how CineJelly creates coherent 2 to 8 minute videos from a
 - MoneyPrinterTurbo Git Subtree snapshot for end-to-end script/material/audio/subtitle/final-video stages, task progress, batch outputs, local/stock material sourcing, and API/CLI/WebUI operator surfaces.
 - Atlas Cloud Seedance docs for clip duration, multimodal references, asset registration, async prediction, and resolution settings.
 
+Faithful translation note: when long-form segmentation, storyboard ordering, dependency scheduling, reference selection, material sourcing, task progress, or batch output lifecycle is translated from an upstream snapshot, create a Reference Implementation using `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` before changing production code.
+
 ## Why a Production Graph
 
 Long-form video fails when the system treats the whole job as one prompt. A graph gives CineJelly:

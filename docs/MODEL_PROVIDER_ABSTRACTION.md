@@ -20,6 +20,7 @@ Snapshot integration note:
 - Provider architecture can copy/adapt useful routing, costing, reporting, and validation patterns from upstream snapshots.
 - Production provider code must remain CineJelly-owned TypeScript under `src/providers`.
 - Production provider code must not import directly from `external/upstream/`.
+- Behavior-critical provider logic such as request compilation, fallback, polling, retry classification, cost recording, or queue admission must follow `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` when translated from upstream snapshots.
 - MoneyPrinterTurbo's many-provider LLM surface is useful for fallback thinking, but CineJelly keeps Atlas Cloud as the default provider for both LLM reasoning and Seedance 2.0 rendering.
 
 ## Design Goal

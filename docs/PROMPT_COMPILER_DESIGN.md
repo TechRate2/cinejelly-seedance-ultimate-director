@@ -13,6 +13,8 @@ The Prompt Compiler turns a Production Graph shot contract into a provider-ready
 - DirectorBench for checkpoint-level quality dimensions that inform prompt repair.
 - MoneyPrinterTurbo Git Subtree snapshot for script-first generation, search-term extraction, stage-specific execution, and batch candidate output patterns.
 
+Faithful translation note: when prompt ordering, reference weighting, negative constraints, repair prompt strategy, or material/search-term extraction is translated from an upstream snapshot, create a Reference Implementation using `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` before changing production code.
+
 ## Source-Derived Principles
 
 1. Direct the model, do not micromanage every pixel.

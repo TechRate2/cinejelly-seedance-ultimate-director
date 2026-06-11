@@ -8,7 +8,7 @@ The repository contains the first production TypeScript foundation:
 
 - Atlas Cloud is the default provider target for both LLM reasoning and Seedance 2.0 rendering.
 - The provider layer, robust structured LLM parsing, Reference Librarian validation and graph lineage, Atlas Asset Library reference registration, configurable render cost gating, prompt compiler, Production Graph planning and run-recording, continuity ledger generation, Consistency Guardian, director orchestration, assembly/postproduction engines, and production HTTP API are implemented under `src/`.
-- Local Git Subtree snapshots of upstream projects are stored under `external/upstream/` for source-fidelity review, copy/adaptation, and product integration. Productized behavior should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution instead of depending on live upstream availability or importing directly from snapshots.
+- Local Git Subtree snapshots of upstream projects are stored under `external/upstream/` for source-fidelity review, copy/adaptation, and product integration. Productized behavior should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution instead of depending on live upstream availability or importing directly from snapshots. Behavior-critical source logic should follow Faithful Logic Translation before production rewriting.
 - Quality mode now drives actual render behavior: Economy/Standard/High/Ultimate produce one to four Seedance candidates per shot, authorize zero to three targeted repair attempts, the Consistency Guardian selects the best candidate, and the Production Graph records selected, rejected, and repair candidate evidence.
 - The HTTP API now creates or accepts a sanitized request correlation ID and propagates it through JSON responses, render job summaries, provider metadata, Production Graph project metadata, and success/failure artifacts.
 - The API propagates client disconnects and deployment shutdown signals into active render work so request-bound orchestration, provider calls, polling, assembly, and postproduction stop as early as the selected provider path allows.
@@ -104,6 +104,7 @@ cinejelly-seedance-ultimate-director/
 - `docs/CREDITS.md`: attribution, source boundaries, and license cautions.
 - `docs/SUBTREE_POLICY.md`: Git Subtree workflow, required `--squash` usage, and copy/adapt policy.
 - `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: local subtree inventory, license status, and reuse boundaries.
+- `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`: source-to-product fidelity process for behavior-critical logic.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive Seedance prompt compiler design.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph and chunking strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: quality, continuity, inspection, and repair design.
