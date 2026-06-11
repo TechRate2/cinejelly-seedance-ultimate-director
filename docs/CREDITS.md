@@ -8,12 +8,14 @@ This document records the public projects, papers, and articles used to design C
 
 - Path reviewed: `C:\Users\Administrator\Desktop\topview v3`
 - Result: the workspace was empty and not a git repository before the production directory structure and these documents were created.
+- Current source-fidelity snapshots are stored under `external/upstream/`; see `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` for local paths, license evidence, and runtime no-copy boundaries.
 
 ## Primary Architecture References
 
 ### Emily2040/seedance-2.0
 
 - URL: https://github.com/Emily2040/seedance-2.0
+- Local snapshot: `external/upstream/seedance-2.0`
 - License shown in repo: MIT.
 - Used for: intent-first Seedance workflow, role-based reference mapping, prompt routing, professional filmmaker artifacts, safety/copyright rewrites, troubleshooting levers, delivery/QC thinking, dated source claims.
 - Source-derived patterns adopted:
@@ -28,7 +30,8 @@ This document records the public projects, papers, and articles used to design C
 ### YouMind-OpenLab/awesome-seedance-2-prompts
 
 - URL: https://github.com/YouMind-OpenLab/awesome-seedance-2-prompts
-- License shown in repo: CC BY 4.0 badge in README; repository includes a copyright notice that prompts are collected from the community for educational purposes.
+- Local snapshot: `external/upstream/awesome-seedance-2-prompts`
+- License shown in repo: CC BY 4.0 license file and README attribution guidance; repository includes community prompt material.
 - Used for: prompt pattern mining only.
 - Source-derived patterns adopted:
   - High-performing prompts often include time ranges, shot numbers, camera movements, identity consistency constraints, character micro-expression, environment, audio, dialogue, sound effects, and negative quality constraints.
@@ -42,6 +45,7 @@ This document records the public projects, papers, and articles used to design C
 ### HKUDS/ViMax
 
 - URL: https://github.com/HKUDS/ViMax
+- Local snapshot: `external/upstream/vimax`
 - License shown in repo listing: MIT.
 - Used for: multi-agent long-form video architecture.
 - Source-derived patterns adopted:
@@ -58,6 +62,7 @@ This document records the public projects, papers, and articles used to design C
 ### vericontext/vibeframe
 
 - URL: https://github.com/vericontext/vibeframe
+- Local snapshot: `external/upstream/vibeframe`
 - License shown in repo: MIT.
 - Used for: CLI-first, deterministic artifact, cost, report, and repair patterns.
 - Source-derived patterns adopted:
@@ -71,6 +76,8 @@ This document records the public projects, papers, and articles used to design C
 ### DirectorBench
 
 - URL: https://arxiv.org/html/2605.30090v1
+- Code/data snapshot: `external/upstream/directorbench` from https://github.com/jiaminchen-1031/DirectorBench
+- License shown in local snapshot: no top-level license file found; keep repository content reference-only until permission is clarified.
 - Used for: long-form quality diagnosis.
 - Source-derived patterns adopted:
   - Evaluate long-form video across script, visual, audio, cross-modal, and stability dimensions.
@@ -83,7 +90,8 @@ This document records the public projects, papers, and articles used to design C
 ### HKUDS/VideoAgent
 
 - URL: https://github.com/HKUDS/VideoAgent
-- License shown in repo: MIT.
+- Local snapshot: `external/upstream/videoagent`
+- License shown in repo: MIT at the top level; nested tool folders include additional licenses that require separate review before reuse.
 - Used for: video understanding, editing, remaking, and intent-to-tool workflow planning.
 - Source-derived patterns adopted:
   - Analyze both explicit and implicit user sub-intents.
@@ -96,6 +104,7 @@ This document records the public projects, papers, and articles used to design C
 ### OpenMontage
 
 - URL: https://github.com/calesthio/OpenMontage
+- Local snapshot: `external/upstream/openmontage`
 - License shown in repo: GNU AGPLv3.
 - Used for: commercial-grade production orchestration ideas.
 - Source-derived patterns adopted:
@@ -206,4 +215,4 @@ These were discovered during source review and are not primary sources for this 
 - Do not copy AGPL implementation code from OpenMontage into proprietary code.
 - Do not claim exact model IDs, pricing, or limits unless they are verified against the current Atlas Cloud schema or a dated provider source.
 - Store source URLs and last-checked dates in future production config or provider metadata.
-
+- Use `external/upstream/` snapshots to verify source-derived claims, but keep production implementation in `src/` original unless license review explicitly permits reuse.

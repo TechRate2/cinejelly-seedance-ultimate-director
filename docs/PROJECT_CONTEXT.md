@@ -23,13 +23,14 @@ The target long-form range is 2 to 8 minutes with high consistency.
 ## Non-Negotiable Rules
 
 - Production-grade only.
-- No test/mock/demo/sample/example files.
+- No CineJelly-owned test/mock/demo/sample/example files in the production runtime. Upstream snapshots may contain original upstream development files under `external/upstream/`, but they are isolated reference material.
 - Never commit `.env`, API keys, tokens, private keys, credentials, or generated customer media.
 - Atlas Cloud is the default provider.
 - Use a Model Provider Abstraction so future providers such as Kie.ai, fal.ai, Runway, Replicate, or direct Volcengine can be added later.
 - Do not hardcode niche templates.
 - Do not copy public prompt examples into product content.
 - Do not copy AGPL code from OpenMontage into proprietary implementation.
+- Keep `external/upstream/` as source-fidelity snapshots only; production runtime must remain original CineJelly code under `src/`.
 
 ## Architecture In One Screen
 
@@ -74,10 +75,13 @@ flowchart LR
 - OpenMontage: reference-video analysis, approval gates, provider scoring, real-footage path, self-review.
 - Atlas Cloud: default API gateway, OpenAI-compatible LLM endpoint, async media generation, Seedance 2.0 Universal Reference, Asset Library.
 
+Local upstream snapshots are stored under `external/upstream/` and governed by `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`.
+
 ## Detailed Docs Map
 
 - `docs/ARCHITECTURE_SPEC.md`: full system architecture and agent responsibilities.
 - `docs/CREDITS.md`: attribution, license cautions, and source boundaries.
+- `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: subtree inventory, license status, source-fidelity policy, and runtime no-copy boundary.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive niche prompt compiler.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: QA, inspection, and repair system.
@@ -86,7 +90,7 @@ flowchart LR
 
 ## Current Repo State
 
-The repo contains architecture/design documentation plus a production TypeScript implementation scaffold for the first commercial pipeline. The implementation is original CineJelly code inspired by the credited sources; it does not clone upstream repository code or bundled public prompt corpora.
+The repo contains architecture/design documentation, isolated upstream subtree snapshots, and a production TypeScript implementation for the first commercial pipeline. The implementation is original CineJelly code inspired by the credited sources; it does not import upstream repository code or bundled public prompt corpora into the runtime.
 
 Current production folders:
 
@@ -99,6 +103,7 @@ Current production folders:
 - `src/types`
 - `data`
 - `external`
+- `external/upstream`
 - `schemas`
 - `config`
 - `ops`
@@ -129,7 +134,7 @@ For accurate work:
 
 1. Read this file first.
 2. Read only the detailed spec relevant to the change.
-3. Re-open upstream sources only when changing provider claims, source-derived behavior, license-sensitive features, or long-form architecture assumptions.
+3. Re-open upstream sources in `external/upstream/` only when changing provider claims, source-derived behavior, license-sensitive features, or long-form architecture assumptions.
 
 ## Source Fidelity And No-Copy Boundary
 
@@ -137,17 +142,17 @@ CineJelly should be source-faithful, not source-copied.
 
 Source-faithful means:
 
-- design decisions are traceable to credited repos/articles
+- design decisions are traceable to credited repos/articles and local subtree snapshots
 - source-inspired patterns are named and attributed
 - provider claims are checked against current Atlas Cloud docs/schema when they affect runtime behavior
 - long-form quality logic follows the ideas from ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, Emily2040/seedance-2.0, and Atlas Cloud without pretending those systems are already fully cloned
 
 Not allowed:
 
-- copying entire upstream repos into this project
+- importing or copying upstream implementation from `external/upstream/` into `src/` without license review
 - copying public prompt corpora as bundled product content
 - copying AGPL OpenMontage implementation code into proprietary code without legal approval
 - claiming 100% feature parity before implementation and verification
 - using upstream names to imply endorsement
 
-If the product needs 100% behavior parity with a source repo, create a dedicated implementation plan that maps each upstream capability to a CineJelly production feature, license status, provider dependency, acceptance criteria, and verification method.
+If the product needs 100% behavior parity with a source repo, create a dedicated implementation plan that maps each upstream capability to a CineJelly production feature, license status, provider dependency, acceptance criteria, and verification method. Public source visibility is not enough; license status controls commercial reuse.
