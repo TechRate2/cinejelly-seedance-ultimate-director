@@ -3,6 +3,9 @@
  * It checks required environment configuration and local media tool availability without exposing secrets.
  */
 
+import { constants } from "node:fs";
+import { access, mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import type { PreflightCheck, PreflightStatus, RuntimePreflightReport } from "../types/preflight.js";
 import { runProcess } from "../utils/process.js";
 
@@ -38,7 +41,6 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_MAX_AUDIO_TRACKS", this.env.CINEJELLY_MAX_AUDIO_TRACKS),
       this.optionalPositiveInteger("CINEJELLY_MAX_METADATA_ENTRIES", this.env.CINEJELLY_MAX_METADATA_ENTRIES),
       this.optionalPositiveInteger("CINEJELLY_MAX_RENDERED_CLIP_BYTES", this.env.CINEJELLY_MAX_RENDERED_CLIP_BYTES),
-      this.optionalOutputDirectory("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR),
       this.optionalNonNegativeNumber("CINEJELLY_RENDER_COST_USD_PER_SECOND", this.env.CINEJELLY_RENDER_COST_USD_PER_SECOND),
       this.optionalNonNegativeNumber("CINEJELLY_ASSET_REGISTRATION_COST_USD", this.env.CINEJELLY_ASSET_REGISTRATION_COST_USD),
       this.optionalNonNegativeNumber("CINEJELLY_LLM_PLAN_COST_USD", this.env.CINEJELLY_LLM_PLAN_COST_USD),
@@ -46,6 +48,7 @@ export class RuntimePreflight {
       this.capabilityCheck(this.env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON)
     ];
 
+    checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
     checks.push(await this.commandCheck("ffmpeg", ["-version"], signal));
     checks.push(await this.commandCheck("ffprobe", ["-version"], signal));
 
@@ -148,14 +151,25 @@ export class RuntimePreflight {
     return { name, status: "pass", message: `${name} is greater than zero.` };
   }
 
-  private optionalOutputDirectory(name: string, value: string | undefined): PreflightCheck {
-    if (!value?.trim()) {
-      return { name, status: "pass", message: `${name} is not set; assets/output_deliverables will be used.` };
-    }
-    if (/[\u0000-\u001f\u007f]/.test(value)) {
+  private async outputDirectoryCheck(name: string, value: string | undefined): Promise<PreflightCheck> {
+    const configured = value?.trim();
+    if (configured && /[\u0000-\u001f\u007f]/.test(configured)) {
       return { name, status: "fail", message: `${name} must not contain control characters.` };
     }
-    return { name, status: "pass", message: `${name} is configured.` };
+    const outputDirectory = resolve(configured || "assets/output_deliverables");
+    try {
+      await mkdir(outputDirectory, { recursive: true });
+      await access(outputDirectory, constants.W_OK);
+      return configured
+        ? { name, status: "pass", message: `${name} can be prepared and written.` }
+        : { name, status: "pass", message: `${name} is not set; default output directory can be prepared and written.` };
+    } catch {
+      return {
+        name,
+        status: "fail",
+        message: `${name} must point to a directory that can be created and written by the API process.`
+      };
+    }
   }
 
   private capabilityCheck(value: string | undefined): PreflightCheck {
