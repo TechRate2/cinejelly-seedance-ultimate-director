@@ -9,6 +9,7 @@ import type { AssemblyRuntimeSettings, AtlasCloudRuntimeSettings, RuntimeSetting
 
 const DEFAULT_ATLAS_API_BASE_URL = "https://api.atlascloud.ai/v1";
 const DEFAULT_ATLAS_ASSET_BASE_URL = "https://console.atlascloud.ai/api/v1";
+const DEFAULT_ATLAS_JSON_RESPONSE_MAX_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
 const DEFAULT_MAX_AUDIO_TRACK_BYTES = 256 * 1024 * 1024;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
@@ -76,6 +77,11 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
     },
     ...(seedanceCapabilities ? { seedanceCapabilities } : {}),
     requestTimeoutMs: optionalIntegerEnv("CINEJELLY_REQUEST_TIMEOUT_MS", env, 120_000),
+    maxJsonResponseBytes: optionalIntegerEnv(
+      "CINEJELLY_ATLAS_JSON_RESPONSE_MAX_BYTES",
+      env,
+      DEFAULT_ATLAS_JSON_RESPONSE_MAX_BYTES
+    ),
     pollingIntervalMs: optionalIntegerEnv("CINEJELLY_POLLING_INTERVAL_MS", env, 5_000),
     pollingTimeoutMs: optionalIntegerEnv("CINEJELLY_POLLING_TIMEOUT_MS", env, 1_800_000)
   };

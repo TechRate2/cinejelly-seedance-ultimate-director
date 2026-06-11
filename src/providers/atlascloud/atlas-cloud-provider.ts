@@ -46,7 +46,8 @@ export class AtlasCloudProvider implements ModelProvider {
     this.ledger = ledger;
     this.http = new AtlasCloudHttpClient({
       apiKey: settings.apiKey,
-      timeoutMs: settings.requestTimeoutMs
+      timeoutMs: settings.requestTimeoutMs,
+      maxJsonResponseBytes: settings.maxJsonResponseBytes
     });
   }
 

@@ -236,6 +236,8 @@ All providers must normalize errors:
 
 Provider HTTP clients must preserve status-based classification even when a provider returns an HTML, plaintext, or otherwise non-JSON error body. Non-JSON body previews may be kept for operator diagnostics only after redaction and truncation; raw provider error bodies must not enter artifacts, API responses, or logs.
 
+Provider JSON metadata bodies must be read with a configurable byte cap before JSON parsing. The cap protects LLM, prediction, and Asset Library metadata paths from abnormal provider responses; rendered clip/audio media uses the dedicated streaming media limits instead.
+
 ## Cost Ledger
 
 Every provider call records:

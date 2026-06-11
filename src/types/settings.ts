@@ -48,6 +48,7 @@ export interface AtlasCloudRuntimeSettings {
   readonly models: ProviderModelSettings;
   readonly seedanceCapabilities?: readonly ProviderCapability[];
   readonly requestTimeoutMs: number;
+  readonly maxJsonResponseBytes: number;
   readonly pollingIntervalMs: number;
   readonly pollingTimeoutMs: number;
 }
