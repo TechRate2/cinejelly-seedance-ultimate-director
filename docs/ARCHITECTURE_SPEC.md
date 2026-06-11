@@ -296,6 +296,7 @@ API execution modes:
 - Rate-limited credit-spending requests return 429 with `Retry-After` and JSON `retryAfterSeconds`.
 - Job list status includes queue telemetry plus compact queued, running, succeeded, failed, or canceled summaries with detail-availability flags.
 - Per-job status includes queued, running, succeeded, failed, or canceled state plus redacted result, cost ledger, and artifact bundle when available.
+- Public JSON responses redact secrets and deployment-local filesystem paths, while preserving deploy-safe URI values such as `https://` reference URLs and `asset://` Atlas Asset Library references.
 - `/v1/render-jobs/{jobId}` can be canceled with `DELETE`; cancellation propagates through `AbortSignal` to provider calls, polling, assembly, and postproduction where supported.
 - Client disconnects and `SIGINT`/`SIGTERM` shutdowns propagate through request lifecycle `AbortSignal` objects so synchronous render orchestration and active async jobs stop as early as the selected provider path allows after the caller or deployment lifecycle has ended.
 - Synchronous render concurrency, queue concurrency, queued/running capacity, and retained history are process-level settings; `/v1/preflight` validates the configured concurrency/capacity and output-directory writability before customer traffic, and multi-process deployments should place a durable queue in front of the same Director Agent contract.
@@ -306,7 +307,7 @@ Failure artifact policy:
 - Failure artifacts include `failure-report.json`, `cost-ledger.json`, and `manifest.json` so blocked cost gates, render gates, delivery gates, or provider errors remain auditable.
 - Synchronous and async render failure paths capture any provider cost ledger entries recorded before the error, so partial Atlas spend remains auditable.
 - Success and failure manifests include per-file SHA-256 hashes for redacted JSON artifacts so review packets, graph snapshots, cost ledgers, and failure reports can be integrity-checked after storage or transfer.
-- API artifact bundle responses expose manifest file names, artifact entries, byte sizes, and hashes without returning server-local artifact directories or manifest paths.
+- API artifact bundle responses expose manifest file names, artifact entries, byte sizes, and hashes without returning server-local artifact directories or manifest paths; deeper result payloads also redact local output, work, media sample, and inspection paths before leaving the API boundary.
 - This is an extension based on VibeFrame/OpenMontage build and review report discipline.
 
 Review packet policy:

@@ -18,6 +18,7 @@ import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
+import { redactApiLocalPaths } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle } from "./artifact-response.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { ApiConcurrencyGate } from "./api-concurrency-gate.js";
@@ -270,7 +271,7 @@ function sendJson(
     return;
   }
   response.writeHead(statusCode, { ...headers, "Content-Type": "application/json; charset=utf-8" });
-  response.end(JSON.stringify(redactUnknown(withRequestContext(payload, requestContext))));
+  response.end(JSON.stringify(redactApiLocalPaths(redactUnknown(withRequestContext(payload, requestContext)))));
 }
 
 function readPort(value: string | undefined): number {
