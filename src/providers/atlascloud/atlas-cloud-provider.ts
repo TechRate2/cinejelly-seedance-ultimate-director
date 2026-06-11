@@ -84,11 +84,12 @@ export class AtlasCloudProvider implements ModelProvider {
       request.modelId,
       request.metadata?.graphNodeId,
       startedAt,
-      async () => {
+      async (recordRetry) => {
         const response = await withRetry(
           () => this.http.postJson<unknown>(this.url(this.settings.apiBaseUrl, "/chat/completions"), payload, signal),
           DEFAULT_RETRY_POLICY,
-          signal
+          signal,
+          recordRetry
         );
         const finishedAt = now();
         const objectResponse = response && typeof response === "object" ? (response as Record<string, unknown>) : {};
@@ -197,11 +198,12 @@ export class AtlasCloudProvider implements ModelProvider {
       undefined,
       undefined,
       startedAt,
-      async () => {
+      async (recordRetry) => {
         const response = await withRetry(
           () => this.http.getJson<unknown>(this.url(this.settings.apiBaseUrl, `/predictions/${encodeURIComponent(predictionId)}`), signal),
           DEFAULT_RETRY_POLICY,
-          signal
+          signal,
+          recordRetry
         );
         return mapPrediction(response, "unknown", startedAt);
       },
@@ -239,7 +241,7 @@ export class AtlasCloudProvider implements ModelProvider {
 
   public async registerAsset(request: AssetRegistrationRequest, signal?: AbortSignal): Promise<AssetRegistration> {
     const startedAt = now();
-    return this.trackProviderCall("asset.register", undefined, request.metadata?.graphNodeId, startedAt, async () => {
+    return this.trackProviderCall("asset.register", undefined, request.metadata?.graphNodeId, startedAt, async (recordRetry) => {
       const response = await withRetry(
         () =>
           this.http.postJson<unknown>(
@@ -252,7 +254,8 @@ export class AtlasCloudProvider implements ModelProvider {
             signal
           ),
         DEFAULT_RETRY_POLICY,
-        signal
+        signal,
+        recordRetry
       );
       return mapAssetRegistration(response);
     });
@@ -260,11 +263,12 @@ export class AtlasCloudProvider implements ModelProvider {
 
   public async getAsset(assetId: string, signal?: AbortSignal): Promise<AssetRegistration> {
     const startedAt = now();
-    return this.trackProviderCall("asset.get", undefined, undefined, startedAt, async () => {
+    return this.trackProviderCall("asset.get", undefined, undefined, startedAt, async (recordRetry) => {
       const response = await withRetry(
         () => this.http.getJson<unknown>(this.url(this.settings.assetBaseUrl, `/assets/${encodeURIComponent(assetId)}`), signal),
         DEFAULT_RETRY_POLICY,
-        signal
+        signal,
+        recordRetry
       );
       return mapAssetRegistration(response);
     });
@@ -300,11 +304,12 @@ export class AtlasCloudProvider implements ModelProvider {
 
   public async deleteAsset(assetId: string, signal?: AbortSignal): Promise<void> {
     const startedAt = now();
-    await this.trackProviderCall("asset.delete", undefined, undefined, startedAt, async () => {
+    await this.trackProviderCall("asset.delete", undefined, undefined, startedAt, async (recordRetry) => {
       await withRetry(
         () => this.http.deleteJson<unknown>(this.url(this.settings.assetBaseUrl, `/assets/${encodeURIComponent(assetId)}`), signal),
         DEFAULT_RETRY_POLICY,
-        signal
+        signal,
+        recordRetry
       );
     });
   }
@@ -323,11 +328,12 @@ export class AtlasCloudProvider implements ModelProvider {
       request.modelId,
       request.metadata?.graphNodeId,
       startedAt,
-      async () => {
+      async (recordRetry) => {
         const response = await withRetry(
           () => this.http.postJson<unknown>(this.url(this.settings.apiBaseUrl, "/predictions"), payload, signal),
           DEFAULT_RETRY_POLICY,
-          signal
+          signal,
+          recordRetry
         );
         return mapPrediction(response, request.modelId, startedAt);
       },
@@ -447,12 +453,14 @@ export class AtlasCloudProvider implements ModelProvider {
     modelId: string | undefined,
     graphNodeId: string | undefined,
     startedAt: Date,
-    callback: () => Promise<TValue>,
+    callback: (recordRetry: () => void) => Promise<TValue>,
     ledgerMetadata?: (value: TValue) => LedgerMetadata
   ): Promise<TValue> {
     let retryCount = 0;
     try {
-      const result = await callback();
+      const result = await callback(() => {
+        retryCount += 1;
+      });
       const completedAt = now();
       const metadata = ledgerMetadata?.(result);
       this.ledger?.record({

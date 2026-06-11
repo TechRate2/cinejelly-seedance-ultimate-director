@@ -13,6 +13,13 @@ export interface RetryPolicy {
   readonly backoffFactor: number;
 }
 
+export interface RetryAttempt {
+  readonly failedAttempt: number;
+  readonly nextAttempt: number;
+  readonly delayMs: number;
+  readonly error: unknown;
+}
+
 export const DEFAULT_RETRY_POLICY: RetryPolicy = {
   maxAttempts: 3,
   initialDelayMs: 500,
@@ -23,7 +30,8 @@ export const DEFAULT_RETRY_POLICY: RetryPolicy = {
 export async function withRetry<T>(
   operation: () => Promise<T>,
   policy: RetryPolicy = DEFAULT_RETRY_POLICY,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onRetry?: (attempt: RetryAttempt) => void
 ): Promise<T> {
   let attempt = 0;
   let delayMs = policy.initialDelayMs;
@@ -39,6 +47,12 @@ export async function withRetry<T>(
       if (!retryable || attempt >= policy.maxAttempts) {
         throw error;
       }
+      onRetry?.({
+        failedAttempt: attempt,
+        nextAttempt: attempt + 1,
+        delayMs,
+        error
+      });
       await sleep(delayMs, signal);
       delayMs = Math.min(policy.maxDelayMs, Math.ceil(delayMs * policy.backoffFactor));
     }

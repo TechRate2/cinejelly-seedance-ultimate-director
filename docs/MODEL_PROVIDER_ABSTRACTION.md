@@ -257,6 +257,7 @@ Runtime implementation:
 - Atlas LLM chat entries record provider-returned estimated or actual cost when the response exposes usage pricing fields.
 - Atlas video submit and prediction polling entries record prediction IDs when available.
 - Atlas video entries also record provider-returned estimated or actual cost when prediction usage includes those fields.
+- Atlas retryable LLM, video submit, prediction polling, and Asset Library HTTP calls record the actual number of retry attempts in the provider ledger.
 
 This follows VibeFrame/OpenMontage cost-gate thinking and is required for commercial operation.
 
