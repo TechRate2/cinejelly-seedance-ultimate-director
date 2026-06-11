@@ -38,7 +38,7 @@ import {
 } from "./request-context.js";
 
 const DEFAULT_PORT = 8787;
-const MAX_BODY_BYTES = 1_000_000;
+const DEFAULT_MAX_BODY_BYTES = 1_000_000;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_.:-]{8,160}$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 
@@ -57,7 +57,17 @@ class UnsupportedMediaTypeError extends Error {
   }
 }
 
+class RequestBodyTooLargeError extends Error {
+  public readonly statusCode = 413;
+
+  public constructor(maxBodyBytes: number) {
+    super(`Request body exceeds maximum size of ${maxBodyBytes} bytes.`);
+    this.name = "RequestBodyTooLargeError";
+  }
+}
+
 export function startServer(port = readPort(process.env.PORT)): void {
+  const maxBodyBytes = readPositiveInteger(process.env.CINEJELLY_API_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
   const preflight = new RuntimePreflight();
   const artifactStore = new ProjectArtifactStore();
   const requestAdmission = new RenderRequestAdmission({
@@ -133,7 +143,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
         assertJsonContentType(request);
-        const body = await readJsonBody<RenderRequestBody>(request);
+        const body = await readJsonBody<RenderRequestBody>(request, maxBodyBytes);
         requestAdmission.assertAcceptable(body);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
@@ -154,7 +164,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render") {
         assertJsonContentType(request);
-        const body = await readJsonBody<RenderRequestBody>(request);
+        const body = await readJsonBody<RenderRequestBody>(request, maxBodyBytes);
         requestAdmission.assertAcceptable(body);
         const normalizedRequest = normalizeRenderRequest(body, requestContext);
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
@@ -259,15 +269,20 @@ function resolveInsideOutputRoot(outputRoot: string, value: string, fieldName: s
   throw new RenderRequestAdmissionError(`${fieldName} must stay inside CINEJELLY_OUTPUT_DIR.`);
 }
 
-async function readJsonBody<TValue>(request: IncomingMessage): Promise<TValue> {
+async function readJsonBody<TValue>(request: IncomingMessage, maxBodyBytes: number): Promise<TValue> {
+  const declaredContentLength = readContentLength(request);
+  if (declaredContentLength !== undefined && declaredContentLength > maxBodyBytes) {
+    throw new RequestBodyTooLargeError(maxBodyBytes);
+  }
+
   const chunks: Buffer[] = [];
   let size = 0;
 
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
-    if (size > MAX_BODY_BYTES) {
-      throw new RenderRequestAdmissionError("Request body exceeds maximum size.");
+    if (size > maxBodyBytes) {
+      throw new RequestBodyTooLargeError(maxBodyBytes);
     }
     chunks.push(buffer);
   }
@@ -336,7 +351,8 @@ function errorStatusCode(error: unknown): number {
   return error instanceof RenderRequestAdmissionError ||
     error instanceof RenderJobCapacityError ||
     error instanceof RenderJobIdempotencyConflictError ||
-    error instanceof UnsupportedMediaTypeError
+    error instanceof UnsupportedMediaTypeError ||
+    error instanceof RequestBodyTooLargeError
     ? error.statusCode
     : 500;
 }
@@ -396,6 +412,15 @@ function stableJson(value: unknown): string {
 function readHeader(request: IncomingMessage, headerName: string): string | undefined {
   const value = request.headers[headerName];
   return typeof value === "string" ? value : undefined;
+}
+
+function readContentLength(request: IncomingMessage): number | undefined {
+  const value = readHeader(request, "content-length")?.trim();
+  if (!value || !/^(?:0|[1-9]\d*)$/.test(value)) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
 function assertJsonContentType(request: IncomingMessage): void {

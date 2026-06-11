@@ -292,6 +292,7 @@ API execution modes:
 - `/health` is public, while `/v1` endpoints require deployment API authentication before provider spend or run metadata access.
 - Credit-spending render submission endpoints are rate limited before request body parsing, runtime creation, job queue occupancy, or provider spend.
 - Credit-spending render submission endpoints require a JSON media type before request body parsing; unsupported media types return 415.
+- Credit-spending render submission endpoints enforce a configurable request body byte limit before JSON parsing, job queue admission, runtime creation, or provider spend; oversized bodies return 413.
 - Render requests pass admission control before runtime creation, LLM planning, job queue occupancy, or provider spend.
 - Public reference URIs must be credential-free HTTPS URLs or pre-registered `asset://` references; `http://`, embedded credentials, and credential-like query parameters are rejected before runtime/provider spend.
 - Public render requests may include audio tracks only from credential-free HTTPS URLs; local audio file sources are reserved for internal engine wiring.
