@@ -15,6 +15,7 @@ export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "c
 
 export class RenderJobCapacityError extends Error {
   public readonly statusCode = 503;
+  public readonly retryAfterSeconds = 30;
 
   public constructor(queueLimit: number) {
     super(

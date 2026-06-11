@@ -3,7 +3,13 @@
  * It exposes a small JSON API without adding framework dependencies.
  */
 
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type OutgoingHttpHeaders,
+  type Server,
+  type ServerResponse
+} from "node:http";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDirectorRuntime } from "../application/director-factory.js";
@@ -76,7 +82,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
         sendJson(response, rateLimitDecision.statusCode ?? 429, {
           error: rateLimitDecision.message ?? "Too many requests.",
           retryAfterSeconds: rateLimitDecision.retryAfterSeconds
-        }, requestContext);
+        }, requestContext, retryAfterHeaders(rateLimitDecision.retryAfterSeconds));
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/health") {
@@ -158,9 +164,11 @@ export function startServer(port = readPort(process.env.PORT)): void {
       }
       sendJson(response, 404, { error: "Not found" }, requestContext);
     } catch (error) {
+      const retryAfterSeconds = retryAfterSecondsFor(error);
       sendJson(response, errorStatusCode(error), {
-        error: redactUnknown(error instanceof Error ? error.message : String(error))
-      }, requestContext);
+        error: redactUnknown(error instanceof Error ? error.message : String(error)),
+        ...(retryAfterSeconds ? { retryAfterSeconds } : {})
+      }, requestContext, retryAfterHeaders(retryAfterSeconds));
     } finally {
       requestLifecycle.complete();
       requestLifecycle.dispose();
@@ -240,12 +248,13 @@ function sendJson(
   response: ServerResponse,
   statusCode: number,
   payload: unknown,
-  requestContext: ApiRequestContext
+  requestContext: ApiRequestContext,
+  headers: OutgoingHttpHeaders = {}
 ): void {
   if (response.destroyed) {
     return;
   }
-  response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
+  response.writeHead(statusCode, { ...headers, "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(redactUnknown(withRequestContext(payload, requestContext))));
 }
 
@@ -273,6 +282,14 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
 
 function errorStatusCode(error: unknown): number {
   return error instanceof RenderRequestAdmissionError || error instanceof RenderJobCapacityError ? error.statusCode : 500;
+}
+
+function retryAfterSecondsFor(error: unknown): number | undefined {
+  return error instanceof RenderJobCapacityError ? error.retryAfterSeconds : undefined;
+}
+
+function retryAfterHeaders(retryAfterSeconds: number | undefined): OutgoingHttpHeaders {
+  return retryAfterSeconds ? { "Retry-After": String(retryAfterSeconds) } : {};
 }
 
 function withRequestContext(payload: unknown, requestContext: ApiRequestContext): unknown {
