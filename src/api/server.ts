@@ -108,17 +108,17 @@ export function startServer(port = readPort(process.env.PORT)): void {
     attachRequestContextHeaders(response, requestContext);
     try {
       const requestUrl = new URL(request.url ?? "/", "http://localhost");
-      const authDecision = apiAuthGuard.authorize(request, requestUrl.pathname);
-      if (!authDecision.allowed) {
-        sendJson(response, authDecision.statusCode ?? 401, { error: authDecision.message ?? "Unauthorized." }, requestContext);
-        return;
-      }
       const rateLimitDecision = apiRateLimiter.check(request, requestUrl.pathname, request.method);
       if (!rateLimitDecision.allowed) {
         sendJson(response, rateLimitDecision.statusCode ?? 429, {
           error: rateLimitDecision.message ?? "Too many requests.",
           retryAfterSeconds: rateLimitDecision.retryAfterSeconds
         }, requestContext, retryAfterHeaders(rateLimitDecision.retryAfterSeconds));
+        return;
+      }
+      const authDecision = apiAuthGuard.authorize(request, requestUrl.pathname);
+      if (!authDecision.allowed) {
+        sendJson(response, authDecision.statusCode ?? 401, { error: authDecision.message ?? "Unauthorized." }, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/health") {
