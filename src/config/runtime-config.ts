@@ -10,6 +10,8 @@ import type { AssemblyRuntimeSettings, AtlasCloudRuntimeSettings, RuntimeSetting
 const DEFAULT_ATLAS_API_BASE_URL = "https://api.atlascloud.ai/v1";
 const DEFAULT_ATLAS_ASSET_BASE_URL = "https://console.atlascloud.ai/api/v1";
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
+const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
+const NON_NEGATIVE_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 
 function requireEnv(name: string, env: NodeJS.ProcessEnv): string {
   const value = env[name]?.trim();
@@ -24,8 +26,11 @@ function optionalIntegerEnv(name: string, env: NodeJS.ProcessEnv, fallback: numb
   if (!value) {
     return fallback;
   }
+  if (!POSITIVE_INTEGER_PATTERN.test(value)) {
+    throw new Error(`Environment variable ${name} must be a positive integer.`);
+  }
   const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new Error(`Environment variable ${name} must be a positive integer.`);
   }
   return parsed;
@@ -36,9 +41,12 @@ function optionalNumberEnv(name: string, env: NodeJS.ProcessEnv): number | undef
   if (!value) {
     return undefined;
   }
-  const parsed = Number.parseFloat(value);
+  if (!NON_NEGATIVE_DECIMAL_PATTERN.test(value)) {
+    throw new Error(`Environment variable ${name} must be a non-negative decimal number.`);
+  }
+  const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error(`Environment variable ${name} must be a non-negative number.`);
+    throw new Error(`Environment variable ${name} must be a non-negative decimal number.`);
   }
   return parsed;
 }

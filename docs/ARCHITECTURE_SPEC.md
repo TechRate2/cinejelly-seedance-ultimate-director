@@ -291,6 +291,7 @@ API execution modes:
 - Credit-spending render submission endpoints require a JSON media type before request body parsing; unsupported media types return 415.
 - Render requests pass admission control before runtime creation, LLM planning, job queue occupancy, or provider spend.
 - Atlas Cloud API and Asset Library endpoint overrides must be HTTPS; runtime configuration and `/v1/preflight` reject non-HTTPS URLs before credentials or provider payloads can be used.
+- Runtime numeric environment controls must be plain base-10 integer or decimal strings; the configuration loader and `/v1/preflight` reject partial parses such as unit suffixes before traffic reaches provider spend.
 - Every API request creates or accepts a sanitized `X-CineJelly-Request-Id`/`X-Request-Id`; responses include `requestId`, and the normalized request propagates it into LLM/Seedance metadata, render job summaries, Production Graph project metadata, and durable success/failure artifacts.
 - `/v1/render` runs the full pipeline synchronously for controlled callers and is protected by a process-level concurrency gate with retry hints after body parsing, admission control, and path normalization but before runtime creation or provider spend.
 - `/v1/render-jobs` submits the same normalized request into an in-process queue and returns a pollable job ID for long-form production.

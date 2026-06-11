@@ -9,6 +9,9 @@ import { resolve } from "node:path";
 import type { PreflightCheck, PreflightStatus, RuntimePreflightReport } from "../types/preflight.js";
 import { runProcess } from "../utils/process.js";
 
+const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
+const NON_NEGATIVE_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
+
 export class RuntimePreflight {
   private readonly env: NodeJS.ProcessEnv;
 
@@ -115,8 +118,12 @@ export class RuntimePreflight {
     if (!value?.trim()) {
       return { name, status: "pass", message: `${name} is not set; default value will be used.` };
     }
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== value.trim()) {
+    const trimmed = value.trim();
+    if (!POSITIVE_INTEGER_PATTERN.test(trimmed)) {
+      return { name, status: "fail", message: `${name} must be a positive integer.` };
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
       return { name, status: "fail", message: `${name} must be a positive integer.` };
     }
     return { name, status: "pass", message: `${name} is a positive integer.` };
@@ -137,22 +144,30 @@ export class RuntimePreflight {
     if (!value?.trim()) {
       return { name, status: "pass", message: `${name} is not set; cost gate will use available configured rates only.` };
     }
-    const parsed = Number.parseFloat(value);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      return { name, status: "fail", message: `${name} must be a non-negative number.` };
+    const trimmed = value.trim();
+    if (!NON_NEGATIVE_DECIMAL_PATTERN.test(trimmed)) {
+      return { name, status: "fail", message: `${name} must be a non-negative decimal number.` };
     }
-    return { name, status: "pass", message: `${name} is a non-negative number.` };
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return { name, status: "fail", message: `${name} must be a non-negative decimal number.` };
+    }
+    return { name, status: "pass", message: `${name} is a non-negative decimal number.` };
   }
 
   private optionalPositiveNumber(name: string, value: string | undefined): PreflightCheck {
     if (!value?.trim()) {
       return { name, status: "pass", message: `${name} is not set; default multiplier will be used.` };
     }
-    const parsed = Number.parseFloat(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return { name, status: "fail", message: `${name} must be greater than zero.` };
+    const trimmed = value.trim();
+    if (!NON_NEGATIVE_DECIMAL_PATTERN.test(trimmed)) {
+      return { name, status: "fail", message: `${name} must be a decimal number greater than zero.` };
     }
-    return { name, status: "pass", message: `${name} is greater than zero.` };
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return { name, status: "fail", message: `${name} must be a decimal number greater than zero.` };
+    }
+    return { name, status: "pass", message: `${name} is a decimal number greater than zero.` };
   }
 
   private async outputDirectoryCheck(name: string, value: string | undefined): Promise<PreflightCheck> {

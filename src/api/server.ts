@@ -40,6 +40,7 @@ import {
 const DEFAULT_PORT = 8787;
 const MAX_BODY_BYTES = 1_000_000;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_.:-]{8,160}$/;
+const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 
 interface RenderRequestBody extends CineJellyProjectRequest {
   readonly outputPath?: string;
@@ -302,11 +303,15 @@ function sendJson(
 }
 
 function readPort(value: string | undefined): number {
-  if (!value) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
     return DEFAULT_PORT;
   }
-  const port = Number.parseInt(value, 10);
-  if (!Number.isFinite(port) || port <= 0) {
+  if (!POSITIVE_INTEGER_PATTERN.test(trimmed)) {
+    throw new Error("PORT must be a positive integer.");
+  }
+  const port = Number.parseInt(trimmed, 10);
+  if (!Number.isSafeInteger(port) || port <= 0) {
     throw new Error("PORT must be a positive integer.");
   }
   return port;
@@ -316,8 +321,12 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
   if (!value?.trim()) {
     return fallback;
   }
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== value.trim()) {
+  const trimmed = value.trim();
+  if (!POSITIVE_INTEGER_PATTERN.test(trimmed)) {
+    throw new Error("API job settings must be positive integers.");
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new Error("API job settings must be positive integers.");
   }
   return parsed;
