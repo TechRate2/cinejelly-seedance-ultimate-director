@@ -41,6 +41,8 @@ const DEFAULT_PORT = 8787;
 const DEFAULT_MAX_BODY_BYTES = 1_000_000;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_.:-]{8,160}$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
+const MIN_PORT = 1;
+const MAX_PORT = 65_535;
 
 interface RenderRequestBody extends CineJellyProjectRequest {
   readonly outputPath?: string;
@@ -327,8 +329,8 @@ function readPort(value: string | undefined): number {
     throw new Error("PORT must be a positive integer.");
   }
   const port = Number.parseInt(trimmed, 10);
-  if (!Number.isSafeInteger(port) || port <= 0) {
-    throw new Error("PORT must be a positive integer.");
+  if (!Number.isSafeInteger(port) || port < MIN_PORT || port > MAX_PORT) {
+    throw new Error(`PORT must be a TCP port between ${MIN_PORT} and ${MAX_PORT}.`);
   }
   return port;
 }

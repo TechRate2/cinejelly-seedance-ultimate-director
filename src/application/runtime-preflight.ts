@@ -11,6 +11,8 @@ import { runProcess } from "../utils/process.js";
 
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const NON_NEGATIVE_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
+const MIN_PORT = 1;
+const MAX_PORT = 65_535;
 
 export class RuntimePreflight {
   private readonly env: NodeJS.ProcessEnv;
@@ -26,6 +28,7 @@ export class RuntimePreflight {
       this.present("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
       this.apiAuthCheck(),
+      this.optionalPort("PORT", this.env.PORT),
       this.optionalHttpsUrl("ATLASCLOUD_API_BASE_URL", this.env.ATLASCLOUD_API_BASE_URL),
       this.optionalHttpsUrl("ATLASCLOUD_ASSET_BASE_URL", this.env.ATLASCLOUD_ASSET_BASE_URL),
       this.optionalPositiveInteger("CINEJELLY_REQUEST_TIMEOUT_MS", this.env.CINEJELLY_REQUEST_TIMEOUT_MS),
@@ -74,7 +77,15 @@ export class RuntimePreflight {
   }
 
   private apiAuthCheck(): PreflightCheck {
-    if (this.env.CINEJELLY_DISABLE_API_AUTH?.trim().toLowerCase() === "true") {
+    const disabledAuth = this.env.CINEJELLY_DISABLE_API_AUTH?.trim().toLowerCase();
+    if (disabledAuth && disabledAuth !== "true" && disabledAuth !== "false") {
+      return {
+        name: "CINEJELLY_DISABLE_API_AUTH",
+        status: "fail",
+        message: "CINEJELLY_DISABLE_API_AUTH must be true or false when set."
+      };
+    }
+    if (disabledAuth === "true") {
       return {
         name: "CINEJELLY_API_AUTH_TOKEN",
         status: "warn",
@@ -137,6 +148,21 @@ export class RuntimePreflight {
       return { name, status: "fail", message: `${name} must be a positive integer.` };
     }
     return { name, status: "pass", message: `${name} is a positive integer.` };
+  }
+
+  private optionalPort(name: string, value: string | undefined): PreflightCheck {
+    if (!value?.trim()) {
+      return { name, status: "pass", message: `${name} is not set; default API port will be used.` };
+    }
+    const trimmed = value.trim();
+    if (!POSITIVE_INTEGER_PATTERN.test(trimmed)) {
+      return { name, status: "fail", message: `${name} must be a TCP port between ${MIN_PORT} and ${MAX_PORT}.` };
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    if (!Number.isSafeInteger(parsed) || parsed < MIN_PORT || parsed > MAX_PORT) {
+      return { name, status: "fail", message: `${name} must be a TCP port between ${MIN_PORT} and ${MAX_PORT}.` };
+    }
+    return { name, status: "pass", message: `${name} is a valid TCP port.` };
   }
 
   private optionalBooleanFlag(name: string, value: string | undefined): PreflightCheck {
