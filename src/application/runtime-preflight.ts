@@ -108,6 +108,12 @@ export class RuntimePreflight {
       if (parsed.protocol !== "https:") {
         return { name, status: "fail", message: `${name} must use https.` };
       }
+      if (parsed.username || parsed.password) {
+        return { name, status: "fail", message: `${name} must not include embedded credentials.` };
+      }
+      if (parsed.search || parsed.hash) {
+        return { name, status: "fail", message: `${name} must not include query strings or fragments.` };
+      }
       return { name, status: "pass", message: `${name} is a valid HTTPS URL.` };
     } catch {
       return { name, status: "fail", message: `${name} must be a valid HTTPS URL.` };

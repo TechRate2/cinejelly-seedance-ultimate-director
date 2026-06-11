@@ -91,6 +91,12 @@ function optionalHttpsUrlEnv(name: string, env: NodeJS.ProcessEnv, fallback: str
   if (parsed.protocol !== "https:") {
     throw new Error(`Environment variable ${name} must use https.`);
   }
+  if (parsed.username || parsed.password) {
+    throw new Error(`Environment variable ${name} must not include embedded credentials.`);
+  }
+  if (parsed.search || parsed.hash) {
+    throw new Error(`Environment variable ${name} must not include query strings or fragments.`);
+  }
   return parsed.toString().replace(/\/$/, "");
 }
 
