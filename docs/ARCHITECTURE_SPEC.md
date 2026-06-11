@@ -290,7 +290,7 @@ API execution modes:
 - Credit-spending render submission endpoints are rate limited before request body parsing, runtime creation, job queue occupancy, or provider spend.
 - Render requests pass admission control before runtime creation, LLM planning, job queue occupancy, or provider spend.
 - Every API request creates or accepts a sanitized `X-CineJelly-Request-Id`/`X-Request-Id`; responses include `requestId`, and the normalized request propagates it into LLM/Seedance metadata, render job summaries, Production Graph project metadata, and durable success/failure artifacts.
-- `/v1/render` runs the full pipeline synchronously for controlled callers and is protected by a process-level concurrency gate with retry hints.
+- `/v1/render` runs the full pipeline synchronously for controlled callers and is protected by a process-level concurrency gate with retry hints after body parsing, admission control, and path normalization but before runtime creation or provider spend.
 - `/v1/render-jobs` submits the same normalized request into an in-process queue and returns a pollable job ID for long-form production.
 - Async job submission enforces a process-level queued/running capacity limit before job records, runtime objects, or provider calls are created; saturated queues return a 503 pressure signal with `Retry-After` and JSON `retryAfterSeconds` for upstream retry behavior.
 - Rate-limited credit-spending requests return 429 with `Retry-After` and JSON `retryAfterSeconds`.

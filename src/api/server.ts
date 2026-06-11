@@ -130,6 +130,10 @@ export function startServer(port = readPort(process.env.PORT)): void {
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render") {
+        const body = await readJsonBody<RenderRequestBody>(request);
+        requestAdmission.assertAcceptable(body);
+        const normalizedRequest = normalizeRenderRequest(body, requestContext);
+        const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         const renderLease = syncRenderGate.tryAcquire();
         if (!renderLease.allowed) {
           sendJson(response, renderLease.statusCode, {
@@ -138,42 +142,36 @@ export function startServer(port = readPort(process.env.PORT)): void {
           }, requestContext, retryAfterHeaders(renderLease.retryAfterSeconds));
           return;
         }
+        let costLedger: readonly CostLedgerEntry[] = [];
+        let runtime: ReturnType<typeof createDirectorRuntime> | undefined;
         try {
-          const body = await readJsonBody<RenderRequestBody>(request);
-          requestAdmission.assertAcceptable(body);
-          const normalizedRequest = normalizeRenderRequest(body, requestContext);
-          const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
-          let costLedger: readonly CostLedgerEntry[] = [];
-          let runtime: ReturnType<typeof createDirectorRuntime> | undefined;
-          try {
-            runtime = createDirectorRuntime();
-            const result = await runtime.director.run(normalizedRequest, requestLifecycle.signal);
-            costLedger = runtime.ledger.list();
-            const artifacts = await artifactStore.writeRunArtifacts({
-              result,
-              costLedger,
-              artifactDirectory
-            });
-            sendJson(response, 200, {
-              ...result,
-              costLedger,
-              artifacts: toApiProjectArtifactBundle(artifacts)
-            }, requestContext);
-          } catch (renderError: unknown) {
-            costLedger = runtime?.ledger.list() ?? costLedger;
-            const artifacts = await artifactStore.writeFailureArtifacts({
-              request: normalizedRequest,
-              costLedger,
-              artifactDirectory,
-              error: renderError,
-              stage: "render_pipeline"
-            });
-            sendJson(response, 500, {
-              error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
-              costLedger,
-              artifacts: toApiProjectArtifactBundle(artifacts)
-            }, requestContext);
-          }
+          runtime = createDirectorRuntime();
+          const result = await runtime.director.run(normalizedRequest, requestLifecycle.signal);
+          costLedger = runtime.ledger.list();
+          const artifacts = await artifactStore.writeRunArtifacts({
+            result,
+            costLedger,
+            artifactDirectory
+          });
+          sendJson(response, 200, {
+            ...result,
+            costLedger,
+            artifacts: toApiProjectArtifactBundle(artifacts)
+          }, requestContext);
+        } catch (renderError: unknown) {
+          costLedger = runtime?.ledger.list() ?? costLedger;
+          const artifacts = await artifactStore.writeFailureArtifacts({
+            request: normalizedRequest,
+            costLedger,
+            artifactDirectory,
+            error: renderError,
+            stage: "render_pipeline"
+          });
+          sendJson(response, 500, {
+            error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
+            costLedger,
+            artifacts: toApiProjectArtifactBundle(artifacts)
+          }, requestContext);
         } finally {
           renderLease.release();
         }
