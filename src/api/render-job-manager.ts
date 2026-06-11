@@ -13,6 +13,17 @@ import { redactUnknown } from "../utils/redaction.js";
 
 export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
 
+export class RenderJobCapacityError extends Error {
+  public readonly statusCode = 503;
+
+  public constructor(queueLimit: number) {
+    super(
+      `Render job queue is full at ${queueLimit} queued or running job(s). Retry later or increase CINEJELLY_API_JOB_QUEUE_LIMIT.`
+    );
+    this.name = "RenderJobCapacityError";
+  }
+}
+
 export interface RenderJobSummary {
   readonly jobId: string;
   readonly requestId?: string;
@@ -46,6 +57,7 @@ export class RenderJobManager {
   private readonly artifactStore: ProjectArtifactStore;
   private readonly maxConcurrentJobs: number;
   private readonly historyLimit: number;
+  private readonly queueLimit: number;
   private readonly jobs = new Map<string, RenderJobRecord>();
   private readonly queue: string[] = [];
   private activeJobCount = 0;
@@ -54,16 +66,19 @@ export class RenderJobManager {
     readonly artifactStore?: ProjectArtifactStore;
     readonly maxConcurrentJobs?: number;
     readonly historyLimit?: number;
+    readonly queueLimit?: number;
   } = {}) {
     this.artifactStore = input.artifactStore ?? new ProjectArtifactStore();
     this.maxConcurrentJobs = Math.max(1, input.maxConcurrentJobs ?? 1);
     this.historyLimit = Math.max(10, input.historyLimit ?? 100);
+    this.queueLimit = Math.max(1, input.queueLimit ?? 50);
   }
 
   public submit(input: {
     readonly request: CineJellyProjectRequest;
     readonly artifactDirectory: string;
   }): RenderJobSummary {
+    this.assertQueueCapacity();
     const now = new Date();
     const jobId = `render_job_${randomUUID()}`;
     const record: RenderJobRecord = {
@@ -158,6 +173,19 @@ export class RenderJobManager {
 
   private isTerminal(status: RenderJobStatus): boolean {
     return status === "succeeded" || status === "failed" || status === "canceled";
+  }
+
+  private assertQueueCapacity(): void {
+    let queuedOrRunningJobs = 0;
+    for (const record of this.jobs.values()) {
+      if (record.status === "queued" || record.status === "running") {
+        queuedOrRunningJobs += 1;
+      }
+    }
+
+    if (queuedOrRunningJobs >= this.queueLimit) {
+      throw new RenderJobCapacityError(this.queueLimit);
+    }
   }
 
   private pumpQueue(): void {

@@ -15,7 +15,7 @@ import { redactUnknown } from "../utils/redaction.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { ApiRateLimiter, readRateLimitDisabled } from "./api-rate-limit.js";
 import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
-import { RenderJobManager } from "./render-job-manager.js";
+import { RenderJobCapacityError, RenderJobManager } from "./render-job-manager.js";
 import { RenderRequestAdmission, RenderRequestAdmissionError } from "./render-request-admission.js";
 import {
   attachRequestContextHeaders,
@@ -54,7 +54,8 @@ export function startServer(port = readPort(process.env.PORT)): void {
   const jobManager = new RenderJobManager({
     artifactStore,
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
-    historyLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100)
+    historyLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100),
+    queueLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_QUEUE_LIMIT, 50)
   });
   const shutdownCoordinator = new ApiShutdownCoordinator();
 
@@ -271,7 +272,7 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
 }
 
 function errorStatusCode(error: unknown): number {
-  return error instanceof RenderRequestAdmissionError ? error.statusCode : 500;
+  return error instanceof RenderRequestAdmissionError || error instanceof RenderJobCapacityError ? error.statusCode : 500;
 }
 
 function withRequestContext(payload: unknown, requestContext: ApiRequestContext): unknown {
