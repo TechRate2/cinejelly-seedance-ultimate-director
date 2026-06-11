@@ -4,8 +4,10 @@
  */
 
 const REDACTED_LOCAL_PATH = "[REDACTED_LOCAL_PATH]";
+const REDACTED_DATA_URI = "[REDACTED_DATA_URI]";
 
-const PUBLIC_URI_PATTERN = /^(https?:\/\/|asset:\/\/|data:)/i;
+const DATA_URI_PATTERN = /^data:/i;
+const SAFE_PUBLIC_URI_PATTERN = /^(https:\/\/|asset:\/\/)/i;
 const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/;
 const UNC_PATH_PATTERN = /^\\\\[^\\]+\\/;
 const POSIX_ABSOLUTE_PATH_PATTERN = /^\//;
@@ -20,6 +22,9 @@ function redactValue(value: unknown, key: string | undefined): unknown {
     return value.toISOString();
   }
   if (typeof value === "string") {
+    if (DATA_URI_PATTERN.test(value)) {
+      return REDACTED_DATA_URI;
+    }
     return shouldRedactPathValue(key, value) ? REDACTED_LOCAL_PATH : value;
   }
   if (Array.isArray(value)) {
@@ -37,7 +42,7 @@ function redactValue(value: unknown, key: string | undefined): unknown {
 }
 
 function shouldRedactPathValue(key: string | undefined, value: string): boolean {
-  if (!key || !keyMayContainPath(key) || !value.trim() || PUBLIC_URI_PATTERN.test(value)) {
+  if (!key || !keyMayContainPath(key) || !value.trim() || SAFE_PUBLIC_URI_PATTERN.test(value)) {
     return false;
   }
   return looksLikeLocalPath(value);
