@@ -19,6 +19,15 @@ We are explicitly permitted and encouraged to snapshot the upstream repositories
 
 Result: the final product is a self-reliant commercial system that is stronger than any single upstream repository, with Atlas Cloud as default, full support for flexible settings, long videos, and professional delivery artifacts.
 
+## Pattern Extraction vs Faithful Logic Translation
+
+Pattern Extraction is enough when CineJelly is borrowing a broad product idea: a source folder shape, an agent role, a review artifact, or a general workflow lane.
+
+Faithful Logic Translation is required when CineJelly wants upstream-like behavior. If the order, weight, fallback, duplicate handling, edge case, or repair decision changes the result, create a Reference Implementation before production code. Practical examples live in `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`:
+
+- Reference Binding + Prompt Ordering from Emily2040/seedance-2.0 plus YouMind-OpenLab/awesome-seedance-2-prompts.
+- Repair Strategy + Consistency Checkpoint from ViMax plus VibeFrame.
+
 ## Snapshot Inventory
 
 | Local path | Upstream repo | License | Key patterns or logic after review | CineJelly extension and status |

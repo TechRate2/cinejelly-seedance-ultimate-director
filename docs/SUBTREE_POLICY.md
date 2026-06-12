@@ -69,6 +69,11 @@ git subtree add --prefix=external/upstream/seedance-2.0 https://github.com/Emily
 
 CineJelly wants high fidelity to useful upstream behavior, especially edge cases, ordering, weighting, fallback rules, and repair strategy. That fidelity must be achieved through deliberate translation into CineJelly-owned production modules, not through direct runtime dependency on upstream snapshots.
 
+Pattern Extraction and Faithful Logic Translation are different:
+
+- Pattern Extraction captures a broad shape such as folder structure, agent role, artifact type, or workflow lane. It is useful for product design but does not promise behavior parity.
+- Faithful Logic Translation captures behavior that output quality depends on: ordering, scoring, weighting, fallback, duplicate handling, edge cases, and repair decisions.
+
 Use the full process in `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` when translating logic that affects:
 
 - provider request compilation, polling, retry, fallback, error normalization, or cost tracking
@@ -86,6 +91,11 @@ Deep Analysis -> Reference Implementation -> Fidelity Review -> CineJelly Rewrit
 A Reference Implementation is a non-production fidelity aid. It can be pseudocode, a source-to-product mapping table, an algorithm note, or an edge-case checklist under `docs/`. It must not be imported by production code. Production behavior belongs in `src/` as new or substantially adapted CineJelly TypeScript.
 
 Reference Implementations should record the upstream repository, snapshot path, source files, license, behavior preserved, behavior changed, acceptance criteria, and attribution destination. This gives engineers permission to preserve behavior closely while keeping source provenance and commercial boundaries clear.
+
+For concrete examples, see the Practical Translation Examples in `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`:
+
+- Reference Binding + Prompt Ordering from Emily2040/seedance-2.0 plus YouMind-OpenLab/awesome-seedance-2-prompts.
+- Repair Strategy + Consistency Checkpoint from ViMax plus VibeFrame.
 
 ## Use Of `external/`
 

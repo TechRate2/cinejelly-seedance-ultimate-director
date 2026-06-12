@@ -19,6 +19,18 @@ Use this process before implementing or materially changing source-derived logic
 
 Small terminology changes, original CineJelly-only utilities, and purely local refactors do not need a full Reference Implementation, but they should still preserve attribution when the source relationship is material.
 
+## Pattern Extraction vs Faithful Logic Translation
+
+Pattern Extraction is appropriate when the upstream source teaches a broad shape: folder organization, artifact naming, agent roles, a prompt section idea, or an operational workflow. The CineJelly implementation may differ substantially as long as attribution and license rules are followed.
+
+Faithful Logic Translation is required when behavior matters: the upstream ordering, weighting, fallback path, duplicate handling, edge-case handling, or repair decision changes product output quality. In this mode, engineers should first capture a Reference Implementation that is close enough to compare against, then rewrite that behavior into CineJelly-owned TypeScript.
+
+Use this rule of thumb:
+
+- If changing the order changes output quality, use Faithful Logic Translation.
+- If changing a fallback changes cost, retries, or repair scope, use Faithful Logic Translation.
+- If the source only inspires naming or high-level architecture, Pattern Extraction is enough.
+
 ## The 6-Step Process
 
 ## 1. Deep Analysis
@@ -106,6 +118,248 @@ Validate the rewritten behavior before treating it as production-ready:
 - verify attribution and license notes are updated
 
 Do not create CineJelly-owned test, mock, demo, sample, or example files in production paths. Validation evidence can live in design notes, operator artifacts, review packets, or future approved test infrastructure if project policy changes.
+
+## Practical Translation Examples
+
+These examples are intentionally non-production Reference Implementations. They show the level of detail expected before changing behavior-critical code in `src/`.
+
+## Example 1: Reference Binding + Prompt Ordering
+
+## Upstream Source
+
+- `external/upstream/seedance-2.0/references/reference-workflow.md`
+- `external/upstream/seedance-2.0/references/intent-vs-precision.md`
+- `external/upstream/seedance-2.0/references/migrated/v5.2-legacy-skill-bodies/seedance-antislop.md`
+- `external/upstream/awesome-seedance-2-prompts/README.md`
+- `external/upstream/awesome-seedance-2-prompts/README_zh.md`
+
+## Important Behavior To Preserve
+
+- Assign a role to every reference before writing prompt prose.
+- Put identity and product references before motion, camera, audio, and style cues.
+- Use text for intent, action, camera, timing, lighting, audio intent, and constraints; use references for dense visual or motion information.
+- Do not let one reference control incompatible roles unless the tradeoff is explicit.
+- When audio and video references compete, constrain one source: video controls camera/motion only, audio controls tempo/energy only.
+- Preserve provider/reference tags exactly when the provider path requires tags.
+- Compress vague language in a stable order: references first, then subject nouns, action verbs, camera move, light source, audio cue, and style/quality constraint.
+- Edge cases:
+  - no references: prompt must say the shot contract is the source of truth
+  - identity risk without identity reference: Guardian should request repair before render
+  - product/logo risk without product reference: Guardian should request repair before render
+  - first/last-frame workflow: endpoint anchors must outrank environment/style references
+  - duplicate references for the same role: primary wins; supporting refs are used only if they add non-duplicate information
+
+## Reference Implementation
+
+```ts
+type RefRole =
+  | "identity"
+  | "product"
+  | "wardrobe"
+  | "first_frame"
+  | "last_frame"
+  | "environment"
+  | "motion"
+  | "camera"
+  | "audio_tempo"
+  | "voice"
+  | "style"
+  | "source_video_structure";
+
+const roleWeight: Record<RefRole, number> = {
+  identity: 0,
+  product: 1,
+  wardrobe: 2,
+  first_frame: 3,
+  last_frame: 4,
+  environment: 5,
+  motion: 6,
+  camera: 7,
+  audio_tempo: 8,
+  voice: 9,
+  style: 10,
+  source_video_structure: 11
+};
+
+function referenceBindingPromptPlan(shot: ShotContract): PromptPlan {
+  const sorted = [...shot.references].sort((left, right) => {
+    const byRole = roleWeight[left.role] - roleWeight[right.role];
+    if (byRole !== 0) return byRole;
+    if (left.priority !== right.priority) return left.priority === "primary" ? -1 : 1;
+    return left.label.localeCompare(right.label);
+  });
+
+  const findings: TranslationFinding[] = [];
+  const roles = new Set(sorted.map((reference) => reference.role));
+
+  if (shot.risks.includes("face") && !roles.has("identity")) {
+    findings.push({ severity: "repair", reason: "identity-risk-needs-identity-reference" });
+  }
+  if (shot.risks.includes("product_logo") && !roles.has("product")) {
+    findings.push({ severity: "repair", reason: "product-risk-needs-product-reference" });
+  }
+  if (roles.has("audio_tempo") && (roles.has("motion") || roles.has("camera"))) {
+    findings.push({ severity: "warn", reason: "audio-video-reference-scope-must-be-explicit" });
+  }
+
+  const referenceLines =
+    sorted.length === 0
+      ? ["References: no external reference assets; follow the approved shot contract only."]
+      : sorted.map((reference) => {
+          const scope = scopeFor(reference.role);
+          return `${reference.role}: ${reference.label} controls ${scope}; priority=${reference.priority}`;
+        });
+
+  const sections = [
+    `Shot ${shot.shotId}, ${shot.durationSeconds}s`,
+    workflowLine(roles),
+    ...referenceLines,
+    continuityLine(shot),
+    `Subject: ${shot.subject}`,
+    `Action: ${shot.action}`,
+    `Camera: ${shot.camera}`,
+    `Lighting: ${shot.lighting}`,
+    timelineLine(shot),
+    audioLine(shot),
+    constraintLine(shot)
+  ].filter(Boolean);
+
+  return {
+    promptSections: compressByProductionOrder(sections),
+    findings,
+    providerReferences: sorted
+  };
+}
+```
+
+## CineJelly Rewrite Path
+
+- Current production anchor: `src/prompt_compiler/reference-binding.ts` already implements role priority, primary-before-supporting ordering, and stable label tie-breaks.
+- Current production anchor: `src/prompt_compiler/prompt-compiler.ts` already emits references before continuity, subject, action, camera, lighting, timeline, audio, transition, and quality instruction.
+- Current production anchor: `src/core/consistency-guardian.ts` already blocks or repairs missing identity/product references for risky shots.
+- Next faithful implementation step: create a `PromptBindingPlan` contract that records conflict findings, role scopes, and compression decisions before prompt text is assembled.
+- Attribution: record the translation in `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` and, when implemented, in `SourceLogicTranslationLedger`.
+
+## Example 2: Repair Strategy + Consistency Checkpoint
+
+## Upstream Source
+
+- `external/upstream/vimax/agents/reference_image_selector.py`
+- `external/upstream/vimax/agent_runtime/session_index.py`
+- `external/upstream/vimax/agent_runtime/prompts.py`
+- `external/upstream/vibeframe/README.md`
+- `external/upstream/vibeframe/docs/cli-reference.md`
+
+## Important Behavior To Preserve
+
+- Do not render before structured planning artifacts exist.
+- Validate storyboard/shot dependencies before provider spend.
+- Prefer recent prior-frame references when continuity depends on previous shots.
+- Prefer same-camera or same-composition references before generic portraits, unless a new character requires an identity portrait.
+- Limit selected reference images or visual anchors to a bounded count to avoid prompt overload.
+- Detect duplicate or redundant references and keep the most useful one.
+- Keep repair scope narrow: fix storyboard, prompt, reference binding, or one render node rather than restarting the full project.
+- Preserve VibeFrame-style loop ordering: validate -> plan/cost -> dry-run or preflight -> build/render -> inspect -> repair -> refresh status.
+- Edge cases:
+  - missing storyboard panel: block render
+  - duplicate storyboard panel: repair storyboard before render
+  - provider status failed/canceled/timeout: rerender only the affected shot
+  - output URL missing: block delivery and rerender affected shot after diagnostics
+  - prompt too dense or negative constraints too broad: repair prompt before provider spend
+  - warnings should not block delivery, but they must be recorded for review packets and routing
+
+## Reference Implementation
+
+```ts
+type RepairAction = "pass" | "warn" | "repair_contract" | "rerender_shot" | "block_delivery";
+
+function consistencyRepairDecision(input: RepairInput): RepairDecision {
+  const findings: Finding[] = [];
+
+  findings.push(...checkStoryboardCoverage(input.storyboard, input.shots));
+  findings.push(...checkShotContracts(input.shots));
+  findings.push(...checkPromptDensity(input.compiledPrompts));
+  findings.push(...checkReferenceSelection(input.referenceHistory, input.shots));
+
+  if (input.renderPrediction) {
+    if (input.renderPrediction.status !== "succeeded") {
+      findings.push({
+        severity: "S1",
+        checkpoint: "provider_status",
+        action: "rerender_shot",
+        nodeId: input.shotId
+      });
+    }
+    if (input.renderPrediction.outputUrls.length === 0) {
+      findings.push({
+        severity: "S0",
+        checkpoint: "output_presence",
+        action: "block_delivery",
+        nodeId: input.shotId
+      });
+    }
+  }
+
+  return {
+    action: rollup(findings),
+    affectedNodeIds: affectedNodes(findings),
+    findings
+  };
+}
+
+function rollup(findings: readonly Finding[]): RepairAction {
+  if (findings.some((finding) => finding.action === "block_delivery")) return "block_delivery";
+  if (findings.some((finding) => finding.action === "rerender_shot")) return "rerender_shot";
+  if (findings.some((finding) => finding.action === "repair_contract")) return "repair_contract";
+  if (findings.some((finding) => finding.action === "warn")) return "warn";
+  return "pass";
+}
+
+function checkReferenceSelection(history: ReferenceHistory, shots: readonly ShotContract[]): Finding[] {
+  return shots.flatMap((shot) => {
+    const candidates = history.referencesFor(shot).sort((left, right) => {
+      const sameCamera = Number(right.cameraId === shot.camera) - Number(left.cameraId === shot.camera);
+      if (sameCamera !== 0) return sameCamera;
+      const byRecency = right.timelineIndex - left.timelineIndex;
+      if (byRecency !== 0) return byRecency;
+      return Number(right.isPortrait) - Number(left.isPortrait);
+    });
+    const selected = dedupeByCharacterAndRole(candidates).slice(0, 8);
+    return selected.length === 0 && shot.risks.includes("face")
+      ? [{ severity: "S1", checkpoint: "reference_selection", action: "repair_contract", nodeId: shot.shotId }]
+      : [];
+  });
+}
+```
+
+## CineJelly Rewrite Path
+
+- Current production anchor: `src/core/consistency-guardian.ts` already validates storyboard coverage, duplicate panels, panel/shot alignment, prompt density, timeline bounds, provider status, and missing output URLs.
+- Current production anchor: `src/core/render-scheduler.ts` and `src/agents/director-agent.ts` already support dependency-aware rendering and targeted repair-only rerendering.
+- Current production anchor: `src/core/production-graph-run-recorder.ts` records selected, rejected, and repair render candidates.
+- Next faithful implementation step: add explicit reference-selection scoring records so candidate choice can preserve ViMax ordering: same composition/camera, recent prior frame, non-duplicate character view, bounded maximum.
+- Next faithful implementation step: add repair-decision provenance to Guardian reports so VibeFrame-style inspect/repair loops are reviewable in `review-packet.json`.
+- Attribution: record ViMax/VibeFrame source paths and CineJelly changes through `SourceLogicTranslationLedger` when this logic is productized.
+
+## Reference Implementation Organization
+
+Inline examples in this file are acceptable for cross-cutting policy. For actual feature work, use one focused source map per behavior:
+
+```text
+docs/reference-implementations/<area>-<logic-name>.md
+```
+
+Recommended sections:
+
+- Upstream sources and license
+- Behavior to preserve
+- Edge cases and ordering rules
+- Reference Implementation pseudocode
+- CineJelly destination files
+- Fidelity review notes
+- Validation checklist
+
+Do not place Reference Implementations in `src/`, and do not import them at runtime.
 
 ## License-Aware Translation Rules
 
