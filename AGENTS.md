@@ -30,6 +30,7 @@ Use this order:
    - subtree policy: `docs/SUBTREE_POLICY.md`
    - upstream snapshots: `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`
    - faithful source translation: `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`
+   - implementation roadmap: `docs/IMPLEMENTATION_ROADMAP.md`
 3. Original external sources under `external/upstream/` only when the change modifies source-derived claims, provider behavior, license-sensitive reuse, or model capability assumptions.
 
 ## Source Snapshot And Reuse Policy
@@ -42,6 +43,7 @@ Use this order:
 - Production runtime must not import directly from `external/upstream/`. The product path is to copy/adapt useful ideas into CineJelly-owned modules so the product remains autonomous.
 - Code under `src/` must be CineJelly-owned implementation: write new modules and develop them further from source patterns instead of copying large upstream files wholesale.
 - Behavior-critical source-derived logic must follow Faithful Logic Translation: create a non-production Reference Implementation, review fidelity and license boundaries, then rewrite the behavior into CineJelly-owned `src/` modules.
+- Follow `docs/IMPLEMENTATION_ROADMAP.md` for the next module order and milestone checklist; do not treat foundation-level code as proof of full upstream parity.
 - When implementing a source-integrated feature, write a short note in the relevant design doc or code comment naming the source snapshot, copied/adapted element, and CineJelly-specific extension.
 
 ## Security Gate Before Push

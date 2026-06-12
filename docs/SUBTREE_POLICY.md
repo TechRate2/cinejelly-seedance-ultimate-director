@@ -97,6 +97,8 @@ For concrete examples, see the Practical Translation Examples in `docs/FAITHFUL_
 - Reference Binding + Prompt Ordering from Emily2040/seedance-2.0 plus YouMind-OpenLab/awesome-seedance-2-prompts.
 - Repair Strategy + Consistency Checkpoint from ViMax plus VibeFrame.
 
+For implementation order, milestones, and the shared validation checklist, use `docs/IMPLEMENTATION_ROADMAP.md`.
+
 ## Use Of `external/`
 
 `external/upstream/` is the snapshot and audit layer. It should preserve upstream context as much as possible so engineers can compare CineJelly behavior against the original source.

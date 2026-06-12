@@ -4,11 +4,12 @@ Commercial agentic video production architecture for high-quality Seedance 2.0 w
 
 ## Status
 
-The repository contains the first production TypeScript foundation:
+The repository contains a production-oriented TypeScript foundation. It is ready for focused implementation work, but it should not be treated as fully validated for customer traffic until real Atlas credentials, FFmpeg/FFprobe, and at least one paid end-to-end render validation are complete.
 
 - Atlas Cloud is the default provider target for both LLM reasoning and Seedance 2.0 rendering.
-- The provider layer, robust structured LLM parsing, Reference Librarian validation and graph lineage, Atlas Asset Library reference registration, configurable render cost gating, prompt compiler, Production Graph planning and run-recording, continuity ledger generation, Consistency Guardian, director orchestration, assembly/postproduction engines, and production HTTP API are implemented under `src/`.
+- `src/` contains working foundations for the provider layer, structured LLM parsing, Reference Librarian validation and graph lineage, Atlas Asset Library reference registration, configurable render cost gating, prompt compilation, Production Graph planning and run-recording, continuity ledger generation, Consistency Guardian checks, director orchestration, assembly/postproduction engines, and production HTTP API.
 - Local Git Subtree snapshots of upstream projects are stored under `external/upstream/` for source-fidelity review, copy/adaptation, and product integration. Productized behavior should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution instead of depending on live upstream availability or importing directly from snapshots. Behavior-critical source logic should follow Faithful Logic Translation before production rewriting.
+- Faithful Logic Translation is now defined, but only per-logic implementation work can make a module source-faithful. Current source-inspired modules should be upgraded one at a time with Reference Implementations, lineage records, and validation checklists.
 - Quality mode now drives actual render behavior: Economy/Standard/High/Ultimate produce one to four Seedance candidates per shot, authorize zero to three targeted repair attempts, the Consistency Guardian selects the best candidate, and the Production Graph records selected, rejected, and repair candidate evidence.
 - The HTTP API now creates or accepts a sanitized request correlation ID and propagates it through JSON responses, render job summaries, provider metadata, Production Graph project metadata, and success/failure artifacts.
 - The API propagates client disconnects and deployment shutdown signals into active render work so request-bound orchestration, provider calls, polling, assembly, and postproduction stop as early as the selected provider path allows.
@@ -44,7 +45,7 @@ The repository contains the first production TypeScript foundation:
 - No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshots may contain original upstream development files inside `external/upstream/`; those files become product material only after license/product review and an intentional copy/adapt step.
 - Runtime validation still requires real Atlas Cloud credentials, verified model IDs, FFmpeg, and FFprobe before customer use.
 
-The next implementation phase is real end-to-end validation and hardening around observability and deployment operations.
+The next implementation phase is focused Faithful Logic Translation for prompt binding, repair strategy, reference selection, provider polling/retry, and long-form graph planning, followed by real end-to-end validation.
 
 ## Product Goal
 
@@ -106,6 +107,7 @@ cinejelly-seedance-ultimate-director/
 - `docs/SUBTREE_POLICY.md`: Git Subtree workflow, required `--squash` usage, and copy/adapt policy.
 - `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: local subtree inventory, license status, and reuse boundaries.
 - `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`: source-to-product fidelity process for behavior-critical logic, including practical Reference Implementation examples.
+- `docs/IMPLEMENTATION_ROADMAP.md`: practical module-by-module roadmap for the next implementation phase.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive Seedance prompt compiler design.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph and chunking strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: quality, continuity, inspection, and repair design.
@@ -225,7 +227,7 @@ FFmpeg and FFprobe are launched through a shared argument-array process runner, 
 
 For long-running 2 to 8 minute production jobs, `POST /v1/render-jobs` accepts the same body as `/v1/render`, returns `202` plus a `statusUrl`, and runs the render in an in-process queue. Clients may send an `Idempotency-Key` header; repeated submissions with the same key and same payload return the retained existing job instead of creating a duplicate render, while reusing the key for a different payload returns `409`. `GET /v1/render-jobs` returns queue telemetry plus retained jobs as compact summaries with `hasResult`, `hasCostLedger`, `hasArtifacts`, and `hasError` flags; `GET /v1/render-jobs/{jobId}` returns queued/running/succeeded/failed/canceled status plus redacted result, stack-free error name/message detail, cost ledger, and artifact manifest entries when available, without exposing server-local result paths, artifact directories, or manifest paths. `DELETE /v1/render-jobs/{jobId}` cancels a queued or running job through `AbortController`. `CINEJELLY_API_JOB_CONCURRENCY` controls how many render jobs run at once per API process, `CINEJELLY_API_JOB_HISTORY_LIMIT` controls retained in-memory job history and the in-process idempotency replay window, and `CINEJELLY_API_JOB_QUEUE_LIMIT` caps queued plus running job occupancy before new job records, runtimes, or provider calls are created. When rate limits or queue capacity blocks a request, the API returns `Retry-After` and `retryAfterSeconds` so upstream gateways can retry later instead of silently accumulating long-form jobs.
 
-The current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization with bounded source-video deconstruction guidance, Reference Librarian validation for role/kind compatibility and credential-free HTTPS or `asset://` reference URIs, Source Video Analyst normalization for transcript/scene/keyframe/pacing/style/safety analysis, provider-neutral capability validation before Asset Library or render spend, provider telemetry with prediction IDs, robust nested Atlas prediction output URL extraction, redacted non-JSON Atlas HTTP error diagnostics with preserved status-based error normalization, retryable Atlas abort/timeout ProviderError normalization, bounded Atlas JSON metadata response parsing, provider-returned cost metadata when available, actual retry counts for retryable Atlas HTTP calls, and graph/model context for prediction polling ledger entries, Atlas Asset Library registration/polling for video and audio references before Seedance generation, deterministic storyboard panel planning from shot contracts, Guardian storyboard preflight before render spend, quality-mode candidate rendering, high-risk test-take gating before full render, conservative dependency-aware render scheduling, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with test-take, candidate, and repair multipliers, prompt compiler, Production Graph planning plus reference asset lineage, source-video analysis lineage, storyboard panel/preflight lineage, and run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, bounded HTTPS streaming materialization of provider clip URLs and remote audio tracks, bounded FFmpeg/FFprobe process output capture, xfade/acrossfade transition assembly, selected-resolution and selected-aspect-ratio postproduction scaling, final video byte-size and SHA-256 integrity recording, FFprobe media inspection, deterministic delivery gate validation for selected resolution and non-adaptive aspect ratio, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, review packet generation for commercial handoff, postproduction polish, caption sidecar/burn-in automation, audio mix automation, output/artifact path confinement, redacted API responses and run artifacts, inline `data:` plus unsafe URI response redaction, stack-free failure-report error payloads, strict application JSON media-type enforcement and configurable body-size gating for credit-spending POST endpoints, local filesystem path redaction and no-store response headers for public API JSON payloads, credential-free HTTPS Atlas endpoint override validation, strict numeric runtime environment validation, API port/boolean-flag startup-preflight parity, API artifact response DTOs that omit server-local artifact paths, compact render-job list summaries with detail payloads and stack-free error detail reserved for per-job polling, failure-path cost ledger capture after partial provider spend, SHA-256 manifest integrity hashes for run/failure artifacts, case-insensitive Bearer API auth guard, pre-auth proxy-safe render POST rate limiting with `Retry-After`, synchronous render concurrency gating, retry-safe async render submission with in-process idempotency, request admission control for credit-spending endpoints including nested source-video/caption/audio/transition/frame-sampling/semantic-inspection option validation, request correlation IDs across API/provider/job/graph/artifact metadata, client disconnect and deployment shutdown cancellation propagation, in-process render job submit/poll/cancel orchestration with queue-saturation retry hints, runtime preflight validation for writable output storage, redacted CLI preflight gating for deployment readiness, stable ESM package exports for built production imports across API/agent/core/provider/type modules, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
+At foundation level, the current codebase provides the provider layer, robust structured LLM parsing, Story Architect plan normalization with bounded source-video deconstruction guidance, Reference Librarian validation for role/kind compatibility and credential-free HTTPS or `asset://` reference URIs, Source Video Analyst normalization for transcript/scene/keyframe/pacing/style/safety analysis, provider-neutral capability validation before Asset Library or render spend, provider telemetry with prediction IDs, robust nested Atlas prediction output URL extraction, redacted non-JSON Atlas HTTP error diagnostics with preserved status-based error normalization, retryable Atlas abort/timeout ProviderError normalization, bounded Atlas JSON metadata response parsing, provider-returned cost metadata when available, actual retry counts for retryable Atlas HTTP calls, and graph/model context for prediction polling ledger entries, Atlas Asset Library registration/polling for video and audio references before Seedance generation, deterministic storyboard panel planning from shot contracts, Guardian storyboard preflight before render spend, quality-mode candidate rendering, high-risk test-take gating before full render, conservative dependency-aware render scheduling, targeted repair-only rerendering, Guardian-based candidate selection, configurable cost planning and budget gating with test-take, candidate, and repair multipliers, prompt compiler, Production Graph planning plus reference asset lineage, source-video analysis lineage, storyboard panel/preflight lineage, and run evidence recording for clip renders/inspections/deliverables, continuity ledger generation for Character/Style bibles, batch Consistency Guardian preflight gating, render gate blocking before assembly, director orchestration, FFmpeg assembly engine, bounded HTTPS streaming materialization of provider clip URLs and remote audio tracks, bounded FFmpeg/FFprobe process output capture, xfade/acrossfade transition assembly, selected-resolution and selected-aspect-ratio postproduction scaling, final video byte-size and SHA-256 integrity recording, FFprobe media inspection, deterministic delivery gate validation for selected resolution and non-adaptive aspect ratio, frame sampling QC, semantic visual inspection through the configured Atlas LLM provider, review packet generation for commercial handoff, postproduction polish, caption sidecar/burn-in automation, audio mix automation, output/artifact path confinement, redacted API responses and run artifacts, inline `data:` plus unsafe URI response redaction, stack-free failure-report error payloads, strict application JSON media-type enforcement and configurable body-size gating for credit-spending POST endpoints, local filesystem path redaction and no-store response headers for public API JSON payloads, credential-free HTTPS Atlas endpoint override validation, strict numeric runtime environment validation, API port/boolean-flag startup-preflight parity, API artifact response DTOs that omit server-local artifact paths, compact render-job list summaries with detail payloads and stack-free error detail reserved for per-job polling, failure-path cost ledger capture after partial provider spend, SHA-256 manifest integrity hashes for run/failure artifacts, case-insensitive Bearer API auth guard, pre-auth proxy-safe render POST rate limiting with `Retry-After`, synchronous render concurrency gating, retry-safe async render submission with in-process idempotency, request admission control for credit-spending endpoints including nested source-video/caption/audio/transition/frame-sampling/semantic-inspection option validation, request correlation IDs across API/provider/job/graph/artifact metadata, client disconnect and deployment shutdown cancellation propagation, in-process render job submit/poll/cancel orchestration with queue-saturation retry hints, runtime preflight validation for writable output storage, redacted CLI preflight gating for deployment readiness, stable ESM package exports for built production imports across API/agent/core/provider/type modules, deterministic success and failure artifact persistence, and production HTTP entrypoint. The correct operating loop is:
 
 1. read `AGENTS.md`
 2. read `docs/PROJECT_CONTEXT.md`
@@ -236,99 +238,24 @@ The current codebase provides the provider layer, robust structured LLM parsing,
 
 When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a model that accepts image inputs in OpenAI-compatible chat content.
 
-## Implementation Order
+## Implementation Status And Next Order
 
-1. Model Provider Abstraction Layer - implemented
-2. Atlas Cloud LLM provider - implemented
-3. Atlas Cloud Seedance 2.0 video provider - implemented
-4. Atlas Cloud Asset Library integration - implemented
-5. Prompt Compiler - implemented
-6. Production Graph and Shot Planner - implemented
-7. Consistency Guardian - implemented
-8. Agent Orchestrator - implemented
-9. Assembly engine - implemented
-10. Production API/server entrypoint - implemented
-11. Media inspection and postproduction polish - implemented
-12. Caption sidecar and optional burn-in automation - implemented
-13. Audio mix automation - implemented
-14. Frame sampling QC - implemented
-15. Smooth transition assembly - implemented
-16. Semantic visual inspection - implemented
-17. Provider schema hardening - implemented
-18. Runtime deployment preflight - implemented
-19. Deterministic project artifact persistence - implemented
-20. Render-time Asset Library reference resolution - implemented
-21. Structured story planning hardening - implemented
-22. Batch preflight gating before render spend - implemented
-23. Continuity ledger generation - implemented
-24. Production Graph run evidence recording - implemented
-25. Configurable render cost gate - implemented
-26. Quality-mode candidate rendering and selection - implemented
-27. Targeted repair-only rerendering and render gate blocking - implemented
-28. Delivery gate and selected-resolution output validation - implemented
-29. Failure report artifacts for blocked render runs - implemented
-30. Provider-neutral capability gate before asset/render spend - implemented
-31. Provider ledger prediction IDs and response cost metadata - implemented
-32. Conservative dependency-aware render scheduling - implemented
-33. High-risk test-take gating before full render - implemented
-34. Reference Librarian validation and Production Graph reference lineage - implemented
-35. API output and artifact path confinement - implemented
-36. API response and artifact secret redaction hardening - implemented
-37. Async render job submit/poll API - implemented
-38. Async render job cancellation - implemented
-39. API auth guard for protected render endpoints - implemented
-40. API render request admission control and runtime flexible settings validation - implemented
-41. API rate limiting for credit-spending endpoints - implemented
-42. API request correlation across responses, jobs, provider metadata, graph metadata, and artifacts - implemented
-43. API client disconnect and deployment shutdown cancellation propagation - implemented
-44. Bounded streaming materialization of provider clip URLs before assembly - implemented
-45. Typed storyboard planning with Production Graph and artifact persistence - implemented
-46. Guardian storyboard preflight before provider render spend - implemented
-47. Commercial review packet artifact for planning/render/cost/QC handoff - implemented
-48. Provider retry telemetry in the cost ledger - implemented
-49. Prediction polling model/graph context in the provider ledger - implemented
-50. SHA-256 manifest integrity hashes for run/failure artifacts - implemented
-51. Final video byte-size and SHA-256 integrity recording - implemented
-52. Delivery Gate selected aspect-ratio validation - implemented
-53. Postproduction selected aspect-ratio canvas enforcement - implemented
-54. Compact render-job list summaries with detailed per-job polling - implemented
-55. Failure-path cost ledger capture for sync and async render runs - implemented
-56. Async render job queue capacity guard - implemented
-57. Async render job queue telemetry and preflight validation - implemented
-58. Runtime output directory write preflight - implemented
-59. HTTP backpressure retry hints - implemented
-60. API artifact response path redaction - implemented
-61. Synchronous render concurrency gate - implemented
-62. Async render idempotency key handling - implemented
-63. Compact render-job error detail gating - implemented
-64. Stack-free render-job API error details - implemented
-65. Stack-free failure artifact error details - implemented
-66. JSON media-type enforcement for render POST endpoints - implemented
-67. Credential-free HTTPS Atlas endpoint override validation - implemented
-68. Strict numeric runtime environment validation - implemented
-69. Bounded HTTPS remote media materialization - implemented
-70. Bounded FFmpeg/FFprobe process output capture - implemented
-71. Credential-free HTTPS reference URI admission - implemented
-72. Nested Atlas prediction output URL extraction - implemented
-73. Redacted non-JSON Atlas HTTP error diagnostics - implemented
-74. Bounded Atlas JSON metadata response parsing - implemented
-75. Configurable API render body-size gating - implemented
-76. Inline data URI redaction for public API responses - implemented
-77. Unsafe URI redaction for public API responses - implemented
-78. Nested render option object admission validation - implemented
-79. Production CLI preflight gate - implemented
-80. Stable package export contract - implemented
-81. Complete package index export surface - implemented
-82. Proxy-safe API rate-limit client identity - implemented
-83. Retryable Atlas abort/timeout ProviderError normalization - implemented
-84. API port and auth flag preflight-startup parity - implemented
-85. Strict API boolean flag startup validation - implemented
-86. Strict application JSON media-type admission - implemented
-87. Case-insensitive Bearer API authentication - implemented
-88. Pre-auth render POST rate limiting - implemented
-89. Source-video deconstruction intake, graph lineage, and artifacts - implemented
-90. Material sourcing planner foundation inspired by MoneyPrinterTurbo - implemented
-91. Real end-to-end validation with Atlas credentials and FFmpeg/FFprobe installed - next
+Current foundation:
+
+- Provider, prompt, graph, guardian, API, cost, error, artifact, redaction, and media-processing foundations exist under `src/`.
+- Source lineage and logging foundations exist, but most source-faithful modules still need explicit Reference Implementations and validation records.
+- Runtime readiness still depends on real Atlas credentials, verified model IDs, FFmpeg/FFprobe availability, and paid provider validation.
+
+Next implementation order:
+
+1. Prompt Binding Plan: make reference role ordering, conflict handling, prompt compression, and source lineage explicit.
+2. Guardian Repair Decision Provenance: record narrow repair scope, severity rollup, affected node IDs, and source-derived checkpoint lineage.
+3. Reference Selection Scoring: translate ViMax-style same-camera, recency, duplicate, and bounded-reference rules.
+4. Provider Polling/Retry Fidelity: harden Atlas polling, retry classification, cancellation, timeout, and cost ledger behavior.
+5. Long-Form Planning Fidelity: translate shot dependency, chunking, storyboard readiness, and review artifact ordering.
+6. Real end-to-end validation: run a paid Atlas render with FFmpeg/FFprobe installed, review artifacts, and update readiness notes.
+
+Detailed milestones are tracked in `docs/IMPLEMENTATION_ROADMAP.md`.
 
 ## Source Snapshot Strategy
 

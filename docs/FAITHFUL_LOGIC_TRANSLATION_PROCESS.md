@@ -137,17 +137,27 @@ These examples are intentionally non-production Reference Implementations. They 
 
 - Assign a role to every reference before writing prompt prose.
 - Put identity and product references before motion, camera, audio, and style cues.
+- Keep endpoint anchors (`first_frame`, `last_frame`) before environment, motion, camera, audio, and style because they define continuity boundaries for clip stitching.
 - Use text for intent, action, camera, timing, lighting, audio intent, and constraints; use references for dense visual or motion information.
 - Do not let one reference control incompatible roles unless the tradeoff is explicit.
 - When audio and video references compete, constrain one source: video controls camera/motion only, audio controls tempo/energy only.
 - Preserve provider/reference tags exactly when the provider path requires tags.
 - Compress vague language in a stable order: references first, then subject nouns, action verbs, camera move, light source, audio cue, and style/quality constraint.
+- Keep source-video-structure references out of provider reference arrays unless the provider explicitly supports source-video conditioning; by default they guide planning and prompt structure only.
 - Edge cases:
   - no references: prompt must say the shot contract is the source of truth
   - identity risk without identity reference: Guardian should request repair before render
   - product/logo risk without product reference: Guardian should request repair before render
   - first/last-frame workflow: endpoint anchors must outrank environment/style references
+  - unsupported provider mode: compile must downgrade to the safest supported mode or block before provider spend
+  - too many references: keep primary identity/product/endpoints first, then bounded support refs
+  - voice/audio reference without authorization: use tempo or energy only, never likeness or song identity
+  - source-video structure plus identity/product refs: source-video controls pacing/structure only; identity/product still come from owned references
   - duplicate references for the same role: primary wins; supporting refs are used only if they add non-duplicate information
+
+## Why This Ordering Matters
+
+Seedance-style reference workflows are sensitive to which constraint appears first. If a motion or style reference appears before the identity/product anchor, the model can transfer the wrong performer, costume, logo, environment, or color language. The CineJelly order protects commercial constraints first, then adds motion/camera/audio/style as controlled modifiers.
 
 ## Reference Implementation
 
@@ -201,6 +211,9 @@ function referenceBindingPromptPlan(shot: ShotContract): PromptPlan {
   if (roles.has("audio_tempo") && (roles.has("motion") || roles.has("camera"))) {
     findings.push({ severity: "warn", reason: "audio-video-reference-scope-must-be-explicit" });
   }
+  if (roles.has("source_video_structure") && (roles.has("identity") || roles.has("product"))) {
+    findings.push({ severity: "info", reason: "source-video-controls-structure-only" });
+  }
 
   const referenceLines =
     sorted.length === 0
@@ -228,6 +241,8 @@ function referenceBindingPromptPlan(shot: ShotContract): PromptPlan {
     promptSections: compressByProductionOrder(sections),
     findings,
     providerReferences: sorted
+      .filter((reference) => reference.role !== "source_video_structure")
+      .slice(0, providerReferenceLimit(shot))
   };
 }
 ```
@@ -238,6 +253,7 @@ function referenceBindingPromptPlan(shot: ShotContract): PromptPlan {
 - Current production anchor: `src/prompt_compiler/prompt-compiler.ts` already emits references before continuity, subject, action, camera, lighting, timeline, audio, transition, and quality instruction.
 - Current production anchor: `src/core/consistency-guardian.ts` already blocks or repairs missing identity/product references for risky shots.
 - Next faithful implementation step: create a `PromptBindingPlan` contract that records conflict findings, role scopes, and compression decisions before prompt text is assembled.
+- Next faithful implementation step: add provider-capability-aware reference filtering so source-video structure and unsupported reference kinds never leak into provider requests.
 - Attribution: record the translation in `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` and, when implemented, in `SourceLogicTranslationLedger`.
 
 ## Example 2: Repair Strategy + Consistency Checkpoint
@@ -260,12 +276,15 @@ function referenceBindingPromptPlan(shot: ShotContract): PromptPlan {
 - Detect duplicate or redundant references and keep the most useful one.
 - Keep repair scope narrow: fix storyboard, prompt, reference binding, or one render node rather than restarting the full project.
 - Preserve VibeFrame-style loop ordering: validate -> plan/cost -> dry-run or preflight -> build/render -> inspect -> repair -> refresh status.
+- Record provenance for every repair decision: upstream source, checkpoint, affected graph node, selected action, and CineJelly destination module.
 - Edge cases:
   - missing storyboard panel: block render
   - duplicate storyboard panel: repair storyboard before render
   - provider status failed/canceled/timeout: rerender only the affected shot
   - output URL missing: block delivery and rerender affected shot after diagnostics
   - prompt too dense or negative constraints too broad: repair prompt before provider spend
+  - stale dependency artifact: repair or regenerate the stale dependency before child shots render
+  - multiple candidate clips: select best candidate first; rerender only when no candidate passes the blocking checkpoints
   - warnings should not block delivery, but they must be recorded for review packets and routing
 
 ## Reference Implementation
@@ -303,6 +322,14 @@ function consistencyRepairDecision(input: RepairInput): RepairDecision {
   return {
     action: rollup(findings),
     affectedNodeIds: affectedNodes(findings),
+    repairScope: narrowestScope(findings),
+    provenance: findings.map((finding) => ({
+      sourceRepositories: findingSources(finding.checkpoint),
+      checkpoint: finding.checkpoint,
+      affectedNodeId: finding.nodeId,
+      action: finding.action,
+      destinationModule: destinationFor(finding.action)
+    })),
     findings
   };
 }
@@ -330,6 +357,14 @@ function checkReferenceSelection(history: ReferenceHistory, shots: readonly Shot
       : [];
   });
 }
+
+function narrowestScope(findings: readonly Finding[]): "none" | "prompt" | "storyboard" | "shot" | "delivery" {
+  if (findings.some((finding) => finding.action === "block_delivery")) return "delivery";
+  if (findings.some((finding) => finding.checkpoint.startsWith("storyboard_"))) return "storyboard";
+  if (findings.some((finding) => finding.checkpoint.includes("prompt"))) return "prompt";
+  if (findings.some((finding) => finding.action === "rerender_shot")) return "shot";
+  return findings.length > 0 ? "shot" : "none";
+}
 ```
 
 ## CineJelly Rewrite Path
@@ -339,7 +374,39 @@ function checkReferenceSelection(history: ReferenceHistory, shots: readonly Shot
 - Current production anchor: `src/core/production-graph-run-recorder.ts` records selected, rejected, and repair render candidates.
 - Next faithful implementation step: add explicit reference-selection scoring records so candidate choice can preserve ViMax ordering: same composition/camera, recent prior frame, non-duplicate character view, bounded maximum.
 - Next faithful implementation step: add repair-decision provenance to Guardian reports so VibeFrame-style inspect/repair loops are reviewable in `review-packet.json`.
+- Next faithful implementation step: include `repairScope`, `affectedNodeIds`, and source-derived checkpoint provenance in the artifact path so operators can see why only one shot, prompt, or storyboard node was repaired.
 - Attribution: record ViMax/VibeFrame source paths and CineJelly changes through `SourceLogicTranslationLedger` when this logic is productized.
+
+## Shared Validation Checklist
+
+Use this checklist after every source-derived logic rewrite:
+
+- Source and license are recorded: upstream repository, local snapshot path, upstream files, license, and nested-license notes.
+- Pattern Extraction vs Faithful Logic Translation decision is explicit.
+- Reference Implementation exists for behavior-critical logic and is not placed under `src/`.
+- Preserved behavior is listed: ordering, weighting, edge cases, fallback, repair decision, scoring, and limits.
+- Changed behavior is listed: CineJelly-specific contract, stricter safety boundary, provider abstraction, cost gate, or long-form extension.
+- Production code lives only under CineJelly-owned `src/`, `data/`, or `docs/`; runtime code does not import from `external/upstream/`.
+- Type contracts are updated before implementation if the existing contract cannot express the source behavior.
+- Error handling uses stable error/status codes and does not expose provider secrets, local paths, signed URLs, or raw stack traces to public responses.
+- Cost tracking is preserved for any provider call, retry, polling loop, or paid media operation.
+- Logging is redacted and includes request/project/graph/source lineage when available.
+- Production Graph integration records affected nodes, dependencies, candidate selection, repair action, and deliverable evidence where relevant.
+- Validation includes `npm.cmd run typecheck`, import-boundary check, redacted secret audit, and a focused manual review of Reference Implementation edge cases.
+- Documentation is updated: `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`, `docs/CREDITS.md` when attribution changes, and the focused design doc or source map.
+
+## How To Start Translating A New Logic
+
+1. Pick one behavior, not a whole repository.
+2. Read `docs/PROJECT_CONTEXT.md`, this file, and the focused design doc for the target layer.
+3. Re-open the relevant upstream files under `external/upstream/`.
+4. Decide whether the task is Pattern Extraction or Faithful Logic Translation.
+5. Create a source map under `docs/reference-implementations/<area>-<logic-name>.md` when behavior fidelity matters.
+6. Record the upstream path, license, preserved ordering/edge cases, and expected CineJelly destination files.
+7. Add or adjust TypeScript contracts in `src/types` only if the existing contract cannot represent the behavior.
+8. Rewrite the behavior into the correct `src/` layer using CineJelly names, errors, logging, cost tracking, graph lineage, and provider abstractions.
+9. Record lineage through docs and, where useful, `SourceLogicTranslationLedger`.
+10. Validate and update the roadmap milestone before claiming the logic is source-faithful.
 
 ## Reference Implementation Organization
 

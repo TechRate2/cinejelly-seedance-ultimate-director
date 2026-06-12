@@ -51,16 +51,18 @@ Use this table to decide which source behaviors should receive a Reference Imple
 
 | Snapshot | High-value logic to translate | Notes |
 | --- | --- | --- |
-| `seedance-2.0` | Reference role handling, prompt handoff order, professional QC workflow, troubleshooting decision flow. | MIT-compatible. Translate into Prompt Compiler, Reference Binder, and Guardian behavior with attribution. |
-| `awesome-seedance-2-prompts` | Prompt anatomy, timing language, negative constraints, cinematic weighting, subject/environment/camera ordering. | CC BY 4.0. Attribute exact text; translate generalized structures into CineJelly prompt contracts. |
-| `vimax` | Long-form segmentation, storyboard decomposition, parallel candidate planning, reference selection, consistency checkpoint ordering. | MIT-compatible. Highest-value source for 2-8 minute planning and continuity logic. |
-| `vibeframe` | Deterministic artifact naming, dry-run/cost gate sequence, build reports, review reports, repair loop ordering. | MIT-compatible. Translate into artifact store, cost gate, review packet, and repair workflow. |
+| `seedance-2.0` | Reference role handling, prompt handoff order, endpoint anchors, anti-slop compression, professional QC workflow, troubleshooting decision flow. | MIT-compatible. First target: Prompt Binding Plan with provider-capability filtering and Guardian preflight conflicts. |
+| `awesome-seedance-2-prompts` | Prompt anatomy, timing language, negative constraints, cinematic weighting, subject/environment/camera ordering. | CC BY 4.0. Attribute exact text; translate generalized structures into CineJelly prompt contracts and repair hints. |
+| `vimax` | Long-form segmentation, storyboard decomposition, parallel candidate planning, same-camera/recent-frame reference selection, consistency checkpoint ordering. | MIT-compatible. First target: reference selection scoring and Guardian checkpoint ordering for 2-8 minute continuity. |
+| `vibeframe` | Deterministic artifact naming, validate/plan/build/inspect/repair loop, dry-run/cost gate sequence, build reports, review reports, repair loop ordering. | MIT-compatible. First target: Guardian repair-decision provenance and review packet repair scope. |
 | `videoagent` | Intent decomposition, video understanding boundaries, graph-powered planning, multimodal retrieval flow. | Top-level MIT with nested license checks. Translate reviewed components into Source Video Analyst and graph planning. |
 | `openmontage` | Reference-video analysis, approval gates, provider scoring, real-footage path, self-review loop. | AGPL-3.0. Use architecture and behavior notes unless AGPL obligations or legal approval allow direct implementation reuse. |
-| `moneyprinterturbo` | One-input staged pipeline, material sourcing, task progress, batch output lifecycle, subtitles/TTS/BGM orchestration, operator surfaces. | MIT-compatible. Translate into CineJelly-owned TypeScript with stronger rights metadata, Atlas-first provider contracts, and long-form review artifacts. |
+| `moneyprinterturbo` | One-input staged pipeline, material sourcing, task progress, batch output lifecycle, subtitles/TTS/BGM orchestration, operator surfaces. | MIT-compatible. First target: stage status model, rights-aware material sourcing, and batch candidate evidence in Production Graph. |
 | `directorbench` | Long-form evaluation dimensions, checkpoint taxonomy, bottleneck reporting. | No top-level license found. Keep as evaluation/planning influence until permission or compatible reuse path is clarified. |
 
 Reference Implementations should capture upstream path, license, preserved behavior, changed behavior, CineJelly destination module, and validation criteria. They are non-production documentation; production code must live in `src/`.
+
+Implementation sequencing and milestone checks are tracked in `docs/IMPLEMENTATION_ROADMAP.md`.
 
 ## License-Sensitive Boundaries
 

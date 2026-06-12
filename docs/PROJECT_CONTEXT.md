@@ -90,6 +90,7 @@ Faithful Logic Translation is the required path for high-fidelity implementation
 - `docs/SUBTREE_POLICY.md`: Git Subtree workflow, `--squash` requirement, and copy/adapt rules.
 - `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: subtree inventory, license status, source-fidelity policy, and reuse boundaries.
 - `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`: six-step process for translating source behavior into CineJelly-owned production logic.
+- `docs/IMPLEMENTATION_ROADMAP.md`: practical phase-by-phase plan for translating high-value upstream logic into production modules.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive niche prompt compiler.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: QA, inspection, and repair system.
@@ -120,6 +121,7 @@ Current production folders:
 
 Implementation status:
 
+- Treat the bullets below as implementation foundation status, not proof of full upstream parity. A behavior is source-faithful only after its Reference Implementation, CineJelly rewrite, lineage record, and validation checklist are complete.
 - `docs/` contains the architecture and design source of truth.
 - `src/core/material-sourcing-planner.ts` implements the first MoneyPrinterTurbo-inspired material sourcing foundation as CineJelly-owned TypeScript; future work can connect it to material-source adapters, task-stage evidence, and batch candidate modules.
 - `src/core/source-logic-translation-ledger.ts` and `src/types/source-translation.ts` provide a lightweight production contract for recording source-derived logic lineage, Reference Implementation paths, license state, preserved behavior, changed behavior, destination modules, and validation status without importing upstream snapshots.
@@ -139,6 +141,7 @@ Current blockers before real customer rendering:
 - FFmpeg and FFprobe must be installed on the deployment host for assembly, inspection, captions, audio mix, postproduction, and frame sampling.
 - A real end-to-end Atlas render validation must be run against paid provider credentials before enabling customers.
 - Behavior-critical upstream parity still needs per-logic Reference Implementations, source lineage records, and validation before CineJelly should claim high-fidelity translation for that logic.
+- The next implementation order is tracked in `docs/IMPLEMENTATION_ROADMAP.md`; use that file instead of treating older implementation lists as release readiness.
 
 ## How To Interpret This Context
 
