@@ -12,6 +12,7 @@ export type ProjectArtifactKind =
   | "production_graph"
   | "material_sourcing_plan"
   | "material_source_validation"
+  | "postproduction_asset_plan"
   | "stage_lifecycle"
   | "review_packet"
   | "compiled_prompts"

@@ -25,6 +25,7 @@ const SUCCESS_REQUIRED_KINDS: readonly ProjectArtifactKind[] = [
   "production_graph",
   "material_sourcing_plan",
   "material_source_validation",
+  "postproduction_asset_plan",
   "stage_lifecycle",
   "cost_plan",
   "compiled_prompts",
@@ -46,6 +47,10 @@ const EXPECTED_STAGE_ORDER = [
 ];
 const MATERIAL_VALIDATION_STATUSES = new Set(["planned_only", "approved", "review_required", "rejected"]);
 const MATERIAL_VALIDATION_SEVERITIES = new Set(["info", "warn", "block"]);
+const POSTPRODUCTION_ASSET_STATUSES = new Set(["disabled", "planned", "review_required"]);
+const POSTPRODUCTION_CAPTION_DELIVERY_MODES = new Set(["disabled", "sidecar", "burn_in"]);
+const POSTPRODUCTION_ASSET_SEVERITIES = new Set(["info", "warn", "block"]);
+const POSTPRODUCTION_AUDIO_ROLES = new Set(["music", "narration", "ambience", "sfx"]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DATA_URI_PATTERN = /"[^"]*data:[^"]*"/i;
 const CREDENTIAL_QUERY_URI_PATTERN =
@@ -331,6 +336,7 @@ export class ProjectArtifactValidator {
     this.validateStageLifecycle(manifest, artifacts.get("stage_lifecycle"), checks);
     this.validateMaterialSourcingPlan(artifacts.get("material_sourcing_plan"), checks);
     this.validateMaterialSourceValidation(manifest, artifacts.get("material_source_validation"), checks);
+    this.validatePostproductionAssetPlan(manifest, artifacts.get("postproduction_asset_plan"), checks);
     this.validateCostLedger(artifacts.get("cost_ledger"), artifacts.has("failure_report"), checks);
     this.validateProductionGraph(artifacts.get("production_graph"), artifacts, checks);
     this.validateDeliverable(artifacts.get("deliverable"), checks);
@@ -503,6 +509,86 @@ export class ProjectArtifactValidator {
       }
       if (typeof issue.message !== "string" || !issue.message || typeof issue.repair !== "string" || !issue.repair) {
         checks.push({ name: "material_validation_issue_text", status: "fail", fileName: artifact.entry.fileName, message: `Material validation issue ${index} is missing message or repair.` });
+      }
+    }
+  }
+
+  private validatePostproductionAssetPlan(
+    manifest: ProjectArtifactBundle,
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "postproduction_asset_shape", status: "fail", fileName: artifact.entry.fileName, message: "postproduction-assets must be an object." });
+      return;
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "postproduction_asset_project", status: "fail", fileName: artifact.entry.fileName, message: "postproduction-assets projectId does not match manifest." });
+    }
+    if (typeof value.planId !== "string" || !value.planId) {
+      checks.push({ name: "postproduction_asset_plan_id", status: "fail", fileName: artifact.entry.fileName, message: "postproduction-assets planId is missing." });
+    }
+    if (typeof value.status !== "string" || !POSTPRODUCTION_ASSET_STATUSES.has(value.status)) {
+      checks.push({ name: "postproduction_asset_status", status: "fail", fileName: artifact.entry.fileName, message: "postproduction-assets status is invalid." });
+    }
+    if (!Array.isArray(value.sourcePatternOrigins) || value.sourcePatternOrigins.some((origin) => typeof origin !== "string" || !origin)) {
+      checks.push({ name: "postproduction_asset_origins", status: "fail", fileName: artifact.entry.fileName, message: "postproduction sourcePatternOrigins are invalid." });
+    }
+    if (!this.isRecord(value.caption) || typeof value.caption.cueCount !== "number" || !Number.isInteger(value.caption.cueCount) || value.caption.cueCount < 0) {
+      checks.push({ name: "postproduction_caption_plan", status: "fail", fileName: artifact.entry.fileName, message: "postproduction caption cueCount is invalid." });
+    } else {
+      if (typeof value.caption.deliveryMode !== "string" || !POSTPRODUCTION_CAPTION_DELIVERY_MODES.has(value.caption.deliveryMode)) {
+        checks.push({ name: "postproduction_caption_delivery", status: "fail", fileName: artifact.entry.fileName, message: "postproduction caption deliveryMode is invalid." });
+      }
+      if (typeof value.caption.totalCaptionSeconds !== "number" || value.caption.totalCaptionSeconds < 0) {
+        checks.push({ name: "postproduction_caption_duration", status: "fail", fileName: artifact.entry.fileName, message: "postproduction caption duration is invalid." });
+      }
+    }
+    if (!this.isRecord(value.audio) || typeof value.audio.trackCount !== "number" || !Number.isInteger(value.audio.trackCount) || value.audio.trackCount < 0) {
+      checks.push({ name: "postproduction_audio_plan", status: "fail", fileName: artifact.entry.fileName, message: "postproduction audio trackCount is invalid." });
+    } else if (!Array.isArray(value.audio.roleCounts)) {
+      checks.push({ name: "postproduction_audio_roles", status: "fail", fileName: artifact.entry.fileName, message: "postproduction audio roleCounts must be an array." });
+    } else {
+      for (const [index, roleCount] of value.audio.roleCounts.entries()) {
+        if (
+          !this.isRecord(roleCount) ||
+          typeof roleCount.role !== "string" ||
+          !POSTPRODUCTION_AUDIO_ROLES.has(roleCount.role) ||
+          typeof roleCount.count !== "number" ||
+          !Number.isInteger(roleCount.count) ||
+          roleCount.count < 0
+        ) {
+          checks.push({ name: "postproduction_audio_roles", status: "fail", fileName: artifact.entry.fileName, message: `Postproduction audio role count ${index} is invalid.` });
+        }
+      }
+    }
+    if (typeof value.issueCount !== "number" || !Number.isInteger(value.issueCount) || value.issueCount < 0) {
+      checks.push({ name: "postproduction_issue_count", status: "fail", fileName: artifact.entry.fileName, message: "postproduction issueCount is invalid." });
+    }
+    if (!Array.isArray(value.issues)) {
+      checks.push({ name: "postproduction_issues", status: "fail", fileName: artifact.entry.fileName, message: "postproduction issues must be an array." });
+      return;
+    }
+    if (typeof value.issueCount === "number" && value.issueCount !== value.issues.length) {
+      checks.push({ name: "postproduction_issue_count", status: "fail", fileName: artifact.entry.fileName, message: "postproduction issueCount does not match issues length." });
+    }
+    for (const [index, issue] of value.issues.entries()) {
+      if (!this.isRecord(issue)) {
+        checks.push({ name: "postproduction_issue_shape", status: "fail", fileName: artifact.entry.fileName, message: `Postproduction issue ${index} is not an object.` });
+        continue;
+      }
+      if (typeof issue.code !== "string" || !issue.code) {
+        checks.push({ name: "postproduction_issue_code", status: "fail", fileName: artifact.entry.fileName, message: `Postproduction issue ${index} is missing code.` });
+      }
+      if (typeof issue.severity !== "string" || !POSTPRODUCTION_ASSET_SEVERITIES.has(issue.severity)) {
+        checks.push({ name: "postproduction_issue_severity", status: "fail", fileName: artifact.entry.fileName, message: `Postproduction issue ${index} has invalid severity.` });
+      }
+      if (typeof issue.message !== "string" || !issue.message || typeof issue.repair !== "string" || !issue.repair) {
+        checks.push({ name: "postproduction_issue_text", status: "fail", fileName: artifact.entry.fileName, message: `Postproduction issue ${index} is missing message or repair.` });
       }
     }
   }

@@ -183,7 +183,7 @@ Pass criteria:
 - report status is `pass` or an intentionally reviewed `warn`
 - manifest byte sizes and SHA-256 hashes match every listed artifact
 - required success or failure artifacts are present
-- `review-packet.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, `material-source-validation.json`, `production-graph.json`, `cost-ledger.json`, and `deliverable.json` domain checks pass when present
+- `review-packet.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, `material-source-validation.json`, `postproduction-assets.json`, `production-graph.json`, `cost-ledger.json`, and `deliverable.json` domain checks pass when present
 - no artifact contains secret-like text, inline `data:` media, or credential-like URL query strings
 
 ## Artifact Inspection Checklist
@@ -196,6 +196,7 @@ Inspect the generated artifact manifest and at least these files:
 - `production-graph.json`
 - `material-sourcing-plan.json`
 - `material-source-validation.json`
+- `postproduction-assets.json`
 - `stage-lifecycle.json`
 - `cost-plan.json`
 - `cost-ledger.json`
@@ -212,6 +213,7 @@ Required evidence:
 - Async job `stageProgressEvents` use the same stage vocabulary and include bounded evidence without local paths, inline media, secrets, stack traces, or raw provider payloads.
 - `material-sourcing-plan.json` contains rights requirement and preferred sources for every material brief.
 - `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
+- `postproduction-assets.json` records caption delivery mode, caption cue counts, audio role counts, postproduction status, issue count, and repair text without claiming provider-backed TTS/BGM generation unless a separate module produced that evidence.
 - If a local material catalog is configured, selected candidates in `material-source-validation.json` use safe `asset://` or credential-free HTTPS URIs and preserve rights/attribution metadata.
 - If remote stock is enabled, selected candidates in `material-source-validation.json` use credential-free HTTPS media URIs, preserve provider asset IDs/source page/preview metadata when safe, and include attribution/license labels.
 - If source-video auto-analysis is enabled and the request has a clean HTTPS `source_video_structure` reference without caller-supplied analysis, `source-video-analysis.json` should contain normalized scene/keyframe/pacing/style/safety structure without local frame paths, inline `data:` URLs, or signed source URLs.

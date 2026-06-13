@@ -63,7 +63,11 @@ export class ReviewPacketBuilder {
         materialBriefCount: input.result.materialSourcingPlan.briefs.length,
         materialValidationStatus: input.result.materialSourceValidation.status,
         materialCandidateCount: input.result.materialSourceValidation.candidateCount,
-        selectedMaterialCandidateCount: input.result.materialSourceValidation.selectedCandidateCount
+        selectedMaterialCandidateCount: input.result.materialSourceValidation.selectedCandidateCount,
+        postproductionAssetStatus: input.result.postproductionAssetPlan.status,
+        captionCueCount: input.result.postproductionAssetPlan.caption.cueCount,
+        audioTrackCount: input.result.postproductionAssetPlan.audio.trackCount,
+        postproductionAssetIssueCount: input.result.postproductionAssetPlan.issueCount
       },
       render: this.render(input.result),
       cost,
@@ -199,6 +203,7 @@ export class ReviewPacketBuilder {
       delivery.semanticVisualInspectionStatus === "warn" ||
       delivery.mediaInspectionStatus === "warn" ||
       result.materialSourceValidation.status === "review_required" ||
+      result.postproductionAssetPlan.status === "review_required" ||
       cost.failedProviderOperationCount > 0 ||
       cost.timeoutProviderOperationCount > 0
     ) {
@@ -225,6 +230,9 @@ export class ReviewPacketBuilder {
       recommendations.add(finding);
     }
     for (const issue of result.materialSourceValidation.issues) {
+      recommendations.add(issue.repair);
+    }
+    for (const issue of result.postproductionAssetPlan.issues) {
       recommendations.add(issue.repair);
     }
     for (const finding of result.deliveryGate?.findings ?? []) {

@@ -9,6 +9,7 @@ import type { DeliveryGateReport } from "../types/delivery.js";
 import type { ProductionGraphSnapshot } from "../types/graph.js";
 import type { GuardianReport, GuardianStatus } from "../types/guardian.js";
 import type { MaterialSourceValidationReport, MaterialSourcingPlan } from "../types/material.js";
+import type { PostproductionAssetPlan } from "../types/postproduction-assets.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type {
   ProductionStageEvidenceValue,
@@ -29,6 +30,7 @@ export interface ProductionStagePlannerInput {
   readonly storyboardPreflight: GuardianReport;
   readonly materialSourcingPlan: MaterialSourcingPlan;
   readonly materialSourceValidation?: MaterialSourceValidationReport;
+  readonly postproductionAssetPlan: PostproductionAssetPlan;
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];
   readonly deliverablePresent: boolean;
@@ -77,7 +79,13 @@ export class ProductionStagePlanner {
           repairAttemptCount: input.renderedShots.reduce((sum, shot) => sum + shot.repairAttemptCount, 0)
         }),
         this.record(input, "assemble", 7, input.deliverablePresent ? "succeeded" : "skipped", {
-          hasDeliverable: input.deliverablePresent
+          hasDeliverable: input.deliverablePresent,
+          postproductionAssetStatus: input.postproductionAssetPlan.status,
+          captionCueCount: input.postproductionAssetPlan.caption.cueCount,
+          captionBurnIn: input.postproductionAssetPlan.caption.burnIn,
+          audioTrackCount: input.postproductionAssetPlan.audio.trackCount,
+          audioMixEnabled: input.postproductionAssetPlan.audio.enabled,
+          postproductionAssetIssueCount: input.postproductionAssetPlan.issueCount
         }),
         this.record(input, "deliver", 8, this.deliveryStatus(input.deliveryGate), {
           deliveryGateStatus: input.deliveryGate?.status ?? "not_run"

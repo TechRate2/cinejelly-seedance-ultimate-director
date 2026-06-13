@@ -146,6 +146,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds bounded async render-job stage progress telemetry so operators can see current stage and retained progress events before final artifacts exist.
   - Adds API-visible artifact validation status and checks for synchronous render responses and terminal async jobs so generated evidence stays reviewable through the API surface.
   - Adds pre-paid CLI and HTTP validation readiness reporting so blocked environment/tool state remains operator-visible before long-running Atlas work starts.
+  - Adds a deterministic postproduction asset plan for supplied captions and audio tracks so subtitle/audio/BGM decisions are visible in artifacts, review packets, and validation before assembly; provider-backed TTS/BGM generation remains a future CineJelly-owned module.
   - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 
 ## Atlas Cloud References

@@ -17,6 +17,7 @@ import { DeliveryGate } from "../core/delivery-gate.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
 import { ProductionStagePlanner } from "../core/production-stage-planner.js";
+import { PostproductionAssetPlanner } from "../core/postproduction-asset-planner.js";
 import { ReferenceSelectionPlanner } from "../core/reference-selection-planner.js";
 import { MaterialSourcingPlanner } from "../core/material-sourcing-planner.js";
 import { MaterialSourceValidator } from "../core/material-source-validator.js";
@@ -71,6 +72,7 @@ export class DirectorAgent {
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
   private readonly productionStagePlanner: ProductionStagePlanner;
+  private readonly postproductionAssetPlanner: PostproductionAssetPlanner;
   private readonly referenceSelectionPlanner: ReferenceSelectionPlanner;
   private readonly materialSourcingPlanner: MaterialSourcingPlanner;
   private readonly materialPlanningOptions: MaterialPlanningOptions;
@@ -101,6 +103,7 @@ export class DirectorAgent {
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
     readonly productionStagePlanner?: ProductionStagePlanner;
+    readonly postproductionAssetPlanner?: PostproductionAssetPlanner;
     readonly referenceSelectionPlanner?: ReferenceSelectionPlanner;
     readonly materialSourcingPlanner?: MaterialSourcingPlanner;
     readonly materialPlanningOptions?: MaterialPlanningOptions;
@@ -125,6 +128,7 @@ export class DirectorAgent {
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
     this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
+    this.postproductionAssetPlanner = input.postproductionAssetPlanner ?? new PostproductionAssetPlanner();
     this.referenceSelectionPlanner = input.referenceSelectionPlanner ?? new ReferenceSelectionPlanner();
     this.materialSourcingPlanner = input.materialSourcingPlanner ?? new MaterialSourcingPlanner();
     this.materialPlanningOptions = input.materialPlanningOptions ?? {};
@@ -271,6 +275,13 @@ export class DirectorAgent {
         materialValidationStatus: materialSourceValidation.status
       }
     );
+    const postproductionAssetPlan = this.postproductionAssetPlanner.plan({
+      projectId: intake.projectId,
+      ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
+      ...(preparedRequest.captionOptions ? { captionOptions: preparedRequest.captionOptions } : {}),
+      ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
+      ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {})
+    });
     const productionGraph = this.productionGraphBuilder.build({
       intake,
       storyPlan,
@@ -433,6 +444,7 @@ export class DirectorAgent {
       storyboardPreflight,
       materialSourcingPlan,
       materialSourceValidation,
+      postproductionAssetPlan,
       compiledPrompts,
       renderedShots,
       deliverablePresent: Boolean(deliverable),
@@ -448,6 +460,7 @@ export class DirectorAgent {
       productionGraph: finalProductionGraph,
       materialSourcingPlan,
       materialSourceValidation,
+      postproductionAssetPlan,
       stagePlan,
       costEstimate,
       compiledPrompts,

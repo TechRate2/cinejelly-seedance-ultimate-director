@@ -311,9 +311,10 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 8. `render`: submit parallel-safe jobs; preserve dependencies for continuity-bound shots.
 9. `inspect`: run Consistency Guardian and DirectorBench-style checkpoint scoring.
 10. `repair`: rerender only failed nodes or use deterministic postproduction fixes.
-11. `assemble`: stitch clips with handles and transitions.
-12. `finish`: audio, captions, color/polish, upscale if selected.
-13. `deliver`: export final video and review packet.
+11. `postproductionAssets`: classify supplied caption cues and audio tracks into deterministic planning evidence; do not claim provider-backed TTS/BGM generation without a separate module.
+12. `assemble`: stitch clips with handles and transitions.
+13. `finish`: audio, captions, color/polish, upscale if selected.
+14. `deliver`: export final video and review packet.
 
 Assembly materialization:
 

@@ -10,6 +10,7 @@ import type { QualityMode, Resolution, SpeedTier, AspectRatio } from "./settings
 import type { SourceLicenseKind, SourceLogicValidationStatus, SourceRepositoryId } from "./source-translation.js";
 import type { ProductionStageRecord } from "./stage.js";
 import type { MaterialSourceValidationStatus } from "./material.js";
+import type { PostproductionAssetStatus } from "./postproduction-assets.js";
 
 export type ReviewPacketStatus = "ready" | "review_required" | "blocked";
 
@@ -58,6 +59,10 @@ export interface ReviewPacketPlanning {
   readonly materialValidationStatus: MaterialSourceValidationStatus;
   readonly materialCandidateCount: number;
   readonly selectedMaterialCandidateCount: number;
+  readonly postproductionAssetStatus: PostproductionAssetStatus;
+  readonly captionCueCount: number;
+  readonly audioTrackCount: number;
+  readonly postproductionAssetIssueCount: number;
 }
 
 export interface ReviewPacketRender {

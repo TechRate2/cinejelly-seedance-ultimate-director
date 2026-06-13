@@ -21,6 +21,7 @@ import type { DeliveryGateReport } from "./delivery.js";
 import type { SourceVideoDeconstruction } from "./source-video.js";
 import type { MaterialSourceValidationReport, MaterialSourcingPlan } from "./material.js";
 import type { ProductionStagePlan } from "./stage.js";
+import type { PostproductionAssetPlan } from "./postproduction-assets.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -83,6 +84,7 @@ export interface DirectorRunResult {
   readonly productionGraph: ProductionGraphSnapshot;
   readonly materialSourcingPlan: MaterialSourcingPlan;
   readonly materialSourceValidation: MaterialSourceValidationReport;
+  readonly postproductionAssetPlan: PostproductionAssetPlan;
   readonly stagePlan: ProductionStagePlan;
   readonly costEstimate: RenderCostEstimate;
   readonly compiledPrompts: readonly CompiledPrompt[];

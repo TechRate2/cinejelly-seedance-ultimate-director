@@ -508,7 +508,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     validationStatus: "implemented",
     fidelityRisks: [
       "live remote stock provider validation with real keys remains pending",
-      "subtitle, TTS, and BGM orchestration are not yet translated into dedicated stage modules"
+      "provider-backed TTS generation and BGM search/generation remain future dedicated modules"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -1123,6 +1123,81 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     fidelityRisks: [
       "external queue persistence is still out of scope for the in-process validation report",
       "real provider validation remains the authoritative release gate"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Postproduction Asset Orchestration",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/subtitle.py",
+      "external/upstream/moneyprinterturbo/app/services/voice.py",
+      "external/upstream/moneyprinterturbo/app/services/video.py",
+      "external/upstream/moneyprinterturbo/app/services/task.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "subtitle, narration, background music, ambience, and SFX decisions are explicit before assembly",
+      "caption and audio inputs are classified into deterministic postproduction planning evidence",
+      "missing or inconsistent caption/audio inputs become operator-visible review issues",
+      "TTS and BGM generation are not claimed when only supplied tracks are planned"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo runtime subtitle, voice, music, and task code is not copied or executed",
+      "CineJelly records a postproduction asset plan rather than generating provider-backed TTS or BGM in this module",
+      "audio materialization remains delegated to the existing bounded AudioMixEngine",
+      "caption burn-in or sidecar delivery remains delegated to the existing CaptionRenderer"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/postproduction-asset-orchestration.md",
+    cineJellyDestinationPaths: [
+      "src/types/postproduction-assets.ts",
+      "src/core/postproduction-asset-planner.ts",
+      "src/agents/director-agent.ts",
+      "src/core/production-stage-planner.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
+      "src/core/review-packet-builder.ts",
+      "src/index.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "provider-backed TTS and BGM generation still require separate Reference Implementations",
+      "paid end-to-end validation must confirm postproduction-assets.json, review packet planning evidence, and stage lifecycle evidence against real renders"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Postproduction Asset Orchestration",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "postproduction readiness is represented as deterministic reviewable artifact evidence",
+      "warnings and missing-input repairs stay visible to operators",
+      "artifact validation checks the postproduction plan shape before release"
+    ],
+    behaviorChanged: [
+      "VibeFrame review-report discipline is rewritten into CineJelly postproduction asset contracts",
+      "CineJelly keeps the plan provider-free and redacted rather than embedding local file paths or raw media payloads",
+      "postproduction evidence is integrated into stage lifecycle, run summary, and review packet planning"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/postproduction-asset-orchestration.md",
+    cineJellyDestinationPaths: [
+      "src/types/postproduction-assets.ts",
+      "src/core/postproduction-asset-planner.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
+      "src/types/review.ts",
+      "src/core/review-packet-builder.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "real provider artifacts must still be inspected to confirm postproduction planning evidence lines up with final media outputs"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }
