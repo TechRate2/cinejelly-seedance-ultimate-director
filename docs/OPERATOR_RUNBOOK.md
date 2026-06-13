@@ -4,7 +4,7 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 ## Current Readiness
 
-As of 2026-06-13T17:02:53Z (2026-06-14 Asia/Saigon), the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` plus `GET /v1/validation-readiness` can produce a redacted Phase 6 readiness report. The latest recorded local validation had 52 readiness checks: 44 pass, 1 warn, and 7 fail; the HTTP readiness route returned `503` with the same blocked decision. It remained blocked because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured.
+As of 2026-06-13T17:24:32Z (2026-06-14 Asia/Saigon), the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` plus `GET /v1/validation-readiness` can produce a redacted Phase 6 readiness report. The latest recorded local CLI validation had 52 readiness checks: 44 pass, 1 warn, and 7 fail; an earlier HTTP readiness route returned `503` with the same blocked decision. It remained blocked because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured through `PATH` or explicit media tool paths.
 
 Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected.
 
@@ -21,6 +21,8 @@ Configure secrets and provider IDs through environment variables only:
 Recommended production controls:
 
 - `CINEJELLY_OUTPUT_DIR`
+- `CINEJELLY_FFMPEG_PATH`
+- `CINEJELLY_FFPROBE_PATH`
 - `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH`
 - `CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS`
 - `CINEJELLY_REMOTE_STOCK_REQUEST_TIMEOUT_MS`
@@ -41,6 +43,8 @@ Install and verify media tools:
 ffmpeg -version
 ffprobe -version
 ```
+
+If the deployment uses portable media-tool binaries instead of global `PATH`, set `CINEJELLY_FFMPEG_PATH` and `CINEJELLY_FFPROBE_PATH` to executable command paths and then run preflight. Preflight and runtime media engines use the same resolved commands, so a path override must be validated before paid provider work.
 
 `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` is optional. When set, it must point to an operator-owned JSON catalog whose entries use safe `asset://` or credential-free HTTPS `assetUri` values, approved rights metadata, bounded labels/tags, and no local filesystem paths or signed URL credentials. Missing this variable keeps material fulfillment in a planned-only state.
 
@@ -81,7 +85,7 @@ Hard blockers:
 
 - Missing Atlas key or model IDs.
 - Missing `CINEJELLY_API_AUTH_TOKEN` for a protected deployment.
-- Missing FFmpeg or FFprobe.
+- Missing FFmpeg or FFprobe on `PATH` or through `CINEJELLY_FFMPEG_PATH` / `CINEJELLY_FFPROBE_PATH`.
 - Invalid Atlas endpoint overrides.
 - Invalid local material catalog path or unsafe catalog asset URI when `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` is set.
 - Remote stock enabled without an approved provider key.
@@ -240,7 +244,7 @@ Before marking the validation run acceptable:
 
 If preflight fails:
 
-1. Fix environment or media tool installation.
+1. Fix environment, media tool installation, or configured media tool paths.
 2. Rerun `npm.cmd run preflight` and `npm.cmd run validation:readiness`.
 3. Do not run paid provider validation until hard failures are gone.
 

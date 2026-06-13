@@ -115,11 +115,11 @@ flowchart LR
 The production implementation structure is:
 
 - `src/agents`: Director, Intake, Reference Librarian, Shot Planner, Render Producer, Editor, and orchestration agents.
-- `src/core`: Production Graph, continuity ledgers, Consistency Guardian, governed material sourcing, batch output planning, assembly contracts, cost ledger, and repair decisions.
+- `src/core`: Production Graph, continuity ledgers, Consistency Guardian, governed material sourcing, batch output planning, assembly/media-processing contracts, cost ledger, and repair decisions.
 - `src/prompt_compiler`: Seedance 2.0 prompt compiler, reference binding, negative constraints, and prompt repair hints.
 - `src/providers`: provider-neutral interfaces plus Atlas Cloud default implementation for LLM, Seedance 2.0, async predictions, and Asset Library.
 - `src/config`: typed runtime settings, flexible Seedance settings, provider model configuration, and secret-safe environment loading.
-- `src/utils`: production utility functions such as redaction, retry policy, IDs, timing, and structured error helpers.
+- `src/utils`: production utility functions such as redaction, retry policy, IDs, timing, media-tool command resolution, and structured error helpers.
 - `src/types`: shared type definitions for settings, graph nodes, provider requests, reports, and deliverables.
 - `data`: production-approved local knowledge artifacts such as copied prompt-pattern snapshots, bibles, source-derived evaluation rubrics, or curated product knowledge when required.
 - `external`: Git subtree snapshots of upstream repositories used for source review, copy/adaptation, and integration planning; production code does not import from this tree, and productized behavior moves into CineJelly-owned `src/`, `data/`, and `docs/`.
@@ -322,6 +322,7 @@ Assembly materialization:
 - Remote clip and public API audio track URLs must use HTTPS and must not embed credentials before materialization.
 - Each rendered clip download is bounded by deployment configuration so long-form jobs cannot consume unbounded memory or disk.
 - Each remote audio track download is separately bounded by deployment configuration so postproduction mix inputs cannot consume unbounded memory or disk.
+- FFmpeg and FFprobe are resolved through `CINEJELLY_FFMPEG_PATH` / `CINEJELLY_FFPROBE_PATH` when configured, otherwise through `PATH`; preflight and runtime media engines must use the same resolved commands.
 - FFmpeg and FFprobe process stdout/stderr capture is bounded so malformed media or noisy tool failures cannot exhaust API memory.
 - Completed downloads are moved into place only after the full file has been received, keeping FFmpeg inputs deterministic.
 

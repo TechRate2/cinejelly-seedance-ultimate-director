@@ -14,6 +14,7 @@ import type {
   MediaStreamInfo
 } from "../types/media.js";
 import { ensureDirectory } from "../utils/files.js";
+import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
 
 type JsonObject = Record<string, unknown>;
@@ -21,7 +22,7 @@ type JsonObject = Record<string, unknown>;
 export class MediaInspector {
   public async probe(path: string, signal?: AbortSignal): Promise<MediaMetadata> {
     const result = await runProcess(
-      "ffprobe",
+      readMediaToolCommand("ffprobe"),
       ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", path],
       signal
     );
@@ -98,7 +99,7 @@ export class MediaInspector {
     const prefix = `frame_${Date.now()}`;
     const pattern = join(options.outputDirectory, `${prefix}_%03d.jpg`);
     await runProcess(
-      "ffmpeg",
+      readMediaToolCommand("ffmpeg"),
       [
         "-y",
         "-i",

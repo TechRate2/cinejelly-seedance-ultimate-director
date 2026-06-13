@@ -1127,6 +1127,116 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Media Tool Binary Resolution",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "media tool availability is validated before build/render work proceeds",
+      "operator-facing readiness reports keep failures explicit and actionable",
+      "runtime media processing uses the same readiness assumption as preflight",
+      "local command details stay out of public failure payloads"
+    ],
+    behaviorChanged: [
+      "VibeFrame preflight discipline is rewritten into CineJelly RuntimePreflight checks",
+      "FFmpeg and FFprobe command resolution supports deployment-specific environment overrides",
+      "runtime media engines resolve commands through a shared CineJelly utility before using the existing bounded process runner"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/media-tool-binary-resolution.md",
+    cineJellyDestinationPaths: [
+      "src/utils/media-tools.ts",
+      "src/application/runtime-preflight.ts",
+      "src/core/assembly-engine.ts",
+      "src/core/media-inspector.ts",
+      "src/core/transition-engine.ts",
+      "src/core/postproduction-engine.ts",
+      "src/core/caption-engine.ts",
+      "src/core/audio-mix-engine.ts",
+      "src/index.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "local smoke validation can prove command resolution but not real FFmpeg/FFprobe codec behavior",
+      "deployment binaries must still be validated through preflight and paid render artifact review"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Media Tool Binary Resolution",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/video.py",
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/Dockerfile"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "media processing readiness is treated as an operator-visible dependency",
+      "long-running video work should fail before paid/runtime work when media tooling is unavailable",
+      "deployment packaging may provide media tools without requiring a globally modified PATH"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo runtime code is not copied or executed",
+      "CineJelly keeps FFmpeg/FFprobe resolution provider-neutral and API-preflight visible",
+      "configured command paths are resolved centrally and used by assembly, inspection, transitions, captions, audio mix, and postproduction"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/media-tool-binary-resolution.md",
+    cineJellyDestinationPaths: [
+      "src/utils/media-tools.ts",
+      "src/application/runtime-preflight.ts",
+      "src/core/assembly-engine.ts",
+      "src/core/media-inspector.ts",
+      "src/core/transition-engine.ts",
+      "src/core/postproduction-engine.ts",
+      "src/core/caption-engine.ts",
+      "src/core/audio-mix-engine.ts",
+      "src/index.ts",
+      "docs/OPERATOR_RUNBOOK.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "portable binary packaging remains an operator/deployment responsibility",
+      "real media tool versions and codecs must still be documented during Phase 6 paid validation"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Media Tool Binary Resolution",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/README.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "media self-review depends on explicit media-tool availability",
+      "quality checks should not silently skip inspection when FFmpeg/FFprobe are absent"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, or executed",
+      "AGPL-sensitive concepts are limited to behavior notes for CineJelly-owned readiness checks",
+      "CineJelly routes all media work through its own TypeScript engines and process runner"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/media-tool-binary-resolution.md",
+    cineJellyDestinationPaths: [
+      "src/utils/media-tools.ts",
+      "src/application/runtime-preflight.ts",
+      "src/core/media-inspector.ts",
+      "src/core/assembly-engine.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "AGPL implementation reuse remains disallowed unless legal/product obligations are accepted",
+      "behavior-note parity must be validated against CineJelly artifacts rather than upstream runtime code"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Postproduction Asset Orchestration",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
     snapshotPath: "external/upstream/moneyprinterturbo",

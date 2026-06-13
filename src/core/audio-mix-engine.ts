@@ -8,6 +8,7 @@ import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path
 import type { AudioMixArtifact, AudioMixInput, AudioMixOptions, AudioMixTrack } from "../types/audio.js";
 import { ensureDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
+import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
 
 export const DEFAULT_AUDIO_MIX_OPTIONS: AudioMixOptions = {
@@ -36,7 +37,7 @@ export class AudioMixEngine {
       input.tracks.map((track, index) => this.materializeTrack(input.projectId, input.workDirectory, track, index, signal))
     );
     const args = this.buildFfmpegArgs(input, localTracks);
-    await runProcess("ffmpeg", args, signal);
+    await runProcess(readMediaToolCommand("ffmpeg"), args, signal);
 
     return {
       outputPath: input.outputVideoPath,

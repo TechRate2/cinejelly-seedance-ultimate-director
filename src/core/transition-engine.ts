@@ -5,6 +5,7 @@
 
 import type { MediaMetadata } from "../types/media.js";
 import type { TransitionArtifact, TransitionAssemblyInput, TransitionSettings } from "../types/transition.js";
+import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
 import { MediaInspector } from "./media-inspector.js";
 
@@ -33,7 +34,7 @@ export class TransitionEngine {
     const targetHeight = input.settings.targetHeight ?? this.firstVideoHeight(metadata) ?? 720;
     const allHaveAudio = input.settings.preserveAudio && metadata.every((item) => item.streams.some((stream) => stream.type === "audio"));
     const args = this.buildFfmpegArgs(input, metadata, targetHeight, allHaveAudio);
-    await runProcess("ffmpeg", args, signal);
+    await runProcess(readMediaToolCommand("ffmpeg"), args, signal);
 
     return {
       outputPath: input.outputPath,

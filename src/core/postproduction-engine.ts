@@ -6,6 +6,7 @@
 import type { PostproductionInput, PostproductionResult, PostproductionSettings } from "../types/media.js";
 import type { AspectRatio } from "../types/settings.js";
 import { ensureDirectory } from "../utils/files.js";
+import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
 import { dirname, resolve } from "node:path";
 
@@ -33,7 +34,7 @@ export class PostproductionEngine {
     }
 
     const args = this.buildFfmpegArgs(input);
-    await runProcess("ffmpeg", args, signal);
+    await runProcess(readMediaToolCommand("ffmpeg"), args, signal);
 
     return {
       inputPath: input.inputPath,

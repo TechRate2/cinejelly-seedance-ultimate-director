@@ -9,6 +9,13 @@ import { resolve } from "node:path";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
 import type { LocalMaterialCatalog } from "../types/material.js";
 import type { PreflightCheck, PreflightStatus, RuntimePreflightReport } from "../types/preflight.js";
+import {
+  mediaToolCommandHasControlCharacters,
+  mediaToolEnvName,
+  normalizeMediaToolCommand,
+  readMediaToolCommand,
+  type MediaToolName
+} from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
 
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
@@ -84,8 +91,8 @@ export class RuntimePreflight {
       "CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH",
       this.env.CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH
     ));
-    checks.push(await this.commandCheck("ffmpeg", ["-version"], signal));
-    checks.push(await this.commandCheck("ffprobe", ["-version"], signal));
+    checks.push(await this.mediaToolCheck("ffmpeg", signal));
+    checks.push(await this.mediaToolCheck("ffprobe", signal));
 
     return {
       status: this.rollup(checks),
@@ -481,19 +488,31 @@ export class RuntimePreflight {
     }
   }
 
-  private async commandCheck(command: string, args: readonly string[], signal?: AbortSignal): Promise<PreflightCheck> {
-    try {
-      await runProcess(command, args, signal);
+  private async mediaToolCheck(tool: MediaToolName, signal?: AbortSignal): Promise<PreflightCheck> {
+    const envName = mediaToolEnvName(tool);
+    const configured = normalizeMediaToolCommand(this.env[envName]);
+    const checkName = configured ? envName : tool;
+    if (configured && mediaToolCommandHasControlCharacters(configured)) {
       return {
-        name: command,
+        name: checkName,
+        status: "fail",
+        message: `${envName} must not contain control characters.`
+      };
+    }
+    try {
+      await runProcess(readMediaToolCommand(tool, this.env), ["-version"], signal);
+      return {
+        name: checkName,
         status: "pass",
-        message: `${command} is available on PATH.`
+        message: configured ? `${envName} is configured and executable.` : `${tool} is available on PATH.`
       };
     } catch (error) {
       return {
-        name: command,
+        name: checkName,
         status: "fail",
-        message: error instanceof Error ? error.message : `${command} failed.`
+        message: configured
+          ? `${envName} is configured but the command could not be executed.`
+          : error instanceof Error ? error.message : `${tool} failed.`
       };
     }
   }

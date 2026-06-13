@@ -6,6 +6,7 @@
 import { basename, join, relative } from "node:path";
 import type { CaptionArtifact, CaptionCue, CaptionRenderInput } from "../types/caption.js";
 import { ensureDirectory, writeFileEnsuringDirectory } from "../utils/files.js";
+import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
 
 export class CaptionEngine {
@@ -19,7 +20,7 @@ export class CaptionEngine {
 
     if (input.options.burnIn) {
       await runProcess(
-        "ffmpeg",
+        readMediaToolCommand("ffmpeg"),
         [
           "-y",
           "-i",

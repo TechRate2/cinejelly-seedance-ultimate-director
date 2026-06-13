@@ -21,14 +21,14 @@ Ready foundations:
 - Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, postproduction asset planner, render-job stage progress telemetry, and source-material/postproduction artifact validation.
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
-- Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, API Artifact Validation Evidence, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, and Phase 6 Validation Readiness Report.
+- Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, API Artifact Validation Evidence, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, Phase 6 Validation Readiness Report, and Media Tool Binary Resolution.
 - Operator validation readiness through `npm.cmd run validation:readiness`, `GET /v1/validation-readiness`, API-visible synchronous/async artifact validation, and artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for pre-paid blockers, manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
 
 Not yet complete:
 
-- Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe installed.
+- Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe available through `PATH` or configured binary paths.
 - Real artifact review from a paid Atlas validation run, including validator output, review packet, cost ledger, stage lifecycle, and deliverable metadata.
-- Live validation of source-video auto-analysis with real source videos, FFmpeg frame extraction, and the configured Atlas multimodal LLM.
+- Live validation of source-video auto-analysis with real source videos, deployment FFmpeg frame extraction, and the configured Atlas multimodal LLM.
 - Live remote stock provider validation with real Pexels/Pixabay/Coverr credentials and operator-approved commercial terms.
 
 ## Phase 1: Prompt Fidelity
@@ -219,7 +219,7 @@ Milestone check:
 
 ## Phase 6: Real Provider Validation
 
-Status as of 2026-06-13T17:02:53Z (2026-06-14 Asia/Saigon): `npm.cmd run typecheck` and `npm.cmd run build` passed. `npm.cmd run preflight` built successfully but returned `fail`; `npm.cmd run validation:readiness` returned decision `blocked` with 52 checks: 44 pass, 1 warn, and 7 fail. A local API process on a temporary port also returned `503` from `GET /v1/validation-readiness` with decision `blocked`, 7 fail checks, and 1 warning. The current hard blockers are missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. A Phase 6 Validation Readiness Report foundation is implemented for CLI and HTTP diagnostics so operators can capture redacted blockers, warnings, and next actions before paid provider work. Paid Atlas render validation has not been run.
+Status as of 2026-06-13T17:24:32Z (2026-06-14 Asia/Saigon): `npm.cmd run typecheck` and `npm.cmd run build` passed. `npm.cmd run preflight` built successfully but returned `fail`; `npm.cmd run validation:readiness` returned decision `blocked` with 52 checks: 44 pass, 1 warn, and 7 fail. An earlier local API process on a temporary port also returned `503` from `GET /v1/validation-readiness` with decision `blocked`, 7 fail checks, and 1 warning. The current hard blockers are missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`; media tools may now be satisfied through `PATH` or `CINEJELLY_FFMPEG_PATH` / `CINEJELLY_FFPROBE_PATH`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. A Phase 6 Validation Readiness Report foundation is implemented for CLI and HTTP diagnostics so operators can capture redacted blockers, warnings, and next actions before paid provider work. Paid Atlas render validation has not been run.
 
 Operator validation procedure: `docs/OPERATOR_RUNBOOK.md`.
 
@@ -247,7 +247,7 @@ Deliverables:
 Milestone check:
 
 - Provider credentials are loaded only through environment variables.
-- FFmpeg/FFprobe are detected.
+- FFmpeg/FFprobe are detected through `PATH` or configured binary paths.
 - Validation readiness report decision is `ready_for_paid_validation`, or warnings are explicitly reviewed before paid rendering.
 - API response does not expose local paths, secrets, signed URLs, raw stack traces, or inline base64 media.
 - Artifacts are redacted and include integrity hashes.

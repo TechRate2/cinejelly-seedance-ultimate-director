@@ -97,6 +97,7 @@ export * from "./types/visual-inspection.js";
 export * from "./utils/errors.js";
 export * from "./utils/redaction.js";
 export * from "./utils/logger.js";
+export * from "./utils/media-tools.js";
 export * from "./utils/retry.js";
 export * from "./utils/time.js";
 export * from "./utils/ids.js";

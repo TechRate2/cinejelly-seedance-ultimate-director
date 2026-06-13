@@ -15,6 +15,7 @@ import { AudioMixEngine, DEFAULT_AUDIO_MIX_OPTIONS } from "./audio-mix-engine.js
 import { DEFAULT_TRANSITION_SETTINGS, TransitionEngine } from "./transition-engine.js";
 import { ensureDirectory, writeFileEnsuringDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
+import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
 
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
@@ -94,7 +95,7 @@ export class AssemblyEngine {
       : undefined;
     if (!transition) {
       await runProcess(
-        "ffmpeg",
+        readMediaToolCommand("ffmpeg"),
         [
           "-y",
           "-f",
@@ -278,11 +279,11 @@ export class AssemblyEngine {
   }
 
   private async assertFfmpegAvailable(signal?: AbortSignal): Promise<void> {
-    await runProcess("ffmpeg", ["-version"], signal);
+    await runProcess(readMediaToolCommand("ffmpeg"), ["-version"], signal);
   }
 
   private async assertFfprobeAvailable(signal?: AbortSignal): Promise<void> {
-    await runProcess("ffprobe", ["-version"], signal);
+    await runProcess(readMediaToolCommand("ffprobe"), ["-version"], signal);
   }
 
   private isRemoteUrl(value: string): boolean {
