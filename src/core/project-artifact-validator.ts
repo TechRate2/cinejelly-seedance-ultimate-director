@@ -58,6 +58,15 @@ const POSTPRODUCTION_GENERATED_AUDIO_STATUSES = new Set([
   "partially_ready"
 ]);
 const POSTPRODUCTION_GENERATED_AUDIO_KINDS = new Set(["tts_narration", "bgm", "ambience", "sfx"]);
+const GENERATED_AUDIO_OUTPUT_BATCH_STATUSES = new Set([
+  "not_requested",
+  "approved",
+  "review_required",
+  "partially_approved",
+  "rejected"
+]);
+const GENERATED_AUDIO_OUTPUT_VALIDATION_STATUSES = new Set(["approved", "review_required", "rejected"]);
+const GENERATED_AUDIO_OUTPUT_ISSUE_SEVERITIES = new Set(["info", "warn", "block"]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DATA_URI_PATTERN = /"[^"]*data:[^"]*"/i;
 const CREDENTIAL_QUERY_URI_PATTERN =
@@ -344,7 +353,9 @@ export class ProjectArtifactValidator {
     this.validateMaterialSourcingPlan(artifacts.get("material_sourcing_plan"), checks);
     this.validateMaterialSourceValidation(manifest, artifacts.get("material_source_validation"), checks);
     this.validatePostproductionAssetPlan(manifest, artifacts.get("postproduction_asset_plan"), checks);
+    this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
     this.validatePostproductionAssetConsistency(artifacts, checks);
+    this.validateGeneratedAudioOutputBatchConsistency(artifacts, checks);
     this.validateCostLedger(artifacts.get("cost_ledger"), artifacts.has("failure_report"), checks);
     this.validateProductionGraph(artifacts.get("production_graph"), artifacts, checks);
     this.validateDeliverable(artifacts.get("deliverable"), checks);
@@ -764,6 +775,226 @@ export class ProjectArtifactValidator {
     }
   }
 
+  private validateGeneratedAudioOutputBatchValidation(
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    if (!this.isRecord(value)) {
+      checks.push({
+        name: "generated_audio_output_batch_shape",
+        status: "fail",
+        fileName: artifact.entry.fileName,
+        message: "generated-audio-output-batch-validation must be an object."
+      });
+      return;
+    }
+    const fileName = artifact.entry.fileName;
+    if (typeof value.status !== "string" || !GENERATED_AUDIO_OUTPUT_BATCH_STATUSES.has(value.status)) {
+      checks.push({ name: "generated_audio_output_batch_status", status: "fail", fileName, message: "Generated-audio output batch status is invalid." });
+    }
+    for (const field of [
+      "intentCount",
+      "readyIntentCount",
+      "resultCount",
+      "approvedTrackCount",
+      "reviewRequiredReportCount",
+      "rejectedReportCount",
+      "missingResultCount",
+      "unexpectedResultCount",
+      "duplicateResultCount",
+      "issueCount"
+    ] as const) {
+      if (typeof value[field] !== "number" || !Number.isInteger(value[field]) || value[field] < 0) {
+        checks.push({ name: "generated_audio_output_batch_count", status: "fail", fileName, message: `Generated-audio output batch ${field} is invalid.` });
+      }
+    }
+    if (!Array.isArray(value.issues)) {
+      checks.push({ name: "generated_audio_output_batch_issues", status: "fail", fileName, message: "Generated-audio output batch issues must be an array." });
+    } else {
+      if (typeof value.issueCount === "number" && value.issueCount !== value.issues.length) {
+        checks.push({ name: "generated_audio_output_batch_issue_count", status: "fail", fileName, message: "Generated-audio output batch issueCount does not match issues length." });
+      }
+      for (const [index, issue] of value.issues.entries()) {
+        this.validateGeneratedAudioOutputIssue(fileName, issue, `Generated-audio output batch issue ${index}`, checks);
+      }
+    }
+    if (!Array.isArray(value.reports)) {
+      checks.push({ name: "generated_audio_output_batch_reports", status: "fail", fileName, message: "Generated-audio output batch reports must be an array." });
+    } else {
+      for (const [index, report] of value.reports.entries()) {
+        this.validateGeneratedAudioOutputReport(fileName, report, index, checks);
+      }
+    }
+    if (!Array.isArray(value.audioTracks)) {
+      checks.push({ name: "generated_audio_output_batch_tracks", status: "fail", fileName, message: "Generated-audio output batch audioTracks must be an array." });
+    } else {
+      if (typeof value.approvedTrackCount === "number" && value.audioTracks.length !== value.approvedTrackCount) {
+        checks.push({ name: "generated_audio_output_batch_track_count", status: "fail", fileName, message: "Generated-audio output batch approvedTrackCount does not match audioTracks length." });
+      }
+      for (const [index, track] of value.audioTracks.entries()) {
+        this.validateGeneratedAudioOutputTrack(fileName, track, index, checks);
+      }
+    }
+
+    const reportStatusCounts = Array.isArray(value.reports)
+      ? this.generatedAudioReportStatusCounts(value.reports)
+      : { approved: 0, reviewRequired: 0, rejected: 0 };
+    if (typeof value.reviewRequiredReportCount === "number" && value.reviewRequiredReportCount !== reportStatusCounts.reviewRequired) {
+      checks.push({ name: "generated_audio_output_batch_report_count", status: "fail", fileName, message: "Generated-audio output batch reviewRequiredReportCount does not match reports." });
+    }
+    if (typeof value.rejectedReportCount === "number" && value.rejectedReportCount !== reportStatusCounts.rejected) {
+      checks.push({ name: "generated_audio_output_batch_report_count", status: "fail", fileName, message: "Generated-audio output batch rejectedReportCount does not match reports." });
+    }
+
+    this.validateGeneratedAudioBatchStatusSemantics(fileName, value, reportStatusCounts, checks);
+  }
+
+  private validateGeneratedAudioOutputReport(
+    fileName: string,
+    value: unknown,
+    index: number,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!this.isRecord(value)) {
+      checks.push({ name: "generated_audio_output_report_shape", status: "fail", fileName, message: `Generated-audio output report ${index} must be an object.` });
+      return;
+    }
+    if (typeof value.status !== "string" || !GENERATED_AUDIO_OUTPUT_VALIDATION_STATUSES.has(value.status)) {
+      checks.push({ name: "generated_audio_output_report_status", status: "fail", fileName, message: `Generated-audio output report ${index} status is invalid.` });
+    }
+    if (
+      typeof value.intentId !== "string" ||
+      !value.intentId ||
+      typeof value.kind !== "string" ||
+      !POSTPRODUCTION_GENERATED_AUDIO_KINDS.has(value.kind) ||
+      typeof value.provider !== "string" ||
+      !value.provider ||
+      typeof value.modelId !== "string" ||
+      !value.modelId
+    ) {
+      checks.push({ name: "generated_audio_output_report_identity", status: "fail", fileName, message: `Generated-audio output report ${index} has invalid identity fields.` });
+    }
+    if (typeof value.issueCount !== "number" || !Number.isInteger(value.issueCount) || value.issueCount < 0) {
+      checks.push({ name: "generated_audio_output_report_issue_count", status: "fail", fileName, message: `Generated-audio output report ${index} issueCount is invalid.` });
+    }
+    if (!Array.isArray(value.issues)) {
+      checks.push({ name: "generated_audio_output_report_issues", status: "fail", fileName, message: `Generated-audio output report ${index} issues must be an array.` });
+    } else {
+      if (typeof value.issueCount === "number" && value.issueCount !== value.issues.length) {
+        checks.push({ name: "generated_audio_output_report_issue_count", status: "fail", fileName, message: `Generated-audio output report ${index} issueCount does not match issues length.` });
+      }
+      for (const [issueIndex, issue] of value.issues.entries()) {
+        this.validateGeneratedAudioOutputIssue(fileName, issue, `Generated-audio output report ${index} issue ${issueIndex}`, checks);
+      }
+    }
+    if (value.audioTrack !== undefined) {
+      this.validateGeneratedAudioOutputTrack(fileName, value.audioTrack, index, checks);
+    }
+    if (value.status === "approved" && !this.isRecord(value.audioTrack)) {
+      checks.push({ name: "generated_audio_output_report_track", status: "fail", fileName, message: `Approved generated-audio output report ${index} must include audioTrack evidence.` });
+    }
+  }
+
+  private validateGeneratedAudioOutputIssue(
+    fileName: string,
+    value: unknown,
+    label: string,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!this.isRecord(value)) {
+      checks.push({ name: "generated_audio_output_issue_shape", status: "fail", fileName, message: `${label} must be an object.` });
+      return;
+    }
+    if (typeof value.code !== "string" || !value.code) {
+      checks.push({ name: "generated_audio_output_issue_code", status: "fail", fileName, message: `${label} is missing code.` });
+    }
+    if (typeof value.severity !== "string" || !GENERATED_AUDIO_OUTPUT_ISSUE_SEVERITIES.has(value.severity)) {
+      checks.push({ name: "generated_audio_output_issue_severity", status: "fail", fileName, message: `${label} has invalid severity.` });
+    }
+    if (typeof value.message !== "string" || !value.message || typeof value.repair !== "string" || !value.repair) {
+      checks.push({ name: "generated_audio_output_issue_text", status: "fail", fileName, message: `${label} is missing message or repair.` });
+    }
+  }
+
+  private validateGeneratedAudioOutputTrack(
+    fileName: string,
+    value: unknown,
+    index: number,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!this.isRecord(value)) {
+      checks.push({ name: "generated_audio_output_track_shape", status: "fail", fileName, message: `Generated-audio output track ${index} must be an object.` });
+      return;
+    }
+    if (typeof value.trackId !== "string" || !value.trackId) {
+      checks.push({ name: "generated_audio_output_track_id", status: "fail", fileName, message: `Generated-audio output track ${index} is missing trackId.` });
+    }
+    if (typeof value.role !== "string" || !POSTPRODUCTION_AUDIO_ROLES.has(value.role)) {
+      checks.push({ name: "generated_audio_output_track_role", status: "fail", fileName, message: `Generated-audio output track ${index} role is invalid.` });
+    }
+    if (typeof value.volume !== "number" || !Number.isFinite(value.volume) || value.volume < 0 || value.volume > 2) {
+      checks.push({ name: "generated_audio_output_track_volume", status: "fail", fileName, message: `Generated-audio output track ${index} volume is invalid.` });
+    }
+    if (typeof value.sourceUrlOrPath !== "string" || !this.isCredentialFreeHttps(value.sourceUrlOrPath)) {
+      checks.push({ name: "generated_audio_output_track_url", status: "fail", fileName, message: `Generated-audio output track ${index} must use a credential-free HTTPS URL.` });
+    }
+  }
+
+  private generatedAudioReportStatusCounts(reports: readonly unknown[]): {
+    readonly approved: number;
+    readonly reviewRequired: number;
+    readonly rejected: number;
+  } {
+    const counts = { approved: 0, reviewRequired: 0, rejected: 0 };
+    for (const report of reports) {
+      if (!this.isRecord(report)) {
+        continue;
+      }
+      if (report.status === "approved") {
+        counts.approved += 1;
+      } else if (report.status === "review_required") {
+        counts.reviewRequired += 1;
+      } else if (report.status === "rejected") {
+        counts.rejected += 1;
+      }
+    }
+    return counts;
+  }
+
+  private validateGeneratedAudioBatchStatusSemantics(
+    fileName: string,
+    value: Record<string, unknown>,
+    reportStatusCounts: { readonly approved: number; readonly reviewRequired: number; readonly rejected: number },
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (value.status === "not_requested") {
+      if (value.intentCount !== 0 || value.readyIntentCount !== 0 || value.resultCount !== 0 || value.approvedTrackCount !== 0) {
+        checks.push({ name: "generated_audio_output_batch_status", status: "fail", fileName, message: "not_requested generated-audio output batch must have zero intents, results, and tracks." });
+      }
+    }
+    if (value.status === "approved") {
+      if (value.issueCount !== 0 || value.reviewRequiredReportCount !== 0 || value.rejectedReportCount !== 0 || value.approvedTrackCount !== value.readyIntentCount) {
+        checks.push({ name: "generated_audio_output_batch_status", status: "fail", fileName, message: "approved generated-audio output batch requires zero issues and one approved track per ready intent." });
+      }
+    }
+    if (value.status === "rejected" && value.approvedTrackCount !== 0) {
+      checks.push({ name: "generated_audio_output_batch_status", status: "fail", fileName, message: "rejected generated-audio output batch must not include approved tracks." });
+    }
+    if (value.status === "partially_approved") {
+      const hasProblemEvidence =
+        (typeof value.issueCount === "number" && value.issueCount > 0) ||
+        reportStatusCounts.reviewRequired > 0 ||
+        reportStatusCounts.rejected > 0;
+      if (value.approvedTrackCount === 0 || !hasProblemEvidence) {
+        checks.push({ name: "generated_audio_output_batch_status", status: "fail", fileName, message: "partially_approved generated-audio output batch requires approved tracks plus unresolved issue or report evidence." });
+      }
+    }
+  }
+
   private validatePostproductionAssetConsistency(
     artifacts: ReadonlyMap<ProjectArtifactKind, LoadedArtifact>,
     checks: ProjectArtifactValidationCheck[]
@@ -1002,6 +1233,122 @@ export class ProjectArtifactValidator {
     }
   }
 
+  private validateGeneratedAudioOutputBatchConsistency(
+    artifacts: ReadonlyMap<ProjectArtifactKind, LoadedArtifact>,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    const batchArtifact = artifacts.get("generated_audio_output_batch_validation");
+    const runSummary = artifacts.get("run_summary");
+    const runSummaryValue = runSummary && this.isRecord(runSummary.value) ? runSummary.value : undefined;
+
+    if (!batchArtifact) {
+      if (runSummaryValue?.hasGeneratedAudioOutputBatchValidation === true) {
+        checks.push({
+          name: "generated_audio_output_batch_consistency",
+          status: "fail",
+          fileName: runSummary?.entry.fileName ?? "run-summary.json",
+          message: "run-summary says generated-audio output batch validation exists, but the artifact is missing."
+        });
+      }
+      return;
+    }
+    if (!this.isRecord(batchArtifact.value)) {
+      return;
+    }
+    const batch = batchArtifact.value;
+    const postproductionArtifact = artifacts.get("postproduction_asset_plan");
+    const postproductionValue = postproductionArtifact && this.isRecord(postproductionArtifact.value)
+      ? postproductionArtifact.value
+      : undefined;
+    const generatedAudio = postproductionValue && this.isRecord(postproductionValue.generatedAudio)
+      ? postproductionValue.generatedAudio
+      : undefined;
+
+    if (generatedAudio) {
+      this.compareGeneratedAudioBatchField(
+        batchArtifact.entry.fileName,
+        "intentCount",
+        batch.intentCount,
+        generatedAudio.intentCount,
+        "postproduction-assets.json generatedAudio.intentCount",
+        checks
+      );
+      this.compareGeneratedAudioBatchField(
+        batchArtifact.entry.fileName,
+        "readyIntentCount",
+        batch.readyIntentCount,
+        generatedAudio.readyIntentCount,
+        "postproduction-assets.json generatedAudio.readyIntentCount",
+        checks
+      );
+    }
+
+    if (!runSummaryValue) {
+      return;
+    }
+    if (runSummaryValue.hasGeneratedAudioOutputBatchValidation !== true) {
+      checks.push({
+        name: "generated_audio_output_batch_consistency",
+        status: "fail",
+        fileName: runSummary?.entry.fileName ?? "run-summary.json",
+        message: "run-summary must mark hasGeneratedAudioOutputBatchValidation true when the batch artifact exists."
+      });
+    }
+    this.compareGeneratedAudioBatchField(
+      runSummary?.entry.fileName ?? batchArtifact.entry.fileName,
+      "generatedAudioOutputBatchStatus",
+      runSummaryValue.generatedAudioOutputBatchStatus,
+      batch.status,
+      batchArtifact.entry.fileName,
+      checks
+    );
+    this.compareGeneratedAudioBatchField(
+      runSummary?.entry.fileName ?? batchArtifact.entry.fileName,
+      "generatedAudioResultCount",
+      runSummaryValue.generatedAudioResultCount,
+      batch.resultCount,
+      batchArtifact.entry.fileName,
+      checks
+    );
+    this.compareGeneratedAudioBatchField(
+      runSummary?.entry.fileName ?? batchArtifact.entry.fileName,
+      "generatedAudioApprovedTrackCount",
+      runSummaryValue.generatedAudioApprovedTrackCount,
+      batch.approvedTrackCount,
+      batchArtifact.entry.fileName,
+      checks
+    );
+    this.compareGeneratedAudioBatchField(
+      runSummary?.entry.fileName ?? batchArtifact.entry.fileName,
+      "generatedAudioOutputBatchIssueCount",
+      runSummaryValue.generatedAudioOutputBatchIssueCount,
+      batch.issueCount,
+      batchArtifact.entry.fileName,
+      checks
+    );
+  }
+
+  private compareGeneratedAudioBatchField(
+    fileName: string,
+    fieldPath: string,
+    actual: unknown,
+    expected: unknown,
+    expectedSource: string,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (expected === undefined) {
+      return;
+    }
+    if (actual !== expected) {
+      checks.push({
+        name: "generated_audio_output_batch_consistency",
+        status: "fail",
+        fileName,
+        message: `${fieldPath} does not match ${expectedSource}.`
+      });
+    }
+  }
+
   private assembleStageEvidence(value: unknown): Record<string, unknown> | undefined {
     if (!this.isRecord(value) || !Array.isArray(value.records)) {
       return undefined;
@@ -1151,6 +1498,19 @@ export class ProjectArtifactValidator {
     if (!Array.isArray(value)) {
       checks.push({ name, status: "fail", fileName, message: `${name} must be an array.` });
     }
+  }
+
+  private isCredentialFreeHttps(value: string): boolean {
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+      return false;
+    }
+    return !CREDENTIAL_QUERY_URI_PATTERN.test(value);
   }
 
   private isArtifactEntry(value: unknown): value is ProjectArtifactEntry {

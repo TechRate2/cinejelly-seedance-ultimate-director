@@ -1743,6 +1743,104 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Generated Audio Batch Artifact Evidence",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/services/voice.py",
+      "external/upstream/moneyprinterturbo/app/services/video.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "generated-audio stage evidence remains visible to operators",
+      "prepared audio artifacts stay separate from final composition until validated",
+      "terminal task evidence can be reviewed through durable artifacts"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo artifact/task code is not copied or executed",
+      "CineJelly persists generated-audio output batch validation only when a provider-backed report exists",
+      "artifact validation cross-checks batch status and counts against postproduction and run-summary evidence",
+      "current planned-only/no-spend generated-audio runs do not require a batch artifact"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-batch-artifact-evidence.md",
+    cineJellyDestinationPaths: [
+      "src/types/agent.ts",
+      "src/types/artifact.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "actual provider-backed generated-audio execution remains pending verified provider schema and paid validation",
+      "real release evidence must later include provider-backed batch reports and media inspection results"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Batch Artifact Evidence",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "release-sensitive generated artifacts are captured as deterministic reports",
+      "artifact validation checks persisted evidence rather than trusting in-memory state",
+      "partial or blocked generated-media readiness remains explicit in review artifacts"
+    ],
+    behaviorChanged: [
+      "VibeFrame artifact report discipline is rewritten into CineJelly generated-audio artifact contracts",
+      "batch artifact validation does not rerun providers or media downloads",
+      "run summary, postproduction plan, and optional batch artifact must agree when batch evidence exists"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-batch-artifact-evidence.md",
+    cineJellyDestinationPaths: [
+      "src/types/artifact.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
+      "docs/IMPLEMENTATION_ROADMAP.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "paid validation must later confirm artifact validator behavior against real generated-audio reports"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Batch Artifact Evidence",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/AGENT_GUIDE.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "approval concepts inform release boundaries for generated media",
+      "generated-media evidence remains reviewable before final use",
+      "partial readiness is recorded instead of silently approving a batch"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, imported, or executed",
+      "AGPL-sensitive approval concepts remain behavior notes only",
+      "CineJelly-owned artifact validation checks generated-audio batch evidence without using OpenMontage runtime code"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-batch-artifact-evidence.md",
+    cineJellyDestinationPaths: [
+      "src/types/artifact.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future approval UX must keep AGPL material at behavior-note level unless legal/product obligations are accepted"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Generated Audio Asset Resolution",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
     snapshotPath: "external/upstream/moneyprinterturbo",

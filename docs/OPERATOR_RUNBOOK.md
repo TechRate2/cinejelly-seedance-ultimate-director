@@ -223,6 +223,7 @@ Required evidence:
 - `material-sourcing-plan.json` contains rights requirement and preferred sources for every material brief.
 - `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
 - `postproduction-assets.json` records caption delivery mode, caption cue counts, audio role counts, generated-audio planned-only status/counts, postproduction status, issue count, and repair text without claiming provider-backed TTS/BGM/ambience/SFX generation unless a separate module produced that evidence.
+- If provider-backed generated-audio execution produced a batch validation report, `generated-audio-output-batch-validation.json` records status/counts, approved tracks, issues, and result reports; validator output has no generated-audio batch consistency failures.
 - Validator output has no `postproduction_asset_consistency` failures; postproduction status, caption/audio counts, generated-audio status/counts, and issue counts agree across `postproduction-assets.json`, `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence.
 - If a local material catalog is configured, selected candidates in `material-source-validation.json` use safe `asset://` or credential-free HTTPS URIs and preserve rights/attribution metadata.
 - If a generated-audio asset resolution catalog is configured, preflight reports it as valid and does not expose server-local catalog paths, signed URLs, or credential-bearing URLs.

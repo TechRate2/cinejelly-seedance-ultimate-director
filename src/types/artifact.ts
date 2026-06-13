@@ -13,6 +13,7 @@ export type ProjectArtifactKind =
   | "material_sourcing_plan"
   | "material_source_validation"
   | "postproduction_asset_plan"
+  | "generated_audio_output_batch_validation"
   | "stage_lifecycle"
   | "review_packet"
   | "compiled_prompts"

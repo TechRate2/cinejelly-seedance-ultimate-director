@@ -118,6 +118,11 @@ export class ProjectArtifactStore {
       generatedAudioIntentCount: result.postproductionAssetPlan.generatedAudio.intentCount,
       generatedAudioReadyIntentCount: result.postproductionAssetPlan.generatedAudio.readyIntentCount,
       generatedAudioBlockedIntentCount: result.postproductionAssetPlan.generatedAudio.blockedIntentCount,
+      hasGeneratedAudioOutputBatchValidation: Boolean(result.generatedAudioOutputBatchValidation),
+      generatedAudioOutputBatchStatus: result.generatedAudioOutputBatchValidation?.status,
+      generatedAudioResultCount: result.generatedAudioOutputBatchValidation?.resultCount,
+      generatedAudioApprovedTrackCount: result.generatedAudioOutputBatchValidation?.approvedTrackCount,
+      generatedAudioOutputBatchIssueCount: result.generatedAudioOutputBatchValidation?.issueCount,
       postproductionAssetIssueCount: result.postproductionAssetPlan.issueCount,
       compiledPromptCount: result.compiledPrompts.length,
       renderedShotCount: result.renderedShots.length,
@@ -157,6 +162,13 @@ export class ProjectArtifactStore {
 
     if (sourceVideoAnalysis) {
       payloads.push({ kind: "source_video_analysis", fileName: "source-video-analysis.json", value: sourceVideoAnalysis });
+    }
+    if (result.generatedAudioOutputBatchValidation) {
+      payloads.push({
+        kind: "generated_audio_output_batch_validation",
+        fileName: "generated-audio-output-batch-validation.json",
+        value: result.generatedAudioOutputBatchValidation
+      });
     }
     if (result.deliverable) {
       payloads.push({ kind: "deliverable", fileName: "deliverable.json", value: result.deliverable });
