@@ -11,9 +11,13 @@ import {
   type Server,
   type ServerResponse
 } from "node:http";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDirectorRuntime } from "../application/director-factory.js";
+import {
+  normalizeRenderRequest,
+  RenderRequestNormalizationError
+} from "../application/render-request-normalizer.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
@@ -34,7 +38,7 @@ import {
   RenderJobIdempotencyConflictError,
   RenderJobManager
 } from "./render-job-manager.js";
-import { RenderRequestAdmission, RenderRequestAdmissionError } from "./render-request-admission.js";
+import { renderRequestAdmissionFromEnv, RenderRequestAdmissionError } from "./render-request-admission.js";
 import {
   attachRequestContextHeaders,
   createApiRequestContext,
@@ -78,18 +82,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
   const validationReadinessReporter = new Phase6ValidationReadinessReporter();
   const artifactStore = new ProjectArtifactStore();
   const artifactValidator = new ProjectArtifactValidator();
-  const requestAdmission = new RenderRequestAdmission({
-    maxUserInputCharacters: readPositiveInteger(process.env.CINEJELLY_MAX_USER_INPUT_CHARS, 24_000),
-    maxReferences: readPositiveInteger(process.env.CINEJELLY_MAX_REFERENCES, 24),
-    maxCaptionCues: readPositiveInteger(process.env.CINEJELLY_MAX_CAPTION_CUES, 600),
-    maxAudioTracks: readPositiveInteger(process.env.CINEJELLY_MAX_AUDIO_TRACKS, 16),
-    maxGeneratedAudioIntents: readPositiveInteger(process.env.CINEJELLY_MAX_GENERATED_AUDIO_INTENTS, 32),
-    maxMetadataEntries: readPositiveInteger(process.env.CINEJELLY_MAX_METADATA_ENTRIES, 50),
-    maxSourceVideoScenes: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_SCENES, 160),
-    maxSourceVideoTranscriptCues: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_TRANSCRIPT_CUES, 1_500),
-    maxSourceVideoKeyframesPerScene: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_KEYFRAMES_PER_SCENE, 12),
-    maxSourceVideoNotes: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_NOTES, 120)
-  });
+  const requestAdmission = renderRequestAdmissionFromEnv(process.env);
   const apiAuthGuard = new ApiAuthGuard({
     disabled: readApiAuthDisabled(process.env.CINEJELLY_DISABLE_API_AUTH),
     ...(process.env.CINEJELLY_API_AUTH_TOKEN ? { sharedKey: process.env.CINEJELLY_API_AUTH_TOKEN } : {})
@@ -166,7 +159,10 @@ export function startServer(port = readPort(process.env.PORT)): void {
         requestAdmission.assertAcceptable(body);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
-        const normalizedRequest = normalizeRenderRequest(body, requestContext);
+        const normalizedRequest = normalizeRenderRequest(body, {
+          requestId: requestContext.requestId,
+          env: process.env
+        });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         const submission = jobManager.submit({
           request: normalizedRequest,
@@ -185,7 +181,10 @@ export function startServer(port = readPort(process.env.PORT)): void {
         assertJsonContentType(request);
         const body = await readJsonBody<RenderRequestBody>(request, maxBodyBytes);
         requestAdmission.assertAcceptable(body);
-        const normalizedRequest = normalizeRenderRequest(body, requestContext);
+        const normalizedRequest = normalizeRenderRequest(body, {
+          requestId: requestContext.requestId,
+          env: process.env
+        });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         const renderLease = syncRenderGate.tryAcquire();
         if (!renderLease.allowed) {
@@ -278,44 +277,6 @@ async function validateArtifactsForApi(
   }
 }
 
-function normalizeRenderRequest(body: RenderRequestBody, requestContext: ApiRequestContext): CineJellyProjectRequest {
-  if (!body.userInput || typeof body.userInput !== "string") {
-    throw new RenderRequestAdmissionError("Request body must include userInput.");
-  }
-  const outputRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
-  const safeName = `${Date.now()}_cinejelly.mp4`;
-  const workDirectory = body.workDirectory
-    ? resolveInsideOutputRoot(outputRoot, body.workDirectory, "workDirectory")
-    : join(outputRoot, "work");
-
-  return {
-    ...body,
-    metadata: {
-      ...(body.metadata ?? {}),
-      requestId: body.metadata?.requestId ?? requestContext.requestId
-    },
-    outputPath: body.outputPath
-      ? resolveInsideOutputRoot(outputRoot, body.outputPath, "outputPath")
-      : join(outputRoot, safeName),
-    workDirectory,
-    artifactDirectory: body.artifactDirectory
-      ? resolveInsideOutputRoot(outputRoot, body.artifactDirectory, "artifactDirectory")
-      : join(workDirectory, "artifacts")
-  };
-}
-
-function resolveInsideOutputRoot(outputRoot: string, value: string, fieldName: string): string {
-  if (!value.trim()) {
-    throw new RenderRequestAdmissionError(`${fieldName} cannot be empty.`);
-  }
-  const resolvedPath = isAbsolute(value) ? resolve(value) : resolve(outputRoot, value);
-  const relativePath = relative(outputRoot, resolvedPath);
-  if (relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))) {
-    return resolvedPath;
-  }
-  throw new RenderRequestAdmissionError(`${fieldName} must stay inside CINEJELLY_OUTPUT_DIR.`);
-}
-
 async function readJsonBody<TValue>(request: IncomingMessage, maxBodyBytes: number): Promise<TValue> {
   const declaredContentLength = readContentLength(request);
   if (declaredContentLength !== undefined && declaredContentLength > maxBodyBytes) {
@@ -396,6 +357,7 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
 
 function errorStatusCode(error: unknown): number {
   return error instanceof RenderRequestAdmissionError ||
+    error instanceof RenderRequestNormalizationError ||
     error instanceof RenderJobCapacityError ||
     error instanceof RenderJobIdempotencyConflictError ||
     error instanceof UnsupportedMediaTypeError ||

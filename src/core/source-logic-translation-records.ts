@@ -1127,6 +1127,105 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Phase 6 Paid Render Validation Runner",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "validate-before-spend gates paid render work",
+      "operator-visible reports preserve readiness, artifact validation, and next actions",
+      "successful and failed runs emit deterministic artifacts before release review",
+      "local runtime paths stay out of public validation output"
+    ],
+    behaviorChanged: [
+      "VibeFrame CLI/report discipline is rewritten into a CineJelly Phase 6 validation runner",
+      "the runner uses CineJelly DirectorAgent and artifact contracts instead of upstream build commands",
+      "release approval remains a manual runbook decision after paid output inspection"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/phase6-paid-render-validation-runner.md",
+    cineJellyDestinationPaths: [
+      "src/application/paid-render-validation-entrypoint.ts",
+      "src/application/render-request-normalizer.ts",
+      "src/api/render-request-admission.ts",
+      "src/api/server.ts",
+      "src/index.ts",
+      "package.json"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "real Atlas paid validation still requires credentials, model IDs, FFmpeg, FFprobe, and manual artifact/media inspection"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Phase 6 Paid Render Validation Runner",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/controllers/v1/video.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "one operator-supplied input drives a visible long-running validation task",
+      "terminal success or failure remains inspectable through generated artifacts",
+      "cost ledger and artifact evidence remain available after render pipeline failure"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo task runtime code is not copied or executed",
+      "CineJelly blocks paid execution before runtime creation when readiness has hard blockers",
+      "the validation runner emits a redacted summary instead of exposing local artifact directories"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/phase6-paid-render-validation-runner.md",
+    cineJellyDestinationPaths: [
+      "src/application/paid-render-validation-entrypoint.ts",
+      "src/application/render-request-normalizer.ts",
+      "src/api/render-request-admission.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
+      "package.json"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "external queue persistence and WebUI task management remain out of scope for the CLI validation harness"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Phase 6 Paid Render Validation Runner",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/AGENT_GUIDE.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "approval-gate and manual review concepts inform the release boundary",
+      "paid validation does not equal release approval",
+      "artifact/media inspection remains required after automated validation"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, imported, or executed",
+      "AGPL-sensitive approval flow is translated only as behavior-note guidance",
+      "CineJelly-owned TypeScript enforces readiness and artifact evidence before manual release review"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/phase6-paid-render-validation-runner.md",
+    cineJellyDestinationPaths: [
+      "src/application/paid-render-validation-entrypoint.ts",
+      "docs/OPERATOR_RUNBOOK.md",
+      "docs/IMPLEMENTATION_ROADMAP.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future richer approval UX must avoid AGPL implementation reuse unless product/legal obligations are accepted"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Media Tool Binary Resolution",
     sourceRepository: "vericontext/vibeframe",
     snapshotPath: "external/upstream/vibeframe",

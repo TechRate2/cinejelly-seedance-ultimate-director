@@ -705,6 +705,36 @@ export class RenderRequestAdmission {
   }
 }
 
+export function renderRequestAdmissionFromEnv(env: NodeJS.ProcessEnv = process.env): RenderRequestAdmission {
+  return new RenderRequestAdmission({
+    maxUserInputCharacters: positiveIntegerEnv(env.CINEJELLY_MAX_USER_INPUT_CHARS, 24_000),
+    maxReferences: positiveIntegerEnv(env.CINEJELLY_MAX_REFERENCES, 24),
+    maxCaptionCues: positiveIntegerEnv(env.CINEJELLY_MAX_CAPTION_CUES, 600),
+    maxAudioTracks: positiveIntegerEnv(env.CINEJELLY_MAX_AUDIO_TRACKS, 16),
+    maxGeneratedAudioIntents: positiveIntegerEnv(env.CINEJELLY_MAX_GENERATED_AUDIO_INTENTS, 32),
+    maxMetadataEntries: positiveIntegerEnv(env.CINEJELLY_MAX_METADATA_ENTRIES, 50),
+    maxSourceVideoScenes: positiveIntegerEnv(env.CINEJELLY_MAX_SOURCE_VIDEO_SCENES, 160),
+    maxSourceVideoTranscriptCues: positiveIntegerEnv(env.CINEJELLY_MAX_SOURCE_VIDEO_TRANSCRIPT_CUES, 1_500),
+    maxSourceVideoKeyframesPerScene: positiveIntegerEnv(env.CINEJELLY_MAX_SOURCE_VIDEO_KEYFRAMES_PER_SCENE, 12),
+    maxSourceVideoNotes: positiveIntegerEnv(env.CINEJELLY_MAX_SOURCE_VIDEO_NOTES, 120)
+  });
+}
+
 function positiveOrDefault(value: number | undefined, fallback: number): number {
   return Number.isFinite(value) && value && value > 0 ? Math.floor(value) : fallback;
+}
+
+function positiveIntegerEnv(value: string | undefined, fallback: number): number {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+  if (!/^[1-9]\d*$/.test(trimmed)) {
+    throw new RenderRequestAdmissionError("Render request admission limit environment values must be positive integers.");
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new RenderRequestAdmissionError("Render request admission limit environment values must be positive integers.");
+  }
+  return parsed;
 }
