@@ -42,6 +42,7 @@ export interface PostproductionAssetPlannerInput {
   readonly generatedAudioIntents?: readonly GeneratedAudioIntent[];
   readonly audioGenerationCapabilities?: readonly AudioGenerationCapability[];
   readonly generatedAudioOutputFormat?: AudioGenerationOutputFormat;
+  readonly generatedAudioExecutionMode?: "planned_only" | "execute";
 }
 
 export class PostproductionAssetPlanner {
@@ -69,13 +70,15 @@ export class PostproductionAssetPlanner {
       audioTracks,
       audioMixOptions,
       generatedAudioIntents,
-      generatedAudioExecutionPlan
+      generatedAudioExecutionPlan,
+      generatedAudioExecutionMode: input.generatedAudioExecutionMode ?? "planned_only"
     });
     const captionEnabled = captionOptions.enabled && captionCues.length > 0;
     const audioEnabled = audioMixOptions.enabled && audioTracks.length > 0;
+    const generatedAudioPlanned = generatedAudioIntents.length > 0;
     const status = issues.some((issue) => issue.severity === "warn" || issue.severity === "block")
       ? "review_required"
-      : captionEnabled || audioEnabled
+      : captionEnabled || audioEnabled || generatedAudioPlanned
         ? "planned"
         : "disabled";
 
@@ -130,6 +133,7 @@ export class PostproductionAssetPlanner {
     readonly audioMixOptions: AudioMixOptions;
     readonly generatedAudioIntents: readonly GeneratedAudioIntent[];
     readonly generatedAudioExecutionPlan: ReturnType<GeneratedAudioExecutionPlanner["plan"]>;
+    readonly generatedAudioExecutionMode: "planned_only" | "execute";
   }): readonly PostproductionAssetIssue[] {
     const issues: PostproductionAssetIssue[] = [];
     if (input.captionOptions.enabled && input.captionCues.length === 0) {
@@ -180,7 +184,7 @@ export class PostproductionAssetPlanner {
         "Use an explicit licensed music track now, or add provider-backed BGM sourcing through a separate Reference Implementation."
       ));
     }
-    if (input.generatedAudioExecutionPlan.readyCount > 0) {
+    if (input.generatedAudioExecutionPlan.readyCount > 0 && input.generatedAudioExecutionMode !== "execute") {
       issues.push(this.issue(
         "generated_audio_execution_not_run",
         "warn",

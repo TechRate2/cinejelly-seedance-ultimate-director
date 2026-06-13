@@ -6,6 +6,7 @@
 import type { GeneratedAudioIntentKind } from "./audio.js";
 import type {
   AudioGenerationCapability,
+  AudioGenerationResult,
   AudioGenerationRequest,
   AudioGenerationOutputFormat,
   ProviderName
@@ -69,4 +70,22 @@ export interface GeneratedAudioExecutionPlannerOptions {
 export interface GeneratedAudioCapabilityMatch {
   readonly capability: AudioGenerationCapability;
   readonly requestedDurationSeconds?: number;
+}
+
+export type GeneratedAudioExecutionRunStatus =
+  | "not_run"
+  | "succeeded"
+  | "partial"
+  | "failed"
+  | "canceled";
+
+export interface GeneratedAudioExecutionRun {
+  readonly status: GeneratedAudioExecutionRunStatus;
+  readonly readyItemCount: number;
+  readonly attemptedCount: number;
+  readonly succeededCount: number;
+  readonly failedCount: number;
+  readonly timeoutCount: number;
+  readonly canceledCount: number;
+  readonly results: readonly AudioGenerationResult[];
 }

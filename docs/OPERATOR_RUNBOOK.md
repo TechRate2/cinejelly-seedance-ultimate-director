@@ -4,7 +4,7 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 ## Current Readiness
 
-As of 2026-06-13T19:55:11.106Z (2026-06-14 Asia/Saigon), the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` plus `GET /v1/validation-readiness` can produce a redacted Phase 6 readiness report. The latest recorded local CLI validation had 54 readiness checks: 46 pass, 1 warn, and 7 fail; an earlier HTTP readiness route returned `503` with the same blocked decision. It remained blocked because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured through `PATH` or explicit media tool paths.
+As of 2026-06-13T20:18:00.411Z (2026-06-14 Asia/Saigon), the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` plus `GET /v1/validation-readiness` can produce a redacted Phase 6 readiness report. The latest recorded local CLI validation had 54 readiness checks: 46 pass, 1 warn, and 7 fail; an earlier HTTP readiness route returned `503` with the same blocked decision. It remained blocked because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured through `PATH` or explicit media tool paths.
 
 Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected.
 
@@ -222,7 +222,7 @@ Required evidence:
 - Async job `stageProgressEvents` use the same stage vocabulary and include bounded evidence without local paths, inline media, secrets, stack traces, or raw provider payloads.
 - `material-sourcing-plan.json` contains rights requirement and preferred sources for every material brief.
 - `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
-- `postproduction-assets.json` records caption delivery mode, caption cue counts, audio role counts, generated-audio planned-only status/counts, postproduction status, issue count, and repair text without claiming provider-backed TTS/BGM/ambience/SFX generation unless a separate module produced that evidence.
+- `postproduction-assets.json` records caption delivery mode, caption cue counts, audio role counts, generated-audio planned/ready status/counts, postproduction status, issue count, and repair text without claiming provider-backed TTS/BGM/ambience/SFX generation unless the provider-neutral execution runner produced result evidence and batch validation approved it.
 - If provider-backed generated-audio execution produced a batch validation report, `generated-audio-output-batch-validation.json` records status/counts, approved tracks, issues, and result reports; `review-packet.json` planning exposes matching generated-audio batch status/counts and repair recommendations; validator output has no generated-audio batch consistency failures.
 - Validator output has no `postproduction_asset_consistency` failures; postproduction status, caption/audio counts, generated-audio status/counts, and issue counts agree across `postproduction-assets.json`, `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence.
 - If a local material catalog is configured, selected candidates in `material-source-validation.json` use safe `asset://` or credential-free HTTPS URIs and preserve rights/attribution metadata.

@@ -34,7 +34,7 @@ Implementation status as of 2026-06-14: planned for a CineJelly-owned execution-
 - Capability supports kind but not duration: block with `duration_exceeds_capability`.
 - Capability supports kind but not default output format: block with `output_format_not_supported`.
 - `durationSeconds <= 0` or `endSecond <= startSecond`: block with `invalid_duration`.
-- Mixed ready and blocked intents: plan status is `partially_ready`; future execution may run only ready items after operator approval.
+- Mixed ready and blocked intents: plan status is `partially_ready`; the provider-neutral execution runner may run only ready items after capability verification while preserving blocked item evidence.
 - Multiple matching capabilities: deterministic selection prefers provider preference, then shorter max-duration fit, then lexical provider/model order.
 - Missing duration: allow request without duration only when the capability exists; provider mapper can apply its own schema default later.
 
@@ -145,6 +145,7 @@ function planGeneratedAudioExecution(
 - Feed the execution plan into `PostproductionAssetPlanner` while preserving current no-capability behavior.
 - Extend artifact validation to accept `ready_for_provider` and `partially_ready` statuses without claiming generated outputs.
 - Export the planner from `src/index.ts` for production integrations.
+- Done separately: `GeneratedAudioProviderExecutionRunner` consumes ready items only after this planner has produced verified requests.
 - Keep Atlas generated-audio capabilities empty until verified schemas/model IDs/pricing/output validation exist.
 
 ## Validation Checklist

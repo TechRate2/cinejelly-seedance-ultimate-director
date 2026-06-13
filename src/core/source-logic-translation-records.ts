@@ -1447,6 +1447,108 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Generated Audio Provider Execution Runner",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/services/voice.py",
+      "external/upstream/moneyprinterturbo/app/controllers/v1/video.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "audio generation is a visible stage before final composition",
+      "terminal audio success or failure remains operator-visible",
+      "audio-only execution evidence can exist before final video assembly"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo runtime audio code is not copied or executed",
+      "CineJelly executes only generated-audio items that were already marked ready by verified capability planning",
+      "provider exceptions become stack-free generated-audio result evidence for batch validation",
+      "approved generated-audio tracks can enter assembly only after CineJelly-owned output batch validation"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-provider-execution-runner.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-execution.ts",
+      "src/core/generated-audio-provider-execution-runner.ts",
+      "src/core/postproduction-asset-planner.ts",
+      "src/core/generated-audio-output-batch-validator.ts",
+      "src/agents/director-agent.ts",
+      "src/application/director-factory.ts",
+      "src/index.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "live Atlas generated-audio execution remains blocked until current provider schema, model IDs, pricing, and output format behavior are verified"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Provider Execution Runner",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "provider work follows validate then execute then report discipline",
+      "partial failures remain inspectable instead of erasing successful sibling evidence",
+      "generated asset evidence is deterministic and reviewable before release"
+    ],
+    behaviorChanged: [
+      "VibeFrame execution/report discipline is rewritten into CineJelly generated-audio runner and batch validation contracts",
+      "CineJelly runner does not approve URLs, inspect media, or create files",
+      "batch validation owns approval before generated-audio results can become mix tracks"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-provider-execution-runner.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-execution.ts",
+      "src/core/generated-audio-provider-execution-runner.ts",
+      "src/core/generated-audio-output-batch-validator.ts",
+      "src/agents/director-agent.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "paid provider validation must later confirm real provider status mapping, cost ledger entries, and output evidence"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Provider Execution Runner",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/AGENT_GUIDE.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "sample-before-batch and provider-menu concepts inform generated-audio execution boundaries",
+      "generated media should be reviewed before final use",
+      "partial generated-media readiness should remain explicit"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, imported, or executed",
+      "AGPL-sensitive provider-menu and approval ideas remain behavior notes only",
+      "CineJelly-owned runner and batch validator enforce ready-only execution and output approval without using OpenMontage runtime"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-provider-execution-runner.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-execution.ts",
+      "src/core/generated-audio-provider-execution-runner.ts",
+      "src/core/generated-audio-output-batch-validator.ts",
+      "src/agents/director-agent.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future approval UX must keep AGPL material at behavior-note level unless legal/product obligations are accepted"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Generated Audio Execution Planner",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
     snapshotPath: "external/upstream/moneyprinterturbo",

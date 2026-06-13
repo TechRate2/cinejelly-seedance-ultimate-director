@@ -18,6 +18,8 @@ import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
 import { ProductionStagePlanner } from "../core/production-stage-planner.js";
 import { PostproductionAssetPlanner } from "../core/postproduction-asset-planner.js";
+import { GeneratedAudioOutputBatchValidator } from "../core/generated-audio-output-batch-validator.js";
+import { GeneratedAudioProviderExecutionRunner } from "../core/generated-audio-provider-execution-runner.js";
 import { ReferenceSelectionPlanner } from "../core/reference-selection-planner.js";
 import { MaterialSourcingPlanner } from "../core/material-sourcing-planner.js";
 import { MaterialSourceValidator } from "../core/material-source-validator.js";
@@ -42,9 +44,12 @@ import type {
   MaterialSourceAdapter,
   MaterialSourceValidationReport
 } from "../types/material.js";
+import type { AudioMixOptions, AudioMixTrack, GeneratedAudioIntent } from "../types/audio.js";
 import type { PostproductionSettings } from "../types/media.js";
+import type { PostproductionAssetPlan } from "../types/postproduction-assets.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type { AudioGenerationCapability, Prediction } from "../types/provider.js";
+import type { AudioProvider } from "../providers/contracts.js";
 import type {
   ProductionStageEvidenceValue,
   ProductionStageName,
@@ -73,6 +78,8 @@ export class DirectorAgent {
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
   private readonly productionStagePlanner: ProductionStagePlanner;
   private readonly postproductionAssetPlanner: PostproductionAssetPlanner;
+  private readonly generatedAudioOutputBatchValidator: GeneratedAudioOutputBatchValidator;
+  private readonly generatedAudioExecutionRunner: GeneratedAudioProviderExecutionRunner;
   private readonly referenceSelectionPlanner: ReferenceSelectionPlanner;
   private readonly materialSourcingPlanner: MaterialSourcingPlanner;
   private readonly materialPlanningOptions: MaterialPlanningOptions;
@@ -89,6 +96,7 @@ export class DirectorAgent {
   private readonly sourceVideoAutoAnalyzer: SourceVideoAutoAnalyzer | undefined;
   private readonly sourceVideoAutoAnalysisSettings: SourceVideoAutoAnalysisSettings | undefined;
   private readonly audioGenerationCapabilities: readonly AudioGenerationCapability[];
+  private readonly audioProvider: AudioProvider | undefined;
   private readonly stageProgressReporter: ProductionStageProgressReporter | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
   private stageProgressSequence = 0;
@@ -105,6 +113,8 @@ export class DirectorAgent {
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
     readonly productionStagePlanner?: ProductionStagePlanner;
     readonly postproductionAssetPlanner?: PostproductionAssetPlanner;
+    readonly generatedAudioOutputBatchValidator?: GeneratedAudioOutputBatchValidator;
+    readonly generatedAudioExecutionRunner?: GeneratedAudioProviderExecutionRunner;
     readonly referenceSelectionPlanner?: ReferenceSelectionPlanner;
     readonly materialSourcingPlanner?: MaterialSourcingPlanner;
     readonly materialPlanningOptions?: MaterialPlanningOptions;
@@ -120,6 +130,7 @@ export class DirectorAgent {
     readonly sourceVideoAutoAnalyzer?: SourceVideoAutoAnalyzer;
     readonly sourceVideoAutoAnalysisSettings?: SourceVideoAutoAnalysisSettings;
     readonly audioGenerationCapabilities?: readonly AudioGenerationCapability[];
+    readonly audioProvider?: AudioProvider;
     readonly stageProgressReporter?: ProductionStageProgressReporter;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
@@ -131,6 +142,8 @@ export class DirectorAgent {
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
     this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
     this.postproductionAssetPlanner = input.postproductionAssetPlanner ?? new PostproductionAssetPlanner();
+    this.generatedAudioOutputBatchValidator = input.generatedAudioOutputBatchValidator ?? new GeneratedAudioOutputBatchValidator();
+    this.generatedAudioExecutionRunner = input.generatedAudioExecutionRunner ?? new GeneratedAudioProviderExecutionRunner();
     this.referenceSelectionPlanner = input.referenceSelectionPlanner ?? new ReferenceSelectionPlanner();
     this.materialSourcingPlanner = input.materialSourcingPlanner ?? new MaterialSourcingPlanner();
     this.materialPlanningOptions = input.materialPlanningOptions ?? {};
@@ -147,6 +160,7 @@ export class DirectorAgent {
     this.sourceVideoAutoAnalyzer = input.sourceVideoAutoAnalyzer;
     this.sourceVideoAutoAnalysisSettings = input.sourceVideoAutoAnalysisSettings;
     this.audioGenerationCapabilities = input.audioGenerationCapabilities ?? [];
+    this.audioProvider = input.audioProvider;
     this.stageProgressReporter = input.stageProgressReporter;
     this.atlasSettings = input.atlasSettings;
   }
@@ -285,7 +299,8 @@ export class DirectorAgent {
       ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
       ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {}),
       ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {}),
-      audioGenerationCapabilities: this.audioGenerationCapabilities
+      audioGenerationCapabilities: this.audioGenerationCapabilities,
+      generatedAudioExecutionMode: this.canExecuteGeneratedAudio(preparedRequest) ? "execute" : "planned_only"
     });
     const productionGraph = this.productionGraphBuilder.build({
       intake,
@@ -367,6 +382,21 @@ export class DirectorAgent {
     });
 
     const shouldAssemble = Boolean(preparedRequest.outputPath && preparedRequest.workDirectory && renderedShots.length > 0);
+    const generatedAudioOutputBatchValidation = shouldAssemble
+      ? await this.executeGeneratedAudioIfReady({
+          intents: preparedRequest.generatedAudioIntents ?? [],
+          postproductionAssetPlan,
+          ...(signal ? { signal } : {})
+        })
+      : undefined;
+    const audioTracksForAssembly = this.audioTracksForAssembly(
+      preparedRequest.audioTracks,
+      generatedAudioOutputBatchValidation?.audioTracks
+    );
+    const audioMixOptionsForAssembly = this.audioMixOptionsForAssembly(
+      preparedRequest.audioMixOptions,
+      audioTracksForAssembly
+    );
     if (shouldAssemble) {
       this.reportStageProgress("assemble", "running", "Assembling rendered clips into the deliverable.");
     }
@@ -378,8 +408,8 @@ export class DirectorAgent {
             workDirectory: preparedRequest.workDirectory as string,
             ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
             ...(preparedRequest.captionOptions ? { captionOptions: preparedRequest.captionOptions } : {}),
-            ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
-            ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {}),
+            ...(audioTracksForAssembly.length > 0 ? { audioTracks: audioTracksForAssembly } : {}),
+            ...(audioMixOptionsForAssembly ? { audioMixOptions: audioMixOptionsForAssembly } : {}),
             ...(preparedRequest.frameSamplingOptions ? { frameSamplingOptions: preparedRequest.frameSamplingOptions } : {}),
             ...(preparedRequest.transitionSettings ? { transitionSettings: preparedRequest.transitionSettings } : {}),
             postproductionSettings: this.postproductionSettingsForDelivery(intake.settings),
@@ -466,6 +496,7 @@ export class DirectorAgent {
       materialSourcingPlan,
       materialSourceValidation,
       postproductionAssetPlan,
+      ...(generatedAudioOutputBatchValidation ? { generatedAudioOutputBatchValidation } : {}),
       stagePlan,
       costEstimate,
       compiledPrompts,
@@ -474,6 +505,71 @@ export class DirectorAgent {
       ...(deliveryGate ? { deliveryGate } : {}),
       ...(semanticVisualInspection ? { semanticVisualInspection } : {})
     };
+  }
+
+  private canExecuteGeneratedAudio(request: CineJellyProjectRequest): boolean {
+    return Boolean(
+      this.audioProvider &&
+      request.outputPath &&
+      request.workDirectory &&
+      (request.generatedAudioIntents?.length ?? 0) > 0
+    );
+  }
+
+  private async executeGeneratedAudioIfReady(input: {
+    readonly intents: readonly GeneratedAudioIntent[];
+    readonly postproductionAssetPlan: PostproductionAssetPlan;
+    readonly signal?: AbortSignal;
+  }): Promise<ReturnType<GeneratedAudioOutputBatchValidator["validate"]> | undefined> {
+    const executionPlan = input.postproductionAssetPlan.generatedAudio.executionPlan;
+    if (!this.audioProvider || executionPlan.readyCount === 0) {
+      return undefined;
+    }
+
+    this.reportStageProgress("assemble", "running", "Executing generated-audio provider requests before audio mix.", {
+      generatedAudioReadyIntentCount: executionPlan.readyCount,
+      generatedAudioBlockedIntentCount: executionPlan.blockedCount
+    });
+    const run = await this.generatedAudioExecutionRunner.run({
+      executionPlan,
+      audioProvider: this.audioProvider,
+      ...(input.signal ? { signal: input.signal } : {})
+    });
+    this.reportStageProgress(
+      "assemble",
+      run.status === "succeeded" ? "succeeded" : "warn",
+      "Generated-audio provider execution completed.",
+      {
+        generatedAudioExecutionStatus: run.status,
+        generatedAudioAttemptedCount: run.attemptedCount,
+        generatedAudioSucceededCount: run.succeededCount,
+        generatedAudioFailedCount: run.failedCount,
+        generatedAudioTimeoutCount: run.timeoutCount,
+        generatedAudioCanceledCount: run.canceledCount
+      }
+    );
+    return this.generatedAudioOutputBatchValidator.validate({
+      intents: input.intents,
+      executionPlan,
+      results: run.results
+    });
+  }
+
+  private audioTracksForAssembly(
+    suppliedTracks: readonly AudioMixTrack[] | undefined,
+    generatedTracks: readonly AudioMixTrack[] | undefined
+  ): readonly AudioMixTrack[] {
+    return [...(suppliedTracks ?? []), ...(generatedTracks ?? [])];
+  }
+
+  private audioMixOptionsForAssembly(
+    options: AudioMixOptions | undefined,
+    tracks: readonly AudioMixTrack[]
+  ): AudioMixOptions | undefined {
+    if (tracks.length === 0) {
+      return undefined;
+    }
+    return options;
   }
 
   private async prepareRequestForIntake(
