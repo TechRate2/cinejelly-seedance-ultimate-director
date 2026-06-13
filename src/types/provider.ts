@@ -4,6 +4,7 @@
  */
 
 import type { AspectRatio, Resolution } from "./settings.js";
+import type { GeneratedAudioIntentKind } from "./audio.js";
 import type { ProviderErrorCode } from "../utils/errors.js";
 
 export type ProviderName = "atlascloud" | (string & {});
@@ -193,4 +194,50 @@ export interface CostLedgerEntry {
   readonly errorCode?: ProviderErrorCode;
   readonly retryable?: boolean;
   readonly retryCount: number;
+}
+
+export type AudioGenerationOutputFormat = "mp3" | "wav";
+
+export interface AudioGenerationCapability {
+  readonly provider: ProviderName;
+  readonly modelId: string;
+  readonly kinds: readonly GeneratedAudioIntentKind[];
+  readonly outputFormats: readonly AudioGenerationOutputFormat[];
+  readonly maxDurationSeconds: number;
+  readonly async: boolean;
+}
+
+export interface AudioGenerationSettings {
+  readonly outputFormat: AudioGenerationOutputFormat;
+  readonly durationSeconds?: number;
+  readonly language?: string;
+  readonly voiceStyle?: string;
+  readonly mood?: string;
+  readonly volume?: number;
+}
+
+export interface AudioGenerationRequest {
+  readonly provider: ProviderName;
+  readonly modelId: string;
+  readonly intentId: string;
+  readonly kind: GeneratedAudioIntentKind;
+  readonly prompt: string;
+  readonly settings: AudioGenerationSettings;
+  readonly metadata?: ProviderMetadata;
+}
+
+export interface AudioGenerationResult {
+  readonly provider: ProviderName;
+  readonly modelId: string;
+  readonly intentId: string;
+  readonly kind: GeneratedAudioIntentKind;
+  readonly status: ProviderCallStatus;
+  readonly outputUrl?: string;
+  readonly providerAssetId?: string;
+  readonly durationSeconds?: number;
+  readonly raw: unknown;
+  readonly usage?: ProviderUsage;
+  readonly submittedAt: Date;
+  readonly completedAt?: Date;
+  readonly latencyMs?: number;
 }

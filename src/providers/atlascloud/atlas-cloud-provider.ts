@@ -5,6 +5,9 @@
 
 import type { AtlasCloudRuntimeSettings } from "../../types/settings.js";
 import type {
+  AudioGenerationCapability,
+  AudioGenerationRequest,
+  AudioGenerationResult,
   AssetRegistration,
   AssetRegistrationRequest,
   AssetStatus,
@@ -78,6 +81,11 @@ export class AtlasCloudProvider implements ModelProvider {
       references: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"],
       async: true
     }));
+  }
+
+  public audioCapabilities(modelId?: string): readonly AudioGenerationCapability[] {
+    void modelId;
+    return [];
   }
 
   public async chat(request: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
@@ -392,6 +400,25 @@ export class AtlasCloudProvider implements ModelProvider {
     );
   }
 
+  public generateAudio(request: AudioGenerationRequest, signal?: AbortSignal): Promise<AudioGenerationResult> {
+    const startedAt = now();
+    return this.trackProviderCall(
+      "audio.generate",
+      request.modelId,
+      request.metadata?.graphNodeId,
+      startedAt,
+      async () => {
+        this.validateAudioRequest(request);
+        this.throwIfAborted(signal);
+        throw new ProviderError({
+          code: "MODEL_UNAVAILABLE",
+          provider: ATLAS_PROVIDER_NAME,
+          message: "Atlas Cloud generated-audio execution is not configured; verify audio model schema and capability mapping before enabling provider-backed TTS, BGM, ambience, or SFX."
+        });
+      }
+    );
+  }
+
   private async submitVideoGeneration(
     expectedMode: ProviderMode,
     request: VideoGenerationRequest,
@@ -473,6 +500,51 @@ export class AtlasCloudProvider implements ModelProvider {
     }
     for (const reference of request.references) {
       this.validateReferenceCapability(reference, capability);
+    }
+  }
+
+  private validateAudioRequest(request: AudioGenerationRequest): void {
+    if (request.provider !== ATLAS_PROVIDER_NAME) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Atlas Cloud provider received generated-audio request for provider ${request.provider}.`
+      });
+    }
+    if (!request.prompt.trim()) {
+      throw new ProviderError({
+        code: "INVALID_SCHEMA",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Generated-audio request prompt must be non-empty."
+      });
+    }
+    const requestedDuration = request.settings.durationSeconds;
+    if (requestedDuration !== undefined && requestedDuration <= 0) {
+      throw new ProviderError({
+        code: "INVALID_SCHEMA",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Generated-audio request duration must be greater than zero seconds."
+      });
+    }
+
+    const capability = this.audioCapabilities(request.modelId).find((candidate) =>
+      candidate.modelId === request.modelId &&
+      candidate.kinds.includes(request.kind) &&
+      candidate.outputFormats.includes(request.settings.outputFormat)
+    );
+    if (!capability) {
+      throw new ProviderError({
+        code: "MODEL_UNAVAILABLE",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `No verified Atlas Cloud generated-audio capability is configured for ${request.kind} using model ${request.modelId}.`
+      });
+    }
+    if (requestedDuration !== undefined && requestedDuration > capability.maxDurationSeconds) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Generated-audio duration ${requestedDuration}s exceeds configured capability limit ${capability.maxDurationSeconds}s.`
+      });
     }
   }
 

@@ -1349,6 +1349,104 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Generated Audio Provider Execution Contract",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/services/voice.py",
+      "external/upstream/moneyprinterturbo/app/models/schema.py",
+      "external/upstream/moneyprinterturbo/app/controllers/v1/video.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "audio generation is treated as an explicit stage with visible task state",
+      "audio-only execution can complete before subtitle/material/final composition stages",
+      "voice/BGM request knobs stay separate from supplied custom audio",
+      "audio generation failures remain operator-visible instead of being silently ignored"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo runtime TTS/BGM implementation code is not copied or executed",
+      "CineJelly adds provider-neutral audio-generation request/result/capability contracts",
+      "Atlas Cloud generated-audio execution is safely blocked until verified provider schema and capability mapping exist",
+      "failed generated-audio provider attempts can be recorded as `audio.generate` cost-ledger entries without provider spend"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-provider-execution-contract.md",
+    cineJellyDestinationPaths: [
+      "src/types/provider.ts",
+      "src/providers/contracts.ts",
+      "src/providers/atlascloud/atlas-cloud-provider.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "actual Atlas audio endpoint mapping remains blocked until current provider schema and model IDs are verified",
+      "future generated-audio outputs must be media-inspected and URI-safety checked before becoming supplied audio tracks"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Provider Execution Contract",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "provider-backed work requires validation, cost visibility, and deterministic review evidence before release",
+      "unavailable generation capabilities remain explicit blockers",
+      "generated asset status belongs in operator-facing evidence rather than hidden side effects"
+    ],
+    behaviorChanged: [
+      "VibeFrame provider/report discipline is rewritten into CineJelly provider-neutral audio contracts",
+      "CineJelly does not add fake generated assets or unverified provider calls",
+      "Atlas boundary returns no audio capabilities until the provider schema is intentionally configured"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-provider-execution-contract.md",
+    cineJellyDestinationPaths: [
+      "src/types/provider.ts",
+      "src/providers/contracts.ts",
+      "src/providers/atlascloud/atlas-cloud-provider.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "paid provider validation must later confirm ledger status, usage/cost fields, output URIs, and artifact evidence"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Provider Execution Contract",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/AGENT_GUIDE.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "provider capability availability should be visible before generation",
+      "music/TTS provider decisions should be surfaced before paid asset work",
+      "sample-before-batch and approval concepts inform future generated-audio release gates"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, imported, or executed",
+      "AGPL-sensitive provider menu and approval ideas remain behavior notes only",
+      "CineJelly uses its own provider contracts and Atlas boundary for generated-audio readiness"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-provider-execution-contract.md",
+    cineJellyDestinationPaths: [
+      "src/types/provider.ts",
+      "src/providers/contracts.ts",
+      "src/providers/atlascloud/atlas-cloud-provider.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future implementation must keep AGPL material at behavior-note level unless legal/product obligations are accepted"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Postproduction Asset Orchestration",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
     snapshotPath: "external/upstream/moneyprinterturbo",

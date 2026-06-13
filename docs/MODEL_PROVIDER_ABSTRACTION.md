@@ -22,6 +22,7 @@ Snapshot integration note:
 - Production provider code must not import directly from `external/upstream/`.
 - Behavior-critical provider logic such as request compilation, fallback, polling, retry classification, cost recording, or queue admission must follow `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` when translated from upstream snapshots.
 - MoneyPrinterTurbo's many-provider LLM surface is useful for fallback thinking, but CineJelly keeps Atlas Cloud as the default provider for both LLM reasoning and Seedance 2.0 rendering.
+- MoneyPrinterTurbo's explicit audio stage and OpenMontage's provider-menu discipline inform CineJelly's generated-audio provider contract, but actual provider-backed TTS/BGM/ambience/SFX execution remains disabled until current provider schemas, model IDs, pricing, and output validation are verified.
 
 ## Design Goal
 
@@ -34,6 +35,7 @@ Application services should not know Atlas-specific request fields. They should 
 - render a video from image
 - render from references
 - extend or edit a video
+- generate narration, BGM, ambience, or SFX when an audio provider is explicitly configured
 - poll a job
 - inspect provider cost/status
 
@@ -113,6 +115,31 @@ Atlas implementation:
 - video/audio references must be registered before generation.
 - generation host differs from asset host.
 - successful assets are referenced as provider asset IDs, commonly represented in docs as `asset://<asset_id>`.
+
+### AudioProvider
+
+```text
+AudioProvider
+  generate_audio(request) -> AudioGenerationResult
+  audio_capabilities(model_id) -> AudioGenerationCapabilities
+```
+
+Required capabilities:
+
+- supported generated-audio kinds: TTS narration, BGM, ambience, SFX
+- supported output formats
+- maximum duration per generated asset
+- async or synchronous behavior
+- output URL or asset ID mapping
+- usage/cost metadata when available
+- error normalization and cancellation behavior
+
+Current Atlas implementation:
+
+- `src/providers/contracts.ts` defines the provider-neutral `AudioProvider` boundary.
+- `src/providers/atlascloud/atlas-cloud-provider.ts` currently reports no generated-audio capabilities and rejects generated-audio execution with a stable no-spend `ProviderError`.
+- This is intentional until the current Atlas audio model schema, endpoint payload, output format, model IDs, pricing, and artifact validation path are verified.
+- Generated-audio requests therefore remain `planned_only` postproduction evidence unless a future verified provider-backed module produces explicit audio assets.
 
 ### MediaInspector
 
@@ -212,6 +239,7 @@ Future provider routing:
 | Complex motion realism | Atlas Cloud model router | Kling, Veo, Wan, Runway |
 | Long-context script analysis | Atlas Cloud LLM | direct OpenAI, Anthropic, Google, local LLM |
 | Video understanding | Atlas Cloud or local pipeline | VideoAgent-like VLM stack |
+| Generated narration/BGM/ambience/SFX | Disabled until verified generated-audio capability config exists | Atlas audio models or specialized TTS/music/SFX providers after schema, pricing, rights, and validation review |
 | Licensed material sourcing | CineJelly governed material layer | Pexels, Pixabay, Coverr, user-provided library, paid stock APIs |
 | Postproduction utilities | local tools | cloud render farms |
 
@@ -283,6 +311,7 @@ Runtime implementation:
 - Atlas video entries also record provider-returned usage, estimated cost, or actual cost when prediction usage includes those fields.
 - Atlas wait-prediction entries record terminal `succeeded`, `failed`, `canceled`, and `timeout` outcomes rather than hiding async job outcomes behind generic HTTP call status.
 - Atlas retryable LLM, video submit, prediction polling, and Asset Library HTTP calls record the actual number of retry attempts in the provider ledger.
+- Atlas generated-audio execution attempts, if called before verified capabilities exist, fail before network spend and can record an `audio.generate` ledger entry with `MODEL_UNAVAILABLE`.
 - Prediction polling accepts optional model and graph metadata context so long-form polling entries can be traced back to the originating shot.
 - Review packets summarize failed, timeout, and canceled provider operation counts from the ledger.
 
@@ -300,6 +329,7 @@ This follows VibeFrame/OpenMontage cost-gate thinking and is required for commer
 - No fallback provider is used without graph metadata recording.
 - No provider implementation imports directly from `external/upstream/`; snapshot-derived logic must be written as CineJelly-owned provider code.
 - Material-source adapters, when added, must follow the same provider-neutral contract, credential redaction, cost/status logging, and rights metadata rules as render providers.
+- Generated-audio providers must not be enabled until provider schema, output URI safety, duration validation, model IDs, pricing, and artifact review are verified. Do not claim generated audio from `generatedAudioIntents` without a real `AudioGenerationResult`.
 
 ## Future Provider Onboarding Checklist
 

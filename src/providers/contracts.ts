@@ -4,6 +4,9 @@
  */
 
 import type {
+  AudioGenerationCapability,
+  AudioGenerationRequest,
+  AudioGenerationResult,
   AssetRegistration,
   AssetRegistrationRequest,
   ChatRequest,
@@ -46,4 +49,10 @@ export interface AssetProvider {
   deleteAsset(assetId: string, signal?: AbortSignal): Promise<void>;
 }
 
-export interface ModelProvider extends LlmProvider, VideoProvider, AssetProvider {}
+export interface AudioProvider {
+  readonly name: string;
+  generateAudio(request: AudioGenerationRequest, signal?: AbortSignal): Promise<AudioGenerationResult>;
+  audioCapabilities(modelId?: string): readonly AudioGenerationCapability[];
+}
+
+export interface ModelProvider extends LlmProvider, VideoProvider, AssetProvider, AudioProvider {}
