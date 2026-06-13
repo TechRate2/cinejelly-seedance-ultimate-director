@@ -6,13 +6,19 @@
 import { randomUUID } from "node:crypto";
 import { createDirectorRuntime } from "../application/director-factory.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
+import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import type { CineJellyProjectRequest, DirectorRunResult } from "../types/agent.js";
-import type { ProjectArtifactBundle } from "../types/artifact.js";
+import type { ProjectArtifactBundle, ProjectArtifactValidationReport, ProjectArtifactValidationStatus } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import type { ProductionStageName, ProductionStageProgressEvent, ProductionStageStatus } from "../types/stage.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
-import { toApiProjectArtifactBundle, type ApiProjectArtifactBundle } from "./artifact-response.js";
+import {
+  toApiProjectArtifactBundle,
+  toApiProjectArtifactValidationReport,
+  type ApiProjectArtifactBundle,
+  type ApiProjectArtifactValidationReport
+} from "./artifact-response.js";
 
 export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
 const MAX_STAGE_PROGRESS_EVENTS = 200;
@@ -62,10 +68,13 @@ export interface RenderJobSummary {
   readonly hasResult: boolean;
   readonly hasCostLedger: boolean;
   readonly hasArtifacts: boolean;
+  readonly hasArtifactValidation: boolean;
+  readonly artifactValidationStatus?: ProjectArtifactValidationStatus;
   readonly hasError: boolean;
   readonly error?: unknown;
   readonly costLedger?: readonly CostLedgerEntry[];
   readonly artifacts?: ApiProjectArtifactBundle;
+  readonly artifactValidation?: ApiProjectArtifactValidationReport;
   readonly result?: DirectorRunResult;
 }
 
@@ -87,9 +96,11 @@ export interface RenderJobSubmission {
 interface RenderJobRecord extends Omit<
   RenderJobSummary,
   "artifacts" | "hasError" | "currentStage" | "currentStageStatus" | "progressEventCount" | "stageProgressEvents"
+  | "artifactValidation"
 > {
   readonly artifactDirectory: string;
   readonly artifacts?: ProjectArtifactBundle;
+  readonly artifactValidation?: ProjectArtifactValidationReport;
   readonly request: CineJellyProjectRequest;
   readonly abortController: AbortController;
   readonly stageProgressEvents: readonly ProductionStageProgressEvent[];
@@ -108,6 +119,7 @@ export type RenderJobRuntimeFactory = (input?: RenderJobRuntimeFactoryInput) => 
 
 export class RenderJobManager {
   private readonly artifactStore: ProjectArtifactStore;
+  private readonly artifactValidator: ProjectArtifactValidator;
   private readonly runtimeFactory: RenderJobRuntimeFactory;
   private readonly maxConcurrentJobs: number;
   private readonly historyLimit: number;
@@ -123,8 +135,10 @@ export class RenderJobManager {
     readonly historyLimit?: number;
     readonly queueLimit?: number;
     readonly runtimeFactory?: RenderJobRuntimeFactory;
+    readonly artifactValidator?: ProjectArtifactValidator;
   } = {}) {
     this.artifactStore = input.artifactStore ?? new ProjectArtifactStore();
+    this.artifactValidator = input.artifactValidator ?? new ProjectArtifactValidator();
     this.runtimeFactory =
       input.runtimeFactory ?? ((runtimeInput) => createDirectorRuntime(process.env, runtimeInput ?? {}));
     this.maxConcurrentJobs = Math.max(1, input.maxConcurrentJobs ?? 1);
@@ -162,6 +176,7 @@ export class RenderJobManager {
       hasResult: false,
       hasCostLedger: false,
       hasArtifacts: false,
+      hasArtifactValidation: false,
       request: input.request,
       abortController: new AbortController(),
       ...(input.request.settings?.durationTargetSeconds !== undefined
@@ -332,6 +347,7 @@ export class RenderJobManager {
         costLedger,
         artifactDirectory: record.artifactDirectory
       });
+      const artifactValidation = await this.validateArtifacts(artifacts);
       const completedAt = new Date();
       this.updateJob(record.jobId, {
         status: "succeeded",
@@ -340,7 +356,8 @@ export class RenderJobManager {
         projectId: result.projectId,
         result,
         costLedger,
-        artifacts
+        artifacts,
+        artifactValidation
       });
     } catch (error) {
       costLedger = runtime?.ledger.list() ?? costLedger;
@@ -350,6 +367,7 @@ export class RenderJobManager {
         artifactDirectory: record.artifactDirectory,
         error
       });
+      const artifactValidation = artifacts ? await this.validateArtifacts(artifacts) : undefined;
       const completedAt = new Date();
       const status: RenderJobStatus = record.abortController.signal.aborted ? "canceled" : "failed";
       this.updateJob(record.jobId, {
@@ -358,7 +376,8 @@ export class RenderJobManager {
         completedAt,
         error: this.errorPayload(error),
         costLedger,
-        ...(artifacts ? { artifacts } : {})
+        ...(artifacts ? { artifacts } : {}),
+        ...(artifactValidation ? { artifactValidation } : {})
       });
     }
   }
@@ -379,6 +398,27 @@ export class RenderJobManager {
       });
     } catch {
       return undefined;
+    }
+  }
+
+  private async validateArtifacts(artifacts: ProjectArtifactBundle): Promise<ProjectArtifactValidationReport> {
+    try {
+      return await this.artifactValidator.validate(artifacts.artifactDirectory);
+    } catch (error) {
+      return {
+        status: "fail",
+        checkedAt: new Date(),
+        artifactDirectory: artifacts.artifactDirectory,
+        manifestPath: artifacts.manifestPath,
+        projectId: artifacts.projectId,
+        checks: [
+          {
+            name: "artifact_validation_runtime",
+            status: "fail",
+            message: error instanceof Error ? error.message : "Artifact validation failed."
+          }
+        ]
+      };
     }
   }
 
@@ -514,6 +554,7 @@ export class RenderJobManager {
       error,
       costLedger,
       artifacts,
+      artifactValidation,
       result
     } = record;
     const currentStageProgress = stageProgressEvents[stageProgressEvents.length - 1];
@@ -538,10 +579,15 @@ export class RenderJobManager {
       hasResult: Boolean(result),
       hasCostLedger: Boolean(costLedger),
       hasArtifacts: Boolean(artifacts),
+      hasArtifactValidation: Boolean(artifactValidation),
+      ...(artifactValidation ? { artifactValidationStatus: artifactValidation.status } : {}),
       hasError: error !== undefined,
       ...(options.includeDetails && error !== undefined ? { error } : {}),
       ...(options.includeDetails && costLedger ? { costLedger } : {}),
       ...(options.includeDetails && artifacts ? { artifacts: toApiProjectArtifactBundle(artifacts) } : {}),
+      ...(options.includeDetails && artifactValidation
+        ? { artifactValidation: toApiProjectArtifactValidationReport(artifactValidation) }
+        : {}),
       ...(options.includeDetails && result ? { result } : {})
     };
   }

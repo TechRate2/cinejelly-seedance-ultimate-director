@@ -163,6 +163,8 @@ Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000$($submit.statusUrl)" -
 
 While the job is running, the job payload should expose `currentStage`, `currentStageStatus`, `progressEventCount`, and retained `stageProgressEvents` in the per-job response. The list endpoint `/v1/render-jobs` should stay compact and expose current-stage fields without the full event array.
 
+After the job reaches a terminal state and artifacts were written, the job payload should expose `hasArtifactValidation`, `artifactValidationStatus`, and detailed `artifactValidation.checks` in the per-job response. The list endpoint should keep only compact validation status, not the full check array. Treat `artifactValidationStatus=fail` as a release blocker even when the render job status is `succeeded`.
+
 Use synchronous `/v1/render` only for short internal validation when deployment timeout limits are known and acceptable.
 
 ## Automated Artifact Validation
@@ -216,6 +218,7 @@ Required evidence:
 - `cost-ledger.json` contains provider operations with model, graph node, prediction ID when available, latency, retry count, status, and provider usage/cost when returned.
 - `production-graph.json` includes `reference_asset`, `reference_selection`, `material_sourcing`, `clip_render`, `inspection_report`, repair, and deliverable evidence as applicable.
 - `deliverable.json` includes output byte size and SHA-256 hash.
+- Per-job API `artifactValidation` omits server-local `artifactDirectory` and `manifestPath`; it should expose status, manifest file name, counts, and checks only.
 - `npm.cmd run validate:artifacts -- <artifact-directory>` passes or any warning is explicitly reviewed.
 
 ## Redaction And Safety Checklist
@@ -254,6 +257,7 @@ CineJelly is ready for limited customer traffic only when:
 - Validation readiness report is archived and has no hard blockers.
 - At least one paid Atlas validation render succeeds.
 - Artifacts pass the inspection checklist.
+- The retained job detail has `artifactValidationStatus=pass`, or any `warn` is explicitly reviewed and no `fail` remains.
 - Material source validation is either `planned_only` for generated-only runs or `approved`/explicitly reviewed for runs using adapter candidates.
 - Redaction checklist passes.
 - Remaining warnings are documented in `docs/PROJECT_CONTEXT.md`.

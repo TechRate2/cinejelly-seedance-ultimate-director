@@ -984,6 +984,71 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "API Artifact Validation Evidence",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "deterministic artifact validation remains a release gate after build/render work",
+      "artifact validation evidence is reviewable alongside generated artifacts",
+      "validation status is separate from render execution status"
+    ],
+    behaviorChanged: [
+      "VibeFrame artifact/report discipline is rewritten into CineJelly async job metadata",
+      "public API DTOs drop server-local artifact directories and manifest paths",
+      "validation is bound to job-owned artifacts instead of arbitrary API-supplied filesystem paths"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/api-artifact-validation-evidence.md",
+    cineJellyDestinationPaths: [
+      "src/core/project-artifact-validator.ts",
+      "src/api/artifact-response.ts",
+      "src/api/render-job-manager.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "paid Atlas artifact validation remains required to confirm real media artifact shapes",
+      "durable external queue backends should preserve the same artifact validation fields later"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "API Artifact Validation Evidence",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/controllers/v1/video.py",
+      "external/upstream/moneyprinterturbo/app/models/schema.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "terminal long-running jobs expose generated artifact evidence through the API",
+      "failure artifacts remain visible for operator diagnosis",
+      "compact list responses avoid heavy detail while per-job polling exposes reviewable evidence"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo runtime code is not copied or executed",
+      "CineJelly validates deterministic artifact manifests after job-owned artifact writes",
+      "artifact validation complements stage progress rather than becoming a separate task queue"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/api-artifact-validation-evidence.md",
+    cineJellyDestinationPaths: [
+      "src/api/render-job-manager.ts",
+      "src/api/artifact-response.ts",
+      "src/types/artifact.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "in-process job retention is not durable across process restarts",
+      "real paid validation must confirm cost-ledger, deliverable, and review-packet checks against provider outputs"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Phase 6 Validation Readiness Report",
     sourceRepository: "vericontext/vibeframe",
     snapshotPath: "external/upstream/vibeframe",

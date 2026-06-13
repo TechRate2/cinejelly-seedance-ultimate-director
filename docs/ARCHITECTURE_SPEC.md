@@ -346,8 +346,8 @@ API execution modes:
 - Async job submission enforces a process-level queued/running capacity limit before job records, runtime objects, or provider calls are created; saturated queues return a 503 pressure signal with `Retry-After` and JSON `retryAfterSeconds` for upstream retry behavior.
 - Rate-limited credit-spending requests return 429 with `Retry-After` and JSON `retryAfterSeconds`.
 - API rate limiting uses the socket remote address by default; `X-Forwarded-For` is trusted only when `CINEJELLY_TRUST_PROXY_HEADERS=true` is configured behind a trusted reverse proxy that strips and rewrites client IP headers.
-- Job list status includes queue telemetry plus compact queued, running, succeeded, failed, or canceled summaries with current-stage progress fields and detail-availability flags, including `hasError`, but excludes error detail and the full progress event list.
-- Per-job status includes queued, running, succeeded, failed, or canceled state plus retained bounded stage progress events, redacted stack-free error name/message, result, cost ledger, and artifact bundle when available.
+- Job list status includes queue telemetry plus compact queued, running, succeeded, failed, or canceled summaries with current-stage progress fields, compact artifact validation status, and detail-availability flags, including `hasError`, but excludes error detail, full validation checks, and the full progress event list.
+- Per-job status includes queued, running, succeeded, failed, or canceled state plus retained bounded stage progress events, redacted stack-free error name/message, result, cost ledger, artifact bundle, and artifact validation checks when available.
 - Public JSON responses redact secrets, inline `data:` URIs, non-HTTPS URIs, embedded-credential URIs, signed/credential-query URIs, and deployment-local filesystem paths, while preserving deploy-safe URI values such as clean `https://` reference URLs and `asset://` Atlas Asset Library references.
 - Public JSON responses include `Cache-Control: no-store` and `X-Content-Type-Options: nosniff` so run metadata, provider errors, queue state, and cost evidence are not cached or content-sniffed by intermediaries.
 - `/v1/render-jobs/{jobId}` can be canceled with `DELETE`; cancellation propagates through `AbortSignal` to provider calls, polling, assembly, and postproduction where supported.
@@ -361,6 +361,7 @@ Failure artifact policy:
 - Synchronous and async render failure paths capture any provider cost ledger entries recorded before the error, so partial Atlas spend remains auditable.
 - Success and failure manifests include per-file SHA-256 hashes for redacted JSON artifacts so review packets, graph snapshots, cost ledgers, and failure reports can be integrity-checked after storage or transfer.
 - API artifact bundle responses expose manifest file names, artifact entries, byte sizes, and hashes without returning server-local artifact directories or manifest paths; deeper result payloads also redact local output, work, media sample, and inspection paths before leaving the API boundary.
+- API artifact validation responses expose status, manifest file name, check counts, and checks without returning server-local artifact directories or manifest paths; validation is bound to job-owned artifacts and not to arbitrary client-supplied local paths.
 - This is an extension based on VibeFrame/OpenMontage build and review report discipline.
 
 Review packet policy:
