@@ -1179,12 +1179,12 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "postproduction readiness is represented as deterministic reviewable artifact evidence",
       "warnings and missing-input repairs stay visible to operators",
-      "artifact validation checks the postproduction plan shape before release"
+      "artifact validation checks the postproduction plan shape and cross-artifact consistency before release"
     ],
     behaviorChanged: [
       "VibeFrame review-report discipline is rewritten into CineJelly postproduction asset contracts",
       "CineJelly keeps the plan provider-free and redacted rather than embedding local file paths or raw media payloads",
-      "postproduction evidence is integrated into stage lifecycle, run summary, and review packet planning"
+      "postproduction evidence is integrated into stage lifecycle, run summary, review packet planning, and validator consistency checks"
     ],
     referenceImplementationPath: "docs/reference-implementations/postproduction-asset-orchestration.md",
     cineJellyDestinationPaths: [

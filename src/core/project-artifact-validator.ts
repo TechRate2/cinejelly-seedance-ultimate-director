@@ -337,6 +337,7 @@ export class ProjectArtifactValidator {
     this.validateMaterialSourcingPlan(artifacts.get("material_sourcing_plan"), checks);
     this.validateMaterialSourceValidation(manifest, artifacts.get("material_source_validation"), checks);
     this.validatePostproductionAssetPlan(manifest, artifacts.get("postproduction_asset_plan"), checks);
+    this.validatePostproductionAssetConsistency(artifacts, checks);
     this.validateCostLedger(artifacts.get("cost_ledger"), artifacts.has("failure_report"), checks);
     this.validateProductionGraph(artifacts.get("production_graph"), artifacts, checks);
     this.validateDeliverable(artifacts.get("deliverable"), checks);
@@ -590,6 +591,186 @@ export class ProjectArtifactValidator {
       if (typeof issue.message !== "string" || !issue.message || typeof issue.repair !== "string" || !issue.repair) {
         checks.push({ name: "postproduction_issue_text", status: "fail", fileName: artifact.entry.fileName, message: `Postproduction issue ${index} is missing message or repair.` });
       }
+    }
+  }
+
+  private validatePostproductionAssetConsistency(
+    artifacts: ReadonlyMap<ProjectArtifactKind, LoadedArtifact>,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    const artifact = artifacts.get("postproduction_asset_plan");
+    if (!artifact || !this.isRecord(artifact.value)) {
+      return;
+    }
+    const plan = artifact.value;
+    const caption = this.isRecord(plan.caption) ? plan.caption : undefined;
+    const audio = this.isRecord(plan.audio) ? plan.audio : undefined;
+    const expected = {
+      status: typeof plan.status === "string" ? plan.status : undefined,
+      captionCueCount: typeof caption?.cueCount === "number" ? caption.cueCount : undefined,
+      captionBurnIn: typeof caption?.burnIn === "boolean" ? caption.burnIn : undefined,
+      audioTrackCount: typeof audio?.trackCount === "number" ? audio.trackCount : undefined,
+      audioMixEnabled: typeof audio?.enabled === "boolean" ? audio.enabled : undefined,
+      issueCount: typeof plan.issueCount === "number" ? plan.issueCount : undefined
+    };
+
+    const runSummary = artifacts.get("run_summary");
+    if (runSummary && this.isRecord(runSummary.value)) {
+      this.compareArtifactField(
+        runSummary.entry.fileName,
+        "postproductionAssetStatus",
+        runSummary.value.postproductionAssetStatus,
+        expected.status,
+        checks
+      );
+      this.compareArtifactField(
+        runSummary.entry.fileName,
+        "captionCueCount",
+        runSummary.value.captionCueCount,
+        expected.captionCueCount,
+        checks
+      );
+      this.compareArtifactField(
+        runSummary.entry.fileName,
+        "audioTrackCount",
+        runSummary.value.audioTrackCount,
+        expected.audioTrackCount,
+        checks
+      );
+      this.compareArtifactField(
+        runSummary.entry.fileName,
+        "postproductionAssetIssueCount",
+        runSummary.value.postproductionAssetIssueCount,
+        expected.issueCount,
+        checks
+      );
+    }
+
+    const reviewPacket = artifacts.get("review_packet");
+    const reviewPlanning = reviewPacket && this.isRecord(reviewPacket.value) && this.isRecord(reviewPacket.value.planning)
+      ? reviewPacket.value.planning
+      : undefined;
+    if (reviewPacket && !reviewPlanning) {
+      checks.push({
+        name: "postproduction_asset_consistency",
+        status: "fail",
+        fileName: reviewPacket.entry.fileName,
+        message: "review-packet planning evidence is missing."
+      });
+    } else if (reviewPacket && reviewPlanning) {
+      this.compareArtifactField(
+        reviewPacket.entry.fileName,
+        "planning.postproductionAssetStatus",
+        reviewPlanning.postproductionAssetStatus,
+        expected.status,
+        checks
+      );
+      this.compareArtifactField(
+        reviewPacket.entry.fileName,
+        "planning.captionCueCount",
+        reviewPlanning.captionCueCount,
+        expected.captionCueCount,
+        checks
+      );
+      this.compareArtifactField(
+        reviewPacket.entry.fileName,
+        "planning.audioTrackCount",
+        reviewPlanning.audioTrackCount,
+        expected.audioTrackCount,
+        checks
+      );
+      this.compareArtifactField(
+        reviewPacket.entry.fileName,
+        "planning.postproductionAssetIssueCount",
+        reviewPlanning.postproductionAssetIssueCount,
+        expected.issueCount,
+        checks
+      );
+    }
+
+    const stageLifecycle = artifacts.get("stage_lifecycle");
+    const assembleEvidence = this.assembleStageEvidence(stageLifecycle?.value);
+    if (stageLifecycle && !assembleEvidence) {
+      checks.push({
+        name: "postproduction_asset_consistency",
+        status: "fail",
+        fileName: stageLifecycle.entry.fileName,
+        message: "assemble-stage postproduction evidence is missing."
+      });
+    } else if (stageLifecycle && assembleEvidence) {
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.postproductionAssetStatus",
+        assembleEvidence.postproductionAssetStatus,
+        expected.status,
+        checks
+      );
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.captionCueCount",
+        assembleEvidence.captionCueCount,
+        expected.captionCueCount,
+        checks
+      );
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.captionBurnIn",
+        assembleEvidence.captionBurnIn,
+        expected.captionBurnIn,
+        checks
+      );
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.audioTrackCount",
+        assembleEvidence.audioTrackCount,
+        expected.audioTrackCount,
+        checks
+      );
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.audioMixEnabled",
+        assembleEvidence.audioMixEnabled,
+        expected.audioMixEnabled,
+        checks
+      );
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.postproductionAssetIssueCount",
+        assembleEvidence.postproductionAssetIssueCount,
+        expected.issueCount,
+        checks
+      );
+    }
+  }
+
+  private assembleStageEvidence(value: unknown): Record<string, unknown> | undefined {
+    if (!this.isRecord(value) || !Array.isArray(value.records)) {
+      return undefined;
+    }
+    const assemble = value.records.find(
+      (record): record is Record<string, unknown> =>
+        this.isRecord(record) && record.stage === "assemble"
+    );
+    return assemble && this.isRecord(assemble.evidence) ? assemble.evidence : undefined;
+  }
+
+  private compareArtifactField(
+    fileName: string,
+    fieldPath: string,
+    actual: unknown,
+    expected: unknown,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (expected === undefined) {
+      return;
+    }
+    if (actual !== expected) {
+      checks.push({
+        name: "postproduction_asset_consistency",
+        status: "fail",
+        fileName,
+        message: `${fieldPath} does not match postproduction-assets.json.`
+      });
     }
   }
 

@@ -198,7 +198,7 @@ Deliverables:
 - Batch candidate evidence across shots and final deliverables.
 - Material sourcing rights metadata wired into Production Graph nodes.
 - Material source validation report wired into stage lifecycle, review packet planning evidence, durable artifacts, and artifact validation.
-- Postproduction asset plan wired into assemble-stage evidence, review packet planning evidence, durable artifacts, and artifact validation.
+- Postproduction asset plan wired into assemble-stage evidence, review packet planning evidence, durable artifacts, artifact validation, and cross-artifact consistency checks.
 - Operator-owned local material catalog fulfillment through safe `asset://` or credential-free HTTPS candidates, with `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` config and preflight validation.
 - Opt-in remote stock material fulfillment through Pexels, Pixabay, and commercially approved Coverr providers, with key-gated runtime config, credential-free candidate URIs, attribution metadata, and centralized material validation.
 
@@ -210,6 +210,7 @@ Milestone check:
 - Batch candidates are traceable and rejected candidates are recorded.
 - Source-material candidates are either planned-only or validated against known briefs, approved sources, safe URIs, rights/attribution, duration, aspect ratio, and resolution before release evidence.
 - Caption cues and audio tracks produce deterministic postproduction planning evidence before final assembly; inconsistent caption/audio inputs become review-required issues instead of silent ignores.
+- `postproduction-assets.json`, `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence agree on postproduction status and counts.
 - Provider-backed TTS and BGM generation are not claimed until separate Reference Implementations and provider modules exist.
 - Local material catalog entries never expose filesystem paths in API/artifact candidate URIs.
 - Remote stock candidates never expose API keys, signed URLs, or credential-like query parameters in candidate, source-page, or preview URIs.

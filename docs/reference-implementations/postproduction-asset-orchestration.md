@@ -102,6 +102,7 @@ function planPostproductionAssets(input: PostproductionAssetInput): Postproducti
 - Done: `postproduction-assets.json` is written as a durable artifact.
 - Done: postproduction asset status and counts are added to run summary, review packet planning, and assemble-stage evidence.
 - Done: artifact validator checks `postproduction-assets.json`.
+- Next validator hardening: cross-check `postproduction-assets.json` against `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence so Phase 6 artifact review can detect drift between duplicated planning summaries.
 - Done: source lineage is recorded in `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` and `src/core/source-logic-translation-records.ts`.
 
 ## Validation Checklist
@@ -112,6 +113,7 @@ function planPostproductionAssets(input: PostproductionAssetInput): Postproducti
 - Audio tracks with disabled mix options produce review-required evidence.
 - TTS/BGM generation is not claimed unless a future provider-backed module exists.
 - `postproduction-assets.json` is included in success artifacts and artifact validation.
+- Artifact validation fails if postproduction status, caption cue count, audio track count, or issue count in `run-summary.json`, `review-packet.json`, or assemble-stage lifecycle evidence diverges from `postproduction-assets.json`.
 - Review packet and stage lifecycle expose postproduction asset status without local paths or secrets.
 - No production runtime import from `external/upstream/`.
 - Typecheck, build, focused planner smoke, and artifact validator smoke pass.
