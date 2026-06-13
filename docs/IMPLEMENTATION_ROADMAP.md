@@ -24,7 +24,7 @@ Ready foundations:
 Not yet complete:
 
 - Remaining per-logic Reference Implementations beyond Phase 1 Prompt Binding Plan.
-- Explicit ViMax-style reference selection scoring and bounded reference selection evidence.
+- Stronger camera/composition/character-view metadata extraction to improve Reference Selection Scoring inputs.
 - Guardian repair-decision provenance with narrow repair scope in operator artifacts.
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe installed.
 
@@ -93,6 +93,8 @@ Milestone check:
 
 ## Phase 3: Reference Selection Scoring
 
+Current status as of 2026-06-13: foundation implemented and typechecked. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Remaining evidence work is to enrich incoming references with stronger camera/composition/character-view metadata from future source-video and reference-analysis modules.
+
 Target module:
 
 - `src/core`
@@ -106,10 +108,10 @@ Source logic to translate:
 
 Deliverables:
 
-- `docs/reference-implementations/reference-selection-scoring.md`
-- CineJelly-owned reference selection planner.
-- Production Graph evidence for candidate references, selected references, score reasons, and dropped duplicates.
-- Prompt Compiler consumes selected references rather than raw unordered references where available.
+- Done: `docs/reference-implementations/reference-selection-scoring.md`
+- Done: CineJelly-owned reference selection planner.
+- Done: Production Graph evidence for candidate references, selected references, score reasons, and dropped duplicates.
+- Done: Prompt Compiler consumes selected references rather than raw unordered references where available.
 
 Milestone check:
 

@@ -39,6 +39,7 @@ export * from "./core/production-graph.js";
 export * from "./core/production-graph-builder.js";
 export * from "./core/production-graph-run-recorder.js";
 export * from "./core/project-artifact-store.js";
+export * from "./core/reference-selection-planner.js";
 export * from "./core/render-cost-gate.js";
 export * from "./core/render-scheduler.js";
 export * from "./core/review-packet-builder.js";

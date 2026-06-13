@@ -83,6 +83,15 @@ export class ProductionGraphBuilder {
           }
           graph.addNode(shotNode);
           graph.addEdge(storyboardNode?.id ?? beatNode.id, shotNode.id, "depends_on");
+          if (shot.referenceSelectionPlan) {
+            const referenceSelectionNode = this.node(
+              "reference_selection",
+              createStableId("reference_selection", `${shot.shotId}:${shot.referenceSelectionPlan.candidateCount}`),
+              shot.referenceSelectionPlan
+            );
+            graph.addNode(referenceSelectionNode);
+            graph.addEdge(shotNode.id, referenceSelectionNode.id, "depends_on");
+          }
           this.addReferenceEdges({
             graph,
             shot,

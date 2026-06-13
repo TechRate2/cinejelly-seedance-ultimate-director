@@ -18,8 +18,9 @@ import { buildRepairHints } from "./repair-hints.js";
 
 export class SeedancePromptCompiler {
   public compile(input: PromptCompilerInput): CompiledPrompt {
+    const referencesForBinding = input.shot.referenceSelectionPlan?.selectedReferences ?? input.shot.references;
     const bindingPlan = buildPromptBindingPlan({
-      references: input.shot.references,
+      references: referencesForBinding,
       risks: input.shot.risks,
       ...(input.providerSupportedReferenceKinds
         ? { providerSupportedReferenceKinds: input.providerSupportedReferenceKinds }
@@ -45,6 +46,7 @@ export class SeedancePromptCompiler {
       prompt,
       negativePrompt,
       references,
+      ...(input.shot.referenceSelectionPlan ? { referenceSelectionPlan: input.shot.referenceSelectionPlan } : {}),
       bindingPlan,
       inspectionExpectations: this.buildInspectionExpectations(input.shot, bindingPlan),
       repairHints: buildRepairHints(input.shot),

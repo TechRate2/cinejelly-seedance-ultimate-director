@@ -16,6 +16,7 @@ import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
+import { ReferenceSelectionPlanner } from "../core/reference-selection-planner.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS } from "../core/postproduction-engine.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
 import { RenderScheduler } from "../core/render-scheduler.js";
@@ -44,6 +45,7 @@ export class DirectorAgent {
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
+  private readonly referenceSelectionPlanner: ReferenceSelectionPlanner;
   private readonly renderCostGate: RenderCostGate;
   private readonly promptCompiler: SeedancePromptCompiler;
   private readonly consistencyGuardian: ConsistencyGuardian;
@@ -64,6 +66,7 @@ export class DirectorAgent {
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
+    readonly referenceSelectionPlanner?: ReferenceSelectionPlanner;
     readonly renderCostGate?: RenderCostGate;
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
@@ -79,6 +82,7 @@ export class DirectorAgent {
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
+    this.referenceSelectionPlanner = input.referenceSelectionPlanner ?? new ReferenceSelectionPlanner();
     this.renderCostGate = input.renderCostGate ?? new RenderCostGate({ costBufferMultiplier: 1 });
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
@@ -97,12 +101,13 @@ export class DirectorAgent {
       intake,
       storyPlan
     });
-    const shots = this.shotPlanner.plan({
+    const plannedShots = this.shotPlanner.plan({
       projectId: intake.projectId,
       scenes: storyPlan.scenes,
       settings: intake.settings,
       ...(intake.metadata ? { metadata: intake.metadata } : {})
     });
+    const shots = this.referenceSelectionPlanner.planForShots({ shots: plannedShots });
     const storyboard = this.storyboardPlanner.plan({
       projectId: intake.projectId,
       storyPlan,

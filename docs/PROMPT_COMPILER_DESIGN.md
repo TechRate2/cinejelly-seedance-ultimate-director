@@ -47,6 +47,7 @@ The compiler writes:
 
 - `provider_prompt`: Seedance-ready natural language prompt.
 - `reference_payload`: images, videos, audio, first frame, last frame, or asset references.
+- `reference_selection_plan`: selected references plus dropped candidate evidence when the shot has multiple possible references.
 - `prompt_binding_plan`: sorted references, role scopes, provider-filtered references, conflicts, compression notes, and reference lines created before prompt prose.
 - `negative_constraints`: short list of quality and safety constraints.
 - `provider_params`: duration, resolution, ratio, audio generation, watermark, return last frame, and quality fields supported by the selected schema.
@@ -107,18 +108,19 @@ Extension based on the Emily2040/seedance-2.0 and YouMind snapshots:
 
 1. Normalize the shot contract.
 2. Read selected-provider reference capabilities when available.
-3. Build `PromptBindingPlan`: sort role-scoped references, filter unsupported provider references, record conflicts, and preserve compression notes.
-4. Validate settings against provider capability.
-5. Decide prompt density based on quality mode.
-6. Build continuity clause.
-7. Build action and camera clause.
-8. Build lighting/style clause.
-9. Build audio clause.
-10. Build transition handle clause.
-11. Build optional material/search-term brief for stock, local, or reference sourcing.
-12. Build short negative constraints.
-13. Run safety and contradiction checks.
-14. Emit provider request and inspection expectations.
+3. Consume `ReferenceSelectionPlan.selectedReferences` when available so ViMax-style selected references replace raw unordered candidates.
+4. Build `PromptBindingPlan`: sort role-scoped references, filter unsupported provider references, record conflicts, and preserve compression notes.
+5. Validate settings against provider capability.
+6. Decide prompt density based on quality mode.
+7. Build continuity clause.
+8. Build action and camera clause.
+9. Build lighting/style clause.
+10. Build audio clause.
+11. Build transition handle clause.
+12. Build optional material/search-term brief for stock, local, or reference sourcing.
+13. Build short negative constraints.
+14. Run safety and contradiction checks.
+15. Emit provider request and inspection expectations.
 
 ## Reference Binding Rules
 

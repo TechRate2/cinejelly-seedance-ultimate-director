@@ -141,6 +141,42 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "future repair orchestration should consume recommendedNextStep rather than free-text only"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Reference Selection Scoring",
+    sourceRepository: "HKUDS/ViMax",
+    snapshotPath: "external/upstream/vimax",
+    upstreamPaths: [
+      "external/upstream/vimax/agents/reference_image_selector.py",
+      "external/upstream/vimax/agent_runtime/session_index.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "same-camera and same-composition references outrank generic references",
+      "recent prior-frame references outrank stale scene references",
+      "one identity portrait per character/view is selected",
+      "duplicate references are dropped before max-reference bounding",
+      "selected references are bounded to eight before provider request compilation"
+    ],
+    behaviorChanged: [
+      "ViMax multimodal LLM selection is rewritten as deterministic CineJelly scoring evidence",
+      "selected references are stored on ShotContract through ReferenceSelectionPlan",
+      "Production Graph records selected and dropped candidate evidence for audit"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/reference-selection-scoring.md",
+    cineJellyDestinationPaths: [
+      "src/types/prompt.ts",
+      "src/core/reference-selection-planner.ts",
+      "src/core/production-graph-builder.ts",
+      "src/prompt_compiler/prompt-compiler.ts",
+      "src/agents/director-agent.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "scoring depends on optional reference selection metadata when camera/composition/character-view evidence is available",
+      "future visual-analysis modules can enrich references with better camera/composition metadata"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }
 ];
 

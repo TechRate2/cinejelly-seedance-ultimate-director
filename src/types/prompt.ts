@@ -36,6 +36,54 @@ export interface PromptReference {
   readonly label: string;
   readonly providerReference: ProviderReference;
   readonly priority: "primary" | "supporting";
+  readonly selection?: PromptReferenceSelectionMetadata;
+}
+
+export type ReferenceView = "front" | "side" | "back" | "three_quarter" | "over_the_shoulder" | "unknown";
+
+export interface PromptReferenceSelectionMetadata {
+  readonly cameraId?: string;
+  readonly compositionId?: string;
+  readonly characterId?: string;
+  readonly view?: ReferenceView;
+  readonly timelineIndex?: number;
+  readonly sourceShotId?: string;
+  readonly sourceSceneId?: string;
+  readonly authorized?: boolean;
+}
+
+export type ReferenceSelectionReasonCode =
+  | "primary_priority"
+  | "same_camera"
+  | "same_composition"
+  | "recent_prior_frame"
+  | "identity_risk_anchor"
+  | "product_risk_anchor"
+  | "transition_endpoint_anchor"
+  | "role_priority"
+  | "stable_tiebreak";
+
+export type ReferenceSelectionDropReason =
+  | "unauthorized_reference"
+  | "duplicate_exact_reference"
+  | "duplicate_character_view"
+  | "max_selected_references_exceeded";
+
+export interface ReferenceSelectionCandidate {
+  readonly reference: PromptReference;
+  readonly originalIndex: number;
+  readonly score: number;
+  readonly scoreReasons: readonly ReferenceSelectionReasonCode[];
+  readonly selected: boolean;
+  readonly dropReason?: ReferenceSelectionDropReason;
+}
+
+export interface ReferenceSelectionPlan {
+  readonly shotId: string;
+  readonly maxSelectedReferences: number;
+  readonly candidateCount: number;
+  readonly selectedReferences: readonly PromptReference[];
+  readonly candidates: readonly ReferenceSelectionCandidate[];
 }
 
 export type PromptBindingConflictStatus = "info" | "warn" | "repair" | "block";
@@ -128,6 +176,7 @@ export interface ShotContract {
   readonly transitionIntent?: string;
   readonly timeline?: readonly TimelineSegment[];
   readonly references: readonly PromptReference[];
+  readonly referenceSelectionPlan?: ReferenceSelectionPlan;
   readonly continuity: ShotContinuity;
   readonly risks: readonly ContinuityRisk[];
   readonly metadata?: ProviderMetadata;
@@ -147,6 +196,7 @@ export interface CompiledPrompt {
   readonly prompt: string;
   readonly negativePrompt: string;
   readonly references: readonly ProviderReference[];
+  readonly referenceSelectionPlan?: ReferenceSelectionPlan;
   readonly bindingPlan: PromptBindingPlan;
   readonly inspectionExpectations: readonly string[];
   readonly repairHints: readonly string[];
