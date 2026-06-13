@@ -62,6 +62,8 @@ Milestone check:
 
 ## Phase 2: Guardian Repair Provenance
 
+Current status as of 2026-06-13: Reference Implementation drafted at `docs/reference-implementations/guardian-repair-decision-provenance.md`. Production code changes have not started yet; the next step is to extend Guardian report contracts with repair scope, affected nodes, source checkpoints, and recommended next step.
+
 Target module:
 
 - `src/core/consistency-guardian.ts`
@@ -76,7 +78,7 @@ Source logic to translate:
 
 Deliverables:
 
-- `docs/reference-implementations/guardian-repair-decision-provenance.md`
+- Done: `docs/reference-implementations/guardian-repair-decision-provenance.md`
 - Guardian report extensions for `repairScope`, `affectedNodeIds`, `sourceCheckpoints`, and `recommendedNextStep`.
 - Review packet includes repair provenance without exposing local paths or secrets.
 - Repair orchestration prefers narrow scope: prompt, storyboard, shot, or delivery gate.
