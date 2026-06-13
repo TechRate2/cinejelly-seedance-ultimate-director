@@ -20,17 +20,19 @@ Ready foundations:
 - Production Graph, storyboard planner, shot planner, run recorder, review packet builder, artifact store, and delivery gate.
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
+- Reference Implementations and CineJelly-owned rewrites for Phase 1 Prompt Binding Plan, Phase 2 Guardian Repair Decision Provenance, Phase 3 Reference Selection Scoring, Phase 4 Provider Polling/Retry/Cost Fidelity, and Phase 5 Long-Form Planning/Batch Workflow.
+- Operator artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
 
 Not yet complete:
 
-- Remaining per-logic Reference Implementations beyond Phase 1 Prompt Binding Plan.
-- Stronger camera/composition/character-view metadata extraction to improve Reference Selection Scoring inputs.
-- Guardian repair-decision provenance with narrow repair scope in operator artifacts.
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe installed.
+- Real artifact review from a paid Atlas validation run, including validator output, review packet, cost ledger, stage lifecycle, and deliverable metadata.
+- Stronger camera/composition/character-view metadata extraction to improve Reference Selection Scoring inputs.
+- Actual material-source adapter validation against approved production media sources.
 
 ## Phase 1: Prompt Fidelity
 
-Current status as of 2026-06-13: Phase 1 foundation implemented and typechecked. The prompt compiler now creates a `PromptBindingPlan` before assembling prose, receives selected-provider reference capability data from the render producer, filters provider references before request compilation, and Guardian preflight consumes binding conflicts before provider spend. Review packets include runtime source lineage for the translated Prompt Binding Plan behavior. Remaining evidence work is real Atlas validation with paid credentials.
+Current status as of 2026-06-13: Phase 1 foundation implemented with local typecheck/build validation. The prompt compiler now creates a `PromptBindingPlan` before assembling prose, receives selected-provider reference capability data from the render producer, filters provider references before request compilation, and Guardian preflight consumes binding conflicts before provider spend. Review packets include runtime source lineage for the translated Prompt Binding Plan behavior. Remaining evidence work is real Atlas validation with paid credentials.
 
 Target module:
 
@@ -62,7 +64,7 @@ Milestone check:
 
 ## Phase 2: Guardian Repair Provenance
 
-Current status as of 2026-06-13: foundation implemented and typechecked. Guardian reports now include `repairScope`, `affectedNodeIds`, `sourceCheckpoints`, and `recommendedNextStep`; Production Graph inspection/repair nodes preserve this provenance; review packets expose `repairProvenance`; runtime source lineage records cover ViMax and VibeFrame influences. Remaining Phase 2 evidence work is real artifact review after a paid Atlas validation run.
+Current status as of 2026-06-13: foundation implemented with local typecheck/build validation. Guardian reports now include `repairScope`, `affectedNodeIds`, `sourceCheckpoints`, and `recommendedNextStep`; Production Graph inspection/repair nodes preserve this provenance; review packets expose `repairProvenance`; runtime source lineage records cover ViMax and VibeFrame influences. Remaining Phase 2 evidence work is real artifact review after a paid Atlas validation run.
 
 Target module:
 
@@ -93,7 +95,7 @@ Milestone check:
 
 ## Phase 3: Reference Selection Scoring
 
-Current status as of 2026-06-13: foundation implemented and typechecked. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Remaining evidence work is to enrich incoming references with stronger camera/composition/character-view metadata from future source-video and reference-analysis modules.
+Current status as of 2026-06-13: foundation implemented with local typecheck/build validation. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Remaining evidence work is to enrich incoming references with stronger camera/composition/character-view metadata from future source-video and reference-analysis modules.
 
 Target module:
 
@@ -122,7 +124,7 @@ Milestone check:
 
 ## Phase 4: Provider Polling, Retry, And Cost Fidelity
 
-Status as of 2026-06-13: Reference Implementation drafted; provider-neutral ledger contracts, Atlas polling ledger entries, retry-code classification, timeout/abort normalization, and review-packet canceled-operation counts are implemented. `npm.cmd run typecheck` passed; build and final validation are still required before closing the phase.
+Status as of 2026-06-13: Reference Implementation drafted; provider-neutral ledger contracts, Atlas polling ledger entries, retry-code classification, timeout/abort normalization, and review-packet canceled-operation counts are implemented. `npm.cmd run typecheck` and `npm.cmd run build` passed; paid Atlas validation is still required before closing provider behavior against the live service.
 
 Target module:
 
@@ -139,10 +141,11 @@ Source logic to translate:
 
 Deliverables:
 
-- `docs/reference-implementations/provider-polling-retry-cost.md`
-- Provider polling state map for queued/running/succeeded/failed/canceled/timeout.
-- Retry classification and retry budget tied to ProviderError codes.
-- Cost ledger records retry count, model, graph node, prediction ID, latency, and provider-returned usage when available.
+- Done: `docs/reference-implementations/provider-polling-retry-cost.md`
+- Done: Provider polling state map for queued/running/succeeded/failed/canceled/timeout.
+- Done: Retry classification and retry budget tied to ProviderError codes.
+- Done: Cost ledger records retry count, model, graph node, prediction ID, latency, and provider-returned usage when available.
+- Pending: paid Atlas validation of terminal provider states and ledger evidence.
 
 Milestone check:
 
@@ -202,7 +205,7 @@ Deliverables:
 - Run `npm.cmd run build`.
 - Run `npm.cmd run preflight` with real deployment environment.
 - Run one paid Atlas render using a short safe input and non-sensitive references.
-- Run `npm.cmd run validate:artifacts -- <artifact-directory>` against the generated artifact directory.
+- Run `npm.cmd run validate:artifacts -- <artifact-directory>` on generated success or failure artifacts.
 - Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, and deliverable metadata.
 - Update `docs/PROJECT_CONTEXT.md` with actual validation date and remaining blockers.
 - Maintain `docs/OPERATOR_RUNBOOK.md` as the authoritative execution checklist for preflight, paid validation, artifact inspection, redaction review, and release decision.
