@@ -417,6 +417,107 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "subtitle, TTS, and BGM orchestration are not yet translated into dedicated stage modules"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Material Source Adapter Validation",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    upstreamPaths: [
+      "external/upstream/MoneyPrinterTurbo/app/services/material.py",
+      "external/upstream/MoneyPrinterTurbo/app/services/video.py",
+      "external/upstream/MoneyPrinterTurbo/app/models/schema.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "source material is treated as an explicit stage before composition and delivery",
+      "material candidates stay tied to task/brief evidence",
+      "terminal source-material failures remain operator-visible"
+    ],
+    behaviorChanged: [
+      "upstream material download/provider code is not reused",
+      "adapter output is validated through CineJelly MaterialSourceValidationReport contracts",
+      "planned-only runs remain explicit when no adapter candidates have been supplied"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/material-source-adapter-validation.md",
+    cineJellyDestinationPaths: [
+      "src/types/material.ts",
+      "src/core/material-source-validator.ts",
+      "src/agents/director-agent.ts",
+      "src/core/production-stage-planner.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "real stock/local material adapters still need provider-specific fulfillment implementations",
+      "paid end-to-end validation should inspect material-source-validation artifacts"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Material Source Adapter Validation",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "source material validation emits deterministic report evidence",
+      "unsafe or rejected inputs are surfaced before release decisions",
+      "review-required warnings remain operator-visible without pretending approval"
+    ],
+    behaviorChanged: [
+      "CLI validation discipline is translated into CineJelly artifact validation",
+      "material validation status feeds stage lifecycle and review packet planning evidence",
+      "provider-specific fulfillment remains behind future adapters"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/material-source-adapter-validation.md",
+    cineJellyDestinationPaths: [
+      "src/types/material.ts",
+      "src/core/material-source-validator.ts",
+      "src/core/production-stage-planner.ts",
+      "src/core/review-packet-builder.ts",
+      "src/core/project-artifact-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "operator release review must inspect actual material candidates once adapters are enabled",
+      "future resumable material-source jobs should preserve this validation schema"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Material Source Adapter Validation",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/README.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "real-footage or source-material approval must be explicit before production handoff",
+      "unsafe or rights-unclear material should route to operator review",
+      "approval-gate concepts inform validation status and issue repair text"
+    ],
+    behaviorChanged: [
+      "AGPL implementation code is not copied or linked",
+      "approval concepts are rewritten into CineJelly-owned TypeScript validation contracts",
+      "material candidates are validated independently from OpenMontage runtime architecture"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/material-source-adapter-validation.md",
+    cineJellyDestinationPaths: [
+      "src/types/material.ts",
+      "src/core/material-source-validator.ts",
+      "src/core/project-artifact-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "legal review is still required before any direct AGPL implementation reuse",
+      "current implementation uses approval behavior notes only"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }
 ];
 

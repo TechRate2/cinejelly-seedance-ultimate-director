@@ -9,6 +9,7 @@ import type { GuardianRepairScope, GuardianStage, GuardianStatus } from "./guard
 import type { QualityMode, Resolution, SpeedTier, AspectRatio } from "./settings.js";
 import type { SourceLicenseKind, SourceLogicValidationStatus, SourceRepositoryId } from "./source-translation.js";
 import type { ProductionStageRecord } from "./stage.js";
+import type { MaterialSourceValidationStatus } from "./material.js";
 
 export type ReviewPacketStatus = "ready" | "review_required" | "blocked";
 
@@ -53,6 +54,10 @@ export interface ReviewPacketPlanning {
   readonly productionGraphNodeCount: number;
   readonly productionGraphEdgeCount: number;
   readonly compiledPromptCount: number;
+  readonly materialBriefCount: number;
+  readonly materialValidationStatus: MaterialSourceValidationStatus;
+  readonly materialCandidateCount: number;
+  readonly selectedMaterialCandidateCount: number;
 }
 
 export interface ReviewPacketRender {

@@ -8,7 +8,7 @@ import type { StoryPlan, RenderedShot } from "../types/agent.js";
 import type { DeliveryGateReport } from "../types/delivery.js";
 import type { ProductionGraphSnapshot } from "../types/graph.js";
 import type { GuardianReport, GuardianStatus } from "../types/guardian.js";
-import type { MaterialSourcingPlan } from "../types/material.js";
+import type { MaterialSourceValidationReport, MaterialSourcingPlan } from "../types/material.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type {
   ProductionStageEvidenceValue,
@@ -39,6 +39,7 @@ export interface ProductionStagePlannerInput {
   readonly storyboard: Storyboard;
   readonly storyboardPreflight: GuardianReport;
   readonly materialSourcingPlan: MaterialSourcingPlan;
+  readonly materialSourceValidation?: MaterialSourceValidationReport;
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];
   readonly deliverablePresent: boolean;
@@ -64,11 +65,15 @@ export class ProductionStagePlanner {
         this.record(input, "prompt", 2, input.compiledPrompts.length > 0 ? "succeeded" : "failed", {
           compiledPromptCount: input.compiledPrompts.length
         }),
-        this.record(input, "source_material", 3, input.materialSourcingPlan.briefs.length > 0 ? "succeeded" : "skipped", {
+        this.record(input, "source_material", 3, this.sourceMaterialStatus(input), {
           materialBriefCount: input.materialSourcingPlan.briefs.length,
           remoteSourcesAllowed: input.materialSourcingPlan.briefs.some((brief) => brief.allowRemoteSources),
           rightsRequirements: this.unique(input.materialSourcingPlan.briefs.map((brief) => brief.rightsRequirement)),
-          preferredSources: this.unique(input.materialSourcingPlan.briefs.flatMap((brief) => brief.preferredSources))
+          preferredSources: this.unique(input.materialSourcingPlan.briefs.flatMap((brief) => brief.preferredSources)),
+          materialValidationStatus: input.materialSourceValidation?.status ?? "not_run",
+          materialCandidateCount: input.materialSourceValidation?.candidateCount ?? 0,
+          selectedMaterialCandidateCount: input.materialSourceValidation?.selectedCandidateCount ?? 0,
+          materialValidationIssueCount: input.materialSourceValidation?.issues.length ?? 0
         }),
         this.record(input, "render", 4, this.renderStatus(input.renderedShots), {
           renderedShotCount: input.renderedShots.length,
@@ -125,6 +130,22 @@ export class ProductionStagePlanner {
       case "rerender":
       case "block":
         return "blocked";
+    }
+  }
+
+  private sourceMaterialStatus(input: ProductionStagePlannerInput): ProductionStageStatus {
+    if (input.materialSourcingPlan.briefs.length === 0) {
+      return "skipped";
+    }
+    switch (input.materialSourceValidation?.status) {
+      case "rejected":
+        return "blocked";
+      case "review_required":
+        return "warn";
+      case "approved":
+      case "planned_only":
+      case undefined:
+        return "succeeded";
     }
   }
 

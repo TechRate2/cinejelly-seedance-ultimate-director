@@ -59,7 +59,11 @@ export class ReviewPacketBuilder {
         storyboardPreflightStatus: input.result.storyboardPreflight.status,
         productionGraphNodeCount: input.result.productionGraph.nodes.length,
         productionGraphEdgeCount: input.result.productionGraph.edges.length,
-        compiledPromptCount: input.result.compiledPrompts.length
+        compiledPromptCount: input.result.compiledPrompts.length,
+        materialBriefCount: input.result.materialSourcingPlan.briefs.length,
+        materialValidationStatus: input.result.materialSourceValidation.status,
+        materialCandidateCount: input.result.materialSourceValidation.candidateCount,
+        selectedMaterialCandidateCount: input.result.materialSourceValidation.selectedCandidateCount
       },
       render: this.render(input.result),
       cost,
@@ -182,7 +186,8 @@ export class ReviewPacketBuilder {
       result.storyboardPreflight.status === "repair" ||
       delivery.deliveryGateStatus === "block" ||
       delivery.semanticVisualInspectionStatus === "fail" ||
-      delivery.mediaInspectionStatus === "fail"
+      delivery.mediaInspectionStatus === "fail" ||
+      result.materialSourceValidation.status === "rejected"
     ) {
       return "blocked";
     }
@@ -193,6 +198,7 @@ export class ReviewPacketBuilder {
       delivery.deliveryGateStatus === "warn" ||
       delivery.semanticVisualInspectionStatus === "warn" ||
       delivery.mediaInspectionStatus === "warn" ||
+      result.materialSourceValidation.status === "review_required" ||
       cost.failedProviderOperationCount > 0 ||
       cost.timeoutProviderOperationCount > 0
     ) {
@@ -217,6 +223,9 @@ export class ReviewPacketBuilder {
     }
     for (const finding of result.costEstimate.findings) {
       recommendations.add(finding);
+    }
+    for (const issue of result.materialSourceValidation.issues) {
+      recommendations.add(issue.repair);
     }
     for (const finding of result.deliveryGate?.findings ?? []) {
       recommendations.add(finding.repair);

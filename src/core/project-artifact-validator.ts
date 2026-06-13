@@ -24,6 +24,7 @@ const SUCCESS_REQUIRED_KINDS: readonly ProjectArtifactKind[] = [
   "storyboard_preflight",
   "production_graph",
   "material_sourcing_plan",
+  "material_source_validation",
   "stage_lifecycle",
   "cost_plan",
   "compiled_prompts",
@@ -43,6 +44,8 @@ const EXPECTED_STAGE_ORDER = [
   "assemble",
   "deliver"
 ];
+const MATERIAL_VALIDATION_STATUSES = new Set(["planned_only", "approved", "review_required", "rejected"]);
+const MATERIAL_VALIDATION_SEVERITIES = new Set(["info", "warn", "block"]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DATA_URI_PATTERN = /"[^"]*data:[^"]*"/i;
 const CREDENTIAL_QUERY_URI_PATTERN =
@@ -327,6 +330,7 @@ export class ProjectArtifactValidator {
     this.validateReviewPacket(manifest, artifacts.get("review_packet"), checks);
     this.validateStageLifecycle(manifest, artifacts.get("stage_lifecycle"), checks);
     this.validateMaterialSourcingPlan(artifacts.get("material_sourcing_plan"), checks);
+    this.validateMaterialSourceValidation(manifest, artifacts.get("material_source_validation"), checks);
     this.validateCostLedger(artifacts.get("cost_ledger"), artifacts.has("failure_report"), checks);
     this.validateProductionGraph(artifacts.get("production_graph"), artifacts, checks);
     this.validateDeliverable(artifacts.get("deliverable"), checks);
@@ -444,6 +448,61 @@ export class ProjectArtifactValidator {
       const maxCandidates = brief.maxCandidates;
       if (typeof maxCandidates !== "number" || !Number.isInteger(maxCandidates) || maxCandidates <= 0) {
         checks.push({ name: "material_candidates", status: "fail", fileName: artifact.entry.fileName, message: `Material brief ${index} has invalid maxCandidates.` });
+      }
+    }
+  }
+
+  private validateMaterialSourceValidation(
+    manifest: ProjectArtifactBundle,
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "material_validation_shape", status: "fail", fileName: artifact.entry.fileName, message: "material-source-validation must be an object." });
+      return;
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "material_validation_project", status: "fail", fileName: artifact.entry.fileName, message: "material-source-validation projectId does not match manifest." });
+    }
+    if (typeof value.planId !== "string" || !value.planId) {
+      checks.push({ name: "material_validation_plan", status: "fail", fileName: artifact.entry.fileName, message: "material-source-validation planId is missing." });
+    }
+    if (typeof value.status !== "string" || !MATERIAL_VALIDATION_STATUSES.has(value.status)) {
+      checks.push({ name: "material_validation_status", status: "fail", fileName: artifact.entry.fileName, message: "material-source-validation status is invalid." });
+    }
+    for (const field of ["candidateCount", "selectedCandidateCount", "approvedCandidateCount", "rejectedCandidateCount"] as const) {
+      if (typeof value[field] !== "number" || !Number.isInteger(value[field]) || value[field] < 0) {
+        checks.push({ name: "material_validation_count", status: "fail", fileName: artifact.entry.fileName, message: `material-source-validation ${field} is invalid.` });
+      }
+    }
+    if (!Array.isArray(value.candidates)) {
+      checks.push({ name: "material_validation_candidates", status: "fail", fileName: artifact.entry.fileName, message: "material-source-validation candidates must be an array." });
+    }
+    if (!Array.isArray(value.issues)) {
+      checks.push({ name: "material_validation_issues", status: "fail", fileName: artifact.entry.fileName, message: "material-source-validation issues must be an array." });
+      return;
+    }
+    const hasBlockingIssue = value.issues.some((issue) => this.isRecord(issue) && issue.severity === "block");
+    if (value.status === "rejected" && !hasBlockingIssue) {
+      checks.push({ name: "material_validation_rejected_issue", status: "fail", fileName: artifact.entry.fileName, message: "Rejected material validation must include a blocking issue." });
+    }
+    for (const [index, issue] of value.issues.entries()) {
+      if (!this.isRecord(issue)) {
+        checks.push({ name: "material_validation_issue_shape", status: "fail", fileName: artifact.entry.fileName, message: `Material validation issue ${index} is not an object.` });
+        continue;
+      }
+      if (typeof issue.code !== "string" || !issue.code) {
+        checks.push({ name: "material_validation_issue_code", status: "fail", fileName: artifact.entry.fileName, message: `Material validation issue ${index} is missing code.` });
+      }
+      if (typeof issue.severity !== "string" || !MATERIAL_VALIDATION_SEVERITIES.has(issue.severity)) {
+        checks.push({ name: "material_validation_issue_severity", status: "fail", fileName: artifact.entry.fileName, message: `Material validation issue ${index} has invalid severity.` });
+      }
+      if (typeof issue.message !== "string" || !issue.message || typeof issue.repair !== "string" || !issue.repair) {
+        checks.push({ name: "material_validation_issue_text", status: "fail", fileName: artifact.entry.fileName, message: `Material validation issue ${index} is missing message or repair.` });
       }
     }
   }

@@ -11,6 +11,7 @@ export type ProjectArtifactKind =
   | "storyboard_preflight"
   | "production_graph"
   | "material_sourcing_plan"
+  | "material_source_validation"
   | "stage_lifecycle"
   | "review_packet"
   | "compiled_prompts"

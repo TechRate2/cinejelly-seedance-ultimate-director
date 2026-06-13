@@ -67,6 +67,61 @@ export interface MaterialCandidate {
   readonly rejectionReason?: string;
 }
 
+export type MaterialSourceValidationStatus =
+  | "planned_only"
+  | "approved"
+  | "review_required"
+  | "rejected";
+
+export type MaterialSourceValidationSeverity = "info" | "warn" | "block";
+
+export type MaterialSourceValidationIssueCode =
+  | "planned_only_no_candidates"
+  | "unknown_brief"
+  | "source_not_preferred"
+  | "remote_source_not_allowed"
+  | "unsafe_uri"
+  | "rights_not_approved"
+  | "attribution_missing"
+  | "duration_missing"
+  | "duration_too_short"
+  | "aspect_ratio_mismatch"
+  | "resolution_mismatch"
+  | "too_many_selected_candidates";
+
+export interface MaterialSourceValidationIssue {
+  readonly code: MaterialSourceValidationIssueCode;
+  readonly severity: MaterialSourceValidationSeverity;
+  readonly message: string;
+  readonly repair: string;
+  readonly briefId?: string;
+  readonly candidateId?: string;
+}
+
+export interface MaterialSourceValidationReport {
+  readonly planId: string;
+  readonly projectId: string;
+  readonly status: MaterialSourceValidationStatus;
+  readonly candidateCount: number;
+  readonly selectedCandidateCount: number;
+  readonly approvedCandidateCount: number;
+  readonly rejectedCandidateCount: number;
+  readonly candidates: readonly MaterialCandidate[];
+  readonly issues: readonly MaterialSourceValidationIssue[];
+}
+
+export interface MaterialSourceAdapterInput {
+  readonly plan: MaterialSourcingPlan;
+  readonly briefs?: readonly MaterialSourcingBrief[];
+  readonly signal?: AbortSignal;
+}
+
+export interface MaterialSourceAdapter {
+  readonly adapterId: string;
+  readonly source: MaterialSource;
+  resolve(input: MaterialSourceAdapterInput): Promise<readonly MaterialCandidate[]>;
+}
+
 export interface MaterialSourcingPlan {
   readonly planId: string;
   readonly projectId: string;

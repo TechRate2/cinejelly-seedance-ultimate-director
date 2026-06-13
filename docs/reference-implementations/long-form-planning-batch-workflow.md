@@ -1,6 +1,6 @@
 # Reference Implementation: Long-Form Planning And Batch Workflow
 
-Implementation status as of 2026-06-13: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `material_sourcing` evidence, review-packet stage lifecycle, and stage/material artifacts. `npm.cmd run typecheck` and `npm.cmd run build` passed; real long-form Atlas validation remains pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
+Implementation status as of 2026-06-13: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `material_sourcing` evidence, material source validation evidence, review-packet stage lifecycle, and stage/material artifacts. `npm.cmd run typecheck` and `npm.cmd run build` passed; real long-form Atlas validation remains pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
 
 ## Upstream Sources
 
@@ -123,7 +123,7 @@ function createStagePlan(input: RuntimeEvidence): StagePlan {
 - Add a CineJelly-owned `ProductionStagePlanner` under `src/core/production-stage-planner.ts`.
 - Instantiate `MaterialSourcingPlanner` in `DirectorAgent` after reference selection and before Production Graph build.
 - Wire `MaterialSourcingPlan` into `ProductionGraphBuilder` as a `material_sourcing` node with rights metadata from each brief.
-- Include stage lifecycle and material sourcing plan in `DirectorRunResult`, review packet, and artifact payloads.
+- Include stage lifecycle, material sourcing plan, and material source validation report in `DirectorRunResult`, review packet, and artifact payloads.
 - Keep RenderScheduler's dependency ordering as the first implementation of continuity-sensitive sequential render behavior.
 - Preserve candidate evidence through existing `RenderedShot.candidates` and Production Graph run recorder.
 
@@ -132,6 +132,7 @@ function createStagePlan(input: RuntimeEvidence): StagePlan {
 - Stage plan contains all nine stages in deterministic order.
 - Material sourcing stage exists even when remote sourcing is disabled.
 - Each material brief records rights requirement, preferred sources, target duration, aspect ratio, resolution, and max candidates.
+- Material source validation report records planned-only, approved, review-required, or rejected status for adapter candidates.
 - Production Graph contains a material sourcing node linked to project and shots.
 - Review packet and run artifacts expose stage lifecycle without local paths or raw provider payloads.
 - Sequential render behavior is still driven by first/last frame, previous/next continuity, source-video/transition intent, and continuity risk.

@@ -17,6 +17,7 @@ The repository contains a production-oriented TypeScript foundation. It is ready
 - FFmpeg/FFprobe child-process stdout and stderr are capped so noisy media failures cannot exhaust API memory.
 - The planning path now emits and Guardian-validates a typed storyboard from shot contracts before render spend; storyboard panels and preflight evidence are stored in the Production Graph and durable artifacts.
 - The codebase now includes a MoneyPrinterTurbo-inspired, CineJelly-owned material sourcing planner that turns shot contracts into governed material briefs without importing upstream code or calling stock APIs directly.
+- Material source validation now checks adapter candidates against known briefs, approved source lists, remote-source policy, safe URIs, rights/attribution status, duration, aspect ratio, and resolution; planned-only runs remain explicit when no material adapter candidates are supplied.
 - Long-form runs now emit a typed stage lifecycle for `plan`, `storyboard`, `prompt`, `source_material`, `render`, `inspect`, `repair`, `assemble`, and `deliver`; review packets and durable artifacts expose this evidence for operator review.
 - The codebase now includes source-translation lineage contracts and a redacted logging foundation for future Faithful Logic Translation work across providers, prompt compiler, graph planning, and guardian modules.
 - The intake path now supports a bounded `sourceVideoAnalysis` contract for VideoAgent/OpenMontage-style transcript, scene, keyframe, pacing, style, and safety deconstruction; Story Architect uses it as original structural guidance, and graph/artifacts preserve the source-video lineage.
@@ -48,7 +49,7 @@ The repository contains a production-oriented TypeScript foundation. It is ready
 - No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshots may contain original upstream development files inside `external/upstream/`; those files become product material only after license/product review and an intentional copy/adapt step.
 - Runtime validation still requires real Atlas Cloud credentials, verified model IDs, FFmpeg, FFprobe, and at least one paid Atlas render before customer use.
 
-Faithful Logic Translation foundations are implemented for Prompt Binding Plan, Guardian Repair Decision Provenance, Reference Selection Scoring, Provider Polling/Retry/Cost Fidelity, and Long-Form Planning/Batch Workflow. The next required phase is real provider validation using `docs/OPERATOR_RUNBOOK.md`.
+Faithful Logic Translation foundations are implemented for Prompt Binding Plan, Guardian Repair Decision Provenance, Reference Selection Scoring, Reference Metadata Enrichment, Provider Polling/Retry/Cost Fidelity, Long-Form Planning/Batch Workflow, and Material Source Adapter Validation. The next required phase is real provider validation using `docs/OPERATOR_RUNBOOK.md`.
 
 ## Product Goal
 

@@ -108,6 +108,9 @@ export class ProjectArtifactStore {
         status: record.status
       })),
       materialBriefCount: result.materialSourcingPlan.briefs.length,
+      materialValidationStatus: result.materialSourceValidation.status,
+      materialCandidateCount: result.materialSourceValidation.candidateCount,
+      selectedMaterialCandidateCount: result.materialSourceValidation.selectedCandidateCount,
       compiledPromptCount: result.compiledPrompts.length,
       renderedShotCount: result.renderedShots.length,
       plannedCandidateCount: result.costEstimate.candidateCount,
@@ -135,6 +138,7 @@ export class ProjectArtifactStore {
       { kind: "storyboard_preflight", fileName: "storyboard-preflight.json", value: result.storyboardPreflight },
       { kind: "production_graph", fileName: "production-graph.json", value: result.productionGraph },
       { kind: "material_sourcing_plan", fileName: "material-sourcing-plan.json", value: result.materialSourcingPlan },
+      { kind: "material_source_validation", fileName: "material-source-validation.json", value: result.materialSourceValidation },
       { kind: "stage_lifecycle", fileName: "stage-lifecycle.json", value: result.stagePlan },
       { kind: "cost_plan", fileName: "cost-plan.json", value: result.costEstimate },
       { kind: "compiled_prompts", fileName: "compiled-prompts.json", value: result.compiledPrompts },

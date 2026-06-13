@@ -34,6 +34,7 @@ export * from "./core/consistency-guardian.js";
 export * from "./core/continuity-ledger-builder.js";
 export * from "./core/delivery-gate.js";
 export * from "./core/material-sourcing-planner.js";
+export * from "./core/material-source-validator.js";
 export * from "./core/media-inspector.js";
 export * from "./core/postproduction-engine.js";
 export * from "./core/production-graph.js";

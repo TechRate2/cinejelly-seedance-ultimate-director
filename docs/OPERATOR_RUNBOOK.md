@@ -148,7 +148,7 @@ Pass criteria:
 - report status is `pass` or an intentionally reviewed `warn`
 - manifest byte sizes and SHA-256 hashes match every listed artifact
 - required success or failure artifacts are present
-- `review-packet.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, `production-graph.json`, `cost-ledger.json`, and `deliverable.json` domain checks pass when present
+- `review-packet.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, `material-source-validation.json`, `production-graph.json`, `cost-ledger.json`, and `deliverable.json` domain checks pass when present
 - no artifact contains secret-like text, inline `data:` media, or credential-like URL query strings
 
 ## Artifact Inspection Checklist
@@ -160,6 +160,7 @@ Inspect the generated artifact manifest and at least these files:
 - `review-packet.json`
 - `production-graph.json`
 - `material-sourcing-plan.json`
+- `material-source-validation.json`
 - `stage-lifecycle.json`
 - `cost-plan.json`
 - `cost-ledger.json`
@@ -174,6 +175,7 @@ Required evidence:
 - `review-packet.json` includes `sourceLineage`, `repairProvenance`, `stageLifecycle`, cost summary, selected candidates, and delivery status.
 - `stage-lifecycle.json` contains all stages in order: `plan`, `storyboard`, `prompt`, `source_material`, `render`, `inspect`, `repair`, `assemble`, `deliver`.
 - `material-sourcing-plan.json` contains rights requirement and preferred sources for every material brief.
+- `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
 - `cost-ledger.json` contains provider operations with model, graph node, prediction ID when available, latency, retry count, status, and provider usage/cost when returned.
 - `production-graph.json` includes `reference_asset`, `reference_selection`, `material_sourcing`, `clip_render`, `inspection_report`, repair, and deliverable evidence as applicable.
 - `deliverable.json` includes output byte size and SHA-256 hash.
@@ -213,6 +215,7 @@ CineJelly is ready for limited customer traffic only when:
 - Typecheck, build, and preflight pass in the deployment environment.
 - At least one paid Atlas validation render succeeds.
 - Artifacts pass the inspection checklist.
+- Material source validation is either `planned_only` for generated-only runs or `approved`/explicitly reviewed for runs using adapter candidates.
 - Redaction checklist passes.
 - Remaining warnings are documented in `docs/PROJECT_CONTEXT.md`.
 - The run date, environment notes, and remaining blockers are recorded in `docs/IMPLEMENTATION_ROADMAP.md`.

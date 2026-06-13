@@ -19,6 +19,7 @@ import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorde
 import { ProductionStagePlanner } from "../core/production-stage-planner.js";
 import { ReferenceSelectionPlanner } from "../core/reference-selection-planner.js";
 import { MaterialSourcingPlanner } from "../core/material-sourcing-planner.js";
+import { MaterialSourceValidator } from "../core/material-source-validator.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS } from "../core/postproduction-engine.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
 import { RenderScheduler } from "../core/render-scheduler.js";
@@ -50,6 +51,7 @@ export class DirectorAgent {
   private readonly productionStagePlanner: ProductionStagePlanner;
   private readonly referenceSelectionPlanner: ReferenceSelectionPlanner;
   private readonly materialSourcingPlanner: MaterialSourcingPlanner;
+  private readonly materialSourceValidator: MaterialSourceValidator;
   private readonly renderCostGate: RenderCostGate;
   private readonly promptCompiler: SeedancePromptCompiler;
   private readonly consistencyGuardian: ConsistencyGuardian;
@@ -73,6 +75,7 @@ export class DirectorAgent {
     readonly productionStagePlanner?: ProductionStagePlanner;
     readonly referenceSelectionPlanner?: ReferenceSelectionPlanner;
     readonly materialSourcingPlanner?: MaterialSourcingPlanner;
+    readonly materialSourceValidator?: MaterialSourceValidator;
     readonly renderCostGate?: RenderCostGate;
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
@@ -91,6 +94,7 @@ export class DirectorAgent {
     this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
     this.referenceSelectionPlanner = input.referenceSelectionPlanner ?? new ReferenceSelectionPlanner();
     this.materialSourcingPlanner = input.materialSourcingPlanner ?? new MaterialSourcingPlanner();
+    this.materialSourceValidator = input.materialSourceValidator ?? new MaterialSourceValidator();
     this.renderCostGate = input.renderCostGate ?? new RenderCostGate({ costBufferMultiplier: 1 });
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
@@ -120,6 +124,9 @@ export class DirectorAgent {
       projectId: intake.projectId,
       shots,
       settings: intake.settings
+    });
+    const materialSourceValidation = this.materialSourceValidator.validate({
+      plan: materialSourcingPlan
     });
     const storyboard = this.storyboardPlanner.plan({
       projectId: intake.projectId,
@@ -284,6 +291,7 @@ export class DirectorAgent {
       storyboard,
       storyboardPreflight,
       materialSourcingPlan,
+      materialSourceValidation,
       compiledPrompts,
       renderedShots,
       deliverablePresent: Boolean(deliverable),
@@ -298,6 +306,7 @@ export class DirectorAgent {
       storyboardPreflight,
       productionGraph: finalProductionGraph,
       materialSourcingPlan,
+      materialSourceValidation,
       stagePlan,
       costEstimate,
       compiledPrompts,
