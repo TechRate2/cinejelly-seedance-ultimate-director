@@ -84,6 +84,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Extends validation-before-spend discipline into a generated-audio execution planner that records ready and blocked intent counts before provider calls.
   - Extends validation-before-release discipline into generated-audio output validation so provider results must pass safe URL, duration, and identity checks before mixing.
   - Extends artifact-resolution discipline into generated-audio asset resolution so reviewed `asset://` outputs must map to credential-free HTTPS before mixing.
+  - Extends preflight/report discipline into a generated-audio asset resolution catalog so operator-owned resolver entries are validated before customer traffic.
 
 ### DirectorBench
 
@@ -137,6 +138,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Uses provider-preference and approval concepts as AGPL-aware behavior notes for generated-audio execution planning; no OpenMontage runtime code is copied, linked, imported, or executed.
   - Uses media-review and sample-before-batch concepts as AGPL-aware behavior notes for generated-audio output validation; implementation remains CineJelly-owned TypeScript.
   - Uses approval and media-review concepts as AGPL-aware behavior notes for generated-audio asset resolution; OpenMontage implementation code is not copied, linked, imported, or executed.
+  - Uses approval concepts as AGPL-aware behavior notes for generated-audio asset resolution catalog preflight; OpenMontage implementation code is not copied, linked, imported, or executed.
 
 ### MoneyPrinterTurbo
 
@@ -163,6 +165,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds a generated-audio execution planner that maps bounded intents to provider-neutral requests only when verified capabilities exist, preserving blocked provider/kind/duration/output-format evidence without provider spend.
   - Adds generated-audio output validation so prepared provider results must be matched to the original intent and pass duration plus credential-free URL checks before becoming audio mix tracks.
   - Adds generated-audio asset resolution so approved `asset://` generated-audio outputs can become mix tracks only after clean HTTPS mapping, identity binding, and approval checks pass.
+  - Adds generated-audio asset resolution catalog preflight so operator-owned `asset://` to HTTPS mappings are validated before runtime use.
   - Adds provider-neutral generated-audio capability/request/result contracts inspired by MoneyPrinterTurbo's explicit audio stage and `/audio` stop-at behavior, while keeping actual provider execution disabled until verified schemas and paid validation exist.
   - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 

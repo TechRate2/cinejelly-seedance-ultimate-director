@@ -6,6 +6,7 @@
 import { constants } from "node:fs";
 import { access, mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { GeneratedAudioAssetResolver } from "../core/generated-audio-asset-resolver.js";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
 import type { LocalMaterialCatalog } from "../types/material.js";
 import type { PreflightCheck, PreflightStatus, RuntimePreflightReport } from "../types/preflight.js";
@@ -92,6 +93,10 @@ export class RuntimePreflight {
       "CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH",
       this.env.CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH
     ));
+    checks.push(await this.generatedAudioAssetResolutionCatalogCheck(
+      "CINEJELLY_GENERATED_AUDIO_ASSET_RESOLUTION_CATALOG_PATH",
+      this.env.CINEJELLY_GENERATED_AUDIO_ASSET_RESOLUTION_CATALOG_PATH
+    ));
     checks.push(await this.mediaToolCheck("ffmpeg", signal));
     checks.push(await this.mediaToolCheck("ffprobe", signal));
 
@@ -150,6 +155,41 @@ export class RuntimePreflight {
       ...(typeof payload.catalogId === "string" ? { catalogId: payload.catalogId } : {}),
       entries: payload.entries
     };
+  }
+
+  private async generatedAudioAssetResolutionCatalogCheck(
+    name: string,
+    value: string | undefined
+  ): Promise<PreflightCheck> {
+    const configured = value?.trim();
+    if (!configured) {
+      return {
+        name,
+        status: "pass",
+        message: `${name} is not set; generated-audio asset resolution catalog is disabled.`
+      };
+    }
+    if (/[\u0000-\u001f\u007f]/.test(configured)) {
+      return { name, status: "fail", message: `${name} must not contain control characters.` };
+    }
+    try {
+      const text = await readFile(configured, "utf8");
+      const parsed = JSON.parse(text) as unknown;
+      const catalog = GeneratedAudioAssetResolver.normalizeCatalog(parsed);
+      return {
+        name,
+        status: "pass",
+        message: `${catalog.entries.length} generated-audio asset resolution entr${catalog.entries.length === 1 ? "y" : "ies"} configured.`
+      };
+    } catch (error) {
+      return {
+        name,
+        status: "fail",
+        message: error instanceof Error
+          ? `${name} must point to a readable valid generated-audio asset resolution catalog JSON file: ${error.message}`
+          : `${name} must point to a readable valid generated-audio asset resolution catalog JSON file.`
+      };
+    }
   }
 
   private remoteStockMaterialCheck(): PreflightCheck {

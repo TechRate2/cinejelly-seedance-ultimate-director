@@ -9,6 +9,7 @@ import type { RemoteStockProviderSettings } from "../types/material.js";
 import type {
   AssemblyRuntimeSettings,
   AtlasCloudRuntimeSettings,
+  GeneratedAudioRuntimeSettings,
   MaterialRuntimeSettings,
   RemoteStockRuntimeSettings,
   RuntimeSettings,
@@ -160,6 +161,7 @@ export function loadRuntimeSettings(env: NodeJS.ProcessEnv = process.env): Runti
     renderConcurrency: optionalIntegerEnv("CINEJELLY_RENDER_CONCURRENCY", env, 2),
     assembly: loadAssemblyRuntimeSettings(env),
     material: loadMaterialRuntimeSettings(env),
+    generatedAudio: loadGeneratedAudioRuntimeSettings(env),
     sourceVideoAutoAnalysis: loadSourceVideoAutoAnalysisSettings(env)
   };
 }
@@ -191,6 +193,18 @@ export function loadMaterialRuntimeSettings(env: NodeJS.ProcessEnv = process.env
   return {
     ...(localCatalogPath ? { localCatalogPath } : {}),
     remoteStock: loadRemoteStockRuntimeSettings(env)
+  };
+}
+
+export function loadGeneratedAudioRuntimeSettings(
+  env: NodeJS.ProcessEnv = process.env
+): GeneratedAudioRuntimeSettings {
+  const assetResolutionCatalogPath = optionalPathEnv(
+    "CINEJELLY_GENERATED_AUDIO_ASSET_RESOLUTION_CATALOG_PATH",
+    env
+  );
+  return {
+    ...(assetResolutionCatalogPath ? { assetResolutionCatalogPath } : {})
   };
 }
 

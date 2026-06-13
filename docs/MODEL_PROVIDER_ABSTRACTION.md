@@ -25,6 +25,7 @@ Snapshot integration note:
 - MoneyPrinterTurbo's explicit audio stage and OpenMontage's provider-menu discipline inform CineJelly's generated-audio provider contract, but actual provider-backed TTS/BGM/ambience/SFX execution remains disabled until current provider schemas, model IDs, pricing, and output validation are verified.
 - Generated-audio execution planning is handled before provider calls by CineJelly-owned core logic. The planner may create provider-neutral `AudioGenerationRequest` records from verified capabilities, but it must not call providers or claim generated outputs.
 - Generated-audio output validation is handled after provider results and before audio mixing. A provider result must not become an `AudioMixTrack` unless it passes status, identity, kind, provider, model, duration, volume, and safe-URL checks. `asset://` generated-audio outputs require a reviewed CineJelly asset resolver entry that maps the asset to a credential-free HTTPS URL before mixing.
+- Generated-audio asset resolution catalogs are operator-owned JSON inputs validated by preflight through `CINEJELLY_GENERATED_AUDIO_ASSET_RESOLUTION_CATALOG_PATH`; they do not enable provider-backed audio generation by themselves.
 
 ## Design Goal
 
@@ -142,6 +143,7 @@ Current Atlas implementation:
 - `src/providers/atlascloud/atlas-cloud-provider.ts` currently reports no generated-audio capabilities and rejects generated-audio execution with a stable no-spend `ProviderError`.
 - `src/core/generated-audio-execution-planner.ts` maps bounded generated-audio intents to provider-neutral requests only when `audio_capabilities()` returns verified capability records.
 - `src/core/generated-audio-output-validator.ts` approves result-to-track conversion only for credential-free HTTPS generated audio output; `src/core/generated-audio-asset-resolver.ts` can resolve approved generated-audio `asset://` records to credential-free HTTPS URLs without provider calls, downloads, or generated files.
+- `CINEJELLY_GENERATED_AUDIO_ASSET_RESOLUTION_CATALOG_PATH` can point to an operator-owned catalog of approved resolver entries; preflight validates catalog shape, duplicate asset IDs, `asset://` source URIs, HTTPS resolved URLs, and approval flags.
 - This is intentional until the current Atlas audio model schema, endpoint payload, output format, model IDs, pricing, and artifact validation path are verified.
 - Generated-audio requests therefore remain `planned_only` postproduction evidence unless a future verified provider-backed module produces explicit audio assets.
 

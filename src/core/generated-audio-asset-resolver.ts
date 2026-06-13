@@ -6,6 +6,7 @@
 import type { GeneratedAudioIntent } from "../types/audio.js";
 import type { GeneratedAudioExecutionReadyItem } from "../types/generated-audio-execution.js";
 import type {
+  GeneratedAudioAssetResolutionCatalog,
   GeneratedAudioAssetResolutionEntry,
   GeneratedAudioAssetResolutionIssue,
   GeneratedAudioAssetResolutionIssueCode,
@@ -18,6 +19,7 @@ import type { AudioGenerationResult } from "../types/provider.js";
 const SECRET_QUERY_KEY_PATTERN =
   /(?:api[_-]?key|access[_-]?key|token|secret|signature|sig|password|credential|authorization|auth|policy|expires|key-pair-id|x-amz-|x-goog-|x-oss-|x-ms-)/i;
 const DURATION_TOLERANCE_SECONDS = 1;
+const GENERATED_AUDIO_KINDS = new Set(["tts_narration", "bgm", "ambience", "sfx"]);
 
 export interface GeneratedAudioAssetResolverInput {
   readonly assetUri: string;
@@ -37,8 +39,16 @@ export interface GeneratedAudioAssetResolverOptions {
 export class GeneratedAudioAssetResolver implements GeneratedAudioAssetResolverLike {
   private readonly entries: readonly GeneratedAudioAssetResolutionEntry[];
 
+  public static fromCatalog(value: unknown): GeneratedAudioAssetResolver {
+    return new GeneratedAudioAssetResolver({ entries: normalizeCatalog(value).entries });
+  }
+
+  public static normalizeCatalog(value: unknown): GeneratedAudioAssetResolutionCatalog {
+    return normalizeCatalog(value);
+  }
+
   public constructor(options: GeneratedAudioAssetResolverOptions) {
-    this.entries = [...options.entries];
+    this.entries = normalizeEntries(options.entries);
   }
 
   public resolve(input: GeneratedAudioAssetResolverInput): GeneratedAudioAssetResolutionReport {
@@ -75,7 +85,7 @@ export class GeneratedAudioAssetResolver implements GeneratedAudioAssetResolverL
   }
 
   private findEntry(assetUri: string): GeneratedAudioAssetResolutionEntry | undefined {
-    return this.entries.find((entry) => this.safeAssetUri(entry.assetUri) === assetUri);
+    return this.entries.find((entry) => entry.assetUri === assetUri);
   }
 
   private validateEntry(
@@ -264,4 +274,143 @@ export class GeneratedAudioAssetResolver implements GeneratedAudioAssetResolverL
   ): GeneratedAudioAssetResolutionIssue {
     return { code, severity, message, repair };
   }
+}
+
+function normalizeCatalog(value: unknown): GeneratedAudioAssetResolutionCatalog {
+  const payload = record(value, "Generated-audio asset resolution catalog must be a JSON object.");
+  const catalogId = optionalString(payload.catalogId, "catalog.catalogId", 160);
+  if (!Array.isArray(payload.entries)) {
+    throw new Error("Generated-audio asset resolution catalog entries must be an array.");
+  }
+  return {
+    ...(catalogId ? { catalogId } : {}),
+    entries: normalizeEntries(payload.entries)
+  };
+}
+
+function normalizeEntries(entries: readonly unknown[]): readonly GeneratedAudioAssetResolutionEntry[] {
+  const normalized = entries.map((entry, index) => normalizeEntry(entry, index));
+  const seen = new Set<string>();
+  for (const entry of normalized) {
+    if (seen.has(entry.assetUri)) {
+      throw new Error(`Generated-audio asset resolution catalog contains duplicate assetUri ${entry.assetUri}.`);
+    }
+    seen.add(entry.assetUri);
+  }
+  return normalized;
+}
+
+function normalizeEntry(value: unknown, index: number): GeneratedAudioAssetResolutionEntry {
+  const payload = record(value, `Generated-audio asset resolution entries[${index}] must be an object.`);
+  const assetUri = cleanAssetUri(requiredString(payload.assetUri, `entries[${index}].assetUri`, 4_096));
+  const resolvedUrl = cleanHttpsUrl(requiredString(payload.resolvedUrl, `entries[${index}].resolvedUrl`, 4_096));
+  if (typeof payload.approvedForMix !== "boolean") {
+    throw new Error(`entries[${index}].approvedForMix must be a boolean.`);
+  }
+  const intentId = optionalString(payload.intentId, `entries[${index}].intentId`, 160);
+  const kind = optionalKind(payload.kind, `entries[${index}].kind`);
+  const provider = optionalString(payload.provider, `entries[${index}].provider`, 160);
+  const modelId = optionalString(payload.modelId, `entries[${index}].modelId`, 160);
+  const providerAssetId = optionalString(payload.providerAssetId, `entries[${index}].providerAssetId`, 240);
+  const durationSeconds = optionalPositiveNumber(payload.durationSeconds, `entries[${index}].durationSeconds`);
+  const contentHash = optionalString(payload.contentHash, `entries[${index}].contentHash`, 160);
+  const approvedBy = optionalString(payload.approvedBy, `entries[${index}].approvedBy`, 160);
+  const approvedAt = optionalString(payload.approvedAt, `entries[${index}].approvedAt`, 80);
+
+  return {
+    assetUri,
+    resolvedUrl,
+    approvedForMix: payload.approvedForMix,
+    ...(intentId ? { intentId } : {}),
+    ...(kind ? { kind } : {}),
+    ...(provider ? { provider } : {}),
+    ...(modelId ? { modelId } : {}),
+    ...(providerAssetId ? { providerAssetId } : {}),
+    ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+    ...(contentHash ? { contentHash } : {}),
+    ...(approvedBy ? { approvedBy } : {}),
+    ...(approvedAt ? { approvedAt } : {})
+  };
+}
+
+function cleanAssetUri(value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("Generated-audio asset resolution assetUri must be a valid asset:// URI.");
+  }
+  if (parsed.protocol !== "asset:" || parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error("Generated-audio asset resolution assetUri must be a clean asset:// URI without credentials, query strings, or fragments.");
+  }
+  return parsed.toString();
+}
+
+function cleanHttpsUrl(value: string): string {
+  if (/^data:/i.test(value)) {
+    throw new Error("Generated-audio asset resolution resolvedUrl must not be a data URI.");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("Generated-audio asset resolution resolvedUrl must be a valid HTTPS URL.");
+  }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+    throw new Error("Generated-audio asset resolution resolvedUrl must be HTTPS and must not include embedded credentials.");
+  }
+  for (const key of parsed.searchParams.keys()) {
+    if (SECRET_QUERY_KEY_PATTERN.test(key)) {
+      throw new Error(`Generated-audio asset resolution resolvedUrl contains credential-like query parameter ${key}.`);
+    }
+  }
+  return parsed.toString();
+}
+
+function optionalKind(value: unknown, fieldName: string): GeneratedAudioAssetResolutionEntry["kind"] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || !GENERATED_AUDIO_KINDS.has(value)) {
+    throw new Error(`${fieldName} must be one of: tts_narration, bgm, ambience, sfx.`);
+  }
+  return value as GeneratedAudioAssetResolutionEntry["kind"];
+}
+
+function optionalPositiveNumber(value: unknown, fieldName: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw new Error(`${fieldName} must be a positive number.`);
+  }
+  return value;
+}
+
+function optionalString(value: unknown, fieldName: string, maxLength: number): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return requiredString(value, fieldName, maxLength);
+}
+
+function requiredString(value: unknown, fieldName: string, maxLength: number): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`${fieldName} must be a non-empty string.`);
+  }
+  const text = value.trim();
+  if (/[\u0000-\u001f\u007f]/.test(text)) {
+    throw new Error(`${fieldName} must not contain control characters.`);
+  }
+  if (text.length > maxLength) {
+    throw new Error(`${fieldName} cannot exceed ${maxLength} characters.`);
+  }
+  return text;
+}
+
+function record(value: unknown, message: string): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  throw new Error(message);
 }

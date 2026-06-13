@@ -46,6 +46,11 @@ export interface GeneratedAudioAssetResolutionEntry {
   readonly approvedAt?: string;
 }
 
+export interface GeneratedAudioAssetResolutionCatalog {
+  readonly catalogId?: string;
+  readonly entries: readonly GeneratedAudioAssetResolutionEntry[];
+}
+
 export interface GeneratedAudioAssetResolutionReport {
   readonly status: GeneratedAudioAssetResolutionStatus;
   readonly assetUri: string;

@@ -64,6 +64,10 @@ export interface MaterialRuntimeSettings {
   readonly remoteStock: RemoteStockRuntimeSettings;
 }
 
+export interface GeneratedAudioRuntimeSettings {
+  readonly assetResolutionCatalogPath?: string;
+}
+
 export interface RemoteStockRuntimeSettings {
   readonly enabled: boolean;
   readonly requestTimeoutMs: number;
@@ -85,6 +89,7 @@ export interface RuntimeSettings {
   readonly renderConcurrency: number;
   readonly assembly: AssemblyRuntimeSettings;
   readonly material: MaterialRuntimeSettings;
+  readonly generatedAudio: GeneratedAudioRuntimeSettings;
   readonly sourceVideoAutoAnalysis: SourceVideoAutoAnalysisSettings;
 }
 

@@ -106,6 +106,7 @@ function resolveGeneratedAudioAsset(input: {
 
 - Add generated-audio asset resolution contracts under `src/types`.
 - Add `GeneratedAudioAssetResolver` under `src/core`.
+- Add optional operator-owned catalog validation through `docs/reference-implementations/generated-audio-asset-resolution-catalog.md`.
 - Refactor `GeneratedAudioOutputValidator` so `asset://` remains review-required unless a resolver is configured.
 - When a resolver is configured and returns `resolved`, validate the resolved HTTPS URL through the same safety gate before creating `AudioMixTrack`.
 - Preserve the original provider `outputUrl` plus resolver evidence in the validation report.

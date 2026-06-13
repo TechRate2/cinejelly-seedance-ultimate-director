@@ -1745,6 +1745,103 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Generated Audio Asset Resolution Catalog",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/services/voice.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "prepared generated-audio artifacts are represented as explicit stage evidence",
+      "operator-visible task state catches missing or unresolved media before final composition",
+      "audio-stage artifacts remain separate from final video assembly inputs"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo task and audio code is not copied or executed",
+      "CineJelly validates an operator-owned resolver catalog before customer traffic",
+      "catalog entries must use clean asset:// source URIs, credential-free HTTPS resolved URLs, and boolean approval flags",
+      "catalog preflight does not call providers, download media, inspect waveform data, or create generated files"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-asset-resolution-catalog.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-asset.ts",
+      "src/core/generated-audio-asset-resolver.ts",
+      "src/types/settings.ts",
+      "src/config/runtime-config.ts",
+      "src/application/runtime-preflight.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "catalog validity does not prove generated-audio media quality until real provider artifacts are inspected",
+      "actual provider-backed generated-audio execution remains pending verified provider schema and paid validation"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Asset Resolution Catalog",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "artifact inputs should be validated before expensive or release-sensitive work",
+      "preflight reports should give operator-visible readiness without leaking sensitive paths or credentials",
+      "deterministic reports should catch malformed artifact evidence early"
+    ],
+    behaviorChanged: [
+      "VibeFrame preflight/report discipline is rewritten into CineJelly runtime preflight checks",
+      "catalog validation reports entry counts and failure reasons without exposing local catalog paths",
+      "resolver catalog validation stays separate from provider-backed audio execution"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-asset-resolution-catalog.md",
+    cineJellyDestinationPaths: [
+      "src/core/generated-audio-asset-resolver.ts",
+      "src/application/runtime-preflight.ts",
+      "docs/IMPLEMENTATION_ROADMAP.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "deployment validation must later confirm preflight responses stay redacted behind the public API"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Asset Resolution Catalog",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/AGENT_GUIDE.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "approval concepts inform generated media readiness gates",
+      "unapproved generated output should not silently enter final composition",
+      "media evidence should remain reviewable before final use"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, imported, or executed",
+      "AGPL-sensitive approval concepts remain behavior notes only",
+      "CineJelly-owned preflight validates approval flags and URI safety without using OpenMontage runtime code"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-asset-resolution-catalog.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-asset.ts",
+      "src/core/generated-audio-asset-resolver.ts",
+      "src/application/runtime-preflight.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future approval UX must keep AGPL material at behavior-note level unless legal/product obligations are accepted"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Postproduction Asset Orchestration",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
     snapshotPath: "external/upstream/moneyprinterturbo",
