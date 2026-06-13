@@ -79,6 +79,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds API-visible artifact validation evidence for synchronous render responses and retained async job artifacts without exposing server-local artifact paths.
   - Adds redacted CLI and HTTP Phase 6 validation readiness reporting before paid provider work.
   - Extends preflight discipline into configurable FFmpeg/FFprobe command resolution so portable deployment binaries can be validated before paid work.
+  - Extends dry-run and validate-before-build discipline into a no-spend render request validator with static operator schemas and redacted pass/fail output.
   - Extends validate-before-spend discipline into a paid-render validation CLI that checks readiness, runs one operator-supplied request, writes artifacts, and validates those artifacts before release review.
   - Extends deterministic incomplete-stage evidence to generated-audio intent planning so requested narration, BGM, ambience, or SFX are visible as planned-only review evidence until provider-backed audio generation exists.
   - Extends validation/cost/report discipline into a generated-audio provider contract boundary that fails safely before spend when no verified audio capability is configured.
@@ -144,6 +145,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Uses approval concepts as AGPL-aware behavior notes for generated-audio batch artifact evidence; implementation remains CineJelly-owned TypeScript.
   - Uses approval and media-review concepts as AGPL-aware behavior notes for generated-audio asset resolution; OpenMontage implementation code is not copied, linked, imported, or executed.
   - Uses approval concepts as AGPL-aware behavior notes for generated-audio asset resolution catalog preflight; OpenMontage implementation code is not copied, linked, imported, or executed.
+  - Uses approval-gate concepts as AGPL-aware behavior notes for the Phase 6 render request validation contract; OpenMontage implementation code is not copied, linked, imported, or executed.
   - Uses approval-gate concepts as AGPL-aware behavior notes for the Phase 6 paid-render validation runner; OpenMontage implementation code is not copied, linked, imported, or executed.
 
 ### MoneyPrinterTurbo
@@ -176,6 +178,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds generated-audio asset resolution so approved `asset://` generated-audio outputs can become mix tracks only after clean HTTPS mapping, identity binding, and approval checks pass.
   - Adds generated-audio asset resolution catalog preflight so operator-owned `asset://` to HTTPS mappings are validated before runtime use.
   - Adds provider-neutral generated-audio capability/request/result contracts inspired by MoneyPrinterTurbo's explicit audio stage and `/audio` stop-at behavior, while keeping actual provider execution disabled until verified schemas and paid validation exist.
+  - Adds a no-spend render request validation CLI inspired by one-input task schemas and operator-visible request review before long-running video work.
   - Adds a paid-render validation CLI inspired by operator-visible task execution: readiness is checked before spend, one supplied request is run, success/failure artifacts are written, and artifact validation is summarized for manual release review.
   - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 

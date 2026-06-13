@@ -1127,6 +1127,109 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Phase 6 Render Request Validation Contract",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "request validation happens before expensive build/render work",
+      "operator-facing validation output is deterministic and redacted",
+      "valid request checks remain separate from paid provider execution",
+      "local runtime paths stay out of public validation output"
+    ],
+    behaviorChanged: [
+      "VibeFrame dry-run discipline is rewritten into a CineJelly request contract validator",
+      "static JSON schemas document operator contracts while TypeScript admission remains runtime authority",
+      "the validator reuses CineJelly request admission and output-root normalization instead of upstream commands"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/phase6-render-request-validation-contract.md",
+    cineJellyDestinationPaths: [
+      "schemas/render-request.schema.json",
+      "schemas/phase6-render-request-validation-report.schema.json",
+      "schemas/phase6-paid-render-validation-report.schema.json",
+      "src/application/render-request-validation-entrypoint.ts",
+      "src/application/render-request-normalizer.ts",
+      "src/api/render-request-admission.ts",
+      "src/index.ts",
+      "package.json"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "static schemas are operator contracts and must not drift from TypeScript admission",
+      "valid request contracts do not prove provider readiness or render success"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Phase 6 Render Request Validation Contract",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/models/schema.py",
+      "external/upstream/moneyprinterturbo/app/controllers/v1/video.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "one operator-supplied request is validated as a complete task input",
+      "request issues are surfaced before long-running video work",
+      "operator-visible request status avoids implicit task creation"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo Python schema/controller code is not copied or executed",
+      "CineJelly request validation is provider-neutral TypeScript",
+      "the validator does not create jobs, providers, artifacts, or generated media"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/phase6-render-request-validation-contract.md",
+    cineJellyDestinationPaths: [
+      "schemas/render-request.schema.json",
+      "schemas/phase6-render-request-validation-report.schema.json",
+      "src/application/render-request-validation-entrypoint.ts",
+      "src/application/render-request-normalizer.ts",
+      "src/api/render-request-admission.ts",
+      "package.json"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "request validation is not a persistent task queue or WebUI workflow",
+      "real paid execution still depends on readiness and provider validation"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Phase 6 Render Request Validation Contract",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/AGENT_GUIDE.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "approval-gate concepts inform the pre-paid request review boundary",
+      "request validation does not equal release approval",
+      "operator review remains required before paid validation and customer release"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, imported, or executed",
+      "AGPL-sensitive approval behavior is used only as behavior-note guidance",
+      "CineJelly-owned TypeScript enforces admission and redaction before paid work"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/phase6-render-request-validation-contract.md",
+    cineJellyDestinationPaths: [
+      "src/application/render-request-validation-entrypoint.ts",
+      "docs/OPERATOR_RUNBOOK.md",
+      "docs/IMPLEMENTATION_ROADMAP.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future richer approval UX must avoid AGPL implementation reuse unless product/legal obligations are accepted"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Phase 6 Paid Render Validation Runner",
     sourceRepository: "vericontext/vibeframe",
     snapshotPath: "external/upstream/vibeframe",

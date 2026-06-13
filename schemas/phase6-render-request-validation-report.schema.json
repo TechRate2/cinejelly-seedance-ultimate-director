@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/phase6-render-request-validation-report.schema.json",
+  "title": "CineJelly Phase 6 Render Request Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "status", "sourcePatternOrigins", "issues"],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.phase6.render-request-validation.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "requestId": { "type": "string" },
+    "normalizedSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hasOutputPath",
+        "hasWorkDirectory",
+        "hasArtifactDirectory",
+        "referenceCount",
+        "captionCueCount",
+        "audioTrackCount",
+        "generatedAudioIntentCount"
+      ],
+      "properties": {
+        "hasOutputPath": { "type": "boolean" },
+        "hasWorkDirectory": { "type": "boolean" },
+        "hasArtifactDirectory": { "type": "boolean" },
+        "referenceCount": { "type": "integer", "minimum": 0 },
+        "captionCueCount": { "type": "integer", "minimum": 0 },
+        "audioTrackCount": { "type": "integer", "minimum": 0 },
+        "generatedAudioIntentCount": { "type": "integer", "minimum": 0 },
+        "sourceVideoAnalysisPresent": { "type": "boolean" },
+        "semanticVisualInspectionEnabled": { "type": "boolean" }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

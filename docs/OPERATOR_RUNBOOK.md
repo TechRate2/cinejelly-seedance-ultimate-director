@@ -6,7 +6,7 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 As of 2026-06-13T20:35:59.712Z (2026-06-14 Asia/Saigon), the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` plus `GET /v1/validation-readiness` can produce a redacted Phase 6 readiness report. The latest recorded local paid-render validation smoke had 54 readiness checks: 46 pass, 1 warn, and 7 fail, then exited with `blocked_by_readiness` before provider spend; an earlier HTTP readiness route returned `503` with the same blocked decision. It remained blocked because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured through `PATH` or explicit media tool paths.
 
-The repo also provides `npm.cmd run validation:paid-render -- --request <request-json>` as a readiness-gated paid-render validation runner. It stops before provider spend when readiness is blocked, requires `--allow-warnings` before continuing from warning readiness, writes success or failure artifacts, validates them, and emits a redacted operator report. It does not replace manual artifact and media review.
+The repo also provides `npm.cmd run validation:render-request -- --request <request-json>` as a no-spend request validator and `npm.cmd run validation:paid-render -- --request <request-json>` as a readiness-gated paid-render validation runner. Request validation checks the operator-owned JSON payload through the same admission and output-root normalization used by API render paths, but it does not initialize providers, run readiness, call Atlas, or write render artifacts. Paid-render validation stops before provider spend when readiness is blocked, requires `--allow-warnings` before continuing from warning readiness, writes success or failure artifacts, validates them, and emits a redacted operator report. It does not replace manual artifact and media review.
 
 Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected.
 
@@ -68,6 +68,7 @@ npm.cmd install
 npm.cmd run typecheck
 npm.cmd run build
 npm.cmd run preflight
+npm.cmd run validation:render-request -- --request "phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
 npm.cmd run validation:readiness
 ```
 
@@ -76,6 +77,7 @@ Pass criteria:
 - `npm.cmd run typecheck` exits `0`.
 - `npm.cmd run build` exits `0`.
 - `npm.cmd run preflight` exits `0`.
+- `npm.cmd run validation:render-request -- --request <request-json>` exits `0` for the operator-owned paid-validation request and the report status is `pass`.
 - `npm.cmd run validation:readiness` exits `0` and the report decision is `ready_for_paid_validation` or `review_warnings`.
 - Preflight report has no `fail` checks.
 - Any `warn` check is reviewed and intentionally accepted before paid rendering.
@@ -87,6 +89,8 @@ npm.cmd run validation:readiness -- --output "phase6-validation/readiness-report
 ```
 
 The readiness report is a pre-paid gate only. It must not be used as release approval without the paid Atlas render, artifact validation, artifact inspection, and redaction review below.
+
+The request-validation report is a request-contract gate only. It proves the supplied JSON can pass CineJelly admission and path normalization; it does not prove provider readiness, media-tool readiness, prompt quality, or render success.
 
 Hard blockers:
 
@@ -139,16 +143,18 @@ Use a short, safe, non-sensitive request. Keep the first paid run small:
 Recommended CLI path:
 
 ```powershell
+npm.cmd run validation:render-request -- --request "phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
 npm.cmd run validation:paid-render -- --request "phase6-validation/request.json" --output "phase6-validation/paid-render-report.json"
 ```
 
 If `npm.cmd run validation:readiness` returns `review_warnings`, use `--allow-warnings` only after explicitly accepting the warning state:
 
 ```powershell
+npm.cmd run validation:render-request -- --request "phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
 npm.cmd run validation:paid-render -- --request "phase6-validation/request.json" --allow-warnings --output "phase6-validation/paid-render-report.json"
 ```
 
-The paid-render validation runner uses the same request admission and output-root path normalization as `/v1/render`. It does not create a request file for you; keep the request operator-owned, non-sensitive, and inside the release evidence folder. The runner output is a redacted summary and intentionally omits local artifact directories, so use the configured request paths and artifact manifest on disk for detailed manual inspection.
+The request validator and paid-render validation runner use the same request admission and output-root path normalization as `/v1/render`. They do not create a request file for you; keep the request operator-owned, non-sensitive, and inside the release evidence folder. The request-validation output is a redacted contract summary; the paid-render runner output is a redacted execution summary and intentionally omits local artifact directories, so use the configured request paths and artifact manifest on disk for detailed manual inspection.
 
 Recommended async path:
 
@@ -166,7 +172,7 @@ $body = @{
     resolution = "480p"
     qualityMode = "economy"
     ratio = "16:9"
-    targetDurationSeconds = 120
+    durationTargetSeconds = 120
     maxCostUsd = 5
   }
   outputPath = "phase6-validation/final.mp4"

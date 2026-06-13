@@ -123,7 +123,7 @@ The production implementation structure is:
 - `src/types`: shared type definitions for settings, graph nodes, provider requests, reports, and deliverables.
 - `data`: production-approved local knowledge artifacts such as copied prompt-pattern snapshots, bibles, source-derived evaluation rubrics, or curated product knowledge when required.
 - `external`: Git subtree snapshots of upstream repositories used for source review, copy/adaptation, and integration planning; production code does not import from this tree, and productized behavior moves into CineJelly-owned `src/`, `data/`, and `docs/`.
-- `schemas`: production JSON schemas for graph, prompts, settings, provider requests, and review reports.
+- `schemas`: production/operator JSON schemas for graph, prompts, settings, provider requests, render request validation, paid-render validation reports, and review reports.
 - `config`: production configuration templates without secrets.
 - `ops`: deployment and runtime operations.
 - `assets/reference_inputs`: user/reference media staging boundary.
@@ -341,6 +341,7 @@ API execution modes:
 - Runtime numeric environment controls must be plain base-10 integer or decimal strings; the configuration loader and `/v1/preflight` reject partial parses such as unit suffixes before traffic reaches provider spend.
 - API startup and preflight enforce the same deployment gates for `PORT` range and explicit boolean API flags, so a deployment cannot appear ready while startup would reject the configuration.
 - `npm run preflight` runs the same deployment readiness checks as a CLI gate, emits a redacted preflight report, and exits non-zero on hard failures before operators open customer traffic.
+- `npm run validation:render-request -- --request <request-json>` validates an operator-owned request file through the same admission and output-root normalization used by `/v1/render` without running readiness, initializing providers, calling Atlas, or writing render artifacts.
 - `npm run validation:readiness` and `GET /v1/validation-readiness` wrap the preflight output into a Phase 6 operator-readiness report with hard blockers, warnings, next actions, and an explicit release blocker until paid Atlas validation and artifact review are complete; the HTTP route returns 503 only when the decision is blocked.
 - Every API request creates or accepts a sanitized `X-CineJelly-Request-Id`/`X-Request-Id`; responses include `requestId`, and the normalized request propagates it into LLM/Seedance metadata, render job summaries, Production Graph project metadata, and durable success/failure artifacts.
 - `/v1/render` runs the full pipeline synchronously for controlled callers and is protected by a process-level concurrency gate with retry hints after body parsing, admission control, and path normalization but before runtime creation or provider spend.

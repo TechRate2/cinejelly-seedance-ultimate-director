@@ -21,8 +21,8 @@ Ready foundations:
 - Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, postproduction asset planner, generated-audio intent planning, generated-audio execution planning, generated-audio output validation, generated-audio output batch validation, optional generated-audio batch artifact evidence, generated-audio asset resolution plus catalog preflight, render-job stage progress telemetry, and source-material/postproduction artifact validation.
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
-- Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, API Artifact Validation Evidence, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, Generated Audio Intent Planning, Generated Audio Execution Planner, Generated Audio Provider Execution Runner, Generated Audio Output Validation, Generated Audio Output Batch Validation, Generated Audio Batch Artifact Evidence, Generated Audio Asset Resolution, Generated Audio Asset Resolution Catalog, Generated Audio Provider Execution Contract, Phase 6 Validation Readiness Report, Phase 6 Paid Render Validation Runner, and Media Tool Binary Resolution.
-- Operator validation readiness through `npm.cmd run validation:readiness`, `GET /v1/validation-readiness`, readiness-gated paid render validation through `npm.cmd run validation:paid-render -- --request <request-json>`, API-visible synchronous/async artifact validation, and artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for pre-paid blockers, manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
+- Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, API Artifact Validation Evidence, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, Generated Audio Intent Planning, Generated Audio Execution Planner, Generated Audio Provider Execution Runner, Generated Audio Output Validation, Generated Audio Output Batch Validation, Generated Audio Batch Artifact Evidence, Generated Audio Asset Resolution, Generated Audio Asset Resolution Catalog, Generated Audio Provider Execution Contract, Phase 6 Validation Readiness Report, Phase 6 Render Request Validation Contract, Phase 6 Paid Render Validation Runner, and Media Tool Binary Resolution.
+- Operator validation readiness through `npm.cmd run validation:readiness`, `GET /v1/validation-readiness`, no-spend render request validation through `npm.cmd run validation:render-request -- --request <request-json>`, readiness-gated paid render validation through `npm.cmd run validation:paid-render -- --request <request-json>`, API-visible synchronous/async artifact validation, and artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for pre-paid blockers, request-contract issues, manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
 
 Not yet complete:
 
@@ -247,7 +247,7 @@ Milestone check:
 
 ## Phase 6: Real Provider Validation
 
-Status as of 2026-06-13T20:35:59.712Z (2026-06-14 Asia/Saigon): `npm.cmd run typecheck` and `npm.cmd run build` passed. `npm.cmd run validation:paid-render -- --request <temp-request>` built successfully, ran readiness internally, returned `blocked_by_readiness`, and stopped before provider spend with 54 readiness checks: 46 pass, 1 warn, and 7 fail. An earlier local API process on a temporary port also returned `503` from `GET /v1/validation-readiness` with decision `blocked`, 7 fail checks, and 1 warning. The current hard blockers are missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`; media tools may now be satisfied through `PATH` or `CINEJELLY_FFMPEG_PATH` / `CINEJELLY_FFPROBE_PATH`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. A Phase 6 Validation Readiness Report foundation is implemented for CLI and HTTP diagnostics so operators can capture redacted blockers, warnings, and next actions before paid provider work. A Phase 6 Paid Render Validation Runner foundation now provides `npm.cmd run validation:paid-render -- --request <request-json>` for readiness-gated paid runs, shared request normalization, success/failure artifact writing, and immediate artifact validation once deployment blockers are cleared. Paid Atlas render validation has not been run.
+Status as of 2026-06-13T20:35:59.712Z (2026-06-14 Asia/Saigon): `npm.cmd run typecheck` and `npm.cmd run build` passed. `npm.cmd run validation:paid-render -- --request <temp-request>` built successfully, ran readiness internally, returned `blocked_by_readiness`, and stopped before provider spend with 54 readiness checks: 46 pass, 1 warn, and 7 fail. An earlier local API process on a temporary port also returned `503` from `GET /v1/validation-readiness` with decision `blocked`, 7 fail checks, and 1 warning. The current hard blockers are missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`; media tools may now be satisfied through `PATH` or `CINEJELLY_FFMPEG_PATH` / `CINEJELLY_FFPROBE_PATH`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. A Phase 6 Validation Readiness Report foundation is implemented for CLI and HTTP diagnostics so operators can capture redacted blockers, warnings, and next actions before paid provider work. A Phase 6 Render Request Validation Contract foundation now provides static operator schemas and `npm.cmd run validation:render-request -- --request <request-json>` to validate a request file through CineJelly admission and output-root normalization without provider spend. A Phase 6 Paid Render Validation Runner foundation provides `npm.cmd run validation:paid-render -- --request <request-json>` for readiness-gated paid runs, shared request normalization, success/failure artifact writing, and immediate artifact validation once deployment blockers are cleared. Paid Atlas render validation has not been run.
 
 Operator validation procedure: `docs/OPERATOR_RUNBOOK.md`.
 
@@ -258,12 +258,14 @@ Target module:
 - Artifact store
 - Operator runbook
 - Validation readiness report
+- Render request validation contract and schemas
 - Paid render validation runner
 
 Deliverables:
 
 - Run `npm.cmd run typecheck`.
 - Run `npm.cmd run build`.
+- Run `npm.cmd run validation:render-request -- --request <request-json>` for the operator-owned paid-validation request.
 - Run `npm.cmd run preflight` with real deployment environment.
 - Run `npm.cmd run validation:readiness` and keep the redacted report with validation evidence.
 - Call `GET /v1/validation-readiness` against the running API and keep the redacted report with deployment evidence.
@@ -278,6 +280,7 @@ Milestone check:
 - Provider credentials are loaded only through environment variables.
 - FFmpeg/FFprobe are detected through `PATH` or configured binary paths.
 - Validation readiness report decision is `ready_for_paid_validation`, or warnings are explicitly reviewed before paid rendering.
+- Render request validation passes before paid rendering and does not initialize providers, call Atlas, or write render artifacts.
 - Paid render validation runner blocks provider spend when readiness is `blocked`, requires explicit warning acknowledgement, and emits a redacted operator report after artifact validation.
 - API response does not expose local paths, secrets, signed URLs, raw stack traces, or inline base64 media.
 - Artifacts are redacted and include integrity hashes.

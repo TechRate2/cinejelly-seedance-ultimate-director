@@ -26,6 +26,7 @@ export * from "./application/director-factory.js";
 export * from "./application/paid-render-validation-entrypoint.js";
 export * from "./application/preflight-entrypoint.js";
 export * from "./application/render-request-normalizer.js";
+export * from "./application/render-request-validation-entrypoint.js";
 export * from "./application/runtime-preflight.js";
 export * from "./application/validation-readiness-entrypoint.js";
 export * from "./application/validation-readiness-report.js";
