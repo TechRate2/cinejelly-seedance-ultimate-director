@@ -18,10 +18,10 @@ Ready foundations:
 - Model Provider Abstraction contracts, Atlas provider, provider error normalization, capability validation, cost ledger, and retry telemetry.
 - Prompt Compiler, reference sorting, negative constraints, repair hints, and provider-neutral request compilation.
 - Production Graph, storyboard planner, shot planner, run recorder, review packet builder, artifact store, and delivery gate.
-- Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, postproduction asset planner, render-job stage progress telemetry, and source-material/postproduction artifact validation.
+- Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, postproduction asset planner, generated-audio intent planning, render-job stage progress telemetry, and source-material/postproduction artifact validation.
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
-- Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, API Artifact Validation Evidence, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, Phase 6 Validation Readiness Report, and Media Tool Binary Resolution.
+- Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, API Artifact Validation Evidence, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, Generated Audio Intent Planning, Phase 6 Validation Readiness Report, and Media Tool Binary Resolution.
 - Operator validation readiness through `npm.cmd run validation:readiness`, `GET /v1/validation-readiness`, API-visible synchronous/async artifact validation, and artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for pre-paid blockers, manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
 
 Not yet complete:
@@ -30,6 +30,7 @@ Not yet complete:
 - Real artifact review from a paid Atlas validation run, including validator output, review packet, cost ledger, stage lifecycle, and deliverable metadata.
 - Live validation of source-video auto-analysis with real source videos, deployment FFmpeg frame extraction, and the configured Atlas multimodal LLM.
 - Live remote stock provider validation with real Pexels/Pixabay/Coverr credentials and operator-approved commercial terms.
+- Provider-backed TTS/BGM/ambience/SFX execution; current generated-audio support is planning and review evidence only.
 
 ## Phase 1: Prompt Fidelity
 
@@ -165,7 +166,7 @@ Milestone check:
 
 ## Phase 5: Long-Form Planning And Batch Workflow
 
-Status as of 2026-06-13: Reference Implementations drafted; stage lifecycle contracts, `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, postproduction asset planning, DirectorAgent stage progress reporting, async render-job progress polling, synchronous/async API artifact validation evidence, local material library adapter, opt-in remote stock material adapter, material source validation, review-packet stage/postproduction planning evidence, and stage/material/postproduction artifacts are implemented. `npm.cmd run typecheck` and `npm.cmd run build` passed for the foundation phases; real long-form Atlas validation and live remote stock provider validation remain pending.
+Status as of 2026-06-14: Reference Implementations drafted/implemented for stage lifecycle, material sourcing, postproduction asset orchestration, and generated-audio intent planning. `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, postproduction asset planning, generated-audio planned-only evidence, DirectorAgent stage progress reporting, async render-job progress polling, synchronous/async API artifact validation evidence, local material library adapter, opt-in remote stock material adapter, material source validation, review-packet stage/postproduction planning evidence, and stage/material/postproduction artifacts are implemented. `npm.cmd run typecheck` and `npm.cmd run build` passed for the foundation phases; real long-form Atlas validation, live remote stock provider validation, and provider-backed generated-audio execution remain pending.
 
 Target module:
 
@@ -190,6 +191,7 @@ Deliverables:
 - `docs/reference-implementations/local-material-library-adapter.md`
 - `docs/reference-implementations/remote-stock-material-adapter.md`
 - `docs/reference-implementations/postproduction-asset-orchestration.md`
+- `docs/reference-implementations/generated-audio-intent-planning.md`
 - `docs/reference-implementations/render-job-stage-progress.md`
 - `docs/reference-implementations/api-artifact-validation-evidence.md`
 - Explicit stage status model for plan, storyboard, prompt, source material, render, inspect, repair, assemble, deliver.
@@ -199,6 +201,7 @@ Deliverables:
 - Material sourcing rights metadata wired into Production Graph nodes.
 - Material source validation report wired into stage lifecycle, review packet planning evidence, durable artifacts, and artifact validation.
 - Postproduction asset plan wired into assemble-stage evidence, review packet planning evidence, durable artifacts, artifact validation, and cross-artifact consistency checks.
+- Generated-audio intents for narration, BGM, ambience, and SFX wired into request admission, postproduction asset plan, assemble-stage evidence, review packet planning evidence, durable artifacts, artifact validation, and cross-artifact consistency checks as planned-only evidence.
 - Operator-owned local material catalog fulfillment through safe `asset://` or credential-free HTTPS candidates, with `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` config and preflight validation.
 - Opt-in remote stock material fulfillment through Pexels, Pixabay, and commercially approved Coverr providers, with key-gated runtime config, credential-free candidate URIs, attribution metadata, and centralized material validation.
 
@@ -211,7 +214,8 @@ Milestone check:
 - Source-material candidates are either planned-only or validated against known briefs, approved sources, safe URIs, rights/attribution, duration, aspect ratio, and resolution before release evidence.
 - Caption cues and audio tracks produce deterministic postproduction planning evidence before final assembly; inconsistent caption/audio inputs become review-required issues instead of silent ignores.
 - `postproduction-assets.json`, `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence agree on postproduction status and counts.
-- Provider-backed TTS and BGM generation are not claimed until separate Reference Implementations and provider modules exist.
+- Provider-backed TTS, BGM, ambience, and SFX execution are not claimed until separate provider modules exist; generated-audio intents are currently bounded, planned-only, and review-required.
+- Generated-audio intent counts in `postproduction-assets.json`, `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence agree.
 - Local material catalog entries never expose filesystem paths in API/artifact candidate URIs.
 - Remote stock candidates never expose API keys, signed URLs, or credential-like query parameters in candidate, source-page, or preview URIs.
 - Running async jobs expose current stage, current stage status, progress event count, and retained detail events without local paths, inline media, secrets, or raw provider payloads.
@@ -219,7 +223,7 @@ Milestone check:
 
 ## Phase 6: Real Provider Validation
 
-Status as of 2026-06-13T17:24:32Z (2026-06-14 Asia/Saigon): `npm.cmd run typecheck` and `npm.cmd run build` passed. `npm.cmd run preflight` built successfully but returned `fail`; `npm.cmd run validation:readiness` returned decision `blocked` with 52 checks: 44 pass, 1 warn, and 7 fail. An earlier local API process on a temporary port also returned `503` from `GET /v1/validation-readiness` with decision `blocked`, 7 fail checks, and 1 warning. The current hard blockers are missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`; media tools may now be satisfied through `PATH` or `CINEJELLY_FFMPEG_PATH` / `CINEJELLY_FFPROBE_PATH`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. A Phase 6 Validation Readiness Report foundation is implemented for CLI and HTTP diagnostics so operators can capture redacted blockers, warnings, and next actions before paid provider work. Paid Atlas render validation has not been run.
+Status as of 2026-06-13T17:45:21Z (2026-06-14 Asia/Saigon): `npm.cmd run typecheck` and `npm.cmd run build` passed. `npm.cmd run preflight` built successfully but returned `fail`; `npm.cmd run validation:readiness` returned decision `blocked` with 53 checks: 45 pass, 1 warn, and 7 fail. An earlier local API process on a temporary port also returned `503` from `GET /v1/validation-readiness` with decision `blocked`, 7 fail checks, and 1 warning. The current hard blockers are missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`; media tools may now be satisfied through `PATH` or `CINEJELLY_FFMPEG_PATH` / `CINEJELLY_FFPROBE_PATH`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. A Phase 6 Validation Readiness Report foundation is implemented for CLI and HTTP diagnostics so operators can capture redacted blockers, warnings, and next actions before paid provider work. Paid Atlas render validation has not been run.
 
 Operator validation procedure: `docs/OPERATOR_RUNBOOK.md`.
 

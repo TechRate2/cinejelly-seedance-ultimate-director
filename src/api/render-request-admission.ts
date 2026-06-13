@@ -8,6 +8,7 @@ import { SOURCE_VIDEO_ANALYSIS_LIMITS } from "../types/source-video.js";
 
 const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
 const AUDIO_TRACK_ROLES = ["music", "narration", "ambience", "sfx"] as const;
+const GENERATED_AUDIO_INTENT_KINDS = ["tts_narration", "bgm", "ambience", "sfx"] as const;
 const AUDIO_MIX_MODES = ["mix", "replace"] as const;
 const TRANSITION_KINDS = ["fade", "wipeleft", "wiperight", "slideleft", "slideright"] as const;
 const TRANSITION_TARGET_HEIGHTS = [480, 720, 1080] as const;
@@ -18,12 +19,16 @@ const MAX_SEMANTIC_EXPECTATIONS = 32;
 const MAX_SEMANTIC_FRAMES = 60;
 const MAX_REFERENCE_SELECTION_TEXT = 160;
 const MAX_REFERENCE_TIMELINE_INDEX = 100_000;
+const MAX_GENERATED_AUDIO_PROMPT_LENGTH = 1_000;
+const MAX_GENERATED_AUDIO_METADATA_LENGTH = 160;
+const MAX_GENERATED_AUDIO_TIMING_SECONDS = 600;
 
 export interface RenderRequestAdmissionSettings {
   readonly maxUserInputCharacters?: number;
   readonly maxReferences?: number;
   readonly maxCaptionCues?: number;
   readonly maxAudioTracks?: number;
+  readonly maxGeneratedAudioIntents?: number;
   readonly maxMetadataEntries?: number;
   readonly maxSourceVideoScenes?: number;
   readonly maxSourceVideoTranscriptCues?: number;
@@ -45,6 +50,7 @@ export class RenderRequestAdmission {
   private readonly maxReferences: number;
   private readonly maxCaptionCues: number;
   private readonly maxAudioTracks: number;
+  private readonly maxGeneratedAudioIntents: number;
   private readonly maxMetadataEntries: number;
   private readonly maxSourceVideoScenes: number;
   private readonly maxSourceVideoTranscriptCues: number;
@@ -56,6 +62,7 @@ export class RenderRequestAdmission {
     this.maxReferences = positiveOrDefault(settings.maxReferences, 24);
     this.maxCaptionCues = positiveOrDefault(settings.maxCaptionCues, 600);
     this.maxAudioTracks = positiveOrDefault(settings.maxAudioTracks, 16);
+    this.maxGeneratedAudioIntents = positiveOrDefault(settings.maxGeneratedAudioIntents, 32);
     this.maxMetadataEntries = positiveOrDefault(settings.maxMetadataEntries, 50);
     this.maxSourceVideoScenes = positiveOrDefault(settings.maxSourceVideoScenes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxScenes);
     this.maxSourceVideoTranscriptCues = positiveOrDefault(
@@ -81,6 +88,7 @@ export class RenderRequestAdmission {
     this.assertCaptionOptions(payload.captionOptions);
     this.assertAudioTracks(payload.audioTracks);
     this.assertAudioMixOptions(payload.audioMixOptions);
+    this.assertGeneratedAudioIntents(payload.generatedAudioIntents);
     this.assertFrameSamplingOptions(payload.frameSamplingOptions);
     this.assertTransitionSettings(payload.transitionSettings);
     this.assertSemanticVisualInspectionOptions(payload.semanticVisualInspectionOptions);
@@ -261,6 +269,90 @@ export class RenderRequestAdmission {
     this.assertOption(options.mode, "audioMixOptions.mode", AUDIO_MIX_MODES);
     this.assertBoundedNumber(options.originalVolume, "audioMixOptions.originalVolume", 0, 2);
     this.assertAudioBitrate(options.outputBitrate, "audioMixOptions.outputBitrate");
+  }
+
+  private assertGeneratedAudioIntents(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    if (!Array.isArray(value)) {
+      throw new RenderRequestAdmissionError("generatedAudioIntents must be an array.");
+    }
+    if (value.length > this.maxGeneratedAudioIntents) {
+      throw new RenderRequestAdmissionError(`generatedAudioIntents cannot contain more than ${this.maxGeneratedAudioIntents} items.`);
+    }
+    for (const [index, item] of value.entries()) {
+      const intent = this.objectPayload(item, `generatedAudioIntents[${index}] must be an object.`);
+      this.assertBoundedString(intent.intentId, `generatedAudioIntents[${index}].intentId`, 160, true);
+      this.assertOption(intent.kind, `generatedAudioIntents[${index}].kind`, GENERATED_AUDIO_INTENT_KINDS);
+      this.assertBoundedString(
+        intent.prompt,
+        `generatedAudioIntents[${index}].prompt`,
+        MAX_GENERATED_AUDIO_PROMPT_LENGTH,
+        true
+      );
+      this.assertGeneratedAudioTiming(intent, index);
+      this.assertBoundedString(
+        intent.language,
+        `generatedAudioIntents[${index}].language`,
+        MAX_GENERATED_AUDIO_METADATA_LENGTH,
+        false
+      );
+      this.assertBoundedString(
+        intent.voiceStyle,
+        `generatedAudioIntents[${index}].voiceStyle`,
+        MAX_GENERATED_AUDIO_METADATA_LENGTH,
+        false
+      );
+      this.assertBoundedString(
+        intent.mood,
+        `generatedAudioIntents[${index}].mood`,
+        MAX_GENERATED_AUDIO_METADATA_LENGTH,
+        false
+      );
+      this.assertBoundedString(
+        intent.providerPreference,
+        `generatedAudioIntents[${index}].providerPreference`,
+        MAX_GENERATED_AUDIO_METADATA_LENGTH,
+        false
+      );
+      this.assertOptionalBoundedNumber(intent.volume, `generatedAudioIntents[${index}].volume`, 0, 2);
+    }
+  }
+
+  private assertGeneratedAudioTiming(intent: Record<string, unknown>, index: number): void {
+    this.assertOptionalBoundedNumber(
+      intent.durationSeconds,
+      `generatedAudioIntents[${index}].durationSeconds`,
+      0.1,
+      MAX_GENERATED_AUDIO_TIMING_SECONDS
+    );
+    this.assertOptionalBoundedNumber(
+      intent.startSecond,
+      `generatedAudioIntents[${index}].startSecond`,
+      0,
+      MAX_GENERATED_AUDIO_TIMING_SECONDS
+    );
+    this.assertOptionalBoundedNumber(
+      intent.endSecond,
+      `generatedAudioIntents[${index}].endSecond`,
+      0,
+      MAX_GENERATED_AUDIO_TIMING_SECONDS
+    );
+    const hasStart = intent.startSecond !== undefined;
+    const hasEnd = intent.endSecond !== undefined;
+    if (hasStart !== hasEnd) {
+      throw new RenderRequestAdmissionError(
+        `generatedAudioIntents[${index}] must include both startSecond and endSecond when timing is provided.`
+      );
+    }
+    if (
+      typeof intent.startSecond === "number" &&
+      typeof intent.endSecond === "number" &&
+      intent.endSecond <= intent.startSecond
+    ) {
+      throw new RenderRequestAdmissionError(`generatedAudioIntents[${index}].endSecond must be greater than startSecond.`);
+    }
   }
 
   private assertFrameSamplingOptions(value: unknown): void {
@@ -573,6 +665,13 @@ export class RenderRequestAdmission {
     if (typeof value !== "number" || !Number.isFinite(value) || value < minimum || value > maximum) {
       throw new RenderRequestAdmissionError(`${fieldName} must be between ${minimum} and ${maximum}.`);
     }
+  }
+
+  private assertOptionalBoundedNumber(value: unknown, fieldName: string, minimum: number, maximum: number): void {
+    if (value === undefined) {
+      return;
+    }
+    this.assertBoundedNumber(value, fieldName, minimum, maximum);
   }
 
   private assertPositiveInteger(value: unknown, fieldName: string, maximum: number): void {

@@ -51,6 +51,8 @@ const POSTPRODUCTION_ASSET_STATUSES = new Set(["disabled", "planned", "review_re
 const POSTPRODUCTION_CAPTION_DELIVERY_MODES = new Set(["disabled", "sidecar", "burn_in"]);
 const POSTPRODUCTION_ASSET_SEVERITIES = new Set(["info", "warn", "block"]);
 const POSTPRODUCTION_AUDIO_ROLES = new Set(["music", "narration", "ambience", "sfx"]);
+const POSTPRODUCTION_GENERATED_AUDIO_STATUSES = new Set(["not_requested", "planned_only"]);
+const POSTPRODUCTION_GENERATED_AUDIO_KINDS = new Set(["tts_narration", "bgm", "ambience", "sfx"]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DATA_URI_PATTERN = /"[^"]*data:[^"]*"/i;
 const CREDENTIAL_QUERY_URI_PATTERN =
@@ -567,6 +569,64 @@ export class ProjectArtifactValidator {
         }
       }
     }
+    if (!this.isRecord(value.generatedAudio)) {
+      checks.push({ name: "postproduction_generated_audio_plan", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio plan is missing." });
+    } else {
+      if (typeof value.generatedAudio.status !== "string" || !POSTPRODUCTION_GENERATED_AUDIO_STATUSES.has(value.generatedAudio.status)) {
+        checks.push({ name: "postproduction_generated_audio_status", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio status is invalid." });
+      }
+      if (
+        typeof value.generatedAudio.intentCount !== "number" ||
+        !Number.isInteger(value.generatedAudio.intentCount) ||
+        value.generatedAudio.intentCount < 0
+      ) {
+        checks.push({ name: "postproduction_generated_audio_count", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio intentCount is invalid." });
+      }
+      if (
+        typeof value.generatedAudio.requestedDurationSeconds !== "number" ||
+        !Number.isFinite(value.generatedAudio.requestedDurationSeconds) ||
+        value.generatedAudio.requestedDurationSeconds < 0
+      ) {
+        checks.push({ name: "postproduction_generated_audio_duration", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio requestedDurationSeconds is invalid." });
+      }
+      if (typeof value.generatedAudio.providerConfigured !== "boolean") {
+        checks.push({ name: "postproduction_generated_audio_provider", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio providerConfigured must be boolean." });
+      }
+      if (!Array.isArray(value.generatedAudio.kindCounts)) {
+        checks.push({ name: "postproduction_generated_audio_kinds", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio kindCounts must be an array." });
+      } else {
+        for (const [index, kindCount] of value.generatedAudio.kindCounts.entries()) {
+          if (
+            !this.isRecord(kindCount) ||
+            typeof kindCount.kind !== "string" ||
+            !POSTPRODUCTION_GENERATED_AUDIO_KINDS.has(kindCount.kind) ||
+            typeof kindCount.count !== "number" ||
+            !Number.isInteger(kindCount.count) ||
+            kindCount.count < 0
+          ) {
+            checks.push({ name: "postproduction_generated_audio_kinds", status: "fail", fileName: artifact.entry.fileName, message: `Postproduction generatedAudio kind count ${index} is invalid.` });
+          }
+        }
+        const kindCountTotal = value.generatedAudio.kindCounts.reduce((sum: number, kindCount: unknown) => {
+          if (!this.isRecord(kindCount) || typeof kindCount.count !== "number" || !Number.isInteger(kindCount.count)) {
+            return sum;
+          }
+          return sum + kindCount.count;
+        }, 0);
+        if (typeof value.generatedAudio.intentCount === "number" && kindCountTotal !== value.generatedAudio.intentCount) {
+          checks.push({ name: "postproduction_generated_audio_kinds", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio kindCounts must sum to intentCount." });
+        }
+      }
+      const generatedAudioStatus = typeof value.generatedAudio.status === "string" ? value.generatedAudio.status : undefined;
+      const generatedAudioIntentCount =
+        typeof value.generatedAudio.intentCount === "number" ? value.generatedAudio.intentCount : undefined;
+      if (generatedAudioStatus === "not_requested" && generatedAudioIntentCount !== 0) {
+        checks.push({ name: "postproduction_generated_audio_status", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio not_requested status requires zero intents." });
+      }
+      if (generatedAudioStatus === "planned_only" && (generatedAudioIntentCount === undefined || generatedAudioIntentCount <= 0)) {
+        checks.push({ name: "postproduction_generated_audio_status", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio planned_only status requires at least one intent." });
+      }
+    }
     if (typeof value.issueCount !== "number" || !Number.isInteger(value.issueCount) || value.issueCount < 0) {
       checks.push({ name: "postproduction_issue_count", status: "fail", fileName: artifact.entry.fileName, message: "postproduction issueCount is invalid." });
     }
@@ -605,12 +665,15 @@ export class ProjectArtifactValidator {
     const plan = artifact.value;
     const caption = this.isRecord(plan.caption) ? plan.caption : undefined;
     const audio = this.isRecord(plan.audio) ? plan.audio : undefined;
+    const generatedAudio = this.isRecord(plan.generatedAudio) ? plan.generatedAudio : undefined;
     const expected = {
       status: typeof plan.status === "string" ? plan.status : undefined,
       captionCueCount: typeof caption?.cueCount === "number" ? caption.cueCount : undefined,
       captionBurnIn: typeof caption?.burnIn === "boolean" ? caption.burnIn : undefined,
       audioTrackCount: typeof audio?.trackCount === "number" ? audio.trackCount : undefined,
       audioMixEnabled: typeof audio?.enabled === "boolean" ? audio.enabled : undefined,
+      generatedAudioStatus: typeof generatedAudio?.status === "string" ? generatedAudio.status : undefined,
+      generatedAudioIntentCount: typeof generatedAudio?.intentCount === "number" ? generatedAudio.intentCount : undefined,
       issueCount: typeof plan.issueCount === "number" ? plan.issueCount : undefined
     };
 
@@ -635,6 +698,20 @@ export class ProjectArtifactValidator {
         "audioTrackCount",
         runSummary.value.audioTrackCount,
         expected.audioTrackCount,
+        checks
+      );
+      this.compareArtifactField(
+        runSummary.entry.fileName,
+        "generatedAudioStatus",
+        runSummary.value.generatedAudioStatus,
+        expected.generatedAudioStatus,
+        checks
+      );
+      this.compareArtifactField(
+        runSummary.entry.fileName,
+        "generatedAudioIntentCount",
+        runSummary.value.generatedAudioIntentCount,
+        expected.generatedAudioIntentCount,
         checks
       );
       this.compareArtifactField(
@@ -677,6 +754,20 @@ export class ProjectArtifactValidator {
         "planning.audioTrackCount",
         reviewPlanning.audioTrackCount,
         expected.audioTrackCount,
+        checks
+      );
+      this.compareArtifactField(
+        reviewPacket.entry.fileName,
+        "planning.generatedAudioStatus",
+        reviewPlanning.generatedAudioStatus,
+        expected.generatedAudioStatus,
+        checks
+      );
+      this.compareArtifactField(
+        reviewPacket.entry.fileName,
+        "planning.generatedAudioIntentCount",
+        reviewPlanning.generatedAudioIntentCount,
+        expected.generatedAudioIntentCount,
         checks
       );
       this.compareArtifactField(
@@ -731,6 +822,20 @@ export class ProjectArtifactValidator {
         "assemble.evidence.audioMixEnabled",
         assembleEvidence.audioMixEnabled,
         expected.audioMixEnabled,
+        checks
+      );
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.generatedAudioStatus",
+        assembleEvidence.generatedAudioStatus,
+        expected.generatedAudioStatus,
+        checks
+      );
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.generatedAudioIntentCount",
+        assembleEvidence.generatedAudioIntentCount,
+        expected.generatedAudioIntentCount,
         checks
       );
       this.compareArtifactField(

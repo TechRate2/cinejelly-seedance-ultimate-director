@@ -12,7 +12,7 @@ import type { AssembledDeliverable } from "./assembly.js";
 import type { ProductionGraphSnapshot } from "./graph.js";
 import type { Storyboard } from "./storyboard.js";
 import type { CaptionCue, CaptionOptions } from "./caption.js";
-import type { AudioMixOptions, AudioMixTrack } from "./audio.js";
+import type { AudioMixOptions, AudioMixTrack, GeneratedAudioIntent } from "./audio.js";
 import type { FrameSamplingOptions } from "./media.js";
 import type { TransitionSettings } from "./transition.js";
 import type { SemanticVisualInspectionOptions, SemanticVisualInspectionReport } from "./visual-inspection.js";
@@ -35,6 +35,7 @@ export interface CineJellyProjectRequest {
   readonly captionOptions?: CaptionOptions;
   readonly audioTracks?: readonly AudioMixTrack[];
   readonly audioMixOptions?: AudioMixOptions;
+  readonly generatedAudioIntents?: readonly GeneratedAudioIntent[];
   readonly frameSamplingOptions?: FrameSamplingOptions;
   readonly transitionSettings?: TransitionSettings;
   readonly semanticVisualInspectionOptions?: SemanticVisualInspectionOptions;

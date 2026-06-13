@@ -43,7 +43,7 @@ Snapshot-derived integration targets:
 - From DirectorBench: long-form quality must be diagnosed across script, visual, audio, cross-modal, and stability dimensions using checkpoint-level reports rather than one aggregate score.
 - From HKUDS/VideoAgent: video understanding, editing, and remaking require intent analysis that captures explicit and implicit sub-intents, graph-powered workflow planning, and multimodal retrieval over video content.
 - From OpenMontage: production systems should support reference-video analysis, transcript/pacing/keyframe/style extraction, approval gates, cost estimates, provider scoring, real-footage paths when appropriate, and self-review through ffprobe, frame sampling, audio analysis, subtitles, and delivery checks.
-- From MoneyPrinterTurbo: one-input video systems benefit from a complete staged pipeline, explicit task progress, optional stop-at stages, batch output generation, local-or-remote material sourcing, aspect-aware material selection, subtitle/TTS/BGM automation, and multiple operator surfaces such as API, CLI, WebUI, Docker, and one-click launchers.
+- From MoneyPrinterTurbo: one-input video systems benefit from a complete staged pipeline, explicit task progress, optional stop-at stages, batch output generation, local-or-remote material sourcing, aspect-aware material selection, subtitle/TTS/BGM stage planning, generated-audio intent capture, and multiple operator surfaces such as API, CLI, WebUI, Docker, and one-click launchers.
 - From Atlas Cloud: Atlas Cloud is the default API gateway for LLM and media models. Its LLM endpoint is OpenAI-compatible at `https://api.atlascloud.ai/v1`; media generations are asynchronous; Seedance 2.0 supports text, image, video, and audio inputs through a Universal Reference style workflow; Atlas exposes Seedance 2.0 and Seedance 2.0 Fast options; Atlas documents 480p, 720p, and 1080p options for Seedance image-to-video examples and a 4 to 15 second clip duration range.
 
 Extension based on these sources:
@@ -85,7 +85,7 @@ CineJelly Seedance Ultimate Director converts one user input into a complete hig
 4. Agents compile shot contracts and Seedance prompts.
 5. Atlas Cloud renders Seedance 2.0 clips with user-selected settings.
 6. Consistency Guardian inspects generated clips and repairs only affected graph nodes.
-7. Postproduction assembles, smooths, captions/localizes when requested, polishes, and exports a final deliverable.
+7. Postproduction assembles, smooths, captions/localizes when requested, records supplied-audio and generated-audio planning evidence, polishes, and exports a final deliverable.
 
 The product must support every niche without hardcoded templates. It should use reusable production primitives instead of niche-specific scripts.
 
@@ -245,7 +245,8 @@ Responsibilities:
 
 - Assemble clips into a complete timeline.
 - Materialize provider output URLs with bounded streaming downloads before FFmpeg processing.
-- Apply transitions, handles, audio alignment, captions, color/polish, upscaling when selected, and delivery validation.
+- Apply transitions, handles, supplied-audio alignment, captions, color/polish, upscaling when selected, and delivery validation.
+- Record generated-audio intents for narration, BGM, ambience, or SFX as planned-only review evidence until a provider-backed audio generation module exists.
 - Produce final video plus a review packet summarizing planning, render, cost, QC, delivery evidence, and final file integrity.
 
 Source basis:

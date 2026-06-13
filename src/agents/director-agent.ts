@@ -280,7 +280,8 @@ export class DirectorAgent {
       ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
       ...(preparedRequest.captionOptions ? { captionOptions: preparedRequest.captionOptions } : {}),
       ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
-      ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {})
+      ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {}),
+      ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {})
     });
     const productionGraph = this.productionGraphBuilder.build({
       intake,

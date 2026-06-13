@@ -114,6 +114,8 @@ export class ProjectArtifactStore {
       postproductionAssetStatus: result.postproductionAssetPlan.status,
       captionCueCount: result.postproductionAssetPlan.caption.cueCount,
       audioTrackCount: result.postproductionAssetPlan.audio.trackCount,
+      generatedAudioStatus: result.postproductionAssetPlan.generatedAudio.status,
+      generatedAudioIntentCount: result.postproductionAssetPlan.generatedAudio.intentCount,
       postproductionAssetIssueCount: result.postproductionAssetPlan.issueCount,
       compiledPromptCount: result.compiledPrompts.length,
       renderedShotCount: result.renderedShots.length,

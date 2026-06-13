@@ -59,6 +59,7 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_MAX_REFERENCES", this.env.CINEJELLY_MAX_REFERENCES),
       this.optionalPositiveInteger("CINEJELLY_MAX_CAPTION_CUES", this.env.CINEJELLY_MAX_CAPTION_CUES),
       this.optionalPositiveInteger("CINEJELLY_MAX_AUDIO_TRACKS", this.env.CINEJELLY_MAX_AUDIO_TRACKS),
+      this.optionalPositiveInteger("CINEJELLY_MAX_GENERATED_AUDIO_INTENTS", this.env.CINEJELLY_MAX_GENERATED_AUDIO_INTENTS),
       this.optionalPositiveInteger("CINEJELLY_MAX_METADATA_ENTRIES", this.env.CINEJELLY_MAX_METADATA_ENTRIES),
       this.optionalPositiveInteger("CINEJELLY_MAX_SOURCE_VIDEO_SCENES", this.env.CINEJELLY_MAX_SOURCE_VIDEO_SCENES),
       this.optionalPositiveInteger("CINEJELLY_MAX_SOURCE_VIDEO_TRANSCRIPT_CUES", this.env.CINEJELLY_MAX_SOURCE_VIDEO_TRANSCRIPT_CUES),

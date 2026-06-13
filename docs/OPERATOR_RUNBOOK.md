@@ -4,7 +4,7 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 ## Current Readiness
 
-As of 2026-06-13T17:24:32Z (2026-06-14 Asia/Saigon), the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` plus `GET /v1/validation-readiness` can produce a redacted Phase 6 readiness report. The latest recorded local CLI validation had 52 readiness checks: 44 pass, 1 warn, and 7 fail; an earlier HTTP readiness route returned `503` with the same blocked decision. It remained blocked because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured through `PATH` or explicit media tool paths.
+As of 2026-06-13T17:45:21Z (2026-06-14 Asia/Saigon), the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` plus `GET /v1/validation-readiness` can produce a redacted Phase 6 readiness report. The latest recorded local CLI validation had 53 readiness checks: 45 pass, 1 warn, and 7 fail; an earlier HTTP readiness route returned `503` with the same blocked decision. It remained blocked because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured through `PATH` or explicit media tool paths.
 
 Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected.
 
@@ -35,6 +35,7 @@ Recommended production controls:
 - `CINEJELLY_ASSET_REGISTRATION_COST_USD`
 - `CINEJELLY_LLM_PLAN_COST_USD`
 - `CINEJELLY_COST_BUFFER_MULTIPLIER`
+- `CINEJELLY_MAX_GENERATED_AUDIO_INTENTS`
 - `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`
 
 Install and verify media tools:
@@ -51,6 +52,8 @@ If the deployment uses portable media-tool binaries instead of global `PATH`, se
 `CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS=true` is optional and enables remote stock material adapters. At least one approved provider key must be configured. Pexels uses `PEXELS_API_KEY`, Pixabay uses `PIXABAY_API_KEY`, and Coverr uses `COVERR_API_KEY` only when `CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED=true` confirms the deployment has accepted the required commercial terms. Provider keys must never appear in request payloads, artifacts, or logs.
 
 `CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS=true` is optional and enables automatic source-video deconstruction for clean HTTPS `source_video_structure` references when the request does not already include `sourceVideoAnalysis`. Configure `CINEJELLY_SOURCE_VIDEO_ANALYSIS_WORK_DIR`, `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS`, `CINEJELLY_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES`, and `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR` as needed. Keep the default fail-open behavior for early validation; set fail-on-error only when the configured multimodal LLM and FFmpeg frame extraction are validated for production inputs.
+
+`CINEJELLY_MAX_GENERATED_AUDIO_INTENTS` controls how many generated-audio planning requests the API accepts per render request. These intents are recorded as planned-only evidence for narration, BGM, ambience, or SFX; they do not call an audio generation provider until a separate provider-backed module exists and passes its own Reference Implementation and validation.
 
 ## Preflight Gate
 
@@ -217,8 +220,8 @@ Required evidence:
 - Async job `stageProgressEvents` use the same stage vocabulary and include bounded evidence without local paths, inline media, secrets, stack traces, or raw provider payloads.
 - `material-sourcing-plan.json` contains rights requirement and preferred sources for every material brief.
 - `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
-- `postproduction-assets.json` records caption delivery mode, caption cue counts, audio role counts, postproduction status, issue count, and repair text without claiming provider-backed TTS/BGM generation unless a separate module produced that evidence.
-- Validator output has no `postproduction_asset_consistency` failures; postproduction status and counts agree across `postproduction-assets.json`, `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence.
+- `postproduction-assets.json` records caption delivery mode, caption cue counts, audio role counts, generated-audio planned-only status/counts, postproduction status, issue count, and repair text without claiming provider-backed TTS/BGM/ambience/SFX generation unless a separate module produced that evidence.
+- Validator output has no `postproduction_asset_consistency` failures; postproduction status, caption/audio counts, generated-audio status/counts, and issue counts agree across `postproduction-assets.json`, `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence.
 - If a local material catalog is configured, selected candidates in `material-source-validation.json` use safe `asset://` or credential-free HTTPS URIs and preserve rights/attribution metadata.
 - If remote stock is enabled, selected candidates in `material-source-validation.json` use credential-free HTTPS media URIs, preserve provider asset IDs/source page/preview metadata when safe, and include attribution/license labels.
 - If source-video auto-analysis is enabled and the request has a clean HTTPS `source_video_structure` reference without caller-supplied analysis, `source-video-analysis.json` should contain normalized scene/keyframe/pacing/style/safety structure without local frame paths, inline `data:` URLs, or signed source URLs.

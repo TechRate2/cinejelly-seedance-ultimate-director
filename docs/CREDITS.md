@@ -79,6 +79,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds API-visible artifact validation evidence for synchronous render responses and retained async job artifacts without exposing server-local artifact paths.
   - Adds redacted CLI and HTTP Phase 6 validation readiness reporting before paid provider work.
   - Extends preflight discipline into configurable FFmpeg/FFprobe command resolution so portable deployment binaries can be validated before paid work.
+  - Extends deterministic incomplete-stage evidence to generated-audio intent planning so requested narration, BGM, ambience, or SFX are visible as planned-only review evidence until provider-backed audio generation exists.
 
 ### DirectorBench
 
@@ -127,6 +128,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 - CineJelly extension:
   - Adapts approval, costing, reference analysis, and QA ideas into CineJelly-owned production modules while preserving the OpenMontage attribution trail.
   - Uses source-media review, media self-review, and approval-gate ideas as AGPL-aware behavior notes for source-video auto-analysis guardrails and media-tool readiness; OpenMontage implementation code is not copied, linked, or executed.
+  - Uses approval/self-review concepts as AGPL-aware behavior notes for generated-audio planning boundaries; no OpenMontage implementation code is copied, linked, imported, or executed for this feature.
 
 ### MoneyPrinterTurbo
 
@@ -149,6 +151,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds pre-paid CLI and HTTP validation readiness reporting so blocked environment/tool state remains operator-visible before long-running Atlas work starts.
   - Adds configurable FFmpeg/FFprobe command resolution for preflight and runtime media engines so deployments can use portable binaries without global PATH changes.
   - Adds a deterministic postproduction asset plan for supplied captions and audio tracks so subtitle/audio/BGM decisions are visible in artifacts, review packets, and validation before assembly; provider-backed TTS/BGM generation remains a future CineJelly-owned module.
+  - Adds bounded generated-audio intent planning for narration, BGM, ambience, and SFX so MoneyPrinterTurbo-style voice/BGM stage inputs become CineJelly-owned planned-only evidence, admission controls, review-packet fields, stage lifecycle fields, and artifact-validation checks before any provider-backed generation module is built.
   - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 
 ## Atlas Cloud References

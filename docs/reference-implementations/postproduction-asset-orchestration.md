@@ -14,7 +14,7 @@ Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScrip
 1. Subtitle, narration, music, ambience, and SFX decisions should be explicit before final assembly.
 2. User-supplied caption cues and audio tracks should be classified into a deterministic postproduction plan.
 3. The plan should be reviewable in artifacts and review packets, even when no deliverable is assembled.
-4. The plan should not create new provider spend. TTS/BGM generation remains a future provider-backed feature unless configured through explicit tracks.
+4. The plan should not create new provider spend. TTS/BGM execution remains a future provider-backed feature unless configured through explicit tracks; generated-audio intent planning is handled by `docs/reference-implementations/generated-audio-intent-planning.md`.
 5. Audio tracks must remain credential-safe and are still materialized by the existing audio mix engine.
 6. Caption burn-in vs sidecar behavior must be visible before FFmpeg execution.
 7. Missing or inconsistent inputs should produce review-required issues rather than silent behavior.
@@ -26,8 +26,9 @@ Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScrip
 - Audio tracks exist but mix options explicitly disable audio: mark review required because tracks will be ignored.
 - Audio mix options are enabled but no tracks exist: mark review required because no mix can run.
 - Audio tracks exist without options: mirror the assembly default and plan an enabled mix with mode `mix`, original audio detected at assembly, and bitrate `192k`.
-- Narration role is treated as a user/operator-supplied narration track. Do not claim generated TTS until a future provider-backed TTS module exists.
+- Narration role is treated as a user/operator-supplied narration track. Do not claim generated TTS until a provider-backed generated-audio module exists.
 - Music role is treated as supplied BGM. Do not search or generate BGM in this planner.
+- Generated-audio intents may be recorded as planned-only evidence by the separate Generated Audio Intent Planning translation, but they do not produce audio files or provider calls.
 
 ## Reference Implementation
 
@@ -102,7 +103,8 @@ function planPostproductionAssets(input: PostproductionAssetInput): Postproducti
 - Done: `postproduction-assets.json` is written as a durable artifact.
 - Done: postproduction asset status and counts are added to run summary, review packet planning, and assemble-stage evidence.
 - Done: artifact validator checks `postproduction-assets.json`.
-- Next validator hardening: cross-check `postproduction-assets.json` against `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence so Phase 6 artifact review can detect drift between duplicated planning summaries.
+- Done: cross-check `postproduction-assets.json` against `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence so Phase 6 artifact review can detect drift between duplicated planning summaries.
+- Done separately: generated-audio intents are represented as planned-only postproduction evidence through `docs/reference-implementations/generated-audio-intent-planning.md`.
 - Done: source lineage is recorded in `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` and `src/core/source-logic-translation-records.ts`.
 
 ## Validation Checklist

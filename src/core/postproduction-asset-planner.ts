@@ -4,14 +4,21 @@
  * rewritten as CineJelly-owned deterministic planning evidence.
  */
 
-import type { AudioMixOptions, AudioMixTrack, AudioTrackRole } from "../types/audio.js";
+import type {
+  AudioMixOptions,
+  AudioMixTrack,
+  AudioTrackRole,
+  GeneratedAudioIntent,
+  GeneratedAudioIntentKind
+} from "../types/audio.js";
 import type { CaptionCue, CaptionOptions } from "../types/caption.js";
 import type {
   PostproductionAssetIssue,
   PostproductionAssetIssueCode,
   PostproductionAssetIssueSeverity,
   PostproductionAssetPlan,
-  PostproductionAudioRoleCount
+  PostproductionAudioRoleCount,
+  PostproductionGeneratedAudioKindCount
 } from "../types/postproduction-assets.js";
 import { createStableId } from "../utils/ids.js";
 
@@ -30,6 +37,7 @@ export interface PostproductionAssetPlannerInput {
   readonly captionOptions?: CaptionOptions;
   readonly audioTracks?: readonly AudioMixTrack[];
   readonly audioMixOptions?: AudioMixOptions;
+  readonly generatedAudioIntents?: readonly GeneratedAudioIntent[];
 }
 
 export class PostproductionAssetPlanner {
@@ -37,6 +45,7 @@ export class PostproductionAssetPlanner {
     const captionCues = input.captionCues ?? [];
     const captionOptions = input.captionOptions ?? { enabled: false, burnIn: false };
     const audioTracks = input.audioTracks ?? [];
+    const generatedAudioIntents = input.generatedAudioIntents ?? [];
     const audioMixOptions = input.audioMixOptions ?? {
       ...DEFAULT_AUDIO_MIX_OPTIONS,
       enabled: audioTracks.length > 0
@@ -45,7 +54,8 @@ export class PostproductionAssetPlanner {
       captionCues,
       captionOptions,
       audioTracks,
-      audioMixOptions
+      audioMixOptions,
+      generatedAudioIntents
     });
     const captionEnabled = captionOptions.enabled && captionCues.length > 0;
     const audioEnabled = audioMixOptions.enabled && audioTracks.length > 0;
@@ -58,7 +68,12 @@ export class PostproductionAssetPlanner {
     return {
       planId: createStableId(
         "postproduction_assets",
-        `${input.projectId}:${captionCues.length}:${audioTracks.map((track) => `${track.trackId}:${track.role}`).join("|")}`
+        [
+          input.projectId,
+          captionCues.length,
+          audioTracks.map((track) => `${track.trackId}:${track.role}`).join("|"),
+          generatedAudioIntents.map((intent) => `${intent.intentId}:${intent.kind}`).join("|")
+        ].join(":")
       ),
       projectId: input.projectId,
       sourcePatternOrigins: SOURCE_PATTERN_ORIGINS,
@@ -79,6 +94,13 @@ export class PostproductionAssetPlanner {
         originalAudioPolicy: audioEnabled ? "detect_at_assembly" : "not_used",
         outputBitrate: audioMixOptions.outputBitrate
       },
+      generatedAudio: {
+        status: generatedAudioIntents.length > 0 ? "planned_only" : "not_requested",
+        intentCount: generatedAudioIntents.length,
+        kindCounts: this.generatedAudioKindCounts(generatedAudioIntents),
+        requestedDurationSeconds: this.generatedAudioDurationSeconds(generatedAudioIntents),
+        providerConfigured: false
+      },
       issueCount: issues.length,
       issues
     };
@@ -89,6 +111,7 @@ export class PostproductionAssetPlanner {
     readonly captionOptions: CaptionOptions;
     readonly audioTracks: readonly AudioMixTrack[];
     readonly audioMixOptions: AudioMixOptions;
+    readonly generatedAudioIntents: readonly GeneratedAudioIntent[];
   }): readonly PostproductionAssetIssue[] {
     const issues: PostproductionAssetIssue[] = [];
     if (input.captionOptions.enabled && input.captionCues.length === 0) {
@@ -139,6 +162,14 @@ export class PostproductionAssetPlanner {
         "Use an explicit licensed music track now, or add provider-backed BGM sourcing through a separate Reference Implementation."
       ));
     }
+    if (input.generatedAudioIntents.length > 0) {
+      issues.push(this.issue(
+        "generated_audio_provider_not_configured",
+        "warn",
+        "Generated-audio intents were supplied, but provider-backed audio generation is not configured.",
+        "Provide explicit licensed audio tracks for this run, or implement a provider-backed generated-audio module before claiming generated narration, BGM, ambience, or SFX."
+      ));
+    }
     return issues;
   }
 
@@ -163,5 +194,32 @@ export class PostproductionAssetPlanner {
     return [...counts.entries()]
       .map(([role, count]) => ({ role, count }))
       .sort((left, right) => left.role.localeCompare(right.role));
+  }
+
+  private generatedAudioKindCounts(intents: readonly GeneratedAudioIntent[]): readonly PostproductionGeneratedAudioKindCount[] {
+    const counts = new Map<GeneratedAudioIntentKind, number>();
+    for (const intent of intents) {
+      counts.set(intent.kind, (counts.get(intent.kind) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([kind, count]) => ({ kind, count }))
+      .sort((left, right) => left.kind.localeCompare(right.kind));
+  }
+
+  private generatedAudioDurationSeconds(intents: readonly GeneratedAudioIntent[]): number {
+    return intents.reduce((sum, intent) => {
+      if (typeof intent.durationSeconds === "number" && Number.isFinite(intent.durationSeconds)) {
+        return sum + Math.max(0, intent.durationSeconds);
+      }
+      if (
+        typeof intent.startSecond === "number" &&
+        Number.isFinite(intent.startSecond) &&
+        typeof intent.endSecond === "number" &&
+        Number.isFinite(intent.endSecond)
+      ) {
+        return sum + Math.max(0, intent.endSecond - intent.startSecond);
+      }
+      return sum;
+    }, 0);
   }
 }

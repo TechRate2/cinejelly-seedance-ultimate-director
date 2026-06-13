@@ -5,11 +5,27 @@
 
 export type AudioTrackRole = "music" | "narration" | "ambience" | "sfx";
 
+export type GeneratedAudioIntentKind = "tts_narration" | "bgm" | "ambience" | "sfx";
+
 export interface AudioMixTrack {
   readonly trackId: string;
   readonly sourceUrlOrPath: string;
   readonly role: AudioTrackRole;
   readonly volume: number;
+}
+
+export interface GeneratedAudioIntent {
+  readonly intentId: string;
+  readonly kind: GeneratedAudioIntentKind;
+  readonly prompt: string;
+  readonly startSecond?: number;
+  readonly endSecond?: number;
+  readonly durationSeconds?: number;
+  readonly language?: string;
+  readonly voiceStyle?: string;
+  readonly mood?: string;
+  readonly volume?: number;
+  readonly providerPreference?: string;
 }
 
 export interface AudioMixOptions {

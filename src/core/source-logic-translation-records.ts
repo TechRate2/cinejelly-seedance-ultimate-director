@@ -1237,6 +1237,118 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Generated Audio Intent Planning",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/voice.py",
+      "external/upstream/moneyprinterturbo/app/services/subtitle.py",
+      "external/upstream/moneyprinterturbo/app/services/video.py",
+      "external/upstream/moneyprinterturbo/app/services/task.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "voice/TTS, BGM, ambience, and SFX requests are explicit postproduction stage inputs",
+      "missing provider-backed generation remains operator-visible instead of silently skipped",
+      "generated audio work is represented before final composition or assembly",
+      "stage and artifact evidence preserve generated-audio counts for later provider integration"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo runtime voice/music code is not copied or executed",
+      "CineJelly records generated-audio intents as planned-only evidence until a provider-backed audio module exists",
+      "API admission bounds intent prompts, timing, volume, and provider preference before runtime/provider spend",
+      "review packet and artifact validation cross-check generated-audio counts without generating audio files"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-intent-planning.md",
+    cineJellyDestinationPaths: [
+      "src/types/audio.ts",
+      "src/types/postproduction-assets.ts",
+      "src/types/agent.ts",
+      "src/api/render-request-admission.ts",
+      "src/api/server.ts",
+      "src/application/runtime-preflight.ts",
+      "src/core/postproduction-asset-planner.ts",
+      "src/core/production-stage-planner.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
+      "src/core/review-packet-builder.ts",
+      "src/types/review.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "provider-backed TTS/BGM generation still requires separate provider contracts and live validation",
+      "operator-supplied generated-audio prompts may need additional brand/safety review before provider execution"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Intent Planning",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "incomplete generation stages remain deterministic review evidence",
+      "planning artifacts and review reports expose operator next actions",
+      "artifact validation checks duplicated planning summaries for drift"
+    ],
+    behaviorChanged: [
+      "VibeFrame report discipline is rewritten into CineJelly postproduction generated-audio contracts",
+      "CineJelly treats generated-audio requests as review-required planned evidence until audio generation is configured",
+      "HTTP request admission rejects malformed generated-audio inputs before runtime initialization"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-intent-planning.md",
+    cineJellyDestinationPaths: [
+      "src/types/audio.ts",
+      "src/types/postproduction-assets.ts",
+      "src/api/render-request-admission.ts",
+      "src/core/postproduction-asset-planner.ts",
+      "src/core/project-artifact-validator.ts",
+      "src/core/review-packet-builder.ts",
+      "docs/IMPLEMENTATION_ROADMAP.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "artifact evidence must be checked after a paid render to confirm generated-audio planning remains aligned with final media",
+      "future provider-backed audio generation should preserve these review and validation fields"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Intent Planning",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/README.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "audio generation plans should remain reviewable before approval",
+      "media self-review concepts inform generated-audio readiness boundaries"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, or executed",
+      "AGPL-sensitive concepts are limited to behavior notes for CineJelly-owned planning and validation",
+      "provider execution remains absent until CineJelly has its own provider-backed audio generation module"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-intent-planning.md",
+    cineJellyDestinationPaths: [
+      "src/types/audio.ts",
+      "src/types/postproduction-assets.ts",
+      "src/core/postproduction-asset-planner.ts",
+      "src/core/project-artifact-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "AGPL implementation reuse remains disallowed unless legal/product obligations are accepted",
+      "behavior-note parity must be validated through CineJelly artifacts rather than upstream runtime code"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Postproduction Asset Orchestration",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
     snapshotPath: "external/upstream/moneyprinterturbo",

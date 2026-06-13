@@ -97,6 +97,7 @@ For concrete examples, see the Practical Translation Examples in `docs/FAITHFUL_
 - Reference Binding + Prompt Ordering from Emily2040/seedance-2.0 plus YouMind-OpenLab/awesome-seedance-2-prompts.
 - Repair Strategy + Consistency Checkpoint from ViMax plus VibeFrame.
 - Postproduction Asset Orchestration from MoneyPrinterTurbo subtitles/audio/BGM stage planning plus VibeFrame review artifact discipline.
+- Generated Audio Intent Planning from MoneyPrinterTurbo voice/BGM stage inputs plus VibeFrame deterministic incomplete-stage evidence, with OpenMontage approval/self-review concepts kept as AGPL-aware behavior notes.
 - Focused Reference Implementations under `docs/reference-implementations/`, including Media Tool Binary Resolution, show how deployment-critical runtime behavior is translated without importing from upstream snapshots.
 
 For implementation order, milestones, and the shared validation checklist, use `docs/IMPLEMENTATION_ROADMAP.md`.

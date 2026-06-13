@@ -3,7 +3,7 @@
  * These records make subtitles, narration, BGM, ambience, and SFX decisions reviewable before assembly.
  */
 
-import type { AudioMixOptions, AudioTrackRole } from "./audio.js";
+import type { AudioMixOptions, AudioTrackRole, GeneratedAudioIntentKind } from "./audio.js";
 import type { CaptionOptions } from "./caption.js";
 
 export type PostproductionAssetStatus = "disabled" | "planned" | "review_required";
@@ -11,6 +11,8 @@ export type PostproductionAssetStatus = "disabled" | "planned" | "review_require
 export type PostproductionCaptionDeliveryMode = "disabled" | "sidecar" | "burn_in";
 
 export type PostproductionOriginalAudioPolicy = "detect_at_assembly" | "not_used";
+
+export type PostproductionGeneratedAudioStatus = "not_requested" | "planned_only";
 
 export type PostproductionAssetIssueSeverity = "info" | "warn" | "block";
 
@@ -20,7 +22,8 @@ export type PostproductionAssetIssueCode =
   | "audio_tracks_not_mixed"
   | "audio_mix_enabled_without_tracks"
   | "tts_generation_not_configured"
-  | "bgm_generation_not_configured";
+  | "bgm_generation_not_configured"
+  | "generated_audio_provider_not_configured";
 
 export interface PostproductionCaptionPlan {
   readonly enabled: boolean;
@@ -45,6 +48,19 @@ export interface PostproductionAudioPlan {
   readonly outputBitrate: string;
 }
 
+export interface PostproductionGeneratedAudioKindCount {
+  readonly kind: GeneratedAudioIntentKind;
+  readonly count: number;
+}
+
+export interface PostproductionGeneratedAudioPlan {
+  readonly status: PostproductionGeneratedAudioStatus;
+  readonly intentCount: number;
+  readonly kindCounts: readonly PostproductionGeneratedAudioKindCount[];
+  readonly requestedDurationSeconds: number;
+  readonly providerConfigured: boolean;
+}
+
 export interface PostproductionAssetIssue {
   readonly code: PostproductionAssetIssueCode;
   readonly severity: PostproductionAssetIssueSeverity;
@@ -59,6 +75,7 @@ export interface PostproductionAssetPlan {
   readonly status: PostproductionAssetStatus;
   readonly caption: PostproductionCaptionPlan;
   readonly audio: PostproductionAudioPlan;
+  readonly generatedAudio: PostproductionGeneratedAudioPlan;
   readonly issueCount: number;
   readonly issues: readonly PostproductionAssetIssue[];
 }

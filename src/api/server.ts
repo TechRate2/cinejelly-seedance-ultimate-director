@@ -83,6 +83,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
     maxReferences: readPositiveInteger(process.env.CINEJELLY_MAX_REFERENCES, 24),
     maxCaptionCues: readPositiveInteger(process.env.CINEJELLY_MAX_CAPTION_CUES, 600),
     maxAudioTracks: readPositiveInteger(process.env.CINEJELLY_MAX_AUDIO_TRACKS, 16),
+    maxGeneratedAudioIntents: readPositiveInteger(process.env.CINEJELLY_MAX_GENERATED_AUDIO_INTENTS, 32),
     maxMetadataEntries: readPositiveInteger(process.env.CINEJELLY_MAX_METADATA_ENTRIES, 50),
     maxSourceVideoScenes: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_SCENES, 160),
     maxSourceVideoTranscriptCues: readPositiveInteger(process.env.CINEJELLY_MAX_SOURCE_VIDEO_TRANSCRIPT_CUES, 1_500),
