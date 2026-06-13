@@ -6,7 +6,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 
 | Source | Snapshot path | License | Behavior used |
 | --- | --- | --- | --- |
-| `harry0703/MoneyPrinterTurbo` | `external/upstream/MoneyPrinterTurbo` | MIT | Material sourcing happens before final composition; task stages expose source/asset progress; terminal failures are operator-visible. |
+| `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo` | MIT | Material sourcing happens before final composition; task stages expose source/asset progress; terminal failures are operator-visible. |
 | `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Validate -> plan/cost -> build/render -> inspect/report ordering, deterministic artifact discipline, and reviewable reports. |
 | `calesthio/OpenMontage` | `external/upstream/openmontage` | AGPL-3.0 | Approval-gate and real-footage validation concepts are used as behavior notes only; no implementation code is reused. |
 

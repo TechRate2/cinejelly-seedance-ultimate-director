@@ -15,6 +15,7 @@ import { RemoteStockMaterialAdapter } from "../core/remote-stock-material-adapte
 import { RenderCostGate } from "../core/render-cost-gate.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
+import type { ProductionStageProgressReporter } from "../types/stage.js";
 import { RuntimePreflight } from "./runtime-preflight.js";
 
 export interface DirectorRuntime {
@@ -23,7 +24,14 @@ export interface DirectorRuntime {
   readonly preflight: RuntimePreflight;
 }
 
-export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): DirectorRuntime {
+export interface DirectorRuntimeOptions {
+  readonly stageProgressReporter?: ProductionStageProgressReporter;
+}
+
+export function createDirectorRuntime(
+  env: NodeJS.ProcessEnv = process.env,
+  options: DirectorRuntimeOptions = {}
+): DirectorRuntime {
   const settings = loadRuntimeSettings(env);
   const ledger = new ProviderCostLedger();
   const atlasProvider = new AtlasCloudProvider(settings.atlasCloud, ledger);
@@ -74,6 +82,7 @@ export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): Dir
       materialSourceAdapters,
       assemblyEngine,
       renderConcurrency: settings.renderConcurrency,
+      ...(options.stageProgressReporter ? { stageProgressReporter: options.stageProgressReporter } : {}),
       ...(sourceVideoAutoAnalyzer
         ? {
             sourceVideoAutoAnalyzer,

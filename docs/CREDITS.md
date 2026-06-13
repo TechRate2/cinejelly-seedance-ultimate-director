@@ -127,7 +127,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 ### MoneyPrinterTurbo
 
 - URL: https://github.com/harry0703/MoneyPrinterTurbo
-- Local snapshot: `external/upstream/MoneyPrinterTurbo`
+- Local snapshot: `external/upstream/moneyprinterturbo`
 - License shown in repo: MIT.
 - Used for: end-to-end one-input video pipeline, material sourcing, batch generation, subtitles, TTS, background music, API/CLI/WebUI surfaces, Docker deployment patterns, task queue/progress handling, and stage-specific execution.
 - Source-derived patterns adopted:
@@ -140,6 +140,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Use CLI/WebUI/Docker/operator surfaces to make the pipeline runnable by different user types.
 - CineJelly extension:
   - Reworks these short-video automation patterns into a commercial Seedance 2.0 director pipeline with Atlas Cloud as the default LLM/render provider, Production Graph lineage, long-form chunking, consistency repair, governed material/reference sourcing, an operator-owned local material catalog adapter, and review packets.
+  - Adds bounded async render-job stage progress telemetry so operators can see current stage and retained progress events before final artifacts exist.
   - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 
 ## Atlas Cloud References

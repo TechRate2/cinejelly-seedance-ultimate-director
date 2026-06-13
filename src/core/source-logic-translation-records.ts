@@ -344,11 +344,11 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
   {
     logicName: "Provider Polling, Retry, And Cost Fidelity",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
-    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
     upstreamPaths: [
-      "external/upstream/MoneyPrinterTurbo/app/services/task.py",
-      "external/upstream/MoneyPrinterTurbo/app/services/state.py",
-      "external/upstream/MoneyPrinterTurbo/app/models/schema.py"
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/services/state.py",
+      "external/upstream/moneyprinterturbo/app/models/schema.py"
     ],
     license: "MIT",
     behaviorPreserved: [
@@ -370,8 +370,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "live staged batch progress remains future work beyond the Phase 5 completed-run stage lifecycle",
-      "provider ledger state is not a complete job-progress UI until persisted stage updates consume it"
+      "render-job stage progress telemetry now covers active async jobs, but real long-form provider validation remains pending",
+      "provider ledger state complements progress events but is still not a durable external job-progress stream"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -479,11 +479,11 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
   {
     logicName: "Long-Form Planning And Batch Workflow",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
-    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
     upstreamPaths: [
-      "external/upstream/MoneyPrinterTurbo/app/services/task.py",
-      "external/upstream/MoneyPrinterTurbo/app/services/state.py",
-      "external/upstream/MoneyPrinterTurbo/app/services/video.py"
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/services/state.py",
+      "external/upstream/moneyprinterturbo/app/services/video.py"
     ],
     license: "MIT",
     behaviorPreserved: [
@@ -515,11 +515,11 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
   {
     logicName: "Material Source Adapter Validation",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
-    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
     upstreamPaths: [
-      "external/upstream/MoneyPrinterTurbo/app/services/material.py",
-      "external/upstream/MoneyPrinterTurbo/app/services/video.py",
-      "external/upstream/MoneyPrinterTurbo/app/models/schema.py"
+      "external/upstream/moneyprinterturbo/app/services/material.py",
+      "external/upstream/moneyprinterturbo/app/services/video.py",
+      "external/upstream/moneyprinterturbo/app/models/schema.py"
     ],
     license: "MIT",
     behaviorPreserved: [
@@ -616,11 +616,11 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
   {
     logicName: "Local Material Library Adapter",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
-    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
     upstreamPaths: [
-      "external/upstream/MoneyPrinterTurbo/app/services/material.py",
-      "external/upstream/MoneyPrinterTurbo/app/services/task.py",
-      "external/upstream/MoneyPrinterTurbo/app/models/schema.py"
+      "external/upstream/moneyprinterturbo/app/services/material.py",
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/models/schema.py"
     ],
     license: "MIT",
     behaviorPreserved: [
@@ -716,11 +716,11 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
   {
     logicName: "Remote Stock Material Adapter",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
-    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
     upstreamPaths: [
-      "external/upstream/MoneyPrinterTurbo/app/services/material.py",
-      "external/upstream/MoneyPrinterTurbo/app/services/task.py",
-      "external/upstream/MoneyPrinterTurbo/app/models/schema.py"
+      "external/upstream/moneyprinterturbo/app/services/material.py",
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/models/schema.py"
     ],
     license: "MIT",
     behaviorPreserved: [
@@ -811,6 +811,73 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     fidelityRisks: [
       "legal review is still required before any direct AGPL implementation reuse",
       "current implementation uses approval behavior notes only"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Render Job Stage Progress Telemetry",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/controllers/v1/video.py",
+      "external/upstream/moneyprinterturbo/app/models/schema.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "long-running jobs expose task state before final artifacts are available",
+      "stage progress remains visible for terminal failures",
+      "progress is tied to the same production stages used for final run evidence"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo runtime code is not imported or executed",
+      "CineJelly emits provider-neutral stage progress events from DirectorAgent",
+      "job list responses stay compact while per-job detail exposes retained bounded events"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/render-job-stage-progress.md",
+    cineJellyDestinationPaths: [
+      "src/types/stage.ts",
+      "src/agents/director-agent.ts",
+      "src/application/director-factory.ts",
+      "src/api/render-job-manager.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "real long-form Atlas runs must validate event ordering under provider latency and failures",
+      "current in-process retention is bounded and not a durable event stream"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Render Job Stage Progress Telemetry",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "operator-visible status refresh follows deterministic stage vocabulary",
+      "runtime progress complements final build/review reports",
+      "failure visibility stays bounded and redacted"
+    ],
+    behaviorChanged: [
+      "VibeFrame report discipline is rewritten into CineJelly stage progress contracts",
+      "progress events are API/job metadata rather than a CLI-only status display",
+      "full final evidence remains in stage lifecycle artifacts after completion"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/render-job-stage-progress.md",
+    cineJellyDestinationPaths: [
+      "src/types/stage.ts",
+      "src/core/production-stage-planner.ts",
+      "src/agents/director-agent.ts",
+      "src/api/render-job-manager.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "artifact and API review after a paid run must verify progress events remain redacted",
+      "durable external queue backends may need their own event persistence adapter later"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },

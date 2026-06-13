@@ -9,10 +9,16 @@ import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import type { CineJellyProjectRequest, DirectorRunResult } from "../types/agent.js";
 import type { ProjectArtifactBundle } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
+import type { ProductionStageName, ProductionStageProgressEvent, ProductionStageStatus } from "../types/stage.js";
 import { redactUnknown } from "../utils/redaction.js";
+import { redactApiLocalPaths } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle, type ApiProjectArtifactBundle } from "./artifact-response.js";
 
 export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
+const MAX_STAGE_PROGRESS_EVENTS = 200;
+const EMBEDDED_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s"',;)]*/g;
+const EMBEDDED_UNC_PATH_PATTERN = /\\\\[^\s"',;)]*/g;
+const EMBEDDED_POSIX_PATH_PATTERN = /(^|\s)(\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/[^\s"',;)]+)/g;
 
 export class RenderJobCapacityError extends Error {
   public readonly statusCode = 503;
@@ -49,6 +55,10 @@ export interface RenderJobSummary {
   readonly requestedQualityMode?: string;
   readonly requestedResolution?: string;
   readonly referenceCount: number;
+  readonly currentStage?: ProductionStageName;
+  readonly currentStageStatus?: ProductionStageStatus;
+  readonly progressEventCount: number;
+  readonly stageProgressEvents?: readonly ProductionStageProgressEvent[];
   readonly hasResult: boolean;
   readonly hasCostLedger: boolean;
   readonly hasArtifacts: boolean;
@@ -74,11 +84,15 @@ export interface RenderJobSubmission {
   readonly idempotentReplay: boolean;
 }
 
-interface RenderJobRecord extends Omit<RenderJobSummary, "artifacts" | "hasError"> {
+interface RenderJobRecord extends Omit<
+  RenderJobSummary,
+  "artifacts" | "hasError" | "currentStage" | "currentStageStatus" | "progressEventCount" | "stageProgressEvents"
+> {
   readonly artifactDirectory: string;
   readonly artifacts?: ProjectArtifactBundle;
   readonly request: CineJellyProjectRequest;
   readonly abortController: AbortController;
+  readonly stageProgressEvents: readonly ProductionStageProgressEvent[];
 }
 
 interface RenderJobIdempotencyRecord {
@@ -86,8 +100,15 @@ interface RenderJobIdempotencyRecord {
   readonly requestFingerprint: string;
 }
 
+export interface RenderJobRuntimeFactoryInput {
+  readonly stageProgressReporter?: (event: ProductionStageProgressEvent) => void;
+}
+
+export type RenderJobRuntimeFactory = (input?: RenderJobRuntimeFactoryInput) => ReturnType<typeof createDirectorRuntime>;
+
 export class RenderJobManager {
   private readonly artifactStore: ProjectArtifactStore;
+  private readonly runtimeFactory: RenderJobRuntimeFactory;
   private readonly maxConcurrentJobs: number;
   private readonly historyLimit: number;
   private readonly queueLimit: number;
@@ -101,8 +122,11 @@ export class RenderJobManager {
     readonly maxConcurrentJobs?: number;
     readonly historyLimit?: number;
     readonly queueLimit?: number;
+    readonly runtimeFactory?: RenderJobRuntimeFactory;
   } = {}) {
     this.artifactStore = input.artifactStore ?? new ProjectArtifactStore();
+    this.runtimeFactory =
+      input.runtimeFactory ?? ((runtimeInput) => createDirectorRuntime(process.env, runtimeInput ?? {}));
     this.maxConcurrentJobs = Math.max(1, input.maxConcurrentJobs ?? 1);
     this.historyLimit = Math.max(10, input.historyLimit ?? 100);
     this.queueLimit = Math.max(1, input.queueLimit ?? 50);
@@ -134,6 +158,7 @@ export class RenderJobManager {
       userInputPreview: this.preview(input.request.userInput),
       referenceCount: input.request.references?.length ?? 0,
       artifactDirectory: input.artifactDirectory,
+      stageProgressEvents: [],
       hasResult: false,
       hasCostLedger: false,
       hasArtifacts: false,
@@ -294,7 +319,9 @@ export class RenderJobManager {
     let costLedger: readonly CostLedgerEntry[] = [];
     let runtime: ReturnType<typeof createDirectorRuntime> | undefined;
     try {
-      runtime = createDirectorRuntime();
+      runtime = this.runtimeFactory({
+        stageProgressReporter: (event) => this.appendStageProgressEvent(record.jobId, event)
+      });
       const result = await runtime.director.run(record.request, record.abortController.signal);
       if (record.abortController.signal.aborted) {
         throw record.abortController.signal.reason;
@@ -353,6 +380,58 @@ export class RenderJobManager {
     } catch {
       return undefined;
     }
+  }
+
+  private appendStageProgressEvent(jobId: string, event: ProductionStageProgressEvent): void {
+    const current = this.jobs.get(jobId);
+    if (!current || this.isTerminal(current.status)) {
+      return;
+    }
+    const retainedEvents = [...current.stageProgressEvents, this.redactedStageProgressEvent(event)].slice(
+      -MAX_STAGE_PROGRESS_EVENTS
+    );
+    this.jobs.set(jobId, {
+      ...current,
+      updatedAt: new Date(),
+      stageProgressEvents: retainedEvents
+    });
+  }
+
+  private redactedStageProgressEvent(event: ProductionStageProgressEvent): ProductionStageProgressEvent {
+    const redacted = this.redactStageProgressLocalPathText(
+      redactApiLocalPaths(redactUnknown(event))
+    ) as Omit<ProductionStageProgressEvent, "recordedAt"> & {
+      readonly recordedAt: string | Date;
+    };
+    return {
+      ...redacted,
+      recordedAt: redacted.recordedAt instanceof Date ? redacted.recordedAt : new Date(redacted.recordedAt)
+    };
+  }
+
+  private redactStageProgressLocalPathText(value: unknown): unknown {
+    if (typeof value === "string") {
+      return this.redactEmbeddedLocalPathText(value);
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactStageProgressLocalPathText(item));
+    }
+    if (value && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+          key,
+          this.redactStageProgressLocalPathText(item)
+        ])
+      );
+    }
+    return value;
+  }
+
+  private redactEmbeddedLocalPathText(value: string): string {
+    return value
+      .replace(EMBEDDED_WINDOWS_PATH_PATTERN, "[REDACTED_LOCAL_PATH]")
+      .replace(EMBEDDED_UNC_PATH_PATTERN, "[REDACTED_LOCAL_PATH]")
+      .replace(EMBEDDED_POSIX_PATH_PATTERN, "$1[REDACTED_LOCAL_PATH]");
   }
 
   private updateJob(jobId: string, patch: Partial<RenderJobRecord>): void {
@@ -431,11 +510,13 @@ export class RenderJobManager {
       requestedQualityMode,
       requestedResolution,
       referenceCount,
+      stageProgressEvents,
       error,
       costLedger,
       artifacts,
       result
     } = record;
+    const currentStageProgress = stageProgressEvents[stageProgressEvents.length - 1];
     return {
       jobId,
       ...(requestId ? { requestId } : {}),
@@ -450,6 +531,10 @@ export class RenderJobManager {
       ...(requestedQualityMode ? { requestedQualityMode } : {}),
       ...(requestedResolution ? { requestedResolution } : {}),
       referenceCount,
+      ...(currentStageProgress ? { currentStage: currentStageProgress.stage } : {}),
+      ...(currentStageProgress ? { currentStageStatus: currentStageProgress.status } : {}),
+      progressEventCount: stageProgressEvents.length,
+      ...(options.includeDetails ? { stageProgressEvents } : {}),
       hasResult: Boolean(result),
       hasCostLedger: Boolean(costLedger),
       hasArtifacts: Boolean(artifacts),

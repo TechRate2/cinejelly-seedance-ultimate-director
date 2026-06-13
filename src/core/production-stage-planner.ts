@@ -17,20 +17,9 @@ import type {
   ProductionStageRecord,
   ProductionStageStatus
 } from "../types/stage.js";
+import { PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS } from "../types/stage.js";
 import type { Storyboard } from "../types/storyboard.js";
 import { createStableId } from "../utils/ids.js";
-
-const STAGE_ORIGINS: Readonly<Record<ProductionStageName, readonly string[]>> = {
-  plan: ["HKUDS/ViMax", "vericontext/vibeframe"],
-  storyboard: ["HKUDS/ViMax", "vericontext/vibeframe"],
-  prompt: ["Emily2040/seedance-2.0", "YouMind-OpenLab/awesome-seedance-2-prompts"],
-  source_material: ["harry0703/MoneyPrinterTurbo"],
-  render: ["HKUDS/ViMax", "vericontext/vibeframe"],
-  inspect: ["vericontext/vibeframe"],
-  repair: ["HKUDS/ViMax", "vericontext/vibeframe"],
-  assemble: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
-  deliver: ["vericontext/vibeframe"]
-};
 
 export interface ProductionStagePlannerInput {
   readonly projectId: string;
@@ -111,7 +100,7 @@ export class ProductionStagePlanner {
       status,
       graphNodeIds: this.graphNodeIds(input.productionGraph, stage),
       evidence,
-      sourcePatternOrigins: STAGE_ORIGINS[stage],
+      sourcePatternOrigins: PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS[stage],
       ...(blockingReason ? { blockingReason } : {})
     };
   }

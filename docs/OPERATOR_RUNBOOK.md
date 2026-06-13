@@ -148,6 +148,8 @@ Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000$($submit.statusUrl)" -
 }
 ```
 
+While the job is running, the job payload should expose `currentStage`, `currentStageStatus`, `progressEventCount`, and retained `stageProgressEvents` in the per-job response. The list endpoint `/v1/render-jobs` should stay compact and expose current-stage fields without the full event array.
+
 Use synchronous `/v1/render` only for short internal validation when deployment timeout limits are known and acceptable.
 
 ## Automated Artifact Validation
@@ -192,6 +194,7 @@ Required evidence:
 - Manifest entries include byte size and SHA-256 hashes.
 - `review-packet.json` includes `sourceLineage`, `repairProvenance`, `stageLifecycle`, cost summary, selected candidates, and delivery status.
 - `stage-lifecycle.json` contains all stages in order: `plan`, `storyboard`, `prompt`, `source_material`, `render`, `inspect`, `repair`, `assemble`, `deliver`.
+- Async job `stageProgressEvents` use the same stage vocabulary and include bounded evidence without local paths, inline media, secrets, stack traces, or raw provider payloads.
 - `material-sourcing-plan.json` contains rights requirement and preferred sources for every material brief.
 - `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
 - If a local material catalog is configured, selected candidates in `material-source-validation.json` use safe `asset://` or credential-free HTTPS URIs and preserve rights/attribution metadata.

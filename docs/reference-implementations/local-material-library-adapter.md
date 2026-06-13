@@ -6,7 +6,7 @@ Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScrip
 
 | Source | Snapshot path | License | Behavior used |
 | --- | --- | --- | --- |
-| `harry0703/MoneyPrinterTurbo` | `external/upstream/MoneyPrinterTurbo` | MIT | Local/material sourcing happens as a deterministic stage before video composition, with visible task progress and bounded candidate lists. |
+| `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo` | MIT | Local/material sourcing happens as a deterministic stage before video composition, with visible task progress and bounded candidate lists. |
 | `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Validate configured inputs before build/render work, keep source-material reports deterministic and operator-reviewable. |
 | `calesthio/OpenMontage` | `external/upstream/openmontage` | AGPL-3.0 | Real-footage approval ideas inform source-material gating only; no implementation code is reused. |
 

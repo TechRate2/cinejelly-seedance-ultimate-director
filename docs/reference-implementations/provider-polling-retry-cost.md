@@ -7,7 +7,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 | Source | Snapshot path | License | Behavior used |
 | --- | --- | --- | --- |
 | `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Validate -> plan/cost -> dry-run/build -> render -> status refresh -> inspect loop, JSON build reports, cost caps before paid provider work, deterministic repair/status commands. |
-| `harry0703/MoneyPrinterTurbo` | `external/upstream/MoneyPrinterTurbo` | MIT | Task progress lifecycle, staged pipeline state updates, terminal failure state on missing stage output, bounded progress updates, resumable operator-visible task status. |
+| `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo` | MIT | Task progress lifecycle, staged pipeline state updates, terminal failure state on missing stage output, bounded progress updates, resumable operator-visible task status. |
 | Atlas Cloud provider schema | `src/providers/atlascloud/*` and current provider contracts | Project-owned integration | Async prediction creation, polling, terminal prediction states, Asset Library registration and activation polling, usage/cost metadata where provider responses expose it. |
 
 ## Behavior To Preserve

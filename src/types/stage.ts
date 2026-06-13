@@ -14,6 +14,30 @@ export type ProductionStageName =
   | "assemble"
   | "deliver";
 
+export const PRODUCTION_STAGE_ORDER: readonly ProductionStageName[] = [
+  "plan",
+  "storyboard",
+  "prompt",
+  "source_material",
+  "render",
+  "inspect",
+  "repair",
+  "assemble",
+  "deliver"
+];
+
+export const PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS: Readonly<Record<ProductionStageName, readonly string[]>> = {
+  plan: ["HKUDS/ViMax", "vericontext/vibeframe"],
+  storyboard: ["HKUDS/ViMax", "vericontext/vibeframe"],
+  prompt: ["Emily2040/seedance-2.0", "YouMind-OpenLab/awesome-seedance-2-prompts"],
+  source_material: ["harry0703/MoneyPrinterTurbo"],
+  render: ["HKUDS/ViMax", "vericontext/vibeframe"],
+  inspect: ["vericontext/vibeframe"],
+  repair: ["HKUDS/ViMax", "vericontext/vibeframe"],
+  assemble: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
+  deliver: ["vericontext/vibeframe"]
+};
+
 export type ProductionStageStatus =
   | "pending"
   | "running"
@@ -45,3 +69,16 @@ export interface ProductionStagePlan {
   readonly projectId: string;
   readonly records: readonly ProductionStageRecord[];
 }
+
+export interface ProductionStageProgressEvent {
+  readonly sequence: number;
+  readonly stage: ProductionStageName;
+  readonly order: number;
+  readonly status: ProductionStageStatus;
+  readonly recordedAt: Date;
+  readonly message: string;
+  readonly sourcePatternOrigins: readonly string[];
+  readonly evidence?: Readonly<Record<string, ProductionStageEvidenceValue>>;
+}
+
+export type ProductionStageProgressReporter = (event: ProductionStageProgressEvent) => void;

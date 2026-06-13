@@ -18,10 +18,10 @@ Ready foundations:
 - Model Provider Abstraction contracts, Atlas provider, provider error normalization, capability validation, cost ledger, and retry telemetry.
 - Prompt Compiler, reference sorting, negative constraints, repair hints, and provider-neutral request compilation.
 - Production Graph, storyboard planner, shot planner, run recorder, review packet builder, artifact store, and delivery gate.
-- Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, and source-material artifact validation.
+- Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, render-job stage progress telemetry, and source-material artifact validation.
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
-- Reference Implementations and CineJelly-owned rewrites for Phase 1 Prompt Binding Plan, Phase 2 Guardian Repair Decision Provenance, Phase 3 Reference Selection Scoring plus Reference Metadata Enrichment plus Source Video Auto Analysis Adapter, Phase 4 Provider Polling/Retry/Cost Fidelity, and Phase 5 Long-Form Planning/Batch Workflow plus Material Source Adapter Validation, Local Material Library Adapter, and Remote Stock Material Adapter.
+- Reference Implementations and CineJelly-owned rewrites for Phase 1 Prompt Binding Plan, Phase 2 Guardian Repair Decision Provenance, Phase 3 Reference Selection Scoring plus Reference Metadata Enrichment plus Source Video Auto Analysis Adapter, Phase 4 Provider Polling/Retry/Cost Fidelity, and Phase 5 Long-Form Planning/Batch Workflow plus Render Job Stage Progress Telemetry, Material Source Adapter Validation, Local Material Library Adapter, and Remote Stock Material Adapter.
 - Operator artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
 
 Not yet complete:
@@ -165,7 +165,7 @@ Milestone check:
 
 ## Phase 5: Long-Form Planning And Batch Workflow
 
-Status as of 2026-06-13: Reference Implementations drafted; stage lifecycle contracts, `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, local material library adapter, opt-in remote stock material adapter, material source validation, review-packet stage lifecycle, and stage/material artifacts are implemented. `npm.cmd run typecheck` and `npm.cmd run build` passed for the foundation phases; real long-form Atlas validation and live remote stock provider validation remain pending.
+Status as of 2026-06-13: Reference Implementations drafted; stage lifecycle contracts, `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, DirectorAgent stage progress reporting, async render-job progress polling, local material library adapter, opt-in remote stock material adapter, material source validation, review-packet stage lifecycle, and stage/material artifacts are implemented. `npm.cmd run typecheck` and `npm.cmd run build` passed for the foundation phases; real long-form Atlas validation and live remote stock provider validation remain pending.
 
 Target module:
 
@@ -189,7 +189,9 @@ Deliverables:
 - `docs/reference-implementations/material-source-adapter-validation.md`
 - `docs/reference-implementations/local-material-library-adapter.md`
 - `docs/reference-implementations/remote-stock-material-adapter.md`
+- `docs/reference-implementations/render-job-stage-progress.md`
 - Explicit stage status model for plan, storyboard, prompt, source material, render, inspect, repair, assemble, deliver.
+- Bounded async render-job stage progress telemetry with compact list summaries and detailed per-job progress events.
 - Batch candidate evidence across shots and final deliverables.
 - Material sourcing rights metadata wired into Production Graph nodes.
 - Material source validation report wired into stage lifecycle, review packet planning evidence, durable artifacts, and artifact validation.
@@ -205,6 +207,7 @@ Milestone check:
 - Source-material candidates are either planned-only or validated against known briefs, approved sources, safe URIs, rights/attribution, duration, aspect ratio, and resolution before release evidence.
 - Local material catalog entries never expose filesystem paths in API/artifact candidate URIs.
 - Remote stock candidates never expose API keys, signed URLs, or credential-like query parameters in candidate, source-page, or preview URIs.
+- Running async jobs expose current stage, current stage status, progress event count, and retained detail events without local paths, inline media, secrets, or raw provider payloads.
 
 ## Phase 6: Real Provider Validation
 

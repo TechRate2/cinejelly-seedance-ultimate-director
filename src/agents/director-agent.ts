@@ -22,7 +22,7 @@ import { MaterialSourcingPlanner } from "../core/material-sourcing-planner.js";
 import { MaterialSourceValidator } from "../core/material-source-validator.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS } from "../core/postproduction-engine.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
-import { RenderScheduler } from "../core/render-scheduler.js";
+import { RenderScheduler, type RenderScheduleResult } from "../core/render-scheduler.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
@@ -35,10 +35,25 @@ import type {
 } from "../types/settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult, RenderCandidate, RenderedShot } from "../types/agent.js";
 import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
-import type { MaterialCandidate, MaterialSource, MaterialSourceAdapter } from "../types/material.js";
+import type {
+  MaterialCandidate,
+  MaterialSource,
+  MaterialSourceAdapter,
+  MaterialSourceValidationReport
+} from "../types/material.js";
 import type { PostproductionSettings } from "../types/media.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type { Prediction } from "../types/provider.js";
+import type {
+  ProductionStageEvidenceValue,
+  ProductionStageName,
+  ProductionStageProgressReporter,
+  ProductionStageStatus
+} from "../types/stage.js";
+import {
+  PRODUCTION_STAGE_ORDER,
+  PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS
+} from "../types/stage.js";
 import { asProviderError } from "../utils/errors.js";
 import { createStableId } from "../utils/ids.js";
 import { redactUnknown } from "../utils/redaction.js";
@@ -71,7 +86,9 @@ export class DirectorAgent {
   private readonly semanticVisualInspector: SemanticVisualInspector | undefined;
   private readonly sourceVideoAutoAnalyzer: SourceVideoAutoAnalyzer | undefined;
   private readonly sourceVideoAutoAnalysisSettings: SourceVideoAutoAnalysisSettings | undefined;
+  private readonly stageProgressReporter: ProductionStageProgressReporter | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
+  private stageProgressSequence = 0;
 
   public constructor(input: {
     readonly storyArchitect: StoryArchitect;
@@ -98,6 +115,7 @@ export class DirectorAgent {
     readonly semanticVisualInspector?: SemanticVisualInspector;
     readonly sourceVideoAutoAnalyzer?: SourceVideoAutoAnalyzer;
     readonly sourceVideoAutoAnalysisSettings?: SourceVideoAutoAnalysisSettings;
+    readonly stageProgressReporter?: ProductionStageProgressReporter;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
     this.storyArchitect = input.storyArchitect;
@@ -122,10 +140,12 @@ export class DirectorAgent {
     this.semanticVisualInspector = input.semanticVisualInspector;
     this.sourceVideoAutoAnalyzer = input.sourceVideoAutoAnalyzer;
     this.sourceVideoAutoAnalysisSettings = input.sourceVideoAutoAnalysisSettings;
+    this.stageProgressReporter = input.stageProgressReporter;
     this.atlasSettings = input.atlasSettings;
   }
 
   public async run(request: CineJellyProjectRequest, signal?: AbortSignal): Promise<DirectorRunResult> {
+    this.reportStageProgress("plan", "running", "Preparing intake, story plan, shot plan, and reference selection.");
     const preparedRequest = await this.prepareRequestForIntake(request, signal);
     const intake = this.intakeDirector.intake(preparedRequest);
     const storyPlan = await this.storyArchitect.plan(intake, signal);
@@ -140,23 +160,13 @@ export class DirectorAgent {
       ...(intake.metadata ? { metadata: intake.metadata } : {})
     });
     const shots = this.referenceSelectionPlanner.planForShots({ shots: plannedShots });
-    const materialSourcingPlan = this.materialSourcingPlanner.plan({
-      projectId: intake.projectId,
-      shots,
-      settings: intake.settings,
-      ...(this.materialPlanningOptions.allowRemoteSources !== undefined
-        ? { allowRemoteSources: this.materialPlanningOptions.allowRemoteSources }
-        : {}),
-      ...(this.materialPlanningOptions.preferredSources ? { preferredSources: this.materialPlanningOptions.preferredSources } : {}),
-      ...(this.materialPlanningOptions.maxCandidatesPerBrief !== undefined
-        ? { maxCandidatesPerBrief: this.materialPlanningOptions.maxCandidatesPerBrief }
-        : {})
+    this.reportStageProgress("plan", "succeeded", "Planning completed.", {
+      sceneCount: storyPlan.scenes.length,
+      shotCount: shots.length,
+      targetDurationSeconds: storyPlan.targetDurationSeconds,
+      referenceCount: intake.references.length
     });
-    const materialCandidates = await this.resolveMaterialCandidates(materialSourcingPlan, signal);
-    const materialSourceValidation = this.materialSourceValidator.validate({
-      plan: materialSourcingPlan,
-      candidates: materialCandidates
-    });
+    this.reportStageProgress("storyboard", "running", "Planning storyboard panels and running storyboard preflight.");
     const storyboard = this.storyboardPlanner.plan({
       projectId: intake.projectId,
       storyPlan,
@@ -166,19 +176,22 @@ export class DirectorAgent {
       storyboard,
       shots
     });
+    this.reportStageProgress(
+      "storyboard",
+      this.guardianStageStatus(storyboardPreflight.status),
+      "Storyboard preflight completed.",
+      {
+        storyboardPanelCount: storyboard.panels.length,
+        storyboardPreflightStatus: storyboardPreflight.status,
+        findingCount: storyboardPreflight.findings.length
+      }
+    );
     if (storyboardPreflight.status === "block" || storyboardPreflight.status === "repair") {
       throw new Error(this.describeStoryboardBlock(storyboardPreflight));
     }
     const modelId = resolveSeedanceModelId(intake.settings, this.atlasSettings);
     const providerSupportedReferenceKinds = this.renderProducer.supportedReferenceKinds(modelId);
-    const productionGraph = this.productionGraphBuilder.build({
-      intake,
-      storyPlan,
-      shots,
-      storyboard,
-      storyboardPreflight,
-      materialSourcingPlan
-    });
+    this.reportStageProgress("prompt", "running", "Compiling provider-ready prompts and binding references.");
     const compiledPrompts = shots.map((shot) =>
       this.promptCompiler.compile({
         shot,
@@ -189,8 +202,13 @@ export class DirectorAgent {
       })
     );
     if (compiledPrompts.length === 0) {
+      this.reportStageProgress("prompt", "failed", "Prompt compilation produced no renderable prompts.");
       throw new Error("Story planning produced no renderable shots. Regenerate the story plan before rendering.");
     }
+    this.reportStageProgress("prompt", "succeeded", "Prompt compilation completed.", {
+      compiledPromptCount: compiledPrompts.length,
+      providerReferenceCount: compiledPrompts.reduce((sum, prompt) => sum + prompt.references.length, 0)
+    });
     this.validateProviderCapabilities(compiledPrompts);
     const plannedTestTakeCount = shots.filter((shot) => this.shouldRunTestTake(shot, intake.settings)).length;
     const costEstimate = this.renderCostGate.estimate({
@@ -218,78 +236,159 @@ export class DirectorAgent {
       (report) => report.status === "block" || report.status === "repair"
     );
     if (blockingPreflightReports.length > 0) {
+      this.reportStageProgress("prompt", "blocked", "Prompt and reference preflight blocked render spend.", {
+        blockingPreflightCount: blockingPreflightReports.length
+      });
       throw new Error(this.describePreflightBlock(blockingPreflightReports));
     }
 
+    this.reportStageProgress("source_material", "running", "Planning source-material briefs and resolving configured adapters.");
+    const materialSourcingPlan = this.materialSourcingPlanner.plan({
+      projectId: intake.projectId,
+      shots,
+      settings: intake.settings,
+      ...(this.materialPlanningOptions.allowRemoteSources !== undefined
+        ? { allowRemoteSources: this.materialPlanningOptions.allowRemoteSources }
+        : {}),
+      ...(this.materialPlanningOptions.preferredSources ? { preferredSources: this.materialPlanningOptions.preferredSources } : {}),
+      ...(this.materialPlanningOptions.maxCandidatesPerBrief !== undefined
+        ? { maxCandidatesPerBrief: this.materialPlanningOptions.maxCandidatesPerBrief }
+        : {})
+    });
+    const materialCandidates = await this.resolveMaterialCandidates(materialSourcingPlan, signal);
+    const materialSourceValidation = this.materialSourceValidator.validate({
+      plan: materialSourcingPlan,
+      candidates: materialCandidates
+    });
+    this.reportStageProgress(
+      "source_material",
+      this.materialSourceStageStatus(materialSourceValidation),
+      "Source-material planning and validation completed.",
+      {
+        materialBriefCount: materialSourcingPlan.briefs.length,
+        materialCandidateCount: materialSourceValidation.candidateCount,
+        selectedMaterialCandidateCount: materialSourceValidation.selectedCandidateCount,
+        materialValidationStatus: materialSourceValidation.status
+      }
+    );
+    const productionGraph = this.productionGraphBuilder.build({
+      intake,
+      storyPlan,
+      shots,
+      storyboard,
+      storyboardPreflight,
+      materialSourcingPlan
+    });
+
     const candidateCount = candidateCountForQuality(intake.settings.qualityMode);
     const repairAttemptCount = repairAttemptCountForQuality(intake.settings.qualityMode);
-    const renderResults = await this.renderScheduler.run(
-      compiledPrompts.map((compiledPrompt, promptIndex) => {
-        const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
-        const preflight = preflightReports[promptIndex];
-        if (!shot) {
-          throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
-        }
-        if (!preflight) {
-          throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
-        }
-        return {
-          index: promptIndex,
-          shot,
-          value: {
-            compiledPrompt,
-            preflight,
-            shouldRunTestTake: this.shouldRunTestTake(shot, intake.settings)
+    this.reportStageProgress("render", "running", "Rendering scheduled shots and candidates.", {
+      scheduledShotCount: compiledPrompts.length,
+      candidateCount,
+      repairAttemptCount
+    });
+    let renderResults: readonly RenderScheduleResult<RenderedShot>[];
+    try {
+      renderResults = await this.renderScheduler.run(
+        compiledPrompts.map((compiledPrompt, promptIndex) => {
+          const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
+          const preflight = preflightReports[promptIndex];
+          if (!shot) {
+            throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
           }
-        };
-      }),
-      async (item) =>
-        this.renderShot({
-          shot: item.shot,
-          compiledPrompt: item.value.compiledPrompt,
-          preflight: item.value.preflight,
-          shouldRunTestTake: item.value.shouldRunTestTake,
-          candidateCount,
-          repairAttemptCount,
-          signal
-        })
-    );
+          if (!preflight) {
+            throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
+          }
+          return {
+            index: promptIndex,
+            shot,
+            value: {
+              compiledPrompt,
+              preflight,
+              shouldRunTestTake: this.shouldRunTestTake(shot, intake.settings)
+            }
+          };
+        }),
+        async (item) =>
+          this.renderShot({
+            shot: item.shot,
+            compiledPrompt: item.value.compiledPrompt,
+            preflight: item.value.preflight,
+            shouldRunTestTake: item.value.shouldRunTestTake,
+            candidateCount,
+            repairAttemptCount,
+            signal
+          })
+      );
+    } catch (error) {
+      this.reportStageProgress("render", "failed", "Render scheduler failed before producing completed shot evidence.");
+      throw error;
+    }
     const renderedShots = renderResults.map((result) => result.value);
+    this.reportStageProgress("render", this.renderedShotsStageStatus(renderedShots), "Render stage completed.", {
+      renderedShotCount: renderedShots.length,
+      renderedTestTakeCount: renderedShots.filter((shot) => shot.testTake).length,
+      totalCandidateCount: this.totalCandidateCount(renderedShots)
+    });
     for (const [index, renderedShot] of renderedShots.entries()) {
       compiledPrompts[index] = renderedShot.compiledPrompt;
     }
+    this.reportStageProgress("inspect", "running", "Inspecting rendered shots.");
     const blockingRenderReports = renderedShots.filter((renderedShot) =>
       this.needsRenderRepair(renderedShot.renderInspection)
     );
     if (blockingRenderReports.length > 0) {
+      this.reportStageProgress("inspect", "blocked", "Rendered shot inspection blocked delivery.", {
+        blockingInspectionCount: blockingRenderReports.length
+      });
       throw new Error(this.describeRenderBlock(blockingRenderReports));
     }
+    this.reportStageProgress("inspect", this.inspectionStageStatus(renderedShots), "Rendered shot inspection completed.", {
+      warningInspectionCount: renderedShots.filter((shot) => shot.renderInspection.status === "warn").length
+    });
+    this.reportStageProgress("repair", this.repairStageStatus(renderedShots), "Repair stage completed or skipped.", {
+      repairAttemptCount: renderedShots.reduce((sum, shot) => sum + shot.repairAttemptCount, 0)
+    });
 
-    const deliverable =
-      preparedRequest.outputPath && preparedRequest.workDirectory && renderedShots.length > 0
-        ? await this.assemblyEngine.assemble(
-            {
-              projectId: intake.projectId,
-              outputPath: preparedRequest.outputPath,
-              workDirectory: preparedRequest.workDirectory,
-              ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
-              ...(preparedRequest.captionOptions ? { captionOptions: preparedRequest.captionOptions } : {}),
-              ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
-              ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {}),
-              ...(preparedRequest.frameSamplingOptions ? { frameSamplingOptions: preparedRequest.frameSamplingOptions } : {}),
-              ...(preparedRequest.transitionSettings ? { transitionSettings: preparedRequest.transitionSettings } : {}),
-              postproductionSettings: this.postproductionSettingsForDelivery(intake.settings),
-              clips: renderedShots.flatMap((renderedShot, index) =>
-                renderedShot.prediction.outputUrls.map((url, outputIndex) => ({
-                  clipId: `${renderedShot.compiledPrompt.shotId}_${outputIndex}`,
-                  sourceUrlOrPath: url,
-                  order: index + outputIndex / 100
-                }))
-              )
-            },
-            signal
-          )
-        : undefined;
+    const shouldAssemble = Boolean(preparedRequest.outputPath && preparedRequest.workDirectory && renderedShots.length > 0);
+    if (shouldAssemble) {
+      this.reportStageProgress("assemble", "running", "Assembling rendered clips into the deliverable.");
+    }
+    const deliverable = shouldAssemble
+      ? await this.assemblyEngine.assemble(
+          {
+            projectId: intake.projectId,
+            outputPath: preparedRequest.outputPath as string,
+            workDirectory: preparedRequest.workDirectory as string,
+            ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
+            ...(preparedRequest.captionOptions ? { captionOptions: preparedRequest.captionOptions } : {}),
+            ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
+            ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {}),
+            ...(preparedRequest.frameSamplingOptions ? { frameSamplingOptions: preparedRequest.frameSamplingOptions } : {}),
+            ...(preparedRequest.transitionSettings ? { transitionSettings: preparedRequest.transitionSettings } : {}),
+            postproductionSettings: this.postproductionSettingsForDelivery(intake.settings),
+            clips: renderedShots.flatMap((renderedShot, index) =>
+              renderedShot.prediction.outputUrls.map((url, outputIndex) => ({
+                clipId: `${renderedShot.compiledPrompt.shotId}_${outputIndex}`,
+                sourceUrlOrPath: url,
+                order: index + outputIndex / 100
+              }))
+            )
+          },
+          signal
+        )
+      : undefined;
+    this.reportStageProgress(
+      "assemble",
+      deliverable ? "succeeded" : "skipped",
+      deliverable ? "Assembly completed." : "Assembly skipped because no deliverable path was requested.",
+      {
+        hasDeliverable: Boolean(deliverable)
+      }
+    );
+    if (deliverable) {
+      this.reportStageProgress("deliver", "running", "Evaluating delivery gate.");
+    }
     const deliveryGate = deliverable
       ? this.deliveryGate.evaluate({
           deliverable,
@@ -297,7 +396,20 @@ export class DirectorAgent {
         })
       : undefined;
     if (deliveryGate) {
+      this.reportStageProgress(
+        "deliver",
+        this.deliveryGateStageStatus(deliveryGate),
+        "Delivery gate completed.",
+        {
+          deliveryGateStatus: deliveryGate.status,
+          findingCount: deliveryGate.findings.length
+        }
+      );
       this.deliveryGate.assertPass(deliveryGate);
+    } else {
+      this.reportStageProgress("deliver", "skipped", "Delivery skipped because no deliverable was assembled.", {
+        deliveryGateStatus: "not_run"
+      });
     }
     const semanticVisualInspection =
       deliverable?.frameSamples && preparedRequest.semanticVisualInspectionOptions?.enabled
@@ -354,6 +466,90 @@ export class DirectorAgent {
       return request;
     }
     return this.sourceVideoAutoAnalyzer.prepareRequest(request, this.sourceVideoAutoAnalysisSettings, signal);
+  }
+
+  private reportStageProgress(
+    stage: ProductionStageName,
+    status: ProductionStageStatus,
+    message: string,
+    evidence?: Readonly<Record<string, ProductionStageEvidenceValue>>
+  ): void {
+    if (!this.stageProgressReporter) {
+      return;
+    }
+    try {
+      this.stageProgressReporter({
+        sequence: ++this.stageProgressSequence,
+        stage,
+        order: PRODUCTION_STAGE_ORDER.indexOf(stage),
+        status,
+        recordedAt: new Date(),
+        message,
+        sourcePatternOrigins: PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS[stage],
+        ...(evidence ? { evidence } : {})
+      });
+    } catch {
+      // Progress telemetry must not change render behavior.
+    }
+  }
+
+  private guardianStageStatus(status: GuardianStatus): ProductionStageStatus {
+    switch (status) {
+      case "pass":
+        return "succeeded";
+      case "warn":
+        return "warn";
+      case "repair":
+      case "rerender":
+      case "block":
+        return "blocked";
+    }
+  }
+
+  private materialSourceStageStatus(report: MaterialSourceValidationReport): ProductionStageStatus {
+    switch (report.status) {
+      case "rejected":
+        return "blocked";
+      case "review_required":
+        return "warn";
+      case "approved":
+      case "planned_only":
+        return "succeeded";
+    }
+  }
+
+  private renderedShotsStageStatus(renderedShots: readonly RenderedShot[]): ProductionStageStatus {
+    if (renderedShots.length === 0) {
+      return "failed";
+    }
+    return renderedShots.some((shot) => shot.prediction.status !== "succeeded") ? "failed" : "succeeded";
+  }
+
+  private inspectionStageStatus(renderedShots: readonly RenderedShot[]): ProductionStageStatus {
+    if (renderedShots.length === 0) {
+      return "skipped";
+    }
+    return renderedShots.some((shot) => shot.renderInspection.status === "warn") ? "warn" : "succeeded";
+  }
+
+  private repairStageStatus(renderedShots: readonly RenderedShot[]): ProductionStageStatus {
+    const repairAttemptCount = renderedShots.reduce((sum, shot) => sum + shot.repairAttemptCount, 0);
+    return repairAttemptCount > 0 ? "succeeded" : "skipped";
+  }
+
+  private deliveryGateStageStatus(deliveryGate: NonNullable<DirectorRunResult["deliveryGate"]>): ProductionStageStatus {
+    switch (deliveryGate.status) {
+      case "pass":
+        return "succeeded";
+      case "warn":
+        return "warn";
+      case "block":
+        return "blocked";
+    }
+  }
+
+  private totalCandidateCount(renderedShots: readonly RenderedShot[]): number {
+    return renderedShots.reduce((sum, shot) => sum + shot.candidates.length, 0);
   }
 
   private validateProviderCapabilities(compiledPrompts: readonly CompiledPrompt[]): void {

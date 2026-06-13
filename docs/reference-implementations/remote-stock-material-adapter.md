@@ -6,8 +6,8 @@ Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScrip
 
 | Source | Snapshot or docs path | License / terms | Behavior used |
 | --- | --- | --- | --- |
-| `harry0703/MoneyPrinterTurbo` | `external/upstream/MoneyPrinterTurbo/app/services/material.py` | MIT | Query stock providers by search term, filter by duration/aspect/quality, keep material stage before composition. |
-| `harry0703/MoneyPrinterTurbo` | `external/upstream/MoneyPrinterTurbo/app/services/task.py` | MIT | Material gathering is a visible stage and terminal material failures remain operator-visible. |
+| `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo/app/services/material.py` | MIT | Query stock providers by search term, filter by duration/aspect/quality, keep material stage before composition. |
+| `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo/app/services/task.py` | MIT | Material gathering is a visible stage and terminal material failures remain operator-visible. |
 | `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Validate provider configuration before build/render work and expose deterministic review artifacts. |
 | `calesthio/OpenMontage` | `external/upstream/openmontage` | AGPL-3.0 | Approval-gate behavior only; do not copy implementation code. |
 | Pexels API docs | `https://www.pexels.com/api/documentation/` | Pexels API terms | Video search uses `Authorization` header, `/v1/videos/search`, video resources include duration, videographer, source page, and video files. |

@@ -157,6 +157,7 @@ Runtime implementation:
 - Each record contains status, graph node IDs, evidence counts, source-pattern origins, and blocking reason when a stage fails or blocks.
 - Review packets expose `stageLifecycle`, and durable artifacts include `stage-lifecycle.json`.
 - `run-summary.json` includes compact stage status pairs for fast operator scanning.
+- Active async render jobs also retain bounded stage progress events before final artifacts exist; list responses expose compact current-stage fields, while per-job polling exposes the retained event list.
 
 ### StoryArc
 

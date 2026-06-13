@@ -8,7 +8,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 | --- | --- | --- | --- |
 | `HKUDS/ViMax` | `external/upstream/vimax` | MIT | Long-form decomposition, reference-aware dependency thinking, candidate comparison, and continuity-sensitive sequencing. |
 | `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Storyboard-driven project loop, deterministic artifact order, status refresh, build/review reports, narrow repair commands. |
-| `harry0703/MoneyPrinterTurbo` | `external/upstream/MoneyPrinterTurbo` | MIT | One-input staged pipeline, task progress updates, material sourcing before composition, batch output lifecycle, terminal stage failure visibility. |
+| `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo` | MIT | One-input staged pipeline, task progress updates, material sourcing before composition, batch output lifecycle, terminal stage failure visibility. |
 
 ## Behavior To Preserve
 
