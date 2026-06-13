@@ -144,7 +144,7 @@ Implementation status:
 
 Current blockers before real customer rendering:
 
-- Local validation status on 2026-06-13T11:55:14Z: `npm.cmd run preflight` built successfully but returned `fail` because required deployment environment values and media tools are missing. `npm.cmd run validation:readiness` and `GET /v1/validation-readiness` are available to capture the same blockers, warnings, and next actions as a redacted Phase 6 readiness report before paid provider work.
+- Local validation status on 2026-06-13T17:02:53Z (2026-06-14 Asia/Saigon): `npm.cmd run typecheck` and `npm.cmd run build` passed. `npm.cmd run preflight` built successfully but returned `fail`; `npm.cmd run validation:readiness` returned decision `blocked` with 52 checks: 44 pass, 1 warn, and 7 fail. A local API process on a temporary port also returned `503` from `GET /v1/validation-readiness` with decision `blocked`, 7 fail checks, and 1 warning, confirming the HTTP readiness path exposes the same pre-paid blockers.
 - Real Atlas Cloud credentials and verified model IDs must be provided through environment variables: `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, and `ATLASCLOUD_SEEDANCE_FAST_MODEL`.
 - `CINEJELLY_API_AUTH_TOKEN` must be configured before protected API routes are safe for deployment.
 - FFmpeg and FFprobe must be installed on the deployment host for assembly, inspection, captions, audio mix, postproduction, and frame sampling.
