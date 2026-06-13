@@ -12,7 +12,7 @@ import type {
   RenderInspectionInput,
   StoryboardInspectionInput
 } from "../types/guardian.js";
-import type { ShotContract } from "../types/prompt.js";
+import type { PromptBindingConflict, PromptBindingPlan, ShotContract } from "../types/prompt.js";
 import type { StoryboardPanel } from "../types/storyboard.js";
 
 export class ConsistencyGuardian {
@@ -28,7 +28,8 @@ export class ConsistencyGuardian {
   public preflight(input: PreflightInput): GuardianReport {
     const findings: GuardianFinding[] = [
       ...this.validateShotBasics(input.shot),
-      ...this.validateReferences(input.shot),
+      ...this.validateReferences(input.shot, input.bindingPlan),
+      ...this.validateBindingPlan(input.bindingPlan),
       ...this.validateContinuity(input),
       ...this.validatePromptDensity(input.prompt, input.negativePrompt),
       ...this.validateTimeline(input.shot)
@@ -281,11 +282,11 @@ export class ConsistencyGuardian {
     return findings;
   }
 
-  private validateReferences(shot: ShotContract): readonly GuardianFinding[] {
+  private validateReferences(shot: ShotContract, bindingPlan: PromptBindingPlan | undefined): readonly GuardianFinding[] {
     const findings: GuardianFinding[] = [];
     const roles = new Set(shot.references.map((reference) => reference.role));
 
-    if (shot.risks.includes("face") && !roles.has("identity")) {
+    if (!bindingPlan && shot.risks.includes("face") && !roles.has("identity")) {
       findings.push({
         stage: "preflight",
         status: "repair",
@@ -295,7 +296,7 @@ export class ConsistencyGuardian {
         repair: "Bind an identity reference or lower the shot risk before rendering."
       });
     }
-    if (shot.risks.includes("product_logo") && !roles.has("product")) {
+    if (!bindingPlan && shot.risks.includes("product_logo") && !roles.has("product")) {
       findings.push({
         stage: "preflight",
         status: "repair",
@@ -316,6 +317,51 @@ export class ConsistencyGuardian {
       });
     }
     return findings;
+  }
+
+  private validateBindingPlan(bindingPlan: PromptBindingPlan | undefined): readonly GuardianFinding[] {
+    if (!bindingPlan) {
+      return [];
+    }
+
+    return bindingPlan.conflicts.map((conflict) => ({
+      stage: "preflight",
+      status: this.statusForBindingConflict(conflict),
+      severity: this.severityForBindingConflict(conflict),
+      checkpoint: `binding_${conflict.code}`,
+      evidence: this.bindingConflictEvidence(conflict),
+      repair: conflict.repair
+    }));
+  }
+
+  private statusForBindingConflict(conflict: PromptBindingConflict): GuardianStatus {
+    switch (conflict.status) {
+      case "block":
+        return "block";
+      case "repair":
+        return "repair";
+      case "warn":
+      case "info":
+        return "warn";
+    }
+  }
+
+  private severityForBindingConflict(conflict: PromptBindingConflict): GuardianSeverity {
+    switch (conflict.status) {
+      case "block":
+        return "S0";
+      case "repair":
+        return "S1";
+      case "warn":
+        return "S2";
+      case "info":
+        return "S3";
+    }
+  }
+
+  private bindingConflictEvidence(conflict: PromptBindingConflict): string {
+    const target = [conflict.role, conflict.label].filter((value): value is string => Boolean(value)).join("/");
+    return target ? `${target}: ${conflict.message}` : conflict.message;
   }
 
   private validateContinuity(input: PreflightInput): readonly GuardianFinding[] {

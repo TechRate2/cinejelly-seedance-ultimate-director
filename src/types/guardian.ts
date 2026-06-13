@@ -3,7 +3,7 @@
  * Reports are machine-readable so agents can route repair-only regeneration decisions.
  */
 
-import type { ShotContract } from "./prompt.js";
+import type { PromptBindingPlan, ShotContract } from "./prompt.js";
 import type { Prediction } from "./provider.js";
 import type { Storyboard } from "./storyboard.js";
 
@@ -51,6 +51,7 @@ export interface PreflightInput {
   readonly shot: ShotContract;
   readonly prompt: string;
   readonly negativePrompt: string;
+  readonly bindingPlan?: PromptBindingPlan;
   readonly ledger: ContinuityLedger;
 }
 

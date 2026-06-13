@@ -51,8 +51,8 @@ Use this table to decide which source behaviors should receive a Reference Imple
 
 | Snapshot | High-value logic to translate | Notes |
 | --- | --- | --- |
-| `seedance-2.0` | Reference role handling, prompt handoff order, endpoint anchors, anti-slop compression, professional QC workflow, troubleshooting decision flow. | MIT-compatible. First target: Prompt Binding Plan with provider-capability filtering and Guardian preflight conflicts. |
-| `awesome-seedance-2-prompts` | Prompt anatomy, timing language, negative constraints, cinematic weighting, subject/environment/camera ordering. | CC BY 4.0. Attribute exact text; translate generalized structures into CineJelly prompt contracts and repair hints. |
+| `seedance-2.0` | Reference role handling, prompt handoff order, endpoint anchors, anti-slop compression, professional QC workflow, troubleshooting decision flow. | MIT-compatible. Prompt Binding Plan foundation implemented on 2026-06-13; live provider capability wiring remains. |
+| `awesome-seedance-2-prompts` | Prompt anatomy, timing language, negative constraints, cinematic weighting, subject/environment/camera ordering. | CC BY 4.0. Prompt Binding Plan foundation implemented on 2026-06-13 using generalized prompt anatomy; attribute exact text before bundling any source prompt content. |
 | `vimax` | Long-form segmentation, storyboard decomposition, parallel candidate planning, same-camera/recent-frame reference selection, consistency checkpoint ordering. | MIT-compatible. First target: reference selection scoring and Guardian checkpoint ordering for 2-8 minute continuity. |
 | `vibeframe` | Deterministic artifact naming, validate/plan/build/inspect/repair loop, dry-run/cost gate sequence, build reports, review reports, repair loop ordering. | MIT-compatible. First target: Guardian repair-decision provenance and review packet repair scope. |
 | `videoagent` | Intent decomposition, video understanding boundaries, graph-powered planning, multimodal retrieval flow. | Top-level MIT with nested license checks. Translate reviewed components into Source Video Analyst and graph planning. |
@@ -63,6 +63,12 @@ Use this table to decide which source behaviors should receive a Reference Imple
 Reference Implementations should capture upstream path, license, preserved behavior, changed behavior, CineJelly destination module, and validation criteria. They are non-production documentation; production code must live in `src/`.
 
 Implementation sequencing and milestone checks are tracked in `docs/IMPLEMENTATION_ROADMAP.md`.
+
+## Active Translation Records
+
+| Logic | Upstream sources | Reference Implementation | CineJelly destinations | Status |
+| --- | --- | --- | --- | --- |
+| Prompt Reference Binding Plan | `Emily2040/seedance-2.0` reference workflow, intent-vs-precision, anti-slop compression order; `YouMind-OpenLab/awesome-seedance-2-prompts` prompt anatomy, timing, cinematic ordering, negative constraint placement. | `docs/reference-implementations/prompt-reference-binding-plan.md` | `src/types/prompt.ts`, `src/prompt_compiler/reference-binding.ts`, `src/prompt_compiler/prompt-compiler.ts`, `src/core/consistency-guardian.ts`, `src/types/guardian.ts` | Foundation implemented and `npm.cmd run typecheck` passed on 2026-06-13. Remaining work: feed live provider capability references into the plan and emit runtime ledger records where operator artifacts need them. |
 
 ## License-Sensitive Boundaries
 

@@ -153,6 +153,7 @@ export class DirectorAgent {
         shot,
         prompt: compiledPrompt.prompt,
         negativePrompt: compiledPrompt.negativePrompt,
+        bindingPlan: compiledPrompt.bindingPlan,
         ledger: continuityLedger
       });
     });

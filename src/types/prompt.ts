@@ -4,7 +4,7 @@
  */
 
 import type { FlexibleSeedanceSettings } from "./settings.js";
-import type { ProviderMetadata, ProviderReference, VideoGenerationRequest } from "./provider.js";
+import type { ProviderMetadata, ProviderReference, ReferenceKind, VideoGenerationRequest } from "./provider.js";
 
 export type ReferenceRole =
   | "identity"
@@ -36,6 +36,63 @@ export interface PromptReference {
   readonly label: string;
   readonly providerReference: ProviderReference;
   readonly priority: "primary" | "supporting";
+}
+
+export type PromptBindingConflictStatus = "info" | "warn" | "repair" | "block";
+
+export type PromptBindingConflictCode =
+  | "identity_reference_missing"
+  | "product_reference_missing"
+  | "audio_video_scope_conflict"
+  | "source_video_structure_planning_only"
+  | "unsupported_provider_reference_kind"
+  | "provider_reference_limit_exceeded"
+  | "duplicate_role_reference";
+
+export type PromptCompressionSection =
+  | "references"
+  | "continuity"
+  | "subject"
+  | "action"
+  | "camera"
+  | "lighting"
+  | "timeline"
+  | "audio"
+  | "transition"
+  | "constraints";
+
+export interface PromptBindingRoleScope {
+  readonly role: ReferenceRole;
+  readonly label: string;
+  readonly priority: PromptReference["priority"];
+  readonly scope: string;
+  readonly providerReferenceKind: ReferenceKind;
+  readonly providerIncluded: boolean;
+  readonly providerFilterReason?: string;
+}
+
+export interface PromptBindingConflict {
+  readonly status: PromptBindingConflictStatus;
+  readonly code: PromptBindingConflictCode;
+  readonly message: string;
+  readonly repair: string;
+  readonly role?: ReferenceRole;
+  readonly label?: string;
+}
+
+export interface PromptCompressionNote {
+  readonly order: number;
+  readonly section: PromptCompressionSection;
+  readonly reason: string;
+}
+
+export interface PromptBindingPlan {
+  readonly sortedReferences: readonly PromptReference[];
+  readonly providerReferences: readonly ProviderReference[];
+  readonly roleScopes: readonly PromptBindingRoleScope[];
+  readonly conflicts: readonly PromptBindingConflict[];
+  readonly referenceLines: readonly string[];
+  readonly compressionNotes: readonly PromptCompressionNote[];
 }
 
 export interface TimelineSegment {
@@ -88,6 +145,7 @@ export interface CompiledPrompt {
   readonly prompt: string;
   readonly negativePrompt: string;
   readonly references: readonly ProviderReference[];
+  readonly bindingPlan: PromptBindingPlan;
   readonly inspectionExpectations: readonly string[];
   readonly repairHints: readonly string[];
   readonly videoRequest: VideoGenerationRequest;

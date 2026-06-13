@@ -65,6 +65,10 @@ export class RenderProducer {
     return {
       ...compiledPrompt,
       references,
+      bindingPlan: {
+        ...compiledPrompt.bindingPlan,
+        providerReferences: references
+      },
       videoRequest: {
         ...compiledPrompt.videoRequest,
         references

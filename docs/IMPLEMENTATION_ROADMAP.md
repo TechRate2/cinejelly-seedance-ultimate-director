@@ -23,13 +23,15 @@ Ready foundations:
 
 Not yet complete:
 
-- Per-logic Reference Implementations for high-fidelity upstream behavior.
-- Prompt Binding Plan contract that records reference conflict findings and provider-capability filtering before prompt prose.
+- Remaining per-logic Reference Implementations beyond Phase 1 Prompt Binding Plan.
+- Provider capability wiring into Prompt Binding Plan from live selected-provider capabilities.
 - Explicit ViMax-style reference selection scoring and bounded reference selection evidence.
 - Guardian repair-decision provenance with narrow repair scope in operator artifacts.
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe installed.
 
 ## Phase 1: Prompt Fidelity
+
+Current status as of 2026-06-13: foundation implemented and typechecked. The prompt compiler now creates a `PromptBindingPlan` before assembling prose, and Guardian preflight consumes binding conflicts before provider spend. Remaining Phase 1 work is to feed live provider capability references into the plan and add deeper operator evidence once real Atlas validation is run.
 
 Target module:
 
@@ -44,11 +46,12 @@ Source logic to translate:
 
 Deliverables:
 
-- `docs/reference-implementations/prompt-reference-binding-plan.md`
-- `PromptBindingPlan` type that captures sorted references, role scopes, conflicts, provider-filtered references, prompt sections, and compression notes.
-- Prompt compiler uses the binding plan before assembling prompt prose.
-- Guardian preflight consumes binding conflicts for identity/product/source-video/audio-video edge cases.
-- `SourceLogicTranslationLedger` record for the translated behavior.
+- Done: `docs/reference-implementations/prompt-reference-binding-plan.md`
+- Done: `PromptBindingPlan` type that captures sorted references, role scopes, conflicts, provider-filtered references, prompt sections, and compression notes.
+- Done: Prompt compiler uses the binding plan before assembling prompt prose.
+- Done: Guardian preflight consumes binding conflicts for identity/product/source-video/audio-video edge cases.
+- Done in docs: source lineage recorded in `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`.
+- Remaining: runtime `SourceLogicTranslationLedger` seeding where this behavior needs to be emitted in operator artifacts.
 
 Milestone check:
 

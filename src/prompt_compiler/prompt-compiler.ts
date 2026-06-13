@@ -4,17 +4,27 @@
  */
 
 import { toVideoGenerationSettings } from "../config/seedance-settings.js";
-import type { CompiledPrompt, PromptCompilerInput, ShotContract, TimelineSegment } from "../types/prompt.js";
+import type {
+  CompiledPrompt,
+  PromptBindingPlan,
+  PromptCompilerInput,
+  ShotContract,
+  TimelineSegment
+} from "../types/prompt.js";
 import type { ProviderMode } from "../types/provider.js";
 import { buildNegativePrompt } from "./negative-constraints.js";
-import { describeReferenceBindings, sortReferencesForPrompt, toProviderReferences } from "./reference-binding.js";
+import { buildPromptBindingPlan, describeReferenceBindingsFromPlan } from "./reference-binding.js";
 import { buildRepairHints } from "./repair-hints.js";
 
 export class SeedancePromptCompiler {
   public compile(input: PromptCompilerInput): CompiledPrompt {
-    const prompt = this.buildPrompt(input.shot);
+    const bindingPlan = buildPromptBindingPlan({
+      references: input.shot.references,
+      risks: input.shot.risks
+    });
+    const prompt = this.buildPrompt(input.shot, bindingPlan);
     const negativePrompt = buildNegativePrompt(input.shot);
-    const references = toProviderReferences(input.shot.references);
+    const references = bindingPlan.providerReferences;
     const videoRequest = {
       provider: input.provider,
       modelId: input.modelId,
@@ -31,17 +41,18 @@ export class SeedancePromptCompiler {
       prompt,
       negativePrompt,
       references,
-      inspectionExpectations: this.buildInspectionExpectations(input.shot),
+      bindingPlan,
+      inspectionExpectations: this.buildInspectionExpectations(input.shot, bindingPlan),
       repairHints: buildRepairHints(input.shot),
       videoRequest
     };
   }
 
-  private buildPrompt(shot: ShotContract): string {
+  private buildPrompt(shot: ShotContract, bindingPlan: PromptBindingPlan): string {
     const sections = [
       `Shot ${shot.shotId}, ${shot.durationSeconds}s.`,
       `Intent: ${shot.intent}.`,
-      this.buildReferenceSection(shot),
+      this.buildReferenceSection(bindingPlan),
       this.buildContinuitySection(shot),
       `Scene subject: ${shot.subject}.`,
       `Action: ${shot.action}.`,
@@ -57,11 +68,12 @@ export class SeedancePromptCompiler {
     return sections.filter((section): section is string => Boolean(section && section.trim())).join("\n");
   }
 
-  private buildReferenceSection(shot: ShotContract): string {
-    if (shot.references.length === 0) {
+  private buildReferenceSection(bindingPlan: PromptBindingPlan): string {
+    if (bindingPlan.sortedReferences.length === 0) {
       return "References: no external reference assets; follow the shot contract only.";
     }
-    return `References:\n${describeReferenceBindings(shot.references).map((item) => `- ${item}`).join("\n")}`;
+    const referenceLines = describeReferenceBindingsFromPlan(bindingPlan).map((item) => `- ${item}`);
+    return `References:\n${referenceLines.join("\n")}`;
   }
 
   private buildContinuitySection(shot: ShotContract): string {
@@ -91,7 +103,7 @@ export class SeedancePromptCompiler {
     return `Timeline:\n${lines.map((line) => `- ${line}.`).join("\n")}`;
   }
 
-  private buildInspectionExpectations(shot: ShotContract): readonly string[] {
+  private buildInspectionExpectations(shot: ShotContract, bindingPlan: PromptBindingPlan): readonly string[] {
     const expectations = new Set<string>([
       "prompt intent is visible",
       "camera instruction is followed",
@@ -99,8 +111,13 @@ export class SeedancePromptCompiler {
       "no unintended text, watermark, or subtitles"
     ]);
 
-    for (const reference of sortReferencesForPrompt(shot.references)) {
+    for (const reference of bindingPlan.sortedReferences) {
       expectations.add(`${reference.role} reference is respected`);
+    }
+    for (const conflict of bindingPlan.conflicts) {
+      if (conflict.status === "repair" || conflict.status === "block") {
+        expectations.add(`binding conflict ${conflict.code} is resolved before provider spend`);
+      }
     }
     for (const risk of shot.risks) {
       expectations.add(`${risk} risk is controlled`);
