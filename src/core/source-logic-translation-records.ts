@@ -1255,7 +1255,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     behaviorChanged: [
       "MoneyPrinterTurbo runtime voice/music code is not copied or executed",
-      "CineJelly records generated-audio intents as planned-only evidence until a provider-backed audio module exists",
+      "CineJelly records generated-audio intents as reviewable planned/ready/blocked evidence until provider-backed execution succeeds",
       "API admission bounds intent prompts, timing, volume, and provider preference before runtime/provider spend",
       "review packet and artifact validation cross-check generated-audio counts without generating audio files"
     ],
@@ -1276,7 +1276,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "provider-backed TTS/BGM generation still requires separate provider contracts and live validation",
+      "provider-backed TTS/BGM generation still requires verified provider schema, execution wiring, and live validation",
       "operator-supplied generated-audio prompts may need additional brand/safety review before provider execution"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -1297,7 +1297,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten into CineJelly postproduction generated-audio contracts",
-      "CineJelly treats generated-audio requests as review-required planned evidence until audio generation is configured",
+      "CineJelly treats generated-audio requests as review-required planning/execution evidence until generated output is verified",
       "HTTP request admission rejects malformed generated-audio inputs before runtime initialization"
     ],
     referenceImplementationPath: "docs/reference-implementations/generated-audio-intent-planning.md",
@@ -1313,7 +1313,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     validationStatus: "implemented",
     fidelityRisks: [
       "artifact evidence must be checked after a paid render to confirm generated-audio planning remains aligned with final media",
-      "future provider-backed audio generation should preserve these review and validation fields"
+      "provider-backed audio generation should preserve these review and validation fields when execution is verified"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -1332,7 +1332,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "OpenMontage implementation code is not copied, linked, or executed",
       "AGPL-sensitive concepts are limited to behavior notes for CineJelly-owned planning and validation",
-      "provider execution remains absent until CineJelly has its own provider-backed audio generation module"
+      "provider execution remains disabled until CineJelly has verified provider-backed audio generation and output validation"
     ],
     referenceImplementationPath: "docs/reference-implementations/generated-audio-intent-planning.md",
     cineJellyDestinationPaths: [
@@ -1548,6 +1548,101 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     fidelityRisks: [
       "future implementation must keep AGPL material at behavior-note level unless legal/product obligations are accepted",
       "human approval UX remains a future orchestration surface"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Output Validation",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/voice.py",
+      "external/upstream/moneyprinterturbo/app/services/video.py",
+      "external/upstream/moneyprinterturbo/app/services/task.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "generated audio is treated as a prepared artifact before final composition",
+      "audio-stage failures remain operator-visible rather than silently becoming mix inputs",
+      "voice/BGM output remains separate from final video assembly"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo audio output handling code is not copied or executed",
+      "CineJelly validates provider-neutral AudioGenerationResult objects before producing AudioMixTrack records",
+      "credential-bearing URLs, local paths, data URIs, and unresolved asset URIs are rejected or held for review",
+      "approved generated-audio outputs become deterministic audio mix tracks only after status, identity, URL, duration, and volume checks"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-output-validation.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-output.ts",
+      "src/core/generated-audio-output-validator.ts",
+      "src/index.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "waveform/media inspection still requires real generated audio files and deployment FFmpeg/FFprobe",
+      "asset:// generated-audio outputs need a future reviewed audio asset resolver before mixing"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Output Validation",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "generated artifacts must be validated and reviewable before release decisions",
+      "invalid generated outputs become deterministic review issues",
+      "release evidence should separate prepared outputs from unvalidated provider state"
+    ],
+    behaviorChanged: [
+      "VibeFrame validation/report discipline is rewritten into CineJelly generated-audio output validation reports",
+      "CineJelly does not download, inspect, or mix generated audio in this validator",
+      "the validator produces an AudioMixTrack only for approved credential-free HTTPS output"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-output-validation.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-output.ts",
+      "src/core/generated-audio-output-validator.ts",
+      "docs/IMPLEMENTATION_ROADMAP.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "actual release validation still requires generated audio media artifacts and artifact review"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Output Validation",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/AGENT_GUIDE.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "sample-before-batch and approval concepts inform generated-media output gates",
+      "provider output should be reviewed before final media assembly",
+      "partial or unresolved generated output remains explicit"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, imported, or executed",
+      "AGPL-sensitive media-review concepts remain behavior notes only",
+      "CineJelly-owned validation blocks unsafe provider output without invoking OpenMontage runtime"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-output-validation.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-output.ts",
+      "src/core/generated-audio-output-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future approval UX must keep AGPL material at behavior-note level unless legal/product obligations are accepted"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },

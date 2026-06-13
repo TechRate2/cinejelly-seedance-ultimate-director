@@ -18,10 +18,10 @@ Ready foundations:
 - Model Provider Abstraction contracts, Atlas provider, generated-audio provider contract boundary, provider error normalization, capability validation, cost ledger, and retry telemetry.
 - Prompt Compiler, reference sorting, negative constraints, repair hints, and provider-neutral request compilation.
 - Production Graph, storyboard planner, shot planner, run recorder, review packet builder, artifact store, and delivery gate.
-- Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, postproduction asset planner, generated-audio intent planning, generated-audio execution planning, render-job stage progress telemetry, and source-material/postproduction artifact validation.
+- Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, postproduction asset planner, generated-audio intent planning, generated-audio execution planning, generated-audio output validation, render-job stage progress telemetry, and source-material/postproduction artifact validation.
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
-- Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, API Artifact Validation Evidence, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, Generated Audio Intent Planning, Generated Audio Execution Planner, Generated Audio Provider Execution Contract, Phase 6 Validation Readiness Report, and Media Tool Binary Resolution.
+- Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, API Artifact Validation Evidence, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, Generated Audio Intent Planning, Generated Audio Execution Planner, Generated Audio Output Validation, Generated Audio Provider Execution Contract, Phase 6 Validation Readiness Report, and Media Tool Binary Resolution.
 - Operator validation readiness through `npm.cmd run validation:readiness`, `GET /v1/validation-readiness`, API-visible synchronous/async artifact validation, and artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for pre-paid blockers, manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
 
 Not yet complete:
@@ -166,7 +166,7 @@ Milestone check:
 
 ## Phase 5: Long-Form Planning And Batch Workflow
 
-Status as of 2026-06-14: Reference Implementations drafted/implemented for stage lifecycle, material sourcing, postproduction asset orchestration, generated-audio intent planning, generated-audio execution planning, and generated-audio provider execution contracts. `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, postproduction asset planning, generated-audio planned-only evidence, generated-audio ready/blocked execution planning, generated-audio provider-neutral contracts, no-spend Atlas generated-audio boundary, DirectorAgent stage progress reporting, async render-job progress polling, synchronous/async API artifact validation evidence, local material library adapter, opt-in remote stock material adapter, material source validation, review-packet stage/postproduction planning evidence, and stage/material/postproduction artifacts are implemented. `npm.cmd run typecheck`, `npm.cmd run build`, local no-network generated-audio execution-planner smoke, and local no-network generated-audio boundary smoke passed for the foundation phases; real long-form Atlas validation, live remote stock provider validation, and actual provider-backed generated-audio execution remain pending.
+Status as of 2026-06-14: Reference Implementations drafted/implemented for stage lifecycle, material sourcing, postproduction asset orchestration, generated-audio intent planning, generated-audio execution planning, generated-audio output validation, and generated-audio provider execution contracts. `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, postproduction asset planning, generated-audio planned-only evidence, generated-audio ready/blocked execution planning, generated-audio result-to-track validation, generated-audio provider-neutral contracts, no-spend Atlas generated-audio boundary, DirectorAgent stage progress reporting, async render-job progress polling, synchronous/async API artifact validation evidence, local material library adapter, opt-in remote stock material adapter, material source validation, review-packet stage/postproduction planning evidence, and stage/material/postproduction artifacts are implemented. `npm.cmd run typecheck`, `npm.cmd run build`, local no-network generated-audio execution-planner smoke, local no-network generated-audio output-validation smoke, and local no-network generated-audio boundary smoke passed for the foundation phases; real long-form Atlas validation, live remote stock provider validation, and actual provider-backed generated-audio execution remain pending.
 
 Target module:
 
@@ -193,6 +193,7 @@ Deliverables:
 - `docs/reference-implementations/postproduction-asset-orchestration.md`
 - `docs/reference-implementations/generated-audio-intent-planning.md`
 - `docs/reference-implementations/generated-audio-execution-planner.md`
+- `docs/reference-implementations/generated-audio-output-validation.md`
 - `docs/reference-implementations/generated-audio-provider-execution-contract.md`
 - `docs/reference-implementations/render-job-stage-progress.md`
 - `docs/reference-implementations/api-artifact-validation-evidence.md`
@@ -205,6 +206,7 @@ Deliverables:
 - Postproduction asset plan wired into assemble-stage evidence, review packet planning evidence, durable artifacts, artifact validation, and cross-artifact consistency checks.
 - Generated-audio intents for narration, BGM, ambience, and SFX wired into request admission, postproduction asset plan, assemble-stage evidence, review packet planning evidence, durable artifacts, artifact validation, and cross-artifact consistency checks as planned-only evidence.
 - Generated-audio execution planning maps intents to verified provider capabilities and records ready/blocked item evidence without calling providers.
+- Generated-audio output validation approves result-to-track conversion only for matched, positive-duration, credential-free HTTPS provider results; unresolved `asset://` outputs remain review-required until a resolver exists.
 - Provider-neutral audio-generation capability/request/result contracts and `AudioProvider` boundary added; Atlas generated-audio execution remains a stable no-spend `MODEL_UNAVAILABLE` path until verified capability mapping exists.
 - Operator-owned local material catalog fulfillment through safe `asset://` or credential-free HTTPS candidates, with `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` config and preflight validation.
 - Opt-in remote stock material fulfillment through Pexels, Pixabay, and commercially approved Coverr providers, with key-gated runtime config, credential-free candidate URIs, attribution metadata, and centralized material validation.
@@ -222,6 +224,7 @@ Milestone check:
 - Generated-audio intent counts in `postproduction-assets.json`, `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence agree.
 - Generated-audio ready/blocked intent counts in `postproduction-assets.json`, `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence agree.
 - Calling Atlas generated-audio without verified capability mapping fails before network spend with a stable provider error and, when a ledger is attached, an `audio.generate` failed ledger entry.
+- Generated-audio provider results cannot become final mix tracks unless output validation approves status, identity, kind, provider, model, duration, volume, and safe URL.
 - Local material catalog entries never expose filesystem paths in API/artifact candidate URIs.
 - Remote stock candidates never expose API keys, signed URLs, or credential-like query parameters in candidate, source-page, or preview URIs.
 - Running async jobs expose current stage, current stage status, progress event count, and retained detail events without local paths, inline media, secrets, or raw provider payloads.

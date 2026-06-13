@@ -82,6 +82,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Extends deterministic incomplete-stage evidence to generated-audio intent planning so requested narration, BGM, ambience, or SFX are visible as planned-only review evidence until provider-backed audio generation exists.
   - Extends validation/cost/report discipline into a generated-audio provider contract boundary that fails safely before spend when no verified audio capability is configured.
   - Extends validation-before-spend discipline into a generated-audio execution planner that records ready and blocked intent counts before provider calls.
+  - Extends validation-before-release discipline into generated-audio output validation so provider results must pass safe URL, duration, and identity checks before mixing.
 
 ### DirectorBench
 
@@ -133,6 +134,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Uses approval/self-review concepts as AGPL-aware behavior notes for generated-audio planning boundaries; no OpenMontage implementation code is copied, linked, imported, or executed for this feature.
   - Uses provider-menu, music-plan, and sample-before-batch concepts as AGPL-aware behavior notes for the generated-audio provider contract; implementation remains CineJelly-owned TypeScript.
   - Uses provider-preference and approval concepts as AGPL-aware behavior notes for generated-audio execution planning; no OpenMontage runtime code is copied, linked, imported, or executed.
+  - Uses media-review and sample-before-batch concepts as AGPL-aware behavior notes for generated-audio output validation; implementation remains CineJelly-owned TypeScript.
 
 ### MoneyPrinterTurbo
 
@@ -154,9 +156,10 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds API-visible artifact validation status and checks for synchronous render responses and terminal async jobs so generated evidence stays reviewable through the API surface.
   - Adds pre-paid CLI and HTTP validation readiness reporting so blocked environment/tool state remains operator-visible before long-running Atlas work starts.
   - Adds configurable FFmpeg/FFprobe command resolution for preflight and runtime media engines so deployments can use portable binaries without global PATH changes.
-  - Adds a deterministic postproduction asset plan for supplied captions and audio tracks so subtitle/audio/BGM decisions are visible in artifacts, review packets, and validation before assembly; provider-backed TTS/BGM generation remains a future CineJelly-owned module.
+  - Adds a deterministic postproduction asset plan for supplied captions and audio tracks so subtitle/audio/BGM decisions are visible in artifacts, review packets, and validation before assembly; provider-backed TTS/BGM execution remains disabled until verified provider wiring and live validation exist.
   - Adds bounded generated-audio intent planning for narration, BGM, ambience, and SFX so MoneyPrinterTurbo-style voice/BGM stage inputs become CineJelly-owned planned-only evidence, admission controls, review-packet fields, stage lifecycle fields, and artifact-validation checks before any provider-backed generation module is built.
   - Adds a generated-audio execution planner that maps bounded intents to provider-neutral requests only when verified capabilities exist, preserving blocked provider/kind/duration/output-format evidence without provider spend.
+  - Adds generated-audio output validation so prepared provider results must be matched to the original intent and pass duration plus credential-free URL checks before becoming audio mix tracks.
   - Adds provider-neutral generated-audio capability/request/result contracts inspired by MoneyPrinterTurbo's explicit audio stage and `/audio` stop-at behavior, while keeping actual provider execution disabled until verified schemas and paid validation exist.
   - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 

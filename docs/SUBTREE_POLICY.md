@@ -100,6 +100,7 @@ For concrete examples, see the Practical Translation Examples in `docs/FAITHFUL_
 - Generated Audio Intent Planning from MoneyPrinterTurbo voice/BGM stage inputs plus VibeFrame deterministic incomplete-stage evidence, with OpenMontage approval/self-review concepts kept as AGPL-aware behavior notes.
 - Generated Audio Provider Execution Contract from MoneyPrinterTurbo audio-stage execution plus VibeFrame validation/cost discipline, with OpenMontage provider-menu and approval concepts kept as AGPL-aware behavior notes.
 - Generated Audio Execution Planner from MoneyPrinterTurbo audio-stage request fields plus VibeFrame validation-before-spend reporting, with OpenMontage provider-preference concepts kept as AGPL-aware behavior notes.
+- Generated Audio Output Validation from MoneyPrinterTurbo prepared-audio artifact boundaries plus VibeFrame validation-before-release reporting, with OpenMontage media-review concepts kept as AGPL-aware behavior notes.
 - Focused Reference Implementations under `docs/reference-implementations/`, including Media Tool Binary Resolution, show how deployment-critical runtime behavior is translated without importing from upstream snapshots.
 
 For implementation order, milestones, and the shared validation checklist, use `docs/IMPLEMENTATION_ROADMAP.md`.
