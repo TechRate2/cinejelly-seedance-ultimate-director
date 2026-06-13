@@ -18,10 +18,10 @@ Ready foundations:
 - Model Provider Abstraction contracts, Atlas provider, provider error normalization, capability validation, cost ledger, and retry telemetry.
 - Prompt Compiler, reference sorting, negative constraints, repair hints, and provider-neutral request compilation.
 - Production Graph, storyboard planner, shot planner, run recorder, review packet builder, artifact store, and delivery gate.
-- Material sourcing planner, material source validator, and source-material artifact validation.
+- Material sourcing planner, local material library adapter, material source validator, and source-material artifact validation.
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
-- Reference Implementations and CineJelly-owned rewrites for Phase 1 Prompt Binding Plan, Phase 2 Guardian Repair Decision Provenance, Phase 3 Reference Selection Scoring plus Reference Metadata Enrichment, Phase 4 Provider Polling/Retry/Cost Fidelity, and Phase 5 Long-Form Planning/Batch Workflow plus Material Source Adapter Validation.
+- Reference Implementations and CineJelly-owned rewrites for Phase 1 Prompt Binding Plan, Phase 2 Guardian Repair Decision Provenance, Phase 3 Reference Selection Scoring plus Reference Metadata Enrichment, Phase 4 Provider Polling/Retry/Cost Fidelity, and Phase 5 Long-Form Planning/Batch Workflow plus Material Source Adapter Validation and Local Material Library Adapter.
 - Operator artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
 
 Not yet complete:
@@ -29,7 +29,7 @@ Not yet complete:
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe installed.
 - Real artifact review from a paid Atlas validation run, including validator output, review packet, cost ledger, stage lifecycle, and deliverable metadata.
 - Live visual-analyzer provider adapters that can create richer `sourceVideoAnalysis` automatically from uploaded video.
-- Actual local/stock material-source adapter fulfillment against approved production media sources.
+- Remote stock material-source adapters against approved production media sources.
 
 ## Phase 1: Prompt Fidelity
 
@@ -161,7 +161,7 @@ Milestone check:
 
 ## Phase 5: Long-Form Planning And Batch Workflow
 
-Status as of 2026-06-13: Reference Implementations drafted; stage lifecycle contracts, `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, material source validation, review-packet stage lifecycle, and stage/material artifacts are implemented. `npm.cmd run typecheck` and `npm.cmd run build` passed; real long-form Atlas validation remains pending.
+Status as of 2026-06-13: Reference Implementations drafted; stage lifecycle contracts, `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, local material library adapter, material source validation, review-packet stage lifecycle, and stage/material artifacts are implemented. `npm.cmd run typecheck` and `npm.cmd run build` passed for the foundation phases; real long-form Atlas validation remains pending.
 
 Target module:
 
@@ -183,10 +183,12 @@ Deliverables:
 
 - `docs/reference-implementations/long-form-planning-batch-workflow.md`
 - `docs/reference-implementations/material-source-adapter-validation.md`
+- `docs/reference-implementations/local-material-library-adapter.md`
 - Explicit stage status model for plan, storyboard, prompt, source material, render, inspect, repair, assemble, deliver.
 - Batch candidate evidence across shots and final deliverables.
 - Material sourcing rights metadata wired into Production Graph nodes.
 - Material source validation report wired into stage lifecycle, review packet planning evidence, durable artifacts, and artifact validation.
+- Operator-owned local material catalog fulfillment through safe `asset://` or credential-free HTTPS candidates, with `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` config and preflight validation.
 
 Milestone check:
 
@@ -195,6 +197,7 @@ Milestone check:
 - Independent shots can render concurrently within configured limits.
 - Batch candidates are traceable and rejected candidates are recorded.
 - Source-material candidates are either planned-only or validated against known briefs, approved sources, safe URIs, rights/attribution, duration, aspect ratio, and resolution before release evidence.
+- Local material catalog entries never expose filesystem paths in API/artifact candidate URIs.
 
 ## Phase 6: Real Provider Validation
 

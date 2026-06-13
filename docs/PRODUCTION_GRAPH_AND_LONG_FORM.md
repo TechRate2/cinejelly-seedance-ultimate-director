@@ -133,7 +133,7 @@ Runtime implementation:
 - `MaterialSourcingPlanner` creates a governed `MaterialSourcingPlan` for every run after shot planning and reference selection.
 - `ProductionGraphBuilder` stores the plan as a `material_sourcing` node and links shot nodes that own material briefs to that evidence.
 - Every brief records source policy, query terms, aspect ratio, resolution, target duration, max candidate count, remote-source allowance, and rights requirement.
-- DirectorAgent currently creates planning briefs only; actual stock/local material adapter fulfillment remains future work and must preserve the same rights metadata.
+- DirectorAgent now resolves optional operator-owned local catalog candidates before `MaterialSourceValidator`; remote stock adapter fulfillment remains future work and must preserve the same rights metadata.
 
 ### StageLifecycle
 

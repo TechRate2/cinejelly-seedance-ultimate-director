@@ -29,6 +29,7 @@ import { StoryboardPlanner } from "../core/storyboard-planner.js";
 import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult, RenderCandidate, RenderedShot } from "../types/agent.js";
 import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
+import type { MaterialCandidate, MaterialSourceAdapter } from "../types/material.js";
 import type { PostproductionSettings } from "../types/media.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type { Prediction } from "../types/provider.js";
@@ -51,6 +52,7 @@ export class DirectorAgent {
   private readonly productionStagePlanner: ProductionStagePlanner;
   private readonly referenceSelectionPlanner: ReferenceSelectionPlanner;
   private readonly materialSourcingPlanner: MaterialSourcingPlanner;
+  private readonly materialSourceAdapters: readonly MaterialSourceAdapter[];
   private readonly materialSourceValidator: MaterialSourceValidator;
   private readonly renderCostGate: RenderCostGate;
   private readonly promptCompiler: SeedancePromptCompiler;
@@ -75,6 +77,7 @@ export class DirectorAgent {
     readonly productionStagePlanner?: ProductionStagePlanner;
     readonly referenceSelectionPlanner?: ReferenceSelectionPlanner;
     readonly materialSourcingPlanner?: MaterialSourcingPlanner;
+    readonly materialSourceAdapters?: readonly MaterialSourceAdapter[];
     readonly materialSourceValidator?: MaterialSourceValidator;
     readonly renderCostGate?: RenderCostGate;
     readonly promptCompiler?: SeedancePromptCompiler;
@@ -94,6 +97,7 @@ export class DirectorAgent {
     this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
     this.referenceSelectionPlanner = input.referenceSelectionPlanner ?? new ReferenceSelectionPlanner();
     this.materialSourcingPlanner = input.materialSourcingPlanner ?? new MaterialSourcingPlanner();
+    this.materialSourceAdapters = input.materialSourceAdapters ?? [];
     this.materialSourceValidator = input.materialSourceValidator ?? new MaterialSourceValidator();
     this.renderCostGate = input.renderCostGate ?? new RenderCostGate({ costBufferMultiplier: 1 });
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
@@ -125,8 +129,10 @@ export class DirectorAgent {
       shots,
       settings: intake.settings
     });
+    const materialCandidates = await this.resolveMaterialCandidates(materialSourcingPlan, signal);
     const materialSourceValidation = this.materialSourceValidator.validate({
-      plan: materialSourcingPlan
+      plan: materialSourcingPlan,
+      candidates: materialCandidates
     });
     const storyboard = this.storyboardPlanner.plan({
       projectId: intake.projectId,
@@ -321,6 +327,24 @@ export class DirectorAgent {
     for (const compiledPrompt of compiledPrompts) {
       this.renderProducer.validateCapability(compiledPrompt);
     }
+  }
+
+  private async resolveMaterialCandidates(
+    materialSourcingPlan: ReturnType<MaterialSourcingPlanner["plan"]>,
+    signal: AbortSignal | undefined
+  ): Promise<readonly MaterialCandidate[]> {
+    if (this.materialSourceAdapters.length === 0) {
+      return [];
+    }
+    const candidateGroups = await Promise.all(
+      this.materialSourceAdapters.map((adapter) =>
+        adapter.resolve({
+          plan: materialSourcingPlan,
+          ...(signal ? { signal } : {})
+        })
+      )
+    );
+    return candidateGroups.flat();
   }
 
   private postproductionSettingsForDelivery(settings: FlexibleSeedanceSettings): PostproductionSettings {

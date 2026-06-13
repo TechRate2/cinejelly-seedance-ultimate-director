@@ -4,8 +4,10 @@
  */
 
 import { constants } from "node:fs";
-import { access, mkdir } from "node:fs/promises";
+import { access, mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
+import type { LocalMaterialCatalog } from "../types/material.js";
 import type { PreflightCheck, PreflightStatus, RuntimePreflightReport } from "../types/preflight.js";
 import { runProcess } from "../utils/process.js";
 
@@ -64,6 +66,10 @@ export class RuntimePreflight {
     ];
 
     checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
+    checks.push(await this.localMaterialCatalogCheck(
+      "CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH",
+      this.env.CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH
+    ));
     checks.push(await this.commandCheck("ffmpeg", ["-version"], signal));
     checks.push(await this.commandCheck("ffprobe", ["-version"], signal));
 
@@ -71,6 +77,56 @@ export class RuntimePreflight {
       status: this.rollup(checks),
       checkedAt: new Date(),
       checks
+    };
+  }
+
+  private async localMaterialCatalogCheck(name: string, value: string | undefined): Promise<PreflightCheck> {
+    const configured = value?.trim();
+    if (!configured) {
+      return {
+        name,
+        status: "pass",
+        message: `${name} is not set; local material adapter is disabled.`
+      };
+    }
+    if (/[\u0000-\u001f\u007f]/.test(configured)) {
+      return { name, status: "fail", message: `${name} must not contain control characters.` };
+    }
+    try {
+      const text = await readFile(configured, "utf8");
+      const parsed = JSON.parse(text) as unknown;
+      const catalog = this.catalogRecord(parsed);
+      new LocalMaterialLibraryAdapter({ catalog: catalog as LocalMaterialCatalog });
+      return {
+        name,
+        status: "pass",
+        message: `${catalog.entries.length} local material catalog entr${catalog.entries.length === 1 ? "y" : "ies"} configured.`
+      };
+    } catch (error) {
+      return {
+        name,
+        status: "fail",
+        message: error instanceof Error
+          ? `${name} must point to a readable valid local material catalog JSON file: ${error.message}`
+          : `${name} must point to a readable valid local material catalog JSON file.`
+      };
+    }
+  }
+
+  private catalogRecord(value: unknown): { readonly catalogId?: string; readonly entries: readonly unknown[] } {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Catalog must be a JSON object.");
+    }
+    const payload = value as Record<string, unknown>;
+    if (payload.catalogId !== undefined && typeof payload.catalogId !== "string") {
+      throw new Error("catalogId must be a string when set.");
+    }
+    if (!Array.isArray(payload.entries)) {
+      throw new Error("entries must be an array.");
+    }
+    return {
+      ...(typeof payload.catalogId === "string" ? { catalogId: payload.catalogId } : {}),
+      entries: payload.entries
     };
   }
 

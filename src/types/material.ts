@@ -122,6 +122,26 @@ export interface MaterialSourceAdapter {
   resolve(input: MaterialSourceAdapterInput): Promise<readonly MaterialCandidate[]>;
 }
 
+export interface LocalMaterialCatalogEntry {
+  readonly assetId: string;
+  readonly label: string;
+  readonly assetUri: string;
+  readonly source: Extract<MaterialSource, "local_library" | "user_provided">;
+  readonly purposes?: readonly MaterialPurpose[];
+  readonly tags?: readonly string[];
+  readonly durationSeconds?: number;
+  readonly aspectRatio?: AspectRatio;
+  readonly resolution?: Resolution;
+  readonly rightsStatus: MaterialRightsStatus;
+  readonly attribution?: string;
+  readonly contentHash?: string;
+}
+
+export interface LocalMaterialCatalog {
+  readonly catalogId?: string;
+  readonly entries: readonly LocalMaterialCatalogEntry[];
+}
+
 export interface MaterialSourcingPlan {
   readonly planId: string;
   readonly projectId: string;

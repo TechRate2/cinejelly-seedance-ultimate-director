@@ -5,7 +5,12 @@
 
 import type { ProviderCapability } from "../types/provider.js";
 import type { CostEstimationSettings } from "../types/cost.js";
-import type { AssemblyRuntimeSettings, AtlasCloudRuntimeSettings, RuntimeSettings } from "../types/settings.js";
+import type {
+  AssemblyRuntimeSettings,
+  AtlasCloudRuntimeSettings,
+  MaterialRuntimeSettings,
+  RuntimeSettings
+} from "../types/settings.js";
 
 const DEFAULT_ATLAS_API_BASE_URL = "https://api.atlascloud.ai/v1";
 const DEFAULT_ATLAS_ASSET_BASE_URL = "https://console.atlascloud.ai/api/v1";
@@ -64,6 +69,17 @@ function optionalNumberEnvWithFallback(name: string, env: NodeJS.ProcessEnv, fal
   return value;
 }
 
+function optionalPathEnv(name: string, env: NodeJS.ProcessEnv): string | undefined {
+  const value = env[name]?.trim();
+  if (!value) {
+    return undefined;
+  }
+  if (/[\u0000-\u001f\u007f]/.test(value)) {
+    throw new Error(`Environment variable ${name} must not contain control characters.`);
+  }
+  return value;
+}
+
 export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): AtlasCloudRuntimeSettings {
   const seedanceCapabilities = parseCapabilitiesEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
   return {
@@ -112,7 +128,15 @@ export function loadRuntimeSettings(env: NodeJS.ProcessEnv = process.env): Runti
     atlasCloud: loadAtlasCloudSettings(env),
     costEstimation: loadCostEstimationSettings(env),
     renderConcurrency: optionalIntegerEnv("CINEJELLY_RENDER_CONCURRENCY", env, 2),
-    assembly: loadAssemblyRuntimeSettings(env)
+    assembly: loadAssemblyRuntimeSettings(env),
+    material: loadMaterialRuntimeSettings(env)
+  };
+}
+
+export function loadMaterialRuntimeSettings(env: NodeJS.ProcessEnv = process.env): MaterialRuntimeSettings {
+  const localCatalogPath = optionalPathEnv("CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH", env);
+  return {
+    ...(localCatalogPath ? { localCatalogPath } : {})
   };
 }
 

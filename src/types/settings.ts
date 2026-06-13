@@ -58,11 +58,16 @@ export interface AssemblyRuntimeSettings {
   readonly maxAudioTrackBytes: number;
 }
 
+export interface MaterialRuntimeSettings {
+  readonly localCatalogPath?: string;
+}
+
 export interface RuntimeSettings {
   readonly atlasCloud: AtlasCloudRuntimeSettings;
   readonly costEstimation: CostEstimationSettings;
   readonly renderConcurrency: number;
   readonly assembly: AssemblyRuntimeSettings;
+  readonly material: MaterialRuntimeSettings;
 }
 
 export const DEFAULT_SEEDANCE_SETTINGS: FlexibleSeedanceSettings = {

@@ -21,6 +21,7 @@ Configure secrets and provider IDs through environment variables only:
 Recommended production controls:
 
 - `CINEJELLY_OUTPUT_DIR`
+- `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH`
 - `CINEJELLY_RENDER_COST_USD_PER_SECOND`
 - `CINEJELLY_ASSET_REGISTRATION_COST_USD`
 - `CINEJELLY_LLM_PLAN_COST_USD`
@@ -33,6 +34,8 @@ Install and verify media tools:
 ffmpeg -version
 ffprobe -version
 ```
+
+`CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` is optional. When set, it must point to an operator-owned JSON catalog whose entries use safe `asset://` or credential-free HTTPS `assetUri` values, approved rights metadata, bounded labels/tags, and no local filesystem paths or signed URL credentials. Missing this variable keeps material fulfillment in a planned-only state.
 
 ## Preflight Gate
 
@@ -59,6 +62,7 @@ Hard blockers:
 - Missing `CINEJELLY_API_AUTH_TOKEN` for a protected deployment.
 - Missing FFmpeg or FFprobe.
 - Invalid Atlas endpoint overrides.
+- Invalid local material catalog path or unsafe catalog asset URI when `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` is set.
 - Output directory cannot be created or written.
 - Invalid numeric settings or API port.
 
@@ -176,6 +180,7 @@ Required evidence:
 - `stage-lifecycle.json` contains all stages in order: `plan`, `storyboard`, `prompt`, `source_material`, `render`, `inspect`, `repair`, `assemble`, `deliver`.
 - `material-sourcing-plan.json` contains rights requirement and preferred sources for every material brief.
 - `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
+- If a local material catalog is configured, selected candidates in `material-source-validation.json` use safe `asset://` or credential-free HTTPS URIs and preserve rights/attribution metadata.
 - `cost-ledger.json` contains provider operations with model, graph node, prediction ID when available, latency, retry count, status, and provider usage/cost when returned.
 - `production-graph.json` includes `reference_asset`, `reference_selection`, `material_sourcing`, `clip_render`, `inspection_report`, repair, and deliverable evidence as applicable.
 - `deliverable.json` includes output byte size and SHA-256 hash.

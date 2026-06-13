@@ -378,11 +378,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
   {
     logicName: "Provider Polling, Retry, And Cost Fidelity",
     sourceRepository: "Atlas Cloud",
-    snapshotPath: "src/providers/atlascloud",
+    snapshotPath: "https://www.atlascloud.ai/docs/en",
     upstreamPaths: [
-      "src/providers/atlascloud/atlas-cloud-provider.ts",
-      "src/providers/atlascloud/atlas-cloud-http.ts",
-      "src/providers/atlascloud/atlas-cloud-mappers.ts"
+      "https://www.atlascloud.ai/docs/en"
     ],
     license: "PROVIDER-DOCS",
     behaviorPreserved: [
@@ -509,7 +507,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "actual local/stock material adapter fulfillment remains future work",
+      "remote stock material adapter fulfillment remains future work",
       "subtitle, TTS, and BGM orchestration are not yet translated into dedicated stage modules"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -607,6 +605,106 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/material.ts",
       "src/core/material-source-validator.ts",
       "src/core/project-artifact-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "legal review is still required before any direct AGPL implementation reuse",
+      "current implementation uses approval behavior notes only"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Local Material Library Adapter",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    upstreamPaths: [
+      "external/upstream/MoneyPrinterTurbo/app/services/material.py",
+      "external/upstream/MoneyPrinterTurbo/app/services/task.py",
+      "external/upstream/MoneyPrinterTurbo/app/models/schema.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "material fulfillment is an explicit stage before final composition",
+      "candidate lists stay bounded and tied back to task or brief evidence",
+      "missing material fulfillment remains visible instead of being silently treated as approved"
+    ],
+    behaviorChanged: [
+      "upstream downloader/provider code is not reused",
+      "operator-owned catalogs resolve into CineJelly MaterialCandidate contracts",
+      "safe asset URIs and rights metadata are validated before candidates can be selected"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/local-material-library-adapter.md",
+    cineJellyDestinationPaths: [
+      "src/types/material.ts",
+      "src/types/settings.ts",
+      "src/core/local-material-library-adapter.ts",
+      "src/config/runtime-config.ts",
+      "src/application/director-factory.ts",
+      "src/application/runtime-preflight.ts",
+      "src/agents/director-agent.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "catalog quality depends on operator-owned rights review before deployment",
+      "remote stock provider adapters remain separate future implementations"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Local Material Library Adapter",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "configured inputs are validated before expensive build or render work",
+      "source-material evidence remains deterministic and operator-reviewable",
+      "invalid configuration fails preflight instead of failing during provider spend"
+    ],
+    behaviorChanged: [
+      "VibeFrame validation discipline is rewritten into CineJelly runtime preflight",
+      "local catalog validation reuses CineJelly adapter normalization",
+      "material candidates continue through centralized MaterialSourceValidator before release evidence"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/local-material-library-adapter.md",
+    cineJellyDestinationPaths: [
+      "src/core/local-material-library-adapter.ts",
+      "src/application/runtime-preflight.ts",
+      "src/core/material-source-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "preflight validates catalog shape and safe URIs but cannot prove business rights beyond provided metadata",
+      "artifact review remains required after paid provider validation"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Local Material Library Adapter",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/README.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "real-footage and source-material approval must be explicit",
+      "unsafe or rights-unclear material routes to review instead of release",
+      "approval concepts inform source-material gate behavior"
+    ],
+    behaviorChanged: [
+      "AGPL implementation code is not copied, linked, or executed",
+      "approval-gate ideas are rewritten as CineJelly-owned catalog and validation behavior",
+      "local material candidates use CineJelly contracts and safe URI constraints"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/local-material-library-adapter.md",
+    cineJellyDestinationPaths: [
+      "src/core/local-material-library-adapter.ts",
+      "src/core/material-source-validator.ts",
+      "src/application/runtime-preflight.ts"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
