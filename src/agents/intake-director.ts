@@ -8,14 +8,21 @@ import type { CineJellyProjectRequest, IntakeResult } from "../types/agent.js";
 import { createStableId } from "../utils/ids.js";
 import { ReferenceLibrarian } from "./reference-librarian.js";
 import { SourceVideoAnalyst } from "./source-video-analyst.js";
+import { SourceVideoReferenceMetadataEnricher } from "./source-video-reference-metadata-enricher.js";
 
 export class IntakeDirector {
   private readonly referenceLibrarian: ReferenceLibrarian;
   private readonly sourceVideoAnalyst: SourceVideoAnalyst;
+  private readonly sourceVideoReferenceMetadataEnricher: SourceVideoReferenceMetadataEnricher;
 
-  public constructor(referenceLibrarian = new ReferenceLibrarian(), sourceVideoAnalyst = new SourceVideoAnalyst()) {
+  public constructor(
+    referenceLibrarian = new ReferenceLibrarian(),
+    sourceVideoAnalyst = new SourceVideoAnalyst(),
+    sourceVideoReferenceMetadataEnricher = new SourceVideoReferenceMetadataEnricher()
+  ) {
     this.referenceLibrarian = referenceLibrarian;
     this.sourceVideoAnalyst = sourceVideoAnalyst;
+    this.sourceVideoReferenceMetadataEnricher = sourceVideoReferenceMetadataEnricher;
   }
 
   public intake(request: CineJellyProjectRequest): IntakeResult {
@@ -32,13 +39,17 @@ export class IntakeDirector {
       references: request.references ?? []
     });
     const sourceVideoAnalysis = this.sourceVideoAnalyst.normalize(request.sourceVideoAnalysis, references);
+    const enrichedReferences = this.sourceVideoReferenceMetadataEnricher.enrich({
+      references,
+      ...(sourceVideoAnalysis ? { sourceVideoAnalysis } : {})
+    });
 
     return {
       projectId,
       userInput,
       settings,
       ...metadata,
-      references,
+      references: enrichedReferences,
       ...(sourceVideoAnalysis ? { sourceVideoAnalysis } : {})
     };
   }

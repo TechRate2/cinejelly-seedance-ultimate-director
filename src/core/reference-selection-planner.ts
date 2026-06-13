@@ -270,6 +270,10 @@ export class ReferenceSelectionPlanner {
   }
 
   private normalized(value: string): string {
-    return value.trim().toLowerCase();
+    return value
+      .normalize("NFKD")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim()
+      .toLowerCase();
   }
 }

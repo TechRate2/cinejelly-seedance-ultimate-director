@@ -28,7 +28,7 @@ Not yet complete:
 
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe installed.
 - Real artifact review from a paid Atlas validation run, including validator output, review packet, cost ledger, stage lifecycle, and deliverable metadata.
-- Automated camera/composition/character-view extraction from visual analyzers beyond explicit request metadata.
+- Live visual-analyzer provider adapters that can create richer `sourceVideoAnalysis` automatically from uploaded video.
 - Actual local/stock material-source adapter fulfillment against approved production media sources.
 
 ## Phase 1: Prompt Fidelity
@@ -96,7 +96,7 @@ Milestone check:
 
 ## Phase 3: Reference Selection Scoring
 
-Current status as of 2026-06-13: foundation implemented with local typecheck/build validation. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Reference metadata enrichment now validates and preserves explicit camera/composition/character/view/timeline/authorization fields before scoring. Remaining evidence work is automated metadata extraction from future source-video and reference-analysis modules.
+Current status as of 2026-06-13: foundation implemented with local typecheck/build validation. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Reference metadata enrichment now validates and preserves explicit camera/composition/character/view/timeline/authorization fields before scoring, and source-video reference metadata enrichment derives bounded camera/composition/timeline/source-scene/source-keyframe hints from normalized `sourceVideoAnalysis`. Remaining evidence work is live visual-analyzer provider adapters that can generate richer source-video analysis automatically.
 
 Target module:
 
@@ -113,8 +113,10 @@ Deliverables:
 
 - Done: `docs/reference-implementations/reference-selection-scoring.md`
 - Done: `docs/reference-implementations/reference-metadata-enrichment.md`
+- Done: `docs/reference-implementations/source-video-reference-metadata-enrichment.md`
 - Done: CineJelly-owned reference selection planner.
 - Done: API admission and ReferenceLibrarian preserve bounded reference selection metadata before provider spend.
+- Done: Intake enriches references from normalized source-video scene/keyframe metadata without overwriting explicit caller metadata.
 - Done: Production Graph evidence for candidate references, selected references, score reasons, and dropped duplicates.
 - Done: Prompt Compiler consumes selected references rather than raw unordered references where available.
 

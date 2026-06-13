@@ -23,6 +23,7 @@ The repository contains a production-oriented TypeScript foundation. It is ready
 - The intake path now supports a bounded `sourceVideoAnalysis` contract for VideoAgent/OpenMontage-style transcript, scene, keyframe, pacing, style, and safety deconstruction; Story Architect uses it as original structural guidance, and graph/artifacts preserve the source-video lineage.
 - Successful runs emit `review-packet.json`, a redacted commercial handoff summary that ties planning, render, cost, delivery, and QC evidence together.
 - Optional reference selection metadata for camera, composition, character, view, timeline index, and authorization is validated at API admission, preserved by the Reference Librarian, and consumed by deterministic reference selection before provider request compilation.
+- Normalized source-video scene/keyframe metadata now enriches exact keyframe URI references and matching source-video structure references with typed camera/composition/timeline/source-scene/source-keyframe hints for reference scoring.
 - Atlas provider cost ledger entries now record actual retry counts for retryable LLM, Seedance, prediction polling, and Asset Library HTTP calls, with prediction polling tied back to the originating model and graph node when context is available.
 - Atlas prediction output mapping now tolerates nested provider response shapes such as `output`, `result`, `data`, `videos`, and file objects before declaring `OUTPUT_MISSING`.
 - Atlas HTTP timeout and abort paths now normalize into retryable `ProviderError` records with redacted reason details instead of leaking raw runtime errors through provider boundaries.
@@ -49,7 +50,7 @@ The repository contains a production-oriented TypeScript foundation. It is ready
 - No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshots may contain original upstream development files inside `external/upstream/`; those files become product material only after license/product review and an intentional copy/adapt step.
 - Runtime validation still requires real Atlas Cloud credentials, verified model IDs, FFmpeg, FFprobe, and at least one paid Atlas render before customer use.
 
-Faithful Logic Translation foundations are implemented for Prompt Binding Plan, Guardian Repair Decision Provenance, Reference Selection Scoring, Reference Metadata Enrichment, Provider Polling/Retry/Cost Fidelity, Long-Form Planning/Batch Workflow, and Material Source Adapter Validation. The next required phase is real provider validation using `docs/OPERATOR_RUNBOOK.md`.
+Faithful Logic Translation foundations are implemented for Prompt Binding Plan, Guardian Repair Decision Provenance, Reference Selection Scoring, Reference Metadata Enrichment, Source Video Reference Metadata Enrichment, Provider Polling/Retry/Cost Fidelity, Long-Form Planning/Batch Workflow, and Material Source Adapter Validation. The next required phase is real provider validation using `docs/OPERATOR_RUNBOOK.md`.
 
 ## Product Goal
 

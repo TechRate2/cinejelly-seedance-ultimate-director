@@ -212,6 +212,102 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Source Video Reference Metadata Enrichment",
+    sourceRepository: "HKUDS/VideoAgent",
+    snapshotPath: "external/upstream/videoagent",
+    upstreamPaths: [
+      "external/upstream/videoagent/README.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "source-video analysis stays bounded and structured before it influences planning",
+      "scene, keyframe, camera, pacing, and style evidence can feed graph/reference decisions",
+      "source-video structure remains planning metadata rather than opaque prompt prose"
+    ],
+    behaviorChanged: [
+      "caller-supplied SourceVideoDeconstruction is normalized by CineJelly contracts",
+      "exact keyframe URI matches enrich PromptReferenceSelectionMetadata deterministically",
+      "no upstream video-understanding runtime is imported or executed"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/source-video-reference-metadata-enrichment.md",
+    cineJellyDestinationPaths: [
+      "src/types/source-video.ts",
+      "src/agents/source-video-analyst.ts",
+      "src/agents/source-video-reference-metadata-enricher.ts",
+      "src/agents/intake-director.ts",
+      "src/core/reference-selection-planner.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "live visual-analysis providers can later populate richer SourceVideoDeconstruction input",
+      "derived composition IDs are deterministic hints, not semantic computer-vision claims"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Source Video Reference Metadata Enrichment",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/README.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "reference-video analysis should remain explicit and reviewable",
+      "approval-sensitive source-video concepts should not be hidden inside prompt text",
+      "source-derived metadata should stay inspectable before production handoff"
+    ],
+    behaviorChanged: [
+      "AGPL implementation code is not copied or linked",
+      "analysis concepts are rewritten into CineJelly-owned metadata enrichment",
+      "source-video metadata enriches reference selection only after CineJelly normalization"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/source-video-reference-metadata-enrichment.md",
+    cineJellyDestinationPaths: [
+      "src/agents/source-video-reference-metadata-enricher.ts",
+      "src/agents/intake-director.ts",
+      "src/core/reference-selection-planner.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "legal review is still required before any direct AGPL implementation reuse",
+      "current implementation uses approval behavior notes only"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Source Video Reference Metadata Enrichment",
+    sourceRepository: "HKUDS/ViMax",
+    snapshotPath: "external/upstream/vimax",
+    upstreamPaths: [
+      "external/upstream/vimax/agents/reference_image_selector.py",
+      "external/upstream/vimax/agent_runtime/session_index.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "camera, composition, scene order, and recent keyframe metadata should influence reference scoring",
+      "same-camera matches tolerate formatting differences such as spaces, hyphens, and underscores",
+      "explicit caller metadata remains higher priority than derived metadata"
+    ],
+    behaviorChanged: [
+      "ViMax multimodal selection context is translated into deterministic CineJelly selection fields",
+      "source-video-derived metadata fills only missing PromptReferenceSelectionMetadata fields",
+      "ReferenceSelectionPlanner consumes normalized metadata without importing ViMax code"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/source-video-reference-metadata-enrichment.md",
+    cineJellyDestinationPaths: [
+      "src/agents/source-video-reference-metadata-enricher.ts",
+      "src/agents/intake-director.ts",
+      "src/core/reference-selection-planner.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future visual analyzers can supply richer scene/keyframe evidence",
+      "derived composition IDs should be treated as scoring hints rather than definitive visual matches"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Provider Polling, Retry, And Cost Fidelity",
     sourceRepository: "vericontext/vibeframe",
     snapshotPath: "external/upstream/vibeframe",

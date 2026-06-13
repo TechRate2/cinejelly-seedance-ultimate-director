@@ -19,6 +19,7 @@ export * from "./agents/intake-director.js";
 export * from "./agents/reference-librarian.js";
 export * from "./agents/render-producer.js";
 export * from "./agents/source-video-analyst.js";
+export * from "./agents/source-video-reference-metadata-enricher.js";
 export * from "./agents/story-architect.js";
 export * from "./application/artifact-validation-entrypoint.js";
 export * from "./application/director-factory.js";
