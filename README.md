@@ -27,6 +27,7 @@ The repository contains a production-oriented TypeScript foundation. It is ready
 - Atlas HTTP errors now preserve normalized status-based error codes even when the provider returns a non-JSON body, and non-JSON body previews are redacted before entering diagnostics.
 - Atlas JSON metadata responses are bounded by a configurable byte cap before parsing so abnormal provider responses cannot exhaust API memory.
 - Artifact manifests include per-file SHA-256 hashes for redacted JSON artifacts so production handoffs can verify file integrity after storage or transfer.
+- `npm.cmd run validate:artifacts -- <artifact-directory>` validates manifest integrity, required artifact presence, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and secret/unsafe URI redaction after provider runs.
 - Failure artifacts keep stack-free redacted error name/message details so audit handoffs do not expose source or runtime paths.
 - API artifact bundle responses expose manifest entries and hashes without returning server-local artifact directories or manifest paths.
 - Public API JSON redaction now removes inline `data:` URIs so sampled frames or provider/debug payloads cannot leak as base64 response content.
@@ -201,6 +202,7 @@ npm install
 npm run typecheck
 npm run build
 npm run preflight
+npm run validate:artifacts -- <artifact-directory>
 npm start
 ```
 
@@ -252,7 +254,7 @@ Next implementation order:
 1. Prepare deployment environment: Atlas credentials, verified model IDs, `CINEJELLY_API_AUTH_TOKEN`, FFmpeg, and FFprobe.
 2. Run `npm.cmd run typecheck`, `npm.cmd run build`, and `npm.cmd run preflight`.
 3. Run one paid Atlas validation render using a short non-sensitive input.
-4. Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, and deliverable metadata.
+4. Run `npm.cmd run validate:artifacts -- <artifact-directory>` and inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, and deliverable metadata.
 5. Update readiness notes and remaining blockers in `docs/PROJECT_CONTEXT.md` and `docs/IMPLEMENTATION_ROADMAP.md`.
 
 Detailed milestones are tracked in `docs/IMPLEMENTATION_ROADMAP.md`; validation execution is described in `docs/OPERATOR_RUNBOOK.md`.

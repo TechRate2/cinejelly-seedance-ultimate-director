@@ -202,6 +202,7 @@ Deliverables:
 - Run `npm.cmd run build`.
 - Run `npm.cmd run preflight` with real deployment environment.
 - Run one paid Atlas render using a short safe input and non-sensitive references.
+- Run `npm.cmd run validate:artifacts -- <artifact-directory>` against the generated artifact directory.
 - Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, and deliverable metadata.
 - Update `docs/PROJECT_CONTEXT.md` with actual validation date and remaining blockers.
 - Maintain `docs/OPERATOR_RUNBOOK.md` as the authoritative execution checklist for preflight, paid validation, artifact inspection, redaction review, and release decision.
@@ -212,6 +213,7 @@ Milestone check:
 - FFmpeg/FFprobe are detected.
 - API response does not expose local paths, secrets, signed URLs, raw stack traces, or inline base64 media.
 - Artifacts are redacted and include integrity hashes.
+- Artifact validator passes or warnings are explicitly reviewed before release.
 
 ## Global Validation Checklist
 

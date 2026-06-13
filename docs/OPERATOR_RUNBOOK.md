@@ -132,6 +132,25 @@ Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000$($submit.statusUrl)" -
 
 Use synchronous `/v1/render` only for short internal validation when deployment timeout limits are known and acceptable.
 
+## Automated Artifact Validation
+
+After the run writes artifacts, validate the project artifact directory:
+
+```powershell
+npm.cmd run validate:artifacts -- "phase6-validation/artifacts"
+```
+
+The validator accepts either the parent artifact directory or the project-specific child directory that contains `manifest.json`.
+
+Pass criteria:
+
+- command exits `0`
+- report status is `pass` or an intentionally reviewed `warn`
+- manifest byte sizes and SHA-256 hashes match every listed artifact
+- required success or failure artifacts are present
+- `review-packet.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, `production-graph.json`, `cost-ledger.json`, and `deliverable.json` domain checks pass when present
+- no artifact contains secret-like text, inline `data:` media, or credential-like URL query strings
+
 ## Artifact Inspection Checklist
 
 Inspect the generated artifact manifest and at least these files:
@@ -158,6 +177,7 @@ Required evidence:
 - `cost-ledger.json` contains provider operations with model, graph node, prediction ID when available, latency, retry count, status, and provider usage/cost when returned.
 - `production-graph.json` includes `reference_asset`, `reference_selection`, `material_sourcing`, `clip_render`, `inspection_report`, repair, and deliverable evidence as applicable.
 - `deliverable.json` includes output byte size and SHA-256 hash.
+- `npm.cmd run validate:artifacts -- <artifact-directory>` passes or any warning is explicitly reviewed.
 
 ## Redaction And Safety Checklist
 

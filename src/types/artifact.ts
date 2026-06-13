@@ -38,3 +38,21 @@ export interface ProjectArtifactBundle {
   readonly manifestPath: string;
   readonly entries: readonly ProjectArtifactEntry[];
 }
+
+export type ProjectArtifactValidationStatus = "pass" | "warn" | "fail";
+
+export interface ProjectArtifactValidationCheck {
+  readonly name: string;
+  readonly status: ProjectArtifactValidationStatus;
+  readonly message: string;
+  readonly fileName?: string;
+}
+
+export interface ProjectArtifactValidationReport {
+  readonly status: ProjectArtifactValidationStatus;
+  readonly checkedAt: Date;
+  readonly artifactDirectory: string;
+  readonly manifestPath?: string;
+  readonly projectId?: string;
+  readonly checks: readonly ProjectArtifactValidationCheck[];
+}
