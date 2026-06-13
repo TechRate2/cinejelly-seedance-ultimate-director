@@ -326,7 +326,7 @@ Assembly materialization:
 
 API execution modes:
 
-- `/health` is public, while `/v1` endpoints require deployment API authentication before provider spend or run metadata access; `Authorization` uses a case-insensitive Bearer scheme or the `X-CineJelly-Api-Key` header.
+- `/health` is public, while `/v1` endpoints require deployment API authentication before provider spend or run metadata access; `Authorization` uses a case-insensitive Bearer scheme or the `X-CineJelly-Api-Key` header. `/v1/preflight` and `/v1/validation-readiness` remain available without a configured deployment token only so fresh deployments can diagnose missing readiness inputs; once `CINEJELLY_API_AUTH_TOKEN` is configured, they use the same guard as other `/v1` endpoints.
 - Credit-spending render submission endpoints are rate limited before authentication response handling, request body parsing, runtime creation, job queue occupancy, or provider spend.
 - Credit-spending render submission endpoints require an application JSON media type (`application/json` or `application/*+json`) before request body parsing; unsupported media types return 415.
 - Credit-spending render submission endpoints enforce a configurable request body byte limit before JSON parsing, job queue admission, runtime creation, or provider spend; oversized bodies return 413.
@@ -338,7 +338,7 @@ API execution modes:
 - Runtime numeric environment controls must be plain base-10 integer or decimal strings; the configuration loader and `/v1/preflight` reject partial parses such as unit suffixes before traffic reaches provider spend.
 - API startup and preflight enforce the same deployment gates for `PORT` range and explicit boolean API flags, so a deployment cannot appear ready while startup would reject the configuration.
 - `npm run preflight` runs the same deployment readiness checks as a CLI gate, emits a redacted preflight report, and exits non-zero on hard failures before operators open customer traffic.
-- `npm run validation:readiness` wraps the preflight output into a Phase 6 operator-readiness report with hard blockers, warnings, next actions, and an explicit release blocker until paid Atlas validation and artifact review are complete.
+- `npm run validation:readiness` and `GET /v1/validation-readiness` wrap the preflight output into a Phase 6 operator-readiness report with hard blockers, warnings, next actions, and an explicit release blocker until paid Atlas validation and artifact review are complete; the HTTP route returns 503 only when the decision is blocked.
 - Every API request creates or accepts a sanitized `X-CineJelly-Request-Id`/`X-Request-Id`; responses include `requestId`, and the normalized request propagates it into LLM/Seedance metadata, render job summaries, Production Graph project metadata, and durable success/failure artifacts.
 - `/v1/render` runs the full pipeline synchronously for controlled callers and is protected by a process-level concurrency gate with retry hints after body parsing, admission control, and path normalization but before runtime creation or provider spend.
 - `/v1/render-jobs` submits the same normalized request into an in-process queue and returns a pollable job ID for long-form production.

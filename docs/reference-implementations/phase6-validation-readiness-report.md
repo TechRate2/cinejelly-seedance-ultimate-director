@@ -1,6 +1,6 @@
 # Reference Implementation: Phase 6 Validation Readiness Report
 
-Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScript in validation-readiness contracts, report builder, CLI entrypoint, package script, and source lineage records. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The report prepares operator validation; it does not replace a paid Atlas render or artifact inspection.
+Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScript in validation-readiness contracts, report builder, CLI entrypoint, package script, API diagnostic endpoint, and source lineage records. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The report prepares operator validation; it does not replace a paid Atlas render or artifact inspection.
 
 ## Upstream Sources
 
@@ -17,6 +17,7 @@ Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScrip
 4. Warnings must be explicit and require operator review before paid rendering.
 5. The report must not claim release readiness. Release still requires paid Atlas render validation, artifact validation, and manual redaction review.
 6. The report must provide next actions that map directly to the Phase 6 runbook.
+7. The same report shape must be available through CLI and HTTP so operators can validate local shells, containers, and deployed API processes with one contract.
 
 ## Edge Cases
 
@@ -25,6 +26,9 @@ Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScrip
 - Preflight passes with no warnings: decision is `ready_for_paid_validation`; the next action is the paid Atlas validation run.
 - Report output receives secret-like values or local paths from a future preflight check: the entrypoint redacts before stdout or file output.
 - Operator runs the CLI without an output path: JSON is emitted to stdout only.
+- Operator calls `GET /v1/validation-readiness` without `CINEJELLY_API_AUTH_TOKEN` configured: the endpoint is allowed as a diagnostic readiness endpoint, matching `/v1/preflight`.
+- Operator calls `GET /v1/validation-readiness` with `CINEJELLY_API_AUTH_TOKEN` configured: normal API auth applies.
+- HTTP response status is `503` when decision is `blocked`; `review_warnings` and `ready_for_paid_validation` return `200` because the process is reachable and the operator must inspect the report body.
 
 ## Reference Implementation
 
@@ -78,6 +82,19 @@ function buildReadiness(preflight: RuntimePreflightReport): Phase6ValidationRead
     preflight
   };
 }
+
+async function handleValidationReadinessHttp(signal: AbortSignal): Promise<HttpResponse> {
+  const preflight = await runtimePreflight.run(signal);
+  const report = buildReadiness(preflight);
+  return {
+    statusCode: report.decision === "blocked" ? 503 : 200,
+    body: redactForPublicApi(report)
+  };
+}
+
+function allowWithoutConfiguredApiToken(pathname: string): boolean {
+  return pathname === "/v1/preflight" || pathname === "/v1/validation-readiness";
+}
 ```
 
 ## CineJelly Translation Plan
@@ -86,6 +103,8 @@ function buildReadiness(preflight: RuntimePreflightReport): Phase6ValidationRead
 - Done: add a CineJelly-owned report builder under `src/application/validation-readiness-report.ts`.
 - Done: add a CLI entrypoint under `src/application/validation-readiness-entrypoint.ts`.
 - Done: add an npm script that builds and emits the report without calling Atlas.
+- Done: expose the same readiness report through `GET /v1/validation-readiness` without calling Atlas.
+- Done: keep `GET /v1/validation-readiness` available without a configured API token only as a diagnostic endpoint; require normal auth when a token is configured.
 - Done: update the operator runbook and roadmap to make the readiness report part of the Phase 6 evidence path.
 
 ## Validation Checklist
@@ -96,5 +115,7 @@ function buildReadiness(preflight: RuntimePreflightReport): Phase6ValidationRead
 - `canRunPaidValidation` is true only for `ready_for_paid_validation`, not for unreviewed warnings.
 - `canReleaseToCustomerTraffic` remains `false` because a readiness report is not release validation.
 - CLI stdout and optional file output are redacted.
+- API response is redacted and returns `503` only for the blocked decision.
+- API auth behavior matches `/v1/preflight`: public only when no deployment token is configured, protected when `CINEJELLY_API_AUTH_TOKEN` exists.
 - No production runtime import from `external/upstream/`.
-- Typecheck, build, and CLI smoke pass.
+- Typecheck, build, CLI smoke, and API endpoint smoke pass.

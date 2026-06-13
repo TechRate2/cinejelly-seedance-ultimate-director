@@ -15,6 +15,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDirectorRuntime } from "../application/director-factory.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
+import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { CostLedgerEntry } from "../types/provider.js";
@@ -72,6 +73,7 @@ class RequestBodyTooLargeError extends Error {
 export function startServer(port = readPort(process.env.PORT)): void {
   const maxBodyBytes = readPositiveInteger(process.env.CINEJELLY_API_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
   const preflight = new RuntimePreflight();
+  const validationReadinessReporter = new Phase6ValidationReadinessReporter();
   const artifactStore = new ProjectArtifactStore();
   const requestAdmission = new RenderRequestAdmission({
     maxUserInputCharacters: readPositiveInteger(process.env.CINEJELLY_MAX_USER_INPUT_CHARS, 24_000),
@@ -132,6 +134,11 @@ export function startServer(port = readPort(process.env.PORT)): void {
       if (request.method === "GET" && requestUrl.pathname === "/v1/preflight") {
         const report = await preflight.run(requestLifecycle.signal);
         sendJson(response, report.status === "fail" ? 503 : 200, report, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/validation-readiness") {
+        const report = validationReadinessReporter.build(await preflight.run(requestLifecycle.signal));
+        sendJson(response, report.decision === "blocked" ? 503 : 200, report, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-jobs") {

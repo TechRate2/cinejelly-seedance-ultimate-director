@@ -4,7 +4,7 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 ## Current Readiness
 
-As of 2026-06-13, the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` can produce a redacted Phase 6 readiness report. The latest recorded local preflight failed because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured.
+As of 2026-06-13, the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` plus `GET /v1/validation-readiness` can produce a redacted Phase 6 readiness report. The latest recorded local preflight failed because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured.
 
 Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected.
 
@@ -103,12 +103,15 @@ Check health and readiness from another terminal:
 ```powershell
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000/health"
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000/v1/preflight"
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000/v1/validation-readiness"
 ```
 
 For protected endpoints, send either:
 
 - `Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>`
 - `X-CineJelly-Api-Key: <CINEJELLY_API_AUTH_TOKEN>`
+
+`/v1/preflight` and `/v1/validation-readiness` are diagnostic endpoints. They remain available when `CINEJELLY_API_AUTH_TOKEN` is not configured so a fresh deployment can report missing configuration, but once a token is configured they use the same authentication guard as other `/v1` endpoints.
 
 ## Paid Atlas Render Validation
 

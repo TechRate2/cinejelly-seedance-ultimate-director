@@ -995,18 +995,22 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "validation state is captured as a deterministic operator report",
       "warnings and failures stay explicit before build/render work proceeds",
-      "report evidence remains redacted and reviewable"
+      "report evidence remains redacted and reviewable",
+      "readiness is available before paid provider work through both CLI and HTTP diagnostics"
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten into CineJelly Phase 6 readiness contracts",
       "readiness reporting does not execute provider work or claim release readiness",
-      "paid render validation and artifact validation remain separate gates"
+      "paid render validation and artifact validation remain separate gates",
+      "HTTP readiness returns 503 only for blocked decisions and shares the public diagnostic boundary with preflight"
     ],
     referenceImplementationPath: "docs/reference-implementations/phase6-validation-readiness-report.md",
     cineJellyDestinationPaths: [
       "src/types/preflight.ts",
       "src/application/validation-readiness-report.ts",
       "src/application/validation-readiness-entrypoint.ts",
+      "src/api/server.ts",
+      "src/api/api-auth.ts",
       "package.json"
     ],
     validationStatus: "implemented",
@@ -1028,17 +1032,21 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "operator-visible readiness appears before long-running paid video work",
       "blocked task state is explicit and actionable",
-      "next actions tell the operator whether to fix environment or proceed"
+      "next actions tell the operator whether to fix environment or proceed",
+      "deployment operators can inspect readiness through a running API process before submitting render jobs"
     ],
     behaviorChanged: [
       "MoneyPrinterTurbo task code is not copied or executed",
       "CineJelly readiness is based on RuntimePreflight checks and Phase 6 runbook gates",
-      "release remains blocked until paid Atlas render and artifact review are completed"
+      "release remains blocked until paid Atlas render and artifact review are completed",
+      "API readiness is a non-render diagnostic route rather than a job/task runtime endpoint"
     ],
     referenceImplementationPath: "docs/reference-implementations/phase6-validation-readiness-report.md",
     cineJellyDestinationPaths: [
       "src/application/validation-readiness-report.ts",
       "src/application/validation-readiness-entrypoint.ts",
+      "src/api/server.ts",
+      "src/api/api-auth.ts",
       "docs/OPERATOR_RUNBOOK.md",
       "docs/IMPLEMENTATION_ROADMAP.md"
     ],

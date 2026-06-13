@@ -37,7 +37,7 @@ export class ApiAuthGuard {
       return { allowed: true };
     }
     if (!this.expectedKey) {
-      if (pathname === "/v1/preflight") {
+      if (this.isPublicDiagnosticEndpoint(pathname)) {
         return { allowed: true };
       }
       return {
@@ -62,6 +62,10 @@ export class ApiAuthGuard {
       statusCode: 401,
       message: "Unauthorized."
     };
+  }
+
+  private isPublicDiagnosticEndpoint(pathname: string): boolean {
+    return pathname === "/v1/preflight" || pathname === "/v1/validation-readiness";
   }
 
   private readPresentedKey(request: IncomingMessage): string | undefined {
