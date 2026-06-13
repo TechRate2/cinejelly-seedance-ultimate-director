@@ -4,7 +4,7 @@
 
 This is a non-production Reference Implementation for Phase 2: Guardian Repair Provenance. It must not be imported by runtime code. It captures the behavior CineJelly should preserve before extending Guardian reports, review packets, and Production Graph run evidence.
 
-Implementation status as of 2026-06-13: Reference Implementation drafted. Production code changes for `repairScope`, `affectedNodeIds`, `sourceCheckpoints`, and `recommendedNextStep` have not started yet.
+Implementation status as of 2026-06-13: CineJelly-owned production code now emits `repairScope`, `affectedNodeIds`, `sourceCheckpoints`, and `recommendedNextStep` through Guardian reports, Production Graph inspection/repair nodes, review packet `repairProvenance`, and runtime source lineage records.
 
 ## Upstream Sources
 
@@ -179,6 +179,9 @@ function validateReferenceSelectionForFuturePhase(input: ReferenceSelectionInput
 - `src/core/consistency-guardian.ts`
 - `src/core/review-packet-builder.ts`
 - `src/core/production-graph-run-recorder.ts`
+- `src/types/graph.ts`
+- `src/types/review.ts`
+- `src/core/source-logic-translation-records.ts`
 - `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`
 - `docs/IMPLEMENTATION_ROADMAP.md`
 
@@ -190,5 +193,7 @@ function validateReferenceSelectionForFuturePhase(input: ReferenceSelectionInput
 - Verify failed provider prediction recommends rerendering only the affected shot node.
 - Verify missing output URL blocks delivery and records render/delivery provenance.
 - Verify warnings remain visible in review packet evidence without blocking delivery.
+- Verify Production Graph repair nodes preserve narrow repair scope and affected node IDs.
+- Verify review packet `repairProvenance` includes recommended next steps and source repositories.
 - Verify `npm.cmd run typecheck` passes after the CineJelly rewrite.
 - Verify no production runtime import points to `external/upstream/`.

@@ -5,6 +5,7 @@
 
 import type { PromptBindingPlan, ShotContract } from "./prompt.js";
 import type { Prediction } from "./provider.js";
+import type { SourceRepositoryId } from "./source-translation.js";
 import type { Storyboard } from "./storyboard.js";
 
 export type GuardianStage = "storyboard" | "preflight" | "test_take" | "render" | "timeline";
@@ -13,6 +14,22 @@ export type GuardianStatus = "pass" | "warn" | "repair" | "rerender" | "block";
 
 export type GuardianSeverity = "S0" | "S1" | "S2" | "S3";
 
+export type GuardianRepairScope =
+  | "none"
+  | "prompt"
+  | "reference_binding"
+  | "storyboard"
+  | "shot"
+  | "render"
+  | "delivery";
+
+export interface GuardianSourceCheckpoint {
+  readonly sourceRepository: SourceRepositoryId | "CineJelly";
+  readonly sourcePath: string;
+  readonly behavior: string;
+  readonly cineJellyDestination: string;
+}
+
 export interface GuardianFinding {
   readonly stage: GuardianStage;
   readonly status: GuardianStatus;
@@ -20,6 +37,9 @@ export interface GuardianFinding {
   readonly checkpoint: string;
   readonly evidence: string;
   readonly repair: string;
+  readonly repairScope?: GuardianRepairScope;
+  readonly affectedNodeIds?: readonly string[];
+  readonly sourceCheckpoints?: readonly GuardianSourceCheckpoint[];
 }
 
 export interface GuardianReport {
@@ -27,6 +47,10 @@ export interface GuardianReport {
   readonly stage: GuardianStage;
   readonly status: GuardianStatus;
   readonly findings: readonly GuardianFinding[];
+  readonly repairScope: GuardianRepairScope;
+  readonly affectedNodeIds: readonly string[];
+  readonly sourceCheckpoints: readonly GuardianSourceCheckpoint[];
+  readonly recommendedNextStep: string;
 }
 
 export interface CharacterBible {

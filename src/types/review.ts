@@ -5,7 +5,7 @@
 
 import type { DeliveryGateStatus } from "./delivery.js";
 import type { CostGateStatus } from "./cost.js";
-import type { GuardianStatus } from "./guardian.js";
+import type { GuardianRepairScope, GuardianStage, GuardianStatus } from "./guardian.js";
 import type { QualityMode, Resolution, SpeedTier, AspectRatio } from "./settings.js";
 import type { SourceLicenseKind, SourceLogicValidationStatus, SourceRepositoryId } from "./source-translation.js";
 
@@ -24,6 +24,7 @@ export interface ReviewPacket {
   readonly cost: ReviewPacketCost;
   readonly delivery: ReviewPacketDelivery;
   readonly sourceLineage: readonly ReviewPacketSourceLineage[];
+  readonly repairProvenance: readonly ReviewPacketRepairProvenance[];
   readonly recommendations: readonly string[];
 }
 
@@ -98,4 +99,15 @@ export interface ReviewPacketSourceLineage {
   readonly referenceImplementationPath?: string;
   readonly attributionPath?: string;
   readonly destinationPaths: readonly string[];
+}
+
+export interface ReviewPacketRepairProvenance {
+  readonly nodeId: string;
+  readonly stage: GuardianStage;
+  readonly status: GuardianStatus;
+  readonly repairScope: GuardianRepairScope;
+  readonly affectedNodeIds: readonly string[];
+  readonly recommendedNextStep: string;
+  readonly checkpoints: readonly string[];
+  readonly sourceRepositories: readonly string[];
 }

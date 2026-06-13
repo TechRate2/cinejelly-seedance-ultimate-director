@@ -62,7 +62,7 @@ Milestone check:
 
 ## Phase 2: Guardian Repair Provenance
 
-Current status as of 2026-06-13: Reference Implementation drafted at `docs/reference-implementations/guardian-repair-decision-provenance.md`. Production code changes have not started yet; the next step is to extend Guardian report contracts with repair scope, affected nodes, source checkpoints, and recommended next step.
+Current status as of 2026-06-13: foundation implemented and typechecked. Guardian reports now include `repairScope`, `affectedNodeIds`, `sourceCheckpoints`, and `recommendedNextStep`; Production Graph inspection/repair nodes preserve this provenance; review packets expose `repairProvenance`; runtime source lineage records cover ViMax and VibeFrame influences. Remaining Phase 2 evidence work is real artifact review after a paid Atlas validation run.
 
 Target module:
 
@@ -79,9 +79,9 @@ Source logic to translate:
 Deliverables:
 
 - Done: `docs/reference-implementations/guardian-repair-decision-provenance.md`
-- Guardian report extensions for `repairScope`, `affectedNodeIds`, `sourceCheckpoints`, and `recommendedNextStep`.
-- Review packet includes repair provenance without exposing local paths or secrets.
-- Repair orchestration prefers narrow scope: prompt, storyboard, shot, or delivery gate.
+- Done: Guardian report extensions for `repairScope`, `affectedNodeIds`, `sourceCheckpoints`, and `recommendedNextStep`.
+- Done: Review packet includes repair provenance without exposing local paths or secrets.
+- Done: Production Graph repair nodes preserve narrow scope: prompt, reference binding, storyboard, shot, render, or delivery.
 
 Milestone check:
 

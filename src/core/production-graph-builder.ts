@@ -180,7 +180,11 @@ export class ProductionGraphBuilder {
     return this.node("inspection_report", createStableId("inspection", `${projectId}:${report.stage}:${report.status}`), {
       status: report.status,
       findings: report.findings.map((finding) => `${finding.checkpoint}: ${finding.evidence}`),
-      severity: this.maxSeverity(report)
+      severity: this.maxSeverity(report),
+      repairScope: report.repairScope,
+      affectedNodeIds: report.affectedNodeIds,
+      sourceCheckpoints: report.sourceCheckpoints,
+      recommendedNextStep: report.recommendedNextStep
     });
   }
 

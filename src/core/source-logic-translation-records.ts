@@ -73,6 +73,74 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "provider-specific prompt tags should be checked against current Atlas docs"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Guardian Repair Decision Provenance",
+    sourceRepository: "HKUDS/ViMax",
+    snapshotPath: "external/upstream/vimax",
+    upstreamPaths: [
+      "external/upstream/vimax/agents/reference_image_selector.py",
+      "external/upstream/vimax/agent_runtime/session_index.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "same-camera and recent-prior-frame consistency priorities are captured for future reference scoring",
+      "stale planning artifacts should be repaired without restarting the whole project",
+      "reference and storyboard consistency issues route to narrow repair scopes"
+    ],
+    behaviorChanged: [
+      "repair provenance is expressed through CineJelly GuardianReport contracts",
+      "reference scoring remains planned for Phase 3 rather than embedded into Guardian reports",
+      "affected graph nodes and recommended next steps are emitted as typed operator evidence"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/guardian-repair-decision-provenance.md",
+    cineJellyDestinationPaths: [
+      "src/types/guardian.ts",
+      "src/core/consistency-guardian.ts",
+      "src/types/graph.ts",
+      "src/core/production-graph-run-recorder.ts",
+      "src/core/review-packet-builder.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "full ViMax reference selection scoring is intentionally deferred to Phase 3",
+      "future graph consumers should preserve narrow repair scopes during orchestration"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Guardian Repair Decision Provenance",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "validate, plan/cost, build/render, inspect, repair, and refresh status loop ordering",
+      "warnings stay visible in review artifacts without blocking delivery",
+      "repair commands should target the affected scene, prompt, render, or delivery evidence"
+    ],
+    behaviorChanged: [
+      "VibeFrame CLI report discipline is adapted into CineJelly review packet and Production Graph evidence",
+      "repair scope is represented as typed GuardianReport metadata",
+      "customer-facing artifacts stay redacted through existing CineJelly artifact serialization"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/guardian-repair-decision-provenance.md",
+    cineJellyDestinationPaths: [
+      "src/types/guardian.ts",
+      "src/core/consistency-guardian.ts",
+      "src/types/review.ts",
+      "src/core/review-packet-builder.ts",
+      "src/types/graph.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "real review-packet inspection should be repeated after paid Atlas render validation",
+      "future repair orchestration should consume recommendedNextStep rather than free-text only"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }
 ];
 

@@ -5,8 +5,10 @@
 
 import type {
   GuardianFinding,
+  GuardianRepairScope,
   GuardianReport,
   GuardianSeverity,
+  GuardianSourceCheckpoint,
   GuardianStatus,
   PreflightInput,
   RenderInspectionInput,
@@ -246,13 +248,18 @@ export class ConsistencyGuardian {
 
   public inspectTestTake(input: RenderInspectionInput): GuardianReport {
     const renderReport = this.inspectRender(input);
+    const findings = renderReport.findings.map((finding) => ({
+      ...finding,
+      stage: "test_take" as const
+    }));
     return {
       ...renderReport,
       stage: "test_take",
-      findings: renderReport.findings.map((finding) => ({
-        ...finding,
-        stage: "test_take"
-      }))
+      findings,
+      repairScope: this.reportRepairScope(findings),
+      affectedNodeIds: this.reportAffectedNodeIds(input.shot.shotId, findings),
+      sourceCheckpoints: this.reportSourceCheckpoints(findings),
+      recommendedNextStep: this.recommendedNextStep(this.reportRepairScope(findings), this.rollupStatus(findings))
     };
   }
 
@@ -449,11 +456,202 @@ export class ConsistencyGuardian {
   }
 
   private toReport(nodeId: string, stage: GuardianReport["stage"], findings: readonly GuardianFinding[]): GuardianReport {
+    const enrichedFindings = findings.map((finding) => this.enrichFinding(nodeId, finding));
+    const status = this.rollupStatus(enrichedFindings);
+    const repairScope = this.reportRepairScope(enrichedFindings);
     return {
       nodeId,
       stage,
-      status: this.rollupStatus(findings),
-      findings
+      status,
+      findings: enrichedFindings,
+      repairScope,
+      affectedNodeIds: this.reportAffectedNodeIds(nodeId, enrichedFindings),
+      sourceCheckpoints: this.reportSourceCheckpoints(enrichedFindings),
+      recommendedNextStep: this.recommendedNextStep(repairScope, status)
+    };
+  }
+
+  private enrichFinding(nodeId: string, finding: GuardianFinding): GuardianFinding {
+    const repairScope = finding.repairScope ?? this.repairScopeForFinding(finding);
+    const affectedNodeIds = finding.affectedNodeIds && finding.affectedNodeIds.length > 0
+      ? finding.affectedNodeIds
+      : [nodeId];
+    const sourceCheckpoints = finding.sourceCheckpoints ?? this.sourceCheckpointsForFinding(finding, repairScope);
+    return {
+      ...finding,
+      repairScope,
+      affectedNodeIds,
+      sourceCheckpoints
+    };
+  }
+
+  private reportRepairScope(findings: readonly GuardianFinding[]): GuardianRepairScope {
+    if (findings.length === 0) {
+      return "none";
+    }
+    const rank: Record<GuardianRepairScope, number> = {
+      none: 0,
+      prompt: 1,
+      reference_binding: 2,
+      storyboard: 3,
+      shot: 4,
+      render: 5,
+      delivery: 6
+    };
+    return findings.reduce<GuardianRepairScope>((selected, finding) => {
+      const scope = finding.repairScope ?? this.repairScopeForFinding(finding);
+      return rank[scope] > rank[selected] ? scope : selected;
+    }, "none");
+  }
+
+  private reportAffectedNodeIds(nodeId: string, findings: readonly GuardianFinding[]): readonly string[] {
+    const affected = new Set<string>();
+    for (const finding of findings) {
+      for (const affectedNodeId of finding.affectedNodeIds ?? [nodeId]) {
+        affected.add(affectedNodeId);
+      }
+    }
+    if (affected.size === 0) {
+      affected.add(nodeId);
+    }
+    return [...affected].sort((left, right) => left.localeCompare(right));
+  }
+
+  private reportSourceCheckpoints(findings: readonly GuardianFinding[]): readonly GuardianSourceCheckpoint[] {
+    const byKey = new Map<string, GuardianSourceCheckpoint>();
+    for (const finding of findings) {
+      for (const checkpoint of finding.sourceCheckpoints ?? this.sourceCheckpointsForFinding(finding, this.repairScopeForFinding(finding))) {
+        byKey.set(
+          [
+            checkpoint.sourceRepository,
+            checkpoint.sourcePath,
+            checkpoint.behavior,
+            checkpoint.cineJellyDestination
+          ].join("\n"),
+          checkpoint
+        );
+      }
+    }
+    return [...byKey.values()].sort((left, right) =>
+      `${left.sourceRepository}:${left.behavior}`.localeCompare(`${right.sourceRepository}:${right.behavior}`)
+    );
+  }
+
+  private repairScopeForFinding(finding: GuardianFinding): GuardianRepairScope {
+    if (finding.status === "warn" && finding.severity === "S3") {
+      return finding.checkpoint === "latency" ? "render" : "prompt";
+    }
+    if (finding.checkpoint.startsWith("storyboard_")) {
+      return "storyboard";
+    }
+    if (
+      finding.checkpoint.startsWith("binding_") ||
+      ["identity_reference", "product_reference", "transition_anchor", "character_bible_reference"].includes(finding.checkpoint)
+    ) {
+      return "reference_binding";
+    }
+    if (
+      ["prompt_density", "negative_prompt_density", "style_bible_drift", "timeline_bounds"].includes(finding.checkpoint)
+    ) {
+      return "prompt";
+    }
+    if (["duration", "shot_contract_completeness"].includes(finding.checkpoint)) {
+      return "shot";
+    }
+    if (finding.checkpoint === "provider_status" || finding.checkpoint === "latency") {
+      return "render";
+    }
+    if (finding.checkpoint === "output_presence") {
+      return "delivery";
+    }
+    return "shot";
+  }
+
+  private sourceCheckpointsForFinding(
+    finding: GuardianFinding,
+    repairScope: GuardianRepairScope
+  ): readonly GuardianSourceCheckpoint[] {
+    if (finding.checkpoint.startsWith("storyboard_")) {
+      return [
+        this.vibeframeCheckpoint("validate storyboard artifacts before build/render", "src/core/consistency-guardian.ts"),
+        this.vimaxCheckpoint("track stale planning artifacts and regenerate only affected storyboard outputs", "src/core/consistency-guardian.ts")
+      ];
+    }
+    if (finding.checkpoint.startsWith("binding_")) {
+      return [
+        {
+          sourceRepository: "Emily2040/seedance-2.0",
+          sourcePath: "external/upstream/seedance-2.0/references/reference-workflow.md",
+          behavior: "repair prompt/reference binding before provider spend",
+          cineJellyDestination: "src/core/consistency-guardian.ts"
+        }
+      ];
+    }
+    if (repairScope === "render" || repairScope === "delivery") {
+      return [
+        this.vibeframeCheckpoint("inspect render output and repair only the affected scene or shot", "src/core/consistency-guardian.ts")
+      ];
+    }
+    if (repairScope === "reference_binding") {
+      return [
+        this.vimaxCheckpoint("preserve consistency through bounded reference selection and repair", "src/core/consistency-guardian.ts")
+      ];
+    }
+    if (repairScope === "prompt") {
+      return [
+        this.vibeframeCheckpoint("repair prompt/build artifact before rerendering", "src/core/consistency-guardian.ts")
+      ];
+    }
+    return [
+      {
+        sourceRepository: "CineJelly",
+        sourcePath: "src/core/consistency-guardian.ts",
+        behavior: `local deterministic checkpoint ${finding.checkpoint}`,
+        cineJellyDestination: "src/core/consistency-guardian.ts"
+      }
+    ];
+  }
+
+  private recommendedNextStep(repairScope: GuardianRepairScope, status: GuardianStatus): string {
+    if (status === "pass") {
+      return "Continue production; no repair is required.";
+    }
+    if (status === "warn") {
+      return "Continue production with warning evidence recorded in review artifacts.";
+    }
+    switch (repairScope) {
+      case "prompt":
+        return "Repair only the affected prompt text, then rerun Guardian preflight.";
+      case "reference_binding":
+        return "Repair only the affected prompt reference bindings, then rerun Guardian preflight.";
+      case "storyboard":
+        return "Repair only the affected storyboard panel or storyboard coverage, then rerun storyboard preflight.";
+      case "shot":
+        return "Repair only the affected shot contract before compiling or rendering.";
+      case "render":
+        return "Rerender only the affected shot node after preserving approved prompt and reference decisions.";
+      case "delivery":
+        return "Block customer delivery, inspect provider/render diagnostics, and rebuild only affected deliverable evidence.";
+      case "none":
+        return "No repair is required.";
+    }
+  }
+
+  private vibeframeCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
+    return {
+      sourceRepository: "vericontext/vibeframe",
+      sourcePath: "external/upstream/vibeframe/README.md",
+      behavior,
+      cineJellyDestination
+    };
+  }
+
+  private vimaxCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
+    return {
+      sourceRepository: "HKUDS/ViMax",
+      sourcePath: "external/upstream/vimax/agent_runtime/session_index.py",
+      behavior,
+      cineJellyDestination
     };
   }
 

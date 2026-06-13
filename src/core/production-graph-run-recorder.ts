@@ -79,7 +79,11 @@ export class ProductionGraphRunRecorder {
     return this.node("inspection_report", createStableId("inspection", `${parentNodeId}:${report.stage}:${report.status}`), {
       status: report.status,
       findings: report.findings.map((finding) => `${finding.checkpoint}: ${finding.evidence}`),
-      severity: this.maxSeverity(report)
+      severity: this.maxSeverity(report),
+      repairScope: report.repairScope,
+      affectedNodeIds: report.affectedNodeIds,
+      sourceCheckpoints: report.sourceCheckpoints,
+      recommendedNextStep: report.recommendedNextStep
     });
   }
 
@@ -93,12 +97,35 @@ export class ProductionGraphRunRecorder {
       return;
     }
     const repairNode = this.node("repair_action", createStableId("repair", `${targetNodeId}:${inspectionNode.id}:${inspectionNode.data.status}`), {
-      scope: inspectionNode.data.status === "block" ? "Global" : "ShotLocal",
+      scope: this.repairActionScope(inspectionNode.data.repairScope),
       reason: inspectionNode.data.findings[0] ?? `Inspection status ${inspectionNode.data.status}`,
-      targetNodeId
+      targetNodeId: inspectionNode.data.affectedNodeIds[0] ?? targetNodeId,
+      sourceCheckpoints: inspectionNode.data.sourceCheckpoints,
+      recommendedNextStep: inspectionNode.data.recommendedNextStep
     });
     nodes.push(repairNode);
     edges.push(this.edge(inspectionNode.id, repairNode.id, "requires_repair"));
+  }
+
+  private repairActionScope(
+    repairScope: Extract<ProductionGraphNode, { type: "inspection_report" }>["data"]["repairScope"]
+  ): Extract<ProductionGraphNode, { type: "repair_action" }>["data"]["scope"] {
+    switch (repairScope) {
+      case "prompt":
+        return "PromptLocal";
+      case "reference_binding":
+        return "ReferenceBindingLocal";
+      case "storyboard":
+        return "StoryboardLocal";
+      case "shot":
+        return "ShotLocal";
+      case "render":
+        return "RenderLocal";
+      case "delivery":
+        return "DeliveryLocal";
+      case "none":
+        return "ShotLocal";
+    }
   }
 
   private maxSeverity(report: GuardianReport): GuardianSeverity {

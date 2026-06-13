@@ -10,10 +10,12 @@ import type {
   ReviewPacket,
   ReviewPacketCost,
   ReviewPacketDelivery,
+  ReviewPacketRepairProvenance,
   ReviewPacketRender,
   ReviewPacketSourceLineage,
   ReviewPacketStatus
 } from "../types/review.js";
+import type { GuardianReport } from "../types/guardian.js";
 import type { SourceLogicTranslationRecord } from "../types/source-translation.js";
 import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import { DEFAULT_SOURCE_LOGIC_TRANSLATION_RECORDS } from "./source-logic-translation-records.js";
@@ -63,6 +65,7 @@ export class ReviewPacketBuilder {
       cost,
       delivery,
       sourceLineage: this.sourceLineage(input.sourceLogicTranslations ?? DEFAULT_SOURCE_LOGIC_TRANSLATION_RECORDS),
+      repairProvenance: this.repairProvenance(input.result),
       recommendations: this.recommendations(input.result, status)
     };
   }
@@ -130,6 +133,42 @@ export class ReviewPacketBuilder {
     }));
   }
 
+  private repairProvenance(result: DirectorRunResult): readonly ReviewPacketRepairProvenance[] {
+    return this.guardianReports(result)
+      .filter(
+        (report) =>
+          report.status !== "pass" ||
+          report.repairScope !== "none" ||
+          report.sourceCheckpoints.length > 0
+      )
+      .map((report) => ({
+        nodeId: report.nodeId,
+        stage: report.stage,
+        status: report.status,
+        repairScope: report.repairScope,
+        affectedNodeIds: report.affectedNodeIds,
+        recommendedNextStep: report.recommendedNextStep,
+        checkpoints: report.findings.map((finding) => finding.checkpoint),
+        sourceRepositories: [...new Set(report.sourceCheckpoints.map((checkpoint) => checkpoint.sourceRepository))].sort(
+          (left, right) => left.localeCompare(right)
+        )
+      }));
+  }
+
+  private guardianReports(result: DirectorRunResult): readonly GuardianReport[] {
+    const reports: GuardianReport[] = [result.storyboardPreflight];
+    for (const renderedShot of result.renderedShots) {
+      reports.push(renderedShot.preflight, renderedShot.renderInspection);
+      if (renderedShot.testTake) {
+        reports.push(renderedShot.testTake.renderInspection);
+      }
+      for (const candidate of renderedShot.candidates) {
+        reports.push(candidate.renderInspection);
+      }
+    }
+    return reports;
+  }
+
   private status(
     result: DirectorRunResult,
     cost: ReviewPacketCost,
@@ -170,6 +209,9 @@ export class ReviewPacketBuilder {
     }
     for (const finding of result.storyboardPreflight.findings) {
       recommendations.add(finding.repair);
+    }
+    for (const provenance of this.repairProvenance(result)) {
+      recommendations.add(provenance.recommendedNextStep);
     }
     for (const finding of result.costEstimate.findings) {
       recommendations.add(finding);

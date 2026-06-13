@@ -4,6 +4,7 @@
  */
 
 import type { FlexibleSeedanceSettings } from "./settings.js";
+import type { GuardianRepairScope, GuardianSourceCheckpoint } from "./guardian.js";
 import type { PromptReference, ShotContract } from "./prompt.js";
 import type { PredictionStatus, ProviderReference } from "./provider.js";
 import type { SourceVideoDeconstruction } from "./source-video.js";
@@ -104,12 +105,27 @@ export interface InspectionReportNodeData {
   readonly status: "pass" | "warn" | "repair" | "rerender" | "block";
   readonly findings: readonly string[];
   readonly severity: "S0" | "S1" | "S2" | "S3";
+  readonly repairScope: GuardianRepairScope;
+  readonly affectedNodeIds: readonly string[];
+  readonly sourceCheckpoints: readonly GuardianSourceCheckpoint[];
+  readonly recommendedNextStep: string;
 }
 
 export interface RepairActionNodeData {
-  readonly scope: "ShotLocal" | "SceneLocal" | "SequenceLocal" | "Global";
+  readonly scope:
+    | "PromptLocal"
+    | "ReferenceBindingLocal"
+    | "StoryboardLocal"
+    | "ShotLocal"
+    | "RenderLocal"
+    | "DeliveryLocal"
+    | "SceneLocal"
+    | "SequenceLocal"
+    | "Global";
   readonly reason: string;
   readonly targetNodeId: string;
+  readonly sourceCheckpoints?: readonly GuardianSourceCheckpoint[];
+  readonly recommendedNextStep?: string;
 }
 
 export interface DeliverableNodeData {
