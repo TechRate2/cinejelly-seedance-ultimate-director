@@ -1,6 +1,6 @@
 # Reference Implementation: Generated Audio Output Validation
 
-Implementation status as of 2026-06-14: planned for a CineJelly-owned validator that checks provider generated-audio results before they can become supplied audio tracks. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The validator must not call an audio provider, download media, or create generated audio files.
+Implementation status as of 2026-06-14: implemented foundation for a CineJelly-owned validator that checks provider generated-audio results before they can become supplied audio tracks. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The validator must not call an audio provider, download media, or create generated audio files.
 
 ## Upstream Sources
 
@@ -17,7 +17,7 @@ Implementation status as of 2026-06-14: planned for a CineJelly-owned validator 
 1. Provider success is not enough. Generated-audio output must pass URI, duration, kind, provider, and intent checks before it can enter the final mix.
 2. Generated narration, BGM, ambience, and SFX map to distinct `AudioMixTrack` roles.
 3. Output URLs must be credential-free public HTTPS URLs before they become mix tracks in the current engine.
-4. `asset://` provider outputs are safe to record as provider references, but they must not become `AudioMixTrack` inputs until an audio asset resolver exists.
+4. `asset://` provider outputs are safe to record as provider references, but they must not become `AudioMixTrack` inputs unless a reviewed audio asset resolver maps them to credential-free HTTPS.
 5. Missing output URLs, signed URLs, local paths, `data:` URIs, embedded credentials, and credential-like query parameters are blocking issues.
 6. Output duration must be positive and should not exceed the planned/requested duration when the plan had an explicit duration.
 7. Mismatched intent ID, kind, provider, or model ID must block the output.
@@ -30,7 +30,7 @@ Implementation status as of 2026-06-14: planned for a CineJelly-owned validator 
 - Result status is `succeeded` but `outputUrl` is missing: reject.
 - `outputUrl` is `https://user:pass@example.com/audio.mp3`: reject.
 - `outputUrl` has query keys such as `token`, `signature`, `x-amz-*`, or `auth`: reject.
-- `outputUrl` is `asset://...`: review-required unless an audio asset resolver is explicitly enabled.
+- `outputUrl` is `asset://...`: review-required unless an audio asset resolver is explicitly enabled and approves a clean HTTPS mapping.
 - Result duration is zero, negative, missing, `NaN`, or infinite: reject.
 - Planned duration was 6 seconds but result says 60 seconds: reject as duration mismatch.
 - Intent kind is `tts_narration`: output role is `narration`.
@@ -111,7 +111,7 @@ function validateGeneratedAudioOutput(input: {
 - Add `GeneratedAudioOutputValidator` under `src/core`.
 - Accept only provider-neutral `AudioGenerationResult` plus the original intent and ready execution-plan item.
 - Produce an `AudioMixTrack` only for approved credential-free HTTPS output.
-- Keep `asset://` outputs review-required until an audio asset resolver is implemented.
+- Keep `asset://` outputs review-required unless an audio asset resolver is configured and approves a credential-free HTTPS mapping.
 - Export the validator from `src/index.ts`.
 - Do not call providers, download media, inspect waveform metadata, or create generated audio files in this module.
 
@@ -120,7 +120,7 @@ function validateGeneratedAudioOutput(input: {
 - Provider result status must be `succeeded`.
 - Intent ID, kind, provider, and model ID must match the planned request.
 - Output URL must be credential-free HTTPS before becoming an audio mix track.
-- `asset://` output must not become an audio mix track without an explicit resolver.
+- `asset://` output must not become an audio mix track without an explicit resolver and approved credential-free HTTPS mapping.
 - Duration must be positive and bounded by the planned duration when provided.
 - Track role mapping is deterministic for narration, BGM, ambience, and SFX.
 - No provider call, download, mock output, sample file, or generated audio file is created.
@@ -130,4 +130,4 @@ Local validation on 2026-06-14:
 
 - `npm.cmd run typecheck` passed.
 - `npm.cmd run build` passed.
-- A no-network smoke confirmed approved credential-free HTTPS output creates a narration `AudioMixTrack`, signed/credential-like URL output is rejected, unresolved `asset://` output is review-required without a track, and duration beyond the planned tolerance is rejected.
+- A no-network smoke confirmed approved credential-free HTTPS output creates a narration `AudioMixTrack`, signed/credential-like URL output is rejected, unresolved `asset://` output is review-required without a track, resolver-approved `asset://` output creates a track from the resolved HTTPS URL, and duration beyond the planned tolerance is rejected.

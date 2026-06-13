@@ -4,6 +4,7 @@
  */
 
 import type { AudioMixTrack, GeneratedAudioIntentKind } from "./audio.js";
+import type { GeneratedAudioAssetResolutionReport } from "./generated-audio-asset.js";
 
 export type GeneratedAudioOutputValidationStatus = "approved" | "review_required" | "rejected";
 
@@ -14,6 +15,7 @@ export type GeneratedAudioOutputValidationIssueCode =
   | "missing_output_url"
   | "invalid_output_url"
   | "asset_resolution_required"
+  | "asset_resolution_failed"
   | "unsafe_output_url"
   | "intent_mismatch"
   | "kind_mismatch"
@@ -38,8 +40,10 @@ export interface GeneratedAudioOutputValidationReport {
   readonly provider: string;
   readonly modelId: string;
   readonly outputUrl?: string;
+  readonly resolvedOutputUrl?: string;
   readonly providerAssetId?: string;
   readonly durationSeconds?: number;
+  readonly assetResolution?: GeneratedAudioAssetResolutionReport;
   readonly issueCount: number;
   readonly issues: readonly GeneratedAudioOutputValidationIssue[];
   readonly audioTrack?: AudioMixTrack;

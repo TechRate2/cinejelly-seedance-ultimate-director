@@ -1582,7 +1582,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     validationStatus: "implemented",
     fidelityRisks: [
       "waveform/media inspection still requires real generated audio files and deployment FFmpeg/FFprobe",
-      "asset:// generated-audio outputs need a future reviewed audio asset resolver before mixing"
+      "asset:// generated-audio output mixing now depends on reviewed resolver entries and still needs live generated-audio media validation"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -1638,6 +1638,104 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     referenceImplementationPath: "docs/reference-implementations/generated-audio-output-validation.md",
     cineJellyDestinationPaths: [
       "src/types/generated-audio-output.ts",
+      "src/core/generated-audio-output-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future approval UX must keep AGPL material at behavior-note level unless legal/product obligations are accepted"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Asset Resolution",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/services/voice.py",
+      "external/upstream/moneyprinterturbo/app/services/video.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "prepared audio artifacts remain a distinct stage before final composition",
+      "final composition consumes reviewed media references rather than opaque provider state",
+      "audio-stage failures and unresolved outputs remain operator-visible"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo audio artifact path handling code is not copied or executed",
+      "CineJelly resolves only reviewed clean asset:// generated-audio outputs to credential-free HTTPS delivery URLs",
+      "resolver entries are identity-bound to intent, kind, provider, model, optional provider asset, and optional duration evidence",
+      "resolution does not call providers, download media, inspect waveform data, or create generated audio files"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-asset-resolution.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-asset.ts",
+      "src/core/generated-audio-asset-resolver.ts",
+      "src/types/generated-audio-output.ts",
+      "src/core/generated-audio-output-validator.ts",
+      "src/index.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "actual provider-backed generated-audio execution remains pending verified provider schema and paid validation",
+      "resolved HTTPS audio still requires future live media inspection with generated artifacts before release claims"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Asset Resolution",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "generated artifacts are resolved and validated before release decisions",
+      "unresolved or unsafe artifacts remain explicit review issues",
+      "artifact provenance stays visible to operators"
+    ],
+    behaviorChanged: [
+      "VibeFrame artifact discipline is rewritten into CineJelly generated-audio asset resolution contracts",
+      "CineJelly resolver reports preserve issue codes and provenance without exposing credentials",
+      "resolver-approved outputs still pass generated-audio output validation before mixing"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-asset-resolution.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-asset.ts",
+      "src/core/generated-audio-asset-resolver.ts",
+      "src/core/generated-audio-output-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "artifact resolution reports must later be compared against real provider-generated assets and delivery URLs"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Asset Resolution",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/AGENT_GUIDE.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "approval and media-review concepts inform generated media release boundaries",
+      "unapproved generated output should not silently enter final composition",
+      "media evidence should remain inspectable before batch/final use"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, imported, or executed",
+      "AGPL-sensitive approval concepts remain behavior notes only",
+      "CineJelly-owned resolver contracts require approved asset mappings without using OpenMontage runtime code"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-asset-resolution.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-asset.ts",
+      "src/core/generated-audio-asset-resolver.ts",
       "src/core/generated-audio-output-validator.ts"
     ],
     validationStatus: "implemented",

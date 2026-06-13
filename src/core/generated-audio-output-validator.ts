@@ -5,6 +5,7 @@
 
 import type { AudioMixTrack, AudioTrackRole, GeneratedAudioIntent, GeneratedAudioIntentKind } from "../types/audio.js";
 import type { GeneratedAudioExecutionReadyItem } from "../types/generated-audio-execution.js";
+import type { GeneratedAudioAssetResolutionReport } from "../types/generated-audio-asset.js";
 import type {
   GeneratedAudioOutputValidationIssue,
   GeneratedAudioOutputValidationIssueCode,
@@ -14,6 +15,7 @@ import type {
 } from "../types/generated-audio-output.js";
 import type { AudioGenerationResult } from "../types/provider.js";
 import { createStableId } from "../utils/ids.js";
+import type { GeneratedAudioAssetResolverLike } from "./generated-audio-asset-resolver.js";
 
 const SECRET_QUERY_KEY_PATTERN =
   /(?:api[_-]?key|access[_-]?key|token|secret|signature|sig|password|credential|authorization|auth|policy|expires|key-pair-id|x-amz-|x-goog-|x-oss-|x-ms-)/i;
@@ -27,17 +29,33 @@ export interface GeneratedAudioOutputValidatorInput {
   readonly result: AudioGenerationResult;
 }
 
+export interface GeneratedAudioOutputValidatorOptions {
+  readonly assetResolver?: GeneratedAudioAssetResolverLike;
+}
+
+interface OutputUrlDecision {
+  readonly approvedForTrack: boolean;
+  readonly trackUrl?: string;
+  readonly assetResolution?: GeneratedAudioAssetResolutionReport;
+}
+
 export class GeneratedAudioOutputValidator {
+  private readonly assetResolver: GeneratedAudioAssetResolverLike | undefined;
+
+  public constructor(options: GeneratedAudioOutputValidatorOptions = {}) {
+    this.assetResolver = options.assetResolver;
+  }
+
   public validate(input: GeneratedAudioOutputValidatorInput): GeneratedAudioOutputValidationReport {
     const issues: GeneratedAudioOutputValidationIssue[] = [];
     this.validateIdentity(input, issues);
     this.validateDuration(input, issues);
     const outputUrl = input.result.outputUrl;
-    const urlApprovedForTrack = this.validateOutputUrl(outputUrl, issues);
+    const outputDecision = this.validateOutputUrl(outputUrl, input, issues);
     const volume = this.volume(input.intent.volume, issues);
     const status = this.status(issues);
-    const audioTrack = status === "approved" && outputUrl && urlApprovedForTrack
-      ? this.audioTrack(input.intent, outputUrl, volume)
+    const audioTrack = status === "approved" && outputDecision.trackUrl && outputDecision.approvedForTrack
+      ? this.audioTrack(input.intent, outputDecision.trackUrl, volume)
       : undefined;
 
     return {
@@ -47,8 +65,10 @@ export class GeneratedAudioOutputValidator {
       provider: input.result.provider,
       modelId: input.result.modelId,
       ...(outputUrl ? { outputUrl } : {}),
+      ...(outputDecision.trackUrl && outputDecision.trackUrl !== outputUrl ? { resolvedOutputUrl: outputDecision.trackUrl } : {}),
       ...(input.result.providerAssetId ? { providerAssetId: input.result.providerAssetId } : {}),
       ...(input.result.durationSeconds !== undefined ? { durationSeconds: input.result.durationSeconds } : {}),
+      ...(outputDecision.assetResolution ? { assetResolution: outputDecision.assetResolution } : {}),
       issueCount: issues.length,
       issues,
       ...(audioTrack ? { audioTrack } : {})
@@ -137,8 +157,9 @@ export class GeneratedAudioOutputValidator {
 
   private validateOutputUrl(
     outputUrl: string | undefined,
+    input: GeneratedAudioOutputValidatorInput,
     issues: GeneratedAudioOutputValidationIssue[]
-  ): boolean {
+  ): OutputUrlDecision {
     if (!outputUrl) {
       issues.push(this.issue(
         "missing_output_url",
@@ -146,7 +167,7 @@ export class GeneratedAudioOutputValidator {
         "Generated-audio result is missing an output URL.",
         "Do not mix the result until the provider returns a safe output URL."
       ));
-      return false;
+      return { approvedForTrack: false };
     }
     if (/^data:/i.test(outputUrl)) {
       issues.push(this.issue(
@@ -155,7 +176,7 @@ export class GeneratedAudioOutputValidator {
         "Generated-audio output URL must not be an inline data URI.",
         "Use a credential-free HTTPS audio URL or resolve the asset through a reviewed internal asset resolver."
       ));
-      return false;
+      return { approvedForTrack: false };
     }
 
     let parsed: URL;
@@ -168,7 +189,7 @@ export class GeneratedAudioOutputValidator {
         "Generated-audio output URL is not a valid URL.",
         "Use a valid credential-free HTTPS audio URL."
       ));
-      return false;
+      return { approvedForTrack: false };
     }
 
     if (parsed.username || parsed.password) {
@@ -178,7 +199,7 @@ export class GeneratedAudioOutputValidator {
         "Generated-audio output URL must not include embedded credentials.",
         "Regenerate or proxy the audio through a credential-free delivery URL."
       ));
-      return false;
+      return { approvedForTrack: false };
     }
     if (parsed.protocol === "asset:") {
       if (parsed.search || parsed.hash) {
@@ -188,22 +209,89 @@ export class GeneratedAudioOutputValidator {
           "Generated-audio asset URI must not include query strings or fragments.",
           "Use a clean asset:// URI and resolve it through an approved asset resolver."
         ));
-        return false;
+        return { approvedForTrack: false };
       }
+      if (!this.assetResolver) {
+        issues.push(this.issue(
+          "asset_resolution_required",
+          "warn",
+          "Generated-audio asset URI requires an audio asset resolver before mixing.",
+          "Resolve the asset to a credential-free HTTPS URL through a reviewed audio asset resolver."
+        ));
+        return { approvedForTrack: false };
+      }
+
+      const assetResolution = this.assetResolver.resolve({
+        assetUri: parsed.toString(),
+        intent: input.intent,
+        plannedItem: input.plannedItem,
+        result: input.result
+      });
+      if (assetResolution.status === "rejected") {
+        issues.push(this.issue(
+          "asset_resolution_failed",
+          "block",
+          "Generated-audio asset resolver rejected the output asset.",
+          "Review the assetResolution issues before mixing this generated-audio output."
+        ));
+        return { approvedForTrack: false, assetResolution };
+      }
+      if (assetResolution.status === "review_required" || !assetResolution.resolvedUrl) {
+        issues.push(this.issue(
+          "asset_resolution_required",
+          "warn",
+          "Generated-audio asset URI requires reviewed resolution before mixing.",
+          "Approve and resolve the generated-audio asset to a credential-free HTTPS URL."
+        ));
+        return { approvedForTrack: false, assetResolution };
+      }
+      return {
+        approvedForTrack: this.validateCredentialFreeHttps(assetResolution.resolvedUrl, issues),
+        trackUrl: assetResolution.resolvedUrl,
+        assetResolution
+      };
+    }
+    return {
+      approvedForTrack: this.validateParsedHttpsUrl(parsed, issues),
+      trackUrl: outputUrl
+    };
+  }
+
+  private validateCredentialFreeHttps(
+    outputUrl: string,
+    issues: GeneratedAudioOutputValidationIssue[]
+  ): boolean {
+    let parsed: URL;
+    try {
+      parsed = new URL(outputUrl);
+    } catch {
       issues.push(this.issue(
-        "asset_resolution_required",
-        "warn",
-        "Generated-audio asset URI requires an audio asset resolver before mixing.",
-        "Resolve the asset to a credential-free HTTPS URL through a reviewed audio asset resolver."
+        "invalid_output_url",
+        "block",
+        "Generated-audio resolved output URL is not a valid URL.",
+        "Use a valid credential-free HTTPS audio URL."
       ));
       return false;
     }
+    return this.validateParsedHttpsUrl(parsed, issues);
+  }
+
+  private validateParsedHttpsUrl(parsed: URL, issues: GeneratedAudioOutputValidationIssue[]): boolean {
     if (parsed.protocol !== "https:") {
       issues.push(this.issue(
         "unsafe_output_url",
         "block",
         "Generated-audio output URL must use HTTPS.",
         "Use a credential-free HTTPS audio URL."
+      ));
+      return false;
+    }
+    if (parsed.username || parsed.password) {
+      issues.push(this.issue(
+        "unsafe_output_url",
+        "block",
+        "Generated-audio output URL must not include embedded credentials.",
+        "Regenerate or proxy the audio through a credential-free delivery URL."
       ));
       return false;
     }
