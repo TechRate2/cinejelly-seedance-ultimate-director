@@ -14,6 +14,7 @@ import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adap
 import { RemoteStockMaterialAdapter } from "../core/remote-stock-material-adapter.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
+import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
 import { RuntimePreflight } from "./runtime-preflight.js";
 
 export interface DirectorRuntime {
@@ -30,6 +31,12 @@ export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): Dir
   const renderProducer = new RenderProducer(atlasProvider, atlasProvider);
   const renderCostGate = new RenderCostGate(settings.costEstimation);
   const semanticVisualInspector = new SemanticVisualInspector(atlasProvider, settings.atlasCloud.models.llmModel);
+  const sourceVideoAutoAnalyzer = settings.sourceVideoAutoAnalysis.enabled
+    ? new SourceVideoAutoAnalyzer({
+        llmProvider: atlasProvider,
+        defaultModelId: settings.atlasCloud.models.llmModel
+      })
+    : undefined;
   const materialSourceAdapters = [
     ...(settings.material.localCatalogPath
       ? [new LocalMaterialLibraryAdapter({ catalogPath: settings.material.localCatalogPath })]
@@ -67,6 +74,12 @@ export function createDirectorRuntime(env: NodeJS.ProcessEnv = process.env): Dir
       materialSourceAdapters,
       assemblyEngine,
       renderConcurrency: settings.renderConcurrency,
+      ...(sourceVideoAutoAnalyzer
+        ? {
+            sourceVideoAutoAnalyzer,
+            sourceVideoAutoAnalysisSettings: settings.sourceVideoAutoAnalysis
+          }
+        : {}),
       atlasSettings: settings.atlasCloud
     }),
     ledger,

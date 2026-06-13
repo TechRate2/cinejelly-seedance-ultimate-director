@@ -52,6 +52,7 @@ export * from "./core/render-scheduler.js";
 export * from "./core/review-packet-builder.js";
 export * from "./core/semantic-visual-inspector.js";
 export * from "./core/shot-planner.js";
+export * from "./core/source-video-auto-analyzer.js";
 export * from "./core/source-logic-translation-ledger.js";
 export * from "./core/source-logic-translation-records.js";
 export * from "./core/storyboard-planner.js";

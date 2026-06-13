@@ -23,6 +23,7 @@ The repository contains a production-oriented TypeScript foundation. It is ready
 - Long-form runs now emit a typed stage lifecycle for `plan`, `storyboard`, `prompt`, `source_material`, `render`, `inspect`, `repair`, `assemble`, and `deliver`; review packets and durable artifacts expose this evidence for operator review.
 - The codebase now includes source-translation lineage contracts and a redacted logging foundation for future Faithful Logic Translation work across providers, prompt compiler, graph planning, and guardian modules.
 - The intake path now supports a bounded `sourceVideoAnalysis` contract for VideoAgent/OpenMontage-style transcript, scene, keyframe, pacing, style, and safety deconstruction; Story Architect uses it as original structural guidance, and graph/artifacts preserve the source-video lineage.
+- An opt-in Source Video Auto Analysis Adapter can sample bounded frames from a clean HTTPS `source_video_structure` reference, ask the configured Atlas LLM for structural deconstruction, normalize the result through `SourceVideoAnalyst`, and keep local frame paths/base64 payloads out of returned analysis and artifacts.
 - Successful runs emit `review-packet.json`, a redacted commercial handoff summary that ties planning, render, cost, delivery, and QC evidence together.
 - Optional reference selection metadata for camera, composition, character, view, timeline index, and authorization is validated at API admission, preserved by the Reference Librarian, and consumed by deterministic reference selection before provider request compilation.
 - Normalized source-video scene/keyframe metadata now enriches exact keyframe URI references and matching source-video structure references with typed camera/composition/timeline/source-scene/source-keyframe hints for reference scoring.
@@ -52,7 +53,7 @@ The repository contains a production-oriented TypeScript foundation. It is ready
 - No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshots may contain original upstream development files inside `external/upstream/`; those files become product material only after license/product review and an intentional copy/adapt step.
 - Runtime validation still requires real Atlas Cloud credentials, verified model IDs, FFmpeg, FFprobe, and at least one paid Atlas render before customer use.
 
-Faithful Logic Translation foundations are implemented for Prompt Binding Plan, Guardian Repair Decision Provenance, Reference Selection Scoring, Reference Metadata Enrichment, Source Video Reference Metadata Enrichment, Provider Polling/Retry/Cost Fidelity, Long-Form Planning/Batch Workflow, Material Source Adapter Validation, Local Material Library Adapter, and Remote Stock Material Adapter. The next required phase is real provider validation using `docs/OPERATOR_RUNBOOK.md`.
+Faithful Logic Translation foundations are implemented for Prompt Binding Plan, Guardian Repair Decision Provenance, Reference Selection Scoring, Reference Metadata Enrichment, Source Video Reference Metadata Enrichment, Source Video Auto Analysis Adapter, Provider Polling/Retry/Cost Fidelity, Long-Form Planning/Batch Workflow, Material Source Adapter Validation, Local Material Library Adapter, and Remote Stock Material Adapter. The next required phase is real provider validation using `docs/OPERATOR_RUNBOOK.md`.
 
 ## Product Goal
 
@@ -195,6 +196,11 @@ Optional environment variables:
 - `CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS`
 - `CINEJELLY_REMOTE_STOCK_REQUEST_TIMEOUT_MS`
 - `CINEJELLY_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF`
+- `CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS`
+- `CINEJELLY_SOURCE_VIDEO_ANALYSIS_WORK_DIR`
+- `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS`
+- `CINEJELLY_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES`
+- `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR`
 - `PEXELS_API_KEY`
 - `PIXABAY_API_KEY`
 - `COVERR_API_KEY`
@@ -231,7 +237,7 @@ Production API:
 - `GET /v1/render-jobs/{jobId}`
 - `DELETE /v1/render-jobs/{jobId}`
 
-`GET /v1/preflight` and `npm run preflight` verify required Atlas configuration, clean HTTPS Atlas endpoint overrides, strict numeric runtime settings, API authentication configuration, job queue settings, optional local material catalog validity, optional remote stock provider readiness, output directory write readiness, and local FFmpeg/FFprobe availability without exposing secret values or local absolute paths. The CLI preflight exits `1` on hard failure and `0` for pass or warning states, making it suitable for deployment gates before opening traffic. `/v1/preflight` is available before the render runtime is initialized, so a fresh deployment can diagnose missing environment variables safely. `/health` is public; protected `/v1` endpoints require `Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>` with a case-insensitive Bearer scheme or `X-CineJelly-Api-Key: <CINEJELLY_API_AUTH_TOKEN>`. Render POST attempts are rate limited before auth failure responses so unauthenticated floods cannot bypass the render submission throttle. If `CINEJELLY_API_AUTH_TOKEN` is missing, only `/v1/preflight` remains available and render/job endpoints return 503. `CINEJELLY_DISABLE_API_AUTH=true` is reserved for private trusted networks.
+`GET /v1/preflight` and `npm run preflight` verify required Atlas configuration, clean HTTPS Atlas endpoint overrides, strict numeric runtime settings, API authentication configuration, job queue settings, optional local material catalog validity, optional remote stock provider readiness, optional source-video auto-analysis work-directory readiness, output directory write readiness, and local FFmpeg/FFprobe availability without exposing secret values or local absolute paths. The CLI preflight exits `1` on hard failure and `0` for pass or warning states, making it suitable for deployment gates before opening traffic. `/v1/preflight` is available before the render runtime is initialized, so a fresh deployment can diagnose missing environment variables safely. `/health` is public; protected `/v1` endpoints require `Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>` with a case-insensitive Bearer scheme or `X-CineJelly-Api-Key: <CINEJELLY_API_AUTH_TOKEN>`. Render POST attempts are rate limited before auth failure responses so unauthenticated floods cannot bypass the render submission throttle. If `CINEJELLY_API_AUTH_TOKEN` is missing, only `/v1/preflight` remains available and render/job endpoints return 503. `CINEJELLY_DISABLE_API_AUTH=true` is reserved for private trusted networks.
 
 Every API response includes `requestId` and the `X-CineJelly-Request-Id` response header. Callers may provide `X-CineJelly-Request-Id` or `X-Request-Id`; invalid values are ignored and replaced with a generated UUID-based ID. The normalized request stores this ID in metadata so LLM calls, Seedance requests, render jobs, Production Graph project nodes, `run-summary.json`, and `failure-report.json` can be correlated without exposing secrets. Public JSON responses pass through secret redaction plus local filesystem path, inline `data:` URI, non-HTTPS URI, embedded-credential URI, and signed/credential-query URI redaction, preserve deploy-safe URI values such as clean `https://` and `asset://` references while hiding server-only paths, and are returned with `Cache-Control: no-store` plus `X-Content-Type-Options: nosniff`.
 
@@ -261,12 +267,12 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 Current foundation:
 
 - Provider, prompt, graph, guardian, API, cost, error, artifact, redaction, stage lifecycle, material sourcing, and media-processing foundations exist under `src/`.
-- Source lineage and logging foundations exist, and Phase 1-5 source-faithful foundations have Reference Implementations, lineage records, and validation notes.
-- Runtime readiness still depends on real Atlas credentials, verified model IDs, FFmpeg/FFprobe availability, optional approved material catalogs or provider keys for source-material fulfillment, and paid provider validation.
+- Source lineage and logging foundations exist, and Phase 1-5 source-faithful foundations plus the Source Video Auto Analysis Adapter have Reference Implementations, lineage records, and validation notes.
+- Runtime readiness still depends on real Atlas credentials, verified model IDs, FFmpeg/FFprobe availability, optional approved material catalogs or provider keys for source-material fulfillment, optional multimodal LLM validation for source-video auto-analysis, and paid provider validation.
 
 Next implementation order:
 
-1. Prepare deployment environment: Atlas credentials, verified model IDs, `CINEJELLY_API_AUTH_TOKEN`, FFmpeg, and FFprobe.
+1. Prepare deployment environment: Atlas credentials, verified model IDs, `CINEJELLY_API_AUTH_TOKEN`, FFmpeg, FFprobe, and any opt-in material/source-video analysis settings.
 2. Run `npm.cmd run typecheck`, `npm.cmd run build`, and `npm.cmd run preflight`.
 3. Run one paid Atlas validation render using a short non-sensitive input.
 4. Run `npm.cmd run validate:artifacts -- <artifact-directory>` and inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, and deliverable metadata.

@@ -239,7 +239,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "live visual-analysis providers can later populate richer SourceVideoDeconstruction input",
+      "the source-video auto-analysis adapter can populate richer SourceVideoDeconstruction input, but live model validation remains pending",
       "derived composition IDs are deterministic hints, not semantic computer-vision claims"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -811,6 +811,108 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     fidelityRisks: [
       "legal review is still required before any direct AGPL implementation reuse",
       "current implementation uses approval behavior notes only"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Source Video Auto Analysis Adapter",
+    sourceRepository: "HKUDS/VideoAgent",
+    snapshotPath: "external/upstream/videoagent",
+    upstreamPaths: [
+      "external/upstream/videoagent/README.md",
+      "external/upstream/videoagent/videoagent"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "source video is analyzed into bounded planning structure before downstream graph work",
+      "multimodal frame evidence is input-only and does not become public artifact data",
+      "scene/keyframe analysis feeds CineJelly source-video contracts rather than provider-specific runtime code"
+    ],
+    behaviorChanged: [
+      "upstream runtime and nested tools are not imported or executed",
+      "CineJelly samples bounded frames through MediaInspector and normalizes the LLM result through SourceVideoAnalyst",
+      "caller-provided sourceVideoAnalysis remains authoritative and is never overwritten by auto-analysis"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/source-video-auto-analysis-adapter.md",
+    cineJellyDestinationPaths: [
+      "src/types/source-video.ts",
+      "src/types/settings.ts",
+      "src/core/source-video-auto-analyzer.ts",
+      "src/config/runtime-config.ts",
+      "src/application/director-factory.ts",
+      "src/application/runtime-preflight.ts",
+      "src/agents/director-agent.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "live Atlas multimodal model behavior must be validated with real video frames before release",
+      "asset:// source-video resolution is intentionally deferred until an internal resolver is implemented"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Source Video Auto Analysis Adapter",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/lib/source_media_review.py",
+      "external/upstream/openmontage/schemas/artifacts/source_media_review.schema.json",
+      "external/upstream/openmontage/schemas/artifacts/video_analysis_brief.schema.json"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "source-media review happens before final planning claims",
+      "reference analysis is treated as approval-gated guidance rather than copy instructions",
+      "analysis output is normalized into reviewable artifact-safe structure"
+    ],
+    behaviorChanged: [
+      "AGPL implementation code is not copied, linked, imported, or executed",
+      "approval-gate concepts are rewritten into CineJelly-owned source-video normalization and preflight behavior",
+      "local frame paths and base64 payloads are forbidden from returned analysis and artifacts"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/source-video-auto-analysis-adapter.md",
+    cineJellyDestinationPaths: [
+      "src/core/source-video-auto-analyzer.ts",
+      "src/agents/source-video-analyst.ts",
+      "src/application/runtime-preflight.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "legal review is still required before any direct AGPL implementation reuse",
+      "current implementation uses approval and source-review behavior notes only"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Source Video Auto Analysis Adapter",
+    sourceRepository: "HKUDS/ViMax",
+    snapshotPath: "external/upstream/vimax",
+    upstreamPaths: [
+      "external/upstream/vimax/agents/scene_extractor.py",
+      "external/upstream/vimax/agents/storyboard_artist.py",
+      "external/upstream/vimax/agents/reference_image_selector.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "scene/keyframe analysis is structured before storyboard and reference selection",
+      "camera/composition hints can improve later reference selection without overriding explicit operator metadata",
+      "long-form continuity uses analysis as guidance rather than raw media copying"
+    ],
+    behaviorChanged: [
+      "ViMax agent code is not copied or imported",
+      "CineJelly uses a provider-neutral SourceVideoDeconstruction contract",
+      "auto-analysis is opt-in and fails closed or skips based on operator configuration"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/source-video-auto-analysis-adapter.md",
+    cineJellyDestinationPaths: [
+      "src/core/source-video-auto-analyzer.ts",
+      "src/agents/source-video-reference-metadata-enricher.ts",
+      "src/core/reference-selection-planner.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "scene/keyframe extraction quality depends on the configured multimodal LLM",
+      "reference-selection lift from generated metadata needs real long-form validation"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }

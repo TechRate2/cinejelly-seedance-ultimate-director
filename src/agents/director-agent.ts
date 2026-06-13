@@ -25,8 +25,14 @@ import { RenderCostGate } from "../core/render-cost-gate.js";
 import { RenderScheduler } from "../core/render-scheduler.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
+import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
 import { StoryboardPlanner } from "../core/storyboard-planner.js";
-import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
+import type {
+  AtlasCloudRuntimeSettings,
+  FlexibleSeedanceSettings,
+  Resolution,
+  SourceVideoAutoAnalysisSettings
+} from "../types/settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult, RenderCandidate, RenderedShot } from "../types/agent.js";
 import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
 import type { MaterialCandidate, MaterialSource, MaterialSourceAdapter } from "../types/material.js";
@@ -63,6 +69,8 @@ export class DirectorAgent {
   private readonly assemblyEngine: AssemblyEngine;
   private readonly deliveryGate: DeliveryGate;
   private readonly semanticVisualInspector: SemanticVisualInspector | undefined;
+  private readonly sourceVideoAutoAnalyzer: SourceVideoAutoAnalyzer | undefined;
+  private readonly sourceVideoAutoAnalysisSettings: SourceVideoAutoAnalysisSettings | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
 
   public constructor(input: {
@@ -88,6 +96,8 @@ export class DirectorAgent {
     readonly assemblyEngine?: AssemblyEngine;
     readonly deliveryGate?: DeliveryGate;
     readonly semanticVisualInspector?: SemanticVisualInspector;
+    readonly sourceVideoAutoAnalyzer?: SourceVideoAutoAnalyzer;
+    readonly sourceVideoAutoAnalysisSettings?: SourceVideoAutoAnalysisSettings;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
     this.storyArchitect = input.storyArchitect;
@@ -110,11 +120,14 @@ export class DirectorAgent {
     this.assemblyEngine = input.assemblyEngine ?? new AssemblyEngine();
     this.deliveryGate = input.deliveryGate ?? new DeliveryGate();
     this.semanticVisualInspector = input.semanticVisualInspector;
+    this.sourceVideoAutoAnalyzer = input.sourceVideoAutoAnalyzer;
+    this.sourceVideoAutoAnalysisSettings = input.sourceVideoAutoAnalysisSettings;
     this.atlasSettings = input.atlasSettings;
   }
 
   public async run(request: CineJellyProjectRequest, signal?: AbortSignal): Promise<DirectorRunResult> {
-    const intake = this.intakeDirector.intake(request);
+    const preparedRequest = await this.prepareRequestForIntake(request, signal);
+    const intake = this.intakeDirector.intake(preparedRequest);
     const storyPlan = await this.storyArchitect.plan(intake, signal);
     const continuityLedger = this.continuityLedgerBuilder.build({
       intake,
@@ -253,18 +266,18 @@ export class DirectorAgent {
     }
 
     const deliverable =
-      request.outputPath && request.workDirectory && renderedShots.length > 0
+      preparedRequest.outputPath && preparedRequest.workDirectory && renderedShots.length > 0
         ? await this.assemblyEngine.assemble(
             {
               projectId: intake.projectId,
-              outputPath: request.outputPath,
-              workDirectory: request.workDirectory,
-              ...(request.captionCues ? { captionCues: request.captionCues } : {}),
-              ...(request.captionOptions ? { captionOptions: request.captionOptions } : {}),
-              ...(request.audioTracks ? { audioTracks: request.audioTracks } : {}),
-              ...(request.audioMixOptions ? { audioMixOptions: request.audioMixOptions } : {}),
-              ...(request.frameSamplingOptions ? { frameSamplingOptions: request.frameSamplingOptions } : {}),
-              ...(request.transitionSettings ? { transitionSettings: request.transitionSettings } : {}),
+              outputPath: preparedRequest.outputPath,
+              workDirectory: preparedRequest.workDirectory,
+              ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
+              ...(preparedRequest.captionOptions ? { captionOptions: preparedRequest.captionOptions } : {}),
+              ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
+              ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {}),
+              ...(preparedRequest.frameSamplingOptions ? { frameSamplingOptions: preparedRequest.frameSamplingOptions } : {}),
+              ...(preparedRequest.transitionSettings ? { transitionSettings: preparedRequest.transitionSettings } : {}),
               postproductionSettings: this.postproductionSettingsForDelivery(intake.settings),
               clips: renderedShots.flatMap((renderedShot, index) =>
                 renderedShot.prediction.outputUrls.map((url, outputIndex) => ({
@@ -287,10 +300,10 @@ export class DirectorAgent {
       this.deliveryGate.assertPass(deliveryGate);
     }
     const semanticVisualInspection =
-      deliverable?.frameSamples && request.semanticVisualInspectionOptions?.enabled
+      deliverable?.frameSamples && preparedRequest.semanticVisualInspectionOptions?.enabled
         ? await this.requireSemanticVisualInspector().inspect(
             deliverable.frameSamples,
-            request.semanticVisualInspectionOptions,
+            preparedRequest.semanticVisualInspectionOptions,
             signal
           )
         : undefined;
@@ -331,6 +344,16 @@ export class DirectorAgent {
       ...(deliveryGate ? { deliveryGate } : {}),
       ...(semanticVisualInspection ? { semanticVisualInspection } : {})
     };
+  }
+
+  private async prepareRequestForIntake(
+    request: CineJellyProjectRequest,
+    signal: AbortSignal | undefined
+  ): Promise<CineJellyProjectRequest> {
+    if (!this.sourceVideoAutoAnalyzer || !this.sourceVideoAutoAnalysisSettings?.enabled) {
+      return request;
+    }
+    return this.sourceVideoAutoAnalyzer.prepareRequest(request, this.sourceVideoAutoAnalysisSettings, signal);
   }
 
   private validateProviderCapabilities(compiledPrompts: readonly CompiledPrompt[]): void {

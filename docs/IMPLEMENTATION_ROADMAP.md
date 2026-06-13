@@ -21,14 +21,14 @@ Ready foundations:
 - Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, and source-material artifact validation.
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
-- Reference Implementations and CineJelly-owned rewrites for Phase 1 Prompt Binding Plan, Phase 2 Guardian Repair Decision Provenance, Phase 3 Reference Selection Scoring plus Reference Metadata Enrichment, Phase 4 Provider Polling/Retry/Cost Fidelity, and Phase 5 Long-Form Planning/Batch Workflow plus Material Source Adapter Validation, Local Material Library Adapter, and Remote Stock Material Adapter.
+- Reference Implementations and CineJelly-owned rewrites for Phase 1 Prompt Binding Plan, Phase 2 Guardian Repair Decision Provenance, Phase 3 Reference Selection Scoring plus Reference Metadata Enrichment plus Source Video Auto Analysis Adapter, Phase 4 Provider Polling/Retry/Cost Fidelity, and Phase 5 Long-Form Planning/Batch Workflow plus Material Source Adapter Validation, Local Material Library Adapter, and Remote Stock Material Adapter.
 - Operator artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
 
 Not yet complete:
 
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe installed.
 - Real artifact review from a paid Atlas validation run, including validator output, review packet, cost ledger, stage lifecycle, and deliverable metadata.
-- Live visual-analyzer provider adapters that can create richer `sourceVideoAnalysis` automatically from uploaded video.
+- Live validation of source-video auto-analysis with real source videos, FFmpeg frame extraction, and the configured Atlas multimodal LLM.
 - Live remote stock provider validation with real Pexels/Pixabay/Coverr credentials and operator-approved commercial terms.
 
 ## Phase 1: Prompt Fidelity
@@ -96,7 +96,7 @@ Milestone check:
 
 ## Phase 3: Reference Selection Scoring
 
-Current status as of 2026-06-13: foundation implemented with local typecheck/build validation. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Reference metadata enrichment now validates and preserves explicit camera/composition/character/view/timeline/authorization fields before scoring, and source-video reference metadata enrichment derives bounded camera/composition/timeline/source-scene/source-keyframe hints from normalized `sourceVideoAnalysis`. Remaining evidence work is live visual-analyzer provider adapters that can generate richer source-video analysis automatically.
+Current status as of 2026-06-13: foundation implemented with local typecheck/build validation. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Reference metadata enrichment now validates and preserves explicit camera/composition/character/view/timeline/authorization fields before scoring, source-video reference metadata enrichment derives bounded camera/composition/timeline/source-scene/source-keyframe hints from normalized `sourceVideoAnalysis`, and the opt-in Source Video Auto Analysis Adapter can generate normalized `sourceVideoAnalysis` from bounded sampled frames of a clean HTTPS `source_video_structure` reference. Remaining evidence work is live validation with real videos, FFmpeg, and the configured Atlas multimodal LLM.
 
 Target module:
 
@@ -114,9 +114,11 @@ Deliverables:
 - Done: `docs/reference-implementations/reference-selection-scoring.md`
 - Done: `docs/reference-implementations/reference-metadata-enrichment.md`
 - Done: `docs/reference-implementations/source-video-reference-metadata-enrichment.md`
+- Done: `docs/reference-implementations/source-video-auto-analysis-adapter.md`
 - Done: CineJelly-owned reference selection planner.
 - Done: API admission and ReferenceLibrarian preserve bounded reference selection metadata before provider spend.
 - Done: Intake enriches references from normalized source-video scene/keyframe metadata without overwriting explicit caller metadata.
+- Done: Opt-in `SourceVideoAutoAnalyzer` samples bounded frames, sends input-only frame data to the configured Atlas LLM, normalizes through `SourceVideoAnalyst`, and skips or fails based on operator configuration.
 - Done: Production Graph evidence for candidate references, selected references, score reasons, and dropped duplicates.
 - Done: Prompt Compiler consumes selected references rather than raw unordered references where available.
 
@@ -126,6 +128,8 @@ Milestone check:
 - Recent prior-frame references outrank stale scene references.
 - New character appearances prefer authorized portrait references.
 - Reference count is bounded before provider request compilation.
+- Source-video auto-analysis never overwrites caller-provided `sourceVideoAnalysis`.
+- Local frame paths and base64 data are input-only and do not appear in returned source-video analysis.
 
 ## Phase 4: Provider Polling, Retry, And Cost Fidelity
 

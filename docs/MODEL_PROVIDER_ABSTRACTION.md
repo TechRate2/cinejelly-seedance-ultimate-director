@@ -215,6 +215,8 @@ Future provider routing:
 | Licensed material sourcing | CineJelly governed material layer | Pexels, Pixabay, Coverr, user-provided library, paid stock APIs |
 | Postproduction utilities | local tools | cloud render farms |
 
+The Source Video Auto Analysis Adapter uses this same provider boundary: sampled frames are sent through `LlmProvider.structured` as image inputs, normalized into CineJelly's `SourceVideoDeconstruction`, and never expose Atlas-specific payload details to graph or prompt modules.
+
 ## Request Lifecycle
 
 1. Application creates a provider-neutral request.

@@ -60,6 +60,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - High-efficiency parallel shot generation where dependency constraints allow it.
 - CineJelly extension:
   - Reframes these patterns into a provider-agnostic Production Graph with Atlas Cloud Seedance 2.0 as the default render provider.
+  - Uses scene/keyframe guidance as one influence for source-video auto-analysis and downstream reference selection, implemented as CineJelly-owned TypeScript.
 
 ### vericontext/vibeframe
 
@@ -102,6 +103,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Support video understanding, editing, and remaking in one agentic framework.
 - CineJelly extension:
   - Adds source-video deconstruction to the CineJelly intake path so a user can provide a long reference video and ask for an original production with similar pacing, structure, or style.
+  - Adds an opt-in Source Video Auto Analysis Adapter that samples bounded frames from clean HTTPS source-video references and normalizes the configured Atlas LLM output through CineJelly's `SourceVideoAnalyst`.
 
 ### OpenMontage
 
@@ -120,6 +122,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Because OpenMontage uses AGPLv3, CineJelly may snapshot, study, and adapt architecture, documentation, and workflow patterns with attribution. Direct implementation reuse in a distributed or proprietary product must follow AGPL obligations or a legal review decision.
 - CineJelly extension:
   - Adapts approval, costing, reference analysis, and QA ideas into CineJelly-owned production modules while preserving the OpenMontage attribution trail.
+  - Uses source-media review and approval-gate ideas as AGPL-aware behavior notes for source-video auto-analysis guardrails; OpenMontage implementation code is not copied, linked, or executed.
 
 ### MoneyPrinterTurbo
 

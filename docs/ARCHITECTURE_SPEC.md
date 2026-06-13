@@ -141,13 +141,14 @@ Responsibilities:
 - Extract explicit requirements: niche, target platform, duration, audience, product, offer, story, brand rules, language, voice, aspect ratio, quality tier, and budget constraints.
 - Extract implicit requirements using VideoAgent-style intent decomposition.
 - Normalize optional source-video deconstruction metadata for transcript, scene, keyframe, pacing, style, structural beat, and safety guidance into rights-safe structural guidance.
+- When enabled by operator configuration, generate source-video deconstruction automatically from bounded sampled frames of a clean HTTPS `source_video_structure` reference before intake normalization.
 - If the input is underspecified, create a minimal clarification plan. For autonomous production, use conservative defaults rather than blocking.
 
 Source basis:
 
 - Emily2040/seedance-2.0 interview and intent-first routing.
 - VideoAgent intent analysis across explicit and implicit sub-intents.
-- OpenMontage/VideoAgent source-video deconstruction patterns, snapshotted and adapted into CineJelly typed contracts with attribution.
+- OpenMontage/VideoAgent source-video deconstruction patterns, snapshotted and adapted into CineJelly typed contracts and the opt-in Source Video Auto Analysis Adapter with attribution.
 
 ### 2. Reference Librarian
 
@@ -302,7 +303,7 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 
 1. `createProject`: persist the user request and settings.
 2. `ingestReferences`: validate references, classify roles, register required Atlas assets.
-3. `sourceVideoAnalysis`: when supplied, validate bounded transcript/scene/keyframe/pacing/style/safety deconstruction, match it to a `source_video_structure` reference label, and use it only as original structural guidance.
+3. `sourceVideoAnalysis`: when supplied, validate bounded transcript/scene/keyframe/pacing/style/safety deconstruction; when absent and enabled, attempt opt-in auto-analysis from bounded sampled frames of a clean HTTPS `source_video_structure` reference; match the result to a `source_video_structure` reference label and use it only as original structural guidance.
 4. `compileGraph`: build story, scenes, beats, shot contracts, continuity ledgers.
 5. `storyboard`: generate reviewable panels from shot contracts, run Guardian storyboard preflight, and store panels/evidence in graph/artifacts.
 6. `preflight`: run prompt/reference safety, contradiction, and schema checks.
@@ -330,7 +331,7 @@ API execution modes:
 - Credit-spending render submission endpoints require an application JSON media type (`application/json` or `application/*+json`) before request body parsing; unsupported media types return 415.
 - Credit-spending render submission endpoints enforce a configurable request body byte limit before JSON parsing, job queue admission, runtime creation, or provider spend; oversized bodies return 413.
 - Render requests pass admission control before runtime creation, LLM planning, job queue occupancy, or provider spend; admission validates top-level limits plus nested caption, audio mix, frame sampling, semantic visual inspection, and transition option shapes/ranges.
-- Optional `sourceVideoAnalysis` payloads are bounded before LLM planning and can include transcript cues, scenes, keyframes, pacing notes, style notes, structural beats, and safety notes linked to a `source_video_structure` reference.
+- Optional `sourceVideoAnalysis` payloads are bounded before LLM planning and can include transcript cues, scenes, keyframes, pacing notes, style notes, structural beats, and safety notes linked to a `source_video_structure` reference. The auto-analysis path is disabled by default, never overwrites caller-supplied analysis, and must keep local frame paths and inline frame data out of returned analysis and artifacts.
 - Public reference URIs must be credential-free HTTPS URLs or pre-registered `asset://` references; `http://`, embedded credentials, and credential-like query parameters are rejected before runtime/provider spend.
 - Public render requests may include audio tracks only from credential-free HTTPS URLs; local audio file sources are reserved for internal engine wiring.
 - Atlas Cloud API and Asset Library endpoint overrides must be credential-free HTTPS URLs with no query strings or fragments; runtime configuration and `/v1/preflight` reject unsafe URLs before credentials or provider payloads can be used.

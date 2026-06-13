@@ -11,7 +11,8 @@ import type {
   AtlasCloudRuntimeSettings,
   MaterialRuntimeSettings,
   RemoteStockRuntimeSettings,
-  RuntimeSettings
+  RuntimeSettings,
+  SourceVideoAutoAnalysisSettings
 } from "../types/settings.js";
 
 const DEFAULT_ATLAS_API_BASE_URL = "https://api.atlascloud.ai/v1";
@@ -21,6 +22,9 @@ const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
 const DEFAULT_MAX_AUDIO_TRACK_BYTES = 256 * 1024 * 1024;
 const DEFAULT_REMOTE_STOCK_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF = 5;
+const DEFAULT_SOURCE_VIDEO_ANALYSIS_WORK_DIR = "assets/output_deliverables/source-video-analysis-work";
+const DEFAULT_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS = 8;
+const DEFAULT_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES = 12;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const NON_NEGATIVE_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 
@@ -155,7 +159,30 @@ export function loadRuntimeSettings(env: NodeJS.ProcessEnv = process.env): Runti
     costEstimation: loadCostEstimationSettings(env),
     renderConcurrency: optionalIntegerEnv("CINEJELLY_RENDER_CONCURRENCY", env, 2),
     assembly: loadAssemblyRuntimeSettings(env),
-    material: loadMaterialRuntimeSettings(env)
+    material: loadMaterialRuntimeSettings(env),
+    sourceVideoAutoAnalysis: loadSourceVideoAutoAnalysisSettings(env)
+  };
+}
+
+export function loadSourceVideoAutoAnalysisSettings(
+  env: NodeJS.ProcessEnv = process.env
+): SourceVideoAutoAnalysisSettings {
+  return {
+    enabled: optionalBooleanEnv("CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS", env, false),
+    workDirectory:
+      optionalPathEnv("CINEJELLY_SOURCE_VIDEO_ANALYSIS_WORK_DIR", env) ??
+      DEFAULT_SOURCE_VIDEO_ANALYSIS_WORK_DIR,
+    frameIntervalSeconds: optionalIntegerEnv(
+      "CINEJELLY_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS",
+      env,
+      DEFAULT_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS
+    ),
+    maxFrames: optionalIntegerEnv(
+      "CINEJELLY_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES",
+      env,
+      DEFAULT_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES
+    ),
+    failOnError: optionalBooleanEnv("CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR", env, false)
   };
 }
 

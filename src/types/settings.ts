@@ -71,12 +71,21 @@ export interface RemoteStockRuntimeSettings {
   readonly providers: readonly RemoteStockProviderSettings[];
 }
 
+export interface SourceVideoAutoAnalysisSettings {
+  readonly enabled: boolean;
+  readonly workDirectory: string;
+  readonly frameIntervalSeconds: number;
+  readonly maxFrames: number;
+  readonly failOnError: boolean;
+}
+
 export interface RuntimeSettings {
   readonly atlasCloud: AtlasCloudRuntimeSettings;
   readonly costEstimation: CostEstimationSettings;
   readonly renderConcurrency: number;
   readonly assembly: AssemblyRuntimeSettings;
   readonly material: MaterialRuntimeSettings;
+  readonly sourceVideoAutoAnalysis: SourceVideoAutoAnalysisSettings;
 }
 
 export const DEFAULT_SEEDANCE_SETTINGS: FlexibleSeedanceSettings = {

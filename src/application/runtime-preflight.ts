@@ -15,6 +15,7 @@ const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const NON_NEGATIVE_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 const MIN_PORT = 1;
 const MAX_PORT = 65_535;
+const DEFAULT_SOURCE_VIDEO_ANALYSIS_WORK_DIR = "assets/output_deliverables/source-video-analysis-work";
 
 export class RuntimePreflight {
   private readonly env: NodeJS.ProcessEnv;
@@ -63,6 +64,13 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF", this.env.CINEJELLY_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF),
       this.optionalBooleanFlag("CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED", this.env.CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED),
       this.remoteStockMaterialCheck(),
+      this.optionalBooleanFlag("CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS", this.env.CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS),
+      this.optionalPositiveInteger(
+        "CINEJELLY_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS",
+        this.env.CINEJELLY_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS
+      ),
+      this.optionalPositiveInteger("CINEJELLY_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES", this.env.CINEJELLY_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES),
+      this.optionalBooleanFlag("CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR", this.env.CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR),
       this.optionalNonNegativeNumber("CINEJELLY_RENDER_COST_USD_PER_SECOND", this.env.CINEJELLY_RENDER_COST_USD_PER_SECOND),
       this.optionalNonNegativeNumber("CINEJELLY_ASSET_REGISTRATION_COST_USD", this.env.CINEJELLY_ASSET_REGISTRATION_COST_USD),
       this.optionalNonNegativeNumber("CINEJELLY_LLM_PLAN_COST_USD", this.env.CINEJELLY_LLM_PLAN_COST_USD),
@@ -71,6 +79,7 @@ export class RuntimePreflight {
     ];
 
     checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
+    checks.push(await this.sourceVideoAutoAnalysisCheck());
     checks.push(await this.localMaterialCatalogCheck(
       "CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH",
       this.env.CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH
@@ -188,6 +197,51 @@ export class RuntimePreflight {
       name: "remote_stock_materials",
       status: "pass",
       message: `Remote stock material adapters configured for ${providers.join(", ")}.`
+    };
+  }
+
+  private async sourceVideoAutoAnalysisCheck(): Promise<PreflightCheck> {
+    const enabled = this.booleanEnv(
+      "CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS",
+      this.env.CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS
+    );
+    if (enabled === "invalid") {
+      return {
+        name: "source_video_auto_analysis",
+        status: "fail",
+        message: "CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS must be true or false when set."
+      };
+    }
+    const workDirectory = this.env.CINEJELLY_SOURCE_VIDEO_ANALYSIS_WORK_DIR?.trim();
+    if (!enabled) {
+      if (workDirectory && /[\u0000-\u001f\u007f]/.test(workDirectory)) {
+        return {
+          name: "source_video_auto_analysis",
+          status: "fail",
+          message: "CINEJELLY_SOURCE_VIDEO_ANALYSIS_WORK_DIR must not contain control characters."
+        };
+      }
+      return {
+        name: "source_video_auto_analysis",
+        status: "pass",
+        message: "Source-video auto analysis is disabled."
+      };
+    }
+    const directoryCheck = await this.outputDirectoryCheck(
+      "CINEJELLY_SOURCE_VIDEO_ANALYSIS_WORK_DIR",
+      workDirectory || DEFAULT_SOURCE_VIDEO_ANALYSIS_WORK_DIR
+    );
+    if (directoryCheck.status === "fail") {
+      return {
+        name: "source_video_auto_analysis",
+        status: "fail",
+        message: directoryCheck.message
+      };
+    }
+    return {
+      name: "source_video_auto_analysis",
+      status: "pass",
+      message: "Source-video auto analysis is enabled and the frame work directory is writable."
     };
   }
 

@@ -48,3 +48,8 @@ export interface SourceVideoDeconstruction {
   readonly structuralBeats?: readonly string[];
   readonly safetyNotes?: readonly string[];
 }
+
+export interface SourceVideoAutoAnalysisResult {
+  readonly analysis?: SourceVideoDeconstruction;
+  readonly skippedReason?: string;
+}

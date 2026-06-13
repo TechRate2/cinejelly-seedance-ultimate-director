@@ -46,6 +46,8 @@ ffprobe -version
 
 `CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS=true` is optional and enables remote stock material adapters. At least one approved provider key must be configured. Pexels uses `PEXELS_API_KEY`, Pixabay uses `PIXABAY_API_KEY`, and Coverr uses `COVERR_API_KEY` only when `CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED=true` confirms the deployment has accepted the required commercial terms. Provider keys must never appear in request payloads, artifacts, or logs.
 
+`CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS=true` is optional and enables automatic source-video deconstruction for clean HTTPS `source_video_structure` references when the request does not already include `sourceVideoAnalysis`. Configure `CINEJELLY_SOURCE_VIDEO_ANALYSIS_WORK_DIR`, `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS`, `CINEJELLY_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES`, and `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR` as needed. Keep the default fail-open behavior for early validation; set fail-on-error only when the configured multimodal LLM and FFmpeg frame extraction are validated for production inputs.
+
 ## Preflight Gate
 
 Run:
@@ -74,6 +76,7 @@ Hard blockers:
 - Invalid local material catalog path or unsafe catalog asset URI when `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` is set.
 - Remote stock enabled without an approved provider key.
 - Coverr remote stock enabled without explicit commercial approval.
+- Source-video auto-analysis enabled with an invalid or unwritable frame work directory.
 - Output directory cannot be created or written.
 - Invalid numeric settings or API port.
 
@@ -193,6 +196,7 @@ Required evidence:
 - `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
 - If a local material catalog is configured, selected candidates in `material-source-validation.json` use safe `asset://` or credential-free HTTPS URIs and preserve rights/attribution metadata.
 - If remote stock is enabled, selected candidates in `material-source-validation.json` use credential-free HTTPS media URIs, preserve provider asset IDs/source page/preview metadata when safe, and include attribution/license labels.
+- If source-video auto-analysis is enabled and the request has a clean HTTPS `source_video_structure` reference without caller-supplied analysis, `source-video-analysis.json` should contain normalized scene/keyframe/pacing/style/safety structure without local frame paths, inline `data:` URLs, or signed source URLs.
 - `cost-ledger.json` contains provider operations with model, graph node, prediction ID when available, latency, retry count, status, and provider usage/cost when returned.
 - `production-graph.json` includes `reference_asset`, `reference_selection`, `material_sourcing`, `clip_render`, `inspection_report`, repair, and deliverable evidence as applicable.
 - `deliverable.json` includes output byte size and SHA-256 hash.
