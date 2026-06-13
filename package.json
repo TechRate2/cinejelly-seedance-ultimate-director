@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json",
     "preflight": "npm run build && node dist/application/preflight-entrypoint.js",
+    "validation:readiness": "npm run build && node dist/application/validation-readiness-entrypoint.js",
     "validate:artifacts": "npm run build && node dist/application/artifact-validation-entrypoint.js",
     "start": "node dist/api/server.js"
   },

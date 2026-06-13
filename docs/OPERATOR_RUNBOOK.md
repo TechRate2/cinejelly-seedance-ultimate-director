@@ -4,7 +4,7 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 ## Current Readiness
 
-As of 2026-06-13, the TypeScript foundation builds and the local preflight command runs. The latest recorded local preflight failed because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured.
+As of 2026-06-13, the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` can produce a redacted Phase 6 readiness report. The latest recorded local preflight failed because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured.
 
 Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected.
 
@@ -57,6 +57,7 @@ npm.cmd install
 npm.cmd run typecheck
 npm.cmd run build
 npm.cmd run preflight
+npm.cmd run validation:readiness
 ```
 
 Pass criteria:
@@ -64,8 +65,17 @@ Pass criteria:
 - `npm.cmd run typecheck` exits `0`.
 - `npm.cmd run build` exits `0`.
 - `npm.cmd run preflight` exits `0`.
+- `npm.cmd run validation:readiness` exits `0` and the report decision is `ready_for_paid_validation` or `review_warnings`.
 - Preflight report has no `fail` checks.
 - Any `warn` check is reviewed and intentionally accepted before paid rendering.
+
+To persist the readiness report with validation evidence:
+
+```powershell
+npm.cmd run validation:readiness -- --output "phase6-validation/readiness-report.json"
+```
+
+The readiness report is a pre-paid gate only. It must not be used as release approval without the paid Atlas render, artifact validation, artifact inspection, and redaction review below.
 
 Hard blockers:
 
@@ -222,7 +232,7 @@ Before marking the validation run acceptable:
 If preflight fails:
 
 1. Fix environment or media tool installation.
-2. Rerun `npm.cmd run preflight`.
+2. Rerun `npm.cmd run preflight` and `npm.cmd run validation:readiness`.
 3. Do not run paid provider validation until hard failures are gone.
 
 If paid validation fails:
@@ -238,6 +248,7 @@ If paid validation fails:
 CineJelly is ready for limited customer traffic only when:
 
 - Typecheck, build, and preflight pass in the deployment environment.
+- Validation readiness report is archived and has no hard blockers.
 - At least one paid Atlas validation render succeeds.
 - Artifacts pass the inspection checklist.
 - Material source validation is either `planned_only` for generated-only runs or `approved`/explicitly reviewed for runs using adapter candidates.

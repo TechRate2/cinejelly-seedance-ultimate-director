@@ -21,8 +21,8 @@ Ready foundations:
 - Material sourcing planner, local material library adapter, remote stock material adapter, material source validator, render-job stage progress telemetry, and source-material artifact validation.
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
-- Reference Implementations and CineJelly-owned rewrites for Phase 1 Prompt Binding Plan, Phase 2 Guardian Repair Decision Provenance, Phase 3 Reference Selection Scoring plus Reference Metadata Enrichment plus Source Video Auto Analysis Adapter, Phase 4 Provider Polling/Retry/Cost Fidelity, and Phase 5 Long-Form Planning/Batch Workflow plus Render Job Stage Progress Telemetry, Material Source Adapter Validation, Local Material Library Adapter, and Remote Stock Material Adapter.
-- Operator artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
+- Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, and Phase 6 Validation Readiness Report.
+- Operator validation readiness through `npm.cmd run validation:readiness` and artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for pre-paid blockers, manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
 
 Not yet complete:
 
@@ -211,7 +211,7 @@ Milestone check:
 
 ## Phase 6: Real Provider Validation
 
-Status as of 2026-06-13T11:55:14Z: `npm.cmd run preflight` built successfully but returned `fail` because the local environment is missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. Paid Atlas render validation has not been run.
+Status as of 2026-06-13T11:55:14Z: `npm.cmd run preflight` built successfully but returned `fail` because the local environment is missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. A Phase 6 Validation Readiness Report foundation is implemented so operators can capture redacted blockers, warnings, and next actions before paid provider work. Paid Atlas render validation has not been run.
 
 Operator validation procedure: `docs/OPERATOR_RUNBOOK.md`.
 
@@ -221,12 +221,14 @@ Target module:
 - API endpoints
 - Artifact store
 - Operator runbook
+- Validation readiness report
 
 Deliverables:
 
 - Run `npm.cmd run typecheck`.
 - Run `npm.cmd run build`.
 - Run `npm.cmd run preflight` with real deployment environment.
+- Run `npm.cmd run validation:readiness` and keep the redacted report with validation evidence.
 - Run one paid Atlas render using a short safe input and non-sensitive references.
 - Run `npm.cmd run validate:artifacts -- <artifact-directory>` on generated success or failure artifacts.
 - Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, and deliverable metadata.
@@ -237,6 +239,7 @@ Milestone check:
 
 - Provider credentials are loaded only through environment variables.
 - FFmpeg/FFprobe are detected.
+- Validation readiness report decision is `ready_for_paid_validation`, or warnings are explicitly reviewed before paid rendering.
 - API response does not expose local paths, secrets, signed URLs, raw stack traces, or inline base64 media.
 - Artifacts are redacted and include integrity hashes.
 - Artifact validator passes or warnings are explicitly reviewed before release.

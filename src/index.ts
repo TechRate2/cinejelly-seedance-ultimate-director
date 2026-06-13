@@ -25,6 +25,8 @@ export * from "./application/artifact-validation-entrypoint.js";
 export * from "./application/director-factory.js";
 export * from "./application/preflight-entrypoint.js";
 export * from "./application/runtime-preflight.js";
+export * from "./application/validation-readiness-entrypoint.js";
+export * from "./application/validation-readiness-report.js";
 export * from "./config/runtime-config.js";
 export * from "./config/seedance-settings.js";
 export * from "./core/chunking.js";

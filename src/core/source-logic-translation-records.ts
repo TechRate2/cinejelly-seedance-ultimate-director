@@ -982,6 +982,72 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "reference-selection lift from generated metadata needs real long-form validation"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Phase 6 Validation Readiness Report",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "validation state is captured as a deterministic operator report",
+      "warnings and failures stay explicit before build/render work proceeds",
+      "report evidence remains redacted and reviewable"
+    ],
+    behaviorChanged: [
+      "VibeFrame report discipline is rewritten into CineJelly Phase 6 readiness contracts",
+      "readiness reporting does not execute provider work or claim release readiness",
+      "paid render validation and artifact validation remain separate gates"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/phase6-validation-readiness-report.md",
+    cineJellyDestinationPaths: [
+      "src/types/preflight.ts",
+      "src/application/validation-readiness-report.ts",
+      "src/application/validation-readiness-entrypoint.ts",
+      "package.json"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "the report only proves preflight readiness and cannot validate Atlas render quality",
+      "operators must still run the paid validation and artifact validator before release"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Phase 6 Validation Readiness Report",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/controllers/v1/video.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "operator-visible readiness appears before long-running paid video work",
+      "blocked task state is explicit and actionable",
+      "next actions tell the operator whether to fix environment or proceed"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo task code is not copied or executed",
+      "CineJelly readiness is based on RuntimePreflight checks and Phase 6 runbook gates",
+      "release remains blocked until paid Atlas render and artifact review are completed"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/phase6-validation-readiness-report.md",
+    cineJellyDestinationPaths: [
+      "src/application/validation-readiness-report.ts",
+      "src/application/validation-readiness-entrypoint.ts",
+      "docs/OPERATOR_RUNBOOK.md",
+      "docs/IMPLEMENTATION_ROADMAP.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "external queue persistence is still out of scope for the in-process validation report",
+      "real provider validation remains the authoritative release gate"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }
 ];
 

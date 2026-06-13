@@ -73,8 +73,10 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - JSON output, dry runs, cost gates, build reports, review reports.
   - Separate lanes for full build, standalone asset generation, and edit/remix.
   - Deterministic repair commands and inspect-render loop.
+  - Deterministic validation/report discipline for readiness and release review.
 - CineJelly extension:
   - Uses VibeFrame-style artifact discipline inside a commercial API-first service rather than a CLI-only runtime.
+  - Adds a redacted Phase 6 validation readiness report before paid provider work.
 
 ### DirectorBench
 
@@ -141,6 +143,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 - CineJelly extension:
   - Reworks these short-video automation patterns into a commercial Seedance 2.0 director pipeline with Atlas Cloud as the default LLM/render provider, Production Graph lineage, long-form chunking, consistency repair, governed material/reference sourcing, an operator-owned local material catalog adapter, and review packets.
   - Adds bounded async render-job stage progress telemetry so operators can see current stage and retained progress events before final artifacts exist.
+  - Adds pre-paid validation readiness reporting so blocked environment/tool state remains operator-visible before long-running Atlas work starts.
   - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 
 ## Atlas Cloud References
