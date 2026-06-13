@@ -16,7 +16,9 @@ import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
+import { ProductionStagePlanner } from "../core/production-stage-planner.js";
 import { ReferenceSelectionPlanner } from "../core/reference-selection-planner.js";
+import { MaterialSourcingPlanner } from "../core/material-sourcing-planner.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS } from "../core/postproduction-engine.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
 import { RenderScheduler } from "../core/render-scheduler.js";
@@ -45,7 +47,9 @@ export class DirectorAgent {
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
+  private readonly productionStagePlanner: ProductionStagePlanner;
   private readonly referenceSelectionPlanner: ReferenceSelectionPlanner;
+  private readonly materialSourcingPlanner: MaterialSourcingPlanner;
   private readonly renderCostGate: RenderCostGate;
   private readonly promptCompiler: SeedancePromptCompiler;
   private readonly consistencyGuardian: ConsistencyGuardian;
@@ -66,7 +70,9 @@ export class DirectorAgent {
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
+    readonly productionStagePlanner?: ProductionStagePlanner;
     readonly referenceSelectionPlanner?: ReferenceSelectionPlanner;
+    readonly materialSourcingPlanner?: MaterialSourcingPlanner;
     readonly renderCostGate?: RenderCostGate;
     readonly promptCompiler?: SeedancePromptCompiler;
     readonly consistencyGuardian?: ConsistencyGuardian;
@@ -82,7 +88,9 @@ export class DirectorAgent {
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
+    this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
     this.referenceSelectionPlanner = input.referenceSelectionPlanner ?? new ReferenceSelectionPlanner();
+    this.materialSourcingPlanner = input.materialSourcingPlanner ?? new MaterialSourcingPlanner();
     this.renderCostGate = input.renderCostGate ?? new RenderCostGate({ costBufferMultiplier: 1 });
     this.promptCompiler = input.promptCompiler ?? new SeedancePromptCompiler();
     this.consistencyGuardian = input.consistencyGuardian ?? new ConsistencyGuardian();
@@ -108,6 +116,11 @@ export class DirectorAgent {
       ...(intake.metadata ? { metadata: intake.metadata } : {})
     });
     const shots = this.referenceSelectionPlanner.planForShots({ shots: plannedShots });
+    const materialSourcingPlan = this.materialSourcingPlanner.plan({
+      projectId: intake.projectId,
+      shots,
+      settings: intake.settings
+    });
     const storyboard = this.storyboardPlanner.plan({
       projectId: intake.projectId,
       storyPlan,
@@ -127,7 +140,8 @@ export class DirectorAgent {
       storyPlan,
       shots,
       storyboard,
-      storyboardPreflight
+      storyboardPreflight,
+      materialSourcingPlan
     });
     const compiledPrompts = shots.map((shot) =>
       this.promptCompiler.compile({
@@ -263,6 +277,19 @@ export class DirectorAgent {
       ...(deliverable ? { deliverable } : {}),
       settings: intake.settings
     });
+    const stagePlan = this.productionStagePlanner.plan({
+      projectId: intake.projectId,
+      storyPlan,
+      shots,
+      storyboard,
+      storyboardPreflight,
+      materialSourcingPlan,
+      compiledPrompts,
+      renderedShots,
+      deliverablePresent: Boolean(deliverable),
+      ...(deliveryGate ? { deliveryGate } : {}),
+      productionGraph: finalProductionGraph
+    });
 
     return {
       projectId: intake.projectId,
@@ -270,6 +297,8 @@ export class DirectorAgent {
       storyboard,
       storyboardPreflight,
       productionGraph: finalProductionGraph,
+      materialSourcingPlan,
+      stagePlan,
       costEstimate,
       compiledPrompts,
       renderedShots,

@@ -64,6 +64,7 @@ export class ReviewPacketBuilder {
       render: this.render(input.result),
       cost,
       delivery,
+      stageLifecycle: input.result.stagePlan.records,
       sourceLineage: this.sourceLineage(input.sourceLogicTranslations ?? DEFAULT_SOURCE_LOGIC_TRANSLATION_RECORDS),
       repairProvenance: this.repairProvenance(input.result),
       recommendations: this.recommendations(input.result, status)

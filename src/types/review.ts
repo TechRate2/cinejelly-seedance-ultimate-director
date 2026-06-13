@@ -8,6 +8,7 @@ import type { CostGateStatus } from "./cost.js";
 import type { GuardianRepairScope, GuardianStage, GuardianStatus } from "./guardian.js";
 import type { QualityMode, Resolution, SpeedTier, AspectRatio } from "./settings.js";
 import type { SourceLicenseKind, SourceLogicValidationStatus, SourceRepositoryId } from "./source-translation.js";
+import type { ProductionStageRecord } from "./stage.js";
 
 export type ReviewPacketStatus = "ready" | "review_required" | "blocked";
 
@@ -23,6 +24,7 @@ export interface ReviewPacket {
   readonly render: ReviewPacketRender;
   readonly cost: ReviewPacketCost;
   readonly delivery: ReviewPacketDelivery;
+  readonly stageLifecycle: readonly ProductionStageRecord[];
   readonly sourceLineage: readonly ReviewPacketSourceLineage[];
   readonly repairProvenance: readonly ReviewPacketRepairProvenance[];
   readonly recommendations: readonly string[];

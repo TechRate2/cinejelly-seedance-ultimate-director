@@ -5,6 +5,7 @@
 
 import type { FlexibleSeedanceSettings } from "./settings.js";
 import type { GuardianRepairScope, GuardianSourceCheckpoint } from "./guardian.js";
+import type { MaterialSourcingPlan } from "./material.js";
 import type { PromptReference, ReferenceSelectionPlan, ShotContract } from "./prompt.js";
 import type { PredictionStatus, ProviderReference } from "./provider.js";
 import type { SourceVideoDeconstruction } from "./source-video.js";
@@ -18,6 +19,7 @@ export type GraphNodeType =
   | "sequence"
   | "scene"
   | "beat"
+  | "material_sourcing"
   | "reference_selection"
   | "storyboard_panel"
   | "shot"
@@ -89,6 +91,8 @@ export interface BeatNodeData {
 
 export type StoryboardPanelNodeData = StoryboardPanel;
 
+export type MaterialSourcingNodeData = MaterialSourcingPlan;
+
 export type ReferenceSelectionNodeData = ReferenceSelectionPlan;
 
 export interface ClipRenderNodeData {
@@ -145,6 +149,7 @@ export type ProductionGraphNode =
   | GraphNodeBase<"sequence", SequenceNodeData>
   | GraphNodeBase<"scene", SceneNodeData>
   | GraphNodeBase<"beat", BeatNodeData>
+  | GraphNodeBase<"material_sourcing", MaterialSourcingNodeData>
   | GraphNodeBase<"reference_selection", ReferenceSelectionNodeData>
   | GraphNodeBase<"storyboard_panel", StoryboardPanelNodeData>
   | GraphNodeBase<"shot", ShotContract>

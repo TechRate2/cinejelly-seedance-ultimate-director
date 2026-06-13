@@ -241,8 +241,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "full staged batch workflow remains planned for Phase 5",
-      "provider ledger state is not a complete job-progress UI until render scheduler stages consume it"
+      "live staged batch progress remains future work beyond the Phase 5 completed-run stage lifecycle",
+      "provider ledger state is not a complete job-progress UI until persisted stage updates consume it"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -278,6 +278,110 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     fidelityRisks: [
       "Atlas Cloud public schema and model capability data must be rechecked before paid release",
       "real provider payloads may expose additional terminal states that need mapper updates"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Long-Form Planning And Batch Workflow",
+    sourceRepository: "HKUDS/ViMax",
+    snapshotPath: "external/upstream/vimax",
+    upstreamPaths: [
+      "external/upstream/vimax/agents/reference_image_selector.py",
+      "external/upstream/vimax/agent_runtime/session_index.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "long-form work is decomposed into renderable shots before provider spend",
+      "continuity-sensitive dependencies remain explicit in scheduling and graph evidence",
+      "candidate and repair evidence remains traceable by shot"
+    ],
+    behaviorChanged: [
+      "long-form lifecycle is represented through CineJelly ProductionStagePlan records",
+      "material sourcing is separated from reference scoring and render selection",
+      "stage evidence is emitted in review packets and durable artifacts"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/long-form-planning-batch-workflow.md",
+    cineJellyDestinationPaths: [
+      "src/types/stage.ts",
+      "src/core/production-stage-planner.ts",
+      "src/core/render-scheduler.ts",
+      "src/core/production-graph-builder.ts",
+      "src/agents/director-agent.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "real 2-8 minute Atlas validation is still pending",
+      "future source-video analysis should enrich dependency metadata beyond current shot contracts"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Long-Form Planning And Batch Workflow",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "project stages remain deterministic and operator-visible",
+      "artifact order preserves planning, storyboard, graph, cost, render, review, and delivery evidence",
+      "repair and inspection stages are separate lifecycle records"
+    ],
+    behaviorChanged: [
+      "CLI project-loop status is rewritten into typed stage lifecycle records",
+      "stage lifecycle is exposed through review packets and JSON artifacts",
+      "CineJelly keeps Atlas Cloud as provider default instead of adopting upstream provider routing"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/long-form-planning-batch-workflow.md",
+    cineJellyDestinationPaths: [
+      "src/types/stage.ts",
+      "src/core/production-stage-planner.ts",
+      "src/core/project-artifact-store.ts",
+      "src/types/review.ts",
+      "src/core/review-packet-builder.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "stage records currently describe a completed run rather than a persisted live task monitor",
+      "future resumable long-running builds should preserve this stage schema"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Long-Form Planning And Batch Workflow",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    upstreamPaths: [
+      "external/upstream/MoneyPrinterTurbo/app/services/task.py",
+      "external/upstream/MoneyPrinterTurbo/app/services/state.py",
+      "external/upstream/MoneyPrinterTurbo/app/services/video.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "one-input work becomes explicit stages",
+      "material sourcing happens before final composition",
+      "batch candidates and final deliverable evidence are visible to operators"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo task progress is adapted into CineJelly stage lifecycle records",
+      "material sourcing is represented as governed briefs rather than immediate stock downloads",
+      "batch render candidates remain Seedance/Atlas render candidates with graph and review evidence"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/long-form-planning-batch-workflow.md",
+    cineJellyDestinationPaths: [
+      "src/types/material.ts",
+      "src/core/material-sourcing-planner.ts",
+      "src/types/graph.ts",
+      "src/core/production-graph-builder.ts",
+      "src/core/project-artifact-store.ts",
+      "src/agents/director-agent.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "actual local/stock material adapter fulfillment remains future work",
+      "subtitle, TTS, and BGM orchestration are not yet translated into dedicated stage modules"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }

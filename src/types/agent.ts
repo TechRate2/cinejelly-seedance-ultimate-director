@@ -19,6 +19,8 @@ import type { SemanticVisualInspectionOptions, SemanticVisualInspectionReport } 
 import type { RenderCostEstimate } from "./cost.js";
 import type { DeliveryGateReport } from "./delivery.js";
 import type { SourceVideoDeconstruction } from "./source-video.js";
+import type { MaterialSourcingPlan } from "./material.js";
+import type { ProductionStagePlan } from "./stage.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -79,6 +81,8 @@ export interface DirectorRunResult {
   readonly storyboard: Storyboard;
   readonly storyboardPreflight: GuardianReport;
   readonly productionGraph: ProductionGraphSnapshot;
+  readonly materialSourcingPlan: MaterialSourcingPlan;
+  readonly stagePlan: ProductionStagePlan;
   readonly costEstimate: RenderCostEstimate;
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];

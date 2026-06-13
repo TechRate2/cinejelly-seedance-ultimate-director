@@ -103,6 +103,11 @@ export class ProjectArtifactStore {
       sourceVideoTranscriptCueCount: sourceVideoAnalysis?.transcript?.length ?? 0,
       storyboardPanelCount: result.storyboard.panels.length,
       storyboardPreflightStatus: result.storyboardPreflight.status,
+      stageStatuses: result.stagePlan.records.map((record) => ({
+        stage: record.stage,
+        status: record.status
+      })),
+      materialBriefCount: result.materialSourcingPlan.briefs.length,
       compiledPromptCount: result.compiledPrompts.length,
       renderedShotCount: result.renderedShots.length,
       plannedCandidateCount: result.costEstimate.candidateCount,
@@ -129,6 +134,8 @@ export class ProjectArtifactStore {
       { kind: "storyboard", fileName: "storyboard.json", value: result.storyboard },
       { kind: "storyboard_preflight", fileName: "storyboard-preflight.json", value: result.storyboardPreflight },
       { kind: "production_graph", fileName: "production-graph.json", value: result.productionGraph },
+      { kind: "material_sourcing_plan", fileName: "material-sourcing-plan.json", value: result.materialSourcingPlan },
+      { kind: "stage_lifecycle", fileName: "stage-lifecycle.json", value: result.stagePlan },
       { kind: "cost_plan", fileName: "cost-plan.json", value: result.costEstimate },
       { kind: "compiled_prompts", fileName: "compiled-prompts.json", value: result.compiledPrompts },
       { kind: "rendered_shots", fileName: "rendered-shots.json", value: result.renderedShots },

@@ -53,6 +53,7 @@ Project
             ClipRender
               InspectionReport
               RepairAction
+  StageLifecycle
   Timeline
   Deliverable
 ```
@@ -126,6 +127,36 @@ Rules:
 - Material sourcing is optional and never bypasses Atlas Cloud as the default Seedance render provider.
 - Remote material sources must satisfy licensing, HTTPS, credential, duration, and size constraints before becoming Production Graph evidence.
 - Product code must implement this as CineJelly-owned TypeScript; MoneyPrinterTurbo service code stays in the snapshot layer.
+
+Runtime implementation:
+
+- `MaterialSourcingPlanner` creates a governed `MaterialSourcingPlan` for every run after shot planning and reference selection.
+- `ProductionGraphBuilder` stores the plan as a `material_sourcing` node and links shot nodes that own material briefs to that evidence.
+- Every brief records source policy, query terms, aspect ratio, resolution, target duration, max candidate count, remote-source allowance, and rights requirement.
+- DirectorAgent currently creates planning briefs only; actual stock/local material adapter fulfillment remains future work and must preserve the same rights metadata.
+
+### StageLifecycle
+
+Inspired by VibeFrame's deterministic project loop and MoneyPrinterTurbo's visible task progress, CineJelly records a run-level stage lifecycle.
+
+Stages:
+
+- plan
+- storyboard
+- prompt
+- source_material
+- render
+- inspect
+- repair
+- assemble
+- deliver
+
+Runtime implementation:
+
+- `ProductionStagePlanner` emits a deterministic `ProductionStagePlan` with all nine stages in order.
+- Each record contains status, graph node IDs, evidence counts, source-pattern origins, and blocking reason when a stage fails or blocks.
+- Review packets expose `stageLifecycle`, and durable artifacts include `stage-lifecycle.json`.
+- `run-summary.json` includes compact stage status pairs for fast operator scanning.
 
 ### StoryArc
 

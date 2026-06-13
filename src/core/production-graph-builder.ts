@@ -6,6 +6,7 @@
 import type { IntakeResult, StoryPlan } from "../types/agent.js";
 import type { GraphEdgeType, ProductionGraphNode, ProductionGraphSnapshot } from "../types/graph.js";
 import type { GuardianReport, GuardianSeverity } from "../types/guardian.js";
+import type { MaterialSourcingPlan } from "../types/material.js";
 import type { PromptReference, ShotContract } from "../types/prompt.js";
 import type { Storyboard } from "../types/storyboard.js";
 import { createStableId } from "../utils/ids.js";
@@ -19,6 +20,7 @@ export class ProductionGraphBuilder {
     readonly shots: readonly ShotContract[];
     readonly storyboard?: Storyboard;
     readonly storyboardPreflight?: GuardianReport;
+    readonly materialSourcingPlan?: MaterialSourcingPlan;
   }): ProductionGraphSnapshot {
     const graph = new ProductionGraph();
     const projectNode = this.node("project", input.intake.projectId, {
@@ -50,6 +52,13 @@ export class ProductionGraphBuilder {
     });
 
     const shotNodes: ProductionGraphNode[] = [];
+    const materialNode = input.materialSourcingPlan
+      ? this.node("material_sourcing", input.materialSourcingPlan.planId, input.materialSourcingPlan)
+      : undefined;
+    if (materialNode) {
+      graph.addNode(materialNode);
+      graph.addEdge(projectNode.id, materialNode.id, "depends_on");
+    }
     for (const [sceneIndex, scene] of input.storyPlan.scenes.entries()) {
       const sceneNodeId = createStableId("scene", `${input.intake.projectId}:${scene.sceneId}`);
       const sceneNode = this.node("scene", sceneNodeId, {
@@ -83,6 +92,9 @@ export class ProductionGraphBuilder {
           }
           graph.addNode(shotNode);
           graph.addEdge(storyboardNode?.id ?? beatNode.id, shotNode.id, "depends_on");
+          if (materialNode && input.materialSourcingPlan?.briefs.some((brief) => brief.shotId === shot.shotId)) {
+            graph.addEdge(shotNode.id, materialNode.id, "depends_on");
+          }
           if (shot.referenceSelectionPlan) {
             const referenceSelectionNode = this.node(
               "reference_selection",
