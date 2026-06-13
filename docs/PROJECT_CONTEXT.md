@@ -134,6 +134,7 @@ Implementation status:
 - `src/index.ts` is the stable package integration surface for API, agents, application factories, core engines, providers, prompt compiler, shared types, and utilities; `package.json` declares ESM `main`, `types`, and `exports` pointing at built `dist/index.js`/`dist/index.d.ts` so production consumers do not import fragile internal paths.
 - `src/config` loads secret-safe Atlas Cloud runtime configuration, credential-free HTTPS Atlas endpoint overrides, strict numeric deployment settings, Atlas JSON response size limits, assembly and audio download limits, and flexible Seedance settings from environment variables before provider request compilation.
 - `src/types` defines the provider, production, prompt, graph, guardian, assembly, media, caption, audio, transition, visual-inspection, agent, and runtime-preflight contracts.
+- `docs/OPERATOR_RUNBOOK.md` is the current Phase 6 execution checklist for environment setup, preflight, paid Atlas validation, artifact inspection, redaction review, failure handling, and release decision.
 
 Current blockers before real customer rendering:
 

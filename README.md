@@ -17,6 +17,7 @@ The repository contains a production-oriented TypeScript foundation. It is ready
 - FFmpeg/FFprobe child-process stdout and stderr are capped so noisy media failures cannot exhaust API memory.
 - The planning path now emits and Guardian-validates a typed storyboard from shot contracts before render spend; storyboard panels and preflight evidence are stored in the Production Graph and durable artifacts.
 - The codebase now includes a MoneyPrinterTurbo-inspired, CineJelly-owned material sourcing planner that turns shot contracts into governed material briefs without importing upstream code or calling stock APIs directly.
+- Long-form runs now emit a typed stage lifecycle for `plan`, `storyboard`, `prompt`, `source_material`, `render`, `inspect`, `repair`, `assemble`, and `deliver`; review packets and durable artifacts expose this evidence for operator review.
 - The codebase now includes source-translation lineage contracts and a redacted logging foundation for future Faithful Logic Translation work across providers, prompt compiler, graph planning, and guardian modules.
 - The intake path now supports a bounded `sourceVideoAnalysis` contract for VideoAgent/OpenMontage-style transcript, scene, keyframe, pacing, style, and safety deconstruction; Story Architect uses it as original structural guidance, and graph/artifacts preserve the source-video lineage.
 - Successful runs emit `review-packet.json`, a redacted commercial handoff summary that ties planning, render, cost, delivery, and QC evidence together.
@@ -43,9 +44,9 @@ The repository contains a production-oriented TypeScript foundation. It is ready
 - Runtime preflight now verifies the configured/default output directory can be prepared and written before customer traffic.
 - The package declares `main`, `types`, and ESM `exports` for stable production imports from the built `dist/index.js` surface, including API, agents, core engines, providers, prompt compiler, and shared types.
 - No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshots may contain original upstream development files inside `external/upstream/`; those files become product material only after license/product review and an intentional copy/adapt step.
-- Runtime validation still requires real Atlas Cloud credentials, verified model IDs, FFmpeg, and FFprobe before customer use.
+- Runtime validation still requires real Atlas Cloud credentials, verified model IDs, FFmpeg, FFprobe, and at least one paid Atlas render before customer use.
 
-The next implementation phase is focused Faithful Logic Translation for prompt binding, repair strategy, reference selection, provider polling/retry, and long-form graph planning, followed by real end-to-end validation.
+Faithful Logic Translation foundations are implemented for Prompt Binding Plan, Guardian Repair Decision Provenance, Reference Selection Scoring, Provider Polling/Retry/Cost Fidelity, and Long-Form Planning/Batch Workflow. The next required phase is real provider validation using `docs/OPERATOR_RUNBOOK.md`.
 
 ## Product Goal
 
@@ -242,20 +243,19 @@ When semantic visual inspection is enabled, `ATLASCLOUD_LLM_MODEL` must be a mod
 
 Current foundation:
 
-- Provider, prompt, graph, guardian, API, cost, error, artifact, redaction, and media-processing foundations exist under `src/`.
-- Source lineage and logging foundations exist, but most source-faithful modules still need explicit Reference Implementations and validation records.
+- Provider, prompt, graph, guardian, API, cost, error, artifact, redaction, stage lifecycle, material sourcing, and media-processing foundations exist under `src/`.
+- Source lineage and logging foundations exist, and Phase 1-5 source-faithful foundations have Reference Implementations, lineage records, and validation notes.
 - Runtime readiness still depends on real Atlas credentials, verified model IDs, FFmpeg/FFprobe availability, and paid provider validation.
 
 Next implementation order:
 
-1. Prompt Binding Plan: make reference role ordering, conflict handling, prompt compression, and source lineage explicit.
-2. Guardian Repair Decision Provenance: record narrow repair scope, severity rollup, affected node IDs, and source-derived checkpoint lineage.
-3. Reference Selection Scoring: translate ViMax-style same-camera, recency, duplicate, and bounded-reference rules.
-4. Provider Polling/Retry Fidelity: harden Atlas polling, retry classification, cancellation, timeout, and cost ledger behavior.
-5. Long-Form Planning Fidelity: translate shot dependency, chunking, storyboard readiness, and review artifact ordering.
-6. Real end-to-end validation: run a paid Atlas render with FFmpeg/FFprobe installed, review artifacts, and update readiness notes.
+1. Prepare deployment environment: Atlas credentials, verified model IDs, `CINEJELLY_API_AUTH_TOKEN`, FFmpeg, and FFprobe.
+2. Run `npm.cmd run typecheck`, `npm.cmd run build`, and `npm.cmd run preflight`.
+3. Run one paid Atlas validation render using a short non-sensitive input.
+4. Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, and deliverable metadata.
+5. Update readiness notes and remaining blockers in `docs/PROJECT_CONTEXT.md` and `docs/IMPLEMENTATION_ROADMAP.md`.
 
-Detailed milestones are tracked in `docs/IMPLEMENTATION_ROADMAP.md`.
+Detailed milestones are tracked in `docs/IMPLEMENTATION_ROADMAP.md`; validation execution is described in `docs/OPERATOR_RUNBOOK.md`.
 
 ## Source Snapshot Strategy
 

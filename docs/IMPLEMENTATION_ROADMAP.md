@@ -187,6 +187,8 @@ Milestone check:
 
 Status as of 2026-06-13T11:55:14Z: `npm.cmd run preflight` built successfully but returned `fail` because the local environment is missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. Paid Atlas render validation has not been run.
 
+Operator validation procedure: `docs/OPERATOR_RUNBOOK.md`.
+
 Target module:
 
 - Runtime config
@@ -202,6 +204,7 @@ Deliverables:
 - Run one paid Atlas render using a short safe input and non-sensitive references.
 - Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, and deliverable metadata.
 - Update `docs/PROJECT_CONTEXT.md` with actual validation date and remaining blockers.
+- Maintain `docs/OPERATOR_RUNBOOK.md` as the authoritative execution checklist for preflight, paid validation, artifact inspection, redaction review, and release decision.
 
 Milestone check:
 
