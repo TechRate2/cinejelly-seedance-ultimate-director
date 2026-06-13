@@ -11,6 +11,7 @@ import type { SourceLicenseKind, SourceLogicValidationStatus, SourceRepositoryId
 import type { ProductionStageRecord } from "./stage.js";
 import type { MaterialSourceValidationStatus } from "./material.js";
 import type { PostproductionAssetStatus, PostproductionGeneratedAudioStatus } from "./postproduction-assets.js";
+import type { GeneratedAudioOutputBatchValidationStatus } from "./generated-audio-output.js";
 
 export type ReviewPacketStatus = "ready" | "review_required" | "blocked";
 
@@ -66,6 +67,11 @@ export interface ReviewPacketPlanning {
   readonly generatedAudioIntentCount: number;
   readonly generatedAudioReadyIntentCount: number;
   readonly generatedAudioBlockedIntentCount: number;
+  readonly hasGeneratedAudioOutputBatchValidation: boolean;
+  readonly generatedAudioOutputBatchStatus?: GeneratedAudioOutputBatchValidationStatus;
+  readonly generatedAudioResultCount?: number;
+  readonly generatedAudioApprovedTrackCount?: number;
+  readonly generatedAudioOutputBatchIssueCount?: number;
   readonly postproductionAssetIssueCount: number;
 }
 

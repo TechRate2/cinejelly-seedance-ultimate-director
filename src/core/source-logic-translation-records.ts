@@ -1755,20 +1755,23 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "generated-audio stage evidence remains visible to operators",
       "prepared audio artifacts stay separate from final composition until validated",
-      "terminal task evidence can be reviewed through durable artifacts"
+      "terminal task evidence can be reviewed through durable artifacts and review packets"
     ],
     behaviorChanged: [
       "MoneyPrinterTurbo artifact/task code is not copied or executed",
       "CineJelly persists generated-audio output batch validation only when a provider-backed report exists",
-      "artifact validation cross-checks batch status and counts against postproduction and run-summary evidence",
+      "review packets surface generated-audio batch status and counts when provider-backed reports exist",
+      "artifact validation cross-checks batch status and counts against postproduction, run-summary, and review-packet evidence",
       "current planned-only/no-spend generated-audio runs do not require a batch artifact"
     ],
     referenceImplementationPath: "docs/reference-implementations/generated-audio-batch-artifact-evidence.md",
     cineJellyDestinationPaths: [
       "src/types/agent.ts",
       "src/types/artifact.ts",
+      "src/types/review.ts",
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",
+      "src/core/review-packet-builder.ts",
       "src/core/source-logic-translation-records.ts"
     ],
     validationStatus: "implemented",
@@ -1790,18 +1793,20 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "release-sensitive generated artifacts are captured as deterministic reports",
       "artifact validation checks persisted evidence rather than trusting in-memory state",
-      "partial or blocked generated-media readiness remains explicit in review artifacts"
+      "partial or blocked generated-media readiness remains explicit in review artifacts and review-packet status"
     ],
     behaviorChanged: [
       "VibeFrame artifact report discipline is rewritten into CineJelly generated-audio artifact contracts",
       "batch artifact validation does not rerun providers or media downloads",
-      "run summary, postproduction plan, and optional batch artifact must agree when batch evidence exists"
+      "run summary, postproduction plan, review packet, and optional batch artifact must agree when batch evidence exists"
     ],
     referenceImplementationPath: "docs/reference-implementations/generated-audio-batch-artifact-evidence.md",
     cineJellyDestinationPaths: [
       "src/types/artifact.ts",
+      "src/types/review.ts",
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",
+      "src/core/review-packet-builder.ts",
       "docs/IMPLEMENTATION_ROADMAP.md"
     ],
     validationStatus: "implemented",
@@ -1826,13 +1831,15 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "OpenMontage implementation code is not copied, linked, imported, or executed",
       "AGPL-sensitive approval concepts remain behavior notes only",
-      "CineJelly-owned artifact validation checks generated-audio batch evidence without using OpenMontage runtime code"
+      "CineJelly-owned artifact and review-packet validation checks generated-audio batch evidence without using OpenMontage runtime code"
     ],
     referenceImplementationPath: "docs/reference-implementations/generated-audio-batch-artifact-evidence.md",
     cineJellyDestinationPaths: [
       "src/types/artifact.ts",
+      "src/types/review.ts",
       "src/core/project-artifact-store.ts",
-      "src/core/project-artifact-validator.ts"
+      "src/core/project-artifact-validator.ts",
+      "src/core/review-packet-builder.ts"
     ],
     validationStatus: "implemented",
     fidelityRisks: [

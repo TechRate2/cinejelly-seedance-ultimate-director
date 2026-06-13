@@ -1250,6 +1250,18 @@ export class ProjectArtifactValidator {
           message: "run-summary says generated-audio output batch validation exists, but the artifact is missing."
         });
       }
+      const reviewPacket = artifacts.get("review_packet");
+      const reviewPlanning = reviewPacket && this.isRecord(reviewPacket.value) && this.isRecord(reviewPacket.value.planning)
+        ? reviewPacket.value.planning
+        : undefined;
+      if (reviewPlanning?.hasGeneratedAudioOutputBatchValidation === true) {
+        checks.push({
+          name: "generated_audio_output_batch_consistency",
+          status: "fail",
+          fileName: reviewPacket?.entry.fileName ?? "review-packet.json",
+          message: "review-packet says generated-audio output batch validation exists, but the artifact is missing."
+        });
+      }
       return;
     }
     if (!this.isRecord(batchArtifact.value)) {
@@ -1322,6 +1334,54 @@ export class ProjectArtifactValidator {
       runSummary?.entry.fileName ?? batchArtifact.entry.fileName,
       "generatedAudioOutputBatchIssueCount",
       runSummaryValue.generatedAudioOutputBatchIssueCount,
+      batch.issueCount,
+      batchArtifact.entry.fileName,
+      checks
+    );
+
+    const reviewPacket = artifacts.get("review_packet");
+    const reviewPlanning = reviewPacket && this.isRecord(reviewPacket.value) && this.isRecord(reviewPacket.value.planning)
+      ? reviewPacket.value.planning
+      : undefined;
+    if (!reviewPlanning) {
+      return;
+    }
+    if (reviewPlanning.hasGeneratedAudioOutputBatchValidation !== true) {
+      checks.push({
+        name: "generated_audio_output_batch_consistency",
+        status: "fail",
+        fileName: reviewPacket?.entry.fileName ?? "review-packet.json",
+        message: "review-packet must mark hasGeneratedAudioOutputBatchValidation true when the batch artifact exists."
+      });
+    }
+    this.compareGeneratedAudioBatchField(
+      reviewPacket?.entry.fileName ?? batchArtifact.entry.fileName,
+      "planning.generatedAudioOutputBatchStatus",
+      reviewPlanning.generatedAudioOutputBatchStatus,
+      batch.status,
+      batchArtifact.entry.fileName,
+      checks
+    );
+    this.compareGeneratedAudioBatchField(
+      reviewPacket?.entry.fileName ?? batchArtifact.entry.fileName,
+      "planning.generatedAudioResultCount",
+      reviewPlanning.generatedAudioResultCount,
+      batch.resultCount,
+      batchArtifact.entry.fileName,
+      checks
+    );
+    this.compareGeneratedAudioBatchField(
+      reviewPacket?.entry.fileName ?? batchArtifact.entry.fileName,
+      "planning.generatedAudioApprovedTrackCount",
+      reviewPlanning.generatedAudioApprovedTrackCount,
+      batch.approvedTrackCount,
+      batchArtifact.entry.fileName,
+      checks
+    );
+    this.compareGeneratedAudioBatchField(
+      reviewPacket?.entry.fileName ?? batchArtifact.entry.fileName,
+      "planning.generatedAudioOutputBatchIssueCount",
+      reviewPlanning.generatedAudioOutputBatchIssueCount,
       batch.issueCount,
       batchArtifact.entry.fileName,
       checks

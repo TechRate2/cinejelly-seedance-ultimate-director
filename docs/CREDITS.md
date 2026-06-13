@@ -169,7 +169,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds a generated-audio execution planner that maps bounded intents to provider-neutral requests only when verified capabilities exist, preserving blocked provider/kind/duration/output-format evidence without provider spend.
   - Adds generated-audio output validation so prepared provider results must be matched to the original intent and pass duration plus credential-free URL checks before becoming audio mix tracks.
   - Adds generated-audio output batch validation so provider result sets are reconciled against ready execution-plan items in deterministic order before approved tracks are exposed to the mix layer.
-  - Adds generated-audio batch artifact evidence so future provider-backed generated-audio validation reports can be persisted and checked against postproduction/run-summary artifacts.
+  - Adds generated-audio batch artifact evidence so future provider-backed generated-audio validation reports can be persisted, surfaced in review packets, and checked against postproduction/run-summary/review artifacts.
   - Adds generated-audio asset resolution so approved `asset://` generated-audio outputs can become mix tracks only after clean HTTPS mapping, identity binding, and approval checks pass.
   - Adds generated-audio asset resolution catalog preflight so operator-owned `asset://` to HTTPS mappings are validated before runtime use.
   - Adds provider-neutral generated-audio capability/request/result contracts inspired by MoneyPrinterTurbo's explicit audio stage and `/audio` stop-at behavior, while keeping actual provider execution disabled until verified schemas and paid validation exist.

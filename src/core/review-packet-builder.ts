@@ -71,6 +71,15 @@ export class ReviewPacketBuilder {
         generatedAudioIntentCount: input.result.postproductionAssetPlan.generatedAudio.intentCount,
         generatedAudioReadyIntentCount: input.result.postproductionAssetPlan.generatedAudio.readyIntentCount,
         generatedAudioBlockedIntentCount: input.result.postproductionAssetPlan.generatedAudio.blockedIntentCount,
+        hasGeneratedAudioOutputBatchValidation: Boolean(input.result.generatedAudioOutputBatchValidation),
+        ...(input.result.generatedAudioOutputBatchValidation
+          ? {
+              generatedAudioOutputBatchStatus: input.result.generatedAudioOutputBatchValidation.status,
+              generatedAudioResultCount: input.result.generatedAudioOutputBatchValidation.resultCount,
+              generatedAudioApprovedTrackCount: input.result.generatedAudioOutputBatchValidation.approvedTrackCount,
+              generatedAudioOutputBatchIssueCount: input.result.generatedAudioOutputBatchValidation.issueCount
+            }
+          : {}),
         postproductionAssetIssueCount: input.result.postproductionAssetPlan.issueCount
       },
       render: this.render(input.result),
@@ -195,7 +204,8 @@ export class ReviewPacketBuilder {
       delivery.deliveryGateStatus === "block" ||
       delivery.semanticVisualInspectionStatus === "fail" ||
       delivery.mediaInspectionStatus === "fail" ||
-      result.materialSourceValidation.status === "rejected"
+      result.materialSourceValidation.status === "rejected" ||
+      result.generatedAudioOutputBatchValidation?.status === "rejected"
     ) {
       return "blocked";
     }
@@ -208,6 +218,8 @@ export class ReviewPacketBuilder {
       delivery.mediaInspectionStatus === "warn" ||
       result.materialSourceValidation.status === "review_required" ||
       result.postproductionAssetPlan.status === "review_required" ||
+      result.generatedAudioOutputBatchValidation?.status === "review_required" ||
+      result.generatedAudioOutputBatchValidation?.status === "partially_approved" ||
       cost.failedProviderOperationCount > 0 ||
       cost.timeoutProviderOperationCount > 0
     ) {
@@ -238,6 +250,14 @@ export class ReviewPacketBuilder {
     }
     for (const issue of result.postproductionAssetPlan.issues) {
       recommendations.add(issue.repair);
+    }
+    for (const issue of result.generatedAudioOutputBatchValidation?.issues ?? []) {
+      recommendations.add(issue.repair);
+    }
+    for (const report of result.generatedAudioOutputBatchValidation?.reports ?? []) {
+      for (const issue of report.issues) {
+        recommendations.add(issue.repair);
+      }
     }
     for (const finding of result.deliveryGate?.findings ?? []) {
       recommendations.add(finding.repair);
