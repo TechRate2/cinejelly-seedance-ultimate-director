@@ -1,13 +1,13 @@
 # Reference Implementation: Provider Polling, Retry, And Cost Fidelity
 
-Implementation status as of 2026-06-13: CineJelly-owned production foundation implemented for provider-neutral ledger fields, Atlas prediction/asset wait polling records, retry-code classification, timeout/abort normalization, and review-packet canceled-operation counts. `npm.cmd run typecheck` passed; build/final validation and paid Atlas render validation remain pending. CineJelly production code must remain CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
+Implementation status as of 2026-06-13: CineJelly-owned production foundation implemented for provider-neutral ledger fields, Atlas prediction/asset wait polling records, retry-code classification, timeout/abort normalization, and review-packet canceled-operation counts. `npm.cmd run typecheck` and `npm.cmd run build` passed; paid Atlas render validation remains pending. CineJelly production code must remain CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
 
 ## Upstream Sources
 
 | Source | Snapshot path | License | Behavior used |
 | --- | --- | --- | --- |
 | `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Validate -> plan/cost -> dry-run/build -> render -> status refresh -> inspect loop, JSON build reports, cost caps before paid provider work, deterministic repair/status commands. |
-| `harry0703/MoneyPrinterTurbo` | `external/upstream/MoneyPrinterTurbo` | AGPL-3.0 | Task progress lifecycle, staged pipeline state updates, terminal failure state on missing stage output, bounded progress updates, resumable operator-visible task status. |
+| `harry0703/MoneyPrinterTurbo` | `external/upstream/MoneyPrinterTurbo` | MIT | Task progress lifecycle, staged pipeline state updates, terminal failure state on missing stage output, bounded progress updates, resumable operator-visible task status. |
 | Atlas Cloud provider schema | `src/providers/atlascloud/*` and current provider contracts | Project-owned integration | Async prediction creation, polling, terminal prediction states, Asset Library registration and activation polling, usage/cost metadata where provider responses expose it. |
 
 ## Behavior To Preserve

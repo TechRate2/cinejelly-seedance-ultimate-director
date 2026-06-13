@@ -153,7 +153,7 @@ Milestone check:
 
 ## Phase 5: Long-Form Planning And Batch Workflow
 
-Status as of 2026-06-13: Reference Implementation drafted; stage lifecycle contracts, `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, review-packet stage lifecycle, and stage/material artifacts are implemented. `npm.cmd run typecheck` passed; build/final validation and real long-form Atlas validation remain pending.
+Status as of 2026-06-13: Reference Implementation drafted; stage lifecycle contracts, `ProductionStagePlanner`, material sourcing graph node, DirectorAgent material planning, review-packet stage lifecycle, and stage/material artifacts are implemented. `npm.cmd run typecheck` and `npm.cmd run build` passed; real long-form Atlas validation remains pending.
 
 Target module:
 

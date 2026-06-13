@@ -109,7 +109,7 @@ cinejelly-seedance-ultimate-director/
 - `docs/SUBTREE_POLICY.md`: Git Subtree workflow, required `--squash` usage, and copy/adapt policy.
 - `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: local subtree inventory, license status, and reuse boundaries.
 - `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`: source-to-product fidelity process for behavior-critical logic, including practical Reference Implementation examples.
-- `docs/IMPLEMENTATION_ROADMAP.md`: practical module-by-module roadmap for the next implementation phase.
+- `docs/IMPLEMENTATION_ROADMAP.md`: practical module-by-module roadmap for implemented fidelity phases and remaining provider validation.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive Seedance prompt compiler design.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph and chunking strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: quality, continuity, inspection, and repair design.

@@ -1,6 +1,6 @@
 # Reference Implementation: Long-Form Planning And Batch Workflow
 
-Implementation status as of 2026-06-13: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `material_sourcing` evidence, review-packet stage lifecycle, and stage/material artifacts. `npm.cmd run typecheck` passed; build/final validation and real long-form Atlas validation remain pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
+Implementation status as of 2026-06-13: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `material_sourcing` evidence, review-packet stage lifecycle, and stage/material artifacts. `npm.cmd run typecheck` and `npm.cmd run build` passed; real long-form Atlas validation remains pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
 
 ## Upstream Sources
 
