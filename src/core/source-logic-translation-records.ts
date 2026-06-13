@@ -179,6 +179,39 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Reference Metadata Enrichment",
+    sourceRepository: "HKUDS/ViMax",
+    snapshotPath: "external/upstream/vimax",
+    upstreamPaths: [
+      "external/upstream/vimax/agents/reference_image_selector.py",
+      "external/upstream/vimax/agent_runtime/session_index.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "camera, composition, character, view, and timeline metadata stay structured before reference scoring",
+      "unauthorized references remain explicit so scoring can drop them before provider request compilation",
+      "invalid metadata is rejected before downstream planning or provider spend"
+    ],
+    behaviorChanged: [
+      "ViMax selection context is represented as bounded CineJelly PromptReferenceSelectionMetadata",
+      "metadata is accepted through API admission and ReferenceLibrarian normalization rather than upstream runtime objects",
+      "ReferenceSelectionPlanner consumes deterministic metadata fields without importing upstream code"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/reference-metadata-enrichment.md",
+    cineJellyDestinationPaths: [
+      "src/types/prompt.ts",
+      "src/api/render-request-admission.ts",
+      "src/agents/reference-librarian.ts",
+      "src/core/reference-selection-planner.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "automated camera/composition extraction from visual analyzers remains future work",
+      "live provider validation is still needed to confirm selected reference payload behavior"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Provider Polling, Retry, And Cost Fidelity",
     sourceRepository: "vericontext/vibeframe",
     snapshotPath: "external/upstream/vibeframe",

@@ -27,7 +27,7 @@ Not yet complete:
 
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe installed.
 - Real artifact review from a paid Atlas validation run, including validator output, review packet, cost ledger, stage lifecycle, and deliverable metadata.
-- Stronger camera/composition/character-view metadata extraction to improve Reference Selection Scoring inputs.
+- Automated camera/composition/character-view extraction from visual analyzers beyond explicit request metadata.
 - Actual material-source adapter validation against approved production media sources.
 
 ## Phase 1: Prompt Fidelity
@@ -95,7 +95,7 @@ Milestone check:
 
 ## Phase 3: Reference Selection Scoring
 
-Current status as of 2026-06-13: foundation implemented with local typecheck/build validation. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Remaining evidence work is to enrich incoming references with stronger camera/composition/character-view metadata from future source-video and reference-analysis modules.
+Current status as of 2026-06-13: foundation implemented with local typecheck/build validation. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Reference metadata enrichment now validates and preserves explicit camera/composition/character/view/timeline/authorization fields before scoring. Remaining evidence work is automated metadata extraction from future source-video and reference-analysis modules.
 
 Target module:
 
@@ -111,7 +111,9 @@ Source logic to translate:
 Deliverables:
 
 - Done: `docs/reference-implementations/reference-selection-scoring.md`
+- Done: `docs/reference-implementations/reference-metadata-enrichment.md`
 - Done: CineJelly-owned reference selection planner.
+- Done: API admission and ReferenceLibrarian preserve bounded reference selection metadata before provider spend.
 - Done: Production Graph evidence for candidate references, selected references, score reasons, and dropped duplicates.
 - Done: Prompt Compiler consumes selected references rather than raw unordered references where available.
 

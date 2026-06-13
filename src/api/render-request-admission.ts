@@ -11,10 +11,13 @@ const AUDIO_TRACK_ROLES = ["music", "narration", "ambience", "sfx"] as const;
 const AUDIO_MIX_MODES = ["mix", "replace"] as const;
 const TRANSITION_KINDS = ["fade", "wipeleft", "wiperight", "slideleft", "slideright"] as const;
 const TRANSITION_TARGET_HEIGHTS = [480, 720, 1080] as const;
+const REFERENCE_VIEWS = ["front", "side", "back", "three_quarter", "over_the_shoulder", "unknown"] as const;
 const AUDIO_BITRATE_PATTERN = /^([1-9]\d{1,3})k$/;
 const MAX_FRAME_SAMPLES = 240;
 const MAX_SEMANTIC_EXPECTATIONS = 32;
 const MAX_SEMANTIC_FRAMES = 60;
+const MAX_REFERENCE_SELECTION_TEXT = 160;
+const MAX_REFERENCE_TIMELINE_INDEX = 100_000;
 
 export interface RenderRequestAdmissionSettings {
   readonly maxUserInputCharacters?: number;
@@ -146,6 +149,52 @@ export class RenderRequestAdmission {
       this.assertBoundedString(providerReference.uri, `references[${index}].providerReference.uri`, 4096, true);
       this.assertReferenceUri(providerReference.uri, `references[${index}].providerReference.uri`);
       this.assertBoundedString(reference.label, `references[${index}].label`, 160, false);
+      this.assertReferenceSelection(reference.selection, index);
+    }
+  }
+
+  private assertReferenceSelection(value: unknown, index: number): void {
+    if (value === undefined) {
+      return;
+    }
+    const selection = this.objectPayload(value, `references[${index}].selection must be an object.`);
+    this.assertBoundedString(selection.cameraId, `references[${index}].selection.cameraId`, MAX_REFERENCE_SELECTION_TEXT, false);
+    this.assertBoundedString(
+      selection.compositionId,
+      `references[${index}].selection.compositionId`,
+      MAX_REFERENCE_SELECTION_TEXT,
+      false
+    );
+    this.assertBoundedString(
+      selection.characterId,
+      `references[${index}].selection.characterId`,
+      MAX_REFERENCE_SELECTION_TEXT,
+      false
+    );
+    this.assertBoundedString(
+      selection.sourceShotId,
+      `references[${index}].selection.sourceShotId`,
+      MAX_REFERENCE_SELECTION_TEXT,
+      false
+    );
+    this.assertBoundedString(
+      selection.sourceSceneId,
+      `references[${index}].selection.sourceSceneId`,
+      MAX_REFERENCE_SELECTION_TEXT,
+      false
+    );
+    if (selection.view !== undefined) {
+      this.assertOption(selection.view, `references[${index}].selection.view`, REFERENCE_VIEWS);
+    }
+    if (selection.timelineIndex !== undefined) {
+      this.assertPositiveOrZeroInteger(
+        selection.timelineIndex,
+        `references[${index}].selection.timelineIndex`,
+        MAX_REFERENCE_TIMELINE_INDEX
+      );
+    }
+    if (selection.authorized !== undefined) {
+      this.assertBoolean(selection.authorized, `references[${index}].selection.authorized`);
     }
   }
 
@@ -529,6 +578,12 @@ export class RenderRequestAdmission {
   private assertPositiveInteger(value: unknown, fieldName: string, maximum: number): void {
     if (typeof value !== "number" || !Number.isInteger(value) || value <= 0 || value > maximum) {
       throw new RenderRequestAdmissionError(`${fieldName} must be a positive integer up to ${maximum}.`);
+    }
+  }
+
+  private assertPositiveOrZeroInteger(value: unknown, fieldName: string, maximum: number): void {
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > maximum) {
+      throw new RenderRequestAdmissionError(`${fieldName} must be a non-negative integer up to ${maximum}.`);
     }
   }
 

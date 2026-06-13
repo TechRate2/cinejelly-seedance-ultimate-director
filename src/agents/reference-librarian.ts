@@ -3,7 +3,7 @@
  * It preserves Atlas-compatible role binding while blocking obvious credential leakage through reference URIs.
  */
 
-import type { PromptReference, ReferenceRole } from "../types/prompt.js";
+import type { PromptReference, PromptReferenceSelectionMetadata, ReferenceRole, ReferenceView } from "../types/prompt.js";
 import type { ProviderReference, ReferenceKind } from "../types/provider.js";
 
 const REFERENCE_ROLES: readonly ReferenceRole[] = [
@@ -50,6 +50,15 @@ const ROLE_COMPATIBILITY: Record<ReferenceRole, readonly ReferenceKind[]> = {
   source_video_structure: ["video"]
 };
 
+const REFERENCE_VIEWS: readonly ReferenceView[] = [
+  "front",
+  "side",
+  "back",
+  "three_quarter",
+  "over_the_shoulder",
+  "unknown"
+];
+const MAX_SELECTION_TEXT_LENGTH = 160;
 const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
 const SENSITIVE_FILE_PATTERN = /(?:^|[\\/])(?:\.env(?:\.|$)|id_rsa$|id_dsa$|id_ecdsa$|id_ed25519$|.*private[_-]?key.*|.*\.(?:pem|p12|pfx|key)$)/i;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
@@ -85,17 +94,46 @@ export class ReferenceLibrarian {
 
     const label = this.cleanString(payload.label) || `${role}_${index + 1}`;
     const priority = payload.priority === "supporting" ? "supporting" : "primary";
+    const selection = this.normalizeSelection(payload.selection, index);
 
     return {
       role,
       label,
       priority,
+      ...(selection ? { selection } : {}),
       providerReference: {
         ...providerReference,
         role,
         label
       }
     };
+  }
+
+  private normalizeSelection(value: unknown, index: number): PromptReferenceSelectionMetadata | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    const payload = this.objectPayload(value, `Reference ${index + 1} selection must be an object.`);
+    const cameraId = this.boundedCleanString(payload.cameraId, "cameraId", index);
+    const compositionId = this.boundedCleanString(payload.compositionId, "compositionId", index);
+    const characterId = this.boundedCleanString(payload.characterId, "characterId", index);
+    const sourceShotId = this.boundedCleanString(payload.sourceShotId, "sourceShotId", index);
+    const sourceSceneId = this.boundedCleanString(payload.sourceSceneId, "sourceSceneId", index);
+    const view = this.normalizeSelectionView(payload.view, index);
+    const timelineIndex = this.normalizeTimelineIndex(payload.timelineIndex, index);
+    const authorized = this.normalizeAuthorized(payload.authorized, index);
+    const selection: Partial<PromptReferenceSelectionMetadata> = {
+      ...(cameraId ? { cameraId } : {}),
+      ...(compositionId ? { compositionId } : {}),
+      ...(characterId ? { characterId } : {}),
+      ...(sourceShotId ? { sourceShotId } : {}),
+      ...(sourceSceneId ? { sourceSceneId } : {}),
+      ...(view ? { view } : {}),
+      ...(timelineIndex !== undefined ? { timelineIndex } : {}),
+      ...(authorized !== undefined ? { authorized } : {})
+    };
+
+    return Object.keys(selection).length > 0 ? selection : undefined;
   }
 
   private normalizeProviderReference(value: unknown, index: number): ProviderReference {
@@ -205,6 +243,50 @@ export class ReferenceLibrarian {
 
   private cleanString(value: unknown): string | undefined {
     return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  }
+
+  private boundedCleanString(value: unknown, fieldName: string, index: number): string | undefined {
+    if (value !== undefined && typeof value !== "string") {
+      throw new Error(`Reference ${index + 1} selection.${fieldName} must be a string.`);
+    }
+    const cleaned = this.cleanString(value);
+    if (cleaned === undefined) {
+      return undefined;
+    }
+    if (cleaned.length > MAX_SELECTION_TEXT_LENGTH) {
+      throw new Error(`Reference ${index + 1} selection.${fieldName} cannot exceed ${MAX_SELECTION_TEXT_LENGTH} characters.`);
+    }
+    return cleaned;
+  }
+
+  private normalizeSelectionView(value: unknown, index: number): ReferenceView | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    if (typeof value === "string" && REFERENCE_VIEWS.includes(value as ReferenceView)) {
+      return value as ReferenceView;
+    }
+    throw new Error(`Reference ${index + 1} selection.view must be one of: ${REFERENCE_VIEWS.join(", ")}.`);
+  }
+
+  private normalizeTimelineIndex(value: unknown, index: number): number | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
+      return value;
+    }
+    throw new Error(`Reference ${index + 1} selection.timelineIndex must be a non-negative integer.`);
+  }
+
+  private normalizeAuthorized(value: unknown, index: number): boolean | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    if (typeof value === "boolean") {
+      return value;
+    }
+    throw new Error(`Reference ${index + 1} selection.authorized must be a boolean.`);
   }
 
   private roleOrder(role: ReferenceRole): number {
