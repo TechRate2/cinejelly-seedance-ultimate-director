@@ -137,8 +137,11 @@ Implementation status:
 
 Current blockers before real customer rendering:
 
-- Real Atlas Cloud credentials and verified model IDs must be provided through environment variables.
+- Local validation status on 2026-06-13T11:55:14Z: `npm.cmd run preflight` built successfully but returned `fail` because required deployment environment values and media tools are missing.
+- Real Atlas Cloud credentials and verified model IDs must be provided through environment variables: `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, and `ATLASCLOUD_SEEDANCE_FAST_MODEL`.
+- `CINEJELLY_API_AUTH_TOKEN` must be configured before protected API routes are safe for deployment.
 - FFmpeg and FFprobe must be installed on the deployment host for assembly, inspection, captions, audio mix, postproduction, and frame sampling.
+- `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` should be configured or reviewed against current Atlas Cloud model capabilities before paid release; preflight currently warns and falls back to documented defaults.
 - A real end-to-end Atlas render validation must be run against paid provider credentials before enabling customers.
 - Behavior-critical upstream parity still needs per-logic Reference Implementations, source lineage records, and validation before CineJelly should claim high-fidelity translation for each new logic area. Phase 1 Prompt Binding Plan, Phase 2 Guardian Repair Decision Provenance, Phase 3 Reference Selection Scoring, Phase 4 Provider Polling/Retry/Cost Fidelity, and Phase 5 Long-Form Planning/Batch Workflow foundation now have Reference Implementations, CineJelly rewrites, lineage records, and typecheck validation; build/final validation, real long-form Atlas render validation, and actual material-source adapter validation remain pending.
 - The next implementation order is tracked in `docs/IMPLEMENTATION_ROADMAP.md`; use that file instead of treating older implementation lists as release readiness.

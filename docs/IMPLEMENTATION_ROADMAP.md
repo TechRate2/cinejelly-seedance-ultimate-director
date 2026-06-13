@@ -185,6 +185,8 @@ Milestone check:
 
 ## Phase 6: Real Provider Validation
 
+Status as of 2026-06-13T11:55:14Z: `npm.cmd run preflight` built successfully but returned `fail` because the local environment is missing `ATLASCLOUD_API_KEY`, `ATLASCLOUD_LLM_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe`. `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` produced a warning because no explicit capability override is configured. Paid Atlas render validation has not been run.
+
 Target module:
 
 - Runtime config
