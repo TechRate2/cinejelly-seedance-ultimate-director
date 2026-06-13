@@ -44,7 +44,7 @@ import type {
 } from "../types/material.js";
 import type { PostproductionSettings } from "../types/media.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
-import type { Prediction } from "../types/provider.js";
+import type { AudioGenerationCapability, Prediction } from "../types/provider.js";
 import type {
   ProductionStageEvidenceValue,
   ProductionStageName,
@@ -88,6 +88,7 @@ export class DirectorAgent {
   private readonly semanticVisualInspector: SemanticVisualInspector | undefined;
   private readonly sourceVideoAutoAnalyzer: SourceVideoAutoAnalyzer | undefined;
   private readonly sourceVideoAutoAnalysisSettings: SourceVideoAutoAnalysisSettings | undefined;
+  private readonly audioGenerationCapabilities: readonly AudioGenerationCapability[];
   private readonly stageProgressReporter: ProductionStageProgressReporter | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
   private stageProgressSequence = 0;
@@ -118,6 +119,7 @@ export class DirectorAgent {
     readonly semanticVisualInspector?: SemanticVisualInspector;
     readonly sourceVideoAutoAnalyzer?: SourceVideoAutoAnalyzer;
     readonly sourceVideoAutoAnalysisSettings?: SourceVideoAutoAnalysisSettings;
+    readonly audioGenerationCapabilities?: readonly AudioGenerationCapability[];
     readonly stageProgressReporter?: ProductionStageProgressReporter;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
@@ -144,6 +146,7 @@ export class DirectorAgent {
     this.semanticVisualInspector = input.semanticVisualInspector;
     this.sourceVideoAutoAnalyzer = input.sourceVideoAutoAnalyzer;
     this.sourceVideoAutoAnalysisSettings = input.sourceVideoAutoAnalysisSettings;
+    this.audioGenerationCapabilities = input.audioGenerationCapabilities ?? [];
     this.stageProgressReporter = input.stageProgressReporter;
     this.atlasSettings = input.atlasSettings;
   }
@@ -281,7 +284,8 @@ export class DirectorAgent {
       ...(preparedRequest.captionOptions ? { captionOptions: preparedRequest.captionOptions } : {}),
       ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
       ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {}),
-      ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {})
+      ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {}),
+      audioGenerationCapabilities: this.audioGenerationCapabilities
     });
     const productionGraph = this.productionGraphBuilder.build({
       intake,

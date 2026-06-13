@@ -87,6 +87,8 @@ export class ProductionStagePlanner {
           audioMixEnabled: input.postproductionAssetPlan.audio.enabled,
           generatedAudioStatus: input.postproductionAssetPlan.generatedAudio.status,
           generatedAudioIntentCount: input.postproductionAssetPlan.generatedAudio.intentCount,
+          generatedAudioReadyIntentCount: input.postproductionAssetPlan.generatedAudio.readyIntentCount,
+          generatedAudioBlockedIntentCount: input.postproductionAssetPlan.generatedAudio.blockedIntentCount,
           postproductionAssetIssueCount: input.postproductionAssetPlan.issueCount
         }),
         this.record(input, "deliver", 8, this.deliveryStatus(input.deliveryGate), {

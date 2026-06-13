@@ -14,7 +14,7 @@ Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScrip
 1. Subtitle, narration, music, ambience, and SFX decisions should be explicit before final assembly.
 2. User-supplied caption cues and audio tracks should be classified into a deterministic postproduction plan.
 3. The plan should be reviewable in artifacts and review packets, even when no deliverable is assembled.
-4. The plan should not create new provider spend. TTS/BGM execution remains a future provider-backed feature unless configured through explicit tracks; generated-audio intent planning is handled by `docs/reference-implementations/generated-audio-intent-planning.md`.
+4. The plan should not create new provider spend. TTS/BGM execution remains disabled until verified provider-backed execution is implemented; generated-audio intent and execution planning are handled by `docs/reference-implementations/generated-audio-intent-planning.md` and `docs/reference-implementations/generated-audio-execution-planner.md`.
 5. Audio tracks must remain credential-safe and are still materialized by the existing audio mix engine.
 6. Caption burn-in vs sidecar behavior must be visible before FFmpeg execution.
 7. Missing or inconsistent inputs should produce review-required issues rather than silent behavior.
@@ -26,7 +26,7 @@ Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScrip
 - Audio tracks exist but mix options explicitly disable audio: mark review required because tracks will be ignored.
 - Audio mix options are enabled but no tracks exist: mark review required because no mix can run.
 - Audio tracks exist without options: mirror the assembly default and plan an enabled mix with mode `mix`, original audio detected at assembly, and bitrate `192k`.
-- Narration role is treated as a user/operator-supplied narration track. Do not claim generated TTS until a provider-backed generated-audio module exists.
+- Narration role is treated as a user/operator-supplied narration track. Do not claim generated TTS until verified provider-backed generated-audio execution produces inspected output.
 - Music role is treated as supplied BGM. Do not search or generate BGM in this planner.
 - Generated-audio intents may be recorded as planned-only evidence by the separate Generated Audio Intent Planning translation, but they do not produce audio files or provider calls.
 
@@ -104,7 +104,7 @@ function planPostproductionAssets(input: PostproductionAssetInput): Postproducti
 - Done: postproduction asset status and counts are added to run summary, review packet planning, and assemble-stage evidence.
 - Done: artifact validator checks `postproduction-assets.json`.
 - Done: cross-check `postproduction-assets.json` against `run-summary.json`, `review-packet.json`, and assemble-stage lifecycle evidence so Phase 6 artifact review can detect drift between duplicated planning summaries.
-- Done separately: generated-audio intents are represented as planned-only postproduction evidence through `docs/reference-implementations/generated-audio-intent-planning.md`.
+- Done separately: generated-audio intents and provider-readiness plans are represented as reviewable postproduction evidence through `docs/reference-implementations/generated-audio-intent-planning.md` and `docs/reference-implementations/generated-audio-execution-planner.md`.
 - Done: source lineage is recorded in `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` and `src/core/source-logic-translation-records.ts`.
 
 ## Validation Checklist
@@ -113,7 +113,7 @@ function planPostproductionAssets(input: PostproductionAssetInput): Postproducti
 - Caption cues with disabled/missing options produce review-required evidence.
 - Audio tracks without explicit options plan an enabled default mix.
 - Audio tracks with disabled mix options produce review-required evidence.
-- TTS/BGM generation is not claimed unless a future provider-backed module exists.
+- TTS/BGM generation is not claimed unless a verified provider-backed execution stage has produced inspected output.
 - `postproduction-assets.json` is included in success artifacts and artifact validation.
 - Artifact validation fails if postproduction status, caption cue count, audio track count, or issue count in `run-summary.json`, `review-packet.json`, or assemble-stage lifecycle evidence diverges from `postproduction-assets.json`.
 - Review packet and stage lifecycle expose postproduction asset status without local paths or secrets.

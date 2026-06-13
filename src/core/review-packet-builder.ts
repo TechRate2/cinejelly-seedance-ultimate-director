@@ -69,6 +69,8 @@ export class ReviewPacketBuilder {
         audioTrackCount: input.result.postproductionAssetPlan.audio.trackCount,
         generatedAudioStatus: input.result.postproductionAssetPlan.generatedAudio.status,
         generatedAudioIntentCount: input.result.postproductionAssetPlan.generatedAudio.intentCount,
+        generatedAudioReadyIntentCount: input.result.postproductionAssetPlan.generatedAudio.readyIntentCount,
+        generatedAudioBlockedIntentCount: input.result.postproductionAssetPlan.generatedAudio.blockedIntentCount,
         postproductionAssetIssueCount: input.result.postproductionAssetPlan.issueCount
       },
       render: this.render(input.result),

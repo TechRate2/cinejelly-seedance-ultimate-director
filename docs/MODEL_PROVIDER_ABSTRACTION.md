@@ -23,6 +23,7 @@ Snapshot integration note:
 - Behavior-critical provider logic such as request compilation, fallback, polling, retry classification, cost recording, or queue admission must follow `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` when translated from upstream snapshots.
 - MoneyPrinterTurbo's many-provider LLM surface is useful for fallback thinking, but CineJelly keeps Atlas Cloud as the default provider for both LLM reasoning and Seedance 2.0 rendering.
 - MoneyPrinterTurbo's explicit audio stage and OpenMontage's provider-menu discipline inform CineJelly's generated-audio provider contract, but actual provider-backed TTS/BGM/ambience/SFX execution remains disabled until current provider schemas, model IDs, pricing, and output validation are verified.
+- Generated-audio execution planning is handled before provider calls by CineJelly-owned core logic. The planner may create provider-neutral `AudioGenerationRequest` records from verified capabilities, but it must not call providers or claim generated outputs.
 
 ## Design Goal
 
@@ -138,6 +139,7 @@ Current Atlas implementation:
 
 - `src/providers/contracts.ts` defines the provider-neutral `AudioProvider` boundary.
 - `src/providers/atlascloud/atlas-cloud-provider.ts` currently reports no generated-audio capabilities and rejects generated-audio execution with a stable no-spend `ProviderError`.
+- `src/core/generated-audio-execution-planner.ts` maps bounded generated-audio intents to provider-neutral requests only when `audio_capabilities()` returns verified capability records.
 - This is intentional until the current Atlas audio model schema, endpoint payload, output format, model IDs, pricing, and artifact validation path are verified.
 - Generated-audio requests therefore remain `planned_only` postproduction evidence unless a future verified provider-backed module produces explicit audio assets.
 

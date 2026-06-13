@@ -64,6 +64,8 @@ export interface ReviewPacketPlanning {
   readonly audioTrackCount: number;
   readonly generatedAudioStatus: PostproductionGeneratedAudioStatus;
   readonly generatedAudioIntentCount: number;
+  readonly generatedAudioReadyIntentCount: number;
+  readonly generatedAudioBlockedIntentCount: number;
   readonly postproductionAssetIssueCount: number;
 }
 

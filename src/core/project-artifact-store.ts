@@ -116,6 +116,8 @@ export class ProjectArtifactStore {
       audioTrackCount: result.postproductionAssetPlan.audio.trackCount,
       generatedAudioStatus: result.postproductionAssetPlan.generatedAudio.status,
       generatedAudioIntentCount: result.postproductionAssetPlan.generatedAudio.intentCount,
+      generatedAudioReadyIntentCount: result.postproductionAssetPlan.generatedAudio.readyIntentCount,
+      generatedAudioBlockedIntentCount: result.postproductionAssetPlan.generatedAudio.blockedIntentCount,
       postproductionAssetIssueCount: result.postproductionAssetPlan.issueCount,
       compiledPromptCount: result.compiledPrompts.length,
       renderedShotCount: result.renderedShots.length,

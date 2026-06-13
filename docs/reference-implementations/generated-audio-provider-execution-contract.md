@@ -1,6 +1,6 @@
 # Reference Implementation: Generated Audio Provider Execution Contract
 
-Implementation status as of 2026-06-14: CineJelly-owned provider contracts, capability checks, and no-spend Atlas failure behavior are implemented. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. Actual Atlas or third-party audio generation must wait until provider schema, model IDs, pricing, rights policy, and artifact validation are verified.
+Implementation status as of 2026-06-14: CineJelly-owned provider contracts, capability checks, execution planning, and no-spend Atlas failure behavior are implemented. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. Actual Atlas or third-party audio generation must wait until provider schema, model IDs, pricing, rights policy, and artifact validation are verified.
 
 ## Upstream Sources
 
@@ -129,6 +129,7 @@ function planAudioProviderExecution(
 
 - Add provider-neutral audio-generation request/result/capability types.
 - Add an optional `AudioProvider` contract without changing postproduction to claim generated output.
+- Add generated-audio execution planning so verified capabilities can produce provider-neutral requests before any provider call.
 - Add a safe Atlas provider boundary that reports no generated-audio capabilities until explicit verified audio capability config exists.
 - Keep current `PostproductionAssetPlanner` behavior as planned-only when no provider capability exists.
 - Future work should create a separate Atlas audio mapper after current Atlas audio model schemas are verified.

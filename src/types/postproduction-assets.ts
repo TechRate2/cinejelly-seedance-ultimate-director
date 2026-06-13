@@ -5,6 +5,7 @@
 
 import type { AudioMixOptions, AudioTrackRole, GeneratedAudioIntentKind } from "./audio.js";
 import type { CaptionOptions } from "./caption.js";
+import type { GeneratedAudioExecutionPlan, GeneratedAudioExecutionPlanStatus } from "./generated-audio-execution.js";
 
 export type PostproductionAssetStatus = "disabled" | "planned" | "review_required";
 
@@ -12,7 +13,7 @@ export type PostproductionCaptionDeliveryMode = "disabled" | "sidecar" | "burn_i
 
 export type PostproductionOriginalAudioPolicy = "detect_at_assembly" | "not_used";
 
-export type PostproductionGeneratedAudioStatus = "not_requested" | "planned_only";
+export type PostproductionGeneratedAudioStatus = GeneratedAudioExecutionPlanStatus;
 
 export type PostproductionAssetIssueSeverity = "info" | "warn" | "block";
 
@@ -23,7 +24,9 @@ export type PostproductionAssetIssueCode =
   | "audio_mix_enabled_without_tracks"
   | "tts_generation_not_configured"
   | "bgm_generation_not_configured"
-  | "generated_audio_provider_not_configured";
+  | "generated_audio_provider_not_configured"
+  | "generated_audio_provider_conflict"
+  | "generated_audio_execution_not_run";
 
 export interface PostproductionCaptionPlan {
   readonly enabled: boolean;
@@ -56,9 +59,12 @@ export interface PostproductionGeneratedAudioKindCount {
 export interface PostproductionGeneratedAudioPlan {
   readonly status: PostproductionGeneratedAudioStatus;
   readonly intentCount: number;
+  readonly readyIntentCount: number;
+  readonly blockedIntentCount: number;
   readonly kindCounts: readonly PostproductionGeneratedAudioKindCount[];
   readonly requestedDurationSeconds: number;
   readonly providerConfigured: boolean;
+  readonly executionPlan: GeneratedAudioExecutionPlan;
 }
 
 export interface PostproductionAssetIssue {

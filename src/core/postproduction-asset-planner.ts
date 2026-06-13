@@ -4,6 +4,7 @@
  * rewritten as CineJelly-owned deterministic planning evidence.
  */
 
+import { GeneratedAudioExecutionPlanner } from "./generated-audio-execution-planner.js";
 import type {
   AudioMixOptions,
   AudioMixTrack,
@@ -12,6 +13,7 @@ import type {
   GeneratedAudioIntentKind
 } from "../types/audio.js";
 import type { CaptionCue, CaptionOptions } from "../types/caption.js";
+import type { AudioGenerationCapability, AudioGenerationOutputFormat } from "../types/provider.js";
 import type {
   PostproductionAssetIssue,
   PostproductionAssetIssueCode,
@@ -38,9 +40,13 @@ export interface PostproductionAssetPlannerInput {
   readonly audioTracks?: readonly AudioMixTrack[];
   readonly audioMixOptions?: AudioMixOptions;
   readonly generatedAudioIntents?: readonly GeneratedAudioIntent[];
+  readonly audioGenerationCapabilities?: readonly AudioGenerationCapability[];
+  readonly generatedAudioOutputFormat?: AudioGenerationOutputFormat;
 }
 
 export class PostproductionAssetPlanner {
+  private readonly generatedAudioExecutionPlanner = new GeneratedAudioExecutionPlanner();
+
   public plan(input: PostproductionAssetPlannerInput): PostproductionAssetPlan {
     const captionCues = input.captionCues ?? [];
     const captionOptions = input.captionOptions ?? { enabled: false, burnIn: false };
@@ -50,12 +56,20 @@ export class PostproductionAssetPlanner {
       ...DEFAULT_AUDIO_MIX_OPTIONS,
       enabled: audioTracks.length > 0
     };
+    const generatedAudioExecutionPlan = this.generatedAudioExecutionPlanner.plan({
+      intents: generatedAudioIntents,
+      capabilities: input.audioGenerationCapabilities ?? [],
+      ...(input.generatedAudioOutputFormat
+        ? { options: { outputFormat: input.generatedAudioOutputFormat } }
+        : {})
+    });
     const issues = this.issues({
       captionCues,
       captionOptions,
       audioTracks,
       audioMixOptions,
-      generatedAudioIntents
+      generatedAudioIntents,
+      generatedAudioExecutionPlan
     });
     const captionEnabled = captionOptions.enabled && captionCues.length > 0;
     const audioEnabled = audioMixOptions.enabled && audioTracks.length > 0;
@@ -95,11 +109,14 @@ export class PostproductionAssetPlanner {
         outputBitrate: audioMixOptions.outputBitrate
       },
       generatedAudio: {
-        status: generatedAudioIntents.length > 0 ? "planned_only" : "not_requested",
+        status: generatedAudioExecutionPlan.status,
         intentCount: generatedAudioIntents.length,
+        readyIntentCount: generatedAudioExecutionPlan.readyCount,
+        blockedIntentCount: generatedAudioExecutionPlan.blockedCount,
         kindCounts: this.generatedAudioKindCounts(generatedAudioIntents),
-        requestedDurationSeconds: this.generatedAudioDurationSeconds(generatedAudioIntents),
-        providerConfigured: false
+        requestedDurationSeconds: generatedAudioExecutionPlan.requestedDurationSeconds,
+        providerConfigured: (input.audioGenerationCapabilities ?? []).length > 0,
+        executionPlan: generatedAudioExecutionPlan
       },
       issueCount: issues.length,
       issues
@@ -112,6 +129,7 @@ export class PostproductionAssetPlanner {
     readonly audioTracks: readonly AudioMixTrack[];
     readonly audioMixOptions: AudioMixOptions;
     readonly generatedAudioIntents: readonly GeneratedAudioIntent[];
+    readonly generatedAudioExecutionPlan: ReturnType<GeneratedAudioExecutionPlanner["plan"]>;
   }): readonly PostproductionAssetIssue[] {
     const issues: PostproductionAssetIssue[] = [];
     if (input.captionOptions.enabled && input.captionCues.length === 0) {
@@ -162,12 +180,28 @@ export class PostproductionAssetPlanner {
         "Use an explicit licensed music track now, or add provider-backed BGM sourcing through a separate Reference Implementation."
       ));
     }
-    if (input.generatedAudioIntents.length > 0) {
+    if (input.generatedAudioExecutionPlan.readyCount > 0) {
+      issues.push(this.issue(
+        "generated_audio_execution_not_run",
+        "warn",
+        "Generated-audio intents are ready for provider execution, but this planning stage has not generated audio files.",
+        "Run a verified provider-backed audio execution stage before claiming generated narration, BGM, ambience, or SFX in the final mix."
+      ));
+    }
+    if (input.generatedAudioExecutionPlan.blockedCount > 0 && input.generatedAudioExecutionPlan.readyCount > 0) {
+      issues.push(this.issue(
+        "generated_audio_provider_conflict",
+        "warn",
+        "Some generated-audio intents are ready for provider execution, but others are blocked by provider capability conflicts.",
+        "Resolve blocked generated-audio intents or approve partial generated-audio execution before final assembly."
+      ));
+    }
+    if (input.generatedAudioExecutionPlan.blockedCount > 0 && input.generatedAudioExecutionPlan.readyCount === 0) {
       issues.push(this.issue(
         "generated_audio_provider_not_configured",
         "warn",
-        "Generated-audio intents were supplied, but provider-backed audio generation is not configured.",
-        "Provide explicit licensed audio tracks for this run, or implement a provider-backed generated-audio module before claiming generated narration, BGM, ambience, or SFX."
+        "Generated-audio intents were supplied, but no verified provider capability can execute them.",
+        "Provide explicit licensed audio tracks for this run, configure verified audio-generation capabilities, or adjust the generated-audio intents before claiming generated narration, BGM, ambience, or SFX."
       ));
     }
     return issues;
@@ -206,20 +240,4 @@ export class PostproductionAssetPlanner {
       .sort((left, right) => left.kind.localeCompare(right.kind));
   }
 
-  private generatedAudioDurationSeconds(intents: readonly GeneratedAudioIntent[]): number {
-    return intents.reduce((sum, intent) => {
-      if (typeof intent.durationSeconds === "number" && Number.isFinite(intent.durationSeconds)) {
-        return sum + Math.max(0, intent.durationSeconds);
-      }
-      if (
-        typeof intent.startSecond === "number" &&
-        Number.isFinite(intent.startSecond) &&
-        typeof intent.endSecond === "number" &&
-        Number.isFinite(intent.endSecond)
-      ) {
-        return sum + Math.max(0, intent.endSecond - intent.startSecond);
-      }
-      return sum;
-    }, 0);
-  }
 }

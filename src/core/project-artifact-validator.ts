@@ -51,7 +51,12 @@ const POSTPRODUCTION_ASSET_STATUSES = new Set(["disabled", "planned", "review_re
 const POSTPRODUCTION_CAPTION_DELIVERY_MODES = new Set(["disabled", "sidecar", "burn_in"]);
 const POSTPRODUCTION_ASSET_SEVERITIES = new Set(["info", "warn", "block"]);
 const POSTPRODUCTION_AUDIO_ROLES = new Set(["music", "narration", "ambience", "sfx"]);
-const POSTPRODUCTION_GENERATED_AUDIO_STATUSES = new Set(["not_requested", "planned_only"]);
+const POSTPRODUCTION_GENERATED_AUDIO_STATUSES = new Set([
+  "not_requested",
+  "planned_only",
+  "ready_for_provider",
+  "partially_ready"
+]);
 const POSTPRODUCTION_GENERATED_AUDIO_KINDS = new Set(["tts_narration", "bgm", "ambience", "sfx"]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DATA_URI_PATTERN = /"[^"]*data:[^"]*"/i;
@@ -583,6 +588,28 @@ export class ProjectArtifactValidator {
         checks.push({ name: "postproduction_generated_audio_count", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio intentCount is invalid." });
       }
       if (
+        typeof value.generatedAudio.readyIntentCount !== "number" ||
+        !Number.isInteger(value.generatedAudio.readyIntentCount) ||
+        value.generatedAudio.readyIntentCount < 0
+      ) {
+        checks.push({ name: "postproduction_generated_audio_ready_count", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio readyIntentCount is invalid." });
+      }
+      if (
+        typeof value.generatedAudio.blockedIntentCount !== "number" ||
+        !Number.isInteger(value.generatedAudio.blockedIntentCount) ||
+        value.generatedAudio.blockedIntentCount < 0
+      ) {
+        checks.push({ name: "postproduction_generated_audio_blocked_count", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio blockedIntentCount is invalid." });
+      }
+      if (
+        typeof value.generatedAudio.intentCount === "number" &&
+        typeof value.generatedAudio.readyIntentCount === "number" &&
+        typeof value.generatedAudio.blockedIntentCount === "number" &&
+        value.generatedAudio.readyIntentCount + value.generatedAudio.blockedIntentCount !== value.generatedAudio.intentCount
+      ) {
+        checks.push({ name: "postproduction_generated_audio_count", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio readyIntentCount plus blockedIntentCount must equal intentCount." });
+      }
+      if (
         typeof value.generatedAudio.requestedDurationSeconds !== "number" ||
         !Number.isFinite(value.generatedAudio.requestedDurationSeconds) ||
         value.generatedAudio.requestedDurationSeconds < 0
@@ -591,6 +618,11 @@ export class ProjectArtifactValidator {
       }
       if (typeof value.generatedAudio.providerConfigured !== "boolean") {
         checks.push({ name: "postproduction_generated_audio_provider", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio providerConfigured must be boolean." });
+      }
+      if (!this.isRecord(value.generatedAudio.executionPlan)) {
+        checks.push({ name: "postproduction_generated_audio_execution_plan", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio executionPlan is missing." });
+      } else {
+        this.validateGeneratedAudioExecutionPlan(artifact.entry.fileName, value.generatedAudio.executionPlan, checks);
       }
       if (!Array.isArray(value.generatedAudio.kindCounts)) {
         checks.push({ name: "postproduction_generated_audio_kinds", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio kindCounts must be an array." });
@@ -626,6 +658,28 @@ export class ProjectArtifactValidator {
       if (generatedAudioStatus === "planned_only" && (generatedAudioIntentCount === undefined || generatedAudioIntentCount <= 0)) {
         checks.push({ name: "postproduction_generated_audio_status", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio planned_only status requires at least one intent." });
       }
+      if (generatedAudioStatus === "planned_only" && value.generatedAudio.readyIntentCount !== 0) {
+        checks.push({ name: "postproduction_generated_audio_status", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio planned_only status requires zero ready intents." });
+      }
+      if (generatedAudioStatus === "ready_for_provider") {
+        const readyIntentCount = typeof value.generatedAudio.readyIntentCount === "number"
+          ? value.generatedAudio.readyIntentCount
+          : undefined;
+        if (readyIntentCount === undefined || readyIntentCount <= 0 || value.generatedAudio.blockedIntentCount !== 0) {
+          checks.push({ name: "postproduction_generated_audio_status", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio ready_for_provider status requires ready intents and zero blocked intents." });
+        }
+      }
+      if (generatedAudioStatus === "partially_ready") {
+        const readyIntentCount = typeof value.generatedAudio.readyIntentCount === "number"
+          ? value.generatedAudio.readyIntentCount
+          : undefined;
+        const blockedIntentCount = typeof value.generatedAudio.blockedIntentCount === "number"
+          ? value.generatedAudio.blockedIntentCount
+          : undefined;
+        if (readyIntentCount === undefined || blockedIntentCount === undefined || readyIntentCount <= 0 || blockedIntentCount <= 0) {
+          checks.push({ name: "postproduction_generated_audio_status", status: "fail", fileName: artifact.entry.fileName, message: "postproduction generatedAudio partially_ready status requires ready and blocked intents." });
+        }
+      }
     }
     if (typeof value.issueCount !== "number" || !Number.isInteger(value.issueCount) || value.issueCount < 0) {
       checks.push({ name: "postproduction_issue_count", status: "fail", fileName: artifact.entry.fileName, message: "postproduction issueCount is invalid." });
@@ -654,6 +708,62 @@ export class ProjectArtifactValidator {
     }
   }
 
+  private validateGeneratedAudioExecutionPlan(
+    fileName: string,
+    value: Record<string, unknown>,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (typeof value.status !== "string" || !POSTPRODUCTION_GENERATED_AUDIO_STATUSES.has(value.status)) {
+      checks.push({ name: "postproduction_generated_audio_execution_plan", status: "fail", fileName, message: "generatedAudio executionPlan status is invalid." });
+    }
+    for (const field of ["intentCount", "readyCount", "blockedCount"] as const) {
+      if (typeof value[field] !== "number" || !Number.isInteger(value[field]) || value[field] < 0) {
+        checks.push({ name: "postproduction_generated_audio_execution_plan", status: "fail", fileName, message: `generatedAudio executionPlan ${field} is invalid.` });
+      }
+    }
+    if (
+      typeof value.intentCount === "number" &&
+      typeof value.readyCount === "number" &&
+      typeof value.blockedCount === "number" &&
+      value.readyCount + value.blockedCount !== value.intentCount
+    ) {
+      checks.push({ name: "postproduction_generated_audio_execution_plan", status: "fail", fileName, message: "generatedAudio executionPlan readyCount plus blockedCount must equal intentCount." });
+    }
+    if (typeof value.requestedDurationSeconds !== "number" || !Number.isFinite(value.requestedDurationSeconds) || value.requestedDurationSeconds < 0) {
+      checks.push({ name: "postproduction_generated_audio_execution_plan", status: "fail", fileName, message: "generatedAudio executionPlan requestedDurationSeconds is invalid." });
+    }
+    if (typeof value.outputFormat !== "string" || !["mp3", "wav"].includes(value.outputFormat)) {
+      checks.push({ name: "postproduction_generated_audio_execution_plan", status: "fail", fileName, message: "generatedAudio executionPlan outputFormat is invalid." });
+    }
+    if (!Array.isArray(value.items)) {
+      checks.push({ name: "postproduction_generated_audio_execution_plan", status: "fail", fileName, message: "generatedAudio executionPlan items must be an array." });
+      return;
+    }
+    if (typeof value.intentCount === "number" && value.items.length !== value.intentCount) {
+      checks.push({ name: "postproduction_generated_audio_execution_plan", status: "fail", fileName, message: "generatedAudio executionPlan items length must equal intentCount." });
+    }
+    for (const [index, item] of value.items.entries()) {
+      if (!this.isRecord(item)) {
+        checks.push({ name: "postproduction_generated_audio_execution_item", status: "fail", fileName, message: `generatedAudio executionPlan item ${index} must be an object.` });
+        continue;
+      }
+      if (typeof item.intentId !== "string" || !item.intentId || typeof item.kind !== "string" || !POSTPRODUCTION_GENERATED_AUDIO_KINDS.has(item.kind)) {
+        checks.push({ name: "postproduction_generated_audio_execution_item", status: "fail", fileName, message: `generatedAudio executionPlan item ${index} has invalid identity fields.` });
+      }
+      if (item.status === "ready_for_provider") {
+        if (typeof item.provider !== "string" || !item.provider || typeof item.modelId !== "string" || !item.modelId || !this.isRecord(item.request)) {
+          checks.push({ name: "postproduction_generated_audio_execution_item", status: "fail", fileName, message: `generatedAudio ready item ${index} is missing provider, modelId, or request.` });
+        }
+      } else if (item.status === "blocked") {
+        if (typeof item.reason !== "string" || !item.reason || typeof item.message !== "string" || !item.message) {
+          checks.push({ name: "postproduction_generated_audio_execution_item", status: "fail", fileName, message: `generatedAudio blocked item ${index} is missing reason or message.` });
+        }
+      } else {
+        checks.push({ name: "postproduction_generated_audio_execution_item", status: "fail", fileName, message: `generatedAudio executionPlan item ${index} status is invalid.` });
+      }
+    }
+  }
+
   private validatePostproductionAssetConsistency(
     artifacts: ReadonlyMap<ProjectArtifactKind, LoadedArtifact>,
     checks: ProjectArtifactValidationCheck[]
@@ -674,6 +784,8 @@ export class ProjectArtifactValidator {
       audioMixEnabled: typeof audio?.enabled === "boolean" ? audio.enabled : undefined,
       generatedAudioStatus: typeof generatedAudio?.status === "string" ? generatedAudio.status : undefined,
       generatedAudioIntentCount: typeof generatedAudio?.intentCount === "number" ? generatedAudio.intentCount : undefined,
+      generatedAudioReadyIntentCount: typeof generatedAudio?.readyIntentCount === "number" ? generatedAudio.readyIntentCount : undefined,
+      generatedAudioBlockedIntentCount: typeof generatedAudio?.blockedIntentCount === "number" ? generatedAudio.blockedIntentCount : undefined,
       issueCount: typeof plan.issueCount === "number" ? plan.issueCount : undefined
     };
 
@@ -712,6 +824,20 @@ export class ProjectArtifactValidator {
         "generatedAudioIntentCount",
         runSummary.value.generatedAudioIntentCount,
         expected.generatedAudioIntentCount,
+        checks
+      );
+      this.compareArtifactField(
+        runSummary.entry.fileName,
+        "generatedAudioReadyIntentCount",
+        runSummary.value.generatedAudioReadyIntentCount,
+        expected.generatedAudioReadyIntentCount,
+        checks
+      );
+      this.compareArtifactField(
+        runSummary.entry.fileName,
+        "generatedAudioBlockedIntentCount",
+        runSummary.value.generatedAudioBlockedIntentCount,
+        expected.generatedAudioBlockedIntentCount,
         checks
       );
       this.compareArtifactField(
@@ -768,6 +894,20 @@ export class ProjectArtifactValidator {
         "planning.generatedAudioIntentCount",
         reviewPlanning.generatedAudioIntentCount,
         expected.generatedAudioIntentCount,
+        checks
+      );
+      this.compareArtifactField(
+        reviewPacket.entry.fileName,
+        "planning.generatedAudioReadyIntentCount",
+        reviewPlanning.generatedAudioReadyIntentCount,
+        expected.generatedAudioReadyIntentCount,
+        checks
+      );
+      this.compareArtifactField(
+        reviewPacket.entry.fileName,
+        "planning.generatedAudioBlockedIntentCount",
+        reviewPlanning.generatedAudioBlockedIntentCount,
+        expected.generatedAudioBlockedIntentCount,
         checks
       );
       this.compareArtifactField(
@@ -836,6 +976,20 @@ export class ProjectArtifactValidator {
         "assemble.evidence.generatedAudioIntentCount",
         assembleEvidence.generatedAudioIntentCount,
         expected.generatedAudioIntentCount,
+        checks
+      );
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.generatedAudioReadyIntentCount",
+        assembleEvidence.generatedAudioReadyIntentCount,
+        expected.generatedAudioReadyIntentCount,
+        checks
+      );
+      this.compareArtifactField(
+        stageLifecycle.entry.fileName,
+        "assemble.evidence.generatedAudioBlockedIntentCount",
+        assembleEvidence.generatedAudioBlockedIntentCount,
+        expected.generatedAudioBlockedIntentCount,
         checks
       );
       this.compareArtifactField(
