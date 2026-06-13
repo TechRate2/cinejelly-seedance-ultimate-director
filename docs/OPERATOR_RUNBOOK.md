@@ -22,6 +22,13 @@ Recommended production controls:
 
 - `CINEJELLY_OUTPUT_DIR`
 - `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH`
+- `CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS`
+- `CINEJELLY_REMOTE_STOCK_REQUEST_TIMEOUT_MS`
+- `CINEJELLY_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF`
+- `PEXELS_API_KEY`
+- `PIXABAY_API_KEY`
+- `COVERR_API_KEY`
+- `CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED`
 - `CINEJELLY_RENDER_COST_USD_PER_SECOND`
 - `CINEJELLY_ASSET_REGISTRATION_COST_USD`
 - `CINEJELLY_LLM_PLAN_COST_USD`
@@ -36,6 +43,8 @@ ffprobe -version
 ```
 
 `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` is optional. When set, it must point to an operator-owned JSON catalog whose entries use safe `asset://` or credential-free HTTPS `assetUri` values, approved rights metadata, bounded labels/tags, and no local filesystem paths or signed URL credentials. Missing this variable keeps material fulfillment in a planned-only state.
+
+`CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS=true` is optional and enables remote stock material adapters. At least one approved provider key must be configured. Pexels uses `PEXELS_API_KEY`, Pixabay uses `PIXABAY_API_KEY`, and Coverr uses `COVERR_API_KEY` only when `CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED=true` confirms the deployment has accepted the required commercial terms. Provider keys must never appear in request payloads, artifacts, or logs.
 
 ## Preflight Gate
 
@@ -63,6 +72,8 @@ Hard blockers:
 - Missing FFmpeg or FFprobe.
 - Invalid Atlas endpoint overrides.
 - Invalid local material catalog path or unsafe catalog asset URI when `CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH` is set.
+- Remote stock enabled without an approved provider key.
+- Coverr remote stock enabled without explicit commercial approval.
 - Output directory cannot be created or written.
 - Invalid numeric settings or API port.
 
@@ -181,6 +192,7 @@ Required evidence:
 - `material-sourcing-plan.json` contains rights requirement and preferred sources for every material brief.
 - `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
 - If a local material catalog is configured, selected candidates in `material-source-validation.json` use safe `asset://` or credential-free HTTPS URIs and preserve rights/attribution metadata.
+- If remote stock is enabled, selected candidates in `material-source-validation.json` use credential-free HTTPS media URIs, preserve provider asset IDs/source page/preview metadata when safe, and include attribution/license labels.
 - `cost-ledger.json` contains provider operations with model, graph node, prediction ID when available, latency, retry count, status, and provider usage/cost when returned.
 - `production-graph.json` includes `reference_asset`, `reference_selection`, `material_sourcing`, `clip_render`, `inspection_report`, repair, and deliverable evidence as applicable.
 - `deliverable.json` includes output byte size and SHA-256 hash.
@@ -193,6 +205,7 @@ Before marking the validation run acceptable:
 - No API response exposes local absolute paths.
 - No API response exposes raw stack traces.
 - No artifact exposes `ATLASCLOUD_API_KEY`, auth token, bearer headers, signed URLs, or credential-like query strings.
+- No artifact exposes `PEXELS_API_KEY`, `PIXABAY_API_KEY`, `COVERR_API_KEY`, or provider download URLs with credential-like query strings.
 - No inline `data:` media payload appears in public API JSON.
 - Failed provider calls have stack-free error name/message details.
 - Failure artifacts preserve cost ledger entries created before failure.

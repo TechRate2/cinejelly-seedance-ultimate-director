@@ -137,7 +137,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Use CLI/WebUI/Docker/operator surfaces to make the pipeline runnable by different user types.
 - CineJelly extension:
   - Reworks these short-video automation patterns into a commercial Seedance 2.0 director pipeline with Atlas Cloud as the default LLM/render provider, Production Graph lineage, long-form chunking, consistency repair, governed material/reference sourcing, an operator-owned local material catalog adapter, and review packets.
-  - Remote stock source integrations remain separate CineJelly-owned adapters that require provider-specific licensing, attribution, and validation before release.
+  - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 
 ## Atlas Cloud References
 

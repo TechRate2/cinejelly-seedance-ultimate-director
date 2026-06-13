@@ -29,7 +29,7 @@ import { StoryboardPlanner } from "../core/storyboard-planner.js";
 import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult, RenderCandidate, RenderedShot } from "../types/agent.js";
 import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
-import type { MaterialCandidate, MaterialSourceAdapter } from "../types/material.js";
+import type { MaterialCandidate, MaterialSource, MaterialSourceAdapter } from "../types/material.js";
 import type { PostproductionSettings } from "../types/media.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type { Prediction } from "../types/provider.js";
@@ -52,6 +52,7 @@ export class DirectorAgent {
   private readonly productionStagePlanner: ProductionStagePlanner;
   private readonly referenceSelectionPlanner: ReferenceSelectionPlanner;
   private readonly materialSourcingPlanner: MaterialSourcingPlanner;
+  private readonly materialPlanningOptions: MaterialPlanningOptions;
   private readonly materialSourceAdapters: readonly MaterialSourceAdapter[];
   private readonly materialSourceValidator: MaterialSourceValidator;
   private readonly renderCostGate: RenderCostGate;
@@ -77,6 +78,7 @@ export class DirectorAgent {
     readonly productionStagePlanner?: ProductionStagePlanner;
     readonly referenceSelectionPlanner?: ReferenceSelectionPlanner;
     readonly materialSourcingPlanner?: MaterialSourcingPlanner;
+    readonly materialPlanningOptions?: MaterialPlanningOptions;
     readonly materialSourceAdapters?: readonly MaterialSourceAdapter[];
     readonly materialSourceValidator?: MaterialSourceValidator;
     readonly renderCostGate?: RenderCostGate;
@@ -97,6 +99,7 @@ export class DirectorAgent {
     this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
     this.referenceSelectionPlanner = input.referenceSelectionPlanner ?? new ReferenceSelectionPlanner();
     this.materialSourcingPlanner = input.materialSourcingPlanner ?? new MaterialSourcingPlanner();
+    this.materialPlanningOptions = input.materialPlanningOptions ?? {};
     this.materialSourceAdapters = input.materialSourceAdapters ?? [];
     this.materialSourceValidator = input.materialSourceValidator ?? new MaterialSourceValidator();
     this.renderCostGate = input.renderCostGate ?? new RenderCostGate({ costBufferMultiplier: 1 });
@@ -127,7 +130,14 @@ export class DirectorAgent {
     const materialSourcingPlan = this.materialSourcingPlanner.plan({
       projectId: intake.projectId,
       shots,
-      settings: intake.settings
+      settings: intake.settings,
+      ...(this.materialPlanningOptions.allowRemoteSources !== undefined
+        ? { allowRemoteSources: this.materialPlanningOptions.allowRemoteSources }
+        : {}),
+      ...(this.materialPlanningOptions.preferredSources ? { preferredSources: this.materialPlanningOptions.preferredSources } : {}),
+      ...(this.materialPlanningOptions.maxCandidatesPerBrief !== undefined
+        ? { maxCandidatesPerBrief: this.materialPlanningOptions.maxCandidatesPerBrief }
+        : {})
     });
     const materialCandidates = await this.resolveMaterialCandidates(materialSourcingPlan, signal);
     const materialSourceValidation = this.materialSourceValidator.validate({
@@ -800,4 +810,10 @@ export class DirectorAgent {
       ? `Consistency Guardian test-take gate blocked ${shot.shotId}: ${finding.checkpoint} (${finding.severity}) - ${finding.repair}`
       : `Consistency Guardian test-take gate blocked ${shot.shotId}: ${report.status}`;
   }
+}
+
+export interface MaterialPlanningOptions {
+  readonly allowRemoteSources?: boolean;
+  readonly preferredSources?: readonly MaterialSource[];
+  readonly maxCandidatesPerBrief?: number;
 }

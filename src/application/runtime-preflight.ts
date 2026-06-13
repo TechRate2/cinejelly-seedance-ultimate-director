@@ -58,6 +58,11 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_MAX_SOURCE_VIDEO_NOTES", this.env.CINEJELLY_MAX_SOURCE_VIDEO_NOTES),
       this.optionalPositiveInteger("CINEJELLY_MAX_RENDERED_CLIP_BYTES", this.env.CINEJELLY_MAX_RENDERED_CLIP_BYTES),
       this.optionalPositiveInteger("CINEJELLY_MAX_AUDIO_TRACK_BYTES", this.env.CINEJELLY_MAX_AUDIO_TRACK_BYTES),
+      this.optionalBooleanFlag("CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS", this.env.CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS),
+      this.optionalPositiveInteger("CINEJELLY_REMOTE_STOCK_REQUEST_TIMEOUT_MS", this.env.CINEJELLY_REMOTE_STOCK_REQUEST_TIMEOUT_MS),
+      this.optionalPositiveInteger("CINEJELLY_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF", this.env.CINEJELLY_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF),
+      this.optionalBooleanFlag("CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED", this.env.CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED),
+      this.remoteStockMaterialCheck(),
       this.optionalNonNegativeNumber("CINEJELLY_RENDER_COST_USD_PER_SECOND", this.env.CINEJELLY_RENDER_COST_USD_PER_SECOND),
       this.optionalNonNegativeNumber("CINEJELLY_ASSET_REGISTRATION_COST_USD", this.env.CINEJELLY_ASSET_REGISTRATION_COST_USD),
       this.optionalNonNegativeNumber("CINEJELLY_LLM_PLAN_COST_USD", this.env.CINEJELLY_LLM_PLAN_COST_USD),
@@ -128,6 +133,90 @@ export class RuntimePreflight {
       ...(typeof payload.catalogId === "string" ? { catalogId: payload.catalogId } : {}),
       entries: payload.entries
     };
+  }
+
+  private remoteStockMaterialCheck(): PreflightCheck {
+    const enabled = this.booleanEnv("CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS", this.env.CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS);
+    if (enabled === "invalid") {
+      return {
+        name: "remote_stock_materials",
+        status: "fail",
+        message: "CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS must be true or false when set."
+      };
+    }
+    if (!enabled) {
+      return {
+        name: "remote_stock_materials",
+        status: "pass",
+        message: "Remote stock material adapters are disabled."
+      };
+    }
+
+    const providers: string[] = [];
+    const keyFailures: string[] = [];
+    this.collectRemoteProvider("PEXELS_API_KEY", "pexels", providers, keyFailures);
+    this.collectRemoteProvider("PIXABAY_API_KEY", "pixabay", providers, keyFailures);
+    const coverrApproved = this.booleanEnv(
+      "CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED",
+      this.env.CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED
+    );
+    if (coverrApproved === "invalid") {
+      return {
+        name: "remote_stock_materials",
+        status: "fail",
+        message: "CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED must be true or false when set."
+      };
+    }
+    if (coverrApproved) {
+      this.collectRemoteProvider("COVERR_API_KEY", "coverr", providers, keyFailures);
+    }
+    if (keyFailures.length > 0) {
+      return {
+        name: "remote_stock_materials",
+        status: "fail",
+        message: `Remote stock provider key configuration is invalid for ${keyFailures.join(", ")}.`
+      };
+    }
+    if (providers.length === 0) {
+      return {
+        name: "remote_stock_materials",
+        status: "fail",
+        message: "Remote stock material adapters are enabled but no approved provider key is configured."
+      };
+    }
+    return {
+      name: "remote_stock_materials",
+      status: "pass",
+      message: `Remote stock material adapters configured for ${providers.join(", ")}.`
+    };
+  }
+
+  private collectRemoteProvider(
+    envName: string,
+    provider: string,
+    providers: string[],
+    keyFailures: string[]
+  ): void {
+    const value = this.env[envName]?.trim();
+    if (!value) {
+      return;
+    }
+    if (/[\u0000-\u001f\u007f]/.test(value)) {
+      keyFailures.push(provider);
+      return;
+    }
+    providers.push(provider);
+  }
+
+  private booleanEnv(_name: string, value: string | undefined): boolean | "invalid" {
+    if (!value?.trim()) {
+      return false;
+    }
+    const normalized = value.trim().toLowerCase();
+    if (normalized !== "true" && normalized !== "false") {
+      return "invalid";
+    }
+    return normalized === "true";
   }
 
   private present(name: string, value: string | undefined): PreflightCheck {

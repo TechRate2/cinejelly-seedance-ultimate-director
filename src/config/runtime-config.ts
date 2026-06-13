@@ -5,10 +5,12 @@
 
 import type { ProviderCapability } from "../types/provider.js";
 import type { CostEstimationSettings } from "../types/cost.js";
+import type { RemoteStockProviderSettings } from "../types/material.js";
 import type {
   AssemblyRuntimeSettings,
   AtlasCloudRuntimeSettings,
   MaterialRuntimeSettings,
+  RemoteStockRuntimeSettings,
   RuntimeSettings
 } from "../types/settings.js";
 
@@ -17,6 +19,8 @@ const DEFAULT_ATLAS_ASSET_BASE_URL = "https://console.atlascloud.ai/api/v1";
 const DEFAULT_ATLAS_JSON_RESPONSE_MAX_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
 const DEFAULT_MAX_AUDIO_TRACK_BYTES = 256 * 1024 * 1024;
+const DEFAULT_REMOTE_STOCK_REQUEST_TIMEOUT_MS = 20_000;
+const DEFAULT_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF = 5;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const NON_NEGATIVE_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 
@@ -80,6 +84,28 @@ function optionalPathEnv(name: string, env: NodeJS.ProcessEnv): string | undefin
   return value;
 }
 
+function optionalStringEnv(name: string, env: NodeJS.ProcessEnv): string | undefined {
+  const value = env[name]?.trim();
+  if (!value) {
+    return undefined;
+  }
+  if (/[\u0000-\u001f\u007f]/.test(value)) {
+    throw new Error(`Environment variable ${name} must not contain control characters.`);
+  }
+  return value;
+}
+
+function optionalBooleanEnv(name: string, env: NodeJS.ProcessEnv, fallback = false): boolean {
+  const value = env[name]?.trim().toLowerCase();
+  if (!value) {
+    return fallback;
+  }
+  if (value !== "true" && value !== "false") {
+    throw new Error(`Environment variable ${name} must be true or false when set.`);
+  }
+  return value === "true";
+}
+
 export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): AtlasCloudRuntimeSettings {
   const seedanceCapabilities = parseCapabilitiesEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
   return {
@@ -136,8 +162,78 @@ export function loadRuntimeSettings(env: NodeJS.ProcessEnv = process.env): Runti
 export function loadMaterialRuntimeSettings(env: NodeJS.ProcessEnv = process.env): MaterialRuntimeSettings {
   const localCatalogPath = optionalPathEnv("CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH", env);
   return {
-    ...(localCatalogPath ? { localCatalogPath } : {})
+    ...(localCatalogPath ? { localCatalogPath } : {}),
+    remoteStock: loadRemoteStockRuntimeSettings(env)
   };
+}
+
+export function loadRemoteStockRuntimeSettings(env: NodeJS.ProcessEnv = process.env): RemoteStockRuntimeSettings {
+  const enabled = optionalBooleanEnv("CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS", env, false);
+  const requestTimeoutMs = optionalIntegerEnv(
+    "CINEJELLY_REMOTE_STOCK_REQUEST_TIMEOUT_MS",
+    env,
+    DEFAULT_REMOTE_STOCK_REQUEST_TIMEOUT_MS
+  );
+  const maxResultsPerBrief = optionalIntegerEnv(
+    "CINEJELLY_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF",
+    env,
+    DEFAULT_REMOTE_STOCK_MAX_RESULTS_PER_BRIEF
+  );
+  const providers = enabled ? remoteStockProviders(env, requestTimeoutMs, maxResultsPerBrief) : [];
+  if (enabled && providers.length === 0) {
+    throw new Error(
+      "CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS requires at least one approved provider key."
+    );
+  }
+
+  return {
+    enabled,
+    requestTimeoutMs,
+    maxResultsPerBrief,
+    providers
+  };
+}
+
+function remoteStockProviders(
+  env: NodeJS.ProcessEnv,
+  requestTimeoutMs: number,
+  maxResultsPerBrief: number
+): readonly RemoteStockProviderSettings[] {
+  const providers: RemoteStockProviderSettings[] = [];
+  const pexelsApiKey = optionalStringEnv("PEXELS_API_KEY", env);
+  if (pexelsApiKey) {
+    providers.push({
+      source: "pexels",
+      apiKey: pexelsApiKey,
+      requestTimeoutMs,
+      maxResultsPerBrief
+    });
+  }
+  const pixabayApiKey = optionalStringEnv("PIXABAY_API_KEY", env);
+  if (pixabayApiKey) {
+    providers.push({
+      source: "pixabay",
+      apiKey: pixabayApiKey,
+      requestTimeoutMs,
+      maxResultsPerBrief
+    });
+  }
+  const coverrApiKey = optionalStringEnv("COVERR_API_KEY", env);
+  const coverrCommercialUseApproved = optionalBooleanEnv(
+    "CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED",
+    env,
+    false
+  );
+  if (coverrApiKey && coverrCommercialUseApproved) {
+    providers.push({
+      source: "coverr",
+      apiKey: coverrApiKey,
+      commercialUseApproved: true,
+      requestTimeoutMs,
+      maxResultsPerBrief
+    });
+  }
+  return providers;
 }
 
 export function loadAssemblyRuntimeSettings(env: NodeJS.ProcessEnv = process.env): AssemblyRuntimeSettings {

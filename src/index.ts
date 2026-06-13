@@ -46,6 +46,7 @@ export * from "./core/production-stage-planner.js";
 export * from "./core/project-artifact-store.js";
 export * from "./core/project-artifact-validator.js";
 export * from "./core/reference-selection-planner.js";
+export * from "./core/remote-stock-material-adapter.js";
 export * from "./core/render-cost-gate.js";
 export * from "./core/render-scheduler.js";
 export * from "./core/review-packet-builder.js";

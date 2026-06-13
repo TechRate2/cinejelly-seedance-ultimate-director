@@ -1,5 +1,6 @@
 import type { ProviderCapability } from "./provider.js";
 import type { CostEstimationSettings } from "./cost.js";
+import type { RemoteStockProviderSettings } from "./material.js";
 
 /**
  * Shared runtime setting types for CineJelly's flexible Seedance workflow.
@@ -60,6 +61,14 @@ export interface AssemblyRuntimeSettings {
 
 export interface MaterialRuntimeSettings {
   readonly localCatalogPath?: string;
+  readonly remoteStock: RemoteStockRuntimeSettings;
+}
+
+export interface RemoteStockRuntimeSettings {
+  readonly enabled: boolean;
+  readonly requestTimeoutMs: number;
+  readonly maxResultsPerBrief: number;
+  readonly providers: readonly RemoteStockProviderSettings[];
 }
 
 export interface RuntimeSettings {

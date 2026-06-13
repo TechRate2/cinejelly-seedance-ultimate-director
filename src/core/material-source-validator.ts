@@ -140,6 +140,30 @@ export class MaterialSourceValidator {
         })
       );
     }
+    if (candidate.sourcePageUrl && !this.isSafeMaterialUri(candidate.sourcePageUrl, candidate.source)) {
+      issues.push(
+        this.issue({
+          code: "unsafe_uri",
+          severity: "block",
+          brief,
+          candidate,
+          message: "Material candidate source page URL is not safe for production artifacts.",
+          repair: "Use credential-free HTTPS source page URLs without signed or secret query parameters."
+        })
+      );
+    }
+    if (candidate.previewUri && !this.isSafeMaterialUri(candidate.previewUri, candidate.source)) {
+      issues.push(
+        this.issue({
+          code: "unsafe_uri",
+          severity: "block",
+          brief,
+          candidate,
+          message: "Material candidate preview URI is not safe for production artifacts.",
+          repair: "Use credential-free HTTPS preview URIs without signed or secret query parameters."
+        })
+      );
+    }
     issues.push(...this.rightsIssues(brief.rightsRequirement, brief, candidate));
     if (candidate.selected) {
       issues.push(...this.selectedCandidateFitIssues(brief, candidate));

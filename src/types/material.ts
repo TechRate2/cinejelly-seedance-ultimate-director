@@ -57,6 +57,10 @@ export interface MaterialCandidate {
   readonly briefId: string;
   readonly source: MaterialSource;
   readonly uri: string;
+  readonly providerAssetId?: string;
+  readonly sourcePageUrl?: string;
+  readonly previewUri?: string;
+  readonly licenseLabel?: string;
   readonly durationSeconds?: number;
   readonly aspectRatio?: AspectRatio;
   readonly resolution?: Resolution;
@@ -140,6 +144,16 @@ export interface LocalMaterialCatalogEntry {
 export interface LocalMaterialCatalog {
   readonly catalogId?: string;
   readonly entries: readonly LocalMaterialCatalogEntry[];
+}
+
+export type RemoteStockMaterialSource = Extract<MaterialSource, "pexels" | "pixabay" | "coverr">;
+
+export interface RemoteStockProviderSettings {
+  readonly source: RemoteStockMaterialSource;
+  readonly apiKey: string;
+  readonly commercialUseApproved?: boolean;
+  readonly requestTimeoutMs: number;
+  readonly maxResultsPerBrief: number;
 }
 
 export interface MaterialSourcingPlan {

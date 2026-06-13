@@ -507,7 +507,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "remote stock material adapter fulfillment remains future work",
+      "live remote stock provider validation with real keys remains pending",
       "subtitle, TTS, and BGM orchestration are not yet translated into dedicated stage modules"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -543,7 +543,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "real stock/local material adapters still need provider-specific fulfillment implementations",
+      "live provider validation should inspect real local and remote stock material candidates",
       "paid end-to-end validation should inspect material-source-validation artifacts"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -646,7 +646,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     validationStatus: "implemented",
     fidelityRisks: [
       "catalog quality depends on operator-owned rights review before deployment",
-      "remote stock provider adapters remain separate future implementations"
+      "remote stock provider adapters require live provider validation before release"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -703,6 +703,107 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     referenceImplementationPath: "docs/reference-implementations/local-material-library-adapter.md",
     cineJellyDestinationPaths: [
       "src/core/local-material-library-adapter.ts",
+      "src/core/material-source-validator.ts",
+      "src/application/runtime-preflight.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "legal review is still required before any direct AGPL implementation reuse",
+      "current implementation uses approval behavior notes only"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Remote Stock Material Adapter",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    upstreamPaths: [
+      "external/upstream/MoneyPrinterTurbo/app/services/material.py",
+      "external/upstream/MoneyPrinterTurbo/app/services/task.py",
+      "external/upstream/MoneyPrinterTurbo/app/models/schema.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "remote stock search happens as an explicit material stage before composition",
+      "search terms, minimum duration, aspect, and provider source shape candidate retrieval",
+      "candidate counts are bounded and tied back to material briefs"
+    ],
+    behaviorChanged: [
+      "upstream downloader/provider code is not reused",
+      "provider keys are parsed through secret-safe runtime configuration",
+      "candidate URIs must be credential-free HTTPS and pass CineJelly MaterialSourceValidator"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/remote-stock-material-adapter.md",
+    cineJellyDestinationPaths: [
+      "src/types/material.ts",
+      "src/types/settings.ts",
+      "src/core/remote-stock-material-adapter.ts",
+      "src/config/runtime-config.ts",
+      "src/application/director-factory.ts",
+      "src/application/runtime-preflight.ts",
+      "src/agents/director-agent.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "live Pexels/Pixabay/Coverr payloads must be validated with real keys before release",
+      "provider license and attribution terms must be reviewed by the operator before customer use"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Remote Stock Material Adapter",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "provider-heavy work is enabled only after configuration validation",
+      "remote material evidence remains deterministic and operator-reviewable",
+      "invalid provider readiness fails preflight before expensive render work"
+    ],
+    behaviorChanged: [
+      "VibeFrame validation discipline is rewritten into CineJelly remote stock preflight",
+      "candidate metadata is redacted and safe for artifacts",
+      "remote stock adapter output stays behind centralized material validation"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/remote-stock-material-adapter.md",
+    cineJellyDestinationPaths: [
+      "src/core/remote-stock-material-adapter.ts",
+      "src/application/runtime-preflight.ts",
+      "src/core/material-source-validator.ts",
+      "src/core/review-packet-builder.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "preflight checks local readiness but cannot prove live provider response compatibility",
+      "artifact review remains required after live provider validation"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Remote Stock Material Adapter",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/README.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "source-material approval must be explicit before production handoff",
+      "rights-unclear or unsafe material routes to review instead of release",
+      "approval-gate concepts inform remote stock candidate validation"
+    ],
+    behaviorChanged: [
+      "AGPL implementation code is not copied, linked, or executed",
+      "approval concepts are rewritten into CineJelly-owned provider gating and validation",
+      "Coverr commercial-use approval is explicit before that provider can be enabled"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/remote-stock-material-adapter.md",
+    cineJellyDestinationPaths: [
+      "src/core/remote-stock-material-adapter.ts",
       "src/core/material-source-validator.ts",
       "src/application/runtime-preflight.ts"
     ],
