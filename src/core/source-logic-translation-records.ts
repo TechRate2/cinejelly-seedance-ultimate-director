@@ -995,7 +995,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "deterministic artifact validation remains a release gate after build/render work",
       "artifact validation evidence is reviewable alongside generated artifacts",
-      "validation status is separate from render execution status"
+      "validation status is separate from render execution status",
+      "synchronous and asynchronous API render paths expose artifact validation evidence"
     ],
     behaviorChanged: [
       "VibeFrame artifact/report discipline is rewritten into CineJelly async job metadata",
@@ -1006,6 +1007,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     cineJellyDestinationPaths: [
       "src/core/project-artifact-validator.ts",
       "src/api/artifact-response.ts",
+      "src/api/server.ts",
       "src/api/render-job-manager.ts"
     ],
     validationStatus: "implemented",
@@ -1028,7 +1030,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "terminal long-running jobs expose generated artifact evidence through the API",
       "failure artifacts remain visible for operator diagnosis",
-      "compact list responses avoid heavy detail while per-job polling exposes reviewable evidence"
+      "compact list responses avoid heavy detail while per-job polling exposes reviewable evidence",
+      "synchronous render responses include generated artifact validation evidence when artifacts are written"
     ],
     behaviorChanged: [
       "MoneyPrinterTurbo runtime code is not copied or executed",
@@ -1038,6 +1041,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     referenceImplementationPath: "docs/reference-implementations/api-artifact-validation-evidence.md",
     cineJellyDestinationPaths: [
       "src/api/render-job-manager.ts",
+      "src/api/server.ts",
       "src/api/artifact-response.ts",
       "src/types/artifact.ts"
     ],

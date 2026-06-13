@@ -76,7 +76,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Deterministic validation/report discipline for readiness and release review.
 - CineJelly extension:
   - Uses VibeFrame-style artifact discipline inside a commercial API-first service rather than a CLI-only runtime.
-  - Adds API-visible artifact validation evidence for retained async job artifacts without exposing server-local artifact paths.
+  - Adds API-visible artifact validation evidence for synchronous render responses and retained async job artifacts without exposing server-local artifact paths.
   - Adds redacted CLI and HTTP Phase 6 validation readiness reporting before paid provider work.
 
 ### DirectorBench
@@ -144,7 +144,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 - CineJelly extension:
   - Reworks these short-video automation patterns into a commercial Seedance 2.0 director pipeline with Atlas Cloud as the default LLM/render provider, Production Graph lineage, long-form chunking, consistency repair, governed material/reference sourcing, an operator-owned local material catalog adapter, and review packets.
   - Adds bounded async render-job stage progress telemetry so operators can see current stage and retained progress events before final artifacts exist.
-  - Adds API-visible artifact validation status and checks for terminal async jobs so generated evidence stays reviewable through the job polling surface.
+  - Adds API-visible artifact validation status and checks for synchronous render responses and terminal async jobs so generated evidence stays reviewable through the API surface.
   - Adds pre-paid CLI and HTTP validation readiness reporting so blocked environment/tool state remains operator-visible before long-running Atlas work starts.
   - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 

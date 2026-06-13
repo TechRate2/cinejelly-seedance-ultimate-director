@@ -165,7 +165,7 @@ While the job is running, the job payload should expose `currentStage`, `current
 
 After the job reaches a terminal state and artifacts were written, the job payload should expose `hasArtifactValidation`, `artifactValidationStatus`, and detailed `artifactValidation.checks` in the per-job response. The list endpoint should keep only compact validation status, not the full check array. Treat `artifactValidationStatus=fail` as a release blocker even when the render job status is `succeeded`.
 
-Use synchronous `/v1/render` only for short internal validation when deployment timeout limits are known and acceptable.
+Use synchronous `/v1/render` only for short internal validation when deployment timeout limits are known and acceptable. Its success or failure response should include `artifactValidation` when artifacts were written; treat `artifactValidation.status=fail` as a release blocker.
 
 ## Automated Artifact Validation
 

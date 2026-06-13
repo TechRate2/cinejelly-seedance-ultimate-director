@@ -16,12 +16,14 @@ import { fileURLToPath } from "node:url";
 import { createDirectorRuntime } from "../application/director-factory.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
+import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
+import type { ProjectArtifactBundle, ProjectArtifactValidationReport } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
-import { toApiProjectArtifactBundle } from "./artifact-response.js";
+import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import { ApiConcurrencyGate } from "./api-concurrency-gate.js";
 import { ApiRateLimiter, readRateLimitDisabled, readTrustProxyHeaders } from "./api-rate-limit.js";
@@ -75,6 +77,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
   const preflight = new RuntimePreflight();
   const validationReadinessReporter = new Phase6ValidationReadinessReporter();
   const artifactStore = new ProjectArtifactStore();
+  const artifactValidator = new ProjectArtifactValidator();
   const requestAdmission = new RenderRequestAdmission({
     maxUserInputCharacters: readPositiveInteger(process.env.CINEJELLY_MAX_USER_INPUT_CHARS, 24_000),
     maxReferences: readPositiveInteger(process.env.CINEJELLY_MAX_REFERENCES, 24),
@@ -202,10 +205,12 @@ export function startServer(port = readPort(process.env.PORT)): void {
             costLedger,
             artifactDirectory
           });
+          const artifactValidation = await validateArtifactsForApi(artifactValidator, artifacts);
           sendJson(response, 200, {
             ...result,
             costLedger,
-            artifacts: toApiProjectArtifactBundle(artifacts)
+            artifacts: toApiProjectArtifactBundle(artifacts),
+            artifactValidation: toApiProjectArtifactValidationReport(artifactValidation)
           }, requestContext);
         } catch (renderError: unknown) {
           costLedger = runtime?.ledger.list() ?? costLedger;
@@ -216,10 +221,12 @@ export function startServer(port = readPort(process.env.PORT)): void {
             error: renderError,
             stage: "render_pipeline"
           });
+          const artifactValidation = await validateArtifactsForApi(artifactValidator, artifacts);
           sendJson(response, 500, {
             error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
             costLedger,
-            artifacts: toApiProjectArtifactBundle(artifacts)
+            artifacts: toApiProjectArtifactBundle(artifacts),
+            artifactValidation: toApiProjectArtifactValidationReport(artifactValidation)
           }, requestContext);
         } finally {
           renderLease.release();
@@ -244,6 +251,30 @@ export function startServer(port = readPort(process.env.PORT)): void {
     console.log(`CineJelly API listening on port ${port}`);
   });
   registerShutdownHandlers(server, jobManager, shutdownCoordinator);
+}
+
+async function validateArtifactsForApi(
+  artifactValidator: ProjectArtifactValidator,
+  artifacts: ProjectArtifactBundle
+): Promise<ProjectArtifactValidationReport> {
+  try {
+    return await artifactValidator.validate(artifacts.artifactDirectory);
+  } catch (error) {
+    return {
+      status: "fail",
+      checkedAt: new Date(),
+      artifactDirectory: artifacts.artifactDirectory,
+      manifestPath: artifacts.manifestPath,
+      projectId: artifacts.projectId,
+      checks: [
+        {
+          name: "artifact_validation_runtime",
+          status: "fail",
+          message: error instanceof Error ? error.message : "Artifact validation failed."
+        }
+      ]
+    };
+  }
 }
 
 function normalizeRenderRequest(body: RenderRequestBody, requestContext: ApiRequestContext): CineJellyProjectRequest {

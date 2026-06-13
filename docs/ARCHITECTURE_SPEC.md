@@ -361,7 +361,7 @@ Failure artifact policy:
 - Synchronous and async render failure paths capture any provider cost ledger entries recorded before the error, so partial Atlas spend remains auditable.
 - Success and failure manifests include per-file SHA-256 hashes for redacted JSON artifacts so review packets, graph snapshots, cost ledgers, and failure reports can be integrity-checked after storage or transfer.
 - API artifact bundle responses expose manifest file names, artifact entries, byte sizes, and hashes without returning server-local artifact directories or manifest paths; deeper result payloads also redact local output, work, media sample, and inspection paths before leaving the API boundary.
-- API artifact validation responses expose status, manifest file name, check counts, and checks without returning server-local artifact directories or manifest paths; validation is bound to job-owned artifacts and not to arbitrary client-supplied local paths.
+- API artifact validation responses expose status, manifest file name, check counts, and checks without returning server-local artifact directories or manifest paths; validation is bound to synchronous request-owned or async job-owned artifacts and not to arbitrary client-supplied local paths.
 - This is an extension based on VibeFrame/OpenMontage build and review report discipline.
 
 Review packet policy:

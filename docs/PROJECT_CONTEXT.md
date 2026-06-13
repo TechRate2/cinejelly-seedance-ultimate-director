@@ -69,7 +69,7 @@ flowchart LR
 - `Local Material Library Adapter`: optionally resolves source-material briefs from an operator-owned JSON catalog using safe `asset://` or credential-free HTTPS URIs before centralized material validation.
 - `Remote Stock Material Adapter`: optionally resolves source-material briefs from Pexels, Pixabay, and commercially approved Coverr through key-gated provider searches, attribution metadata, and credential-free HTTPS candidate URIs.
 - `Stage Progress Telemetry`: reports bounded current-stage events for async render jobs before final artifacts exist.
-- `API Artifact Validation Evidence`: validates retained async job artifacts after success/failure artifact writes and exposes release-gate status without server-local paths.
+- `API Artifact Validation Evidence`: validates synchronous render and retained async job artifacts after success/failure artifact writes and exposes release-gate status without server-local paths.
 - `Review Packet`: redacted customer/operator handoff artifact summarizing planning, render, cost, delivery, and QC evidence.
 
 ## Snapshot-Integrated Design
