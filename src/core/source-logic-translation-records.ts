@@ -177,6 +177,109 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "future visual-analysis modules can enrich references with better camera/composition metadata"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Provider Polling, Retry, And Cost Fidelity",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "provider spend follows validate, plan/cost, build/render, status refresh, and inspect ordering",
+      "cost and status evidence must be visible in deterministic reports",
+      "provider-heavy work is routed only after explicit planning and cost gates"
+    ],
+    behaviorChanged: [
+      "CLI report discipline is rewritten into provider-neutral CostLedgerEntry records",
+      "CineJelly records async polling outcomes through Atlas provider wait operations",
+      "review packet cost summary counts failed, timeout, and canceled provider operations"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/provider-polling-retry-cost.md",
+    cineJellyDestinationPaths: [
+      "src/types/provider.ts",
+      "src/providers/atlascloud/atlas-cloud-provider.ts",
+      "src/utils/retry.ts",
+      "src/types/review.ts",
+      "src/core/review-packet-builder.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "paid Atlas render validation is still required to confirm provider-returned status and usage payloads",
+      "future provider routing should preserve ledger fields introduced in this phase"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Provider Polling, Retry, And Cost Fidelity",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/MoneyPrinterTurbo",
+    upstreamPaths: [
+      "external/upstream/MoneyPrinterTurbo/app/services/task.py",
+      "external/upstream/MoneyPrinterTurbo/app/services/state.py",
+      "external/upstream/MoneyPrinterTurbo/app/models/schema.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "staged work updates should remain operator-visible",
+      "terminal failure stops the current stage and records status evidence",
+      "progress/state records should be bounded and inspectable"
+    ],
+    behaviorChanged: [
+      "Python task state is translated into provider ledger and review packet evidence",
+      "CineJelly uses AbortSignal-aware TypeScript polling instead of upstream task globals",
+      "Atlas Cloud remains the default provider path rather than adopting upstream provider configuration"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/provider-polling-retry-cost.md",
+    cineJellyDestinationPaths: [
+      "src/types/provider.ts",
+      "src/providers/atlascloud/atlas-cloud-provider.ts",
+      "src/providers/cost-ledger.ts",
+      "src/core/review-packet-builder.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "full staged batch workflow remains planned for Phase 5",
+      "provider ledger state is not a complete job-progress UI until render scheduler stages consume it"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Provider Polling, Retry, And Cost Fidelity",
+    sourceRepository: "Atlas Cloud",
+    snapshotPath: "src/providers/atlascloud",
+    upstreamPaths: [
+      "src/providers/atlascloud/atlas-cloud-provider.ts",
+      "src/providers/atlascloud/atlas-cloud-http.ts",
+      "src/providers/atlascloud/atlas-cloud-mappers.ts"
+    ],
+    license: "PROVIDER-DOCS",
+    behaviorPreserved: [
+      "async prediction submit/get/wait lifecycle is explicit",
+      "Asset Library registration and activation polling remain separated",
+      "provider-returned usage and cost fields are preserved when available"
+    ],
+    behaviorChanged: [
+      "Atlas-specific payload mapping stays behind provider-neutral contracts",
+      "timeout, abort, failed, and canceled outcomes are normalized into stable ProviderError codes",
+      "ledger metadata records prediction ID, asset ID, provider status, retry count, graph node, model, and usage"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/provider-polling-retry-cost.md",
+    cineJellyDestinationPaths: [
+      "src/types/provider.ts",
+      "src/providers/atlascloud/atlas-cloud-provider.ts",
+      "src/providers/atlascloud/atlas-cloud-http.ts",
+      "src/utils/errors.ts",
+      "src/utils/retry.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "Atlas Cloud public schema and model capability data must be rechecked before paid release",
+      "real provider payloads may expose additional terminal states that need mapper updates"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }
 ];
 

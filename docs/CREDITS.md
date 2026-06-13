@@ -124,7 +124,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 ### MoneyPrinterTurbo
 
 - URL: https://github.com/harry0703/MoneyPrinterTurbo
-- Local snapshot: `external/upstream/moneyprinterturbo`
+- Local snapshot: `external/upstream/MoneyPrinterTurbo`
 - License shown in repo: MIT.
 - Used for: end-to-end one-input video pipeline, material sourcing, batch generation, subtitles, TTS, background music, API/CLI/WebUI surfaces, Docker deployment patterns, task queue/progress handling, and stage-specific execution.
 - Source-derived patterns adopted:
@@ -133,6 +133,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Treat audio, subtitles, material gathering, composition, and final export as explicit pipeline stages.
   - Support batch output generation so one request can produce multiple candidate videos.
   - Expose task state, progress, and generated artifacts through an API.
+  - Keep terminal failure/progress evidence visible for long-running generation work; CineJelly translates this into provider ledger and review packet evidence.
   - Use CLI/WebUI/Docker/operator surfaces to make the pipeline runnable by different user types.
 - CineJelly extension:
   - Reworks these short-video automation patterns into a commercial Seedance 2.0 director pipeline with Atlas Cloud as the default LLM/render provider, Production Graph lineage, long-form chunking, consistency repair, governed material/reference sourcing, and review packets.

@@ -7,13 +7,17 @@ import type { AtlasCloudRuntimeSettings } from "../../types/settings.js";
 import type {
   AssetRegistration,
   AssetRegistrationRequest,
+  AssetStatus,
   ChatRequest,
   ChatResponse,
   Prediction,
   PredictionPollingContext,
   ProviderCapability,
+  ProviderCallStatus,
   ProviderMode,
   ProviderReference,
+  ProviderUsage,
+  PredictionStatus,
   StructuredChatRequest,
   StructuredChatResponse,
   VideoGenerationRequest
@@ -23,6 +27,7 @@ import type { ModelProvider } from "../contracts.js";
 import { DEFAULT_RETRY_POLICY, withRetry } from "../../utils/retry.js";
 import { elapsedMs, now, sleep } from "../../utils/time.js";
 import { ProviderError, asProviderError } from "../../utils/errors.js";
+import { redactText } from "../../utils/redaction.js";
 import { AtlasCloudHttpClient } from "./atlas-cloud-http.js";
 import { mapAssetRegistration, mapPrediction, mapUsage, readChatContent } from "./atlas-cloud-mappers.js";
 
@@ -30,6 +35,9 @@ const ATLAS_PROVIDER_NAME = "atlascloud";
 
 interface LedgerMetadata {
   readonly predictionId?: string;
+  readonly assetId?: string;
+  readonly providerStatus?: PredictionStatus | AssetStatus;
+  readonly usage?: ProviderUsage;
   readonly estimatedCostUsd?: number;
   readonly actualCostUsd?: number;
 }
@@ -213,7 +221,8 @@ export class AtlasCloudProvider implements ModelProvider {
         );
         return mapPrediction(response, context?.modelId ?? "unknown", startedAt);
       },
-      (prediction) => this.predictionLedgerMetadata(prediction)
+      (prediction) => this.predictionLedgerMetadata(prediction),
+      () => ({ predictionId })
     );
   }
 
@@ -223,105 +232,164 @@ export class AtlasCloudProvider implements ModelProvider {
     context?: PredictionPollingContext
   ): Promise<Prediction> {
     const startedAt = now();
-    const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
+    let latestMetadata: LedgerMetadata = { predictionId };
 
-    while (Date.now() <= deadline) {
-      const prediction = await this.getPrediction(predictionId, signal, context);
-      if (prediction.status === "succeeded") {
-        return prediction;
-      }
-      if (prediction.status === "failed" || prediction.status === "canceled") {
+    return this.trackProviderCall(
+      "video.wait_for_prediction",
+      context?.modelId,
+      context?.metadata?.graphNodeId,
+      startedAt,
+      async () => {
+        const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
+        while (Date.now() <= deadline) {
+          this.throwIfAborted(signal);
+          const prediction = await this.getPrediction(predictionId, signal, context);
+          latestMetadata = this.predictionLedgerMetadata(prediction);
+          if (prediction.status === "succeeded") {
+            return prediction;
+          }
+          if (prediction.status === "failed") {
+            throw new ProviderError({
+              code: "GENERATION_FAILED",
+              provider: ATLAS_PROVIDER_NAME,
+              message: `Atlas Cloud prediction ${predictionId} ended with status failed.`,
+              details: prediction.raw
+            });
+          }
+          if (prediction.status === "canceled") {
+            throw new ProviderError({
+              code: "PREDICTION_CANCELED",
+              provider: ATLAS_PROVIDER_NAME,
+              message: `Atlas Cloud prediction ${predictionId} was canceled.`,
+              details: prediction.raw
+            });
+          }
+          await this.sleepForPolling(signal);
+        }
+
+        latestMetadata = { ...latestMetadata, predictionId, providerStatus: "timeout" };
         throw new ProviderError({
-          code: "GENERATION_FAILED",
+          code: "POLLING_TIMEOUT",
           provider: ATLAS_PROVIDER_NAME,
-          message: `Atlas Cloud prediction ${predictionId} ended with status ${prediction.status}.`,
-          details: prediction.raw
+          retryable: true,
+          message: `Atlas Cloud prediction ${predictionId} did not finish within ${this.settings.pollingTimeoutMs}ms.`
         });
-      }
-      await sleep(this.settings.pollingIntervalMs, signal);
-    }
-
-    throw new ProviderError({
-      code: "POLLING_TIMEOUT",
-      provider: ATLAS_PROVIDER_NAME,
-      retryable: true,
-      message: `Atlas Cloud prediction ${predictionId} did not finish within ${this.settings.pollingTimeoutMs}ms.`
-    });
+      },
+      (prediction) => this.predictionLedgerMetadata(prediction),
+      () => latestMetadata
+    );
   }
 
   public async registerAsset(request: AssetRegistrationRequest, signal?: AbortSignal): Promise<AssetRegistration> {
     const startedAt = now();
-    return this.trackProviderCall("asset.register", undefined, request.metadata?.graphNodeId, startedAt, async (recordRetry) => {
-      const response = await withRetry(
-        () =>
-          this.http.postJson<unknown>(
-            this.url(this.settings.assetBaseUrl, "/assets"),
-            {
-              url: request.uri,
-              type: request.kind,
-              metadata: request.metadata
-            },
-            signal
-          ),
-        DEFAULT_RETRY_POLICY,
-        signal,
-        recordRetry
-      );
-      return mapAssetRegistration(response);
-    });
+    return this.trackProviderCall(
+      "asset.register",
+      undefined,
+      request.metadata?.graphNodeId,
+      startedAt,
+      async (recordRetry) => {
+        const response = await withRetry(
+          () =>
+            this.http.postJson<unknown>(
+              this.url(this.settings.assetBaseUrl, "/assets"),
+              {
+                url: request.uri,
+                type: request.kind,
+                metadata: request.metadata
+              },
+              signal
+            ),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+        return mapAssetRegistration(response);
+      },
+      (asset) => this.assetLedgerMetadata(asset)
+    );
   }
 
   public async getAsset(assetId: string, signal?: AbortSignal): Promise<AssetRegistration> {
     const startedAt = now();
-    return this.trackProviderCall("asset.get", undefined, undefined, startedAt, async (recordRetry) => {
-      const response = await withRetry(
-        () => this.http.getJson<unknown>(this.url(this.settings.assetBaseUrl, `/assets/${encodeURIComponent(assetId)}`), signal),
-        DEFAULT_RETRY_POLICY,
-        signal,
-        recordRetry
-      );
-      return mapAssetRegistration(response);
-    });
+    return this.trackProviderCall(
+      "asset.get",
+      undefined,
+      undefined,
+      startedAt,
+      async (recordRetry) => {
+        const response = await withRetry(
+          () => this.http.getJson<unknown>(this.url(this.settings.assetBaseUrl, `/assets/${encodeURIComponent(assetId)}`), signal),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+        return mapAssetRegistration(response);
+      },
+      (asset) => this.assetLedgerMetadata(asset),
+      () => ({ assetId })
+    );
   }
 
   public async waitUntilActive(assetId: string, signal?: AbortSignal): Promise<AssetRegistration> {
     const startedAt = now();
-    const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
+    let latestMetadata: LedgerMetadata = { assetId };
 
-    while (Date.now() <= deadline) {
-      const asset = await this.getAsset(assetId, signal);
-      if (asset.status === "active") {
-        return asset;
-      }
-      if (asset.status === "failed" || asset.status === "deleted") {
+    return this.trackProviderCall(
+      "asset.wait_until_active",
+      undefined,
+      undefined,
+      startedAt,
+      async () => {
+        const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
+        while (Date.now() <= deadline) {
+          this.throwIfAborted(signal);
+          const asset = await this.getAsset(assetId, signal);
+          latestMetadata = this.assetLedgerMetadata(asset);
+          if (asset.status === "active") {
+            return asset;
+          }
+          if (asset.status === "failed" || asset.status === "deleted") {
+            throw new ProviderError({
+              code: "ASSET_VALIDATION_FAILED",
+              provider: ATLAS_PROVIDER_NAME,
+              message: `Atlas Cloud asset ${assetId} ended with status ${asset.status}.`,
+              details: asset.raw
+            });
+          }
+          await this.sleepForPolling(signal);
+        }
+
+        latestMetadata = { ...latestMetadata, assetId };
         throw new ProviderError({
-          code: "ASSET_VALIDATION_FAILED",
+          code: "ASSET_NOT_ACTIVE",
           provider: ATLAS_PROVIDER_NAME,
-          message: `Atlas Cloud asset ${assetId} ended with status ${asset.status}.`,
-          details: asset.raw
+          retryable: true,
+          message: `Atlas Cloud asset ${assetId} did not become active within ${this.settings.pollingTimeoutMs}ms.`
         });
-      }
-      await sleep(this.settings.pollingIntervalMs, signal);
-    }
-
-    throw new ProviderError({
-      code: "ASSET_NOT_ACTIVE",
-      provider: ATLAS_PROVIDER_NAME,
-      retryable: true,
-      message: `Atlas Cloud asset ${assetId} did not become active within ${this.settings.pollingTimeoutMs}ms.`
-    });
+      },
+      (asset) => this.assetLedgerMetadata(asset),
+      () => latestMetadata
+    );
   }
 
   public async deleteAsset(assetId: string, signal?: AbortSignal): Promise<void> {
     const startedAt = now();
-    await this.trackProviderCall("asset.delete", undefined, undefined, startedAt, async (recordRetry) => {
-      await withRetry(
-        () => this.http.deleteJson<unknown>(this.url(this.settings.assetBaseUrl, `/assets/${encodeURIComponent(assetId)}`), signal),
-        DEFAULT_RETRY_POLICY,
-        signal,
-        recordRetry
-      );
-    });
+    await this.trackProviderCall(
+      "asset.delete",
+      undefined,
+      undefined,
+      startedAt,
+      async (recordRetry) => {
+        await withRetry(
+          () => this.http.deleteJson<unknown>(this.url(this.settings.assetBaseUrl, `/assets/${encodeURIComponent(assetId)}`), signal),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+      },
+      undefined,
+      () => ({ assetId })
+    );
   }
 
   private async submitVideoGeneration(
@@ -345,7 +413,7 @@ export class AtlasCloudProvider implements ModelProvider {
           signal,
           recordRetry
         );
-        return mapPrediction(response, request.modelId, startedAt);
+        return this.requireKnownPredictionId(mapPrediction(response, request.modelId, startedAt));
       },
       (prediction) => this.predictionLedgerMetadata(prediction)
     );
@@ -464,7 +532,8 @@ export class AtlasCloudProvider implements ModelProvider {
     graphNodeId: string | undefined,
     startedAt: Date,
     callback: (recordRetry: () => void) => Promise<TValue>,
-    ledgerMetadata?: (value: TValue) => LedgerMetadata
+    ledgerMetadata?: (value: TValue) => LedgerMetadata,
+    currentLedgerMetadata?: () => LedgerMetadata
   ): Promise<TValue> {
     let retryCount = 0;
     try {
@@ -472,7 +541,10 @@ export class AtlasCloudProvider implements ModelProvider {
         retryCount += 1;
       });
       const completedAt = now();
-      const metadata = ledgerMetadata?.(result);
+      const metadata = {
+        ...(currentLedgerMetadata?.() ?? {}),
+        ...(ledgerMetadata?.(result) ?? {})
+      };
       this.ledger?.record({
         provider: ATLAS_PROVIDER_NAME,
         operation,
@@ -484,6 +556,9 @@ export class AtlasCloudProvider implements ModelProvider {
         ...(modelId ? { modelId } : {}),
         ...(graphNodeId ? { graphNodeId } : {}),
         ...(metadata?.predictionId ? { predictionId: metadata.predictionId } : {}),
+        ...(metadata?.assetId ? { assetId: metadata.assetId } : {}),
+        ...(metadata?.providerStatus ? { providerStatus: metadata.providerStatus } : {}),
+        ...(metadata?.usage ? { usage: metadata.usage } : {}),
         ...(metadata?.estimatedCostUsd !== undefined ? { estimatedCostUsd: metadata.estimatedCostUsd } : {}),
         ...(metadata?.actualCostUsd !== undefined ? { actualCostUsd: metadata.actualCostUsd } : {})
       });
@@ -491,16 +566,25 @@ export class AtlasCloudProvider implements ModelProvider {
     } catch (error) {
       const providerError = asProviderError(ATLAS_PROVIDER_NAME, error);
       const completedAt = now();
+      const metadata = currentLedgerMetadata?.() ?? {};
       this.ledger?.record({
         provider: ATLAS_PROVIDER_NAME,
         operation,
         requestedAt: startedAt,
         completedAt,
         latencyMs: elapsedMs(startedAt, completedAt),
-        status: providerError.code === "POLLING_TIMEOUT" ? "timeout" : "failed",
+        status: this.providerCallStatus(providerError, metadata.providerStatus),
         retryCount,
         ...(modelId ? { modelId } : {}),
-        ...(graphNodeId ? { graphNodeId } : {})
+        ...(graphNodeId ? { graphNodeId } : {}),
+        ...(metadata.predictionId ? { predictionId: metadata.predictionId } : {}),
+        ...(metadata.assetId ? { assetId: metadata.assetId } : {}),
+        ...(metadata.providerStatus ? { providerStatus: metadata.providerStatus } : {}),
+        ...(metadata.usage ? { usage: metadata.usage } : {}),
+        ...(metadata.estimatedCostUsd !== undefined ? { estimatedCostUsd: metadata.estimatedCostUsd } : {}),
+        ...(metadata.actualCostUsd !== undefined ? { actualCostUsd: metadata.actualCostUsd } : {}),
+        errorCode: providerError.code,
+        retryable: providerError.retryable
       });
       throw providerError;
     }
@@ -515,7 +599,15 @@ export class AtlasCloudProvider implements ModelProvider {
   private predictionLedgerMetadata(prediction: Prediction): LedgerMetadata {
     return {
       ...(prediction.predictionId !== "unknown" ? { predictionId: prediction.predictionId } : {}),
+      providerStatus: prediction.status,
       ...this.usageLedgerMetadata(prediction.usage)
+    };
+  }
+
+  private assetLedgerMetadata(asset: AssetRegistration): LedgerMetadata {
+    return {
+      ...(asset.assetId !== "unknown" ? { assetId: asset.assetId } : {}),
+      providerStatus: asset.status
     };
   }
 
@@ -523,13 +615,81 @@ export class AtlasCloudProvider implements ModelProvider {
     return this.usageLedgerMetadata(response.usage);
   }
 
-  private usageLedgerMetadata(usage: { readonly estimatedCostUsd?: number; readonly actualCostUsd?: number } | undefined): LedgerMetadata {
+  private usageLedgerMetadata(usage: ProviderUsage | undefined): LedgerMetadata {
     if (!usage) {
       return {};
     }
     return {
+      usage,
       ...(usage.estimatedCostUsd !== undefined ? { estimatedCostUsd: usage.estimatedCostUsd } : {}),
       ...(usage.actualCostUsd !== undefined ? { actualCostUsd: usage.actualCostUsd } : {})
     };
+  }
+
+  private providerCallStatus(
+    error: ProviderError,
+    providerStatus: PredictionStatus | AssetStatus | undefined
+  ): ProviderCallStatus {
+    if (providerStatus === "canceled" || error.code === "PREDICTION_CANCELED" || error.code === "REQUEST_ABORTED") {
+      return "canceled";
+    }
+    if (providerStatus === "timeout" || error.code === "POLLING_TIMEOUT" || error.code === "REQUEST_TIMEOUT") {
+      return "timeout";
+    }
+    if (error.code === "ASSET_NOT_ACTIVE" && error.retryable) {
+      return "timeout";
+    }
+    return "failed";
+  }
+
+  private requireKnownPredictionId(prediction: Prediction): Prediction {
+    if (prediction.predictionId !== "unknown") {
+      return prediction;
+    }
+    throw new ProviderError({
+      code: "INVALID_SCHEMA",
+      provider: ATLAS_PROVIDER_NAME,
+      message: "Atlas Cloud accepted a video generation request but did not return a prediction ID.",
+      details: prediction.raw
+    });
+  }
+
+  private async sleepForPolling(signal?: AbortSignal): Promise<void> {
+    try {
+      await sleep(this.settings.pollingIntervalMs, signal);
+    } catch (error) {
+      throw this.requestAbortedError(error);
+    }
+  }
+
+  private throwIfAborted(signal?: AbortSignal): void {
+    if (!signal?.aborted) {
+      return;
+    }
+    throw this.requestAbortedError(signal.reason);
+  }
+
+  private requestAbortedError(reason: unknown): ProviderError {
+    return new ProviderError({
+      code: "REQUEST_ABORTED",
+      provider: ATLAS_PROVIDER_NAME,
+      message: "Atlas Cloud polling was aborted.",
+      details: this.abortDetails(reason)
+    });
+  }
+
+  private abortDetails(reason: unknown): Record<string, string> | undefined {
+    if (reason instanceof Error) {
+      return {
+        name: reason.name,
+        message: redactText(reason.message)
+      };
+    }
+    if (typeof reason === "string" && reason.trim()) {
+      return {
+        message: redactText(reason)
+      };
+    }
+    return undefined;
   }
 }

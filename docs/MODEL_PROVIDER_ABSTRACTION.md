@@ -260,9 +260,14 @@ Every provider call records:
 - duration
 - resolution
 - prediction ID
+- asset ID when an Asset Library operation is involved
 - requested at
 - completed at
 - status
+- provider terminal status when known
+- provider error code when a call fails
+- retryable flag when a call fails
+- provider-returned usage metadata when available
 - estimated cost
 - actual cost when available
 - retry count
@@ -271,10 +276,13 @@ Every provider call records:
 Runtime implementation:
 
 - Atlas LLM chat entries record provider-returned estimated or actual cost when the response exposes usage pricing fields.
-- Atlas video submit and prediction polling entries record prediction IDs when available.
-- Atlas video entries also record provider-returned estimated or actual cost when prediction usage includes those fields.
+- Atlas video submit, get-prediction, and wait-prediction entries record prediction IDs when available.
+- Atlas Asset Library register/get/wait/delete entries record asset IDs when available.
+- Atlas video entries also record provider-returned usage, estimated cost, or actual cost when prediction usage includes those fields.
+- Atlas wait-prediction entries record terminal `succeeded`, `failed`, `canceled`, and `timeout` outcomes rather than hiding async job outcomes behind generic HTTP call status.
 - Atlas retryable LLM, video submit, prediction polling, and Asset Library HTTP calls record the actual number of retry attempts in the provider ledger.
 - Prediction polling accepts optional model and graph metadata context so long-form polling entries can be traced back to the originating shot.
+- Review packets summarize failed, timeout, and canceled provider operation counts from the ledger.
 
 This follows VibeFrame/OpenMontage cost-gate thinking and is required for commercial operation.
 

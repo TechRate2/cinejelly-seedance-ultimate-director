@@ -99,7 +99,8 @@ export class ReviewPacketBuilder {
       ...(actualTotalCostUsd !== undefined ? { actualTotalCostUsd } : {}),
       providerOperationCount: costLedger.length,
       failedProviderOperationCount: costLedger.filter((entry) => entry.status === "failed").length,
-      timeoutProviderOperationCount: costLedger.filter((entry) => entry.status === "timeout").length
+      timeoutProviderOperationCount: costLedger.filter((entry) => entry.status === "timeout").length,
+      canceledProviderOperationCount: costLedger.filter((entry) => entry.status === "canceled").length
     };
   }
 

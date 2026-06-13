@@ -210,13 +210,21 @@ export class AtlasCloudHttpClient {
   }
 
   private abortProviderError(reason: unknown): ProviderError {
+    const timeout = this.isTimeoutReason(reason);
     return new ProviderError({
-      code: "NETWORK_ERROR",
+      code: timeout ? "REQUEST_TIMEOUT" : "REQUEST_ABORTED",
       provider: "atlascloud",
-      retryable: true,
-      message: "Atlas Cloud request was aborted or timed out.",
+      retryable: timeout,
+      message: timeout ? "Atlas Cloud request timed out." : "Atlas Cloud request was aborted.",
       details: this.abortDetails(reason)
     });
+  }
+
+  private isTimeoutReason(reason: unknown): boolean {
+    if (reason instanceof Error) {
+      return /timed out|timeout/i.test(reason.message);
+    }
+    return typeof reason === "string" && /timed out|timeout/i.test(reason);
   }
 
   private abortDetails(reason: unknown): Record<string, string> | undefined {

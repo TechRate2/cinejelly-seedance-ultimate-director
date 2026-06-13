@@ -4,6 +4,7 @@
  */
 
 import type { AspectRatio, Resolution } from "./settings.js";
+import type { ProviderErrorCode } from "../utils/errors.js";
 
 export type ProviderName = "atlascloud" | (string & {});
 
@@ -37,6 +38,7 @@ export type PredictionStatus =
   | "timeout";
 
 export type AssetStatus = "pending" | "processing" | "active" | "failed" | "deleted";
+export type ProviderCallStatus = "succeeded" | "failed" | "timeout" | "canceled";
 
 export interface DurationRange {
   readonly min: number;
@@ -178,12 +180,17 @@ export interface CostLedgerEntry {
   readonly operation: string;
   readonly modelId?: string;
   readonly predictionId?: string;
+  readonly assetId?: string;
   readonly graphNodeId?: string;
   readonly requestedAt: Date;
   readonly completedAt?: Date;
   readonly latencyMs?: number;
-  readonly status: "succeeded" | "failed" | "timeout";
+  readonly status: ProviderCallStatus;
+  readonly providerStatus?: PredictionStatus | AssetStatus;
   readonly estimatedCostUsd?: number;
   readonly actualCostUsd?: number;
+  readonly usage?: ProviderUsage;
+  readonly errorCode?: ProviderErrorCode;
+  readonly retryable?: boolean;
   readonly retryCount: number;
 }

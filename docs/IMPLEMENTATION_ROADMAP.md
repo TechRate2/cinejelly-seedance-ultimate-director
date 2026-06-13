@@ -122,6 +122,8 @@ Milestone check:
 
 ## Phase 4: Provider Polling, Retry, And Cost Fidelity
 
+Status as of 2026-06-13: Reference Implementation drafted; provider-neutral ledger contracts, Atlas polling ledger entries, retry-code classification, timeout/abort normalization, and review-packet canceled-operation counts are implemented. `npm.cmd run typecheck` passed; build and final validation are still required before closing the phase.
+
 Target module:
 
 - `src/providers`

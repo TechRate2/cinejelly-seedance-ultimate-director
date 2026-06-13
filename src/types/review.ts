@@ -78,6 +78,7 @@ export interface ReviewPacketCost {
   readonly providerOperationCount: number;
   readonly failedProviderOperationCount: number;
   readonly timeoutProviderOperationCount: number;
+  readonly canceledProviderOperationCount: number;
 }
 
 export interface ReviewPacketDelivery {
