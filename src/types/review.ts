@@ -7,6 +7,7 @@ import type { DeliveryGateStatus } from "./delivery.js";
 import type { CostGateStatus } from "./cost.js";
 import type { GuardianStatus } from "./guardian.js";
 import type { QualityMode, Resolution, SpeedTier, AspectRatio } from "./settings.js";
+import type { SourceLicenseKind, SourceLogicValidationStatus, SourceRepositoryId } from "./source-translation.js";
 
 export type ReviewPacketStatus = "ready" | "review_required" | "blocked";
 
@@ -22,6 +23,7 @@ export interface ReviewPacket {
   readonly render: ReviewPacketRender;
   readonly cost: ReviewPacketCost;
   readonly delivery: ReviewPacketDelivery;
+  readonly sourceLineage: readonly ReviewPacketSourceLineage[];
   readonly recommendations: readonly string[];
 }
 
@@ -86,4 +88,14 @@ export interface ReviewPacketDelivery {
   readonly outputSha256?: string;
   readonly durationSeconds?: number;
   readonly resolution?: string;
+}
+
+export interface ReviewPacketSourceLineage {
+  readonly logicName: string;
+  readonly sourceRepository: SourceRepositoryId;
+  readonly license: SourceLicenseKind;
+  readonly validationStatus: SourceLogicValidationStatus;
+  readonly referenceImplementationPath?: string;
+  readonly attributionPath?: string;
+  readonly destinationPaths: readonly string[];
 }

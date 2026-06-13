@@ -138,6 +138,8 @@ export interface PromptCompilerInput {
   readonly settings: FlexibleSeedanceSettings;
   readonly modelId: string;
   readonly provider: "atlascloud";
+  readonly providerSupportedReferenceKinds?: readonly ReferenceKind[];
+  readonly maxProviderReferences?: number;
 }
 
 export interface CompiledPrompt {

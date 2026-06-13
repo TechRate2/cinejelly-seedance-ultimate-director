@@ -24,14 +24,13 @@ Ready foundations:
 Not yet complete:
 
 - Remaining per-logic Reference Implementations beyond Phase 1 Prompt Binding Plan.
-- Provider capability wiring into Prompt Binding Plan from live selected-provider capabilities.
 - Explicit ViMax-style reference selection scoring and bounded reference selection evidence.
 - Guardian repair-decision provenance with narrow repair scope in operator artifacts.
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe installed.
 
 ## Phase 1: Prompt Fidelity
 
-Current status as of 2026-06-13: foundation implemented and typechecked. The prompt compiler now creates a `PromptBindingPlan` before assembling prose, and Guardian preflight consumes binding conflicts before provider spend. Remaining Phase 1 work is to feed live provider capability references into the plan and add deeper operator evidence once real Atlas validation is run.
+Current status as of 2026-06-13: Phase 1 foundation implemented and typechecked. The prompt compiler now creates a `PromptBindingPlan` before assembling prose, receives selected-provider reference capability data from the render producer, filters provider references before request compilation, and Guardian preflight consumes binding conflicts before provider spend. Review packets include runtime source lineage for the translated Prompt Binding Plan behavior. Remaining evidence work is real Atlas validation with paid credentials.
 
 Target module:
 
@@ -51,7 +50,7 @@ Deliverables:
 - Done: Prompt compiler uses the binding plan before assembling prompt prose.
 - Done: Guardian preflight consumes binding conflicts for identity/product/source-video/audio-video edge cases.
 - Done in docs: source lineage recorded in `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`.
-- Remaining: runtime `SourceLogicTranslationLedger` seeding where this behavior needs to be emitted in operator artifacts.
+- Done in runtime: default `SourceLogicTranslationLedger` records seed Prompt Binding Plan lineage into review packet `sourceLineage`.
 
 Milestone check:
 

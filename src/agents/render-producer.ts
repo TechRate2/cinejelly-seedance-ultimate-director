@@ -6,7 +6,7 @@
 
 import type { AssetProvider, VideoProvider } from "../providers/contracts.js";
 import type { CompiledPrompt } from "../types/prompt.js";
-import type { Prediction, ProviderMetadata, ProviderReference } from "../types/provider.js";
+import type { Prediction, ProviderMetadata, ProviderReference, ReferenceKind } from "../types/provider.js";
 import { ProviderError } from "../utils/errors.js";
 import { ProviderCapabilityValidator } from "../providers/capability-validator.js";
 
@@ -53,6 +53,21 @@ export class RenderProducer {
       request: compiledPrompt.videoRequest,
       capabilities: this.videoProvider.capabilities(compiledPrompt.videoRequest.modelId)
     });
+  }
+
+  public supportedReferenceKinds(modelId: string): readonly ReferenceKind[] | undefined {
+    const capabilities = this.videoProvider.capabilities(modelId).filter((capability) => capability.modelId === modelId);
+    if (capabilities.length === 0) {
+      return undefined;
+    }
+
+    const referenceKinds = new Set<ReferenceKind>();
+    for (const capability of capabilities) {
+      for (const reference of capability.references) {
+        referenceKinds.add(reference);
+      }
+    }
+    return [...referenceKinds].sort((left, right) => left.localeCompare(right));
   }
 
   private async prepareReferences(compiledPrompt: CompiledPrompt, signal?: AbortSignal): Promise<CompiledPrompt> {

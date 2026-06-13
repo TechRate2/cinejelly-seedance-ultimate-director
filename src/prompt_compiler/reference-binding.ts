@@ -190,7 +190,7 @@ function providerDecision(input: {
     };
   }
 
-  if (input.supportedKinds && !input.supportedKinds.has(input.reference.providerReference.kind)) {
+  if (input.supportedKinds && !isProviderSupportedReference(input.reference, input.supportedKinds)) {
     conflicts.push(
       conflict({
         status: input.reference.priority === "primary" ? "repair" : "warn",
@@ -228,6 +228,36 @@ function providerDecision(input: {
     include: true,
     conflicts
   };
+}
+
+function isProviderSupportedReference(
+  reference: PromptReference,
+  supportedKinds: ReadonlySet<ReferenceKind>
+): boolean {
+  if (supportedKinds.has(reference.providerReference.kind)) {
+    return true;
+  }
+  const roleKind = referenceRoleAsReferenceKind(reference.role);
+  return roleKind ? supportedKinds.has(roleKind) : false;
+}
+
+function referenceRoleAsReferenceKind(role: ReferenceRole): ReferenceKind | undefined {
+  switch (role) {
+    case "identity":
+    case "product":
+    case "environment":
+    case "motion":
+    case "camera":
+    case "style":
+    case "first_frame":
+    case "last_frame":
+      return role;
+    case "wardrobe":
+    case "audio_tempo":
+    case "voice":
+    case "source_video_structure":
+      return undefined;
+  }
 }
 
 function riskConflicts(

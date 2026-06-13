@@ -116,6 +116,7 @@ export class DirectorAgent {
       throw new Error(this.describeStoryboardBlock(storyboardPreflight));
     }
     const modelId = resolveSeedanceModelId(intake.settings, this.atlasSettings);
+    const providerSupportedReferenceKinds = this.renderProducer.supportedReferenceKinds(modelId);
     const productionGraph = this.productionGraphBuilder.build({
       intake,
       storyPlan,
@@ -128,7 +129,8 @@ export class DirectorAgent {
         shot,
         settings: intake.settings,
         modelId,
-        provider: "atlascloud"
+        provider: "atlascloud",
+        ...(providerSupportedReferenceKinds ? { providerSupportedReferenceKinds } : {})
       })
     );
     if (compiledPrompts.length === 0) {

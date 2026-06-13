@@ -20,7 +20,11 @@ export class SeedancePromptCompiler {
   public compile(input: PromptCompilerInput): CompiledPrompt {
     const bindingPlan = buildPromptBindingPlan({
       references: input.shot.references,
-      risks: input.shot.risks
+      risks: input.shot.risks,
+      ...(input.providerSupportedReferenceKinds
+        ? { providerSupportedReferenceKinds: input.providerSupportedReferenceKinds }
+        : {}),
+      ...(input.maxProviderReferences !== undefined ? { maxProviderReferences: input.maxProviderReferences } : {})
     });
     const prompt = this.buildPrompt(input.shot, bindingPlan);
     const negativePrompt = buildNegativePrompt(input.shot);
@@ -28,7 +32,7 @@ export class SeedancePromptCompiler {
     const videoRequest = {
       provider: input.provider,
       modelId: input.modelId,
-      mode: this.resolveMode(input.shot),
+      mode: this.resolveMode(bindingPlan),
       prompt,
       negativePrompt,
       references,
@@ -128,8 +132,14 @@ export class SeedancePromptCompiler {
     return [...expectations];
   }
 
-  private resolveMode(shot: ShotContract): ProviderMode {
-    const roles = new Set(shot.references.map((reference) => reference.role));
+  private resolveMode(bindingPlan: PromptBindingPlan): ProviderMode {
+    const roles = new Set<string>();
+    for (const reference of bindingPlan.providerReferences) {
+      roles.add(reference.kind);
+      if (reference.role) {
+        roles.add(reference.role);
+      }
+    }
     if (roles.has("motion") || roles.has("audio_tempo") || roles.has("style")) {
       return "reference_to_video";
     }

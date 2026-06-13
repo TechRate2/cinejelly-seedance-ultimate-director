@@ -11,14 +11,18 @@ import type {
   ReviewPacketCost,
   ReviewPacketDelivery,
   ReviewPacketRender,
+  ReviewPacketSourceLineage,
   ReviewPacketStatus
 } from "../types/review.js";
+import type { SourceLogicTranslationRecord } from "../types/source-translation.js";
 import type { SourceVideoDeconstruction } from "../types/source-video.js";
+import { DEFAULT_SOURCE_LOGIC_TRANSLATION_RECORDS } from "./source-logic-translation-records.js";
 
 export class ReviewPacketBuilder {
   public build(input: {
     readonly result: DirectorRunResult;
     readonly costLedger: readonly CostLedgerEntry[];
+    readonly sourceLogicTranslations?: readonly SourceLogicTranslationRecord[];
   }): ReviewPacket {
     const requestId = this.requestIdFromGraph(input.result);
     const cost = this.cost(input.result, input.costLedger);
@@ -58,6 +62,7 @@ export class ReviewPacketBuilder {
       render: this.render(input.result),
       cost,
       delivery,
+      sourceLineage: this.sourceLineage(input.sourceLogicTranslations ?? DEFAULT_SOURCE_LOGIC_TRANSLATION_RECORDS),
       recommendations: this.recommendations(input.result, status)
     };
   }
@@ -109,6 +114,20 @@ export class ReviewPacketBuilder {
         : {}),
       ...(videoStream?.width && videoStream.height ? { resolution: `${videoStream.width}x${videoStream.height}` } : {})
     };
+  }
+
+  private sourceLineage(records: readonly SourceLogicTranslationRecord[]): readonly ReviewPacketSourceLineage[] {
+    return records.map((record) => ({
+      logicName: record.logicName,
+      sourceRepository: record.sourceRepository,
+      license: record.license,
+      validationStatus: record.validationStatus,
+      ...(record.referenceImplementationPath
+        ? { referenceImplementationPath: record.referenceImplementationPath }
+        : {}),
+      ...(record.attributionPath ? { attributionPath: record.attributionPath } : {}),
+      destinationPaths: record.cineJellyDestinationPaths
+    }));
   }
 
   private status(

@@ -4,6 +4,8 @@
 
 This is a non-production Reference Implementation for Phase 1: Prompt Fidelity. It must not be imported by runtime code. Its job is to preserve upstream behavior decisions before CineJelly rewrites them into owned TypeScript under `src/`.
 
+Implementation status as of 2026-06-13: CineJelly-owned production code now emits `PromptBindingPlan`, filters provider references with selected-provider capability data when available, routes binding conflicts into Guardian preflight, and emits default source lineage through review packet `sourceLineage`.
+
 ## Upstream Sources
 
 | Source | Snapshot path | License | Behavior used |
@@ -30,6 +32,7 @@ This is a non-production Reference Implementation for Phase 1: Prompt Fidelity. 
 - Duplicate exact reference: keep the first deterministic occurrence and record a duplicate conflict.
 - Multiple references with the same role: keep deterministic order and preserve primary before supporting.
 - Unsupported provider reference kind: keep it in sorted references and role scopes, drop it from provider references, and record the provider filter reason.
+- Provider capability match: treat a reference as supported when either its provider `kind` or its role-equivalent reference kind is supported by the selected provider.
 - Too many references: keep the sorted list in the plan, pass only the bounded provider references, and record each overflow item.
 - `source_video_structure`: retain as planning/prose guidance, filter from provider references by default, and record an informational conflict.
 - Face risk without identity reference: record a repair conflict before render spend.
@@ -268,6 +271,9 @@ function buildPromptBindingPlan(input: {
 - `src/types/prompt.ts`
 - `src/prompt_compiler/reference-binding.ts`
 - `src/prompt_compiler/prompt-compiler.ts`
+- `src/core/source-logic-translation-records.ts`
+- `src/core/review-packet-builder.ts`
+- `src/types/review.ts`
 - `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`
 - `docs/IMPLEMENTATION_ROADMAP.md`
 
@@ -277,5 +283,7 @@ function buildPromptBindingPlan(input: {
 - Verify `source_video_structure` appears in sorted references and prompt lines but not provider references by default.
 - Verify overflow drops lower-priority/later-sorted provider references after identity/product/endpoint anchors.
 - Verify face/product-logo risks produce repair conflicts when references are missing.
+- Verify selected-provider reference capabilities are passed into `PromptBindingPlan` before provider request compilation.
+- Verify review packet `sourceLineage` includes the Prompt Reference Binding Plan records.
 - Verify `npm.cmd run typecheck` passes after the CineJelly rewrite.
 - Verify no production runtime import points to `external/upstream/`.

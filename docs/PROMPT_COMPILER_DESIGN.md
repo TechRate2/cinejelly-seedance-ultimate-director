@@ -47,6 +47,7 @@ The compiler writes:
 
 - `provider_prompt`: Seedance-ready natural language prompt.
 - `reference_payload`: images, videos, audio, first frame, last frame, or asset references.
+- `prompt_binding_plan`: sorted references, role scopes, provider-filtered references, conflicts, compression notes, and reference lines created before prompt prose.
 - `negative_constraints`: short list of quality and safety constraints.
 - `provider_params`: duration, resolution, ratio, audio generation, watermark, return last frame, and quality fields supported by the selected schema.
 - `inspection_expectations`: checklist for Consistency Guardian.
@@ -105,18 +106,19 @@ Extension based on the Emily2040/seedance-2.0 and YouMind snapshots:
 ## Compilation Pipeline
 
 1. Normalize the shot contract.
-2. Validate settings against provider capability.
-3. Classify reference roles.
-4. Decide prompt density based on quality mode.
-5. Build continuity clause.
-6. Build action and camera clause.
-7. Build lighting/style clause.
-8. Build audio clause.
-9. Build transition handle clause.
-10. Build optional material/search-term brief for stock, local, or reference sourcing.
-11. Build short negative constraints.
-12. Run safety and contradiction checks.
-13. Emit provider request and inspection expectations.
+2. Read selected-provider reference capabilities when available.
+3. Build `PromptBindingPlan`: sort role-scoped references, filter unsupported provider references, record conflicts, and preserve compression notes.
+4. Validate settings against provider capability.
+5. Decide prompt density based on quality mode.
+6. Build continuity clause.
+7. Build action and camera clause.
+8. Build lighting/style clause.
+9. Build audio clause.
+10. Build transition handle clause.
+11. Build optional material/search-term brief for stock, local, or reference sourcing.
+12. Build short negative constraints.
+13. Run safety and contradiction checks.
+14. Emit provider request and inspection expectations.
 
 ## Reference Binding Rules
 
@@ -135,6 +137,8 @@ Rules:
 - Audio references are attached to rhythm, lip-sync, cuts, or ambience.
 - First and last frames are treated as endpoint constraints.
 - If source limits conflict across articles, runtime provider schema wins.
+- `source_video_structure` remains planning/prose guidance by default and is not sent as a provider reference unless supported by the selected provider capability.
+- Binding conflicts are emitted to Consistency Guardian preflight before provider spend.
 
 ## Identity vs Motion Weighting
 
