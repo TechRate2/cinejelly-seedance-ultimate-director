@@ -83,6 +83,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Extends validation/cost/report discipline into a generated-audio provider contract boundary that fails safely before spend when no verified audio capability is configured.
   - Extends validation-before-spend discipline into a generated-audio execution planner that records ready and blocked intent counts before provider calls.
   - Extends validation-before-release discipline into generated-audio output validation so provider results must pass safe URL, duration, and identity checks before mixing.
+  - Extends deterministic release reporting into generated-audio output batch validation so ready intents, provider results, duplicate results, missing results, and approved tracks remain explicit before mixing.
   - Extends artifact-resolution discipline into generated-audio asset resolution so reviewed `asset://` outputs must map to credential-free HTTPS before mixing.
   - Extends preflight/report discipline into a generated-audio asset resolution catalog so operator-owned resolver entries are validated before customer traffic.
 
@@ -137,6 +138,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Uses provider-menu, music-plan, and sample-before-batch concepts as AGPL-aware behavior notes for the generated-audio provider contract; implementation remains CineJelly-owned TypeScript.
   - Uses provider-preference and approval concepts as AGPL-aware behavior notes for generated-audio execution planning; no OpenMontage runtime code is copied, linked, imported, or executed.
   - Uses media-review and sample-before-batch concepts as AGPL-aware behavior notes for generated-audio output validation; implementation remains CineJelly-owned TypeScript.
+  - Uses sample-before-batch approval concepts as AGPL-aware behavior notes for generated-audio output batch validation; implementation remains CineJelly-owned TypeScript.
   - Uses approval and media-review concepts as AGPL-aware behavior notes for generated-audio asset resolution; OpenMontage implementation code is not copied, linked, imported, or executed.
   - Uses approval concepts as AGPL-aware behavior notes for generated-audio asset resolution catalog preflight; OpenMontage implementation code is not copied, linked, imported, or executed.
 
@@ -164,6 +166,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds bounded generated-audio intent planning for narration, BGM, ambience, and SFX so MoneyPrinterTurbo-style voice/BGM stage inputs become CineJelly-owned planned-only evidence, admission controls, review-packet fields, stage lifecycle fields, and artifact-validation checks before any provider-backed generation module is built.
   - Adds a generated-audio execution planner that maps bounded intents to provider-neutral requests only when verified capabilities exist, preserving blocked provider/kind/duration/output-format evidence without provider spend.
   - Adds generated-audio output validation so prepared provider results must be matched to the original intent and pass duration plus credential-free URL checks before becoming audio mix tracks.
+  - Adds generated-audio output batch validation so provider result sets are reconciled against ready execution-plan items in deterministic order before approved tracks are exposed to the mix layer.
   - Adds generated-audio asset resolution so approved `asset://` generated-audio outputs can become mix tracks only after clean HTTPS mapping, identity binding, and approval checks pass.
   - Adds generated-audio asset resolution catalog preflight so operator-owned `asset://` to HTTPS mappings are validated before runtime use.
   - Adds provider-neutral generated-audio capability/request/result contracts inspired by MoneyPrinterTurbo's explicit audio stage and `/audio` stop-at behavior, while keeping actual provider execution disabled until verified schemas and paid validation exist.

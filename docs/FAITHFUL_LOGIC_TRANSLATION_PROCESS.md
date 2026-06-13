@@ -123,7 +123,7 @@ Do not create CineJelly-owned test, mock, demo, sample, or example files in prod
 
 These examples are intentionally non-production Reference Implementations. They show the level of detail expected before changing behavior-critical code in `src/`.
 
-Additional focused Reference Implementations may live under `docs/reference-implementations/` when they are too specific for this process overview. Current examples include provider polling/retry/cost fidelity, long-form batch workflow, material source adapters, render-job progress telemetry, API artifact validation evidence, source-video auto analysis, postproduction asset orchestration, generated-audio intent planning, generated-audio execution planning, generated-audio output validation, generated-audio asset resolution, generated-audio asset resolution catalog preflight, generated-audio provider execution contracts, and media tool binary resolution.
+Additional focused Reference Implementations may live under `docs/reference-implementations/` when they are too specific for this process overview. Current examples include provider polling/retry/cost fidelity, long-form batch workflow, material source adapters, render-job progress telemetry, API artifact validation evidence, source-video auto analysis, postproduction asset orchestration, generated-audio intent planning, generated-audio execution planning, generated-audio output validation, generated-audio output batch validation, generated-audio asset resolution, generated-audio asset resolution catalog preflight, generated-audio provider execution contracts, and media tool binary resolution.
 
 ## Example 1: Reference Binding + Prompt Ordering
 

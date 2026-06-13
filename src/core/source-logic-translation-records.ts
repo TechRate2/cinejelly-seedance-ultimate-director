@@ -1647,6 +1647,102 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Generated Audio Output Batch Validation",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/services/voice.py",
+      "external/upstream/moneyprinterturbo/app/services/video.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "generated-audio stage outputs are reconciled with task intent before final composition",
+      "missing or duplicate generated-audio artifacts remain operator-visible",
+      "final composition consumes prepared audio assets in deterministic plan order"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo task/audio batching code is not copied or executed",
+      "CineJelly reconciles provider-neutral AudioGenerationResult batches against GeneratedAudioExecutionPlan items",
+      "ready intents require exactly one matching result before an AudioMixTrack can be approved",
+      "blocked-intent and unexpected results are rejected as batch issues instead of entering the mix"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-output-batch-validation.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-output.ts",
+      "src/core/generated-audio-output-batch-validator.ts",
+      "src/core/generated-audio-output-validator.ts",
+      "src/index.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "actual provider-backed generated-audio execution remains pending verified provider schema and paid validation",
+      "future integration must persist batch reports into run artifacts before release claims"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Output Batch Validation",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "generated artifacts must be validated as a release report before final use",
+      "partial readiness remains explicit instead of being treated as full success",
+      "deterministic artifact status is available before expensive or release-sensitive work"
+    ],
+    behaviorChanged: [
+      "VibeFrame report discipline is rewritten into CineJelly generated-audio batch validation reports",
+      "batch validation performs no provider calls, downloads, or media inspection",
+      "approved track output remains separate from rejected, duplicate, missing, or review-required evidence"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-output-batch-validation.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-output.ts",
+      "src/core/generated-audio-output-batch-validator.ts",
+      "docs/IMPLEMENTATION_ROADMAP.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "artifact validation must later cross-check persisted batch reports after real provider execution"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Generated Audio Output Batch Validation",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/AGENT_GUIDE.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "sample-before-batch and approval concepts inform generated-media batch boundaries",
+      "unapproved or unresolved generated output should not silently enter final assembly",
+      "partial generated-media readiness remains inspectable"
+    ],
+    behaviorChanged: [
+      "OpenMontage implementation code is not copied, linked, imported, or executed",
+      "AGPL-sensitive approval concepts remain behavior notes only",
+      "CineJelly-owned batch validation rejects unsafe or unexpected provider result sets without using OpenMontage runtime"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-output-batch-validation.md",
+    cineJellyDestinationPaths: [
+      "src/types/generated-audio-output.ts",
+      "src/core/generated-audio-output-batch-validator.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "future approval UX must keep AGPL material at behavior-note level unless legal/product obligations are accepted"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Generated Audio Asset Resolution",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
     snapshotPath: "external/upstream/moneyprinterturbo",

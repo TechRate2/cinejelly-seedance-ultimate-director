@@ -38,6 +38,7 @@ export * from "./core/continuity-ledger-builder.js";
 export * from "./core/delivery-gate.js";
 export * from "./core/generated-audio-execution-planner.js";
 export * from "./core/generated-audio-asset-resolver.js";
+export * from "./core/generated-audio-output-batch-validator.js";
 export * from "./core/generated-audio-output-validator.js";
 export * from "./core/local-material-library-adapter.js";
 export * from "./core/material-sourcing-planner.js";

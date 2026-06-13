@@ -48,3 +48,44 @@ export interface GeneratedAudioOutputValidationReport {
   readonly issues: readonly GeneratedAudioOutputValidationIssue[];
   readonly audioTrack?: AudioMixTrack;
 }
+
+export type GeneratedAudioOutputBatchValidationStatus =
+  | "not_requested"
+  | "approved"
+  | "review_required"
+  | "partially_approved"
+  | "rejected";
+
+export type GeneratedAudioOutputBatchValidationIssueCode =
+  | "duplicate_intent"
+  | "duplicate_planned_item"
+  | "missing_intent"
+  | "missing_planned_result"
+  | "duplicate_result"
+  | "unexpected_result"
+  | "result_for_blocked_intent";
+
+export interface GeneratedAudioOutputBatchValidationIssue {
+  readonly code: GeneratedAudioOutputBatchValidationIssueCode;
+  readonly severity: GeneratedAudioOutputValidationSeverity;
+  readonly intentId: string;
+  readonly message: string;
+  readonly repair: string;
+}
+
+export interface GeneratedAudioOutputValidationBatchReport {
+  readonly status: GeneratedAudioOutputBatchValidationStatus;
+  readonly intentCount: number;
+  readonly readyIntentCount: number;
+  readonly resultCount: number;
+  readonly approvedTrackCount: number;
+  readonly reviewRequiredReportCount: number;
+  readonly rejectedReportCount: number;
+  readonly missingResultCount: number;
+  readonly unexpectedResultCount: number;
+  readonly duplicateResultCount: number;
+  readonly issueCount: number;
+  readonly issues: readonly GeneratedAudioOutputBatchValidationIssue[];
+  readonly reports: readonly GeneratedAudioOutputValidationReport[];
+  readonly audioTracks: readonly AudioMixTrack[];
+}
