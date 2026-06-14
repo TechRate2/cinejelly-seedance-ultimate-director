@@ -4,17 +4,20 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 ## Current Readiness
 
-As of 2026-06-13T20:35:59.712Z (2026-06-14 Asia/Saigon), the TypeScript foundation builds, the local preflight command runs, and `npm.cmd run validation:readiness` plus `GET /v1/validation-readiness` can produce a redacted Phase 6 readiness report. The latest recorded local paid-render validation smoke had 54 readiness checks: 46 pass, 1 warn, and 7 fail, then exited with `blocked_by_readiness` before provider spend; an earlier HTTP readiness route returned `503` with the same blocked decision. It remained blocked because the workstation did not have Atlas Cloud credentials, verified model IDs, API auth token, FFmpeg, or FFprobe configured through `PATH` or explicit media tool paths.
+As of 2026-06-14T06:35:46.912Z, the current local workstation passes `npm.cmd run setup:local`, `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run preflight`, and `npm.cmd run validation:readiness`. The latest local readiness report has 55 checks: 54 pass, 1 warn, and 0 fail, with decision `review_warnings`. Atlas keys, model IDs, API auth token, output directory, and explicit FFmpeg/FFprobe executable paths are present in the ignored local `.env`. The remaining warning is `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`; the runtime can fall back to documented defaults, but the warning must be reviewed before paid provider work.
+
+The API has also been started locally from `dist/api/server.js` with `.env` loading, and `GET /health` plus protected `GET /v1/validation-readiness` returned healthy warning-only readiness. A no-spend `npm.cmd run validation:render-request -- --request <request-json>` validation succeeded for a valid 15-second operator request. Paid Atlas render validation has not been run, so this repo is still not approved for customer traffic.
 
 The repo also provides `npm.cmd run validation:render-request -- --request <request-json>` as a no-spend request validator and `npm.cmd run validation:paid-render -- --request <request-json>` as a readiness-gated paid-render validation runner. Request validation checks the operator-owned JSON payload through the same admission and output-root normalization used by API render paths, but it does not initialize providers, run readiness, call Atlas, or write render artifacts. Paid-render validation stops before provider spend when readiness is blocked, requires `--allow-warnings` before continuing from warning readiness, writes success or failure artifacts, validates them, and emits a redacted operator report. It does not replace manual artifact and media review.
 
-Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected.
+Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected. Do not run `validation:paid-render` unless the operator has explicitly accepted any readiness warnings and approved Atlas credit spend for that run.
 
 ## Required Environment
 
 Configure secrets and provider IDs through environment variables only:
 
 - `ATLASCLOUD_API_KEY`
+- `ATLASCLOUD_LLM_API_KEY` when the deployment uses a separate Atlas key for LLM calls
 - `ATLASCLOUD_LLM_MODEL`
 - `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`
 - `ATLASCLOUD_SEEDANCE_FAST_MODEL`
@@ -113,12 +116,14 @@ Run:
 npm.cmd start
 ```
 
+The default API port is `8787`. If `PORT` is configured, replace `8787` in the commands below with that value.
+
 Check health and readiness from another terminal:
 
 ```powershell
-Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000/health"
-Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000/v1/preflight"
-Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000/v1/validation-readiness"
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8787/health"
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8787/v1/preflight"
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8787/v1/validation-readiness"
 ```
 
 For protected endpoints, send either:
@@ -180,14 +185,14 @@ $body = @{
   artifactDirectory = "phase6-validation/artifacts"
 } | ConvertTo-Json -Depth 12
 
-$submit = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:3000/v1/render-jobs" -Headers $headers -Body $body
+$submit = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8787/v1/render-jobs" -Headers $headers -Body $body
 $submit
 ```
 
 Poll until terminal:
 
 ```powershell
-Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3000$($submit.statusUrl)" -Headers @{
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8787$($submit.statusUrl)" -Headers @{
   "Authorization" = "Bearer $env:CINEJELLY_API_AUTH_TOKEN"
 }
 ```
