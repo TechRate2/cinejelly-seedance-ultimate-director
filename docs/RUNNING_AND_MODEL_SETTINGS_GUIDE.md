@@ -195,6 +195,14 @@ npm.cmd run validation:render-request -- --request "assets/output_deliverables/p
 
 `validation:create-request` writes only a local JSON request under `assets/output_deliverables`, which is ignored by Git. It does not call Atlas, create providers, write render artifacts, or include secrets. Replace `--safe-default` with `--user-input "..."` or `--user-input-file <path>` for an operator-owned brief.
 
+To run the full local no-spend gate in one command:
+
+```powershell
+npm.cmd run validation:local-smoke
+```
+
+This creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, calls `/health`, and calls `/v1/validation-readiness`. It still does not run paid Atlas rendering.
+
 ## API Endpoints
 
 | Endpoint | Method | Purpose |

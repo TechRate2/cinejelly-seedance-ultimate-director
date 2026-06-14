@@ -68,10 +68,19 @@ Run:
 
 ```powershell
 npm.cmd install
+npm.cmd run validation:local-smoke
+```
+
+The local smoke creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, and checks `/health` plus `/v1/validation-readiness`. It does not call Atlas rendering or write render artifacts.
+
+If running the gates manually instead, run:
+
+```powershell
 npm.cmd run typecheck
 npm.cmd run build
 npm.cmd run preflight
-npm.cmd run validation:render-request -- --request "phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
+npm.cmd run validation:create-request -- --safe-default
+npm.cmd run validation:render-request -- --request "assets/output_deliverables/phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
 npm.cmd run validation:readiness
 ```
 

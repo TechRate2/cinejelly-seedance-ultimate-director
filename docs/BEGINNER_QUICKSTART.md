@@ -159,6 +159,14 @@ npm.cmd run validation:create-request -- --safe-default
 npm.cmd run validation:render-request -- --request "assets/output_deliverables/phase6-validation/request.json"
 ```
 
+Or run the full local no-spend smoke:
+
+```powershell
+npm.cmd run validation:local-smoke
+```
+
+This creates the safe request, runs typecheck/build/readiness/request validation, starts a temporary API if needed, and checks `/health` plus `/v1/validation-readiness`.
+
 For your own brief:
 
 ```powershell
