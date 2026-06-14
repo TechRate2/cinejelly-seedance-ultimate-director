@@ -71,7 +71,7 @@ These percentages describe roadmap foundation readiness, not full upstream parit
 
 1. No paid Atlas render validation has been completed with real credentials and verified model IDs.
 2. No real artifact review has been completed from a successful paid Atlas validation run.
-3. No live deployment proof exists for FFmpeg and FFprobe through `PATH` or configured binary paths.
+3. Local FFmpeg and FFprobe preflight proof now exists through configured binary paths on the current machine, but production deployment hosts must repeat this check.
 4. No real 2 to 8 minute long-form render has been validated end to end.
 5. No live source-video auto-analysis has been validated with real source videos and the configured Atlas multimodal LLM.
 6. No live remote stock provider validation has been completed with real Pexels, Pixabay, or approved Coverr credentials.
@@ -93,7 +93,7 @@ The important distinction:
 
 ## Recommended Next Order
 
-1. Prepare the Phase 6 validation environment: Atlas API key, LLM model ID, Seedance Standard/Fast model IDs, API auth token, output directory, FFmpeg, FFprobe, and reviewed Seedance capability JSON.
+1. Prepare or verify the Phase 6 validation environment: Atlas API key, LLM model ID, Seedance Standard/Fast model IDs, API auth token, output directory, FFmpeg, FFprobe, and reviewed Seedance capability JSON.
 2. Run no-spend request validation with an operator-owned short request:
    `npm.cmd run validation:render-request -- --request <request-json>`
 3. Run deployment preflight and validation readiness:
