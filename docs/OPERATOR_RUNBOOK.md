@@ -148,6 +148,14 @@ Use a short, safe, non-sensitive request. Keep the first paid run small:
 Recommended CLI path:
 
 ```powershell
+npm.cmd run validation:create-request -- --safe-default
+npm.cmd run validation:render-request -- --request "assets/output_deliverables/phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
+npm.cmd run validation:paid-render -- --request "assets/output_deliverables/phase6-validation/request.json" --output "phase6-validation/paid-render-report.json"
+```
+
+If you already maintain an operator-owned request file, pass that file instead:
+
+```powershell
 npm.cmd run validation:render-request -- --request "phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
 npm.cmd run validation:paid-render -- --request "phase6-validation/request.json" --output "phase6-validation/paid-render-report.json"
 ```

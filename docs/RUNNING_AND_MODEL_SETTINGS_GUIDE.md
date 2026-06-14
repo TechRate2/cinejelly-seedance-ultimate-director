@@ -184,6 +184,17 @@ npm.cmd run start
 Invoke-RestMethod http://localhost:8787/health
 ```
 
+## Create And Validate A Request File
+
+Use this before any paid provider run:
+
+```powershell
+npm.cmd run validation:create-request -- --safe-default
+npm.cmd run validation:render-request -- --request "assets/output_deliverables/phase6-validation/request.json"
+```
+
+`validation:create-request` writes only a local JSON request under `assets/output_deliverables`, which is ignored by Git. It does not call Atlas, create providers, write render artifacts, or include secrets. Replace `--safe-default` with `--user-input "..."` or `--user-input-file <path>` for an operator-owned brief.
+
 ## API Endpoints
 
 | Endpoint | Method | Purpose |

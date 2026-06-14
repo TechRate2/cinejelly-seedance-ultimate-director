@@ -149,3 +149,20 @@ Invoke-RestMethod http://localhost:8787/v1/validation-readiness
 ```
 
 For paid render validation, follow `docs/OPERATOR_RUNBOOK.md`. Do not open customer traffic until paid render validation, artifact validation, artifact inspection, and redaction review are complete.
+
+## Create A Safe Validation Request
+
+Before spending Atlas credits, create a local request file and validate it without provider calls:
+
+```powershell
+npm.cmd run validation:create-request -- --safe-default
+npm.cmd run validation:render-request -- --request "assets/output_deliverables/phase6-validation/request.json"
+```
+
+For your own brief:
+
+```powershell
+npm.cmd run validation:create-request -- --user-input "Create a short premium commercial for a fictional product with no customer data."
+```
+
+The generated request file is stored under `assets/output_deliverables`, which is ignored by Git. It contains no API keys and does not call Atlas.
