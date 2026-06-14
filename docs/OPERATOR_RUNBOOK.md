@@ -104,6 +104,14 @@ The readiness report is a pre-paid gate only. It must not be used as release app
 
 The request-validation report is a request-contract gate only. It proves the supplied JSON can pass CineJelly admission and path normalization; it does not prove provider readiness, media-tool readiness, prompt quality, or render success.
 
+The release audit is the final no-spend gate. It is expected to return `blocked` before paid validation has produced evidence:
+
+```powershell
+npm.cmd run validation:release-audit
+```
+
+It reads the local smoke report, paid-render report, artifact validation summary, git cleanliness, ignored `.env`/output paths, tracked secret scan, and external import boundary. It does not call Atlas or inspect video quality. Treat a non-zero exit as expected until paid render evidence and manual review prerequisites exist.
+
 Hard blockers:
 
 - Missing Atlas key or model IDs.
@@ -279,6 +287,27 @@ Required evidence:
 - Per-job API `artifactValidation` omits server-local `artifactDirectory` and `manifestPath`; it should expose status, manifest file name, counts, and checks only.
 - `npm.cmd run validate:artifacts -- <artifact-directory>` passes or any warning is explicitly reviewed.
 
+## Release Audit
+
+After paid validation and artifact validation, run:
+
+```powershell
+npm.cmd run validation:release-audit -- --paid-report "phase6-validation/paid-render-report.json" --output "phase6-validation/release-audit-report.json"
+```
+
+Pass criteria:
+
+- status is `release_ready`
+- local smoke evidence is `pass`
+- paid-render validation status is `completed`, or warnings are explicitly reviewed before release
+- paid artifact validation status is `pass`, or warnings are explicitly reviewed before release
+- tracked worktree is clean
+- `.env` and generated output paths are ignored by Git
+- tracked secret scan has no findings
+- no `src/` or `scripts/` file imports from `external/upstream`
+
+This audit is not a substitute for watching the rendered video and reviewing artifacts. It proves release evidence exists and source hygiene is clean; the operator still approves media quality and redaction.
+
 ## Redaction And Safety Checklist
 
 Before marking the validation run acceptable:
@@ -318,5 +347,6 @@ CineJelly is ready for limited customer traffic only when:
 - The retained job detail has `artifactValidationStatus=pass`, or any `warn` is explicitly reviewed and no `fail` remains.
 - Material source validation is either `planned_only` for generated-only runs or `approved`/explicitly reviewed for runs using adapter candidates.
 - Redaction checklist passes.
+- `npm.cmd run validation:release-audit` is `release_ready`, or any warning is explicitly reviewed and recorded.
 - Remaining warnings are documented in `docs/PROJECT_CONTEXT.md`.
 - The run date, environment notes, and remaining blockers are recorded in `docs/IMPLEMENTATION_ROADMAP.md`.

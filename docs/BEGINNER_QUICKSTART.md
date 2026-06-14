@@ -153,6 +153,14 @@ Invoke-RestMethod http://localhost:8787/v1/validation-readiness
 
 For paid render validation, follow `docs/OPERATOR_RUNBOOK.md`. Do not open customer traffic until paid render validation, artifact validation, artifact inspection, and redaction review are complete.
 
+To check the final release gate without spending credits:
+
+```powershell
+npm.cmd run validation:release-audit
+```
+
+This will stay `blocked` until paid render evidence exists. That is normal before the first approved Atlas validation render.
+
 ## Create A Safe Validation Request
 
 Before spending Atlas credits, create a local request file and validate it without provider calls:

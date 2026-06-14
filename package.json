@@ -25,6 +25,7 @@
     "validation:readiness": "npm run build && node --env-file-if-exists=.env dist/application/validation-readiness-entrypoint.js",
     "validation:create-request": "node scripts/create-validation-request.mjs",
     "validation:local-smoke": "node scripts/run-local-validation-smoke.mjs",
+    "validation:release-audit": "node scripts/run-release-audit.mjs",
     "validation:render-request": "npm run build && node --env-file-if-exists=.env dist/application/render-request-validation-entrypoint.js",
     "validation:paid-render": "npm run build && node --env-file-if-exists=.env dist/application/paid-render-validation-entrypoint.js",
     "validate:artifacts": "npm run build && node --env-file-if-exists=.env dist/application/artifact-validation-entrypoint.js",

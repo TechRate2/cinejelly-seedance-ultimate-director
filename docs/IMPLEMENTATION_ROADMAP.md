@@ -22,7 +22,7 @@ Ready foundations:
 - Consistency Guardian preflight, storyboard checks, render checks, candidate selection hooks, and repair-only rerender orchestration.
 - Source translation ledger and redacted logging foundation.
 - Reference Implementations and CineJelly-owned rewrites for Phase 1-5 foundations, Source Video Auto Analysis Adapter, Render Job Stage Progress Telemetry, API Artifact Validation Evidence, Material Source Adapter Validation, Local Material Library Adapter, Remote Stock Material Adapter, Postproduction Asset Orchestration, Generated Audio Intent Planning, Generated Audio Execution Planner, Generated Audio Provider Execution Runner, Generated Audio Output Validation, Generated Audio Output Batch Validation, Generated Audio Batch Artifact Evidence, Generated Audio Asset Resolution, Generated Audio Asset Resolution Catalog, Generated Audio Provider Execution Contract, Phase 6 Validation Readiness Report, Phase 6 Render Request Validation Contract, Phase 6 Paid Render Validation Runner, and Media Tool Binary Resolution.
-- Operator validation readiness through `npm.cmd run doctor`, `npm.cmd run validation:readiness`, `GET /v1/validation-readiness`, safe request creation through `npm.cmd run validation:create-request`, one-command no-spend local smoke evidence through `npm.cmd run validation:local-smoke`, no-spend render request validation through `npm.cmd run validation:render-request -- --request <request-json>`, readiness-gated paid render validation through `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend`, API-visible synchronous/async artifact validation, and artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for setup gaps, pre-paid blockers, request-contract issues, manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, and redaction checks.
+- Operator validation readiness through `npm.cmd run doctor`, `npm.cmd run validation:readiness`, `GET /v1/validation-readiness`, safe request creation through `npm.cmd run validation:create-request`, one-command no-spend local smoke evidence through `npm.cmd run validation:local-smoke`, no-spend render request validation through `npm.cmd run validation:render-request -- --request <request-json>`, readiness-gated paid render validation through `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend`, release hygiene audit through `npm.cmd run validation:release-audit`, API-visible synchronous/async artifact validation, and artifact validation through `npm.cmd run validate:artifacts -- <artifact-directory>` for setup gaps, pre-paid blockers, request-contract issues, manifest integrity, required artifacts, stage lifecycle, material rights briefs, cost ledger shape, deliverable metadata, redaction checks, and customer-release blockers.
 
 Not yet complete:
 
@@ -272,6 +272,7 @@ Deliverables:
 - Run one paid Atlas render using `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend` with a short safe input and non-sensitive references; pass `--allow-warnings` only after intentionally accepting readiness warnings.
 - Run `npm.cmd run validate:artifacts -- <artifact-directory>` on generated success or failure artifacts.
 - Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, and deliverable metadata.
+- Run `npm.cmd run validation:release-audit` and archive the release-audit report with validation evidence.
 - Update `docs/PROJECT_CONTEXT.md` with actual validation date and remaining blockers.
 - Maintain `docs/OPERATOR_RUNBOOK.md` as the authoritative execution checklist for preflight, paid validation, artifact inspection, redaction review, and release decision.
 
@@ -282,6 +283,7 @@ Milestone check:
 - Validation readiness report decision is `ready_for_paid_validation`, or warnings are explicitly reviewed before paid rendering.
 - Render request validation passes before paid rendering and does not initialize providers, call Atlas, or write render artifacts.
 - Paid render validation runner blocks provider spend when readiness is `blocked`, requires explicit warning acknowledgement, and emits a redacted operator report after artifact validation.
+- Release audit remains blocked until local smoke, paid-render evidence, artifact validation, source hygiene, ignored secret/output paths, tracked secret scan, and import-boundary checks pass.
 - API response does not expose local paths, secrets, signed URLs, raw stack traces, or inline base64 media.
 - Artifacts are redacted and include integrity hashes.
 - Artifact validator passes or warnings are explicitly reviewed before release.

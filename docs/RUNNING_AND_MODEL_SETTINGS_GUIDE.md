@@ -220,6 +220,14 @@ npm.cmd run doctor
 
 `doctor` runs setup first and then runs the same no-spend validation smoke.
 
+To check whether the repo is actually ready for customer release, run:
+
+```powershell
+npm.cmd run validation:release-audit
+```
+
+This is stricter than `doctor`. It reads local smoke evidence, paid-render evidence, artifact validation summary, git hygiene, ignored secret/output paths, tracked secret scan, and external import boundaries. It does not call Atlas. Before paid validation exists, `blocked` and exit code `1` are expected.
+
 ## API Endpoints
 
 | Endpoint | Method | Purpose |
