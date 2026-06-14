@@ -50,6 +50,7 @@ export class AtlasCloudProvider implements ModelProvider {
 
   private readonly settings: AtlasCloudRuntimeSettings;
   private readonly http: AtlasCloudHttpClient;
+  private readonly llmHttp: AtlasCloudHttpClient;
   private readonly ledger: CostLedger | undefined;
 
   public constructor(settings: AtlasCloudRuntimeSettings, ledger?: CostLedger) {
@@ -60,6 +61,13 @@ export class AtlasCloudProvider implements ModelProvider {
       timeoutMs: settings.requestTimeoutMs,
       maxJsonResponseBytes: settings.maxJsonResponseBytes
     });
+    this.llmHttp = settings.llmApiKey
+      ? new AtlasCloudHttpClient({
+          apiKey: settings.llmApiKey,
+          timeoutMs: settings.requestTimeoutMs,
+          maxJsonResponseBytes: settings.maxJsonResponseBytes
+        })
+      : this.http;
   }
 
   public capabilities(modelId?: string): readonly ProviderCapability[] {
@@ -104,7 +112,7 @@ export class AtlasCloudProvider implements ModelProvider {
       startedAt,
       async (recordRetry) => {
         const response = await withRetry(
-          () => this.http.postJson<unknown>(this.url(this.settings.apiBaseUrl, "/chat/completions"), payload, signal),
+          () => this.llmHttp.postJson<unknown>(this.url(this.settings.apiBaseUrl, "/chat/completions"), payload, signal),
           DEFAULT_RETRY_POLICY,
           signal,
           recordRetry

@@ -162,6 +162,7 @@ Required environment variables:
 Optional environment variables:
 
 - `PORT`
+- `ATLASCLOUD_LLM_API_KEY`
 - `ATLASCLOUD_API_BASE_URL`
 - `ATLASCLOUD_ASSET_BASE_URL`
 - `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`

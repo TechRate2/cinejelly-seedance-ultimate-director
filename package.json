@@ -18,12 +18,12 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json",
-    "preflight": "npm run build && node dist/application/preflight-entrypoint.js",
-    "validation:readiness": "npm run build && node dist/application/validation-readiness-entrypoint.js",
-    "validation:render-request": "npm run build && node dist/application/render-request-validation-entrypoint.js",
-    "validation:paid-render": "npm run build && node dist/application/paid-render-validation-entrypoint.js",
-    "validate:artifacts": "npm run build && node dist/application/artifact-validation-entrypoint.js",
-    "start": "node dist/api/server.js"
+    "preflight": "npm run build && node --env-file-if-exists=.env dist/application/preflight-entrypoint.js",
+    "validation:readiness": "npm run build && node --env-file-if-exists=.env dist/application/validation-readiness-entrypoint.js",
+    "validation:render-request": "npm run build && node --env-file-if-exists=.env dist/application/render-request-validation-entrypoint.js",
+    "validation:paid-render": "npm run build && node --env-file-if-exists=.env dist/application/paid-render-validation-entrypoint.js",
+    "validate:artifacts": "npm run build && node --env-file-if-exists=.env dist/application/artifact-validation-entrypoint.js",
+    "start": "node --env-file-if-exists=.env dist/api/server.js"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

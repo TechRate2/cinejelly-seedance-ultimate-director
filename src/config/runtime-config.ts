@@ -113,8 +113,10 @@ function optionalBooleanEnv(name: string, env: NodeJS.ProcessEnv, fallback = fal
 
 export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): AtlasCloudRuntimeSettings {
   const seedanceCapabilities = parseCapabilitiesEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
+  const llmApiKey = optionalStringEnv("ATLASCLOUD_LLM_API_KEY", env);
   return {
     apiKey: requireEnv("ATLASCLOUD_API_KEY", env),
+    ...(llmApiKey ? { llmApiKey } : {}),
     apiBaseUrl: optionalHttpsUrlEnv("ATLASCLOUD_API_BASE_URL", env, DEFAULT_ATLAS_API_BASE_URL),
     assetBaseUrl: optionalHttpsUrlEnv("ATLASCLOUD_ASSET_BASE_URL", env, DEFAULT_ATLAS_ASSET_BASE_URL),
     models: {

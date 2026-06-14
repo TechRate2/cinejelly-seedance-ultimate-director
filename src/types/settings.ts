@@ -44,6 +44,7 @@ export interface ProviderModelSettings {
 
 export interface AtlasCloudRuntimeSettings {
   readonly apiKey: string;
+  readonly llmApiKey?: string;
   readonly apiBaseUrl: string;
   readonly assetBaseUrl: string;
   readonly models: ProviderModelSettings;

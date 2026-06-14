@@ -210,7 +210,8 @@ Important:
 
 Environment:
 
-- `ATLASCLOUD_API_KEY`: required for both LLM and Seedance rendering.
+- `ATLASCLOUD_API_KEY`: required for Seedance rendering, Asset Library operations, and LLM calls when no separate LLM key is configured.
+- `ATLASCLOUD_LLM_API_KEY`: optional separate Atlas Cloud key for OpenAI-compatible LLM calls. If absent, the provider uses `ATLASCLOUD_API_KEY` for LLM calls.
 
 LLM:
 

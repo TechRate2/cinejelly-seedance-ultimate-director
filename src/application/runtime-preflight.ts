@@ -35,6 +35,7 @@ export class RuntimePreflight {
   public async run(signal?: AbortSignal): Promise<RuntimePreflightReport> {
     const checks: PreflightCheck[] = [
       this.present("ATLASCLOUD_API_KEY", this.env.ATLASCLOUD_API_KEY),
+      this.optionalSecret("ATLASCLOUD_LLM_API_KEY", this.env.ATLASCLOUD_LLM_API_KEY),
       this.present("ATLASCLOUD_LLM_MODEL", this.env.ATLASCLOUD_LLM_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
@@ -325,6 +326,12 @@ export class RuntimePreflight {
     return value?.trim()
       ? { name, status: "pass", message: `${name} is configured.` }
       : { name, status: "fail", message: `${name} is missing.` };
+  }
+
+  private optionalSecret(name: string, value: string | undefined): PreflightCheck {
+    return value?.trim()
+      ? { name, status: "pass", message: `${name} is configured.` }
+      : { name, status: "pass", message: `${name} is not set; shared Atlas API key will be used.` };
   }
 
   private apiAuthCheck(): PreflightCheck {
