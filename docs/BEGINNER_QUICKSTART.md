@@ -166,6 +166,7 @@ npm.cmd run validation:local-smoke
 ```
 
 This creates the safe request, runs typecheck/build/readiness/request validation, starts a temporary API if needed, and checks `/health` plus `/v1/validation-readiness`.
+It also writes `assets/output_deliverables/phase6-validation/local-smoke-report.json` as a local evidence report. That folder is ignored by Git.
 
 For your own brief:
 

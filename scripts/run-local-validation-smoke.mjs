@@ -1,10 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRequestPath = "assets/output_deliverables/phase6-validation/request.json";
+const defaultReportPath = "assets/output_deliverables/phase6-validation/local-smoke-report.json";
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 function npmInvocation(args) {
@@ -26,8 +27,10 @@ function npmInvocation(args) {
 function parseArgs(args) {
   const options = {
     requestPath: defaultRequestPath,
+    reportPath: defaultReportPath,
     createRequest: true,
-    apiSmoke: true
+    apiSmoke: true,
+    writeReport: true
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -46,6 +49,19 @@ function parseArgs(args) {
     }
     if (arg === "--no-create-request") {
       options.createRequest = false;
+      continue;
+    }
+    if (arg === "--report") {
+      options.reportPath = readRequiredValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--report=")) {
+      options.reportPath = arg.slice("--report=".length);
+      continue;
+    }
+    if (arg === "--no-report") {
+      options.writeReport = false;
       continue;
     }
     if (arg === "--skip-api-smoke") {
@@ -79,7 +95,9 @@ Usage:
 
 Options:
   --request <path>       Request path to create and validate. Default: ${defaultRequestPath}
+  --report <path>        Local smoke report path. Default: ${defaultReportPath}
   --no-create-request    Validate an existing request instead of creating the safe default.
+  --no-report            Do not write a local smoke report.
   --skip-api-smoke       Skip starting the local API and checking diagnostic readiness.
 
 This command does not call Atlas render, run paid validation, create providers for rendering, or write render artifacts.`);
@@ -87,6 +105,8 @@ This command does not call Atlas render, run paid validation, create providers f
 
 async function runCommand(label, command, args, shell = false) {
   console.log(`\n[local-smoke] ${label}`);
+  const startedAt = new Date();
+  const startedAtMs = Date.now();
   await new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(command, args, {
       cwd: repoRoot,
@@ -102,11 +122,18 @@ async function runCommand(label, command, args, shell = false) {
       rejectPromise(new Error(`${label} failed with exit code ${code ?? "unknown"}.`));
     });
   });
+  return {
+    label,
+    status: "pass",
+    startedAt: startedAt.toISOString(),
+    finishedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAtMs
+  };
 }
 
 async function runNpm(label, args) {
   const invocation = npmInvocation(args);
-  await runCommand(label, invocation.command, invocation.args, invocation.shell);
+  return runCommand(label, invocation.command, invocation.args, invocation.shell);
 }
 
 function readEnvFile() {
@@ -173,17 +200,21 @@ async function waitForHealth(baseUrl, timeoutMs = 30_000) {
 
 async function runApiSmoke() {
   console.log("\n[local-smoke] API diagnostic smoke");
+  const startedAt = new Date();
+  const startedAtMs = Date.now();
   const envValues = readEnvFile();
   const port = apiPort(envValues);
   const baseUrl = `http://127.0.0.1:${port}`;
   const token = envValues.get("CINEJELLY_API_AUTH_TOKEN") || process.env.CINEJELLY_API_AUTH_TOKEN;
 
   let ownedServer;
+  let serverMode = "existing";
   try {
     try {
       await fetchJson(`${baseUrl}/health`);
       console.log(`[local-smoke] Using existing API server on ${baseUrl}.`);
     } catch {
+      serverMode = "temporary";
       ownedServer = spawn(process.execPath, ["--env-file-if-exists=.env", "dist/api/server.js"], {
         cwd: repoRoot,
         stdio: "ignore",
@@ -204,11 +235,37 @@ async function runApiSmoke() {
     console.log(
       `[local-smoke] API readiness: ${readiness.decision}; checks ${readiness.checkCounts?.pass ?? "?"}/${readiness.checkCounts?.total ?? "?"} pass.`
     );
+    return {
+      label: "API diagnostic smoke",
+      status: "pass",
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+      durationMs: Date.now() - startedAtMs,
+      serverMode,
+      baseUrl,
+      readiness: {
+        decision: readiness.decision,
+        checkCounts: readiness.checkCounts,
+        canRunPaidValidation: readiness.releaseGateSummary?.canRunPaidValidation === true,
+        canReleaseToCustomerTraffic: readiness.releaseGateSummary?.canReleaseToCustomerTraffic === true
+      }
+    };
   } finally {
     if (ownedServer && !ownedServer.killed) {
       ownedServer.kill();
     }
   }
+}
+
+function toRepoRelativePath(path) {
+  return relative(repoRoot, resolve(repoRoot, path));
+}
+
+function writeSmokeReport(reportPath, report) {
+  const absolutePath = resolve(repoRoot, reportPath);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  writeFileSync(absolutePath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  console.log(`[local-smoke] Wrote report: ${toRepoRelativePath(reportPath)}`);
 }
 
 async function main() {
@@ -218,30 +275,61 @@ async function main() {
     return;
   }
 
+  const startedAt = new Date();
+  const steps = [];
+  let apiSmoke;
+
   if (options.createRequest) {
-    await runNpm("Create safe validation request", [
+    steps.push(await runNpm("Create safe validation request", [
       "run",
       "validation:create-request",
       "--",
       "--safe-default",
       "--output",
       options.requestPath
-    ]);
+    ]));
   }
 
-  await runNpm("Typecheck", ["run", "typecheck"]);
-  await runNpm("Build", ["run", "build"]);
-  await runNpm("Validation readiness", ["run", "validation:readiness"]);
-  await runNpm("No-spend request validation", [
+  steps.push(await runNpm("Typecheck", ["run", "typecheck"]));
+  steps.push(await runNpm("Build", ["run", "build"]));
+  steps.push(await runNpm("Validation readiness", ["run", "validation:readiness"]));
+  steps.push(await runNpm("No-spend request validation", [
     "run",
     "validation:render-request",
     "--",
     "--request",
     options.requestPath
-  ]);
+  ]));
 
   if (options.apiSmoke) {
-    await runApiSmoke();
+    apiSmoke = await runApiSmoke();
+  }
+
+  const report = {
+    schemaVersion: "cinejelly.phase6.local-smoke.v1",
+    generatedAt: new Date().toISOString(),
+    status: "pass",
+    startedAt: startedAt.toISOString(),
+    finishedAt: new Date().toISOString(),
+    requestPath: toRepoRelativePath(options.requestPath),
+    createdRequest: options.createRequest,
+    apiSmokeEnabled: options.apiSmoke,
+    steps,
+    ...(apiSmoke ? { apiSmoke } : {}),
+    releaseGateSummary: {
+      canRunPaidValidation: apiSmoke?.readiness?.canRunPaidValidation === true,
+      canReleaseToCustomerTraffic: false,
+      releaseBlocker: "Paid Atlas render validation, artifact validation, artifact inspection, and manual redaction review are still required."
+    },
+    nextActions: [
+      "Run paid Atlas validation only after explicit operator approval.",
+      "Run npm.cmd run validation:paid-render -- --request <request-json> for the approved paid validation request.",
+      "Run npm.cmd run validate:artifacts -- <artifact-directory> after artifacts are written.",
+      "Complete manual artifact, video, and redaction review before customer traffic."
+    ]
+  };
+  if (options.writeReport) {
+    writeSmokeReport(options.reportPath, report);
   }
 
   console.log("\n[local-smoke] PASS. Paid Atlas render validation still requires explicit operator approval.");

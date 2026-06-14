@@ -202,6 +202,7 @@ npm.cmd run validation:local-smoke
 ```
 
 This creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, calls `/health`, and calls `/v1/validation-readiness`. It still does not run paid Atlas rendering.
+It writes `assets/output_deliverables/phase6-validation/local-smoke-report.json` as local pre-paid evidence. The report is ignored by Git and does not replace paid render validation, artifact validation, or manual media review.
 
 ## API Endpoints
 

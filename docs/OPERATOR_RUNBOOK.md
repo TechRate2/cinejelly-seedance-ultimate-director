@@ -71,7 +71,7 @@ npm.cmd install
 npm.cmd run validation:local-smoke
 ```
 
-The local smoke creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, and checks `/health` plus `/v1/validation-readiness`. It does not call Atlas rendering or write render artifacts.
+The local smoke creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, checks `/health` plus `/v1/validation-readiness`, and writes `assets/output_deliverables/phase6-validation/local-smoke-report.json`. It does not call Atlas rendering or write render artifacts. The local smoke report is pre-paid evidence only; it is not release approval.
 
 If running the gates manually instead, run:
 
