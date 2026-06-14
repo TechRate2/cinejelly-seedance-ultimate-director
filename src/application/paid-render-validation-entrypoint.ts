@@ -29,6 +29,7 @@ import { Phase6ValidationReadinessReporter } from "./validation-readiness-report
 type PaidRenderValidationStatus =
   | "blocked_by_readiness"
   | "blocked_by_readiness_warnings"
+  | "blocked_by_spend_confirmation"
   | "completed"
   | "completed_with_artifact_validation_warning"
   | "completed_with_artifact_validation_failure"
@@ -39,6 +40,7 @@ interface PaidRenderValidationCliOptions {
   readonly requestPath: string;
   readonly outputPath?: string;
   readonly allowWarnings: boolean;
+  readonly confirmPaidSpend: boolean;
 }
 
 interface PaidRenderValidationReport {
@@ -109,6 +111,18 @@ export async function runPaidRenderValidationCli(
         "Review readiness warnings.",
         "Rerun with --allow-warnings only when the operator accepts the warning state.",
         ...readiness.nextActions
+      ]
+    }), options);
+  }
+  if (!options.confirmPaidSpend) {
+    return emitReport(report({
+      status: "blocked_by_spend_confirmation",
+      readiness,
+      requestId: normalizedRequest.metadata?.requestId,
+      nextActions: [
+        "Review the request file, local smoke report, readiness report, expected Atlas credit spend, and operator approval.",
+        "Rerun with --confirm-paid-spend only after explicit approval to spend Atlas credits.",
+        "Do not use this flag for routine local smoke or request validation."
       ]
     }), options);
   }
@@ -188,6 +202,7 @@ function parseOptions(args: readonly string[]): PaidRenderValidationCliOptions {
   let requestPath: string | undefined;
   let outputPath: string | undefined;
   let allowWarnings = false;
+  let confirmPaidSpend = false;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -196,6 +211,10 @@ function parseOptions(args: readonly string[]): PaidRenderValidationCliOptions {
     }
     if (arg === "--allow-warnings") {
       allowWarnings = true;
+      continue;
+    }
+    if (arg === "--confirm-paid-spend") {
+      confirmPaidSpend = true;
       continue;
     }
     if (arg === "--request") {
@@ -221,13 +240,14 @@ function parseOptions(args: readonly string[]): PaidRenderValidationCliOptions {
 
   if (!requestPath) {
     throw new Error(
-      "Usage: npm.cmd run validation:paid-render -- --request <request-json-path> [--allow-warnings] [--output <report-path>]"
+      "Usage: npm.cmd run validation:paid-render -- --request <request-json-path> --confirm-paid-spend [--allow-warnings] [--output <report-path>]"
     );
   }
   return {
     requestPath,
     ...(outputPath ? { outputPath } : {}),
-    allowWarnings
+    allowWarnings,
+    confirmPaidSpend
   };
 }
 

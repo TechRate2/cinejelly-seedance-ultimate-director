@@ -1,6 +1,6 @@
 # Reference Implementation: Phase 6 Paid Render Validation Runner
 
-Implementation status as of 2026-06-14: drafted before production code. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The production runner must orchestrate an operator-supplied paid validation request through the existing CineJelly runtime only after readiness gates allow provider spend.
+Implementation status as of 2026-06-14: implemented as CineJelly-owned TypeScript in the paid-render validation CLI, shared render request normalization path, report schema, runbook, and source snapshot lineage. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The production runner must orchestrate an operator-supplied paid validation request through the existing CineJelly runtime only after readiness gates allow provider spend and the operator passes an explicit spend-confirmation flag.
 
 ## Upstream Sources
 
@@ -15,12 +15,13 @@ Implementation status as of 2026-06-14: drafted before production code. This Ref
 1. Paid validation must be explicit and operator-triggered. The runner never creates sample, mock, demo, or fake requests.
 2. Runtime readiness must be checked before provider spend. If readiness is `blocked`, the runner stops and returns the redacted readiness report.
 3. A warning readiness state can continue only when the operator passes an explicit `--allow-warnings` flag.
-4. The request JSON must pass the same admission and path-normalization boundary as `/v1/render`.
-5. Output, work, and artifact paths must remain inside `CINEJELLY_OUTPUT_DIR` or the default output root.
-6. Successful runs must write deterministic run artifacts and then run artifact validation immediately.
-7. Failed render pipelines after request normalization must still write failure artifacts, cost ledger evidence, and artifact validation results.
-8. Public CLI output must be redacted: no secrets, raw stack traces, inline media, unsafe URLs, or server-local absolute paths.
-9. The runner is a validation harness, not a release approval. Release still requires manual review of artifacts and paid output quality.
+4. Provider spend can continue only when the operator passes `--confirm-paid-spend`; missing confirmation returns `blocked_by_spend_confirmation` after request and readiness validation but before runtime creation.
+5. The request JSON must pass the same admission and path-normalization boundary as `/v1/render`.
+6. Output, work, and artifact paths must remain inside `CINEJELLY_OUTPUT_DIR` or the default output root.
+7. Successful runs must write deterministic run artifacts and then run artifact validation immediately.
+8. Failed render pipelines after request normalization must still write failure artifacts, cost ledger evidence, and artifact validation results.
+9. Public CLI output must be redacted: no secrets, raw stack traces, inline media, unsafe URLs, or server-local absolute paths.
+10. The runner is a validation harness, not a release approval. Release still requires manual review of artifacts and paid output quality.
 
 ## Edge Cases
 
@@ -29,6 +30,7 @@ Implementation status as of 2026-06-14: drafted before production code. This Ref
 - Request JSON starts with a UTF-8 BOM from Windows tooling: strip the BOM before parsing.
 - Readiness is `blocked`: return readiness decision, blockers, and next actions; do not create runtime or call Atlas.
 - Readiness is `review_warnings` without `--allow-warnings`: stop before spend and require operator acknowledgement.
+- Readiness allows paid validation but `--confirm-paid-spend` is missing: return `blocked_by_spend_confirmation`; do not create runtime or call Atlas.
 - The render succeeds but artifact validation fails: return `completed_with_artifact_validation_failure`.
 - The render fails after runtime creation: write failure artifacts with stack-free error message and validate those artifacts.
 - Artifact writing or artifact validation throws: return a stable failure report and keep any cost ledger already captured.
@@ -39,6 +41,7 @@ Implementation status as of 2026-06-14: drafted before production code. This Ref
 async function runPaidValidation(input: {
   requestPath: string;
   allowWarnings: boolean;
+  confirmPaidSpend: boolean;
   env: NodeJS.ProcessEnv;
 }): Promise<PaidValidationRunnerReport> {
   const body = readJson(input.requestPath);
@@ -54,6 +57,15 @@ async function runPaidValidation(input: {
   }
   if (readiness.decision === "review_warnings" && !input.allowWarnings) {
     return report("blocked_by_readiness_warnings", { readiness });
+  }
+  if (!input.confirmPaidSpend) {
+    return report("blocked_by_spend_confirmation", {
+      readiness,
+      nextActions: [
+        "Review the request, readiness, estimated Atlas credit spend, and operator approval.",
+        "Rerun with --confirm-paid-spend only after explicit approval."
+      ]
+    });
   }
 
   const runtime = createDirectorRuntime(input.env);
@@ -98,8 +110,8 @@ async function runPaidValidation(input: {
 ## CineJelly Translation Plan
 
 - Add a shared render-request normalizer so API and CLI enforce the same output-root path boundary.
-- Add a `runPaidRenderValidationCli` application entrypoint that accepts `--request <json>` and optional `--allow-warnings`.
-- Add `npm.cmd run validation:paid-render -- --request <request-json>` as the operator command.
+- Add a `runPaidRenderValidationCli` application entrypoint that accepts `--request <json>`, mandatory `--confirm-paid-spend` before runtime/provider spend, and optional `--allow-warnings`.
+- Add `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend` as the operator command.
 - Reuse `RuntimePreflight`, `Phase6ValidationReadinessReporter`, `createDirectorRuntime`, `ProjectArtifactStore`, and `ProjectArtifactValidator`.
 - Return redacted JSON only; do not expose local artifact paths in stdout.
 - Update roadmap, runbook, README, project context, credits, snapshot lineage, and runtime source-lineage records.
@@ -109,6 +121,7 @@ async function runPaidValidation(input: {
 - Reference Implementation exists before production code.
 - Runner exits before provider spend when readiness is `blocked`.
 - Runner requires explicit `--allow-warnings` before spending from `review_warnings`.
+- Runner requires explicit `--confirm-paid-spend` before runtime creation or provider spend.
 - Request JSON passes the same admission and output-root normalization as `/v1/render`.
 - Successful and failed render paths both write artifacts and run artifact validation.
 - CLI output is redacted for secrets, local paths, unsafe URLs, and stack traces.
@@ -119,4 +132,4 @@ Local validation on 2026-06-14:
 
 - `npm.cmd run typecheck` passed.
 - `npm.cmd run build` passed.
-- `npm.cmd run validation:paid-render -- --request <temp-request> --output <temp-report>` produced `blocked_by_readiness` with the current 54-check readiness report and stopped before runtime/provider spend because the local environment still lacks Atlas credentials, model IDs, API auth token, FFmpeg, and FFprobe.
+- `npm.cmd run validation:paid-render -- --request <safe-request> --output <missing-confirm-report>` produced `blocked_by_spend_confirmation` after readiness/request validation and stopped before runtime/provider spend because `--confirm-paid-spend` was intentionally omitted.

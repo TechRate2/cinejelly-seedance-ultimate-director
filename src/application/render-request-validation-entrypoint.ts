@@ -91,7 +91,7 @@ export async function validateRenderRequestFile(
       issues: [],
       nextActions: [
         "Run npm.cmd run validation:readiness.",
-        "Run npm.cmd run validation:paid-render -- --request <request-json> only when readiness allows paid validation."
+        "Run npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend only when readiness allows paid validation and the operator has approved Atlas credit spend."
       ]
     };
   } catch (error) {

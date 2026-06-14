@@ -8,9 +8,9 @@ As of 2026-06-14T06:48:36.159Z, the current local workstation passes `npm.cmd ru
 
 The API has also been started locally from `dist/api/server.js` with `.env` loading, and `GET /health` plus protected `GET /v1/validation-readiness` returned `ready_for_paid_validation`. A no-spend `npm.cmd run validation:render-request -- --request <request-json>` validation succeeded for a valid 15-second operator request. Paid Atlas render validation has not been run, so this repo is still not approved for customer traffic.
 
-The repo also provides `npm.cmd run validation:render-request -- --request <request-json>` as a no-spend request validator and `npm.cmd run validation:paid-render -- --request <request-json>` as a readiness-gated paid-render validation runner. Request validation checks the operator-owned JSON payload through the same admission and output-root normalization used by API render paths, but it does not initialize providers, run readiness, call Atlas, or write render artifacts. Paid-render validation stops before provider spend when readiness is blocked, requires `--allow-warnings` before continuing from warning readiness, writes success or failure artifacts, validates them, and emits a redacted operator report. It does not replace manual artifact and media review.
+The repo also provides `npm.cmd run validation:render-request -- --request <request-json>` as a no-spend request validator and `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend` as a readiness-gated paid-render validation runner. Request validation checks the operator-owned JSON payload through the same admission and output-root normalization used by API render paths, but it does not initialize providers, run readiness, call Atlas, or write render artifacts. Paid-render validation stops before provider spend when readiness is blocked, when readiness warnings are not explicitly accepted, or when `--confirm-paid-spend` is missing; it writes success or failure artifacts, validates them, and emits a redacted operator report. It does not replace manual artifact and media review.
 
-Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected. Do not run `validation:paid-render` unless the operator has explicitly accepted any readiness warnings and approved Atlas credit spend for that run.
+Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected. Do not run `validation:paid-render -- --confirm-paid-spend` unless the operator has explicitly accepted any readiness warnings and approved Atlas credit spend for that run.
 
 ## Required Environment
 
@@ -159,21 +159,21 @@ Recommended CLI path:
 ```powershell
 npm.cmd run validation:create-request -- --safe-default
 npm.cmd run validation:render-request -- --request "assets/output_deliverables/phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
-npm.cmd run validation:paid-render -- --request "assets/output_deliverables/phase6-validation/request.json" --output "phase6-validation/paid-render-report.json"
+npm.cmd run validation:paid-render -- --request "assets/output_deliverables/phase6-validation/request.json" --confirm-paid-spend --output "phase6-validation/paid-render-report.json"
 ```
 
 If you already maintain an operator-owned request file, pass that file instead:
 
 ```powershell
 npm.cmd run validation:render-request -- --request "phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
-npm.cmd run validation:paid-render -- --request "phase6-validation/request.json" --output "phase6-validation/paid-render-report.json"
+npm.cmd run validation:paid-render -- --request "phase6-validation/request.json" --confirm-paid-spend --output "phase6-validation/paid-render-report.json"
 ```
 
 If `npm.cmd run validation:readiness` returns `review_warnings`, use `--allow-warnings` only after explicitly accepting the warning state:
 
 ```powershell
 npm.cmd run validation:render-request -- --request "phase6-validation/request.json" --output "phase6-validation/request-validation-report.json"
-npm.cmd run validation:paid-render -- --request "phase6-validation/request.json" --allow-warnings --output "phase6-validation/paid-render-report.json"
+npm.cmd run validation:paid-render -- --request "phase6-validation/request.json" --confirm-paid-spend --allow-warnings --output "phase6-validation/paid-render-report.json"
 ```
 
 The request validator and paid-render validation runner use the same request admission and output-root path normalization as `/v1/render`. They do not create a request file for you; keep the request operator-owned, non-sensitive, and inside the release evidence folder. The request-validation output is a redacted contract summary; the paid-render runner output is a redacted execution summary and intentionally omits local artifact directories, so use the configured request paths and artifact manifest on disk for detailed manual inspection.

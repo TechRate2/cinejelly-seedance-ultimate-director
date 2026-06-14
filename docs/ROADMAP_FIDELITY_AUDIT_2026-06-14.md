@@ -104,7 +104,7 @@ The important distinction:
    `npm.cmd run preflight`
    `npm.cmd run validation:readiness`
 4. Run one short paid Atlas validation render:
-   `npm.cmd run validation:paid-render -- --request <request-json>`
+   `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend`
 5. Validate produced artifacts:
    `npm.cmd run validate:artifacts -- <artifact-directory>`
 6. Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, `stage-lifecycle.json`, `material-sourcing-plan.json`, and deliverable metadata.

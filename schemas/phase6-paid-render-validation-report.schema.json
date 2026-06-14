@@ -12,6 +12,7 @@
       "enum": [
         "blocked_by_readiness",
         "blocked_by_readiness_warnings",
+        "blocked_by_spend_confirmation",
         "completed",
         "completed_with_artifact_validation_warning",
         "completed_with_artifact_validation_failure",

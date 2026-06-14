@@ -263,7 +263,7 @@ async function main() {
   console.log(`Wrote validation request: ${relativeRequestPath}`);
   console.log(`No provider call was made.`);
   console.log(`Next no-spend check: npm.cmd run validation:render-request -- --request "${relativeRequestPath}"`);
-  console.log(`Paid validation only after approval: npm.cmd run validation:paid-render -- --request "${relativeRequestPath}"`);
+  console.log(`Paid validation only after approval: npm.cmd run validation:paid-render -- --request "${relativeRequestPath}" --confirm-paid-spend`);
 }
 
 main().catch((error) => {

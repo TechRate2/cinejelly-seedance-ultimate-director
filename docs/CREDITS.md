@@ -179,7 +179,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Adds generated-audio asset resolution catalog preflight so operator-owned `asset://` to HTTPS mappings are validated before runtime use.
   - Adds provider-neutral generated-audio capability/request/result contracts inspired by MoneyPrinterTurbo's explicit audio stage and `/audio` stop-at behavior, while keeping actual provider execution disabled until verified schemas and paid validation exist.
   - Adds a no-spend render request validation CLI inspired by one-input task schemas and operator-visible request review before long-running video work.
-  - Adds a paid-render validation CLI inspired by operator-visible task execution: readiness is checked before spend, one supplied request is run, success/failure artifacts are written, and artifact validation is summarized for manual release review.
+  - Adds a paid-render validation CLI inspired by operator-visible task execution: readiness is checked before spend, explicit spend confirmation is required, one supplied request is run, success/failure artifacts are written, and artifact validation is summarized for manual release review.
   - Remote stock source integrations are rewritten as opt-in CineJelly-owned adapters for Pexels, Pixabay, and commercially approved Coverr, with provider-specific licensing, attribution, credential handling, and validation required before release.
 
 ## Atlas Cloud References

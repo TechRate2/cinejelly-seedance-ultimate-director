@@ -1240,6 +1240,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     license: "MIT",
     behaviorPreserved: [
       "validate-before-spend gates paid render work",
+      "explicit spend confirmation blocks runtime creation before any provider call",
       "operator-visible reports preserve readiness, artifact validation, and next actions",
       "successful and failed runs emit deterministic artifacts before release review",
       "local runtime paths stay out of public validation output"
@@ -1275,12 +1276,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     license: "MIT",
     behaviorPreserved: [
       "one operator-supplied input drives a visible long-running validation task",
+      "operator approval is represented as an explicit CLI flag before paid execution",
       "terminal success or failure remains inspectable through generated artifacts",
       "cost ledger and artifact evidence remain available after render pipeline failure"
     ],
     behaviorChanged: [
       "MoneyPrinterTurbo task runtime code is not copied or executed",
-      "CineJelly blocks paid execution before runtime creation when readiness has hard blockers",
+      "CineJelly blocks paid execution before runtime creation when readiness has hard blockers or spend confirmation is missing",
       "the validation runner emits a redacted summary instead of exposing local artifact directories"
     ],
     referenceImplementationPath: "docs/reference-implementations/phase6-paid-render-validation-runner.md",
@@ -1308,6 +1310,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     license: "AGPL-3.0",
     behaviorPreserved: [
       "approval-gate and manual review concepts inform the release boundary",
+      "explicit spend confirmation is required before the paid validation run can create runtime/provider work",
       "paid validation does not equal release approval",
       "artifact/media inspection remains required after automated validation"
     ],

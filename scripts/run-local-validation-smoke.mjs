@@ -323,7 +323,7 @@ async function main() {
     },
     nextActions: [
       "Run paid Atlas validation only after explicit operator approval.",
-      "Run npm.cmd run validation:paid-render -- --request <request-json> for the approved paid validation request.",
+      "Run npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend only for the approved paid validation request.",
       "Run npm.cmd run validate:artifacts -- <artifact-directory> after artifacts are written.",
       "Complete manual artifact, video, and redaction review before customer traffic."
     ]
