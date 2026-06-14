@@ -13,6 +13,7 @@ The setup scripts can:
 - create or update local `.env`
 - generate `CINEJELLY_API_AUTH_TOKEN`
 - keep existing secret values without overwriting them
+- write documented Seedance capability assumptions for the configured Standard/Fast model IDs
 - create `assets/output_deliverables`
 - detect FFmpeg and FFprobe from `PATH`
 - detect FFmpeg and FFprobe installed through Windows winget package folders
@@ -110,6 +111,7 @@ ATLASCLOUD_SEEDANCE_FAST_MODEL=bytedance/seedance-2.0-fast/reference-to-video
 ```
 
 Verify the current model IDs in Atlas Cloud before customer release.
+`setup:local` also writes `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` using documented assumptions for these model IDs, which avoids local preflight warnings but still needs catalog verification before customer release.
 
 ## Settings Users Can Control
 

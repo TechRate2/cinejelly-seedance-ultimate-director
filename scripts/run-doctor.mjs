@@ -23,12 +23,13 @@ function npmInvocation(args) {
   };
 }
 
-async function runNpmStep(label, args) {
+async function runNpmStep(label, args, extraEnv = {}) {
   const invocation = npmInvocation(args);
   console.log(`\n[doctor] ${label}`);
   await new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(invocation.command, invocation.args, {
       cwd: repoRoot,
+      env: { ...process.env, ...extraEnv },
       stdio: "inherit",
       shell: invocation.shell
     });
@@ -73,7 +74,7 @@ async function main() {
   console.log("----------------");
   console.log("This command prepares local config and runs no-spend validation only.");
 
-  await runNpmStep("Setup local environment", ["run", "setup:local"]);
+  await runNpmStep("Setup local environment", ["run", "setup:local"], { CINEJELLY_RUNNING_DOCTOR: "true" });
   await runNpmStep("Run local no-spend smoke", ["run", "validation:local-smoke"]);
   printSmokeSummary();
 

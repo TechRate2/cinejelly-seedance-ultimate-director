@@ -140,6 +140,7 @@ Security rules:
 - never commit `.env` files
 - never commit or return API keys, provider tokens, private keys, signed URL credentials, or local credentials
 - keep provider model IDs and runtime capabilities in configuration, not hardcoded business logic
+- `setup:local` and `doctor` can write documented Seedance capability assumptions into `.env`; verify the current Atlas model catalog before customer release
 - keep generated deliverables and run artifacts inside `CINEJELLY_OUTPUT_DIR`
 - verify Atlas Cloud model schema before enabling customer-facing settings
 
@@ -216,7 +217,7 @@ Optional environment variables:
 - `COVERR_API_KEY`
 - `CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED`
 
-`ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` can be used in production to pin the exact verified Atlas Cloud Seedance model capabilities instead of relying on default documented capability assumptions.
+`ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` can be used in production to pin the exact verified Atlas Cloud Seedance model capabilities. `setup:local` writes documented default assumptions based on the configured Standard/Fast model IDs so local readiness is less fragile, but those assumptions still need Atlas catalog verification before customer release.
 Atlas endpoint overrides (`ATLASCLOUD_API_BASE_URL`, `ATLASCLOUD_ASSET_BASE_URL`) must be valid HTTPS URLs without embedded credentials, query strings, or fragments; insecure or credential-bearing protocols are rejected by runtime configuration and `/v1/preflight` before any provider request can use credentials.
 Numeric runtime environment values must be plain base-10 integer or decimal strings without units or suffixes; malformed deployment knobs fail runtime loading or `/v1/preflight` instead of being partially parsed.
 `PORT` must be a valid TCP port from 1 to 65535 when set; `npm run preflight` and startup enforce the same range.

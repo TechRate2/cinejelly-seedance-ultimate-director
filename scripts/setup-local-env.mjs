@@ -27,6 +27,16 @@ const REQUIRED_AFTER_SETUP = [
   "CINEJELLY_API_AUTH_TOKEN"
 ];
 
+const DEFAULT_SEEDANCE_CAPABILITY_BASE = {
+  provider: "atlascloud",
+  modes: ["text_to_video", "image_to_video", "reference_to_video", "video_to_video", "extend", "edit"],
+  durations: { min: 4, max: 15 },
+  resolutions: ["480p", "720p", "1080p"],
+  ratios: ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+  references: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"],
+  async: true
+};
+
 function readEnvFile() {
   if (!existsSync(envPath)) {
     return new Map();
@@ -58,6 +68,27 @@ function mergeDefaults(values) {
     const value = typeof valueOrFactory === "function" ? valueOrFactory() : valueOrFactory;
     values.set(key, value);
   }
+}
+
+function fillSeedanceCapabilities(values) {
+  const current = values.get("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON");
+  if (current && current.trim()) {
+    return "kept";
+  }
+  const standardModel = values.get("ATLASCLOUD_SEEDANCE_STANDARD_MODEL");
+  const fastModel = values.get("ATLASCLOUD_SEEDANCE_FAST_MODEL");
+  const modelIds = [standardModel, fastModel].filter((value) => value && value.trim());
+  if (modelIds.length === 0) {
+    return "missing_models";
+  }
+  values.set(
+    "ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON",
+    JSON.stringify(modelIds.map((modelId) => ({
+      ...DEFAULT_SEEDANCE_CAPABILITY_BASE,
+      modelId
+    })))
+  );
+  return "generated";
 }
 
 async function canExecute(path) {
@@ -167,12 +198,14 @@ function renderEnv(values) {
   return lines.join("\n");
 }
 
-function printSummary(values, mediaResults) {
+function printSummary(values, mediaResults, capabilityStatus) {
   const missingRequired = REQUIRED_AFTER_SETUP.filter((key) => !values.get(key)?.trim());
+  const runningDoctor = process.env.CINEJELLY_RUNNING_DOCTOR === "true";
   console.log("CineJelly local setup summary");
   console.log("--------------------------------");
   console.log(`.env: ${envPath}`);
   console.log(`Required values still missing: ${missingRequired.length ? missingRequired.join(", ") : "none"}`);
+  console.log(`ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON: ${capabilityStatus}`);
   for (const result of mediaResults) {
     console.log(`${result.envName}: ${result.status}${result.path ? " (configured)" : ""}`);
   }
@@ -180,16 +213,17 @@ function printSummary(values, mediaResults) {
   if (missingRequired.includes("ATLASCLOUD_API_KEY")) {
     console.log("Next: open .env and add your Atlas Cloud API key.");
   }
-  console.log("Then run: npm.cmd run preflight");
-  console.log("If preflight is warning-only, run: npm.cmd run validation:readiness");
+  console.log(runningDoctor ? "Next: doctor will continue with no-spend validation." : "Then run: npm.cmd run doctor");
+  console.log("Before customer release, verify model IDs and capability JSON against the current Atlas catalog.");
 }
 
 const values = readEnvFile();
 mergeDefaults(values);
+const capabilityStatus = fillSeedanceCapabilities(values);
 mkdirSync(join(repoRoot, outputDir), { recursive: true });
 const mediaResults = [
   await fillMediaTool(values, "CINEJELLY_FFMPEG_PATH", "ffmpeg"),
   await fillMediaTool(values, "CINEJELLY_FFPROBE_PATH", "ffprobe")
 ];
 writeFileSync(envPath, renderEnv(values), { encoding: "utf8" });
-printSummary(values, mediaResults);
+printSummary(values, mediaResults, capabilityStatus);

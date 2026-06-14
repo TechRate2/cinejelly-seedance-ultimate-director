@@ -110,7 +110,7 @@ Common useful options:
 | `CINEJELLY_OUTPUT_DIR` | Uses `assets/output_deliverables`. | Set when deployment storage should be elsewhere. |
 | `CINEJELLY_FFMPEG_PATH` | Uses `ffmpeg` from `PATH`. | Set when FFmpeg is installed but not on `PATH`. |
 | `CINEJELLY_FFPROBE_PATH` | Uses `ffprobe` from `PATH`. | Set when FFprobe is installed but not on `PATH`. |
-| `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` | Uses documented default capability assumptions and reports a warning. | Set after verifying current Atlas model schema for production. |
+| `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` | `setup:local` writes documented capability assumptions for the configured Standard/Fast model IDs. | Verify and update after checking the current Atlas model schema for production. |
 | `CINEJELLY_RENDER_COST_USD_PER_SECOND` | Cost gate uses only available configured rates. | Set when enforcing `settings.maxCostUsd`. |
 | `CINEJELLY_ASSET_REGISTRATION_COST_USD` | Asset registration cost may be omitted from estimates. | Set when Atlas Asset Library cost must be budgeted. |
 | `CINEJELLY_LLM_PLAN_COST_USD` | LLM planning cost may be omitted from estimates. | Set when planning cost must be budgeted. |
@@ -134,7 +134,7 @@ This checks Node/npm, installs npm dependencies when missing, attempts FFmpeg in
 npm.cmd run doctor
 ```
 
-This creates or updates local `.env`, keeps existing secrets, generates missing local defaults, detects FFmpeg/FFprobe when possible, creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, and prints a readiness summary. It does not call Atlas rendering or write render artifacts.
+This creates or updates local `.env`, keeps existing secrets, generates missing local defaults, writes documented Seedance capability assumptions when absent, detects FFmpeg/FFprobe when possible, creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, and prints a readiness summary. It does not call Atlas rendering or write render artifacts.
 
 3. For a universal setup-only pass after dependencies/tools are installed, run:
 
@@ -142,7 +142,7 @@ This creates or updates local `.env`, keeps existing secrets, generates missing 
 npm.cmd run setup:local
 ```
 
-This creates or updates local `.env`, generates `CINEJELLY_API_AUTH_TOKEN`, keeps existing secrets, fills default model IDs, creates the output directory, and detects FFmpeg/FFprobe when possible.
+This creates or updates local `.env`, generates `CINEJELLY_API_AUTH_TOKEN`, keeps existing secrets, fills default model IDs, writes documented Seedance capability assumptions when absent, creates the output directory, and detects FFmpeg/FFprobe when possible.
 
 4. Manual dependency install, if needed:
 
@@ -364,7 +364,7 @@ Install FFmpeg/FFprobe or set `CINEJELLY_FFMPEG_PATH` and `CINEJELLY_FFPROBE_PAT
 
 ### Preflight returns warning about `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`
 
-This means CineJelly is using documented default capability assumptions. Internal validation can proceed, but production release should pin verified capabilities from current Atlas schema inspection.
+Run `npm.cmd run setup:local` or `npm.cmd run doctor` to let CineJelly write documented capability assumptions for the configured Standard/Fast model IDs. Internal validation can proceed after that, but production release should still verify and update the capability JSON from current Atlas schema inspection.
 
 ### API returns unauthorized
 
