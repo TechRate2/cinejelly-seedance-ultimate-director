@@ -18,7 +18,7 @@ It is an owner-level readiness snapshot, not a customer-release certification. T
 - `external/upstream/`
 - `schemas/`
 
-This audit did not run live network provider calls, paid Atlas render jobs, remote stock provider calls, or real FFmpeg/FFprobe deployment validation.
+This audit did not run paid Atlas render jobs, remote stock provider calls, live source-video auto-analysis, or customer-facing deployment validation.
 
 ## Current Evidence Snapshot
 
@@ -28,6 +28,10 @@ This audit did not run live network provider calls, paid Atlas render jobs, remo
 - `docs/reference-implementations/` contains focused Reference Implementations for the major translated logic areas.
 - `src/core/source-logic-translation-records.ts` contains runtime lineage records for translated source logic.
 - `schemas/` contains operator-facing validation contracts for render requests and Phase 6 reports.
+- Local `.env` is ignored by Git and now contains Atlas keys, configured model IDs, API auth token, FFmpeg/FFprobe paths, output directory, and pinned Seedance capability records for local paid-validation readiness.
+- `npm.cmd run preflight` and `npm.cmd run validation:readiness` passed on 2026-06-14T06:48:36.159Z with 55 checks total: 55 pass, 0 warn, 0 fail, and decision `ready_for_paid_validation`.
+- A local API smoke verified `GET /health` as `ok` and protected `GET /v1/validation-readiness` as `ready_for_paid_validation`.
+- A no-spend 15-second render request validation passed CineJelly admission and output-root normalization.
 
 ## Overall Completion Estimate
 
@@ -36,9 +40,9 @@ These percentages describe roadmap foundation readiness, not full upstream parit
 | Area | Estimate | Meaning |
 | --- | ---: | --- |
 | Source-fidelity foundation | 78% | The core source-derived behaviors have Reference Implementations, CineJelly rewrites, lineage records, and local validation for many priority modules. |
-| Roadmap implementation foundation | 72% | The repo is past scaffolding and into Phase 6 validation hardening, but live provider evidence remains incomplete. |
-| Commercial runtime readiness | 68% | API, provider, graph, prompt, guardian, artifact, validation, and operator surfaces exist, but deployment/live-provider proof is still missing. |
-| Customer-release readiness | 35% | Real Atlas credentials, paid render evidence, artifact inspection, FFmpeg/FFprobe deployment proof, source-video validation, remote stock validation, and audio capability verification are still blockers. |
+| Roadmap implementation foundation | 76% | The repo is past scaffolding and into Phase 6 validation hardening, with local paid-validation readiness now clean. Live provider evidence remains incomplete. |
+| Commercial runtime readiness | 74% | API, provider, graph, prompt, guardian, artifact, validation, operator surfaces, local media-tool proof, and paid-validation readiness exist. Paid Atlas artifact evidence is still missing. |
+| Customer-release readiness | 42% | Paid render evidence, artifact inspection, source-video validation, remote stock validation, generated-audio capability verification, and production deployment validation are still blockers. |
 
 ## Phase Readiness
 
@@ -50,7 +54,7 @@ These percentages describe roadmap foundation readiness, not full upstream parit
 | Phase 3 Reference Selection and Source Video | 78% | Scoring, metadata enrichment, source-video-derived hints, and opt-in auto-analysis foundation exist. Live validation with real videos, FFmpeg, and Atlas multimodal LLM remains pending. |
 | Phase 4 Provider, Retry, Cost | 75% | Atlas polling, retry classification, timeout/abort normalization, redacted errors, and cost ledger exist. Paid terminal-state validation remains pending. |
 | Phase 5 Long-form, Materials, Postproduction, Generated Audio | 73% | Long-form planning, stage lifecycle, material sourcing, postproduction, generated-audio planning/execution boundaries, and artifact validation foundations exist. Real long-form Atlas render, live remote stock, and live generated-audio provider validation remain pending. |
-| Phase 6 Validation and Operator Gates | 70% | Readiness, no-spend request validation, paid-render validation runner, schemas, and artifact validation exist. Actual paid Atlas validation and artifact inspection remain pending. |
+| Phase 6 Validation and Operator Gates | 78% | Readiness, no-spend request validation, paid-render validation runner, schemas, artifact validation, local FFmpeg/FFprobe proof, API readiness, and pinned capability records exist. Actual paid Atlas validation and artifact inspection remain pending. |
 | API and runtime hardening | 80% | Auth, body limits, rate limiting, queue controls, redaction, request IDs, cancellation, artifact DTOs, and validation endpoints exist. Load/deployment validation remains pending. |
 | Release readiness | 35% | Not ready for customer traffic until live validation evidence is complete. |
 
@@ -69,7 +73,7 @@ These percentages describe roadmap foundation readiness, not full upstream parit
 
 ## Main Remaining Gaps
 
-1. No paid Atlas render validation has been completed with real credentials and verified model IDs.
+1. No paid Atlas render validation has been completed with the now-ready local environment.
 2. No real artifact review has been completed from a successful paid Atlas validation run.
 3. Local FFmpeg and FFprobe preflight proof now exists through configured binary paths on the current machine, but production deployment hosts must repeat this check.
 4. No real 2 to 8 minute long-form render has been validated end to end.
