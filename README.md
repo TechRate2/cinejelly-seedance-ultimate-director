@@ -120,6 +120,7 @@ cinejelly-seedance-ultimate-director/
 - `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`: source-to-product fidelity process for behavior-critical logic, including practical Reference Implementation examples.
 - `docs/IMPLEMENTATION_ROADMAP.md`: practical module-by-module roadmap for implemented fidelity phases and remaining provider validation.
 - `docs/ROADMAP_FIDELITY_AUDIT_2026-06-14.md`: owner-level audit of roadmap completion, subtree fidelity, remaining blockers, and next validation steps.
+- `docs/BEGINNER_QUICKSTART.md`: shortest setup path for non-specialist operators, including automation boundaries and clean-source checks.
 - `docs/RUNNING_AND_MODEL_SETTINGS_GUIDE.md`: practical install, environment, model, API, settings, and no-UI runtime guide.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive Seedance prompt compiler design.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph and chunking strategy.

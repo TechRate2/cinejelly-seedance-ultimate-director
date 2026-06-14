@@ -120,31 +120,47 @@ Common useful options:
 
 ## First Run Checklist
 
-1. Install dependencies:
+1. For a mostly automatic Windows setup, run:
+
+```powershell
+npm.cmd run setup:windows
+```
+
+This checks Node/npm, installs npm dependencies when missing, attempts FFmpeg installation through `winget`, creates or updates local `.env`, detects FFmpeg/FFprobe paths, and runs preflight.
+
+2. For a universal setup after dependencies/tools are installed, run:
+
+```powershell
+npm.cmd run setup:local
+```
+
+This creates or updates local `.env`, generates `CINEJELLY_API_AUTH_TOKEN`, keeps existing secrets, fills default model IDs, creates the output directory, and detects FFmpeg/FFprobe when possible.
+
+3. Manual dependency install, if needed:
 
 ```powershell
 npm install
 ```
 
-2. Create local `.env` from template and fill real values:
+4. Manual `.env` creation, if needed:
 
 ```powershell
 Copy-Item .env.production.template .env
 ```
 
-3. Check TypeScript:
+5. Check TypeScript:
 
 ```powershell
 npm.cmd run typecheck
 ```
 
-4. Build:
+6. Build:
 
 ```powershell
 npm.cmd run build
 ```
 
-5. Run preflight:
+7. Run preflight:
 
 ```powershell
 npm.cmd run preflight
@@ -156,13 +172,13 @@ Interpretation:
 - `status: "warn"` can be acceptable for internal validation if the only warning is missing `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`.
 - `status: "pass"` is the target for production readiness.
 
-6. Start API:
+8. Start API:
 
 ```powershell
 npm.cmd run start
 ```
 
-7. Check health:
+9. Check health:
 
 ```powershell
 Invoke-RestMethod http://localhost:8787/health
