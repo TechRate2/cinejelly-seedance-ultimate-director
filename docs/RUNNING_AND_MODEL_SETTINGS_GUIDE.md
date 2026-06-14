@@ -235,6 +235,7 @@ This is stricter than `doctor`. It reads local smoke evidence, paid-render evide
 | `/health` | GET | Public health check. |
 | `/v1/preflight` | GET | Runtime readiness report. |
 | `/v1/validation-readiness` | GET | Phase 6 release-readiness decision. |
+| `/v1/render-settings` | GET | Secret-free settings/model/capability descriptor for API clients and future UI controls. |
 | `/v1/render` | POST | Synchronous render. Better for short validation jobs. |
 | `/v1/render-jobs` | POST | Async render job submission. Better for long-form work. |
 | `/v1/render-jobs` | GET | List retained async jobs. |
@@ -256,6 +257,15 @@ X-CineJelly-Api-Key: <CINEJELLY_API_AUTH_TOKEN>
 ## User-Selectable Settings
 
 These are already supported by the API request body under `settings`. A future UI should expose them directly.
+
+API clients can fetch the currently documented option set from:
+
+```http
+GET /v1/render-settings
+Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>
+```
+
+The response intentionally contains no API keys or local paths. It reports defaults, supported setting values, duration and cost constraints, quality-mode behavior, selected model IDs, Seedance capability configuration source, and whether a first-party UI exists. Today the official control surface is still HTTP API plus CLI; a future UI should read this descriptor instead of duplicating option lists.
 
 | Setting | Options | What it controls |
 | --- | --- | --- |

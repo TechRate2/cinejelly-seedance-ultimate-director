@@ -4,6 +4,8 @@
 
 This document defines user-selectable Seedance settings for CineJelly while keeping provider-specific details behind the Model Provider Abstraction Layer.
 
+The runtime exposes the current option contract through `GET /v1/render-settings`. That endpoint is the preferred source for API clients and future UI controls because it is generated from the same TypeScript constants used by request validation and prompt/render planning. It returns defaults, allowed option values, duration constraints, quality-mode behavior, configured model IDs, and capability configuration status without returning API keys, local paths, or customer artifacts.
+
 ## Sources Used
 
 - Atlas Cloud Seedance 2.0 model page for Seedance 2.0, Seedance 2.0 Fast, T2V, I2V, reference-to-video, multimodal references, aspect ratios, duration, audio-visual sync, and resolution notes.
@@ -22,6 +24,8 @@ User-facing controls should be simple:
 - aspect ratio
 - duration
 - audio behavior
+
+Do not hardcode duplicate UI option lists outside the runtime contract. A UI should call `GET /v1/render-settings`, display the returned options, and submit the selected values under the `/v1/render` or `/v1/render-jobs` request `settings` object.
 
 Internal controls should remain flexible:
 

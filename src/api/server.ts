@@ -18,6 +18,7 @@ import {
   normalizeRenderRequest,
   RenderRequestNormalizationError
 } from "../application/render-request-normalizer.js";
+import { buildRenderSettingsDescriptor } from "../application/render-settings-descriptor.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
@@ -136,6 +137,10 @@ export function startServer(port = readPort(process.env.PORT)): void {
       if (request.method === "GET" && requestUrl.pathname === "/v1/validation-readiness") {
         const report = validationReadinessReporter.build(await preflight.run(requestLifecycle.signal));
         sendJson(response, report.decision === "blocked" ? 503 : 200, report, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/render-settings") {
+        sendJson(response, 200, buildRenderSettingsDescriptor(process.env), requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-jobs") {

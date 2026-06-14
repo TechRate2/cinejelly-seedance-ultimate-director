@@ -7,17 +7,17 @@ import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, QualityMode }
 import type { VideoGenerationSettings } from "../types/provider.js";
 import { DEFAULT_SEEDANCE_SETTINGS } from "../types/settings.js";
 
-const MIN_TOTAL_DURATION_SECONDS = 15;
-const MAX_TOTAL_DURATION_SECONDS = 480;
-const MIN_CLIP_DURATION_SECONDS = 4;
-const MAX_CLIP_DURATION_SECONDS = 15;
+export const MIN_TOTAL_DURATION_SECONDS = 15;
+export const MAX_TOTAL_DURATION_SECONDS = 480;
+export const MIN_CLIP_DURATION_SECONDS = 4;
+export const MAX_CLIP_DURATION_SECONDS = 15;
 export const SEEDANCE_TEST_TAKE_DURATION_SECONDS = MIN_CLIP_DURATION_SECONDS;
 
-const SPEED_TIERS = ["fast", "standard"] as const;
-const QUALITY_MODES = ["economy", "standard", "high", "ultimate"] as const;
-const RESOLUTIONS = ["480p", "720p", "1080p"] as const;
-const RATIOS = ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"] as const;
-const AUDIO_MODES = ["none", "native", "guided", "post", "hybrid"] as const;
+export const SPEED_TIERS = ["fast", "standard"] as const;
+export const QUALITY_MODES = ["economy", "standard", "high", "ultimate"] as const;
+export const RESOLUTIONS = ["480p", "720p", "1080p"] as const;
+export const RATIOS = ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"] as const;
+export const AUDIO_MODES = ["none", "native", "guided", "post", "hybrid"] as const;
 
 export interface NormalizedSeedanceSettings extends FlexibleSeedanceSettings {
   readonly candidateCount: number;
