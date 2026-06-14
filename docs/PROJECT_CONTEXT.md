@@ -102,6 +102,7 @@ Faithful Logic Translation is the required path for high-fidelity implementation
 - `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`: subtree inventory, license status, source-fidelity policy, and reuse boundaries.
 - `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`: six-step process for translating source behavior into CineJelly-owned production logic.
 - `docs/IMPLEMENTATION_ROADMAP.md`: practical phase-by-phase plan for translating high-value upstream logic into production modules.
+- `docs/ROADMAP_FIDELITY_AUDIT_2026-06-14.md`: owner-level audit of current roadmap completion, subtree fidelity, blockers, and next validation steps.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive niche prompt compiler.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: QA, inspection, and repair system.
