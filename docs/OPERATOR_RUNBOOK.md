@@ -68,10 +68,10 @@ Run:
 
 ```powershell
 npm.cmd install
-npm.cmd run validation:local-smoke
+npm.cmd run doctor
 ```
 
-The local smoke creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, checks `/health` plus `/v1/validation-readiness`, and writes `assets/output_deliverables/phase6-validation/local-smoke-report.json`. It does not call Atlas rendering or write render artifacts. The local smoke report is pre-paid evidence only; it is not release approval.
+The doctor command runs local setup, preserves existing `.env` secrets, detects FFmpeg/FFprobe where possible, creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, checks `/health` plus `/v1/validation-readiness`, prints a readiness summary, and writes `assets/output_deliverables/phase6-validation/local-smoke-report.json`. It does not call Atlas rendering or write render artifacts. The local smoke report is pre-paid evidence only; it is not release approval.
 
 If running the gates manually instead, run:
 

@@ -19,6 +19,7 @@ The setup scripts can:
 - install npm dependencies when using the Windows setup script
 - install FFmpeg on Windows when `winget` is available
 - run preflight
+- run a no-spend doctor check that prepares local config, validates the request path, starts a temporary API when needed, and summarizes readiness
 
 The setup scripts cannot:
 
@@ -50,8 +51,10 @@ ATLASCLOUD_LLM_API_KEY=
 Run again:
 
 ```powershell
-npm.cmd run preflight
+npm.cmd run doctor
 ```
+
+`doctor` does not call Atlas rendering. It runs local setup plus the no-spend validation smoke and tells you whether the environment is ready for paid validation review.
 
 ## Universal Setup
 
@@ -59,16 +62,14 @@ For macOS, Linux, or Windows users who already installed FFmpeg/FFprobe:
 
 ```bash
 npm install
-npm run setup:local
-npm run preflight
+npm run doctor
 ```
 
 On Windows, use `npm.cmd` if plain `npm` is not available in the shell:
 
 ```powershell
 npm.cmd install
-npm.cmd run setup:local
-npm.cmd run preflight
+npm.cmd run doctor
 ```
 
 ## Clean Source Rules
@@ -78,7 +79,7 @@ Keep the source clean before every push:
 ```powershell
 npm.cmd run typecheck
 npm.cmd run build
-npm.cmd run preflight
+npm.cmd run doctor
 git status --short
 ```
 
@@ -162,10 +163,10 @@ npm.cmd run validation:render-request -- --request "assets/output_deliverables/p
 Or run the full local no-spend smoke:
 
 ```powershell
-npm.cmd run validation:local-smoke
+npm.cmd run doctor
 ```
 
-This creates the safe request, runs typecheck/build/readiness/request validation, starts a temporary API if needed, and checks `/health` plus `/v1/validation-readiness`.
+This creates or updates local `.env`, creates the safe request, runs typecheck/build/readiness/request validation, starts a temporary API if needed, checks `/health` plus `/v1/validation-readiness`, and prints a short readiness summary.
 It also writes `assets/output_deliverables/phase6-validation/local-smoke-report.json` as a local evidence report. That folder is ignored by Git.
 
 For your own brief:

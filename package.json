@@ -18,6 +18,7 @@
   "scripts": {
     "setup:local": "node scripts/setup-local-env.mjs",
     "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
+    "doctor": "node scripts/run-doctor.mjs",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.json",
     "preflight": "npm run build && node --env-file-if-exists=.env dist/application/preflight-entrypoint.js",

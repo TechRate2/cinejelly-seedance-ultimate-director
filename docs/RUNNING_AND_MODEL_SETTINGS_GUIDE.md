@@ -128,7 +128,15 @@ npm.cmd run setup:windows
 
 This checks Node/npm, installs npm dependencies when missing, attempts FFmpeg installation through `winget`, creates or updates local `.env`, detects FFmpeg/FFprobe paths, and runs preflight.
 
-2. For a universal setup after dependencies/tools are installed, run:
+2. For the simplest cross-platform no-spend readiness check after Node/npm is installed, run:
+
+```powershell
+npm.cmd run doctor
+```
+
+This creates or updates local `.env`, keeps existing secrets, generates missing local defaults, detects FFmpeg/FFprobe when possible, creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, and prints a readiness summary. It does not call Atlas rendering or write render artifacts.
+
+3. For a universal setup-only pass after dependencies/tools are installed, run:
 
 ```powershell
 npm.cmd run setup:local
@@ -136,31 +144,31 @@ npm.cmd run setup:local
 
 This creates or updates local `.env`, generates `CINEJELLY_API_AUTH_TOKEN`, keeps existing secrets, fills default model IDs, creates the output directory, and detects FFmpeg/FFprobe when possible.
 
-3. Manual dependency install, if needed:
+4. Manual dependency install, if needed:
 
 ```powershell
 npm install
 ```
 
-4. Manual `.env` creation, if needed:
+5. Manual `.env` creation, if needed:
 
 ```powershell
 Copy-Item .env.production.template .env
 ```
 
-5. Check TypeScript:
+6. Check TypeScript:
 
 ```powershell
 npm.cmd run typecheck
 ```
 
-6. Build:
+7. Build:
 
 ```powershell
 npm.cmd run build
 ```
 
-7. Run preflight:
+8. Run preflight:
 
 ```powershell
 npm.cmd run preflight
@@ -172,13 +180,13 @@ Interpretation:
 - `status: "warn"` can be acceptable for internal validation if the only warning is missing `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`.
 - `status: "pass"` is the target for production readiness.
 
-8. Start API:
+9. Start API:
 
 ```powershell
 npm.cmd run start
 ```
 
-9. Check health:
+10. Check health:
 
 ```powershell
 Invoke-RestMethod http://localhost:8787/health
@@ -195,7 +203,7 @@ npm.cmd run validation:render-request -- --request "assets/output_deliverables/p
 
 `validation:create-request` writes only a local JSON request under `assets/output_deliverables`, which is ignored by Git. It does not call Atlas, create providers, write render artifacts, or include secrets. Replace `--safe-default` with `--user-input "..."` or `--user-input-file <path>` for an operator-owned brief.
 
-To run the full local no-spend gate in one command:
+To run the full local no-spend gate in one command without setup:
 
 ```powershell
 npm.cmd run validation:local-smoke
@@ -203,6 +211,14 @@ npm.cmd run validation:local-smoke
 
 This creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, calls `/health`, and calls `/v1/validation-readiness`. It still does not run paid Atlas rendering.
 It writes `assets/output_deliverables/phase6-validation/local-smoke-report.json` as local pre-paid evidence. The report is ignored by Git and does not replace paid render validation, artifact validation, or manual media review.
+
+For non-specialist operators, prefer:
+
+```powershell
+npm.cmd run doctor
+```
+
+`doctor` runs setup first and then runs the same no-spend validation smoke.
 
 ## API Endpoints
 
