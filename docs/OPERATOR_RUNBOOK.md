@@ -150,7 +150,7 @@ The `validation:commercial-inputs` command is also no-spend and no-network. It r
 
 The `validation:deployment-package` command is also no-spend and no-network. It reads only `Dockerfile`, `.dockerignore`, `.env.production.template`, and the container packaging reference doc, then writes `assets/output_deliverables/business-readiness/deployment-package-validation-report.json`. It does not call Docker, Atlas, FFmpeg, deployment hosts, render routes, or billing providers. A pass means the static package path is ready to build elsewhere; it does not replace real HTTPS deployment capture.
 
-The `validation:report-contracts` command is also no-spend and no-network. It validates generated release/business-readiness JSON reports against their local schemas, writes `assets/output_deliverables/business-readiness/report-contract-validation-report.json`, and catches schema drift before reports are shared or used as evidence. A schema-shape pass is not release approval; business-readiness status still controls customer traffic.
+The `validation:report-contracts` command is also no-spend and no-network. It validates generated release/business-readiness JSON reports against their local schemas plus documented report-local semantic invariants, writes `assets/output_deliverables/business-readiness/report-contract-validation-report.json`, and catches schema or checklist-command drift before reports are shared or used as evidence. A schema/contract pass is not release approval; business-readiness status still controls customer traffic.
 
 Create the deployment preflight evidence with the no-spend capture command after the API is deployed to its real HTTPS host:
 

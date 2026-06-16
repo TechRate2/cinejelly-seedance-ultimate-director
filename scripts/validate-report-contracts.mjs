@@ -162,8 +162,8 @@ function main() {
       reportContractsPass: status === "pass",
       canReleaseToCustomerTraffic: false,
       releaseBlocker: status === "pass"
-        ? "Report contracts pass; this is schema-shape evidence only, not commercial release approval."
-        : "One or more generated reports do not match their local schema contract."
+        ? "Report contracts pass; this is schema/semantic contract evidence only, not commercial release approval."
+        : "One or more generated reports do not match their local schema or semantic contract."
     },
     nextActions: nextActionsFor(contracts)
   };
@@ -210,8 +210,10 @@ function validateContract(item, options) {
   if (reportRead.error) {
     return failContract(item, [`Report JSON is invalid: ${reportRead.error}.`]);
   }
-  const issues = validateAgainstSchema(schemaRead.value, reportRead.value, "$", schemaRead.value)
-    .slice(0, options.maxIssuesPerContract);
+  const issues = [
+    ...validateAgainstSchema(schemaRead.value, reportRead.value, "$", schemaRead.value),
+    ...validateSemanticContract(item, reportRead.value)
+  ].slice(0, options.maxIssuesPerContract);
   return {
     name: item.name,
     status: issues.length === 0 ? "pass" : "fail",
@@ -221,7 +223,7 @@ function validateContract(item, options) {
     reportStatus: typeof reportRead.value?.status === "string" ? reportRead.value.status : undefined,
     issueCount: issues.length,
     issues,
-    message: issues.length === 0 ? "Report matches schema contract." : "Report does not match schema contract."
+    message: issues.length === 0 ? "Report matches schema and semantic contract." : "Report does not match schema or semantic contract."
   };
 }
 
@@ -235,6 +237,24 @@ function failContract(item, issues) {
     issues,
     message: "Contract cannot be validated."
   };
+}
+
+function validateSemanticContract(item, report) {
+  if (item.name === "commercial_launch_inputs") {
+    return validateCommercialLaunchInputsSemantics(report);
+  }
+  return [];
+}
+
+function validateCommercialLaunchInputsSemantics(report) {
+  const issues = [];
+  if (report?.commandPlanAudit?.status !== "pass") {
+    issues.push("$.commandPlanAudit.status: expected pass before sharing commercial launch commands.");
+  }
+  if (Array.isArray(report?.commandPlanAudit?.issues) && report.commandPlanAudit.issues.length > 0) {
+    issues.push(`$.commandPlanAudit.issues: expected no command-plan audit issues, found ${report.commandPlanAudit.issues.length}.`);
+  }
+  return issues;
 }
 
 function validateAgainstSchema(schema, value, path, rootSchema) {
@@ -438,7 +458,7 @@ function nextActionsFor(contracts) {
   const actions = [];
   for (const item of contracts) {
     if (item.status === "fail") {
-      actions.push(`${item.name}: fix ${item.issueCount} schema contract issue(s) in ${item.reportPath}.`);
+      actions.push(`${item.name}: fix ${item.issueCount} schema/semantic contract issue(s) in ${item.reportPath}.`);
     }
   }
   if (actions.length === 0) {

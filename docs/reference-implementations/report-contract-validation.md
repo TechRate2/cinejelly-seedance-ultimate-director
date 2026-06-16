@@ -10,7 +10,7 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 
 1. The validator must not call Atlas, stock provider APIs, deployment endpoints, source-video URLs, FFmpeg, render routes, or billing/payment APIs.
 2. The validator must not read `.env` or expose provider keys, bearer tokens, signed URLs, customer media, or local-only artifact paths.
-3. The validator validates schema shape only; it must not turn blocked business evidence into a pass.
+3. The validator validates schema shape plus explicitly documented report-local semantic invariants; it must not turn blocked business evidence into a pass.
 4. Default report contracts are skipped only when a report file is absent; custom `--contract` and `--only-contract` inputs are required.
 5. The validator should support the local schema features used by CineJelly reports: `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`, min/max constraints, string patterns, `date-time`/`uri` formats, local `$ref`, `allOf`, `anyOf`, `oneOf`, `not`, and basic `if`/`then`.
 
@@ -24,6 +24,7 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Done: fix report redaction helpers so boolean/count fields with key-like names are not replaced with strings.
 - Done: validate optional budget-slice Atlas billing reports, such as generated-audio smoke billing readiness, when those reports exist.
 - Done: validate optional deployment-readiness captures, including local smoke evidence, against the deployment capture schema when those reports exist.
+- Done: fail the commercial launch inputs contract when its local `commandPlanAudit` is not `pass`, so stale or unsafe launch commands are caught before operators copy them into live or paid runs.
 
 ## Acceptance Checks
 
@@ -33,3 +34,4 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Report redaction still removes string secrets but preserves boolean readiness fields such as `apiKeyConfigured`.
 - When `atlas-billing-generated-audio-smoke-report.json` exists, report-contract validation includes it against the Atlas billing readiness schema.
 - When deployment-readiness capture reports exist, report-contract validation includes them and catches missing `atlasCloudDocsConformanceStatus` summary evidence.
+- When `commercial-launch-inputs-report.json` exists, report-contract validation requires `commandPlanAudit.status` to be `pass` with no command-plan issues.
