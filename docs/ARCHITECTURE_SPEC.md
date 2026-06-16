@@ -330,7 +330,7 @@ Assembly materialization:
 
 API execution modes:
 
-- `/health` is public, while `/v1` endpoints require deployment API authentication or a configured client API key digest before provider spend or run metadata access; `Authorization` uses a case-insensitive Bearer scheme or the `X-CineJelly-Api-Key` header. `/v1/preflight` and `/v1/validation-readiness` remain available without a configured deployment token only so fresh deployments can diagnose missing readiness inputs; once `CINEJELLY_API_AUTH_TOKEN` or client policies are configured, they use the same guard as other `/v1` endpoints.
+- `/health` is public, while `/v1` endpoints require deployment API authentication or a configured client API key digest before provider spend or run metadata access; `Authorization` uses a case-insensitive bearer auth scheme or the `X-CineJelly-Api-Key` header. `/v1/preflight` and `/v1/validation-readiness` remain available without a configured deployment token only so fresh deployments can diagnose missing readiness inputs; once `CINEJELLY_API_AUTH_TOKEN` or client policies are configured, they use the same guard as other `/v1` endpoints.
 - Credit-spending render submission endpoints are rate limited before authentication response handling, request body parsing, runtime creation, job queue occupancy, or provider spend.
 - Credit-spending render submission endpoints require an application JSON media type (`application/json` or `application/*+json`) before request body parsing; unsupported media types return 415.
 - Credit-spending render submission endpoints enforce a configurable request body byte limit before JSON parsing, job queue admission, runtime creation, or provider spend; oversized bodies return 413.

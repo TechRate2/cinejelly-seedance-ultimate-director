@@ -7,7 +7,7 @@ Implementation status as of 2026-06-16: implemented as a CineJelly-owned no-spen
 | Source | Contract Used | CineJelly Boundary |
 | --- | --- | --- |
 | Atlas Cloud Coding Plan API docs | Coding Plan traffic uses a dedicated key and OpenAI-compatible base URL `https://api.atlascloud.ai/v1`. | LLM calls use the LLM/Coding Plan key and `/v1/chat/completions` path. |
-| Atlas Cloud Upload Files docs | Media upload uses `POST https://api.atlascloud.ai/api/v1/model/uploadMedia` with Bearer auth. | Asset registration builds upload requests from the media base URL plus `/model/uploadMedia`. |
+| Atlas Cloud Upload Files docs | Media upload uses `POST https://api.atlascloud.ai/api/v1/model/uploadMedia` with bearer-token authentication. | Asset registration builds upload requests from the media base URL plus `/model/uploadMedia`. |
 | Atlas Cloud Seedance `generateVideo` docs | Video generation uses `POST /api/v1/model/generateVideo` with a `model` string and prompt settings. | Seedance requests build from the media base URL plus `/model/generateVideo`; model IDs stay operator-configured. |
 | Atlas Cloud Get Results docs | Generation result polling uses `GET /api/v1/model/result/{request_id}`. | Provider polling keeps the documented result route available before compatibility fallbacks. |
 | Atlas Cloud Billing Public API docs | Balance evidence uses `GET /public/v1/balance` with an Atlas API key. | Paid-validation billing gates treat `/balance` as no-spend network evidence before provider spend. |
