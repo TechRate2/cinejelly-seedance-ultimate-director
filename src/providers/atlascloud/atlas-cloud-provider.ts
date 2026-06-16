@@ -39,6 +39,8 @@ import { mapAssetRegistration, mapPrediction, mapUsage, readChatContent } from "
 
 const ATLAS_PROVIDER_NAME = "atlascloud";
 const DEFAULT_VIDEO_FPS = 24;
+const DEFAULT_AUDIO_LANGUAGE = "auto";
+const MAX_ATLAS_AUDIO_TEXT_CHARS = 15_000;
 const DIMENSION_RATIOS: Partial<Record<string, readonly [number, number]>> = {
   "21:9": [21, 9],
   "16:9": [16, 9],
@@ -445,20 +447,40 @@ export class AtlasCloudProvider implements ModelProvider {
 
   public generateAudio(request: AudioGenerationRequest, signal?: AbortSignal): Promise<AudioGenerationResult> {
     const startedAt = now();
+    let latestMetadata: LedgerMetadata = {};
     return this.trackProviderCall(
       "audio.generate",
       request.modelId,
       request.metadata?.graphNodeId,
       startedAt,
-      async () => {
+      async (recordRetry) => {
         this.validateAudioRequest(request);
-        this.throwIfAborted(signal);
-        throw new ProviderError({
-          code: "MODEL_UNAVAILABLE",
-          provider: ATLAS_PROVIDER_NAME,
-          message: "Atlas Cloud generated-audio execution is not configured; verify audio model schema and capability mapping before enabling provider-backed TTS, BGM, ambience, or SFX."
+        const submitResponse = await withRetry(
+          () =>
+            this.http.postJson<unknown>(
+              this.url(this.settings.assetBaseUrl, "/model/generateAudio"),
+              this.toAtlasAudioPayload(request),
+              signal
+            ),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+        const submittedPrediction = this.requireKnownPredictionId(mapPrediction(submitResponse, request.modelId, startedAt));
+        latestMetadata = this.predictionLedgerMetadata(submittedPrediction);
+        const finalPrediction = await this.waitForAudioPrediction({
+          predictionId: submittedPrediction.predictionId,
+          modelId: request.modelId,
+          recordRetry,
+          ...(signal ? { signal } : {}),
+          onMetadata: (metadata) => {
+            latestMetadata = metadata;
+          }
         });
-      }
+        return this.audioResultFromPrediction(request, finalPrediction, startedAt);
+      },
+      (result) => this.audioLedgerMetadata(result),
+      () => latestMetadata
     );
   }
 
@@ -561,6 +583,13 @@ export class AtlasCloudProvider implements ModelProvider {
         message: "Generated-audio request prompt must be non-empty."
       });
     }
+    if (request.prompt.length > MAX_ATLAS_AUDIO_TEXT_CHARS) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Generated-audio request prompt exceeds Atlas documented ${MAX_ATLAS_AUDIO_TEXT_CHARS} character limit.`
+      });
+    }
     const requestedDuration = request.settings.durationSeconds;
     if (requestedDuration !== undefined && requestedDuration <= 0) {
       throw new ProviderError({
@@ -589,6 +618,60 @@ export class AtlasCloudProvider implements ModelProvider {
         message: `Generated-audio duration ${requestedDuration}s exceeds configured capability limit ${capability.maxDurationSeconds}s.`
       });
     }
+  }
+
+  private async waitForAudioPrediction(input: {
+    readonly predictionId: string;
+    readonly modelId: string;
+    readonly signal?: AbortSignal;
+    readonly recordRetry: () => void;
+    readonly onMetadata: (metadata: LedgerMetadata) => void;
+  }): Promise<Prediction> {
+    const startedAt = now();
+    const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
+    while (Date.now() <= deadline) {
+      this.throwIfAborted(input.signal);
+      const response = await withRetry(
+        () =>
+          this.http.getJson<unknown>(
+            this.url(this.settings.assetBaseUrl, `/model/prediction/${encodeURIComponent(input.predictionId)}`),
+            input.signal
+          ),
+        DEFAULT_RETRY_POLICY,
+        input.signal,
+        input.recordRetry
+      );
+      const prediction = mapPrediction(response, input.modelId, startedAt);
+      input.onMetadata(this.predictionLedgerMetadata(prediction));
+      if (prediction.status === "succeeded") {
+        return prediction;
+      }
+      if (prediction.status === "failed") {
+        throw new ProviderError({
+          code: "GENERATION_FAILED",
+          provider: ATLAS_PROVIDER_NAME,
+          message: `Atlas Cloud audio prediction ${input.predictionId} ended with status failed.`,
+          details: prediction.raw
+        });
+      }
+      if (prediction.status === "canceled") {
+        throw new ProviderError({
+          code: "PREDICTION_CANCELED",
+          provider: ATLAS_PROVIDER_NAME,
+          message: `Atlas Cloud audio prediction ${input.predictionId} was canceled.`,
+          details: prediction.raw
+        });
+      }
+      await this.sleepForPolling(input.signal);
+    }
+
+    input.onMetadata({ predictionId: input.predictionId, providerStatus: "timeout" });
+    throw new ProviderError({
+      code: "POLLING_TIMEOUT",
+      provider: ATLAS_PROVIDER_NAME,
+      retryable: true,
+      message: `Atlas Cloud audio prediction ${input.predictionId} did not finish within ${this.settings.pollingTimeoutMs}ms.`
+    });
   }
 
   private validateReferenceCapability(reference: ProviderReference, capability: ProviderCapability): void {
@@ -643,6 +726,16 @@ export class AtlasCloudProvider implements ModelProvider {
       watermark: request.settings.watermark,
       return_last_frame: request.settings.returnLastFrame,
       metadata: request.metadata
+    };
+  }
+
+  private toAtlasAudioPayload(request: AudioGenerationRequest): Record<string, unknown> {
+    return {
+      model: request.modelId,
+      text: request.prompt,
+      language: request.settings.language || DEFAULT_AUDIO_LANGUAGE,
+      ...(request.settings.voiceStyle ? { voice_id: request.settings.voiceStyle } : {}),
+      codec: request.settings.outputFormat
     };
   }
 
@@ -791,6 +884,13 @@ export class AtlasCloudProvider implements ModelProvider {
     return this.usageLedgerMetadata(response.usage);
   }
 
+  private audioLedgerMetadata(response: AudioGenerationResult): LedgerMetadata {
+    return {
+      ...(response.providerAssetId ? { predictionId: response.providerAssetId } : {}),
+      ...this.usageLedgerMetadata(response.usage)
+    };
+  }
+
   private usageLedgerMetadata(usage: ProviderUsage | undefined): LedgerMetadata {
     if (!usage) {
       return {};
@@ -828,6 +928,38 @@ export class AtlasCloudProvider implements ModelProvider {
       message: "Atlas Cloud accepted a video generation request but did not return a prediction ID.",
       details: prediction.raw
     });
+  }
+
+  private audioResultFromPrediction(
+    request: AudioGenerationRequest,
+    prediction: Prediction,
+    submittedAt: Date
+  ): AudioGenerationResult {
+    const outputUrl = prediction.outputUrls[0];
+    if (!outputUrl) {
+      throw new ProviderError({
+        code: "OUTPUT_MISSING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Atlas Cloud audio prediction ${prediction.predictionId} completed without an output URL.`,
+        details: prediction.raw
+      });
+    }
+    const completedAt = prediction.completedAt ?? now();
+    return {
+      provider: ATLAS_PROVIDER_NAME,
+      modelId: request.modelId,
+      intentId: request.intentId,
+      kind: request.kind,
+      status: "succeeded",
+      outputUrl,
+      providerAssetId: prediction.predictionId,
+      ...(request.settings.durationSeconds !== undefined ? { durationSeconds: request.settings.durationSeconds } : {}),
+      raw: prediction.raw,
+      ...(prediction.usage ? { usage: prediction.usage } : {}),
+      submittedAt,
+      completedAt,
+      latencyMs: elapsedMs(submittedAt, completedAt)
+    };
   }
 
   private async sleepForPolling(signal?: AbortSignal): Promise<void> {

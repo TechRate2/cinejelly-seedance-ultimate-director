@@ -79,7 +79,7 @@ These percentages describe roadmap foundation readiness, not full upstream parit
 4. No real 2 to 8 minute long-form render has been validated end to end.
 5. No live source-video auto-analysis has been validated with real source videos and the configured Atlas multimodal LLM.
 6. No live remote stock provider validation has been completed with real Pexels, Pixabay, or approved Coverr credentials.
-7. Atlas generated-audio remains a safe no-capability/no-spend boundary until audio schema, model IDs, pricing, and paid validation are verified.
+7. Superseded on 2026-06-16: Atlas `xai/tts-v1` submit/poll execution is now wired behind verified capability, schema-review, budget, explicit spend, output-validation, and manual-review gates; live paid validation remains pending.
 8. Exact community prompt corpus bundling still needs attribution/product review before release.
 9. In-process queue and job history are useful foundations, but durable queue/storage may be needed for commercial SaaS deployment.
 10. No complete DirectorBench-style evaluation harness exists yet.

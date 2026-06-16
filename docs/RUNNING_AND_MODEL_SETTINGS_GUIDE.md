@@ -310,7 +310,7 @@ The response intentionally contains no API keys or local paths. It reports defau
 | `qualityMode` | `economy`, `standard`, `high`, `ultimate` | Number of candidates, repair budget, and quality/cost behavior. |
 | `ratio` | `adaptive`, `21:9`, `16:9`, `4:3`, `1:1`, `3:4`, `9:16` | Aspect-ratio planning and final delivery validation. |
 | `durationTargetSeconds` | `1` to `480` | Total target video length. Long videos are split into provider-supported shots/clips. |
-| `audioMode` | `none`, `native`, `guided`, `post`, `hybrid` | Audio strategy. Atlas generated-audio remains disabled until schemas and paid validation are verified. |
+| `audioMode` | `none`, `native`, `guided`, `post`, `hybrid` | Audio strategy. Atlas generated-audio remains disabled for ordinary renders until the validation runner has passing paid output and manual-review evidence for the configured model/capability. |
 | `watermark` | `true`, `false` | Provider watermark policy. Commercial output should normally use `false` when supported. |
 | `returnLastFrame` | `true`, `false` | Requests last-frame continuity anchors when supported. |
 | `maxCostUsd` | non-negative number | Optional cost gate. Requires cost environment rates for meaningful budget enforcement. |
@@ -349,7 +349,7 @@ CineJelly currently uses three configured model IDs:
 Generated audio:
 
 - The provider-neutral audio boundary exists.
-- Atlas generated-audio execution is intentionally no-spend by default.
+- Atlas generated-audio execution is intentionally no-spend by default and requires the generated-audio validation runner's explicit spend and schema-review confirmations.
 - Do not expect TTS/BGM/ambience/SFX generation to work until Atlas audio schema, model IDs, pricing, and output validation have a dedicated Reference Implementation and paid validation.
 
 Remote stock:

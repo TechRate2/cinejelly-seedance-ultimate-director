@@ -22,7 +22,7 @@ Snapshot integration note:
 - Production provider code must not import directly from `external/upstream/`.
 - Behavior-critical provider logic such as request compilation, fallback, polling, retry classification, cost recording, or queue admission must follow `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` when translated from upstream snapshots.
 - MoneyPrinterTurbo's many-provider LLM surface is useful for fallback thinking, but CineJelly keeps Atlas Cloud as the default provider for both LLM reasoning and Seedance 2.0 rendering.
-- MoneyPrinterTurbo's explicit audio stage and OpenMontage's provider-menu discipline inform CineJelly's generated-audio provider contract and provider-neutral execution runner, but live Atlas-backed TTS/BGM/ambience/SFX execution remains disabled until current provider schemas, model IDs, pricing, and output validation are verified.
+- MoneyPrinterTurbo's explicit audio stage and OpenMontage's provider-menu discipline inform CineJelly's generated-audio provider contract and provider-neutral execution runner. Atlas `xai/tts-v1` TTS submit/poll execution is wired behind verified capability, schema-review, budget, explicit spend, output-validation, and manual-review gates; BGM/ambience/SFX still require verified provider mappings before use.
 - Generated-audio execution planning is handled before provider calls by CineJelly-owned core logic. The planner may create provider-neutral `AudioGenerationRequest` records from verified capabilities, but it must not call providers or claim generated outputs.
 - Generated-audio output validation is handled after provider results and before audio mixing. Provider result batches are first reconciled against the ready execution plan so missing, duplicate, blocked-intent, or unexpected results cannot silently enter the mix. A provider result must not become an `AudioMixTrack` unless it passes status, identity, kind, provider, model, duration, volume, and safe-URL checks. `asset://` generated-audio outputs require a reviewed CineJelly asset resolver entry that maps the asset to a credential-free HTTPS URL before mixing.
 - Generated-audio asset resolution catalogs are operator-owned JSON inputs validated by preflight through `CINEJELLY_GENERATED_AUDIO_ASSET_RESOLUTION_CATALOG_PATH`; they do not enable provider-backed audio generation by themselves.
@@ -141,7 +141,7 @@ Required capabilities:
 Current Atlas implementation:
 
 - `src/providers/contracts.ts` defines the provider-neutral `AudioProvider` boundary.
-- `src/providers/atlascloud/atlas-cloud-provider.ts` currently reports no generated-audio capabilities and rejects generated-audio execution with a stable no-spend `ProviderError`.
+- `src/providers/atlascloud/atlas-cloud-provider.ts` reports generated-audio capabilities only from reviewed `ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON` and runs Atlas `generateAudio` only for capability-mapped requests.
 - `src/core/generated-audio-execution-planner.ts` maps bounded generated-audio intents to provider-neutral requests only when `audio_capabilities()` returns verified capability records.
 - `src/core/generated-audio-provider-execution-runner.ts` executes only ready generated-audio requests through an `AudioProvider`, preserves plan order, and turns provider exceptions into failed/timeout/canceled result evidence for batch validation.
 - `src/core/generated-audio-output-validator.ts` approves result-to-track conversion only for credential-free HTTPS generated audio output; `src/core/generated-audio-asset-resolver.ts` can resolve approved generated-audio `asset://` records to credential-free HTTPS URLs without provider calls, downloads, or generated files.
@@ -232,7 +232,7 @@ Media references:
 
 - Pass clean public `https://` or reviewed `asset://` references directly when supported by the configured Atlas model capability.
 - Upload local media with `/model/uploadMedia` before generation only when local-file reference intake is explicitly added and validated.
-- Keep Atlas generated-audio disabled until audio schema, model IDs, pricing, and output validation are verified.
+- Keep Atlas generated-audio paid validation gated on reviewed audio schema, model IDs, pricing, output validation, and manual review.
 
 ## Provider Selection Policy
 
@@ -322,7 +322,7 @@ Runtime implementation:
 - Atlas video entries also record provider-returned usage, estimated cost, or actual cost when prediction usage includes those fields.
 - Atlas wait-prediction entries record terminal `succeeded`, `failed`, `canceled`, and `timeout` outcomes rather than hiding async job outcomes behind generic HTTP call status.
 - Atlas retryable LLM, video submit, prediction polling, and media upload HTTP calls record the actual number of retry attempts in the provider ledger.
-- Atlas generated-audio execution attempts, if called before verified capabilities exist, fail before network spend and can record an `audio.generate` ledger entry with `MODEL_UNAVAILABLE`. The provider-neutral execution runner can call only ready planned items when an `AudioProvider` and verified capabilities are present; default Atlas runtime still exposes no audio capability until schema validation is complete.
+- Atlas generated-audio execution attempts, if called before verified capabilities exist, fail before network spend and can record an `audio.generate` ledger entry with `MODEL_UNAVAILABLE`. The provider-neutral execution runner can call only ready planned items when an `AudioProvider` and verified capabilities are present; Atlas `generateAudio` submit/poll execution is available only through that verified capability path.
 - Prediction polling accepts optional model and graph metadata context so long-form polling entries can be traced back to the originating shot.
 - Review packets summarize failed, timeout, and canceled provider operation counts from the ledger.
 

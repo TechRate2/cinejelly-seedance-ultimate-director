@@ -81,7 +81,7 @@ npm.cmd run validation:generated-audio
 npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed
 ```
 
-The default run writes a blocked no-spend report. A live run still fails safely until Atlas generated-audio provider execution is implemented and the returned output can pass `GeneratedAudioOutputBatchValidator` plus manual review.
+The default run writes a blocked no-spend report. A live run now uses Atlas `generateAudio` through the provider-neutral execution runner only after explicit spend and schema review confirmation; the returned output must still pass `GeneratedAudioOutputBatchValidator`, provider ledger checks, and manual review before business-readiness can count it.
 
 ## Done
 
@@ -94,6 +94,6 @@ The default run writes a blocked no-spend report. A live run still fails safely 
 
 ## Remaining
 
-- Implement Atlas `generateAudio` request/response mapping only after the current audio payload schema and output URL behavior are paid-validated.
+- Run the Atlas `generateAudio` path with explicit spend confirmation and archive the returned provider/output URL behavior.
 - If Atlas returns signed audio URLs, add an approved credential-free delivery/proxy step before outputs can be mixed.
 - Archive manual audio review evidence for each live generated-audio validation run.

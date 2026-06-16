@@ -49,7 +49,7 @@ Snapshot-derived integration targets:
 
 Extension based on these sources:
 
-- CineJelly adds a typed Production Graph, a Consistency Guardian, a Model Provider Abstraction Layer, generated-audio execution planning, provider-neutral generated-audio ready-item execution, generated-audio output validation, batch reconciliation and optional artifact evidence, generated-audio asset resolution/catalog preflight, a no-spend Atlas generated-audio provider contract boundary, governed material sourcing, batch production evidence, and commercial delivery contracts. These are product architecture extensions based on ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, MoneyPrinterTurbo, Emily2040/seedance-2.0, and Atlas Cloud docs.
+- CineJelly adds a typed Production Graph, a Consistency Guardian, a Model Provider Abstraction Layer, generated-audio execution planning, provider-neutral generated-audio ready-item execution, Atlas generated-audio submit/poll execution behind validation gates, generated-audio output validation, batch reconciliation and optional artifact evidence, generated-audio asset resolution/catalog preflight, governed material sourcing, batch production evidence, and commercial delivery contracts. These are product architecture extensions based on ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, MoneyPrinterTurbo, Emily2040/seedance-2.0, and Atlas Cloud docs.
 
 ## Git Subtree And Snapshot Workflow
 

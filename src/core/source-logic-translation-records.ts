@@ -1573,7 +1573,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "MoneyPrinterTurbo runtime TTS/BGM implementation code is not copied or executed",
       "CineJelly adds provider-neutral audio-generation request/result/capability contracts",
-      "Atlas Cloud generated-audio execution is safely blocked until verified provider schema and capability mapping exist",
+      "Atlas Cloud generated-audio execution is gated by verified capability mapping and explicit validation spend controls",
       "failed generated-audio provider attempts can be recorded as `audio.generate` cost-ledger entries without provider spend"
     ],
     referenceImplementationPath: "docs/reference-implementations/generated-audio-provider-execution-contract.md",
@@ -1685,7 +1685,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "live Atlas generated-audio execution remains blocked until current provider schema, model IDs, pricing, and output format behavior are verified"
+      "live Atlas generated-audio validation remains pending paid output evidence and manual review"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -1984,7 +1984,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "actual provider-backed generated-audio execution remains pending verified provider schema and paid validation",
+      "actual provider-backed generated-audio commercial evidence remains pending paid validation and manual review",
       "future integration must persist batch reports into run artifacts before release claims"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -2083,7 +2083,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "actual provider-backed generated-audio execution remains pending verified provider schema and paid validation",
+      "actual provider-backed generated-audio commercial evidence remains pending paid validation and manual review",
       "real release evidence must later include provider-backed batch reports and media inspection results"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -2186,7 +2186,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "actual provider-backed generated-audio execution remains pending verified provider schema and paid validation",
+      "actual provider-backed generated-audio commercial evidence remains pending paid validation and manual review",
       "resolved HTTPS audio still requires future live media inspection with generated artifacts before release claims"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -2284,7 +2284,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     validationStatus: "implemented",
     fidelityRisks: [
       "catalog validity does not prove generated-audio media quality until real provider artifacts are inspected",
-      "actual provider-backed generated-audio execution remains pending verified provider schema and paid validation"
+      "actual provider-backed generated-audio commercial evidence remains pending paid validation and manual review"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
