@@ -195,6 +195,7 @@ function buildRequiredInputs(reports) {
   const plannedCost = numberOrUndefined(costPlan.knownPaidEstimateUsd ?? atlasBilling?.costPlan?.plannedCostUsd);
   const minimumLongFormBudget = numberOrUndefined(costPlan.longForm?.minimumBudgetUsdToRun ?? costPlan.longForm?.estimatedCostUsd);
   const atlasBudgetBlockerMessage = atlasBillingSummary?.message ?? failingMessage(business, "atlas_billing_readiness");
+  const sourceVideoValidationStep = validationStep(plan, "source_video_auto_analysis_validation");
 
   return [
     input({
@@ -255,14 +256,30 @@ function buildRequiredInputs(reports) {
       category: "budget",
       status: atlasBillingSummary?.canRunAtlasSpendWithinApprovedBudget === true ? "configured" : "blocked_by_budget",
       sensitivity: "budget_approval",
-      requiredFor: ["atlas_billing_readiness", "long_form_paid_validation", "atlas_generated_audio_validation", "source_video_auto_analysis_validation"],
+      requiredFor: ["atlas_billing_readiness", "long_form_paid_validation", "atlas_generated_audio_validation"],
       envVars: [],
       filePaths: [],
-      acceptance: `Approve at least ${formatUsd(plannedCost ?? minimumLongFormBudget ?? 0)} for the current full validation plan, or intentionally re-plan a narrower validation slice.`,
+      acceptance: `Approve at least ${formatUsd(plannedCost ?? minimumLongFormBudget ?? 0)} for the current known video/audio validation plan, or intentionally re-plan a narrower validation slice. This excludes usage-dependent source-video LLM cost.`,
       validationCommand: `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(plannedCost ?? approvedBudget ?? 5)} --confirm-live-network`,
       blockerMessage: atlasBudgetBlockerMessage,
       currentValue: approvedBudget === undefined ? undefined : formatUsd(approvedBudget),
       requiredValue: plannedCost === undefined ? undefined : formatUsd(plannedCost)
+    }),
+    input({
+      id: "source_video_atlas_llm_budget",
+      label: "Approved source-video Atlas LLM budget",
+      category: "budget",
+      status: sourceVideoValidationStep?.status === "ready" ? "configured" : "blocked_by_budget",
+      sensitivity: "budget_approval",
+      requiredFor: ["source_video_auto_analysis_validation"],
+      envVars: [],
+      filePaths: ["assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json"],
+      acceptance: "Approve an explicit source-video LLM budget for the selected clean source video, then capture a slice-specific Atlas billing report whose plannedCostUsd matches that budget.",
+      validationCommand:
+        "npm.cmd run validation:atlas-billing -- --max-budget-usd <approved-source-video-budget-usd> --planned-cost-usd <approved-source-video-budget-usd> --output assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json --confirm-live-network",
+      blockerMessage:
+        sourceVideoValidationStep?.requiredInputs?.find((item) => String(item).includes("source-video Atlas billing")) ??
+        "Source-video paid validation requires a fresh atlas-billing-source-video-report.json matching --max-cost-usd before FFmpeg source fetch or Atlas LLM calls."
     }),
     input({
       id: "source_video_url",
@@ -408,6 +425,11 @@ function buildEvidenceCommandPlan(plan) {
       }
     ]
   };
+}
+
+function validationStep(plan, name) {
+  const sequence = Array.isArray(plan?.validationSequence) ? plan.validationSequence : [];
+  return sequence.find((step) => step?.name === name);
 }
 
 function buildBudgetConstrainedPaidPlan(plan) {
