@@ -1,7 +1,7 @@
 /**
  * Render Producer submits compiled prompts to the selected video provider and waits for async completion.
  * It keeps render orchestration separate from prompt compilation and story planning.
- * Extension based on Atlas Cloud Asset Library guidance: video/audio references are registered and active before generation.
+ * Atlas upload/direct-reference handling: video/audio references are ready before generation.
  */
 
 import type { AssetProvider, VideoProvider } from "../providers/contracts.js";
@@ -115,18 +115,18 @@ export class RenderProducer {
     }
 
     const cacheKey = `${assetKind}:${reference.uri}`;
-    let assetId = this.assetCache.get(cacheKey);
-    if (!assetId) {
-      assetId = this.registerAndWait(reference, assetKind, metadata, signal).catch((error: unknown) => {
+    let providerReference = this.assetCache.get(cacheKey);
+    if (!providerReference) {
+      providerReference = this.registerAndWait(reference, assetKind, metadata, signal).catch((error: unknown) => {
         this.assetCache.delete(cacheKey);
         throw error;
       });
-      this.assetCache.set(cacheKey, assetId);
+      this.assetCache.set(cacheKey, providerReference);
     }
 
     return {
       ...reference,
-      providerAssetId: await assetId
+      providerAssetId: await providerReference
     };
   }
 
@@ -152,15 +152,26 @@ export class RenderProducer {
       signal
     );
     const activeAsset = registration.status === "active" ? registration : await this.assetProvider.waitUntilActive(registration.assetId, signal);
-    if (activeAsset.assetId === "unknown") {
+    const providerReference = this.activeAssetProviderReference(activeAsset);
+    if (!providerReference) {
       throw new ProviderError({
         code: "ASSET_VALIDATION_FAILED",
         provider: this.assetProvider.name,
-        message: "Asset Library registration did not return a usable asset ID.",
+        message: "Asset Library registration did not return a usable asset ID or clean HTTPS media URL.",
         details: activeAsset.raw
       });
     }
-    return activeAsset.assetId;
+    return providerReference;
+  }
+
+  private activeAssetProviderReference(activeAsset: { readonly assetId: string; readonly uri?: string }): string | undefined {
+    if (activeAsset.assetId !== "unknown") {
+      return activeAsset.assetId;
+    }
+    if (activeAsset.uri && this.isDirectProviderReference(activeAsset.uri)) {
+      return activeAsset.uri;
+    }
+    return undefined;
   }
 
   private isDirectProviderReference(uri: string): boolean {

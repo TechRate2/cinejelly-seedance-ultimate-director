@@ -35,6 +35,7 @@ Implementation status as of 2026-06-16: CineJelly-owned production foundation im
 - HTTP 404/405 from `/model/prediction/{id}`: try Atlas's documented `/model/result/{id}` compatibility route before treating the poll as failed.
 - Non-JSON provider error body: redact and preserve only a short preview in details.
 - Media upload terminal `failed` or invalid direct reference: record preparation failure with provider status evidence.
+- Media upload success with only a temporary HTTPS URL: use the returned clean URL as the provider reference instead of requiring a separate asset ID.
 
 ## Reference Implementation
 
@@ -145,6 +146,7 @@ async function waitForPrediction(predictionId: string, context: PollingContext):
 - Keep Atlas prediction polling compatible with both `/model/prediction/{id}` and `/model/result/{id}` without hiding authentication, schema, rate-limit, credit, or server errors.
 - Keep retry policy centralized in `src/utils/retry.ts`; higher-level agents read normalized errors and ledger entries.
 - Preserve Atlas-specific mapping only inside `src/providers/atlascloud/*`.
+- Allow `RenderProducer` to pass through a clean temporary upload URL returned by Atlas `/model/uploadMedia` so a url-only response does not become a malformed `asset://https://...` reference or a false asset-registration failure.
 
 ## Validation Checklist
 
@@ -154,6 +156,7 @@ async function waitForPrediction(predictionId: string, context: PollingContext):
 - Ledger entries include `predictionId` for create/get/wait operations whenever known.
 - Provider-returned `usage` is preserved in the ledger when available.
 - Atlas result-route fallback is used only after `/model/prediction/{id}` returns 404/405, and mapped output URLs still flow through the same provider-neutral `Prediction` contract.
+- Atlas upload responses that provide a clean HTTPS URL but no separate asset ID can still feed the next generation request as a direct provider reference.
 - Review packet cost summary counts failed, timeout, and canceled provider operations.
 - No production import path references `external/upstream`.
 - Source lineage is added to `DEFAULT_SOURCE_LOGIC_TRANSLATIONS` after implementation.

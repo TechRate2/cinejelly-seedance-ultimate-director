@@ -386,6 +386,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "async prediction submit/get/wait lifecycle is explicit",
       "Asset Library registration and activation polling remain separated",
+      "upload responses that only provide clean temporary HTTPS media URLs remain usable as direct provider references",
       "provider-returned usage and cost fields are preserved when available"
     ],
     behaviorChanged: [
@@ -398,6 +399,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/provider.ts",
       "src/providers/atlascloud/atlas-cloud-provider.ts",
       "src/providers/atlascloud/atlas-cloud-http.ts",
+      "src/agents/render-producer.ts",
       "src/utils/errors.ts",
       "src/utils/retry.ts"
     ],
