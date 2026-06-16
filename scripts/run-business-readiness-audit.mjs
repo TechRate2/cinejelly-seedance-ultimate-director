@@ -8,6 +8,7 @@ const defaults = {
   releaseAuditPath: "assets/output_deliverables/phase6-validation/release-audit-report.json",
   paidReportPath: "assets/output_deliverables/phase6-validation/paid-render-report.json",
   manualReviewPath: "assets/output_deliverables/phase6-validation/manual-review-report.md",
+  businessPlanPath: "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json",
   deploymentPreflightPath: "assets/output_deliverables/business-readiness/deployment-preflight-report.json",
   atlasBillingReadinessPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
   longFormReportPath: "assets/output_deliverables/business-readiness/long-form-validation-report.json",
@@ -120,6 +121,7 @@ function parseArgs(args) {
     ["--release-audit", "releaseAuditPath"],
     ["--paid-report", "paidReportPath"],
     ["--manual-review", "manualReviewPath"],
+    ["--business-plan-report", "businessPlanPath"],
     ["--deployment-preflight-report", "deploymentPreflightPath"],
     ["--atlas-billing-report", "atlasBillingReadinessPath"],
     ["--long-form-report", "longFormReportPath"],
@@ -173,6 +175,7 @@ Options:
   --release-audit <path>                Release-audit report. Default: ${defaults.releaseAuditPath}
   --paid-report <path>                  Paid-render report. Default: ${defaults.paidReportPath}
   --manual-review <path>                Manual review report. Default: ${defaults.manualReviewPath}
+  --business-plan-report <path>         Current no-spend business-readiness plan. Default: ${defaults.businessPlanPath}
   --deployment-preflight-report <path>  Real deployment preflight/readiness report. Default: ${defaults.deploymentPreflightPath}
   --atlas-billing-report <path>         Atlas billing readiness report. Default: ${defaults.atlasBillingReadinessPath}
   --long-form-report <path>             Real 2-8 minute validation report. Default: ${defaults.longFormReportPath}
@@ -265,10 +268,21 @@ function evaluateDeploymentPreflight(path) {
   return fail(`Deployment evidence status is ${report.status ?? report.decision ?? "missing"}.`);
 }
 
-function evaluateAtlasBillingReadiness(path) {
+function evaluateAtlasBillingReadiness(path, options) {
   const report = readJson(path);
   if (report.schemaVersion !== "cinejelly.atlas-billing-readiness.v1") {
     return fail("Atlas billing readiness report schemaVersion is not recognized.");
+  }
+  const currentPlan = readJsonIfExists(options.businessPlanPath);
+  if (!currentPlan) {
+    return fail(`Current business-readiness validation plan is missing at ${options.businessPlanPath}. Run npm.cmd run validation:business-plan before auditing Atlas billing readiness.`);
+  }
+  if (currentPlan.schemaVersion !== "cinejelly.business-readiness-validation-plan.v1") {
+    return fail("Current business-readiness validation plan schemaVersion is not recognized.");
+  }
+  const freshness = atlasBillingFreshness(report, currentPlan);
+  if (!freshness.matchesCurrentPlan) {
+    return fail(freshness.message);
   }
   if (
     report.status === "pass" &&
@@ -292,6 +306,22 @@ function evaluateAtlasBillingReadiness(path) {
       ? `Atlas billing readiness is incomplete: ${firstFailure}`
       : `Atlas billing readiness status is ${report.status ?? "missing"}.`
   );
+}
+
+function atlasBillingFreshness(report, currentPlan) {
+  const expectedMaxBudgetUsd = numberOrUndefined(currentPlan.costPlan?.maxBudgetUsd);
+  const expectedPlannedCostUsd = numberOrUndefined(currentPlan.costPlan?.knownPaidEstimateUsd);
+  const reportMaxBudgetUsd = numberOrUndefined(report.checkedInputs?.maxBudgetUsd ?? report.costPlan?.maxBudgetUsd);
+  const reportPlannedCostUsd = numberOrUndefined(report.checkedInputs?.plannedCostUsd ?? report.costPlan?.plannedCostUsd);
+  const matchesCurrentPlan =
+    moneyEquals(reportMaxBudgetUsd, expectedMaxBudgetUsd) &&
+    moneyEquals(reportPlannedCostUsd, expectedPlannedCostUsd);
+  return {
+    matchesCurrentPlan,
+    message: matchesCurrentPlan
+      ? "Atlas billing readiness report matches the current business-readiness validation plan."
+      : `Atlas billing readiness is stale for the current plan: report budget ${formatUsd(reportMaxBudgetUsd)}, report planned cost ${formatUsd(reportPlannedCostUsd)}, current budget ${formatUsd(expectedMaxBudgetUsd)}, current planned cost ${formatUsd(expectedPlannedCostUsd)}. Rerun npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(expectedMaxBudgetUsd)} --confirm-live-network.`
+  };
 }
 
 function evaluateLongForm(path) {
@@ -541,7 +571,7 @@ function buildCheck(spec, options) {
     };
   }
   try {
-    const result = spec.evaluator(relativePath);
+    const result = spec.evaluator(relativePath, options);
     return {
       name: spec.name,
       status: result.status,
@@ -569,8 +599,32 @@ function readJson(path) {
   }
 }
 
+function readJsonIfExists(path) {
+  const absolutePath = resolve(repoRoot, path);
+  if (!existsSync(absolutePath)) {
+    return undefined;
+  }
+  return JSON.parse(readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, ""));
+}
+
 function readText(path) {
   return readFileSync(resolve(repoRoot, path), "utf8");
+}
+
+function numberOrUndefined(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function moneyEquals(left, right) {
+  return typeof left === "number" && typeof right === "number" && Math.abs(left - right) < 0.000001;
+}
+
+function formatUsd(value) {
+  return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(6)}` : "unavailable";
+}
+
+function formatNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(6) : "0.000000";
 }
 
 function pass(message) {
@@ -673,6 +727,7 @@ function main() {
       releaseAuditPath: options.releaseAuditPath,
       paidReportPath: options.paidReportPath,
       manualReviewPath: options.manualReviewPath,
+      businessPlanPath: options.businessPlanPath,
       deploymentPreflightPath: options.deploymentPreflightPath,
       atlasBillingReadinessPath: options.atlasBillingReadinessPath,
       longFormReportPath: options.longFormReportPath,
