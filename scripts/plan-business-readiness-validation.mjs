@@ -111,11 +111,14 @@ function main() {
   }
   validateOptions(options);
 
+  const costPlan = buildCostPlan(options);
   const businessReadiness = summarizeBusinessReadiness(options.businessReadinessPath);
   const opsConfig = summarizeOpsConfig(options.opsConfigPath);
-  const atlasBilling = summarizeAtlasBilling(options.atlasBillingPath);
+  const atlasBilling = summarizeAtlasBilling(options.atlasBillingPath, {
+    maxBudgetUsd: options.maxBudgetUsd,
+    plannedCostUsd: costPlan.knownPaidEstimateUsd
+  });
   const environment = summarizeEnvironment(options);
-  const costPlan = buildCostPlan(options);
   const validationSequence = buildValidationSequence({ options, businessReadiness, opsConfig, atlasBilling, environment, costPlan });
   const status = statusFor(validationSequence);
   const report = {
@@ -212,7 +215,7 @@ function summarizeOpsConfig(path) {
   };
 }
 
-function summarizeAtlasBilling(path) {
+function summarizeAtlasBilling(path, expectedCostPlan) {
   const report = readJsonIfExists(path);
   if (!report) {
     return {
@@ -223,18 +226,45 @@ function summarizeAtlasBilling(path) {
       nextActions: ["Run npm.cmd run validation:atlas-billing, then rerun with --confirm-live-network when a no-spend Atlas billing API call is approved."]
     };
   }
+  const reportPlan = atlasBillingReportPlan(report, expectedCostPlan);
   const failures = Array.isArray(report.checks)
     ? report.checks.filter((check) => check?.status === "fail").map((check) => String(check.message ?? check.name ?? "unknown"))
     : [];
+  const nextActions = [
+    ...(reportPlan.matchesCurrentPlan ? [] : [reportPlan.message]),
+    ...failures
+  ];
   return {
     present: true,
     path: toRepoRelative(path),
     schemaVersion: report.schemaVersion,
     status: String(report.status ?? "unknown"),
-    canUseAsPrePaidAtlasBillingEvidence: report.releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true,
-    canRunAtlasSpendWithinApprovedBudget: report.releaseGateSummary?.canRunAtlasSpendWithinApprovedBudget === true,
+    reportMaxBudgetUsd: reportPlan.reportMaxBudgetUsd,
+    reportPlannedCostUsd: reportPlan.reportPlannedCostUsd,
+    currentMaxBudgetUsd: expectedCostPlan.maxBudgetUsd,
+    currentPlannedCostUsd: expectedCostPlan.plannedCostUsd,
+    budgetMatchesCurrentPlan: reportPlan.matchesCurrentPlan,
+    canUseAsPrePaidAtlasBillingEvidence: reportPlan.matchesCurrentPlan && report.releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true,
+    canRunAtlasSpendWithinApprovedBudget: reportPlan.matchesCurrentPlan && report.releaseGateSummary?.canRunAtlasSpendWithinApprovedBudget === true,
     networkCallsMade: report.networkCallsMade === true,
-    nextActions: failures.slice(0, 8)
+    nextActions: nextActions.slice(0, 8)
+  };
+}
+
+function atlasBillingReportPlan(report, expectedCostPlan) {
+  const reportMaxBudgetUsd = numberOrUndefined(report.checkedInputs?.maxBudgetUsd ?? report.costPlan?.maxBudgetUsd);
+  const reportPlannedCostUsd = numberOrUndefined(report.checkedInputs?.plannedCostUsd ?? report.costPlan?.plannedCostUsd);
+  const maxBudgetMatches = moneyEquals(reportMaxBudgetUsd, expectedCostPlan.maxBudgetUsd);
+  const plannedCostMatches = moneyEquals(reportPlannedCostUsd, expectedCostPlan.plannedCostUsd);
+  const matchesCurrentPlan = maxBudgetMatches && plannedCostMatches;
+  const message = matchesCurrentPlan
+    ? "Atlas billing readiness report matches the current budget plan."
+    : `Atlas billing readiness report is stale for the current budget plan: report budget ${formatUsd(reportMaxBudgetUsd)}, report planned cost ${formatUsd(reportPlannedCostUsd)}, current budget ${formatUsd(expectedCostPlan.maxBudgetUsd)}, current planned cost ${formatUsd(expectedCostPlan.plannedCostUsd)}. Rerun npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(expectedCostPlan.maxBudgetUsd)} --confirm-live-network.`;
+  return {
+    reportMaxBudgetUsd,
+    reportPlannedCostUsd,
+    matchesCurrentPlan,
+    message
   };
 }
 
@@ -779,6 +809,14 @@ function numberFromEnv(name) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function numberOrUndefined(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function moneyEquals(left, right) {
+  return typeof left === "number" && typeof right === "number" && Math.abs(left - right) < 0.000001;
+}
+
 function writeMaybe(options, report) {
   if (!options.writeReport) {
     return;
@@ -799,6 +837,10 @@ function escapeCommandText(value) {
 
 function formatUsd(value) {
   return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(6)}` : "unavailable";
+}
+
+function formatNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(6) : "0.000000";
 }
 
 function redactText(value) {

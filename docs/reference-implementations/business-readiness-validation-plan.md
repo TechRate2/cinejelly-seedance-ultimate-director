@@ -17,6 +17,7 @@ Before spending more Atlas credits, operators need one consolidated plan that ex
 7. Remote stock, source-video, deployment, billing/admin, and production-ops readiness must be represented as missing inputs or ready commands, not silently skipped.
 8. Paid Atlas steps and top-level paid-validation flags must remain blocked while Atlas billing readiness or the approved-budget fit fails, even if one narrow paid sample is individually inexpensive.
 9. The default approved budget must come from `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` when it is configured so the planner, live-input validator, and Atlas billing gate agree on the same operator-approved ceiling.
+10. A stored Atlas billing readiness report must be treated as stale when its captured `maxBudgetUsd` or `plannedCostUsd` differs from the current plan; stale billing evidence cannot unlock paid Atlas validation.
 
 ## Report Shape
 
@@ -73,4 +74,5 @@ interface BusinessReadinessValidationPlan {
 - Current long-form validation is blocked by the configured budget when the estimate exceeds the approved ceiling.
 - Current generated-audio validation is blocked by Atlas billing readiness when the full paid sequence exceeds the approved ceiling, and is blocked earlier when model, voice, or reviewed capability JSON shape is incomplete.
 - Overriding `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` changes the planner default `maxBudgetUsd` without requiring a CLI flag.
+- When the approved budget changes, planner output names the stored Atlas billing report as stale until `validation:atlas-billing -- --max-budget-usd <current-budget> --confirm-live-network` refreshes it.
 - Planner output says it is not release evidence and cannot release customer traffic.
