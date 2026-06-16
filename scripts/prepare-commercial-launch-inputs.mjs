@@ -523,19 +523,50 @@ function buildReleaseGateSummary({ status, reports, requiredInputs }) {
   const plan = reports.businessPlan.value;
   const live = reports.liveInputs.value;
   const missing = requiredInputs.filter((item) => item.status === "missing" || item.status === "blocked_by_budget");
-  const hasReadyPaidGate = Number(live?.releaseGateSummary?.readyPaidGateCount ?? 0) > 0;
+  const readyPaidGates = readyPaidGatesFrom(live, plan);
+  const hasReadyPaidGate = readyPaidGates.length > 0;
+  const shouldDeferFullSequenceSpend =
+    live?.releaseGateSummary?.shouldDeferFullSequenceSpend ??
+    plan?.releaseGateSummary?.shouldDeferFullSequenceSpend ??
+    true;
   return {
     canRunNoSpendPrep: true,
     canRunLiveNetworkEvidence: status === "ready_for_live_evidence_sequence",
     canRunPaidAtlasValidation:
       hasReadyPaidGate ||
       (plan?.releaseGateSummary?.canRunSomePaidValidationNow === true && status === "ready_for_live_evidence_sequence"),
+    readyPaidGates,
+    readyPaidGateCount: readyPaidGates.length,
+    shouldDeferFullSequenceSpend,
     canReleaseToCustomerTraffic: business?.releaseGateSummary?.canReleaseToCustomerTraffic === true,
     releaseBlocker:
       missing.length > 0
         ? `Commercial launch inputs are incomplete: ${missing.map((item) => item.id).join(", ")}.`
         : "Inputs are ready for live evidence sequence, but evidence runs and manual reviews still control release."
   };
+}
+
+function readyPaidGatesFrom(live, plan) {
+  const liveReady = Array.isArray(live?.releaseGateSummary?.readyPaidGates)
+    ? live.releaseGateSummary.readyPaidGates.map(normalizeReadyPaidGateName)
+    : [];
+  if (liveReady.length > 0) {
+    return liveReady;
+  }
+  const planReady = Array.isArray(plan?.releaseGateSummary?.readyPaidGates)
+    ? plan.releaseGateSummary.readyPaidGates.map(normalizeReadyPaidGateName)
+    : [];
+  return planReady;
+}
+
+function normalizeReadyPaidGateName(name) {
+  const normalized = String(name);
+  const aliases = new Map([
+    ["generated_audio_inputs", "generated_audio_validation"],
+    ["long_form_paid_validation_inputs", "long_form_paid_validation"],
+    ["source_video_auto_analysis_inputs", "source_video_auto_analysis_validation"]
+  ]);
+  return aliases.get(normalized) ?? normalized;
 }
 
 function nextActionsFor(requiredInputs, live) {
@@ -608,6 +639,8 @@ function renderMarkdown(report) {
     "## Release Gate",
     "",
     `canReleaseToCustomerTraffic: ${report.releaseGateSummary.canReleaseToCustomerTraffic}`,
+    `readyPaidGates: ${report.releaseGateSummary.readyPaidGates.length === 0 ? "none" : report.releaseGateSummary.readyPaidGates.join(", ")}`,
+    `shouldDeferFullSequenceSpend: ${report.releaseGateSummary.shouldDeferFullSequenceSpend}`,
     "",
     report.releaseGateSummary.releaseBlocker,
     ""

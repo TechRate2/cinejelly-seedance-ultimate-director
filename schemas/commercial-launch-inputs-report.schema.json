@@ -192,6 +192,9 @@
         "canRunNoSpendPrep",
         "canRunLiveNetworkEvidence",
         "canRunPaidAtlasValidation",
+        "readyPaidGates",
+        "readyPaidGateCount",
+        "shouldDeferFullSequenceSpend",
         "canReleaseToCustomerTraffic",
         "releaseBlocker"
       ],
@@ -199,6 +202,9 @@
         "canRunNoSpendPrep": { "type": "boolean" },
         "canRunLiveNetworkEvidence": { "type": "boolean" },
         "canRunPaidAtlasValidation": { "type": "boolean" },
+        "readyPaidGates": { "type": "array", "items": { "type": "string" } },
+        "readyPaidGateCount": { "type": "integer", "minimum": 0 },
+        "shouldDeferFullSequenceSpend": { "type": "boolean" },
         "canReleaseToCustomerTraffic": { "type": "boolean" },
         "releaseBlocker": { "type": "string" }
       }

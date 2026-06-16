@@ -70,6 +70,9 @@ interface CommercialLaunchInputsReport {
     canRunNoSpendPrep: boolean;
     canRunLiveNetworkEvidence: boolean;
     canRunPaidAtlasValidation: boolean;
+    readyPaidGates: string[];
+    readyPaidGateCount: number;
+    shouldDeferFullSequenceSpend: boolean;
     canReleaseToCustomerTraffic: false;
     releaseBlocker: string;
   };
@@ -92,5 +95,5 @@ interface CommercialLaunchInputsReport {
 - Current output includes a paid budget slice section that names generated-audio smoke as within the `$5` ceiling while long-form/full sequence remain blocked.
 - The generated-audio smoke slice shows a no-spend Atlas billing probe with `--planned-cost-usd` before the paid generated-audio command.
 - The generated-audio manual review item points to `validation:generated-audio -- --review-existing-report ... --confirm-manual-audio-review`, not a second provider execution.
-- Current output can mark the generated-audio paid smoke command ready when live-inputs confirms its billing slice, while keeping customer traffic release false.
+- Current output can mark the generated-audio paid smoke command ready when live-inputs confirms its billing slice, reports the exact ready paid gate names, keeps `shouldDeferFullSequenceSpend=true`, and keeps customer traffic release false.
 - When the approved budget changes, checklist output points operators to rerun `validation:atlas-billing -- --max-budget-usd <current-budget> --confirm-live-network` instead of repeating stale audit text.
