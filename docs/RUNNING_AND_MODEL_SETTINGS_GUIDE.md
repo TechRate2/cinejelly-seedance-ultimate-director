@@ -461,7 +461,7 @@ Run `npm.cmd run setup:local` or `npm.cmd run doctor` to let CineJelly write doc
 
 ### API returns unauthorized
 
-Pass the configured `CINEJELLY_API_AUTH_TOKEN`, or a configured client API key for customer render routes, through `Authorization: Bearer ...` or `X-CineJelly-Api-Key`.
+Pass the configured `CINEJELLY_API_AUTH_TOKEN`, or a configured client API key for customer render routes, through the HTTP authorization header or `X-CineJelly-Api-Key`.
 
 ### Long jobs timeout over HTTP
 
