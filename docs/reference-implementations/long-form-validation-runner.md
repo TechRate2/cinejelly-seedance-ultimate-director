@@ -1,0 +1,90 @@
+# Reference Implementation: Long-Form Validation Runner
+
+Implementation status as of 2026-06-16: implemented as a CineJelly-owned no-spend-by-default evidence CLI, JSON schema, package command, business-readiness input, and operator documentation. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+
+## Source And Provider Pattern
+
+| Source | Use |
+| --- | --- |
+| `HKUDS/ViMax` | Long-form segmentation, continuity-sensitive planning, and staged validation expectations. |
+| `vericontext/vibeframe` | Validate-before-spend reports, cost gates, deterministic evidence, and repair-loop discipline. |
+| `harry0703/MoneyPrinterTurbo` | One-input staged pipeline and operator-visible progress/evidence expectations. |
+| `calesthio/OpenMontage` | Approval-gate and review evidence concepts as AGPL-aware behavior notes only. |
+| Atlas Cloud Seedance 2.0 model page | Provider clip-duration, resolution, aspect-ratio, and model-family assumptions for validation evidence. |
+
+## Contract
+
+The runner must:
+
+1. Write `schemaVersion: "cinejelly.long-form-validation.v1"`.
+2. Create or read an operator-owned render request with a target duration from 120 to 480 seconds.
+3. Run render request admission, runtime readiness, cost estimation, and provider-safe chunk planning before any provider spend.
+4. Treat Atlas Seedance clips as provider-safe only when planned shot durations stay inside 4 to 15 seconds.
+5. Block before live render validation unless `--confirm-paid-spend` is present.
+6. Block before live render validation when the estimated total cost exceeds `--max-cost-usd`.
+7. Delegate live provider work to the existing paid-render validation runner instead of duplicating provider orchestration.
+8. Require paid render completion, artifact validation pass, 120 to 480 second final duration, rendered shot evidence, and manual quality/redaction review before business-readiness can count the evidence.
+9. Redact secrets, signed URL query values, provider credentials, raw stack traces, and server-local artifact roots from archived reports.
+10. Never mark customer traffic open from long-form evidence alone; all other business-readiness gates must pass too.
+
+## Report Shape
+
+```ts
+interface LongFormValidationReport {
+  schemaVersion: "cinejelly.long-form-validation.v1";
+  status:
+    | "pass"
+    | "warn"
+    | "fail"
+    | "blocked_by_budget"
+    | "blocked_by_spend_confirmation"
+    | "blocked_by_readiness";
+  checkedInputs: {
+    requestPath: string;
+    requestCreated: boolean;
+    durationSeconds: number;
+    outputPath: string;
+  };
+  spendGate: {
+    confirmPaidSpend: boolean;
+    providerSpendAllowed: boolean;
+    maxCostUsd: number;
+    estimatedTotalCostUsd?: number;
+  };
+  requestValidation: object;
+  readiness: object;
+  costEstimate: object;
+  chunkPlan: object;
+  paidRender: object;
+  artifactEvidence: object;
+  manualQualityReview: object;
+  releaseGateSummary: {
+    canUseAsBusinessReadinessLongFormEvidence: boolean;
+    canOpenPaidCustomerTraffic: false;
+    releaseBlocker: string;
+  };
+}
+```
+
+## CLI
+
+```powershell
+npm.cmd run validation:long-form -- --duration-seconds 120
+npm.cmd run validation:long-form -- --request "assets/output_deliverables/business-readiness/long-form-request.json" --max-cost-usd 25 --confirm-paid-spend
+```
+
+The default run writes a blocked no-spend report when spend confirmation is missing or the local budget ceiling is too low. A live run still requires the paid-render runner to pass, artifact validation to pass, and an operator manual quality/redaction review before the business-readiness audit accepts it.
+
+## Done
+
+- Done: add `scripts/run-long-form-validation.mjs`.
+- Done: add `schemas/long-form-validation-report.schema.json`.
+- Done: add `npm.cmd run validation:long-form`.
+- Done: add schema-aware long-form evaluation to `validation:business-readiness`.
+- Done: document the no-spend, budget, paid-spend, artifact, and manual-review gates.
+
+## Remaining
+
+- Run the paid long-form validation only after the operator approves a budget ceiling that covers the estimated duration cost.
+- Archive manual quality/redaction review evidence for the live long-form output.
+- Re-run `validation:business-readiness` after deployment, source-video, remote-stock, generated-audio, billing/admin, and production-operations evidence also exists.

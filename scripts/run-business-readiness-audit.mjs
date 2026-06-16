@@ -256,6 +256,9 @@ function evaluateDeploymentPreflight(path) {
 
 function evaluateLongForm(path) {
   const report = readJson(path);
+  if (report.schemaVersion === "cinejelly.long-form-validation.v1") {
+    return evaluateLongFormValidationReport(report);
+  }
   const status = inferReportStatus(report);
   const artifactStatus = report.artifactValidation?.status ?? report.artifacts?.status;
   const durationSeconds = firstNumber([
@@ -282,6 +285,42 @@ function evaluateLongForm(path) {
     return warn(`Long-form validation reached ${durationSeconds}s with warnings requiring manual review.`);
   }
   return pass(`Long-form validation evidence covers ${durationSeconds}s and passed required checks.`);
+}
+
+function evaluateLongFormValidationReport(report) {
+  const finalDurationSeconds = firstNumber([
+    report.artifactEvidence?.finalDurationSeconds,
+    report.artifactEvidence?.targetDurationSeconds,
+    report.checkedInputs?.durationSeconds,
+    report.durationSeconds,
+    report.finalDurationSeconds
+  ]);
+  if (
+    report.status === "pass" &&
+    report.releaseGateSummary?.canUseAsBusinessReadinessLongFormEvidence === true &&
+    report.spendGate?.providerSpendAllowed === true &&
+    finalDurationSeconds !== undefined &&
+    finalDurationSeconds >= 120 &&
+    finalDurationSeconds <= 480 &&
+    report.paidRender?.status === "completed" &&
+    report.paidRender?.artifactValidationStatus === "pass" &&
+    report.chunkPlan?.status === "pass" &&
+    Number(report.artifactEvidence?.renderedShotCount ?? 0) > 0 &&
+    report.manualQualityReview?.passed === true
+  ) {
+    return pass(`Long-form validation evidence covers ${finalDurationSeconds}s and passed required checks.`);
+  }
+  if (report.status === "warn") {
+    return warn("Long-form validation evidence has warnings requiring operator acceptance.");
+  }
+  const firstFailure = Array.isArray(report.checks)
+    ? report.checks.find((check) => check?.status === "fail" && typeof check?.message === "string")?.message
+    : undefined;
+  return fail(
+    firstFailure
+      ? `Long-form validation evidence is incomplete: ${firstFailure}`
+      : `Long-form validation evidence status is ${report.status ?? "missing"}.`
+  );
 }
 
 function evaluateBillingAdminOps(path) {

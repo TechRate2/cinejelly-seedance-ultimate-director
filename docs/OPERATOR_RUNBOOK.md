@@ -141,6 +141,22 @@ npm.cmd run validation:deployment-readiness
 
 The capture calls only `GET /health`, `GET /v1/preflight`, `GET /v1/validation-readiness`, and `GET /v1/render-settings`; it does not submit render work or call Atlas. Localhost captures are useful for smoke testing but are marked `environmentKind: local` and cannot satisfy the business-readiness deployment gate.
 
+Create the 2-8 minute long-form evidence through the dedicated spend-gated runner. First run the request, readiness, budget, and chunk-plan checks without paid confirmation:
+
+```powershell
+npm.cmd run validation:long-form -- --duration-seconds 120
+```
+
+This writes `assets/output_deliverables/business-readiness/long-form-validation-report.json` and may stop as `blocked_by_budget` when the local `--max-cost-usd` ceiling is lower than the estimated configured cost, or as `blocked_by_spend_confirmation` when the budget is acceptable but `--confirm-paid-spend` is missing. Both outcomes are no-spend and make no Atlas render calls.
+
+Run live long-form validation only after approving Atlas spend for that exact request and budget:
+
+```powershell
+npm.cmd run validation:long-form -- --request "assets/output_deliverables/business-readiness/long-form-request.json" --max-cost-usd <approved-budget> --confirm-paid-spend
+```
+
+If readiness returns warnings that the operator intentionally accepts, add `--allow-warnings`. The runner delegates provider work to `validation:paid-render`, then requires paid completion, artifact validation `pass`, a final duration from 120 to 480 seconds, provider-safe 4-15 second chunks, rendered-shot evidence, and manual quality/redaction review before business-readiness can count the report. See `docs/reference-implementations/long-form-validation-runner.md` for the exact report contract.
+
 Create the live source-video auto-analysis evidence with a real, clean HTTPS source video that has no credentials or signed query parameters. First run the spend gate without confirmation to verify the report path and source URL checks:
 
 ```powershell

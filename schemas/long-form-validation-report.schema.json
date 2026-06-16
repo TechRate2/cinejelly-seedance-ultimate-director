@@ -1,0 +1,275 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/long-form-validation-report.schema.json",
+  "title": "CineJelly Long Form Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "sourcePatternOrigins",
+    "atlasDocsEvidence",
+    "checkedInputs",
+    "spendGate",
+    "requestValidation",
+    "readiness",
+    "costEstimate",
+    "chunkPlan",
+    "checks",
+    "paidRender",
+    "artifactEvidence",
+    "manualQualityReview",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.long-form-validation.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": [
+        "pass",
+        "warn",
+        "fail",
+        "blocked_by_budget",
+        "blocked_by_spend_confirmation",
+        "blocked_by_readiness"
+      ]
+    },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "atlasDocsEvidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "seedanceModelPage",
+        "documentedSeedanceClipDurationSeconds",
+        "longFormTargetSeconds",
+        "observedInDocsAt"
+      ],
+      "properties": {
+        "seedanceModelPage": { "type": "string" },
+        "documentedSeedanceClipDurationSeconds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max"],
+          "properties": {
+            "min": { "type": "number", "minimum": 0 },
+            "max": { "type": "number", "minimum": 0 }
+          }
+        },
+        "documentedSeedanceResolutions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "documentedAspectRatios": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "longFormTargetSeconds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max"],
+          "properties": {
+            "min": { "type": "number", "minimum": 0 },
+            "max": { "type": "number", "minimum": 0 }
+          }
+        },
+        "observedInDocsAt": { "type": "string" }
+      }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requestPath", "requestCreated", "durationSeconds", "outputPath"],
+      "properties": {
+        "requestPath": { "type": "string" },
+        "requestCreated": { "type": "boolean" },
+        "durationSeconds": { "type": "number", "minimum": 120, "maximum": 480 },
+        "outputPath": { "type": "string" }
+      }
+    },
+    "spendGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmPaidSpend", "providerSpendAllowed", "maxCostUsd"],
+      "properties": {
+        "confirmPaidSpend": { "type": "boolean" },
+        "providerSpendAllowed": { "type": "boolean" },
+        "maxCostUsd": { "type": "number", "minimum": 0 },
+        "estimatedTotalCostUsd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "requestValidation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "issueCount", "issues"],
+      "properties": {
+        "status": { "enum": ["pass", "fail"] },
+        "requestId": { "type": "string" },
+        "normalizedSummary": { "type": "object" },
+        "issueCount": { "type": "integer", "minimum": 0 },
+        "issues": { "type": "array" }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["decision", "preflightStatus", "checkCounts", "hardBlockers", "warnings", "allowWarnings"],
+      "properties": {
+        "decision": { "type": "string" },
+        "preflightStatus": { "type": "string" },
+        "checkCounts": { "type": "object" },
+        "hardBlockers": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } },
+        "allowWarnings": { "type": "boolean" }
+      }
+    },
+    "costEstimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["durationSeconds", "costBufferMultiplier", "estimateAvailable"],
+      "properties": {
+        "durationSeconds": { "type": "number", "minimum": 120, "maximum": 480 },
+        "renderCostUsdPerSecond": { "type": "number", "minimum": 0 },
+        "costBufferMultiplier": { "type": "number", "minimum": 0 },
+        "estimatedTotalCostUsd": { "type": "number", "minimum": 0 },
+        "estimateAvailable": { "type": "boolean" }
+      }
+    },
+    "chunkPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "totalDurationSeconds",
+        "clipCount",
+        "minClipDurationSeconds",
+        "maxClipDurationSeconds",
+        "providerClipDurationSeconds",
+        "qualityMode",
+        "requiresStrictInspection",
+        "candidateCount",
+        "repairAttemptCount",
+        "plannedCandidateRenderCount",
+        "plannedRepairRenderCount",
+        "chunks"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "fail"] },
+        "totalDurationSeconds": { "type": "number", "minimum": 120, "maximum": 480 },
+        "clipCount": { "type": "integer", "minimum": 1 },
+        "minClipDurationSeconds": { "type": "number", "minimum": 0 },
+        "maxClipDurationSeconds": { "type": "number", "minimum": 0 },
+        "providerClipDurationSeconds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max"],
+          "properties": {
+            "min": { "type": "number", "minimum": 0 },
+            "max": { "type": "number", "minimum": 0 }
+          }
+        },
+        "qualityMode": { "enum": ["economy", "standard", "high", "ultimate"] },
+        "requiresStrictInspection": { "type": "boolean" },
+        "candidateCount": { "type": "integer", "minimum": 1 },
+        "repairAttemptCount": { "type": "integer", "minimum": 0 },
+        "plannedCandidateRenderCount": { "type": "integer", "minimum": 1 },
+        "plannedRepairRenderCount": { "type": "integer", "minimum": 0 },
+        "chunks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["index", "startSecond", "endSecond", "durationSeconds"],
+            "properties": {
+              "index": { "type": "integer", "minimum": 0 },
+              "startSecond": { "type": "number", "minimum": 0 },
+              "endSecond": { "type": "number", "minimum": 0 },
+              "durationSeconds": { "type": "number", "minimum": 4, "maximum": 15 }
+            }
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "paidRender": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "costLedgerEntryCount"],
+      "properties": {
+        "status": { "type": "string" },
+        "exitCode": { "type": "integer" },
+        "requestId": { "type": "string" },
+        "artifactValidationStatus": { "type": "string" },
+        "costLedgerEntryCount": { "type": "integer", "minimum": 0 },
+        "estimatedCostUsd": { "type": "number", "minimum": 0 },
+        "actualCostUsd": { "type": "number", "minimum": 0 },
+        "projectId": { "type": "string" }
+      }
+    },
+    "artifactEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "renderedShotCount", "compiledPromptCount", "deliverablePresent"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "projectId": { "type": "string" },
+        "artifactRoot": { "type": "string" },
+        "targetDurationSeconds": { "type": "number", "minimum": 0 },
+        "finalDurationSeconds": { "type": "number", "minimum": 0 },
+        "renderedShotCount": { "type": "integer", "minimum": 0 },
+        "compiledPromptCount": { "type": "integer", "minimum": 0 },
+        "deliverablePresent": { "type": "boolean" },
+        "deliveryGateStatus": { "type": "string" },
+        "costGateStatus": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "manualQualityReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "passed", "message"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "source": { "type": "string" },
+        "path": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "message": { "type": "string" }
+      }
+    },
+    "error": { "type": "string" },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsBusinessReadinessLongFormEvidence",
+        "canOpenPaidCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsBusinessReadinessLongFormEvidence": { "type": "boolean" },
+        "canOpenPaidCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
