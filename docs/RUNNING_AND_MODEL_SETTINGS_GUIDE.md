@@ -37,6 +37,7 @@ Optional:
 
 | Tool or service | When needed |
 | --- | --- |
+| Docker | When packaging the API for a repeatable server/container deployment. |
 | Pexels/Pixabay/Coverr API keys | Only when remote stock material sourcing is enabled. |
 | Local material catalog JSON | Only when using operator-owned source material catalogs. |
 | Generated-audio asset resolution catalog | Only when mapping reviewed generated-audio `asset://` outputs to clean HTTPS URLs. |
@@ -200,6 +201,33 @@ npm.cmd run start
 ```powershell
 Invoke-RestMethod http://localhost:8787/health
 ```
+
+## Run In A Container
+
+The root `Dockerfile` builds the TypeScript API and installs FFmpeg/FFprobe in the runtime image. The image does not copy `.env`, operator attestations, generated media, or customer artifacts. Pass secrets through your platform secret manager or a local ignored env file.
+
+Build:
+
+```powershell
+docker build -t cinejelly-seedance-ultimate-director:local .
+```
+
+Run locally:
+
+```powershell
+docker run --rm -p 8787:8787 --env-file .env cinejelly-seedance-ultimate-director:local
+```
+
+For a single-host deployment that needs durable artifacts, mount an ignored output directory and point `CINEJELLY_OUTPUT_DIR` at it:
+
+```powershell
+docker run --rm -p 8787:8787 --env-file .env `
+  -e CINEJELLY_OUTPUT_DIR=/data/output_deliverables `
+  -v "${PWD}/assets/output_deliverables:/data/output_deliverables" `
+  cinejelly-seedance-ultimate-director:local
+```
+
+After publishing the container behind HTTPS, run `validation:deployment-readiness` from an operator machine. The Docker image is deployment packaging only; commercial readiness still requires real host evidence, billing/admin and production-ops attestations, Atlas billing readiness, and the remaining paid validation reports.
 
 ## Create And Validate A Request File
 

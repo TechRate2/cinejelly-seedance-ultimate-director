@@ -77,6 +77,7 @@ flowchart LR
 - `API Artifact Validation Evidence`: validates synchronous render and retained async job artifacts after success/failure artifact writes and exposes release-gate status without server-local paths.
 - `Render Request Validation Contract`: validates an operator-owned render request file through CineJelly admission and output-root normalization before readiness-gated paid provider work.
 - `Deployment Readiness Capture`: archives no-spend real-host `/health`, `/v1/preflight`, `/v1/validation-readiness`, and `/v1/render-settings` evidence; localhost captures remain smoke-only and cannot satisfy the business deployment gate.
+- `Deployment Container Packaging`: root Docker packaging builds the production API with FFmpeg/FFprobe, keeps `.env` and generated artifacts out of the image context, and gives operators a repeatable way to place the API behind HTTPS before capturing no-spend deployment evidence.
 - `API Client Policy Kit`: no-spend helper that creates digest-only client policy JSON, env snippets, optional ignored raw-key secret files for secure customer onboarding, and a safe env-merge path that preserves existing Atlas keys/tokens.
 - `Business Ops Config Precheck`: validates client-policy quota configuration plus non-secret billing/admin and production-operations attestations, can write incomplete drafts, and can promote completed drafts into ignored `ops/*.json` inputs only after validation, all without network, Atlas, render, or billing-provider calls.
 - `Live Readiness Input Validator`: no-spend local gate that checks whether deployment URL/auth, Atlas billing/budget readiness, ops attestations, source-video URL/settings, remote stock approvals, generated-audio capability inputs, and long-form budget are ready before any live network or paid Atlas validation.
@@ -117,6 +118,7 @@ Faithful Logic Translation is the required path for high-fidelity implementation
 - `docs/ROADMAP_FIDELITY_AUDIT_2026-06-14.md`: owner-level audit of current roadmap completion, subtree fidelity, blockers, and next validation steps.
 - `docs/BEGINNER_QUICKSTART.md`: shortest setup path for non-specialist operators, including automation boundaries and clean-source checks.
 - `docs/RUNNING_AND_MODEL_SETTINGS_GUIDE.md`: practical install, environment, model, API, settings, and no-UI runtime guide.
+- `docs/reference-implementations/deployment-container-packaging.md`: repeatable container packaging contract for API deployment without baked secrets or generated artifacts.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive niche prompt compiler.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: QA, inspection, and repair system.
