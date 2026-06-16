@@ -12,6 +12,7 @@ const defaults = {
   generatedAudioAtlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json",
   longFormAtlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-long-form-120s-report.json",
   sourceVideoAtlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json",
+  launchIntakePath: "ops/commercial-launch-intake.json",
   maxBudgetUsd: Number(process.env.CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD || "5"),
   atlasBillingEvidenceMaxAgeHours: Number(process.env.CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS || "24"),
   longFormDurationSeconds: 120,
@@ -30,11 +31,13 @@ const secretPatterns = [
   /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization|expires|policy|sig)=)[^&#\s]+/gi
 ];
 const secretKeyPattern = /api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization|policy|expires|sig/i;
+const envNamePattern = /^[A-Z][A-Z0-9_]{2,80}$/;
 
 function parseArgs(args) {
   const options = {
     ...defaults,
-    writeReport: true
+    writeReport: true,
+    explicitOptions: new Set()
   };
   const flagMap = new Map([
     ["--output", "outputPath"],
@@ -44,6 +47,7 @@ function parseArgs(args) {
     ["--generated-audio-atlas-billing-report", "generatedAudioAtlasBillingPath"],
     ["--long-form-atlas-billing-report", "longFormAtlasBillingPath"],
     ["--source-video-atlas-billing-report", "sourceVideoAtlasBillingPath"],
+    ["--launch-intake", "launchIntakePath"],
     ["--max-budget-usd", "maxBudgetUsd"],
     ["--atlas-billing-evidence-max-age-hours", "atlasBillingEvidenceMaxAgeHours"],
     ["--long-form-duration-seconds", "longFormDurationSeconds"],
@@ -69,12 +73,40 @@ function parseArgs(args) {
     if (key) {
       const rawValue = equalsIndex >= 0 ? arg.slice(equalsIndex + 1) : readRequiredValue(args, index, flag);
       options[key] = numericOption(key) ? Number(rawValue) : rawValue;
+      options.explicitOptions.add(key);
       index += equalsIndex >= 0 ? 0 : 1;
       continue;
     }
     throw new Error(`Unknown option: ${arg}`);
   }
   return options;
+}
+
+function applyLaunchIntakeDefaults(options) {
+  const launchIntake = summarizeLaunchIntake(options.launchIntakePath);
+  const value = launchIntake.usable ? launchIntake.value : undefined;
+  const next = {
+    ...options,
+    launchIntake
+  };
+  if (value) {
+    const deploymentBaseUrl = typeof value.deployment?.baseUrl === "string" ? value.deployment.baseUrl : undefined;
+    const sourceVideoUrl = value.sourceVideo?.enabled === true && typeof value.sourceVideo?.url === "string" ? value.sourceVideo.url : undefined;
+    const approvedBudget = numberOrUndefined(value.budgetApproval?.approvedAtlasBudgetUsd);
+    if (!next.explicitOptions.has("deploymentBaseUrl") && !next.deploymentBaseUrl && deploymentBaseUrl) {
+      next.deploymentBaseUrl = deploymentBaseUrl;
+      launchIntake.applied = true;
+    }
+    if (!next.explicitOptions.has("sourceVideoUrl") && !next.sourceVideoUrl && sourceVideoUrl) {
+      next.sourceVideoUrl = sourceVideoUrl;
+      launchIntake.applied = true;
+    }
+    if (!next.explicitOptions.has("maxBudgetUsd") && !process.env.CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD && approvedBudget !== undefined) {
+      next.maxBudgetUsd = approvedBudget;
+      launchIntake.applied = true;
+    }
+  }
+  return next;
 }
 
 function numericOption(key) {
@@ -105,6 +137,7 @@ Options:
   --long-form-atlas-billing-report <path>  Default: ${defaults.longFormAtlasBillingPath}
   --source-video-atlas-billing-report <path>
                                            Default: ${defaults.sourceVideoAtlasBillingPath}
+  --launch-intake <path>                   Ignored operator intake JSON. Default: ${defaults.launchIntakePath}
   --max-budget-usd <amount>                Budget ceiling for known paid validation. Default: ${defaults.maxBudgetUsd}
   --atlas-billing-evidence-max-age-hours <hours>
                                             Maximum age for Atlas billing readiness evidence. Default: ${defaults.atlasBillingEvidenceMaxAgeHours}
@@ -120,7 +153,7 @@ This command reads reports and environment shape only. It does not call Atlas, s
 }
 
 function main() {
-  const options = parseArgs(process.argv.slice(2));
+  const options = applyLaunchIntakeDefaults(parseArgs(process.argv.slice(2)));
   if (options.help) {
     printHelp();
     return 0;
@@ -171,6 +204,10 @@ function main() {
       generatedAudioAtlasBillingPath: toRepoRelative(options.generatedAudioAtlasBillingPath),
       longFormAtlasBillingPath: toRepoRelative(options.longFormAtlasBillingPath),
       sourceVideoAtlasBillingPath: toRepoRelative(options.sourceVideoAtlasBillingPath),
+      launchIntakePath: toRepoRelative(options.launchIntakePath),
+      launchIntakePresent: options.launchIntake.present,
+      launchIntakeStatus: options.launchIntake.status,
+      launchIntakeApplied: options.launchIntake.applied === true,
       maxBudgetUsd: options.maxBudgetUsd,
       longFormDurationSeconds: options.longFormDurationSeconds,
       deploymentBaseUrlConfigured: Boolean(options.deploymentBaseUrl),
@@ -416,6 +453,8 @@ function atlasBillingReportFreshness(report, maxAgeHours, maxBudgetUsd) {
 }
 
 function summarizeEnvironment(options) {
+  const launchIntake = options.launchIntake;
+  const launchIntakeValue = launchIntake?.usable ? launchIntake.value : undefined;
   const deploymentUrl = urlEvidence(options.deploymentBaseUrl, "deployment");
   const sourceVideoUrl = urlEvidence(options.sourceVideoUrl, "source_video");
   const atlas = {
@@ -433,18 +472,17 @@ function summarizeEnvironment(options) {
     cleanHttpsUrlConfigured: sourceVideoUrl.configured,
     cleanHttpsUrlValid: sourceVideoUrl.valid,
     safeUrlPreview: sourceVideoUrl.safeUrlPreview,
-    autoAnalysisEnabled: envTrue("CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS"),
+    autoAnalysisEnabled:
+      envTrue("CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS") ||
+      (launchIntakeValue?.sourceVideo?.enabled === true && launchIntakeValue?.sourceVideo?.approvedForAtlasLlmAnalysis === true),
     atlasLlmReady: atlas.llmFallbackAvailable && atlas.llmModelConfigured
   };
-  const remoteStockProviders = [
-    providerEvidence("pexels", "PEXELS_API_KEY", true),
-    providerEvidence("pixabay", "PIXABAY_API_KEY", true),
-    providerEvidence("coverr", "COVERR_API_KEY", envTrue("CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED"))
-  ];
+  const remoteStockProviders = remoteStockProviderEvidence(launchIntakeValue);
   const remoteStock = {
-    enabled: envTrue("CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS"),
+    enabled: envTrue("CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS") || launchIntakeValue?.remoteStock?.enabled === true,
     configuredProviderCount: remoteStockProviders.filter((provider) => provider.ready).length,
-    commercialTermsReviewedForCoverr: envTrue("CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED"),
+    commercialTermsReviewedForCoverr:
+      envTrue("CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED") || launchIntakeValue?.remoteStock?.commercialTermsReviewed === true,
     providers: remoteStockProviders
   };
   const generatedAudioCapabilities = generatedAudioCapabilitiesEnv("ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON");
@@ -469,6 +507,15 @@ function summarizeEnvironment(options) {
     productionAttestationPresent: existsSync(resolve(repoRoot, "ops/production-operations-attestation.json"))
   };
   return {
+    launchIntake: {
+      present: launchIntake.present,
+      status: launchIntake.status,
+      applied: launchIntake.applied === true,
+      path: launchIntake.path,
+      selectedPaidScope: launchIntake.usable && typeof launchIntakeValue?.budgetApproval?.scope === "string"
+        ? launchIntakeValue.budgetApproval.scope
+        : undefined
+    },
     atlas,
     deployment: deploymentUrl,
     sourceVideo,
@@ -723,6 +770,7 @@ function buildValidationSequence({
   const sourceVideoReady = sourceVideoInputReady && sourceVideoAtlasBilling.canUseAsPrePaidAtlasBillingEvidence === true;
   const sourceVideoApprovedBudgetUsd = sourceVideoAtlasBilling.reportPlannedCostUsd;
   const remoteStockReady = environment.remoteStock.enabled && environment.remoteStock.configuredProviderCount > 0;
+  const launchIntakeReady = environment.launchIntake.present && environment.launchIntake.status === "pass";
   const generatedAudioInputReady =
     environment.generatedAudio.atlasMediaReady &&
     environment.generatedAudio.modelConfigured &&
@@ -752,6 +800,19 @@ function buildValidationSequence({
       command: "npm.cmd run validation:business-readiness",
       evidencePath: businessReadiness.path,
       notes: [`Current evidence completion: ${businessReadiness.evidenceCompletionPercent}%.`]
+    }),
+    step({
+      name: "commercial_launch_intake_precheck",
+      kind: "no_spend",
+      status: launchIntakeReady ? "ready" : "needs_operator_input",
+      command: launchIntakeReady
+        ? "npm.cmd run validation:launch-intake"
+        : "npm.cmd run validation:launch-intake -- --write-draft",
+      evidencePath: "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json",
+      requiredInputs: launchIntakeReady ? [] : ["ops/commercial-launch-intake.json with secret-free deployment, source-video, budget, provider, and manual-review values"],
+      notes: launchIntakeReady
+        ? ["Commercial launch intake is present and can feed no-spend readiness planning."]
+        : ["Writes a draft intake and validates operator-provided launch values before live evidence or paid Atlas commands."]
     }),
     step({
       name: "client_policy_kit_generation",
@@ -949,6 +1010,9 @@ function buildReleaseGateSummary({ validationSequence, costPlan }) {
 
 function nextActionsFor({ validationSequence, costPlan, environment, opsConfig }) {
   const actions = [];
+  if (!environment.launchIntake.present || environment.launchIntake.status !== "pass") {
+    actions.push("Run npm.cmd run validation:launch-intake -- --write-draft, fill ops/commercial-launch-intake.json without secrets, then rerun validation:live-inputs and validation:business-plan.");
+  }
   if (opsConfig.status !== "pass") {
     actions.push(
       environment.operations.apiClientPoliciesConfigured
@@ -976,6 +1040,57 @@ function nextActionsFor({ validationSequence, costPlan, environment, opsConfig }
   return [...new Set(actions)];
 }
 
+function summarizeLaunchIntake(path) {
+  const reportPath = toRepoRelative(path);
+  const value = readJsonIfExists(path);
+  if (!value) {
+    return { present: false, path: reportPath, status: "missing", usable: false, applied: false };
+  }
+  const serialized = JSON.stringify(value);
+  const secretLike = secretPatterns.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(serialized);
+  });
+  const usable = value.schemaVersion === "cinejelly.commercial-launch-intake.v1" && !secretLike;
+  return {
+    present: true,
+    path: reportPath,
+    status: usable ? "pass" : "fail",
+    usable,
+    applied: false,
+    ...(usable ? { value } : {})
+  };
+}
+
+function remoteStockProviderEvidence(launchIntake) {
+  const fixed = [
+    providerEvidence("pexels", "PEXELS_API_KEY", true),
+    providerEvidence("pixabay", "PIXABAY_API_KEY", true),
+    providerEvidence("coverr", "COVERR_API_KEY", envTrue("CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED"))
+  ];
+  if (launchIntake?.remoteStock?.enabled !== true) {
+    return fixed;
+  }
+  const selectedProviders = new Set(Array.isArray(launchIntake.remoteStock.providers) ? launchIntake.remoteStock.providers.map(String) : []);
+  const keyEnvVars = Array.isArray(launchIntake.remoteStock.keyEnvVars)
+    ? launchIntake.remoteStock.keyEnvVars.map(envNameOrUndefined).filter(Boolean)
+    : [];
+  const termsReviewed = launchIntake.remoteStock.commercialTermsReviewed === true;
+  return fixed.map((provider) => {
+    if (!selectedProviders.has(provider.name)) {
+      return provider;
+    }
+    const keyConfigured = provider.keyConfigured || keyEnvVars.some((name) => envConfigured(name));
+    const commercialTermsApproved = provider.commercialTermsApproved || termsReviewed;
+    return {
+      ...provider,
+      keyConfigured,
+      commercialTermsApproved,
+      ready: keyConfigured && commercialTermsApproved
+    };
+  });
+}
+
 function providerEvidence(name, envName, termsApproved) {
   const keyConfigured = envConfigured(envName);
   return {
@@ -984,6 +1099,10 @@ function providerEvidence(name, envName, termsApproved) {
     commercialTermsApproved: termsApproved,
     ready: keyConfigured && termsApproved
   };
+}
+
+function envNameOrUndefined(value) {
+  return typeof value === "string" && envNamePattern.test(value) ? value : undefined;
 }
 
 function jsonArrayEnv(name) {

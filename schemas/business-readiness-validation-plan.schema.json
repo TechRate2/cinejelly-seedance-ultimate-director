@@ -34,6 +34,10 @@
         "generatedAudioAtlasBillingPath",
         "longFormAtlasBillingPath",
         "sourceVideoAtlasBillingPath",
+        "launchIntakePath",
+        "launchIntakePresent",
+        "launchIntakeStatus",
+        "launchIntakeApplied",
         "maxBudgetUsd",
         "longFormDurationSeconds",
         "deploymentBaseUrlConfigured",
@@ -47,6 +51,10 @@
         "generatedAudioAtlasBillingPath": { "type": "string" },
         "longFormAtlasBillingPath": { "type": "string" },
         "sourceVideoAtlasBillingPath": { "type": "string" },
+        "launchIntakePath": { "type": "string" },
+        "launchIntakePresent": { "type": "boolean" },
+        "launchIntakeStatus": { "type": "string" },
+        "launchIntakeApplied": { "type": "boolean" },
         "maxBudgetUsd": { "type": "number", "minimum": 0 },
         "longFormDurationSeconds": { "type": "integer", "minimum": 120, "maximum": 480 },
         "deploymentBaseUrlConfigured": { "type": "boolean" },
@@ -69,7 +77,7 @@
     "environment": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["atlas", "deployment", "sourceVideo", "remoteStock", "generatedAudio", "operations"]
+      "required": ["launchIntake", "atlas", "deployment", "sourceVideo", "remoteStock", "generatedAudio", "operations"]
     },
     "costPlan": {
       "type": "object",

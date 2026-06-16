@@ -23,6 +23,7 @@ Before spending more Atlas credits, operators need one consolidated plan that ex
 13. Narrow paid slices must include a separate Atlas billing-readiness command with `--planned-cost-usd` and a slice-specific output path so they do not overwrite the full-plan billing evidence.
 14. Generated-audio paid planning must separate provider execution from manual listening review: the provider command must not include `--confirm-manual-audio-review`, and the plan must point operators to `--review-existing-report` for the no-provider review update after output inspection.
 15. Generated-audio paid commands must pass the same validation text, cost rate, local max-cost cap, and slice billing report path used by the planner so the paid runner cannot silently use different cost assumptions.
+16. A passing `ops/commercial-launch-intake.json` can feed missing deployment/source-video URLs, source-video enablement, remote-stock provider intent, and budget ceiling into the no-spend plan, while the planner must surface a `commercial_launch_intake_precheck` step until that intake passes.
 
 ## Report Shape
 
@@ -88,4 +89,5 @@ interface BusinessReadinessValidationPlan {
 - With the default `$5` ceiling, planner output names generated-audio smoke as the only known paid slice inside budget while keeping long-form and the full known paid sequence blocked.
 - Generated-audio smoke includes a no-spend Atlas billing probe command using `--planned-cost-usd` and `atlas-billing-generated-audio-smoke-report.json`, leaving the canonical full-plan billing report untouched.
 - Generated-audio paid commands are provider-only first, explicitly reference `atlas-billing-generated-audio-smoke-report.json`, carry the planned validation text and rate assumptions, then tell operators to apply manual listening review with `--review-existing-report` so review does not call Atlas again.
+- Planner output includes `commercial_launch_intake_precheck` and records `checkedInputs.launchIntake*` plus `environment.launchIntake` so missing operator intake is visible before live network or paid Atlas commands.
 - Planner output says it is not release evidence and cannot release customer traffic.

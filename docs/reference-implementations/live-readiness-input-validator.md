@@ -19,6 +19,7 @@ Before running any live network or paid Atlas validation, operators need a singl
 9. Full-sequence spend uses the main Atlas billing-readiness report; source-video, generated-audio, and long-form gates can use slice-specific billing reports captured for their own `plannedCostUsd`.
 10. Paid Atlas gates must also remain blocked when the relevant local Atlas billing-readiness report was captured for a different `maxBudgetUsd` or `plannedCostUsd` than the current live-input cost plan.
 11. Paid Atlas gates must remain blocked when the relevant local Atlas billing-readiness report is older than `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS`, defaulting to 24 hours.
+12. A passing `ops/commercial-launch-intake.json` can supply missing clean deployment/source-video URLs, budget ceiling, attestation paths, source-video enablement, and remote-stock provider intent, but explicit CLI flags and environment variables remain authoritative.
 
 ## Report Shape
 
@@ -78,3 +79,4 @@ interface LiveReadinessInputsReport {
 - The report can show generated-audio technical inputs are present and mark generated-audio paid validation ready only when the generated-audio slice billing report is fresh, passing, and within the approved budget.
 - Changing `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` makes the live-input report request a fresh Atlas billing readiness probe before any paid Atlas gate can pass.
 - Letting `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS` expire makes the live-input report request a fresh Atlas billing readiness probe before any paid Atlas gate can pass.
+- A passing commercial launch intake appears in `checkedInputs` and `environment.launchIntake`, while a missing or failing intake adds a next action instead of blocking schema validation.

@@ -1,6 +1,6 @@
 # Commercial Launch Intake
 
-Implementation status as of 2026-06-17: implemented as a CineJelly-owned no-spend launch-intake validator, draft writer, JSON schema, package command, Markdown fill-out packet, and report-contract input. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-17: implemented as a CineJelly-owned no-spend launch-intake validator, draft writer, JSON schema, package command, Markdown fill-out packet, report-contract input, and optional input source for `validation:live-inputs` plus `validation:business-plan`. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Purpose
 
@@ -34,7 +34,8 @@ The report is valid when:
 4. Present intake validates clean non-localhost HTTPS deployment/source URLs, env var names instead of secret values, ignored `ops/*.json` evidence paths, ISO approval timestamps, positive budget approvals, provider choices, paid-run policy booleans, and manual-review requirements.
 5. Source-video and remote-stock sections can be explicitly disabled, but when enabled they require the relevant clean URL, terms approval, provider names, and env var names.
 6. Long-form or full-sequence paid policy cannot pass unless approved budget covers the corresponding current business-plan estimate.
-7. The report is included in `validation:report-contracts`.
+7. A passing ignored intake can populate missing clean deployment/source-video URLs and approved budget values for no-spend live-input and business-plan reports, without overriding explicit CLI flags or environment variables.
+8. The report is included in `validation:report-contracts`.
 
 ## Current Interpretation
 
