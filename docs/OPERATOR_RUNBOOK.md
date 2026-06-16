@@ -4,9 +4,9 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 ## Current Readiness
 
-As of 2026-06-16T05:10:22.094Z, the current local workstation passes the no-spend local validation smoke through `node scripts/run-local-validation-smoke.mjs`. The latest local readiness report has 58 checks: 58 pass, 0 warn, and 0 fail, with decision `ready_for_paid_validation`. Atlas keys, model IDs, Atlas LLM/media base URLs, API auth token, output directory, explicit FFmpeg/FFprobe executable paths, and pinned Seedance capability records are present in the ignored local `.env`. The local LLM key currently reuses the primary Atlas API key because the previously supplied separate Coding Plan key returned authentication failure during validation; replace only `ATLASCLOUD_LLM_API_KEY` after a working Coding Plan key is generated.
+As of 2026-06-16T06:05:12.303Z, the current local workstation passes the no-spend local validation smoke through `node scripts/run-local-validation-smoke.mjs`. The latest local readiness report has 60 checks: 60 pass, 0 warn, and 0 fail, with decision `ready_for_paid_validation`. Atlas keys, model IDs, Atlas LLM/media base URLs, API auth token, output directory, explicit FFmpeg/FFprobe executable paths, pinned Seedance capability records, and the optional API client policy preflight are present in the ignored local `.env`/runtime checks. The local LLM key currently reuses the primary Atlas API key because the previously supplied separate Coding Plan key returned authentication failure during validation; replace only `ATLASCLOUD_LLM_API_KEY` after a working Coding Plan key is generated.
 
-The API has also been started locally from `dist/api/server.js` with `.env` loading, and `GET /health` plus protected `GET /v1/validation-readiness` returned `ready_for_paid_validation`. A no-spend render request validation succeeded for a valid 15-second operator request. One short paid Atlas validation render completed on 2026-06-15T13:33:55.217Z with request `req_8262f057-c412-4f84-8bdb-56cefd8757f2`, project `project_f87153061ebea88e`, 58 provider ledger entries, estimated cost gate `$3`, a 13.5s H.264 854x480 final MP4, and artifact validation status `pass`. This run used `audioMode:none`, so no audio stream is expected.
+The API has also been started locally from `dist/api/server.js` with `.env` loading, and `GET /health` plus protected `GET /v1/validation-readiness` returned `ready_for_paid_validation`. A no-spend render request validation succeeded for a valid 15-second operator request, and `validation:client-policy-smoke` passed for digest auth, quota reservation, JSONL usage-ledger writing, and quota blocking. One short paid Atlas validation render completed on 2026-06-15T13:33:55.217Z with request `req_8262f057-c412-4f84-8bdb-56cefd8757f2`, project `project_f87153061ebea88e`, 58 provider ledger entries, estimated cost gate `$3`, a 13.5s H.264 854x480 final MP4, and artifact validation status `pass`. This run used `audioMode:none`, so no audio stream is expected.
 
 The clean release-candidate worktree passes the no-spend release audit as `release_ready`: local smoke, paid-render evidence, paid artifact validation, Git metadata, clean tracked worktree, ignored `.env`/outputs, tracked secret scan, and import-boundary scan pass. The original interrupted clone still has unrelated upstream snapshot line-ending dirt, so use the release-candidate worktree for release evidence. Manual media quality, artifact, and redaction review still remain required.
 
@@ -44,6 +44,9 @@ Recommended production controls:
 - `CINEJELLY_ASSET_REGISTRATION_COST_USD`
 - `CINEJELLY_LLM_PLAN_COST_USD`
 - `CINEJELLY_COST_BUFFER_MULTIPLIER`
+- `CINEJELLY_API_CLIENTS_JSON`
+- `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER`
+- `CINEJELLY_CLIENT_USAGE_LEDGER_PATH`
 - `CINEJELLY_MAX_GENERATED_AUDIO_INTENTS`
 - `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`
 
@@ -159,6 +162,8 @@ For protected endpoints, send either:
 
 - `Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>`
 - `X-CineJelly-Api-Key: <CINEJELLY_API_AUTH_TOKEN>`
+
+Customer/client render access can also use a client API key whose SHA-256 digest is configured in `CINEJELLY_API_CLIENTS_JSON`. Store only `keySha256`, not raw customer keys. When `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER=true`, render submissions must use a configured client key and pass per-client duration, tier, quality, request-count, and reserved-cost limits before runtime creation or provider spend. Set `CINEJELLY_CLIENT_USAGE_LEDGER_PATH` to persist JSONL quota reservations. `/v1/admin/client-policy` requires the deployment token and returns redacted policy/usage diagnostics.
 
 `/v1/preflight` and `/v1/validation-readiness` are diagnostic endpoints. They remain available when `CINEJELLY_API_AUTH_TOKEN` is not configured so a fresh deployment can report missing configuration, but once a token is configured they use the same authentication guard as other `/v1` endpoints.
 

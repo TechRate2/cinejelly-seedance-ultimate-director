@@ -297,6 +297,9 @@ async function main() {
 
   steps.push(await runTsc("Typecheck", ["--noEmit"]));
   steps.push(await runTsc("Build", ["-p", "tsconfig.json"]));
+  steps.push(await runNode("Client policy quota smoke", [
+    "scripts/run-client-policy-smoke.mjs"
+  ]));
   steps.push(await runNode("Validation readiness", [
     "--env-file-if-exists=.env",
     "dist/application/validation-readiness-entrypoint.js"

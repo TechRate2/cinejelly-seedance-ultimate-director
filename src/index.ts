@@ -4,6 +4,7 @@
  */
 
 export * from "./api/api-auth.js";
+export * from "./api/api-client-policy.js";
 export * from "./api/api-concurrency-gate.js";
 export * from "./api/api-rate-limit.js";
 export * from "./api/api-response-redaction.js";

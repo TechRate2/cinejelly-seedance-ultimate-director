@@ -6,6 +6,7 @@
 import { constants } from "node:fs";
 import { access, mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { parseApiClientPoliciesJson } from "../api/api-client-policy.js";
 import { GeneratedAudioAssetResolver } from "../core/generated-audio-asset-resolver.js";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
 import type { LocalMaterialCatalog } from "../types/material.js";
@@ -60,6 +61,8 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS", this.env.CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS),
       this.optionalBooleanFlag("CINEJELLY_DISABLE_API_RATE_LIMIT", this.env.CINEJELLY_DISABLE_API_RATE_LIMIT),
       this.optionalBooleanFlag("CINEJELLY_TRUST_PROXY_HEADERS", this.env.CINEJELLY_TRUST_PROXY_HEADERS),
+      this.optionalBooleanFlag("CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER", this.env.CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER),
+      this.clientPolicyCheck(),
       this.optionalPositiveInteger("CINEJELLY_MAX_USER_INPUT_CHARS", this.env.CINEJELLY_MAX_USER_INPUT_CHARS),
       this.optionalPositiveInteger("CINEJELLY_MAX_REFERENCES", this.env.CINEJELLY_MAX_REFERENCES),
       this.optionalPositiveInteger("CINEJELLY_MAX_CAPTION_CUES", this.env.CINEJELLY_MAX_CAPTION_CUES),
@@ -249,6 +252,71 @@ export class RuntimePreflight {
       name: "remote_stock_materials",
       status: "pass",
       message: `Remote stock material adapters configured for ${providers.join(", ")}.`
+    };
+  }
+
+  private clientPolicyCheck(): PreflightCheck {
+    const requireClientPolicy = this.booleanEnv(
+      "CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER",
+      this.env.CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER
+    );
+    if (requireClientPolicy === "invalid") {
+      return {
+        name: "api_client_policy",
+        status: "fail",
+        message: "CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER must be true or false when set."
+      };
+    }
+    let policies: ReturnType<typeof parseApiClientPoliciesJson>;
+    try {
+      policies = parseApiClientPoliciesJson(this.env.CINEJELLY_API_CLIENTS_JSON);
+    } catch (error) {
+      return {
+        name: "api_client_policy",
+        status: "fail",
+        message: error instanceof Error ? error.message : "CINEJELLY_API_CLIENTS_JSON is invalid."
+      };
+    }
+    if (policies.length === 0) {
+      return requireClientPolicy
+        ? {
+            name: "api_client_policy",
+            status: "fail",
+            message: "CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER is true but CINEJELLY_API_CLIENTS_JSON has no clients."
+          }
+        : {
+            name: "api_client_policy",
+            status: "pass",
+            message: "CINEJELLY_API_CLIENTS_JSON is not set; per-client render quota policy is disabled."
+          };
+    }
+    const enabledCount = policies.filter((policy) => policy.enabled).length;
+    if (enabledCount === 0) {
+      return {
+        name: "api_client_policy",
+        status: "fail",
+        message: "CINEJELLY_API_CLIENTS_JSON is configured but every client is disabled."
+      };
+    }
+    const usageLedgerPath = this.env.CINEJELLY_CLIENT_USAGE_LEDGER_PATH?.trim();
+    if (usageLedgerPath && /[\u0000-\u001f\u007f]/.test(usageLedgerPath)) {
+      return {
+        name: "api_client_policy",
+        status: "fail",
+        message: "CINEJELLY_CLIENT_USAGE_LEDGER_PATH must not contain control characters."
+      };
+    }
+    if (requireClientPolicy && !usageLedgerPath) {
+      return {
+        name: "api_client_policy",
+        status: "warn",
+        message: `${enabledCount} enabled API client polic${enabledCount === 1 ? "y" : "ies"} configured, but CINEJELLY_CLIENT_USAGE_LEDGER_PATH is not set; quota reservations are in-memory only.`
+      };
+    }
+    return {
+      name: "api_client_policy",
+      status: "pass",
+      message: `${enabledCount} enabled API client polic${enabledCount === 1 ? "y" : "ies"} configured.`
     };
   }
 

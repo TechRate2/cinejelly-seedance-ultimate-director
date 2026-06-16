@@ -330,7 +330,7 @@ Assembly materialization:
 
 API execution modes:
 
-- `/health` is public, while `/v1` endpoints require deployment API authentication before provider spend or run metadata access; `Authorization` uses a case-insensitive Bearer scheme or the `X-CineJelly-Api-Key` header. `/v1/preflight` and `/v1/validation-readiness` remain available without a configured deployment token only so fresh deployments can diagnose missing readiness inputs; once `CINEJELLY_API_AUTH_TOKEN` is configured, they use the same guard as other `/v1` endpoints.
+- `/health` is public, while `/v1` endpoints require deployment API authentication or a configured client API key digest before provider spend or run metadata access; `Authorization` uses a case-insensitive Bearer scheme or the `X-CineJelly-Api-Key` header. `/v1/preflight` and `/v1/validation-readiness` remain available without a configured deployment token only so fresh deployments can diagnose missing readiness inputs; once `CINEJELLY_API_AUTH_TOKEN` or client policies are configured, they use the same guard as other `/v1` endpoints.
 - Credit-spending render submission endpoints are rate limited before authentication response handling, request body parsing, runtime creation, job queue occupancy, or provider spend.
 - Credit-spending render submission endpoints require an application JSON media type (`application/json` or `application/*+json`) before request body parsing; unsupported media types return 415.
 - Credit-spending render submission endpoints enforce a configurable request body byte limit before JSON parsing, job queue admission, runtime creation, or provider spend; oversized bodies return 413.
@@ -341,6 +341,7 @@ API execution modes:
 - Atlas Cloud LLM and media endpoint overrides must be credential-free HTTPS URLs with no query strings or fragments; runtime configuration and `/v1/preflight` reject unsafe URLs before credentials or provider payloads can be used.
 - Runtime numeric environment controls must be plain base-10 integer or decimal strings; the configuration loader and `/v1/preflight` reject partial parses such as unit suffixes before traffic reaches provider spend.
 - API startup and preflight enforce the same deployment gates for `PORT` range and explicit boolean API flags, so a deployment cannot appear ready while startup would reject the configuration.
+- Optional per-client render policy validates SHA-256 API key digests, enabled clients, duration/tier/quality limits, per-request reserved-cost caps, monthly request quotas, monthly reserved-cost quotas, and optional JSONL usage-ledger configuration before runtime creation or provider spend.
 - `npm run preflight` runs the same deployment readiness checks as a CLI gate, emits a redacted preflight report, and exits non-zero on hard failures before operators open customer traffic.
 - `npm run validation:render-request -- --request <request-json>` validates an operator-owned request file through the same admission and output-root normalization used by `/v1/render` without running readiness, initializing providers, calling Atlas, or writing render artifacts.
 - `npm run validation:readiness` and `GET /v1/validation-readiness` wrap the preflight output into a Phase 6 operator-readiness report with hard blockers, warnings, next actions, and an explicit release blocker until paid Atlas validation and artifact review are complete; the HTTP route returns 503 only when the decision is blocked.
@@ -348,6 +349,8 @@ API execution modes:
 - `/v1/render` runs the full pipeline synchronously for controlled callers and is protected by a process-level concurrency gate with retry hints after body parsing, admission control, and path normalization but before runtime creation or provider spend.
 - `/v1/render-jobs` submits the same normalized request into an in-process queue and returns a pollable job ID for long-form production.
 - `/v1/render-jobs` accepts `Idempotency-Key`; the API stores only a digest of the key, replays the retained existing job for the same payload, and returns `409` when the same key is reused for a different payload.
+- Idempotent async replays do not create duplicate client quota reservations, and client API keys can list, poll, or cancel only their own async job records.
+- `/v1/admin/client-policy` requires the deployment token and returns redacted client policy and current-month quota usage diagnostics without raw API keys or key digests.
 - Async job submission enforces a process-level queued/running capacity limit before job records, runtime objects, or provider calls are created; saturated queues return a 503 pressure signal with `Retry-After` and JSON `retryAfterSeconds` for upstream retry behavior.
 - Rate-limited credit-spending requests return 429 with `Retry-After` and JSON `retryAfterSeconds`.
 - API rate limiting uses the socket remote address by default; `X-Forwarded-For` is trusted only when `CINEJELLY_TRUST_PROXY_HEADERS=true` is configured behind a trusted reverse proxy that strips and rewrites client IP headers.

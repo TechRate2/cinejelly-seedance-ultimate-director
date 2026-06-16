@@ -49,6 +49,7 @@ export class RenderJobIdempotencyConflictError extends Error {
 
 export interface RenderJobSummary {
   readonly jobId: string;
+  readonly clientId?: string;
   readonly requestId?: string;
   readonly status: RenderJobStatus;
   readonly createdAt: Date;
@@ -149,8 +150,10 @@ export class RenderJobManager {
   public submit(input: {
     readonly request: CineJellyProjectRequest;
     readonly artifactDirectory: string;
+    readonly clientId?: string;
     readonly idempotencyKeyDigest?: string;
     readonly requestFingerprint?: string;
+    readonly onAccepted?: (summary: RenderJobSummary) => void;
   }): RenderJobSubmission {
     const replayedJob = this.findIdempotentReplay(input.idempotencyKeyDigest, input.requestFingerprint);
     if (replayedJob) {
@@ -165,6 +168,7 @@ export class RenderJobManager {
     const jobId = `render_job_${randomUUID()}`;
     const record: RenderJobRecord = {
       jobId,
+      ...(input.clientId ? { clientId: input.clientId } : {}),
       ...(input.request.metadata?.requestId ? { requestId: input.request.metadata.requestId } : {}),
       status: "queued",
       createdAt: now,
@@ -186,6 +190,7 @@ export class RenderJobManager {
       ...(input.request.settings?.resolution ? { requestedResolution: input.request.settings.resolution } : {})
     };
 
+    input.onAccepted?.(this.toSummary(record, { includeDetails: false }));
     this.jobs.set(jobId, record);
     if (input.idempotencyKeyDigest && input.requestFingerprint) {
       this.idempotencyIndex.set(input.idempotencyKeyDigest, {
@@ -202,13 +207,17 @@ export class RenderJobManager {
     };
   }
 
-  public get(jobId: string): RenderJobSummary | undefined {
+  public get(jobId: string, filter: { readonly clientId?: string } = {}): RenderJobSummary | undefined {
     const record = this.jobs.get(jobId);
+    if (record && filter.clientId && record.clientId !== filter.clientId) {
+      return undefined;
+    }
     return record ? this.toSummary(record, { includeDetails: true }) : undefined;
   }
 
-  public list(): readonly RenderJobSummary[] {
+  public list(filter: { readonly clientId?: string } = {}): readonly RenderJobSummary[] {
     return [...this.jobs.values()]
+      .filter((record) => !filter.clientId || record.clientId === filter.clientId)
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .map((record) => this.toSummary(record, { includeDetails: false }));
   }
@@ -226,8 +235,8 @@ export class RenderJobManager {
     };
   }
 
-  public cancel(jobId: string): RenderJobSummary | undefined {
-    return this.cancelWithReason(jobId, "Render job was canceled by API request.");
+  public cancel(jobId: string, filter: { readonly clientId?: string } = {}): RenderJobSummary | undefined {
+    return this.cancelWithReason(jobId, "Render job was canceled by API request.", filter);
   }
 
   public cancelAll(reason: string): readonly RenderJobSummary[] {
@@ -244,9 +253,16 @@ export class RenderJobManager {
     return canceled;
   }
 
-  private cancelWithReason(jobId: string, reason: string): RenderJobSummary | undefined {
+  private cancelWithReason(
+    jobId: string,
+    reason: string,
+    filter: { readonly clientId?: string } = {}
+  ): RenderJobSummary | undefined {
     const record = this.jobs.get(jobId);
     if (!record) {
+      return undefined;
+    }
+    if (filter.clientId && record.clientId !== filter.clientId) {
       return undefined;
     }
     if (this.isTerminal(record.status)) {
@@ -538,6 +554,7 @@ export class RenderJobManager {
   ): RenderJobSummary {
     const {
       jobId,
+      clientId,
       requestId,
       status,
       createdAt,
@@ -560,6 +577,7 @@ export class RenderJobManager {
     const currentStageProgress = stageProgressEvents[stageProgressEvents.length - 1];
     return {
       jobId,
+      ...(clientId ? { clientId } : {}),
       ...(requestId ? { requestId } : {}),
       status,
       createdAt,

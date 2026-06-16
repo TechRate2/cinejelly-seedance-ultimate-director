@@ -30,6 +30,11 @@ import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
+import {
+  ApiClientPolicyError,
+  ApiClientPolicyGate,
+  type ApiClientPolicyReservation
+} from "./api-client-policy.js";
 import { ApiConcurrencyGate } from "./api-concurrency-gate.js";
 import { ApiRateLimiter, readRateLimitDisabled, readTrustProxyHeaders } from "./api-rate-limit.js";
 import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
@@ -84,9 +89,11 @@ export function startServer(port = readPort(process.env.PORT)): void {
   const artifactStore = new ProjectArtifactStore();
   const artifactValidator = new ProjectArtifactValidator();
   const requestAdmission = renderRequestAdmissionFromEnv(process.env);
+  const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
   const apiAuthGuard = new ApiAuthGuard({
     disabled: readApiAuthDisabled(process.env.CINEJELLY_DISABLE_API_AUTH),
-    ...(process.env.CINEJELLY_API_AUTH_TOKEN ? { sharedKey: process.env.CINEJELLY_API_AUTH_TOKEN } : {})
+    ...(process.env.CINEJELLY_API_AUTH_TOKEN ? { sharedKey: process.env.CINEJELLY_API_AUTH_TOKEN } : {}),
+    clientKeys: clientPolicyGate.authClientKeys()
   });
   const apiRateLimiter = new ApiRateLimiter({
     windowMs: readPositiveInteger(process.env.CINEJELLY_API_RATE_LIMIT_WINDOW_MS, 60_000),
@@ -144,18 +151,26 @@ export function startServer(port = readPort(process.env.PORT)): void {
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-jobs") {
-        sendJson(response, 200, { queue: jobManager.stats(), jobs: jobManager.list() }, requestContext);
+        sendJson(response, 200, {
+          queue: jobManager.stats(),
+          jobs: jobManager.list(clientFilter(authDecision.principal))
+        }, requestContext);
         return;
       }
       const jobMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)$/);
       if (request.method === "GET" && jobMatch) {
-        const job = jobManager.get(decodeURIComponent(jobMatch[1] ?? ""));
+        const job = jobManager.get(decodeURIComponent(jobMatch[1] ?? ""), clientFilter(authDecision.principal));
         sendJson(response, job ? 200 : 404, job ?? { error: "Render job not found." }, requestContext);
         return;
       }
       if (request.method === "DELETE" && jobMatch) {
-        const job = jobManager.cancel(decodeURIComponent(jobMatch[1] ?? ""));
+        const job = jobManager.cancel(decodeURIComponent(jobMatch[1] ?? ""), clientFilter(authDecision.principal));
         sendJson(response, job ? 202 : 404, job ?? { error: "Render job not found." }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/client-policy") {
+        assertDeploymentPrincipal(authDecision.principal);
+        sendJson(response, 200, clientPolicyGate.summary(), requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
@@ -169,15 +184,26 @@ export function startServer(port = readPort(process.env.PORT)): void {
           env: process.env
         });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
+        let clientPolicyReservation: ApiClientPolicyReservation | undefined;
         const submission = jobManager.submit({
           request: normalizedRequest,
           artifactDirectory,
+          ...clientFilter(authDecision.principal),
           ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
-          ...(requestFingerprint ? { requestFingerprint } : {})
+          ...(requestFingerprint ? { requestFingerprint } : {}),
+          onAccepted: () => {
+            clientPolicyReservation = clientPolicyGate.reserveRender({
+              principal: authDecision.principal,
+              request: normalizedRequest,
+              requestId: requestContext.requestId,
+              channel: "async"
+            });
+          }
         });
         sendJson(response, 202, {
           ...submission.summary,
           ...(submission.idempotentReplay ? { idempotentReplay: true } : {}),
+          ...(clientPolicyReservation ? { clientPolicyReservation } : {}),
           statusUrl: `/v1/render-jobs/${encodeURIComponent(submission.summary.jobId)}`
         }, requestContext);
         return;
@@ -191,6 +217,12 @@ export function startServer(port = readPort(process.env.PORT)): void {
           env: process.env
         });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
+        const clientPolicyReservation = clientPolicyGate.reserveRender({
+          principal: authDecision.principal,
+          request: normalizedRequest,
+          requestId: requestContext.requestId,
+          channel: "sync"
+        });
         const renderLease = syncRenderGate.tryAcquire();
         if (!renderLease.allowed) {
           sendJson(response, renderLease.statusCode, {
@@ -213,6 +245,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
           const artifactValidation = await validateArtifactsForApi(artifactValidator, artifacts);
           sendJson(response, 200, {
             ...result,
+            ...(clientPolicyReservation ? { clientPolicyReservation } : {}),
             costLedger,
             artifacts: toApiProjectArtifactBundle(artifacts),
             artifactValidation: toApiProjectArtifactValidationReport(artifactValidation)
@@ -229,6 +262,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
           const artifactValidation = await validateArtifactsForApi(artifactValidator, artifacts);
           sendJson(response, 500, {
             error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
+            ...(clientPolicyReservation ? { clientPolicyReservation } : {}),
             costLedger,
             artifacts: toApiProjectArtifactBundle(artifacts),
             artifactValidation: toApiProjectArtifactValidationReport(artifactValidation)
@@ -366,13 +400,17 @@ function errorStatusCode(error: unknown): number {
     error instanceof RenderJobCapacityError ||
     error instanceof RenderJobIdempotencyConflictError ||
     error instanceof UnsupportedMediaTypeError ||
-    error instanceof RequestBodyTooLargeError
+    error instanceof RequestBodyTooLargeError ||
+    error instanceof ApiClientPolicyError
     ? error.statusCode
     : 500;
 }
 
 function retryAfterSecondsFor(error: unknown): number | undefined {
-  return error instanceof RenderJobCapacityError ? error.retryAfterSeconds : undefined;
+  if (error instanceof RenderJobCapacityError || error instanceof ApiClientPolicyError) {
+    return error.retryAfterSeconds;
+  }
+  return undefined;
 }
 
 function retryAfterHeaders(retryAfterSeconds: number | undefined): OutgoingHttpHeaders {
@@ -440,6 +478,16 @@ function readContentLength(request: IncomingMessage): number | undefined {
 function assertJsonContentType(request: IncomingMessage): void {
   if (!isApplicationJsonMediaType(readHeader(request, "content-type"))) {
     throw new UnsupportedMediaTypeError();
+  }
+}
+
+function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]): { readonly clientId?: string } {
+  return principal?.kind === "client" && principal.clientId ? { clientId: principal.clientId } : {};
+}
+
+function assertDeploymentPrincipal(principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]): void {
+  if (principal?.kind !== "deployment") {
+    throw new ApiClientPolicyError("Deployment API token is required for admin client-policy diagnostics.", 403);
   }
 }
 
