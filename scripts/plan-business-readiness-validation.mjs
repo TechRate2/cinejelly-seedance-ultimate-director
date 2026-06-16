@@ -351,16 +351,25 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, atlasB
   const deploymentReady = environment.deployment.configured && environment.deployment.valid;
   const opsReady = opsConfig.status === "pass";
   const atlasPaidReady = environment.atlas.mediaApiKeyConfigured && environment.atlas.seedanceStandardModelConfigured && environment.atlas.seedanceFastModelConfigured;
-  const sourceVideoReady =
+  const atlasBillingReadyForApprovedSpend =
+    atlasBilling.canUseAsPrePaidAtlasBillingEvidence &&
+    atlasBilling.canRunAtlasSpendWithinApprovedBudget;
+  const atlasBillingGateInput = "passing Atlas billing readiness within the approved validation budget";
+  const atlasBillingGateNote = "Atlas billing readiness must pass with the approved budget before any paid Atlas validation is run.";
+  const sourceVideoInputReady =
     environment.sourceVideo.cleanHttpsUrlValid &&
     environment.sourceVideo.autoAnalysisEnabled &&
     environment.sourceVideo.atlasLlmReady;
+  const sourceVideoReady = sourceVideoInputReady && atlasBillingReadyForApprovedSpend;
   const remoteStockReady = environment.remoteStock.enabled && environment.remoteStock.configuredProviderCount > 0;
-  const generatedAudioReady =
+  const generatedAudioInputReady =
     environment.generatedAudio.atlasMediaReady &&
     environment.generatedAudio.capabilitiesJsonValid &&
     environment.generatedAudio.capabilityCount > 0 &&
     costPlan.generatedAudio.withinBudget;
+  const generatedAudioReady = generatedAudioInputReady && atlasBillingReadyForApprovedSpend;
+  const longFormInputReady = atlasPaidReady && costPlan.longForm.withinBudget;
+  const longFormReady = longFormInputReady && atlasBillingReadyForApprovedSpend;
 
   return [
     step({
@@ -444,12 +453,20 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, atlasB
     step({
       name: "source_video_auto_analysis_validation",
       kind: "paid_atlas_llm_and_source_fetch",
-      status: sourceVideoReady ? "ready" : "needs_operator_input",
+      status: sourceVideoReady ? "ready" : sourceVideoInputReady ? "blocked" : "needs_operator_input",
       command: sourceVideoReady
         ? `npm.cmd run validation:source-video-auto-analysis -- --source-video-url "${environment.sourceVideo.safeUrlPreview}" --confirm-provider-spend`
         : "npm.cmd run validation:source-video-auto-analysis -- --source-video-url https://<clean-source-video.mp4>",
-      requiredInputs: sourceVideoReady ? [] : ["clean HTTPS source video URL", "CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS=true", "Atlas LLM key/model"],
-      notes: ["Run no-spend first without --confirm-provider-spend when checking a new source URL."]
+      requiredInputs: sourceVideoReady
+        ? []
+        : [
+            ...(sourceVideoInputReady ? [] : ["clean HTTPS source video URL", "CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS=true", "Atlas LLM key/model"]),
+            ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateInput])
+          ],
+      notes: [
+        "Run no-spend first without --confirm-provider-spend when checking a new source URL.",
+        ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateNote])
+      ]
     }),
     step({
       name: "remote_stock_provider_validation",
@@ -462,26 +479,38 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, atlasB
     step({
       name: "generated_audio_validation",
       kind: "paid_atlas_audio",
-      status: generatedAudioReady ? "ready" : "needs_operator_input",
+      status: generatedAudioReady ? "ready" : generatedAudioInputReady ? "blocked" : "needs_operator_input",
       command: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed --confirm-manual-audio-review",
-      requiredInputs: generatedAudioReady ? ["manual audio review after output"] : ["ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON", "Atlas media API key", "manual schema/audio review"],
+      requiredInputs: generatedAudioReady
+        ? ["manual audio review after output"]
+        : [
+            ...(generatedAudioInputReady ? [] : ["ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON", "Atlas media API key", "manual schema/audio review"]),
+            ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateInput])
+          ],
       estimatedCostUsd: costPlan.generatedAudio.estimatedCostUsd,
-      notes: [`Estimated generated-audio validation cost: ${formatUsd(costPlan.generatedAudio.estimatedCostUsd)}.`]
+      notes: [
+        `Estimated generated-audio validation cost: ${formatUsd(costPlan.generatedAudio.estimatedCostUsd)}.`,
+        ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateNote])
+      ]
     }),
     step({
       name: "long_form_paid_validation",
       kind: "paid_atlas_video",
-      status: atlasPaidReady && costPlan.longForm.withinBudget ? "ready" : "blocked",
+      status: longFormReady ? "ready" : "blocked",
       command: `npm.cmd run validation:long-form -- --duration-seconds ${options.longFormDurationSeconds} --max-cost-usd ${options.maxBudgetUsd} --confirm-paid-spend --confirm-manual-quality-review`,
       requiredInputs:
-        atlasPaidReady && costPlan.longForm.withinBudget
+        longFormReady
           ? ["manual long-form media/redaction review after output"]
-          : ["approved long-form budget at or above the current estimate", "Atlas media API key/model config"],
+          : [
+              ...(longFormInputReady ? [] : ["approved long-form budget at or above the current estimate", "Atlas media API key/model config"]),
+              ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateInput])
+            ],
       ...(costPlan.longForm.estimatedCostUsd !== undefined ? { estimatedCostUsd: costPlan.longForm.estimatedCostUsd } : {}),
       notes: [
         costPlan.longForm.estimatedCostUsd === undefined
           ? "Long-form estimate is unavailable because CINEJELLY_RENDER_COST_USD_PER_SECOND is not configured."
-          : `Estimated long-form validation cost: ${formatUsd(costPlan.longForm.estimatedCostUsd)}.`
+          : `Estimated long-form validation cost: ${formatUsd(costPlan.longForm.estimatedCostUsd)}.`,
+        ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateNote])
       ]
     }),
     step({
@@ -522,10 +551,11 @@ function buildReleaseGateSummary({ validationSequence, costPlan }) {
   const paidSteps = validationSequence.filter((step) => step.kind.startsWith("paid_"));
   const readyPaidSteps = paidSteps.filter((step) => step.status === "ready");
   const noSpendBlockers = validationSequence.filter((step) => step.kind.startsWith("no_spend") && step.status !== "ready");
+  const shouldDeferAtlasSpend = noSpendBlockers.length > 0 || costPlan.budgetFit !== "within_budget";
   return {
-    canRunSomePaidValidationNow: readyPaidSteps.length > 0,
+    canRunSomePaidValidationNow: readyPaidSteps.length > 0 && !shouldDeferAtlasSpend,
     canRunLongFormWithinBudget: costPlan.longForm.withinBudget,
-    shouldDeferAtlasSpend: noSpendBlockers.length > 0 || !costPlan.longForm.withinBudget,
+    shouldDeferAtlasSpend,
     canReleaseToCustomerTraffic: false,
     releaseBlocker: "This is a no-spend planning report, not business-readiness evidence."
   };

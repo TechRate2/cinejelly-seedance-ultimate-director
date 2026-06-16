@@ -32,6 +32,7 @@
       "additionalProperties": false,
       "required": [
         "opsConfigPath",
+        "atlasBillingPath",
         "billingAttestationPath",
         "productionAttestationPath",
         "deploymentBaseUrlConfigured",
@@ -42,6 +43,7 @@
       ],
       "properties": {
         "opsConfigPath": { "type": "string" },
+        "atlasBillingPath": { "type": "string" },
         "billingAttestationPath": { "type": "string" },
         "productionAttestationPath": { "type": "string" },
         "deploymentBaseUrlConfigured": { "type": "boolean" },
@@ -54,7 +56,7 @@
     "environment": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["atlas", "deployment", "operations", "sourceVideo", "remoteStock", "generatedAudio"]
+      "required": ["atlas", "deployment", "operations", "atlasBilling", "sourceVideo", "remoteStock", "generatedAudio"]
     },
     "costPlan": {
       "type": "object",

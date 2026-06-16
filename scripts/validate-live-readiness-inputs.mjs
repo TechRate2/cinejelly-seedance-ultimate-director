@@ -7,6 +7,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaults = {
   outputPath: "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json",
   opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
+  atlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
   billingAttestationPath: "ops/billing-admin-attestation.json",
   productionAttestationPath: "ops/production-operations-attestation.json",
   deploymentBaseUrl: process.env.CINEJELLY_DEPLOYMENT_BASE_URL,
@@ -33,6 +34,7 @@ function parseArgs(args) {
   const flagMap = new Map([
     ["--output", "outputPath"],
     ["--ops-config-report", "opsConfigPath"],
+    ["--atlas-billing-report", "atlasBillingPath"],
     ["--billing-attestation", "billingAttestationPath"],
     ["--production-attestation", "productionAttestationPath"],
     ["--deployment-base-url", "deploymentBaseUrl"],
@@ -87,6 +89,7 @@ Usage:
 
 Options:
   --ops-config-report <path>              Default: ${defaults.opsConfigPath}
+  --atlas-billing-report <path>           Default: ${defaults.atlasBillingPath}
   --billing-attestation <path>            Default: ${defaults.billingAttestationPath}
   --production-attestation <path>         Default: ${defaults.productionAttestationPath}
   --deployment-base-url <url>             Real CineJelly HTTPS deployment URL. Can also use CINEJELLY_DEPLOYMENT_BASE_URL.
@@ -121,6 +124,7 @@ function main() {
     providerCallsMade: false,
     checkedInputs: {
       opsConfigPath: toRepoRelative(options.opsConfigPath),
+      atlasBillingPath: toRepoRelative(options.atlasBillingPath),
       billingAttestationPath: toRepoRelative(options.billingAttestationPath),
       productionAttestationPath: toRepoRelative(options.productionAttestationPath),
       deploymentBaseUrlConfigured: Boolean(options.deploymentBaseUrl),
@@ -155,6 +159,7 @@ function validateOptions(options) {
 
 function summarizeEnvironment(options) {
   const opsConfig = summarizeOpsConfig(options.opsConfigPath);
+  const atlasBilling = summarizeAtlasBilling(options.atlasBillingPath);
   const deployment = urlEvidence(options.deploymentBaseUrl, "deployment");
   const sourceVideoUrl = urlEvidence(options.sourceVideoUrl, "source_video");
   const apiClientPolicies = jsonArrayEnv("CINEJELLY_API_CLIENTS_JSON");
@@ -194,6 +199,7 @@ function summarizeEnvironment(options) {
       requireClientPolicyForRender: envTrue("CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER"),
       usageLedgerConfigured: envConfigured("CINEJELLY_CLIENT_USAGE_LEDGER_PATH")
     },
+    atlasBilling,
     sourceVideo: {
       cleanHttpsUrlConfigured: sourceVideoUrl.configured,
       cleanHttpsUrlValid: sourceVideoUrl.valid,
@@ -238,6 +244,34 @@ function summarizeOpsConfig(path) {
     failCount: checks.filter((check) => check?.status === "fail").length,
     canRunBillingAdminCapture: report.releaseGateSummary?.canRunBillingAdminCapture === true,
     canRunProductionOpsCapture: report.releaseGateSummary?.canRunProductionOpsCapture === true
+  };
+}
+
+function summarizeAtlasBilling(path) {
+  const report = readJsonIfExists(path);
+  if (!report) {
+    return {
+      present: false,
+      path: toRepoRelative(path),
+      status: "missing",
+      canUseAsPrePaidAtlasBillingEvidence: false,
+      canRunAtlasSpendWithinApprovedBudget: false,
+      message: "Run validation:atlas-billing with the approved budget before paid Atlas validation."
+    };
+  }
+  const failures = Array.isArray(report.checks)
+    ? report.checks.filter((check) => check?.status === "fail").map((check) => String(check.message ?? check.name ?? "unknown"))
+    : [];
+  return {
+    present: true,
+    path: toRepoRelative(path),
+    schemaVersion: report.schemaVersion,
+    status: String(report.status ?? "unknown"),
+    canUseAsPrePaidAtlasBillingEvidence: report.releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true,
+    canRunAtlasSpendWithinApprovedBudget: report.releaseGateSummary?.canRunAtlasSpendWithinApprovedBudget === true,
+    networkCallsMade: report.networkCallsMade === true,
+    failCount: failures.length,
+    message: failures[0] ?? "Atlas billing readiness report is passing."
   };
 }
 
@@ -291,16 +325,20 @@ function buildGates({ environment, costPlan }) {
     environment.operations.opsConfig.status === "pass" &&
     environment.operations.billingAttestationPresent &&
     environment.operations.productionAttestationPresent;
+  const atlasBillingReadyForApprovedSpend =
+    environment.atlasBilling.canUseAsPrePaidAtlasBillingEvidence &&
+    environment.atlasBilling.canRunAtlasSpendWithinApprovedBudget;
   const atlasVideoReady =
     environment.atlas.mediaApiKeyConfigured &&
     environment.atlas.seedanceStandardModelConfigured &&
     environment.atlas.seedanceFastModelConfigured;
-  const sourceVideoReady =
+  const sourceVideoInputReady =
     environment.sourceVideo.cleanHttpsUrlValid &&
     environment.sourceVideo.autoAnalysisEnabled &&
     environment.sourceVideo.atlasLlmReady;
+  const sourceVideoReady = sourceVideoInputReady && atlasBillingReadyForApprovedSpend;
   const remoteStockReady = environment.remoteStock.enabled && environment.remoteStock.configuredProviderCount > 0;
-  const generatedAudioReady =
+  const generatedAudioInputReady =
     environment.generatedAudio.atlasMediaReady &&
     environment.generatedAudio.modelConfigured &&
     environment.generatedAudio.voiceIdConfigured &&
@@ -308,7 +346,8 @@ function buildGates({ environment, costPlan }) {
     environment.generatedAudio.capabilitiesJsonValid &&
     environment.generatedAudio.capabilityCount > 0 &&
     costPlan.generatedAudio.withinBudget;
-  const longFormReady = atlasVideoReady && costPlan.longForm.withinBudget;
+  const generatedAudioReady = generatedAudioInputReady && atlasBillingReadyForApprovedSpend;
+  const longFormReady = atlasVideoReady && costPlan.longForm.withinBudget && atlasBillingReadyForApprovedSpend;
 
   return [
     gate("deployment_readiness_inputs", "no_spend_network", deploymentReady, [
@@ -323,10 +362,16 @@ function buildGates({ environment, costPlan }) {
       boolCheck("client_policy_required", environment.operations.requireClientPolicyForRender, "Render requests require client policy.", "Set CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER=true for commercial traffic."),
       boolCheck("client_usage_ledger", environment.operations.usageLedgerConfigured, "Client usage ledger path is configured.", "Set CINEJELLY_CLIENT_USAGE_LEDGER_PATH for persistent quota evidence.")
     ]),
+    gate("atlas_billing_readiness_inputs", "no_spend_network", atlasBillingReadyForApprovedSpend, [
+      boolCheck("atlas_billing_report_present", environment.atlasBilling.present, "Atlas billing readiness report exists.", "Run validation:atlas-billing before paid Atlas validation."),
+      boolCheck("atlas_billing_live_evidence", environment.atlasBilling.canUseAsPrePaidAtlasBillingEvidence, "Atlas billing readiness can be used as pre-paid evidence.", environment.atlasBilling.message),
+      boolCheck("atlas_billing_budget_approved", environment.atlasBilling.canRunAtlasSpendWithinApprovedBudget, "Atlas paid validation is within the approved budget.", environment.atlasBilling.message)
+    ]),
     gate("source_video_auto_analysis_inputs", "paid_atlas_llm_and_source_fetch", sourceVideoReady, [
       boolCheck("source_video_clean_https_url", environment.sourceVideo.cleanHttpsUrlValid, "Clean HTTPS source-video URL is configured.", "Set CINEJELLY_VALIDATION_SOURCE_VIDEO_URL or pass --source-video-url with a credential-free HTTPS URL."),
       boolCheck("source_video_auto_analysis_enabled", environment.sourceVideo.autoAnalysisEnabled, "Source-video auto-analysis is enabled.", "Set CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS=true before live validation."),
-      boolCheck("atlas_llm_ready", environment.sourceVideo.atlasLlmReady, "Atlas LLM key/model is configured.", "Set ATLASCLOUD_LLM_API_KEY or ATLASCLOUD_API_KEY plus ATLASCLOUD_LLM_MODEL.")
+      boolCheck("atlas_llm_ready", environment.sourceVideo.atlasLlmReady, "Atlas LLM key/model is configured.", "Set ATLASCLOUD_LLM_API_KEY or ATLASCLOUD_API_KEY plus ATLASCLOUD_LLM_MODEL."),
+      boolCheck("atlas_billing_ready_for_paid_validation", atlasBillingReadyForApprovedSpend, "Atlas billing readiness is approved for paid validation.", environment.atlasBilling.message)
     ]),
     gate("remote_stock_provider_inputs", "live_network", remoteStockReady, [
       boolCheck("remote_stock_enabled", environment.remoteStock.enabled, "Remote stock adapters are enabled.", "Set CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS=true when remote stock validation is in scope."),
@@ -337,12 +382,14 @@ function buildGates({ environment, costPlan }) {
       boolCheck("generated_audio_model", environment.generatedAudio.modelConfigured, "Generated-audio model is configured.", "Set ATLASCLOUD_GENERATED_AUDIO_MODEL."),
       boolCheck("generated_audio_voice", environment.generatedAudio.voiceIdConfigured, "Generated-audio voice is configured.", "Set ATLASCLOUD_GENERATED_AUDIO_VOICE_ID."),
       boolCheck("generated_audio_capabilities", environment.generatedAudio.capabilitiesJsonValid && environment.generatedAudio.capabilityCount > 0, "Generated-audio capability JSON is valid.", "Set ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON to at least one reviewed capability record."),
-      boolCheck("generated_audio_cost_budget", costPlan.generatedAudio.withinBudget, "Generated-audio sample estimate is within budget.", "Raise --max-budget-usd or reduce the generated-audio validation sample.")
+      boolCheck("generated_audio_cost_budget", costPlan.generatedAudio.withinBudget, "Generated-audio sample estimate is within budget.", "Raise --max-budget-usd or reduce the generated-audio validation sample."),
+      boolCheck("atlas_billing_ready_for_paid_validation", atlasBillingReadyForApprovedSpend, "Atlas billing readiness is approved for paid validation.", environment.atlasBilling.message)
     ], costPlan.generatedAudio.estimatedCostUsd),
     gate("long_form_paid_validation_inputs", "paid_atlas_video", longFormReady, [
       boolCheck("atlas_video_keys_models", atlasVideoReady, "Atlas media key and Seedance model IDs are configured.", "Set ATLASCLOUD_API_KEY, ATLASCLOUD_SEEDANCE_STANDARD_MODEL, and ATLASCLOUD_SEEDANCE_FAST_MODEL."),
       boolCheck("long_form_cost_estimate", costPlan.longForm.estimateAvailable, "Long-form cost estimate is available.", "Set CINEJELLY_RENDER_COST_USD_PER_SECOND."),
-      boolCheck("long_form_budget", costPlan.longForm.withinBudget, "Long-form validation estimate is within budget.", budgetMessage(costPlan))
+      boolCheck("long_form_budget", costPlan.longForm.withinBudget, "Long-form validation estimate is within budget.", budgetMessage(costPlan)),
+      boolCheck("atlas_billing_ready_for_paid_validation", atlasBillingReadyForApprovedSpend, "Atlas billing readiness is approved for paid validation.", environment.atlasBilling.message)
     ], costPlan.longForm.estimatedCostUsd)
   ];
 }
@@ -416,7 +463,8 @@ function nextActionsFor({ environment, costPlan, gates }) {
   for (const gate of gates) {
     const failures = gate.checks.filter((check) => check.status === "fail");
     if (failures.length > 0) {
-      actions.push(`${gate.name}: ${failures.map((check) => check.message).join(" ")}`);
+      const messages = [...new Set(failures.map((check) => check.message))];
+      actions.push(`${gate.name}: ${messages.join(" ")}`);
     }
   }
   if (!environment.operations.billingAttestationPresent || !environment.operations.productionAttestationPresent || environment.operations.opsConfig.status !== "pass") {
