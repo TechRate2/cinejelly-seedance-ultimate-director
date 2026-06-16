@@ -63,9 +63,9 @@ const checks = [
     name: "source_video_auto_analysis_validation",
     weight: 10,
     pathOption: "sourceVideoReportPath",
-    evaluator: evaluateRequiredPassReport,
+    evaluator: evaluateSourceVideoAutoAnalysis,
     missing:
-      "Missing live source-video auto-analysis evidence using real clean HTTPS source video, FFmpeg frame extraction, and the configured multimodal LLM."
+      "Missing live source-video auto-analysis evidence. Run npm.cmd run validation:source-video-auto-analysis with a real clean HTTPS source video and explicit provider-spend confirmation."
   },
   {
     name: "remote_stock_provider_validation",
@@ -302,6 +302,35 @@ function evaluateBillingAdminOps(path) {
     firstFailure
       ? `Billing/admin/quota operations evidence is incomplete: ${firstFailure}`
       : `Billing/admin/quota operations evidence status is ${report.status ?? "missing"}.`
+  );
+}
+
+function evaluateSourceVideoAutoAnalysis(path) {
+  const report = readJson(path);
+  if (report.schemaVersion !== "cinejelly.source-video-auto-analysis-validation.v1") {
+    return fail("Source-video auto-analysis report schemaVersion is not recognized.");
+  }
+  if (
+    report.status === "pass" &&
+    report.releaseGateSummary?.canUseAsBusinessReadinessSourceVideoEvidence === true &&
+    report.spendGate?.providerNetworkCallsAllowed === true &&
+    report.analysisSummary?.present === true &&
+    report.analysisSummary?.usableContent === true &&
+    report.analysisSummary?.noInlineFrameData === true &&
+    report.analysisSummary?.noLocalFramePaths === true
+  ) {
+    return pass("Live source-video auto-analysis evidence passed.");
+  }
+  if (report.status === "warn") {
+    return warn("Live source-video auto-analysis evidence has warnings requiring operator acceptance.");
+  }
+  const firstFailure = Array.isArray(report.checks)
+    ? report.checks.find((check) => check?.status === "fail" && typeof check?.message === "string")?.message
+    : undefined;
+  return fail(
+    firstFailure
+      ? `Live source-video auto-analysis evidence is incomplete: ${firstFailure}`
+      : `Live source-video auto-analysis evidence status is ${report.status ?? "missing"}.`
   );
 }
 

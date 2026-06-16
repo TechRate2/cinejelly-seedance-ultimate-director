@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/source-video-auto-analysis-validation-report.schema.json",
+  "title": "CineJelly Source Video Auto Analysis Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "spendGate",
+    "checks",
+    "frameSampling",
+    "analysisSummary",
+    "providerLedger",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.source-video-auto-analysis-validation.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "warn", "fail", "blocked_by_spend_confirmation", "blocked_by_readiness"] },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceReferenceLabel", "sourceVideoUrl", "outputPath"],
+      "properties": {
+        "requestPath": { "type": "string" },
+        "sourceReferenceLabel": { "type": "string" },
+        "sourceVideoUrl": { "type": "string" },
+        "outputPath": { "type": "string" }
+      }
+    },
+    "spendGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmProviderSpend", "providerNetworkCallsAllowed", "sourceVideoFetchAllowed"],
+      "properties": {
+        "confirmProviderSpend": { "type": "boolean" },
+        "providerNetworkCallsAllowed": { "type": "boolean" },
+        "sourceVideoFetchAllowed": { "type": "boolean" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "decision": { "type": "string" },
+        "preflightStatus": { "type": "string" },
+        "hardBlockers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "allowWarnings": { "type": "boolean" }
+      }
+    },
+    "frameSampling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workDirectory", "failOnError"],
+      "properties": {
+        "workDirectory": { "type": "string" },
+        "frameIntervalSeconds": { "type": "integer", "minimum": 1 },
+        "maxFrames": { "type": "integer", "minimum": 1 },
+        "failOnError": { "type": "boolean" }
+      }
+    },
+    "analysisSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present",
+        "hasTransformationIntent",
+        "transcriptCueCount",
+        "sceneCount",
+        "keyframeCount",
+        "pacingNoteCount",
+        "styleNoteCount",
+        "structuralBeatCount",
+        "safetyNoteCount",
+        "usableContent",
+        "noInlineFrameData",
+        "noLocalFramePaths"
+      ],
+      "properties": {
+        "present": { "type": "boolean" },
+        "sourceReferenceLabel": { "type": "string" },
+        "hasTransformationIntent": { "type": "boolean" },
+        "transcriptCueCount": { "type": "integer", "minimum": 0 },
+        "sceneCount": { "type": "integer", "minimum": 0 },
+        "keyframeCount": { "type": "integer", "minimum": 0 },
+        "pacingNoteCount": { "type": "integer", "minimum": 0 },
+        "styleNoteCount": { "type": "integer", "minimum": 0 },
+        "structuralBeatCount": { "type": "integer", "minimum": 0 },
+        "safetyNoteCount": { "type": "integer", "minimum": 0 },
+        "usableContent": { "type": "boolean" },
+        "noInlineFrameData": { "type": "boolean" },
+        "noLocalFramePaths": { "type": "boolean" }
+      }
+    },
+    "providerLedger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryCount", "operations", "statuses", "entries"],
+      "properties": {
+        "entryCount": { "type": "integer", "minimum": 0 },
+        "operations": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "statuses": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "estimatedCostUsd": { "type": "number", "minimum": 0 },
+        "actualCostUsd": { "type": "number", "minimum": 0 },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["provider", "operation", "status"],
+            "properties": {
+              "provider": { "type": "string" },
+              "operation": { "type": "string" },
+              "status": { "type": "string" },
+              "modelId": { "type": "string" },
+              "latencyMs": { "type": "integer", "minimum": 0 },
+              "retryCount": { "type": "integer", "minimum": 0 },
+              "errorCode": { "type": "string" },
+              "retryable": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "error": { "type": "string" },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsBusinessReadinessSourceVideoEvidence",
+        "canOpenPaidCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsBusinessReadinessSourceVideoEvidence": { "type": "boolean" },
+        "canOpenPaidCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

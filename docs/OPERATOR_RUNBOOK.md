@@ -4,7 +4,7 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 ## Current Readiness
 
-As of 2026-06-16T06:05:12.303Z, the current local workstation passes the no-spend local validation smoke through `node scripts/run-local-validation-smoke.mjs`. The latest local readiness report has 60 checks: 60 pass, 0 warn, and 0 fail, with decision `ready_for_paid_validation`. Atlas keys, model IDs, Atlas LLM/media base URLs, API auth token, output directory, explicit FFmpeg/FFprobe executable paths, pinned Seedance capability records, and the optional API client policy preflight are present in the ignored local `.env`/runtime checks. The local LLM key currently reuses the primary Atlas API key because the previously supplied separate Coding Plan key returned authentication failure during validation; replace only `ATLASCLOUD_LLM_API_KEY` after a working Coding Plan key is generated.
+As of 2026-06-16T06:05:12.303Z, the current local workstation passes the no-spend local validation smoke through `node scripts/run-local-validation-smoke.mjs`. The latest local readiness report has 60 checks: 60 pass, 0 warn, and 0 fail, with decision `ready_for_paid_validation`. Atlas keys, model IDs, Atlas LLM/media base URLs, API auth token, output directory, explicit FFmpeg/FFprobe executable paths, pinned Seedance capability records, and the optional API client policy preflight are present in the ignored local `.env`/runtime checks. The local `.env` can use Atlas's two-key layout: `ATLASCLOUD_API_KEY` for media/upload/video under `/api/v1` and `ATLASCLOUD_LLM_API_KEY` for chat completions under `/v1`. If the separate LLM key returns authentication or plan errors during validation, replace only `ATLASCLOUD_LLM_API_KEY` with a working Coding Plan key or temporarily reuse the known-working Atlas key until the Atlas wallet is corrected.
 
 The API has also been started locally from `dist/api/server.js` with `.env` loading, and `GET /health` plus protected `GET /v1/validation-readiness` returned `ready_for_paid_validation`. A no-spend render request validation succeeded for a valid 15-second operator request, and `validation:client-policy-smoke` passed for digest auth, quota reservation, JSONL usage-ledger writing, and quota blocking. One short paid Atlas validation render completed on 2026-06-15T13:33:55.217Z with request `req_8262f057-c412-4f84-8bdb-56cefd8757f2`, project `project_f87153061ebea88e`, 58 provider ledger entries, estimated cost gate `$3`, a 13.5s H.264 854x480 final MP4, and artifact validation status `pass`. This run used `audioMode:none`, so no audio stream is expected.
 
@@ -136,6 +136,20 @@ npm.cmd run validation:deployment-readiness
 ```
 
 The capture calls only `GET /health`, `GET /v1/preflight`, `GET /v1/validation-readiness`, and `GET /v1/render-settings`; it does not submit render work or call Atlas. Localhost captures are useful for smoke testing but are marked `environmentKind: local` and cannot satisfy the business-readiness deployment gate.
+
+Create the live source-video auto-analysis evidence with a real, clean HTTPS source video that has no credentials or signed query parameters. First run the spend gate without confirmation to verify the report path and source URL checks:
+
+```powershell
+npm.cmd run validation:source-video-auto-analysis -- --source-video-url "https://<clean-public-source-video>.mp4"
+```
+
+Then run the live validation only after approving Atlas LLM spend and source-video fetch for that specific video:
+
+```powershell
+npm.cmd run validation:source-video-auto-analysis -- --source-video-url "https://<clean-public-source-video>.mp4" --confirm-provider-spend
+```
+
+If readiness returns warnings that the operator intentionally accepts, add `--allow-warnings`. The runner samples bounded frames with FFmpeg, sends them through the configured Atlas LLM provider, normalizes the result through `SourceVideoAnalyst`, and writes `assets/output_deliverables/business-readiness/source-video-validation-report.json`. The business-readiness gate counts it only when the report status is `pass`, provider calls were explicitly allowed, analysis content is usable, and the report confirms no local frame path or inline frame data leakage. See `docs/reference-implementations/source-video-auto-analysis-validation-runner.md` for the exact report contract.
 
 Create the billing/admin/quota evidence after client policy, a persistent usage ledger, a real deployment admin endpoint, and the non-secret billing/admin attestation are ready:
 

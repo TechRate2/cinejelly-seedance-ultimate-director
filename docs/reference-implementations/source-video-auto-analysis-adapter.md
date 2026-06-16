@@ -1,6 +1,6 @@
 # Reference Implementation: Source Video Auto Analysis Adapter
 
-Implementation status as of 2026-06-13: CineJelly-owned TypeScript foundation implemented in source-video analysis contracts, runtime configuration, preflight, DirectorAgent request preparation, and source lineage records. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. Live validation with real source videos, FFmpeg, and the configured Atlas multimodal LLM remains required before release.
+Implementation status as of 2026-06-16: CineJelly-owned TypeScript foundation implemented in source-video analysis contracts, runtime configuration, preflight, DirectorAgent request preparation, source lineage records, and a live validation runner with an explicit provider-spend gate. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. A real clean HTTPS source-video run through FFmpeg and the configured Atlas multimodal LLM still remains required before release.
 
 ## Upstream And Provider Sources
 
@@ -82,6 +82,7 @@ async function prepareRequestWithAutoSourceVideoAnalysis(request, analyzer, sett
   - `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR`
 - Done: wire the analyzer into `DirectorAgent` before `IntakeDirector.intake`.
 - Done: keep `SourceVideoAnalyst.normalize` as the final normalization gate.
+- Done: add `docs/reference-implementations/source-video-auto-analysis-validation-runner.md` plus a CLI/report gate for live validation evidence.
 
 ## Validation Checklist
 

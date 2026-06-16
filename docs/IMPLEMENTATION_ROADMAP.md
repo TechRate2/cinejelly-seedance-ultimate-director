@@ -31,7 +31,7 @@ Not yet complete:
 - Real production operations capture from an HTTPS deployment host with durable storage, backups, restore test, monitoring, incident, support, redaction, and retention evidence.
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe available through `PATH` or configured binary paths.
 - Real artifact review from a paid Atlas validation run, including validator output, review packet, cost ledger, stage lifecycle, and deliverable metadata.
-- Live validation of source-video auto-analysis with real source videos, deployment FFmpeg frame extraction, and the configured Atlas multimodal LLM.
+- Live evidence run for source-video auto-analysis with a real clean HTTPS source video, deployment FFmpeg frame extraction, and the configured Atlas multimodal LLM. The validation runner and spend gate are implemented; the archived live report is still pending.
 - Live remote stock provider validation with real Pexels/Pixabay/Coverr credentials and operator-approved commercial terms.
 - Live Atlas-backed TTS/BGM/ambience/SFX execution; current generated-audio support includes provider-neutral ready-item execution plumbing, but Atlas remains no-capability/no-spend until audio schemas, model IDs, pricing, and paid validation are verified.
 
@@ -100,7 +100,7 @@ Milestone check:
 
 ## Phase 3: Reference Selection Scoring
 
-Current status as of 2026-06-13: foundation implemented with local typecheck/build validation. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Reference metadata enrichment now validates and preserves explicit camera/composition/character/view/timeline/authorization fields before scoring, source-video reference metadata enrichment derives bounded camera/composition/timeline/source-scene/source-keyframe hints from normalized `sourceVideoAnalysis`, and the opt-in Source Video Auto Analysis Adapter can generate normalized `sourceVideoAnalysis` from bounded sampled frames of a clean HTTPS `source_video_structure` reference. Remaining evidence work is live validation with real videos, FFmpeg, and the configured Atlas multimodal LLM.
+Current status as of 2026-06-16: foundation implemented with local typecheck/build validation. A CineJelly-owned `ReferenceSelectionPlanner` now scores references before storyboard/prompt compilation, stores `ReferenceSelectionPlan` evidence on shot contracts, bounds selected references before provider request compilation, and Production Graph emits `reference_selection` nodes with selected/dropped candidate evidence. Reference metadata enrichment now validates and preserves explicit camera/composition/character/view/timeline/authorization fields before scoring, source-video reference metadata enrichment derives bounded camera/composition/timeline/source-scene/source-keyframe hints from normalized `sourceVideoAnalysis`, and the opt-in Source Video Auto Analysis Adapter can generate normalized `sourceVideoAnalysis` from bounded sampled frames of a clean HTTPS `source_video_structure` reference. The live validation CLI and business-readiness report gate now exist; remaining evidence work is running it with a real clean HTTPS source video, FFmpeg, and the configured Atlas multimodal LLM after explicit spend approval.
 
 Target module:
 
@@ -119,10 +119,12 @@ Deliverables:
 - Done: `docs/reference-implementations/reference-metadata-enrichment.md`
 - Done: `docs/reference-implementations/source-video-reference-metadata-enrichment.md`
 - Done: `docs/reference-implementations/source-video-auto-analysis-adapter.md`
+- Done: `docs/reference-implementations/source-video-auto-analysis-validation-runner.md`
 - Done: CineJelly-owned reference selection planner.
 - Done: API admission and ReferenceLibrarian preserve bounded reference selection metadata before provider spend.
 - Done: Intake enriches references from normalized source-video scene/keyframe metadata without overwriting explicit caller metadata.
 - Done: Opt-in `SourceVideoAutoAnalyzer` samples bounded frames, sends input-only frame data to the configured Atlas LLM, normalizes through `SourceVideoAnalyst`, and skips or fails based on operator configuration.
+- Done: `npm.cmd run validation:source-video-auto-analysis` blocks before provider/source-video network calls unless `--confirm-provider-spend` is present, then emits versioned business-readiness evidence.
 - Done: Production Graph evidence for candidate references, selected references, score reasons, and dropped duplicates.
 - Done: Prompt Compiler consumes selected references rather than raw unordered references where available.
 
