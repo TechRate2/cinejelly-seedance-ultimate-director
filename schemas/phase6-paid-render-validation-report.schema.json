@@ -13,6 +13,7 @@
         "blocked_by_readiness",
         "blocked_by_readiness_warnings",
         "blocked_by_spend_confirmation",
+        "blocked_by_atlas_billing",
         "completed",
         "completed_with_artifact_validation_warning",
         "completed_with_artifact_validation_failure",
@@ -62,6 +63,41 @@
         "checks": {
           "type": "array",
           "items": { "type": "object" }
+        }
+      }
+    },
+    "atlasBillingGate": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path", "present", "status", "maxAgeHours", "canUseAsPrePaidAtlasBillingEvidence", "checks"],
+      "properties": {
+        "path": { "type": "string" },
+        "present": { "type": "boolean" },
+        "status": { "type": "string" },
+        "schemaVersion": { "type": "string" },
+        "reportGeneratedAt": { "type": "string", "format": "date-time" },
+        "maxAgeHours": { "type": "number", "exclusiveMinimum": 0 },
+        "reportAgeHours": { "type": "number", "minimum": 0 },
+        "freshForPaidValidation": { "type": "boolean" },
+        "reportPlannedCostUsd": { "type": "number", "minimum": 0 },
+        "currentMaxCostUsd": { "type": "number", "minimum": 0 },
+        "plannedCostWithinRequestCap": { "type": "boolean" },
+        "reportMaxBudgetUsd": { "type": "number", "minimum": 0 },
+        "budgetCoversRequestCap": { "type": "boolean" },
+        "networkCallsMade": { "type": "boolean" },
+        "canUseAsPrePaidAtlasBillingEvidence": { "type": "boolean" },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "status", "message"],
+            "properties": {
+              "name": { "type": "string" },
+              "status": { "enum": ["pass", "fail"] },
+              "message": { "type": "string" }
+            }
+          }
         }
       }
     },

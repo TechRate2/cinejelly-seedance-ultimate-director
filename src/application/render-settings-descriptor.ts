@@ -61,7 +61,7 @@ export interface RenderSettingsDescriptor {
     readonly hasFirstPartyUi: false;
     readonly currentControlSurface: "http_api_and_cli";
     readonly safeLocalCheckCommand: "npm.cmd run doctor";
-    readonly paidValidationCommand: "npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend";
+    readonly paidValidationCommand: "npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend --atlas-billing-report <atlas-billing-report>";
   };
 }
 
@@ -129,7 +129,7 @@ export function buildRenderSettingsDescriptor(env: NodeJS.ProcessEnv = process.e
       hasFirstPartyUi: false,
       currentControlSurface: "http_api_and_cli",
       safeLocalCheckCommand: "npm.cmd run doctor",
-      paidValidationCommand: "npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend"
+      paidValidationCommand: "npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend --atlas-billing-report <atlas-billing-report>"
     }
   };
 }

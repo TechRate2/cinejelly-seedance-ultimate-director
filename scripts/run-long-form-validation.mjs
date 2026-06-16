@@ -495,6 +495,10 @@ async function runPaidLongFormValidation({ options, modules, requestPath, normal
       requestPath,
       "--output",
       resolve(repoRoot, options.paidReportPath),
+      "--atlas-billing-report",
+      resolve(repoRoot, options.atlasBillingReportPath),
+      "--atlas-billing-evidence-max-age-hours",
+      String(options.atlasBillingEvidenceMaxAgeHours),
       "--confirm-paid-spend",
       ...(options.allowWarnings ? ["--allow-warnings"] : [])
     ];

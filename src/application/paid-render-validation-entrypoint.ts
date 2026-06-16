@@ -30,6 +30,7 @@ type PaidRenderValidationStatus =
   | "blocked_by_readiness"
   | "blocked_by_readiness_warnings"
   | "blocked_by_spend_confirmation"
+  | "blocked_by_atlas_billing"
   | "completed"
   | "completed_with_artifact_validation_warning"
   | "completed_with_artifact_validation_failure"
@@ -41,6 +42,8 @@ interface PaidRenderValidationCliOptions {
   readonly outputPath?: string;
   readonly allowWarnings: boolean;
   readonly confirmPaidSpend: boolean;
+  readonly atlasBillingReportPath: string;
+  readonly atlasBillingEvidenceMaxAgeHours: number;
 }
 
 interface PaidRenderValidationReport {
@@ -52,6 +55,7 @@ interface PaidRenderValidationReport {
   readonly readiness: Phase6ValidationReadinessReport;
   readonly artifactBundle?: ProjectArtifactBundleSummary;
   readonly artifactValidation?: ProjectArtifactValidationSummary;
+  readonly atlasBillingGate?: AtlasBillingGateSummary;
   readonly costLedgerEntryCount?: number;
   readonly estimatedCostUsd?: number;
   readonly actualCostUsd?: number;
@@ -75,17 +79,45 @@ interface ProjectArtifactValidationSummary {
   readonly checks: readonly ProjectArtifactValidationCheck[];
 }
 
+interface AtlasBillingGateSummary {
+  readonly path: string;
+  readonly present: boolean;
+  readonly status: string;
+  readonly schemaVersion?: string;
+  readonly reportGeneratedAt?: string;
+  readonly maxAgeHours: number;
+  readonly reportAgeHours?: number;
+  readonly freshForPaidValidation?: boolean;
+  readonly reportPlannedCostUsd?: number;
+  readonly currentMaxCostUsd?: number;
+  readonly plannedCostWithinRequestCap?: boolean;
+  readonly reportMaxBudgetUsd?: number;
+  readonly budgetCoversRequestCap?: boolean;
+  readonly networkCallsMade?: boolean;
+  readonly canUseAsPrePaidAtlasBillingEvidence: boolean;
+  readonly checks: readonly AtlasBillingGateCheck[];
+}
+
+interface AtlasBillingGateCheck {
+  readonly name: string;
+  readonly status: "pass" | "fail";
+  readonly message: string;
+}
+
 const SOURCE_PATTERN_ORIGINS = [
   "vericontext/vibeframe",
   "harry0703/MoneyPrinterTurbo",
   "calesthio/OpenMontage"
 ] as const;
 
+const DEFAULT_ATLAS_BILLING_REPORT_PATH = "assets/output_deliverables/phase6-validation/atlas-billing-paid-render-report.json";
+const DEFAULT_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS = 24;
+
 export async function runPaidRenderValidationCli(
   args: readonly string[] = process.argv.slice(2),
   env: NodeJS.ProcessEnv = process.env
 ): Promise<number> {
-  const options = parseOptions(args);
+  const options = parseOptions(args, env);
   const requestBody = await readRequestJson(options.requestPath);
   renderRequestAdmissionFromEnv(env).assertAcceptable(requestBody);
   const normalizedRequest = normalizeRenderRequest(requestBody as CineJellyProjectRequest, {
@@ -115,26 +147,43 @@ export async function runPaidRenderValidationCli(
     }), options);
   }
   if (!options.confirmPaidSpend) {
+    const atlasBillingGate = skippedAtlasBillingGate(options, requestMaxCostUsd(normalizedRequest));
     return emitReport(report({
       status: "blocked_by_spend_confirmation",
       readiness,
       requestId: normalizedRequest.metadata?.requestId,
+      atlasBillingGate,
       nextActions: [
         "Review the request file, local smoke report, readiness report, expected Atlas credit spend, and operator approval.",
+        "Refresh Atlas billing readiness with validation:atlas-billing before enabling paid render spend.",
         "Rerun with --confirm-paid-spend only after explicit approval to spend Atlas credits.",
         "Do not use this flag for routine local smoke or request validation."
       ]
     }), options);
   }
 
-  return runPaidRender(normalizedRequest, readiness, options, env);
+  const atlasBillingGate = await summarizeAtlasBillingGate(options, normalizedRequest);
+  if (atlasBillingGate.checks.some((check) => check.status === "fail")) {
+    return emitReport(report({
+      status: "blocked_by_atlas_billing",
+      readiness,
+      requestId: normalizedRequest.metadata?.requestId,
+      atlasBillingGate,
+      nextActions: atlasBillingGate.checks
+        .filter((check) => check.status === "fail")
+        .map((check) => check.message)
+    }), options);
+  }
+
+  return runPaidRender(normalizedRequest, readiness, options, env, atlasBillingGate);
 }
 
 async function runPaidRender(
   request: CineJellyProjectRequest,
   readiness: Phase6ValidationReadinessReport,
   options: PaidRenderValidationCliOptions,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  atlasBillingGate: AtlasBillingGateSummary
 ): Promise<number> {
   const artifactStore = new ProjectArtifactStore();
   const artifactValidator = new ProjectArtifactValidator();
@@ -153,6 +202,7 @@ async function runPaidRender(
       status: statusForSuccessfulRender(artifactValidation),
       readiness,
       requestId: request.metadata?.requestId,
+      atlasBillingGate,
       artifactBundle: summarizeArtifacts(artifacts),
       artifactValidation: summarizeArtifactValidation(artifactValidation),
       costLedger,
@@ -173,6 +223,7 @@ async function runPaidRender(
         status: "render_failed",
         readiness,
         requestId: request.metadata?.requestId,
+        atlasBillingGate,
         artifactBundle: summarizeArtifacts(artifacts),
         artifactValidation: summarizeArtifactValidation(artifactValidation),
         costLedger,
@@ -187,6 +238,7 @@ async function runPaidRender(
         status: "failed",
         readiness,
         requestId: request.metadata?.requestId,
+        atlasBillingGate,
         costLedger,
         error: errorSummary(artifactError),
         nextActions: [
@@ -198,11 +250,16 @@ async function runPaidRender(
   }
 }
 
-function parseOptions(args: readonly string[]): PaidRenderValidationCliOptions {
+function parseOptions(args: readonly string[], env: NodeJS.ProcessEnv): PaidRenderValidationCliOptions {
   let requestPath: string | undefined;
   let outputPath: string | undefined;
   let allowWarnings = false;
   let confirmPaidSpend = false;
+  let atlasBillingReportPath = DEFAULT_ATLAS_BILLING_REPORT_PATH;
+  let atlasBillingEvidenceMaxAgeHours = parsePositiveNumber(
+    env.CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS,
+    DEFAULT_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS
+  );
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -235,19 +292,42 @@ function parseOptions(args: readonly string[]): PaidRenderValidationCliOptions {
       outputPath = arg.slice("--output=".length);
       continue;
     }
+    if (arg === "--atlas-billing-report") {
+      atlasBillingReportPath = readOptionValue(args, index, "--atlas-billing-report");
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--atlas-billing-report=")) {
+      atlasBillingReportPath = arg.slice("--atlas-billing-report=".length);
+      continue;
+    }
+    if (arg === "--atlas-billing-evidence-max-age-hours") {
+      atlasBillingEvidenceMaxAgeHours = Number(readOptionValue(args, index, "--atlas-billing-evidence-max-age-hours"));
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--atlas-billing-evidence-max-age-hours=")) {
+      atlasBillingEvidenceMaxAgeHours = Number(arg.slice("--atlas-billing-evidence-max-age-hours=".length));
+      continue;
+    }
     throw new Error(`Unknown paid render validation option: ${arg}`);
   }
 
   if (!requestPath) {
     throw new Error(
-      "Usage: npm.cmd run validation:paid-render -- --request <request-json-path> --confirm-paid-spend [--allow-warnings] [--output <report-path>]"
+      "Usage: npm.cmd run validation:paid-render -- --request <request-json-path> --confirm-paid-spend [--allow-warnings] [--atlas-billing-report <report-path>] [--output <report-path>]"
     );
+  }
+  if (!Number.isFinite(atlasBillingEvidenceMaxAgeHours) || atlasBillingEvidenceMaxAgeHours <= 0) {
+    throw new Error("--atlas-billing-evidence-max-age-hours must be a positive number.");
   }
   return {
     requestPath,
     ...(outputPath ? { outputPath } : {}),
     allowWarnings,
-    confirmPaidSpend
+    confirmPaidSpend,
+    atlasBillingReportPath,
+    atlasBillingEvidenceMaxAgeHours
   };
 }
 
@@ -273,12 +353,222 @@ async function readRequestJson(requestPath: string): Promise<CineJellyProjectReq
   }
 }
 
+async function readJsonIfExists(path: string): Promise<Record<string, unknown> | undefined> {
+  try {
+    const raw = (await readFile(path, "utf8")).replace(/^\uFEFF/, "");
+    if (!raw.trim()) {
+      return undefined;
+    }
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return undefined;
+    }
+    return undefined;
+  }
+}
+
+function skippedAtlasBillingGate(
+  options: PaidRenderValidationCliOptions,
+  currentMaxCostUsd: number | undefined
+): AtlasBillingGateSummary {
+  return {
+    path: options.atlasBillingReportPath,
+    present: false,
+    status: "skipped",
+    ...(currentMaxCostUsd !== undefined ? { currentMaxCostUsd } : {}),
+    maxAgeHours: options.atlasBillingEvidenceMaxAgeHours,
+    canUseAsPrePaidAtlasBillingEvidence: false,
+    checks: []
+  };
+}
+
+async function summarizeAtlasBillingGate(
+  options: PaidRenderValidationCliOptions,
+  request: CineJellyProjectRequest
+): Promise<AtlasBillingGateSummary> {
+  const currentMaxCostUsd = requestMaxCostUsd(request);
+  const budgetCapValid = currentMaxCostUsd !== undefined && currentMaxCostUsd > 0;
+  const budgetCapCheck = budgetCapValid
+    ? pass("atlas_billing_paid_render_request_cost_cap", `Paid render request maxCostUsd is ${formatUsd(currentMaxCostUsd)}.`)
+    : fail("atlas_billing_paid_render_request_cost_cap", "The request settings.maxCostUsd must be a positive number before paid render validation.");
+  const reportValue = await readJsonIfExists(options.atlasBillingReportPath);
+  if (!reportValue) {
+    return {
+      path: options.atlasBillingReportPath,
+      present: false,
+      status: "missing",
+      ...(currentMaxCostUsd !== undefined ? { currentMaxCostUsd } : {}),
+      maxAgeHours: options.atlasBillingEvidenceMaxAgeHours,
+      canUseAsPrePaidAtlasBillingEvidence: false,
+      checks: [
+        budgetCapCheck,
+        fail(
+          "atlas_billing_report_present",
+          `Missing Atlas billing readiness report for paid render validation at ${options.atlasBillingReportPath}. Run validation:atlas-billing with --max-budget-usd ${formatNumber(currentMaxCostUsd)} --planned-cost-usd <estimated-paid-render-cost-usd> before provider spend.`
+        )
+      ]
+    };
+  }
+
+  const releaseGateSummary = asObject(reportValue.releaseGateSummary);
+  const atlasBillingPublicApi = asObject(reportValue.atlasBillingPublicApi);
+  const checkedInputs = asObject(reportValue.checkedInputs);
+  const costPlan = asObject(reportValue.costPlan);
+  const reportPlannedCostUsd = numberOrUndefined(checkedInputs?.plannedCostUsd ?? costPlan?.plannedCostUsd);
+  const reportMaxBudgetUsd = numberOrUndefined(checkedInputs?.maxBudgetUsd ?? costPlan?.maxBudgetUsd);
+  const reportGeneratedAt = typeof reportValue.generatedAt === "string" ? reportValue.generatedAt : undefined;
+  const generatedAtMs = reportGeneratedAt ? Date.parse(reportGeneratedAt) : Number.NaN;
+  const validGeneratedAt = Number.isFinite(generatedAtMs);
+  const rawAgeHours = validGeneratedAt ? (Date.now() - generatedAtMs) / 3600000 : undefined;
+  const reportAgeHours = typeof rawAgeHours === "number" && Number.isFinite(rawAgeHours) ? Math.max(0, rawAgeHours) : undefined;
+  const clockSkewOk = typeof rawAgeHours === "number" && rawAgeHours >= -0.083333;
+  const freshForPaidValidation =
+    validGeneratedAt && clockSkewOk && reportAgeHours !== undefined && reportAgeHours <= options.atlasBillingEvidenceMaxAgeHours;
+  const schemaOk = reportValue.schemaVersion === "cinejelly.atlas-billing-readiness.v1";
+  const statusOk = reportValue.status === "pass" && releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true;
+  const networkOk =
+    reportValue.networkCallsMade === true &&
+    reportValue.providerCallsMade === false &&
+    atlasBillingPublicApi?.captured === true &&
+    atlasBillingPublicApi?.httpStatus === 200;
+  const plannedCostPositive = reportPlannedCostUsd !== undefined && reportPlannedCostUsd > 0;
+  const plannedCostWithinRequestCap = Boolean(
+    budgetCapValid &&
+      plannedCostPositive &&
+      reportPlannedCostUsd !== undefined &&
+      reportPlannedCostUsd <= currentMaxCostUsd + 0.000001
+  );
+  const budgetCoversRequestCap = Boolean(
+    budgetCapValid &&
+      reportMaxBudgetUsd !== undefined &&
+      reportMaxBudgetUsd >= currentMaxCostUsd - 0.000001
+  );
+  const checks = [
+    budgetCapCheck,
+    schemaOk
+      ? pass("atlas_billing_report_schema", "Atlas billing readiness report schema is recognized.")
+      : fail("atlas_billing_report_schema", "Atlas billing readiness report schemaVersion is missing or unrecognized."),
+    freshForPaidValidation
+      ? pass("atlas_billing_report_fresh", "Atlas billing readiness report is fresh enough for paid render spend.")
+      : fail(
+        "atlas_billing_report_fresh",
+        atlasBillingFreshnessMessage({
+          reportGeneratedAt,
+          validGeneratedAt,
+          clockSkewOk,
+          reportAgeHours,
+          maxAgeHours: options.atlasBillingEvidenceMaxAgeHours,
+          currentMaxCostUsd
+        })
+      ),
+    statusOk
+      ? pass("atlas_billing_report_status", "Atlas billing readiness report passed.")
+      : fail("atlas_billing_report_status", `Atlas billing readiness report status is ${String(reportValue.status ?? "missing")}.`),
+    networkOk
+      ? pass("atlas_billing_report_balance_capture", "Atlas billing readiness report captured a no-spend /balance response.")
+      : fail("atlas_billing_report_balance_capture", "Atlas billing readiness report did not capture a successful no-spend /balance response."),
+    plannedCostPositive
+      ? pass("atlas_billing_planned_cost_positive", `Atlas billing planned cost is ${formatUsd(reportPlannedCostUsd)}.`)
+      : fail("atlas_billing_planned_cost_positive", `Atlas billing planned cost ${formatUsd(reportPlannedCostUsd)} must be positive for paid render validation.`),
+    plannedCostWithinRequestCap
+      ? pass("atlas_billing_planned_cost_within_paid_render_cap", `Atlas billing planned cost ${formatUsd(reportPlannedCostUsd)} is within request maxCostUsd ${formatUsd(currentMaxCostUsd)}.`)
+      : fail("atlas_billing_planned_cost_within_paid_render_cap", `Atlas billing planned cost ${formatUsd(reportPlannedCostUsd)} exceeds or cannot be compared with request maxCostUsd ${formatUsd(currentMaxCostUsd)}.`),
+    budgetCoversRequestCap
+      ? pass("atlas_billing_budget_covers_paid_render_cap", `Atlas billing approved budget covers request maxCostUsd ${formatUsd(currentMaxCostUsd)}.`)
+      : fail("atlas_billing_budget_covers_paid_render_cap", `Atlas billing approved budget ${formatUsd(reportMaxBudgetUsd)} does not cover request maxCostUsd ${formatUsd(currentMaxCostUsd)}.`)
+  ];
+  return {
+    path: options.atlasBillingReportPath,
+    present: true,
+    ...(typeof reportValue.schemaVersion === "string" ? { schemaVersion: reportValue.schemaVersion } : {}),
+    status: String(reportValue.status ?? "unknown"),
+    ...(reportGeneratedAt ? { reportGeneratedAt } : {}),
+    maxAgeHours: options.atlasBillingEvidenceMaxAgeHours,
+    ...(reportAgeHours !== undefined ? { reportAgeHours } : {}),
+    freshForPaidValidation,
+    ...(reportPlannedCostUsd !== undefined ? { reportPlannedCostUsd } : {}),
+    ...(currentMaxCostUsd !== undefined ? { currentMaxCostUsd } : {}),
+    plannedCostWithinRequestCap,
+    ...(reportMaxBudgetUsd !== undefined ? { reportMaxBudgetUsd } : {}),
+    budgetCoversRequestCap,
+    networkCallsMade: reportValue.networkCallsMade === true,
+    canUseAsPrePaidAtlasBillingEvidence: checks.every((check) => check.status === "pass"),
+    checks
+  };
+}
+
+function atlasBillingFreshnessMessage(input: {
+  readonly reportGeneratedAt: string | undefined;
+  readonly validGeneratedAt: boolean;
+  readonly clockSkewOk: boolean;
+  readonly reportAgeHours: number | undefined;
+  readonly maxAgeHours: number;
+  readonly currentMaxCostUsd: number | undefined;
+}): string {
+  const command = `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(input.currentMaxCostUsd)} --planned-cost-usd <estimated-paid-render-cost-usd> --output ${DEFAULT_ATLAS_BILLING_REPORT_PATH} --confirm-live-network`;
+  if (!input.validGeneratedAt) {
+    return `Atlas billing readiness report is missing a valid generatedAt timestamp. Rerun ${command}.`;
+  }
+  if (!input.clockSkewOk) {
+    return `Atlas billing readiness report timestamp is in the future (${input.reportGeneratedAt}). Rerun ${command}.`;
+  }
+  return `Atlas billing readiness report is too old for paid render spend: generatedAt ${input.reportGeneratedAt}, age ${formatHours(input.reportAgeHours)}, max age ${formatHours(input.maxAgeHours)}. Rerun ${command}.`;
+}
+
+function requestMaxCostUsd(request: CineJellyProjectRequest): number | undefined {
+  return numberOrUndefined(request.settings?.maxCostUsd);
+}
+
+function asObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function numberOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function parsePositiveNumber(value: string | undefined, fallback: number): number {
+  if (!value?.trim()) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function pass(name: string, message: string): AtlasBillingGateCheck {
+  return { name, status: "pass", message };
+}
+
+function fail(name: string, message: string): AtlasBillingGateCheck {
+  return { name, status: "fail", message };
+}
+
+function formatUsd(value: number | undefined): string {
+  return value === undefined || !Number.isFinite(value) ? "unavailable" : `$${formatNumber(value)}`;
+}
+
+function formatNumber(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) {
+    return "unavailable";
+  }
+  return Number(value.toFixed(6)).toString();
+}
+
+function formatHours(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) {
+    return "unavailable";
+  }
+  return `${Number(value.toFixed(2))}h`;
+}
+
 function report(input: {
   readonly status: PaidRenderValidationStatus;
   readonly readiness: Phase6ValidationReadinessReport;
   readonly requestId?: string | undefined;
   readonly artifactBundle?: ProjectArtifactBundleSummary;
   readonly artifactValidation?: ProjectArtifactValidationSummary;
+  readonly atlasBillingGate?: AtlasBillingGateSummary;
   readonly costLedger?: readonly CostLedgerEntry[];
   readonly error?: {
     readonly name: string;
@@ -296,6 +586,7 @@ function report(input: {
     readiness: input.readiness,
     ...(input.artifactBundle ? { artifactBundle: input.artifactBundle } : {}),
     ...(input.artifactValidation ? { artifactValidation: input.artifactValidation } : {}),
+    ...(input.atlasBillingGate ? { atlasBillingGate: input.atlasBillingGate } : {}),
     ...(input.costLedger ? { costLedgerEntryCount: input.costLedger.length } : {}),
     ...(costSummary.estimatedCostUsd !== undefined ? { estimatedCostUsd: costSummary.estimatedCostUsd } : {}),
     ...(costSummary.actualCostUsd !== undefined ? { actualCostUsd: costSummary.actualCostUsd } : {}),
