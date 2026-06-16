@@ -419,6 +419,7 @@ function buildBudgetConstrainedPaidPlan(plan) {
     status: String(slice.status ?? "unknown"),
     ...(numberOrUndefined(slice.maxBudgetUsd) !== undefined ? { maxBudgetUsd: numberOrUndefined(slice.maxBudgetUsd) } : {}),
     ...(numberOrUndefined(slice.estimatedCostUsd) !== undefined ? { estimatedCostUsd: numberOrUndefined(slice.estimatedCostUsd) } : {}),
+    ...(typeof slice.billingReadinessCommand === "string" ? { billingReadinessCommand: slice.billingReadinessCommand } : {}),
     command: String(slice.command ?? ""),
     prerequisites: Array.isArray(slice.prerequisites) ? slice.prerequisites.map(String) : [],
     limitations: Array.isArray(slice.limitations) ? slice.limitations.map(String) : []
@@ -569,7 +570,7 @@ function markdownBudgetSlices(plan) {
   ];
   for (const slice of plan.slices) {
     const cost = slice.estimatedCostUsd === undefined ? "unknown" : formatUsd(slice.estimatedCostUsd);
-    lines.push(`- ${slice.name} [${slice.status}; ${cost}]: \`${slice.command}\``);
+    lines.push(`- ${slice.name} [${slice.status}; ${cost}]: billing \`${slice.billingReadinessCommand ?? "not available"}\`; run \`${slice.command}\``);
   }
   return lines;
 }

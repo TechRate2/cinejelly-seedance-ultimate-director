@@ -438,6 +438,11 @@ function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, long
       kind: "paid_atlas_audio",
       estimatedCostUsd: generatedAudioEstimate,
       maxBudgetUsd,
+      billingReadinessCommand: atlasBillingSliceCommand({
+        maxBudgetUsd,
+        plannedCostUsd: generatedAudioEstimate,
+        outputPath: "assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json"
+      }),
       command: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed --confirm-manual-audio-review",
       prerequisites: [
         "fresh Atlas billing readiness captured for this narrower budget slice",
@@ -458,6 +463,11 @@ function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, long
       kind: "paid_atlas_video",
       estimatedCostUsd: longFormEstimate,
       maxBudgetUsd,
+      billingReadinessCommand: atlasBillingSliceCommand({
+        maxBudgetUsd,
+        plannedCostUsd: longFormEstimate,
+        outputPath: "assets/output_deliverables/business-readiness/atlas-billing-long-form-120s-report.json"
+      }),
       command: `npm.cmd run validation:long-form -- --duration-seconds ${longFormDurationSeconds} --max-cost-usd ${formatNumber(maxBudgetUsd)} --confirm-paid-spend --confirm-manual-quality-review`,
       prerequisites: [
         "fresh Atlas billing readiness captured for the long-form budget",
@@ -474,7 +484,12 @@ function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, long
       kind: "paid_atlas_full_sequence",
       estimatedCostUsd: knownPaidEstimateUsd,
       maxBudgetUsd,
-      command: `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(knownPaidEstimateUsd)} --confirm-live-network`,
+      billingReadinessCommand: atlasBillingSliceCommand({
+        maxBudgetUsd: knownPaidEstimateUsd,
+        plannedCostUsd: knownPaidEstimateUsd,
+        outputPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json"
+      }),
+      command: "Run the no-spend/live-network gates, then execute the ready paid Atlas validations in sequence.",
       prerequisites: [
         "operator approval for the full known paid estimate",
         "fresh Atlas billing readiness for the full sequence",
@@ -489,6 +504,8 @@ function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, long
       kind: "paid_atlas_llm_and_source_fetch",
       estimatedCostUsd: undefined,
       maxBudgetUsd,
+      billingReadinessCommand:
+        "npm.cmd run validation:atlas-billing -- --max-budget-usd <approved-source-video-budget-usd> --planned-cost-usd <approved-source-video-budget-usd> --output assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json --confirm-live-network",
       command: "npm.cmd run validation:source-video-auto-analysis -- --source-video-url https://<clean-source-video.mp4> --confirm-provider-spend",
       prerequisites: [
         "clean credential-free HTTPS source video URL",
@@ -512,7 +529,14 @@ function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, long
   };
 }
 
-function budgetSlice({ name, kind, estimatedCostUsd, maxBudgetUsd, command, prerequisites, limitations }) {
+function atlasBillingSliceCommand({ maxBudgetUsd, plannedCostUsd, outputPath }) {
+  if (typeof plannedCostUsd !== "number" || !Number.isFinite(plannedCostUsd)) {
+    return undefined;
+  }
+  return `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(maxBudgetUsd)} --planned-cost-usd ${formatNumber(plannedCostUsd)} --output ${outputPath} --confirm-live-network`;
+}
+
+function budgetSlice({ name, kind, estimatedCostUsd, maxBudgetUsd, billingReadinessCommand, command, prerequisites, limitations }) {
   const hasEstimate = typeof estimatedCostUsd === "number" && Number.isFinite(estimatedCostUsd);
   const status = hasEstimate
     ? estimatedCostUsd <= maxBudgetUsd
@@ -525,6 +549,7 @@ function budgetSlice({ name, kind, estimatedCostUsd, maxBudgetUsd, command, prer
     status,
     maxBudgetUsd,
     ...(hasEstimate ? { estimatedCostUsd } : {}),
+    ...(typeof billingReadinessCommand === "string" ? { billingReadinessCommand } : {}),
     command,
     prerequisites,
     limitations

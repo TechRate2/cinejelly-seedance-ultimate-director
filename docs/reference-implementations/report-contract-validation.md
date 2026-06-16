@@ -22,6 +22,7 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Done: add `schemas/report-contract-validation-report.schema.json`.
 - Done: validate current release/business-readiness reports and catch generated-audio boolean redaction drift.
 - Done: fix report redaction helpers so boolean/count fields with key-like names are not replaced with strings.
+- Done: validate optional budget-slice Atlas billing reports, such as generated-audio smoke billing readiness, when those reports exist.
 
 ## Acceptance Checks
 
@@ -29,3 +30,4 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - The generated report says schema-shape pass is not customer-traffic approval.
 - Existing blocked reports can pass schema validation while still preserving their blocked/fail business status.
 - Report redaction still removes string secrets but preserves boolean readiness fields such as `apiKeyConfigured`.
+- When `atlas-billing-generated-audio-smoke-report.json` exists, report-contract validation includes it against the Atlas billing readiness schema.

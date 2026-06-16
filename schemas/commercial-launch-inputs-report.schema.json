@@ -176,6 +176,7 @@
               "status": { "enum": ["within_budget", "blocked_by_budget", "unknown_cost", "unknown"] },
               "maxBudgetUsd": { "type": "number", "minimum": 0 },
               "estimatedCostUsd": { "type": "number", "minimum": 0 },
+              "billingReadinessCommand": { "type": "string" },
               "command": { "type": "string" },
               "prerequisites": { "type": "array", "items": { "type": "string" } },
               "limitations": { "type": "array", "items": { "type": "string" } }
