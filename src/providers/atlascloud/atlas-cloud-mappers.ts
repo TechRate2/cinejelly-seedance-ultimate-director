@@ -190,9 +190,13 @@ export function mapUsage(payload: JsonObject): ProviderUsage | undefined {
 
 export function mapPrediction(payload: unknown, modelId: string, submittedAt: Date): Prediction {
   const objectPayload = payload && typeof payload === "object" ? (payload as JsonObject) : {};
+  const dataPayload = objectPayload.data && typeof objectPayload.data === "object"
+    ? (objectPayload.data as JsonObject)
+    : undefined;
+  const primaryPayload = dataPayload ?? objectPayload;
   const predictionId =
-    readString(objectPayload, ["id", "prediction_id", "predictionId", "task_id", "request_id"]) ?? "unknown";
-  const status = mapPredictionStatus(objectPayload.status);
+    readString(primaryPayload, ["id", "prediction_id", "predictionId", "task_id", "request_id"]) ?? "unknown";
+  const status = mapPredictionStatus(primaryPayload.status);
   const completedAt = status === "succeeded" || status === "failed" || status === "canceled" ? new Date() : undefined;
 
   const prediction: Prediction = {
@@ -200,11 +204,11 @@ export function mapPrediction(payload: unknown, modelId: string, submittedAt: Da
     predictionId,
     modelId,
     status,
-    outputUrls: readOutputUrls(objectPayload),
+    outputUrls: readOutputUrls(primaryPayload),
     raw: payload,
     submittedAt
   };
-  const usage = mapUsage(objectPayload);
+  const usage = mapUsage(primaryPayload);
   if (completedAt) {
     if (usage) {
       return {
@@ -225,13 +229,17 @@ export function mapPrediction(payload: unknown, modelId: string, submittedAt: Da
 
 export function mapAssetRegistration(payload: unknown): AssetRegistration {
   const objectPayload = payload && typeof payload === "object" ? (payload as JsonObject) : {};
-  const assetId = readString(objectPayload, ["asset_id", "assetId", "id"]) ?? "unknown";
-  const uri = readString(objectPayload, ["uri", "url", "asset_url", "assetUrl"]);
+  const dataPayload = objectPayload.data && typeof objectPayload.data === "object"
+    ? (objectPayload.data as JsonObject)
+    : undefined;
+  const primaryPayload = dataPayload ?? objectPayload;
+  const assetId = readString(primaryPayload, ["asset_id", "assetId", "id"]) ?? "unknown";
+  const uri = readString(primaryPayload, ["uri", "url", "asset_url", "assetUrl", "download_url", "downloadUrl"]);
 
   return {
     provider: "atlascloud",
     assetId,
-    status: mapAssetStatus(objectPayload.status),
+    status: mapAssetStatus(primaryPayload.status ?? "active"),
     ...(uri ? { uri } : {}),
     raw: payload
   };

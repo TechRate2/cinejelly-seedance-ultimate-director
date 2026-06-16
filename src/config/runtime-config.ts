@@ -17,7 +17,7 @@ import type {
 } from "../types/settings.js";
 
 const DEFAULT_ATLAS_API_BASE_URL = "https://api.atlascloud.ai/v1";
-const DEFAULT_ATLAS_ASSET_BASE_URL = "https://console.atlascloud.ai/api/v1";
+const DEFAULT_ATLAS_ASSET_BASE_URL = "https://api.atlascloud.ai/api/v1";
 const DEFAULT_ATLAS_JSON_RESPONSE_MAX_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
 const DEFAULT_MAX_AUDIO_TRACK_BYTES = 256 * 1024 * 1024;
@@ -117,8 +117,16 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
   return {
     apiKey: requireEnv("ATLASCLOUD_API_KEY", env),
     ...(llmApiKey ? { llmApiKey } : {}),
-    apiBaseUrl: optionalHttpsUrlEnv("ATLASCLOUD_API_BASE_URL", env, DEFAULT_ATLAS_API_BASE_URL),
-    assetBaseUrl: optionalHttpsUrlEnv("ATLASCLOUD_ASSET_BASE_URL", env, DEFAULT_ATLAS_ASSET_BASE_URL),
+    apiBaseUrl: aliasedHttpsUrlEnv(
+      ["ATLASCLOUD_LLM_BASE_URL", "ATLASCLOUD_API_BASE_URL"],
+      env,
+      DEFAULT_ATLAS_API_BASE_URL
+    ),
+    assetBaseUrl: aliasedHttpsUrlEnv(
+      ["ATLASCLOUD_MEDIA_BASE_URL", "ATLASCLOUD_BASE_URL", "ATLASCLOUD_ASSET_BASE_URL"],
+      env,
+      DEFAULT_ATLAS_ASSET_BASE_URL
+    ),
     models: {
       llmModel: requireEnv("ATLASCLOUD_LLM_MODEL", env),
       seedanceStandardModel: requireEnv("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", env),
@@ -138,6 +146,20 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
 
 function optionalHttpsUrlEnv(name: string, env: NodeJS.ProcessEnv, fallback: string): string {
   const value = env[name]?.trim() || fallback;
+  return validateHttpsUrlEnv(name, value);
+}
+
+function aliasedHttpsUrlEnv(names: readonly string[], env: NodeJS.ProcessEnv, fallback: string): string {
+  for (const name of names) {
+    const value = env[name]?.trim();
+    if (value) {
+      return validateHttpsUrlEnv(name, value);
+    }
+  }
+  return validateHttpsUrlEnv(names[0] ?? "ATLAS_BASE_URL", fallback);
+}
+
+function validateHttpsUrlEnv(name: string, value: string): string {
   let parsed: URL;
   try {
     parsed = new URL(value);

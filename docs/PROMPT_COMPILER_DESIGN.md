@@ -128,7 +128,7 @@ Source basis:
 
 - Emily2040 separates references by role.
 - Atlas Cloud documents Reference Cluster, Binding Logic, @-tags, and asset roles.
-- Atlas Cloud Asset Library requires video/audio registration before generation.
+- Atlas Cloud media references must be resolved before generation: clean public HTTPS and reviewed `asset://` references can pass through when supported by the selected model path; local files require documented media upload first.
 
 Rules:
 

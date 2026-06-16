@@ -147,7 +147,7 @@ Source logic to translate:
 
 - VibeFrame provider routing/cost-gate discipline.
 - MoneyPrinterTurbo queue/progress patterns where relevant.
-- Atlas Cloud current docs and schema for async prediction and Asset Library behavior.
+- Atlas Cloud current docs and schema for async prediction, direct references, and media upload behavior.
 
 Deliverables:
 
@@ -247,7 +247,7 @@ Milestone check:
 
 ## Phase 6: Real Provider Validation
 
-Status as of 2026-06-14T07:05:08.066Z: `npm.cmd run validation:local-smoke` passed on the current local machine, creating a safe request, running typecheck/build/readiness/request validation, starting a temporary API, checking `/health`, checking protected `/v1/validation-readiness`, and writing an ignored local smoke evidence report. The latest readiness decision is `ready_for_paid_validation`: 55 checks total, 55 pass, 0 warn, and 0 fail. Atlas keys, model IDs, API auth token, output directory, configured FFmpeg/FFprobe executable paths, and pinned Seedance capability records are present in the local ignored `.env`. A Phase 6 Validation Readiness Report foundation is implemented for CLI and HTTP diagnostics so operators can capture redacted blockers, warnings, and next actions before paid provider work. A Phase 6 Render Request Validation Contract foundation now provides static operator schemas and `npm.cmd run validation:render-request -- --request <request-json>` to validate a request file through CineJelly admission and output-root normalization without provider spend. A Phase 6 Paid Render Validation Runner foundation provides `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend` for readiness-gated paid runs, shared request normalization, explicit spend confirmation before provider calls, success/failure artifact writing, and immediate artifact validation once deployment blockers are cleared. Paid Atlas render validation has not been run.
+Status as of 2026-06-16T05:13:17.299Z: local no-spend validation passes on the current workstation. `node scripts/run-local-validation-smoke.mjs` created a safe request, ran typecheck/build/readiness/request validation, started a temporary API, checked `/health`, checked protected `/v1/validation-readiness`, and wrote an ignored local smoke evidence report with readiness decision `ready_for_paid_validation`: 58 checks total, 58 pass, 0 warn, and 0 fail. Atlas keys, model IDs, API auth token, output directory, configured FFmpeg/FFprobe executable paths, Atlas LLM/media base URLs, and pinned Seedance capability records are present in the local ignored `.env`. A short paid Atlas validation render completed on 2026-06-15T13:33:55.217Z with request `req_8262f057-c412-4f84-8bdb-56cefd8757f2`, project `project_f87153061ebea88e`, 58 provider ledger entries, estimated cost gate `$3`, a 13.5s H.264 854x480 final MP4, and artifact validation status `pass`. This paid run was intentionally text-to-video with `audioMode:none`, so the no-audio inspection warning is expected. The current release audit is still `blocked`: paid evidence and artifact validation pass, but this clone's Git metadata reports zero tracked source files, 3335 pending tracked/untracked source items, and therefore cannot provide trustworthy source hygiene, tracked secret scan, or import-boundary evidence. Manual media/artifact/redaction review is also still required before customer traffic.
 
 Operator validation procedure: `docs/OPERATOR_RUNBOOK.md`.
 
@@ -269,11 +269,11 @@ Deliverables:
 - Run `npm.cmd run preflight` with real deployment environment.
 - Run `npm.cmd run validation:readiness` and keep the redacted report with validation evidence.
 - Call `GET /v1/validation-readiness` against the running API and keep the redacted report with deployment evidence.
-- Run one paid Atlas render using `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend` with a short safe input and non-sensitive references; pass `--allow-warnings` only after intentionally accepting readiness warnings.
+- Reuse the existing short paid Atlas validation evidence when evaluating the current local snapshot, or run a new paid Atlas render only after explicit operator approval for a new release candidate; pass `--allow-warnings` only after intentionally accepting readiness warnings.
 - Run `npm.cmd run validate:artifacts -- <artifact-directory>` on generated success or failure artifacts.
 - Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, and deliverable metadata.
 - Run `npm.cmd run validation:release-audit` and archive the release-audit report with validation evidence.
-- Update `docs/PROJECT_CONTEXT.md` with actual validation date and remaining blockers.
+- Keep `docs/PROJECT_CONTEXT.md` updated with actual validation dates, report paths, and remaining blockers.
 - Maintain `docs/OPERATOR_RUNBOOK.md` as the authoritative execution checklist for preflight, paid validation, artifact inspection, redaction review, and release decision.
 
 Milestone check:
@@ -283,7 +283,7 @@ Milestone check:
 - Validation readiness report decision is `ready_for_paid_validation`, or warnings are explicitly reviewed before paid rendering.
 - Render request validation passes before paid rendering and does not initialize providers, call Atlas, or write render artifacts.
 - Paid render validation runner blocks provider spend when readiness is `blocked`, requires explicit warning acknowledgement, and emits a redacted operator report after artifact validation.
-- Release audit remains blocked until local smoke, paid-render evidence, artifact validation, source hygiene, ignored secret/output paths, tracked secret scan, and import-boundary checks pass.
+- Release audit remains blocked until local smoke, paid-render evidence, artifact validation, source hygiene, ignored secret/output paths, tracked secret scan, import-boundary checks, and manual media/redaction review pass.
 - API response does not expose local paths, secrets, signed URLs, raw stack traces, or inline base64 media.
 - Artifacts are redacted and include integrity hashes.
 - Artifact validator passes or warnings are explicitly reviewed before release.

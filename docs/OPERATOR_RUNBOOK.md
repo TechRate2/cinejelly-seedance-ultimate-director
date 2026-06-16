@@ -4,13 +4,15 @@ This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ul
 
 ## Current Readiness
 
-As of 2026-06-14T06:48:36.159Z, the current local workstation passes `npm.cmd run setup:local`, `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run preflight`, and `npm.cmd run validation:readiness`. The latest local readiness report has 55 checks: 55 pass, 0 warn, and 0 fail, with decision `ready_for_paid_validation`. Atlas keys, model IDs, API auth token, output directory, explicit FFmpeg/FFprobe executable paths, and pinned Seedance capability records are present in the ignored local `.env`.
+As of 2026-06-16T05:10:22.094Z, the current local workstation passes the no-spend local validation smoke through `node scripts/run-local-validation-smoke.mjs`. The latest local readiness report has 58 checks: 58 pass, 0 warn, and 0 fail, with decision `ready_for_paid_validation`. Atlas keys, model IDs, Atlas LLM/media base URLs, API auth token, output directory, explicit FFmpeg/FFprobe executable paths, and pinned Seedance capability records are present in the ignored local `.env`. The local LLM key currently reuses the primary Atlas API key because the previously supplied separate Coding Plan key returned authentication failure during validation; replace only `ATLASCLOUD_LLM_API_KEY` after a working Coding Plan key is generated.
 
-The API has also been started locally from `dist/api/server.js` with `.env` loading, and `GET /health` plus protected `GET /v1/validation-readiness` returned `ready_for_paid_validation`. A no-spend `npm.cmd run validation:render-request -- --request <request-json>` validation succeeded for a valid 15-second operator request. Paid Atlas render validation has not been run, so this repo is still not approved for customer traffic.
+The API has also been started locally from `dist/api/server.js` with `.env` loading, and `GET /health` plus protected `GET /v1/validation-readiness` returned `ready_for_paid_validation`. A no-spend render request validation succeeded for a valid 15-second operator request. One short paid Atlas validation render completed on 2026-06-15T13:33:55.217Z with request `req_8262f057-c412-4f84-8bdb-56cefd8757f2`, project `project_f87153061ebea88e`, 58 provider ledger entries, estimated cost gate `$3`, a 13.5s H.264 854x480 final MP4, and artifact validation status `pass`. This run used `audioMode:none`, so no audio stream is expected.
+
+The repo is still not approved for customer traffic. The latest no-spend release audit is `blocked`: local smoke, paid-render evidence, and paid artifact validation pass, but the current clone's Git metadata reports zero tracked source files and 3335 pending tracked/untracked source items, so source hygiene, tracked secret scan, and import-boundary evidence cannot be trusted. Manual media quality, artifact, and redaction review also remain required.
 
 The repo also provides `npm.cmd run validation:render-request -- --request <request-json>` as a no-spend request validator and `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend` as a readiness-gated paid-render validation runner. Request validation checks the operator-owned JSON payload through the same admission and output-root normalization used by API render paths, but it does not initialize providers, run readiness, call Atlas, or write render artifacts. Paid-render validation stops before provider spend when readiness is blocked, when readiness warnings are not explicitly accepted, or when `--confirm-paid-spend` is missing; it writes success or failure artifacts, validates them, and emits a redacted operator report. It does not replace manual artifact and media review.
 
-Do not open customer traffic until all checks in this runbook pass and at least one paid Atlas render has been inspected. Do not run `validation:paid-render -- --confirm-paid-spend` unless the operator has explicitly accepted any readiness warnings and approved Atlas credit spend for that run.
+Do not open customer traffic until all checks in this runbook pass, the Git/source-hygiene audit is trustworthy, and at least one paid Atlas render has been inspected. Do not run another `validation:paid-render -- --confirm-paid-spend` unless the operator has explicitly accepted any readiness warnings and approved Atlas credit spend for that specific run.
 
 ## Required Environment
 
@@ -18,6 +20,8 @@ Configure secrets and provider IDs through environment variables only:
 
 - `ATLASCLOUD_API_KEY`
 - `ATLASCLOUD_LLM_API_KEY` when the deployment uses a separate Atlas key for LLM calls
+- `ATLASCLOUD_LLM_BASE_URL` when overriding the default Atlas LLM `/v1` base URL
+- `ATLASCLOUD_MEDIA_BASE_URL` or `ATLASCLOUD_BASE_URL` when overriding the default Atlas image/video/upload `/api/v1` base URL
 - `ATLASCLOUD_LLM_MODEL`
 - `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`
 - `ATLASCLOUD_SEEDANCE_FAST_MODEL`

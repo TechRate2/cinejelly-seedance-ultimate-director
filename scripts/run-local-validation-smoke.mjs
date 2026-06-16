@@ -6,23 +6,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultRequestPath = "assets/output_deliverables/phase6-validation/request.json";
 const defaultReportPath = "assets/output_deliverables/phase6-validation/local-smoke-report.json";
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-
-function npmInvocation(args) {
-  const npmExecPath = process.env.npm_execpath;
-  if (npmExecPath && existsSync(npmExecPath)) {
-    return {
-      command: process.execPath,
-      args: [npmExecPath, ...args],
-      shell: false
-    };
-  }
-  return {
-    command: npmCommand,
-    args,
-    shell: process.platform === "win32"
-  };
-}
+const tscPath = resolve(repoRoot, "node_modules", "typescript", "bin", "tsc");
 
 function parseArgs(args) {
   const options = {
@@ -131,9 +115,12 @@ async function runCommand(label, command, args, shell = false) {
   };
 }
 
-async function runNpm(label, args) {
-  const invocation = npmInvocation(args);
-  return runCommand(label, invocation.command, invocation.args, invocation.shell);
+async function runNode(label, args) {
+  return runCommand(label, process.execPath, args, false);
+}
+
+async function runTsc(label, args) {
+  return runNode(label, [tscPath, ...args]);
 }
 
 function readEnvFile() {
@@ -251,10 +238,30 @@ async function runApiSmoke() {
       }
     };
   } finally {
-    if (ownedServer && !ownedServer.killed) {
-      ownedServer.kill();
-    }
+    await stopOwnedServer(ownedServer);
   }
+}
+
+async function stopOwnedServer(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) {
+    return;
+  }
+  await new Promise((resolvePromise) => {
+    let settled = false;
+    const timeout = setTimeout(done, 2_000);
+    function done() {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      resolvePromise();
+    }
+    child.once("exit", done);
+    child.once("close", done);
+    child.once("error", done);
+    child.kill();
+  });
 }
 
 function toRepoRelativePath(path) {
@@ -280,23 +287,23 @@ async function main() {
   let apiSmoke;
 
   if (options.createRequest) {
-    steps.push(await runNpm("Create safe validation request", [
-      "run",
-      "validation:create-request",
-      "--",
+    steps.push(await runNode("Create safe validation request", [
+      "scripts/create-validation-request.mjs",
       "--safe-default",
       "--output",
       options.requestPath
     ]));
   }
 
-  steps.push(await runNpm("Typecheck", ["run", "typecheck"]));
-  steps.push(await runNpm("Build", ["run", "build"]));
-  steps.push(await runNpm("Validation readiness", ["run", "validation:readiness"]));
-  steps.push(await runNpm("No-spend request validation", [
-    "run",
-    "validation:render-request",
-    "--",
+  steps.push(await runTsc("Typecheck", ["--noEmit"]));
+  steps.push(await runTsc("Build", ["-p", "tsconfig.json"]));
+  steps.push(await runNode("Validation readiness", [
+    "--env-file-if-exists=.env",
+    "dist/application/validation-readiness-entrypoint.js"
+  ]));
+  steps.push(await runNode("No-spend request validation", [
+    "--env-file-if-exists=.env",
+    "dist/application/render-request-validation-entrypoint.js",
     "--request",
     options.requestPath
   ]));
@@ -319,10 +326,11 @@ async function main() {
     releaseGateSummary: {
       canRunPaidValidation: apiSmoke?.readiness?.canRunPaidValidation === true,
       canReleaseToCustomerTraffic: false,
-      releaseBlocker: "Paid Atlas render validation, artifact validation, artifact inspection, and manual redaction review are still required."
+      releaseBlocker:
+        "Local smoke evidence is not customer-release approval; release still requires paid-render evidence, artifact validation, artifact inspection, and manual redaction review."
     },
     nextActions: [
-      "Run paid Atlas validation only after explicit operator approval.",
+      "Run or reuse paid Atlas validation only after explicit operator approval.",
       "Run npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend only for the approved paid validation request.",
       "Run npm.cmd run validate:artifacts -- <artifact-directory> after artifacts are written.",
       "Complete manual artifact, video, and redaction review before customer traffic."
@@ -332,7 +340,8 @@ async function main() {
     writeSmokeReport(options.reportPath, report);
   }
 
-  console.log("\n[local-smoke] PASS. Paid Atlas render validation still requires explicit operator approval.");
+  console.log("\n[local-smoke] PASS. This is no-spend evidence, not customer-release approval.");
+  process.exit(0);
 }
 
 main().catch((error) => {

@@ -1,8 +1,10 @@
 /**
- * Atlas Cloud provider implementation for LLM, Seedance 2.0 video generation, and Asset Library.
+ * Atlas Cloud provider implementation for LLM, Seedance 2.0 video generation, and media upload.
  * It follows docs/MODEL_PROVIDER_ABSTRACTION.md while keeping model IDs and capability validation configurable.
  */
 
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import type { AtlasCloudRuntimeSettings } from "../../types/settings.js";
 import type {
   AudioGenerationCapability,
@@ -21,6 +23,7 @@ import type {
   ProviderReference,
   ProviderUsage,
   PredictionStatus,
+  ReferenceKind,
   StructuredChatRequest,
   StructuredChatResponse,
   VideoGenerationRequest
@@ -35,6 +38,15 @@ import { AtlasCloudHttpClient } from "./atlas-cloud-http.js";
 import { mapAssetRegistration, mapPrediction, mapUsage, readChatContent } from "./atlas-cloud-mappers.js";
 
 const ATLAS_PROVIDER_NAME = "atlascloud";
+const DEFAULT_VIDEO_FPS = 24;
+const DIMENSION_RATIOS: Partial<Record<string, readonly [number, number]>> = {
+  "21:9": [21, 9],
+  "16:9": [16, 9],
+  "4:3": [4, 3],
+  "1:1": [1, 1],
+  "3:4": [3, 4],
+  "9:16": [9, 16]
+};
 
 interface LedgerMetadata {
   readonly predictionId?: string;
@@ -230,7 +242,11 @@ export class AtlasCloudProvider implements ModelProvider {
       startedAt,
       async (recordRetry) => {
         const response = await withRetry(
-          () => this.http.getJson<unknown>(this.url(this.settings.apiBaseUrl, `/predictions/${encodeURIComponent(predictionId)}`), signal),
+          () =>
+            this.http.getJson<unknown>(
+              this.url(this.settings.assetBaseUrl, `/model/prediction/${encodeURIComponent(predictionId)}`),
+              signal
+            ),
           DEFAULT_RETRY_POLICY,
           signal,
           recordRetry
@@ -304,15 +320,32 @@ export class AtlasCloudProvider implements ModelProvider {
       request.metadata?.graphNodeId,
       startedAt,
       async (recordRetry) => {
+        if (isHttpsUri(request.uri)) {
+          return {
+            provider: ATLAS_PROVIDER_NAME,
+            assetId: request.uri,
+            status: "active",
+            uri: request.uri,
+            raw: { url: request.uri, source: "direct_https_reference" }
+          };
+        }
+        if (isAssetUri(request.uri)) {
+          return {
+            provider: ATLAS_PROVIDER_NAME,
+            assetId: request.uri.slice("asset://".length),
+            status: "active",
+            uri: request.uri,
+            raw: { url: request.uri, source: "operator_asset_reference" }
+          };
+        }
+        const formData = new FormData();
+        const file = await readFile(request.uri);
+        formData.set("file", new Blob([file]), basename(request.uri));
         const response = await withRetry(
           () =>
-            this.http.postJson<unknown>(
-              this.url(this.settings.assetBaseUrl, "/assets"),
-              {
-                url: request.uri,
-                type: request.kind,
-                metadata: request.metadata
-              },
+            this.http.postFormData<unknown>(
+              this.url(this.settings.assetBaseUrl, "/model/uploadMedia"),
+              formData,
               signal
             ),
           DEFAULT_RETRY_POLICY,
@@ -443,7 +476,7 @@ export class AtlasCloudProvider implements ModelProvider {
       startedAt,
       async (recordRetry) => {
         const response = await withRetry(
-          () => this.http.postJson<unknown>(this.url(this.settings.apiBaseUrl, "/predictions"), payload, signal),
+          () => this.http.postJson<unknown>(this.url(this.settings.assetBaseUrl, "/model/generateVideo"), payload, signal),
           DEFAULT_RETRY_POLICY,
           signal,
           recordRetry
@@ -570,40 +603,101 @@ export class AtlasCloudProvider implements ModelProvider {
       throw new ProviderError({
         code: "ASSET_NOT_ACTIVE",
         provider: ATLAS_PROVIDER_NAME,
-        message: `Reference ${reference.label || reference.role || reference.kind} must be registered in Atlas Asset Library before generation.`
+        message: `Reference ${reference.label || reference.role || reference.kind} must be an Atlas asset:// reference or clean HTTPS media URL before generation.`
       });
     }
   }
 
   private requiresRegisteredAsset(reference: ProviderReference): boolean {
-    if (reference.kind === "video" || reference.kind === "audio") {
-      return true;
+    const uri = reference.providerAssetId ? `asset://${reference.providerAssetId}` : reference.uri;
+    if (isHttpsUri(uri) || isAssetUri(uri)) {
+      return false;
     }
-    return Boolean(reference.role && ["motion", "camera", "source_video_structure", "audio_tempo", "voice"].includes(reference.role));
+    return reference.kind === "video" || reference.kind === "audio";
   }
 
   private toAtlasVideoPayload(request: VideoGenerationRequest): Record<string, unknown> {
-    const references = request.references.map((reference) => ({
-      type: reference.kind,
-      url: reference.providerAssetId ? `asset://${reference.providerAssetId}` : reference.uri,
-      role: reference.role,
-      label: reference.label
-    }));
+    const references = request.references.map((reference) => this.toAtlasReference(reference));
+    const dimensions = this.dimensionsFor(request.settings.resolution, request.settings.ratio);
+    const firstImageUrl = this.firstReferenceUrl(references, ["first_frame", "image", "identity", "product", "environment", "style"]);
+    const lastImageUrl = this.firstReferenceUrl(references, ["last_frame"]);
+    const firstVideoUrl = this.firstReferenceUrl(references, ["video", "motion", "camera"]);
+    const firstAudioUrl = this.firstReferenceUrl(references, ["audio"]);
 
     return {
       model: request.modelId,
-      mode: request.mode,
       prompt: request.prompt,
-      negative_prompt: request.negativePrompt,
-      references,
+      ...(request.negativePrompt ? { negative_prompt: request.negativePrompt } : {}),
       duration: request.settings.durationSeconds,
-      resolution: request.settings.resolution,
-      ratio: request.settings.ratio,
+      fps: DEFAULT_VIDEO_FPS,
+      ...(dimensions ? dimensions : { resolution: request.settings.resolution, ratio: request.settings.ratio }),
+      ...(request.mode !== "text_to_video" ? { mode: request.mode } : {}),
+      ...(firstImageUrl ? { image_url: firstImageUrl } : {}),
+      ...(lastImageUrl ? { last_image_url: lastImageUrl, end_image_url: lastImageUrl } : {}),
+      ...(firstVideoUrl ? { video_url: firstVideoUrl } : {}),
+      ...(firstAudioUrl ? { audio_url: firstAudioUrl } : {}),
+      ...(references.length > 0 ? { references } : {}),
       generate_audio: request.settings.generateAudio,
       watermark: request.settings.watermark,
       return_last_frame: request.settings.returnLastFrame,
       metadata: request.metadata
     };
+  }
+
+  private toAtlasReference(reference: ProviderReference): {
+    readonly type: ReferenceKind;
+    readonly url: string;
+    readonly role?: string;
+    readonly label?: string;
+  } {
+    return {
+      type: reference.kind,
+      url: this.providerReferenceUrl(reference),
+      ...(reference.role ? { role: reference.role } : {}),
+      ...(reference.label ? { label: reference.label } : {})
+    };
+  }
+
+  private providerReferenceUrl(reference: ProviderReference): string {
+    if (!reference.providerAssetId) {
+      return reference.uri;
+    }
+    if (isHttpsUri(reference.providerAssetId) || isAssetUri(reference.providerAssetId)) {
+      return reference.providerAssetId;
+    }
+    return `asset://${reference.providerAssetId}`;
+  }
+
+  private firstReferenceUrl(
+    references: readonly { readonly type: ReferenceKind; readonly url: string; readonly role?: string }[],
+    preferredKindsOrRoles: readonly string[]
+  ): string | undefined {
+    return references.find((reference) =>
+      preferredKindsOrRoles.includes(reference.type) ||
+      (reference.role ? preferredKindsOrRoles.includes(reference.role) : false)
+    )?.url;
+  }
+
+  private dimensionsFor(
+    resolution: VideoGenerationRequest["settings"]["resolution"],
+    ratio: VideoGenerationRequest["settings"]["ratio"]
+  ): { readonly width: number; readonly height: number } | undefined {
+    if (ratio === "adaptive") {
+      return undefined;
+    }
+    const height = Number.parseInt(resolution, 10);
+    const ratioParts = DIMENSION_RATIOS[ratio];
+    if (!Number.isFinite(height) || !ratioParts) {
+      return undefined;
+    }
+    const [widthRatio, heightRatio] = ratioParts;
+    const width = this.nearestEven((height * widthRatio) / heightRatio);
+    return { width, height };
+  }
+
+  private nearestEven(value: number): number {
+    const rounded = Math.max(2, Math.round(value));
+    return rounded % 2 === 0 ? rounded : rounded + 1;
   }
 
   private async trackProviderCall<TValue>(
@@ -771,5 +865,22 @@ export class AtlasCloudProvider implements ModelProvider {
       };
     }
     return undefined;
+  }
+}
+
+function isHttpsUri(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isAssetUri(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "asset:" && !parsed.search && !parsed.hash;
+  } catch {
+    return false;
   }
 }

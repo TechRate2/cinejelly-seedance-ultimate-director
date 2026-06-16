@@ -10,8 +10,7 @@ The runtime exposes the current option contract through `GET /v1/render-settings
 
 - Atlas Cloud Seedance 2.0 model page for Seedance 2.0, Seedance 2.0 Fast, T2V, I2V, reference-to-video, multimodal references, aspect ratios, duration, audio-visual sync, and resolution notes.
 - Atlas Cloud character consistency article for image-to-video request fields such as duration, resolution, ratio, generate audio, watermark, and return last frame.
-- Atlas Cloud CLI docs for video flags such as image, images, end image, video, audio, resolution, size, duration, params JSON, and async polling.
-- Atlas Cloud Asset Library guide for video/audio reference registration and media constraints.
+- Atlas Cloud API docs for video fields, `/model/generateVideo`, `/model/prediction/{id}`, `/model/uploadMedia`, and async polling.
 - Emily2040/seedance-2.0 for source-dated model claims and provider-surface caveats.
 
 ## Settings Philosophy
@@ -144,7 +143,7 @@ Options:
 
 Policy:
 
-- If audio/video references are used with Atlas Seedance, register them through Asset Library when required.
+- If audio/video references are used with Atlas Seedance, preserve clean direct references when supported and upload local media through the documented media upload endpoint only when required.
 - Match audio reference duration to output clip duration where possible.
 - Inspect audio-visual sync after render.
 
@@ -272,7 +271,7 @@ Before submitting a render:
 
 Runtime implementation:
 
-- CineJelly validates mode, duration, resolution, ratio, and reference compatibility through the provider-neutral capability gate before Atlas Asset Library registration or paid render submission.
+- CineJelly validates mode, duration, resolution, ratio, and reference compatibility through the provider-neutral capability gate before media upload or paid render submission.
 - Atlas still performs provider-specific schema and active-asset validation at submit time as a defensive second gate.
 
 ## Settings API Shape
@@ -311,5 +310,5 @@ Blocked:
 
 - Silent downgrade.
 - Unsupported model setting.
-- Passing unregistered video/audio assets to an Atlas path that requires Asset Library.
+- Passing unresolved local video/audio assets to an Atlas path that requires media upload or a clean direct reference.
 - Publishing with a watermark when commercial output requires watermark-free delivery.

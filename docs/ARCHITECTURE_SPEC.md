@@ -23,8 +23,9 @@ Public sources:
 - Atlas Cloud Seedance 2.0 model page: https://www.atlascloud.ai/models/seedance2
 - Atlas Cloud docs overview: https://www.atlascloud.ai/docs/en
 - Atlas Cloud LLM docs: https://www.atlascloud.ai/docs/en/models/llm
-- Atlas Cloud CLI docs: https://www.atlascloud.ai/docs/en/cli
-- Atlas Cloud Asset Library guide: https://www.atlascloud.ai/blog/guides/atlas-cloud-asset-library-seedance-2-0
+- Atlas Cloud API get-start docs: https://www.atlascloud.ai/docs/en/models/get-start
+- Atlas Cloud prediction docs: https://www.atlascloud.ai/docs/en/predictions
+- Atlas Cloud image-to-video tutorial: https://www.atlascloud.ai/docs/en/tutorials/image-to-video
 - Atlas Cloud all-round Seedance reference guide: https://www.atlascloud.ai/blog/case-studies/generative-ai-model-seedance-2-0-a-guide-to-all-round-reference
 - Atlas Cloud character consistency article: https://www.atlascloud.ai/blog/guides/how-character-consistency-in-ai-video-apis-is-revolutionizing-episodic-content
 
@@ -117,7 +118,7 @@ The production implementation structure is:
 - `src/agents`: Director, Intake, Reference Librarian, Shot Planner, Render Producer, Editor, and orchestration agents.
 - `src/core`: Production Graph, continuity ledgers, Consistency Guardian, governed material sourcing, generated-audio execution planning, provider-neutral generated-audio ready-item execution, generated-audio output validation, batch reconciliation and optional artifact evidence, generated-audio asset resolution/catalog validation, batch output planning, assembly/media-processing contracts, cost ledger, and repair decisions.
 - `src/prompt_compiler`: Seedance 2.0 prompt compiler, reference binding, negative constraints, and prompt repair hints.
-- `src/providers`: provider-neutral interfaces plus Atlas Cloud default implementation for LLM, Seedance 2.0, async predictions, Asset Library, and the generated-audio provider boundary; Atlas reports no generated-audio capabilities until verified audio model schemas and capability mappings are configured.
+- `src/providers`: provider-neutral interfaces plus Atlas Cloud default implementation for LLM, Seedance 2.0, async predictions, documented media upload/direct-reference handling, and the generated-audio provider boundary; Atlas reports no generated-audio capabilities until verified audio model schemas and capability mappings are configured.
 - `src/config`: typed runtime settings, flexible Seedance settings, provider model configuration, and secret-safe environment loading.
 - `src/utils`: production utility functions such as redaction, retry policy, IDs, timing, media-tool command resolution, and structured error helpers.
 - `src/types`: shared type definitions for settings, graph nodes, provider requests, reports, and deliverables.
@@ -156,13 +157,13 @@ Responsibilities:
 
 - Register and validate reference assets.
 - Assign every reference a role: identity, product, environment, motion, camera rhythm, audio tempo, style, endpoint, or source-video structure.
-- For Atlas Cloud, route video/audio references through the Asset Library because Atlas documents that video/audio references must be registered before generation.
+- For Atlas Cloud, preserve clean public HTTPS and reviewed `asset://` references directly when the selected model path supports them; upload local operator media through documented media upload before generation only when local-file reference intake is explicitly enabled.
 - Preserve lineage from user upload to graph node and final output.
 
 Source basis:
 
 - Emily2040 reference role separation.
-- Atlas Cloud Asset Library register, poll, and asset reference flow.
+- Atlas Cloud `/model/uploadMedia`, async prediction, direct reference, and `asset://` reference flow.
 - Atlas Cloud Reference Cluster and @-tag guidance.
 
 ### 3. Story Architect
@@ -294,7 +295,7 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 3. Consistency Guardian with checkpoint-level repair instead of full rerender loops.
 4. Model Provider Abstraction instead of vendor lock-in.
 5. Long-form decomposition into scenes, beats, shots, and clips instead of a single long prompt.
-6. Atlas Cloud Universal Reference and Asset Library support as a first-class path.
+6. Atlas Cloud Universal Reference, direct-reference, and media upload support as a first-class path.
 7. Diagnostic evaluation inspired by DirectorBench.
 8. VibeFrame/OpenMontage-style cost gates, build reports, review reports, and reproducible project artifacts.
 9. VideoAgent/OpenMontage-style reference-video analysis for users who start from a long source video.
@@ -303,7 +304,7 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 ## Runtime Flow
 
 1. `createProject`: persist the user request and settings.
-2. `ingestReferences`: validate references, classify roles, register required Atlas assets.
+2. `ingestReferences`: validate references, classify roles, preserve direct Atlas references, and upload local media only when the selected provider path requires it.
 3. `sourceVideoAnalysis`: when supplied, validate bounded transcript/scene/keyframe/pacing/style/safety deconstruction; when absent and enabled, attempt opt-in auto-analysis from bounded sampled frames of a clean HTTPS `source_video_structure` reference; match the result to a `source_video_structure` reference label and use it only as original structural guidance.
 4. `compileGraph`: build story, scenes, beats, shot contracts, continuity ledgers.
 5. `storyboard`: generate reviewable panels from shot contracts, run Guardian storyboard preflight, and store panels/evidence in graph/artifacts.
@@ -337,7 +338,7 @@ API execution modes:
 - Optional `sourceVideoAnalysis` payloads are bounded before LLM planning and can include transcript cues, scenes, keyframes, pacing notes, style notes, structural beats, and safety notes linked to a `source_video_structure` reference. The auto-analysis path is disabled by default, never overwrites caller-supplied analysis, and must keep local frame paths and inline frame data out of returned analysis and artifacts.
 - Public reference URIs must be credential-free HTTPS URLs or pre-registered `asset://` references; `http://`, embedded credentials, and credential-like query parameters are rejected before runtime/provider spend.
 - Public render requests may include audio tracks only from credential-free HTTPS URLs; local audio file sources are reserved for internal engine wiring.
-- Atlas Cloud API and Asset Library endpoint overrides must be credential-free HTTPS URLs with no query strings or fragments; runtime configuration and `/v1/preflight` reject unsafe URLs before credentials or provider payloads can be used.
+- Atlas Cloud LLM and media endpoint overrides must be credential-free HTTPS URLs with no query strings or fragments; runtime configuration and `/v1/preflight` reject unsafe URLs before credentials or provider payloads can be used.
 - Runtime numeric environment controls must be plain base-10 integer or decimal strings; the configuration loader and `/v1/preflight` reject partial parses such as unit suffixes before traffic reaches provider spend.
 - API startup and preflight enforce the same deployment gates for `PORT` range and explicit boolean API flags, so a deployment cannot appear ready while startup would reject the configuration.
 - `npm run preflight` runs the same deployment readiness checks as a CLI gate, emits a redacted preflight report, and exits non-zero on hard failures before operators open customer traffic.
@@ -352,7 +353,7 @@ API execution modes:
 - API rate limiting uses the socket remote address by default; `X-Forwarded-For` is trusted only when `CINEJELLY_TRUST_PROXY_HEADERS=true` is configured behind a trusted reverse proxy that strips and rewrites client IP headers.
 - Job list status includes queue telemetry plus compact queued, running, succeeded, failed, or canceled summaries with current-stage progress fields, compact artifact validation status, and detail-availability flags, including `hasError`, but excludes error detail, full validation checks, and the full progress event list.
 - Per-job status includes queued, running, succeeded, failed, or canceled state plus retained bounded stage progress events, redacted stack-free error name/message, result, cost ledger, artifact bundle, and artifact validation checks when available.
-- Public JSON responses redact secrets, inline `data:` URIs, non-HTTPS URIs, embedded-credential URIs, signed/credential-query URIs, and deployment-local filesystem paths, while preserving deploy-safe URI values such as clean `https://` reference URLs and `asset://` Atlas Asset Library references.
+- Public JSON responses redact secrets, inline `data:` URIs, non-HTTPS URIs, embedded-credential URIs, signed/credential-query URIs, and deployment-local filesystem paths, while preserving deploy-safe URI values such as clean `https://` reference URLs and reviewed `asset://` Atlas references.
 - Public JSON responses include `Cache-Control: no-store` and `X-Content-Type-Options: nosniff` so run metadata, provider errors, queue state, and cost evidence are not cached or content-sniffed by intermediaries.
 - `/v1/render-jobs/{jobId}` can be canceled with `DELETE`; cancellation propagates through `AbortSignal` to provider calls, polling, assembly, and postproduction where supported.
 - Client disconnects and `SIGINT`/`SIGTERM` shutdowns propagate through request lifecycle `AbortSignal` objects so synchronous render orchestration and active async jobs stop as early as the selected provider path allows after the caller or deployment lifecycle has ended.
@@ -392,7 +393,7 @@ The first commercial implementation should include:
 - API endpoint for one-input video project creation.
 - Atlas Cloud LLM provider for reasoning and structured planning.
 - Atlas Cloud Seedance 2.0 provider for T2V, I2V, and reference-to-video where supported by the selected model schema.
-- Asset Library integration for video/audio reference registration.
+- Atlas media upload/direct-reference integration for video/audio references.
 - Production Graph persistence.
 - Prompt Compiler.
 - Consistency Guardian preflight and post-render inspection.

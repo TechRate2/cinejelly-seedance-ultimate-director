@@ -324,7 +324,7 @@ Each shot reads the relevant ledgers and writes updates only when approved by th
 Source basis:
 
 - ViMax selects reference images required for the current first frame using previous timeline context.
-- Atlas Cloud supports reference assets, first/last-frame style workflows, and Asset Library references.
+- Atlas Cloud supports reference assets, first/last-frame style workflows, clean direct references, media upload, and reviewed `asset://` references.
 - Emily2040 separates assets by role.
 
 Rules:

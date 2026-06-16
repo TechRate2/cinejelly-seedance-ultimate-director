@@ -99,6 +99,9 @@ export class RenderProducer {
     if (reference.providerAssetId) {
       return reference;
     }
+    if (this.isDirectProviderReference(reference.uri)) {
+      return reference;
+    }
     const assetKind = this.assetKindFor(reference);
     if (!assetKind) {
       return reference;
@@ -158,6 +161,15 @@ export class RenderProducer {
       });
     }
     return activeAsset.assetId;
+  }
+
+  private isDirectProviderReference(uri: string): boolean {
+    try {
+      const parsed = new URL(uri);
+      return parsed.protocol === "https:" || (parsed.protocol === "asset:" && !parsed.search && !parsed.hash);
+    } catch {
+      return false;
+    }
   }
 
   private assetKindFor(reference: ProviderReference): "video" | "audio" | undefined {

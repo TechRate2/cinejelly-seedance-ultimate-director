@@ -83,8 +83,10 @@ Required variables:
 
 | Variable | Required | What it does | Where to get it |
 | --- | --- | --- | --- |
-| `ATLASCLOUD_API_KEY` | Yes | Atlas key for Seedance video rendering and Asset Library operations. It is also used for LLM calls if `ATLASCLOUD_LLM_API_KEY` is absent. | Atlas Cloud dashboard/API keys page. |
+| `ATLASCLOUD_API_KEY` | Yes | Atlas key for Seedance video rendering and media upload operations. It is also used for LLM calls if `ATLASCLOUD_LLM_API_KEY` is absent. | Atlas Cloud dashboard/API keys page. |
 | `ATLASCLOUD_LLM_API_KEY` | Optional | Separate Atlas key for OpenAI-compatible LLM calls. | Atlas Cloud dashboard/API keys page, if using a separate LLM key. |
+| `ATLASCLOUD_LLM_BASE_URL` | Optional | Atlas OpenAI-compatible LLM base URL. Defaults to `https://api.atlascloud.ai/v1`. | Atlas docs. |
+| `ATLASCLOUD_MEDIA_BASE_URL` or `ATLASCLOUD_BASE_URL` | Optional | Atlas image/video/upload base URL. Defaults to `https://api.atlascloud.ai/api/v1`. | Atlas docs. |
 | `ATLASCLOUD_LLM_MODEL` | Yes | LLM model used by Story Architect, structured planning, source-video analysis, and semantic visual inspection. | Atlas Cloud model catalog. |
 | `ATLASCLOUD_SEEDANCE_STANDARD_MODEL` | Yes | Higher-quality Seedance model for standard tier jobs. | Atlas Cloud Seedance model page/catalog. |
 | `ATLASCLOUD_SEEDANCE_FAST_MODEL` | Yes | Faster/lower-cost Seedance model for fast tier jobs. | Atlas Cloud Seedance model page/catalog. |
@@ -112,7 +114,7 @@ Common useful options:
 | `CINEJELLY_FFPROBE_PATH` | Uses `ffprobe` from `PATH`. | Set when FFprobe is installed but not on `PATH`. |
 | `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` | `setup:local` writes documented capability assumptions for the configured Standard/Fast model IDs. | Verify and update after checking the current Atlas model schema for production. |
 | `CINEJELLY_RENDER_COST_USD_PER_SECOND` | Cost gate uses only available configured rates. | Set when enforcing `settings.maxCostUsd`. |
-| `CINEJELLY_ASSET_REGISTRATION_COST_USD` | Asset registration cost may be omitted from estimates. | Set when Atlas Asset Library cost must be budgeted. |
+| `CINEJELLY_ASSET_REGISTRATION_COST_USD` | Media upload/reference-preparation cost may be omitted from estimates. | Set only if a provider starts billing upload/reference preparation separately. |
 | `CINEJELLY_LLM_PLAN_COST_USD` | LLM planning cost may be omitted from estimates. | Set when planning cost must be budgeted. |
 | `CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS` | Remote stock is disabled. | Set to `true` only after provider keys and rights are approved. |
 | `PEXELS_API_KEY`, `PIXABAY_API_KEY`, `COVERR_API_KEY` | Not used unless remote stock is enabled. | Set only for approved commercial material sourcing. |
@@ -333,7 +335,7 @@ flowchart TD
     D --> E["Production Graph + storyboard + shot contracts"]
     E --> F["Prompt Binding Plan + Prompt Compiler"]
     F --> G["Provider capability gate + cost gate"]
-    G --> H["Atlas Asset Library reference registration"]
+    G --> H["Atlas direct reference or media upload preparation"]
     H --> I["Seedance render submission and polling"]
     I --> J["Consistency Guardian inspection"]
     J --> K{"Repair needed?"}

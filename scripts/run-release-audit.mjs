@@ -184,6 +184,25 @@ function checkGitClean() {
   return fail("tracked_worktree_clean", `${lines.length} tracked or untracked source item(s) are pending commit.`);
 }
 
+function checkGitMetadataUsable() {
+  const insideWorktree = git(["rev-parse", "--is-inside-work-tree"]);
+  if (insideWorktree.status !== 0 || insideWorktree.stdout.trim() !== "true") {
+    return fail("git_metadata_usable", "Current directory is not a usable Git worktree.");
+  }
+  const head = git(["rev-parse", "--verify", "HEAD"]);
+  if (head.status !== 0) {
+    return fail("git_metadata_usable", "Git HEAD cannot be resolved.");
+  }
+  const tracked = trackedFilesFor(["README.md", "package.json", "src", "scripts", "docs", "schemas"]);
+  if (tracked.length === 0) {
+    return fail(
+      "git_metadata_usable",
+      "Git reports zero tracked source files; source hygiene, tracked secret scan, and import-boundary evidence cannot be trusted."
+    );
+  }
+  return pass("git_metadata_usable", `Git metadata is usable; ${tracked.length} tracked source/doc file(s) are visible.`);
+}
+
 function checkIgnored(paths, name) {
   for (const path of paths) {
     const result = git(["check-ignore", "-q", path]);
@@ -204,6 +223,9 @@ function trackedFilesFor(paths) {
 
 function checkSecretScan() {
   const files = trackedFilesFor(["README.md", "docs", "src", "scripts", "package.json", "schemas", ".env.production.template"]);
+  if (files.length === 0) {
+    return fail("tracked_secret_scan", "Tracked secret scan cannot run because Git reports zero tracked source files.");
+  }
   const findings = [];
   for (const file of files) {
     const text = readTextIfPossible(file);
@@ -228,6 +250,9 @@ function checkSecretScan() {
 
 function checkImportBoundary() {
   const files = trackedFilesFor(["src", "scripts"]);
+  if (files.length === 0) {
+    return fail("external_import_boundary", "Import-boundary scan cannot run because Git reports zero tracked source/script files.");
+  }
   const findings = [];
   for (const file of files) {
     const text = readTextIfPossible(file);
@@ -288,6 +313,9 @@ function nextActionsFor(status, checks, options) {
   if (checks.some((check) => check.name === "tracked_worktree_clean" && check.status === "fail")) {
     actions.push("Commit or intentionally discard source changes before release audit.");
   }
+  if (checks.some((check) => check.name === "git_metadata_usable" && check.status === "fail")) {
+    actions.push("Repair or reclone the Git worktree before using release audit as customer-release evidence.");
+  }
   if (checks.some((check) => check.name === "tracked_secret_scan" && check.status === "fail")) {
     actions.push("Remove secret-like values from tracked files before release.");
   }
@@ -315,6 +343,7 @@ function main() {
     checkLocalSmoke(options.smokeReportPath),
     checkPaidReport(options.paidReportPath),
     checkPaidArtifactValidation(options.paidReportPath),
+    checkGitMetadataUsable(),
     checkGitClean(),
     checkIgnored([".env"], "env_file_ignored"),
     checkIgnored(["assets/output_deliverables/phase6-validation/local-smoke-report.json"], "output_deliverables_ignored"),

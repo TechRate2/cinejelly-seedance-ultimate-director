@@ -229,17 +229,15 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Aspect ratios including 21:9, 16:9, 4:3, 1:1, 3:4, and 9:16.
   - Audio-visual synchronization and beat matching claims.
 
-### Atlas Cloud Asset Library for Seedance 2.0
+### Atlas Cloud Media Upload And Direct References For Seedance 2.0
 
-- URL: https://www.atlascloud.ai/blog/guides/atlas-cloud-asset-library-seedance-2-0
+- URL: https://www.atlascloud.ai/docs/en/models/get-start
+- URL: https://www.atlascloud.ai/docs/en/tutorials/image-to-video
 - Used for:
-  - Register, poll until Active, then reference asset IDs in generation.
-  - Video and audio references must be registered before generation.
-  - Images may be passed inline.
-  - Asset Library host and generation host differ.
-  - Input validation happens at registration.
-  - Video asset requirements include mp4/mov, 480p or 720p, 2 to 15 seconds, 24 to 60 FPS, and file size limits.
-  - Audio asset requirements include wav/mp3, 2 to 15 seconds, and file size limits.
+  - Use the documented `/api/v1/model/generateVideo` submit flow and `/api/v1/model/prediction/{id}` polling flow.
+  - Upload local media through `/api/v1/model/uploadMedia` when direct clean HTTPS or reviewed `asset://` references are not available.
+  - Preserve clean public HTTPS and reviewed `asset://` references when the selected model path supports direct references.
+  - Keep LLM calls on the separate OpenAI-compatible `/v1` base URL.
 
 ### Atlas Cloud Seedance All-Round Reference Guide
 

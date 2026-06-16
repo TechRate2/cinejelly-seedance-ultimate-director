@@ -1,6 +1,6 @@
 # Reference Implementation: Provider Polling, Retry, And Cost Fidelity
 
-Implementation status as of 2026-06-13: CineJelly-owned production foundation implemented for provider-neutral ledger fields, Atlas prediction/asset wait polling records, retry-code classification, timeout/abort normalization, and review-packet canceled-operation counts. `npm.cmd run typecheck` and `npm.cmd run build` passed; paid Atlas render validation remains pending. CineJelly production code must remain CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
+Implementation status as of 2026-06-16: CineJelly-owned production foundation implemented for provider-neutral ledger fields, Atlas prediction/media reference records, retry-code classification, timeout/abort normalization, and review-packet canceled-operation counts. Local typecheck/build passed, and one short paid Atlas validation render completed with artifact validation `pass`; release remains blocked by Git/source-hygiene and manual review evidence. CineJelly production code must remain CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
 
 ## Upstream Sources
 
@@ -8,7 +8,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 | --- | --- | --- | --- |
 | `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Validate -> plan/cost -> dry-run/build -> render -> status refresh -> inspect loop, JSON build reports, cost caps before paid provider work, deterministic repair/status commands. |
 | `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo` | MIT | Task progress lifecycle, staged pipeline state updates, terminal failure state on missing stage output, bounded progress updates, resumable operator-visible task status. |
-| Atlas Cloud provider schema | `src/providers/atlascloud/*` and current provider contracts | Project-owned integration | Async prediction creation, polling, terminal prediction states, Asset Library registration and activation polling, usage/cost metadata where provider responses expose it. |
+| Atlas Cloud provider schema | `src/providers/atlascloud/*` and current provider contracts | Project-owned integration | Async prediction creation, polling, terminal prediction states, media upload/direct-reference preparation, usage/cost metadata where provider responses expose it. |
 
 ## Behavior To Preserve
 
@@ -20,7 +20,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 6. Retry budget is tied to normalized `ProviderError` codes and the `retryable` flag, not string matching in higher layers.
 7. Cost ledger entries must include operation, model, graph node, prediction ID, latency, retry count, terminal status, provider error code, retryable flag, and provider-returned usage/cost when available.
 8. Provider errors exposed to the API/review layer must be stack-free and redact provider payload details.
-9. Asset registration and activation polling follow the same terminal-state discipline as predictions.
+9. Media upload or direct-reference preparation follows the same no-spend-before-validation discipline as predictions.
 
 ## Edge Cases
 
@@ -33,7 +33,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 - HTTP 408, 429, and 5xx: normalize to retryable provider errors and consume retry budget.
 - HTTP 400/422: normalize to non-retryable schema error so prompt/settings repair can happen before another paid call.
 - Non-JSON provider error body: redact and preserve only a short preview in details.
-- Asset activation terminal `failed` or `deleted`: record activation failure with asset status evidence.
+- Media upload terminal `failed` or invalid direct reference: record preparation failure with provider status evidence.
 
 ## Reference Implementation
 

@@ -48,6 +48,17 @@ export class AtlasCloudHttpClient {
     );
   }
 
+  public async postFormData<TValue>(url: string, body: FormData, signal?: AbortSignal): Promise<TValue> {
+    return this.requestJson<TValue>(
+      url,
+      {
+        method: "POST",
+        body
+      },
+      signal
+    );
+  }
+
   public async deleteJson<TValue>(url: string, signal?: AbortSignal): Promise<TValue> {
     return this.requestJson<TValue>(url, { method: "DELETE" }, signal);
   }
@@ -67,8 +78,8 @@ export class AtlasCloudHttpClient {
         ...init,
         signal: controller.signal,
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
+          ...(!this.isFormDataBody(init.body) ? { "Content-Type": "application/json" } : {}),
           ...(init.headers ?? {})
         }
       });
@@ -240,5 +251,9 @@ export class AtlasCloudHttpClient {
       };
     }
     return undefined;
+  }
+
+  private isFormDataBody(value: BodyInit | null | undefined): boolean {
+    return typeof FormData !== "undefined" && value instanceof FormData;
   }
 }
