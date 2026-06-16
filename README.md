@@ -262,6 +262,7 @@ npm run validation:source-video-auto-analysis -- --source-video-url <clean-https
 npm run validation:remote-stock -- --confirm-live-network --confirm-commercial-terms-reviewed
 npm run validation:atlas-billing -- --max-budget-usd 5 --planned-cost-usd 0.000870 --output assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json --confirm-live-network
 npm run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed
+npm run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review
 npm run ops:create-client-policy -- --client-id pilot-client
 npm run ops:apply-client-policy-env
 npm run validation:ops-config -- --write-drafts

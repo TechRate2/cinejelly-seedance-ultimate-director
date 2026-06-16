@@ -221,6 +221,12 @@ Then run provider validation only after approving Atlas generated-audio spend fo
 npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed
 ```
 
+If that paid run succeeds but manual listening review was not attached yet, update the evidence without calling Atlas again:
+
+```powershell
+npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review
+```
+
 The runner writes `assets/output_deliverables/business-readiness/generated-audio-validation-report.json`. The business-readiness gate counts it only when the report schema is recognized, provider execution was explicitly allowed, schema review is confirmed, generated-audio output batch validation is approved, provider ledger evidence exists, and manual audio review passes. See `docs/reference-implementations/generated-audio-validation-runner.md` for the exact report contract.
 
 Create the billing/admin/quota evidence after client policy, a persistent usage ledger, a real deployment admin endpoint, and the non-secret billing/admin attestation are ready:

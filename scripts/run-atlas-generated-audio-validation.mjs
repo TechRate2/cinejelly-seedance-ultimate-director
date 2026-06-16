@@ -86,6 +86,7 @@ function parseArgs(args) {
     ["--atlas-billing-evidence-max-age-hours", "atlasBillingEvidenceMaxAgeHours"],
     ["--timeout-ms", "timeoutMs"],
     ["--manual-audio-review", "manualAudioReviewPath"],
+    ["--review-existing-report", "reviewExistingReportPath"],
     ["--output", "outputPath"]
   ]);
 
@@ -158,6 +159,7 @@ Options:
                                        Maximum age for Atlas billing readiness evidence. Default: ${defaults.atlasBillingEvidenceMaxAgeHours}
   --timeout-ms <ms>                    Abort live validation after this many ms. Default: ${defaults.timeoutMs}
   --manual-audio-review <path>         Optional operator review note containing a pass decision.
+  --review-existing-report <path>      Re-score an existing paid generated-audio report with manual review evidence without calling Atlas.
   --confirm-provider-spend             Required before any Atlas generated-audio provider execution can be attempted.
   --confirm-audio-schema-reviewed      Required before docs-derived Atlas audio schema can count as business evidence.
   --confirm-manual-audio-review        Operator confirms the generated audio output was listened to and accepted.
@@ -174,6 +176,9 @@ async function main() {
     return 0;
   }
   validateOptions(options);
+  if (options.reviewExistingReportPath) {
+    return reviewExistingReport(options);
+  }
 
   const intent = buildIntent(options);
   const costEstimate = estimatedAudioCost(options);
@@ -562,6 +567,117 @@ function readManualAudioReview(options) {
       ? "Manual generated-audio review file contains a pass decision."
       : "Manual generated-audio review file does not contain a clear pass decision."
   };
+}
+
+function reviewExistingReport(options) {
+  const existing = readJsonIfExists(options.reviewExistingReportPath);
+  const manualAudioReview = readManualAudioReview(options);
+  const baseChecks = Array.isArray(existing?.checks)
+    ? existing.checks.filter((check) => check?.name !== "manual_audio_review").map((check) => ({
+        name: String(check.name ?? "unknown"),
+        status: check.status === "warn" ? "warn" : check.status === "pass" ? "pass" : "fail",
+        message: String(check.message ?? "")
+      }))
+    : [];
+  const reviewChecks = [
+    existing?.schemaVersion === "cinejelly.generated-audio-validation.v1"
+      ? pass("review_existing_report_schema", "Existing generated-audio report schema is recognized.")
+      : fail("review_existing_report_schema", `Existing generated-audio report is missing or has unrecognized schema at ${toRepoRelative(options.reviewExistingReportPath)}.`),
+    existing?.spendGate?.providerNetworkCallsAllowed === true
+      ? pass("review_existing_provider_spend", "Existing generated-audio report contains provider-spend evidence.")
+      : fail("review_existing_provider_spend", "Existing generated-audio report does not contain provider-spend evidence."),
+    existing?.atlasBillingGate?.canUseAsPrePaidAtlasBillingEvidence === true
+      ? pass("review_existing_atlas_billing_gate", "Existing generated-audio report passed its Atlas billing gate.")
+      : fail("review_existing_atlas_billing_gate", "Existing generated-audio report did not pass its Atlas billing gate."),
+    existing?.schemaGate?.confirmAudioSchemaReviewed === true
+      ? pass("review_existing_schema_gate", "Existing generated-audio report had schema review confirmation.")
+      : fail("review_existing_schema_gate", "Existing generated-audio report did not have schema review confirmation."),
+    existing?.executionRun?.status === "succeeded"
+      ? pass("review_existing_execution", "Existing generated-audio provider execution succeeded.")
+      : fail("review_existing_execution", `Existing generated-audio execution status is ${existing?.executionRun?.status ?? "missing"}.`),
+    existing?.outputBatchValidation?.status === "approved" && Number(existing?.outputBatchValidation?.approvedTrackCount ?? 0) > 0
+      ? pass("review_existing_output_batch", "Existing generated-audio output batch validation approved at least one track.")
+      : fail("review_existing_output_batch", `Existing generated-audio output batch validation status is ${existing?.outputBatchValidation?.status ?? "missing"}.`),
+    Number(existing?.providerLedger?.entryCount ?? 0) > 0
+      ? pass("review_existing_provider_ledger", "Existing generated-audio report contains provider ledger evidence.")
+      : fail("review_existing_provider_ledger", "Existing generated-audio report does not contain provider ledger evidence."),
+    manualAudioReview.passed
+      ? pass("manual_audio_review", "Operator manual generated-audio review passed.")
+      : fail("manual_audio_review", "Manual generated-audio review is required before this evidence can count for business readiness.")
+  ];
+  const checks = [...baseChecks, ...reviewChecks];
+  const status = statusForChecks(checks);
+  const canUseAsBusinessReadinessGeneratedAudioEvidence =
+    status === "pass" &&
+    existing?.spendGate?.providerNetworkCallsAllowed === true &&
+    existing?.atlasBillingGate?.canUseAsPrePaidAtlasBillingEvidence === true &&
+    existing?.schemaGate?.confirmAudioSchemaReviewed === true &&
+    existing?.executionRun?.status === "succeeded" &&
+    existing?.outputBatchValidation?.status === "approved" &&
+    Number(existing?.outputBatchValidation?.approvedTrackCount ?? 0) > 0 &&
+    Number(existing?.providerLedger?.entryCount ?? 0) > 0 &&
+    manualAudioReview.passed === true;
+  const report = {
+    schemaVersion: "cinejelly.generated-audio-validation.v1",
+    generatedAt: new Date().toISOString(),
+    status,
+    sourcePatternOrigins: Array.isArray(existing?.sourcePatternOrigins) ? existing.sourcePatternOrigins : sourcePatternOrigins,
+    checkedInputs: {
+      modelId: existing?.checkedInputs?.modelId ?? options.modelId,
+      textCharacterCount: existing?.checkedInputs?.textCharacterCount ?? options.text.length,
+      language: existing?.checkedInputs?.language ?? options.language,
+      voiceId: existing?.checkedInputs?.voiceId ?? options.voiceId,
+      outputFormat: existing?.checkedInputs?.outputFormat ?? options.outputFormat,
+      durationSeconds: existing?.checkedInputs?.durationSeconds ?? options.durationSeconds,
+      estimatedCostUsd: existing?.checkedInputs?.estimatedCostUsd ?? estimatedAudioCost(options),
+      reviewExistingReportPath: toRepoRelative(options.reviewExistingReportPath),
+      outputPath: toRepoRelative(options.outputPath)
+    },
+    spendGate: existing?.spendGate ?? spendGate(options, 0, false),
+    atlasBillingGate: existing?.atlasBillingGate ?? {
+      path: toRepoRelative(options.atlasBillingReportPath),
+      present: false,
+      status: "missing",
+      currentEstimatedCostUsd: 0,
+      currentMaxCostUsd: options.maxCostUsd,
+      maxAgeHours: options.atlasBillingEvidenceMaxAgeHours,
+      canUseAsPrePaidAtlasBillingEvidence: false
+    },
+    schemaGate: existing?.schemaGate ?? schemaGate(options),
+    checks,
+    runtimeSettings: existing?.runtimeSettings ?? {
+      apiKeyConfigured: false,
+      llmApiKeyConfigured: false,
+      generatedAudioCapabilityCount: 0,
+      generatedAudioCapabilities: []
+    },
+    planning: existing?.planning ?? {
+      status: "missing",
+      intentCount: 0,
+      readyCount: 0,
+      blockedCount: 0,
+      outputFormat: options.outputFormat,
+      items: []
+    },
+    executionRun: existing?.executionRun ?? emptyExecutionRun(),
+    outputBatchValidation: existing?.outputBatchValidation ?? emptyOutputBatchValidation(),
+    providerLedger: existing?.providerLedger ?? emptyLedgerSummary(),
+    manualAudioReview: {
+      ...manualAudioReview,
+      source: manualAudioReview.source ? `review_existing_report:${manualAudioReview.source}` : "review_existing_report"
+    },
+    releaseGateSummary: {
+      canUseAsBusinessReadinessGeneratedAudioEvidence,
+      canOpenPaidCustomerTraffic: false,
+      releaseBlocker: canUseAsBusinessReadinessGeneratedAudioEvidence
+        ? "Generated-audio evidence alone is not customer-traffic approval; all other business-readiness gates must pass too."
+        : "Atlas generated-audio evidence is incomplete."
+    },
+    nextActions: nextActionsFor(status, checks)
+  };
+  writeMaybe(options, report);
+  process.stdout.write(`${JSON.stringify(redactUnknown(report), null, 2)}\n`);
+  return status === "fail" ? 1 : 0;
 }
 
 function summarizeAtlasBillingGate(options, estimatedCostUsd) {

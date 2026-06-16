@@ -26,6 +26,7 @@ The runner must:
 9. Require manual generated-audio review evidence before business-readiness can pass.
 10. Never count generated-audio as business-ready unless provider execution, output batch validation, provider ledger, schema review, and manual review all pass.
 11. Before provider execution, require a fresh Atlas billing-readiness report for the generated-audio slice whose `plannedCostUsd` matches the current audio estimate and whose approved budget covers `--max-cost-usd`.
+12. Manual review can be applied to an existing paid generated-audio report with `--review-existing-report` without calling Atlas again; this review-only path must still fail unless the existing report has provider-spend, billing, schema, execution, output-batch, and ledger evidence.
 
 ## Report Shape
 
@@ -49,6 +50,7 @@ interface GeneratedAudioValidationReport {
     outputFormat: "mp3" | "wav";
     durationSeconds: number;
     estimatedCostUsd: number;
+    reviewExistingReportPath?: string;
   };
   spendGate: {
     confirmProviderSpend: boolean;
@@ -89,9 +91,10 @@ interface GeneratedAudioValidationReport {
 ```powershell
 npm.cmd run validation:generated-audio
 npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed
+npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review
 ```
 
-The default run writes a blocked no-spend report. A live run now uses Atlas `generateAudio` through the provider-neutral execution runner only after explicit spend confirmation, schema review confirmation, and a fresh slice-specific Atlas billing-readiness report; the returned output must still pass `GeneratedAudioOutputBatchValidator`, provider ledger checks, and manual review before business-readiness can count it.
+The default run writes a blocked no-spend report. A live run now uses Atlas `generateAudio` through the provider-neutral execution runner only after explicit spend confirmation, schema review confirmation, and a fresh slice-specific Atlas billing-readiness report; the returned output must still pass `GeneratedAudioOutputBatchValidator`, provider ledger checks, and manual review before business-readiness can count it. If the paid output already exists and only manual review was missing, rerun with `--review-existing-report` plus manual review evidence to update the report without another provider call.
 
 ## Done
 
@@ -101,6 +104,7 @@ The default run writes a blocked no-spend report. A live run now uses Atlas `gen
 - Done: add `npm.cmd run validation:generated-audio`.
 - Done: add schema-aware generated-audio evaluation to `validation:business-readiness`.
 - Done: require generated-audio slice Atlas billing readiness before provider spend.
+- Done: add no-provider review-only mode for existing paid generated-audio reports.
 - Done: update README and operator runbook.
 
 ## Remaining
