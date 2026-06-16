@@ -16,6 +16,7 @@
     "inputSummary",
     "requiredInputs",
     "envPlaceholders",
+    "atlasConfigurationSummary",
     "evidenceCommandPlan",
     "budgetConstrainedPaidPlan",
     "releaseGateSummary",
@@ -132,6 +133,103 @@
           "required": { "type": "boolean" },
           "configured": { "type": "boolean" }
         }
+      }
+    },
+    "atlasConfigurationSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "docsAlignment", "keys", "endpoints", "models", "readiness", "operatorMessage"],
+      "properties": {
+        "source": { "enum": ["live_readiness_inputs", "missing_live_inputs_report"] },
+        "docsAlignment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["apiKeyModel", "llmBaseUrl", "mediaBaseUrl", "billingBaseUrl"],
+          "properties": {
+            "apiKeyModel": { "type": "string" },
+            "llmBaseUrl": { "const": "https://api.atlascloud.ai/v1" },
+            "mediaBaseUrl": { "const": "https://api.atlascloud.ai/api/v1" },
+            "billingBaseUrl": { "const": "https://api.atlascloud.ai/public/v1" }
+          }
+        },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mediaApiKeyConfigured",
+            "llmApiKeyConfigured",
+            "llmFallbackAvailable",
+            "billingReportPresent",
+            "billingReportNetworkCaptured",
+            "generatedAudioBillingReportPresent",
+            "generatedAudioBillingApproved"
+          ],
+          "properties": {
+            "mediaApiKeyConfigured": { "type": "boolean" },
+            "llmApiKeyConfigured": { "type": "boolean" },
+            "llmFallbackAvailable": { "type": "boolean" },
+            "billingReportPresent": { "type": "boolean" },
+            "billingReportNetworkCaptured": { "type": "boolean" },
+            "generatedAudioBillingReportPresent": { "type": "boolean" },
+            "generatedAudioBillingApproved": { "type": "boolean" }
+          }
+        },
+        "endpoints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["llmBaseUrlConfigured", "mediaBaseUrlConfigured"],
+          "properties": {
+            "llmBaseUrlConfigured": { "type": "boolean" },
+            "mediaBaseUrlConfigured": { "type": "boolean" }
+          }
+        },
+        "models": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "llmModelConfigured",
+            "seedanceStandardModelConfigured",
+            "seedanceFastModelConfigured",
+            "seedanceCapabilitiesJsonValid",
+            "seedanceCapabilityCount",
+            "generatedAudioModelConfigured",
+            "generatedAudioVoiceConfigured",
+            "generatedAudioCapabilitiesJsonValid",
+            "generatedAudioCapabilityCount"
+          ],
+          "properties": {
+            "llmModelConfigured": { "type": "boolean" },
+            "seedanceStandardModelConfigured": { "type": "boolean" },
+            "seedanceFastModelConfigured": { "type": "boolean" },
+            "seedanceCapabilitiesJsonValid": { "type": "boolean" },
+            "seedanceCapabilityCount": { "type": "integer", "minimum": 0 },
+            "generatedAudioModelConfigured": { "type": "boolean" },
+            "generatedAudioVoiceConfigured": { "type": "boolean" },
+            "generatedAudioCapabilitiesJsonValid": { "type": "boolean" },
+            "generatedAudioCapabilityCount": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mediaReady",
+            "llmReady",
+            "seedanceVideoReady",
+            "generatedAudioReady",
+            "generatedAudioPaidSliceReady",
+            "fullPaidSequenceWithinBudget"
+          ],
+          "properties": {
+            "mediaReady": { "type": "boolean" },
+            "llmReady": { "type": "boolean" },
+            "seedanceVideoReady": { "type": "boolean" },
+            "generatedAudioReady": { "type": "boolean" },
+            "generatedAudioPaidSliceReady": { "type": "boolean" },
+            "fullPaidSequenceWithinBudget": { "type": "boolean" }
+          }
+        },
+        "operatorMessage": { "type": "string" }
       }
     },
     "evidenceCommandPlan": {

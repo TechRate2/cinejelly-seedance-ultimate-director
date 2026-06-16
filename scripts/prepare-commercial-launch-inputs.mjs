@@ -103,6 +103,7 @@ function main() {
   };
   const requiredInputs = buildRequiredInputs(reports);
   const envPlaceholders = buildEnvPlaceholders(reports, requiredInputs);
+  const atlasConfigurationSummary = buildAtlasConfigurationSummary(reports);
   const evidenceCommandPlan = buildEvidenceCommandPlan(reports.businessPlan.value, reports.liveInputs.value);
   const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
   const status = statusFor(requiredInputs);
@@ -125,6 +126,7 @@ function main() {
     inputSummary: summarizeInputs(requiredInputs),
     requiredInputs,
     envPlaceholders,
+    atlasConfigurationSummary,
     evidenceCommandPlan,
     budgetConstrainedPaidPlan,
     releaseGateSummary: buildReleaseGateSummary({ status, reports, requiredInputs }),
@@ -412,6 +414,76 @@ function placeholder(name, sensitivity, exampleValue, purpose) {
   return { name, sensitivity, exampleValue, purpose };
 }
 
+function buildAtlasConfigurationSummary(reports) {
+  const live = reports.liveInputs.value;
+  const atlas = live?.environment?.atlas ?? {};
+  const generatedAudio = live?.environment?.generatedAudio ?? {};
+  const atlasBilling = live?.environment?.atlasBilling ?? {};
+  const generatedAudioBilling = live?.environment?.atlasBillingSlices?.generatedAudio ?? {};
+  const seedanceVideoReady =
+    atlas.mediaApiKeyConfigured === true &&
+    atlas.seedanceStandardModelConfigured === true &&
+    atlas.seedanceFastModelConfigured === true &&
+    atlas.seedanceCapabilitiesJsonValid === true &&
+    Number(atlas.seedanceCapabilityCount ?? 0) > 0;
+  const generatedAudioReady =
+    generatedAudio.atlasMediaReady === true &&
+    generatedAudio.modelConfigured === true &&
+    generatedAudio.voiceIdConfigured === true &&
+    generatedAudio.costRateConfigured === true &&
+    generatedAudio.capabilitiesJsonValid === true &&
+    Number(generatedAudio.capabilityCount ?? 0) > 0 &&
+    generatedAudioBilling.canUseAsPrePaidAtlasBillingEvidence === true &&
+    generatedAudioBilling.canRunAtlasSpendWithinApprovedBudget === true;
+  const llmReady = atlas.llmFallbackAvailable === true && atlas.llmModelConfigured === true;
+  const mediaReady = atlas.mediaApiKeyConfigured === true;
+  return {
+    source: live ? "live_readiness_inputs" : "missing_live_inputs_report",
+    docsAlignment: {
+      apiKeyModel: "Atlas docs use an Authorization bearer API key; CineJelly reports only configured booleans and never writes key values.",
+      llmBaseUrl: "https://api.atlascloud.ai/v1",
+      mediaBaseUrl: "https://api.atlascloud.ai/api/v1",
+      billingBaseUrl: "https://api.atlascloud.ai/public/v1"
+    },
+    keys: {
+      mediaApiKeyConfigured: atlas.mediaApiKeyConfigured === true,
+      llmApiKeyConfigured: atlas.llmApiKeyConfigured === true,
+      llmFallbackAvailable: atlas.llmFallbackAvailable === true,
+      billingReportPresent: atlasBilling.present === true,
+      billingReportNetworkCaptured: atlasBilling.networkCallsMade === true,
+      generatedAudioBillingReportPresent: generatedAudioBilling.present === true,
+      generatedAudioBillingApproved: generatedAudioBilling.canRunAtlasSpendWithinApprovedBudget === true
+    },
+    endpoints: {
+      llmBaseUrlConfigured: atlas.llmBaseUrlConfigured === true,
+      mediaBaseUrlConfigured: atlas.mediaBaseUrlConfigured === true
+    },
+    models: {
+      llmModelConfigured: atlas.llmModelConfigured === true,
+      seedanceStandardModelConfigured: atlas.seedanceStandardModelConfigured === true,
+      seedanceFastModelConfigured: atlas.seedanceFastModelConfigured === true,
+      seedanceCapabilitiesJsonValid: atlas.seedanceCapabilitiesJsonValid === true,
+      seedanceCapabilityCount: Number(atlas.seedanceCapabilityCount ?? 0),
+      generatedAudioModelConfigured: generatedAudio.modelConfigured === true,
+      generatedAudioVoiceConfigured: generatedAudio.voiceIdConfigured === true,
+      generatedAudioCapabilitiesJsonValid: generatedAudio.capabilitiesJsonValid === true,
+      generatedAudioCapabilityCount: Number(generatedAudio.capabilityCount ?? 0)
+    },
+    readiness: {
+      mediaReady,
+      llmReady,
+      seedanceVideoReady,
+      generatedAudioReady,
+      generatedAudioPaidSliceReady: live?.releaseGateSummary?.canRunGeneratedAudioPaidValidation === true,
+      fullPaidSequenceWithinBudget: live?.costPlan?.budgetFit === "within_budget"
+    },
+    operatorMessage:
+      mediaReady && llmReady
+        ? "Atlas key/model configuration is present; remaining commercial blockers are deployment, operator attestations, live evidence, and budget gates."
+        : "Atlas key/model configuration is incomplete; fill Atlas env first, then rerun validation:live-inputs and validation:commercial-inputs."
+  };
+}
+
 function buildEvidenceCommandPlan(plan, live) {
   const sequence = Array.isArray(plan?.validationSequence) ? plan.validationSequence : [];
   return {
@@ -596,6 +668,10 @@ function renderMarkdown(report) {
     "",
     `Status: ${report.status}`,
     "",
+    "## Atlas Configuration",
+    "",
+    ...markdownAtlasConfiguration(report.atlasConfigurationSummary),
+    "",
     "## Missing Or Blocked Inputs",
     "",
     ...markdownItems(missing),
@@ -645,6 +721,22 @@ function renderMarkdown(report) {
     report.releaseGateSummary.releaseBlocker,
     ""
   ].join("\n");
+}
+
+function markdownAtlasConfiguration(summary) {
+  if (!summary) {
+    return ["- Atlas configuration summary unavailable. Rerun `npm.cmd run validation:live-inputs`."];
+  }
+  return [
+    `- Source: ${summary.source}`,
+    `- Media key configured: ${summary.keys.mediaApiKeyConfigured}`,
+    `- LLM key configured: ${summary.keys.llmApiKeyConfigured}; LLM fallback available: ${summary.keys.llmFallbackAvailable}`,
+    `- Endpoint shape: LLM ${summary.docsAlignment.llmBaseUrl}; media ${summary.docsAlignment.mediaBaseUrl}; billing ${summary.docsAlignment.billingBaseUrl}`,
+    `- Seedance models/capabilities ready: ${summary.readiness.seedanceVideoReady} (${summary.models.seedanceCapabilityCount} capability record(s))`,
+    `- Generated-audio paid slice ready: ${summary.readiness.generatedAudioPaidSliceReady}`,
+    `- Full paid sequence within budget: ${summary.readiness.fullPaidSequenceWithinBudget}`,
+    `- ${summary.operatorMessage}`
+  ];
 }
 
 function markdownBudgetSlices(plan) {

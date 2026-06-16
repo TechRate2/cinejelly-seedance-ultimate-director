@@ -19,6 +19,7 @@ Before asking an operator for the remaining production inputs, CineJelly needs o
 9. Each paid slice should include the slice-specific Atlas billing-readiness command before the paid command, using a distinct output path when the slice is not the full business-readiness plan.
 10. Generated-audio manual review checklist items must use `--review-existing-report` so manual review can update evidence without calling Atlas again.
 11. Generated-audio paid commands copied from the business plan must include the slice billing report path, local max-cost cap, cost-rate assumption, and validation text so operators do not depend on hidden CLI defaults.
+12. The packet must include a secret-free Atlas configuration summary derived from live-readiness evidence so operators can distinguish "Atlas keys/models are configured" from deployment, attestation, live-evidence, and budget blockers.
 
 ## Report Shape
 
@@ -58,6 +59,20 @@ interface CommercialLaunchInputsReport {
     required: boolean;
     configured: boolean;
   }>;
+  atlasConfigurationSummary: {
+    source: "live_readiness_inputs" | "missing_live_inputs_report";
+    docsAlignment: {
+      apiKeyModel: string;
+      llmBaseUrl: "https://api.atlascloud.ai/v1";
+      mediaBaseUrl: "https://api.atlascloud.ai/api/v1";
+      billingBaseUrl: "https://api.atlascloud.ai/public/v1";
+    };
+    keys: Record<string, boolean>;
+    endpoints: Record<string, boolean>;
+    models: Record<string, boolean | number>;
+    readiness: Record<string, boolean>;
+    operatorMessage: string;
+  };
   evidenceCommandPlan: Record<string, Array<{ name: string; status: string; command: string }>>;
   budgetConstrainedPaidPlan: {
     present: boolean;
@@ -99,3 +114,4 @@ interface CommercialLaunchInputsReport {
 - The generated-audio manual review item points to `validation:generated-audio -- --review-existing-report ... --confirm-manual-audio-review`, not a second provider execution.
 - Current output can mark the generated-audio paid smoke command ready when live-inputs confirms its billing slice, reports the exact ready paid gate names, keeps `shouldDeferFullSequenceSpend=true`, and keeps customer traffic release false.
 - When the approved budget changes, checklist output points operators to rerun `validation:atlas-billing -- --max-budget-usd <current-budget> --confirm-live-network` instead of repeating stale audit text.
+- Current output includes a no-secret Atlas configuration section showing whether media/LLM keys, endpoint families, Seedance model/capability config, generated-audio config, and the generated-audio billing slice are ready without printing key values.
