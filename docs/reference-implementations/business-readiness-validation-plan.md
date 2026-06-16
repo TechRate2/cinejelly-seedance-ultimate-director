@@ -13,7 +13,7 @@ Before spending more Atlas credits, operators need one consolidated plan that ex
 3. The planner is not business-readiness evidence and must not make any gate pass by itself.
 4. Paid Atlas commands must remain explicit and must include budget/confirmation flags only as planned next steps.
 5. Long-form cost planning must use the same configured `CINEJELLY_RENDER_COST_USD_PER_SECOND` and `CINEJELLY_COST_BUFFER_MULTIPLIER` assumptions as the long-form validation runner.
-6. Generated-audio cost planning must use the configured Atlas generated-audio rate, defaulting to the documented `xai/tts-v1` rate when absent.
+6. Generated-audio planning must require configured model, voice, reviewed capability JSON shape, and the configured Atlas generated-audio rate, defaulting to the documented `xai/tts-v1` rate when absent.
 7. Remote stock, source-video, deployment, billing/admin, and production-ops readiness must be represented as missing inputs or ready commands, not silently skipped.
 8. Paid Atlas steps and top-level paid-validation flags must remain blocked while Atlas billing readiness or the approved-budget fit fails, even if one narrow paid sample is individually inexpensive.
 
@@ -70,5 +70,5 @@ interface BusinessReadinessValidationPlan {
 - Running the planner with no deployment/source-video URLs does not perform network or provider calls.
 - Planner output redacts secret-like strings and reports only booleans/counts for key-bearing env configuration.
 - Current long-form validation is blocked by the configured budget when the estimate exceeds the approved ceiling.
-- Current generated-audio validation is blocked by Atlas billing readiness when the full paid sequence exceeds the approved ceiling.
+- Current generated-audio validation is blocked by Atlas billing readiness when the full paid sequence exceeds the approved ceiling, and is blocked earlier when model, voice, or reviewed capability JSON shape is incomplete.
 - Planner output says it is not release evidence and cannot release customer traffic.

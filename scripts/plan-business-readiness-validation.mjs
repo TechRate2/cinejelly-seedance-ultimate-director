@@ -270,13 +270,14 @@ function summarizeEnvironment(options) {
     commercialTermsReviewedForCoverr: envTrue("CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED"),
     providers: remoteStockProviders
   };
-  const generatedAudioCapabilities = jsonArrayEnv("ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON");
+  const generatedAudioCapabilities = generatedAudioCapabilitiesEnv("ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON");
   const generatedAudio = {
     modelConfigured: envConfigured("ATLASCLOUD_GENERATED_AUDIO_MODEL"),
     voiceIdConfigured: envConfigured("ATLASCLOUD_GENERATED_AUDIO_VOICE_ID"),
     capabilitiesJsonConfigured: generatedAudioCapabilities.configured,
     capabilitiesJsonValid: generatedAudioCapabilities.valid,
     capabilityCount: generatedAudioCapabilities.count,
+    capabilitiesMessage: generatedAudioCapabilities.message,
     costRateConfigured: envConfigured("ATLASCLOUD_GENERATED_AUDIO_COST_USD_PER_1K_CHARS"),
     atlasMediaReady: atlas.mediaApiKeyConfigured
   };
@@ -364,10 +365,22 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, atlasB
   const remoteStockReady = environment.remoteStock.enabled && environment.remoteStock.configuredProviderCount > 0;
   const generatedAudioInputReady =
     environment.generatedAudio.atlasMediaReady &&
+    environment.generatedAudio.modelConfigured &&
+    environment.generatedAudio.voiceIdConfigured &&
     environment.generatedAudio.capabilitiesJsonValid &&
     environment.generatedAudio.capabilityCount > 0 &&
     costPlan.generatedAudio.withinBudget;
   const generatedAudioReady = generatedAudioInputReady && atlasBillingReadyForApprovedSpend;
+  const generatedAudioInputRequirements = [
+    ...(environment.generatedAudio.atlasMediaReady ? [] : ["Atlas media API key"]),
+    ...(environment.generatedAudio.modelConfigured ? [] : ["ATLASCLOUD_GENERATED_AUDIO_MODEL"]),
+    ...(environment.generatedAudio.voiceIdConfigured ? [] : ["ATLASCLOUD_GENERATED_AUDIO_VOICE_ID"]),
+    ...(environment.generatedAudio.capabilitiesJsonValid && environment.generatedAudio.capabilityCount > 0
+      ? []
+      : [environment.generatedAudio.capabilitiesMessage || "Set ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON to at least one reviewed capability record."]),
+    ...(costPlan.generatedAudio.withinBudget ? [] : ["approved generated-audio validation budget"]),
+    "manual schema/audio review"
+  ];
   const longFormInputReady = atlasPaidReady && costPlan.longForm.withinBudget;
   const longFormReady = longFormInputReady && atlasBillingReadyForApprovedSpend;
 
@@ -484,7 +497,7 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, atlasB
       requiredInputs: generatedAudioReady
         ? ["manual audio review after output"]
         : [
-            ...(generatedAudioInputReady ? [] : ["ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON", "Atlas media API key", "manual schema/audio review"]),
+            ...(generatedAudioInputReady ? [] : generatedAudioInputRequirements),
             ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateInput])
           ],
       estimatedCostUsd: costPlan.generatedAudio.estimatedCostUsd,
@@ -611,6 +624,73 @@ function jsonArrayEnv(name) {
   } catch {
     return { configured: true, valid: false, count: 0 };
   }
+}
+
+function generatedAudioCapabilitiesEnv(name) {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return {
+      configured: false,
+      valid: false,
+      count: 0,
+      message: "Set ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON to at least one reviewed capability record."
+    };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return {
+        configured: true,
+        valid: false,
+        count: 0,
+        message: "ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON must be a JSON array."
+      };
+    }
+    const invalid = parsed.find((item) => !isGeneratedAudioCapability(item));
+    if (invalid) {
+      return {
+        configured: true,
+        valid: false,
+        count: parsed.length,
+        message: "Each generated-audio capability must include provider, modelId, kinds, outputFormats, maxDurationSeconds, and async."
+      };
+    }
+    return {
+      configured: true,
+      valid: true,
+      count: parsed.length,
+      message: `${parsed.length} generated-audio capability record(s) configured.`
+    };
+  } catch {
+    return {
+      configured: true,
+      valid: false,
+      count: 0,
+      message: "ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON must be valid JSON."
+    };
+  }
+}
+
+function isGeneratedAudioCapability(value) {
+  const payload = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return typeof payload.provider === "string" &&
+    typeof payload.modelId === "string" &&
+    Array.isArray(payload.kinds) &&
+    payload.kinds.every(isGeneratedAudioKind) &&
+    Array.isArray(payload.outputFormats) &&
+    payload.outputFormats.every(isAudioOutputFormat) &&
+    typeof payload.maxDurationSeconds === "number" &&
+    Number.isFinite(payload.maxDurationSeconds) &&
+    payload.maxDurationSeconds > 0 &&
+    typeof payload.async === "boolean";
+}
+
+function isGeneratedAudioKind(value) {
+  return value === "tts_narration" || value === "bgm" || value === "ambience" || value === "sfx";
+}
+
+function isAudioOutputFormat(value) {
+  return value === "mp3" || value === "wav";
 }
 
 function urlEvidence(value, label) {
