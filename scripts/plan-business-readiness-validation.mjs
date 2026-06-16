@@ -9,7 +9,7 @@ const defaults = {
   businessReadinessPath: "assets/output_deliverables/phase6-validation/business-readiness-report.json",
   opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
   atlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
-  maxBudgetUsd: 5,
+  maxBudgetUsd: Number(process.env.CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD || "5"),
   longFormDurationSeconds: 120,
   sourceVideoUrl: process.env.CINEJELLY_VALIDATION_SOURCE_VIDEO_URL,
   deploymentBaseUrl: process.env.CINEJELLY_DEPLOYMENT_BASE_URL,

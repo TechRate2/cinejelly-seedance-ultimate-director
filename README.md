@@ -281,6 +281,8 @@ npm run validate:artifacts -- <artifact-directory>
 npm start
 ```
 
+`CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` is the shared default approved-budget ceiling for `validation:live-inputs`, `validation:business-plan`, and `validation:atlas-billing`; keep it low until the operator explicitly approves the full paid Atlas validation plan, or pass `--max-budget-usd` for a one-off run.
+
 Production API:
 
 - `GET /health`

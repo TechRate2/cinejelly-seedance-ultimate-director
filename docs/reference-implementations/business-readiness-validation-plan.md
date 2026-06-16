@@ -16,6 +16,7 @@ Before spending more Atlas credits, operators need one consolidated plan that ex
 6. Generated-audio planning must require configured model, voice, reviewed capability JSON shape, and the configured Atlas generated-audio rate, defaulting to the documented `xai/tts-v1` rate when absent.
 7. Remote stock, source-video, deployment, billing/admin, and production-ops readiness must be represented as missing inputs or ready commands, not silently skipped.
 8. Paid Atlas steps and top-level paid-validation flags must remain blocked while Atlas billing readiness or the approved-budget fit fails, even if one narrow paid sample is individually inexpensive.
+9. The default approved budget must come from `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` when it is configured so the planner, live-input validator, and Atlas billing gate agree on the same operator-approved ceiling.
 
 ## Report Shape
 
@@ -71,4 +72,5 @@ interface BusinessReadinessValidationPlan {
 - Planner output redacts secret-like strings and reports only booleans/counts for key-bearing env configuration.
 - Current long-form validation is blocked by the configured budget when the estimate exceeds the approved ceiling.
 - Current generated-audio validation is blocked by Atlas billing readiness when the full paid sequence exceeds the approved ceiling, and is blocked earlier when model, voice, or reviewed capability JSON shape is incomplete.
+- Overriding `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` changes the planner default `maxBudgetUsd` without requiring a CLI flag.
 - Planner output says it is not release evidence and cannot release customer traffic.
