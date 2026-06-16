@@ -411,6 +411,42 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "AtlasCloud Docs Conformance Preflight",
+    sourceRepository: "Atlas Cloud",
+    snapshotPath: "https://www.atlascloud.ai/docs",
+    upstreamPaths: [
+      "https://www.atlascloud.ai/docs/coding-plan/api",
+      "https://www.atlascloud.ai/docs/upload-files",
+      "https://www.atlascloud.ai/docs/more-models/bytedance/seedance-v1-pro-t2v-480p/generateVideo",
+      "https://www.atlascloud.ai/docs/getResult",
+      "https://www.atlascloud.ai/docs/public-api/balance"
+    ],
+    license: "PROVIDER-DOCS",
+    behaviorPreserved: [
+      "Coding Plan LLM traffic uses the documented /v1 endpoint family",
+      "media upload and video generation use the documented /api/v1/model endpoint family",
+      "billing readiness evidence is tied to the documented /public/v1/balance endpoint",
+      "configured Seedance capability records must cover the admin-selected fast and standard model IDs"
+    ],
+    behaviorChanged: [
+      "CineJelly validates endpoint-family and model-capability conformance locally before provider spend",
+      "custom Atlas proxy hosts are allowed only as warning-state operator decisions",
+      "secret key values are compared only in-process and never emitted"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/atlascloud-docs-conformance-preflight.md",
+    cineJellyDestinationPaths: [
+      "src/application/runtime-preflight.ts",
+      "docs/OPERATOR_RUNBOOK.md",
+      "docs/RUNNING_AND_MODEL_SETTINGS_GUIDE.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "Atlas provider schemas and model catalogs can still change after local preflight passes",
+      "real paid validation remains required to prove live endpoint behavior and media quality"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Long-Form Planning And Batch Workflow",
     sourceRepository: "HKUDS/ViMax",
     snapshotPath: "external/upstream/vimax",

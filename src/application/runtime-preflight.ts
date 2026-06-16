@@ -22,6 +22,10 @@ import { runProcess } from "../utils/process.js";
 
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const NON_NEGATIVE_DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
+const ATLAS_CANONICAL_HOST = "api.atlascloud.ai";
+const ATLAS_LLM_PATH = "/v1";
+const ATLAS_MEDIA_PATH = "/api/v1";
+const ATLAS_PUBLIC_BILLING_PATH = "/public/v1";
 const MIN_PORT = 1;
 const MAX_PORT = 65_535;
 const DEFAULT_SOURCE_VIDEO_ANALYSIS_WORK_DIR = "assets/output_deliverables/source-video-analysis-work";
@@ -42,11 +46,12 @@ export class RuntimePreflight {
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
       this.apiAuthCheck(),
       this.optionalPort("PORT", this.env.PORT),
-      this.optionalAtlasEndpointUrl("ATLASCLOUD_LLM_BASE_URL", this.env.ATLASCLOUD_LLM_BASE_URL, "/v1"),
-      this.optionalAtlasEndpointUrl("ATLASCLOUD_API_BASE_URL", this.env.ATLASCLOUD_API_BASE_URL, "/v1"),
-      this.optionalAtlasEndpointUrl("ATLASCLOUD_MEDIA_BASE_URL", this.env.ATLASCLOUD_MEDIA_BASE_URL, "/api/v1"),
-      this.optionalAtlasEndpointUrl("ATLASCLOUD_BASE_URL", this.env.ATLASCLOUD_BASE_URL, "/api/v1"),
-      this.optionalAtlasEndpointUrl("ATLASCLOUD_ASSET_BASE_URL", this.env.ATLASCLOUD_ASSET_BASE_URL, "/api/v1"),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_LLM_BASE_URL", this.env.ATLASCLOUD_LLM_BASE_URL, ATLAS_LLM_PATH),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_API_BASE_URL", this.env.ATLASCLOUD_API_BASE_URL, ATLAS_LLM_PATH),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_MEDIA_BASE_URL", this.env.ATLASCLOUD_MEDIA_BASE_URL, ATLAS_MEDIA_PATH),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_BASE_URL", this.env.ATLASCLOUD_BASE_URL, ATLAS_MEDIA_PATH),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_ASSET_BASE_URL", this.env.ATLASCLOUD_ASSET_BASE_URL, ATLAS_MEDIA_PATH),
+      this.atlasCloudDocsConformanceCheck(),
       this.optionalPositiveInteger("CINEJELLY_REQUEST_TIMEOUT_MS", this.env.CINEJELLY_REQUEST_TIMEOUT_MS),
       this.optionalPositiveInteger("CINEJELLY_ATLAS_JSON_RESPONSE_MAX_BYTES", this.env.CINEJELLY_ATLAS_JSON_RESPONSE_MAX_BYTES),
       this.optionalPositiveInteger("CINEJELLY_POLLING_INTERVAL_MS", this.env.CINEJELLY_POLLING_INTERVAL_MS),
@@ -479,6 +484,204 @@ export class RuntimePreflight {
       };
     }
     return check;
+  }
+
+  private atlasCloudDocsConformanceCheck(): PreflightCheck {
+    const issues: string[] = [];
+    const warnings: string[] = [];
+
+    const mediaKey = this.env.ATLASCLOUD_API_KEY?.trim();
+    const llmKey = this.env.ATLASCLOUD_LLM_API_KEY?.trim();
+    if (!mediaKey) {
+      issues.push("ATLASCLOUD_API_KEY is required for Atlas media/model endpoints.");
+    }
+    if (!llmKey) {
+      warnings.push("ATLASCLOUD_LLM_API_KEY is not configured; LLM calls will share the media key instead of the documented Coding Plan key.");
+    }
+    if (mediaKey && llmKey && mediaKey === llmKey) {
+      issues.push("ATLASCLOUD_API_KEY and ATLASCLOUD_LLM_API_KEY must be separate Atlas key values.");
+    }
+
+    const llmEndpoint = this.resolveAtlasDocsEndpoint(
+      ["ATLASCLOUD_LLM_BASE_URL", "ATLASCLOUD_API_BASE_URL"],
+      `https://${ATLAS_CANONICAL_HOST}${ATLAS_LLM_PATH}`,
+      ATLAS_LLM_PATH
+    );
+    const mediaEndpoint = this.resolveAtlasDocsEndpoint(
+      ["ATLASCLOUD_MEDIA_BASE_URL", "ATLASCLOUD_BASE_URL", "ATLASCLOUD_ASSET_BASE_URL"],
+      `https://${ATLAS_CANONICAL_HOST}${ATLAS_MEDIA_PATH}`,
+      ATLAS_MEDIA_PATH
+    );
+    issues.push(...llmEndpoint.issues, ...mediaEndpoint.issues);
+    warnings.push(...llmEndpoint.warnings, ...mediaEndpoint.warnings);
+
+    if (llmEndpoint.url) {
+      this.assertAtlasDocsEndpointPath(llmEndpoint.url, "/chat/completions", "/v1/chat/completions", issues);
+    }
+    if (mediaEndpoint.url) {
+      this.assertAtlasDocsEndpointPath(mediaEndpoint.url, "/model/uploadMedia", "/api/v1/model/uploadMedia", issues);
+      this.assertAtlasDocsEndpointPath(mediaEndpoint.url, "/model/generateVideo", "/api/v1/model/generateVideo", issues);
+      this.assertAtlasDocsEndpointPath(mediaEndpoint.url, "/model/result/request_id", "/api/v1/model/result/request_id", issues);
+    }
+    this.assertAtlasDocsEndpointPath(
+      `https://${ATLAS_CANONICAL_HOST}${ATLAS_PUBLIC_BILLING_PATH}`,
+      "/balance",
+      "/public/v1/balance",
+      issues
+    );
+
+    const configuredSeedanceModels = this.configuredSeedanceModelIds();
+    issues.push(...this.modelIdIssues("ATLASCLOUD_SEEDANCE_*_MODEL", configuredSeedanceModels));
+    issues.push(...this.seedanceCapabilityCoverageIssues(configuredSeedanceModels));
+    issues.push(...this.generatedAudioCapabilityProviderIssues());
+
+    if (issues.length > 0) {
+      return {
+        name: "atlascloud_docs_conformance",
+        status: "fail",
+        message: `Atlas Cloud docs conformance failed: ${issues.join(" ")}`
+      };
+    }
+    if (warnings.length > 0) {
+      return {
+        name: "atlascloud_docs_conformance",
+        status: "warn",
+        message: `Atlas Cloud docs conformance has warnings: ${warnings.join(" ")}`
+      };
+    }
+    return {
+      name: "atlascloud_docs_conformance",
+      status: "pass",
+      message: `Atlas Cloud docs conformance passed for Coding Plan LLM, media model, billing, and ${configuredSeedanceModels.length} configured Seedance model ID(s).`
+    };
+  }
+
+  private resolveAtlasDocsEndpoint(
+    names: readonly string[],
+    fallback: string,
+    expectedAtlasPath: string
+  ): { readonly url?: string; readonly issues: readonly string[]; readonly warnings: readonly string[] } {
+    const issues: string[] = [];
+    const warnings: string[] = [];
+    const selectedName = names.find((name) => this.env[name]?.trim());
+    const value = selectedName ? this.env[selectedName]?.trim() : fallback;
+    if (!value) {
+      issues.push(`${names[0] ?? "Atlas endpoint"} could not be resolved.`);
+      return { issues, warnings };
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      issues.push(`${selectedName ?? names[0]} must be a valid HTTPS URL.`);
+      return { issues, warnings };
+    }
+    if (parsed.protocol !== "https:") {
+      issues.push(`${selectedName ?? names[0]} must use https.`);
+    }
+    if (parsed.username || parsed.password) {
+      issues.push(`${selectedName ?? names[0]} must not include embedded credentials.`);
+    }
+    if (parsed.search || parsed.hash) {
+      issues.push(`${selectedName ?? names[0]} must not include query strings or fragments.`);
+    }
+    if (parsed.hostname === ATLAS_CANONICAL_HOST && this.normalizedPath(parsed.pathname) !== expectedAtlasPath) {
+      issues.push(`${selectedName ?? names[0]} must use ${expectedAtlasPath} on ${ATLAS_CANONICAL_HOST}.`);
+    }
+    if (parsed.hostname !== ATLAS_CANONICAL_HOST) {
+      warnings.push(`${selectedName ?? names[0]} uses a custom host; verify it proxies Atlas ${expectedAtlasPath} without changing request paths.`);
+    }
+    return {
+      url: parsed.toString().replace(/\/$/, ""),
+      issues,
+      warnings
+    };
+  }
+
+  private assertAtlasDocsEndpointPath(baseUrl: string, suffix: string, expectedPath: string, issues: string[]): void {
+    try {
+      const parsed = new URL(`${baseUrl.replace(/\/+$/, "")}/${suffix.replace(/^\/+/, "")}`);
+      if (this.normalizedPath(parsed.pathname) !== expectedPath) {
+        issues.push(`Atlas endpoint path ${expectedPath} could not be constructed from configured base URLs.`);
+      }
+    } catch {
+      issues.push(`Atlas endpoint path ${expectedPath} could not be constructed from configured base URLs.`);
+    }
+  }
+
+  private configuredSeedanceModelIds(): readonly string[] {
+    return [
+      this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL?.trim(),
+      this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL?.trim()
+    ].filter((value): value is string => Boolean(value));
+  }
+
+  private modelIdIssues(label: string, modelIds: readonly string[]): readonly string[] {
+    const issues: string[] = [];
+    for (const modelId of modelIds) {
+      if (/[\u0000-\u001f\u007f\s]/.test(modelId)) {
+        issues.push(`${label} values must not contain whitespace or control characters.`);
+        break;
+      }
+      if (/^https?:\/\//i.test(modelId) || /^apikey-/i.test(modelId)) {
+        issues.push(`${label} values must be Atlas model IDs, not URLs or API keys.`);
+        break;
+      }
+    }
+    return issues;
+  }
+
+  private seedanceCapabilityCoverageIssues(configuredSeedanceModels: readonly string[]): readonly string[] {
+    const raw = this.env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON;
+    if (!raw?.trim()) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      const capabilityModels = new Set<string>();
+      const issues: string[] = [];
+      for (const item of parsed) {
+        const payload = item && typeof item === "object" && !Array.isArray(item) ? (item as Record<string, unknown>) : {};
+        if (payload.provider !== "atlascloud") {
+          issues.push("Seedance capability records must use provider atlascloud.");
+          break;
+        }
+        if (typeof payload.modelId === "string" && payload.modelId.trim()) {
+          capabilityModels.add(payload.modelId.trim());
+        }
+      }
+      const missingModels = configuredSeedanceModels.filter((modelId) => !capabilityModels.has(modelId));
+      if (missingModels.length > 0) {
+        issues.push("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must include the configured fast and standard Seedance model IDs.");
+      }
+      return issues;
+    } catch {
+      return [];
+    }
+  }
+
+  private generatedAudioCapabilityProviderIssues(): readonly string[] {
+    const raw = this.env.ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON;
+    if (!raw?.trim()) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed.some((item) => {
+        const payload = item && typeof item === "object" && !Array.isArray(item) ? (item as Record<string, unknown>) : {};
+        return payload.provider !== "atlascloud";
+      })
+        ? ["Generated-audio capability records must use provider atlascloud."]
+        : [];
+    } catch {
+      return [];
+    }
   }
 
   private normalizedPath(value: string): string {
