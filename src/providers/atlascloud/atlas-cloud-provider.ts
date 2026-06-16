@@ -457,7 +457,10 @@ export class AtlasCloudProvider implements ModelProvider {
           signal,
           recordRetry
         );
-        const submittedPrediction = this.requireKnownPredictionId(mapPrediction(submitResponse, request.modelId, startedAt));
+        const submittedPrediction = this.requireKnownPredictionId(
+          mapPrediction(submitResponse, request.modelId, startedAt),
+          "audio generation"
+        );
         latestMetadata = this.predictionLedgerMetadata(submittedPrediction);
         const finalPrediction = await this.waitForAudioPrediction({
           predictionId: submittedPrediction.predictionId,
@@ -496,7 +499,7 @@ export class AtlasCloudProvider implements ModelProvider {
           signal,
           recordRetry
         );
-        return this.requireKnownPredictionId(mapPrediction(response, request.modelId, startedAt));
+        return this.requireKnownPredictionId(mapPrediction(response, request.modelId, startedAt), "video generation");
       },
       (prediction) => this.predictionLedgerMetadata(prediction)
     );
@@ -954,14 +957,14 @@ export class AtlasCloudProvider implements ModelProvider {
     return "failed";
   }
 
-  private requireKnownPredictionId(prediction: Prediction): Prediction {
+  private requireKnownPredictionId(prediction: Prediction, operationLabel: string): Prediction {
     if (prediction.predictionId !== "unknown") {
       return prediction;
     }
     throw new ProviderError({
       code: "INVALID_SCHEMA",
       provider: ATLAS_PROVIDER_NAME,
-      message: "Atlas Cloud accepted a video generation request but did not return a prediction ID.",
+      message: `Atlas Cloud accepted the ${operationLabel} request but did not return a prediction ID.`,
       details: prediction.raw
     });
   }
