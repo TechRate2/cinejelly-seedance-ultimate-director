@@ -167,13 +167,19 @@ npm.cmd run validation:long-form -- --duration-seconds 120
 
 This writes `assets/output_deliverables/business-readiness/long-form-validation-report.json` and may stop as `blocked_by_budget` when the local `--max-cost-usd` ceiling is lower than the estimated configured cost, or as `blocked_by_spend_confirmation` when the budget is acceptable but `--confirm-paid-spend` is missing. Both outcomes are no-spend and make no Atlas render calls.
 
+Before live long-form validation, refresh the long-form Atlas billing report for that exact request budget:
+
+```powershell
+npm.cmd run validation:atlas-billing -- --max-budget-usd <approved-budget> --planned-cost-usd <estimated-long-form-cost> --output assets/output_deliverables/business-readiness/atlas-billing-long-form-120s-report.json --confirm-live-network
+```
+
 Run live long-form validation only after approving Atlas spend for that exact request and budget:
 
 ```powershell
 npm.cmd run validation:long-form -- --request "assets/output_deliverables/business-readiness/long-form-request.json" --max-cost-usd <approved-budget> --confirm-paid-spend
 ```
 
-If readiness returns warnings that the operator intentionally accepts, add `--allow-warnings`. The runner delegates provider work to `validation:paid-render`, then requires paid completion, artifact validation `pass`, a final duration from 120 to 480 seconds, provider-safe 4-15 second chunks, rendered-shot evidence, and manual quality/redaction review before business-readiness can count the report. See `docs/reference-implementations/long-form-validation-runner.md` for the exact report contract.
+If readiness returns warnings that the operator intentionally accepts, add `--allow-warnings`. The runner delegates provider work to `validation:paid-render` only after the slice billing report is fresh and matches the current estimate, then requires paid completion, artifact validation `pass`, a final duration from 120 to 480 seconds, provider-safe 4-15 second chunks, rendered-shot evidence, and manual quality/redaction review before business-readiness can count the report. See `docs/reference-implementations/long-form-validation-runner.md` for the exact report contract.
 
 Create the live source-video auto-analysis evidence with a real, clean HTTPS source video that has no credentials or signed query parameters. First run the spend gate without confirmation to verify the report path and source URL checks:
 

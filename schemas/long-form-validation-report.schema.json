@@ -17,6 +17,7 @@
     "costEstimate",
     "chunkPlan",
     "checks",
+    "atlasBillingGate",
     "paidRender",
     "artifactEvidence",
     "manualQualityReview",
@@ -33,6 +34,7 @@
         "fail",
         "blocked_by_budget",
         "blocked_by_spend_confirmation",
+        "blocked_by_atlas_billing",
         "blocked_by_readiness"
       ]
     },
@@ -205,6 +207,36 @@
           "status": { "enum": ["pass", "warn", "fail"] },
           "message": { "type": "string" }
         }
+      }
+    },
+    "atlasBillingGate": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "path",
+        "present",
+        "status",
+        "currentMaxCostUsd",
+        "maxAgeHours",
+        "canUseAsPrePaidAtlasBillingEvidence"
+      ],
+      "properties": {
+        "path": { "type": "string" },
+        "present": { "type": "boolean" },
+        "status": { "type": "string" },
+        "schemaVersion": { "type": "string" },
+        "reportGeneratedAt": { "type": "string" },
+        "maxAgeHours": { "type": "number", "exclusiveMinimum": 0 },
+        "reportAgeHours": { "type": "number", "minimum": 0 },
+        "freshForPaidValidation": { "type": "boolean" },
+        "reportPlannedCostUsd": { "type": "number", "minimum": 0 },
+        "currentEstimatedCostUsd": { "type": "number", "minimum": 0 },
+        "plannedCostMatchesCurrentRun": { "type": "boolean" },
+        "reportMaxBudgetUsd": { "type": "number", "minimum": 0 },
+        "currentMaxCostUsd": { "type": "number", "minimum": 0 },
+        "budgetCoversMaxCost": { "type": "boolean" },
+        "networkCallsMade": { "type": "boolean" },
+        "canUseAsPrePaidAtlasBillingEvidence": { "type": "boolean" }
       }
     },
     "paidRender": {

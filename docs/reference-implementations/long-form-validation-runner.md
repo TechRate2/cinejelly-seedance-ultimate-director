@@ -23,9 +23,10 @@ The runner must:
 5. Block before live render validation unless `--confirm-paid-spend` is present.
 6. Block before live render validation when the estimated total cost exceeds `--max-cost-usd`.
 7. Delegate live provider work to the existing paid-render validation runner instead of duplicating provider orchestration.
-8. Require paid render completion, artifact validation pass, 120 to 480 second final duration, rendered shot evidence, and manual quality/redaction review before business-readiness can count the evidence.
-9. Redact secrets, signed URL query values, provider credentials, raw stack traces, and server-local artifact roots from archived reports.
-10. Never mark customer traffic open from long-form evidence alone; all other business-readiness gates must pass too.
+8. Require a fresh Atlas billing-readiness report for the long-form slice whose `plannedCostUsd` matches the current duration estimate and whose approved budget covers `--max-cost-usd`.
+9. Require paid render completion, artifact validation pass, 120 to 480 second final duration, rendered shot evidence, and manual quality/redaction review before business-readiness can count the evidence.
+10. Redact secrets, signed URL query values, provider credentials, raw stack traces, and server-local artifact roots from archived reports.
+11. Never mark customer traffic open from long-form evidence alone; all other business-readiness gates must pass too.
 
 ## Report Shape
 
@@ -38,6 +39,7 @@ interface LongFormValidationReport {
     | "fail"
     | "blocked_by_budget"
     | "blocked_by_spend_confirmation"
+    | "blocked_by_atlas_billing"
     | "blocked_by_readiness";
   checkedInputs: {
     requestPath: string;
@@ -50,6 +52,14 @@ interface LongFormValidationReport {
     providerSpendAllowed: boolean;
     maxCostUsd: number;
     estimatedTotalCostUsd?: number;
+  };
+  atlasBillingGate: {
+    path: string;
+    present: boolean;
+    status: string;
+    currentEstimatedCostUsd?: number;
+    currentMaxCostUsd: number;
+    canUseAsPrePaidAtlasBillingEvidence: boolean;
   };
   requestValidation: object;
   readiness: object;
@@ -70,10 +80,11 @@ interface LongFormValidationReport {
 
 ```powershell
 npm.cmd run validation:long-form -- --duration-seconds 120
+npm.cmd run validation:atlas-billing -- --max-budget-usd 25 --planned-cost-usd 24.000000 --output assets/output_deliverables/business-readiness/atlas-billing-long-form-120s-report.json --confirm-live-network
 npm.cmd run validation:long-form -- --request "assets/output_deliverables/business-readiness/long-form-request.json" --max-cost-usd 25 --confirm-paid-spend
 ```
 
-The default run writes a blocked no-spend report when spend confirmation is missing or the local budget ceiling is too low. A live run still requires the paid-render runner to pass, artifact validation to pass, and an operator manual quality/redaction review before the business-readiness audit accepts it.
+The default run writes a blocked no-spend report when spend confirmation is missing or the local budget ceiling is too low. A live run still requires a slice-specific Atlas billing report before provider spend, the paid-render runner to pass, artifact validation to pass, and an operator manual quality/redaction review before the business-readiness audit accepts it.
 
 ## Done
 
@@ -81,7 +92,7 @@ The default run writes a blocked no-spend report when spend confirmation is miss
 - Done: add `schemas/long-form-validation-report.schema.json`.
 - Done: add `npm.cmd run validation:long-form`.
 - Done: add schema-aware long-form evaluation to `validation:business-readiness`.
-- Done: document the no-spend, budget, paid-spend, artifact, and manual-review gates.
+- Done: document the no-spend, budget, Atlas billing, paid-spend, artifact, and manual-review gates.
 
 ## Remaining
 
