@@ -62,6 +62,7 @@ interface BusinessReadinessReport {
 - Done: update the operator runbook, roadmap, and project context.
 - Done: add schema-aware source-video evidence evaluation through `cinejelly.source-video-auto-analysis-validation.v1`.
 - Done: add schema-aware remote-stock evidence evaluation through `cinejelly.remote-stock-validation.v1`.
+- Done: add schema-aware generated-audio evidence evaluation through `cinejelly.generated-audio-validation.v1`.
 - Done: add schema-aware billing/admin/quota evidence evaluation through `cinejelly.billing-admin-ops.v1`.
 - Done: add schema-aware production operations evidence evaluation through `cinejelly.production-operations.v1`.
 - Pending: feed the audit with real deployment, long-form, source-video, remote stock, generated-audio, billing/admin, and production operations evidence.

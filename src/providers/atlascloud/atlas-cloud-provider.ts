@@ -104,8 +104,10 @@ export class AtlasCloudProvider implements ModelProvider {
   }
 
   public audioCapabilities(modelId?: string): readonly AudioGenerationCapability[] {
-    void modelId;
-    return [];
+    const capabilities = this.settings.generatedAudioCapabilities ?? [];
+    return modelId
+      ? capabilities.filter((capability) => capability.modelId === modelId)
+      : capabilities;
   }
 
   public async chat(request: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {

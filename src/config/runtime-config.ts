@@ -3,7 +3,7 @@
  * Model IDs are required from environment variables so business logic never hardcodes provider choices.
  */
 
-import type { ProviderCapability } from "../types/provider.js";
+import type { AudioGenerationCapability, ProviderCapability } from "../types/provider.js";
 import type { CostEstimationSettings } from "../types/cost.js";
 import type { RemoteStockProviderSettings } from "../types/material.js";
 import type {
@@ -113,6 +113,7 @@ function optionalBooleanEnv(name: string, env: NodeJS.ProcessEnv, fallback = fal
 
 export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): AtlasCloudRuntimeSettings {
   const seedanceCapabilities = parseCapabilitiesEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
+  const generatedAudioCapabilities = parseAudioCapabilitiesEnv(env.ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON);
   const llmApiKey = optionalStringEnv("ATLASCLOUD_LLM_API_KEY", env);
   return {
     apiKey: requireEnv("ATLASCLOUD_API_KEY", env),
@@ -133,6 +134,7 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
       seedanceFastModel: requireEnv("ATLASCLOUD_SEEDANCE_FAST_MODEL", env)
     },
     ...(seedanceCapabilities ? { seedanceCapabilities } : {}),
+    ...(generatedAudioCapabilities ? { generatedAudioCapabilities } : {}),
     requestTimeoutMs: optionalIntegerEnv("CINEJELLY_REQUEST_TIMEOUT_MS", env, 120_000),
     maxJsonResponseBytes: optionalIntegerEnv(
       "CINEJELLY_ATLAS_JSON_RESPONSE_MAX_BYTES",
@@ -340,6 +342,17 @@ function parseCapabilitiesEnv(value: string | undefined): readonly ProviderCapab
   return parsed.map((item) => validateCapability(item));
 }
 
+function parseAudioCapabilitiesEnv(value: string | undefined): readonly AudioGenerationCapability[] | undefined {
+  if (!value?.trim()) {
+    return undefined;
+  }
+  const parsed = JSON.parse(value) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error("ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON must be a JSON array.");
+  }
+  return parsed.map((item) => validateAudioCapability(item));
+}
+
 function validateCapability(value: unknown): ProviderCapability {
   const payload = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   if (typeof payload.provider !== "string" || typeof payload.modelId !== "string") {
@@ -353,4 +366,32 @@ function validateCapability(value: unknown): ProviderCapability {
     throw new Error("Provider capability durations must include numeric min and max.");
   }
   return payload as unknown as ProviderCapability;
+}
+
+function validateAudioCapability(value: unknown): AudioGenerationCapability {
+  const payload = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  if (typeof payload.provider !== "string" || typeof payload.modelId !== "string") {
+    throw new Error("Generated-audio capability must include provider and modelId strings.");
+  }
+  if (!Array.isArray(payload.kinds) || !payload.kinds.every(isGeneratedAudioKind)) {
+    throw new Error("Generated-audio capability kinds must be an array of tts_narration, bgm, ambience, or sfx.");
+  }
+  if (!Array.isArray(payload.outputFormats) || !payload.outputFormats.every(isAudioOutputFormat)) {
+    throw new Error("Generated-audio capability outputFormats must be an array containing mp3 and/or wav.");
+  }
+  if (typeof payload.maxDurationSeconds !== "number" || !Number.isFinite(payload.maxDurationSeconds) || payload.maxDurationSeconds <= 0) {
+    throw new Error("Generated-audio capability maxDurationSeconds must be a positive number.");
+  }
+  if (typeof payload.async !== "boolean") {
+    throw new Error("Generated-audio capability async must be boolean.");
+  }
+  return payload as unknown as AudioGenerationCapability;
+}
+
+function isGeneratedAudioKind(value: unknown): boolean {
+  return value === "tts_narration" || value === "bgm" || value === "ambience" || value === "sfx";
+}
+
+function isAudioOutputFormat(value: unknown): boolean {
+  return value === "mp3" || value === "wav";
 }

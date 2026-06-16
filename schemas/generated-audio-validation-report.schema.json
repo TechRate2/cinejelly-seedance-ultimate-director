@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/generated-audio-validation-report.schema.json",
+  "title": "CineJelly Atlas Generated Audio Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "spendGate",
+    "schemaGate",
+    "checks",
+    "runtimeSettings",
+    "planning",
+    "executionRun",
+    "outputBatchValidation",
+    "providerLedger",
+    "manualAudioReview",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.generated-audio-validation.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": [
+        "pass",
+        "warn",
+        "fail",
+        "blocked_by_spend_confirmation",
+        "blocked_by_schema_review",
+        "blocked_by_configuration",
+        "blocked_by_budget"
+      ]
+    },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modelId",
+        "textCharacterCount",
+        "language",
+        "voiceId",
+        "outputFormat",
+        "durationSeconds",
+        "estimatedCostUsd",
+        "outputPath"
+      ],
+      "properties": {
+        "modelId": { "type": "string" },
+        "textCharacterCount": { "type": "integer", "minimum": 1 },
+        "language": { "type": "string" },
+        "voiceId": { "type": "string" },
+        "outputFormat": { "enum": ["mp3", "wav"] },
+        "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "estimatedCostUsd": { "type": "number", "minimum": 0 },
+        "outputPath": { "type": "string" }
+      }
+    },
+    "spendGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmProviderSpend",
+        "providerNetworkCallsAllowed",
+        "estimatedCostUsd",
+        "maxCostUsd",
+        "costUsdPer1kChars"
+      ],
+      "properties": {
+        "confirmProviderSpend": { "type": "boolean" },
+        "providerNetworkCallsAllowed": { "type": "boolean" },
+        "estimatedCostUsd": { "type": "number", "minimum": 0 },
+        "maxCostUsd": { "type": "number", "minimum": 0 },
+        "costUsdPer1kChars": { "type": "number", "minimum": 0 }
+      }
+    },
+    "schemaGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmAudioSchemaReviewed",
+        "atlasDocsEvidence",
+        "docsDerivedModelMatchesRequest",
+        "requestedModelId",
+        "requestedLanguage",
+        "requestedVoiceId",
+        "requestedCodec"
+      ],
+      "properties": {
+        "confirmAudioSchemaReviewed": { "type": "boolean" },
+        "atlasDocsEvidence": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "docsDerivedModelMatchesRequest": { "type": "boolean" },
+        "requestedModelId": { "type": "string" },
+        "requestedLanguage": { "type": "string" },
+        "requestedVoiceId": { "type": "string" },
+        "requestedCodec": { "enum": ["mp3", "wav"] }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "runtimeSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiKeyConfigured",
+        "llmApiKeyConfigured",
+        "generatedAudioCapabilityCount",
+        "generatedAudioCapabilities"
+      ],
+      "properties": {
+        "apiKeyConfigured": { "type": "boolean" },
+        "llmApiKeyConfigured": { "type": "boolean" },
+        "apiBaseUrl": { "type": "string" },
+        "assetBaseUrl": { "type": "string" },
+        "generatedAudioCapabilityCount": { "type": "integer", "minimum": 0 },
+        "generatedAudioCapabilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["provider", "modelId", "kinds", "outputFormats", "maxDurationSeconds", "async"],
+            "properties": {
+              "provider": { "type": "string" },
+              "modelId": { "type": "string" },
+              "kinds": {
+                "type": "array",
+                "items": { "enum": ["tts_narration", "bgm", "ambience", "sfx"] }
+              },
+              "outputFormats": {
+                "type": "array",
+                "items": { "enum": ["mp3", "wav"] }
+              },
+              "maxDurationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+              "async": { "type": "boolean" }
+            }
+          }
+        },
+        "error": { "type": "string" }
+      }
+    },
+    "planning": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "intentCount", "readyCount", "blockedCount", "outputFormat", "items"],
+      "properties": {
+        "status": { "type": "string" },
+        "intentCount": { "type": "integer", "minimum": 0 },
+        "readyCount": { "type": "integer", "minimum": 0 },
+        "blockedCount": { "type": "integer", "minimum": 0 },
+        "requestedDurationSeconds": { "type": "number", "minimum": 0 },
+        "outputFormat": { "enum": ["mp3", "wav"] },
+        "items": { "type": "array" }
+      }
+    },
+    "executionRun": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "readyItemCount",
+        "attemptedCount",
+        "succeededCount",
+        "failedCount",
+        "timeoutCount",
+        "canceledCount",
+        "results"
+      ],
+      "properties": {
+        "status": { "type": "string" },
+        "readyItemCount": { "type": "integer", "minimum": 0 },
+        "attemptedCount": { "type": "integer", "minimum": 0 },
+        "succeededCount": { "type": "integer", "minimum": 0 },
+        "failedCount": { "type": "integer", "minimum": 0 },
+        "timeoutCount": { "type": "integer", "minimum": 0 },
+        "canceledCount": { "type": "integer", "minimum": 0 },
+        "results": { "type": "array" }
+      }
+    },
+    "outputBatchValidation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "intentCount",
+        "readyIntentCount",
+        "resultCount",
+        "approvedTrackCount",
+        "issueCount",
+        "issueCounts",
+        "reports"
+      ],
+      "properties": {
+        "status": { "type": "string" },
+        "intentCount": { "type": "integer", "minimum": 0 },
+        "readyIntentCount": { "type": "integer", "minimum": 0 },
+        "resultCount": { "type": "integer", "minimum": 0 },
+        "approvedTrackCount": { "type": "integer", "minimum": 0 },
+        "issueCount": { "type": "integer", "minimum": 0 },
+        "issueCounts": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+        "reports": { "type": "array" }
+      }
+    },
+    "providerLedger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryCount", "operations", "statuses", "entries"],
+      "properties": {
+        "entryCount": { "type": "integer", "minimum": 0 },
+        "operations": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+        "statuses": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+        "estimatedCostUsd": { "type": "number", "minimum": 0 },
+        "actualCostUsd": { "type": "number", "minimum": 0 },
+        "entries": { "type": "array" }
+      }
+    },
+    "manualAudioReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "passed", "message"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "source": { "type": "string" },
+        "path": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "message": { "type": "string" }
+      }
+    },
+    "error": { "type": "string" },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsBusinessReadinessGeneratedAudioEvidence",
+        "canOpenPaidCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsBusinessReadinessGeneratedAudioEvidence": { "type": "boolean" },
+        "canOpenPaidCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

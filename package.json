@@ -29,6 +29,7 @@
     "validation:deployment-readiness": "node scripts/capture-deployment-readiness.mjs",
     "validation:source-video-auto-analysis": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-source-video-auto-analysis-validation.mjs",
     "validation:remote-stock": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-remote-stock-validation.mjs",
+    "validation:generated-audio": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-atlas-generated-audio-validation.mjs",
     "validation:billing-admin-ops": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/capture-billing-admin-ops.mjs",
     "validation:production-ops": "node --env-file-if-exists=.env scripts/capture-production-operations.mjs",
     "validation:release-audit": "node scripts/run-release-audit.mjs",

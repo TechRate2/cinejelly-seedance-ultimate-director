@@ -1,4 +1,4 @@
-import type { ProviderCapability } from "./provider.js";
+import type { AudioGenerationCapability, ProviderCapability } from "./provider.js";
 import type { CostEstimationSettings } from "./cost.js";
 import type { RemoteStockProviderSettings } from "./material.js";
 
@@ -49,6 +49,7 @@ export interface AtlasCloudRuntimeSettings {
   readonly assetBaseUrl: string;
   readonly models: ProviderModelSettings;
   readonly seedanceCapabilities?: readonly ProviderCapability[];
+  readonly generatedAudioCapabilities?: readonly AudioGenerationCapability[];
   readonly requestTimeoutMs: number;
   readonly maxJsonResponseBytes: number;
   readonly pollingIntervalMs: number;

@@ -79,7 +79,7 @@ const checks = [
     name: "atlas_generated_audio_validation",
     weight: 8,
     pathOption: "generatedAudioReportPath",
-    evaluator: evaluateRequiredPassReport,
+    evaluator: evaluateGeneratedAudioValidation,
     missing:
       "Missing live Atlas generated-audio evidence for verified schemas, model IDs, pricing, output formats, artifact validation, and manual audio review."
   },
@@ -383,6 +383,38 @@ function evaluateRemoteStockValidation(path) {
     firstFailure
       ? `Live remote stock provider evidence is incomplete: ${firstFailure}`
       : `Live remote stock provider evidence status is ${report.status ?? "missing"}.`
+  );
+}
+
+function evaluateGeneratedAudioValidation(path) {
+  const report = readJson(path);
+  if (report.schemaVersion !== "cinejelly.generated-audio-validation.v1") {
+    return fail("Generated-audio validation report schemaVersion is not recognized.");
+  }
+  if (
+    report.status === "pass" &&
+    report.releaseGateSummary?.canUseAsBusinessReadinessGeneratedAudioEvidence === true &&
+    report.spendGate?.providerNetworkCallsAllowed === true &&
+    report.schemaGate?.confirmAudioSchemaReviewed === true &&
+    report.planning?.readyCount > 0 &&
+    report.executionRun?.status === "succeeded" &&
+    report.outputBatchValidation?.status === "approved" &&
+    Number(report.outputBatchValidation?.approvedTrackCount ?? 0) > 0 &&
+    Number(report.providerLedger?.entryCount ?? 0) > 0 &&
+    report.manualAudioReview?.passed === true
+  ) {
+    return pass("Live Atlas generated-audio evidence passed.");
+  }
+  if (report.status === "warn") {
+    return warn("Live Atlas generated-audio evidence has warnings requiring operator acceptance.");
+  }
+  const firstFailure = Array.isArray(report.checks)
+    ? report.checks.find((check) => check?.status === "fail" && typeof check?.message === "string")?.message
+    : undefined;
+  return fail(
+    firstFailure
+      ? `Live Atlas generated-audio evidence is incomplete: ${firstFailure}`
+      : `Live Atlas generated-audio evidence status is ${report.status ?? "missing"}.`
   );
 }
 

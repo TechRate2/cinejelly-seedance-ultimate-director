@@ -49,6 +49,10 @@ Recommended production controls:
 - `CINEJELLY_CLIENT_USAGE_LEDGER_PATH`
 - `CINEJELLY_MAX_GENERATED_AUDIO_INTENTS`
 - `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`
+- `ATLASCLOUD_GENERATED_AUDIO_MODEL`
+- `ATLASCLOUD_GENERATED_AUDIO_VOICE_ID`
+- `ATLASCLOUD_GENERATED_AUDIO_COST_USD_PER_1K_CHARS`
+- `ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON`
 
 Install and verify media tools:
 
@@ -65,7 +69,7 @@ If the deployment uses portable media-tool binaries instead of global `PATH`, se
 
 `CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS=true` is optional and enables automatic source-video deconstruction for clean HTTPS `source_video_structure` references when the request does not already include `sourceVideoAnalysis`. Configure `CINEJELLY_SOURCE_VIDEO_ANALYSIS_WORK_DIR`, `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS`, `CINEJELLY_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES`, and `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR` as needed. Keep the default fail-open behavior for early validation; set fail-on-error only when the configured multimodal LLM and FFmpeg frame extraction are validated for production inputs.
 
-`CINEJELLY_MAX_GENERATED_AUDIO_INTENTS` controls how many generated-audio planning requests the API accepts per render request. These intents are recorded as reviewable generated-audio evidence for narration, BGM, ambience, or SFX; CineJelly can plan provider-neutral requests, validate provider results, and resolve reviewed generated-audio `asset://` outputs to credential-free HTTPS mix inputs, but it does not call an audio generation provider until verified provider execution wiring passes its own Reference Implementation, live validation, and output review.
+`CINEJELLY_MAX_GENERATED_AUDIO_INTENTS` controls how many generated-audio planning requests the API accepts per render request. These intents are recorded as reviewable generated-audio evidence for narration, BGM, ambience, or SFX; CineJelly can plan provider-neutral requests, validate provider results, and resolve reviewed generated-audio `asset://` outputs to credential-free HTTPS mix inputs. `ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON` can expose reviewed Atlas audio capability records to the planner, but generated-audio business readiness still requires the dedicated `validation:generated-audio` evidence gate with explicit spend, schema review, output validation, ledger, and manual audio review.
 
 `CINEJELLY_GENERATED_AUDIO_ASSET_RESOLUTION_CATALOG_PATH` is optional. When set, it must point to an operator-owned JSON catalog whose entries map clean generated-audio `asset://` outputs to credential-free HTTPS delivery URLs, include boolean `approvedForMix`, avoid duplicate `assetUri` values, and carry optional intent/provider/model/duration evidence when available. Preflight validates this catalog only; it does not call audio providers or create generated-audio assets.
 
@@ -164,6 +168,20 @@ npm.cmd run validation:remote-stock -- --confirm-live-network --confirm-commerci
 ```
 
 This runner uses configured `RemoteStockMaterialAdapter` instances, then validates candidate URIs, attribution, duration, aspect/resolution fit, and rights metadata through `MaterialSourceValidator`. It writes `assets/output_deliverables/business-readiness/remote-stock-validation-report.json` without raw provider keys, outbound Pixabay key URLs, or full candidate media URLs. Coverr can satisfy evidence only when `CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED=true` is set and returned candidate URLs remain credential-free HTTPS; signed/tokenized URLs are intentionally rejected. See `docs/reference-implementations/remote-stock-provider-validation-runner.md` for the exact report contract.
+
+Create the Atlas generated-audio evidence after the Atlas audio model, voice, pricing assumption, and generated-audio capability JSON are reviewed. First run the spend gate without confirmation:
+
+```powershell
+npm.cmd run validation:generated-audio
+```
+
+Then run provider validation only after approving Atlas generated-audio spend for that specific sample and confirming the audio schema review:
+
+```powershell
+npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed
+```
+
+The runner writes `assets/output_deliverables/business-readiness/generated-audio-validation-report.json`. The business-readiness gate counts it only when the report schema is recognized, provider execution was explicitly allowed, schema review is confirmed, generated-audio output batch validation is approved, provider ledger evidence exists, and manual audio review passes. See `docs/reference-implementations/generated-audio-validation-runner.md` for the exact report contract.
 
 Create the billing/admin/quota evidence after client policy, a persistent usage ledger, a real deployment admin endpoint, and the non-secret billing/admin attestation are ready:
 
