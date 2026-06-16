@@ -215,6 +215,7 @@ Environment:
 - `ATLASCLOUD_LLM_API_KEY`: optional separate Atlas Cloud key for OpenAI-compatible LLM calls. If absent, the provider uses `ATLASCLOUD_API_KEY` for LLM calls.
 - `ATLASCLOUD_LLM_BASE_URL`: optional override for the LLM base URL. Default: `https://api.atlascloud.ai/v1`.
 - `ATLASCLOUD_MEDIA_BASE_URL` or `ATLASCLOUD_BASE_URL`: optional override for image/video/upload calls. Default: `https://api.atlascloud.ai/api/v1`.
+- When an override uses the official `api.atlascloud.ai` host, runtime config and preflight require the matching documented path: `/v1` for LLM calls and `/api/v1` for image/video/upload calls.
 
 LLM:
 

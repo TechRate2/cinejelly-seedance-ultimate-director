@@ -121,12 +121,14 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
     apiBaseUrl: aliasedHttpsUrlEnv(
       ["ATLASCLOUD_LLM_BASE_URL", "ATLASCLOUD_API_BASE_URL"],
       env,
-      DEFAULT_ATLAS_API_BASE_URL
+      DEFAULT_ATLAS_API_BASE_URL,
+      "/v1"
     ),
     assetBaseUrl: aliasedHttpsUrlEnv(
       ["ATLASCLOUD_MEDIA_BASE_URL", "ATLASCLOUD_BASE_URL", "ATLASCLOUD_ASSET_BASE_URL"],
       env,
-      DEFAULT_ATLAS_ASSET_BASE_URL
+      DEFAULT_ATLAS_ASSET_BASE_URL,
+      "/api/v1"
     ),
     models: {
       llmModel: requireEnv("ATLASCLOUD_LLM_MODEL", env),
@@ -146,22 +148,27 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
   };
 }
 
-function optionalHttpsUrlEnv(name: string, env: NodeJS.ProcessEnv, fallback: string): string {
+function optionalHttpsUrlEnv(name: string, env: NodeJS.ProcessEnv, fallback: string, expectedAtlasPath?: string): string {
   const value = env[name]?.trim() || fallback;
-  return validateHttpsUrlEnv(name, value);
+  return validateHttpsUrlEnv(name, value, expectedAtlasPath);
 }
 
-function aliasedHttpsUrlEnv(names: readonly string[], env: NodeJS.ProcessEnv, fallback: string): string {
+function aliasedHttpsUrlEnv(
+  names: readonly string[],
+  env: NodeJS.ProcessEnv,
+  fallback: string,
+  expectedAtlasPath?: string
+): string {
   for (const name of names) {
     const value = env[name]?.trim();
     if (value) {
-      return validateHttpsUrlEnv(name, value);
+      return validateHttpsUrlEnv(name, value, expectedAtlasPath);
     }
   }
-  return validateHttpsUrlEnv(names[0] ?? "ATLAS_BASE_URL", fallback);
+  return validateHttpsUrlEnv(names[0] ?? "ATLAS_BASE_URL", fallback, expectedAtlasPath);
 }
 
-function validateHttpsUrlEnv(name: string, value: string): string {
+function validateHttpsUrlEnv(name: string, value: string, expectedAtlasPath?: string): string {
   let parsed: URL;
   try {
     parsed = new URL(value);
@@ -177,7 +184,15 @@ function validateHttpsUrlEnv(name: string, value: string): string {
   if (parsed.search || parsed.hash) {
     throw new Error(`Environment variable ${name} must not include query strings or fragments.`);
   }
+  if (expectedAtlasPath && parsed.hostname === "api.atlascloud.ai" && normalizedPath(parsed.pathname) !== expectedAtlasPath) {
+    throw new Error(`Environment variable ${name} must use ${expectedAtlasPath} on api.atlascloud.ai.`);
+  }
   return parsed.toString().replace(/\/$/, "");
+}
+
+function normalizedPath(value: string): string {
+  const trimmed = value.replace(/\/+$/, "");
+  return trimmed || "/";
 }
 
 export function loadRuntimeSettings(env: NodeJS.ProcessEnv = process.env): RuntimeSettings {

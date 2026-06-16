@@ -95,6 +95,8 @@ Required variables:
 | `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER` | Optional | When `true`, render submissions must use a configured client key and pass quota policy before provider spend. | Set in deployment environment. |
 | `CINEJELLY_CLIENT_USAGE_LEDGER_PATH` | Optional | JSONL quota reservation ledger for client render submissions. | Set to an ignored/persistent writable path. |
 
+When these Atlas overrides use the official `api.atlascloud.ai` host, preflight and runtime loading require the documented paths exactly: LLM overrides must end at `/v1`, while media/upload/video overrides must end at `/api/v1`. Custom HTTPS proxy hosts remain allowed after the standard clean-URL checks.
+
 Current known model IDs used by the local setup:
 
 ```env

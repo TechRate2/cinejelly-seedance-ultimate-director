@@ -42,11 +42,11 @@ export class RuntimePreflight {
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
       this.apiAuthCheck(),
       this.optionalPort("PORT", this.env.PORT),
-      this.optionalHttpsUrl("ATLASCLOUD_LLM_BASE_URL", this.env.ATLASCLOUD_LLM_BASE_URL),
-      this.optionalHttpsUrl("ATLASCLOUD_API_BASE_URL", this.env.ATLASCLOUD_API_BASE_URL),
-      this.optionalHttpsUrl("ATLASCLOUD_MEDIA_BASE_URL", this.env.ATLASCLOUD_MEDIA_BASE_URL),
-      this.optionalHttpsUrl("ATLASCLOUD_BASE_URL", this.env.ATLASCLOUD_BASE_URL),
-      this.optionalHttpsUrl("ATLASCLOUD_ASSET_BASE_URL", this.env.ATLASCLOUD_ASSET_BASE_URL),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_LLM_BASE_URL", this.env.ATLASCLOUD_LLM_BASE_URL, "/v1"),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_API_BASE_URL", this.env.ATLASCLOUD_API_BASE_URL, "/v1"),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_MEDIA_BASE_URL", this.env.ATLASCLOUD_MEDIA_BASE_URL, "/api/v1"),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_BASE_URL", this.env.ATLASCLOUD_BASE_URL, "/api/v1"),
+      this.optionalAtlasEndpointUrl("ATLASCLOUD_ASSET_BASE_URL", this.env.ATLASCLOUD_ASSET_BASE_URL, "/api/v1"),
       this.optionalPositiveInteger("CINEJELLY_REQUEST_TIMEOUT_MS", this.env.CINEJELLY_REQUEST_TIMEOUT_MS),
       this.optionalPositiveInteger("CINEJELLY_ATLAS_JSON_RESPONSE_MAX_BYTES", this.env.CINEJELLY_ATLAS_JSON_RESPONSE_MAX_BYTES),
       this.optionalPositiveInteger("CINEJELLY_POLLING_INTERVAL_MS", this.env.CINEJELLY_POLLING_INTERVAL_MS),
@@ -462,6 +462,27 @@ export class RuntimePreflight {
     } catch {
       return { name, status: "fail", message: `${name} must be a valid HTTPS URL.` };
     }
+  }
+
+  private optionalAtlasEndpointUrl(name: string, value: string | undefined, expectedAtlasPath: string): PreflightCheck {
+    const check = this.optionalHttpsUrl(name, value);
+    if (check.status !== "pass" || !value?.trim()) {
+      return check;
+    }
+    const parsed = new URL(value);
+    if (parsed.hostname === "api.atlascloud.ai" && this.normalizedPath(parsed.pathname) !== expectedAtlasPath) {
+      return {
+        name,
+        status: "fail",
+        message: `${name} must use ${expectedAtlasPath} on api.atlascloud.ai.`
+      };
+    }
+    return check;
+  }
+
+  private normalizedPath(value: string): string {
+    const trimmed = value.replace(/\/+$/, "");
+    return trimmed || "/";
   }
 
   private optionalPositiveInteger(name: string, value: string | undefined): PreflightCheck {

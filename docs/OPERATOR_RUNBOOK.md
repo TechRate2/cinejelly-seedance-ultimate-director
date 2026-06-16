@@ -27,6 +27,8 @@ Configure secrets and provider IDs through environment variables only:
 - `ATLASCLOUD_SEEDANCE_FAST_MODEL`
 - `CINEJELLY_API_AUTH_TOKEN`
 
+If an Atlas base URL override points at `api.atlascloud.ai`, preflight enforces the documented split: LLM overrides must use `/v1`, and media/upload/video overrides must use `/api/v1`. Use a different clean HTTPS host only when routing through an approved proxy.
+
 Recommended production controls:
 
 - `CINEJELLY_OUTPUT_DIR`
