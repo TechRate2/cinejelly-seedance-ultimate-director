@@ -105,7 +105,7 @@ interface ProductionOperationsReport {
 - Done: add `scripts/capture-production-operations.mjs`.
 - Done: add `npm.cmd run validation:production-ops`.
 - Done: add `schemas/production-operations-report.schema.json`.
-- Done: add `schemas/production-operations-attestation.schema.json`, `schemas/operator-attestation-promotion-report.schema.json`, no-spend `npm.cmd run validation:ops-config` pre-capture validation/draft tooling, and `npm.cmd run ops:promote-attestations` so completed non-secret drafts can be validated before they become ignored `ops/*.json` inputs.
+- Done: add `schemas/production-operations-attestation.schema.json`, `schemas/operator-attestation-promotion-report.schema.json`, no-spend `npm.cmd run validation:ops-config` pre-capture validation/draft tooling, and `npm.cmd run ops:promote-attestations` so completed non-secret drafts can be validated before they become ignored `ops/*.json` inputs. With `--write-drafts`, the ops-config tooling also writes a Markdown fill-out packet that lists the production operations fields, validation loop, and deployment-capture commands without claiming release evidence.
 - Done: make `validation:business-readiness` evaluate the versioned production operations report explicitly.
 - Done: require production-operations endpoint capture to include passing `atlascloud_docs_conformance` alongside output directory, API auth, FFmpeg, and FFprobe checks.
 - Done: document the non-secret attestation contract.

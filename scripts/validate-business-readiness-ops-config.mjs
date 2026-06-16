@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -8,7 +8,8 @@ const defaults = {
   billingAttestationPath: "ops/billing-admin-attestation.json",
   productionAttestationPath: "ops/production-operations-attestation.json",
   outputPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
-  draftDir: "assets/output_deliverables/business-readiness/operator-drafts"
+  draftDir: "assets/output_deliverables/business-readiness/operator-drafts",
+  operatorPacketPath: "assets/output_deliverables/business-readiness/operator-drafts/operator-attestation-fillout-checklist.md"
 };
 
 const secretPatterns = [
@@ -34,7 +35,8 @@ function parseArgs(args) {
     ["--production-attestation", "productionAttestationPath"],
     ["--client-policy-json", "clientPolicyJsonPath"],
     ["--output", "outputPath"],
-    ["--draft-dir", "draftDir"]
+    ["--draft-dir", "draftDir"],
+    ["--operator-packet", "operatorPacketPath"]
   ]);
 
   for (let index = 0; index < args.length; index += 1) {
@@ -91,6 +93,8 @@ Options:
   --client-policy-json <path>       Optional JSON file with the CINEJELLY_API_CLIENTS_JSON array.
   --write-drafts                    Write non-secret draft JSON files with empty fields.
   --draft-dir <path>                Draft output directory. Default: ${defaults.draftDir}
+  --operator-packet <path>          Markdown fill-out packet written with --write-drafts.
+                                    Default: ${defaults.operatorPacketPath}
   --force                           Overwrite existing draft files when used with --write-drafts.
   --output <path>                   Report path. Default: ${defaults.outputPath}
   --no-output                       Print only; do not write the report.
@@ -105,16 +109,27 @@ async function main() {
     return 0;
   }
 
-  const draftEvidence = options.writeDrafts ? writeDrafts(options) : { written: false, files: [] };
+  const draftFileEvidence = options.writeDrafts ? writeDrafts(options) : { written: false, files: [] };
   const clientPolicy = await validateClientPolicy(options);
   const billing = validateBillingAttestation(options.billingAttestationPath);
   const production = validateProductionAttestation(options.productionAttestationPath);
-  const checks = [
+  const checksWithoutPacket = [
     ...clientPolicy.checks,
     ...billing.checks,
     ...production.checks,
-    ...draftEvidence.files.map((file) => pass("ops_draft_written", `Wrote draft ${toRepoRelative(file)}.`))
+    ...draftFileEvidence.files.map((file) => pass("ops_draft_written", `Prepared draft ${toRepoRelative(file)}.`))
   ];
+  const operatorPacket = options.writeDrafts
+    ? writeOperatorPacket(options, { draftEvidence: draftFileEvidence, checks: checksWithoutPacket })
+    : { written: false };
+  const checks = [
+    ...checksWithoutPacket,
+    ...(operatorPacket.written ? [pass("ops_operator_packet_written", `Wrote operator fill-out packet ${operatorPacket.path}.`)] : [])
+  ];
+  const draftEvidence = {
+    ...draftFileEvidence,
+    operatorPacket
+  };
   const status = statusForChecks(checks);
   const report = {
     schemaVersion: "cinejelly.business-readiness-ops-config-validation.v1",
@@ -517,6 +532,100 @@ function clientPolicyDraft() {
       allowedQualityModes: ["economy"]
     }
   ];
+}
+
+function writeOperatorPacket(options, { draftEvidence, checks }) {
+  if (extname(options.operatorPacketPath).toLowerCase() !== ".md") {
+    throw new Error("--operator-packet must point to a Markdown file.");
+  }
+  const absolutePath = resolve(repoRoot, options.operatorPacketPath);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  const markdown = renderOperatorPacket(options, { draftEvidence, checks });
+  writeFileSync(absolutePath, `${redactText(markdown)}\n`, "utf8");
+  return {
+    written: true,
+    path: toRepoRelative(options.operatorPacketPath)
+  };
+}
+
+function renderOperatorPacket(options, { draftEvidence, checks }) {
+  const failures = checks.filter((check) => check.status === "fail").slice(0, 16);
+  const files = draftEvidence.files.length > 0 ? draftEvidence.files : [
+    `${defaults.draftDir}/billing-admin-attestation.draft.json`,
+    `${defaults.draftDir}/production-operations-attestation.draft.json`,
+    `${defaults.draftDir}/client-policy.draft.json`
+  ];
+  return [
+    "# CineJelly Operator Attestation Fill-Out Packet",
+    "",
+    `Generated: ${new Date().toISOString()}`,
+    "",
+    "This packet is a no-spend operator aid. It is not release evidence, does not call Atlas, does not call deployment hosts, and must not contain API keys, customer payment records, customer media, or raw customer secrets.",
+    "",
+    "## Draft Files",
+    "",
+    ...files.map((file) => `- ${file}`),
+    "",
+    "## Fill Billing/Admin Attestation",
+    "",
+    `Edit \`${defaults.draftDir}/billing-admin-attestation.draft.json\` with real non-secret procedures, then promote it to \`${toRepoRelative(options.billingAttestationPath)}\`. Required fields:`,
+    "",
+    "- `approvedAt`: ISO timestamp of approval.",
+    "- `approvedBy`: accountable business/operations owner.",
+    "- `customerTrafficMode`: `pilot_contract` or `paid_customer`.",
+    "- `billingProvider`: `stripe`, `paddle`, `lemonsqueezy`, `manual_contract`, or `external`.",
+    "- `termsUrl`, `privacyUrl`, `refundPolicyUrl`: clean HTTPS URLs without query strings or fragments.",
+    "- `taxHandlingOwner` and `supportContact`: real owner/contact strings.",
+    "- `accountLifecycle`: provisioning, suspension, API key rotation, refund handling, chargeback handling.",
+    "- `spendControls`: `requiresClientPolicy=true`, emergency disable procedure, quota review cadence.",
+    "",
+    "## Fill Production Operations Attestation",
+    "",
+    `Edit \`${defaults.draftDir}/production-operations-attestation.draft.json\` with real non-secret operations controls, then promote it to \`${toRepoRelative(options.productionAttestationPath)}\`. Required areas:`,
+    "",
+    "- approval owners and support/security/incident contacts.",
+    "- durable storage provider, retention days, backups, restore test timestamp, restore runbook URL.",
+    "- observability provider, dashboard URL, alerting, on-call schedule, request-ID search procedure.",
+    "- incident response runbook, severity policy, rollback procedure, post-incident review procedure.",
+    "- support runbook, response SLO, customer escalation procedure.",
+    "- log redaction review, secret rotation procedure, customer artifact deletion procedure, data-retention URL.",
+    "",
+    "## Client Policy",
+    "",
+    "Use `npm.cmd run ops:create-client-policy -- --client-id <pilot-client-id>` for real customer/pilot keys. The draft client-policy JSON is a shape reference only; do not paste raw client keys into it.",
+    "",
+    "## Validation Loop",
+    "",
+    "Run these after filling the draft JSON files:",
+    "",
+    "```powershell",
+    "npm.cmd run ops:promote-attestations -- --dry-run",
+    "npm.cmd run ops:promote-attestations",
+    "npm.cmd run validation:ops-config",
+    "```",
+    "",
+    "After ops config passes and the API is deployed behind a real HTTPS host:",
+    "",
+    "```powershell",
+    "npm.cmd run validation:deployment-readiness -- --base-url https://<your-cinejelly-host>",
+    "npm.cmd run validation:billing-admin-ops -- --base-url https://<your-cinejelly-host> --attestation ops/billing-admin-attestation.json",
+    "npm.cmd run validation:production-ops -- --base-url https://<your-cinejelly-host> --attestation ops/production-operations-attestation.json",
+    "npm.cmd run validation:business-readiness",
+    "```",
+    "",
+    "## Current Blocking Checks",
+    "",
+    ...(failures.length > 0
+      ? failures.map((check) => `- ${check.name}: ${check.message}`)
+      : ["- None in the current ops-config check."]),
+    "",
+    "## Guardrails",
+    "",
+    "- Keep completed attestation files non-secret.",
+    "- Keep `ops/*.json` ignored by Git.",
+    "- Do not mark this packet as customer-release evidence.",
+    "- Business readiness still requires real deployment captures and the remaining paid/live validation gates."
+  ].join("\n");
 }
 
 function requiredStrings(object, fields) {

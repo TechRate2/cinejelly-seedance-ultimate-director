@@ -96,7 +96,7 @@ interface BillingAdminOpsReport {
 - Done: add `npm.cmd run validation:billing-admin-ops`.
 - Done: add `schemas/billing-admin-ops-report.schema.json`.
 - Done: add `scripts/create-api-client-policy-kit.mjs`, `scripts/apply-client-policy-env.mjs`, `scripts/promote-operator-attestations.mjs`, `npm.cmd run ops:create-client-policy`, `npm.cmd run ops:apply-client-policy-env`, `npm.cmd run ops:promote-attestations`, `schemas/api-client-policy-kit.schema.json`, `schemas/client-policy-env-apply.schema.json`, and `schemas/operator-attestation-promotion-report.schema.json` so operators can generate digest-only client policy kits, merge them into ignored local deployment env, and promote completed non-secret attestations without hand-hashing raw keys or creating fake release evidence.
-- Done: add `schemas/billing-admin-attestation.schema.json`, `schemas/api-client-policies.schema.json`, and no-spend `npm.cmd run validation:ops-config` pre-capture validation/draft tooling.
+- Done: add `schemas/billing-admin-attestation.schema.json`, `schemas/api-client-policies.schema.json`, and no-spend `npm.cmd run validation:ops-config` pre-capture validation/draft tooling. With `--write-drafts`, the tooling also writes a Markdown fill-out packet under `assets/output_deliverables/business-readiness/operator-drafts` so operators can complete the non-secret draft fields without treating the drafts as release evidence.
 - Done: make `validation:business-readiness` evaluate the versioned billing/admin report explicitly.
 - Done: document the non-secret attestation contract.
 
