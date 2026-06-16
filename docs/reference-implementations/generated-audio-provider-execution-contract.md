@@ -151,4 +151,4 @@ Local validation on 2026-06-14:
 
 - `npm.cmd run typecheck` passed.
 - `npm.cmd run build` passed.
-- A no-network smoke confirmed Atlas `generateAudio` submits `model/text/language/voice_id/codec`, polls `/model/prediction/{prediction_id}`, returns a provider-neutral succeeded result, and records a successful `audio.generate` ledger entry when a reviewed capability maps the request. Requests without verified capability mapping still fail before network spend with `MODEL_UNAVAILABLE`.
+- A no-network smoke confirmed Atlas `generateAudio` submits `model/text/language/voice_id/codec`, polls `/model/prediction/{prediction_id}` with `/model/result/{prediction_id}` compatibility fallback, returns a provider-neutral succeeded result, and records a successful `audio.generate` ledger entry when a reviewed capability maps the request. Requests without verified capability mapping still fail before network spend with `MODEL_UNAVAILABLE`.

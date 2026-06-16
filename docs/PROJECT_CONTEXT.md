@@ -96,7 +96,7 @@ flowchart LR
 - HKUDS/VideoAgent: video understanding, intent decomposition, graph-powered tool planning.
 - OpenMontage: reference-video analysis, approval gates, provider scoring, real-footage path, self-review.
 - MoneyPrinterTurbo: staged one-input video generation, material sourcing, batch outputs, subtitles/TTS/BGM, task progress, API/CLI/WebUI operations.
-- Atlas Cloud: default API gateway, OpenAI-compatible LLM endpoint, async media generation, Seedance 2.0, direct clean references, and media upload.
+- Atlas Cloud: default API gateway, OpenAI-compatible LLM endpoint, async media generation, prediction/result polling compatibility, Seedance 2.0, direct clean references, and media upload.
 
 Local upstream snapshots are stored under `external/upstream/` and governed by `docs/SUBTREE_POLICY.md` plus `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`.
 
@@ -160,7 +160,7 @@ Implementation status:
 
 Current blockers before real customer rendering:
 
-- Local validation status on 2026-06-16T06:05:12.303Z: `node scripts/run-local-validation-smoke.mjs` passed the current local machine checks with readiness decision `ready_for_paid_validation`: 60 checks total, 60 pass, 0 warn, and 0 fail. Atlas keys, Atlas LLM/media base URLs, LLM model ID, Seedance Standard/Fast model IDs, API auth token, output directory, configured FFmpeg/FFprobe executable paths, pinned Seedance capability records, and the optional API client policy preflight are present in the local ignored `.env`/runtime checks.
+- Local validation status on 2026-06-16T09:14:34.425Z: `node scripts/run-local-validation-smoke.mjs` passed the current local machine checks with readiness decision `review_warnings`: 60 checks total, 59 pass, 1 warn, and 0 fail. The only warning is `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER=true`, which is intentionally enabled so render submissions require a configured client key and quota policy before provider spend. Atlas keys, Atlas LLM/media base URLs, LLM model ID, Seedance Standard/Fast model IDs, API auth token, output directory, configured FFmpeg/FFprobe executable paths, pinned Seedance capability records, and API client policy preflight are present in the local ignored `.env`/runtime checks.
 - Paid Atlas validation status on 2026-06-15T13:33:55.217Z: a short text-to-video run completed with request `req_8262f057-c412-4f84-8bdb-56cefd8757f2`, project `project_f87153061ebea88e`, 58 provider ledger entries, estimated cost gate `$3`, artifact validation `pass`, and a 13.5s H.264 854x480 final MP4. The run intentionally used `audioMode:none`, so no audio stream is expected.
 - Release audit status on 2026-06-16T05:26:31.846Z in the clean release-candidate worktree: `release_ready`. Local smoke, paid-render evidence, paid artifact validation, Git metadata, clean tracked worktree, ignored `.env`, ignored output evidence, tracked secret scan, and import-boundary scan pass. Customer release still requires manual artifact/media inspection, manual redaction review, and production deployment controls.
 - Manual short-validation review status on 2026-06-16T05:31:00Z: pass for Phase 6 smoke evidence. The contact sheet shows consistent workspace/laptop/desk-lamp frames with no obvious corrupt frames, artifact validation still passes after moving a stale failed-run report out of the success artifact package, and reviewed artifact JSON files do not expose obvious API keys, bearer tokens, inline `data:` payloads, or secret-like values.

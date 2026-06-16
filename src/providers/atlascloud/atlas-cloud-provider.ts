@@ -245,16 +245,7 @@ export class AtlasCloudProvider implements ModelProvider {
       context?.metadata?.graphNodeId,
       startedAt,
       async (recordRetry) => {
-        const response = await withRetry(
-          () =>
-            this.http.getJson<unknown>(
-              this.url(this.settings.assetBaseUrl, `/model/prediction/${encodeURIComponent(predictionId)}`),
-              signal
-            ),
-          DEFAULT_RETRY_POLICY,
-          signal,
-          recordRetry
-        );
+        const response = await this.getPredictionPayload(predictionId, signal, recordRetry);
         return mapPrediction(response, context?.modelId ?? "unknown", startedAt);
       },
       (prediction) => this.predictionLedgerMetadata(prediction),
@@ -631,16 +622,7 @@ export class AtlasCloudProvider implements ModelProvider {
     const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
     while (Date.now() <= deadline) {
       this.throwIfAborted(input.signal);
-      const response = await withRetry(
-        () =>
-          this.http.getJson<unknown>(
-            this.url(this.settings.assetBaseUrl, `/model/prediction/${encodeURIComponent(input.predictionId)}`),
-            input.signal
-          ),
-        DEFAULT_RETRY_POLICY,
-        input.signal,
-        input.recordRetry
-      );
+      const response = await this.getPredictionPayload(input.predictionId, input.signal, input.recordRetry);
       const prediction = mapPrediction(response, input.modelId, startedAt);
       input.onMetadata(this.predictionLedgerMetadata(prediction));
       if (prediction.status === "succeeded") {
@@ -672,6 +654,44 @@ export class AtlasCloudProvider implements ModelProvider {
       retryable: true,
       message: `Atlas Cloud audio prediction ${input.predictionId} did not finish within ${this.settings.pollingTimeoutMs}ms.`
     });
+  }
+
+  private async getPredictionPayload(
+    predictionId: string,
+    signal: AbortSignal | undefined,
+    recordRetry: () => void
+  ): Promise<unknown> {
+    const encodedPredictionId = encodeURIComponent(predictionId);
+    try {
+      return await withRetry(
+        () =>
+          this.http.getJson<unknown>(
+            this.url(this.settings.assetBaseUrl, `/model/prediction/${encodedPredictionId}`),
+            signal
+          ),
+        DEFAULT_RETRY_POLICY,
+        signal,
+        recordRetry
+      );
+    } catch (error) {
+      if (!this.shouldTryResultEndpoint(error)) {
+        throw error;
+      }
+      return withRetry(
+        () =>
+          this.http.getJson<unknown>(
+            this.url(this.settings.assetBaseUrl, `/model/result/${encodedPredictionId}`),
+            signal
+          ),
+        DEFAULT_RETRY_POLICY,
+        signal,
+        recordRetry
+      );
+    }
+  }
+
+  private shouldTryResultEndpoint(error: unknown): boolean {
+    return error instanceof ProviderError && (error.statusCode === 404 || error.statusCode === 405);
   }
 
   private validateReferenceCapability(reference: ProviderReference, capability: ProviderCapability): void {

@@ -1,6 +1,6 @@
 # Reference Implementation: Provider Polling, Retry, And Cost Fidelity
 
-Implementation status as of 2026-06-16: CineJelly-owned production foundation implemented for provider-neutral ledger fields, Atlas prediction/media reference records, retry-code classification, timeout/abort normalization, and review-packet canceled-operation counts. Local typecheck/build passed, and one short paid Atlas validation render completed with artifact validation `pass`; release remains blocked by Git/source-hygiene and manual review evidence. CineJelly production code must remain CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
+Implementation status as of 2026-06-16: CineJelly-owned production foundation implemented for provider-neutral ledger fields, Atlas prediction/media reference records, Atlas prediction/result polling compatibility, retry-code classification, timeout/abort normalization, and review-packet canceled-operation counts. Local typecheck/build passed, and one short paid Atlas validation render completed with artifact validation `pass`. CineJelly production code must remain CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
 
 ## Upstream Sources
 
@@ -8,7 +8,7 @@ Implementation status as of 2026-06-16: CineJelly-owned production foundation im
 | --- | --- | --- | --- |
 | `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Validate -> plan/cost -> dry-run/build -> render -> status refresh -> inspect loop, JSON build reports, cost caps before paid provider work, deterministic repair/status commands. |
 | `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo` | MIT | Task progress lifecycle, staged pipeline state updates, terminal failure state on missing stage output, bounded progress updates, resumable operator-visible task status. |
-| Atlas Cloud provider schema | `src/providers/atlascloud/*` and current provider contracts | Project-owned integration | Async prediction creation, polling, terminal prediction states, media upload/direct-reference preparation, usage/cost metadata where provider responses expose it. |
+| Atlas Cloud provider schema | `src/providers/atlascloud/*`, current provider contracts, and Atlas docs for `generateVideo`, `prediction`, and `result` routes | Project-owned integration | Async prediction creation, polling, terminal prediction states, result-route fallback compatibility, media upload/direct-reference preparation, usage/cost metadata where provider responses expose it. |
 
 ## Behavior To Preserve
 
@@ -32,6 +32,7 @@ Implementation status as of 2026-06-16: CineJelly-owned production foundation im
 - Caller aborts the job: record `status: "canceled"` and `errorCode: "REQUEST_ABORTED"` when the provider call sees the abort.
 - HTTP 408, 429, and 5xx: normalize to retryable provider errors and consume retry budget.
 - HTTP 400/422: normalize to non-retryable schema error so prompt/settings repair can happen before another paid call.
+- HTTP 404/405 from `/model/prediction/{id}`: try Atlas's documented `/model/result/{id}` compatibility route before treating the poll as failed.
 - Non-JSON provider error body: redact and preserve only a short preview in details.
 - Media upload terminal `failed` or invalid direct reference: record preparation failure with provider status evidence.
 
@@ -141,6 +142,7 @@ async function waitForPrediction(predictionId: string, context: PollingContext):
 - Translate MoneyPrinterTurbo's staged task visibility into provider ledger events rather than copying its Python task manager.
 - Add provider-neutral ledger fields in `src/types/provider.ts` so API, review packet, and artifact store can inspect polling outcomes.
 - Wrap `waitForPrediction` and `waitUntilActive` in ledger tracking, not only raw HTTP calls.
+- Keep Atlas prediction polling compatible with both `/model/prediction/{id}` and `/model/result/{id}` without hiding authentication, schema, rate-limit, credit, or server errors.
 - Keep retry policy centralized in `src/utils/retry.ts`; higher-level agents read normalized errors and ledger entries.
 - Preserve Atlas-specific mapping only inside `src/providers/atlascloud/*`.
 
@@ -151,6 +153,7 @@ async function waitForPrediction(predictionId: string, context: PollingContext):
 - Caller abort stops polling without consuming the full retry budget.
 - Ledger entries include `predictionId` for create/get/wait operations whenever known.
 - Provider-returned `usage` is preserved in the ledger when available.
+- Atlas result-route fallback is used only after `/model/prediction/{id}` returns 404/405, and mapped output URLs still flow through the same provider-neutral `Prediction` contract.
 - Review packet cost summary counts failed, timeout, and canceled provider operations.
 - No production import path references `external/upstream`.
 - Source lineage is added to `DEFAULT_SOURCE_LOGIC_TRANSLATIONS` after implementation.
