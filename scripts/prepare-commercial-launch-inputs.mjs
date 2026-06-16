@@ -106,6 +106,7 @@ function main() {
   const atlasConfigurationSummary = buildAtlasConfigurationSummary(reports);
   const evidenceCommandPlan = buildEvidenceCommandPlan(reports.businessPlan.value, reports.liveInputs.value);
   const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
+  const commandPlanAudit = buildCommandPlanAudit({ evidenceCommandPlan, budgetConstrainedPaidPlan });
   const status = statusFor(requiredInputs);
   const report = {
     schemaVersion: "cinejelly.commercial-launch-inputs.v1",
@@ -129,6 +130,7 @@ function main() {
     atlasConfigurationSummary,
     evidenceCommandPlan,
     budgetConstrainedPaidPlan,
+    commandPlanAudit,
     releaseGateSummary: buildReleaseGateSummary({ status, reports, requiredInputs }),
     nextActions: nextActionsFor(requiredInputs, reports.liveInputs.value)
   };
@@ -574,6 +576,139 @@ function commandsFor(sequence, predicate) {
     }));
 }
 
+function buildCommandPlanAudit({ evidenceCommandPlan, budgetConstrainedPaidPlan }) {
+  const scripts = packageScriptSet();
+  const commandItems = [
+    ...commandItemsFromEvidencePlan(evidenceCommandPlan),
+    ...commandItemsFromBudgetPlan(budgetConstrainedPaidPlan)
+  ];
+  const issues = commandItems.flatMap((item) => auditCommandItem(item, scripts));
+  const status = issues.some((issue) => issue.severity === "fail")
+    ? "fail"
+    : issues.some((issue) => issue.severity === "warn")
+      ? "warn"
+      : "pass";
+  return {
+    status,
+    checkedCommandCount: commandItems.length,
+    npmScriptCount: scripts.size,
+    issues
+  };
+}
+
+function packageScriptSet() {
+  const packageJson = readJsonIfExists("package.json");
+  return new Set(Object.keys(packageJson?.scripts ?? {}));
+}
+
+function commandItemsFromEvidencePlan(plan) {
+  return Object.entries(plan ?? {}).flatMap(([section, commands]) =>
+    Array.isArray(commands)
+      ? commands.map((item) => ({
+          location: `evidenceCommandPlan.${section}.${item.name}`,
+          name: String(item.name ?? "unknown"),
+          kind: String(item.kind ?? section),
+          status: String(item.status ?? "unknown"),
+          command: String(item.command ?? "")
+        }))
+      : []
+  );
+}
+
+function commandItemsFromBudgetPlan(plan) {
+  return Array.isArray(plan?.slices)
+    ? plan.slices.flatMap((slice) => [
+        {
+          location: `budgetConstrainedPaidPlan.slices.${slice.name}.billingReadinessCommand`,
+          name: `${slice.name}_billing`,
+          kind: "atlas_billing_readiness",
+          status: String(slice.status ?? "unknown"),
+          command: String(slice.billingReadinessCommand ?? "")
+        },
+        {
+          location: `budgetConstrainedPaidPlan.slices.${slice.name}.command`,
+          name: String(slice.name ?? "unknown"),
+          kind: String(slice.kind ?? "unknown"),
+          status: String(slice.status ?? "unknown"),
+          command: String(slice.command ?? "")
+        }
+      ])
+    : [];
+}
+
+function auditCommandItem(item, scripts) {
+  const command = item.command.trim();
+  if (!command) {
+    return [commandIssue("fail", item, "Command is empty.")];
+  }
+  const scriptName = extractNpmScriptName(command);
+  if (!scriptName) {
+    return isRunnableStatus(item.status)
+      ? [commandIssue("warn", item, "Ready command is not directly expressed as npm run <script>.")]
+      : [];
+  }
+  const issues = [];
+  if (!scripts.has(scriptName)) {
+    issues.push(commandIssue("fail", item, `Package script ${scriptName} does not exist.`));
+  }
+  if (isRunnableStatus(item.status) && command.includes("<")) {
+    issues.push(commandIssue("fail", item, "Ready command still contains placeholder values."));
+  }
+  if (scriptName === "validation:atlas-billing" && !command.includes("--confirm-live-network")) {
+    issues.push(commandIssue("fail", item, "Atlas billing readiness command must include --confirm-live-network."));
+  }
+  if (isPaidCommandKind(item.kind) && isRunnableStatus(item.status)) {
+    issues.push(...paidCommandIssues(item, scriptName, command));
+  }
+  return issues;
+}
+
+function paidCommandIssues(item, scriptName, command) {
+  if (scriptName === "validation:generated-audio") {
+    return requiredFlagIssues(item, command, [
+      "--confirm-provider-spend",
+      "--confirm-audio-schema-reviewed",
+      "--atlas-billing-report",
+      "--max-cost-usd"
+    ]);
+  }
+  if (scriptName === "validation:long-form" || scriptName === "validation:paid-render") {
+    return requiredFlagIssues(item, command, ["--confirm-paid-spend", "--max-cost-usd"]);
+  }
+  if (scriptName === "validation:source-video-auto-analysis") {
+    return requiredFlagIssues(item, command, ["--confirm-provider-spend", "--max-cost-usd", "--atlas-billing-report"]);
+  }
+  return [];
+}
+
+function requiredFlagIssues(item, command, flags) {
+  return flags
+    .filter((flag) => !command.includes(flag))
+    .map((flag) => commandIssue("fail", item, `Paid command must include ${flag}.`));
+}
+
+function extractNpmScriptName(command) {
+  return command.match(/\bnpm(?:\.cmd)?\s+run\s+([^\s`]+)/)?.[1];
+}
+
+function isRunnableStatus(status) {
+  return status === "ready" || status === "within_budget";
+}
+
+function isPaidCommandKind(kind) {
+  return String(kind).startsWith("paid_");
+}
+
+function commandIssue(severity, item, message) {
+  return {
+    severity,
+    location: item.location,
+    commandName: item.name,
+    command: item.command,
+    message
+  };
+}
+
 function statusFor(requiredInputs) {
   return requiredInputs.some((item) => item.status === "missing" || item.status === "blocked_by_budget")
     ? "blocked_by_operator_inputs"
@@ -712,6 +847,10 @@ function renderMarkdown(report) {
     "",
     ...markdownBudgetSlices(report.budgetConstrainedPaidPlan),
     "",
+    "## Command Plan Audit",
+    "",
+    ...markdownCommandPlanAudit(report.commandPlanAudit),
+    "",
     "## Release Gate",
     "",
     `canReleaseToCustomerTraffic: ${report.releaseGateSummary.canReleaseToCustomerTraffic}`,
@@ -721,6 +860,20 @@ function renderMarkdown(report) {
     report.releaseGateSummary.releaseBlocker,
     ""
   ].join("\n");
+}
+
+function markdownCommandPlanAudit(audit) {
+  if (!audit) {
+    return ["- Command plan audit unavailable."];
+  }
+  return [
+    `- Status: ${audit.status}`,
+    `- Checked commands: ${audit.checkedCommandCount}`,
+    `- Package scripts visible: ${audit.npmScriptCount}`,
+    ...(audit.issues.length === 0
+      ? ["- Issues: none"]
+      : audit.issues.map((issue) => `- ${issue.severity}: ${issue.location}: ${issue.message}`))
+  ];
 }
 
 function markdownAtlasConfiguration(summary) {

@@ -20,6 +20,7 @@ Before asking an operator for the remaining production inputs, CineJelly needs o
 10. Generated-audio manual review checklist items must use `--review-existing-report` so manual review can update evidence without calling Atlas again.
 11. Generated-audio paid commands copied from the business plan must include the slice billing report path, local max-cost cap, cost-rate assumption, and validation text so operators do not depend on hidden CLI defaults.
 12. The packet must include a secret-free Atlas configuration summary derived from live-readiness evidence so operators can distinguish "Atlas keys/models are configured" from deployment, attestation, live-evidence, and budget blockers.
+13. The packet must audit its own command plan against `package.json` scripts and paid-spend guard flags so stale checklist commands are caught before an operator copies them into a live or paid run.
 
 ## Report Shape
 
@@ -82,6 +83,12 @@ interface CommercialLaunchInputsReport {
     recommendedSliceName?: string;
     slices: Array<{ name: string; status: string; billingReadinessCommand?: string; command: string; estimatedCostUsd?: number }>;
   };
+  commandPlanAudit: {
+    status: "pass" | "warn" | "fail";
+    checkedCommandCount: number;
+    npmScriptCount: number;
+    issues: Array<{ severity: "warn" | "fail"; location: string; commandName: string; command: string; message: string }>;
+  };
   releaseGateSummary: {
     canRunNoSpendPrep: boolean;
     canRunLiveNetworkEvidence: boolean;
@@ -115,3 +122,4 @@ interface CommercialLaunchInputsReport {
 - Current output can mark the generated-audio paid smoke command ready when live-inputs confirms its billing slice, reports the exact ready paid gate names, keeps `shouldDeferFullSequenceSpend=true`, and keeps customer traffic release false.
 - When the approved budget changes, checklist output points operators to rerun `validation:atlas-billing -- --max-budget-usd <current-budget> --confirm-live-network` instead of repeating stale audit text.
 - Current output includes a no-secret Atlas configuration section showing whether media/LLM keys, endpoint families, Seedance model/capability config, generated-audio config, and the generated-audio billing slice are ready without printing key values.
+- Current output includes `commandPlanAudit.status: "pass"` after checking command names against `package.json` scripts and confirming ready paid commands retain required confirmation/billing flags.
