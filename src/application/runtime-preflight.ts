@@ -91,7 +91,8 @@ export class RuntimePreflight {
       this.optionalNonNegativeNumber("CINEJELLY_ASSET_REGISTRATION_COST_USD", this.env.CINEJELLY_ASSET_REGISTRATION_COST_USD),
       this.optionalNonNegativeNumber("CINEJELLY_LLM_PLAN_COST_USD", this.env.CINEJELLY_LLM_PLAN_COST_USD),
       this.optionalPositiveNumber("CINEJELLY_COST_BUFFER_MULTIPLIER", this.env.CINEJELLY_COST_BUFFER_MULTIPLIER),
-      this.capabilityCheck(this.env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON)
+      this.capabilityCheck(this.env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON),
+      this.generatedAudioCapabilityCheck(this.env.ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON)
     ];
 
     checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
@@ -600,6 +601,29 @@ export class RuntimePreflight {
     };
   }
 
+  private generatedAudioCapabilityCheck(value: string | undefined): PreflightCheck {
+    if (!value?.trim()) {
+      return {
+        name: "ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON",
+        status: "pass",
+        message: "No explicit generated-audio capability override configured; Atlas generated-audio execution remains disabled."
+      };
+    }
+    const parsed = this.parseGeneratedAudioCapabilityJson(value);
+    if (!parsed.valid) {
+      return {
+        name: "ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON",
+        status: "fail",
+        message: parsed.message
+      };
+    }
+    return {
+      name: "ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON",
+      status: "pass",
+      message: `${parsed.count} generated-audio capability record(s) configured.`
+    };
+  }
+
   private parseCapabilityJson(value: string): { readonly valid: true; readonly count: number } | { readonly valid: false; readonly message: string } {
     try {
       const parsed = JSON.parse(value) as unknown;
@@ -626,6 +650,46 @@ export class RuntimePreflight {
     } catch {
       return { valid: false, message: "ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must be valid JSON." };
     }
+  }
+
+  private parseGeneratedAudioCapabilityJson(value: string): { readonly valid: true; readonly count: number } | { readonly valid: false; readonly message: string } {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!Array.isArray(parsed)) {
+        return { valid: false, message: "ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON must be a JSON array." };
+      }
+      for (const item of parsed) {
+        const payload = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+        if (
+          typeof payload.provider !== "string" ||
+          typeof payload.modelId !== "string" ||
+          !Array.isArray(payload.kinds) ||
+          !payload.kinds.every((kind) => this.isGeneratedAudioKind(kind)) ||
+          !Array.isArray(payload.outputFormats) ||
+          !payload.outputFormats.every((format) => this.isAudioOutputFormat(format)) ||
+          typeof payload.maxDurationSeconds !== "number" ||
+          !Number.isFinite(payload.maxDurationSeconds) ||
+          payload.maxDurationSeconds <= 0 ||
+          typeof payload.async !== "boolean"
+        ) {
+          return {
+            valid: false,
+            message: "Each generated-audio capability must include provider, modelId, kinds, outputFormats, maxDurationSeconds, and async."
+          };
+        }
+      }
+      return { valid: true, count: parsed.length };
+    } catch {
+      return { valid: false, message: "ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON must be valid JSON." };
+    }
+  }
+
+  private isGeneratedAudioKind(value: unknown): boolean {
+    return value === "tts_narration" || value === "bgm" || value === "ambience" || value === "sfx";
+  }
+
+  private isAudioOutputFormat(value: unknown): boolean {
+    return value === "mp3" || value === "wav";
   }
 
   private async mediaToolCheck(tool: MediaToolName, signal?: AbortSignal): Promise<PreflightCheck> {

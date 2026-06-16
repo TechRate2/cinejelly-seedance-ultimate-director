@@ -163,7 +163,7 @@ function summarizeEnvironment(options) {
   const deployment = urlEvidence(options.deploymentBaseUrl, "deployment");
   const sourceVideoUrl = urlEvidence(options.sourceVideoUrl, "source_video");
   const apiClientPolicies = jsonArrayEnv("CINEJELLY_API_CLIENTS_JSON");
-  const generatedAudioCapabilities = jsonArrayEnv("ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON");
+  const generatedAudioCapabilities = generatedAudioCapabilitiesEnv("ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON");
   const seedanceCapabilities = jsonArrayEnv("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON");
   const remoteStockProviders = [
     providerEvidence("pexels", "PEXELS_API_KEY", true),
@@ -220,6 +220,7 @@ function summarizeEnvironment(options) {
       capabilitiesJsonConfigured: generatedAudioCapabilities.configured,
       capabilitiesJsonValid: generatedAudioCapabilities.valid,
       capabilityCount: generatedAudioCapabilities.count,
+      capabilitiesMessage: generatedAudioCapabilities.message,
       atlasMediaReady: envConfigured("ATLASCLOUD_API_KEY")
     }
   };
@@ -381,7 +382,7 @@ function buildGates({ environment, costPlan }) {
       boolCheck("atlas_media_key", environment.generatedAudio.atlasMediaReady, "Atlas media API key is configured.", "Set ATLASCLOUD_API_KEY."),
       boolCheck("generated_audio_model", environment.generatedAudio.modelConfigured, "Generated-audio model is configured.", "Set ATLASCLOUD_GENERATED_AUDIO_MODEL."),
       boolCheck("generated_audio_voice", environment.generatedAudio.voiceIdConfigured, "Generated-audio voice is configured.", "Set ATLASCLOUD_GENERATED_AUDIO_VOICE_ID."),
-      boolCheck("generated_audio_capabilities", environment.generatedAudio.capabilitiesJsonValid && environment.generatedAudio.capabilityCount > 0, "Generated-audio capability JSON is valid.", "Set ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON to at least one reviewed capability record."),
+      boolCheck("generated_audio_capabilities", environment.generatedAudio.capabilitiesJsonValid && environment.generatedAudio.capabilityCount > 0, "Generated-audio capability JSON is valid.", environment.generatedAudio.capabilitiesMessage || "Set ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON to at least one reviewed capability record."),
       boolCheck("generated_audio_cost_budget", costPlan.generatedAudio.withinBudget, "Generated-audio sample estimate is within budget.", "Raise --max-budget-usd or reduce the generated-audio validation sample."),
       boolCheck("atlas_billing_ready_for_paid_validation", atlasBillingReadyForApprovedSpend, "Atlas billing readiness is approved for paid validation.", environment.atlasBilling.message)
     ], costPlan.generatedAudio.estimatedCostUsd),
@@ -501,6 +502,73 @@ function jsonArrayEnv(name) {
   } catch {
     return { configured: true, valid: false, count: 0 };
   }
+}
+
+function generatedAudioCapabilitiesEnv(name) {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return {
+      configured: false,
+      valid: false,
+      count: 0,
+      message: "Set ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON to at least one reviewed capability record."
+    };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return {
+        configured: true,
+        valid: false,
+        count: 0,
+        message: "ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON must be a JSON array."
+      };
+    }
+    const invalid = parsed.find((item) => !isGeneratedAudioCapability(item));
+    if (invalid) {
+      return {
+        configured: true,
+        valid: false,
+        count: parsed.length,
+        message: "Each generated-audio capability must include provider, modelId, kinds, outputFormats, maxDurationSeconds, and async."
+      };
+    }
+    return {
+      configured: true,
+      valid: true,
+      count: parsed.length,
+      message: `${parsed.length} generated-audio capability record(s) configured.`
+    };
+  } catch {
+    return {
+      configured: true,
+      valid: false,
+      count: 0,
+      message: "ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON must be valid JSON."
+    };
+  }
+}
+
+function isGeneratedAudioCapability(value) {
+  const payload = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return typeof payload.provider === "string" &&
+    typeof payload.modelId === "string" &&
+    Array.isArray(payload.kinds) &&
+    payload.kinds.every(isGeneratedAudioKind) &&
+    Array.isArray(payload.outputFormats) &&
+    payload.outputFormats.every(isAudioOutputFormat) &&
+    typeof payload.maxDurationSeconds === "number" &&
+    Number.isFinite(payload.maxDurationSeconds) &&
+    payload.maxDurationSeconds > 0 &&
+    typeof payload.async === "boolean";
+}
+
+function isGeneratedAudioKind(value) {
+  return value === "tts_narration" || value === "bgm" || value === "ambience" || value === "sfx";
+}
+
+function isAudioOutputFormat(value) {
+  return value === "mp3" || value === "wav";
 }
 
 function urlEvidence(value, label) {
