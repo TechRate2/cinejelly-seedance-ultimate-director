@@ -21,6 +21,7 @@ Before spending more Atlas credits, operators need one consolidated plan that ex
 11. A stored Atlas billing readiness report must also be treated as stale when it is older than `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS`, defaulting to 24 hours.
 12. When the full known paid estimate exceeds the approved budget, the planner must still show no-spend budget-constrained slices so operators can intentionally choose a narrower paid validation run without treating it as full release evidence.
 13. Narrow paid slices must include a separate Atlas billing-readiness command with `--planned-cost-usd` and a slice-specific output path so they do not overwrite the full-plan billing evidence.
+14. Generated-audio paid planning must separate provider execution from manual listening review: the provider command must not include `--confirm-manual-audio-review`, and the plan must point operators to `--review-existing-report` for the no-provider review update after output inspection.
 
 ## Report Shape
 
@@ -82,4 +83,5 @@ interface BusinessReadinessValidationPlan {
 - When the Atlas billing report is older than the configured max age, planner output keeps paid steps blocked until `validation:atlas-billing -- --confirm-live-network` refreshes it.
 - With the default `$5` ceiling, planner output names generated-audio smoke as the only known paid slice inside budget while keeping long-form and the full known paid sequence blocked.
 - Generated-audio smoke includes a no-spend Atlas billing probe command using `--planned-cost-usd` and `atlas-billing-generated-audio-smoke-report.json`, leaving the canonical full-plan billing report untouched.
+- Generated-audio paid commands are provider-only first, then tell operators to apply manual listening review with `--review-existing-report` so review does not call Atlas again.
 - Planner output says it is not release evidence and cannot release customer traffic.

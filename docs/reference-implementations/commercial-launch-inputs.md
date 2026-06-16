@@ -17,6 +17,7 @@ Before asking an operator for the remaining production inputs, CineJelly needs o
 7. Budget checklist values must prefer the current business-plan/live-input cost plan over older Atlas billing evidence, and blocker text must surface stale Atlas billing reports when the live-input validator detects them.
 8. When the full known paid sequence exceeds the approved budget, the packet must show which narrower paid slices are inside budget, blocked, or unknown-cost without marking paid validation or release ready.
 9. Each paid slice should include the slice-specific Atlas billing-readiness command before the paid command, using a distinct output path when the slice is not the full business-readiness plan.
+10. Generated-audio manual review checklist items must use `--review-existing-report` so manual review can update evidence without calling Atlas again.
 
 ## Report Shape
 
@@ -90,5 +91,6 @@ interface CommercialLaunchInputsReport {
 - Current output says commercial inputs are blocked by missing deployment URL, operator attestations, source-video inputs, remote stock inputs, and approved Atlas budget.
 - Current output includes a paid budget slice section that names generated-audio smoke as within the `$5` ceiling while long-form/full sequence remain blocked.
 - The generated-audio smoke slice shows a no-spend Atlas billing probe with `--planned-cost-usd` before the paid generated-audio command.
+- The generated-audio manual review item points to `validation:generated-audio -- --review-existing-report ... --confirm-manual-audio-review`, not a second provider execution.
 - Current output keeps paid Atlas validation and customer traffic release false.
 - When the approved budget changes, checklist output points operators to rerun `validation:atlas-billing -- --max-budget-usd <current-budget> --confirm-live-network` instead of repeating stale audit text.

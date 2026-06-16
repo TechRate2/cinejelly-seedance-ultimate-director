@@ -515,13 +515,13 @@ function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, long
         plannedCostUsd: generatedAudioEstimate,
         outputPath: "assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json"
       }),
-      command: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed --confirm-manual-audio-review",
+      command: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed",
       prerequisites: [
         "fresh Atlas billing readiness captured for this narrower budget slice",
         "ATLASCLOUD_GENERATED_AUDIO_MODEL",
         "ATLASCLOUD_GENERATED_AUDIO_VOICE_ID",
         "reviewed ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON",
-        "manual schema and listening review after output"
+        "after output review, run npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review"
       ],
       limitations: [
         "does not validate Seedance video generation",
@@ -778,7 +778,7 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, atlasB
       name: "generated_audio_validation",
       kind: "paid_atlas_audio",
       status: generatedAudioReady ? "ready" : generatedAudioInputReady ? "blocked" : "needs_operator_input",
-      command: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed --confirm-manual-audio-review",
+      command: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed",
       requiredInputs: generatedAudioReady
         ? ["manual audio review after output"]
         : [
@@ -788,6 +788,7 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, atlasB
       estimatedCostUsd: costPlan.generatedAudio.estimatedCostUsd,
       notes: [
         `Estimated generated-audio validation cost: ${formatUsd(costPlan.generatedAudio.estimatedCostUsd)}.`,
+        "After the provider run writes output evidence, listen to the result and run npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review to update manual review without another Atlas call.",
         ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateNote])
       ]
     }),

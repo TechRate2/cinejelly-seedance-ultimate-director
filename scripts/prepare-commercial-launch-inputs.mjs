@@ -343,7 +343,7 @@ function buildRequiredInputs(reports) {
       envVars: [],
       filePaths: ["assets/output_deliverables/business-readiness/generated-audio-validation-report.json"],
       acceptance: "After Atlas generated-audio execution, approve schema review, output-batch validation, ledger evidence, and manual listening review.",
-      validationCommand: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed --confirm-manual-audio-review",
+      validationCommand: "npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review",
       blockerMessage: failingMessage(business, "atlas_generated_audio_validation")
     })
   ];
