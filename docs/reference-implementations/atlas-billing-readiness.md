@@ -21,6 +21,7 @@ Before running additional paid Atlas validation, operators need to know whether 
 - Done: add `schemas/atlas-billing-readiness-report.schema.json`.
 - Done: compare the current business-plan known paid estimate against `--max-budget-usd`.
 - Done: support a no-spend live-network `/balance` probe behind `--confirm-live-network`.
+- Done: make `validation:business-readiness` require this report as a hard pre-paid-spend gate with zero completion weight.
 
 ## Acceptance Checks
 
@@ -28,3 +29,4 @@ Before running additional paid Atlas validation, operators need to know whether 
 - Running with `--confirm-live-network` calls only `https://api.atlascloud.ai/public/v1/balance`.
 - The generated report redacts key-like string values and records only safe key metadata such as configured env name and `apikey-` prefix validity.
 - A pass still reports `canReleaseToCustomerTraffic: false`.
+- Business-readiness stays blocked when this report is missing or fails, but the evidence-completion percentage is not inflated by this pre-spend guard.

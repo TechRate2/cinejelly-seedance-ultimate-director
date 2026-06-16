@@ -14,7 +14,7 @@ Implementation status as of 2026-06-16: implemented as a CineJelly-owned no-spen
 
 1. The audit must be no-spend and must never initialize Atlas providers.
 2. Release hygiene, short paid-render evidence, and manual short-review evidence are necessary but not sufficient for full commercial release.
-3. Full commercial-platform approval requires explicit evidence for deployment, long-form, source-video, remote stock, generated audio, billing/admin/quota controls, and production operations.
+3. Full commercial-platform approval requires explicit evidence for deployment, Atlas billing readiness, long-form, source-video, remote stock, generated audio, billing/admin/quota controls, and production operations.
 4. Missing evidence must fail closed with a clear next action.
 5. Warnings must reduce the score and require explicit operator acceptance.
 6. The report must be machine-readable, stable, and safe to archive with release evidence.
@@ -64,9 +64,10 @@ interface BusinessReadinessReport {
 - Done: add schema-aware source-video evidence evaluation through `cinejelly.source-video-auto-analysis-validation.v1`.
 - Done: add schema-aware remote-stock evidence evaluation through `cinejelly.remote-stock-validation.v1`.
 - Done: add schema-aware generated-audio evidence evaluation through `cinejelly.generated-audio-validation.v1`.
+- Done: add schema-aware Atlas billing readiness evaluation through `cinejelly.atlas-billing-readiness.v1` as a zero-weight hard pre-paid-spend gate.
 - Done: add schema-aware billing/admin/quota evidence evaluation through `cinejelly.billing-admin-ops.v1`.
 - Done: add schema-aware production operations evidence evaluation through `cinejelly.production-operations.v1`.
-- Pending: feed the audit with real deployment, passing paid long-form, source-video, remote stock, generated-audio, billing/admin, and production operations evidence.
+- Pending: feed the audit with real deployment, passing paid long-form, source-video, remote stock, generated-audio, Atlas billing readiness under the approved budget, billing/admin, and production operations evidence.
 
 ## Validation Checklist
 

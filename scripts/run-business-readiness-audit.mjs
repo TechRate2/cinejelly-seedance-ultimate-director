@@ -9,6 +9,7 @@ const defaults = {
   paidReportPath: "assets/output_deliverables/phase6-validation/paid-render-report.json",
   manualReviewPath: "assets/output_deliverables/phase6-validation/manual-review-report.md",
   deploymentPreflightPath: "assets/output_deliverables/business-readiness/deployment-preflight-report.json",
+  atlasBillingReadinessPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
   longFormReportPath: "assets/output_deliverables/business-readiness/long-form-validation-report.json",
   sourceVideoReportPath: "assets/output_deliverables/business-readiness/source-video-validation-report.json",
   remoteStockReportPath: "assets/output_deliverables/business-readiness/remote-stock-validation-report.json",
@@ -50,6 +51,14 @@ const checks = [
     evaluator: evaluateDeploymentPreflight,
     missing:
       "Missing deployment-environment preflight/readiness evidence. Run npm.cmd run validation:deployment-readiness against the real HTTPS host."
+  },
+  {
+    name: "atlas_billing_readiness",
+    weight: 0,
+    pathOption: "atlasBillingReadinessPath",
+    evaluator: evaluateAtlasBillingReadiness,
+    missing:
+      "Missing Atlas billing readiness evidence. Run npm.cmd run validation:atlas-billing and then rerun with --confirm-live-network before additional paid Atlas validation."
   },
   {
     name: "long_form_paid_validation",
@@ -112,6 +121,7 @@ function parseArgs(args) {
     ["--paid-report", "paidReportPath"],
     ["--manual-review", "manualReviewPath"],
     ["--deployment-preflight-report", "deploymentPreflightPath"],
+    ["--atlas-billing-report", "atlasBillingReadinessPath"],
     ["--long-form-report", "longFormReportPath"],
     ["--source-video-report", "sourceVideoReportPath"],
     ["--remote-stock-report", "remoteStockReportPath"],
@@ -164,6 +174,7 @@ Options:
   --paid-report <path>                  Paid-render report. Default: ${defaults.paidReportPath}
   --manual-review <path>                Manual review report. Default: ${defaults.manualReviewPath}
   --deployment-preflight-report <path>  Real deployment preflight/readiness report. Default: ${defaults.deploymentPreflightPath}
+  --atlas-billing-report <path>         Atlas billing readiness report. Default: ${defaults.atlasBillingReadinessPath}
   --long-form-report <path>             Real 2-8 minute validation report. Default: ${defaults.longFormReportPath}
   --source-video-report <path>          Live source-video auto-analysis report. Default: ${defaults.sourceVideoReportPath}
   --remote-stock-report <path>          Live remote stock provider report. Default: ${defaults.remoteStockReportPath}
@@ -252,6 +263,35 @@ function evaluateDeploymentPreflight(path) {
     return warn("Deployment preflight evidence has warnings requiring operator acceptance.");
   }
   return fail(`Deployment evidence status is ${report.status ?? report.decision ?? "missing"}.`);
+}
+
+function evaluateAtlasBillingReadiness(path) {
+  const report = readJson(path);
+  if (report.schemaVersion !== "cinejelly.atlas-billing-readiness.v1") {
+    return fail("Atlas billing readiness report schemaVersion is not recognized.");
+  }
+  if (
+    report.status === "pass" &&
+    report.releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true &&
+    report.releaseGateSummary?.canRunAtlasSpendWithinApprovedBudget === true &&
+    report.networkCallsMade === true &&
+    report.providerCallsMade === false &&
+    report.atlasBillingPublicApi?.captured === true &&
+    report.atlasBillingPublicApi?.httpStatus === 200
+  ) {
+    return pass("Atlas billing readiness passed with billing API access and approved budget fit.");
+  }
+  if (report.status === "warn") {
+    return warn("Atlas billing readiness has warnings requiring operator acceptance.");
+  }
+  const firstFailure = Array.isArray(report.checks)
+    ? report.checks.find((check) => check?.status === "fail" && typeof check?.message === "string")?.message
+    : undefined;
+  return fail(
+    firstFailure
+      ? `Atlas billing readiness is incomplete: ${firstFailure}`
+      : `Atlas billing readiness status is ${report.status ?? "missing"}.`
+  );
 }
 
 function evaluateLongForm(path) {
@@ -632,6 +672,7 @@ function main() {
       paidReportPath: options.paidReportPath,
       manualReviewPath: options.manualReviewPath,
       deploymentPreflightPath: options.deploymentPreflightPath,
+      atlasBillingReadinessPath: options.atlasBillingReadinessPath,
       longFormReportPath: options.longFormReportPath,
       sourceVideoReportPath: options.sourceVideoReportPath,
       remoteStockReportPath: options.remoteStockReportPath,
