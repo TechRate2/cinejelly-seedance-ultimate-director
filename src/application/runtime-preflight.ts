@@ -521,7 +521,10 @@ export class RuntimePreflight {
     if (mediaEndpoint.url) {
       this.assertAtlasDocsEndpointPath(mediaEndpoint.url, "/model/uploadMedia", "/api/v1/model/uploadMedia", issues);
       this.assertAtlasDocsEndpointPath(mediaEndpoint.url, "/model/generateVideo", "/api/v1/model/generateVideo", issues);
+      this.assertAtlasDocsEndpointPath(mediaEndpoint.url, "/model/generateAudio", "/api/v1/model/generateAudio", issues);
+      this.assertAtlasDocsEndpointPath(mediaEndpoint.url, "/model/prediction/request_id", "/api/v1/model/prediction/request_id", issues);
       this.assertAtlasDocsEndpointPath(mediaEndpoint.url, "/model/result/request_id", "/api/v1/model/result/request_id", issues);
+      this.assertAtlasDocsEndpointPath(mediaEndpoint.url, "/model/getResult?predictionId=request_id", "/api/v1/model/getResult", issues);
     }
     this.assertAtlasDocsEndpointPath(
       `https://${ATLAS_CANONICAL_HOST}${ATLAS_PUBLIC_BILLING_PATH}`,
