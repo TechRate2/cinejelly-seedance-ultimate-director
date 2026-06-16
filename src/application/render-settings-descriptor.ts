@@ -52,6 +52,20 @@ export interface RenderSettingsDescriptor {
     readonly seedanceStandardModel?: string;
     readonly seedanceFastModel?: string;
   };
+  readonly modelSelection: {
+    readonly seedance: {
+      readonly requestField: "modelPreferences.seedanceModelId";
+      readonly policy: "admin_allowlist";
+      readonly arbitraryModelIdsAllowed: false;
+      readonly defaultModelId?: string;
+      readonly selectableModels: readonly SeedanceSelectableModelDescriptor[];
+    };
+    readonly llm: {
+      readonly policy: "admin_configured";
+      readonly requestOverrideAllowed: false;
+      readonly selectedModelConfigured: boolean;
+    };
+  };
   readonly capabilityConfiguration: {
     readonly source: "explicit_env" | "documented_default" | "invalid_env";
     readonly configuredRecordCount: number;
@@ -71,6 +85,13 @@ export interface QualityModeDescriptor {
   readonly repairAttemptCount: number;
   readonly usesTestTakes: boolean;
   readonly requiresStrictInspection: boolean;
+}
+
+export interface SeedanceSelectableModelDescriptor {
+  readonly modelId: string;
+  readonly configuredTier?: "fast" | "standard";
+  readonly capabilityConfigured: boolean;
+  readonly source: "configured_tier" | "capability_json" | "configured_tier_and_capability_json";
 }
 
 const SOURCE_PATTERN_ORIGINS = [
@@ -124,6 +145,7 @@ export function buildRenderSettingsDescriptor(env: NodeJS.ProcessEnv = process.e
         ? { seedanceFastModel: env.ATLASCLOUD_SEEDANCE_FAST_MODEL.trim() }
         : {})
     },
+    modelSelection: buildModelSelectionDescriptor(env),
     capabilityConfiguration: describeSeedanceCapabilityConfiguration(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON),
     uiGuidance: {
       hasFirstPartyUi: false,
@@ -132,6 +154,83 @@ export function buildRenderSettingsDescriptor(env: NodeJS.ProcessEnv = process.e
       paidValidationCommand: "npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend --atlas-billing-report <atlas-billing-report>"
     }
   };
+}
+
+function buildModelSelectionDescriptor(env: NodeJS.ProcessEnv): RenderSettingsDescriptor["modelSelection"] {
+  const fastModel = env.ATLASCLOUD_SEEDANCE_FAST_MODEL?.trim();
+  const standardModel = env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL?.trim();
+  const capabilityModelIds = seedanceCapabilityModelIds(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
+  const entries = new Map<string, {
+    configuredTier?: "fast" | "standard";
+    capabilityConfigured: boolean;
+  }>();
+  if (fastModel) {
+    entries.set(fastModel, { configuredTier: "fast", capabilityConfigured: false });
+  }
+  if (standardModel) {
+    entries.set(standardModel, { configuredTier: "standard", capabilityConfigured: false });
+  }
+  for (const modelId of capabilityModelIds) {
+    const existing = entries.get(modelId);
+    entries.set(modelId, {
+      ...(existing?.configuredTier ? { configuredTier: existing.configuredTier } : {}),
+      capabilityConfigured: true
+    });
+  }
+  const selectableModels = [...entries.entries()]
+    .map(([modelId, entry]): SeedanceSelectableModelDescriptor => ({
+      modelId,
+      ...(entry.configuredTier ? { configuredTier: entry.configuredTier } : {}),
+      capabilityConfigured: entry.capabilityConfigured,
+      source: sourceForSelectableModel(entry)
+    }))
+    .sort((left, right) => left.modelId.localeCompare(right.modelId));
+  const defaultModelId = DEFAULT_SEEDANCE_SETTINGS.tier === "fast" ? fastModel : standardModel;
+  return {
+    seedance: {
+      requestField: "modelPreferences.seedanceModelId",
+      policy: "admin_allowlist",
+      arbitraryModelIdsAllowed: false,
+      ...(defaultModelId ? { defaultModelId } : {}),
+      selectableModels
+    },
+    llm: {
+      policy: "admin_configured",
+      requestOverrideAllowed: false,
+      selectedModelConfigured: Boolean(env.ATLASCLOUD_LLM_MODEL?.trim())
+    }
+  };
+}
+
+function sourceForSelectableModel(entry: {
+  readonly configuredTier?: "fast" | "standard";
+  readonly capabilityConfigured: boolean;
+}): SeedanceSelectableModelDescriptor["source"] {
+  if (entry.configuredTier && entry.capabilityConfigured) {
+    return "configured_tier_and_capability_json";
+  }
+  return entry.configuredTier ? "configured_tier" : "capability_json";
+}
+
+function seedanceCapabilityModelIds(value: string | undefined): readonly string[] {
+  if (!value?.trim()) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return [...new Set(parsed.flatMap((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return [];
+      }
+      const modelId = (item as Record<string, unknown>).modelId;
+      return typeof modelId === "string" && modelId.trim() ? [modelId.trim()] : [];
+    }))].sort((left, right) => left.localeCompare(right));
+  } catch {
+    return [];
+  }
 }
 
 function describeSeedanceCapabilityConfiguration(value: string | undefined): RenderSettingsDescriptor["capabilityConfiguration"] {

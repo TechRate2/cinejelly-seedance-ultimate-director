@@ -30,6 +30,7 @@
         "hasOutputPath": { "type": "boolean" },
         "hasWorkDirectory": { "type": "boolean" },
         "hasArtifactDirectory": { "type": "boolean" },
+        "requestedSeedanceModelId": { "type": "string" },
         "referenceCount": { "type": "integer", "minimum": 0 },
         "captionCueCount": { "type": "integer", "minimum": 0 },
         "audioTrackCount": { "type": "integer", "minimum": 0 },

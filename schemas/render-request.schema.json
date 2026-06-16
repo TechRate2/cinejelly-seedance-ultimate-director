@@ -27,6 +27,18 @@
         "maxCostUsd": { "type": "number", "minimum": 0 }
       }
     },
+    "modelPreferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "seedanceModelId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "Optional admin-allowlisted Seedance model ID selected by UI/API clients. Runtime admission rejects IDs outside configured fast/standard/capability models."
+        }
+      }
+    },
     "references": {
       "type": "array",
       "maxItems": 24,

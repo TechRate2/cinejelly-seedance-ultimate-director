@@ -48,6 +48,7 @@ export class IntakeDirector {
       projectId,
       userInput,
       settings,
+      ...(request.modelPreferences ? { modelPreferences: request.modelPreferences } : {}),
       ...metadata,
       references: enrichedReferences,
       ...(sourceVideoAnalysis ? { sourceVideoAnalysis } : {})

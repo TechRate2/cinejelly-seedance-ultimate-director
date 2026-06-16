@@ -1141,6 +1141,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "request validation happens before expensive build/render work",
       "operator-facing validation output is deterministic and redacted",
       "valid request checks remain separate from paid provider execution",
+      "request-level Seedance model preferences are checked against an admin allowlist before paid work",
       "local runtime paths stay out of public validation output"
     ],
     behaviorChanged: [
@@ -1155,6 +1156,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "schemas/phase6-paid-render-validation-report.schema.json",
       "src/application/render-request-validation-entrypoint.ts",
       "src/application/render-request-normalizer.ts",
+      "src/application/render-settings-descriptor.ts",
       "src/api/render-request-admission.ts",
       "src/index.ts",
       "package.json"

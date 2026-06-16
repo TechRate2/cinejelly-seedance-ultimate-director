@@ -18,7 +18,8 @@ Implementation status as of 2026-06-14: Reference Implementation was drafted bef
 4. Validation does not run readiness, create runtime providers, call Atlas, write render artifacts, or spend credits.
 5. Output is a redacted JSON report with pass/fail status, request ID, normalized request summary, and stable issue messages.
 6. Output must not expose local absolute paths, secrets, signed URLs, inline media, or stack traces.
-7. Static JSON schemas under `schemas/` document the operator request contract and paid-render validation report contract, but TypeScript admission remains the runtime authority.
+7. Optional model selection must be admin-allowlisted. A request can include `modelPreferences.seedanceModelId`, but admission rejects IDs outside the configured fast/standard models and verified Seedance capability records before queue/runtime/provider spend.
+8. Static JSON schemas under `schemas/` document the operator request contract and paid-render validation report contract, but TypeScript admission remains the runtime authority.
 
 ## Edge Cases
 
@@ -27,7 +28,9 @@ Implementation status as of 2026-06-14: Reference Implementation was drafted bef
 - Request file starts with UTF-8 BOM: strip before parsing.
 - Invalid JSON: return a redacted parse failure.
 - Invalid request shape, unsafe URI, or out-of-root path: return `fail` with the admission/normalization message.
+- Unknown `modelPreferences.seedanceModelId`: return `fail`; do not enqueue, initialize runtime, or call Atlas.
 - Valid request with omitted `outputPath`, `workDirectory`, or `artifactDirectory`: pass and report that defaults will be applied without echoing local paths.
+- Valid request with an admin-allowlisted `modelPreferences.seedanceModelId`: pass and include the requested model in the normalized summary.
 - Request has a caller-provided safe `metadata.requestId`: preserve it in the report.
 
 ## Reference Implementation
@@ -54,6 +57,7 @@ async function validateRenderRequest(input: {
         hasOutputPath: Boolean(normalized.outputPath),
         hasWorkDirectory: Boolean(normalized.workDirectory),
         hasArtifactDirectory: Boolean(normalized.artifactDirectory),
+        requestedSeedanceModelId: normalized.modelPreferences?.seedanceModelId,
         referenceCount: normalized.references?.length ?? 0
       },
       issues: []
@@ -76,6 +80,7 @@ async function validateRenderRequest(input: {
 - Add `src/application/render-request-validation-entrypoint.ts`.
 - Add `npm.cmd run validation:render-request -- --request <request-json> [--output <report-path>]`.
 - Reuse `renderRequestAdmissionFromEnv` and `normalizeRenderRequest`.
+- Expose admin-allowlisted Seedance model choices through `/v1/render-settings` and validate `modelPreferences.seedanceModelId` against the same allowlist.
 - Update README, runbook, roadmap, project context, snapshot inventory, credits, package exports, and source-lineage records.
 
 ## Validation Checklist
@@ -84,6 +89,7 @@ async function validateRenderRequest(input: {
 - Request validator never creates runtime providers or calls Atlas.
 - Request validator uses the same admission and normalization boundaries as API and paid-render CLI.
 - Static schemas are documentation/operator contracts, not a replacement for TypeScript runtime admission.
+- Request-level Seedance model preference accepts only admin-allowlisted model IDs.
 - CLI output is redacted and stack-free.
 - Local smoke validation passes with an operator-owned temporary request and preserves a safe request ID.
 - No production runtime import from `external/upstream/`.

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultOutputPath = resolve(repoRoot, "assets", "output_deliverables", "phase6-validation", "request.json");
+const defaultAtlasBillingReportPath = "assets/output_deliverables/phase6-validation/atlas-billing-paid-render-report.json";
 
 const SAFE_DEFAULT_INPUT =
   "Create a 15-second premium commercial video for a fictional smart desk lamp, with calm workspace lighting, clean motion, and no customer data.";
@@ -263,7 +264,9 @@ async function main() {
   console.log(`Wrote validation request: ${relativeRequestPath}`);
   console.log(`No provider call was made.`);
   console.log(`Next no-spend check: npm.cmd run validation:render-request -- --request "${relativeRequestPath}"`);
-  console.log(`Paid validation only after approval: npm.cmd run validation:paid-render -- --request "${relativeRequestPath}" --confirm-paid-spend`);
+  console.log(
+    `Paid validation only after approval: npm.cmd run validation:paid-render -- --request "${relativeRequestPath}" --confirm-paid-spend --atlas-billing-report "${defaultAtlasBillingReportPath}"`
+  );
 }
 
 main().catch((error) => {

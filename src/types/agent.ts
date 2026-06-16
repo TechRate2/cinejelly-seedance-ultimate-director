@@ -3,7 +3,7 @@
  * These types keep user input, planning, rendering, and guardian reports explicit.
  */
 
-import type { FlexibleSeedanceSettings } from "./settings.js";
+import type { FlexibleSeedanceSettings, ModelPreferences } from "./settings.js";
 import type { PromptReference, CompiledPrompt } from "./prompt.js";
 import type { GuardianReport } from "./guardian.js";
 import type { Prediction } from "./provider.js";
@@ -27,6 +27,7 @@ import type { GeneratedAudioOutputValidationBatchReport } from "./generated-audi
 export interface CineJellyProjectRequest {
   readonly userInput: string;
   readonly settings?: Partial<FlexibleSeedanceSettings>;
+  readonly modelPreferences?: ModelPreferences;
   readonly references?: readonly PromptReference[];
   readonly metadata?: Record<string, string>;
   readonly outputPath?: string;
@@ -47,6 +48,7 @@ export interface IntakeResult {
   readonly projectId: string;
   readonly userInput: string;
   readonly settings: FlexibleSeedanceSettings;
+  readonly modelPreferences?: ModelPreferences;
   readonly references: readonly PromptReference[];
   readonly metadata?: Record<string, string>;
   readonly sourceVideoAnalysis?: SourceVideoDeconstruction;

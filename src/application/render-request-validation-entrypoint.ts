@@ -40,6 +40,7 @@ interface RenderRequestNormalizedSummary {
   readonly hasOutputPath: boolean;
   readonly hasWorkDirectory: boolean;
   readonly hasArtifactDirectory: boolean;
+  readonly requestedSeedanceModelId?: string;
   readonly referenceCount: number;
   readonly captionCueCount: number;
   readonly audioTrackCount: number;
@@ -166,6 +167,7 @@ function summarizeRequest(request: CineJellyProjectRequest): RenderRequestNormal
     hasOutputPath: Boolean(request.outputPath),
     hasWorkDirectory: Boolean(request.workDirectory),
     hasArtifactDirectory: Boolean(request.artifactDirectory),
+    ...(request.modelPreferences?.seedanceModelId ? { requestedSeedanceModelId: request.modelPreferences.seedanceModelId } : {}),
     referenceCount: request.references?.length ?? 0,
     captionCueCount: request.captionCues?.length ?? 0,
     audioTrackCount: request.audioTracks?.length ?? 0,

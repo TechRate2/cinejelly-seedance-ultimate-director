@@ -24,6 +24,7 @@ const MAX_GENERATED_AUDIO_METADATA_LENGTH = 160;
 const MAX_GENERATED_AUDIO_TIMING_SECONDS = 600;
 
 export interface RenderRequestAdmissionSettings {
+  readonly allowedSeedanceModelIds?: readonly string[];
   readonly maxUserInputCharacters?: number;
   readonly maxReferences?: number;
   readonly maxCaptionCues?: number;
@@ -46,6 +47,7 @@ export class RenderRequestAdmissionError extends Error {
 }
 
 export class RenderRequestAdmission {
+  private readonly allowedSeedanceModelIds: readonly string[];
   private readonly maxUserInputCharacters: number;
   private readonly maxReferences: number;
   private readonly maxCaptionCues: number;
@@ -58,6 +60,7 @@ export class RenderRequestAdmission {
   private readonly maxSourceVideoNotes: number;
 
   public constructor(settings: RenderRequestAdmissionSettings = {}) {
+    this.allowedSeedanceModelIds = uniqueNonEmptyStrings(settings.allowedSeedanceModelIds ?? []);
     this.maxUserInputCharacters = positiveOrDefault(settings.maxUserInputCharacters, 24_000);
     this.maxReferences = positiveOrDefault(settings.maxReferences, 24);
     this.maxCaptionCues = positiveOrDefault(settings.maxCaptionCues, 600);
@@ -82,6 +85,7 @@ export class RenderRequestAdmission {
     if (payload.settings !== undefined) {
       this.assertSettings(payload.settings);
     }
+    this.assertModelPreferences(payload.modelPreferences);
     this.assertMetadata(payload.metadata);
     this.assertReferences(payload.references);
     this.assertCaptionCues(payload.captionCues);
@@ -113,6 +117,17 @@ export class RenderRequestAdmission {
       normalizeSeedanceSettings(payload);
     } catch (error) {
       throw new RenderRequestAdmissionError(error instanceof Error ? error.message : "settings are invalid.");
+    }
+  }
+
+  private assertModelPreferences(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    const payload = this.objectPayload(value, "modelPreferences must be an object.");
+    this.assertOptionalNonEmptyString(payload.seedanceModelId, "modelPreferences.seedanceModelId", 160);
+    if (payload.seedanceModelId !== undefined && !this.allowedSeedanceModelIds.includes(String(payload.seedanceModelId))) {
+      throw new RenderRequestAdmissionError("modelPreferences.seedanceModelId must match a configured admin-allowed Seedance model.");
     }
   }
 
@@ -707,6 +722,7 @@ export class RenderRequestAdmission {
 
 export function renderRequestAdmissionFromEnv(env: NodeJS.ProcessEnv = process.env): RenderRequestAdmission {
   return new RenderRequestAdmission({
+    allowedSeedanceModelIds: seedanceModelIdsFromEnv(env),
     maxUserInputCharacters: positiveIntegerEnv(env.CINEJELLY_MAX_USER_INPUT_CHARS, 24_000),
     maxReferences: positiveIntegerEnv(env.CINEJELLY_MAX_REFERENCES, 24),
     maxCaptionCues: positiveIntegerEnv(env.CINEJELLY_MAX_CAPTION_CUES, 600),
@@ -718,6 +734,42 @@ export function renderRequestAdmissionFromEnv(env: NodeJS.ProcessEnv = process.e
     maxSourceVideoKeyframesPerScene: positiveIntegerEnv(env.CINEJELLY_MAX_SOURCE_VIDEO_KEYFRAMES_PER_SCENE, 12),
     maxSourceVideoNotes: positiveIntegerEnv(env.CINEJELLY_MAX_SOURCE_VIDEO_NOTES, 120)
   });
+}
+
+function seedanceModelIdsFromEnv(env: NodeJS.ProcessEnv): readonly string[] {
+  const modelIds = [
+    env.ATLASCLOUD_SEEDANCE_FAST_MODEL,
+    env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL,
+    ...seedanceCapabilityModelIds(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON)
+  ];
+  return uniqueNonEmptyStrings(modelIds);
+}
+
+function seedanceCapabilityModelIds(value: string | undefined): readonly string[] {
+  if (!value?.trim()) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.flatMap((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return [];
+      }
+      const modelId = (item as Record<string, unknown>).modelId;
+      return typeof modelId === "string" ? [modelId] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+function uniqueNonEmptyStrings(values: readonly (string | undefined)[]): readonly string[] {
+  return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))].sort((left, right) =>
+    left.localeCompare(right)
+  );
 }
 
 function positiveOrDefault(value: number | undefined, fallback: number): number {

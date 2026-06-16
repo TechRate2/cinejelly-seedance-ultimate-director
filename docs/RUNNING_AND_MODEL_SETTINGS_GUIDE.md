@@ -303,7 +303,7 @@ GET /v1/render-settings
 Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>
 ```
 
-The response intentionally contains no API keys or local paths. It reports defaults, supported setting values, duration and cost constraints, quality-mode behavior, selected model IDs, Seedance capability configuration source, and whether a first-party UI exists. Today the official control surface is still HTTP API plus CLI; a future UI should read this descriptor instead of duplicating option lists.
+The response intentionally contains no API keys or local paths. It reports defaults, supported setting values, duration and cost constraints, quality-mode behavior, selected model IDs, admin-allowlisted Seedance model choices, Seedance capability configuration source, and whether a first-party UI exists. Today the official control surface is still HTTP API plus CLI; a future UI should read this descriptor instead of duplicating option lists.
 
 | Setting | Options | What it controls |
 | --- | --- | --- |
@@ -316,6 +316,13 @@ The response intentionally contains no API keys or local paths. It reports defau
 | `watermark` | `true`, `false` | Provider watermark policy. Commercial output should normally use `false` when supported. |
 | `returnLastFrame` | `true`, `false` | Requests last-frame continuity anchors when supported. |
 | `maxCostUsd` | non-negative number | Optional cost gate. Requires cost environment rates for meaningful budget enforcement. |
+
+Model selection for API/UI clients:
+
+- Read `modelSelection.seedance.selectableModels` from `GET /v1/render-settings`.
+- Send an optional `modelPreferences.seedanceModelId` in `/v1/render`, `/v1/render-jobs`, or validation request JSON only when the user selects one of those IDs.
+- Runtime admission rejects model IDs outside the admin allowlist built from `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, and `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`.
+- LLM model selection remains admin-configured through `ATLASCLOUD_LLM_MODEL`; request-level LLM overrides are intentionally disabled so source-video analysis, story planning, and semantic inspection stay under operator control.
 
 Default settings in `src/types/settings.ts`:
 
@@ -347,6 +354,8 @@ CineJelly currently uses three configured model IDs:
 3. Fast Seedance model: `ATLASCLOUD_SEEDANCE_FAST_MODEL`
    - Used when `settings.tier` is `fast`.
    - Intended for cheaper/faster iteration.
+
+If `modelPreferences.seedanceModelId` is present and matches the admin allowlist, it overrides the tier-selected Seedance model for that render while preserving the same capability, request-admission, quota, and paid-spend gates.
 
 Generated audio:
 

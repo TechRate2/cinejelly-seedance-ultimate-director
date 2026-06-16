@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultSmokeReportPath = "assets/output_deliverables/phase6-validation/local-smoke-report.json";
 const defaultPaidReportPath = "assets/output_deliverables/phase6-validation/paid-render-report.json";
+const defaultAtlasBillingReportPath =
+  "assets/output_deliverables/phase6-validation/atlas-billing-paid-render-report.json";
 const defaultOutputPath = "assets/output_deliverables/phase6-validation/release-audit-report.json";
 
 const SECRET_PATTERNS = [
@@ -338,7 +340,9 @@ function nextActionsFor(status, checks, options) {
     actions.push("Run npm.cmd run doctor and resolve no-spend readiness blockers.");
   }
   if (checks.some((check) => check.name === "paid_render_report" && check.status === "fail")) {
-    actions.push(`Run paid validation only after approval: npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend --output "${options.paidReportPath}"`);
+    actions.push(
+      `Run paid validation only after approval: npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend --atlas-billing-report "${defaultAtlasBillingReportPath}" --output "${options.paidReportPath}"`
+    );
   }
   if (checks.some((check) => check.name === "tracked_worktree_clean" && check.status === "fail")) {
     actions.push("Commit or intentionally discard source changes before release audit.");

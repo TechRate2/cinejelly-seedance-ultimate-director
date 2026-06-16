@@ -3,7 +3,7 @@
  * This module turns user-facing controls into provider-neutral generation settings.
  */
 
-import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, QualityMode } from "../types/settings.js";
+import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, ModelPreferences, QualityMode } from "../types/settings.js";
 import type { VideoGenerationSettings } from "../types/provider.js";
 import { DEFAULT_SEEDANCE_SETTINGS } from "../types/settings.js";
 
@@ -47,11 +47,38 @@ export function normalizeSeedanceSettings(
 
 export function resolveSeedanceModelId(
   settings: Pick<FlexibleSeedanceSettings, "tier">,
-  atlasCloud: AtlasCloudRuntimeSettings
+  atlasCloud: AtlasCloudRuntimeSettings,
+  modelPreferences: ModelPreferences = {}
 ): string {
+  if (modelPreferences.seedanceModelId) {
+    assertAllowedSeedanceModelId(modelPreferences.seedanceModelId, atlasCloud);
+    return modelPreferences.seedanceModelId;
+  }
   return settings.tier === "fast"
     ? atlasCloud.models.seedanceFastModel
     : atlasCloud.models.seedanceStandardModel;
+}
+
+export function selectableSeedanceModelIds(atlasCloud: Pick<AtlasCloudRuntimeSettings, "models" | "seedanceCapabilities">): readonly string[] {
+  const ids = new Set<string>();
+  if (atlasCloud.models.seedanceFastModel.trim()) {
+    ids.add(atlasCloud.models.seedanceFastModel.trim());
+  }
+  if (atlasCloud.models.seedanceStandardModel.trim()) {
+    ids.add(atlasCloud.models.seedanceStandardModel.trim());
+  }
+  for (const capability of atlasCloud.seedanceCapabilities ?? []) {
+    if (capability.modelId.trim()) {
+      ids.add(capability.modelId.trim());
+    }
+  }
+  return [...ids].sort((left, right) => left.localeCompare(right));
+}
+
+function assertAllowedSeedanceModelId(modelId: string, atlasCloud: AtlasCloudRuntimeSettings): void {
+  if (!selectableSeedanceModelIds(atlasCloud).includes(modelId)) {
+    throw new Error(`seedanceModelId must be one of the configured admin allowlist models.`);
+  }
 }
 
 export function toVideoGenerationSettings(

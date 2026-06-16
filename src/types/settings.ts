@@ -36,6 +36,10 @@ export interface FlexibleSeedanceSettings {
   readonly maxCostUsd?: number;
 }
 
+export interface ModelPreferences {
+  readonly seedanceModelId?: string;
+}
+
 export interface ProviderModelSettings {
   readonly llmModel: string;
   readonly seedanceStandardModel: string;

@@ -210,7 +210,7 @@ export class DirectorAgent {
     if (storyboardPreflight.status === "block" || storyboardPreflight.status === "repair") {
       throw new Error(this.describeStoryboardBlock(storyboardPreflight));
     }
-    const modelId = resolveSeedanceModelId(intake.settings, this.atlasSettings);
+    const modelId = resolveSeedanceModelId(intake.settings, this.atlasSettings, intake.modelPreferences);
     const providerSupportedReferenceKinds = this.renderProducer.supportedReferenceKinds(modelId);
     this.reportStageProgress("prompt", "running", "Compiling provider-ready prompts and binding references.");
     const compiledPrompts = shots.map((shot) =>
