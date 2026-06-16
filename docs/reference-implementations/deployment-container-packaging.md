@@ -1,6 +1,6 @@
 # Deployment Container Packaging
 
-Implementation status as of 2026-06-16: implemented as a root `Dockerfile`, root `.dockerignore`, environment-template notes, and operator documentation. This packaging is a deployment transport and does not replace real HTTPS deployment, Atlas billing readiness, paid validation, or operations attestations.
+Implementation status as of 2026-06-17: implemented as a root `Dockerfile`, root `.dockerignore`, environment-template notes, operator documentation, `scripts/validate-deployment-package.mjs`, `schemas/deployment-package-validation-report.schema.json`, `npm run validation:deployment-package`, and report-contract validation coverage. This packaging is a deployment transport and does not replace real HTTPS deployment, Atlas billing readiness, paid validation, or operations attestations.
 
 ## Intent
 
@@ -14,6 +14,7 @@ Business-readiness deployment evidence must come from a real HTTPS host. A repea
 4. Atlas provider calls remain gated by the runtime configuration, request admission, budget checks, Atlas billing evidence, and explicit paid-validation flags.
 5. `CINEJELLY_OUTPUT_DIR` must point to a writable path. Commercial deployments should mount it on durable storage or configure a platform volume.
 6. The image must not bake in `.env`; pass secrets through the platform secret manager or `docker run --env-file .env`.
+7. The no-spend deployment-package validator must check Dockerfile, `.dockerignore`, `.env.production.template`, and this document without calling Docker, Atlas, FFmpeg, deployment hosts, or billing APIs.
 
 ## Runtime Shape
 
@@ -29,6 +30,7 @@ Business-readiness deployment evidence must come from a real HTTPS host. A repea
 Build locally:
 
 ```bash
+npm run validation:deployment-package
 docker build -t cinejelly-seedance-ultimate-director:local .
 ```
 
@@ -58,6 +60,7 @@ npm run validation:deployment-readiness
 ## Acceptance Checks
 
 - `docker build` succeeds without `.env` in the image.
+- `npm run validation:deployment-package` writes `cinejelly.deployment-package-validation.v1` with status `pass`.
 - `/health` returns HTTP 200 from the running container.
 - `/v1/preflight` reports Atlas configuration, API auth, output directory, FFmpeg, FFprobe, and `atlascloud_docs_conformance` without exposing secrets.
 - `validation:deployment-readiness` marks localhost captures as local-only and marks real HTTPS captures as deployment evidence only when all required diagnostics pass.

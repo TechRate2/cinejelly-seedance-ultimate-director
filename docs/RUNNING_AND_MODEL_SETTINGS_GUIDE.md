@@ -209,6 +209,7 @@ The root `Dockerfile` builds the TypeScript API and installs FFmpeg/FFprobe in t
 Build:
 
 ```powershell
+npm.cmd run validation:deployment-package
 docker build -t cinejelly-seedance-ultimate-director:local .
 ```
 
@@ -227,7 +228,7 @@ docker run --rm -p 8787:8787 --env-file .env `
   cinejelly-seedance-ultimate-director:local
 ```
 
-After publishing the container behind HTTPS, run `validation:deployment-readiness` from an operator machine. The Docker image is deployment packaging only; commercial readiness still requires real host evidence, billing/admin and production-ops attestations, Atlas billing readiness, and the remaining paid validation reports.
+`validation:deployment-package` is a no-spend static packaging check. It does not run Docker, Atlas, FFmpeg, or deployment hosts. After publishing the container behind HTTPS, run `validation:deployment-readiness` from an operator machine. The Docker image is deployment packaging only; commercial readiness still requires real host evidence, billing/admin and production-ops attestations, Atlas billing readiness, and the remaining paid validation reports.
 
 ## Create And Validate A Request File
 
