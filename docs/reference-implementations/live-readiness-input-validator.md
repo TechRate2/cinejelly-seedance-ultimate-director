@@ -17,6 +17,7 @@ Before running any live network or paid Atlas validation, operators need a singl
 7. If any no-spend input gate is blocked, the report must recommend deferring Atlas paid spend.
 8. Paid Atlas gates must remain blocked while the local Atlas billing-readiness report is missing, failing, or outside the approved validation budget.
 9. Paid Atlas gates must also remain blocked when the local Atlas billing-readiness report was captured for a different `maxBudgetUsd` or `plannedCostUsd` than the current live-input cost plan.
+10. Paid Atlas gates must remain blocked when the local Atlas billing-readiness report is older than `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS`, defaulting to 24 hours.
 
 ## Report Shape
 
@@ -72,3 +73,4 @@ interface LiveReadinessInputsReport {
 - The current 120s long-form validation remains blocked under a `$5` ceiling when the configured estimate is `$24`.
 - The report can show generated-audio technical inputs are present, but it must keep generated-audio paid validation blocked while Atlas billing readiness or the approved-budget fit fails.
 - Changing `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` makes the live-input report request a fresh Atlas billing readiness probe before any paid Atlas gate can pass.
+- Letting `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS` expire makes the live-input report request a fresh Atlas billing readiness probe before any paid Atlas gate can pass.

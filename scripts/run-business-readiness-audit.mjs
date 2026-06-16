@@ -17,6 +17,7 @@ const defaults = {
   generatedAudioReportPath: "assets/output_deliverables/business-readiness/generated-audio-validation-report.json",
   billingAdminReportPath: "assets/output_deliverables/business-readiness/billing-admin-ops-report.json",
   operationsReportPath: "assets/output_deliverables/business-readiness/production-operations-report.json",
+  atlasBillingEvidenceMaxAgeHours: Number(process.env.CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS || "24"),
   outputPath: "assets/output_deliverables/phase6-validation/business-readiness-report.json"
 };
 
@@ -130,6 +131,7 @@ function parseArgs(args) {
     ["--generated-audio-report", "generatedAudioReportPath"],
     ["--billing-admin-report", "billingAdminReportPath"],
     ["--operations-report", "operationsReportPath"],
+    ["--atlas-billing-evidence-max-age-hours", "atlasBillingEvidenceMaxAgeHours"],
     ["--output", "outputPath"]
   ]);
 
@@ -147,7 +149,8 @@ function parseArgs(args) {
     const flag = equalsIndex >= 0 ? arg.slice(0, equalsIndex) : arg;
     const key = flagMap.get(flag);
     if (key) {
-      options[key] = equalsIndex >= 0 ? arg.slice(equalsIndex + 1) : readRequiredValue(args, index, flag);
+      const rawValue = equalsIndex >= 0 ? arg.slice(equalsIndex + 1) : readRequiredValue(args, index, flag);
+      options[key] = key === "atlasBillingEvidenceMaxAgeHours" ? Number(rawValue) : rawValue;
       index += equalsIndex >= 0 ? 0 : 1;
       continue;
     }
@@ -184,6 +187,8 @@ Options:
   --generated-audio-report <path>       Live generated-audio provider report. Default: ${defaults.generatedAudioReportPath}
   --billing-admin-report <path>         Billing/admin/quota operations report. Default: ${defaults.billingAdminReportPath}
   --operations-report <path>            Storage/observability/support report. Default: ${defaults.operationsReportPath}
+  --atlas-billing-evidence-max-age-hours <hours>
+                                        Maximum age for Atlas billing readiness evidence. Default: ${defaults.atlasBillingEvidenceMaxAgeHours}
   --output <path>                       Output report. Default: ${defaults.outputPath}
   --no-output                           Print only; do not write the report.
 
@@ -280,8 +285,11 @@ function evaluateAtlasBillingReadiness(path, options) {
   if (currentPlan.schemaVersion !== "cinejelly.business-readiness-validation-plan.v1") {
     return fail("Current business-readiness validation plan schemaVersion is not recognized.");
   }
-  const freshness = atlasBillingFreshness(report, currentPlan);
+  const freshness = atlasBillingFreshness(report, currentPlan, options);
   if (!freshness.matchesCurrentPlan) {
+    return fail(freshness.message);
+  }
+  if (!freshness.freshForPaidValidation) {
     return fail(freshness.message);
   }
   if (
@@ -308,7 +316,7 @@ function evaluateAtlasBillingReadiness(path, options) {
   );
 }
 
-function atlasBillingFreshness(report, currentPlan) {
+function atlasBillingFreshness(report, currentPlan, options) {
   const expectedMaxBudgetUsd = numberOrUndefined(currentPlan.costPlan?.maxBudgetUsd);
   const expectedPlannedCostUsd = numberOrUndefined(currentPlan.costPlan?.knownPaidEstimateUsd);
   const reportMaxBudgetUsd = numberOrUndefined(report.checkedInputs?.maxBudgetUsd ?? report.costPlan?.maxBudgetUsd);
@@ -316,11 +324,40 @@ function atlasBillingFreshness(report, currentPlan) {
   const matchesCurrentPlan =
     moneyEquals(reportMaxBudgetUsd, expectedMaxBudgetUsd) &&
     moneyEquals(reportPlannedCostUsd, expectedPlannedCostUsd);
+  const maxAgeHours = options.atlasBillingEvidenceMaxAgeHours;
+  const freshness = atlasBillingReportAge(report, maxAgeHours, expectedMaxBudgetUsd);
   return {
     matchesCurrentPlan,
-    message: matchesCurrentPlan
+    freshForPaidValidation: freshness.freshForPaidValidation,
+    message: !matchesCurrentPlan
+      ? `Atlas billing readiness is stale for the current plan: report budget ${formatUsd(reportMaxBudgetUsd)}, report planned cost ${formatUsd(reportPlannedCostUsd)}, current budget ${formatUsd(expectedMaxBudgetUsd)}, current planned cost ${formatUsd(expectedPlannedCostUsd)}. Rerun npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(expectedMaxBudgetUsd)} --confirm-live-network.`
+      : freshness.freshForPaidValidation
       ? "Atlas billing readiness report matches the current business-readiness validation plan."
-      : `Atlas billing readiness is stale for the current plan: report budget ${formatUsd(reportMaxBudgetUsd)}, report planned cost ${formatUsd(reportPlannedCostUsd)}, current budget ${formatUsd(expectedMaxBudgetUsd)}, current planned cost ${formatUsd(expectedPlannedCostUsd)}. Rerun npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(expectedMaxBudgetUsd)} --confirm-live-network.`
+      : freshness.message
+  };
+}
+
+function atlasBillingReportAge(report, maxAgeHours, maxBudgetUsd) {
+  const rerunCommand = `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(maxBudgetUsd)} --confirm-live-network`;
+  const reportGeneratedAt = typeof report.generatedAt === "string" ? report.generatedAt : undefined;
+  const generatedAtMs = reportGeneratedAt ? Date.parse(reportGeneratedAt) : Number.NaN;
+  const validGeneratedAt = Number.isFinite(generatedAtMs);
+  const rawAgeHours = validGeneratedAt ? (Date.now() - generatedAtMs) / 3600000 : undefined;
+  const reportAgeHours = typeof rawAgeHours === "number" && Number.isFinite(rawAgeHours) ? Math.max(0, rawAgeHours) : undefined;
+  const clockSkewOk = typeof rawAgeHours === "number" && rawAgeHours >= -0.083333;
+  const freshForPaidValidation = validGeneratedAt && clockSkewOk && reportAgeHours <= maxAgeHours;
+  let message = "Atlas billing readiness report is fresh enough for paid-validation planning.";
+  if (!validGeneratedAt) {
+    message = `Atlas billing readiness report is missing a valid generatedAt timestamp. Rerun ${rerunCommand}.`;
+  } else if (!clockSkewOk) {
+    message = `Atlas billing readiness report timestamp is in the future (${reportGeneratedAt}). Rerun ${rerunCommand}.`;
+  } else if (!freshForPaidValidation) {
+    message = `Atlas billing readiness report is too old for paid Atlas validation: generatedAt ${reportGeneratedAt}, age ${formatHours(reportAgeHours)}, max age ${formatHours(maxAgeHours)}. Rerun ${rerunCommand}.`;
+  }
+  return {
+    reportAgeHours,
+    freshForPaidValidation,
+    message
   };
 }
 
@@ -627,6 +664,10 @@ function formatNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(6) : "0.000000";
 }
 
+function formatHours(value) {
+  return typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(2)}h` : "unavailable";
+}
+
 function pass(message) {
   return { status: "pass", message };
 }
@@ -701,6 +742,9 @@ function main() {
   }
   if (extname(options.outputPath).toLowerCase() !== ".json") {
     throw new Error("--output must point to a JSON file.");
+  }
+  if (!Number.isFinite(options.atlasBillingEvidenceMaxAgeHours) || options.atlasBillingEvidenceMaxAgeHours <= 0) {
+    throw new Error("--atlas-billing-evidence-max-age-hours must be a positive number.");
   }
 
   const results = checks.map((spec) => buildCheck(spec, options));

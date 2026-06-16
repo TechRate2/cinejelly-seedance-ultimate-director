@@ -13,6 +13,7 @@ const defaults = {
   deploymentBaseUrl: process.env.CINEJELLY_DEPLOYMENT_BASE_URL,
   sourceVideoUrl: process.env.CINEJELLY_VALIDATION_SOURCE_VIDEO_URL,
   maxBudgetUsd: Number(process.env.CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD || "5"),
+  atlasBillingEvidenceMaxAgeHours: Number(process.env.CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS || "24"),
   longFormDurationSeconds: 120,
   generatedAudioText: "Xin chao, day la ban kiem tra am thanh ngan cua CineJelly."
 };
@@ -40,6 +41,7 @@ function parseArgs(args) {
     ["--deployment-base-url", "deploymentBaseUrl"],
     ["--source-video-url", "sourceVideoUrl"],
     ["--max-budget-usd", "maxBudgetUsd"],
+    ["--atlas-billing-evidence-max-age-hours", "atlasBillingEvidenceMaxAgeHours"],
     ["--long-form-duration-seconds", "longFormDurationSeconds"],
     ["--generated-audio-text", "generatedAudioText"]
   ]);
@@ -69,7 +71,7 @@ function parseArgs(args) {
 }
 
 function numericOption(key) {
-  return ["maxBudgetUsd", "longFormDurationSeconds"].includes(key);
+  return ["maxBudgetUsd", "atlasBillingEvidenceMaxAgeHours", "longFormDurationSeconds"].includes(key);
 }
 
 function readRequiredValue(args, index, flag) {
@@ -95,6 +97,8 @@ Options:
   --deployment-base-url <url>             Real CineJelly HTTPS deployment URL. Can also use CINEJELLY_DEPLOYMENT_BASE_URL.
   --source-video-url <url>                Clean HTTPS source-video URL. Can also use CINEJELLY_VALIDATION_SOURCE_VIDEO_URL.
   --max-budget-usd <amount>               Budget ceiling for known paid validation. Default: ${defaults.maxBudgetUsd}
+  --atlas-billing-evidence-max-age-hours <hours>
+                                           Maximum age for Atlas billing readiness evidence. Default: ${defaults.atlasBillingEvidenceMaxAgeHours}
   --long-form-duration-seconds <seconds>  Target long-form validation duration. Default: ${defaults.longFormDurationSeconds}
   --generated-audio-text <text>           Text used for generated-audio cost estimate.
   --output <path>                         JSON report path. Default: ${defaults.outputPath}
@@ -152,6 +156,9 @@ function validateOptions(options) {
   if (!Number.isFinite(options.maxBudgetUsd) || options.maxBudgetUsd < 0) {
     throw new Error("--max-budget-usd must be a non-negative number.");
   }
+  if (!Number.isFinite(options.atlasBillingEvidenceMaxAgeHours) || options.atlasBillingEvidenceMaxAgeHours <= 0) {
+    throw new Error("--atlas-billing-evidence-max-age-hours must be a positive number.");
+  }
   if (!Number.isSafeInteger(options.longFormDurationSeconds) || options.longFormDurationSeconds < 120 || options.longFormDurationSeconds > 480) {
     throw new Error("--long-form-duration-seconds must be an integer from 120 to 480.");
   }
@@ -162,7 +169,7 @@ function summarizeEnvironment(options, costPlan) {
   const atlasBilling = summarizeAtlasBilling(options.atlasBillingPath, {
     maxBudgetUsd: options.maxBudgetUsd,
     plannedCostUsd: costPlan.knownPaidEstimateUsd
-  });
+  }, options.atlasBillingEvidenceMaxAgeHours);
   const deployment = urlEvidence(options.deploymentBaseUrl, "deployment");
   const sourceVideoUrl = urlEvidence(options.sourceVideoUrl, "source_video");
   const apiClientPolicies = jsonArrayEnv("CINEJELLY_API_CLIENTS_JSON");
@@ -251,7 +258,7 @@ function summarizeOpsConfig(path) {
   };
 }
 
-function summarizeAtlasBilling(path, expectedCostPlan) {
+function summarizeAtlasBilling(path, expectedCostPlan, maxAgeHours) {
   const report = readJsonIfExists(path);
   if (!report) {
     return {
@@ -264,10 +271,12 @@ function summarizeAtlasBilling(path, expectedCostPlan) {
     };
   }
   const reportPlan = atlasBillingReportPlan(report, expectedCostPlan);
+  const reportFreshness = atlasBillingReportFreshness(report, maxAgeHours, expectedCostPlan.maxBudgetUsd);
   const failures = Array.isArray(report.checks)
     ? report.checks.filter((check) => check?.status === "fail").map((check) => String(check.message ?? check.name ?? "unknown"))
     : [];
   const messages = [
+    ...(reportFreshness.freshForPaidValidation ? [] : [reportFreshness.message]),
     ...(reportPlan.matchesCurrentPlan ? [] : [reportPlan.message]),
     ...failures
   ];
@@ -281,8 +290,18 @@ function summarizeAtlasBilling(path, expectedCostPlan) {
     currentMaxBudgetUsd: expectedCostPlan.maxBudgetUsd,
     currentPlannedCostUsd: expectedCostPlan.plannedCostUsd,
     budgetMatchesCurrentPlan: reportPlan.matchesCurrentPlan,
-    canUseAsPrePaidAtlasBillingEvidence: reportPlan.matchesCurrentPlan && report.releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true,
-    canRunAtlasSpendWithinApprovedBudget: reportPlan.matchesCurrentPlan && report.releaseGateSummary?.canRunAtlasSpendWithinApprovedBudget === true,
+    reportGeneratedAt: reportFreshness.reportGeneratedAt,
+    maxAgeHours: reportFreshness.maxAgeHours,
+    reportAgeHours: reportFreshness.reportAgeHours,
+    freshForPaidValidation: reportFreshness.freshForPaidValidation,
+    canUseAsPrePaidAtlasBillingEvidence:
+      reportPlan.matchesCurrentPlan &&
+      reportFreshness.freshForPaidValidation &&
+      report.releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true,
+    canRunAtlasSpendWithinApprovedBudget:
+      reportPlan.matchesCurrentPlan &&
+      reportFreshness.freshForPaidValidation &&
+      report.releaseGateSummary?.canRunAtlasSpendWithinApprovedBudget === true,
     networkCallsMade: report.networkCallsMade === true,
     failCount: messages.length,
     message: messages[0] ?? "Atlas billing readiness report is passing."
@@ -302,6 +321,32 @@ function atlasBillingReportPlan(report, expectedCostPlan) {
     reportMaxBudgetUsd,
     reportPlannedCostUsd,
     matchesCurrentPlan,
+    message
+  };
+}
+
+function atlasBillingReportFreshness(report, maxAgeHours, maxBudgetUsd) {
+  const rerunCommand = `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(maxBudgetUsd)} --confirm-live-network`;
+  const reportGeneratedAt = typeof report.generatedAt === "string" ? report.generatedAt : undefined;
+  const generatedAtMs = reportGeneratedAt ? Date.parse(reportGeneratedAt) : Number.NaN;
+  const validGeneratedAt = Number.isFinite(generatedAtMs);
+  const rawAgeHours = validGeneratedAt ? (Date.now() - generatedAtMs) / 3600000 : undefined;
+  const reportAgeHours = typeof rawAgeHours === "number" && Number.isFinite(rawAgeHours) ? Math.max(0, rawAgeHours) : undefined;
+  const clockSkewOk = typeof rawAgeHours === "number" && rawAgeHours >= -0.083333;
+  const freshForPaidValidation = validGeneratedAt && clockSkewOk && reportAgeHours <= maxAgeHours;
+  let message = "Atlas billing readiness report is fresh enough for paid-validation planning.";
+  if (!validGeneratedAt) {
+    message = `Atlas billing readiness report is missing a valid generatedAt timestamp. Rerun ${rerunCommand}.`;
+  } else if (!clockSkewOk) {
+    message = `Atlas billing readiness report timestamp is in the future (${reportGeneratedAt}). Rerun ${rerunCommand}.`;
+  } else if (!freshForPaidValidation) {
+    message = `Atlas billing readiness report is too old for paid Atlas validation: generatedAt ${reportGeneratedAt}, age ${formatHours(reportAgeHours)}, max age ${formatHours(maxAgeHours)}. Rerun ${rerunCommand}.`;
+  }
+  return {
+    reportGeneratedAt,
+    maxAgeHours,
+    reportAgeHours,
+    freshForPaidValidation,
     message
   };
 }
@@ -695,6 +740,10 @@ function formatUsd(value) {
 
 function formatNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(6) : "0.000000";
+}
+
+function formatHours(value) {
+  return typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(2)}h` : "unavailable";
 }
 
 function redactText(value) {

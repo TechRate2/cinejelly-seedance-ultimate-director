@@ -20,6 +20,7 @@ Implementation status as of 2026-06-16: implemented as a CineJelly-owned no-spen
 6. The report must be machine-readable, stable, and safe to archive with release evidence.
 7. The completion percent is an evidence-completion score, not a claim that product code is feature-complete.
 8. Atlas billing readiness evidence must match the current no-spend business-readiness validation plan's `maxBudgetUsd` and `knownPaidEstimateUsd`; stale billing evidence cannot unlock additional paid Atlas validation.
+9. Atlas billing readiness evidence must be fresh enough for paid validation, using `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS` with a default of 24 hours.
 
 ## Reference Implementation
 
@@ -68,6 +69,7 @@ interface BusinessReadinessReport {
 - Done: add schema-aware Atlas billing readiness evaluation through `cinejelly.atlas-billing-readiness.v1` as a zero-weight hard pre-paid-spend gate.
 - Done: make paid-validation summary flags depend on the Atlas billing/budget gate instead of release hygiene alone.
 - Done: reject stale Atlas billing readiness reports whose captured budget or planned cost no longer matches the current `cinejelly.business-readiness-validation-plan.v1` report.
+- Done: reject Atlas billing readiness reports older than the configured evidence max age before enabling additional paid validation.
 - Done: add schema-aware billing/admin/quota evidence evaluation through `cinejelly.billing-admin-ops.v1`.
 - Done: add schema-aware production operations evidence evaluation through `cinejelly.production-operations.v1`.
 - Pending: feed the audit with real deployment, passing paid long-form, source-video, remote stock, generated-audio, Atlas billing readiness under the approved budget, billing/admin, and production operations evidence.
@@ -79,5 +81,6 @@ interface BusinessReadinessReport {
 - Long-form evidence cannot pass without a final duration between 120 and 480 seconds.
 - The report lists exact evidence paths and next actions.
 - Changing the approved validation budget without rerunning `validation:atlas-billing` leaves the Atlas billing audit check failed as stale.
+- Letting the Atlas billing readiness report exceed the configured max age leaves the Atlas billing audit check failed as stale.
 - The script does not import from `src/providers`, create runtimes, call Atlas, or write media artifacts.
 - No production runtime import from `external/upstream/`.

@@ -284,7 +284,7 @@ Deliverables:
 - Run `npm.cmd run validate:artifacts -- <artifact-directory>` on generated success or failure artifacts.
 - Inspect `review-packet.json`, `cost-ledger.json`, `run-summary.json`, and deliverable metadata.
 - Run `npm.cmd run validation:release-audit` and archive the release-audit report with validation evidence.
-- Run `npm.cmd run validation:live-inputs` before live network or paid provider validation and keep it blocked until deployment, ops, Atlas billing/budget readiness, source-video, remote-stock, generated-audio, and budget inputs are ready for the intended gate.
+- Run `npm.cmd run validation:live-inputs` before live network or paid provider validation and keep it blocked until deployment, ops, fresh Atlas billing/budget readiness, source-video, remote-stock, generated-audio, and budget inputs are ready for the intended gate.
 - Run `npm.cmd run validation:commercial-inputs` to generate the JSON and Markdown checklist of exactly which operator inputs are still missing before asking for live credentials, deployment URLs, or budget approvals.
 - Run `npm.cmd run validation:business-readiness` and keep it blocked until real evidence exists for deployment preflight, Atlas billing readiness, long-form, source-video, remote stock, generated audio, billing/admin/quota controls, and production operations.
 - Keep `docs/PROJECT_CONTEXT.md` updated with actual validation dates, report paths, and remaining blockers.

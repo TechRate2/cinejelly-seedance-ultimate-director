@@ -14,6 +14,7 @@ Before running additional paid Atlas validation, operators need to know whether 
 4. A billing-readiness pass is pre-paid-spend evidence only; it must not mark business readiness or customer traffic as approved.
 5. The validator should prefer `ATLASCLOUD_BILLING_API_KEY` when present and fall back to `ATLASCLOUD_API_KEY` for operators who use one Atlas pay-as-you-go key.
 6. The `/balance` parser must prefer the documented `available` money value and may include redacted-safe `cash`, `bonus`, `subscription_bonus`, `frozen`, and `credit_grant` breakdown evidence when Atlas returns those fields.
+7. Downstream paid-validation gates must treat this report as stale when it is older than `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS`, defaulting to 24 hours, because Atlas balance can change after capture.
 
 ## Delivered Implementation
 
@@ -25,6 +26,7 @@ Before running additional paid Atlas validation, operators need to know whether 
 - Done: parse Atlas's documented `available` balance plus safe balance/credit-grant breakdown fields.
 - Done: make `validation:business-readiness` require this report as a hard pre-paid-spend gate with zero completion weight.
 - Done: keep business-readiness paid-validation summary flags false while this report fails.
+- Done: make downstream live-input, business-plan, and business-readiness gates reject this report after the configured evidence max age.
 
 ## Acceptance Checks
 
@@ -34,3 +36,4 @@ Before running additional paid Atlas validation, operators need to know whether 
 - The generated report redacts key-like string values and records only safe key metadata such as configured env name and `apikey-` prefix validity.
 - A pass still reports `canReleaseToCustomerTraffic: false`.
 - Business-readiness stays blocked when this report is missing or fails, but the evidence-completion percentage is not inflated by this pre-spend guard.
+- Business-readiness stays blocked when this report is older than the configured evidence max age.

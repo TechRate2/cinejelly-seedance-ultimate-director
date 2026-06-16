@@ -283,6 +283,7 @@ npm start
 
 `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` is the shared default approved-budget ceiling for `validation:live-inputs`, `validation:business-plan`, and `validation:atlas-billing`; keep it low until the operator explicitly approves the full paid Atlas validation plan, or pass `--max-budget-usd` for a one-off run.
 After changing that ceiling, rerun `npm.cmd run validation:atlas-billing -- --max-budget-usd <approved-budget> --confirm-live-network`; stored Atlas billing reports are treated as stale when their captured budget or planned cost no longer matches the current plan.
+`CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS` controls how long a stored Atlas billing-readiness report can unlock paid-validation planning; the default is 24 hours, after which `validation:live-inputs`, `validation:business-plan`, and `validation:business-readiness` require a fresh no-spend `/balance` probe.
 
 Production API:
 
