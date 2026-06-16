@@ -229,6 +229,14 @@ npm.cmd run validation:deployment-readiness
 
 The command calls only `/health`, `/v1/preflight`, `/v1/validation-readiness`, and `/v1/render-settings`. A localhost run is useful for smoke testing, but it is marked local and does not satisfy the commercial business-readiness deployment gate.
 
+For the billing/admin/quota commercial evidence gate, configure real client policies, require client policy for render, set a persistent usage ledger path, prepare a non-secret billing/admin attestation, and run:
+
+```powershell
+npm.cmd run validation:billing-admin-ops -- --base-url "https://<your-cinejelly-host>" --attestation "ops/billing-admin-attestation.json"
+```
+
+This command does not call Atlas or payment provider APIs. It checks CineJelly's configured quota controls, writable usage ledger, deployment-token-only `/v1/admin/client-policy`, and the attestation contract documented in `docs/reference-implementations/billing-admin-ops-evidence.md`.
+
 For non-specialist operators, prefer:
 
 ```powershell

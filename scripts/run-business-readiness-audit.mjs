@@ -87,9 +87,9 @@ const checks = [
     name: "billing_admin_quota_controls",
     weight: 7,
     pathOption: "billingAdminReportPath",
-    evaluator: evaluateRequiredPassReport,
+    evaluator: evaluateBillingAdminOps,
     missing:
-      "Missing business operations evidence for billing, admin controls, user/API-key management, quotas, refund handling, and spend-limit enforcement."
+      "Missing business operations evidence. Run npm.cmd run validation:billing-admin-ops with deployment URL, client policy, usage ledger, and non-secret billing/admin attestation."
   },
   {
     name: "production_storage_observability_support",
@@ -282,6 +282,27 @@ function evaluateLongForm(path) {
     return warn(`Long-form validation reached ${durationSeconds}s with warnings requiring manual review.`);
   }
   return pass(`Long-form validation evidence covers ${durationSeconds}s and passed required checks.`);
+}
+
+function evaluateBillingAdminOps(path) {
+  const report = readJson(path);
+  if (report.schemaVersion !== "cinejelly.billing-admin-ops.v1") {
+    return fail("Billing/admin operations report schemaVersion is not recognized.");
+  }
+  if (report.status === "pass" && report.releaseGateSummary?.canUseAsBusinessReadinessBillingEvidence === true) {
+    return pass("Billing/admin/quota operations evidence passed.");
+  }
+  if (report.status === "warn") {
+    return warn("Billing/admin/quota operations evidence has warnings requiring operator acceptance.");
+  }
+  const firstFailure = Array.isArray(report.checks)
+    ? report.checks.find((check) => check?.status === "fail" && typeof check?.message === "string")?.message
+    : undefined;
+  return fail(
+    firstFailure
+      ? `Billing/admin/quota operations evidence is incomplete: ${firstFailure}`
+      : `Billing/admin/quota operations evidence status is ${report.status ?? "missing"}.`
+  );
 }
 
 function evaluateRequiredPassReport(path) {

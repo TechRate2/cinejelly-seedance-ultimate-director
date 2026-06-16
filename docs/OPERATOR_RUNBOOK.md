@@ -137,6 +137,14 @@ npm.cmd run validation:deployment-readiness
 
 The capture calls only `GET /health`, `GET /v1/preflight`, `GET /v1/validation-readiness`, and `GET /v1/render-settings`; it does not submit render work or call Atlas. Localhost captures are useful for smoke testing but are marked `environmentKind: local` and cannot satisfy the business-readiness deployment gate.
 
+Create the billing/admin/quota evidence after client policy, a persistent usage ledger, a real deployment admin endpoint, and the non-secret billing/admin attestation are ready:
+
+```powershell
+npm.cmd run validation:billing-admin-ops -- --base-url "https://<your-cinejelly-host>" --attestation "ops/billing-admin-attestation.json"
+```
+
+The attestation file must not contain secrets or customer payment records. It documents the approved billing route, customer traffic mode, Terms/Privacy/Refund URLs, tax owner, support contact, account provisioning/suspension, API key rotation/revocation, refund/chargeback handling, emergency disable procedure, and quota review cadence. See `docs/reference-implementations/billing-admin-ops-evidence.md` for the exact contract.
+
 Hard blockers:
 
 - Missing Atlas key or model IDs.

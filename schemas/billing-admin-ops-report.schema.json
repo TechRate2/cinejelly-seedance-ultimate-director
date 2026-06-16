@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/billing-admin-ops-report.schema.json",
+  "title": "CineJelly Billing Admin Operations Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "environmentKind",
+    "checkedInputs",
+    "checks",
+    "clientPolicy",
+    "attestation",
+    "adminEndpoint",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.billing-admin-ops.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "warn", "fail"] },
+    "environmentKind": { "enum": ["deployment", "local"] },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attestationPath", "deploymentBaseUrlConfigured", "authTokenEnv", "authTokenProvided"],
+      "properties": {
+        "attestationPath": { "type": "string" },
+        "deploymentBaseUrlConfigured": { "type": "boolean" },
+        "authTokenEnv": { "type": "string" },
+        "authTokenProvided": { "type": "boolean" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "clientPolicy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["configured"],
+      "properties": {
+        "configured": { "type": "boolean" },
+        "requireClientPolicyForRender": { "type": "boolean" },
+        "usageLedgerConfigured": { "type": "boolean" },
+        "clientCount": { "type": "integer", "minimum": 0 },
+        "enabledClientCount": { "type": "integer", "minimum": 0 },
+        "clients": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "clientId",
+              "enabled",
+              "keyDigestConfigured",
+              "monthlyRequestLimitConfigured",
+              "monthlyReservedCostUsdLimitConfigured",
+              "maxReservedCostUsdPerRequestConfigured",
+              "defaultReservedCostUsdPerRequestConfigured",
+              "maxDurationTargetSecondsConfigured",
+              "allowedTiersConfigured",
+              "allowedQualityModesConfigured"
+            ],
+            "properties": {
+              "clientId": { "type": "string" },
+              "enabled": { "type": "boolean" },
+              "keyDigestConfigured": { "type": "boolean" },
+              "monthlyRequestLimitConfigured": { "type": "boolean" },
+              "monthlyReservedCostUsdLimitConfigured": { "type": "boolean" },
+              "maxReservedCostUsdPerRequestConfigured": { "type": "boolean" },
+              "defaultReservedCostUsdPerRequestConfigured": { "type": "boolean" },
+              "maxDurationTargetSecondsConfigured": { "type": "boolean" },
+              "allowedTiersConfigured": { "type": "boolean" },
+              "allowedQualityModesConfigured": { "type": "boolean" }
+            }
+          }
+        },
+        "parseError": { "type": "string" }
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["configured"],
+      "properties": {
+        "configured": { "type": "boolean" },
+        "path": { "type": "string" },
+        "schemaVersion": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "billingProvider": { "type": "string" },
+        "customerTrafficMode": { "type": "string" },
+        "termsUrl": { "type": "string" },
+        "privacyUrl": { "type": "string" },
+        "refundPolicyUrl": { "type": "string" },
+        "taxHandlingOwner": { "type": "string" },
+        "supportContact": { "type": "string" }
+      }
+    },
+    "adminEndpoint": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["captured"],
+      "properties": {
+        "captured": { "type": "boolean" },
+        "baseUrl": { "type": "string" },
+        "environmentKind": { "type": "string" },
+        "authTokenProvided": { "type": "boolean" },
+        "httpStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "payload": true,
+        "error": { "type": "string" }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canUseAsBusinessReadinessBillingEvidence", "canOpenPaidCustomerTraffic", "releaseBlocker"],
+      "properties": {
+        "canUseAsBusinessReadinessBillingEvidence": { "type": "boolean" },
+        "canOpenPaidCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

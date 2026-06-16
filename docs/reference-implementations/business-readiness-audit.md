@@ -60,6 +60,7 @@ interface BusinessReadinessReport {
 - Done: add `npm.cmd run validation:business-readiness`.
 - Done: add `schemas/business-readiness-audit-report.schema.json`.
 - Done: update the operator runbook, roadmap, and project context.
+- Done: add schema-aware billing/admin/quota evidence evaluation through `cinejelly.billing-admin-ops.v1`.
 - Pending: feed the audit with real deployment, long-form, source-video, remote stock, generated-audio, billing/admin, and production operations evidence.
 
 ## Validation Checklist
