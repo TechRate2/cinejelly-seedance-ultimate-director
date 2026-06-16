@@ -212,6 +212,16 @@ function classifyEndpoint(endpoint) {
     return endpoint.httpStatus === 200 && payload.status === "ok" ? pass("Health endpoint returned ok.") : fail("Health endpoint did not return status ok.");
   }
   if (endpoint.name === "preflight") {
+    const atlasDocsCheck = preflightCheck(payload, "atlascloud_docs_conformance");
+    if (!atlasDocsCheck) {
+      return fail("Preflight is missing atlascloud_docs_conformance; redeploy the current build before using deployment evidence.");
+    }
+    if (atlasDocsCheck.status === "fail") {
+      return fail(`AtlasCloud docs conformance is fail: ${atlasDocsCheck.message ?? "missing message"}`);
+    }
+    if (atlasDocsCheck.status === "warn") {
+      return warn(`AtlasCloud docs conformance is warn: ${atlasDocsCheck.message ?? "missing message"}`);
+    }
     if (endpoint.httpStatus === 200 && payload.status === "pass") {
       return pass("Preflight status is pass.");
     }
@@ -236,6 +246,11 @@ function classifyEndpoint(endpoint) {
     return fail(`Render settings descriptor is unavailable or unrecognized with HTTP ${endpoint.httpStatus ?? "missing"}.`);
   }
   return fail("Unknown endpoint.");
+}
+
+function preflightCheck(payload, name) {
+  const checks = Array.isArray(payload?.checks) ? payload.checks : [];
+  return checks.find((check) => check?.name === name);
 }
 
 function statusForClassifications(classifications) {
@@ -351,6 +366,7 @@ async function main() {
   const readinessEndpoint = classifiedEndpoints.find((endpoint) => endpoint.name === "validation_readiness");
   const preflightEndpoint = classifiedEndpoints.find((endpoint) => endpoint.name === "preflight");
   const renderSettingsEndpoint = classifiedEndpoints.find((endpoint) => endpoint.name === "render_settings");
+  const atlasCloudDocsConformanceStatus = preflightCheck(preflightEndpoint?.payload, "atlascloud_docs_conformance")?.status ?? "missing";
 
   const report = {
     schemaVersion: "cinejelly.deployment-readiness-capture.v1",
@@ -369,12 +385,14 @@ async function main() {
     summary: {
       healthStatus: classifiedEndpoints.find((endpoint) => endpoint.name === "health")?.payload?.status,
       preflightStatus: preflightEndpoint?.payload?.status,
+      atlasCloudDocsConformanceStatus,
       validationReadinessDecision: readinessEndpoint?.payload?.decision,
       renderSettingsSchemaVersion: renderSettingsEndpoint?.payload?.schemaVersion,
       allEndpointsCaptured: classifiedEndpoints.every((endpoint) => endpoint.httpStatus !== undefined)
     },
     releaseGateSummary: {
-      canUseAsBusinessReadinessDeploymentEvidence: environmentKind === "deployment" && status === "pass",
+      canUseAsBusinessReadinessDeploymentEvidence:
+        environmentKind === "deployment" && status === "pass" && atlasCloudDocsConformanceStatus === "pass",
       canRunPaidValidationFromHost:
         readinessEndpoint?.payload?.decision === "ready_for_paid_validation" ||
         readinessEndpoint?.payload?.decision === "review_warnings",

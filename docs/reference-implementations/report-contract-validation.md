@@ -23,6 +23,7 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Done: validate current release/business-readiness reports and catch generated-audio boolean redaction drift.
 - Done: fix report redaction helpers so boolean/count fields with key-like names are not replaced with strings.
 - Done: validate optional budget-slice Atlas billing reports, such as generated-audio smoke billing readiness, when those reports exist.
+- Done: validate optional deployment-readiness captures, including local smoke evidence, against the deployment capture schema when those reports exist.
 
 ## Acceptance Checks
 
@@ -31,3 +32,4 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Existing blocked reports can pass schema validation while still preserving their blocked/fail business status.
 - Report redaction still removes string secrets but preserves boolean readiness fields such as `apiKeyConfigured`.
 - When `atlas-billing-generated-audio-smoke-report.json` exists, report-contract validation includes it against the Atlas billing readiness schema.
+- When deployment-readiness capture reports exist, report-contract validation includes them and catches missing `atlasCloudDocsConformanceStatus` summary evidence.

@@ -107,12 +107,14 @@ interface ProductionOperationsReport {
 - Done: add `schemas/production-operations-report.schema.json`.
 - Done: add `schemas/production-operations-attestation.schema.json`, `schemas/operator-attestation-promotion-report.schema.json`, no-spend `npm.cmd run validation:ops-config` pre-capture validation/draft tooling, and `npm.cmd run ops:promote-attestations` so completed non-secret drafts can be validated before they become ignored `ops/*.json` inputs.
 - Done: make `validation:business-readiness` evaluate the versioned production operations report explicitly.
+- Done: require production-operations endpoint capture to include passing `atlascloud_docs_conformance` alongside output directory, API auth, FFmpeg, and FFprobe checks.
 - Done: document the non-secret attestation contract.
 
 ## Validation Checklist
 
 - Missing deployment base URL fails.
 - Localhost deployment capture fails for commercial readiness.
+- Missing or failing `atlascloud_docs_conformance` fails production-operations evidence before customer traffic.
 - Missing attestation fails.
 - Missing durable storage/backup/restore/monitoring/incident/support/log-redaction controls fail.
 - `/health`, `/v1/preflight`, `/v1/validation-readiness`, and `/v1/render-settings` must pass from the real deployment host.

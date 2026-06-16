@@ -59,10 +59,11 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["allEndpointsCaptured"],
+      "required": ["atlasCloudDocsConformanceStatus", "allEndpointsCaptured"],
       "properties": {
         "healthStatus": { "type": "string" },
         "preflightStatus": { "type": "string" },
+        "atlasCloudDocsConformanceStatus": { "enum": ["pass", "warn", "fail", "missing"] },
         "validationReadinessDecision": { "type": "string" },
         "renderSettingsSchemaVersion": { "type": "string" },
         "allEndpointsCaptured": { "type": "boolean" }

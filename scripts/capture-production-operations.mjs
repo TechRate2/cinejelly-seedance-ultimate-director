@@ -326,7 +326,7 @@ function classifyEndpoints(endpoints) {
       ? pass("endpoint.preflight", "Deployment preflight status is pass.")
       : fail("endpoint.preflight", `Deployment preflight status is ${preflight?.payload?.status ?? "missing"} with HTTP ${preflight?.httpStatus ?? "missing"}.`)
   );
-  for (const checkName of ["CINEJELLY_OUTPUT_DIR", "CINEJELLY_API_AUTH_TOKEN", "ffmpeg", "ffprobe"]) {
+  for (const checkName of ["CINEJELLY_OUTPUT_DIR", "CINEJELLY_API_AUTH_TOKEN", "atlascloud_docs_conformance", "ffmpeg", "ffprobe"]) {
     const check = preflight?.payload?.checks?.find((item) => item?.name === checkName);
     checks.push(
       check?.status === "pass"
@@ -352,7 +352,7 @@ function classifyEndpoints(endpoints) {
 function summarizeRequiredPreflightChecks(preflightPayload) {
   const checks = Array.isArray(preflightPayload?.checks) ? preflightPayload.checks : [];
   return Object.fromEntries(
-    ["CINEJELLY_OUTPUT_DIR", "CINEJELLY_API_AUTH_TOKEN", "ffmpeg", "ffprobe"].map((name) => {
+    ["CINEJELLY_OUTPUT_DIR", "CINEJELLY_API_AUTH_TOKEN", "atlascloud_docs_conformance", "ffmpeg", "ffprobe"].map((name) => {
       const check = checks.find((item) => item?.name === name);
       return [name, check?.status ?? "missing"];
     })

@@ -247,6 +247,9 @@ function evaluateDeploymentPreflight(path) {
     if (report.environmentKind !== "deployment") {
       return fail("Deployment readiness capture was not run against a real deployment environment.");
     }
+    if (report.summary?.atlasCloudDocsConformanceStatus !== "pass") {
+      return fail(`Deployment AtlasCloud docs conformance is ${report.summary?.atlasCloudDocsConformanceStatus ?? "missing"}; recapture deployment readiness from the current build.`);
+    }
     if (report.status === "pass" && report.releaseGateSummary?.canUseAsBusinessReadinessDeploymentEvidence === true) {
       return pass("Deployment readiness capture passed on the real HTTPS host.");
     }
