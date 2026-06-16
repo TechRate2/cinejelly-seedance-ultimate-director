@@ -48,10 +48,11 @@
     "releaseGateSummary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["canRunPaidValidation", "canReleaseToCustomerTraffic"],
+      "required": ["canRunPaidValidation", "canUseAsPhase6ReleaseEvidence", "canReleaseToCustomerTraffic"],
       "properties": {
         "canRunPaidValidation": { "type": "boolean" },
-        "canReleaseToCustomerTraffic": { "type": "boolean" },
+        "canUseAsPhase6ReleaseEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
         "releaseBlocker": { "type": "string" }
       }
     },

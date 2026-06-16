@@ -121,7 +121,7 @@ The release audit is the final no-spend gate. It is expected to return `blocked`
 npm.cmd run validation:release-audit
 ```
 
-It reads the local smoke report, paid-render report, artifact validation summary, git cleanliness, ignored `.env`/output paths, tracked secret scan, and external import boundary. It does not call Atlas or inspect video quality. Treat a non-zero exit as expected until paid render evidence and manual review prerequisites exist. If `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER=true` is the only readiness warning and the configured client policy preflight passes, release audit treats that warning as an accepted spend-control posture rather than asking operators to disable quota enforcement.
+It reads the local smoke report, paid-render report, artifact validation summary, git cleanliness, ignored `.env`/output paths, tracked secret scan, and external import boundary. It does not call Atlas or inspect video quality. Treat a non-zero exit as expected until paid render evidence and manual review prerequisites exist. When it returns `release_ready`, `releaseGateSummary.canUseAsPhase6ReleaseEvidence=true` means the report can feed the full business-readiness audit; `releaseGateSummary.canReleaseToCustomerTraffic` remains `false` because commercial traffic is controlled only by `validation:business-readiness`. If `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER=true` is the only readiness warning and the configured client policy preflight passes, release audit treats that warning as an accepted spend-control posture rather than asking operators to disable quota enforcement.
 
 For the full commercial-platform release gate, run:
 

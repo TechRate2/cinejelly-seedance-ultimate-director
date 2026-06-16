@@ -329,7 +329,7 @@ function statusForChecks(checks) {
 function nextActionsFor(status, checks, options) {
   if (status === "release_ready") {
     return [
-      "Complete manual video quality, artifact, and redaction review before opening customer traffic.",
+      "Use this report as Phase 6 hygiene evidence only; run npm.cmd run validation:business-readiness before customer traffic.",
       "Record the paid validation date and evidence location in docs/PROJECT_CONTEXT.md and docs/IMPLEMENTATION_ROADMAP.md."
     ];
   }
@@ -352,7 +352,7 @@ function nextActionsFor(status, checks, options) {
   if (checks.some((check) => check.name === "external_import_boundary" && check.status === "fail")) {
     actions.push("Remove runtime snapshot-boundary imports; rewrite behavior into CineJelly-owned source.");
   }
-  actions.push("Do not open customer traffic until this audit is release_ready and manual media review is complete.");
+  actions.push("Do not use this audit as Phase 6 hygiene evidence until it is release_ready.");
   return actions;
 }
 
@@ -398,9 +398,10 @@ function main() {
     checks,
     releaseGateSummary: {
       canRunPaidValidation: checks.find((check) => check.name === "local_smoke_report")?.status === "pass",
-      canReleaseToCustomerTraffic: status === "release_ready",
+      canUseAsPhase6ReleaseEvidence: status === "release_ready",
+      canReleaseToCustomerTraffic: false,
       releaseBlocker: status === "release_ready"
-        ? undefined
+        ? "Release audit is hygiene evidence only; full commercial customer traffic is controlled by validation:business-readiness."
         : "Release audit is not ready; paid render evidence, artifact validation, source hygiene, or manual review blockers remain."
     },
     nextActions: nextActionsFor(status, checks, options)
