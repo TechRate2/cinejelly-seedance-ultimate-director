@@ -130,6 +130,7 @@ npm.cmd run validation:business-readiness
 npm.cmd run validation:live-inputs
 npm.cmd run validation:business-plan
 npm.cmd run validation:atlas-billing
+npm.cmd run validation:commercial-inputs
 npm.cmd run validation:report-contracts
 ```
 
@@ -140,6 +141,8 @@ The `validation:live-inputs` command is also no-spend and no-network. It reads o
 The `validation:business-plan` command is also no-spend and no-network. It reads the current business-readiness report, ops-config report, Atlas billing-readiness report, and secret-free environment shape, then writes `assets/output_deliverables/business-readiness/business-readiness-validation-plan.json` with the remaining validation sequence, missing operator inputs, known paid-cost estimates, and a spend-deferral recommendation. Its top-level paid-validation flags remain false while Atlas billing readiness or the approved-budget fit fails, even when a narrow paid sample would be cheap. It is a planning aid only; it does not replace any evidence gate and it must not be used as release approval.
 
 The `validation:atlas-billing` command is no-spend and local-only unless `--confirm-live-network` is present. With confirmation it calls only Atlas Billing Public API `/balance`, writes `assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json`, checks the configured billing-capable Atlas key and current budget/balance fit, and still reports `canReleaseToCustomerTraffic=false`.
+
+The `validation:commercial-inputs` command is also no-spend and no-network. It reads the current business-readiness, business-plan, live-inputs, Atlas billing, and ops-config reports, then writes `assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json` plus a Markdown checklist at `assets/output_deliverables/business-readiness/commercial-launch-inputs-checklist.md`. Use it as the secret-free handoff packet for the remaining deployment URL, deployment token placeholder, operator attestations, source-video inputs, remote-stock provider choices, approved Atlas budget, and manual review tasks. It is not release evidence and cannot override `validation:business-readiness`.
 
 The `validation:report-contracts` command is also no-spend and no-network. It validates generated release/business-readiness JSON reports against their local schemas, writes `assets/output_deliverables/business-readiness/report-contract-validation-report.json`, and catches schema drift before reports are shared or used as evidence. A schema-shape pass is not release approval; business-readiness status still controls customer traffic.
 

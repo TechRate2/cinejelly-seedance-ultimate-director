@@ -16,6 +16,7 @@ const defaultContracts = [
   contract("business_readiness_plan", "schemas/business-readiness-validation-plan.schema.json", "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json"),
   contract("live_readiness_inputs", "schemas/live-readiness-inputs-report.schema.json", "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json"),
   contract("atlas_billing_readiness", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json"),
+  contract("commercial_launch_inputs", "schemas/commercial-launch-inputs-report.schema.json", "assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"),
   contract("ops_config_validation", "schemas/business-readiness-ops-config-validation-report.schema.json", "assets/output_deliverables/business-readiness/ops-config-validation-report.json"),
   contract("long_form_validation", "schemas/long-form-validation-report.schema.json", "assets/output_deliverables/business-readiness/long-form-validation-report.json"),
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),

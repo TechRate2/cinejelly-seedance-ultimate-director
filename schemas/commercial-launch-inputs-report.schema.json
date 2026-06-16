@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/commercial-launch-inputs-report.schema.json",
+  "title": "CineJelly Commercial Launch Inputs Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "sourceReports",
+    "inputSummary",
+    "requiredInputs",
+    "envPlaceholders",
+    "evidenceCommandPlan",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.commercial-launch-inputs.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["blocked_by_operator_inputs", "ready_for_live_evidence_sequence"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "businessReadinessPath",
+        "businessPlanPath",
+        "liveInputsPath",
+        "atlasBillingPath",
+        "opsConfigPath"
+      ],
+      "properties": {
+        "businessReadinessPath": { "type": "string" },
+        "businessPlanPath": { "type": "string" },
+        "liveInputsPath": { "type": "string" },
+        "atlasBillingPath": { "type": "string" },
+        "opsConfigPath": { "type": "string" },
+        "markdownOutputPath": { "type": "string" }
+      }
+    },
+    "sourceReports": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["present", "path", "status"],
+        "properties": {
+          "present": { "type": "boolean" },
+          "path": { "type": "string" },
+          "schemaVersion": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "inputSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "configured", "missing", "blockedByBudget", "pendingAfterPaidRun"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "configured": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 },
+        "blockedByBudget": { "type": "integer", "minimum": 0 },
+        "pendingAfterPaidRun": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "requiredInputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "category",
+          "status",
+          "sensitivity",
+          "requiredFor",
+          "envVars",
+          "filePaths",
+          "acceptance",
+          "validationCommand"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "category": {
+            "enum": ["deployment", "operations", "budget", "source_video", "remote_stock", "manual_review"]
+          },
+          "status": { "enum": ["missing", "configured", "blocked_by_budget", "pending_after_paid_run"] },
+          "sensitivity": {
+            "enum": [
+              "public_url",
+              "secret_env",
+              "non_secret_operator_attestation",
+              "budget_approval",
+              "boolean_env",
+              "manual_review"
+            ]
+          },
+          "requiredFor": { "type": "array", "items": { "type": "string" } },
+          "envVars": { "type": "array", "items": { "type": "string" } },
+          "filePaths": { "type": "array", "items": { "type": "string" } },
+          "acceptance": { "type": "string" },
+          "validationCommand": { "type": "string" },
+          "blockerMessage": { "type": "string" },
+          "currentValue": { "type": "string" },
+          "requiredValue": { "type": "string" }
+        }
+      }
+    },
+    "envPlaceholders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "sensitivity", "exampleValue", "purpose", "required", "configured"],
+        "properties": {
+          "name": { "type": "string" },
+          "sensitivity": { "enum": ["public_url", "secret", "boolean"] },
+          "exampleValue": { "type": "string" },
+          "purpose": { "type": "string" },
+          "required": { "type": "boolean" },
+          "configured": { "type": "boolean" }
+        }
+      }
+    },
+    "evidenceCommandPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["noSpendLocal", "noSpendNetwork", "liveNetwork", "paidAtlas", "finalAudit"],
+      "properties": {
+        "noSpendLocal": { "$ref": "#/$defs/commandList" },
+        "noSpendNetwork": { "$ref": "#/$defs/commandList" },
+        "liveNetwork": { "$ref": "#/$defs/commandList" },
+        "paidAtlas": { "$ref": "#/$defs/commandList" },
+        "finalAudit": { "$ref": "#/$defs/commandList" }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canRunNoSpendPrep",
+        "canRunLiveNetworkEvidence",
+        "canRunPaidAtlasValidation",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canRunNoSpendPrep": { "type": "boolean" },
+        "canRunLiveNetworkEvidence": { "type": "boolean" },
+        "canRunPaidAtlasValidation": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": { "type": "array", "items": { "type": "string" } },
+    "error": { "type": "string" }
+  },
+  "$defs": {
+    "commandList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "command"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "type": "string" },
+          "kind": { "type": "string" },
+          "command": { "type": "string" },
+          "requiredInputs": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}
