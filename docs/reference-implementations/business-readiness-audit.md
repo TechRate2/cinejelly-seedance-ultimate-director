@@ -21,6 +21,7 @@ Implementation status as of 2026-06-16: implemented as a CineJelly-owned no-spen
 7. The completion percent is an evidence-completion score, not a claim that product code is feature-complete.
 8. Atlas billing readiness evidence must match the current no-spend business-readiness validation plan's `maxBudgetUsd` and `knownPaidEstimateUsd`; stale billing evidence cannot unlock additional paid Atlas validation.
 9. Atlas billing readiness evidence must be fresh enough for paid validation, using `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS` with a default of 24 hours.
+10. The audit must distinguish a narrow ready paid slice from the full paid sequence: `canRunSomePaidValidationNow` and `readyPaidGates` may be true while `shouldDeferFullSequenceSpend` and `canReleaseToCustomerTraffic` remain blocked.
 
 ## Reference Implementation
 
@@ -48,6 +49,10 @@ interface BusinessReadinessReport {
   checks: BusinessReadinessCheck[];
   releaseGateSummary: {
     canRunAdditionalPaidValidation: boolean;
+    canRunSomePaidValidationNow: boolean;
+    readyPaidGates: string[];
+    readyPaidGateCount: number;
+    shouldDeferFullSequenceSpend: boolean;
     canRunLongFormValidation: boolean;
     canReleaseToCustomerTraffic: boolean;
     releaseBlocker?: string;
@@ -70,6 +75,7 @@ interface BusinessReadinessReport {
 - Done: make paid-validation summary flags depend on the Atlas billing/budget gate instead of release hygiene alone.
 - Done: reject stale Atlas billing readiness reports whose captured budget or planned cost no longer matches the current `cinejelly.business-readiness-validation-plan.v1` report.
 - Done: reject Atlas billing readiness reports older than the configured evidence max age before enabling additional paid validation.
+- Done: surface budget-ready paid slices from the current business-readiness validation plan without treating them as full-sequence approval.
 - Done: add schema-aware billing/admin/quota evidence evaluation through `cinejelly.billing-admin-ops.v1`.
 - Done: add schema-aware production operations evidence evaluation through `cinejelly.production-operations.v1`.
 - Pending: feed the audit with real deployment, passing paid long-form, source-video, remote stock, generated-audio, Atlas billing readiness under the approved budget, billing/admin, and production operations evidence.

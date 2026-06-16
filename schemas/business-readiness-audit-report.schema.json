@@ -87,9 +87,21 @@
     "releaseGateSummary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["canRunAdditionalPaidValidation", "canRunLongFormValidation", "canReleaseToCustomerTraffic"],
+      "required": [
+        "canRunAdditionalPaidValidation",
+        "canRunSomePaidValidationNow",
+        "readyPaidGates",
+        "readyPaidGateCount",
+        "shouldDeferFullSequenceSpend",
+        "canRunLongFormValidation",
+        "canReleaseToCustomerTraffic"
+      ],
       "properties": {
         "canRunAdditionalPaidValidation": { "type": "boolean" },
+        "canRunSomePaidValidationNow": { "type": "boolean" },
+        "readyPaidGates": { "type": "array", "items": { "type": "string" } },
+        "readyPaidGateCount": { "type": "integer", "minimum": 0 },
+        "shouldDeferFullSequenceSpend": { "type": "boolean" },
         "canRunLongFormValidation": { "type": "boolean" },
         "canReleaseToCustomerTraffic": { "type": "boolean" },
         "releaseBlocker": { "type": "string" }

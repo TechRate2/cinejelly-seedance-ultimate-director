@@ -735,6 +735,27 @@ function nextActionsFor(results) {
   return [...new Set(actions)];
 }
 
+function summarizePaidGatePlan(path) {
+  const report = readJsonIfExists(path);
+  if (report?.schemaVersion !== "cinejelly.business-readiness-validation-plan.v1") {
+    return {
+      canRunSomePaidValidationNow: false,
+      readyPaidGates: [],
+      readyPaidGateCount: 0,
+      shouldDeferFullSequenceSpend: true
+    };
+  }
+  const readyPaidGates = Array.isArray(report.releaseGateSummary?.readyPaidGates)
+    ? report.releaseGateSummary.readyPaidGates.map(String)
+    : [];
+  return {
+    canRunSomePaidValidationNow: report.releaseGateSummary?.canRunSomePaidValidationNow === true,
+    readyPaidGates,
+    readyPaidGateCount: readyPaidGates.length,
+    shouldDeferFullSequenceSpend: report.releaseGateSummary?.shouldDeferFullSequenceSpend !== false
+  };
+}
+
 function writeReport(path, report) {
   const absolutePath = resolve(repoRoot, path);
   mkdirSync(dirname(absolutePath), { recursive: true });
@@ -763,6 +784,7 @@ function main() {
     results.find((check) => check.name === "manual_short_media_redaction_review")?.status === "pass";
   const atlasBillingPassed = results.find((check) => check.name === "atlas_billing_readiness")?.status === "pass";
   const canRunAdditionalPaidValidation = releaseAuditPassed && shortValidationPassed && atlasBillingPassed;
+  const paidGatePlan = summarizePaidGatePlan(options.businessPlanPath);
 
   const report = {
     schemaVersion: "cinejelly.business-readiness-audit.v1",
@@ -792,6 +814,10 @@ function main() {
     checks: results,
     releaseGateSummary: {
       canRunAdditionalPaidValidation,
+      canRunSomePaidValidationNow: paidGatePlan.canRunSomePaidValidationNow,
+      readyPaidGates: paidGatePlan.readyPaidGates,
+      readyPaidGateCount: paidGatePlan.readyPaidGateCount,
+      shouldDeferFullSequenceSpend: paidGatePlan.shouldDeferFullSequenceSpend,
       canRunLongFormValidation: canRunAdditionalPaidValidation,
       canReleaseToCustomerTraffic: status === "ready_for_limited_customer_traffic",
       releaseBlocker:
