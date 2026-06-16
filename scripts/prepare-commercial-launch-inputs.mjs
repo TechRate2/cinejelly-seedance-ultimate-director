@@ -103,7 +103,7 @@ function main() {
   };
   const requiredInputs = buildRequiredInputs(reports);
   const envPlaceholders = buildEnvPlaceholders(reports, requiredInputs);
-  const evidenceCommandPlan = buildEvidenceCommandPlan(reports.businessPlan.value);
+  const evidenceCommandPlan = buildEvidenceCommandPlan(reports.businessPlan.value, reports.liveInputs.value);
   const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
   const status = statusFor(requiredInputs);
   const report = {
@@ -128,7 +128,7 @@ function main() {
     evidenceCommandPlan,
     budgetConstrainedPaidPlan,
     releaseGateSummary: buildReleaseGateSummary({ status, reports, requiredInputs }),
-    nextActions: nextActionsFor(requiredInputs)
+    nextActions: nextActionsFor(requiredInputs, reports.liveInputs.value)
   };
 
   if (options.writeReport) {
@@ -190,6 +190,7 @@ function buildRequiredInputs(reports) {
   const sourceVideo = live?.environment?.sourceVideo;
   const remoteStock = live?.environment?.remoteStock;
   const atlasBillingSummary = live?.environment?.atlasBilling;
+  const generatedAudioPaidReady = live?.releaseGateSummary?.canRunGeneratedAudioPaidValidation === true;
   const costPlan = plan?.costPlan ?? live?.costPlan ?? {};
   const approvedBudget = numberOrUndefined(costPlan.maxBudgetUsd ?? atlasBilling?.costPlan?.maxBudgetUsd);
   const plannedCost = numberOrUndefined(costPlan.knownPaidEstimateUsd ?? atlasBilling?.costPlan?.plannedCostUsd);
@@ -256,10 +257,16 @@ function buildRequiredInputs(reports) {
       category: "budget",
       status: atlasBillingSummary?.canRunAtlasSpendWithinApprovedBudget === true ? "configured" : "blocked_by_budget",
       sensitivity: "budget_approval",
-      requiredFor: ["atlas_billing_readiness", "long_form_paid_validation", "atlas_generated_audio_validation"],
+      requiredFor: [
+        "atlas_billing_readiness",
+        "long_form_paid_validation",
+        ...(generatedAudioPaidReady ? [] : ["atlas_generated_audio_validation"])
+      ],
       envVars: [],
       filePaths: [],
-      acceptance: `Approve at least ${formatUsd(plannedCost ?? minimumLongFormBudget ?? 0)} for the current known video/audio validation plan, or intentionally re-plan a narrower validation slice. This excludes usage-dependent source-video LLM cost.`,
+      acceptance: generatedAudioPaidReady
+        ? `Approve at least ${formatUsd(plannedCost ?? minimumLongFormBudget ?? 0)} for the current full video/audio validation plan, or keep only the generated-audio slice in scope for the current paid run. This excludes usage-dependent source-video LLM cost.`
+        : `Approve at least ${formatUsd(plannedCost ?? minimumLongFormBudget ?? 0)} for the current known video/audio validation plan, or intentionally re-plan a narrower validation slice. This excludes usage-dependent source-video LLM cost.`,
       validationCommand: `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(plannedCost ?? approvedBudget ?? 5)} --confirm-live-network`,
       blockerMessage: atlasBudgetBlockerMessage,
       currentValue: approvedBudget === undefined ? undefined : formatUsd(approvedBudget),
@@ -405,13 +412,16 @@ function placeholder(name, sensitivity, exampleValue, purpose) {
   return { name, sensitivity, exampleValue, purpose };
 }
 
-function buildEvidenceCommandPlan(plan) {
+function buildEvidenceCommandPlan(plan, live) {
   const sequence = Array.isArray(plan?.validationSequence) ? plan.validationSequence : [];
   return {
     noSpendLocal: commandsFor(sequence, (step) => step.kind === "no_spend"),
     noSpendNetwork: commandsFor(sequence, (step) => step.kind === "no_spend_network"),
     liveNetwork: commandsFor(sequence, (step) => step.kind === "live_network"),
-    paidAtlas: commandsFor(sequence, (step) => typeof step.kind === "string" && step.kind.startsWith("paid_")),
+    paidAtlas: applyLivePaidGateOverrides(
+      commandsFor(sequence, (step) => typeof step.kind === "string" && step.kind.startsWith("paid_")),
+      live
+    ),
     finalAudit: [
       {
         name: "final_business_readiness_audit",
@@ -425,6 +435,22 @@ function buildEvidenceCommandPlan(plan) {
       }
     ]
   };
+}
+
+function applyLivePaidGateOverrides(commands, live) {
+  if (live?.releaseGateSummary?.canRunGeneratedAudioPaidValidation !== true) {
+    return commands;
+  }
+  return commands.map((command) => {
+    if (command.name !== "generated_audio_validation") {
+      return command;
+    }
+    return {
+      ...command,
+      status: "ready",
+      requiredInputs: []
+    };
+  });
 }
 
 function validationStep(plan, name) {
@@ -495,11 +521,15 @@ function summarizeInputs(requiredInputs) {
 function buildReleaseGateSummary({ status, reports, requiredInputs }) {
   const business = reports.businessReadiness.value;
   const plan = reports.businessPlan.value;
+  const live = reports.liveInputs.value;
   const missing = requiredInputs.filter((item) => item.status === "missing" || item.status === "blocked_by_budget");
+  const hasReadyPaidGate = Number(live?.releaseGateSummary?.readyPaidGateCount ?? 0) > 0;
   return {
     canRunNoSpendPrep: true,
     canRunLiveNetworkEvidence: status === "ready_for_live_evidence_sequence",
-    canRunPaidAtlasValidation: plan?.releaseGateSummary?.canRunSomePaidValidationNow === true && status === "ready_for_live_evidence_sequence",
+    canRunPaidAtlasValidation:
+      hasReadyPaidGate ||
+      (plan?.releaseGateSummary?.canRunSomePaidValidationNow === true && status === "ready_for_live_evidence_sequence"),
     canReleaseToCustomerTraffic: business?.releaseGateSummary?.canReleaseToCustomerTraffic === true,
     releaseBlocker:
       missing.length > 0
@@ -508,7 +538,7 @@ function buildReleaseGateSummary({ status, reports, requiredInputs }) {
   };
 }
 
-function nextActionsFor(requiredInputs) {
+function nextActionsFor(requiredInputs, live) {
   const actions = [];
   for (const item of requiredInputs) {
     if (item.status === "missing" || item.status === "blocked_by_budget") {
@@ -516,7 +546,11 @@ function nextActionsFor(requiredInputs) {
     }
   }
   actions.push("Refresh validation:live-inputs, validation:business-plan, validation:business-readiness, and validation:report-contracts after filling inputs.");
-  actions.push("Run paid Atlas validations only after no-spend/live prerequisites are ready and the approved Atlas budget covers the planned validation sequence.");
+  if (live?.releaseGateSummary?.canRunGeneratedAudioPaidValidation === true) {
+    actions.push("Generated-audio paid smoke is the only currently ready Atlas paid slice; run it only when intentionally spending Atlas budget, then complete the manual audio review.");
+  } else {
+    actions.push("Run paid Atlas validations only after no-spend/live prerequisites are ready and the approved Atlas budget covers the planned validation sequence.");
+  }
   return [...new Set(actions)];
 }
 

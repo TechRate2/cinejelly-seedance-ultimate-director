@@ -14,10 +14,11 @@ Before running any live network or paid Atlas validation, operators need a singl
 4. A clean HTTPS URL means HTTPS, non-localhost, no embedded credentials, no query string, and no fragment.
 5. Long-form budget checks must use configured `CINEJELLY_RENDER_COST_USD_PER_SECOND` and `CINEJELLY_COST_BUFFER_MULTIPLIER`.
 6. Generated-audio budget checks must use configured `ATLASCLOUD_GENERATED_AUDIO_COST_USD_PER_1K_CHARS`, defaulting to the documented local validation rate when absent.
-7. If any no-spend input gate is blocked, the report must recommend deferring Atlas paid spend.
-8. Paid Atlas gates must remain blocked while the local Atlas billing-readiness report is missing, failing, or outside the approved validation budget.
-9. Paid Atlas gates must also remain blocked when the local Atlas billing-readiness report was captured for a different `maxBudgetUsd` or `plannedCostUsd` than the current live-input cost plan.
-10. Paid Atlas gates must remain blocked when the local Atlas billing-readiness report is older than `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS`, defaulting to 24 hours.
+7. If any no-spend input gate is blocked, the report must recommend deferring full-sequence Atlas spend while still allowing an independently ready paid slice to be reported.
+8. Paid Atlas gates must remain blocked while the relevant local Atlas billing-readiness report is missing, failing, or outside the approved validation budget.
+9. Full-sequence spend uses the main Atlas billing-readiness report; source-video, generated-audio, and long-form gates can use slice-specific billing reports captured for their own `plannedCostUsd`.
+10. Paid Atlas gates must also remain blocked when the relevant local Atlas billing-readiness report was captured for a different `maxBudgetUsd` or `plannedCostUsd` than the current live-input cost plan.
+11. Paid Atlas gates must remain blocked when the relevant local Atlas billing-readiness report is older than `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS`, defaulting to 24 hours.
 
 ## Report Shape
 
@@ -51,6 +52,9 @@ interface LiveReadinessInputsReport {
     canRunRemoteStockProviderValidation: boolean;
     canRunGeneratedAudioPaidValidation: boolean;
     canRunLongFormWithinBudget: boolean;
+    readyPaidGates: string[];
+    readyPaidGateCount: number;
+    shouldDeferFullSequenceSpend: boolean;
     shouldDeferAtlasSpend: boolean;
     canReleaseToCustomerTraffic: false;
     releaseBlocker: string;
@@ -71,6 +75,6 @@ interface LiveReadinessInputsReport {
 - Running the validator performs no network, provider, render, FFmpeg, or billing calls.
 - The report exposes only booleans, counts, redacted safe URL previews, and cost estimates.
 - The current 120s long-form validation remains blocked under a `$5` ceiling when the configured estimate is `$24`.
-- The report can show generated-audio technical inputs are present, but it must keep generated-audio paid validation blocked while Atlas billing readiness or the approved-budget fit fails.
+- The report can show generated-audio technical inputs are present and mark generated-audio paid validation ready only when the generated-audio slice billing report is fresh, passing, and within the approved budget.
 - Changing `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` makes the live-input report request a fresh Atlas billing readiness probe before any paid Atlas gate can pass.
 - Letting `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS` expire makes the live-input report request a fresh Atlas billing readiness probe before any paid Atlas gate can pass.
