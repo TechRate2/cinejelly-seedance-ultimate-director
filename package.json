@@ -41,6 +41,7 @@
     "validation:business-readiness": "node scripts/run-business-readiness-audit.mjs",
     "validate:artifacts": "npm run build && node --env-file-if-exists=.env dist/application/artifact-validation-entrypoint.js",
     "ops:create-client-policy": "node scripts/create-api-client-policy-kit.mjs",
+    "ops:apply-client-policy-env": "node scripts/apply-client-policy-env.mjs",
     "start": "node --env-file-if-exists=.env dist/api/server.js"
   },
   "devDependencies": {

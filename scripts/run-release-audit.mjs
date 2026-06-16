@@ -120,6 +120,13 @@ function checkLocalSmoke(path) {
       return fail("local_smoke_report", `Validation readiness decision is ${readiness?.decision ?? "missing"}.`);
     }
     if (readiness?.canRunPaidValidation !== true) {
+      if (isAcceptedClientPolicyReadinessWarning(readiness)) {
+        const counts = readiness.checkCounts ?? {};
+        return pass(
+          "local_smoke_report",
+          `Local smoke passed with mandatory client-policy warning accepted by release audit; checks=${counts.pass ?? "?"}/${counts.total ?? "?"} pass.`
+        );
+      }
       return fail("local_smoke_report", "Local readiness does not allow paid validation.");
     }
     const counts = readiness.checkCounts ?? {};
@@ -130,6 +137,29 @@ function checkLocalSmoke(path) {
   } catch {
     return fail("local_smoke_report", `Local smoke report at ${path} is not valid JSON.`);
   }
+}
+
+function isAcceptedClientPolicyReadinessWarning(readiness) {
+  const warnings = Array.isArray(readiness?.warnings) ? readiness.warnings : [];
+  const hardBlockers = Array.isArray(readiness?.hardBlockers) ? readiness.hardBlockers : [];
+  const failCount = Number(readiness?.checkCounts?.fail ?? 0);
+  const checks = Array.isArray(readiness?.preflight?.checks) ? readiness.preflight.checks : [];
+  const clientPolicyWarningOnly =
+    warnings.length === 1 &&
+    warnings[0] === "CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER" &&
+    hardBlockers.length === 0 &&
+    failCount === 0;
+  const mandatoryPolicyCheck = checks.find((check) => check?.name === "CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER");
+  const policyConfigCheck = checks.find((check) => check?.name === "api_client_policy");
+  if (checks.length === 0) {
+    return readiness?.decision === "review_warnings" && clientPolicyWarningOnly;
+  }
+  return (
+    readiness?.decision === "review_warnings" &&
+    clientPolicyWarningOnly &&
+    mandatoryPolicyCheck?.status === "warn" &&
+    policyConfigCheck?.status === "pass"
+  );
 }
 
 function checkPaidReport(path) {

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/client-policy-env-apply.schema.json",
+  "title": "CineJelly Client Policy Env Apply Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "enum": ["applied", "dry_run"] } },
+        "required": ["status"]
+      },
+      "then": {
+        "required": [
+          "dryRun",
+          "targetEnvPath",
+          "snippetPath",
+          "backupCreated",
+          "importedKeys",
+          "changedKeys",
+          "appendedKeys",
+          "preservedExistingKeys",
+          "securityNotes",
+          "nextActions"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "const": "failed" } },
+        "required": ["status"]
+      },
+      "then": { "required": ["error"] }
+    }
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.client-policy-env-apply.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["applied", "dry_run", "failed"] },
+    "dryRun": { "type": "boolean" },
+    "targetEnvPath": { "type": "string" },
+    "snippetPath": { "type": "string" },
+    "backupCreated": { "type": "boolean" },
+    "backupPath": { "type": "string" },
+    "importedKeys": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "CINEJELLY_API_CLIENTS_JSON",
+          "CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER",
+          "CINEJELLY_CLIENT_USAGE_LEDGER_PATH"
+        ]
+      }
+    },
+    "changedKeys": { "type": "array", "items": { "type": "string" } },
+    "appendedKeys": { "type": "array", "items": { "type": "string" } },
+    "preservedExistingKeys": { "type": "array", "items": { "type": "string" } },
+    "securityNotes": { "type": "array", "items": { "type": "string" } },
+    "nextActions": { "type": "array", "items": { "type": "string" } },
+    "error": { "type": "string" }
+  }
+}

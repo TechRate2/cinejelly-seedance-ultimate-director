@@ -14,12 +14,14 @@ Commercial traffic needs per-client API key policy, quota limits, and a persiste
 4. Raw generated keys may be written only to an ignored `.secret.txt` file for secure handoff, and operators must move that value into their onboarding system.
 5. Generated policy fields must match `schemas/api-client-policies.schema.json` and the `ApiClientPolicyGate` parser.
 6. Existing policy arrays may be appended only when client IDs and key digests remain unique.
+7. Applying the generated env snippet must preserve existing Atlas keys and deployment tokens, import only the three allowed client-policy env variables, and create an ignored backup by default.
 
 ## Delivered Implementation
 
 - Done: add `scripts/create-api-client-policy-kit.mjs`.
 - Done: add `npm.cmd run ops:create-client-policy`.
 - Done: add `schemas/api-client-policy-kit.schema.json`.
+- Done: add `scripts/apply-client-policy-env.mjs`, `npm.cmd run ops:apply-client-policy-env`, and `schemas/client-policy-env-apply.schema.json`.
 - Done: document the helper in `README.md` and `docs/OPERATOR_RUNBOOK.md`.
 
 ## Acceptance Checks
@@ -28,3 +30,4 @@ Commercial traffic needs per-client API key policy, quota limits, and a persiste
 - The generated report names output files and policy limits but omits raw key material and key digests.
 - `--no-secret-file` allows CI/smoke usage without writing raw keys.
 - Duplicate client IDs or duplicate key digests fail before writing the output policy.
+- Env apply imports only `CINEJELLY_API_CLIENTS_JSON`, `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER`, and `CINEJELLY_CLIENT_USAGE_LEDGER_PATH`.

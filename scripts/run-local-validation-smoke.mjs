@@ -232,7 +232,10 @@ async function runApiSmoke() {
       baseUrl,
       readiness: {
         decision: readiness.decision,
+        preflightStatus: readiness.preflightStatus,
         checkCounts: readiness.checkCounts,
+        warnings: Array.isArray(readiness.warnings) ? readiness.warnings : [],
+        hardBlockers: Array.isArray(readiness.hardBlockers) ? readiness.hardBlockers : [],
         canRunPaidValidation: readiness.releaseGateSummary?.canRunPaidValidation === true,
         canReleaseToCustomerTraffic: readiness.releaseGateSummary?.canReleaseToCustomerTraffic === true
       }

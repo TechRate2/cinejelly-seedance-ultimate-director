@@ -77,7 +77,7 @@ flowchart LR
 - `API Artifact Validation Evidence`: validates synchronous render and retained async job artifacts after success/failure artifact writes and exposes release-gate status without server-local paths.
 - `Render Request Validation Contract`: validates an operator-owned render request file through CineJelly admission and output-root normalization before readiness-gated paid provider work.
 - `Deployment Readiness Capture`: archives no-spend real-host `/health`, `/v1/preflight`, `/v1/validation-readiness`, and `/v1/render-settings` evidence; localhost captures remain smoke-only and cannot satisfy the business deployment gate.
-- `API Client Policy Kit`: no-spend helper that creates digest-only client policy JSON, env snippets, and optional ignored raw-key secret files for secure customer onboarding.
+- `API Client Policy Kit`: no-spend helper that creates digest-only client policy JSON, env snippets, optional ignored raw-key secret files for secure customer onboarding, and a safe env-merge path that preserves existing Atlas keys/tokens.
 - `Business Ops Config Precheck`: validates client-policy quota configuration plus non-secret billing/admin and production-operations attestations, and can write incomplete drafts without network, Atlas, render, or billing-provider calls.
 - `Business Readiness Validation Plan`: no-spend planning report that reads current evidence, secret-free env shape, and configured cost assumptions to sequence the remaining evidence gates before paid Atlas spend.
 - `Billing Admin Operations Evidence`: archives no-spend client-policy, usage-ledger, deployment admin endpoint, and non-secret billing/admin attestation evidence; it does not call payment provider APIs or replace external billing systems.

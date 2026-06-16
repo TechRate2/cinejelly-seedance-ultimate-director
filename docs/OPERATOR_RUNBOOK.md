@@ -121,7 +121,7 @@ The release audit is the final no-spend gate. It is expected to return `blocked`
 npm.cmd run validation:release-audit
 ```
 
-It reads the local smoke report, paid-render report, artifact validation summary, git cleanliness, ignored `.env`/output paths, tracked secret scan, and external import boundary. It does not call Atlas or inspect video quality. Treat a non-zero exit as expected until paid render evidence and manual review prerequisites exist.
+It reads the local smoke report, paid-render report, artifact validation summary, git cleanliness, ignored `.env`/output paths, tracked secret scan, and external import boundary. It does not call Atlas or inspect video quality. Treat a non-zero exit as expected until paid render evidence and manual review prerequisites exist. If `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER=true` is the only readiness warning and the configured client policy preflight passes, release audit treats that warning as an accepted spend-control posture rather than asking operators to disable quota enforcement.
 
 For the full commercial-platform release gate, run:
 
@@ -206,12 +206,13 @@ Create the billing/admin/quota evidence after client policy, a persistent usage 
 
 ```powershell
 npm.cmd run ops:create-client-policy -- --client-id "pilot-client"
+npm.cmd run ops:apply-client-policy-env
 npm.cmd run validation:ops-config -- --write-drafts
 npm.cmd run validation:ops-config
 npm.cmd run validation:billing-admin-ops -- --base-url "https://<your-cinejelly-host>" --attestation "ops/billing-admin-attestation.json"
 ```
 
-The `ops:create-client-policy` helper is no-spend and writes an ignored kit under `assets/output_deliverables/business-readiness/client-policy-kit`: a one-time raw client key file, a `client-policy.json` file containing only the SHA-256 digest, an env snippet, and a redacted report. Move the raw `.secret.txt` key into the secure customer onboarding channel and never commit it. The `validation:ops-config` command is no-spend and writes optional draft files under `assets/output_deliverables/business-readiness/operator-drafts` when `--write-drafts` is present; it does not call deployment endpoints, Atlas, render routes, or billing providers. The attestation file must not contain secrets or customer payment records. It documents the approved billing route, customer traffic mode, Terms/Privacy/Refund URLs, tax owner, support contact, account provisioning/suspension, API key rotation/revocation, refund/chargeback handling, emergency disable procedure, and quota review cadence. See `schemas/api-client-policy-kit.schema.json`, `schemas/billing-admin-attestation.schema.json`, `schemas/api-client-policies.schema.json`, and `docs/reference-implementations/billing-admin-ops-evidence.md` for the exact contract.
+The `ops:create-client-policy` helper is no-spend and writes an ignored kit under `assets/output_deliverables/business-readiness/client-policy-kit`: a one-time raw client key file, a `client-policy.json` file containing only the SHA-256 digest, an env snippet, and a redacted report. Move the raw `.secret.txt` key into the secure customer onboarding channel and never commit it. The `ops:apply-client-policy-env` helper merges only the generated client-policy env keys into `.env`, preserves existing Atlas keys/tokens, creates an ignored backup, and writes a redacted report. The `validation:ops-config` command is no-spend and writes optional draft files under `assets/output_deliverables/business-readiness/operator-drafts` when `--write-drafts` is present; it does not call deployment endpoints, Atlas, render routes, or billing providers. The attestation file must not contain secrets or customer payment records. It documents the approved billing route, customer traffic mode, Terms/Privacy/Refund URLs, tax owner, support contact, account provisioning/suspension, API key rotation/revocation, refund/chargeback handling, emergency disable procedure, and quota review cadence. See `schemas/client-policy-env-apply.schema.json`, `schemas/api-client-policy-kit.schema.json`, `schemas/billing-admin-attestation.schema.json`, `schemas/api-client-policies.schema.json`, and `docs/reference-implementations/billing-admin-ops-evidence.md` for the exact contract.
 
 Create the production storage/observability/support evidence after the real host, durable storage, backup/restore, monitoring, alerting, incident response, support, and data-retention procedures are in place:
 

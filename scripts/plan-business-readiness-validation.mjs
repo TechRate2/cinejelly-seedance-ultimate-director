@@ -484,7 +484,11 @@ function buildReleaseGateSummary({ validationSequence, costPlan }) {
 function nextActionsFor({ validationSequence, costPlan, environment, opsConfig }) {
   const actions = [];
   if (opsConfig.status !== "pass") {
-    actions.push("Run npm.cmd run ops:create-client-policy for the first pilot/customer key, fill the generated operator draft files, and rerun npm.cmd run validation:ops-config.");
+    actions.push(
+      environment.operations.apiClientPoliciesConfigured
+        ? "Fill the generated billing/admin and production-operations attestation files, then rerun npm.cmd run validation:ops-config."
+        : "Run npm.cmd run ops:create-client-policy for the first pilot/customer key, fill the generated operator draft files, and rerun npm.cmd run validation:ops-config."
+    );
   }
   if (!environment.deployment.valid) {
     actions.push("Provide a real clean HTTPS deployment URL and deployment auth token, then run validation:deployment-readiness.");
