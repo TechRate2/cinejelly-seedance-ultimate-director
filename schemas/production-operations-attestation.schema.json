@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/production-operations-attestation.schema.json",
+  "title": "CineJelly Production Operations Attestation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "approvedAt",
+    "approvedBy",
+    "operationsOwner",
+    "supportContact",
+    "securityContact",
+    "incidentEscalationContact",
+    "storage",
+    "observability",
+    "incidentResponse",
+    "supportWorkflow",
+    "dataProtection"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.production-operations-attestation.v1" },
+    "approvedAt": { "type": "string", "format": "date-time" },
+    "approvedBy": { "type": "string", "minLength": 1 },
+    "operationsOwner": { "type": "string", "minLength": 1 },
+    "supportContact": { "type": "string", "minLength": 1 },
+    "securityContact": { "type": "string", "minLength": 1 },
+    "incidentEscalationContact": { "type": "string", "minLength": 1 },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "durableStorage", "artifactRetentionDays", "backupEnabled", "backupCadence", "restoreTestedAt", "restoreRunbookUrl"],
+      "properties": {
+        "provider": { "enum": ["s3", "gcs", "azure_blob", "r2", "managed_platform", "external"] },
+        "durableStorage": { "const": true },
+        "artifactRetentionDays": { "type": "integer", "minimum": 30 },
+        "backupEnabled": { "const": true },
+        "backupCadence": { "type": "string", "minLength": 1 },
+        "restoreTestedAt": { "type": "string", "format": "date-time" },
+        "restoreRunbookUrl": { "type": "string", "format": "uri" }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "dashboardUrl", "alertingEnabled", "onCallSchedule", "requestIdSearchProcedure"],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "dashboardUrl": { "type": "string", "format": "uri" },
+        "alertingEnabled": { "const": true },
+        "onCallSchedule": { "type": "string", "minLength": 1 },
+        "requestIdSearchProcedure": { "type": "string", "minLength": 1 }
+      }
+    },
+    "incidentResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runbookUrl", "severityPolicy", "rollbackProcedure", "postIncidentReviewProcedure"],
+      "properties": {
+        "runbookUrl": { "type": "string", "format": "uri" },
+        "severityPolicy": { "type": "string", "minLength": 1 },
+        "rollbackProcedure": { "type": "string", "minLength": 1 },
+        "postIncidentReviewProcedure": { "type": "string", "minLength": 1 }
+      }
+    },
+    "supportWorkflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["supportRunbookUrl", "responseSlo", "customerEscalationProcedure"],
+      "properties": {
+        "supportRunbookUrl": { "type": "string", "format": "uri" },
+        "responseSlo": { "type": "string", "minLength": 1 },
+        "customerEscalationProcedure": { "type": "string", "minLength": 1 }
+      }
+    },
+    "dataProtection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logRedactionReviewPassed", "secretRotationProcedure", "customerArtifactDeletionProcedure", "dataRetentionPolicyUrl"],
+      "properties": {
+        "logRedactionReviewPassed": { "const": true },
+        "secretRotationProcedure": { "type": "string", "minLength": 1 },
+        "customerArtifactDeletionProcedure": { "type": "string", "minLength": 1 },
+        "dataRetentionPolicyUrl": { "type": "string", "format": "uri" }
+      }
+    }
+  }
+}

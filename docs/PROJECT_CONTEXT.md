@@ -77,6 +77,7 @@ flowchart LR
 - `API Artifact Validation Evidence`: validates synchronous render and retained async job artifacts after success/failure artifact writes and exposes release-gate status without server-local paths.
 - `Render Request Validation Contract`: validates an operator-owned render request file through CineJelly admission and output-root normalization before readiness-gated paid provider work.
 - `Deployment Readiness Capture`: archives no-spend real-host `/health`, `/v1/preflight`, `/v1/validation-readiness`, and `/v1/render-settings` evidence; localhost captures remain smoke-only and cannot satisfy the business deployment gate.
+- `Business Ops Config Precheck`: validates client-policy quota configuration plus non-secret billing/admin and production-operations attestations, and can write incomplete drafts without network, Atlas, render, or billing-provider calls.
 - `Billing Admin Operations Evidence`: archives no-spend client-policy, usage-ledger, deployment admin endpoint, and non-secret billing/admin attestation evidence; it does not call payment provider APIs or replace external billing systems.
 - `Production Operations Evidence`: archives no-spend real-host diagnostic endpoint evidence plus non-secret durable storage, backup, monitoring, incident, support, redaction, and retention attestation evidence.
 - `Long-Form Validation Evidence`: archives 2-8 minute request admission, readiness, budget, provider-safe chunking, paid-render, artifact, and manual quality/redaction review evidence before business-readiness can count long-form rendering.

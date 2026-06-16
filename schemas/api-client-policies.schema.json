@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/api-client-policies.schema.json",
+  "title": "CineJelly API Client Policies",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "clientId",
+      "keySha256",
+      "enabled",
+      "monthlyRequestLimit",
+      "monthlyReservedCostUsdLimit",
+      "maxReservedCostUsdPerRequest",
+      "defaultReservedCostUsdPerRequest",
+      "maxDurationTargetSeconds",
+      "allowedTiers",
+      "allowedQualityModes"
+    ],
+    "properties": {
+      "clientId": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{3,80}$" },
+      "keySha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+      "enabled": { "type": "boolean" },
+      "monthlyRequestLimit": { "type": "integer", "minimum": 1 },
+      "monthlyReservedCostUsdLimit": { "type": "number", "minimum": 0 },
+      "maxReservedCostUsdPerRequest": { "type": "number", "minimum": 0 },
+      "defaultReservedCostUsdPerRequest": { "type": "number", "minimum": 0 },
+      "maxDurationTargetSeconds": { "type": "integer", "minimum": 1 },
+      "allowedTiers": {
+        "type": "array",
+        "minItems": 1,
+        "items": { "enum": ["fast", "standard"] }
+      },
+      "allowedQualityModes": {
+        "type": "array",
+        "minItems": 1,
+        "items": { "enum": ["economy", "standard", "high", "ultimate"] }
+      }
+    }
+  }
+}

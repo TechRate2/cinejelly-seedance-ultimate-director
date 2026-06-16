@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/billing-admin-attestation.schema.json",
+  "title": "CineJelly Billing Admin Attestation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "approvedAt",
+    "approvedBy",
+    "customerTrafficMode",
+    "billingProvider",
+    "termsUrl",
+    "privacyUrl",
+    "refundPolicyUrl",
+    "taxHandlingOwner",
+    "supportContact",
+    "accountLifecycle",
+    "spendControls"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.billing-admin-attestation.v1" },
+    "approvedAt": { "type": "string", "format": "date-time" },
+    "approvedBy": { "type": "string", "minLength": 1 },
+    "customerTrafficMode": { "enum": ["paid_customer", "pilot_contract"] },
+    "billingProvider": { "enum": ["stripe", "paddle", "lemonsqueezy", "manual_contract", "external"] },
+    "termsUrl": { "type": "string", "format": "uri" },
+    "privacyUrl": { "type": "string", "format": "uri" },
+    "refundPolicyUrl": { "type": "string", "format": "uri" },
+    "taxHandlingOwner": { "type": "string", "minLength": 1 },
+    "supportContact": { "type": "string", "minLength": 1 },
+    "accountLifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provisioning", "suspension", "apiKeyRotation", "refundHandling", "chargebackHandling"],
+      "properties": {
+        "provisioning": { "type": "string", "minLength": 1 },
+        "suspension": { "type": "string", "minLength": 1 },
+        "apiKeyRotation": { "type": "string", "minLength": 1 },
+        "refundHandling": { "type": "string", "minLength": 1 },
+        "chargebackHandling": { "type": "string", "minLength": 1 }
+      }
+    },
+    "spendControls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiresClientPolicy", "emergencyDisableProcedure", "quotaReviewCadence"],
+      "properties": {
+        "requiresClientPolicy": { "const": true },
+        "emergencyDisableProcedure": { "type": "string", "minLength": 1 },
+        "quotaReviewCadence": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

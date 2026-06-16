@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/business-readiness-ops-config-validation-report.schema.json",
+  "title": "CineJelly Business Readiness Ops Config Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "checkedInputs",
+    "checks",
+    "clientPolicy",
+    "billingAttestation",
+    "productionAttestation",
+    "draftEvidence",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.business-readiness-ops-config-validation.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "warn", "fail"] },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["billingAttestationPath", "productionAttestationPath", "clientPolicySource", "draftDir", "writeDrafts"],
+      "properties": {
+        "billingAttestationPath": { "type": "string" },
+        "productionAttestationPath": { "type": "string" },
+        "clientPolicySource": { "type": "string" },
+        "draftDir": { "type": "string" },
+        "writeDrafts": { "type": "boolean" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "clientPolicy": { "type": "object", "additionalProperties": true, "required": ["configured"] },
+    "billingAttestation": { "type": "object", "additionalProperties": true, "required": ["configured"] },
+    "productionAttestation": { "type": "object", "additionalProperties": true, "required": ["configured"] },
+    "draftEvidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["written", "files"],
+      "properties": {
+        "written": { "type": "boolean" },
+        "directory": { "type": "string" },
+        "files": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canRunBillingAdminCapture", "canRunProductionOpsCapture", "canOpenPaidCustomerTraffic", "releaseBlocker"],
+      "properties": {
+        "canRunBillingAdminCapture": { "type": "boolean" },
+        "canRunProductionOpsCapture": { "type": "boolean" },
+        "canOpenPaidCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": { "type": "array", "items": { "type": "string" } },
+    "error": { "type": "string" }
+  }
+}
