@@ -129,6 +129,7 @@ For the full commercial-platform release gate, run:
 npm.cmd run validation:business-readiness
 npm.cmd run validation:live-inputs
 npm.cmd run validation:business-plan
+npm.cmd run validation:report-contracts
 ```
 
 This no-spend audit reads the release audit, short paid-render report, manual review report, and explicit evidence reports for deployment preflight, 2-8 minute long-form validation, live source-video auto-analysis, live remote stock provider validation, live generated-audio provider validation, billing/admin/quota controls, and production storage/observability/support. It writes `assets/output_deliverables/phase6-validation/business-readiness-report.json` and exits non-zero while any required evidence gate is missing. A non-zero result is expected for the current snapshot until the remaining commercial evidence exists.
@@ -136,6 +137,8 @@ This no-spend audit reads the release audit, short paid-render report, manual re
 The `validation:live-inputs` command is also no-spend and no-network. It reads only local env shape, ops reports, attestation presence, clean deployment/source-video URL shape, remote-stock approvals, generated-audio capability inputs, and known cost estimates, then writes `assets/output_deliverables/business-readiness/live-readiness-inputs-report.json`. It makes no Atlas, deployment, stock-provider, source-video, FFmpeg, render, or billing-provider calls. Treat `shouldDeferAtlasSpend=true` as the default unless the specific live or paid gate is ready and budget-approved.
 
 The `validation:business-plan` command is also no-spend and no-network. It reads the current business-readiness report, ops-config report, and secret-free environment shape, then writes `assets/output_deliverables/business-readiness/business-readiness-validation-plan.json` with the remaining validation sequence, missing operator inputs, known paid-cost estimates, and a spend-deferral recommendation. It is a planning aid only; it does not replace any evidence gate and it must not be used as release approval.
+
+The `validation:report-contracts` command is also no-spend and no-network. It validates generated release/business-readiness JSON reports against their local schemas, writes `assets/output_deliverables/business-readiness/report-contract-validation-report.json`, and catches schema drift before reports are shared or used as evidence. A schema-shape pass is not release approval; business-readiness status still controls customer traffic.
 
 Create the deployment preflight evidence with the no-spend capture command after the API is deployed to its real HTTPS host:
 

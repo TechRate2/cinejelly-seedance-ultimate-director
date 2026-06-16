@@ -615,7 +615,10 @@ function redactUnknown(value) {
   }
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, secretKeyPattern.test(key) ? "[REDACTED]" : redactUnknown(item)])
+      Object.entries(value).map(([key, item]) => {
+        const redacted = redactUnknown(item);
+        return [key, secretKeyPattern.test(key) && typeof redacted === "string" ? "[REDACTED]" : redacted];
+      })
     );
   }
   return value;
