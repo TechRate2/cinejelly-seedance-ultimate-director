@@ -127,9 +127,12 @@ For the full commercial-platform release gate, run:
 
 ```powershell
 npm.cmd run validation:business-readiness
+npm.cmd run validation:business-plan
 ```
 
 This no-spend audit reads the release audit, short paid-render report, manual review report, and explicit evidence reports for deployment preflight, 2-8 minute long-form validation, live source-video auto-analysis, live remote stock provider validation, live generated-audio provider validation, billing/admin/quota controls, and production storage/observability/support. It writes `assets/output_deliverables/phase6-validation/business-readiness-report.json` and exits non-zero while any required evidence gate is missing. A non-zero result is expected for the current snapshot until the remaining commercial evidence exists.
+
+The `validation:business-plan` command is also no-spend and no-network. It reads the current business-readiness report, ops-config report, and secret-free environment shape, then writes `assets/output_deliverables/business-readiness/business-readiness-validation-plan.json` with the remaining validation sequence, missing operator inputs, known paid-cost estimates, and a spend-deferral recommendation. It is a planning aid only; it does not replace any evidence gate and it must not be used as release approval.
 
 Create the deployment preflight evidence with the no-spend capture command after the API is deployed to its real HTTPS host:
 

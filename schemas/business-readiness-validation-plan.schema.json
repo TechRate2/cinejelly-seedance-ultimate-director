@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/business-readiness-validation-plan.schema.json",
+  "title": "CineJelly Business Readiness Validation Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "checkedInputs",
+    "currentBusinessReadiness",
+    "environment",
+    "costPlan",
+    "validationSequence",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.business-readiness-validation-plan.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": ["blocked_by_missing_inputs", "blocked_by_budget_or_sequence", "ready_for_paid_sequence"]
+    },
+    "noSpend": { "const": true },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "businessReadinessPath",
+        "opsConfigPath",
+        "maxBudgetUsd",
+        "longFormDurationSeconds",
+        "deploymentBaseUrlConfigured",
+        "sourceVideoUrlConfigured",
+        "remoteStockQuery"
+      ],
+      "properties": {
+        "businessReadinessPath": { "type": "string" },
+        "opsConfigPath": { "type": "string" },
+        "maxBudgetUsd": { "type": "number", "minimum": 0 },
+        "longFormDurationSeconds": { "type": "integer", "minimum": 120, "maximum": 480 },
+        "deploymentBaseUrlConfigured": { "type": "boolean" },
+        "sourceVideoUrlConfigured": { "type": "boolean" },
+        "remoteStockQuery": { "type": "string" }
+      }
+    },
+    "currentBusinessReadiness": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["present", "path", "status", "evidenceCompletionPercent", "failingChecks"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "path": { "type": "string" },
+        "status": { "type": "string" },
+        "evidenceCompletionPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "failingChecks": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["atlas", "deployment", "sourceVideo", "remoteStock", "generatedAudio", "operations"]
+    },
+    "costPlan": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "maxBudgetUsd",
+        "knownPaidEstimateUsd",
+        "budgetFit",
+        "longForm",
+        "generatedAudio",
+        "unknownCostItems"
+      ],
+      "properties": {
+        "maxBudgetUsd": { "type": "number", "minimum": 0 },
+        "knownPaidEstimateUsd": { "type": "number", "minimum": 0 },
+        "budgetFit": { "enum": ["within_budget", "exceeds_budget", "unknown"] },
+        "unknownCostItems": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "validationSequence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "status", "command", "notes"],
+        "properties": {
+          "name": { "type": "string" },
+          "kind": {
+            "enum": ["no_spend", "no_spend_network", "live_network", "paid_atlas_llm_and_source_fetch", "paid_atlas_audio", "paid_atlas_video"]
+          },
+          "status": { "enum": ["ready", "blocked", "needs_operator_input"] },
+          "command": { "type": "string" },
+          "evidencePath": { "type": "string" },
+          "requiredInputs": { "type": "array", "items": { "type": "string" } },
+          "estimatedCostUsd": { "type": "number", "minimum": 0 },
+          "notes": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canRunSomePaidValidationNow",
+        "canRunLongFormWithinBudget",
+        "shouldDeferAtlasSpend",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canRunSomePaidValidationNow": { "type": "boolean" },
+        "canRunLongFormWithinBudget": { "type": "boolean" },
+        "shouldDeferAtlasSpend": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "error": { "type": "string" }
+  }
+}
