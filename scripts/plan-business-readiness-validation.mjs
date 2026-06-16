@@ -341,6 +341,18 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, enviro
       notes: [`Current evidence completion: ${businessReadiness.evidenceCompletionPercent}%.`]
     }),
     step({
+      name: "client_policy_kit_generation",
+      kind: "no_spend",
+      status: environment.operations.apiClientPoliciesConfigured ? "ready" : "needs_operator_input",
+      command: "npm.cmd run ops:create-client-policy -- --client-id pilot-client",
+      requiredInputs: environment.operations.apiClientPoliciesConfigured ? [] : ["client ID and quota limits for the first pilot/customer account"],
+      notes: [
+        environment.operations.apiClientPoliciesConfigured
+          ? "CINEJELLY_API_CLIENTS_JSON is already configured."
+          : "Creates a digest-only client policy JSON, env snippet, and optional ignored raw-key secret file without provider spend."
+      ]
+    }),
+    step({
       name: "ops_config_precheck",
       kind: "no_spend",
       status: opsReady ? "ready" : "needs_operator_input",
@@ -472,7 +484,7 @@ function buildReleaseGateSummary({ validationSequence, costPlan }) {
 function nextActionsFor({ validationSequence, costPlan, environment, opsConfig }) {
   const actions = [];
   if (opsConfig.status !== "pass") {
-    actions.push("Fill the generated operator draft files, configure client quota policy, and rerun npm.cmd run validation:ops-config.");
+    actions.push("Run npm.cmd run ops:create-client-policy for the first pilot/customer key, fill the generated operator draft files, and rerun npm.cmd run validation:ops-config.");
   }
   if (!environment.deployment.valid) {
     actions.push("Provide a real clean HTTPS deployment URL and deployment auth token, then run validation:deployment-readiness.");

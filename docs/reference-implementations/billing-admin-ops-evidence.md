@@ -95,6 +95,7 @@ interface BillingAdminOpsReport {
 - Done: add `scripts/capture-billing-admin-ops.mjs`.
 - Done: add `npm.cmd run validation:billing-admin-ops`.
 - Done: add `schemas/billing-admin-ops-report.schema.json`.
+- Done: add `scripts/create-api-client-policy-kit.mjs`, `npm.cmd run ops:create-client-policy`, and `schemas/api-client-policy-kit.schema.json` so operators can generate digest-only client policy kits without hand-hashing raw keys.
 - Done: add `schemas/billing-admin-attestation.schema.json`, `schemas/api-client-policies.schema.json`, and no-spend `npm.cmd run validation:ops-config` pre-capture validation/draft tooling.
 - Done: make `validation:business-readiness` evaluate the versioned billing/admin report explicitly.
 - Done: document the non-secret attestation contract.

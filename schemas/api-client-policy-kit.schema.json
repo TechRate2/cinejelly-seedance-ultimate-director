@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/api-client-policy-kit.schema.json",
+  "title": "CineJelly API Client Policy Kit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "outputFiles",
+    "clientPolicy",
+    "env",
+    "securityNotes",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.api-client-policy-kit.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["created", "failed"] },
+    "noSpend": { "const": true },
+    "outputFiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clientPolicyJsonPath", "envSnippetPath", "secretFileWritten", "reportPath"],
+      "properties": {
+        "clientPolicyJsonPath": { "type": "string" },
+        "envSnippetPath": { "type": "string" },
+        "secretFileWritten": { "type": "boolean" },
+        "secretFilePath": { "type": "string" },
+        "reportPath": { "type": "string" }
+      }
+    },
+    "clientPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clientId",
+        "enabled",
+        "monthlyRequestLimit",
+        "monthlyReservedCostUsdLimit",
+        "maxReservedCostUsdPerRequest",
+        "defaultReservedCostUsdPerRequest",
+        "maxDurationTargetSeconds",
+        "allowedTiers",
+        "allowedQualityModes",
+        "policyCountAfterWrite"
+      ],
+      "properties": {
+        "clientId": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{3,80}$" },
+        "enabled": { "type": "boolean" },
+        "monthlyRequestLimit": { "type": "integer", "minimum": 1 },
+        "monthlyReservedCostUsdLimit": { "type": "number", "minimum": 0 },
+        "maxReservedCostUsdPerRequest": { "type": "number", "minimum": 0 },
+        "defaultReservedCostUsdPerRequest": { "type": "number", "minimum": 0 },
+        "maxDurationTargetSeconds": { "type": "integer", "minimum": 1 },
+        "allowedTiers": { "type": "array", "items": { "enum": ["fast", "standard"] } },
+        "allowedQualityModes": { "type": "array", "items": { "enum": ["economy", "standard", "high", "ultimate"] } },
+        "policyCountAfterWrite": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requireClientPolicyForRender", "usageLedgerPath"],
+      "properties": {
+        "requireClientPolicyForRender": { "const": true },
+        "usageLedgerPath": { "type": "string", "minLength": 1 }
+      }
+    },
+    "securityNotes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "error": { "type": "string" }
+  }
+}

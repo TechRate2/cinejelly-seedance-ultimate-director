@@ -205,12 +205,13 @@ The runner writes `assets/output_deliverables/business-readiness/generated-audio
 Create the billing/admin/quota evidence after client policy, a persistent usage ledger, a real deployment admin endpoint, and the non-secret billing/admin attestation are ready:
 
 ```powershell
+npm.cmd run ops:create-client-policy -- --client-id "pilot-client"
 npm.cmd run validation:ops-config -- --write-drafts
 npm.cmd run validation:ops-config
 npm.cmd run validation:billing-admin-ops -- --base-url "https://<your-cinejelly-host>" --attestation "ops/billing-admin-attestation.json"
 ```
 
-The `validation:ops-config` command is no-spend and writes optional draft files under `assets/output_deliverables/business-readiness/operator-drafts` when `--write-drafts` is present; it does not call deployment endpoints, Atlas, render routes, or billing providers. The attestation file must not contain secrets or customer payment records. It documents the approved billing route, customer traffic mode, Terms/Privacy/Refund URLs, tax owner, support contact, account provisioning/suspension, API key rotation/revocation, refund/chargeback handling, emergency disable procedure, and quota review cadence. See `schemas/billing-admin-attestation.schema.json`, `schemas/api-client-policies.schema.json`, and `docs/reference-implementations/billing-admin-ops-evidence.md` for the exact contract.
+The `ops:create-client-policy` helper is no-spend and writes an ignored kit under `assets/output_deliverables/business-readiness/client-policy-kit`: a one-time raw client key file, a `client-policy.json` file containing only the SHA-256 digest, an env snippet, and a redacted report. Move the raw `.secret.txt` key into the secure customer onboarding channel and never commit it. The `validation:ops-config` command is no-spend and writes optional draft files under `assets/output_deliverables/business-readiness/operator-drafts` when `--write-drafts` is present; it does not call deployment endpoints, Atlas, render routes, or billing providers. The attestation file must not contain secrets or customer payment records. It documents the approved billing route, customer traffic mode, Terms/Privacy/Refund URLs, tax owner, support contact, account provisioning/suspension, API key rotation/revocation, refund/chargeback handling, emergency disable procedure, and quota review cadence. See `schemas/api-client-policy-kit.schema.json`, `schemas/billing-admin-attestation.schema.json`, `schemas/api-client-policies.schema.json`, and `docs/reference-implementations/billing-admin-ops-evidence.md` for the exact contract.
 
 Create the production storage/observability/support evidence after the real host, durable storage, backup/restore, monitoring, alerting, incident response, support, and data-retention procedures are in place:
 
