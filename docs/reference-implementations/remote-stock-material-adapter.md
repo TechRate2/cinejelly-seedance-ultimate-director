@@ -1,6 +1,6 @@
 # Reference Implementation: Remote Stock Material Adapter
 
-Implementation status as of 2026-06-13: implemented as CineJelly-owned TypeScript in remote stock material adapter contracts, runtime configuration, preflight, DirectorAgent material fulfillment, and the public package export surface. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-16: implemented as CineJelly-owned TypeScript in remote stock material adapter contracts, runtime configuration, preflight, DirectorAgent material fulfillment, the public package export surface, and a live-network validation runner with explicit commercial-terms evidence. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Upstream And Provider Sources
 
@@ -108,6 +108,7 @@ function normalizeProviderItem(source, item, brief) {
 - Done: wire enabled adapters into `DirectorAgent` through `createDirectorRuntime`.
 - Done: update `MaterialSourcingPlanner` call options so remote sources enter briefs only when remote stock is explicitly enabled.
 - Done: keep `MaterialSourceValidator` as the final approval gate.
+- Done: add `docs/reference-implementations/remote-stock-provider-validation-runner.md` plus a CLI/report gate for live provider evidence.
 
 ## Validation Checklist
 

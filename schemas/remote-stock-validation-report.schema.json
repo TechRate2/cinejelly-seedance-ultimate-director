@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/remote-stock-validation-report.schema.json",
+  "title": "CineJelly Remote Stock Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "liveNetworkGate",
+    "checks",
+    "providers",
+    "materialValidation",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.remote-stock-validation.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": ["pass", "warn", "fail", "blocked_by_network_confirmation", "blocked_by_configuration"]
+    },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query",
+        "aspectRatio",
+        "resolution",
+        "minimumDurationSeconds",
+        "targetDurationSeconds",
+        "maxCandidates",
+        "outputPath"
+      ],
+      "properties": {
+        "query": { "type": "string" },
+        "aspectRatio": { "enum": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"] },
+        "resolution": { "enum": ["480p", "720p", "1080p"] },
+        "minimumDurationSeconds": { "type": "integer", "minimum": 1 },
+        "targetDurationSeconds": { "type": "integer", "minimum": 1 },
+        "maxCandidates": { "type": "integer", "minimum": 1 },
+        "outputPath": { "type": "string" }
+      }
+    },
+    "liveNetworkGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmLiveNetwork", "providerNetworkCallsAllowed", "confirmCommercialTermsReviewed"],
+      "properties": {
+        "confirmLiveNetwork": { "type": "boolean" },
+        "providerNetworkCallsAllowed": { "type": "boolean" },
+        "confirmCommercialTermsReviewed": { "type": "boolean" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "runtimeSettings": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "providerCount": { "type": "integer", "minimum": 0 },
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "apiKeyConfigured", "requestTimeoutMs", "maxResultsPerBrief"],
+            "properties": {
+              "source": { "enum": ["pexels", "pixabay", "coverr"] },
+              "apiKeyConfigured": { "type": "boolean" },
+              "commercialUseApproved": { "type": "boolean" },
+              "requestTimeoutMs": { "type": "integer", "minimum": 1 },
+              "maxResultsPerBrief": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "error": { "type": "string" }
+      }
+    },
+    "planSummary": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "planId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "briefCount": { "type": "integer", "minimum": 0 },
+        "briefs": { "type": "array" }
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "status",
+          "durationMs",
+          "candidateCount",
+          "selectedCandidateCount",
+          "approvedCandidateCount",
+          "validationStatus",
+          "issueCounts",
+          "sampleCandidates"
+        ],
+        "properties": {
+          "source": { "enum": ["pexels", "pixabay", "coverr"] },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "durationMs": { "type": "integer", "minimum": 0 },
+          "candidateCount": { "type": "integer", "minimum": 0 },
+          "selectedCandidateCount": { "type": "integer", "minimum": 0 },
+          "approvedCandidateCount": { "type": "integer", "minimum": 0 },
+          "validationStatus": { "enum": ["planned_only", "approved", "review_required", "rejected"] },
+          "issueCounts": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "sampleCandidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "rightsStatus", "attributionPresent"],
+              "properties": {
+                "source": { "enum": ["pexels", "pixabay", "coverr"] },
+                "providerAssetId": { "type": "string" },
+                "uriHost": { "type": "string" },
+                "sourcePageHost": { "type": "string" },
+                "previewHost": { "type": "string" },
+                "licenseLabel": { "type": "string" },
+                "durationSeconds": { "type": "number", "minimum": 0 },
+                "aspectRatio": { "type": "string" },
+                "resolution": { "type": "string" },
+                "rightsStatus": { "type": "string" },
+                "attributionPresent": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "materialValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "candidateCount",
+        "selectedCandidateCount",
+        "approvedCandidateCount",
+        "rejectedCandidateCount",
+        "issueCounts"
+      ],
+      "properties": {
+        "status": { "enum": ["planned_only", "approved", "review_required", "rejected"] },
+        "planId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "candidateCount": { "type": "integer", "minimum": 0 },
+        "selectedCandidateCount": { "type": "integer", "minimum": 0 },
+        "approvedCandidateCount": { "type": "integer", "minimum": 0 },
+        "rejectedCandidateCount": { "type": "integer", "minimum": 0 },
+        "issueCounts": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsBusinessReadinessRemoteStockEvidence",
+        "canOpenPaidCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsBusinessReadinessRemoteStockEvidence": { "type": "boolean" },
+        "canOpenPaidCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "error": { "type": "string" }
+  }
+}

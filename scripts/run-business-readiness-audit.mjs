@@ -71,9 +71,9 @@ const checks = [
     name: "remote_stock_provider_validation",
     weight: 8,
     pathOption: "remoteStockReportPath",
-    evaluator: evaluateRequiredPassReport,
+    evaluator: evaluateRemoteStockValidation,
     missing:
-      "Missing live remote stock provider evidence for configured Pexels/Pixabay/Coverr credentials, credential-free URLs, attribution, and commercial-rights approval."
+      "Missing live remote stock provider evidence. Run npm.cmd run validation:remote-stock with approved provider keys, live-network confirmation, and commercial-terms review confirmation."
   },
   {
     name: "atlas_generated_audio_validation",
@@ -352,6 +352,37 @@ function evaluateProductionOperations(path) {
     firstFailure
       ? `Production operations evidence is incomplete: ${firstFailure}`
       : `Production operations evidence status is ${report.status ?? "missing"}.`
+  );
+}
+
+function evaluateRemoteStockValidation(path) {
+  const report = readJson(path);
+  if (report.schemaVersion !== "cinejelly.remote-stock-validation.v1") {
+    return fail("Remote stock validation report schemaVersion is not recognized.");
+  }
+  if (
+    report.status === "pass" &&
+    report.releaseGateSummary?.canUseAsBusinessReadinessRemoteStockEvidence === true &&
+    report.liveNetworkGate?.providerNetworkCallsAllowed === true &&
+    report.liveNetworkGate?.confirmCommercialTermsReviewed === true &&
+    Array.isArray(report.providers) &&
+    report.providers.length > 0 &&
+    report.providers.every((provider) => provider?.status === "pass" && Number(provider?.approvedCandidateCount ?? 0) > 0) &&
+    report.materialValidation?.status === "approved" &&
+    Number(report.materialValidation?.approvedCandidateCount ?? 0) > 0
+  ) {
+    return pass("Live remote stock provider evidence passed.");
+  }
+  if (report.status === "warn") {
+    return warn("Live remote stock provider evidence has warnings requiring operator acceptance.");
+  }
+  const firstFailure = Array.isArray(report.checks)
+    ? report.checks.find((check) => check?.status === "fail" && typeof check?.message === "string")?.message
+    : undefined;
+  return fail(
+    firstFailure
+      ? `Live remote stock provider evidence is incomplete: ${firstFailure}`
+      : `Live remote stock provider evidence status is ${report.status ?? "missing"}.`
   );
 }
 

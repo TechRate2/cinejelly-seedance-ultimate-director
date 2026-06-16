@@ -151,6 +151,20 @@ npm.cmd run validation:source-video-auto-analysis -- --source-video-url "https:/
 
 If readiness returns warnings that the operator intentionally accepts, add `--allow-warnings`. The runner samples bounded frames with FFmpeg, sends them through the configured Atlas LLM provider, normalizes the result through `SourceVideoAnalyst`, and writes `assets/output_deliverables/business-readiness/source-video-validation-report.json`. The business-readiness gate counts it only when the report status is `pass`, provider calls were explicitly allowed, analysis content is usable, and the report confirms no local frame path or inline frame data leakage. See `docs/reference-implementations/source-video-auto-analysis-validation-runner.md` for the exact report contract.
 
+Create the live remote stock provider evidence after approved Pexels/Pixabay/Coverr keys are configured and provider terms have been reviewed for the commercial offer. First run the live-network gate without confirmation:
+
+```powershell
+npm.cmd run validation:remote-stock
+```
+
+Then run the live validation only after approving the provider network calls and confirming commercial terms/licensing review:
+
+```powershell
+npm.cmd run validation:remote-stock -- --confirm-live-network --confirm-commercial-terms-reviewed
+```
+
+This runner uses configured `RemoteStockMaterialAdapter` instances, then validates candidate URIs, attribution, duration, aspect/resolution fit, and rights metadata through `MaterialSourceValidator`. It writes `assets/output_deliverables/business-readiness/remote-stock-validation-report.json` without raw provider keys, outbound Pixabay key URLs, or full candidate media URLs. Coverr can satisfy evidence only when `CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED=true` is set and returned candidate URLs remain credential-free HTTPS; signed/tokenized URLs are intentionally rejected. See `docs/reference-implementations/remote-stock-provider-validation-runner.md` for the exact report contract.
+
 Create the billing/admin/quota evidence after client policy, a persistent usage ledger, a real deployment admin endpoint, and the non-secret billing/admin attestation are ready:
 
 ```powershell
