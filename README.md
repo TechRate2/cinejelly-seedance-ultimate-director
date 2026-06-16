@@ -260,6 +260,7 @@ npm run validation:deployment-readiness -- --base-url <deployment-url>
 npm run validation:long-form -- --duration-seconds 120
 npm run validation:source-video-auto-analysis -- --source-video-url <clean-https-video-url> --confirm-provider-spend
 npm run validation:remote-stock -- --confirm-live-network --confirm-commercial-terms-reviewed
+npm run validation:atlas-billing -- --max-budget-usd 5 --planned-cost-usd 0.000870 --output assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json --confirm-live-network
 npm run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed
 npm run ops:create-client-policy -- --client-id pilot-client
 npm run ops:apply-client-policy-env

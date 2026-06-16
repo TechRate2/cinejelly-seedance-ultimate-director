@@ -209,6 +209,12 @@ Create the Atlas generated-audio evidence after the Atlas audio model, voice, pr
 npm.cmd run validation:generated-audio
 ```
 
+Before adding `--confirm-provider-spend`, refresh the slice-specific Atlas billing report so the planned audio cost matches the current validation text and the approved budget covers `--max-cost-usd`:
+
+```powershell
+npm.cmd run validation:atlas-billing -- --max-budget-usd 5 --planned-cost-usd 0.000870 --output assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json --confirm-live-network
+```
+
 Then run provider validation only after approving Atlas generated-audio spend for that specific sample and confirming the audio schema review:
 
 ```powershell
