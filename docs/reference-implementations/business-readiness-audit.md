@@ -65,6 +65,7 @@ interface BusinessReadinessReport {
 - Done: add schema-aware remote-stock evidence evaluation through `cinejelly.remote-stock-validation.v1`.
 - Done: add schema-aware generated-audio evidence evaluation through `cinejelly.generated-audio-validation.v1`.
 - Done: add schema-aware Atlas billing readiness evaluation through `cinejelly.atlas-billing-readiness.v1` as a zero-weight hard pre-paid-spend gate.
+- Done: make paid-validation summary flags depend on the Atlas billing/budget gate instead of release hygiene alone.
 - Done: add schema-aware billing/admin/quota evidence evaluation through `cinejelly.billing-admin-ops.v1`.
 - Done: add schema-aware production operations evidence evaluation through `cinejelly.production-operations.v1`.
 - Pending: feed the audit with real deployment, passing paid long-form, source-video, remote stock, generated-audio, Atlas billing readiness under the approved budget, billing/admin, and production operations evidence.

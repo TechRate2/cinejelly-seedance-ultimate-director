@@ -22,6 +22,7 @@ Before running additional paid Atlas validation, operators need to know whether 
 - Done: compare the current business-plan known paid estimate against `--max-budget-usd`.
 - Done: support a no-spend live-network `/balance` probe behind `--confirm-live-network`.
 - Done: make `validation:business-readiness` require this report as a hard pre-paid-spend gate with zero completion weight.
+- Done: keep business-readiness paid-validation summary flags false while this report fails.
 
 ## Acceptance Checks
 

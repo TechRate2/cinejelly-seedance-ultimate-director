@@ -656,6 +656,8 @@ function main() {
   const shortValidationPassed =
     results.find((check) => check.name === "short_paid_render_and_artifacts")?.status === "pass" &&
     results.find((check) => check.name === "manual_short_media_redaction_review")?.status === "pass";
+  const atlasBillingPassed = results.find((check) => check.name === "atlas_billing_readiness")?.status === "pass";
+  const canRunAdditionalPaidValidation = releaseAuditPassed && shortValidationPassed && atlasBillingPassed;
 
   const report = {
     schemaVersion: "cinejelly.business-readiness-audit.v1",
@@ -683,8 +685,8 @@ function main() {
     completion,
     checks: results,
     releaseGateSummary: {
-      canRunAdditionalPaidValidation: releaseAuditPassed && shortValidationPassed,
-      canRunLongFormValidation: releaseAuditPassed && shortValidationPassed,
+      canRunAdditionalPaidValidation,
+      canRunLongFormValidation: canRunAdditionalPaidValidation,
       canReleaseToCustomerTraffic: status === "ready_for_limited_customer_traffic",
       releaseBlocker:
         status === "ready_for_limited_customer_traffic"
