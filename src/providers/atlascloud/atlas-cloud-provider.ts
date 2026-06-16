@@ -674,23 +674,39 @@ export class AtlasCloudProvider implements ModelProvider {
         recordRetry
       );
     } catch (error) {
-      if (!this.shouldTryResultEndpoint(error)) {
+      if (!this.shouldTryPredictionFallback(error)) {
         throw error;
       }
-      return withRetry(
-        () =>
-          this.http.getJson<unknown>(
-            this.url(this.settings.assetBaseUrl, `/model/result/${encodedPredictionId}`),
-            signal
-          ),
-        DEFAULT_RETRY_POLICY,
-        signal,
-        recordRetry
-      );
+      try {
+        return await withRetry(
+          () =>
+            this.http.getJson<unknown>(
+              this.url(this.settings.assetBaseUrl, `/model/result/${encodedPredictionId}`),
+              signal
+            ),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+      } catch (resultError) {
+        if (!this.shouldTryPredictionFallback(resultError)) {
+          throw resultError;
+        }
+        return withRetry(
+          () =>
+            this.http.getJson<unknown>(
+              this.url(this.settings.assetBaseUrl, `/model/getResult?predictionId=${encodedPredictionId}`),
+              signal
+            ),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+      }
     }
   }
 
-  private shouldTryResultEndpoint(error: unknown): boolean {
+  private shouldTryPredictionFallback(error: unknown): boolean {
     return error instanceof ProviderError && (error.statusCode === 404 || error.statusCode === 405);
   }
 

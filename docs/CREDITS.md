@@ -234,7 +234,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 - URL: https://www.atlascloud.ai/docs/en/models/get-start
 - URL: https://www.atlascloud.ai/docs/en/tutorials/image-to-video
 - Used for:
-  - Use the documented `/api/v1/model/generateVideo` submit flow and `/api/v1/model/prediction/{id}` polling flow.
+  - Use the documented `/api/v1/model/generateVideo` submit flow and compatible polling/result flows, including `/api/v1/model/getResult?predictionId=...`.
   - Upload local media through `/api/v1/model/uploadMedia` when direct clean HTTPS or reviewed `asset://` references are not available.
   - Preserve clean public HTTPS and reviewed `asset://` references when the selected model path supports direct references.
   - Keep LLM calls on the separate OpenAI-compatible `/v1` base URL.

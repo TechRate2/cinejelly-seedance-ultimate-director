@@ -30,6 +30,10 @@ const atlasDocsEvidence = {
   docsModelId: "xai/tts-v1",
   submitEndpoint: "https://api.atlascloud.ai/api/v1/model/generateAudio",
   predictionEndpoint: "https://api.atlascloud.ai/api/v1/model/prediction/{prediction_id}",
+  resultCompatibilityEndpoints: [
+    "https://api.atlascloud.ai/api/v1/model/result/{prediction_id}",
+    "https://api.atlascloud.ai/api/v1/model/getResult?predictionId={prediction_id}"
+  ],
   documentedRequestFields: ["model", "text", "language", "voice_id", "codec", "sample_rate", "bit_rate", "speed"],
   documentedOutputFormats: ["mp3", "wav", "pcm", "mulaw", "alaw"],
   documentedAsyncStatuses: ["processing", "completed", "failed"],

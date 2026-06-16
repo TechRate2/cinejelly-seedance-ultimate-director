@@ -32,7 +32,7 @@ Implementation status as of 2026-06-16: CineJelly-owned production foundation im
 - Caller aborts the job: record `status: "canceled"` and `errorCode: "REQUEST_ABORTED"` when the provider call sees the abort.
 - HTTP 408, 429, and 5xx: normalize to retryable provider errors and consume retry budget.
 - HTTP 400/422: normalize to non-retryable schema error so prompt/settings repair can happen before another paid call.
-- HTTP 404/405 from `/model/prediction/{id}`: try Atlas's documented `/model/result/{id}` compatibility route before treating the poll as failed.
+- HTTP 404/405 from `/model/prediction/{id}`: try Atlas result compatibility routes, including `/model/result/{id}` and the documented `/model/getResult?predictionId=...`, before treating the poll as failed.
 - Non-JSON provider error body: redact and preserve only a short preview in details.
 - Media upload terminal `failed` or invalid direct reference: record preparation failure with provider status evidence.
 - Media upload success with only a temporary HTTPS URL: use the returned clean URL as the provider reference instead of requiring a separate asset ID.
@@ -143,7 +143,7 @@ async function waitForPrediction(predictionId: string, context: PollingContext):
 - Translate MoneyPrinterTurbo's staged task visibility into provider ledger events rather than copying its Python task manager.
 - Add provider-neutral ledger fields in `src/types/provider.ts` so API, review packet, and artifact store can inspect polling outcomes.
 - Wrap `waitForPrediction` and `waitUntilActive` in ledger tracking, not only raw HTTP calls.
-- Keep Atlas prediction polling compatible with both `/model/prediction/{id}` and `/model/result/{id}` without hiding authentication, schema, rate-limit, credit, or server errors.
+- Keep Atlas prediction polling compatible with `/model/prediction/{id}`, `/model/result/{id}`, and `/model/getResult?predictionId=...` without hiding authentication, schema, rate-limit, credit, or server errors.
 - Keep retry policy centralized in `src/utils/retry.ts`; higher-level agents read normalized errors and ledger entries.
 - Preserve Atlas-specific mapping only inside `src/providers/atlascloud/*`.
 - Allow `RenderProducer` to pass through a clean temporary upload URL returned by Atlas `/model/uploadMedia` so a url-only response does not become a malformed `asset://https://...` reference or a false asset-registration failure.
@@ -155,7 +155,7 @@ async function waitForPrediction(predictionId: string, context: PollingContext):
 - Caller abort stops polling without consuming the full retry budget.
 - Ledger entries include `predictionId` for create/get/wait operations whenever known.
 - Provider-returned `usage` is preserved in the ledger when available.
-- Atlas result-route fallback is used only after `/model/prediction/{id}` returns 404/405, and mapped output URLs still flow through the same provider-neutral `Prediction` contract.
+- Atlas result-route fallbacks are used only after earlier polling routes return 404/405, and mapped output URLs still flow through the same provider-neutral `Prediction` contract.
 - Atlas upload responses that provide a clean HTTPS URL but no separate asset ID can still feed the next generation request as a direct provider reference.
 - Review packet cost summary counts failed, timeout, and canceled provider operations.
 - No production import path references `external/upstream`.

@@ -10,7 +10,7 @@ The runtime exposes the current option contract through `GET /v1/render-settings
 
 - Atlas Cloud Seedance 2.0 model page for Seedance 2.0, Seedance 2.0 Fast, T2V, I2V, reference-to-video, multimodal references, aspect ratios, duration, audio-visual sync, and resolution notes.
 - Atlas Cloud character consistency article for image-to-video request fields such as duration, resolution, ratio, generate audio, watermark, and return last frame.
-- Atlas Cloud API docs for video fields, `/model/generateVideo`, `/model/prediction/{id}`, `/model/uploadMedia`, and async polling.
+- Atlas Cloud API docs for video fields, `/model/generateVideo`, `/model/prediction/{id}`, `/model/getResult?predictionId=...`, `/model/uploadMedia`, and async polling.
 - Emily2040/seedance-2.0 for source-dated model claims and provider-surface caveats.
 
 ## Settings Philosophy
