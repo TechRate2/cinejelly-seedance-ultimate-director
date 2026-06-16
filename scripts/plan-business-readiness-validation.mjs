@@ -20,6 +20,7 @@ const defaults = {
   remoteStockQuery: "modern workspace desk lamp",
   generatedAudioText: "Xin chao, day la ban kiem tra am thanh ngan cua CineJelly."
 };
+const generatedAudioBillingReportPath = "assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json";
 
 const secretPatterns = [
   /Bearer\s+[A-Za-z0-9._-]+/gi,
@@ -497,7 +498,9 @@ function buildCostPlan(options) {
     knownPaidEstimateUsd,
     longFormDurationSeconds: options.longFormDurationSeconds,
     longFormEstimate,
-    generatedAudioEstimate
+    generatedAudioEstimate,
+    generatedAudioText: options.generatedAudioText,
+    generatedAudioCostUsdPer1kChars: audioRate
   });
   return {
     maxBudgetUsd: options.maxBudgetUsd,
@@ -532,7 +535,15 @@ function buildCostPlan(options) {
   };
 }
 
-function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, longFormDurationSeconds, longFormEstimate, generatedAudioEstimate }) {
+function buildBudgetConstrainedSlices({
+  maxBudgetUsd,
+  knownPaidEstimateUsd,
+  longFormDurationSeconds,
+  longFormEstimate,
+  generatedAudioEstimate,
+  generatedAudioText,
+  generatedAudioCostUsdPer1kChars
+}) {
   const slices = [
     budgetSlice({
       name: "generated_audio_smoke",
@@ -542,9 +553,14 @@ function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, long
       billingReadinessCommand: atlasBillingSliceCommand({
         maxBudgetUsd,
         plannedCostUsd: generatedAudioEstimate,
-        outputPath: "assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json"
+        outputPath: generatedAudioBillingReportPath
       }),
-      command: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed",
+      command: generatedAudioProviderCommand({
+        maxBudgetUsd,
+        text: generatedAudioText,
+        costUsdPer1kChars: generatedAudioCostUsdPer1kChars,
+        atlasBillingReportPath: generatedAudioBillingReportPath
+      }),
       prerequisites: [
         "fresh Atlas billing readiness captured for this narrower budget slice",
         "ATLASCLOUD_GENERATED_AUDIO_MODEL",
@@ -636,6 +652,19 @@ function atlasBillingSliceCommand({ maxBudgetUsd, plannedCostUsd, outputPath }) 
     return undefined;
   }
   return `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(maxBudgetUsd)} --planned-cost-usd ${formatNumber(plannedCostUsd)} --output ${outputPath} --confirm-live-network`;
+}
+
+function generatedAudioProviderCommand({ maxBudgetUsd, text, costUsdPer1kChars, atlasBillingReportPath }) {
+  const maxCostUsd = Math.min(maxBudgetUsd, 0.05);
+  return [
+    "npm.cmd run validation:generated-audio --",
+    "--confirm-provider-spend",
+    "--confirm-audio-schema-reviewed",
+    `--max-cost-usd ${formatNumber(maxCostUsd)}`,
+    `--cost-usd-per-1k-chars ${formatNumber(costUsdPer1kChars)}`,
+    `--atlas-billing-report ${atlasBillingReportPath}`,
+    `--text "${escapeCommandText(text)}"`
+  ].join(" ");
 }
 
 function budgetSlice({ name, kind, estimatedCostUsd, maxBudgetUsd, billingReadinessCommand, command, prerequisites, limitations }) {
@@ -824,7 +853,12 @@ function buildValidationSequence({
       name: "generated_audio_validation",
       kind: "paid_atlas_audio",
       status: generatedAudioReady ? "ready" : generatedAudioInputReady ? "blocked" : "needs_operator_input",
-      command: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed",
+      command: generatedAudioProviderCommand({
+        maxBudgetUsd: options.maxBudgetUsd,
+        text: options.generatedAudioText,
+        costUsdPer1kChars: costPlan.generatedAudio.costUsdPer1kChars,
+        atlasBillingReportPath: generatedAudioBillingReportPath
+      }),
       requiredInputs: generatedAudioReady
         ? ["manual audio review after output"]
         : [
