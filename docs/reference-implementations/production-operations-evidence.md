@@ -105,7 +105,7 @@ interface ProductionOperationsReport {
 - Done: add `scripts/capture-production-operations.mjs`.
 - Done: add `npm.cmd run validation:production-ops`.
 - Done: add `schemas/production-operations-report.schema.json`.
-- Done: add `schemas/production-operations-attestation.schema.json` and no-spend `npm.cmd run validation:ops-config` pre-capture validation/draft tooling.
+- Done: add `schemas/production-operations-attestation.schema.json`, `schemas/operator-attestation-promotion-report.schema.json`, no-spend `npm.cmd run validation:ops-config` pre-capture validation/draft tooling, and `npm.cmd run ops:promote-attestations` so completed non-secret drafts can be validated before they become ignored `ops/*.json` inputs.
 - Done: make `validation:business-readiness` evaluate the versioned production operations report explicitly.
 - Done: document the non-secret attestation contract.
 

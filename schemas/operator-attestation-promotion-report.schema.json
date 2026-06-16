@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/operator-attestation-promotion-report.schema.json",
+  "title": "CineJelly Operator Attestation Promotion Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "enum": ["promoted", "dry_run", "blocked"] } },
+        "required": ["status"]
+      },
+      "then": {
+        "required": [
+          "dryRun",
+          "checkedInputs",
+          "checks",
+          "promotedFiles",
+          "validationSummary",
+          "securityNotes",
+          "nextActions"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "const": "failed" } },
+        "required": ["status"]
+      },
+      "then": { "required": ["error"] }
+    }
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.operator-attestation-promotion.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["promoted", "dry_run", "blocked", "failed"] },
+    "dryRun": { "type": "boolean" },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "billingSourcePath",
+        "productionSourcePath",
+        "billingTargetPath",
+        "productionTargetPath",
+        "backupDir"
+      ],
+      "properties": {
+        "billingSourcePath": { "type": "string" },
+        "productionSourcePath": { "type": "string" },
+        "billingTargetPath": { "type": "string" },
+        "productionTargetPath": { "type": "string" },
+        "backupDir": { "type": "string" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "fail", "warn"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "promotedFiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "sourcePath", "targetPath"],
+        "properties": {
+          "kind": { "enum": ["billing_admin_attestation", "production_operations_attestation"] },
+          "sourcePath": { "type": "string" },
+          "targetPath": { "type": "string" },
+          "backupPath": { "type": "string" }
+        }
+      }
+    },
+    "validationSummary": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "securityNotes": { "type": "array", "items": { "type": "string" } },
+    "nextActions": { "type": "array", "items": { "type": "string" } },
+    "error": { "type": "string" }
+  }
+}

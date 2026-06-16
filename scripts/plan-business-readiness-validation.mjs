@@ -359,7 +359,12 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, enviro
       command: "npm.cmd run validation:ops-config -- --write-drafts",
       evidencePath: opsConfig.path,
       requiredInputs: opsReady ? [] : ["CINEJELLY_API_CLIENTS_JSON", "CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER=true", "CINEJELLY_CLIENT_USAGE_LEDGER_PATH", "ops/billing-admin-attestation.json", "ops/production-operations-attestation.json"],
-      notes: opsConfig.nextActions
+      notes: opsReady
+        ? opsConfig.nextActions
+        : [
+            ...opsConfig.nextActions,
+            "After filling the generated drafts, run npm.cmd run ops:promote-attestations -- --dry-run and then npm.cmd run ops:promote-attestations when validation passes."
+          ]
     }),
     step({
       name: "deployment_readiness_capture",
@@ -486,7 +491,7 @@ function nextActionsFor({ validationSequence, costPlan, environment, opsConfig }
   if (opsConfig.status !== "pass") {
     actions.push(
       environment.operations.apiClientPoliciesConfigured
-        ? "Fill the generated billing/admin and production-operations attestation files, then rerun npm.cmd run validation:ops-config."
+        ? "Fill the generated billing/admin and production-operations attestation drafts, run npm.cmd run ops:promote-attestations -- --dry-run, promote them when validation passes, then rerun npm.cmd run validation:ops-config."
         : "Run npm.cmd run ops:create-client-policy for the first pilot/customer key, fill the generated operator draft files, and rerun npm.cmd run validation:ops-config."
     );
   }

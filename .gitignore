@@ -27,6 +27,9 @@ credentials*.json
 token*.json
 secrets*.json
 
+# Local operator evidence inputs
+ops/*.json
+
 # Python runtime
 __pycache__/
 *.py[cod]
