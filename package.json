@@ -26,6 +26,7 @@
     "validation:create-request": "node scripts/create-validation-request.mjs",
     "validation:local-smoke": "node scripts/run-local-validation-smoke.mjs",
     "validation:client-policy-smoke": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-client-policy-smoke.mjs",
+    "validation:deployment-readiness": "node scripts/capture-deployment-readiness.mjs",
     "validation:release-audit": "node scripts/run-release-audit.mjs",
     "validation:render-request": "npm run build && node --env-file-if-exists=.env dist/application/render-request-validation-entrypoint.js",
     "validation:paid-render": "npm run build && node --env-file-if-exists=.env dist/application/paid-render-validation-entrypoint.js",

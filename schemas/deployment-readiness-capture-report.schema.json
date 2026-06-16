@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/deployment-readiness-capture-report.schema.json",
+  "title": "CineJelly Deployment Readiness Capture Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "environmentKind",
+    "baseUrl",
+    "timeoutMs",
+    "auth",
+    "endpoints",
+    "summary",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.deployment-readiness-capture.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "warn", "fail"] },
+    "environmentKind": { "enum": ["deployment", "local"] },
+    "baseUrl": { "type": "string" },
+    "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 120000 },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "tokenEnvName", "tokenProvided", "sentAuthorizationToV1Endpoints"],
+      "properties": {
+        "mode": { "enum": ["bearer", "none"] },
+        "tokenEnvName": { "type": "string" },
+        "tokenProvided": { "type": "boolean" },
+        "sentAuthorizationToV1Endpoints": { "type": "boolean" }
+      }
+    },
+    "endpoints": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "method", "path", "ok", "durationMs", "status", "message"],
+        "properties": {
+          "name": { "enum": ["health", "preflight", "validation_readiness", "render_settings"] },
+          "method": { "const": "GET" },
+          "path": { "type": "string" },
+          "httpStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
+          "ok": { "type": "boolean" },
+          "durationMs": { "type": "integer", "minimum": 0 },
+          "payload": true,
+          "error": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allEndpointsCaptured"],
+      "properties": {
+        "healthStatus": { "type": "string" },
+        "preflightStatus": { "type": "string" },
+        "validationReadinessDecision": { "type": "string" },
+        "renderSettingsSchemaVersion": { "type": "string" },
+        "allEndpointsCaptured": { "type": "boolean" }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsBusinessReadinessDeploymentEvidence",
+        "canRunPaidValidationFromHost",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsBusinessReadinessDeploymentEvidence": { "type": "boolean" },
+        "canRunPaidValidationFromHost": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

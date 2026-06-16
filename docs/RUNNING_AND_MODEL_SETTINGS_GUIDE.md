@@ -122,6 +122,8 @@ Common useful options:
 | `CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS` | Remote stock is disabled. | Set to `true` only after provider keys and rights are approved. |
 | `PEXELS_API_KEY`, `PIXABAY_API_KEY`, `COVERR_API_KEY` | Not used unless remote stock is enabled. | Set only for approved commercial material sourcing. |
 | `CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS` | Source-video auto analysis is disabled. | Set to `true` only after FFmpeg and the chosen multimodal LLM are verified. |
+| `CINEJELLY_DEPLOYMENT_BASE_URL` | Not used by runtime. | Set for the no-spend deployment readiness capture command. |
+| `CINEJELLY_DEPLOYMENT_API_AUTH_TOKEN` | Not used by runtime. | Set for deployment readiness capture when the real host protects `/v1/*` endpoints. |
 
 ## First Run Checklist
 
@@ -216,6 +218,16 @@ npm.cmd run validation:local-smoke
 
 This creates a safe request, runs typecheck/build/readiness/request validation, starts a temporary API when needed, calls `/health`, and calls `/v1/validation-readiness`. It still does not run paid Atlas rendering.
 It writes `assets/output_deliverables/phase6-validation/local-smoke-report.json` as local pre-paid evidence. The report is ignored by Git and does not replace paid render validation, artifact validation, or manual media review.
+
+After deploying the API to a real HTTPS host, capture deployment evidence without spending Atlas credits:
+
+```powershell
+$env:CINEJELLY_DEPLOYMENT_BASE_URL = "https://<your-cinejelly-host>"
+$env:CINEJELLY_DEPLOYMENT_API_AUTH_TOKEN = "<deployment-token>"
+npm.cmd run validation:deployment-readiness
+```
+
+The command calls only `/health`, `/v1/preflight`, `/v1/validation-readiness`, and `/v1/render-settings`. A localhost run is useful for smoke testing, but it is marked local and does not satisfy the commercial business-readiness deployment gate.
 
 For non-specialist operators, prefer:
 

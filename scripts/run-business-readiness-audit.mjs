@@ -49,7 +49,7 @@ const checks = [
     pathOption: "deploymentPreflightPath",
     evaluator: evaluateDeploymentPreflight,
     missing:
-      "Missing deployment-environment preflight/readiness evidence. Archive npm.cmd run preflight and /v1/validation-readiness output from the real host."
+      "Missing deployment-environment preflight/readiness evidence. Run npm.cmd run validation:deployment-readiness against the real HTTPS host."
   },
   {
     name: "long_form_paid_validation",
@@ -224,6 +224,18 @@ function evaluateManualReview(path) {
 
 function evaluateDeploymentPreflight(path) {
   const report = readJson(path);
+  if (report.schemaVersion === "cinejelly.deployment-readiness-capture.v1") {
+    if (report.environmentKind !== "deployment") {
+      return fail("Deployment readiness capture was not run against a real deployment environment.");
+    }
+    if (report.status === "pass" && report.releaseGateSummary?.canUseAsBusinessReadinessDeploymentEvidence === true) {
+      return pass("Deployment readiness capture passed on the real HTTPS host.");
+    }
+    if (report.status === "warn") {
+      return warn("Deployment readiness capture has warnings requiring operator acceptance.");
+    }
+    return fail(`Deployment readiness capture status is ${report.status ?? "missing"}.`);
+  }
   if (report.schemaVersion === "cinejelly.phase6.validation-readiness.v1") {
     if (report.decision === "ready_for_paid_validation") {
       return pass("Deployment validation-readiness evidence has no hard blockers or warnings.");

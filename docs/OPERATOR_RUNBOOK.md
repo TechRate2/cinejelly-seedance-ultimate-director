@@ -127,6 +127,16 @@ npm.cmd run validation:business-readiness
 
 This no-spend audit reads the release audit, short paid-render report, manual review report, and explicit evidence reports for deployment preflight, 2-8 minute long-form validation, live source-video auto-analysis, live remote stock provider validation, live generated-audio provider validation, billing/admin/quota controls, and production storage/observability/support. It writes `assets/output_deliverables/phase6-validation/business-readiness-report.json` and exits non-zero while any required evidence gate is missing. A non-zero result is expected for the current snapshot until the remaining commercial evidence exists.
 
+Create the deployment preflight evidence with the no-spend capture command after the API is deployed to its real HTTPS host:
+
+```powershell
+$env:CINEJELLY_DEPLOYMENT_BASE_URL = "https://<your-cinejelly-host>"
+$env:CINEJELLY_DEPLOYMENT_API_AUTH_TOKEN = "<deployment-token>"
+npm.cmd run validation:deployment-readiness
+```
+
+The capture calls only `GET /health`, `GET /v1/preflight`, `GET /v1/validation-readiness`, and `GET /v1/render-settings`; it does not submit render work or call Atlas. Localhost captures are useful for smoke testing but are marked `environmentKind: local` and cannot satisfy the business-readiness deployment gate.
+
 Hard blockers:
 
 - Missing Atlas key or model IDs.
@@ -156,6 +166,7 @@ Check health and readiness from another terminal:
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8787/health"
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8787/v1/preflight"
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8787/v1/validation-readiness"
+npm.cmd run validation:deployment-readiness -- --base-url "http://127.0.0.1:8787" --environment-kind local --output "assets/output_deliverables/business-readiness/local-deployment-capture-smoke.json"
 ```
 
 For protected endpoints, send either:
