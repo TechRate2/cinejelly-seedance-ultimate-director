@@ -237,6 +237,14 @@ npm.cmd run validation:billing-admin-ops -- --base-url "https://<your-cinejelly-
 
 This command does not call Atlas or payment provider APIs. It checks CineJelly's configured quota controls, writable usage ledger, deployment-token-only `/v1/admin/client-policy`, and the attestation contract documented in `docs/reference-implementations/billing-admin-ops-evidence.md`.
 
+For the production storage/observability/support gate, prepare a non-secret operations attestation and run:
+
+```powershell
+npm.cmd run validation:production-ops -- --base-url "https://<your-cinejelly-host>" --attestation "ops/production-operations-attestation.json"
+```
+
+This command calls only `/health`, `/v1/preflight`, `/v1/validation-readiness`, and `/v1/render-settings`. It checks the real deployment host plus the operations attestation contract documented in `docs/reference-implementations/production-operations-evidence.md`.
+
 For non-specialist operators, prefer:
 
 ```powershell

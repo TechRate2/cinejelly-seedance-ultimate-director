@@ -95,9 +95,9 @@ const checks = [
     name: "production_storage_observability_support",
     weight: 3,
     pathOption: "operationsReportPath",
-    evaluator: evaluateRequiredPassReport,
+    evaluator: evaluateProductionOperations,
     missing:
-      "Missing production operations evidence for durable storage, backups, monitoring, incident handling, log redaction, and support workflow."
+      "Missing production operations evidence. Run npm.cmd run validation:production-ops with deployment URL and non-secret production operations attestation."
   }
 ];
 
@@ -302,6 +302,27 @@ function evaluateBillingAdminOps(path) {
     firstFailure
       ? `Billing/admin/quota operations evidence is incomplete: ${firstFailure}`
       : `Billing/admin/quota operations evidence status is ${report.status ?? "missing"}.`
+  );
+}
+
+function evaluateProductionOperations(path) {
+  const report = readJson(path);
+  if (report.schemaVersion !== "cinejelly.production-operations.v1") {
+    return fail("Production operations report schemaVersion is not recognized.");
+  }
+  if (report.status === "pass" && report.releaseGateSummary?.canUseAsBusinessReadinessOperationsEvidence === true) {
+    return pass("Production storage/observability/support evidence passed.");
+  }
+  if (report.status === "warn") {
+    return warn("Production operations evidence has warnings requiring operator acceptance.");
+  }
+  const firstFailure = Array.isArray(report.checks)
+    ? report.checks.find((check) => check?.status === "fail" && typeof check?.message === "string")?.message
+    : undefined;
+  return fail(
+    firstFailure
+      ? `Production operations evidence is incomplete: ${firstFailure}`
+      : `Production operations evidence status is ${report.status ?? "missing"}.`
   );
 }
 

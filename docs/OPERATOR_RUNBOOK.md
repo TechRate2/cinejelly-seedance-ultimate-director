@@ -145,6 +145,14 @@ npm.cmd run validation:billing-admin-ops -- --base-url "https://<your-cinejelly-
 
 The attestation file must not contain secrets or customer payment records. It documents the approved billing route, customer traffic mode, Terms/Privacy/Refund URLs, tax owner, support contact, account provisioning/suspension, API key rotation/revocation, refund/chargeback handling, emergency disable procedure, and quota review cadence. See `docs/reference-implementations/billing-admin-ops-evidence.md` for the exact contract.
 
+Create the production storage/observability/support evidence after the real host, durable storage, backup/restore, monitoring, alerting, incident response, support, and data-retention procedures are in place:
+
+```powershell
+npm.cmd run validation:production-ops -- --base-url "https://<your-cinejelly-host>" --attestation "ops/production-operations-attestation.json"
+```
+
+This command calls only diagnostic API endpoints and does not submit render work or call Atlas. The attestation file must not contain secrets or customer media; it documents durable storage, artifact retention, backup cadence, restore testing, monitoring dashboards, alerting/on-call, request-ID trace search, incident rollback/review, support escalation, log redaction, secret rotation, and customer artifact deletion. See `docs/reference-implementations/production-operations-evidence.md` for the exact contract.
+
 Hard blockers:
 
 - Missing Atlas key or model IDs.
