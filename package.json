@@ -34,6 +34,7 @@
     "validation:billing-admin-ops": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/capture-billing-admin-ops.mjs",
     "validation:production-ops": "node --env-file-if-exists=.env scripts/capture-production-operations.mjs",
     "validation:ops-config": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/validate-business-readiness-ops-config.mjs",
+    "validation:live-inputs": "node --env-file-if-exists=.env scripts/validate-live-readiness-inputs.mjs",
     "validation:business-plan": "node --env-file-if-exists=.env scripts/plan-business-readiness-validation.mjs",
     "validation:release-audit": "node scripts/run-release-audit.mjs",
     "validation:render-request": "npm run build && node --env-file-if-exists=.env dist/application/render-request-validation-entrypoint.js",
