@@ -1,0 +1,72 @@
+# Reference Implementation: Business Readiness Audit
+
+Implementation status as of 2026-06-16: implemented as a CineJelly-owned no-spend Node.js audit script, JSON schema, package command, and operator documentation. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The audit does not call providers, create media, inspect media pixels, or spend Atlas credits.
+
+## Upstream Sources
+
+| Source | Snapshot path | License | Behavior used |
+| --- | --- | --- | --- |
+| `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Explicit operator-facing status reports before release decisions. |
+| `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo` | MIT | Practical production readiness discipline for video pipelines. |
+| `calesthio/OpenMontage` | `external/upstream/openmontage` | MIT | Delivery evidence and artifact inspection discipline. |
+
+## Behavior To Preserve
+
+1. The audit must be no-spend and must never initialize Atlas providers.
+2. Release hygiene, short paid-render evidence, and manual short-review evidence are necessary but not sufficient for full commercial release.
+3. Full commercial-platform approval requires explicit evidence for deployment, long-form, source-video, remote stock, generated audio, billing/admin/quota controls, and production operations.
+4. Missing evidence must fail closed with a clear next action.
+5. Warnings must reduce the score and require explicit operator acceptance.
+6. The report must be machine-readable, stable, and safe to archive with release evidence.
+7. The completion percent is an evidence-completion score, not a claim that product code is feature-complete.
+
+## Reference Implementation
+
+```ts
+type BusinessReadinessStatus = "blocked" | "review_warnings" | "ready_for_limited_customer_traffic";
+
+interface BusinessReadinessCheck {
+  name: string;
+  status: "pass" | "warn" | "fail";
+  weight: number;
+  evidencePath: string;
+  message: string;
+}
+
+interface BusinessReadinessReport {
+  schemaVersion: "cinejelly.business-readiness-audit.v1";
+  generatedAt: string;
+  status: BusinessReadinessStatus;
+  scope: "full_commercial_platform";
+  completion: {
+    completedWeight: number;
+    totalWeight: number;
+    evidenceCompletionPercent: number;
+  };
+  checks: BusinessReadinessCheck[];
+  releaseGateSummary: {
+    canRunAdditionalPaidValidation: boolean;
+    canRunLongFormValidation: boolean;
+    canReleaseToCustomerTraffic: boolean;
+    releaseBlocker?: string;
+  };
+  nextActions: string[];
+}
+```
+
+## CineJelly Translation Plan
+
+- Done: add `scripts/run-business-readiness-audit.mjs`.
+- Done: add `npm.cmd run validation:business-readiness`.
+- Done: add `schemas/business-readiness-audit-report.schema.json`.
+- Done: update the operator runbook, roadmap, and project context.
+- Pending: feed the audit with real deployment, long-form, source-video, remote stock, generated-audio, billing/admin, and production operations evidence.
+
+## Validation Checklist
+
+- Missing evidence exits non-zero and writes a blocked report.
+- Existing release audit, short paid-render report, and manual review report pass when present and valid.
+- Long-form evidence cannot pass without a final duration between 120 and 480 seconds.
+- The report lists exact evidence paths and next actions.
+- The script does not import from `src/providers`, create runtimes, call Atlas, or write media artifacts.
+- No production runtime import from `external/upstream/`.

@@ -12,7 +12,7 @@ The clean release-candidate worktree passes the no-spend release audit as `relea
 
 The repo also provides `npm.cmd run validation:render-request -- --request <request-json>` as a no-spend request validator and `npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend` as a readiness-gated paid-render validation runner. Request validation checks the operator-owned JSON payload through the same admission and output-root normalization used by API render paths, but it does not initialize providers, run readiness, call Atlas, or write render artifacts. Paid-render validation stops before provider spend when readiness is blocked, when readiness warnings are not explicitly accepted, or when `--confirm-paid-spend` is missing; it writes success or failure artifacts, validates them, and emits a redacted operator report. It does not replace manual artifact and media review.
 
-Do not open customer traffic until all checks in this runbook pass, the Git/source-hygiene audit is trustworthy, at least one paid Atlas render has been inspected, and manual redaction review is complete. Do not run another `validation:paid-render -- --confirm-paid-spend` unless the operator has explicitly accepted any readiness warnings and approved Atlas credit spend for that specific run.
+Do not open customer traffic until all checks in this runbook pass, the Git/source-hygiene audit is trustworthy, at least one paid Atlas render has been inspected, manual redaction review is complete, and `npm.cmd run validation:business-readiness` is no longer `blocked`. Do not run another `validation:paid-render -- --confirm-paid-spend` unless the operator has explicitly accepted any readiness warnings and approved Atlas credit spend for that specific run.
 
 ## Required Environment
 
@@ -115,6 +115,14 @@ npm.cmd run validation:release-audit
 ```
 
 It reads the local smoke report, paid-render report, artifact validation summary, git cleanliness, ignored `.env`/output paths, tracked secret scan, and external import boundary. It does not call Atlas or inspect video quality. Treat a non-zero exit as expected until paid render evidence and manual review prerequisites exist.
+
+For the full commercial-platform release gate, run:
+
+```powershell
+npm.cmd run validation:business-readiness
+```
+
+This no-spend audit reads the release audit, short paid-render report, manual review report, and explicit evidence reports for deployment preflight, 2-8 minute long-form validation, live source-video auto-analysis, live remote stock provider validation, live generated-audio provider validation, billing/admin/quota controls, and production storage/observability/support. It writes `assets/output_deliverables/phase6-validation/business-readiness-report.json` and exits non-zero while any required evidence gate is missing. A non-zero result is expected for the current snapshot until the remaining commercial evidence exists.
 
 Hard blockers:
 
@@ -352,5 +360,6 @@ CineJelly is ready for limited customer traffic only when:
 - Material source validation is either `planned_only` for generated-only runs or `approved`/explicitly reviewed for runs using adapter candidates.
 - Redaction checklist passes.
 - `npm.cmd run validation:release-audit` is `release_ready`, or any warning is explicitly reviewed and recorded.
+- `npm.cmd run validation:business-readiness` is `ready_for_limited_customer_traffic` for the full commercial platform, or any intentionally excluded feature scope is separately documented and approved before selling that narrower offer.
 - Remaining warnings are documented in `docs/PROJECT_CONTEXT.md`.
 - The run date, environment notes, and remaining blockers are recorded in `docs/IMPLEMENTATION_ROADMAP.md`.

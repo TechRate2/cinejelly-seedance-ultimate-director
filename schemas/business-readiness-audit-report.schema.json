@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/business-readiness-audit-report.schema.json",
+  "title": "CineJelly Business Readiness Audit Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "scope",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "completion",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.business-readiness-audit.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": ["blocked", "review_warnings", "ready_for_limited_customer_traffic"]
+    },
+    "scope": { "const": "full_commercial_platform" },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "releaseAuditPath",
+        "paidReportPath",
+        "manualReviewPath",
+        "deploymentPreflightPath",
+        "longFormReportPath",
+        "sourceVideoReportPath",
+        "remoteStockReportPath",
+        "generatedAudioReportPath",
+        "billingAdminReportPath",
+        "operationsReportPath"
+      ],
+      "properties": {
+        "releaseAuditPath": { "type": "string" },
+        "paidReportPath": { "type": "string" },
+        "manualReviewPath": { "type": "string" },
+        "deploymentPreflightPath": { "type": "string" },
+        "longFormReportPath": { "type": "string" },
+        "sourceVideoReportPath": { "type": "string" },
+        "remoteStockReportPath": { "type": "string" },
+        "generatedAudioReportPath": { "type": "string" },
+        "billingAdminReportPath": { "type": "string" },
+        "operationsReportPath": { "type": "string" }
+      }
+    },
+    "completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completedWeight", "totalWeight", "evidenceCompletionPercent"],
+      "properties": {
+        "completedWeight": { "type": "number", "minimum": 0 },
+        "totalWeight": { "type": "number", "minimum": 1 },
+        "evidenceCompletionPercent": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "weight", "evidencePath", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "weight": { "type": "number", "minimum": 0 },
+          "evidencePath": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canRunAdditionalPaidValidation", "canRunLongFormValidation", "canReleaseToCustomerTraffic"],
+      "properties": {
+        "canRunAdditionalPaidValidation": { "type": "boolean" },
+        "canRunLongFormValidation": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

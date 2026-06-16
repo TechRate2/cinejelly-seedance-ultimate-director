@@ -28,6 +28,7 @@
     "validation:release-audit": "node scripts/run-release-audit.mjs",
     "validation:render-request": "npm run build && node --env-file-if-exists=.env dist/application/render-request-validation-entrypoint.js",
     "validation:paid-render": "npm run build && node --env-file-if-exists=.env dist/application/paid-render-validation-entrypoint.js",
+    "validation:business-readiness": "node scripts/run-business-readiness-audit.mjs",
     "validate:artifacts": "npm run build && node --env-file-if-exists=.env dist/application/artifact-validation-entrypoint.js",
     "start": "node --env-file-if-exists=.env dist/api/server.js"
   },
