@@ -289,16 +289,17 @@ async function fetchBalanceEvidence({ baseUrl, apiKey, timeoutMs, costPlan, maxB
     });
     const text = await response.text();
     const payload = parseJsonPayload(text);
-    const balance = extractMoney(payload);
+    const balanceEvidence = extractBalanceEvidence(payload);
+    const balance = balanceEvidence.available ?? balanceEvidence.fallback;
     const checks = [
       response.status === 200
         ? pass("atlas_billing_balance_http", "Atlas Billing Public API /balance returned HTTP 200.")
         : fail("atlas_billing_balance_http", `Atlas Billing Public API /balance returned HTTP ${response.status}.`),
       balance
-        ? pass("atlas_billing_balance_parse", "Atlas balance response includes a money value.")
+        ? pass("atlas_billing_balance_parse", "Atlas balance response includes a parseable available money value.")
         : fail("atlas_billing_balance_parse", "Atlas balance response did not include a parseable money value."),
       balance?.currency?.toLowerCase() === "usd"
-        ? pass("atlas_billing_balance_currency", "Atlas balance currency is USD.")
+        ? pass("atlas_billing_balance_currency", "Atlas available balance currency is USD.")
         : fail("atlas_billing_balance_currency", "Atlas balance currency is not USD or was not returned."),
       balance && balance.amount >= maxBudgetUsd
         ? pass("atlas_billing_balance_covers_approved_budget", `Atlas balance covers the approved budget ${formatUsd(maxBudgetUsd)}.`)
@@ -316,6 +317,9 @@ async function fetchBalanceEvidence({ baseUrl, apiKey, timeoutMs, costPlan, maxB
         httpStatus: response.status,
         durationMs: Date.now() - startedAtMs,
         balance: balance ? { valueUsd: balance.amount, currency: balance.currency } : undefined,
+        balanceSource: balanceEvidence.available ? "available" : balance ? "fallback" : "missing",
+        balanceComponents: balanceEvidence.components,
+        creditGrant: balanceEvidence.creditGrant,
         payloadShape: summarizePayloadShape(payload),
         payload: response.status === 200 ? undefined : redactUnknown(payload)
       }
@@ -394,6 +398,57 @@ function extractMoney(payload) {
     }
   }
   return undefined;
+}
+
+function extractBalanceEvidence(payload) {
+  const objectPayload = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const available = moneyFromObject(objectPayload.available);
+  return {
+    available,
+    fallback: available ? undefined : extractMoney(payload),
+    components: balanceComponents(objectPayload),
+    creditGrant: creditGrantSummary(objectPayload.credit_grant)
+  };
+}
+
+function balanceComponents(payload) {
+  const result = {};
+  for (const [field, outputName] of [
+    ["available", "available"],
+    ["cash", "cash"],
+    ["bonus", "bonus"],
+    ["subscription_bonus", "subscriptionBonus"],
+    ["frozen", "frozen"]
+  ]) {
+    const money = moneyFromObject(payload[field]);
+    if (money) {
+      result[outputName] = { valueUsd: money.amount, currency: money.currency };
+    }
+  }
+  return result;
+}
+
+function creditGrantSummary(value) {
+  const payload = value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
+  if (!payload) {
+    return undefined;
+  }
+  const result = {};
+  if (typeof payload.status === "string") {
+    result.status = payload.status;
+  }
+  for (const [field, outputName] of [
+    ["granted", "granted"],
+    ["used", "used"],
+    ["remaining_overdraft", "remainingOverdraft"],
+    ["overdrawn", "overdrawn"]
+  ]) {
+    const money = moneyFromObject(payload[field]);
+    if (money) {
+      result[outputName] = { valueUsd: money.amount, currency: money.currency };
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function moneyFromObject(value) {

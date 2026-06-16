@@ -90,6 +90,29 @@
             "currency": { "type": "string" }
           }
         },
+        "balanceSource": { "enum": ["available", "fallback", "missing"] },
+        "balanceComponents": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "available": { "$ref": "#/$defs/money" },
+            "cash": { "$ref": "#/$defs/money" },
+            "bonus": { "$ref": "#/$defs/money" },
+            "subscriptionBonus": { "$ref": "#/$defs/money" },
+            "frozen": { "$ref": "#/$defs/money" }
+          }
+        },
+        "creditGrant": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "status": { "type": "string" },
+            "granted": { "$ref": "#/$defs/money" },
+            "used": { "$ref": "#/$defs/money" },
+            "remainingOverdraft": { "$ref": "#/$defs/money" },
+            "overdrawn": { "$ref": "#/$defs/money" }
+          }
+        },
         "payloadShape": { "type": "object", "additionalProperties": true },
         "payload": true,
         "error": { "type": "string" }
@@ -127,5 +150,16 @@
     },
     "nextActions": { "type": "array", "items": { "type": "string" } },
     "error": { "type": "string" }
+  },
+  "$defs": {
+    "money": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valueUsd", "currency"],
+      "properties": {
+        "valueUsd": { "type": "number" },
+        "currency": { "type": "string" }
+      }
+    }
   }
 }
