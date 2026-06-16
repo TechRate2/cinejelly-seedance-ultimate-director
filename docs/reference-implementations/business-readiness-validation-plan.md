@@ -15,7 +15,7 @@ Before spending more Atlas credits, operators need one consolidated plan that ex
 5. Long-form cost planning must use the same configured `CINEJELLY_RENDER_COST_USD_PER_SECOND` and `CINEJELLY_COST_BUFFER_MULTIPLIER` assumptions as the long-form validation runner.
 6. Generated-audio planning must require configured model, voice, reviewed capability JSON shape, and the configured Atlas generated-audio rate, defaulting to the documented `xai/tts-v1` rate when absent.
 7. Remote stock, source-video, deployment, billing/admin, and production-ops readiness must be represented as missing inputs or ready commands, not silently skipped.
-8. Paid Atlas steps and top-level paid-validation flags must remain blocked while Atlas billing readiness or the approved-budget fit fails, even if one narrow paid sample is individually inexpensive.
+8. Each paid Atlas step must remain blocked while its relevant Atlas billing readiness or approved-budget fit fails; full-sequence approval must remain blocked while the full known paid estimate exceeds the approved budget.
 9. The default approved budget must come from `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` when it is configured so the planner, live-input validator, and Atlas billing gate agree on the same operator-approved ceiling.
 10. A stored Atlas billing readiness report must be treated as stale when its captured `maxBudgetUsd` or `plannedCostUsd` differs from the current plan; stale billing evidence cannot unlock paid Atlas validation.
 11. A stored Atlas billing readiness report must also be treated as stale when it is older than `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS`, defaulting to 24 hours.
@@ -57,6 +57,9 @@ interface BusinessReadinessValidationPlan {
   releaseGateSummary: {
     canRunSomePaidValidationNow: boolean;
     canRunLongFormWithinBudget: boolean;
+    readyPaidGates: string[];
+    readyPaidGateCount: number;
+    shouldDeferFullSequenceSpend: boolean;
     shouldDeferAtlasSpend: boolean;
     canReleaseToCustomerTraffic: false;
     releaseBlocker: string;
@@ -77,7 +80,7 @@ interface BusinessReadinessValidationPlan {
 - Running the planner with no deployment/source-video URLs does not perform network or provider calls.
 - Planner output redacts secret-like strings and reports only booleans/counts for key-bearing env configuration.
 - Current long-form validation is blocked by the configured budget when the estimate exceeds the approved ceiling.
-- Current generated-audio validation is blocked by Atlas billing readiness when the full paid sequence exceeds the approved ceiling, and is blocked earlier when model, voice, or reviewed capability JSON shape is incomplete.
+- Current generated-audio validation can be ready when its slice-specific Atlas billing report is fresh, passing, and within budget, even while full-sequence Atlas billing remains blocked by the approved ceiling.
 - Overriding `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD` changes the planner default `maxBudgetUsd` without requiring a CLI flag.
 - When the approved budget changes, planner output names the stored Atlas billing report as stale until `validation:atlas-billing -- --max-budget-usd <current-budget> --confirm-live-network` refreshes it.
 - When the Atlas billing report is older than the configured max age, planner output keeps paid steps blocked until `validation:atlas-billing -- --confirm-live-network` refreshes it.

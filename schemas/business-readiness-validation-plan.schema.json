@@ -31,6 +31,8 @@
         "businessReadinessPath",
         "opsConfigPath",
         "atlasBillingPath",
+        "generatedAudioAtlasBillingPath",
+        "longFormAtlasBillingPath",
         "sourceVideoAtlasBillingPath",
         "maxBudgetUsd",
         "longFormDurationSeconds",
@@ -42,6 +44,8 @@
         "businessReadinessPath": { "type": "string" },
         "opsConfigPath": { "type": "string" },
         "atlasBillingPath": { "type": "string" },
+        "generatedAudioAtlasBillingPath": { "type": "string" },
+        "longFormAtlasBillingPath": { "type": "string" },
         "sourceVideoAtlasBillingPath": { "type": "string" },
         "maxBudgetUsd": { "type": "number", "minimum": 0 },
         "longFormDurationSeconds": { "type": "integer", "minimum": 120, "maximum": 480 },
@@ -112,6 +116,9 @@
       "required": [
         "canRunSomePaidValidationNow",
         "canRunLongFormWithinBudget",
+        "readyPaidGates",
+        "readyPaidGateCount",
+        "shouldDeferFullSequenceSpend",
         "shouldDeferAtlasSpend",
         "canReleaseToCustomerTraffic",
         "releaseBlocker"
@@ -119,6 +126,9 @@
       "properties": {
         "canRunSomePaidValidationNow": { "type": "boolean" },
         "canRunLongFormWithinBudget": { "type": "boolean" },
+        "readyPaidGates": { "type": "array", "items": { "type": "string" } },
+        "readyPaidGateCount": { "type": "integer", "minimum": 0 },
+        "shouldDeferFullSequenceSpend": { "type": "boolean" },
         "shouldDeferAtlasSpend": { "type": "boolean" },
         "canReleaseToCustomerTraffic": { "type": "boolean" },
         "releaseBlocker": { "type": "string" }
