@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/commercial-launch-intake-validation-report.schema.json",
+  "title": "CineJelly Commercial Launch Intake Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "sourceReports",
+    "intakeSummary",
+    "checks",
+    "draftEvidence",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.commercial-launch-intake-validation.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["missing_intake", "fail", "pass"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intakePath",
+        "outputPath",
+        "commercialInputsPath",
+        "businessPlanPath",
+        "liveInputsPath",
+        "writeDraft"
+      ],
+      "properties": {
+        "intakePath": { "type": "string" },
+        "outputPath": { "type": "string" },
+        "commercialInputsPath": { "type": "string" },
+        "businessPlanPath": { "type": "string" },
+        "liveInputsPath": { "type": "string" },
+        "writeDraft": { "type": "boolean" },
+        "draftPath": { "type": "string" },
+        "packetPath": { "type": "string" }
+      }
+    },
+    "sourceReports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commercialInputs", "businessPlan", "liveInputs"],
+      "properties": {
+        "commercialInputs": { "$ref": "#/$defs/sourceReport" },
+        "businessPlan": { "$ref": "#/$defs/sourceReport" },
+        "liveInputs": { "$ref": "#/$defs/sourceReport" }
+      }
+    },
+    "intakeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present",
+        "deploymentUrlConfigured",
+        "sourceVideoEnabled",
+        "remoteStockEnabled",
+        "allowGeneratedAudioSmoke",
+        "allowLongForm",
+        "allowSourceVideoAnalysis",
+        "allowFullSequence",
+        "manualReviewReviewerConfigured"
+      ],
+      "properties": {
+        "present": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "selectedPaidScope": { "type": "string" },
+        "deploymentUrlConfigured": { "type": "boolean" },
+        "sourceVideoEnabled": { "type": "boolean" },
+        "remoteStockEnabled": { "type": "boolean" },
+        "approvedAtlasBudgetUsd": { "type": "number", "minimum": 0 },
+        "sourceVideoAtlasLlmBudgetUsd": { "type": "number", "minimum": 0 },
+        "allowGeneratedAudioSmoke": { "type": "boolean" },
+        "allowLongForm": { "type": "boolean" },
+        "allowSourceVideoAnalysis": { "type": "boolean" },
+        "allowFullSequence": { "type": "boolean" },
+        "manualReviewReviewerConfigured": { "type": "boolean" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "draftEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["written"],
+      "properties": {
+        "written": { "type": "boolean" },
+        "draftPath": { "type": "string" },
+        "packetWritten": { "type": "boolean" },
+        "packetPath": { "type": "string" }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intakePass",
+        "canUseForLiveEvidencePrep",
+        "canRunPaidAtlasValidation",
+        "canReleaseToCustomerTraffic",
+        "readyPaidGates",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "intakePass": { "type": "boolean" },
+        "canUseForLiveEvidencePrep": { "type": "boolean" },
+        "canRunPaidAtlasValidation": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "selectedPaidScope": { "type": "string" },
+        "readyPaidGates": { "type": "array", "items": { "type": "string" } },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": { "type": "array", "items": { "type": "string" } },
+    "error": { "type": "string" }
+  },
+  "$defs": {
+    "sourceReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "path", "status"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "path": { "type": "string" },
+        "schemaVersion": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    }
+  }
+}
