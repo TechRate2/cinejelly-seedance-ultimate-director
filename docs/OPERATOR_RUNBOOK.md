@@ -135,6 +135,7 @@ npm.cmd run validation:business-plan
 npm.cmd run validation:atlas-billing
 npm.cmd run validation:deployment-package
 npm.cmd run validation:commercial-inputs
+npm.cmd run validation:completion-audit
 npm.cmd run validation:report-contracts
 ```
 
@@ -147,6 +148,8 @@ The `validation:business-plan` command is also no-spend and no-network. It reads
 The `validation:atlas-billing` command is no-spend and local-only unless `--confirm-live-network` is present. With confirmation it calls only Atlas Billing Public API `/balance`, writes `assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json`, checks the configured billing-capable Atlas key and current budget/balance fit, and still reports `canReleaseToCustomerTraffic=false`. Downstream paid-validation gates reject stored Atlas billing reports older than `CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS` (default 24 hours), so refresh this report shortly before any approved paid validation run.
 
 The `validation:commercial-inputs` command is also no-spend and no-network. It reads the current business-readiness, business-plan, live-inputs, Atlas billing, and ops-config reports, then writes `assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json` plus a Markdown checklist at `assets/output_deliverables/business-readiness/commercial-launch-inputs-checklist.md`. Use it as the secret-free handoff packet for the remaining deployment URL, deployment token placeholder, operator attestations, source-video inputs, remote-stock provider choices, approved Atlas budget, and manual review tasks. The report names any currently ready paid slice in `readyPaidGates`, includes a no-secret Atlas configuration summary, audits the generated command plan against `package.json` scripts and required paid-spend guard flags, and keeps `shouldDeferFullSequenceSpend=true` while the full paid plan is still blocked. It is not release evidence and cannot override `validation:business-readiness`.
+
+The `validation:completion-audit` command is also no-spend and no-network. It reads the current business-readiness, business-plan, live-inputs, commercial-launch-inputs, release-audit, and report-contracts reports, then writes `assets/output_deliverables/business-readiness/business-completion-audit-report.json` plus `assets/output_deliverables/business-readiness/business-completion-audit.md`. Use it to separate remaining code/schema/command-plan blockers from true external launch blockers such as the real deployment URL, operator attestations, budget approval, source-video settings, remote-stock provider evidence, paid Atlas validation, and manual review. It may confirm that Atlas key/model configuration is already present, but it never approves customer traffic and never replaces `validation:business-readiness`.
 
 The `validation:deployment-package` command is also no-spend and no-network. It reads only `Dockerfile`, `.dockerignore`, `.env.production.template`, and the container packaging reference doc, then writes `assets/output_deliverables/business-readiness/deployment-package-validation-report.json`. It does not call Docker, Atlas, FFmpeg, deployment hosts, render routes, or billing providers. A pass means the static package path is ready to build elsewhere; it does not replace real HTTPS deployment capture.
 

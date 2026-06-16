@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/business-completion-audit-report.schema.json",
+  "title": "CineJelly Business Completion Audit Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "sourceReports",
+    "readinessSnapshot",
+    "codeWorkSummary",
+    "blockerSummary",
+    "blockers",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.business-completion-audit.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": [
+        "ready_for_customer_traffic",
+        "ready_for_live_evidence_sequence",
+        "blocked_by_external_inputs",
+        "blocked_by_code_or_contracts",
+        "missing_prerequisite_reports"
+      ]
+    },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "businessReadinessPath",
+        "businessPlanPath",
+        "liveInputsPath",
+        "commercialInputsPath",
+        "releaseAuditPath",
+        "reportContractsPath"
+      ],
+      "properties": {
+        "businessReadinessPath": { "type": "string" },
+        "businessPlanPath": { "type": "string" },
+        "liveInputsPath": { "type": "string" },
+        "commercialInputsPath": { "type": "string" },
+        "releaseAuditPath": { "type": "string" },
+        "reportContractsPath": { "type": "string" },
+        "markdownOutputPath": { "type": "string" }
+      }
+    },
+    "sourceReports": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["present", "path", "status"],
+        "properties": {
+          "present": { "type": "boolean" },
+          "path": { "type": "string" },
+          "schemaVersion": { "type": "string" },
+          "status": { "type": "string" }
+        }
+      }
+    },
+    "readinessSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceCompletionPercent",
+        "businessReadinessStatus",
+        "releaseAuditStatus",
+        "reportContractsStatus",
+        "commercialInputsStatus",
+        "commandPlanAuditStatus",
+        "atlas",
+        "budget",
+        "readyPaidGates",
+        "readyPaidGateCount",
+        "shouldDeferFullSequenceSpend",
+        "canRunGeneratedAudioPaidSlice",
+        "canRunFullKnownPaidSequence",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "evidenceCompletionPercent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "businessReadinessStatus": { "type": "string" },
+        "releaseAuditStatus": { "type": "string" },
+        "reportContractsStatus": { "type": "string" },
+        "commercialInputsStatus": { "type": "string" },
+        "commandPlanAuditStatus": { "type": "string" },
+        "atlas": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mediaApiKeyConfigured",
+            "llmApiKeyConfigured",
+            "llmFallbackAvailable",
+            "mediaReady",
+            "llmReady",
+            "seedanceVideoReady",
+            "generatedAudioReady",
+            "generatedAudioPaidSliceReady",
+            "fullPaidSequenceWithinBudget"
+          ],
+          "properties": {
+            "mediaApiKeyConfigured": { "type": "boolean" },
+            "llmApiKeyConfigured": { "type": "boolean" },
+            "llmFallbackAvailable": { "type": "boolean" },
+            "mediaReady": { "type": "boolean" },
+            "llmReady": { "type": "boolean" },
+            "seedanceVideoReady": { "type": "boolean" },
+            "generatedAudioReady": { "type": "boolean" },
+            "generatedAudioPaidSliceReady": { "type": "boolean" },
+            "fullPaidSequenceWithinBudget": { "type": "boolean" }
+          }
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["budgetFit", "unknownCostItems"],
+          "properties": {
+            "approvedBudgetUsd": { "type": "number", "minimum": 0 },
+            "knownPaidEstimateUsd": { "type": "number", "minimum": 0 },
+            "budgetFit": { "type": "string" },
+            "longFormMinimumBudgetUsd": { "type": "number", "minimum": 0 },
+            "generatedAudioEstimatedCostUsd": { "type": "number", "minimum": 0 },
+            "unknownCostItems": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "readyPaidGates": { "type": "array", "items": { "type": "string" } },
+        "readyPaidGateCount": { "type": "integer", "minimum": 0 },
+        "shouldDeferFullSequenceSpend": { "type": "boolean" },
+        "canRunGeneratedAudioPaidSlice": { "type": "boolean" },
+        "canRunFullKnownPaidSequence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "type": "boolean" }
+      }
+    },
+    "codeWorkSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reportContractsPass",
+        "releaseAuditReady",
+        "commercialInputsGenerated",
+        "commercialCommandPlanPass",
+        "atlasKeyAndModelConfigPresent",
+        "knownCodeBlockingIssueCount",
+        "message"
+      ],
+      "properties": {
+        "reportContractsPass": { "type": "boolean" },
+        "releaseAuditReady": { "type": "boolean" },
+        "commercialInputsGenerated": { "type": "boolean" },
+        "commercialCommandPlanPass": { "type": "boolean" },
+        "atlasKeyAndModelConfigPresent": { "type": "boolean" },
+        "knownCodeBlockingIssueCount": { "type": "integer", "minimum": 0 },
+        "message": { "type": "string" }
+      }
+    },
+    "blockerSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "automatableNow", "externalOrPaid", "byOwner", "byCategory"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "automatableNow": { "type": "integer", "minimum": 0 },
+        "externalOrPaid": { "type": "integer", "minimum": 0 },
+        "byOwner": { "$ref": "#/$defs/counts" },
+        "byCategory": { "$ref": "#/$defs/counts" }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "owner",
+          "category",
+          "status",
+          "sourceReport",
+          "requiredAction",
+          "canAutomateNow",
+          "paidImpact"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "owner": {
+            "enum": [
+              "codebase",
+              "operator",
+              "budget_owner",
+              "manual_reviewer",
+              "operator_external_provider"
+            ]
+          },
+          "category": { "type": "string" },
+          "status": { "type": "string" },
+          "sourceReport": { "type": "string" },
+          "sourceCheck": { "type": "string" },
+          "requiredAction": { "type": "string" },
+          "validationCommand": { "type": "string" },
+          "canAutomateNow": { "type": "boolean" },
+          "paidImpact": {
+            "enum": [
+              "none",
+              "blocks_paid_validation_budget",
+              "blocks_paid_validation_or_manual_review"
+            ]
+          }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canReleaseToCustomerTraffic",
+        "canRunNoSpendPrep",
+        "canRunLiveNetworkEvidence",
+        "canRunGeneratedAudioPaidSlice",
+        "canRunFullKnownPaidSequence",
+        "readyPaidGates",
+        "readyPaidGateCount",
+        "shouldDeferFullSequenceSpend",
+        "safeToRunFullPaidAtlasSequenceNow",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canReleaseToCustomerTraffic": { "type": "boolean" },
+        "canRunNoSpendPrep": { "type": "boolean" },
+        "canRunLiveNetworkEvidence": { "type": "boolean" },
+        "canRunGeneratedAudioPaidSlice": { "type": "boolean" },
+        "canRunFullKnownPaidSequence": { "type": "boolean" },
+        "readyPaidGates": { "type": "array", "items": { "type": "string" } },
+        "readyPaidGateCount": { "type": "integer", "minimum": 0 },
+        "shouldDeferFullSequenceSpend": { "type": "boolean" },
+        "safeToRunFullPaidAtlasSequenceNow": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": { "type": "array", "items": { "type": "string" } },
+    "error": { "type": "string" }
+  },
+  "$defs": {
+    "counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  }
+}
