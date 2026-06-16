@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/atlas-billing-readiness-report.schema.json",
+  "title": "CineJelly Atlas Billing Readiness Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "apiKey",
+    "costPlan",
+    "atlasBillingPublicApi",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.atlas-billing-readiness.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "warn", "fail", "blocked_by_missing_credentials", "blocked_by_network_confirmation"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "type": "boolean" },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "businessPlanPath",
+        "billingBaseUrl",
+        "apiKeyEnv",
+        "apiKeyConfigured",
+        "confirmLiveNetwork",
+        "maxBudgetUsd",
+        "plannedCostUsd"
+      ],
+      "properties": {
+        "businessPlanPath": { "type": "string" },
+        "billingBaseUrl": { "type": "string" },
+        "apiKeyEnv": { "type": "string" },
+        "apiKeyConfigured": { "type": "boolean" },
+        "confirmLiveNetwork": { "type": "boolean" },
+        "maxBudgetUsd": { "type": "number", "minimum": 0 },
+        "plannedCostUsd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "apiKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configured", "prefixValid"],
+      "properties": {
+        "configured": { "type": "boolean" },
+        "sourceEnv": { "type": "string" },
+        "prefixValid": { "type": "boolean" }
+      }
+    },
+    "costPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "plannedCostUsd", "maxBudgetUsd", "withinApprovedBudget"],
+      "properties": {
+        "source": { "enum": ["cli", "business_plan", "max_budget_default"] },
+        "plannedCostUsd": { "type": "number", "minimum": 0 },
+        "maxBudgetUsd": { "type": "number", "minimum": 0 },
+        "withinApprovedBudget": { "type": "boolean" },
+        "businessPlanStatus": { "type": "string" },
+        "businessPlanBudgetFit": { "type": "string" }
+      }
+    },
+    "atlasBillingPublicApi": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["captured"],
+      "properties": {
+        "captured": { "type": "boolean" },
+        "reason": { "type": "string" },
+        "endpoint": { "type": "string" },
+        "httpStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "balance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["valueUsd", "currency"],
+          "properties": {
+            "valueUsd": { "type": "number" },
+            "currency": { "type": "string" }
+          }
+        },
+        "payloadShape": { "type": "object", "additionalProperties": true },
+        "payload": true,
+        "error": { "type": "string" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsPrePaidAtlasBillingEvidence",
+        "canRunAtlasSpendWithinApprovedBudget",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsPrePaidAtlasBillingEvidence": { "type": "boolean" },
+        "canRunAtlasSpendWithinApprovedBudget": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "type": "boolean" },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": { "type": "array", "items": { "type": "string" } },
+    "error": { "type": "string" }
+  }
+}

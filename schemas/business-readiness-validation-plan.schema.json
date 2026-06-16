@@ -30,6 +30,7 @@
       "required": [
         "businessReadinessPath",
         "opsConfigPath",
+        "atlasBillingPath",
         "maxBudgetUsd",
         "longFormDurationSeconds",
         "deploymentBaseUrlConfigured",
@@ -39,6 +40,7 @@
       "properties": {
         "businessReadinessPath": { "type": "string" },
         "opsConfigPath": { "type": "string" },
+        "atlasBillingPath": { "type": "string" },
         "maxBudgetUsd": { "type": "number", "minimum": 0 },
         "longFormDurationSeconds": { "type": "integer", "minimum": 120, "maximum": 480 },
         "deploymentBaseUrlConfigured": { "type": "boolean" },

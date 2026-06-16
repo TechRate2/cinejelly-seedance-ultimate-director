@@ -8,6 +8,7 @@ const defaults = {
   outputPath: "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json",
   businessReadinessPath: "assets/output_deliverables/phase6-validation/business-readiness-report.json",
   opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
+  atlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
   maxBudgetUsd: 5,
   longFormDurationSeconds: 120,
   sourceVideoUrl: process.env.CINEJELLY_VALIDATION_SOURCE_VIDEO_URL,
@@ -34,6 +35,7 @@ function parseArgs(args) {
     ["--output", "outputPath"],
     ["--business-readiness-report", "businessReadinessPath"],
     ["--ops-config-report", "opsConfigPath"],
+    ["--atlas-billing-report", "atlasBillingPath"],
     ["--max-budget-usd", "maxBudgetUsd"],
     ["--long-form-duration-seconds", "longFormDurationSeconds"],
     ["--deployment-base-url", "deploymentBaseUrl"],
@@ -88,6 +90,7 @@ Usage:
 Options:
   --business-readiness-report <path>       Default: ${defaults.businessReadinessPath}
   --ops-config-report <path>               Default: ${defaults.opsConfigPath}
+  --atlas-billing-report <path>            Default: ${defaults.atlasBillingPath}
   --max-budget-usd <amount>                Budget ceiling for known paid validation. Default: ${defaults.maxBudgetUsd}
   --long-form-duration-seconds <seconds>   Target long-form validation duration. Default: ${defaults.longFormDurationSeconds}
   --deployment-base-url <url>              Real CineJelly HTTPS deployment URL. Can also use CINEJELLY_DEPLOYMENT_BASE_URL.
@@ -110,9 +113,10 @@ function main() {
 
   const businessReadiness = summarizeBusinessReadiness(options.businessReadinessPath);
   const opsConfig = summarizeOpsConfig(options.opsConfigPath);
+  const atlasBilling = summarizeAtlasBilling(options.atlasBillingPath);
   const environment = summarizeEnvironment(options);
   const costPlan = buildCostPlan(options);
-  const validationSequence = buildValidationSequence({ options, businessReadiness, opsConfig, environment, costPlan });
+  const validationSequence = buildValidationSequence({ options, businessReadiness, opsConfig, atlasBilling, environment, costPlan });
   const status = statusFor(validationSequence);
   const report = {
     schemaVersion: "cinejelly.business-readiness-validation-plan.v1",
@@ -122,6 +126,7 @@ function main() {
     checkedInputs: {
       businessReadinessPath: toRepoRelative(options.businessReadinessPath),
       opsConfigPath: toRepoRelative(options.opsConfigPath),
+      atlasBillingPath: toRepoRelative(options.atlasBillingPath),
       maxBudgetUsd: options.maxBudgetUsd,
       longFormDurationSeconds: options.longFormDurationSeconds,
       deploymentBaseUrlConfigured: Boolean(options.deploymentBaseUrl),
@@ -203,6 +208,32 @@ function summarizeOpsConfig(path) {
     failCount: failures.length,
     canRunBillingAdminCapture: report.releaseGateSummary?.canRunBillingAdminCapture === true,
     canRunProductionOpsCapture: report.releaseGateSummary?.canRunProductionOpsCapture === true,
+    nextActions: failures.slice(0, 8)
+  };
+}
+
+function summarizeAtlasBilling(path) {
+  const report = readJsonIfExists(path);
+  if (!report) {
+    return {
+      present: false,
+      path: toRepoRelative(path),
+      status: "missing",
+      canUseAsPrePaidAtlasBillingEvidence: false,
+      nextActions: ["Run npm.cmd run validation:atlas-billing, then rerun with --confirm-live-network when a no-spend Atlas billing API call is approved."]
+    };
+  }
+  const failures = Array.isArray(report.checks)
+    ? report.checks.filter((check) => check?.status === "fail").map((check) => String(check.message ?? check.name ?? "unknown"))
+    : [];
+  return {
+    present: true,
+    path: toRepoRelative(path),
+    schemaVersion: report.schemaVersion,
+    status: String(report.status ?? "unknown"),
+    canUseAsPrePaidAtlasBillingEvidence: report.releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true,
+    canRunAtlasSpendWithinApprovedBudget: report.releaseGateSummary?.canRunAtlasSpendWithinApprovedBudget === true,
+    networkCallsMade: report.networkCallsMade === true,
     nextActions: failures.slice(0, 8)
   };
 }
@@ -316,7 +347,7 @@ function buildCostPlan(options) {
   };
 }
 
-function buildValidationSequence({ options, businessReadiness, opsConfig, environment, costPlan }) {
+function buildValidationSequence({ options, businessReadiness, opsConfig, atlasBilling, environment, costPlan }) {
   const deploymentReady = environment.deployment.configured && environment.deployment.valid;
   const opsReady = opsConfig.status === "pass";
   const atlasPaidReady = environment.atlas.mediaApiKeyConfigured && environment.atlas.seedanceStandardModelConfigured && environment.atlas.seedanceFastModelConfigured;
@@ -365,6 +396,20 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, enviro
             ...opsConfig.nextActions,
             "After filling the generated drafts, run npm.cmd run ops:promote-attestations -- --dry-run and then npm.cmd run ops:promote-attestations when validation passes."
           ]
+    }),
+    step({
+      name: "atlas_billing_public_api_probe",
+      kind: "no_spend_network",
+      status: atlasBilling.canUseAsPrePaidAtlasBillingEvidence ? "ready" : "needs_operator_input",
+      command: "npm.cmd run validation:atlas-billing -- --confirm-live-network",
+      evidencePath: atlasBilling.path,
+      requiredInputs: atlasBilling.canUseAsPrePaidAtlasBillingEvidence ? [] : ["Atlas billing-capable API key", "no-spend live-network confirmation", "approved validation budget"],
+      notes: atlasBilling.present
+        ? [
+            `Current Atlas billing readiness status: ${atlasBilling.status}.`,
+            ...atlasBilling.nextActions
+          ]
+        : atlasBilling.nextActions
     }),
     step({
       name: "deployment_readiness_capture",
