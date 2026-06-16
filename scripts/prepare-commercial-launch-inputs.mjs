@@ -190,8 +190,9 @@ function buildRequiredInputs(reports) {
   const atlasBillingSummary = live?.environment?.atlasBilling;
   const costPlan = plan?.costPlan ?? live?.costPlan ?? {};
   const approvedBudget = numberOrUndefined(costPlan.maxBudgetUsd ?? atlasBilling?.costPlan?.maxBudgetUsd);
-  const plannedCost = numberOrUndefined(atlasBilling?.costPlan?.plannedCostUsd ?? costPlan.knownPaidEstimateUsd);
+  const plannedCost = numberOrUndefined(costPlan.knownPaidEstimateUsd ?? atlasBilling?.costPlan?.plannedCostUsd);
   const minimumLongFormBudget = numberOrUndefined(costPlan.longForm?.minimumBudgetUsdToRun ?? costPlan.longForm?.estimatedCostUsd);
+  const atlasBudgetBlockerMessage = atlasBillingSummary?.message ?? failingMessage(business, "atlas_billing_readiness");
 
   return [
     input({
@@ -257,7 +258,7 @@ function buildRequiredInputs(reports) {
       filePaths: [],
       acceptance: `Approve at least ${formatUsd(plannedCost ?? minimumLongFormBudget ?? 0)} for the current full validation plan, or intentionally re-plan a narrower validation slice.`,
       validationCommand: `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(plannedCost ?? approvedBudget ?? 5)} --confirm-live-network`,
-      blockerMessage: failingMessage(business, "atlas_billing_readiness") ?? atlasBillingSummary?.message,
+      blockerMessage: atlasBudgetBlockerMessage,
       currentValue: approvedBudget === undefined ? undefined : formatUsd(approvedBudget),
       requiredValue: plannedCost === undefined ? undefined : formatUsd(plannedCost)
     }),
