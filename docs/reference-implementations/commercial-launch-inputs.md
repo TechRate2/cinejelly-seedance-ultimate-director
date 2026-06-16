@@ -15,6 +15,7 @@ Before asking an operator for the remaining production inputs, CineJelly needs o
 5. The checklist must keep paid Atlas validation blocked while Atlas billing readiness or the approved-budget fit fails.
 6. The Markdown output must be derived from the JSON report so operators can share a readable checklist without losing schema-validated evidence.
 7. Budget checklist values must prefer the current business-plan/live-input cost plan over older Atlas billing evidence, and blocker text must surface stale Atlas billing reports when the live-input validator detects them.
+8. When the full known paid sequence exceeds the approved budget, the packet must show which narrower paid slices are inside budget, blocked, or unknown-cost without marking paid validation or release ready.
 
 ## Report Shape
 
@@ -55,6 +56,14 @@ interface CommercialLaunchInputsReport {
     configured: boolean;
   }>;
   evidenceCommandPlan: Record<string, Array<{ name: string; status: string; command: string }>>;
+  budgetConstrainedPaidPlan: {
+    present: boolean;
+    maxBudgetUsd?: number;
+    knownPaidEstimateUsd?: number;
+    fullKnownPaidSequenceWithinBudget: boolean;
+    recommendedSliceName?: string;
+    slices: Array<{ name: string; status: string; command: string; estimatedCostUsd?: number }>;
+  };
   releaseGateSummary: {
     canRunNoSpendPrep: boolean;
     canRunLiveNetworkEvidence: boolean;
@@ -78,5 +87,6 @@ interface CommercialLaunchInputsReport {
 - Running the generator performs no network, provider, render, FFmpeg, or billing calls.
 - The report and Markdown checklist expose only placeholders, booleans, report paths, commands, and cost estimates.
 - Current output says commercial inputs are blocked by missing deployment URL, operator attestations, source-video inputs, remote stock inputs, and approved Atlas budget.
+- Current output includes a paid budget slice section that names generated-audio smoke as within the `$5` ceiling while long-form/full sequence remain blocked.
 - Current output keeps paid Atlas validation and customer traffic release false.
 - When the approved budget changes, checklist output points operators to rerun `validation:atlas-billing -- --max-budget-usd <current-budget> --confirm-live-network` instead of repeating stale audit text.

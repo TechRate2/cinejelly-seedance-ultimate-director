@@ -391,6 +391,13 @@ function buildCostPlan(options) {
       .reduce((sum, value) => sum + value, 0)
       .toFixed(6)
   );
+  const budgetConstrainedSlices = buildBudgetConstrainedSlices({
+    maxBudgetUsd: options.maxBudgetUsd,
+    knownPaidEstimateUsd,
+    longFormDurationSeconds: options.longFormDurationSeconds,
+    longFormEstimate,
+    generatedAudioEstimate
+  });
   return {
     maxBudgetUsd: options.maxBudgetUsd,
     knownPaidEstimateUsd,
@@ -414,12 +421,113 @@ function buildCostPlan(options) {
       estimatedCostUsd: generatedAudioEstimate,
       withinBudget: generatedAudioEstimate <= options.maxBudgetUsd
     },
+    budgetConstrainedSlices,
     unknownCostItems: [
       "source_video_auto_analysis_atlas_llm_usage",
       "remote_stock_provider_api_usage",
       "manual_review_time",
       "deployment_hosting"
     ]
+  };
+}
+
+function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, longFormDurationSeconds, longFormEstimate, generatedAudioEstimate }) {
+  const slices = [
+    budgetSlice({
+      name: "generated_audio_smoke",
+      kind: "paid_atlas_audio",
+      estimatedCostUsd: generatedAudioEstimate,
+      maxBudgetUsd,
+      command: "npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed --confirm-manual-audio-review",
+      prerequisites: [
+        "fresh Atlas billing readiness captured for this narrower budget slice",
+        "ATLASCLOUD_GENERATED_AUDIO_MODEL",
+        "ATLASCLOUD_GENERATED_AUDIO_VOICE_ID",
+        "reviewed ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON",
+        "manual schema and listening review after output"
+      ],
+      limitations: [
+        "does not validate Seedance video generation",
+        "does not validate source-video auto-analysis",
+        "does not validate long-form assembly",
+        "cannot approve customer traffic by itself"
+      ]
+    }),
+    budgetSlice({
+      name: "long_form_120s_minimum",
+      kind: "paid_atlas_video",
+      estimatedCostUsd: longFormEstimate,
+      maxBudgetUsd,
+      command: `npm.cmd run validation:long-form -- --duration-seconds ${longFormDurationSeconds} --max-cost-usd ${formatNumber(maxBudgetUsd)} --confirm-paid-spend --confirm-manual-quality-review`,
+      prerequisites: [
+        "fresh Atlas billing readiness captured for the long-form budget",
+        "Atlas media API key and Seedance model configuration",
+        "manual long-form media/redaction review after output"
+      ],
+      limitations: [
+        "requires a 120-480s paid render budget",
+        "does not replace deployment, operations, source-video, remote-stock, or generated-audio evidence"
+      ]
+    }),
+    budgetSlice({
+      name: "full_business_readiness_paid_sequence",
+      kind: "paid_atlas_full_sequence",
+      estimatedCostUsd: knownPaidEstimateUsd,
+      maxBudgetUsd,
+      command: `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(knownPaidEstimateUsd)} --confirm-live-network`,
+      prerequisites: [
+        "operator approval for the full known paid estimate",
+        "fresh Atlas billing readiness for the full sequence",
+        "all no-spend and live-network prerequisites for the targeted gates"
+      ],
+      limitations: [
+        "known paid estimate excludes unknown source-video LLM usage, remote stock provider usage, hosting, and manual review time"
+      ]
+    }),
+    budgetSlice({
+      name: "source_video_auto_analysis",
+      kind: "paid_atlas_llm_and_source_fetch",
+      estimatedCostUsd: undefined,
+      maxBudgetUsd,
+      command: "npm.cmd run validation:source-video-auto-analysis -- --source-video-url https://<clean-source-video.mp4> --confirm-provider-spend",
+      prerequisites: [
+        "clean credential-free HTTPS source video URL",
+        "CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS=true",
+        "Atlas LLM key and model configuration",
+        "fresh Atlas billing readiness after operator approves an explicit source-video LLM budget"
+      ],
+      limitations: [
+        "cost is usage-dependent and must not be auto-approved from the fixed video/audio estimate",
+        "cannot approve customer traffic by itself"
+      ]
+    })
+  ];
+  const affordableKnownCostSlices = slices.filter((slice) => slice.status === "within_budget" && slice.estimatedCostUsd !== undefined);
+  return {
+    maxBudgetUsd,
+    knownPaidEstimateUsd,
+    fullKnownPaidSequenceWithinBudget: knownPaidEstimateUsd <= maxBudgetUsd,
+    recommendedSliceName: affordableKnownCostSlices[0]?.name,
+    slices
+  };
+}
+
+function budgetSlice({ name, kind, estimatedCostUsd, maxBudgetUsd, command, prerequisites, limitations }) {
+  const hasEstimate = typeof estimatedCostUsd === "number" && Number.isFinite(estimatedCostUsd);
+  const status = hasEstimate
+    ? estimatedCostUsd <= maxBudgetUsd
+      ? "within_budget"
+      : "blocked_by_budget"
+    : "unknown_cost";
+  return {
+    name,
+    kind,
+    status,
+    maxBudgetUsd,
+    ...(hasEstimate ? { estimatedCostUsd } : {}),
+    command,
+    prerequisites,
+    limitations
   };
 }
 

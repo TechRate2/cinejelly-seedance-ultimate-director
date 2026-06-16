@@ -104,6 +104,7 @@ function main() {
   const requiredInputs = buildRequiredInputs(reports);
   const envPlaceholders = buildEnvPlaceholders(reports, requiredInputs);
   const evidenceCommandPlan = buildEvidenceCommandPlan(reports.businessPlan.value);
+  const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
   const status = statusFor(requiredInputs);
   const report = {
     schemaVersion: "cinejelly.commercial-launch-inputs.v1",
@@ -125,6 +126,7 @@ function main() {
     requiredInputs,
     envPlaceholders,
     evidenceCommandPlan,
+    budgetConstrainedPaidPlan,
     releaseGateSummary: buildReleaseGateSummary({ status, reports, requiredInputs }),
     nextActions: nextActionsFor(requiredInputs)
   };
@@ -408,6 +410,37 @@ function buildEvidenceCommandPlan(plan) {
   };
 }
 
+function buildBudgetConstrainedPaidPlan(plan) {
+  const source = plan?.costPlan?.budgetConstrainedSlices;
+  const slices = Array.isArray(source?.slices) ? source.slices : [];
+  const normalizedSlices = slices.map((slice) => ({
+    name: String(slice.name ?? "unknown"),
+    kind: String(slice.kind ?? "unknown"),
+    status: String(slice.status ?? "unknown"),
+    ...(numberOrUndefined(slice.maxBudgetUsd) !== undefined ? { maxBudgetUsd: numberOrUndefined(slice.maxBudgetUsd) } : {}),
+    ...(numberOrUndefined(slice.estimatedCostUsd) !== undefined ? { estimatedCostUsd: numberOrUndefined(slice.estimatedCostUsd) } : {}),
+    command: String(slice.command ?? ""),
+    prerequisites: Array.isArray(slice.prerequisites) ? slice.prerequisites.map(String) : [],
+    limitations: Array.isArray(slice.limitations) ? slice.limitations.map(String) : []
+  }));
+  const withinBudget = normalizedSlices.filter((slice) => slice.status === "within_budget");
+  const blocked = normalizedSlices.filter((slice) => slice.status !== "within_budget");
+  return {
+    present: Boolean(source),
+    ...(numberOrUndefined(source?.maxBudgetUsd ?? plan?.costPlan?.maxBudgetUsd) !== undefined
+      ? { maxBudgetUsd: numberOrUndefined(source?.maxBudgetUsd ?? plan?.costPlan?.maxBudgetUsd) }
+      : {}),
+    ...(numberOrUndefined(source?.knownPaidEstimateUsd ?? plan?.costPlan?.knownPaidEstimateUsd) !== undefined
+      ? { knownPaidEstimateUsd: numberOrUndefined(source?.knownPaidEstimateUsd ?? plan?.costPlan?.knownPaidEstimateUsd) }
+      : {}),
+    fullKnownPaidSequenceWithinBudget: source?.fullKnownPaidSequenceWithinBudget === true,
+    recommendedSliceName: typeof source?.recommendedSliceName === "string" ? source.recommendedSliceName : withinBudget[0]?.name,
+    withinBudgetCount: withinBudget.length,
+    blockedOrUnknownCount: blocked.length,
+    slices: normalizedSlices
+  };
+}
+
 function commandsFor(sequence, predicate) {
   return sequence
     .filter(predicate)
@@ -511,6 +544,10 @@ function renderMarkdown(report) {
     "",
     ...markdownCommands(report.evidenceCommandPlan.paidAtlas),
     "",
+    "## Paid Budget Slice",
+    "",
+    ...markdownBudgetSlices(report.budgetConstrainedPaidPlan),
+    "",
     "## Release Gate",
     "",
     `canReleaseToCustomerTraffic: ${report.releaseGateSummary.canReleaseToCustomerTraffic}`,
@@ -518,6 +555,23 @@ function renderMarkdown(report) {
     report.releaseGateSummary.releaseBlocker,
     ""
   ].join("\n");
+}
+
+function markdownBudgetSlices(plan) {
+  if (!plan?.present) {
+    return ["- No budget-constrained paid slice plan is available. Rerun `npm.cmd run validation:business-plan`."];
+  }
+  const lines = [
+    `- Approved budget ceiling: ${formatUsd(plan.maxBudgetUsd)}`,
+    `- Current known full paid estimate: ${formatUsd(plan.knownPaidEstimateUsd)}`,
+    `- Full known paid sequence within budget: ${plan.fullKnownPaidSequenceWithinBudget}`,
+    `- Recommended narrow slice: ${plan.recommendedSliceName ?? "none"}`
+  ];
+  for (const slice of plan.slices) {
+    const cost = slice.estimatedCostUsd === undefined ? "unknown" : formatUsd(slice.estimatedCostUsd);
+    lines.push(`- ${slice.name} [${slice.status}; ${cost}]: \`${slice.command}\``);
+  }
+  return lines;
 }
 
 function markdownItems(items) {
@@ -580,7 +634,7 @@ function numberOrUndefined(value) {
 }
 
 function formatUsd(value) {
-  return `$${Number(value).toFixed(6)}`;
+  return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(6)}` : "unavailable";
 }
 
 function formatNumber(value) {

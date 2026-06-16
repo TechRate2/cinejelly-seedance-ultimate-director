@@ -17,6 +17,7 @@
     "requiredInputs",
     "envPlaceholders",
     "evidenceCommandPlan",
+    "budgetConstrainedPaidPlan",
     "releaseGateSummary",
     "nextActions"
   ],
@@ -143,6 +144,44 @@
         "liveNetwork": { "$ref": "#/$defs/commandList" },
         "paidAtlas": { "$ref": "#/$defs/commandList" },
         "finalAudit": { "$ref": "#/$defs/commandList" }
+      }
+    },
+    "budgetConstrainedPaidPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present",
+        "fullKnownPaidSequenceWithinBudget",
+        "withinBudgetCount",
+        "blockedOrUnknownCount",
+        "slices"
+      ],
+      "properties": {
+        "present": { "type": "boolean" },
+        "maxBudgetUsd": { "type": "number", "minimum": 0 },
+        "knownPaidEstimateUsd": { "type": "number", "minimum": 0 },
+        "fullKnownPaidSequenceWithinBudget": { "type": "boolean" },
+        "recommendedSliceName": { "type": "string" },
+        "withinBudgetCount": { "type": "integer", "minimum": 0 },
+        "blockedOrUnknownCount": { "type": "integer", "minimum": 0 },
+        "slices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "kind", "status", "command", "prerequisites", "limitations"],
+            "properties": {
+              "name": { "type": "string" },
+              "kind": { "type": "string" },
+              "status": { "enum": ["within_budget", "blocked_by_budget", "unknown_cost", "unknown"] },
+              "maxBudgetUsd": { "type": "number", "minimum": 0 },
+              "estimatedCostUsd": { "type": "number", "minimum": 0 },
+              "command": { "type": "string" },
+              "prerequisites": { "type": "array", "items": { "type": "string" } },
+              "limitations": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
       }
     },
     "releaseGateSummary": {
