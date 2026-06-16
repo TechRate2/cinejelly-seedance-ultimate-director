@@ -11,6 +11,7 @@
     "sourcePatternOrigins",
     "checkedInputs",
     "spendGate",
+    "atlasBillingGate",
     "checks",
     "frameSampling",
     "analysisSummary",
@@ -21,7 +22,7 @@
   "properties": {
     "schemaVersion": { "const": "cinejelly.source-video-auto-analysis-validation.v1" },
     "generatedAt": { "type": "string", "format": "date-time" },
-    "status": { "enum": ["pass", "warn", "fail", "blocked_by_spend_confirmation", "blocked_by_readiness"] },
+    "status": { "enum": ["pass", "warn", "fail", "blocked_by_spend_confirmation", "blocked_by_readiness", "blocked_by_atlas_billing"] },
     "sourcePatternOrigins": {
       "type": "array",
       "items": { "type": "string" }
@@ -29,11 +30,13 @@
     "checkedInputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sourceReferenceLabel", "sourceVideoUrl", "outputPath"],
+      "required": ["sourceReferenceLabel", "sourceVideoUrl", "atlasBillingReportPath", "outputPath"],
       "properties": {
         "requestPath": { "type": "string" },
         "sourceReferenceLabel": { "type": "string" },
         "sourceVideoUrl": { "type": "string" },
+        "atlasBillingReportPath": { "type": "string" },
+        "maxCostUsd": { "type": "number", "minimum": 0 },
         "outputPath": { "type": "string" }
       }
     },
@@ -45,6 +48,34 @@
         "confirmProviderSpend": { "type": "boolean" },
         "providerNetworkCallsAllowed": { "type": "boolean" },
         "sourceVideoFetchAllowed": { "type": "boolean" }
+      }
+    },
+    "atlasBillingGate": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "path",
+        "present",
+        "status",
+        "maxAgeHours",
+        "canUseAsPrePaidAtlasBillingEvidence"
+      ],
+      "properties": {
+        "path": { "type": "string" },
+        "present": { "type": "boolean" },
+        "status": { "type": "string" },
+        "schemaVersion": { "type": "string" },
+        "reportGeneratedAt": { "type": "string" },
+        "maxAgeHours": { "type": "number", "exclusiveMinimum": 0 },
+        "reportAgeHours": { "type": "number", "minimum": 0 },
+        "freshForPaidValidation": { "type": "boolean" },
+        "reportPlannedCostUsd": { "type": "number", "minimum": 0 },
+        "currentApprovedBudgetUsd": { "type": "number", "minimum": 0 },
+        "plannedCostMatchesCurrentRun": { "type": "boolean" },
+        "reportMaxBudgetUsd": { "type": "number", "minimum": 0 },
+        "budgetCoversMaxCost": { "type": "boolean" },
+        "networkCallsMade": { "type": "boolean" },
+        "canUseAsPrePaidAtlasBillingEvidence": { "type": "boolean" }
       }
     },
     "checks": {

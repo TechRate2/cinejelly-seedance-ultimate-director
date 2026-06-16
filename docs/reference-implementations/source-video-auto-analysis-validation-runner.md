@@ -15,11 +15,12 @@ Implementation status as of 2026-06-16: implemented as a CineJelly-owned live-va
 
 1. The runner must fail closed unless a clean HTTPS source video is supplied.
 2. The runner must stop before FFmpeg source fetch or Atlas LLM calls unless `--confirm-provider-spend` is present.
-3. The runner must reuse `SourceVideoAutoAnalyzer`; it must not duplicate provider payload logic.
-4. The source reference must use role `source_video_structure` and must not include embedded credentials or credential-like query parameters.
-5. Live validation must sample bounded frames with FFmpeg, send them through the configured Atlas LLM provider, normalize through `SourceVideoAnalyst`, and require usable analysis content.
-6. The report must never expose local frame paths, inline frame data, API keys, bearer tokens, or signed source URLs.
-7. Business-readiness can count this evidence only when the report schema is recognized, status is `pass`, live provider calls were allowed, and the analysis summary confirms no frame/base64 leakage.
+3. Paid mode must also require `--max-cost-usd` plus a fresh matching Atlas billing-readiness report at `atlas-billing-source-video-report.json`.
+4. The runner must reuse `SourceVideoAutoAnalyzer`; it must not duplicate provider payload logic.
+5. The source reference must use role `source_video_structure` and must not include embedded credentials or credential-like query parameters.
+6. Live validation must sample bounded frames with FFmpeg, send them through the configured Atlas LLM provider, normalize through `SourceVideoAnalyst`, and require usable analysis content.
+7. The report must never expose local frame paths, inline frame data, API keys, bearer tokens, or signed source URLs.
+8. Business-readiness can count this evidence only when the report schema is recognized, status is `pass`, live provider calls were allowed, the Atlas billing gate passed, and the analysis summary confirms no frame/base64 leakage.
 
 ## Reference Report Contract
 
@@ -29,7 +30,8 @@ type SourceVideoAutoAnalysisValidationStatus =
   | "warn"
   | "fail"
   | "blocked_by_spend_confirmation"
-  | "blocked_by_readiness";
+  | "blocked_by_readiness"
+  | "blocked_by_atlas_billing";
 
 interface SourceVideoAutoAnalysisValidationReport {
   schemaVersion: "cinejelly.source-video-auto-analysis-validation.v1";
@@ -39,12 +41,22 @@ interface SourceVideoAutoAnalysisValidationReport {
     requestPath?: string;
     sourceReferenceLabel: string;
     sourceVideoUrl: string;
+    atlasBillingReportPath: string;
+    maxCostUsd?: number;
     outputPath: string;
   };
   spendGate: {
     confirmProviderSpend: boolean;
     providerNetworkCallsAllowed: boolean;
     sourceVideoFetchAllowed: boolean;
+  };
+  atlasBillingGate: {
+    path: string;
+    present: boolean;
+    status: string;
+    currentApprovedBudgetUsd?: number;
+    maxAgeHours: number;
+    canUseAsPrePaidAtlasBillingEvidence: boolean;
   };
   checks: Array<{ name: string; status: "pass" | "warn" | "fail"; message: string }>;
   analysisSummary: {
@@ -75,14 +87,15 @@ interface SourceVideoAutoAnalysisValidationReport {
 - Done: add `npm.cmd run validation:source-video-auto-analysis`.
 - Done: add `schemas/source-video-auto-analysis-validation-report.schema.json`.
 - Done: make `validation:business-readiness` evaluate the versioned source-video report explicitly.
-- Done: document the spend gate and clean-source-video requirements.
+- Done: document the spend gate, source-video billing gate, and clean-source-video requirements.
 
 ## Validation Checklist
 
 - Running without `--confirm-provider-spend` writes `blocked_by_spend_confirmation` and makes no provider/source-video calls.
 - The runner rejects missing source-video input, non-HTTPS URLs, embedded credentials, and credential-like query parameters.
+- Running with `--confirm-provider-spend` but without a fresh matching `atlas-billing-source-video-report.json` writes `blocked_by_atlas_billing` and makes no provider/source-video calls.
 - Readiness blockers stop the run before provider spend.
 - Readiness warnings require `--allow-warnings`.
 - Live mode uses `SourceVideoAutoAnalyzer`, not custom LLM payload code.
 - The report preserves provider-ledger operation counts without raw provider payloads.
-- The business-readiness gate accepts only a `pass` report with usable analysis and no frame/base64 leakage.
+- The business-readiness gate accepts only a `pass` report with usable analysis, a passing Atlas billing gate, and no frame/base64 leakage.

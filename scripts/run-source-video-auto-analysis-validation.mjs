@@ -7,6 +7,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaults = {
   outputPath: "assets/output_deliverables/business-readiness/source-video-validation-report.json",
   workDirectory: "assets/output_deliverables/business-readiness/source-video-analysis-work",
+  atlasBillingReportPath: "assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json",
+  atlasBillingEvidenceMaxAgeHours: Number(process.env.CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS || "24"),
   sourceReferenceLabel: "source-video-validation",
   userInput:
     "Create an original commercial video using the supplied source video only as structural pacing and camera-grammar guidance.",
@@ -33,6 +35,8 @@ function parseArgs(args) {
   const options = {
     outputPath: defaults.outputPath,
     workDirectory: defaults.workDirectory,
+    atlasBillingReportPath: defaults.atlasBillingReportPath,
+    atlasBillingEvidenceMaxAgeHours: defaults.atlasBillingEvidenceMaxAgeHours,
     sourceReferenceLabel: defaults.sourceReferenceLabel,
     userInput: defaults.userInput,
     timeoutMs: defaults.timeoutMs,
@@ -49,6 +53,9 @@ function parseArgs(args) {
     ["--work-directory", "workDirectory"],
     ["--frame-interval-seconds", "frameIntervalSeconds"],
     ["--max-frames", "maxFrames"],
+    ["--max-cost-usd", "maxCostUsd"],
+    ["--atlas-billing-report", "atlasBillingReportPath"],
+    ["--atlas-billing-evidence-max-age-hours", "atlasBillingEvidenceMaxAgeHours"],
     ["--timeout-ms", "timeoutMs"],
     ["--output", "outputPath"]
   ]);
@@ -76,16 +83,17 @@ function parseArgs(args) {
     const key = flagMap.get(flag);
     if (key) {
       const value = equalsIndex >= 0 ? arg.slice(equalsIndex + 1) : readRequiredValue(args, index, flag);
-      options[key] =
-        key === "frameIntervalSeconds" || key === "maxFrames" || key === "timeoutMs"
-          ? Number.parseInt(value, 10)
-          : value;
+      options[key] = numericOption(key) ? Number(value) : value;
       index += equalsIndex >= 0 ? 0 : 1;
       continue;
     }
     throw new Error(`Unknown option: ${arg}`);
   }
   return options;
+}
+
+function numericOption(key) {
+  return ["frameIntervalSeconds", "maxFrames", "maxCostUsd", "atlasBillingEvidenceMaxAgeHours", "timeoutMs"].includes(key);
 }
 
 function readRequiredValue(args, index, flag) {
@@ -101,7 +109,7 @@ function printHelp() {
 
 Usage:
   npm.cmd run validation:source-video-auto-analysis -- --source-video-url https://example.com/source.mp4
-  npm.cmd run validation:source-video-auto-analysis -- --request assets/output_deliverables/business-readiness/source-video-request.json --confirm-provider-spend
+  npm.cmd run validation:source-video-auto-analysis -- --request assets/output_deliverables/business-readiness/source-video-request.json --confirm-provider-spend --max-cost-usd <approved-source-video-budget-usd>
 
 Options:
   --source-video-url <url>             Clean HTTPS source video URL for validation.
@@ -111,6 +119,10 @@ Options:
   --work-directory <path>              Frame sampling work directory. Default: ${defaults.workDirectory}
   --frame-interval-seconds <seconds>   Override source-video frame interval.
   --max-frames <count>                 Override max sampled frames.
+  --max-cost-usd <amount>              Required in paid mode; approved source-video LLM budget cap.
+  --atlas-billing-report <path>        Source-video billing readiness report. Default: ${defaults.atlasBillingReportPath}
+  --atlas-billing-evidence-max-age-hours <hours>
+                                       Maximum age for Atlas billing readiness evidence. Default: ${defaults.atlasBillingEvidenceMaxAgeHours}
   --timeout-ms <ms>                    Abort live validation after this many ms. Default: ${defaults.timeoutMs}
   --confirm-provider-spend             Required before FFmpeg fetches the URL or Atlas LLM is called.
   --allow-warnings                     Continue from readiness warnings after operator acceptance.
@@ -137,6 +149,7 @@ async function main() {
   ];
 
   if (!options.confirmProviderSpend) {
+    const atlasBillingGate = skippedAtlasBillingGate(options);
     const report = buildReport({
       options,
       requestEvidence,
@@ -150,6 +163,28 @@ async function main() {
         providerNetworkCallsAllowed: false,
         sourceVideoFetchAllowed: false
       },
+      atlasBillingGate,
+      analysisSummary: emptyAnalysisSummary(requestEvidence.sourceReferenceLabel),
+      providerLedger: summarizeLedger([])
+    });
+    writeMaybe(options, report);
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    return 1;
+  }
+
+  const atlasBillingGate = summarizeAtlasBillingGate(options);
+  if (atlasBillingGate.checks.some((check) => check.status === "fail")) {
+    const report = buildReport({
+      options,
+      requestEvidence,
+      status: "blocked_by_atlas_billing",
+      checks: [...initialChecks, ...atlasBillingGate.checks],
+      spendGate: {
+        confirmProviderSpend: true,
+        providerNetworkCallsAllowed: false,
+        sourceVideoFetchAllowed: false
+      },
+      atlasBillingGate,
       analysisSummary: emptyAnalysisSummary(requestEvidence.sourceReferenceLabel),
       providerLedger: summarizeLedger([])
     });
@@ -171,6 +206,7 @@ async function main() {
         providerNetworkCallsAllowed: false,
         sourceVideoFetchAllowed: false
       },
+      atlasBillingGate,
       readiness: readinessEvidence.summary,
       analysisSummary: emptyAnalysisSummary(requestEvidence.sourceReferenceLabel),
       providerLedger: summarizeLedger([])
@@ -187,6 +223,7 @@ async function main() {
   });
   const checks = [
     ...initialChecks,
+    ...atlasBillingGate.checks,
     ...readinessChecks,
     ...liveEvidence.checks
   ];
@@ -201,6 +238,7 @@ async function main() {
       providerNetworkCallsAllowed: true,
       sourceVideoFetchAllowed: true
     },
+    atlasBillingGate,
     readiness: readinessEvidence.summary,
     frameSampling: liveEvidence.frameSampling,
     analysisSummary: liveEvidence.analysisSummary,
@@ -230,6 +268,12 @@ function validateOptions(options) {
   }
   if (options.maxFrames !== undefined && !isPositiveInteger(options.maxFrames)) {
     throw new Error("--max-frames must be a positive integer.");
+  }
+  if (options.maxCostUsd !== undefined && (!Number.isFinite(options.maxCostUsd) || options.maxCostUsd <= 0 || options.maxCostUsd > 25)) {
+    throw new Error("--max-cost-usd must be a positive number up to 25.");
+  }
+  if (!Number.isFinite(options.atlasBillingEvidenceMaxAgeHours) || options.atlasBillingEvidenceMaxAgeHours <= 0) {
+    throw new Error("--atlas-billing-evidence-max-age-hours must be a positive number.");
   }
 }
 
@@ -512,6 +556,7 @@ function buildReport({
   status,
   checks,
   spendGate,
+  atlasBillingGate,
   readiness,
   frameSampling,
   analysisSummary,
@@ -527,9 +572,12 @@ function buildReport({
       requestPath: requestEvidence.requestPath,
       sourceReferenceLabel: requestEvidence.sourceReferenceLabel,
       sourceVideoUrl: requestEvidence.sourceVideoUrlPreview,
+      atlasBillingReportPath: toRepoRelative(options.atlasBillingReportPath),
+      ...(options.maxCostUsd !== undefined ? { maxCostUsd: options.maxCostUsd } : {}),
       outputPath: toRepoRelative(options.outputPath)
     },
     spendGate,
+    atlasBillingGate: stripAtlasBillingGateChecks(atlasBillingGate),
     checks,
     ...(readiness ? { readiness } : {}),
     frameSampling: frameSampling ?? {
@@ -543,7 +591,10 @@ function buildReport({
     ...(error ? { error } : {}),
     releaseGateSummary: {
       canUseAsBusinessReadinessSourceVideoEvidence:
-        status === "pass" && analysisSummary?.present === true && spendGate.providerNetworkCallsAllowed === true,
+        status === "pass" &&
+        analysisSummary?.present === true &&
+        spendGate.providerNetworkCallsAllowed === true &&
+        atlasBillingGate.canUseAsPrePaidAtlasBillingEvidence === true,
       canOpenPaidCustomerTraffic: false,
       releaseBlocker:
         status === "pass"
@@ -577,6 +628,114 @@ function statusForChecks(checks) {
     return "warn";
   }
   return "pass";
+}
+
+function skippedAtlasBillingGate(options) {
+  return {
+    path: toRepoRelative(options.atlasBillingReportPath),
+    present: false,
+    status: "skipped",
+    currentApprovedBudgetUsd: options.maxCostUsd,
+    maxAgeHours: options.atlasBillingEvidenceMaxAgeHours,
+    canUseAsPrePaidAtlasBillingEvidence: false,
+    checks: []
+  };
+}
+
+function summarizeAtlasBillingGate(options) {
+  const approvedBudgetUsd = options.maxCostUsd;
+  const budgetCapValid = typeof approvedBudgetUsd === "number" && Number.isFinite(approvedBudgetUsd) && approvedBudgetUsd > 0;
+  const path = toRepoRelative(options.atlasBillingReportPath);
+  const budgetCapCheck = budgetCapValid
+    ? pass("atlas_billing_source_video_budget_cap", `Approved source-video LLM budget cap is ${formatUsd(approvedBudgetUsd)}.`)
+    : fail("atlas_billing_source_video_budget_cap", "--max-cost-usd must be supplied before source-video paid Atlas LLM validation.");
+  const report = readJsonIfExists(options.atlasBillingReportPath);
+  if (!report) {
+    return {
+      path,
+      present: false,
+      status: "missing",
+      currentApprovedBudgetUsd: approvedBudgetUsd,
+      maxAgeHours: options.atlasBillingEvidenceMaxAgeHours,
+      canUseAsPrePaidAtlasBillingEvidence: false,
+      checks: [
+        budgetCapCheck,
+        fail(
+          "atlas_billing_report_present",
+          `Missing Atlas billing readiness report for source-video validation at ${path}. Run validation:atlas-billing with --planned-cost-usd ${formatNumber(approvedBudgetUsd)} before Atlas LLM spend.`
+        )
+      ]
+    };
+  }
+
+  const reportPlannedCostUsd = numberOrUndefined(report.checkedInputs?.plannedCostUsd ?? report.costPlan?.plannedCostUsd);
+  const reportMaxBudgetUsd = numberOrUndefined(report.checkedInputs?.maxBudgetUsd ?? report.costPlan?.maxBudgetUsd);
+  const reportGeneratedAt = typeof report.generatedAt === "string" ? report.generatedAt : undefined;
+  const generatedAtMs = reportGeneratedAt ? Date.parse(reportGeneratedAt) : Number.NaN;
+  const validGeneratedAt = Number.isFinite(generatedAtMs);
+  const rawAgeHours = validGeneratedAt ? (Date.now() - generatedAtMs) / 3600000 : undefined;
+  const reportAgeHours = typeof rawAgeHours === "number" && Number.isFinite(rawAgeHours) ? Math.max(0, rawAgeHours) : undefined;
+  const clockSkewOk = typeof rawAgeHours === "number" && rawAgeHours >= -0.083333;
+  const freshForPaidValidation = validGeneratedAt && clockSkewOk && reportAgeHours <= options.atlasBillingEvidenceMaxAgeHours;
+  const schemaOk = report.schemaVersion === "cinejelly.atlas-billing-readiness.v1";
+  const statusOk = report.status === "pass" && report.releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true;
+  const networkOk =
+    report.networkCallsMade === true &&
+    report.providerCallsMade === false &&
+    report.atlasBillingPublicApi?.captured === true &&
+    report.atlasBillingPublicApi?.httpStatus === 200;
+  const plannedCostMatches = budgetCapValid && moneyEquals(reportPlannedCostUsd, approvedBudgetUsd);
+  const budgetCoversMaxCost = budgetCapValid && typeof reportMaxBudgetUsd === "number" && reportMaxBudgetUsd >= approvedBudgetUsd;
+  const checks = [
+    budgetCapCheck,
+    schemaOk
+      ? pass("atlas_billing_report_schema", "Atlas billing readiness report schema is recognized.")
+      : fail("atlas_billing_report_schema", "Atlas billing readiness report schemaVersion is missing or unrecognized."),
+    freshForPaidValidation
+      ? pass("atlas_billing_report_fresh", "Atlas billing readiness report is fresh enough for source-video Atlas LLM spend.")
+      : fail("atlas_billing_report_fresh", atlasBillingFreshnessMessage({ reportGeneratedAt, validGeneratedAt, clockSkewOk, reportAgeHours, maxAgeHours: options.atlasBillingEvidenceMaxAgeHours, approvedBudgetUsd })),
+    statusOk
+      ? pass("atlas_billing_report_status", "Atlas billing readiness report passed.")
+      : fail("atlas_billing_report_status", `Atlas billing readiness report status is ${report.status ?? "missing"}.`),
+    networkOk
+      ? pass("atlas_billing_report_balance_capture", "Atlas billing readiness report captured a no-spend /balance response.")
+      : fail("atlas_billing_report_balance_capture", "Atlas billing readiness report did not capture a successful no-spend /balance response."),
+    plannedCostMatches
+      ? pass("atlas_billing_planned_cost_matches_source_video", `Atlas billing planned cost matches source-video budget cap ${formatUsd(approvedBudgetUsd)}.`)
+      : fail("atlas_billing_planned_cost_matches_source_video", `Atlas billing planned cost ${formatUsd(reportPlannedCostUsd)} does not match current source-video budget cap ${formatUsd(approvedBudgetUsd)}.`),
+    budgetCoversMaxCost
+      ? pass("atlas_billing_budget_covers_source_video_cap", `Atlas billing approved budget covers source-video maxCostUsd ${formatUsd(approvedBudgetUsd)}.`)
+      : fail("atlas_billing_budget_covers_source_video_cap", `Atlas billing approved budget ${formatUsd(reportMaxBudgetUsd)} does not cover source-video maxCostUsd ${formatUsd(approvedBudgetUsd)}.`)
+  ];
+  return {
+    path,
+    present: true,
+    schemaVersion: report.schemaVersion,
+    status: String(report.status ?? "unknown"),
+    reportGeneratedAt,
+    maxAgeHours: options.atlasBillingEvidenceMaxAgeHours,
+    reportAgeHours,
+    freshForPaidValidation,
+    reportPlannedCostUsd,
+    currentApprovedBudgetUsd: approvedBudgetUsd,
+    plannedCostMatchesCurrentRun: plannedCostMatches,
+    reportMaxBudgetUsd,
+    budgetCoversMaxCost,
+    networkCallsMade: report.networkCallsMade === true,
+    canUseAsPrePaidAtlasBillingEvidence: checks.every((check) => check.status === "pass"),
+    checks
+  };
+}
+
+function atlasBillingFreshnessMessage({ reportGeneratedAt, validGeneratedAt, clockSkewOk, reportAgeHours, maxAgeHours, approvedBudgetUsd }) {
+  const command = `npm.cmd run validation:atlas-billing -- --max-budget-usd ${formatNumber(approvedBudgetUsd)} --planned-cost-usd ${formatNumber(approvedBudgetUsd)} --output assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json --confirm-live-network`;
+  if (!validGeneratedAt) {
+    return `Atlas billing readiness report is missing a valid generatedAt timestamp. Rerun ${command}.`;
+  }
+  if (!clockSkewOk) {
+    return `Atlas billing readiness report timestamp is in the future (${reportGeneratedAt}). Rerun ${command}.`;
+  }
+  return `Atlas billing readiness report is too old for source-video Atlas LLM spend: generatedAt ${reportGeneratedAt}, age ${formatHours(reportAgeHours)}, max age ${formatHours(maxAgeHours)}. Rerun ${command}.`;
 }
 
 function cleanHttpsUrl(value, fieldName) {
@@ -630,6 +789,43 @@ function sumOptional(values) {
     return undefined;
   }
   return Number(present.reduce((sum, value) => sum + value, 0).toFixed(6));
+}
+
+function readJsonIfExists(path) {
+  const absolutePath = resolve(repoRoot, path);
+  if (!existsSync(absolutePath)) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, ""));
+  } catch {
+    return undefined;
+  }
+}
+
+function numberOrUndefined(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function moneyEquals(left, right) {
+  return typeof left === "number" && typeof right === "number" && Math.abs(left - right) < 0.000001;
+}
+
+function formatUsd(value) {
+  return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(6)}` : "unavailable";
+}
+
+function formatNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(6) : "0.000000";
+}
+
+function formatHours(value) {
+  return typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(2)}h` : "unavailable";
+}
+
+function stripAtlasBillingGateChecks(gate) {
+  const { checks, ...summary } = gate;
+  return summary;
 }
 
 function pass(name, message) {

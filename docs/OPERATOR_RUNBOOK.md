@@ -187,13 +187,19 @@ Create the live source-video auto-analysis evidence with a real, clean HTTPS sou
 npm.cmd run validation:source-video-auto-analysis -- --source-video-url "https://<clean-public-source-video>.mp4"
 ```
 
-Then run the live validation only after approving Atlas LLM spend and source-video fetch for that specific video:
+Before paid source-video validation, refresh the slice-specific Atlas billing report for the exact source-video LLM budget the operator approves:
 
 ```powershell
-npm.cmd run validation:source-video-auto-analysis -- --source-video-url "https://<clean-public-source-video>.mp4" --confirm-provider-spend
+npm.cmd run validation:atlas-billing -- --max-budget-usd <approved-source-video-budget-usd> --planned-cost-usd <approved-source-video-budget-usd> --output assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json --confirm-live-network
 ```
 
-If readiness returns warnings that the operator intentionally accepts, add `--allow-warnings`. The runner samples bounded frames with FFmpeg, sends them through the configured Atlas LLM provider, normalizes the result through `SourceVideoAnalyst`, and writes `assets/output_deliverables/business-readiness/source-video-validation-report.json`. The business-readiness gate counts it only when the report status is `pass`, provider calls were explicitly allowed, analysis content is usable, and the report confirms no local frame path or inline frame data leakage. See `docs/reference-implementations/source-video-auto-analysis-validation-runner.md` for the exact report contract.
+Then run the live validation only after approving Atlas LLM spend and source-video fetch for that specific video and budget:
+
+```powershell
+npm.cmd run validation:source-video-auto-analysis -- --source-video-url "https://<clean-public-source-video>.mp4" --confirm-provider-spend --max-cost-usd <approved-source-video-budget-usd> --atlas-billing-report assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json
+```
+
+If readiness returns warnings that the operator intentionally accepts, add `--allow-warnings`. The runner blocks as `blocked_by_atlas_billing` before FFmpeg fetch or Atlas LLM calls unless the source-video billing report is fresh, passed, captured `/balance`, matches `--max-cost-usd`, and covers that budget cap. When unblocked, it samples bounded frames with FFmpeg, sends them through the configured Atlas LLM provider, normalizes the result through `SourceVideoAnalyst`, and writes `assets/output_deliverables/business-readiness/source-video-validation-report.json`. The business-readiness gate counts it only when the report status is `pass`, provider calls were explicitly allowed, the Atlas billing gate passed, analysis content is usable, and the report confirms no local frame path or inline frame data leakage. See `docs/reference-implementations/source-video-auto-analysis-validation-runner.md` for the exact report contract.
 
 Create the live remote stock provider evidence after approved Pexels/Pixabay/Coverr keys are configured and provider terms have been reviewed for the commercial offer. First run the live-network gate without confirmation:
 

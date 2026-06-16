@@ -9,6 +9,7 @@ const defaults = {
   businessReadinessPath: "assets/output_deliverables/phase6-validation/business-readiness-report.json",
   opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
   atlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
+  sourceVideoAtlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json",
   maxBudgetUsd: Number(process.env.CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD || "5"),
   atlasBillingEvidenceMaxAgeHours: Number(process.env.CINEJELLY_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS || "24"),
   longFormDurationSeconds: 120,
@@ -37,6 +38,7 @@ function parseArgs(args) {
     ["--business-readiness-report", "businessReadinessPath"],
     ["--ops-config-report", "opsConfigPath"],
     ["--atlas-billing-report", "atlasBillingPath"],
+    ["--source-video-atlas-billing-report", "sourceVideoAtlasBillingPath"],
     ["--max-budget-usd", "maxBudgetUsd"],
     ["--atlas-billing-evidence-max-age-hours", "atlasBillingEvidenceMaxAgeHours"],
     ["--long-form-duration-seconds", "longFormDurationSeconds"],
@@ -93,6 +95,8 @@ Options:
   --business-readiness-report <path>       Default: ${defaults.businessReadinessPath}
   --ops-config-report <path>               Default: ${defaults.opsConfigPath}
   --atlas-billing-report <path>            Default: ${defaults.atlasBillingPath}
+  --source-video-atlas-billing-report <path>
+                                           Default: ${defaults.sourceVideoAtlasBillingPath}
   --max-budget-usd <amount>                Budget ceiling for known paid validation. Default: ${defaults.maxBudgetUsd}
   --atlas-billing-evidence-max-age-hours <hours>
                                             Maximum age for Atlas billing readiness evidence. Default: ${defaults.atlasBillingEvidenceMaxAgeHours}
@@ -122,8 +126,20 @@ function main() {
     maxBudgetUsd: options.maxBudgetUsd,
     plannedCostUsd: costPlan.knownPaidEstimateUsd
   }, options.atlasBillingEvidenceMaxAgeHours);
+  const sourceVideoAtlasBilling = summarizeSourceVideoAtlasBilling(
+    options.sourceVideoAtlasBillingPath,
+    options.atlasBillingEvidenceMaxAgeHours
+  );
   const environment = summarizeEnvironment(options);
-  const validationSequence = buildValidationSequence({ options, businessReadiness, opsConfig, atlasBilling, environment, costPlan });
+  const validationSequence = buildValidationSequence({
+    options,
+    businessReadiness,
+    opsConfig,
+    atlasBilling,
+    sourceVideoAtlasBilling,
+    environment,
+    costPlan
+  });
   const status = statusFor(validationSequence);
   const report = {
     schemaVersion: "cinejelly.business-readiness-validation-plan.v1",
@@ -134,6 +150,7 @@ function main() {
       businessReadinessPath: toRepoRelative(options.businessReadinessPath),
       opsConfigPath: toRepoRelative(options.opsConfigPath),
       atlasBillingPath: toRepoRelative(options.atlasBillingPath),
+      sourceVideoAtlasBillingPath: toRepoRelative(options.sourceVideoAtlasBillingPath),
       maxBudgetUsd: options.maxBudgetUsd,
       longFormDurationSeconds: options.longFormDurationSeconds,
       deploymentBaseUrlConfigured: Boolean(options.deploymentBaseUrl),
@@ -266,6 +283,61 @@ function summarizeAtlasBilling(path, expectedCostPlan, maxAgeHours) {
       reportFreshness.freshForPaidValidation &&
       report.releaseGateSummary?.canRunAtlasSpendWithinApprovedBudget === true,
     networkCallsMade: report.networkCallsMade === true,
+    nextActions: nextActions.slice(0, 8)
+  };
+}
+
+function summarizeSourceVideoAtlasBilling(path, maxAgeHours) {
+  const report = readJsonIfExists(path);
+  if (!report) {
+    return {
+      present: false,
+      path: toRepoRelative(path),
+      status: "missing",
+      canUseAsPrePaidAtlasBillingEvidence: false,
+      nextActions: [
+        "Run npm.cmd run validation:atlas-billing with --output assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json and an explicit source-video --planned-cost-usd before source-video paid validation."
+      ]
+    };
+  }
+  const reportMaxBudgetUsd = numberOrUndefined(report.checkedInputs?.maxBudgetUsd ?? report.costPlan?.maxBudgetUsd);
+  const reportPlannedCostUsd = numberOrUndefined(report.checkedInputs?.plannedCostUsd ?? report.costPlan?.plannedCostUsd);
+  const reportFreshness = atlasBillingReportFreshness(report, maxAgeHours, reportMaxBudgetUsd ?? reportPlannedCostUsd);
+  const budgetCapValid = typeof reportPlannedCostUsd === "number" && reportPlannedCostUsd > 0;
+  const budgetCoversPlannedCost =
+    typeof reportMaxBudgetUsd === "number" &&
+    typeof reportPlannedCostUsd === "number" &&
+    reportMaxBudgetUsd >= reportPlannedCostUsd;
+  const baseReportUsable =
+    report.schemaVersion === "cinejelly.atlas-billing-readiness.v1" &&
+    report.status === "pass" &&
+    report.releaseGateSummary?.canUseAsPrePaidAtlasBillingEvidence === true &&
+    report.releaseGateSummary?.canRunAtlasSpendWithinApprovedBudget === true &&
+    report.networkCallsMade === true &&
+    report.providerCallsMade === false;
+  const nextActions = [
+    ...(reportFreshness.freshForPaidValidation ? [] : [reportFreshness.message]),
+    ...(budgetCapValid ? [] : ["Source-video Atlas billing report must have a positive plannedCostUsd matching the approved source-video LLM budget."]),
+    ...(budgetCoversPlannedCost ? [] : ["Source-video Atlas billing approved budget must cover plannedCostUsd."])
+  ];
+  return {
+    present: true,
+    path: toRepoRelative(path),
+    schemaVersion: report.schemaVersion,
+    status: String(report.status ?? "unknown"),
+    reportMaxBudgetUsd,
+    reportPlannedCostUsd,
+    reportGeneratedAt: reportFreshness.reportGeneratedAt,
+    maxAgeHours: reportFreshness.maxAgeHours,
+    reportAgeHours: reportFreshness.reportAgeHours,
+    freshForPaidValidation: reportFreshness.freshForPaidValidation,
+    budgetCapValid,
+    budgetCoversPlannedCost,
+    canUseAsPrePaidAtlasBillingEvidence:
+      baseReportUsable &&
+      reportFreshness.freshForPaidValidation &&
+      budgetCapValid &&
+      budgetCoversPlannedCost,
     nextActions: nextActions.slice(0, 8)
   };
 }
@@ -506,7 +578,8 @@ function buildBudgetConstrainedSlices({ maxBudgetUsd, knownPaidEstimateUsd, long
       maxBudgetUsd,
       billingReadinessCommand:
         "npm.cmd run validation:atlas-billing -- --max-budget-usd <approved-source-video-budget-usd> --planned-cost-usd <approved-source-video-budget-usd> --output assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json --confirm-live-network",
-      command: "npm.cmd run validation:source-video-auto-analysis -- --source-video-url https://<clean-source-video.mp4> --confirm-provider-spend",
+      command:
+        "npm.cmd run validation:source-video-auto-analysis -- --source-video-url https://<clean-source-video.mp4> --confirm-provider-spend --max-cost-usd <approved-source-video-budget-usd> --atlas-billing-report assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json",
       prerequisites: [
         "clean credential-free HTTPS source video URL",
         "CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS=true",
@@ -556,7 +629,7 @@ function budgetSlice({ name, kind, estimatedCostUsd, maxBudgetUsd, billingReadin
   };
 }
 
-function buildValidationSequence({ options, businessReadiness, opsConfig, atlasBilling, environment, costPlan }) {
+function buildValidationSequence({ options, businessReadiness, opsConfig, atlasBilling, sourceVideoAtlasBilling, environment, costPlan }) {
   const deploymentReady = environment.deployment.configured && environment.deployment.valid;
   const opsReady = opsConfig.status === "pass";
   const atlasPaidReady = environment.atlas.mediaApiKeyConfigured && environment.atlas.seedanceStandardModelConfigured && environment.atlas.seedanceFastModelConfigured;
@@ -565,11 +638,15 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, atlasB
     atlasBilling.canRunAtlasSpendWithinApprovedBudget;
   const atlasBillingGateInput = "passing Atlas billing readiness within the approved validation budget";
   const atlasBillingGateNote = "Atlas billing readiness must pass with the approved budget before any paid Atlas validation is run.";
+  const sourceVideoBillingGateInput = "fresh source-video Atlas billing readiness matching the approved source-video LLM budget";
+  const sourceVideoBillingGateNote =
+    "Source-video LLM usage is usage-dependent; run validation:atlas-billing with --output assets/output_deliverables/business-readiness/atlas-billing-source-video-report.json and the exact --planned-cost-usd before adding --confirm-provider-spend.";
   const sourceVideoInputReady =
     environment.sourceVideo.cleanHttpsUrlValid &&
     environment.sourceVideo.autoAnalysisEnabled &&
     environment.sourceVideo.atlasLlmReady;
-  const sourceVideoReady = sourceVideoInputReady && atlasBillingReadyForApprovedSpend;
+  const sourceVideoReady = sourceVideoInputReady && sourceVideoAtlasBilling.canUseAsPrePaidAtlasBillingEvidence === true;
+  const sourceVideoApprovedBudgetUsd = sourceVideoAtlasBilling.reportPlannedCostUsd;
   const remoteStockReady = environment.remoteStock.enabled && environment.remoteStock.configuredProviderCount > 0;
   const generatedAudioInputReady =
     environment.generatedAudio.atlasMediaReady &&
@@ -676,17 +753,17 @@ function buildValidationSequence({ options, businessReadiness, opsConfig, atlasB
       kind: "paid_atlas_llm_and_source_fetch",
       status: sourceVideoReady ? "ready" : sourceVideoInputReady ? "blocked" : "needs_operator_input",
       command: sourceVideoReady
-        ? `npm.cmd run validation:source-video-auto-analysis -- --source-video-url "${environment.sourceVideo.safeUrlPreview}" --confirm-provider-spend`
+        ? `npm.cmd run validation:source-video-auto-analysis -- --source-video-url "${environment.sourceVideo.safeUrlPreview}" --confirm-provider-spend --max-cost-usd ${formatNumber(sourceVideoApprovedBudgetUsd)} --atlas-billing-report ${sourceVideoAtlasBilling.path}`
         : "npm.cmd run validation:source-video-auto-analysis -- --source-video-url https://<clean-source-video.mp4>",
       requiredInputs: sourceVideoReady
         ? []
         : [
             ...(sourceVideoInputReady ? [] : ["clean HTTPS source video URL", "CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS=true", "Atlas LLM key/model"]),
-            ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateInput])
+            ...(sourceVideoAtlasBilling.canUseAsPrePaidAtlasBillingEvidence ? [] : [sourceVideoBillingGateInput])
           ],
       notes: [
         "Run no-spend first without --confirm-provider-spend when checking a new source URL.",
-        ...(atlasBillingReadyForApprovedSpend ? [] : [atlasBillingGateNote])
+        ...(sourceVideoAtlasBilling.canUseAsPrePaidAtlasBillingEvidence ? [] : [sourceVideoBillingGateNote, ...sourceVideoAtlasBilling.nextActions])
       ]
     }),
     step({

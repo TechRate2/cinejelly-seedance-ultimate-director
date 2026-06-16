@@ -460,6 +460,7 @@ function evaluateSourceVideoAutoAnalysis(path) {
     report.status === "pass" &&
     report.releaseGateSummary?.canUseAsBusinessReadinessSourceVideoEvidence === true &&
     report.spendGate?.providerNetworkCallsAllowed === true &&
+    report.atlasBillingGate?.canUseAsPrePaidAtlasBillingEvidence === true &&
     report.analysisSummary?.present === true &&
     report.analysisSummary?.usableContent === true &&
     report.analysisSummary?.noInlineFrameData === true &&
@@ -469,6 +470,9 @@ function evaluateSourceVideoAutoAnalysis(path) {
   }
   if (report.status === "warn") {
     return warn("Live source-video auto-analysis evidence has warnings requiring operator acceptance.");
+  }
+  if (report.status === "pass" && report.atlasBillingGate?.canUseAsPrePaidAtlasBillingEvidence !== true) {
+    return fail("Live source-video auto-analysis evidence is missing a passing Atlas billing gate.");
   }
   const firstFailure = Array.isArray(report.checks)
     ? report.checks.find((check) => check?.status === "fail" && typeof check?.message === "string")?.message
