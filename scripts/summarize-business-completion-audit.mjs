@@ -290,17 +290,17 @@ function buildProductCodeGaps() {
       id: "distributed_active_provider_work_resume",
       label: "Distributed active provider-work resume is not fully implemented",
       category: "runtime_resilience",
-      status: "lease_service_endpoint_foundation",
-      currentCoveragePercent: 84,
+      status: "lease_service_and_idempotent_action_foundation",
+      currentCoveragePercent: 88,
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
       requiredAction:
-        "Deploy the built-in render-provider lease service on durable storage, point HTTPS external workers at it, prove multi-worker ownership handoff, and implement idempotent resume, cancel, or close behavior from persisted checkpoint/reconciliation/handoff evidence, or keep the documented single-process boundary.",
+        "Deploy the built-in render-provider lease service on durable storage, point HTTPS external workers at it, prove multi-worker ownership handoff, and connect the idempotent action ledger to live provider close/cancel/resume behavior from persisted checkpoint/reconciliation/handoff evidence, or keep the documented single-process boundary.",
       canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, HTTPS external lease heartbeat contract evidence, and a deployment-token-protected lease-service route improve post-restart auditability, but distributed/HA runtime parity still requires real deployment evidence, multi-worker evidence, idempotent worker actions, and live Atlas handoff validation."
+        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, HTTPS external lease heartbeat contract evidence, a deployment-token-protected lease-service route, and idempotent action-ledger evidence improve post-restart auditability, but distributed/HA runtime parity still requires real deployment evidence, multi-worker evidence, live provider action execution, and live Atlas handoff validation."
     },
     {
       id: "directorbench_style_benchmark_harness",

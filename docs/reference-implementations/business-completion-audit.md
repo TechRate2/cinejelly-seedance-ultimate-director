@@ -7,7 +7,7 @@ Implementation status as of 2026-06-17: implemented as a CineJelly-owned no-spen
 Operators need a single report that answers whether the remaining commercial gap is code work or external launch evidence. `validation:completion-audit` reads the existing readiness reports and produces a secret-free blocker ownership summary:
 
 - code/schema/command-plan blockers that Codex can fix in repo
-- product-code parity gaps such as first-party Web UI, full deployed durable queue-backed active provider-work resume/reconciliation/handoff, and benchmark harness coverage
+- product-code parity gaps such as first-party Web UI, full deployed durable queue-backed active provider-work resume/reconciliation/handoff with live provider action execution, and benchmark harness coverage
 - operator inputs such as deployment URL, attestations, source-video settings, and remote-stock provider choices
 - budget approval gaps such as the current full paid Atlas sequence exceeding the approved cap
 - paid-validation/manual-review gates that can only pass after a real provider run and human review
@@ -46,4 +46,4 @@ For the current local snapshot, Atlas media/LLM/model configuration is present, 
 
 That means the remaining launch blockers are not another Atlas key by themselves. They are real HTTPS deployment evidence, operator attestations, approved budget for the intended paid validation scope, source-video input/enablement, approved remote-stock provider evidence, and post-paid manual reviews.
 
-For full snapshot/product completeness, the audit also keeps separate product-code gaps visible: no first-party Web UI, no distributed active provider-work resume beyond compact stale-active recovery plus provider checkpoint/reconciliation/handoff heartbeat audit evidence, protected lease-service validation, and HTTPS external lease adapter validation, and no full DirectorBench-style benchmark harness. These gaps should not be hidden by a clean API/CLI schema result.
+For full snapshot/product completeness, the audit also keeps separate product-code gaps visible: no first-party Web UI, no distributed active provider-work resume beyond compact stale-active recovery plus provider checkpoint/reconciliation/handoff heartbeat audit evidence, protected lease-service validation, HTTPS external lease adapter validation, and idempotent action-ledger replay validation, and no full DirectorBench-style benchmark harness. These gaps should not be hidden by a clean API/CLI schema result.

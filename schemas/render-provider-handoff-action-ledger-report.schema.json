@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-handoff-action-ledger-report.schema.json",
+  "title": "CineJelly Render Provider Handoff Action Ledger Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "firstApply",
+    "secondApply",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-handoff-action-ledger-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": { "type": "array", "items": { "type": "string" } },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "leasePath", "ledgerPath", "fakeProvider", "jobCount", "providerCount"],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "leasePath": { "type": "string" },
+        "ledgerPath": { "type": "string" },
+        "fakeProvider": { "const": true },
+        "jobCount": { "type": "integer", "minimum": 1 },
+        "providerCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "firstApplyStatus",
+        "secondApplyStatus",
+        "firstRecordedActionCount",
+        "secondReplayedActionCount",
+        "persistedActionCount",
+        "canClaimDistributedResume"
+      ],
+      "properties": {
+        "firstApplyStatus": { "enum": ["pass", "warn", "fail"] },
+        "secondApplyStatus": { "enum": ["pass", "warn", "fail"] },
+        "firstRecordedActionCount": { "type": "integer", "minimum": 0 },
+        "secondReplayedActionCount": { "type": "integer", "minimum": 0 },
+        "persistedActionCount": { "type": "integer", "minimum": 0 },
+        "canClaimDistributedResume": { "const": false }
+      }
+    },
+    "firstApply": { "$ref": "#/$defs/applyResult" },
+    "secondApply": { "$ref": "#/$defs/applyResult" },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    }
+  },
+  "$defs": {
+    "applyResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "generatedAt", "status", "summary", "decisions", "releaseGateSummary"],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.render-provider-handoff-actions.v1" },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["pass", "warn", "fail"] },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "checkedJobCount",
+            "executableActionCount",
+            "recordedActionCount",
+            "replayedActionCount",
+            "skippedActionCount",
+            "persistedActionCount"
+          ],
+          "properties": {
+            "checkedJobCount": { "type": "integer", "minimum": 0 },
+            "executableActionCount": { "type": "integer", "minimum": 0 },
+            "recordedActionCount": { "type": "integer", "minimum": 0 },
+            "replayedActionCount": { "type": "integer", "minimum": 0 },
+            "skippedActionCount": { "type": "integer", "minimum": 0 },
+            "persistedActionCount": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/decision" }
+        },
+        "releaseGateSummary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["idempotentActionLedgerPass", "canClaimDistributedResume", "releaseBlocker"],
+          "properties": {
+            "idempotentActionLedgerPass": { "type": "boolean" },
+            "canClaimDistributedResume": { "const": false },
+            "releaseBlocker": { "type": "string" }
+          }
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jobId", "status", "sourceHandoffAction", "predictionIds", "message"],
+      "properties": {
+        "jobId": { "type": "string" },
+        "status": { "enum": ["recorded", "replayed", "skipped"] },
+        "action": {
+          "enum": [
+            "resume_polling",
+            "close_terminal_succeeded",
+            "close_terminal_failed",
+            "close_terminal_canceled",
+            "close_terminal_timeout",
+            "close_terminal_mixed",
+            "manual_audit_required"
+          ]
+        },
+        "sourceHandoffAction": {
+          "enum": [
+            "skip_no_checkpoint",
+            "skip_no_active_provider_work",
+            "lease_unavailable",
+            "continue_polling",
+            "close_terminal_succeeded",
+            "close_terminal_failed",
+            "close_terminal_canceled",
+            "close_terminal_timeout",
+            "close_terminal_mixed",
+            "manual_audit_required"
+          ]
+        },
+        "idempotencyKey": { "type": "string" },
+        "actionId": { "type": "string" },
+        "predictionIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "message": { "type": "string" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}
