@@ -1000,6 +1000,73 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Render Provider Reconciliation",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/state.py",
+      "external/upstream/moneyprinterturbo/app/controllers/manager/redis_manager.py",
+      "external/upstream/moneyprinterturbo/test/services/test_state.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "operator-visible task state can be revisited after process restart",
+      "active provider work remains tied to compact task/job evidence",
+      "provider state is refreshed explicitly before claiming active work is resolved"
+    ],
+    behaviorChanged: [
+      "CineJelly queries active prediction IDs through provider-neutral TypeScript contracts",
+      "reconciliation produces redacted evidence instead of mutating a Redis task backend",
+      "raw provider payloads, output URLs, local paths, secrets, and stack traces are excluded from reports",
+      "the report refuses to claim distributed resume without durable queue leasing"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/render-provider-reconciliation.md",
+    cineJellyDestinationPaths: [
+      "src/api/render-provider-reconciler.ts",
+      "scripts/run-render-provider-reconciliation-smoke.mjs",
+      "schemas/render-provider-reconciliation-report.schema.json",
+      "scripts/validate-report-contracts.mjs"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "live provider reconciliation still needs operator-approved Atlas prediction evidence",
+      "automatic resume/cancel/close behavior requires durable queue leases and ownership handoff"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Render Provider Reconciliation",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "status refresh produces deterministic report evidence",
+      "release-facing reports distinguish pass, warning, and failure states",
+      "provider evidence stays bounded and redacted"
+    ],
+    behaviorChanged: [
+      "VibeFrame status-report discipline is rewritten into CineJelly provider reconciliation contracts",
+      "still-active predictions produce warnings rather than release approval",
+      "distributed resume remains an explicit future worker concern"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/render-provider-reconciliation.md",
+    cineJellyDestinationPaths: [
+      "src/api/render-provider-reconciler.ts",
+      "scripts/run-render-provider-reconciliation-smoke.mjs",
+      "schemas/render-provider-reconciliation-report.schema.json"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "operator tooling must not treat a no-spend fake-provider smoke as live Atlas reconciliation evidence",
+      "future live scripts must preserve the same redaction boundary"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Source Video Auto Analysis Adapter",
     sourceRepository: "HKUDS/VideoAgent",
     snapshotPath: "external/upstream/videoagent",

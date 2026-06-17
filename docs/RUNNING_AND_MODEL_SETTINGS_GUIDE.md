@@ -431,7 +431,7 @@ flowchart TD
 | `vericontext/vibeframe` | Validate-before-spend, cost gates, deterministic artifacts, review reports, repair loop discipline. |
 | `HKUDS/VideoAgent` | Source-video analysis boundaries and metadata flow. Full VideoRAG/tool graph is not implemented. |
 | `calesthio/OpenMontage` | Approval/self-review/source-media concepts only as AGPL-aware behavior notes. No direct production import. |
-| `harry0703/MoneyPrinterTurbo` | One-input pipeline, material sourcing, task progress, compact job history with stale-active recovery and provider checkpoint evidence, batch evidence, subtitles/audio planning. Full WebUI and distributed active-job resume are not implemented. |
+| `harry0703/MoneyPrinterTurbo` | One-input pipeline, material sourcing, task progress, compact job history with stale-active recovery plus provider checkpoint/reconciliation evidence, batch evidence, subtitles/audio planning. Full WebUI and distributed active-job resume are not implemented. |
 | `DirectorBench` | Planning/evaluation influence only until license status is clarified. |
 
 ## Important Documents
@@ -470,7 +470,7 @@ Pass the configured `CINEJELLY_API_AUTH_TOKEN`, or a configured client API key f
 
 Use `/v1/render-jobs` instead of synchronous `/v1/render`.
 
-For production operators, set `CINEJELLY_API_JOB_HISTORY_PATH` to an ignored durable JSON path such as `ops/runtime/render-job-history.json`. This preserves compact job summaries and bounded provider checkpoint evidence across API restarts without storing raw render requests, local artifact paths, provider payloads, or secrets. Active queued/running provider work is still process-local; after an unplanned restart, stale active snapshots restore as canceled/audit-required instead of silently disappearing, with prediction IDs/status evidence available for manual audit when provider ledger entries had already been recorded.
+For production operators, set `CINEJELLY_API_JOB_HISTORY_PATH` to an ignored durable JSON path such as `ops/runtime/render-job-history.json`. This preserves compact job summaries and bounded provider checkpoint evidence across API restarts without storing raw render requests, local artifact paths, provider payloads, or secrets. Active queued/running provider work is still process-local; after an unplanned restart, stale active snapshots restore as canceled/audit-required instead of silently disappearing, with prediction IDs/status evidence available for manual audit when provider ledger entries had already been recorded. `npm.cmd run validation:provider-reconciliation` validates the redacted provider-state reconciliation foundation locally with a fake provider; live use still needs an explicit operator-run provider adapter path and durable queue leasing before distributed resume can be claimed.
 
 ## Current Readiness Rule
 

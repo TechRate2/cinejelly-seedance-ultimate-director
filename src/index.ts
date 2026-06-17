@@ -13,6 +13,7 @@ export * from "./api/http-lifecycle.js";
 export * from "./api/media-type.js";
 export * from "./api/render-job-history-store.js";
 export * from "./api/render-job-manager.js";
+export * from "./api/render-provider-reconciler.js";
 export * from "./api/render-request-admission.js";
 export * from "./api/request-context.js";
 export * from "./api/server.js";

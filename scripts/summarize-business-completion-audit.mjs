@@ -290,17 +290,17 @@ function buildProductCodeGaps() {
       id: "distributed_active_provider_work_resume",
       label: "Distributed active provider-work resume is not fully implemented",
       category: "runtime_resilience",
-      status: "provider_checkpoint_summary_only",
-      currentCoveragePercent: 45,
+      status: "provider_state_reconciliation_foundation",
+      currentCoveragePercent: 58,
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
       requiredAction:
-        "Add a durable queue/provider-state reconciliation backend that can query/resume active provider work from the persisted checkpoint summary, or keep the documented single-process boundary with stale active jobs restored as canceled/audit-required.",
+        "Add durable queue leasing plus an automatic provider-state handoff worker that can resume, cancel, or close active provider work from persisted checkpoint/reconciliation evidence, or keep the documented single-process boundary.",
       canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "Provider prediction checkpoints improve post-restart auditability, but distributed/HA runtime parity still requires an external queue and provider reconciliation worker."
+        "Provider prediction checkpoints and a reusable reconciliation report improve post-restart auditability, but distributed/HA runtime parity still requires durable queue leasing and automatic provider handoff behavior."
     },
     {
       id: "directorbench_style_benchmark_harness",
