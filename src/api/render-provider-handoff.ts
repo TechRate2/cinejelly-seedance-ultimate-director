@@ -25,6 +25,7 @@ const MAX_LEASE_TTL_MS = 86_400_000;
 const MAX_ID_LENGTH = 200;
 
 export type RenderProviderLeaseAcquireStatus = "acquired" | "renewed" | "held_by_other";
+export type RenderProviderLeaseHeartbeatStatus = "recorded" | "lease_not_found" | "not_owner";
 export type RenderProviderHandoffAction =
   | "skip_no_checkpoint"
   | "skip_no_active_provider_work"
@@ -55,6 +56,13 @@ export interface RenderProviderLeaseAcquireResult {
   };
 }
 
+export interface RenderProviderLeaseHeartbeatResult {
+  readonly status: RenderProviderLeaseHeartbeatStatus;
+  readonly lease?: RenderProviderHandoffLeaseRecord;
+  readonly heartbeatAt?: Date;
+  readonly expiresAt?: Date;
+}
+
 export interface RenderProviderHandoffLeaseStore {
   acquireLease(input: {
     readonly jobId: string;
@@ -68,6 +76,13 @@ export interface RenderProviderHandoffLeaseStore {
     readonly leaseId?: string;
     readonly now?: Date;
   }): Promise<boolean>;
+  heartbeatLease(input: {
+    readonly jobId: string;
+    readonly ownerId: string;
+    readonly leaseId: string;
+    readonly ttlMs: number;
+    readonly now?: Date;
+  }): Promise<RenderProviderLeaseHeartbeatResult>;
   listLeases(): Promise<readonly RenderProviderHandoffLeaseRecord[]>;
   listActiveLeases(now?: Date): Promise<readonly RenderProviderHandoffLeaseRecord[]>;
 }
@@ -77,9 +92,12 @@ export interface RenderProviderHandoffJob {
   readonly status: "pass" | "warn" | "fail" | "skipped";
   readonly action: RenderProviderHandoffAction;
   readonly leaseStatus?: RenderProviderLeaseAcquireStatus | "not_required";
+  readonly leaseHeartbeatStatus?: RenderProviderLeaseHeartbeatStatus | "not_required";
   readonly leaseId?: string;
   readonly leaseExpiresAt?: Date;
+  readonly leaseHeartbeatAt?: Date;
   readonly leaseRetained: boolean;
+  readonly leaseReleased: boolean;
   readonly activePredictionIds: readonly string[];
   readonly terminalPredictionIds: readonly string[];
   readonly reconciliationDecision?: RenderProviderJobReconciliation["decision"];
@@ -96,6 +114,7 @@ export interface RenderProviderHandoffReport {
     readonly leaseUnavailableCount: number;
     readonly retainedLeaseCount: number;
     readonly releasedLeaseCount: number;
+    readonly heartbeatRecordedCount: number;
     readonly terminalCloseCount: number;
     readonly stillActiveCount: number;
     readonly manualAuditCount: number;
@@ -199,6 +218,46 @@ export class FileRenderProviderHandoffLeaseStore implements RenderProviderHandof
         : item
     ));
     return true;
+  }
+
+  public async heartbeatLease(input: {
+    readonly jobId: string;
+    readonly ownerId: string;
+    readonly leaseId: string;
+    readonly ttlMs: number;
+    readonly now?: Date;
+  }): Promise<RenderProviderLeaseHeartbeatResult> {
+    const jobId = this.safeId(input.jobId, "jobId");
+    const ownerId = this.safeId(input.ownerId, "ownerId");
+    const leaseId = this.safeId(input.leaseId, "leaseId");
+    const ttlMs = this.safeTtl(input.ttlMs);
+    const now = input.now ?? new Date();
+    const records = await this.readRecords();
+    const active = this.activeLeaseFor(records, jobId, now);
+    if (!active || active.leaseId !== leaseId) {
+      return {
+        status: active && active.ownerId !== ownerId ? "not_owner" : "lease_not_found",
+        ...(active ? { expiresAt: active.expiresAt } : {})
+      };
+    }
+    if (active.ownerId !== ownerId) {
+      return {
+        status: "not_owner",
+        expiresAt: active.expiresAt
+      };
+    }
+    const renewed = {
+      ...active,
+      renewedAt: now,
+      expiresAt: new Date(now.getTime() + ttlMs)
+    };
+    await this.writeRecords(records.map((item) => item.leaseId === active.leaseId ? renewed : item));
+    return {
+      status: "recorded",
+      lease: renewed,
+      heartbeatAt: now,
+      expiresAt: renewed.expiresAt
+    };
   }
 
   public async listLeases(): Promise<readonly RenderProviderHandoffLeaseRecord[]> {
@@ -396,8 +455,10 @@ export class RenderProviderHandoffCoordinator {
         status: "warn",
         action: "lease_unavailable",
         leaseStatus: "held_by_other",
+        leaseHeartbeatStatus: "not_required",
         ...(lease.heldBy ? { leaseExpiresAt: lease.heldBy.expiresAt } : {}),
         leaseRetained: false,
+        leaseReleased: false,
         activePredictionIds: job.activePredictionIds,
         terminalPredictionIds: job.terminalPredictionIds,
         reconciliationDecision: job.decision,
@@ -407,6 +468,32 @@ export class RenderProviderHandoffCoordinator {
 
     const decision = this.actionFor(job);
     const retainLease = decision === "continue_polling";
+    let heartbeat: RenderProviderLeaseHeartbeatResult | undefined;
+    if (retainLease && lease.lease) {
+      heartbeat = await this.leaseStore.heartbeatLease({
+        jobId: job.jobId,
+        ownerId: this.ownerId,
+        leaseId: lease.lease.leaseId,
+        ttlMs: this.leaseTtlMs
+      });
+      if (heartbeat.status !== "recorded") {
+        return {
+          jobId: job.jobId,
+          status: "fail",
+          action: "manual_audit_required",
+          leaseStatus: lease.status,
+          leaseHeartbeatStatus: heartbeat.status,
+          leaseId: lease.lease.leaseId,
+          leaseExpiresAt: heartbeat.expiresAt ?? lease.lease.expiresAt,
+          leaseRetained: false,
+          leaseReleased: false,
+          activePredictionIds: job.activePredictionIds,
+          terminalPredictionIds: job.terminalPredictionIds,
+          reconciliationDecision: job.decision,
+          predictionStatuses: job.predictions
+        };
+      }
+    }
     if (!retainLease && lease.lease) {
       const released = await this.leaseStore.releaseLease({
         jobId: job.jobId,
@@ -419,9 +506,11 @@ export class RenderProviderHandoffCoordinator {
           status: "fail",
           action: "manual_audit_required",
           leaseStatus: lease.status,
+          leaseHeartbeatStatus: "not_required",
           leaseId: lease.lease.leaseId,
           leaseExpiresAt: lease.lease.expiresAt,
           leaseRetained: false,
+          leaseReleased: false,
           activePredictionIds: job.activePredictionIds,
           terminalPredictionIds: job.terminalPredictionIds,
           reconciliationDecision: job.decision,
@@ -434,8 +523,14 @@ export class RenderProviderHandoffCoordinator {
       status: this.handoffStatus(job, decision),
       action: decision,
       leaseStatus: lease.status,
-      ...(lease.lease ? { leaseId: lease.lease.leaseId, leaseExpiresAt: lease.lease.expiresAt } : {}),
+      leaseHeartbeatStatus: heartbeat?.status ?? "not_required",
+      ...(lease.lease ? {
+        leaseId: lease.lease.leaseId,
+        leaseExpiresAt: heartbeat?.expiresAt ?? lease.lease.expiresAt
+      } : {}),
+      ...(heartbeat?.heartbeatAt ? { leaseHeartbeatAt: heartbeat.heartbeatAt } : {}),
       leaseRetained: retainLease && Boolean(lease.lease),
+      leaseReleased: !retainLease && Boolean(lease.lease),
       activePredictionIds: job.activePredictionIds,
       terminalPredictionIds: job.terminalPredictionIds,
       reconciliationDecision: job.decision,
@@ -453,7 +548,9 @@ export class RenderProviderHandoffCoordinator {
       status,
       action,
       leaseStatus: "not_required",
+      leaseHeartbeatStatus: "not_required",
       leaseRetained: false,
+      leaseReleased: false,
       activePredictionIds: job.activePredictionIds,
       terminalPredictionIds: job.terminalPredictionIds,
       reconciliationDecision: job.decision,
@@ -506,12 +603,8 @@ export class RenderProviderHandoffCoordinator {
       leasedJobCount: jobs.filter((job) => job.leaseStatus === "acquired" || job.leaseStatus === "renewed").length,
       leaseUnavailableCount: jobs.filter((job) => job.action === "lease_unavailable").length,
       retainedLeaseCount: jobs.filter((job) => job.leaseRetained).length,
-      releasedLeaseCount: jobs.filter((job) =>
-        job.leaseStatus !== undefined &&
-        job.leaseStatus !== "not_required" &&
-        job.leaseStatus !== "held_by_other" &&
-        !job.leaseRetained
-      ).length,
+      releasedLeaseCount: jobs.filter((job) => job.leaseReleased).length,
+      heartbeatRecordedCount: jobs.filter((job) => job.leaseHeartbeatStatus === "recorded").length,
       terminalCloseCount: jobs.filter((job) => job.action.startsWith("close_terminal_")).length,
       stillActiveCount: jobs.filter((job) => job.action === "continue_polling").length,
       manualAuditCount: jobs.filter((job) => job.action === "manual_audit_required").length,

@@ -103,13 +103,17 @@ const checks = [
   check("warns_for_active_or_held_work", handoff.status === "warn"),
   check("external_acquire_calls_used", fakeService.requests.filter((item) => item.path.endsWith("/acquire")).length === 3),
   check("external_release_called_for_terminal", fakeService.requests.some((item) => item.path.endsWith("/release") && item.jobId.endsWith("301"))),
+  check("external_heartbeat_called_for_active", fakeService.requests.some((item) => item.path.endsWith("/heartbeat") && item.jobId.endsWith("302"))),
   check("external_bearer_header_sent", fakeService.requests.every((item) => item.hasBearerAuth)),
-  check("terminal_job_released", terminalJob?.action === "close_terminal_succeeded" && terminalJob.leaseRetained === false),
-  check("active_job_retains_external_lease", activeJob?.action === "continue_polling" && activeJob.leaseRetained === true),
+  check("terminal_job_released", terminalJob?.action === "close_terminal_succeeded" && terminalJob.leaseRetained === false && terminalJob.leaseReleased === true),
+  check("active_job_retains_external_lease", activeJob?.action === "continue_polling" && activeJob.leaseRetained === true && activeJob.leaseReleased === false),
+  check("active_job_external_heartbeat_recorded", activeJob?.leaseHeartbeatStatus === "recorded" && Boolean(activeJob.leaseHeartbeatAt)),
+  check("external_heartbeat_count_recorded", handoff.summary.heartbeatRecordedCount === 1),
   check("held_job_not_stolen", heldJob?.action === "lease_unavailable" && heldJob.leaseStatus === "held_by_other"),
   check("missing_checkpoint_skipped", skippedJob?.action === "skip_no_checkpoint"),
   check("external_list_leases_available", externalLeases.some((lease) => lease.jobId.endsWith("302"))),
   check("external_active_lease_available", activeExternalLeases.some((lease) => lease.jobId.endsWith("302"))),
+  check("external_active_lease_renewed", activeExternalLeases.some((lease) => lease.jobId.endsWith("302") && lease.renewedAt instanceof Date)),
   check("unsafe_base_url_rejected", unsafeBaseRejected),
   check("does_not_claim_distributed_resume", handoff.releaseGateSummary.canClaimDistributedResume === false),
   check("external_owner_id_not_serialized", !publicHandoffJson.includes("external_handoff_worker") && !publicHandoffJson.includes("other_external_worker")),
@@ -218,6 +222,33 @@ function createFakeExternalLeaseService() {
         active.releasedAt = now.toISOString();
       }
       return jsonResponse({ released });
+    }
+    if (method === "POST" && url.pathname.endsWith("/heartbeat")) {
+      const jobId = String(body.jobId);
+      const ownerId = String(body.ownerId);
+      const leaseId = String(body.leaseId);
+      const ttlMs = Number(body.ttlMs);
+      const now = body.now ? new Date(String(body.now)) : new Date();
+      const active = activeLeaseFor(leases, jobId, now);
+      if (!active || active.leaseId !== leaseId) {
+        return jsonResponse({
+          status: active && active.ownerId !== ownerId ? "not_owner" : "lease_not_found",
+          ...(active ? { expiresAt: active.expiresAt } : {})
+        });
+      }
+      if (active.ownerId !== ownerId) {
+        return jsonResponse({
+          status: "not_owner",
+          expiresAt: active.expiresAt
+        });
+      }
+      active.renewedAt = now.toISOString();
+      active.expiresAt = new Date(now.getTime() + ttlMs).toISOString();
+      return jsonResponse({
+        status: "recorded",
+        lease: active,
+        heartbeatAt: now.toISOString()
+      });
     }
     if (method === "GET" && url.pathname.endsWith("/leases")) {
       return jsonResponse({ leases: [...leases.values()] });

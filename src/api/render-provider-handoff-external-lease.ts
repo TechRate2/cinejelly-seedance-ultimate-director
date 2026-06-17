@@ -8,7 +8,9 @@ import type {
   RenderProviderHandoffLeaseRecord,
   RenderProviderHandoffLeaseStore,
   RenderProviderLeaseAcquireResult,
-  RenderProviderLeaseAcquireStatus
+  RenderProviderLeaseAcquireStatus,
+  RenderProviderLeaseHeartbeatResult,
+  RenderProviderLeaseHeartbeatStatus
 } from "./render-provider-handoff.js";
 
 const DEFAULT_EXTERNAL_LEASE_PATH = "v1/render-provider-handoff-leases";
@@ -77,6 +79,23 @@ export class HttpRenderProviderHandoffLeaseStore implements RenderProviderHandof
       throw new Error("External provider handoff lease release response must contain a released boolean.");
     }
     return record.released;
+  }
+
+  public async heartbeatLease(input: {
+    readonly jobId: string;
+    readonly ownerId: string;
+    readonly leaseId: string;
+    readonly ttlMs: number;
+    readonly now?: Date;
+  }): Promise<RenderProviderLeaseHeartbeatResult> {
+    const payload = await this.requestJson("heartbeat", {
+      jobId: this.safeId(input.jobId, "jobId"),
+      ownerId: this.safeId(input.ownerId, "ownerId"),
+      leaseId: this.safeId(input.leaseId, "leaseId"),
+      ttlMs: this.safeTtl(input.ttlMs),
+      ...(input.now ? { now: input.now.toISOString() } : {})
+    });
+    return this.heartbeatResult(payload);
   }
 
   public async listLeases(): Promise<readonly RenderProviderHandoffLeaseRecord[]> {
@@ -152,6 +171,24 @@ export class HttpRenderProviderHandoffLeaseStore implements RenderProviderHandof
     };
   }
 
+  private heartbeatResult(value: unknown): RenderProviderLeaseHeartbeatResult {
+    const record = this.record(value, "heartbeat response");
+    const status = this.heartbeatStatus(record.status);
+    if (status !== "recorded") {
+      return {
+        status,
+        ...(record.expiresAt !== undefined ? { expiresAt: this.date(record.expiresAt, "heartbeat response expiresAt") } : {})
+      };
+    }
+    const lease = this.leaseRecord(record.lease, "heartbeat response lease");
+    return {
+      status,
+      lease,
+      heartbeatAt: this.date(record.heartbeatAt, "heartbeat response heartbeatAt"),
+      expiresAt: lease.expiresAt
+    };
+  }
+
   private leaseList(value: unknown, label: string): readonly RenderProviderHandoffLeaseRecord[] {
     const record = this.record(value, label);
     if (!Array.isArray(record.leases)) {
@@ -185,6 +222,13 @@ export class HttpRenderProviderHandoffLeaseStore implements RenderProviderHandof
       return value;
     }
     throw new Error("External provider handoff lease acquire response contained an invalid status.");
+  }
+
+  private heartbeatStatus(value: unknown): RenderProviderLeaseHeartbeatStatus {
+    if (value === "recorded" || value === "lease_not_found" || value === "not_owner") {
+      return value;
+    }
+    throw new Error("External provider handoff lease heartbeat response contained an invalid status.");
   }
 
   private safeBaseUrl(value: string): URL {

@@ -1080,14 +1080,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "long-running task ownership remains externally visible before a worker changes task state",
       "an active task lease should not be stolen from another worker",
-      "terminal provider work can be closed while still-active provider work remains leased for polling",
+      "terminal provider work can be closed while still-active provider work heartbeat-renews a retained lease for polling",
       "state evidence is durable enough to survive the local smoke process reload",
       "queue/state backend concerns stay behind an adapter contract"
     ],
     behaviorChanged: [
       "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
       "local JSON and HTTPS lease-store adapters replace direct Redis coupling in the production TypeScript boundary",
-      "the HTTPS adapter validates a bearer-auth external lease-service contract without claiming a deployed durable backend",
+      "the HTTPS adapter validates bearer-auth external lease-service acquire, release, heartbeat, list, and active contracts without claiming a deployed durable backend",
       "handoff reports expose redacted lease/action evidence and refuse to claim distributed resume parity",
       "raw provider payloads, output URLs, hostnames, worker owner IDs, local paths, bearer tokens, and secrets are excluded from public reports"
     ],
@@ -1102,7 +1102,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "production parity still requires a deployed external lease backend and multi-worker deployment evidence",
+      "production parity still requires a deployed external lease backend, idempotent worker actions, and multi-worker deployment evidence",
       "live Atlas prediction IDs must be validated before using handoff output as paid-provider closeout evidence",
       "automatic graph resume/cancel/close behavior is intentionally not claimed by the adapter foundation"
     ],
@@ -1120,12 +1120,12 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "status refresh happens before release-facing handoff decisions",
       "still-active provider work remains warning evidence rather than release approval",
-      "operator reports distinguish terminal closeout, continued polling, skipped work, and manual audit states"
+      "operator reports distinguish terminal closeout, continued polling with heartbeat, skipped work, and manual audit states"
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten into CineJelly provider handoff contracts",
-      "local and HTTPS-adapted lease decisions wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
-      "distributed resume remains blocked until a deployed external lease service and live worker ownership handoff are proven"
+      "local and HTTPS-adapted lease decisions plus heartbeat renewal wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
+      "distributed resume remains blocked until a deployed external lease service and live multi-worker ownership handoff are proven"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",
     cineJellyDestinationPaths: [

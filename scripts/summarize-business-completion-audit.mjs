@@ -290,17 +290,17 @@ function buildProductCodeGaps() {
       id: "distributed_active_provider_work_resume",
       label: "Distributed active provider-work resume is not fully implemented",
       category: "runtime_resilience",
-      status: "external_lease_adapter_foundation",
-      currentCoveragePercent: 74,
+      status: "external_lease_heartbeat_foundation",
+      currentCoveragePercent: 80,
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
       requiredAction:
-        "Connect the HTTPS external lease adapter to a deployed durable lease service, add worker heartbeat/ownership handoff, and implement idempotent resume, cancel, or close behavior from persisted checkpoint/reconciliation/handoff evidence, or keep the documented single-process boundary.",
+        "Connect the HTTPS external lease and heartbeat adapter to a deployed durable lease service, prove multi-worker ownership handoff, and implement idempotent resume, cancel, or close behavior from persisted checkpoint/reconciliation/handoff evidence, or keep the documented single-process boundary.",
       canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, and an HTTPS external lease adapter contract improve post-restart auditability, but distributed/HA runtime parity still requires a deployed lease service, multi-worker evidence, worker heartbeat, and live Atlas handoff validation."
+        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, and HTTPS external lease heartbeat contract evidence improve post-restart auditability, but distributed/HA runtime parity still requires a deployed lease service, multi-worker evidence, idempotent worker actions, and live Atlas handoff validation."
     },
     {
       id: "directorbench_style_benchmark_harness",

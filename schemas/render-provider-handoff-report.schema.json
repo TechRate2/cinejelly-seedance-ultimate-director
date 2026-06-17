@@ -33,6 +33,7 @@
         "leaseUnavailableCount",
         "retainedLeaseCount",
         "releasedLeaseCount",
+        "heartbeatRecordedCount",
         "terminalCloseCount",
         "stillActiveCount",
         "manualAuditCount",
@@ -44,6 +45,7 @@
         "leaseUnavailableCount": { "type": "integer", "minimum": 0 },
         "retainedLeaseCount": { "type": "integer", "minimum": 0 },
         "releasedLeaseCount": { "type": "integer", "minimum": 0 },
+        "heartbeatRecordedCount": { "type": "integer", "minimum": 0 },
         "terminalCloseCount": { "type": "integer", "minimum": 0 },
         "stillActiveCount": { "type": "integer", "minimum": 0 },
         "manualAuditCount": { "type": "integer", "minimum": 0 },
@@ -82,6 +84,7 @@
           "status",
           "action",
           "leaseRetained",
+          "leaseReleased",
           "activePredictionIds",
           "terminalPredictionIds",
           "predictionStatuses"
@@ -104,9 +107,12 @@
             ]
           },
           "leaseStatus": { "enum": ["acquired", "renewed", "held_by_other", "not_required"] },
+          "leaseHeartbeatStatus": { "enum": ["recorded", "lease_not_found", "not_owner", "not_required"] },
           "leaseId": { "type": "string" },
           "leaseExpiresAt": { "type": "string", "format": "date-time" },
+          "leaseHeartbeatAt": { "type": "string", "format": "date-time" },
           "leaseRetained": { "type": "boolean" },
+          "leaseReleased": { "type": "boolean" },
           "activePredictionIds": { "type": "array", "items": { "type": "string" } },
           "terminalPredictionIds": { "type": "array", "items": { "type": "string" } },
           "reconciliationDecision": {
