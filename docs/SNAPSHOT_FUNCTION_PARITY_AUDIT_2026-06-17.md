@@ -62,6 +62,7 @@ This audit does not claim new paid Atlas evidence, live source-video evidence, l
 - Local release hygiene and report-contract validation commands.
 - A previous short paid Atlas text-to-video evidence run for Phase 6 smoke validation.
 - Business-readiness audit that intentionally remains blocked until real launch evidence exists.
+- Business-completion audit that separates API/CLI schema blockers from product-code gaps and reports `canClaimFullSnapshotParity=false` while Web UI, distributed active provider-work resume, or benchmark harness gaps remain.
 - No first-party web UI.
 - No claim of 100% parity with any upstream snapshot.
 

@@ -7,6 +7,7 @@ Implementation status as of 2026-06-17: implemented as a CineJelly-owned no-spen
 Operators need a single report that answers whether the remaining commercial gap is code work or external launch evidence. `validation:completion-audit` reads the existing readiness reports and produces a secret-free blocker ownership summary:
 
 - code/schema/command-plan blockers that Codex can fix in repo
+- product-code parity gaps such as first-party Web UI, distributed active provider-work resume, and benchmark harness coverage
 - operator inputs such as deployment URL, attestations, source-video settings, and remote-stock provider choices
 - budget approval gaps such as the current full paid Atlas sequence exceeding the approved cap
 - paid-validation/manual-review gates that can only pass after a real provider run and human review
@@ -33,13 +34,16 @@ The report is valid when:
 1. `schemaVersion` is `cinejelly.business-completion-audit.v1`.
 2. `noSpend=true`, `networkCallsMade=false`, and `providerCallsMade=false`.
 3. `readinessSnapshot` records current business-readiness completion, report statuses, Atlas key/model booleans, budget fit, and ready paid gates.
-4. `codeWorkSummary` separates code/schema/command-plan blockers from external/operator blockers.
-5. `blockers` assigns every remaining non-configured commercial input to an owner and category.
-6. `releaseGateSummary.canReleaseToCustomerTraffic` mirrors the real business-readiness gate rather than the completion audit's own status.
-7. `validation:report-contracts` validates `schemas/business-completion-audit-report.schema.json` against the generated report.
+4. `codeWorkSummary` separates code/schema/command-plan blockers from external/operator blockers and reports product-code gaps separately from API/CLI commercial gates.
+5. `productCodeGaps` lists known parity blockers that prevent a 100% upstream/product-completeness claim even when schema/command-plan contracts are passing.
+6. `blockers` assigns every remaining non-configured commercial input to an owner and category.
+7. `releaseGateSummary.canReleaseToCustomerTraffic` mirrors the real business-readiness gate rather than the completion audit's own status, while `canClaimFullSnapshotParity=false` remains true until product-code gaps are closed or explicitly scoped out.
+8. `validation:report-contracts` validates `schemas/business-completion-audit-report.schema.json` against the generated report.
 
 ## Current Interpretation
 
 For the current local snapshot, Atlas media/LLM/model configuration is present, and the generated-audio paid slice is the only narrow Atlas paid validation within the `$5` cap. The full known paid sequence remains over budget because the 120 second long-form render estimate is about `$24`, excluding source-video LLM usage, remote stock usage, hosting, and manual review time.
 
 That means the remaining launch blockers are not another Atlas key by themselves. They are real HTTPS deployment evidence, operator attestations, approved budget for the intended paid validation scope, source-video input/enablement, approved remote-stock provider evidence, and post-paid manual reviews.
+
+For full snapshot/product completeness, the audit also keeps separate product-code gaps visible: no first-party Web UI, no distributed active provider-work resume beyond compact stale-active recovery, and no full DirectorBench-style benchmark harness. These gaps should not be hidden by a clean API/CLI schema result.

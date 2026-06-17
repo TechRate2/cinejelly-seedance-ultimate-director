@@ -106,8 +106,9 @@ function main() {
     reportContracts: summarizeReport(options.reportContractsPath)
   };
   const blockers = buildBlockers(reports);
+  const productCodeGaps = buildProductCodeGaps();
   const readinessSnapshot = buildReadinessSnapshot(reports);
-  const codeWorkSummary = buildCodeWorkSummary(reports, blockers);
+  const codeWorkSummary = buildCodeWorkSummary(reports, blockers, productCodeGaps);
   const status = statusFor({ reports, blockers, codeWorkSummary });
   const report = {
     schemaVersion: "cinejelly.business-completion-audit.v1",
@@ -128,6 +129,7 @@ function main() {
     sourceReports: summarizeSourceReports(reports),
     readinessSnapshot,
     codeWorkSummary,
+    productCodeGaps,
     blockerSummary: summarizeBlockers(blockers),
     blockers,
     releaseGateSummary: buildReleaseGateSummary({ reports, readinessSnapshot, codeWorkSummary, blockers }),
@@ -239,9 +241,10 @@ function buildReadinessSnapshot(reports) {
   };
 }
 
-function buildCodeWorkSummary(reports, blockers) {
+function buildCodeWorkSummary(reports, blockers, productCodeGaps) {
   const commercial = reports.commercialInputs.value;
   const codeBlockingIssues = blockers.filter((item) => item.owner === "codebase");
+  const blocksApiCliCommercialLaunch = productCodeGaps.some((item) => item.blocksApiCliCommercialLaunch === true);
   return {
     reportContractsPass: reports.reportContracts.status === "pass",
     releaseAuditReady: reports.releaseAudit.status === "release_ready",
@@ -252,11 +255,70 @@ function buildCodeWorkSummary(reports, blockers) {
       commercial?.atlasConfigurationSummary?.readiness?.llmReady === true &&
       commercial?.atlasConfigurationSummary?.readiness?.seedanceVideoReady === true,
     knownCodeBlockingIssueCount: codeBlockingIssues.length,
+    knownProductCodeGapCount: productCodeGaps.length,
+    automatableProductCodeGapCount: productCodeGaps.filter((item) => item.canAutomateNow === true).length,
+    blocksFullSnapshotParity: productCodeGaps.some((item) => item.blocksFullSnapshotParity === true),
+    blocksApiCliCommercialLaunch,
     message:
       codeBlockingIssues.length === 0
-        ? "No current code/schema/command-plan blocker is known from the local reports; remaining blockers require operator input, external live evidence, budget, paid validation, or manual review."
+        ? productCodeGaps.length === 0
+          ? "No current code/schema/command-plan blocker is known from the local reports; remaining blockers require operator input, external live evidence, budget, paid validation, or manual review."
+          : "No current schema/command-plan blocker is known from the local reports, but product-code gaps still block any 100% upstream-parity claim."
         : `Code-side blockers remain: ${codeBlockingIssues.map((item) => item.id).join(", ")}.`
   };
+}
+
+function buildProductCodeGaps() {
+  return [
+    {
+      id: "first_party_web_ui",
+      label: "First-party web UI is not implemented",
+      category: "operator_surface",
+      status: "not_implemented",
+      currentCoveragePercent: 0,
+      sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
+      sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo"],
+      requiredAction:
+        "Build and validate a first-party customer/operator UI, or explicitly scope the commercial offer as API/CLI-only before claiming launch completeness.",
+      canAutomateNow: false,
+      blocksApiCliCommercialLaunch: false,
+      blocksFullSnapshotParity: true,
+      releaseImpact:
+        "Blocks 100% source-parity/product-completeness claims; API/CLI-only customer traffic still depends on business-readiness evidence."
+    },
+    {
+      id: "distributed_active_provider_work_resume",
+      label: "Distributed active provider-work resume is not implemented",
+      category: "runtime_resilience",
+      status: "partial_compact_history_only",
+      currentCoveragePercent: 35,
+      sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
+      sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
+      requiredAction:
+        "Add a durable queue/provider-state reconciliation backend, or keep the documented single-process boundary with stale active jobs restored as canceled/audit-required.",
+      canAutomateNow: true,
+      blocksApiCliCommercialLaunch: false,
+      blocksFullSnapshotParity: true,
+      releaseImpact:
+        "Does not block the current API/CLI evidence gate when operators accept the single-process boundary, but blocks distributed/HA runtime parity claims."
+    },
+    {
+      id: "directorbench_style_benchmark_harness",
+      label: "DirectorBench-style benchmark harness is not implemented",
+      category: "evaluation_harness",
+      status: "planning_influence_only",
+      currentCoveragePercent: 25,
+      sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
+      sourcePatternOrigins: ["jiaminchen-1031/DirectorBench"],
+      requiredAction:
+        "Create a CineJelly-owned benchmark harness for script, visual, audio, cross-modal, stability, transition, and quality checkpoints after license/permission review.",
+      canAutomateNow: false,
+      blocksApiCliCommercialLaunch: false,
+      blocksFullSnapshotParity: true,
+      releaseImpact:
+        "Blocks DirectorBench parity claims; commercial launch still requires artifact/manual-review evidence through existing gates."
+    }
+  ];
 }
 
 function buildBlockers(reports) {
@@ -413,6 +475,7 @@ function summarizeBlockers(blockers) {
 
 function buildReleaseGateSummary({ reports, readinessSnapshot, codeWorkSummary, blockers }) {
   const externalBlockers = blockers.filter((item) => item.owner !== "codebase");
+  const canClaimFullSnapshotParity = codeWorkSummary.blocksFullSnapshotParity !== true;
   const releaseBlocker =
     readinessSnapshot.canReleaseToCustomerTraffic === true
       ? "Business-readiness gate allows customer traffic."
@@ -427,6 +490,8 @@ function buildReleaseGateSummary({ reports, readinessSnapshot, codeWorkSummary, 
     canRunLiveNetworkEvidence: reports.commercialInputs.value?.releaseGateSummary?.canRunLiveNetworkEvidence === true,
     canRunGeneratedAudioPaidSlice: readinessSnapshot.canRunGeneratedAudioPaidSlice,
     canRunFullKnownPaidSequence: readinessSnapshot.canRunFullKnownPaidSequence,
+    canClaimFullSnapshotParity,
+    productCodeGapCount: codeWorkSummary.knownProductCodeGapCount,
     readyPaidGates: readinessSnapshot.readyPaidGates,
     readyPaidGateCount: readinessSnapshot.readyPaidGateCount,
     shouldDeferFullSequenceSpend: readinessSnapshot.shouldDeferFullSequenceSpend,
@@ -447,6 +512,9 @@ function buildNextActions({ reports, readinessSnapshot, codeWorkSummary, blocker
     actions.push("No additional Atlas key is required by the current local reports; keep values in ignored .env and rotate them before production launch.");
   } else {
     actions.push("Complete Atlas media/LLM key and model configuration, then rerun validation:live-inputs and validation:commercial-inputs.");
+  }
+  if (codeWorkSummary.knownProductCodeGapCount > 0) {
+    actions.push("Do not claim 100% upstream parity until the product-code gaps in productCodeGaps are implemented, explicitly scoped out, or verified by their own evidence gates.");
   }
   for (const item of blockers.filter((blockerItem) => blockerItem.owner !== "codebase")) {
     actions.push(`${item.label}: ${item.requiredAction}`);
@@ -480,6 +548,7 @@ function statusFor({ reports, blockers, codeWorkSummary }) {
 function renderMarkdown(report) {
   const codeBlockers = report.blockers.filter((item) => item.owner === "codebase");
   const externalBlockers = report.blockers.filter((item) => item.owner !== "codebase");
+  const productCodeGaps = report.productCodeGaps ?? [];
   return [
     "# CineJelly Business Completion Audit",
     "",
@@ -505,7 +574,13 @@ function renderMarkdown(report) {
     `- Release audit ready: ${report.codeWorkSummary.releaseAuditReady}`,
     `- Commercial command plan pass: ${report.codeWorkSummary.commercialCommandPlanPass}`,
     `- Known code blockers: ${report.codeWorkSummary.knownCodeBlockingIssueCount}`,
+    `- Product-code gaps: ${report.codeWorkSummary.knownProductCodeGapCount}`,
+    `- Blocks full snapshot parity: ${report.codeWorkSummary.blocksFullSnapshotParity}`,
     `- ${report.codeWorkSummary.message}`,
+    "",
+    "## Product Code Gaps",
+    "",
+    ...markdownProductCodeGaps(productCodeGaps),
     "",
     "## Code Blockers",
     "",
@@ -520,6 +595,7 @@ function renderMarkdown(report) {
     `- canReleaseToCustomerTraffic: ${report.releaseGateSummary.canReleaseToCustomerTraffic}`,
     `- canRunGeneratedAudioPaidSlice: ${report.releaseGateSummary.canRunGeneratedAudioPaidSlice}`,
     `- canRunFullKnownPaidSequence: ${report.releaseGateSummary.canRunFullKnownPaidSequence}`,
+    `- canClaimFullSnapshotParity: ${report.releaseGateSummary.canClaimFullSnapshotParity}`,
     `- shouldDeferFullSequenceSpend: ${report.releaseGateSummary.shouldDeferFullSequenceSpend}`,
     `- ${report.releaseGateSummary.releaseBlocker}`,
     "",
@@ -528,6 +604,13 @@ function renderMarkdown(report) {
     ...report.nextActions.map((item) => `- ${item}`),
     ""
   ].join("\n");
+}
+
+function markdownProductCodeGaps(items) {
+  if (items.length === 0) {
+    return ["- None."];
+  }
+  return items.map((item) => `- ${item.label} [${item.status}; ${item.currentCoveragePercent}%]: ${item.requiredAction}`);
 }
 
 function markdownBlockers(items) {

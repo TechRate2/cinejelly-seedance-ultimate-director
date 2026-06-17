@@ -15,6 +15,7 @@
     "sourceReports",
     "readinessSnapshot",
     "codeWorkSummary",
+    "productCodeGaps",
     "blockerSummary",
     "blockers",
     "releaseGateSummary",
@@ -153,6 +154,10 @@
         "commercialCommandPlanPass",
         "atlasKeyAndModelConfigPresent",
         "knownCodeBlockingIssueCount",
+        "knownProductCodeGapCount",
+        "automatableProductCodeGapCount",
+        "blocksFullSnapshotParity",
+        "blocksApiCliCommercialLaunch",
         "message"
       ],
       "properties": {
@@ -162,7 +167,46 @@
         "commercialCommandPlanPass": { "type": "boolean" },
         "atlasKeyAndModelConfigPresent": { "type": "boolean" },
         "knownCodeBlockingIssueCount": { "type": "integer", "minimum": 0 },
+        "knownProductCodeGapCount": { "type": "integer", "minimum": 0 },
+        "automatableProductCodeGapCount": { "type": "integer", "minimum": 0 },
+        "blocksFullSnapshotParity": { "type": "boolean" },
+        "blocksApiCliCommercialLaunch": { "type": "boolean" },
         "message": { "type": "string" }
+      }
+    },
+    "productCodeGaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "category",
+          "status",
+          "currentCoveragePercent",
+          "sourceEvidence",
+          "sourcePatternOrigins",
+          "requiredAction",
+          "canAutomateNow",
+          "blocksApiCliCommercialLaunch",
+          "blocksFullSnapshotParity",
+          "releaseImpact"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "category": { "type": "string" },
+          "status": { "type": "string" },
+          "currentCoveragePercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "sourceEvidence": { "type": "string" },
+          "sourcePatternOrigins": { "type": "array", "items": { "type": "string" } },
+          "requiredAction": { "type": "string" },
+          "canAutomateNow": { "type": "boolean" },
+          "blocksApiCliCommercialLaunch": { "type": "boolean" },
+          "blocksFullSnapshotParity": { "type": "boolean" },
+          "releaseImpact": { "type": "string" }
+        }
       }
     },
     "blockerSummary": {
@@ -231,6 +275,8 @@
         "canRunLiveNetworkEvidence",
         "canRunGeneratedAudioPaidSlice",
         "canRunFullKnownPaidSequence",
+        "canClaimFullSnapshotParity",
+        "productCodeGapCount",
         "readyPaidGates",
         "readyPaidGateCount",
         "shouldDeferFullSequenceSpend",
@@ -243,6 +289,8 @@
         "canRunLiveNetworkEvidence": { "type": "boolean" },
         "canRunGeneratedAudioPaidSlice": { "type": "boolean" },
         "canRunFullKnownPaidSequence": { "type": "boolean" },
+        "canClaimFullSnapshotParity": { "type": "boolean" },
+        "productCodeGapCount": { "type": "integer", "minimum": 0 },
         "readyPaidGates": { "type": "array", "items": { "type": "string" } },
         "readyPaidGateCount": { "type": "integer", "minimum": 0 },
         "shouldDeferFullSequenceSpend": { "type": "boolean" },
