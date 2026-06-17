@@ -1087,7 +1087,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
       "local JSON and HTTPS lease-store adapters replace direct Redis coupling in the production TypeScript boundary",
-      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, and local two-worker smoke validates no-steal plus post-expiry handoff behavior without claiming production multi-worker deployment parity",
+      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, and production capture tooling can exercise the real HTTPS lease-service route without claiming distributed resume parity",
       "idempotent action-ledger records let terminal-close, resume-polling, and manual-audit intents replay by stable key without duplicating worker action records",
       "handoff reports expose redacted lease/action evidence and refuse to claim distributed resume parity",
       "raw provider payloads, output URLs, hostnames, worker owner IDs, local paths, bearer tokens, and secrets are excluded from public reports"
@@ -1104,15 +1104,17 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-render-provider-lease-service-smoke.mjs",
       "scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
       "scripts/run-render-provider-multi-worker-handoff-smoke.mjs",
+      "scripts/capture-render-provider-production-handoff.mjs",
       "schemas/render-provider-handoff-report.schema.json",
       "schemas/render-provider-lease-service-smoke-report.schema.json",
       "schemas/render-provider-handoff-action-ledger-report.schema.json",
       "schemas/render-provider-multi-worker-handoff-report.schema.json",
+      "schemas/render-provider-production-handoff-report.schema.json",
       "scripts/validate-report-contracts.mjs"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "production parity still requires live provider action execution and production multi-worker deployment evidence",
+      "production parity still requires live provider action execution and archived production multi-worker deployment evidence",
       "live Atlas prediction IDs must be validated before using handoff output as paid-provider closeout evidence",
       "automatic graph resume/cancel/close behavior is intentionally not claimed by the adapter foundation"
     ],
@@ -1134,7 +1136,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten into CineJelly provider handoff contracts",
-      "local, protected HTTP-service, HTTPS-adapted lease decisions, heartbeat renewal, and local two-worker no-steal/expiry handoff validation wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
+      "local, protected HTTP-service, HTTPS-adapted lease decisions, heartbeat renewal, local two-worker no-steal/expiry handoff validation, and production capture tooling wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
       "idempotent action-ledger evidence is added for deterministic worker replay without treating replay evidence as live provider execution",
       "distributed resume remains blocked until production multi-worker ownership handoff and live provider actions are proven"
     ],
@@ -1149,12 +1151,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-render-provider-lease-service-smoke.mjs",
       "scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
       "scripts/run-render-provider-multi-worker-handoff-smoke.mjs",
+      "scripts/capture-render-provider-production-handoff.mjs",
       "schemas/render-provider-handoff-report.schema.json",
-      "schemas/render-provider-multi-worker-handoff-report.schema.json"
+      "schemas/render-provider-multi-worker-handoff-report.schema.json",
+      "schemas/render-provider-production-handoff-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "operator tooling must not treat the fake-provider or local two-worker smoke as live Atlas handoff evidence",
+      "operator tooling must not treat fake-provider, local two-worker, or production lease-service capture evidence as live Atlas provider action evidence",
       "future worker automation must preserve the same redaction, bearer-token, and warning boundaries"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"

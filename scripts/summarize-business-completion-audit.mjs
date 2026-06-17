@@ -290,17 +290,17 @@ function buildProductCodeGaps() {
       id: "distributed_active_provider_work_resume",
       label: "Distributed active provider-work resume is not fully implemented",
       category: "runtime_resilience",
-      status: "local_multi_worker_handoff_foundation",
-      currentCoveragePercent: 91,
+      status: "production_handoff_capture_runner_ready",
+      currentCoveragePercent: 92,
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
       requiredAction:
-        "Deploy the built-in render-provider lease service on durable storage, point HTTPS external workers at it, prove production multi-worker ownership handoff, and connect the idempotent action ledger to live provider close/cancel/resume behavior from persisted checkpoint/reconciliation/handoff evidence, or keep the documented single-process boundary.",
+        "Run validation:provider-production-handoff against the real HTTPS deployment lease service, archive the production acquire/held/heartbeat/release handoff evidence, then connect the idempotent action ledger to live provider close/cancel/resume behavior from persisted checkpoint/reconciliation/handoff evidence, or keep the documented single-process boundary.",
       canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, HTTPS external lease heartbeat contract evidence, a deployment-token-protected lease-service route, idempotent action-ledger evidence, and local two-worker handoff evidence improve post-restart auditability, but distributed/HA runtime parity still requires real deployment evidence, production multi-worker evidence, live provider action execution, and live Atlas handoff validation."
+        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, HTTPS external lease heartbeat contract evidence, a deployment-token-protected lease-service route, idempotent action-ledger evidence, local two-worker handoff evidence, and a production handoff capture runner improve post-restart auditability, but distributed/HA runtime parity still requires archived real deployment evidence, production multi-worker evidence, live provider action execution, and live Atlas handoff validation."
     },
     {
       id: "directorbench_style_benchmark_harness",

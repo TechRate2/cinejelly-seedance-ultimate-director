@@ -1,6 +1,6 @@
 # Reference Implementation: Render Provider Handoff
 
-Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as `RenderProviderHandoffCoordinator`, `FileRenderProviderHandoffLeaseStore`, `HttpRenderProviderHandoffLeaseStore`, `RenderProviderHandoffLeaseService`, `FileRenderProviderHandoffActionLedger`, and no-spend smoke reports. It wraps provider reconciliation in bounded job leases so a worker can decide whether to close terminal provider work, heartbeat-renew still-active polling ownership, or defer to an existing lease holder. The protected HTTP lease-service route gives production deployments a built-in durable contract for external workers, the action ledger records redacted idempotent action intents so repeated worker runs can replay close/resume/manual-audit decisions without duplicating action records, and the local two-worker smoke proves held-by-other behavior plus handoff after lease expiry against the protected route. This is still not a live Redis-compatible distributed queue or automatic graph resume engine.
+Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as `RenderProviderHandoffCoordinator`, `FileRenderProviderHandoffLeaseStore`, `HttpRenderProviderHandoffLeaseStore`, `RenderProviderHandoffLeaseService`, `FileRenderProviderHandoffActionLedger`, no-spend smoke reports, and a production handoff capture runner. It wraps provider reconciliation in bounded job leases so a worker can decide whether to close terminal provider work, heartbeat-renew still-active polling ownership, or defer to an existing lease holder. The protected HTTP lease-service route gives production deployments a built-in durable contract for external workers, the action ledger records redacted idempotent action intents so repeated worker runs can replay close/resume/manual-audit decisions without duplicating action records, the local two-worker smoke proves held-by-other behavior plus handoff after lease expiry against the protected route, and the production capture runner can exercise the real HTTPS lease-service route without Atlas spend. This is still not a live Redis-compatible distributed queue or automatic graph resume engine.
 
 ## Upstream Sources
 
@@ -18,6 +18,7 @@ Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation im
 6. Handoff reports remain redacted and schema-validated.
 7. Worker action intents have stable idempotency keys so repeated handoff processing reuses existing records instead of duplicating terminal close or polling-resume intents.
 8. A second worker cannot steal an active lease, but can take over after expiry while reusing the existing action intent.
+9. A real deployment can capture acquire, held-by-other, heartbeat, release, post-release handoff, list, and active lease-service evidence without serializing deployment tokens or worker owner IDs.
 
 ## Intentional Changes
 
@@ -78,10 +79,12 @@ The public report omits owner ID and stores only:
 - `scripts/run-render-provider-lease-service-smoke.mjs`
 - `scripts/run-render-provider-handoff-action-ledger-smoke.mjs`
 - `scripts/run-render-provider-multi-worker-handoff-smoke.mjs`
+- `scripts/capture-render-provider-production-handoff.mjs`
 - `schemas/render-provider-handoff-report.schema.json`
 - `schemas/render-provider-lease-service-smoke-report.schema.json`
 - `schemas/render-provider-handoff-action-ledger-report.schema.json`
 - `schemas/render-provider-multi-worker-handoff-report.schema.json`
+- `schemas/render-provider-production-handoff-report.schema.json`
 - `scripts/validate-report-contracts.mjs`
 
 ## Validation Checklist
@@ -94,10 +97,11 @@ The public report omits owner ID and stores only:
 - Lease-service smoke proves deployment-token-only HTTP routing, preflight lease path validation, durable acquire/release/heartbeat/list/active behavior, invalid-body rejection, and token non-serialization against a local server.
 - Action-ledger smoke proves terminal-close, resume-polling, and manual-audit intents record once, replay by stable idempotency key on a second worker pass, persist across reload, and avoid raw provider payload/output URL/local path serialization.
 - Multi-worker handoff smoke starts the protected API locally, proves worker B receives `held_by_other` while worker A's retained lease is active, proves worker B acquires after lease expiry, and proves the action ledger replays the existing resume intent instead of recording a duplicate.
+- Production handoff capture runner can call a real HTTPS deployment route for acquire, held-by-other, heartbeat, release, post-release handoff, list, and active lease-service evidence without calling Atlas or render endpoints.
 - Smoke proves raw provider payloads, bearer tokens, and local paths are not serialized into the handoff report.
-- Report contract validation passes for `render_provider_handoff`, `render_provider_external_lease`, `render_provider_lease_service_smoke`, `render_provider_handoff_action_ledger`, and `render_provider_multi_worker_handoff`.
+- Report contract validation passes for `render_provider_handoff`, `render_provider_external_lease`, `render_provider_lease_service_smoke`, `render_provider_handoff_action_ledger`, `render_provider_multi_worker_handoff`, and the optional `render_provider_production_handoff` capture report when present.
 - Business completion audit keeps full distributed active provider-work resume visible as incomplete until production multi-worker ownership handoff, live provider action execution, and live Atlas prediction evidence exist.
 
 ## Remaining Scope
 
-To claim distributed/HA parity, CineJelly still needs queue task payloads or secure resumable graph state, live close/cancel/resume execution against real provider IDs, and deployment evidence across production workers. The current handoff foundation is the local lease, protected lease-service route, HTTPS adapter contract, heartbeat-renewal evidence, action-decision layer, idempotent action ledger, and local two-worker handoff smoke that those pieces can build on.
+To claim distributed/HA parity, CineJelly still needs queue task payloads or secure resumable graph state, live close/cancel/resume execution against real provider IDs, and archived deployment evidence across production workers. The current handoff foundation is the local lease, protected lease-service route, HTTPS adapter contract, heartbeat-renewal evidence, action-decision layer, idempotent action ledger, local two-worker handoff smoke, and production capture runner that those pieces can build on.
