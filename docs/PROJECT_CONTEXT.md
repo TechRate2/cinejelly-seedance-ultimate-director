@@ -118,6 +118,7 @@ Faithful Logic Translation is the required path for high-fidelity implementation
 - `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`: six-step process for translating source behavior into CineJelly-owned production logic.
 - `docs/IMPLEMENTATION_ROADMAP.md`: practical phase-by-phase plan for translating high-value upstream logic into production modules.
 - `docs/ROADMAP_FIDELITY_AUDIT_2026-06-14.md`: owner-level audit of current roadmap completion, subtree fidelity, blockers, and next validation steps.
+- `docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md`: strict current baseline for feature parity percentages against each upstream snapshot, including UI absence, commercial readiness, and GitHub update discipline.
 - `docs/BEGINNER_QUICKSTART.md`: shortest setup path for non-specialist operators, including automation boundaries and clean-source checks.
 - `docs/RUNNING_AND_MODEL_SETTINGS_GUIDE.md`: practical install, environment, model, API, settings, and no-UI runtime guide.
 - `docs/reference-implementations/deployment-container-packaging.md`: repeatable container packaging and static validation contract for API deployment without baked secrets or generated artifacts.
