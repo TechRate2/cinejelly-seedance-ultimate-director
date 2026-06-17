@@ -23,7 +23,7 @@ This audit does not claim new paid Atlas evidence, live source-video evidence, l
 | Area | Practical status | Current estimate |
 | --- | --- | ---: |
 | First-party web UI | Not implemented. The repo exposes API/CLI/operator reports and `/v1/render-settings` for a future UI, but no product web app exists yet. | 0% |
-| API and CLI runtime foundation | Implemented across render admission, async jobs, readiness endpoints, provider abstraction, artifacts, quotas, and validation commands. | 80-85% |
+| API and CLI runtime foundation | Implemented across render admission, async jobs, readiness endpoints, provider abstraction, artifacts, quotas, validation commands, and one-command launch doctor orchestration. | 83-87% |
 | Source-logic translation foundation | Strong TypeScript foundation with Reference Implementations, source lineage records, and local validation for priority modules. | 78-82% |
 | Snapshot feature parity across all upstreams | Mixed. VibeFrame/MoneyPrinterTurbo/Seedance foundations are strongest; VideoAgent/OpenMontage/DirectorBench parity is partial. | 60-65% |
 | Full commercial/customer readiness | Blocked until deployment, long-form, source-video, remote stock, generated audio, billing/admin, production ops, paid validation, and manual review evidence are complete. | 38% |
@@ -52,7 +52,7 @@ This audit does not claim new paid Atlas evidence, live source-video evidence, l
 | Generated audio path | Provider-neutral and Atlas execution plumbing exists behind gates; paid output validation and manual review are pending. | 65% |
 | Remote stock/material sourcing | Local and opt-in remote adapter foundations exist; live provider validation is pending. | 65% |
 | Long-form 2-8 minute workflow | Chunking, admission, budget, artifact, and validation runner foundations exist; real paid long-form proof is pending. | 65% |
-| API/customer access controls | Auth, rate limits, body limits, client policy, quota reservation, usage ledger, async job scoping, and admin diagnostics exist. | 80% |
+| API/customer access controls | Auth, rate limits, body limits, client policy, quota reservation, usage ledger, async job scoping, admin diagnostics, and launch-doctor command orchestration exist. | 83% |
 | Deployment and production operations | Container/static package checks and evidence capture commands exist; real HTTPS host, storage, backups, monitoring, support, and retention evidence are missing. | 45% |
 | Web UI | No first-party frontend product exists in the repo. | 0% |
 
