@@ -19,6 +19,7 @@ import {
   type ApiProjectArtifactBundle,
   type ApiProjectArtifactValidationReport
 } from "./artifact-response.js";
+import type { RenderJobHistoryStore, RenderJobStoredSummary } from "./render-job-history-store.js";
 
 export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
 const MAX_STAGE_PROGRESS_EVENTS = 200;
@@ -52,6 +53,8 @@ export interface RenderJobSummary {
   readonly clientId?: string;
   readonly requestId?: string;
   readonly status: RenderJobStatus;
+  readonly retentionSource: "memory" | "history_store";
+  readonly detailRetention: "full" | "compact_restored";
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly startedAt?: Date;
@@ -94,18 +97,31 @@ export interface RenderJobSubmission {
   readonly idempotentReplay: boolean;
 }
 
-interface RenderJobRecord extends Omit<
+interface RenderJobRecordBase extends Omit<
   RenderJobSummary,
   "artifacts" | "hasError" | "currentStage" | "currentStageStatus" | "progressEventCount" | "stageProgressEvents"
   | "artifactValidation"
 > {
-  readonly artifactDirectory: string;
   readonly artifacts?: ProjectArtifactBundle;
   readonly artifactValidation?: ProjectArtifactValidationReport;
-  readonly request: CineJellyProjectRequest;
-  readonly abortController: AbortController;
   readonly stageProgressEvents: readonly ProductionStageProgressEvent[];
 }
+
+interface ActiveRenderJobRecord extends RenderJobRecordBase {
+  readonly retentionSource: "memory";
+  readonly detailRetention: "full";
+  readonly artifactDirectory: string;
+  readonly request: CineJellyProjectRequest;
+  readonly abortController: AbortController;
+}
+
+interface RestoredRenderJobRecord extends RenderJobRecordBase {
+  readonly retentionSource: "history_store";
+  readonly detailRetention: "compact_restored";
+  readonly status: "succeeded" | "failed" | "canceled";
+}
+
+type RenderJobRecord = ActiveRenderJobRecord | RestoredRenderJobRecord;
 
 interface RenderJobIdempotencyRecord {
   readonly jobId: string;
@@ -122,6 +138,7 @@ export class RenderJobManager {
   private readonly artifactStore: ProjectArtifactStore;
   private readonly artifactValidator: ProjectArtifactValidator;
   private readonly runtimeFactory: RenderJobRuntimeFactory;
+  private readonly historyStore: RenderJobHistoryStore | undefined;
   private readonly maxConcurrentJobs: number;
   private readonly historyLimit: number;
   private readonly queueLimit: number;
@@ -137,14 +154,17 @@ export class RenderJobManager {
     readonly queueLimit?: number;
     readonly runtimeFactory?: RenderJobRuntimeFactory;
     readonly artifactValidator?: ProjectArtifactValidator;
+    readonly historyStore?: RenderJobHistoryStore;
   } = {}) {
     this.artifactStore = input.artifactStore ?? new ProjectArtifactStore();
     this.artifactValidator = input.artifactValidator ?? new ProjectArtifactValidator();
     this.runtimeFactory =
       input.runtimeFactory ?? ((runtimeInput) => createDirectorRuntime(process.env, runtimeInput ?? {}));
+    this.historyStore = input.historyStore;
     this.maxConcurrentJobs = Math.max(1, input.maxConcurrentJobs ?? 1);
     this.historyLimit = Math.max(10, input.historyLimit ?? 100);
     this.queueLimit = Math.max(1, input.queueLimit ?? 50);
+    this.restoreHistory();
   }
 
   public submit(input: {
@@ -171,6 +191,8 @@ export class RenderJobManager {
       ...(input.clientId ? { clientId: input.clientId } : {}),
       ...(input.request.metadata?.requestId ? { requestId: input.request.metadata.requestId } : {}),
       status: "queued",
+      retentionSource: "memory",
+      detailRetention: "full",
       createdAt: now,
       updatedAt: now,
       userInputPreview: this.preview(input.request.userInput),
@@ -268,6 +290,9 @@ export class RenderJobManager {
     if (this.isTerminal(record.status)) {
       return this.toSummary(record, { includeDetails: true });
     }
+    if (record.retentionSource !== "memory") {
+      return this.toSummary(record, { includeDetails: true });
+    }
 
     record.abortController.abort(new Error(reason));
     const completedAt = new Date();
@@ -339,7 +364,7 @@ export class RenderJobManager {
     }
   }
 
-  private async runJob(record: RenderJobRecord): Promise<void> {
+  private async runJob(record: ActiveRenderJobRecord): Promise<void> {
     const startedAt = new Date();
     this.updateJob(record.jobId, {
       status: "running",
@@ -498,7 +523,8 @@ export class RenderJobManager {
     this.jobs.set(jobId, {
       ...current,
       ...patch
-    });
+    } as RenderJobRecord);
+    this.persistHistory();
   }
 
   private pruneHistory(): void {
@@ -516,6 +542,57 @@ export class RenderJobManager {
       this.jobs.delete(record.jobId);
       this.deleteIdempotencyForJob(record.jobId);
     }
+    this.persistHistory();
+  }
+
+  private restoreHistory(): void {
+    if (!this.historyStore) {
+      return;
+    }
+    for (const summary of this.historyStore.load()) {
+      this.jobs.set(summary.jobId, this.fromStoredSummary(summary));
+    }
+  }
+
+  private persistHistory(): void {
+    if (!this.historyStore) {
+      return;
+    }
+    this.historyStore.save([...this.jobs.values()].map((record) => this.toSummary(record, { includeDetails: true })));
+  }
+
+  private fromStoredSummary(summary: RenderJobStoredSummary): RestoredRenderJobRecord {
+    return {
+      jobId: summary.jobId,
+      ...(summary.clientId ? { clientId: summary.clientId } : {}),
+      ...(summary.requestId ? { requestId: summary.requestId } : {}),
+      status: summary.status,
+      retentionSource: "history_store",
+      detailRetention: "compact_restored",
+      createdAt: summary.createdAt,
+      updatedAt: summary.updatedAt,
+      ...(summary.startedAt ? { startedAt: summary.startedAt } : {}),
+      ...(summary.completedAt ? { completedAt: summary.completedAt } : {}),
+      ...(summary.projectId ? { projectId: summary.projectId } : {}),
+      userInputPreview: summary.userInputPreview,
+      ...(summary.requestedDurationSeconds !== undefined
+        ? { requestedDurationSeconds: summary.requestedDurationSeconds }
+        : {}),
+      ...(summary.requestedQualityMode ? { requestedQualityMode: summary.requestedQualityMode } : {}),
+      ...(summary.requestedResolution ? { requestedResolution: summary.requestedResolution } : {}),
+      referenceCount: summary.referenceCount,
+      stageProgressEvents: summary.stageProgressEvents.map((event) => ({
+        ...event,
+        stage: event.stage as ProductionStageName,
+        status: event.status as ProductionStageStatus
+      })),
+      hasResult: summary.hasResult,
+      hasCostLedger: summary.hasCostLedger,
+      hasArtifacts: summary.hasArtifacts,
+      hasArtifactValidation: summary.hasArtifactValidation,
+      ...(summary.artifactValidationStatus ? { artifactValidationStatus: summary.artifactValidationStatus } : {}),
+      ...(summary.error !== undefined ? { error: summary.error } : {})
+    };
   }
 
   private findIdempotentReplay(
@@ -557,6 +634,8 @@ export class RenderJobManager {
       clientId,
       requestId,
       status,
+      retentionSource,
+      detailRetention,
       createdAt,
       updatedAt,
       startedAt,
@@ -580,6 +659,8 @@ export class RenderJobManager {
       ...(clientId ? { clientId } : {}),
       ...(requestId ? { requestId } : {}),
       status,
+      retentionSource,
+      detailRetention,
       createdAt,
       updatedAt,
       ...(startedAt ? { startedAt } : {}),

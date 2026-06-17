@@ -920,6 +920,74 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Render Job History Persistence",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/state.py",
+      "external/upstream/moneyprinterturbo/app/controllers/manager/memory_manager.py",
+      "external/upstream/moneyprinterturbo/app/controllers/manager/redis_manager.py",
+      "external/upstream/moneyprinterturbo/test/services/test_state.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "terminal task status remains operator-visible after completion",
+      "the public task/job contract stays stable while persistence backend details change",
+      "task lists remain bounded and suitable for operator polling"
+    ],
+    behaviorChanged: [
+      "MoneyPrinterTurbo Python state and Redis manager code is not copied or executed",
+      "CineJelly persists compact terminal summaries only rather than raw queued work",
+      "raw render requests, local artifact directories, and provider payloads are intentionally excluded from persisted history"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/render-job-history-persistence.md",
+    cineJellyDestinationPaths: [
+      "src/api/render-job-history-store.ts",
+      "src/api/render-job-manager.ts",
+      "src/api/server.ts",
+      "src/application/runtime-preflight.ts",
+      "scripts/run-render-job-history-smoke.mjs"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "this foundation restores terminal retained history only and does not resume active provider work after process restart",
+      "distributed queue backends would need a separate adapter and deployment-specific validation"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Render Job History Persistence",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "operator status evidence remains deterministic and refreshable",
+      "history persistence preserves release-facing status without exposing local paths",
+      "preflight surfaces persistence misconfiguration before customer traffic"
+    ],
+    behaviorChanged: [
+      "VibeFrame report discipline is rewritten as a compact JSON history snapshot",
+      "CineJelly marks restored jobs as compact history rather than pretending full runtime detail is still resident",
+      "history persistence is local-file optional and no-provider by default"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/render-job-history-persistence.md",
+    cineJellyDestinationPaths: [
+      "src/api/render-job-history-store.ts",
+      "src/api/render-job-manager.ts",
+      "src/application/runtime-preflight.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "manual deployment review must ensure the configured history path is on durable storage for production",
+      "artifact detail remains governed by artifact manifests and is not duplicated into the compact job history file"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Source Video Auto Analysis Adapter",
     sourceRepository: "HKUDS/VideoAgent",
     snapshotPath: "external/upstream/videoagent",

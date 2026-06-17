@@ -44,6 +44,7 @@ import {
   RenderJobIdempotencyConflictError,
   RenderJobManager
 } from "./render-job-manager.js";
+import { readRenderJobHistoryPath, RenderJobHistoryStore } from "./render-job-history-store.js";
 import { renderRequestAdmissionFromEnv, RenderRequestAdmissionError } from "./render-request-admission.js";
 import {
   attachRequestContextHeaders,
@@ -108,7 +109,8 @@ export function startServer(port = readPort(process.env.PORT)): void {
     artifactStore,
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
     historyLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100),
-    queueLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_QUEUE_LIMIT, 50)
+    queueLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_QUEUE_LIMIT, 50),
+    ...renderJobHistoryStoreConfig(process.env)
   });
   const shutdownCoordinator = new ApiShutdownCoordinator();
 
@@ -489,6 +491,16 @@ function assertDeploymentPrincipal(principal: ReturnType<ApiAuthGuard["authorize
   if (principal?.kind !== "deployment") {
     throw new ApiClientPolicyError("Deployment API token is required for admin client-policy diagnostics.", 403);
   }
+}
+
+function renderJobHistoryStoreConfig(env: NodeJS.ProcessEnv): { readonly historyStore?: RenderJobHistoryStore } {
+  const historyPath = readRenderJobHistoryPath(env);
+  return historyPath
+    ? { historyStore: new RenderJobHistoryStore({
+        historyPath,
+        historyLimit: readPositiveInteger(env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100)
+      }) }
+    : {};
 }
 
 function registerShutdownHandlers(

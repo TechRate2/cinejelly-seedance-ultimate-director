@@ -5,7 +5,8 @@
 
 import { constants } from "node:fs";
 import { access, mkdir, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { RenderJobHistoryStore } from "../api/render-job-history-store.js";
 import { parseApiClientPoliciesJson } from "../api/api-client-policy.js";
 import { GeneratedAudioAssetResolver } from "../core/generated-audio-asset-resolver.js";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
@@ -101,6 +102,7 @@ export class RuntimePreflight {
     ];
 
     checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
+    checks.push(await this.renderJobHistoryStoreCheck());
     checks.push(await this.sourceVideoAutoAnalysisCheck());
     checks.push(await this.localMaterialCatalogCheck(
       "CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH",
@@ -201,6 +203,43 @@ export class RuntimePreflight {
         message: error instanceof Error
           ? `${name} must point to a readable valid generated-audio asset resolution catalog JSON file: ${error.message}`
           : `${name} must point to a readable valid generated-audio asset resolution catalog JSON file.`
+      };
+    }
+  }
+
+  private async renderJobHistoryStoreCheck(): Promise<PreflightCheck> {
+    const configured = this.env.CINEJELLY_API_JOB_HISTORY_PATH?.trim();
+    if (!configured) {
+      return {
+        name: "CINEJELLY_API_JOB_HISTORY_PATH",
+        status: "pass",
+        message: "CINEJELLY_API_JOB_HISTORY_PATH is not set; async job history is in-memory only."
+      };
+    }
+    if (/[\u0000-\u001f\u007f]/.test(configured)) {
+      return {
+        name: "CINEJELLY_API_JOB_HISTORY_PATH",
+        status: "fail",
+        message: "CINEJELLY_API_JOB_HISTORY_PATH must not contain control characters."
+      };
+    }
+    try {
+      const historyPath = resolve(configured);
+      await mkdir(dirname(historyPath), { recursive: true });
+      await access(dirname(historyPath), constants.W_OK);
+      new RenderJobHistoryStore({ historyPath }).load();
+      return {
+        name: "CINEJELLY_API_JOB_HISTORY_PATH",
+        status: "pass",
+        message: "CINEJELLY_API_JOB_HISTORY_PATH points to a writable compact job-history file."
+      };
+    } catch (error) {
+      return {
+        name: "CINEJELLY_API_JOB_HISTORY_PATH",
+        status: "fail",
+        message: error instanceof Error
+          ? `CINEJELLY_API_JOB_HISTORY_PATH is not usable: ${error.message}`
+          : "CINEJELLY_API_JOB_HISTORY_PATH is not usable."
       };
     }
   }
