@@ -23,9 +23,29 @@ import type { RenderJobHistoryStore, RenderJobStoredSummary } from "./render-job
 
 export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
 const MAX_STAGE_PROGRESS_EVENTS = 200;
+const MAX_PROVIDER_CHECKPOINT_IDS = 50;
 const EMBEDDED_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s"',;)]*/g;
 const EMBEDDED_UNC_PATH_PATTERN = /\\\\[^\s"',;)]*/g;
 const EMBEDDED_POSIX_PATH_PATTERN = /(^|\s)(\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/[^\s"',;)]+)/g;
+
+export interface RenderJobProviderCheckpoint {
+  readonly providerOperationCount: number;
+  readonly providers: readonly string[];
+  readonly operations: readonly string[];
+  readonly predictionIds: readonly string[];
+  readonly assetIds: readonly string[];
+  readonly activePredictionIds: readonly string[];
+  readonly terminalPredictionIds: readonly string[];
+  readonly latestProvider?: string;
+  readonly latestOperation?: string;
+  readonly latestProviderStatus?: string;
+  readonly latestProviderCallStatus?: string;
+  readonly latestPredictionId?: string;
+  readonly latestAssetId?: string;
+  readonly lastRecordedAt?: Date;
+  readonly hasRetryableFailure: boolean;
+  readonly retryCount: number;
+}
 
 export class RenderJobCapacityError extends Error {
   public readonly statusCode = 503;
@@ -71,12 +91,14 @@ export interface RenderJobSummary {
   readonly stageProgressEvents?: readonly ProductionStageProgressEvent[];
   readonly hasResult: boolean;
   readonly hasCostLedger: boolean;
+  readonly hasProviderCheckpoint: boolean;
   readonly hasArtifacts: boolean;
   readonly hasArtifactValidation: boolean;
   readonly artifactValidationStatus?: ProjectArtifactValidationStatus;
   readonly hasError: boolean;
   readonly error?: unknown;
   readonly costLedger?: readonly CostLedgerEntry[];
+  readonly providerCheckpoint?: RenderJobProviderCheckpoint;
   readonly artifacts?: ApiProjectArtifactBundle;
   readonly artifactValidation?: ApiProjectArtifactValidationReport;
   readonly result?: DirectorRunResult;
@@ -100,7 +122,7 @@ export interface RenderJobSubmission {
 interface RenderJobRecordBase extends Omit<
   RenderJobSummary,
   "artifacts" | "hasError" | "currentStage" | "currentStageStatus" | "progressEventCount" | "stageProgressEvents"
-  | "artifactValidation"
+  | "hasProviderCheckpoint" | "artifactValidation"
 > {
   readonly artifacts?: ProjectArtifactBundle;
   readonly artifactValidation?: ProjectArtifactValidationReport;
@@ -130,6 +152,7 @@ interface RenderJobIdempotencyRecord {
 
 export interface RenderJobRuntimeFactoryInput {
   readonly stageProgressReporter?: (event: ProductionStageProgressEvent) => void;
+  readonly providerLedgerReporter?: (entry: CostLedgerEntry) => void;
 }
 
 export type RenderJobRuntimeFactory = (input?: RenderJobRuntimeFactoryInput) => ReturnType<typeof createDirectorRuntime>;
@@ -377,7 +400,8 @@ export class RenderJobManager {
     let runtime: ReturnType<typeof createDirectorRuntime> | undefined;
     try {
       runtime = this.runtimeFactory({
-        stageProgressReporter: (event) => this.appendStageProgressEvent(record.jobId, event)
+        stageProgressReporter: (event) => this.appendStageProgressEvent(record.jobId, event),
+        providerLedgerReporter: (entry) => this.appendProviderLedgerEntry(record.jobId, entry)
       });
       const result = await runtime.director.run(record.request, record.abortController.signal);
       if (record.abortController.signal.aborted) {
@@ -390,6 +414,7 @@ export class RenderJobManager {
         artifactDirectory: record.artifactDirectory
       });
       const artifactValidation = await this.validateArtifacts(artifacts);
+      const providerCheckpoint = this.finalProviderCheckpoint(record.jobId, costLedger);
       const completedAt = new Date();
       this.updateJob(record.jobId, {
         status: "succeeded",
@@ -398,6 +423,7 @@ export class RenderJobManager {
         projectId: result.projectId,
         result,
         costLedger,
+        ...(providerCheckpoint ? { providerCheckpoint } : {}),
         artifacts,
         artifactValidation
       });
@@ -412,12 +438,14 @@ export class RenderJobManager {
       const artifactValidation = artifacts ? await this.validateArtifacts(artifacts) : undefined;
       const completedAt = new Date();
       const status: RenderJobStatus = record.abortController.signal.aborted ? "canceled" : "failed";
+      const providerCheckpoint = this.finalProviderCheckpoint(record.jobId, costLedger);
       this.updateJob(record.jobId, {
         status,
         updatedAt: completedAt,
         completedAt,
         error: this.errorPayload(error),
         costLedger,
+        ...(providerCheckpoint ? { providerCheckpoint } : {}),
         ...(artifacts ? { artifacts } : {}),
         ...(artifactValidation ? { artifactValidation } : {})
       });
@@ -478,6 +506,128 @@ export class RenderJobManager {
       stageProgressEvents: retainedEvents
     });
     this.persistHistory();
+  }
+
+  private appendProviderLedgerEntry(jobId: string, entry: CostLedgerEntry): void {
+    const current = this.jobs.get(jobId);
+    if (!current || this.isTerminal(current.status)) {
+      return;
+    }
+    const providerCheckpoint = this.providerCheckpointWithEntry(current.providerCheckpoint, entry);
+    this.jobs.set(jobId, {
+      ...current,
+      updatedAt: new Date(),
+      providerCheckpoint
+    });
+    this.persistHistory();
+  }
+
+  private finalProviderCheckpoint(
+    jobId: string,
+    costLedger: readonly CostLedgerEntry[]
+  ): RenderJobProviderCheckpoint | undefined {
+    return this.providerCheckpointFromLedger(costLedger) ?? this.jobs.get(jobId)?.providerCheckpoint;
+  }
+
+  private providerCheckpointFromLedger(
+    costLedger: readonly CostLedgerEntry[]
+  ): RenderJobProviderCheckpoint | undefined {
+    let checkpoint: RenderJobProviderCheckpoint | undefined;
+    for (const entry of costLedger) {
+      checkpoint = this.providerCheckpointWithEntry(checkpoint, entry);
+    }
+    return checkpoint;
+  }
+
+  private providerCheckpointWithEntry(
+    current: RenderJobProviderCheckpoint | undefined,
+    entry: CostLedgerEntry
+  ): RenderJobProviderCheckpoint {
+    const provider = this.safeProviderCheckpointString(entry.provider);
+    const operation = this.safeProviderCheckpointString(entry.operation);
+    const predictionId = this.safeOptionalProviderCheckpointString(entry.predictionId);
+    const assetId = this.safeOptionalProviderCheckpointString(entry.assetId);
+    const providerStatus = this.safeOptionalProviderCheckpointString(entry.providerStatus);
+    const providerCallStatus = this.safeProviderCheckpointString(entry.status);
+    const recordedAt = entry.completedAt ?? entry.requestedAt;
+    const activeProviderState = this.providerStatusIsActive(entry.providerStatus);
+    const terminalProviderState = this.providerStatusIsTerminal(entry.providerStatus);
+    const activePredictionIds = predictionId
+      ? activeProviderState
+        ? this.appendBoundedUnique(this.removeValue(current?.activePredictionIds ?? [], predictionId), predictionId)
+        : terminalProviderState
+          ? this.removeValue(current?.activePredictionIds ?? [], predictionId)
+          : current?.activePredictionIds ?? []
+      : current?.activePredictionIds ?? [];
+    const terminalPredictionIds = predictionId
+      ? terminalProviderState
+        ? this.appendBoundedUnique(this.removeValue(current?.terminalPredictionIds ?? [], predictionId), predictionId)
+        : activeProviderState
+          ? this.removeValue(current?.terminalPredictionIds ?? [], predictionId)
+          : current?.terminalPredictionIds ?? []
+      : current?.terminalPredictionIds ?? [];
+
+    return {
+      providerOperationCount: (current?.providerOperationCount ?? 0) + 1,
+      providers: this.appendBoundedUnique(current?.providers ?? [], provider),
+      operations: this.appendBoundedUnique(current?.operations ?? [], operation),
+      predictionIds: predictionId
+        ? this.appendBoundedUnique(current?.predictionIds ?? [], predictionId)
+        : current?.predictionIds ?? [],
+      assetIds: assetId ? this.appendBoundedUnique(current?.assetIds ?? [], assetId) : current?.assetIds ?? [],
+      activePredictionIds,
+      terminalPredictionIds,
+      latestProvider: provider,
+      latestOperation: operation,
+      ...(providerStatus ? { latestProviderStatus: providerStatus } : {}),
+      latestProviderCallStatus: providerCallStatus,
+      ...(predictionId ? { latestPredictionId: predictionId } : {}),
+      ...(assetId ? { latestAssetId: assetId } : {}),
+      ...(recordedAt ? { lastRecordedAt: recordedAt } : {}),
+      hasRetryableFailure: Boolean(
+        current?.hasRetryableFailure ||
+        ((entry.status === "failed" || entry.status === "timeout" || entry.status === "canceled") && entry.retryable)
+      ),
+      retryCount: (current?.retryCount ?? 0) + Math.max(0, entry.retryCount)
+    };
+  }
+
+  private providerStatusIsActive(status: CostLedgerEntry["providerStatus"]): boolean {
+    return status === "queued" || status === "running" || status === "pending" || status === "processing";
+  }
+
+  private providerStatusIsTerminal(status: CostLedgerEntry["providerStatus"]): boolean {
+    return (
+      status === "succeeded" ||
+      status === "failed" ||
+      status === "canceled" ||
+      status === "timeout" ||
+      status === "active" ||
+      status === "deleted"
+    );
+  }
+
+  private appendBoundedUnique(values: readonly string[], value: string): readonly string[] {
+    const unique = [...values.filter((item) => item !== value), value];
+    return unique.slice(-MAX_PROVIDER_CHECKPOINT_IDS);
+  }
+
+  private removeValue(values: readonly string[], value: string): readonly string[] {
+    return values.filter((item) => item !== value);
+  }
+
+  private safeOptionalProviderCheckpointString(value: string | undefined): string | undefined {
+    if (!value) {
+      return undefined;
+    }
+    return this.safeProviderCheckpointString(value);
+  }
+
+  private safeProviderCheckpointString(value: string): string {
+    const redacted = this.redactStageProgressLocalPathText(
+      redactApiLocalPaths(redactUnknown(value))
+    );
+    return typeof redacted === "string" ? redacted : "[REDACTED]";
   }
 
   private redactedStageProgressEvent(event: ProductionStageProgressEvent): ProductionStageProgressEvent {
@@ -596,6 +746,7 @@ export class RenderJobManager {
       })),
       hasResult: summary.hasResult,
       hasCostLedger: summary.hasCostLedger,
+      ...(summary.providerCheckpoint ? { providerCheckpoint: summary.providerCheckpoint } : {}),
       hasArtifacts: summary.hasArtifacts,
       hasArtifactValidation: summary.hasArtifactValidation,
       ...(summary.artifactValidationStatus ? { artifactValidationStatus: summary.artifactValidationStatus } : {}),
@@ -665,6 +816,7 @@ export class RenderJobManager {
       stageProgressEvents,
       error,
       costLedger,
+      providerCheckpoint,
       artifacts,
       artifactValidation,
       result
@@ -693,12 +845,14 @@ export class RenderJobManager {
       ...(options.includeDetails ? { stageProgressEvents } : {}),
       hasResult: Boolean(result),
       hasCostLedger: Boolean(costLedger),
+      hasProviderCheckpoint: Boolean(providerCheckpoint),
       hasArtifacts: Boolean(artifacts),
       hasArtifactValidation: Boolean(artifactValidation),
       ...(artifactValidation ? { artifactValidationStatus: artifactValidation.status } : {}),
       hasError: error !== undefined,
       ...(options.includeDetails && error !== undefined ? { error } : {}),
       ...(options.includeDetails && costLedger ? { costLedger } : {}),
+      ...(options.includeDetails && providerCheckpoint ? { providerCheckpoint } : {}),
       ...(options.includeDetails && artifacts ? { artifacts: toApiProjectArtifactBundle(artifacts) } : {}),
       ...(options.includeDetails && artifactValidation
         ? { artifactValidation: toApiProjectArtifactValidationReport(artifactValidation) }

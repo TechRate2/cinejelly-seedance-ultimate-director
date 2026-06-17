@@ -5,7 +5,7 @@
 
 import { loadRuntimeSettings } from "../config/runtime-config.js";
 import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider.js";
-import { ProviderCostLedger } from "../providers/cost-ledger.js";
+import { ProviderCostLedger, type CostLedgerRecordReporter } from "../providers/cost-ledger.js";
 import { DirectorAgent } from "../agents/director-agent.js";
 import { RenderProducer } from "../agents/render-producer.js";
 import { StoryArchitect } from "../agents/story-architect.js";
@@ -26,6 +26,7 @@ export interface DirectorRuntime {
 
 export interface DirectorRuntimeOptions {
   readonly stageProgressReporter?: ProductionStageProgressReporter;
+  readonly providerLedgerReporter?: CostLedgerRecordReporter;
 }
 
 export function createDirectorRuntime(
@@ -33,7 +34,7 @@ export function createDirectorRuntime(
   options: DirectorRuntimeOptions = {}
 ): DirectorRuntime {
   const settings = loadRuntimeSettings(env);
-  const ledger = new ProviderCostLedger();
+  const ledger = new ProviderCostLedger(options.providerLedgerReporter);
   const atlasProvider = new AtlasCloudProvider(settings.atlasCloud, ledger);
   const storyArchitect = new StoryArchitect(atlasProvider, settings.atlasCloud.models.llmModel);
   const renderProducer = new RenderProducer(atlasProvider, atlasProvider);

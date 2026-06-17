@@ -394,7 +394,7 @@ Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:8787$($submit.statusUrl)" -
 }
 ```
 
-While the job is running, the job payload should expose `currentStage`, `currentStageStatus`, `progressEventCount`, and retained `stageProgressEvents` in the per-job response. The list endpoint `/v1/render-jobs` should stay compact and expose current-stage fields without the full event array.
+While the job is running, the job payload should expose `currentStage`, `currentStageStatus`, `progressEventCount`, and retained `stageProgressEvents` in the per-job response. Once provider ledger entries exist, per-job detail should expose compact `providerCheckpoint` evidence while the list endpoint keeps only `hasProviderCheckpoint` plus current-stage fields without the full event array.
 
 After the job reaches a terminal state and artifacts were written, the job payload should expose `hasArtifactValidation`, `artifactValidationStatus`, and detailed `artifactValidation.checks` in the per-job response. The list endpoint should keep only compact validation status, not the full check array. Treat `artifactValidationStatus=fail` as a release blocker even when the render job status is `succeeded`.
 
@@ -444,6 +444,7 @@ Required evidence:
 - `review-packet.json` includes `sourceLineage`, `repairProvenance`, `stageLifecycle`, cost summary, selected candidates, and delivery status.
 - `stage-lifecycle.json` contains all stages in order: `plan`, `storyboard`, `prompt`, `source_material`, `render`, `inspect`, `repair`, `assemble`, `deliver`.
 - Async job `stageProgressEvents` use the same stage vocabulary and include bounded evidence without local paths, inline media, secrets, stack traces, or raw provider payloads.
+- Async job `providerCheckpoint` evidence, when present, contains bounded provider operation/prediction status IDs only and no raw provider payload, local path, secret, signed URL, or inline media.
 - `material-sourcing-plan.json` contains rights requirement and preferred sources for every material brief.
 - `material-source-validation.json` records `planned_only`, `approved`, `review_required`, or `rejected` status, candidate counts, selected candidate counts, and issue repair text.
 - `postproduction-assets.json` records caption delivery mode, caption cue counts, audio role counts, generated-audio planned/ready status/counts, postproduction status, issue count, and repair text without claiming provider-backed TTS/BGM/ambience/SFX generation unless the provider-neutral execution runner produced result evidence and batch validation approved it.

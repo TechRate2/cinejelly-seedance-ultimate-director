@@ -934,12 +934,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "task status remains operator-visible across API process restarts",
       "the public task/job contract stays stable while persistence backend details change",
       "task lists remain bounded and suitable for operator polling",
-      "stale queued/running state is not silently dropped after restart"
+      "stale queued/running state is not silently dropped after restart",
+      "provider operation checkpoints remain available for post-restart audit when ledger entries were recorded before process loss"
     ],
     behaviorChanged: [
       "MoneyPrinterTurbo Python state and Redis manager code is not copied or executed",
       "CineJelly persists compact summaries rather than raw queued work",
       "raw render requests, local artifact directories, and provider payloads are intentionally excluded from persisted history",
+      "provider checkpoint persistence stores only bounded IDs/status/count evidence rather than raw provider responses",
       "stale queued/running snapshots restore as canceled/audit-required instead of resuming provider work without proof"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-job-history-persistence.md",
@@ -948,6 +950,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/api/render-job-manager.ts",
       "src/api/server.ts",
       "src/application/runtime-preflight.ts",
+      "src/application/director-factory.ts",
+      "src/providers/cost-ledger.ts",
       "scripts/run-render-job-history-smoke.mjs"
     ],
     validationStatus: "implemented",
@@ -970,18 +974,22 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "operator status evidence remains deterministic and refreshable",
       "history persistence preserves release-facing status without exposing local paths",
       "preflight surfaces persistence misconfiguration before customer traffic",
-      "stale active work is surfaced for operator audit after restart"
+      "stale active work is surfaced for operator audit after restart",
+      "provider prediction IDs and latest provider status can be retained as compact checkpoint evidence"
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten as a compact JSON history snapshot",
       "CineJelly marks restored jobs as compact history rather than pretending full runtime detail is still resident",
       "history persistence is local-file optional and no-provider by default",
+      "provider checkpoint evidence is captured through a cost-ledger observer instead of importing VibeFrame status code",
       "queued/running snapshots restore as canceled/audit-required because provider state cannot be proven after process loss"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-job-history-persistence.md",
     cineJellyDestinationPaths: [
       "src/api/render-job-history-store.ts",
       "src/api/render-job-manager.ts",
+      "src/application/director-factory.ts",
+      "src/providers/cost-ledger.ts",
       "src/application/runtime-preflight.ts"
     ],
     validationStatus: "implemented",

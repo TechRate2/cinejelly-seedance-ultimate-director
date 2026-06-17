@@ -12,7 +12,7 @@ import {
 } from "../types/stage.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
-import type { RenderJobStatus, RenderJobSummary } from "./render-job-manager.js";
+import type { RenderJobProviderCheckpoint, RenderJobStatus, RenderJobSummary } from "./render-job-manager.js";
 
 export const RENDER_JOB_HISTORY_SCHEMA_VERSION = "cinejelly.render-job-history.v1";
 
@@ -21,6 +21,7 @@ const JOB_ID_PATTERN = /^render_job_[0-9a-fA-F-]{36}$/;
 const REQUEST_ID_PATTERN = /^req_[A-Za-z0-9_.:-]{8,160}$/;
 const MAX_PREVIEW_CHARS = 160;
 const MAX_STAGE_PROGRESS_EVENTS = 200;
+const MAX_PROVIDER_CHECKPOINT_ITEMS = 50;
 const EMBEDDED_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s"',;)]*/g;
 const EMBEDDED_UNC_PATH_PATTERN = /\\\\[^\s"',;)]*/g;
 const EMBEDDED_POSIX_PATH_PATTERN = /(^|\s)(\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/[^\s"',;)]+)/g;
@@ -52,6 +53,7 @@ export interface RenderJobStoredSummary {
   readonly stageProgressEvents: readonly RenderJobStoredProgressEvent[];
   readonly hasResult: boolean;
   readonly hasCostLedger: boolean;
+  readonly providerCheckpoint?: RenderJobProviderCheckpoint;
   readonly hasArtifacts: boolean;
   readonly hasArtifactValidation: boolean;
   readonly artifactValidationStatus?: "pass" | "warn" | "fail";
@@ -163,6 +165,9 @@ export class RenderJobHistoryStore {
       })),
       hasResult: summary.hasResult,
       hasCostLedger: summary.hasCostLedger,
+      ...(summary.providerCheckpoint
+        ? { providerCheckpoint: this.serializableProviderCheckpoint(summary.providerCheckpoint) }
+        : {}),
       hasArtifacts: summary.hasArtifacts,
       hasArtifactValidation: summary.hasArtifactValidation,
       ...(summary.artifactValidationStatus ? { artifactValidationStatus: summary.artifactValidationStatus } : {}),
@@ -226,6 +231,9 @@ export class RenderJobHistoryStore {
       stageProgressEvents,
       hasResult: this.booleanValue(payload.hasResult, "hasResult"),
       hasCostLedger: this.booleanValue(payload.hasCostLedger, "hasCostLedger"),
+      ...(payload.providerCheckpoint !== undefined
+        ? { providerCheckpoint: this.providerCheckpoint(payload.providerCheckpoint) }
+        : {}),
       hasArtifacts: this.booleanValue(payload.hasArtifacts, "hasArtifacts"),
       hasArtifactValidation: this.booleanValue(payload.hasArtifactValidation, "hasArtifactValidation"),
       ...(payload.artifactValidationStatus !== undefined
@@ -235,6 +243,77 @@ export class RenderJobHistoryStore {
       ...(payload.error !== undefined ? { error: this.redactHistoryValue(payload.error) } : {})
     };
     return summary;
+  }
+
+  private serializableProviderCheckpoint(checkpoint: RenderJobProviderCheckpoint): Record<string, unknown> {
+    return {
+      providerOperationCount: checkpoint.providerOperationCount,
+      providers: checkpoint.providers,
+      operations: checkpoint.operations,
+      predictionIds: checkpoint.predictionIds,
+      assetIds: checkpoint.assetIds,
+      activePredictionIds: checkpoint.activePredictionIds,
+      terminalPredictionIds: checkpoint.terminalPredictionIds,
+      ...(checkpoint.latestProvider ? { latestProvider: checkpoint.latestProvider } : {}),
+      ...(checkpoint.latestOperation ? { latestOperation: checkpoint.latestOperation } : {}),
+      ...(checkpoint.latestProviderStatus ? { latestProviderStatus: checkpoint.latestProviderStatus } : {}),
+      ...(checkpoint.latestProviderCallStatus ? { latestProviderCallStatus: checkpoint.latestProviderCallStatus } : {}),
+      ...(checkpoint.latestPredictionId ? { latestPredictionId: checkpoint.latestPredictionId } : {}),
+      ...(checkpoint.latestAssetId ? { latestAssetId: checkpoint.latestAssetId } : {}),
+      ...(checkpoint.lastRecordedAt ? { lastRecordedAt: checkpoint.lastRecordedAt.toISOString() } : {}),
+      hasRetryableFailure: checkpoint.hasRetryableFailure,
+      retryCount: checkpoint.retryCount
+    };
+  }
+
+  private providerCheckpoint(value: unknown): RenderJobProviderCheckpoint {
+    const payload = this.objectRecord(value, "providerCheckpoint");
+    return {
+      providerOperationCount: this.nonNegativeInteger(
+        payload.providerOperationCount,
+        "providerCheckpoint.providerOperationCount"
+      ),
+      providers: this.boundedStringArray(payload.providers, "providerCheckpoint.providers"),
+      operations: this.boundedStringArray(payload.operations, "providerCheckpoint.operations"),
+      predictionIds: this.boundedStringArray(payload.predictionIds, "providerCheckpoint.predictionIds"),
+      assetIds: this.boundedStringArray(payload.assetIds, "providerCheckpoint.assetIds"),
+      activePredictionIds: this.boundedStringArray(
+        payload.activePredictionIds,
+        "providerCheckpoint.activePredictionIds"
+      ),
+      terminalPredictionIds: this.boundedStringArray(
+        payload.terminalPredictionIds,
+        "providerCheckpoint.terminalPredictionIds"
+      ),
+      ...(typeof payload.latestProvider === "string" && payload.latestProvider.trim()
+        ? { latestProvider: this.safeString(payload.latestProvider, "providerCheckpoint.latestProvider") }
+        : {}),
+      ...(typeof payload.latestOperation === "string" && payload.latestOperation.trim()
+        ? { latestOperation: this.safeString(payload.latestOperation, "providerCheckpoint.latestOperation") }
+        : {}),
+      ...(typeof payload.latestProviderStatus === "string" && payload.latestProviderStatus.trim()
+        ? { latestProviderStatus: this.safeString(payload.latestProviderStatus, "providerCheckpoint.latestProviderStatus") }
+        : {}),
+      ...(typeof payload.latestProviderCallStatus === "string" && payload.latestProviderCallStatus.trim()
+        ? {
+            latestProviderCallStatus: this.safeString(
+              payload.latestProviderCallStatus,
+              "providerCheckpoint.latestProviderCallStatus"
+            )
+          }
+        : {}),
+      ...(typeof payload.latestPredictionId === "string" && payload.latestPredictionId.trim()
+        ? { latestPredictionId: this.safeString(payload.latestPredictionId, "providerCheckpoint.latestPredictionId") }
+        : {}),
+      ...(typeof payload.latestAssetId === "string" && payload.latestAssetId.trim()
+        ? { latestAssetId: this.safeString(payload.latestAssetId, "providerCheckpoint.latestAssetId") }
+        : {}),
+      ...(payload.lastRecordedAt !== undefined
+        ? { lastRecordedAt: this.date(payload.lastRecordedAt, "providerCheckpoint.lastRecordedAt") }
+        : {}),
+      hasRetryableFailure: this.booleanValue(payload.hasRetryableFailure, "providerCheckpoint.hasRetryableFailure"),
+      retryCount: this.nonNegativeInteger(payload.retryCount, "providerCheckpoint.retryCount")
+    };
   }
 
   private stageProgressEvents(value: unknown): readonly RenderJobStoredProgressEvent[] {
@@ -356,6 +435,10 @@ export class RenderJobHistoryStore {
       throw new Error(`${label} must be an array.`);
     }
     return value.map((item) => this.safeString(item, label));
+  }
+
+  private boundedStringArray(value: unknown, label: string): readonly string[] {
+    return this.stringArray(value, label).slice(-MAX_PROVIDER_CHECKPOINT_ITEMS);
   }
 
   private safeOptionalString(value: unknown, label: string): string | undefined {

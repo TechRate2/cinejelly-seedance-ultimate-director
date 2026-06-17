@@ -1,6 +1,6 @@
 # Reference Implementation: Render Job History Persistence
 
-Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as optional compact job-history persistence for retained async render jobs. Terminal jobs restore as compact history; stale queued/running jobs restore as canceled with an audit-required message because active provider work is not resumed automatically. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as optional compact job-history persistence for retained async render jobs. Terminal jobs restore as compact history; stale queued/running jobs restore as canceled with an audit-required message because active provider work is not resumed automatically. Persisted summaries now also retain a bounded provider checkpoint summary derived from cost-ledger entries, including provider operations, prediction IDs, active/terminal prediction sets, retry evidence, and latest provider status for post-restart audit/reconciliation. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Upstream Sources
 
@@ -19,6 +19,7 @@ Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation im
 5. Persistence must not store raw render requests, local artifact directories, local filesystem paths, provider raw payloads, inline media, API keys, bearer tokens, or signed URLs.
 6. Broken persistence configuration must be visible in preflight before customer traffic.
 7. Queued/running jobs should not disappear after restart; they restore as canceled/audit-required compact history because the API cannot prove provider state after process loss.
+8. When provider ledger entries exist before process loss, a bounded checkpoint summary should preserve enough prediction/asset ID evidence for an operator or future reconciliation worker to query provider state without storing raw provider payloads.
 
 ## Edge Cases
 
@@ -27,6 +28,7 @@ Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation im
 - Missing history file: restore returns no jobs, and the first accepted/updated job writes the file.
 - Invalid JSON or schema drift: preflight fails and server startup with that configured history path should not silently ignore evidence corruption.
 - History contains non-terminal jobs: restore converts them to canceled compact history with an audit-required error message.
+- History contains provider checkpoint evidence: restore preserves bounded provider IDs, active prediction IDs, terminal prediction IDs, latest operation/status, and retry counts for audit.
 - Restored jobs are listed and can be fetched by ID, but they do not expose raw result, cost ledger, or artifact detail that was not persisted.
 - Stage progress messages containing local paths or bearer/API tokens are redacted before persistence.
 - History exceeds retention limit: the latest summaries are retained and older summaries are pruned.
@@ -52,6 +54,24 @@ interface StoredRenderJobSummary {
     stageProgressEvents: readonly RedactedProgressEvent[];
     hasResult: boolean;
     hasCostLedger: boolean;
+    providerCheckpoint?: {
+      providerOperationCount: number;
+      providers: readonly string[];
+      operations: readonly string[];
+      predictionIds: readonly string[];
+      assetIds: readonly string[];
+      activePredictionIds: readonly string[];
+      terminalPredictionIds: readonly string[];
+      latestProvider?: string;
+      latestOperation?: string;
+      latestProviderStatus?: string;
+      latestProviderCallStatus?: string;
+      latestPredictionId?: string;
+      latestAssetId?: string;
+      lastRecordedAt?: string;
+      hasRetryableFailure: boolean;
+      retryCount: number;
+    };
     hasArtifacts: boolean;
     hasArtifactValidation: boolean;
     artifactValidationStatus?: "pass" | "warn" | "fail";
@@ -91,6 +111,7 @@ function restoreHistory(historyFile): RestoredJob[] {
 - Done: persist compact retained job summaries, not raw requests or local artifact paths.
 - Done: restore retained compact jobs into `RenderJobManager` with `retentionSource: "history_store"` and `detailRetention: "compact_restored"`.
 - Done: restore stale queued/running snapshots as canceled compact history with an audit-required error message instead of silently dropping them or pretending active work resumed.
+- Done: persist a compact provider checkpoint summary from incremental provider ledger entries while jobs are active, then overwrite it from the final terminal cost ledger when available.
 - Done: keep live jobs in memory with `detailRetention: "full"`.
 - Done: wire optional `CINEJELLY_API_JOB_HISTORY_PATH` into `src/api/server.ts`.
 - Done: add preflight validation for path writability and existing file schema.
@@ -100,6 +121,7 @@ function restoreHistory(historyFile): RestoredJob[] {
 
 - Typecheck and build pass.
 - Smoke validation writes a history file, verifies secret/local-path redaction, loads the file, restores a terminal job, and converts a stale running job to canceled/audit-required through `RenderJobManager`.
+- Smoke validation verifies provider checkpoint evidence survives terminal restore, stale-active restore, and history rewrite without storing raw provider payloads.
 - `/v1/preflight` reports a pass when the configured history path is writable and valid.
 - Public job summaries expose `retentionSource` and `detailRetention`.
 - No production runtime import from `external/upstream/`.
@@ -107,4 +129,4 @@ function restoreHistory(historyFile): RestoredJob[] {
 
 ## Remaining Scope
 
-This is not a Redis-compatible distributed queue, multi-process resume engine, or full WebUI replacement. It improves commercial operator reliability by preserving compact job history across API restarts and making stale active jobs visible as canceled/audit-required while keeping active provider calls and artifact detail under the existing runtime controls.
+This is not a Redis-compatible distributed queue, multi-process resume engine, automated provider-state reconciler, or full WebUI replacement. It improves commercial operator reliability by preserving compact job history plus provider prediction checkpoint evidence across API restarts and making stale active jobs visible as canceled/audit-required while keeping active provider calls and artifact detail under the existing runtime controls.

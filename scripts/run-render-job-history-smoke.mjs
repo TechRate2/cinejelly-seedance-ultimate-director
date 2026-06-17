@@ -63,6 +63,24 @@ store.save([
     ],
     hasResult: false,
     hasCostLedger: true,
+    hasProviderCheckpoint: true,
+    providerCheckpoint: {
+      providerOperationCount: 2,
+      providers: ["atlascloud"],
+      operations: ["video.submit", "video.wait_for_prediction"],
+      predictionIds: ["pred_history_smoke_001"],
+      assetIds: [],
+      activePredictionIds: [],
+      terminalPredictionIds: ["pred_history_smoke_001"],
+      latestProvider: "atlascloud",
+      latestOperation: "video.wait_for_prediction",
+      latestProviderStatus: "failed",
+      latestProviderCallStatus: "failed",
+      latestPredictionId: "pred_history_smoke_001",
+      lastRecordedAt: new Date("2026-06-17T00:00:45.000Z"),
+      hasRetryableFailure: true,
+      retryCount: 1
+    },
     hasArtifacts: false,
     hasArtifactValidation: false,
     hasError: true,
@@ -105,6 +123,24 @@ store.save([
     ],
     hasResult: false,
     hasCostLedger: true,
+    hasProviderCheckpoint: true,
+    providerCheckpoint: {
+      providerOperationCount: 1,
+      providers: ["atlascloud"],
+      operations: ["video.wait_for_prediction"],
+      predictionIds: ["pred_history_smoke_active"],
+      assetIds: [],
+      activePredictionIds: ["pred_history_smoke_active"],
+      terminalPredictionIds: [],
+      latestProvider: "atlascloud",
+      latestOperation: "video.wait_for_prediction",
+      latestProviderStatus: "running",
+      latestProviderCallStatus: "succeeded",
+      latestPredictionId: "pred_history_smoke_active",
+      lastRecordedAt: new Date("2026-06-17T00:02:45.000Z"),
+      hasRetryableFailure: false,
+      retryCount: 0
+    },
     hasArtifacts: false,
     hasArtifactValidation: false,
     hasError: false
@@ -124,6 +160,9 @@ const rewrittenPayload = JSON.parse(rewrittenHistory);
 const rewrittenStaleActive = rewrittenPayload.jobs.find(
   (job) => job.jobId === "render_job_00000000-0000-4000-8000-000000000002"
 );
+const rewrittenTerminal = rewrittenPayload.jobs.find(
+  (job) => job.jobId === "render_job_00000000-0000-4000-8000-000000000001"
+);
 
 const checks = [
   check("history_file_written", rawHistory.includes("cinejelly.render-job-history.v1")),
@@ -134,10 +173,13 @@ const checks = [
   check("manager_restores_two_jobs", list.length === 2),
   check("restored_summaries_mark_compact_history", list.every((job) => job.retentionSource === "history_store" && job.detailRetention === "compact_restored")),
   check("restored_detail_keeps_stage_progress", detail?.stageProgressEvents?.length === 1),
+  check("restored_provider_checkpoint_kept", detail?.providerCheckpoint?.predictionIds?.includes("pred_history_smoke_001") === true),
   check("restored_terminal_status", detail?.status === "failed"),
   check("stale_active_restores_as_canceled", staleActiveDetail?.status === "canceled"),
   check("stale_active_has_audit_error", JSON.stringify(staleActiveDetail?.error ?? "").includes("not resumed automatically")),
+  check("stale_active_provider_checkpoint_kept", staleActiveDetail?.providerCheckpoint?.activePredictionIds?.includes("pred_history_smoke_active") === true),
   check("stale_active_history_rewritten_as_canceled", rewrittenStaleActive?.status === "canceled"),
+  check("rewritten_history_keeps_provider_checkpoint", rewrittenTerminal?.providerCheckpoint?.predictionIds?.includes("pred_history_smoke_001") === true),
   check("rewritten_history_redacts_local_paths", !includesLocalPathLeak(rewrittenHistory))
 ];
 

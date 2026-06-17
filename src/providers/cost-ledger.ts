@@ -11,11 +11,20 @@ export interface CostLedger {
   clear(): void;
 }
 
+export type CostLedgerRecordReporter = (entry: CostLedgerEntry) => void;
+
 export class ProviderCostLedger implements CostLedger {
   private readonly entries: CostLedgerEntry[] = [];
 
+  public constructor(private readonly recordReporter?: CostLedgerRecordReporter) {}
+
   public record(entry: CostLedgerEntry): void {
     this.entries.push(entry);
+    try {
+      this.recordReporter?.(entry);
+    } catch {
+      // Ledger observers are durability aids; they must not break provider execution.
+    }
   }
 
   public list(): readonly CostLedgerEntry[] {
