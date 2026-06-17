@@ -1,6 +1,6 @@
 # Reference Implementation: Render Job History Persistence
 
-Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as optional compact job-history persistence for terminal async render jobs. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as optional compact job-history persistence for retained async render jobs. Terminal jobs restore as compact history; stale queued/running jobs restore as canceled with an audit-required message because active provider work is not resumed automatically. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Upstream Sources
 
@@ -12,24 +12,24 @@ Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation im
 
 ## Behavior To Preserve
 
-1. Async task status should remain operator-visible after terminal states.
+1. Async task status should remain operator-visible across API restarts.
 2. A durable backend must not change the public job status contract.
 3. The persisted form should be bounded and pagination/list friendly.
 4. Restored jobs must be marked as restored/compact so operators do not confuse them with live in-memory jobs that still have full artifact/result detail.
 5. Persistence must not store raw render requests, local artifact directories, local filesystem paths, provider raw payloads, inline media, API keys, bearer tokens, or signed URLs.
 6. Broken persistence configuration must be visible in preflight before customer traffic.
-7. Queued/running jobs are runtime state; this foundation restores terminal retained history only. External queue resume can be added later as a separate backend.
+7. Queued/running jobs should not disappear after restart; they restore as canceled/audit-required compact history because the API cannot prove provider state after process loss.
 
 ## Edge Cases
 
 - No history path configured: job retention remains in-memory and preflight passes with an explicit disabled message.
 - Empty history file: restore returns no jobs.
-- Missing history file: restore returns no jobs, and the first terminal update writes the file.
+- Missing history file: restore returns no jobs, and the first accepted/updated job writes the file.
 - Invalid JSON or schema drift: preflight fails and server startup with that configured history path should not silently ignore evidence corruption.
-- History contains non-terminal jobs: validation rejects the file because only terminal jobs are durable in this foundation.
+- History contains non-terminal jobs: restore converts them to canceled compact history with an audit-required error message.
 - Restored jobs are listed and can be fetched by ID, but they do not expose raw result, cost ledger, or artifact detail that was not persisted.
 - Stage progress messages containing local paths or bearer/API tokens are redacted before persistence.
-- History exceeds retention limit: the latest terminal summaries are retained and older summaries are pruned.
+- History exceeds retention limit: the latest summaries are retained and older summaries are pruned.
 
 ## Reference Implementation
 
@@ -60,15 +60,14 @@ interface StoredRenderJobSummary {
   }[];
 }
 
-function persistTerminalHistory(jobs: readonly RenderJobSummary[]) {
-  const terminal = jobs
-    .filter((job) => isTerminal(job.status))
+function persistCompactHistory(jobs: readonly RenderJobSummary[]) {
+  const compactJobs = jobs
     .map((job) => redactLocalPathsAndSecrets(compact(job)))
     .slice(0, historyLimit);
   atomicWrite(historyPath, {
     schemaVersion: "cinejelly.render-job-history.v1",
     writtenAt: new Date().toISOString(),
-    jobs: terminal
+    jobs: compactJobs
   });
 }
 
@@ -76,8 +75,12 @@ function restoreHistory(historyFile): RestoredJob[] {
   assertSchema(historyFile);
   return historyFile.jobs.map((job) => ({
     ...parseStoredJob(job),
+    status: job.status === "queued" || job.status === "running" ? "canceled" : job.status,
     retentionSource: "history_store",
-    detailRetention: "compact_restored"
+    detailRetention: "compact_restored",
+    error: job.status === "queued" || job.status === "running"
+      ? "API restarted before terminal completion; provider state requires manual audit."
+      : job.error
   }));
 }
 ```
@@ -85,8 +88,9 @@ function restoreHistory(historyFile): RestoredJob[] {
 ## CineJelly Translation Plan
 
 - Done: add `RenderJobHistoryStore` under `src/api/render-job-history-store.ts`.
-- Done: persist only compact terminal job summaries, not raw requests or local artifact paths.
-- Done: restore terminal jobs into `RenderJobManager` with `retentionSource: "history_store"` and `detailRetention: "compact_restored"`.
+- Done: persist compact retained job summaries, not raw requests or local artifact paths.
+- Done: restore retained compact jobs into `RenderJobManager` with `retentionSource: "history_store"` and `detailRetention: "compact_restored"`.
+- Done: restore stale queued/running snapshots as canceled compact history with an audit-required error message instead of silently dropping them or pretending active work resumed.
 - Done: keep live jobs in memory with `detailRetention: "full"`.
 - Done: wire optional `CINEJELLY_API_JOB_HISTORY_PATH` into `src/api/server.ts`.
 - Done: add preflight validation for path writability and existing file schema.
@@ -95,7 +99,7 @@ function restoreHistory(historyFile): RestoredJob[] {
 ## Validation Checklist
 
 - Typecheck and build pass.
-- Smoke validation writes a history file, verifies secret/local-path redaction, loads the file, and restores a terminal job through `RenderJobManager`.
+- Smoke validation writes a history file, verifies secret/local-path redaction, loads the file, restores a terminal job, and converts a stale running job to canceled/audit-required through `RenderJobManager`.
 - `/v1/preflight` reports a pass when the configured history path is writable and valid.
 - Public job summaries expose `retentionSource` and `detailRetention`.
 - No production runtime import from `external/upstream/`.
@@ -103,4 +107,4 @@ function restoreHistory(historyFile): RestoredJob[] {
 
 ## Remaining Scope
 
-This is not a Redis-compatible distributed queue, multi-process resume engine, or full WebUI replacement. It improves commercial operator reliability by preserving compact terminal job history across API restarts while keeping active render work, provider calls, and artifact detail under the existing runtime controls.
+This is not a Redis-compatible distributed queue, multi-process resume engine, or full WebUI replacement. It improves commercial operator reliability by preserving compact job history across API restarts and making stale active jobs visible as canceled/audit-required while keeping active provider calls and artifact detail under the existing runtime controls.

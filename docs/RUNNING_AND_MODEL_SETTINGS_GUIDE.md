@@ -95,7 +95,7 @@ Required variables:
 | `CINEJELLY_API_CLIENTS_JSON` | Optional | Customer/client API key policies using SHA-256 key digests, limits, and enable flags. | Generate customer keys in your admin system, store only SHA-256 digests here. |
 | `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER` | Optional | When `true`, render submissions must use a configured client key and pass quota policy before provider spend. | Set in deployment environment. |
 | `CINEJELLY_CLIENT_USAGE_LEDGER_PATH` | Optional | JSONL quota reservation ledger for client render submissions. | Set to an ignored/persistent writable path. |
-| `CINEJELLY_API_JOB_HISTORY_PATH` | Optional | Compact JSON history file for terminal async render jobs. Restored jobs are marked `retentionSource=history_store` and `detailRetention=compact_restored`. | Set to an ignored/persistent writable path on durable storage. |
+| `CINEJELLY_API_JOB_HISTORY_PATH` | Optional | Compact JSON history file for retained async render jobs. Restored jobs are marked `retentionSource=history_store` and `detailRetention=compact_restored`; stale queued/running jobs restore as canceled/audit-required. | Set to an ignored/persistent writable path on durable storage. |
 
 When these Atlas overrides use the official `api.atlascloud.ai` host, preflight and runtime loading require the documented paths exactly: LLM overrides must end at `/v1`, while media/upload/video overrides must end at `/api/v1`. The `atlascloud_docs_conformance` preflight check also verifies the endpoint family wiring, separate key posture, billing `/balance` path, and configured Seedance capability coverage without calling Atlas. Custom HTTPS proxy hosts remain allowed after the standard clean-URL checks.
 
@@ -304,7 +304,7 @@ This is stricter than `doctor`. It reads local smoke evidence, paid-render evide
 | `/v1/render-settings` | GET | Secret-free settings/model/capability descriptor for API clients and future UI controls. |
 | `/v1/render` | POST | Synchronous render. Better for short validation jobs. |
 | `/v1/render-jobs` | POST | Async render job submission. Better for long-form work. |
-| `/v1/render-jobs` | GET | List retained async jobs. If `CINEJELLY_API_JOB_HISTORY_PATH` is configured, terminal compact history can survive API restart. |
+| `/v1/render-jobs` | GET | List retained async jobs. If `CINEJELLY_API_JOB_HISTORY_PATH` is configured, compact history can survive API restart. |
 | `/v1/render-jobs/<jobId>` | GET | Poll one job. Restored history entries expose compact status/progress only, not full runtime artifact/result detail. |
 | `/v1/render-jobs/<jobId>` | DELETE | Cancel one job. |
 | `/v1/admin/client-policy` | GET | Deployment-token-only client policy and quota diagnostics without raw keys or key digests. |
@@ -431,7 +431,7 @@ flowchart TD
 | `vericontext/vibeframe` | Validate-before-spend, cost gates, deterministic artifacts, review reports, repair loop discipline. |
 | `HKUDS/VideoAgent` | Source-video analysis boundaries and metadata flow. Full VideoRAG/tool graph is not implemented. |
 | `calesthio/OpenMontage` | Approval/self-review/source-media concepts only as AGPL-aware behavior notes. No direct production import. |
-| `harry0703/MoneyPrinterTurbo` | One-input pipeline, material sourcing, task progress, compact terminal job history, batch evidence, subtitles/audio planning. Full WebUI and distributed active-job resume are not implemented. |
+| `harry0703/MoneyPrinterTurbo` | One-input pipeline, material sourcing, task progress, compact job history with stale-active recovery, batch evidence, subtitles/audio planning. Full WebUI and distributed active-job resume are not implemented. |
 | `DirectorBench` | Planning/evaluation influence only until license status is clarified. |
 
 ## Important Documents
@@ -470,7 +470,7 @@ Pass the configured `CINEJELLY_API_AUTH_TOKEN`, or a configured client API key f
 
 Use `/v1/render-jobs` instead of synchronous `/v1/render`.
 
-For production operators, set `CINEJELLY_API_JOB_HISTORY_PATH` to an ignored durable JSON path such as `ops/runtime/render-job-history.json`. This preserves compact terminal job summaries across API restarts without storing raw render requests, local artifact paths, provider payloads, or secrets. Active queued/running provider work is still process-local and is canceled during deployment shutdown.
+For production operators, set `CINEJELLY_API_JOB_HISTORY_PATH` to an ignored durable JSON path such as `ops/runtime/render-job-history.json`. This preserves compact job summaries across API restarts without storing raw render requests, local artifact paths, provider payloads, or secrets. Active queued/running provider work is still process-local; after an unplanned restart, stale active snapshots restore as canceled/audit-required instead of silently disappearing.
 
 ## Current Readiness Rule
 

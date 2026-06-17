@@ -1,6 +1,6 @@
 /**
  * Optional file-backed retained job history for API operators.
- * It persists compact, redacted terminal job summaries only; raw requests, local artifact paths, and provider payloads stay out.
+ * It persists compact, redacted job summaries only; raw requests, local artifact paths, and provider payloads stay out.
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -21,6 +21,9 @@ const JOB_ID_PATTERN = /^render_job_[0-9a-fA-F-]{36}$/;
 const REQUEST_ID_PATTERN = /^req_[A-Za-z0-9_.:-]{8,160}$/;
 const MAX_PREVIEW_CHARS = 160;
 const MAX_STAGE_PROGRESS_EVENTS = 200;
+const EMBEDDED_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s"',;)]*/g;
+const EMBEDDED_UNC_PATH_PATTERN = /\\\\[^\s"',;)]*/g;
+const EMBEDDED_POSIX_PATH_PATTERN = /(^|\s)(\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/[^\s"',;)]+)/g;
 const PRODUCTION_STAGE_STATUSES: readonly ProductionStageStatus[] = [
   "pending",
   "running",
@@ -35,7 +38,7 @@ export interface RenderJobStoredSummary {
   readonly jobId: string;
   readonly clientId?: string;
   readonly requestId?: string;
-  readonly status: Extract<RenderJobStatus, "succeeded" | "failed" | "canceled">;
+  readonly status: RenderJobStatus;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly startedAt?: Date;
@@ -117,7 +120,6 @@ export class RenderJobHistoryStore {
 
   public save(summaries: readonly RenderJobSummary[]): void {
     const jobs = summaries
-      .filter((summary) => isTerminal(summary.status))
       .map((summary) => this.publicStoredSummary(summary))
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .slice(0, this.historyLimit);
@@ -133,7 +135,7 @@ export class RenderJobHistoryStore {
   }
 
   private publicStoredSummary(summary: RenderJobSummary): RenderJobStoredSummary {
-    const redacted = redactApiLocalPaths(redactUnknown(summary)) as Record<string, unknown>;
+    const redacted = this.redactHistoryValue(summary) as Record<string, unknown>;
     return this.storedSummary(redacted);
   }
 
@@ -189,7 +191,7 @@ export class RenderJobHistoryStore {
 
   private storedSummary(value: unknown): RenderJobStoredSummary {
     const payload = this.objectRecord(value, "Render job history job");
-    const status = this.terminalStatus(payload.status);
+    const status = this.jobStatus(payload.status);
     const userInputPreview = this.safeOptionalString(payload.userInputPreview, "userInputPreview") ?? "";
     const stageProgressEvents = this.stageProgressEvents(payload.stageProgressEvents);
     const summary: RenderJobStoredSummary = {
@@ -230,7 +232,7 @@ export class RenderJobHistoryStore {
         ? { artifactValidationStatus: this.artifactValidationStatus(payload.artifactValidationStatus) }
         : {}),
       hasError: this.booleanValue(payload.hasError, "hasError"),
-      ...(payload.error !== undefined ? { error: redactApiLocalPaths(redactUnknown(payload.error)) } : {})
+      ...(payload.error !== undefined ? { error: this.redactHistoryValue(payload.error) } : {})
     };
     return summary;
   }
@@ -301,11 +303,17 @@ export class RenderJobHistoryStore {
     return requestId;
   }
 
-  private terminalStatus(value: unknown): Extract<RenderJobStatus, "succeeded" | "failed" | "canceled"> {
-    if (value === "succeeded" || value === "failed" || value === "canceled") {
+  private jobStatus(value: unknown): RenderJobStatus {
+    if (
+      value === "queued" ||
+      value === "running" ||
+      value === "succeeded" ||
+      value === "failed" ||
+      value === "canceled"
+    ) {
       return value;
     }
-    throw new Error("Render job history stores terminal jobs only.");
+    throw new Error("Render job history status must use the render job status vocabulary.");
   }
 
   private artifactValidationStatus(value: unknown): "pass" | "warn" | "fail" {
@@ -361,7 +369,7 @@ export class RenderJobHistoryStore {
     if (typeof value !== "string") {
       throw new Error(`${label} must be a string.`);
     }
-    const redacted = redactApiLocalPaths(redactUnknown(value));
+    const redacted = this.redactHistoryValue(value);
     if (typeof redacted !== "string") {
       throw new Error(`${label} must be a string.`);
     }
@@ -369,6 +377,31 @@ export class RenderJobHistoryStore {
       throw new Error(`${label} must not contain control characters.`);
     }
     return redacted;
+  }
+
+  private redactHistoryValue(value: unknown): unknown {
+    return this.redactEmbeddedLocalPathText(redactApiLocalPaths(redactUnknown(value)));
+  }
+
+  private redactEmbeddedLocalPathText(value: unknown): unknown {
+    if (typeof value === "string") {
+      return value
+        .replace(EMBEDDED_WINDOWS_PATH_PATTERN, "[REDACTED_LOCAL_PATH]")
+        .replace(EMBEDDED_UNC_PATH_PATTERN, "[REDACTED_LOCAL_PATH]")
+        .replace(EMBEDDED_POSIX_PATH_PATTERN, "$1[REDACTED_LOCAL_PATH]");
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => this.redactEmbeddedLocalPathText(item));
+    }
+    if (value && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+          key,
+          this.redactEmbeddedLocalPathText(item)
+        ])
+      );
+    }
+    return value;
   }
 
   private stageName(value: unknown): ProductionStageName {
@@ -397,10 +430,6 @@ export function readRenderJobHistoryPath(env: NodeJS.ProcessEnv = process.env): 
     throw new Error("CINEJELLY_API_JOB_HISTORY_PATH must not contain control characters.");
   }
   return value;
-}
-
-function isTerminal(status: RenderJobStatus): status is Extract<RenderJobStatus, "succeeded" | "failed" | "canceled"> {
-  return status === "succeeded" || status === "failed" || status === "canceled";
 }
 
 function isFileNotFound(error: unknown): boolean {

@@ -221,6 +221,7 @@ export class RenderJobManager {
       });
     }
     this.queue.push(jobId);
+    this.persistHistory();
     this.pruneHistory();
     this.pumpQueue();
     return {
@@ -476,6 +477,7 @@ export class RenderJobManager {
       updatedAt: new Date(),
       stageProgressEvents: retainedEvents
     });
+    this.persistHistory();
   }
 
   private redactedStageProgressEvent(event: ProductionStageProgressEvent): ProductionStageProgressEvent {
@@ -549,8 +551,12 @@ export class RenderJobManager {
     if (!this.historyStore) {
       return;
     }
-    for (const summary of this.historyStore.load()) {
+    const restored = this.historyStore.load();
+    for (const summary of restored) {
       this.jobs.set(summary.jobId, this.fromStoredSummary(summary));
+    }
+    if (restored.length > 0) {
+      this.persistHistory();
     }
   }
 
@@ -562,17 +568,19 @@ export class RenderJobManager {
   }
 
   private fromStoredSummary(summary: RenderJobStoredSummary): RestoredRenderJobRecord {
+    const staleActive = summary.status === "queued" || summary.status === "running";
+    const restoredAt = new Date();
     return {
       jobId: summary.jobId,
       ...(summary.clientId ? { clientId: summary.clientId } : {}),
       ...(summary.requestId ? { requestId: summary.requestId } : {}),
-      status: summary.status,
+      status: staleActive ? "canceled" : summary.status,
       retentionSource: "history_store",
       detailRetention: "compact_restored",
       createdAt: summary.createdAt,
-      updatedAt: summary.updatedAt,
+      updatedAt: staleActive ? restoredAt : summary.updatedAt,
       ...(summary.startedAt ? { startedAt: summary.startedAt } : {}),
-      ...(summary.completedAt ? { completedAt: summary.completedAt } : {}),
+      ...(staleActive ? { completedAt: restoredAt } : summary.completedAt ? { completedAt: summary.completedAt } : {}),
       ...(summary.projectId ? { projectId: summary.projectId } : {}),
       userInputPreview: summary.userInputPreview,
       ...(summary.requestedDurationSeconds !== undefined
@@ -591,7 +599,15 @@ export class RenderJobManager {
       hasArtifacts: summary.hasArtifacts,
       hasArtifactValidation: summary.hasArtifactValidation,
       ...(summary.artifactValidationStatus ? { artifactValidationStatus: summary.artifactValidationStatus } : {}),
-      ...(summary.error !== undefined ? { error: summary.error } : {})
+      ...(staleActive
+        ? {
+            error: this.errorPayload(
+              new Error(
+                `Render job was ${summary.status} when the API process stopped; active provider work is not resumed automatically and must be audited manually.`
+              )
+            )
+          }
+        : summary.error !== undefined ? { error: summary.error } : {})
     };
   }
 
@@ -693,15 +709,19 @@ export class RenderJobManager {
 
   private errorPayload(error: unknown): unknown {
     if (error instanceof Error) {
-      return redactUnknown({
-        name: error.name,
-        message: error.message
-      });
+      return this.redactStageProgressLocalPathText(
+        redactApiLocalPaths(redactUnknown({
+          name: error.name,
+          message: error.message
+        }))
+      );
     }
-    return redactUnknown({
-      name: "UnknownError",
-      message: String(error)
-    });
+    return this.redactStageProgressLocalPathText(
+      redactApiLocalPaths(redactUnknown({
+        name: "UnknownError",
+        message: String(error)
+      }))
+    );
   }
 
   private preview(value: string): string {

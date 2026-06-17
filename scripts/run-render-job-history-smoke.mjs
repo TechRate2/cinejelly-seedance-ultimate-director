@@ -70,6 +70,44 @@ store.save([
       name: "SmokeFailure",
       message: "Failure included apiKey=should-not-persist and C:\\Users\\Admin\\secret\\stack.txt"
     }
+  },
+  {
+    jobId: "render_job_00000000-0000-4000-8000-000000000002",
+    status: "running",
+    retentionSource: "memory",
+    detailRetention: "full",
+    createdAt: new Date("2026-06-17T00:02:00.000Z"),
+    updatedAt: new Date("2026-06-17T00:03:00.000Z"),
+    startedAt: new Date("2026-06-17T00:02:05.000Z"),
+    requestId: "req_render_history_smoke_002",
+    projectId: "project_history_smoke_active",
+    userInputPreview: "Render an in-flight job that should become audit-required after restart.",
+    requestedDurationSeconds: 120,
+    requestedQualityMode: "economy",
+    requestedResolution: "480p",
+    referenceCount: 0,
+    currentStage: "render",
+    currentStageStatus: "running",
+    progressEventCount: 1,
+    stageProgressEvents: [
+      {
+        sequence: 1,
+        stage: "render",
+        order: 4,
+        status: "running",
+        recordedAt: new Date("2026-06-17T00:02:30.000Z"),
+        message: "Render is in progress.",
+        sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
+        evidence: {
+          providerAttemptCount: 1
+        }
+      }
+    ],
+    hasResult: false,
+    hasCostLedger: true,
+    hasArtifacts: false,
+    hasArtifactValidation: false,
+    hasError: false
   }
 ]);
 
@@ -80,17 +118,27 @@ const manager = new RenderJobManager({
 });
 const list = manager.list();
 const detail = manager.get("render_job_00000000-0000-4000-8000-000000000001");
+const staleActiveDetail = manager.get("render_job_00000000-0000-4000-8000-000000000002");
+const rewrittenHistory = await readFile(historyPath, "utf8");
+const rewrittenPayload = JSON.parse(rewrittenHistory);
+const rewrittenStaleActive = rewrittenPayload.jobs.find(
+  (job) => job.jobId === "render_job_00000000-0000-4000-8000-000000000002"
+);
 
 const checks = [
   check("history_file_written", rawHistory.includes("cinejelly.render-job-history.v1")),
   check("secret_redacted", !rawHistory.includes("super-secret-value") && !rawHistory.includes("should-not-persist")),
   check("bearer_redacted", !rawHistory.includes("Bearer abcdef123456")),
-  check("local_path_redacted", !rawHistory.includes("C:\\Users\\Admin\\secret")),
-  check("store_loads_one_job", restored.length === 1),
-  check("manager_restores_one_job", list.length === 1),
-  check("restored_summary_marks_compact_history", list[0]?.retentionSource === "history_store" && list[0]?.detailRetention === "compact_restored"),
+  check("local_path_redacted", !includesLocalPathLeak(rawHistory)),
+  check("store_loads_two_jobs", restored.length === 2),
+  check("manager_restores_two_jobs", list.length === 2),
+  check("restored_summaries_mark_compact_history", list.every((job) => job.retentionSource === "history_store" && job.detailRetention === "compact_restored")),
   check("restored_detail_keeps_stage_progress", detail?.stageProgressEvents?.length === 1),
-  check("restored_terminal_status", detail?.status === "failed")
+  check("restored_terminal_status", detail?.status === "failed"),
+  check("stale_active_restores_as_canceled", staleActiveDetail?.status === "canceled"),
+  check("stale_active_has_audit_error", JSON.stringify(staleActiveDetail?.error ?? "").includes("not resumed automatically")),
+  check("stale_active_history_rewritten_as_canceled", rewrittenStaleActive?.status === "canceled"),
+  check("rewritten_history_redacts_local_paths", !includesLocalPathLeak(rewrittenHistory))
 ];
 
 const report = {
@@ -119,4 +167,8 @@ function check(name, pass) {
     name,
     status: pass ? "pass" : "fail"
   };
+}
+
+function includesLocalPathLeak(text) {
+  return text.includes("C:\\Users\\Admin\\secret") || text.includes("C:\\\\Users\\\\Admin\\\\secret");
 }

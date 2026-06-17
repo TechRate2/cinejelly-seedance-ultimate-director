@@ -77,7 +77,7 @@ Preflight, live-input checks, and business-readiness planning validate `ATLASCLO
 
 `CINEJELLY_GENERATED_AUDIO_ASSET_RESOLUTION_CATALOG_PATH` is optional. When set, it must point to an operator-owned JSON catalog whose entries map clean generated-audio `asset://` outputs to credential-free HTTPS delivery URLs, include boolean `approvedForMix`, avoid duplicate `assetUri` values, and carry optional intent/provider/model/duration evidence when available. Preflight validates this catalog only; it does not call audio providers or create generated-audio assets.
 
-`CINEJELLY_API_JOB_HISTORY_PATH` is optional but recommended for production operators. When set, it must point to an ignored durable JSON path. CineJelly persists only compact terminal async job summaries and restores them after API restart with `retentionSource=history_store` and `detailRetention=compact_restored`; raw render requests, local artifact paths, provider payloads, and secrets are not stored there. Active queued/running provider work is still process-local and is canceled during deployment shutdown.
+`CINEJELLY_API_JOB_HISTORY_PATH` is optional but recommended for production operators. When set, it must point to an ignored durable JSON path. CineJelly persists compact async job summaries and restores them after API restart with `retentionSource=history_store` and `detailRetention=compact_restored`; raw render requests, local artifact paths, provider payloads, and secrets are not stored there. Stale queued/running jobs restore as canceled/audit-required because active provider work is not resumed automatically.
 
 ## Preflight Gate
 
@@ -315,7 +315,7 @@ For protected endpoints, send either:
 - `Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>`
 - `X-CineJelly-Api-Key: <CINEJELLY_API_AUTH_TOKEN>`
 
-Customer/client render access can also use a client API key whose SHA-256 digest is configured in `CINEJELLY_API_CLIENTS_JSON`. Store only `keySha256`, not raw customer keys. When `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER=true`, render submissions must use a configured client key and pass per-client duration, tier, quality, request-count, and reserved-cost limits before runtime creation or provider spend. Set `CINEJELLY_CLIENT_USAGE_LEDGER_PATH` to persist JSONL quota reservations, and set `CINEJELLY_API_JOB_HISTORY_PATH` to preserve compact terminal async job status across API restarts. `/v1/admin/client-policy` requires the deployment token and returns redacted policy/usage diagnostics.
+Customer/client render access can also use a client API key whose SHA-256 digest is configured in `CINEJELLY_API_CLIENTS_JSON`. Store only `keySha256`, not raw customer keys. When `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER=true`, render submissions must use a configured client key and pass per-client duration, tier, quality, request-count, and reserved-cost limits before runtime creation or provider spend. Set `CINEJELLY_CLIENT_USAGE_LEDGER_PATH` to persist JSONL quota reservations, and set `CINEJELLY_API_JOB_HISTORY_PATH` to preserve compact async job status across API restarts. `/v1/admin/client-policy` requires the deployment token and returns redacted policy/usage diagnostics.
 
 `/v1/preflight` and `/v1/validation-readiness` are diagnostic endpoints. They remain available when `CINEJELLY_API_AUTH_TOKEN` is not configured so a fresh deployment can report missing configuration, but once a token is configured they use the same authentication guard as other `/v1` endpoints.
 

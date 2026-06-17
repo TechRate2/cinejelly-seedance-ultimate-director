@@ -931,14 +931,16 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     license: "MIT",
     behaviorPreserved: [
-      "terminal task status remains operator-visible after completion",
+      "task status remains operator-visible across API process restarts",
       "the public task/job contract stays stable while persistence backend details change",
-      "task lists remain bounded and suitable for operator polling"
+      "task lists remain bounded and suitable for operator polling",
+      "stale queued/running state is not silently dropped after restart"
     ],
     behaviorChanged: [
       "MoneyPrinterTurbo Python state and Redis manager code is not copied or executed",
-      "CineJelly persists compact terminal summaries only rather than raw queued work",
-      "raw render requests, local artifact directories, and provider payloads are intentionally excluded from persisted history"
+      "CineJelly persists compact summaries rather than raw queued work",
+      "raw render requests, local artifact directories, and provider payloads are intentionally excluded from persisted history",
+      "stale queued/running snapshots restore as canceled/audit-required instead of resuming provider work without proof"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-job-history-persistence.md",
     cineJellyDestinationPaths: [
@@ -950,7 +952,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "this foundation restores terminal retained history only and does not resume active provider work after process restart",
+      "this foundation restores active snapshots as audit-required canceled history and does not resume active provider work after process restart",
       "distributed queue backends would need a separate adapter and deployment-specific validation"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -967,12 +969,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "operator status evidence remains deterministic and refreshable",
       "history persistence preserves release-facing status without exposing local paths",
-      "preflight surfaces persistence misconfiguration before customer traffic"
+      "preflight surfaces persistence misconfiguration before customer traffic",
+      "stale active work is surfaced for operator audit after restart"
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten as a compact JSON history snapshot",
       "CineJelly marks restored jobs as compact history rather than pretending full runtime detail is still resident",
-      "history persistence is local-file optional and no-provider by default"
+      "history persistence is local-file optional and no-provider by default",
+      "queued/running snapshots restore as canceled/audit-required because provider state cannot be proven after process loss"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-job-history-persistence.md",
     cineJellyDestinationPaths: [
