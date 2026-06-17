@@ -1,6 +1,6 @@
 # Reference Implementation: Render Provider Handoff
 
-Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as `RenderProviderHandoffCoordinator`, `FileRenderProviderHandoffLeaseStore`, `HttpRenderProviderHandoffLeaseStore`, `RenderProviderHandoffLeaseService`, `FileRenderProviderHandoffActionLedger`, and no-spend smoke reports. It wraps provider reconciliation in bounded job leases so a worker can decide whether to close terminal provider work, heartbeat-renew still-active polling ownership, or defer to an existing lease holder. The protected HTTP lease-service route gives production deployments a built-in durable contract for external workers, and the action ledger records redacted idempotent action intents so repeated worker runs can replay close/resume/manual-audit decisions without duplicating action records. This is still not a live Redis-compatible distributed queue or automatic graph resume engine.
+Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as `RenderProviderHandoffCoordinator`, `FileRenderProviderHandoffLeaseStore`, `HttpRenderProviderHandoffLeaseStore`, `RenderProviderHandoffLeaseService`, `FileRenderProviderHandoffActionLedger`, and no-spend smoke reports. It wraps provider reconciliation in bounded job leases so a worker can decide whether to close terminal provider work, heartbeat-renew still-active polling ownership, or defer to an existing lease holder. The protected HTTP lease-service route gives production deployments a built-in durable contract for external workers, the action ledger records redacted idempotent action intents so repeated worker runs can replay close/resume/manual-audit decisions without duplicating action records, and the local two-worker smoke proves held-by-other behavior plus handoff after lease expiry against the protected route. This is still not a live Redis-compatible distributed queue or automatic graph resume engine.
 
 ## Upstream Sources
 
@@ -17,6 +17,7 @@ Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation im
 5. Missing checkpoints or no-active-provider-work states are skipped without pretending work resumed.
 6. Handoff reports remain redacted and schema-validated.
 7. Worker action intents have stable idempotency keys so repeated handoff processing reuses existing records instead of duplicating terminal close or polling-resume intents.
+8. A second worker cannot steal an active lease, but can take over after expiry while reusing the existing action intent.
 
 ## Intentional Changes
 
@@ -76,9 +77,11 @@ The public report omits owner ID and stores only:
 - `scripts/run-render-provider-external-lease-smoke.mjs`
 - `scripts/run-render-provider-lease-service-smoke.mjs`
 - `scripts/run-render-provider-handoff-action-ledger-smoke.mjs`
+- `scripts/run-render-provider-multi-worker-handoff-smoke.mjs`
 - `schemas/render-provider-handoff-report.schema.json`
 - `schemas/render-provider-lease-service-smoke-report.schema.json`
 - `schemas/render-provider-handoff-action-ledger-report.schema.json`
+- `schemas/render-provider-multi-worker-handoff-report.schema.json`
 - `scripts/validate-report-contracts.mjs`
 
 ## Validation Checklist
@@ -90,10 +93,11 @@ The public report omits owner ID and stores only:
 - External lease smoke proves HTTPS-only base URL validation, bearer-auth request use without token serialization, acquire/release/heartbeat/list/active contract behavior, held-by-other protection, and owner-ID redaction from public reports.
 - Lease-service smoke proves deployment-token-only HTTP routing, preflight lease path validation, durable acquire/release/heartbeat/list/active behavior, invalid-body rejection, and token non-serialization against a local server.
 - Action-ledger smoke proves terminal-close, resume-polling, and manual-audit intents record once, replay by stable idempotency key on a second worker pass, persist across reload, and avoid raw provider payload/output URL/local path serialization.
+- Multi-worker handoff smoke starts the protected API locally, proves worker B receives `held_by_other` while worker A's retained lease is active, proves worker B acquires after lease expiry, and proves the action ledger replays the existing resume intent instead of recording a duplicate.
 - Smoke proves raw provider payloads, bearer tokens, and local paths are not serialized into the handoff report.
-- Report contract validation passes for `render_provider_handoff`, `render_provider_external_lease`, `render_provider_lease_service_smoke`, and `render_provider_handoff_action_ledger`.
-- Business completion audit keeps full distributed active provider-work resume visible as incomplete until real multi-worker ownership handoff, live provider action execution, and live Atlas prediction evidence exist.
+- Report contract validation passes for `render_provider_handoff`, `render_provider_external_lease`, `render_provider_lease_service_smoke`, `render_provider_handoff_action_ledger`, and `render_provider_multi_worker_handoff`.
+- Business completion audit keeps full distributed active provider-work resume visible as incomplete until production multi-worker ownership handoff, live provider action execution, and live Atlas prediction evidence exist.
 
 ## Remaining Scope
 
-To claim distributed/HA parity, CineJelly still needs queue task payloads or secure resumable graph state, live close/cancel/resume execution against real provider IDs, and deployment evidence across multiple workers. The current handoff foundation is the local lease, protected lease-service route, HTTPS adapter contract, heartbeat-renewal evidence, action-decision layer, and idempotent action ledger those pieces can build on.
+To claim distributed/HA parity, CineJelly still needs queue task payloads or secure resumable graph state, live close/cancel/resume execution against real provider IDs, and deployment evidence across production workers. The current handoff foundation is the local lease, protected lease-service route, HTTPS adapter contract, heartbeat-renewal evidence, action-decision layer, idempotent action ledger, and local two-worker handoff smoke that those pieces can build on.

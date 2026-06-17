@@ -34,6 +34,7 @@
     "validation:provider-external-lease": "node scripts/run-render-provider-external-lease-smoke.mjs",
     "validation:provider-lease-service": "node scripts/run-render-provider-lease-service-smoke.mjs",
     "validation:provider-handoff-actions": "node scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
+    "validation:provider-multi-worker-handoff": "node scripts/run-render-provider-multi-worker-handoff-smoke.mjs",
     "validation:long-form": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-long-form-validation.mjs",
     "validation:source-video-auto-analysis": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-source-video-auto-analysis-validation.mjs",
     "validation:remote-stock": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-remote-stock-validation.mjs",

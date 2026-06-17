@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-multi-worker-handoff-report.schema.json",
+  "title": "CineJelly Render Provider Multi-Worker Handoff Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "externalNetworkCallsMade",
+    "localHttpCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "workerReports",
+    "actionLedger",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-multi-worker-handoff-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "externalNetworkCallsMade": { "const": false },
+    "localHttpCallsMade": { "const": true },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": { "type": "array", "items": { "type": "string" } },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "leasePath",
+        "actionLedgerPath",
+        "endpointPath",
+        "localServer",
+        "workerCount",
+        "fakeProvider"
+      ],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "leasePath": { "type": "string" },
+        "actionLedgerPath": { "type": "string" },
+        "endpointPath": { "const": "/v1/render-provider-handoff-leases" },
+        "localServer": { "const": true },
+        "workerCount": { "const": 2 },
+        "fakeProvider": { "const": true }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workerAAction",
+        "workerBImmediateAction",
+        "workerBAfterExpiryAction",
+        "firstRecordedActionCount",
+        "afterExpiryReplayedActionCount",
+        "activeLeaseCount",
+        "totalLeaseRecordCount",
+        "actionRecordCount",
+        "canClaimDistributedResume"
+      ],
+      "properties": {
+        "workerAAction": { "type": "string" },
+        "workerBImmediateAction": { "type": "string" },
+        "workerBAfterExpiryAction": { "type": "string" },
+        "firstRecordedActionCount": { "type": "integer", "minimum": 0 },
+        "afterExpiryReplayedActionCount": { "type": "integer", "minimum": 0 },
+        "activeLeaseCount": { "type": "integer", "minimum": 0 },
+        "totalLeaseRecordCount": { "type": "integer", "minimum": 0 },
+        "actionRecordCount": { "type": "integer", "minimum": 0 },
+        "canClaimDistributedResume": { "const": false }
+      }
+    },
+    "workerReports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workerA", "workerBImmediate", "workerBAfterExpiry"],
+      "properties": {
+        "workerA": { "$ref": "#/$defs/handoffReport" },
+        "workerBImmediate": { "$ref": "#/$defs/handoffReport" },
+        "workerBAfterExpiry": { "$ref": "#/$defs/handoffReport" }
+      }
+    },
+    "actionLedger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["firstApply", "immediateApply", "afterExpiryApply"],
+      "properties": {
+        "firstApply": { "$ref": "#/$defs/actionApply" },
+        "immediateApply": { "$ref": "#/$defs/actionApply" },
+        "afterExpiryApply": { "$ref": "#/$defs/actionApply" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    }
+  },
+  "$defs": {
+    "handoffReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "generatedAt", "status", "summary", "jobs", "releaseGateSummary"],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.render-provider-handoff.v1" },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["pass", "warn", "fail"] },
+        "summary": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" }
+        },
+        "jobs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/handoffJob" }
+        },
+        "releaseGateSummary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "handoffFoundationPass",
+            "activeProviderWorkLeased",
+            "activeProviderWorkResolved",
+            "canClaimDistributedResume",
+            "releaseBlocker"
+          ],
+          "properties": {
+            "handoffFoundationPass": { "type": "boolean" },
+            "activeProviderWorkLeased": { "type": "boolean" },
+            "activeProviderWorkResolved": { "type": "boolean" },
+            "canClaimDistributedResume": { "const": false },
+            "releaseBlocker": { "type": "string" }
+          }
+        }
+      }
+    },
+    "handoffJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jobId",
+        "status",
+        "action",
+        "leaseStatus",
+        "leaseHeartbeatStatus",
+        "leaseRetained",
+        "leaseReleased",
+        "activePredictionIds",
+        "terminalPredictionIds",
+        "reconciliationDecision"
+      ],
+      "properties": {
+        "jobId": { "type": "string" },
+        "status": { "enum": ["pass", "warn", "fail", "skipped"] },
+        "action": { "type": "string" },
+        "leaseStatus": { "type": "string" },
+        "leaseHeartbeatStatus": { "type": "string" },
+        "leaseRetained": { "type": "boolean" },
+        "leaseReleased": { "type": "boolean" },
+        "activePredictionIds": { "type": "array", "items": { "type": "string" } },
+        "terminalPredictionIds": { "type": "array", "items": { "type": "string" } },
+        "reconciliationDecision": { "type": "string" }
+      }
+    },
+    "actionApply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "generatedAt", "status", "summary", "decisions", "releaseGateSummary"],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.render-provider-handoff-actions.v1" },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["pass", "warn", "fail"] },
+        "summary": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" }
+        },
+        "decisions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/actionDecision" }
+        },
+        "releaseGateSummary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["idempotentActionLedgerPass", "canClaimDistributedResume", "releaseBlocker"],
+          "properties": {
+            "idempotentActionLedgerPass": { "type": "boolean" },
+            "canClaimDistributedResume": { "const": false },
+            "releaseBlocker": { "type": "string" }
+          }
+        }
+      }
+    },
+    "actionDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jobId", "status", "sourceHandoffAction", "predictionIds", "message"],
+      "properties": {
+        "jobId": { "type": "string" },
+        "status": { "enum": ["recorded", "replayed", "skipped"] },
+        "action": { "type": "string" },
+        "sourceHandoffAction": { "type": "string" },
+        "idempotencyKey": { "type": "string" },
+        "actionId": { "type": "string" },
+        "predictionIds": { "type": "array", "items": { "type": "string" } },
+        "message": { "type": "string" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}
