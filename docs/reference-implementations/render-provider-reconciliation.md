@@ -72,4 +72,4 @@ The report contains:
 
 ## Remaining Scope
 
-`docs/reference-implementations/render-provider-handoff.md` now adds the local lease/action foundation on top of this reconciler. To claim distributed/HA parity, CineJelly still needs an external lease backend, worker heartbeat/ownership handoff, idempotent resume/cancel/close behavior, and live provider evidence against real Atlas prediction IDs.
+`docs/reference-implementations/render-provider-handoff.md` now adds the local lease/action foundation plus HTTPS external lease adapter on top of this reconciler. To claim distributed/HA parity, CineJelly still needs a deployed external lease backend, worker heartbeat/ownership handoff, idempotent resume/cancel/close behavior, and live provider evidence against real Atlas prediction IDs.

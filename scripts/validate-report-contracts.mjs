@@ -21,6 +21,7 @@ const defaultContracts = [
   contract("render_job_history_smoke", "schemas/render-job-history-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-job-history-smoke-report.json"),
   contract("render_provider_reconciliation", "schemas/render-provider-reconciliation-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
   contract("render_provider_handoff", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
+  contract("render_provider_external_lease", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
   contract("atlas_billing_readiness", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json"),
   contract("atlas_billing_generated_audio_smoke", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json"),
   contract("commercial_launch_intake", "schemas/commercial-launch-intake-validation-report.schema.json", "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json"),

@@ -1081,26 +1081,30 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "long-running task ownership remains externally visible before a worker changes task state",
       "an active task lease should not be stolen from another worker",
       "terminal provider work can be closed while still-active provider work remains leased for polling",
-      "state evidence is durable enough to survive the local smoke process reload"
+      "state evidence is durable enough to survive the local smoke process reload",
+      "queue/state backend concerns stay behind an adapter contract"
     ],
     behaviorChanged: [
       "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
-      "the first lease store is a local JSON adapter foundation rather than a distributed Redis-compatible backend",
+      "local JSON and HTTPS lease-store adapters replace direct Redis coupling in the production TypeScript boundary",
+      "the HTTPS adapter validates a bearer-auth external lease-service contract without claiming a deployed durable backend",
       "handoff reports expose redacted lease/action evidence and refuse to claim distributed resume parity",
-      "raw provider payloads, output URLs, hostnames, worker owner IDs, local paths, and secrets are excluded from public reports"
+      "raw provider payloads, output URLs, hostnames, worker owner IDs, local paths, bearer tokens, and secrets are excluded from public reports"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",
     cineJellyDestinationPaths: [
       "src/api/render-provider-handoff.ts",
+      "src/api/render-provider-handoff-external-lease.ts",
       "scripts/run-render-provider-handoff-smoke.mjs",
+      "scripts/run-render-provider-external-lease-smoke.mjs",
       "schemas/render-provider-handoff-report.schema.json",
       "scripts/validate-report-contracts.mjs"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "production parity still requires an external lease backend and multi-worker deployment evidence",
+      "production parity still requires a deployed external lease backend and multi-worker deployment evidence",
       "live Atlas prediction IDs must be validated before using handoff output as paid-provider closeout evidence",
-      "automatic graph resume/cancel/close behavior is intentionally not claimed by the local foundation"
+      "automatic graph resume/cancel/close behavior is intentionally not claimed by the adapter foundation"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -1120,19 +1124,21 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten into CineJelly provider handoff contracts",
-      "local lease decisions wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
-      "distributed resume remains blocked until external leases and live worker ownership handoff are proven"
+      "local and HTTPS-adapted lease decisions wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
+      "distributed resume remains blocked until a deployed external lease service and live worker ownership handoff are proven"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",
     cineJellyDestinationPaths: [
       "src/api/render-provider-handoff.ts",
+      "src/api/render-provider-handoff-external-lease.ts",
       "scripts/run-render-provider-handoff-smoke.mjs",
+      "scripts/run-render-provider-external-lease-smoke.mjs",
       "schemas/render-provider-handoff-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
       "operator tooling must not treat the fake-provider smoke as live Atlas handoff evidence",
-      "future worker automation must preserve the same redaction and warning boundaries"
+      "future worker automation must preserve the same redaction, bearer-token, and warning boundaries"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },

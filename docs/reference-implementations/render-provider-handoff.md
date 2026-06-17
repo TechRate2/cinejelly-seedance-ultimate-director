@@ -1,6 +1,6 @@
 # Reference Implementation: Render Provider Handoff
 
-Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as `RenderProviderHandoffCoordinator` plus `FileRenderProviderHandoffLeaseStore` and a no-spend smoke report. It wraps provider reconciliation in bounded job leases so a worker can decide whether to close terminal provider work, keep polling active predictions, or defer to an existing lease holder. This is still not a Redis-compatible distributed queue, production lease backend, or automatic graph resume engine.
+Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as `RenderProviderHandoffCoordinator`, `FileRenderProviderHandoffLeaseStore`, `HttpRenderProviderHandoffLeaseStore`, and no-spend smoke reports. It wraps provider reconciliation in bounded job leases so a worker can decide whether to close terminal provider work, keep polling active predictions, or defer to an existing lease holder. The HTTPS lease adapter gives production deployments a clean external lease-service contract, but this is still not a live Redis-compatible distributed queue, deployed production lease service, or automatic graph resume engine.
 
 ## Upstream Sources
 
@@ -20,9 +20,10 @@ Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation im
 ## Intentional Changes
 
 1. CineJelly does not copy MoneyPrinterTurbo Python memory or Redis manager code.
-2. The first lease store is a local JSON file foundation for validation and adapter design, not a distributed lock service.
-3. The coordinator reports handoff actions; it does not recreate render requests or continue the full Director graph after process loss.
-4. Reports do not include raw provider payloads, output URLs, hostnames, worker IDs, local paths, or secrets.
+2. The local JSON store is for validation and single-host adapter design, not a distributed lock service.
+3. The HTTPS lease-store adapter is a strict external-service contract with no dependency on Redis client libraries; the real service implementation, deployment, and persistence semantics remain operator-owned.
+4. The coordinator reports handoff actions; it does not recreate render requests or continue the full Director graph after process loss.
+5. Reports do not include raw provider payloads, output URLs, hostnames, worker IDs, local paths, bearer tokens, or secrets.
 
 ## Edge Cases
 
@@ -65,7 +66,9 @@ The public report omits owner ID and stores only:
 ## Production Destination
 
 - `src/api/render-provider-handoff.ts`
+- `src/api/render-provider-handoff-external-lease.ts`
 - `scripts/run-render-provider-handoff-smoke.mjs`
+- `scripts/run-render-provider-external-lease-smoke.mjs`
 - `schemas/render-provider-handoff-report.schema.json`
 - `scripts/validate-report-contracts.mjs`
 
@@ -75,10 +78,11 @@ The public report omits owner ID and stores only:
 - No-spend handoff smoke emits `cinejelly.render-provider-handoff.v1`.
 - Smoke proves terminal close/release, still-active retained lease, held-by-other lease protection, and no-checkpoint skip.
 - Smoke reloads the file lease store to prove retained active leases survive process reload.
-- Smoke proves raw provider payloads and local paths are not serialized into the handoff report.
-- Report contract validation passes for `render_provider_handoff`.
-- Business completion audit keeps full distributed active provider-work resume visible as incomplete until an external lease backend, real worker ownership handoff, and live Atlas prediction evidence exist.
+- External lease smoke proves HTTPS-only base URL validation, bearer-auth request use without token serialization, acquire/release/list/active contract behavior, held-by-other protection, and owner-ID redaction from public reports.
+- Smoke proves raw provider payloads, bearer tokens, and local paths are not serialized into the handoff report.
+- Report contract validation passes for `render_provider_handoff` and `render_provider_external_lease`.
+- Business completion audit keeps full distributed active provider-work resume visible as incomplete until a deployed external lease service, real worker ownership handoff, and live Atlas prediction evidence exist.
 
 ## Remaining Scope
 
-To claim distributed/HA parity, CineJelly still needs an external lease backend, queue task payloads or secure resumable graph state, worker identity/heartbeat operations, idempotent close/cancel/resume actions against live provider IDs, and deployment evidence across multiple workers. The current handoff foundation is the local lease and action-decision layer those pieces can build on.
+To claim distributed/HA parity, CineJelly still needs a deployed external lease backend, queue task payloads or secure resumable graph state, worker identity/heartbeat operations, idempotent close/cancel/resume actions against live provider IDs, and deployment evidence across multiple workers. The current handoff foundation is the local lease, HTTPS adapter contract, and action-decision layer those pieces can build on.
