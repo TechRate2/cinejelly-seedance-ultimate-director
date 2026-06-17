@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-lease-service-smoke-report.schema.json",
+  "title": "CineJelly Render Provider Lease Service Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "externalNetworkCallsMade",
+    "localHttpCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-lease-service-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "externalNetworkCallsMade": { "const": false },
+    "localHttpCallsMade": { "const": true },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": { "type": "array", "items": { "type": "string" } },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "leasePath", "endpointPath", "localServer"],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "leasePath": { "type": "string" },
+        "endpointPath": { "const": "/v1/render-provider-handoff-leases" },
+        "localServer": { "const": true }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acquiredStatus",
+        "heldStatus",
+        "heartbeatStatus",
+        "leaseCount",
+        "activeAfterReleaseCount",
+        "preflightLeasePathStatus",
+        "canClaimDistributedResume"
+      ],
+      "properties": {
+        "acquiredStatus": { "type": "string" },
+        "heldStatus": { "type": "string" },
+        "heartbeatStatus": { "type": "string" },
+        "leaseCount": { "type": "integer", "minimum": 0 },
+        "activeAfterReleaseCount": { "type": "integer", "minimum": 0 },
+        "preflightLeasePathStatus": { "type": "string" },
+        "canClaimDistributedResume": { "const": false }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}

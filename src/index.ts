@@ -15,6 +15,7 @@ export * from "./api/render-job-history-store.js";
 export * from "./api/render-job-manager.js";
 export * from "./api/render-provider-handoff.js";
 export * from "./api/render-provider-handoff-external-lease.js";
+export * from "./api/render-provider-handoff-lease-service.js";
 export * from "./api/render-provider-reconciler.js";
 export * from "./api/render-request-admission.js";
 export * from "./api/request-context.js";

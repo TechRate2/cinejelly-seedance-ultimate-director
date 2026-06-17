@@ -290,17 +290,17 @@ function buildProductCodeGaps() {
       id: "distributed_active_provider_work_resume",
       label: "Distributed active provider-work resume is not fully implemented",
       category: "runtime_resilience",
-      status: "external_lease_heartbeat_foundation",
-      currentCoveragePercent: 80,
+      status: "lease_service_endpoint_foundation",
+      currentCoveragePercent: 84,
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
       requiredAction:
-        "Connect the HTTPS external lease and heartbeat adapter to a deployed durable lease service, prove multi-worker ownership handoff, and implement idempotent resume, cancel, or close behavior from persisted checkpoint/reconciliation/handoff evidence, or keep the documented single-process boundary.",
+        "Deploy the built-in render-provider lease service on durable storage, point HTTPS external workers at it, prove multi-worker ownership handoff, and implement idempotent resume, cancel, or close behavior from persisted checkpoint/reconciliation/handoff evidence, or keep the documented single-process boundary.",
       canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, and HTTPS external lease heartbeat contract evidence improve post-restart auditability, but distributed/HA runtime parity still requires a deployed lease service, multi-worker evidence, idempotent worker actions, and live Atlas handoff validation."
+        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, HTTPS external lease heartbeat contract evidence, and a deployment-token-protected lease-service route improve post-restart auditability, but distributed/HA runtime parity still requires real deployment evidence, multi-worker evidence, idempotent worker actions, and live Atlas handoff validation."
     },
     {
       id: "directorbench_style_benchmark_harness",

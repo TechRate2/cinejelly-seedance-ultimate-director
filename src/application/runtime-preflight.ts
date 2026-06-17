@@ -7,6 +7,8 @@ import { constants } from "node:fs";
 import { access, mkdir, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { RenderJobHistoryStore } from "../api/render-job-history-store.js";
+import { FileRenderProviderHandoffLeaseStore } from "../api/render-provider-handoff.js";
+import { readRenderProviderLeasePath } from "../api/render-provider-handoff-lease-service.js";
 import { parseApiClientPoliciesJson } from "../api/api-client-policy.js";
 import { GeneratedAudioAssetResolver } from "../core/generated-audio-asset-resolver.js";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
@@ -62,6 +64,7 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_API_JOB_CONCURRENCY", this.env.CINEJELLY_API_JOB_CONCURRENCY),
       this.optionalPositiveInteger("CINEJELLY_API_JOB_HISTORY_LIMIT", this.env.CINEJELLY_API_JOB_HISTORY_LIMIT),
       this.optionalPositiveInteger("CINEJELLY_API_JOB_QUEUE_LIMIT", this.env.CINEJELLY_API_JOB_QUEUE_LIMIT),
+      this.optionalPositiveInteger("CINEJELLY_RENDER_PROVIDER_LEASE_MAX_RECORDS", this.env.CINEJELLY_RENDER_PROVIDER_LEASE_MAX_RECORDS),
       this.optionalPositiveInteger("CINEJELLY_API_MAX_BODY_BYTES", this.env.CINEJELLY_API_MAX_BODY_BYTES),
       this.optionalPositiveInteger("CINEJELLY_API_RATE_LIMIT_WINDOW_MS", this.env.CINEJELLY_API_RATE_LIMIT_WINDOW_MS),
       this.optionalPositiveInteger("CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS", this.env.CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS),
@@ -103,6 +106,7 @@ export class RuntimePreflight {
 
     checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
     checks.push(await this.renderJobHistoryStoreCheck());
+    checks.push(await this.renderProviderLeaseStoreCheck());
     checks.push(await this.sourceVideoAutoAnalysisCheck());
     checks.push(await this.localMaterialCatalogCheck(
       "CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH",
@@ -240,6 +244,44 @@ export class RuntimePreflight {
         message: error instanceof Error
           ? `CINEJELLY_API_JOB_HISTORY_PATH is not usable: ${error.message}`
           : "CINEJELLY_API_JOB_HISTORY_PATH is not usable."
+      };
+    }
+  }
+
+  private async renderProviderLeaseStoreCheck(): Promise<PreflightCheck> {
+    let leasePath: string | undefined;
+    try {
+      leasePath = readRenderProviderLeasePath(this.env);
+    } catch (error) {
+      return {
+        name: "CINEJELLY_RENDER_PROVIDER_LEASE_PATH",
+        status: "fail",
+        message: error instanceof Error ? error.message : "CINEJELLY_RENDER_PROVIDER_LEASE_PATH is invalid."
+      };
+    }
+    if (!leasePath) {
+      return {
+        name: "CINEJELLY_RENDER_PROVIDER_LEASE_PATH",
+        status: "pass",
+        message: "CINEJELLY_RENDER_PROVIDER_LEASE_PATH is not set; render-provider lease service is disabled."
+      };
+    }
+    try {
+      await mkdir(dirname(leasePath), { recursive: true });
+      await access(dirname(leasePath), constants.W_OK);
+      await new FileRenderProviderHandoffLeaseStore({ leasePath }).listLeases();
+      return {
+        name: "CINEJELLY_RENDER_PROVIDER_LEASE_PATH",
+        status: "pass",
+        message: "CINEJELLY_RENDER_PROVIDER_LEASE_PATH points to a writable render-provider lease file."
+      };
+    } catch (error) {
+      return {
+        name: "CINEJELLY_RENDER_PROVIDER_LEASE_PATH",
+        status: "fail",
+        message: error instanceof Error
+          ? `CINEJELLY_RENDER_PROVIDER_LEASE_PATH is not usable: ${error.message}`
+          : "CINEJELLY_RENDER_PROVIDER_LEASE_PATH is not usable."
       };
     }
   }

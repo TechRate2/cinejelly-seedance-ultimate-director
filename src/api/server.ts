@@ -45,6 +45,13 @@ import {
   RenderJobManager
 } from "./render-job-manager.js";
 import { readRenderJobHistoryPath, RenderJobHistoryStore } from "./render-job-history-store.js";
+import {
+  RENDER_PROVIDER_HANDOFF_LEASE_SERVICE_PATH,
+  readRenderProviderLeasePath,
+  RenderProviderHandoffLeaseService,
+  SerializedRenderProviderHandoffLeaseStore
+} from "./render-provider-handoff-lease-service.js";
+import { FileRenderProviderHandoffLeaseStore } from "./render-provider-handoff.js";
 import { renderRequestAdmissionFromEnv, RenderRequestAdmissionError } from "./render-request-admission.js";
 import {
   attachRequestContextHeaders,
@@ -83,7 +90,7 @@ class RequestBodyTooLargeError extends Error {
   }
 }
 
-export function startServer(port = readPort(process.env.PORT)): void {
+export function startServer(port = readPort(process.env.PORT)): Server {
   const maxBodyBytes = readPositiveInteger(process.env.CINEJELLY_API_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
   const preflight = new RuntimePreflight();
   const validationReadinessReporter = new Phase6ValidationReadinessReporter();
@@ -112,6 +119,7 @@ export function startServer(port = readPort(process.env.PORT)): void {
     queueLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_QUEUE_LIMIT, 50),
     ...renderJobHistoryStoreConfig(process.env)
   });
+  const renderProviderLeaseService = renderProviderLeaseServiceConfig(process.env);
   const shutdownCoordinator = new ApiShutdownCoordinator();
 
   const server = createServer(async (request, response) => {
@@ -173,6 +181,28 @@ export function startServer(port = readPort(process.env.PORT)): void {
       if (request.method === "GET" && requestUrl.pathname === "/v1/admin/client-policy") {
         assertDeploymentPrincipal(authDecision.principal);
         sendJson(response, 200, clientPolicyGate.summary(), requestContext);
+        return;
+      }
+      const renderProviderLeaseOperation = renderProviderLeaseOperationFor(requestUrl.pathname);
+      if (renderProviderLeaseOperation) {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for render-provider lease service operations.");
+        if (!renderProviderLeaseService) {
+          throw new ApiClientPolicyError(
+            "CINEJELLY_RENDER_PROVIDER_LEASE_PATH is required before render-provider lease service operations can be used.",
+            503
+          );
+        }
+        if (request.method === "POST") {
+          assertJsonContentType(request);
+        }
+        const body = request.method === "POST" ? await readJsonBody<unknown>(request, maxBodyBytes) : undefined;
+        const serviceResponse = await renderProviderLeaseService.handle({
+          method: request.method,
+          operation: renderProviderLeaseOperation,
+          searchParams: requestUrl.searchParams,
+          ...(body !== undefined ? { body } : {})
+        });
+        sendJson(response, serviceResponse.statusCode, serviceResponse.payload, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
@@ -289,9 +319,12 @@ export function startServer(port = readPort(process.env.PORT)): void {
   });
 
   server.listen(port, () => {
-    console.log(`CineJelly API listening on port ${port}`);
+    const address = server.address();
+    const boundPort = address && typeof address !== "string" ? address.port : port;
+    console.log(`CineJelly API listening on port ${boundPort}`);
   });
   registerShutdownHandlers(server, jobManager, shutdownCoordinator);
+  return server;
 }
 
 async function validateArtifactsForApi(
@@ -487,9 +520,12 @@ function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principa
   return principal?.kind === "client" && principal.clientId ? { clientId: principal.clientId } : {};
 }
 
-function assertDeploymentPrincipal(principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]): void {
+function assertDeploymentPrincipal(
+  principal: ReturnType<ApiAuthGuard["authorize"]>["principal"],
+  message = "Deployment API token is required for admin client-policy diagnostics."
+): void {
   if (principal?.kind !== "deployment") {
-    throw new ApiClientPolicyError("Deployment API token is required for admin client-policy diagnostics.", 403);
+    throw new ApiClientPolicyError(message, 403);
   }
 }
 
@@ -501,6 +537,28 @@ function renderJobHistoryStoreConfig(env: NodeJS.ProcessEnv): { readonly history
         historyLimit: readPositiveInteger(env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100)
       }) }
     : {};
+}
+
+function renderProviderLeaseServiceConfig(env: NodeJS.ProcessEnv): RenderProviderHandoffLeaseService | undefined {
+  const leasePath = readRenderProviderLeasePath(env);
+  return leasePath
+    ? new RenderProviderHandoffLeaseService({
+        leaseStore: new SerializedRenderProviderHandoffLeaseStore(
+          new FileRenderProviderHandoffLeaseStore({
+            leasePath,
+            maxRecords: readPositiveInteger(env.CINEJELLY_RENDER_PROVIDER_LEASE_MAX_RECORDS, 500)
+          })
+        )
+      })
+    : undefined;
+}
+
+function renderProviderLeaseOperationFor(pathname: string): string | undefined {
+  if (!pathname.startsWith(`${RENDER_PROVIDER_HANDOFF_LEASE_SERVICE_PATH}/`)) {
+    return undefined;
+  }
+  const operation = pathname.slice(RENDER_PROVIDER_HANDOFF_LEASE_SERVICE_PATH.length + 1);
+  return operation && !operation.includes("/") ? operation : undefined;
 }
 
 function registerShutdownHandlers(
