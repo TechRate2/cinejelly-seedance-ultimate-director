@@ -68,8 +68,8 @@ The report contains:
 - Smoke proves terminal, still-active, and no-checkpoint branches.
 - Smoke proves the report does not serialize fake raw provider payloads or local provider paths.
 - Report contract validation passes for `render_provider_reconciliation`.
-- Business completion audit keeps full distributed active provider-work resume visible as incomplete until durable queue leasing and automatic provider handoff are implemented.
+- Business completion audit keeps full distributed active provider-work resume visible as incomplete until an external lease backend, live worker ownership handoff, and automatic provider resume/close behavior are implemented.
 
 ## Remaining Scope
 
-To claim distributed/HA parity, CineJelly still needs durable queue leases, an external state backend, worker ownership handoff, idempotent resume/cancel/close behavior, and live provider evidence against real Atlas prediction IDs. The current reconciler is the provider-state query/report foundation those future pieces can build on.
+`docs/reference-implementations/render-provider-handoff.md` now adds the local lease/action foundation on top of this reconciler. To claim distributed/HA parity, CineJelly still needs an external lease backend, worker heartbeat/ownership handoff, idempotent resume/cancel/close behavior, and live provider evidence against real Atlas prediction IDs.

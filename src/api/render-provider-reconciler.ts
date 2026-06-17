@@ -349,7 +349,7 @@ export class RenderProviderReconciler {
     }
     return [
       "Archive the reconciliation report with job-history evidence.",
-      "Implement durable queue leasing and automatic provider-state handoff before claiming distributed resume parity."
+      "Add an external durable lease backend plus live worker provider-state handoff before claiming distributed resume parity."
     ];
   }
 

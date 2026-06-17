@@ -290,17 +290,17 @@ function buildProductCodeGaps() {
       id: "distributed_active_provider_work_resume",
       label: "Distributed active provider-work resume is not fully implemented",
       category: "runtime_resilience",
-      status: "provider_state_reconciliation_foundation",
-      currentCoveragePercent: 58,
+      status: "local_provider_handoff_foundation",
+      currentCoveragePercent: 68,
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
       requiredAction:
-        "Add durable queue leasing plus an automatic provider-state handoff worker that can resume, cancel, or close active provider work from persisted checkpoint/reconciliation evidence, or keep the documented single-process boundary.",
+        "Replace or extend the local file lease foundation with an external durable lease backend plus live worker ownership handoff that can resume, cancel, or close active provider work from persisted checkpoint/reconciliation/handoff evidence, or keep the documented single-process boundary.",
       canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "Provider prediction checkpoints and a reusable reconciliation report improve post-restart auditability, but distributed/HA runtime parity still requires durable queue leasing and automatic provider handoff behavior."
+        "Provider prediction checkpoints, reconciliation reports, and a local lease/handoff smoke improve post-restart auditability, but distributed/HA runtime parity still requires an external lease backend, multi-worker evidence, and live Atlas handoff validation."
     },
     {
       id: "directorbench_style_benchmark_harness",

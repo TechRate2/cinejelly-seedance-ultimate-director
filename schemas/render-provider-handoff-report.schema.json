@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-handoff-report.schema.json",
+  "title": "CineJelly Render Provider Handoff Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "summary",
+    "reconciliation",
+    "jobs",
+    "releaseGateSummary",
+    "nextActions",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-handoff.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "warn", "fail"] },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checkedJobCount",
+        "leasedJobCount",
+        "leaseUnavailableCount",
+        "retainedLeaseCount",
+        "releasedLeaseCount",
+        "terminalCloseCount",
+        "stillActiveCount",
+        "manualAuditCount",
+        "skippedJobCount"
+      ],
+      "properties": {
+        "checkedJobCount": { "type": "integer", "minimum": 0 },
+        "leasedJobCount": { "type": "integer", "minimum": 0 },
+        "leaseUnavailableCount": { "type": "integer", "minimum": 0 },
+        "retainedLeaseCount": { "type": "integer", "minimum": 0 },
+        "releasedLeaseCount": { "type": "integer", "minimum": 0 },
+        "terminalCloseCount": { "type": "integer", "minimum": 0 },
+        "stillActiveCount": { "type": "integer", "minimum": 0 },
+        "manualAuditCount": { "type": "integer", "minimum": 0 },
+        "skippedJobCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "reconciliation": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schemaVersion",
+        "generatedAt",
+        "status",
+        "summary",
+        "jobs",
+        "releaseGateSummary",
+        "nextActions"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.render-provider-reconciliation.v1" },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["pass", "warn", "fail"] },
+        "summary": { "type": "object" },
+        "jobs": { "type": "array" },
+        "releaseGateSummary": { "type": "object" },
+        "nextActions": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "jobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "jobId",
+          "status",
+          "action",
+          "leaseRetained",
+          "activePredictionIds",
+          "terminalPredictionIds",
+          "predictionStatuses"
+        ],
+        "properties": {
+          "jobId": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "warn", "fail", "skipped"] },
+          "action": {
+            "enum": [
+              "skip_no_checkpoint",
+              "skip_no_active_provider_work",
+              "lease_unavailable",
+              "continue_polling",
+              "close_terminal_succeeded",
+              "close_terminal_failed",
+              "close_terminal_canceled",
+              "close_terminal_timeout",
+              "close_terminal_mixed",
+              "manual_audit_required"
+            ]
+          },
+          "leaseStatus": { "enum": ["acquired", "renewed", "held_by_other", "not_required"] },
+          "leaseId": { "type": "string" },
+          "leaseExpiresAt": { "type": "string", "format": "date-time" },
+          "leaseRetained": { "type": "boolean" },
+          "activePredictionIds": { "type": "array", "items": { "type": "string" } },
+          "terminalPredictionIds": { "type": "array", "items": { "type": "string" } },
+          "reconciliationDecision": {
+            "enum": [
+              "no_checkpoint",
+              "no_active_provider_work",
+              "provider_unavailable",
+              "query_failed",
+              "still_active",
+              "terminal_succeeded",
+              "terminal_failed",
+              "terminal_canceled",
+              "terminal_timeout",
+              "mixed"
+            ]
+          },
+          "predictionStatuses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider",
+                "predictionId",
+                "status",
+                "decision",
+                "checkedAt",
+                "terminal"
+              ],
+              "properties": {
+                "provider": { "type": "string" },
+                "predictionId": { "type": "string" },
+                "status": { "enum": ["pass", "warn", "fail"] },
+                "decision": {
+                  "enum": [
+                    "provider_unavailable",
+                    "query_failed",
+                    "still_active",
+                    "terminal_succeeded",
+                    "terminal_failed",
+                    "terminal_canceled",
+                    "terminal_timeout"
+                  ]
+                },
+                "checkedAt": { "type": "string", "format": "date-time" },
+                "providerStatus": {
+                  "enum": ["queued", "running", "succeeded", "failed", "canceled", "timeout"]
+                },
+                "terminal": { "type": "boolean" },
+                "outputUrlCount": { "type": "integer", "minimum": 0 },
+                "error": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "handoffFoundationPass",
+        "activeProviderWorkLeased",
+        "activeProviderWorkResolved",
+        "canClaimDistributedResume",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "handoffFoundationPass": { "type": "boolean" },
+        "activeProviderWorkLeased": { "type": "boolean" },
+        "activeProviderWorkResolved": { "type": "boolean" },
+        "canClaimDistributedResume": { "const": false },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": { "type": "array", "items": { "type": "string" } },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": { "type": "array", "items": { "type": "string" } },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "leasePath", "fakeProvider", "jobCount", "providerCount"],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "leasePath": { "type": "string" },
+        "fakeProvider": { "type": "boolean" },
+        "jobCount": { "type": "integer", "minimum": 0 },
+        "providerCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}

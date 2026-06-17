@@ -95,7 +95,7 @@ Required variables:
 | `CINEJELLY_API_CLIENTS_JSON` | Optional | Customer/client API key policies using SHA-256 key digests, limits, and enable flags. | Generate customer keys in your admin system, store only SHA-256 digests here. |
 | `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER` | Optional | When `true`, render submissions must use a configured client key and pass quota policy before provider spend. | Set in deployment environment. |
 | `CINEJELLY_CLIENT_USAGE_LEDGER_PATH` | Optional | JSONL quota reservation ledger for client render submissions. | Set to an ignored/persistent writable path. |
-| `CINEJELLY_API_JOB_HISTORY_PATH` | Optional | Compact JSON history file for retained async render jobs. Restored jobs are marked `retentionSource=history_store` and `detailRetention=compact_restored`; stale queued/running jobs restore as canceled/audit-required with compact provider checkpoint evidence when ledger entries were recorded. | Set to an ignored/persistent writable path on durable storage. |
+| `CINEJELLY_API_JOB_HISTORY_PATH` | Optional | Compact JSON history file for retained async render jobs. Restored jobs are marked `retentionSource=history_store` and `detailRetention=compact_restored`; stale queued/running jobs restore as canceled/audit-required with compact provider checkpoint evidence when ledger entries were recorded. Provider reconciliation and handoff smoke reports can use that evidence for local audit, but this path is not a distributed queue backend. | Set to an ignored/persistent writable path on durable storage. |
 
 When these Atlas overrides use the official `api.atlascloud.ai` host, preflight and runtime loading require the documented paths exactly: LLM overrides must end at `/v1`, while media/upload/video overrides must end at `/api/v1`. The `atlascloud_docs_conformance` preflight check also verifies the endpoint family wiring, separate key posture, billing `/balance` path, and configured Seedance capability coverage without calling Atlas. Custom HTTPS proxy hosts remain allowed after the standard clean-URL checks.
 
@@ -431,7 +431,7 @@ flowchart TD
 | `vericontext/vibeframe` | Validate-before-spend, cost gates, deterministic artifacts, review reports, repair loop discipline. |
 | `HKUDS/VideoAgent` | Source-video analysis boundaries and metadata flow. Full VideoRAG/tool graph is not implemented. |
 | `calesthio/OpenMontage` | Approval/self-review/source-media concepts only as AGPL-aware behavior notes. No direct production import. |
-| `harry0703/MoneyPrinterTurbo` | One-input pipeline, material sourcing, task progress, compact job history with stale-active recovery plus provider checkpoint/reconciliation evidence, batch evidence, subtitles/audio planning. Full WebUI and distributed active-job resume are not implemented. |
+| `harry0703/MoneyPrinterTurbo` | One-input pipeline, material sourcing, task progress, compact job history with stale-active recovery plus provider checkpoint/reconciliation/handoff evidence, batch evidence, subtitles/audio planning. Full WebUI and external durable active-job resume are not implemented. |
 | `DirectorBench` | Planning/evaluation influence only until license status is clarified. |
 
 ## Important Documents
@@ -470,7 +470,7 @@ Pass the configured `CINEJELLY_API_AUTH_TOKEN`, or a configured client API key f
 
 Use `/v1/render-jobs` instead of synchronous `/v1/render`.
 
-For production operators, set `CINEJELLY_API_JOB_HISTORY_PATH` to an ignored durable JSON path such as `ops/runtime/render-job-history.json`. This preserves compact job summaries and bounded provider checkpoint evidence across API restarts without storing raw render requests, local artifact paths, provider payloads, or secrets. Active queued/running provider work is still process-local; after an unplanned restart, stale active snapshots restore as canceled/audit-required instead of silently disappearing, with prediction IDs/status evidence available for manual audit when provider ledger entries had already been recorded. `npm.cmd run validation:provider-reconciliation` validates the redacted provider-state reconciliation foundation locally with a fake provider; live use still needs an explicit operator-run provider adapter path and durable queue leasing before distributed resume can be claimed.
+For production operators, set `CINEJELLY_API_JOB_HISTORY_PATH` to an ignored durable JSON path such as `ops/runtime/render-job-history.json`. This preserves compact job summaries and bounded provider checkpoint evidence across API restarts without storing raw render requests, local artifact paths, provider payloads, or secrets. Active queued/running provider work is still process-local; after an unplanned restart, stale active snapshots restore as canceled/audit-required instead of silently disappearing, with prediction IDs/status evidence available for manual audit when provider ledger entries had already been recorded. `npm.cmd run validation:provider-reconciliation` validates the redacted provider-state reconciliation foundation locally with a fake provider, and `npm.cmd run validation:provider-handoff` validates the local lease/action handoff foundation. Live use still needs an explicit operator-run provider adapter path, an external lease backend, and multi-worker deployment evidence before distributed resume can be claimed.
 
 ## Current Readiness Rule
 

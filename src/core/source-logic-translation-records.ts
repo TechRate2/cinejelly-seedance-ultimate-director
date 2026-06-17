@@ -1067,6 +1067,76 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Render Provider Handoff",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/app/services/state.py",
+      "external/upstream/moneyprinterturbo/app/controllers/manager/memory_manager.py",
+      "external/upstream/moneyprinterturbo/app/controllers/manager/redis_manager.py",
+      "external/upstream/moneyprinterturbo/test/services/test_state.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "long-running task ownership remains externally visible before a worker changes task state",
+      "an active task lease should not be stolen from another worker",
+      "terminal provider work can be closed while still-active provider work remains leased for polling",
+      "state evidence is durable enough to survive the local smoke process reload"
+    ],
+    behaviorChanged: [
+      "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
+      "the first lease store is a local JSON adapter foundation rather than a distributed Redis-compatible backend",
+      "handoff reports expose redacted lease/action evidence and refuse to claim distributed resume parity",
+      "raw provider payloads, output URLs, hostnames, worker owner IDs, local paths, and secrets are excluded from public reports"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",
+    cineJellyDestinationPaths: [
+      "src/api/render-provider-handoff.ts",
+      "scripts/run-render-provider-handoff-smoke.mjs",
+      "schemas/render-provider-handoff-report.schema.json",
+      "scripts/validate-report-contracts.mjs"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "production parity still requires an external lease backend and multi-worker deployment evidence",
+      "live Atlas prediction IDs must be validated before using handoff output as paid-provider closeout evidence",
+      "automatic graph resume/cancel/close behavior is intentionally not claimed by the local foundation"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Render Provider Handoff",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "status refresh happens before release-facing handoff decisions",
+      "still-active provider work remains warning evidence rather than release approval",
+      "operator reports distinguish terminal closeout, continued polling, skipped work, and manual audit states"
+    ],
+    behaviorChanged: [
+      "VibeFrame report discipline is rewritten into CineJelly provider handoff contracts",
+      "local lease decisions wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
+      "distributed resume remains blocked until external leases and live worker ownership handoff are proven"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",
+    cineJellyDestinationPaths: [
+      "src/api/render-provider-handoff.ts",
+      "scripts/run-render-provider-handoff-smoke.mjs",
+      "schemas/render-provider-handoff-report.schema.json"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "operator tooling must not treat the fake-provider smoke as live Atlas handoff evidence",
+      "future worker automation must preserve the same redaction and warning boundaries"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Source Video Auto Analysis Adapter",
     sourceRepository: "HKUDS/VideoAgent",
     snapshotPath: "external/upstream/videoagent",
