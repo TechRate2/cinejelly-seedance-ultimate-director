@@ -16,7 +16,8 @@ function parseArgs(args) {
     ...defaults,
     writeReport: true,
     writeMarkdown: true,
-    skipLocalSmoke: false
+    skipLocalSmoke: false,
+    skipProviderHandoffSmokes: false
   };
   const flagMap = new Map([
     ["--output", "outputPath"],
@@ -40,6 +41,10 @@ function parseArgs(args) {
     }
     if (arg === "--skip-local-smoke") {
       options.skipLocalSmoke = true;
+      continue;
+    }
+    if (arg === "--skip-provider-handoff-smokes") {
+      options.skipProviderHandoffSmokes = true;
       continue;
     }
     const equalsIndex = arg.indexOf("=");
@@ -73,6 +78,7 @@ Usage:
 
 Options:
   --skip-local-smoke             Skip the slower temporary local API smoke.
+  --skip-provider-handoff-smokes Skip provider resume/handoff no-spend smokes.
   --timeout-ms <ms>              Per-command timeout. Default: ${defaults.timeoutMs}
   --output <path>                JSON report path. Default: ${defaults.outputPath}
   --markdown-output <path>       Markdown report path. Default: ${defaults.markdownOutputPath}
@@ -168,6 +174,40 @@ function buildCommands(options) {
     commands.push(
       command("local_smoke", ["scripts/run-local-validation-smoke.mjs"], {
         reportPath: "assets/output_deliverables/phase6-validation/local-smoke-report.json",
+        expectedExitCodes: [0],
+        blocksCodeReadiness: true
+      })
+    );
+  }
+  if (!options.skipProviderHandoffSmokes) {
+    commands.push(
+      command("provider_reconciliation", ["scripts/run-render-provider-reconciliation-smoke.mjs"], {
+        reportPath: "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json",
+        expectedExitCodes: [0],
+        blocksCodeReadiness: true
+      }),
+      command("provider_handoff", ["scripts/run-render-provider-handoff-smoke.mjs"], {
+        reportPath: "assets/output_deliverables/business-readiness/render-provider-handoff-report.json",
+        expectedExitCodes: [0],
+        blocksCodeReadiness: true
+      }),
+      command("provider_external_lease", ["scripts/run-render-provider-external-lease-smoke.mjs"], {
+        reportPath: "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json",
+        expectedExitCodes: [0],
+        blocksCodeReadiness: true
+      }),
+      command("provider_lease_service", ["scripts/run-render-provider-lease-service-smoke.mjs"], {
+        reportPath: "assets/output_deliverables/business-readiness/render-provider-lease-service-smoke-report.json",
+        expectedExitCodes: [0],
+        blocksCodeReadiness: true
+      }),
+      command("provider_handoff_actions", ["scripts/run-render-provider-handoff-action-ledger-smoke.mjs"], {
+        reportPath: "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json",
+        expectedExitCodes: [0],
+        blocksCodeReadiness: true
+      }),
+      command("provider_multi_worker_handoff", ["scripts/run-render-provider-multi-worker-handoff-smoke.mjs"], {
+        reportPath: "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       })
@@ -280,6 +320,12 @@ function buildReport(options, commandRuns) {
     commercialInputs: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"),
     completionAudit: summarizeReport("assets/output_deliverables/business-readiness/business-completion-audit-report.json"),
     qualityBenchmark: summarizeReport("assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
+    providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
+    providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
+    providerExternalLease: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
+    providerLeaseService: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-lease-service-smoke-report.json"),
+    providerHandoffActions: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
+    providerMultiWorkerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
     reportContracts: summarizeReport("assets/output_deliverables/business-readiness/report-contract-validation-report.json"),
     launchIntake: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json")
   };
@@ -312,6 +358,7 @@ function buildReport(options, commandRuns) {
       outputPath: toRepoRelative(options.outputPath),
       markdownOutputPath: options.writeMarkdown ? toRepoRelative(options.markdownOutputPath) : undefined,
       skipLocalSmoke: options.skipLocalSmoke,
+      skipProviderHandoffSmokes: options.skipProviderHandoffSmokes,
       timeoutMs: options.timeoutMs,
       commandCount: commandRuns.length
     },
@@ -322,6 +369,12 @@ function buildReport(options, commandRuns) {
       businessReadinessStatus: reportSummaries.businessReadiness.status,
       releaseAuditStatus: reportSummaries.releaseAudit.status,
       qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
+      providerReconciliationStatus: reportSummaries.providerReconciliation.status,
+      providerHandoffStatus: reportSummaries.providerHandoff.status,
+      providerExternalLeaseStatus: reportSummaries.providerExternalLease.status,
+      providerLeaseServiceStatus: reportSummaries.providerLeaseService.status,
+      providerHandoffActionsStatus: reportSummaries.providerHandoffActions.status,
+      providerMultiWorkerHandoffStatus: reportSummaries.providerMultiWorkerHandoff.status,
       reportContractsStatus: reportSummaries.reportContracts.status,
       commercialInputsStatus: reportSummaries.commercialInputs.status,
       liveInputsStatus: reportSummaries.liveInputs.status,
@@ -405,6 +458,17 @@ function summarizeReport(path) {
   };
 }
 
+function summarizeProviderReport(options, path) {
+  if (options.skipProviderHandoffSmokes) {
+    return {
+      present: false,
+      path: toRepoRelative(path),
+      status: "skipped"
+    };
+  }
+  return summarizeReport(path);
+}
+
 function publicReportSummary(summary) {
   return {
     present: summary.present,
@@ -471,6 +535,12 @@ function renderMarkdown(report) {
     `- Business-readiness: ${report.readinessSnapshot.businessReadinessStatus}`,
     `- Release audit: ${report.readinessSnapshot.releaseAuditStatus}`,
     `- Quality benchmark: ${report.readinessSnapshot.qualityBenchmarkStatus}`,
+    `- Provider reconciliation: ${report.readinessSnapshot.providerReconciliationStatus}`,
+    `- Provider handoff: ${report.readinessSnapshot.providerHandoffStatus}`,
+    `- Provider external lease: ${report.readinessSnapshot.providerExternalLeaseStatus}`,
+    `- Provider lease service: ${report.readinessSnapshot.providerLeaseServiceStatus}`,
+    `- Provider handoff actions: ${report.readinessSnapshot.providerHandoffActionsStatus}`,
+    `- Provider multi-worker handoff: ${report.readinessSnapshot.providerMultiWorkerHandoffStatus}`,
     `- Report contracts: ${report.readinessSnapshot.reportContractsStatus}`,
     `- Launch intake: ${report.readinessSnapshot.launchIntakeStatus}`,
     `- Approved budget: ${formatUsd(report.readinessSnapshot.approvedBudgetUsd)}`,
