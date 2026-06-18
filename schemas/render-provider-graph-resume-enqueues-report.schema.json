@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-graph-resume-enqueues-report.schema.json",
+  "title": "CineJelly Render Provider Graph Resume Enqueues Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "queueCallsMade",
+    "checkedInputs",
+    "summary",
+    "evidence",
+    "enqueues",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-graph-resume-enqueues.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "blocked_by_missing_inputs", "blocked_by_confirmation", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "queueCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidencePath",
+        "liveActionsReportPath",
+        "outputPath",
+        "evidenceConfigured",
+        "liveActionsReportPresent",
+        "confirmGraphResumeEnqueues"
+      ],
+      "properties": {
+        "evidencePath": { "$ref": "#/$defs/repoPath" },
+        "liveActionsReportPath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "evidenceConfigured": { "type": "boolean" },
+        "liveActionsReportPresent": { "type": "boolean" },
+        "confirmGraphResumeEnqueues": { "type": "boolean" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enqueueCount",
+        "matchedLiveGraphResumeExecutionCount",
+        "redactionReviewedCount",
+        "liveActionsStatus",
+        "liveActionsGraphResumeEvidenceUsable",
+        "deploymentBindingMatch",
+        "canUseAsGraphResumePayloadEvidence",
+        "canClaimDistributedResume"
+      ],
+      "properties": {
+        "enqueueCount": { "type": "integer", "minimum": 0 },
+        "matchedLiveGraphResumeExecutionCount": { "type": "integer", "minimum": 0 },
+        "redactionReviewedCount": { "type": "integer", "minimum": 0 },
+        "liveActionsStatus": { "type": "string" },
+        "liveActionsGraphResumeEvidenceUsable": { "type": "boolean" },
+        "deploymentBindingMatch": { "type": "boolean" },
+        "canUseAsGraphResumePayloadEvidence": { "type": "boolean" },
+        "canClaimDistributedResume": { "const": false }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configured"],
+      "properties": {
+        "configured": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "environmentKind": { "type": "string" },
+        "deploymentBaseUrl": { "type": "string" },
+        "deploymentBaseUrlSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "approvedBy": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "enqueueCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "enqueues": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/enqueue" }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "graphResumePayloadEvidencePass",
+        "canUseAsGraphResumePayloadEvidence",
+        "canUseAsDistributedResumeEvidence",
+        "canClaimDistributedResume",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "graphResumePayloadEvidencePass": { "type": "boolean" },
+        "canUseAsGraphResumePayloadEvidence": { "type": "boolean" },
+        "canUseAsDistributedResumeEvidence": { "const": false },
+        "canClaimDistributedResume": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "safeEvidenceText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "not": {
+        "anyOf": [
+          { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" },
+          { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+          { "pattern": "sk-[A-Za-z0-9_-]+" },
+          { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\\s*[:=]\\s*[\\\"']?[^\\\"',\\s&]+" },
+          { "pattern": "([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\\s]+" },
+          { "pattern": "[A-Za-z]:\\\\[^\\s\\\"'<>]+" },
+          { "pattern": "\\/(?:home|Users|var|tmp)\\/[^\\s\\\"'<>]+" },
+          { "pattern": "https?:\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "data:[^\\s\\\"'<>]+" }
+        ]
+      }
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 320,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "^\\[outside-repo\\]$" },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "enqueue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enqueueId",
+        "actionId",
+        "jobId",
+        "graphRunKind",
+        "resultStatus",
+        "predictionIdCount",
+        "enqueuedAt",
+        "queueNameSha256",
+        "graphStateSha256",
+        "resumeCursorSha256",
+        "predictionIdsSha256",
+        "evidenceSummary",
+        "redactionReviewed",
+        "rawGraphStateStored",
+        "rawProviderPayloadStored",
+        "outputUrlsStored"
+      ],
+      "properties": {
+        "enqueueId": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "actionId": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "jobId": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "graphRunKind": { "const": "provider_work_resume" },
+        "resultStatus": { "const": "resume_enqueued" },
+        "predictionIdCount": { "type": "integer", "minimum": 1 },
+        "enqueuedAt": { "type": "string", "format": "date-time" },
+        "queueNameSha256": { "$ref": "#/$defs/sha256" },
+        "graphStateSha256": { "$ref": "#/$defs/sha256" },
+        "resumeCursorSha256": { "$ref": "#/$defs/sha256" },
+        "predictionIdsSha256": { "$ref": "#/$defs/sha256" },
+        "evidenceSummary": { "$ref": "#/$defs/safeEvidenceText" },
+        "redactionReviewed": { "type": "boolean" },
+        "rawGraphStateStored": { "type": "boolean" },
+        "rawProviderPayloadStored": { "type": "boolean" },
+        "outputUrlsStored": { "type": "boolean" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

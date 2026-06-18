@@ -39,7 +39,8 @@
         "liveInputsPath",
         "atlasBillingPath",
         "opsConfigPath",
-        "providerLiveActionsPath"
+        "providerLiveActionsPath",
+        "providerGraphResumePath"
       ],
       "properties": {
         "businessReadinessPath": { "type": "string" },
@@ -48,6 +49,7 @@
         "atlasBillingPath": { "type": "string" },
         "opsConfigPath": { "type": "string" },
         "providerLiveActionsPath": { "type": "string" },
+        "providerGraphResumePath": { "type": "string" },
         "markdownOutputPath": { "type": "string" }
       }
     },

@@ -12,7 +12,8 @@ const defaults = {
   liveInputsPath: "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json",
   atlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
   opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
-  providerLiveActionsPath: "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"
+  providerLiveActionsPath: "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json",
+  providerGraphResumePath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"
 };
 
 function parseArgs(args) {
@@ -29,7 +30,8 @@ function parseArgs(args) {
     ["--live-inputs-report", "liveInputsPath"],
     ["--atlas-billing-report", "atlasBillingPath"],
     ["--ops-config-report", "opsConfigPath"],
-    ["--provider-live-actions-report", "providerLiveActionsPath"]
+    ["--provider-live-actions-report", "providerLiveActionsPath"],
+    ["--provider-graph-resume-report", "providerGraphResumePath"]
   ]);
 
   for (let index = 0; index < args.length; index += 1) {
@@ -82,6 +84,8 @@ Options:
   --ops-config-report <path>          Default: ${defaults.opsConfigPath}
   --provider-live-actions-report <path>
                                       Default: ${defaults.providerLiveActionsPath}
+  --provider-graph-resume-report <path>
+                                      Default: ${defaults.providerGraphResumePath}
   --output <path>                     JSON report path. Default: ${defaults.outputPath}
   --markdown-output <path>            Markdown checklist path. Default: ${defaults.markdownOutputPath}
   --no-markdown                       Do not write the Markdown checklist.
@@ -104,7 +108,8 @@ function main() {
     liveInputs: summarizeReport(options.liveInputsPath),
     atlasBilling: summarizeReport(options.atlasBillingPath),
     opsConfig: summarizeReport(options.opsConfigPath),
-    providerLiveActions: summarizeReport(options.providerLiveActionsPath)
+    providerLiveActions: summarizeReport(options.providerLiveActionsPath),
+    providerGraphResume: summarizeReport(options.providerGraphResumePath)
   };
   const requiredInputs = buildRequiredInputs(reports);
   const envPlaceholders = buildEnvPlaceholders(reports, requiredInputs);
@@ -112,7 +117,8 @@ function main() {
   const evidenceCommandPlan = buildEvidenceCommandPlan(
     reports.businessPlan.value,
     reports.liveInputs.value,
-    reports.providerLiveActions.value
+    reports.providerLiveActions.value,
+    reports.providerGraphResume.value
   );
   const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
   const commandPlanAudit = buildCommandPlanAudit({ evidenceCommandPlan, budgetConstrainedPaidPlan });
@@ -131,6 +137,7 @@ function main() {
       atlasBillingPath: toRepoRelative(options.atlasBillingPath),
       opsConfigPath: toRepoRelative(options.opsConfigPath),
       providerLiveActionsPath: toRepoRelative(options.providerLiveActionsPath),
+      providerGraphResumePath: toRepoRelative(options.providerGraphResumePath),
       markdownOutputPath: options.writeMarkdown ? toRepoRelative(options.markdownOutputPath) : undefined
     },
     sourceReports: summarizeSourceReports(reports),
@@ -199,6 +206,7 @@ function buildRequiredInputs(reports) {
   const atlasBilling = reports.atlasBilling.value;
   const opsConfig = reports.opsConfig.value;
   const providerLiveActions = reports.providerLiveActions.value;
+  const providerGraphResume = reports.providerGraphResume.value;
   const liveGate = gateFinder(live?.gates);
   const opsEnvironment = live?.environment?.operations;
   const deployment = live?.environment?.deployment;
@@ -281,6 +289,22 @@ function buildRequiredInputs(reports) {
       acceptance: "After a real deployment worker executes provider handoff actions, archive the ignored evidence packet and validate it with explicit confirmation; it must include resume-polling plus terminal-closeout or manual-audit evidence with redaction review.",
       validationCommand: "npm.cmd run validation:provider-live-actions -- --evidence ops/render-provider-live-actions.json --confirm-live-provider-actions",
       blockerMessage: providerLiveActions?.releaseGateSummary?.releaseBlocker ?? "Live provider action evidence is missing, unconfirmed, or incomplete."
+    }),
+    input({
+      id: "graph_resume_enqueue_evidence",
+      label: "Graph-resume enqueue payload evidence",
+      category: "operations",
+      status: providerGraphResume?.status === "pass" ? "configured" : "missing",
+      sensitivity: "manual_review",
+      requiredFor: ["distributed_active_provider_work_resume"],
+      envVars: [],
+      filePaths: [
+        "ops/render-provider-graph-resume-enqueues.json",
+        "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"
+      ],
+      acceptance: "After a real deployment worker enqueues graph resume, archive digest-only payload evidence bound to the passing live action report; do not store raw graph state, provider payloads, output URLs, local paths, or secrets.",
+      validationCommand: "npm.cmd run validation:provider-graph-resume -- --evidence ops/render-provider-graph-resume-enqueues.json --confirm-graph-resume-enqueues",
+      blockerMessage: providerGraphResume?.releaseGateSummary?.releaseBlocker ?? "Graph-resume enqueue payload evidence is missing, unconfirmed, unsafe, or not bound to usable live action graph-resume evidence."
     }),
     input({
       id: "atlas_validation_budget",
@@ -513,7 +537,7 @@ function buildAtlasConfigurationSummary(reports) {
   };
 }
 
-function buildEvidenceCommandPlan(plan, live, providerLiveActions) {
+function buildEvidenceCommandPlan(plan, live, providerLiveActions, providerGraphResume) {
   const sequence = Array.isArray(plan?.validationSequence) ? plan.validationSequence : [];
   return {
     noSpendLocal: commandsFor(sequence, (step) => step.kind === "no_spend"),
@@ -528,6 +552,11 @@ function buildEvidenceCommandPlan(plan, live, providerLiveActions) {
         name: "live_provider_action_evidence",
         status: providerLiveActions?.status === "pass" ? "ready" : "blocked",
         command: "npm.cmd run validation:provider-live-actions -- --evidence ops/render-provider-live-actions.json --confirm-live-provider-actions"
+      },
+      {
+        name: "graph_resume_enqueue_evidence",
+        status: providerGraphResume?.status === "pass" ? "ready" : "blocked",
+        command: "npm.cmd run validation:provider-graph-resume -- --evidence ops/render-provider-graph-resume-enqueues.json --confirm-graph-resume-enqueues"
       },
       {
         name: "final_business_readiness_audit",
@@ -818,7 +847,7 @@ function nextActionsFor(requiredInputs, live) {
       actions.push(`${item.label}: ${item.acceptance}`);
     }
   }
-  actions.push("Refresh validation:live-inputs, validation:business-plan, validation:provider-live-actions, validation:business-readiness, and validation:report-contracts after filling inputs.");
+  actions.push("Refresh validation:live-inputs, validation:business-plan, validation:provider-live-actions, validation:provider-graph-resume, validation:business-readiness, and validation:report-contracts after filling inputs.");
   if (live?.releaseGateSummary?.canRunGeneratedAudioPaidValidation === true) {
     actions.push("Generated-audio paid smoke is the only currently ready Atlas paid slice; run it only when intentionally spending Atlas budget, then complete the manual audio review.");
   } else {

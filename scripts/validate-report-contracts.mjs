@@ -30,6 +30,8 @@ const defaultContracts = [
   contract("render_provider_live_action_evidence_draft", "schemas/render-provider-live-action-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-live-action-evidence-draft-report.json"),
   contract("render_provider_live_action_evidence", "schemas/render-provider-live-action-evidence.schema.json", "ops/render-provider-live-actions.json"),
   contract("render_provider_live_actions", "schemas/render-provider-live-actions-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"),
+  contract("render_provider_graph_resume_enqueue_evidence", "schemas/render-provider-graph-resume-enqueue-evidence.schema.json", "ops/render-provider-graph-resume-enqueues.json"),
+  contract("render_provider_graph_resume_enqueues", "schemas/render-provider-graph-resume-enqueues-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"),
   contract("snapshot_parity_audit", "schemas/snapshot-parity-audit-report.schema.json", "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
   contract("atlas_billing_readiness", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json"),
   contract("atlas_billing_generated_audio_smoke", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json"),
@@ -303,6 +305,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "render_provider_live_actions") {
     return validateRenderProviderLiveActionsSemantics(report);
   }
+  if (item.name === "render_provider_graph_resume_enqueues") {
+    return validateRenderProviderGraphResumeEnqueuesSemantics(report);
+  }
   if (item.name === "render_provider_live_action_evidence_draft") {
     return validateRenderProviderLiveActionEvidenceDraftSemantics(report);
   }
@@ -314,6 +319,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "deployment_package",
   "snapshot_parity",
   "provider_live_actions",
+  "provider_graph_resume",
   "release_audit",
   "quality_benchmark",
   "quality_review_evidence",
@@ -368,6 +374,14 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (["missing", "skipped", undefined].includes(report?.readinessSnapshot?.qualityReviewEvidenceStatus)) {
     issues.push("$.readinessSnapshot.qualityReviewEvidenceStatus: expected a refreshed review-evidence status, not missing/skipped.");
+  }
+
+  const providerGraphResumeRun = commandByName.get("provider_graph_resume");
+  if (providerGraphResumeRun?.status !== "pass") {
+    issues.push("$.commandRuns[provider_graph_resume].status: expected pass for no-spend graph-resume enqueue evidence command.");
+  }
+  if (["missing", "skipped", undefined].includes(report?.readinessSnapshot?.providerGraphResumeStatus)) {
+    issues.push("$.readinessSnapshot.providerGraphResumeStatus: expected a refreshed graph-resume enqueue status, not missing/skipped.");
   }
 
   const snapshotRun = commandByName.get("snapshot_parity");
@@ -1354,6 +1368,76 @@ function validateRenderProviderLiveActionsSemantics(report) {
   return issues;
 }
 
+function validateRenderProviderGraphResumeEnqueuesSemantics(report) {
+  const issues = [];
+  const enqueues = Array.isArray(report?.enqueues) ? report.enqueues : [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  const redactionReviewedCount = enqueues.filter((item) => item?.redactionReviewed === true).length;
+  const unsafeStoredEvidenceCount = enqueues.filter((item) =>
+    item?.rawGraphStateStored === true ||
+    item?.rawProviderPayloadStored === true ||
+    item?.outputUrlsStored === true
+  ).length;
+  const passReady = report?.status === "pass";
+
+  if (report?.networkCallsMade !== false || report?.providerCallsMade !== false || report?.queueCallsMade !== false) {
+    issues.push("$.networkCallsMade/$.providerCallsMade/$.queueCallsMade: expected false; graph-resume enqueue validation must only read archived evidence.");
+  }
+  if (Number(report?.summary?.enqueueCount ?? -1) !== enqueues.length) {
+    issues.push("$.summary.enqueueCount: expected to match enqueues length.");
+  }
+  if (Number(report?.summary?.redactionReviewedCount ?? -1) !== redactionReviewedCount) {
+    issues.push("$.summary.redactionReviewedCount: expected to match enqueues with redactionReviewed=true.");
+  }
+  if (Number(report?.summary?.matchedLiveGraphResumeExecutionCount ?? -1) > enqueues.length) {
+    issues.push("$.summary.matchedLiveGraphResumeExecutionCount: cannot exceed enqueue count.");
+  }
+  if (unsafeStoredEvidenceCount > 0) {
+    issues.push("$.enqueues: raw graph state, raw provider payloads, and output URLs must not be stored.");
+  }
+  if (report?.summary?.canClaimDistributedResume !== false ||
+      report?.releaseGateSummary?.canClaimDistributedResume !== false ||
+      report?.releaseGateSummary?.canUseAsDistributedResumeEvidence !== false) {
+    issues.push("$.summary/releaseGateSummary: graph-resume payload evidence must not claim distributed resume by itself.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; graph-resume payload evidence is not customer-release approval.");
+  }
+  if (report?.summary?.canUseAsGraphResumePayloadEvidence !== passReady ||
+      report?.releaseGateSummary?.graphResumePayloadEvidencePass !== passReady ||
+      report?.releaseGateSummary?.canUseAsGraphResumePayloadEvidence !== passReady) {
+    issues.push("$.summary/releaseGateSummary graph-resume payload flags: expected true only when status=pass.");
+  }
+  if (passReady) {
+    if (failedChecks.length > 0) {
+      issues.push("$.checks: status pass requires zero failed checks.");
+    }
+    if (report?.checkedInputs?.confirmGraphResumeEnqueues !== true) {
+      issues.push("$.checkedInputs.confirmGraphResumeEnqueues: status pass requires explicit graph-resume enqueue confirmation.");
+    }
+    if (report?.summary?.liveActionsStatus !== "pass" || report?.summary?.liveActionsGraphResumeEvidenceUsable !== true) {
+      issues.push("$.summary.liveActions*: status pass requires a passing live action report with usable graph-resume evidence.");
+    }
+    if (report?.summary?.deploymentBindingMatch !== true) {
+      issues.push("$.summary.deploymentBindingMatch: status pass requires matching deployment fingerprint.");
+    }
+    if (enqueues.length < 1 ||
+        Number(report?.summary?.matchedLiveGraphResumeExecutionCount ?? -1) !== enqueues.length ||
+        redactionReviewedCount !== enqueues.length) {
+      issues.push("$.enqueues: status pass requires every enqueue to match live graph-resume execution evidence and be redaction reviewed.");
+    }
+  }
+  if (!passReady && (
+    report?.summary?.canUseAsGraphResumePayloadEvidence === true ||
+    report?.releaseGateSummary?.graphResumePayloadEvidencePass === true ||
+    report?.releaseGateSummary?.canUseAsGraphResumePayloadEvidence === true
+  )) {
+    issues.push("$.summary/releaseGateSummary: non-pass graph-resume enqueue reports cannot expose usable payload evidence flags.");
+  }
+  return issues;
+}
+
 function validateRenderProviderLiveActionEvidenceDraftSemantics(report) {
   const issues = [];
   if (report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
@@ -1425,6 +1509,9 @@ function validateCommercialLaunchInputsSemantics(report) {
   if (!report?.sourceReports?.providerLiveActions) {
     issues.push("$.sourceReports.providerLiveActions: expected live provider action report source status.");
   }
+  if (!report?.sourceReports?.providerGraphResume) {
+    issues.push("$.sourceReports.providerGraphResume: expected graph-resume enqueue report source status.");
+  }
   const requiredInputs = Array.isArray(report?.requiredInputs) ? report.requiredInputs : [];
   const liveActionInput = requiredInputs.find((item) => item?.id === "live_provider_action_evidence");
   if (!liveActionInput) {
@@ -1437,12 +1524,29 @@ function validateCommercialLaunchInputsSemantics(report) {
       issues.push("$.requiredInputs[live_provider_action_evidence].validationCommand: expected provider-live-actions confirmation command.");
     }
   }
+  const graphResumeInput = requiredInputs.find((item) => item?.id === "graph_resume_enqueue_evidence");
+  if (!graphResumeInput) {
+    issues.push("$.requiredInputs: expected graph_resume_enqueue_evidence checklist item.");
+  } else {
+    if (!Array.isArray(graphResumeInput.filePaths) || !graphResumeInput.filePaths.includes("ops/render-provider-graph-resume-enqueues.json")) {
+      issues.push("$.requiredInputs[graph_resume_enqueue_evidence].filePaths: expected ops/render-provider-graph-resume-enqueues.json.");
+    }
+    if (graphResumeInput.validationCommand !== "npm.cmd run validation:provider-graph-resume -- --evidence ops/render-provider-graph-resume-enqueues.json --confirm-graph-resume-enqueues") {
+      issues.push("$.requiredInputs[graph_resume_enqueue_evidence].validationCommand: expected provider-graph-resume confirmation command.");
+    }
+  }
   const finalAuditCommands = Array.isArray(report?.evidenceCommandPlan?.finalAudit) ? report.evidenceCommandPlan.finalAudit : [];
   const liveActionCommand = finalAuditCommands.find((item) => item?.name === "live_provider_action_evidence");
   if (!liveActionCommand) {
     issues.push("$.evidenceCommandPlan.finalAudit: expected live_provider_action_evidence command.");
   } else if (liveActionCommand.command !== "npm.cmd run validation:provider-live-actions -- --evidence ops/render-provider-live-actions.json --confirm-live-provider-actions") {
     issues.push("$.evidenceCommandPlan.finalAudit[live_provider_action_evidence].command: expected provider-live-actions confirmation command.");
+  }
+  const graphResumeCommand = finalAuditCommands.find((item) => item?.name === "graph_resume_enqueue_evidence");
+  if (!graphResumeCommand) {
+    issues.push("$.evidenceCommandPlan.finalAudit: expected graph_resume_enqueue_evidence command.");
+  } else if (graphResumeCommand.command !== "npm.cmd run validation:provider-graph-resume -- --evidence ops/render-provider-graph-resume-enqueues.json --confirm-graph-resume-enqueues") {
+    issues.push("$.evidenceCommandPlan.finalAudit[graph_resume_enqueue_evidence].command: expected provider-graph-resume confirmation command.");
   }
   return issues;
 }

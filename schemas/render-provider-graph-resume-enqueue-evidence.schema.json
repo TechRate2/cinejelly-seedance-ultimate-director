@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-graph-resume-enqueue-evidence.schema.json",
+  "title": "CineJelly Render Provider Graph Resume Enqueue Evidence Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "environmentKind",
+    "deploymentBaseUrl",
+    "approvedBy",
+    "approvedAt",
+    "enqueues"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-graph-resume-enqueue-evidence.v1" },
+    "environmentKind": { "const": "deployment" },
+    "deploymentBaseUrl": { "type": "string", "format": "uri" },
+    "approvedBy": { "$ref": "#/$defs/safeEvidenceText" },
+    "approvedAt": { "type": "string", "format": "date-time" },
+    "enqueues": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/enqueue" }
+    }
+  },
+  "$defs": {
+    "safeEvidenceText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "not": {
+        "anyOf": [
+          { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" },
+          { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+          { "pattern": "sk-[A-Za-z0-9_-]+" },
+          { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\\s*[:=]\\s*[\\\"']?[^\\\"',\\s&]+" },
+          { "pattern": "([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\\s]+" },
+          { "pattern": "[A-Za-z]:\\\\[^\\s\\\"'<>]+" },
+          { "pattern": "\\/(?:home|Users|var|tmp)\\/[^\\s\\\"'<>]+" },
+          { "pattern": "https?:\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "data:[^\\s\\\"'<>]+" }
+        ]
+      }
+    },
+    "safeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "not": { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "enqueue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enqueueId",
+        "actionId",
+        "jobId",
+        "graphRunKind",
+        "idempotencyKey",
+        "queueNameSha256",
+        "graphStateSha256",
+        "resumeCursorSha256",
+        "predictionIdsSha256",
+        "predictionIdCount",
+        "resultStatus",
+        "enqueuedAt",
+        "evidenceSummary",
+        "redactionReviewed",
+        "rawGraphStateStored",
+        "rawProviderPayloadStored",
+        "outputUrlsStored"
+      ],
+      "properties": {
+        "enqueueId": { "$ref": "#/$defs/safeIdentifier" },
+        "actionId": { "$ref": "#/$defs/safeIdentifier" },
+        "jobId": { "$ref": "#/$defs/safeIdentifier" },
+        "graphRunKind": { "const": "provider_work_resume" },
+        "idempotencyKey": { "$ref": "#/$defs/safeIdentifier" },
+        "queueNameSha256": { "$ref": "#/$defs/sha256" },
+        "graphStateSha256": { "$ref": "#/$defs/sha256" },
+        "resumeCursorSha256": { "$ref": "#/$defs/sha256" },
+        "predictionIdsSha256": { "$ref": "#/$defs/sha256" },
+        "predictionIdCount": { "type": "integer", "minimum": 1 },
+        "resultStatus": { "const": "resume_enqueued" },
+        "enqueuedAt": { "type": "string", "format": "date-time" },
+        "evidenceSummary": { "$ref": "#/$defs/safeEvidenceText" },
+        "redactionReviewed": { "const": true },
+        "rawGraphStateStored": { "const": false },
+        "rawProviderPayloadStored": { "const": false },
+        "outputUrlsStored": { "const": false }
+      }
+    }
+  }
+}

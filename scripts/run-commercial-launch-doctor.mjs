@@ -224,6 +224,11 @@ function buildCommands(options) {
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
+    command("provider_graph_resume", ["scripts/validate-render-provider-graph-resume-enqueues.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
     command("release_audit", ["scripts/run-release-audit.mjs"], {
       reportPath: "assets/output_deliverables/phase6-validation/release-audit-report.json",
       expectedExitCodes: [0],
@@ -344,6 +349,7 @@ function buildReport(options, commandRuns) {
     providerHandoffActions: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
     providerMultiWorkerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
     providerLiveActions: summarizeReport("assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"),
+    providerGraphResume: summarizeReport("assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"),
     reportContracts: summarizeReport("assets/output_deliverables/business-readiness/report-contract-validation-report.json"),
     launchIntake: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json")
   };
@@ -396,6 +402,7 @@ function buildReport(options, commandRuns) {
       providerHandoffActionsStatus: reportSummaries.providerHandoffActions.status,
       providerMultiWorkerHandoffStatus: reportSummaries.providerMultiWorkerHandoff.status,
       providerLiveActionsStatus: reportSummaries.providerLiveActions.status,
+      providerGraphResumeStatus: reportSummaries.providerGraphResume.status,
       reportContractsStatus: reportSummaries.reportContracts.status,
       commercialInputsStatus: reportSummaries.commercialInputs.status,
       liveInputsStatus: reportSummaries.liveInputs.status,
@@ -537,6 +544,9 @@ function buildNextActions({ completion, business, reportSummaries, codeBlockingR
   if (reportSummaries.providerLiveActions.status !== "pass") {
     actions.push("After production handoff capture passes, archive live provider callback evidence in ops/render-provider-live-actions.json and rerun validation:provider-live-actions with --confirm-live-provider-actions.");
   }
+  if (reportSummaries.providerGraphResume.status !== "pass") {
+    actions.push("After live graph-resume enqueue executes, archive digest-only enqueue payload evidence in ops/render-provider-graph-resume-enqueues.json and rerun validation:provider-graph-resume with --confirm-graph-resume-enqueues.");
+  }
   for (const action of arrayOfStrings(completion?.nextActions ?? business?.nextActions)) {
     actions.push(action);
   }
@@ -569,6 +579,7 @@ function renderMarkdown(report) {
     `- Provider handoff actions: ${report.readinessSnapshot.providerHandoffActionsStatus}`,
     `- Provider multi-worker handoff: ${report.readinessSnapshot.providerMultiWorkerHandoffStatus}`,
     `- Provider live actions: ${report.readinessSnapshot.providerLiveActionsStatus}`,
+    `- Provider graph resume: ${report.readinessSnapshot.providerGraphResumeStatus}`,
     `- Report contracts: ${report.readinessSnapshot.reportContractsStatus}`,
     `- Launch intake: ${report.readinessSnapshot.launchIntakeStatus}`,
     `- Approved budget: ${formatUsd(report.readinessSnapshot.approvedBudgetUsd)}`,
