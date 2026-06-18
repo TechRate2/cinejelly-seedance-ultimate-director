@@ -1,6 +1,6 @@
 # Director-Style Benchmark Harness
 
-Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScript evaluator, local media-evidence collector with FFprobe, sampled-frame, transition-boundary, bounded FFmpeg audio waveform/volume proxy signals, and FFprobe audio-video duration sync proxy signals, structured semantic-review normalizer, structured audio-review normalizer, structured runtime ASR/lip-sync review normalizer, structured governance-review normalizer, generated-audio validation report normalizer, long-form validation report normalizer, parity evidence matrix, no-spend CLI, JSON schemas, report-contract entries, source lineage record, and package command. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScript evaluator, local media-evidence collector with FFprobe, sampled-frame, transition-boundary, bounded FFmpeg audio waveform/volume proxy signals, and FFprobe audio-video duration sync proxy signals, structured semantic-review normalizer, structured audio-review normalizer, structured runtime ASR/lip-sync review normalizer, structured governance-review normalizer, bounded review-text redaction helper, generated-audio validation report normalizer, long-form validation report normalizer, parity evidence matrix, no-spend CLI, JSON schemas, report-contract entries, source lineage record, and package command. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Source Logic
 
@@ -25,10 +25,11 @@ Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScr
 2. The current harness reads CineJelly paid-render evidence, request evidence, optional manual review text, optional structured semantic review JSON, optional structured audio review JSON, optional structured ASR/lip-sync runtime review JSON, optional structured governance review JSON, optional generated-audio validation report JSON, optional long-form validation report JSON, and optional local rendered media.
 3. Local media evidence is limited to FFprobe delivery metadata, bounded sampled-frame RGB signals, FFmpeg scene-change transition-boundary pre/post RGB proxies, FFmpeg `volumedetect` audio waveform/volume proxy signals, and FFprobe audio-video duration-delta proxy signals; sampled frame paths and raw audio bytes are never stored in reports.
 4. Structured semantic review evidence can raise or lower the affected visual/cross-modal checkpoint scores, structured audio review evidence can raise or lower narration/BGM/audio cross-modal checkpoints, structured runtime review evidence can raise or lower ASR transcript-alignment and lip-sync timing checkpoints, structured governance review evidence can satisfy the license/runtime permission parity row only when every required governance check is accepted, generated-audio validation evidence can satisfy the provider-backed audio row only when spend, billing, schema, execution, output-batch, ledger, and manual listening gates are all accepted, long-form validation evidence can satisfy long-form duration/manual-review rows only when budget, billing, paid-render, artifact, duration, cost-ledger, and manual quality-review gates are all accepted, and waveform/duration-sync proxy evidence can only provide low-confidence structural audio support when review JSON is absent; all remain bounded checkpoint evidence rather than full DirectorBench runtime parity.
-5. It performs no provider calls, no media downloads, no deployment calls, no Atlas calls, and no paid validation.
-6. It always reports `canClaimDirectorBenchParity=false` because local proxies and structured review packets do not replace automated VLM, ASR, lip-sync, generated-audio provider evidence, live long-form paid evidence, or the remaining non-met parity rows.
-7. It is allowed to produce useful backend evidence, but it cannot approve customer traffic by itself.
-8. `parityEvidenceMatrix` records 12 required evidence items: artifact contracts, local media probe, sampled-frame signals, transition-boundary signals, long-form duration, semantic visual review, generated-audio provider evidence, structured audio review, ASR transcript alignment, lip-sync evidence, manual long-form media review, and license/runtime permission review.
+5. Structured semantic/audio/runtime/governance review summaries and findings are bounded to safe aggregate text. Local paths, signed or raw URLs, data URIs, bearer tokens, API keys, and credential-like strings are rejected by input schemas and dropped by normalizers before benchmark reports are written.
+6. It performs no provider calls, no media downloads, no deployment calls, no Atlas calls, and no paid validation.
+7. It always reports `canClaimDirectorBenchParity=false` because local proxies and structured review packets do not replace automated VLM, ASR, lip-sync, generated-audio provider evidence, live long-form paid evidence, or the remaining non-met parity rows.
+8. It is allowed to produce useful backend evidence, but it cannot approve customer traffic by itself.
+9. `parityEvidenceMatrix` records 12 required evidence items: artifact contracts, local media probe, sampled-frame signals, transition-boundary signals, long-form duration, semantic visual review, generated-audio provider evidence, structured audio review, ASR transcript alignment, lip-sync evidence, manual long-form media review, and license/runtime permission review.
 
 ## Destination Paths
 
@@ -38,6 +39,7 @@ Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScr
 - `src/core/director-style-audio-review.ts`
 - `src/core/director-style-runtime-review.ts`
 - `src/core/director-style-semantic-review.ts`
+- `src/core/director-style-review-text.ts`
 - `src/core/director-style-generated-audio-provider-evidence.ts`
 - `src/core/director-style-long-form-validation-evidence.ts`
 - `src/core/director-style-governance-review.ts`
@@ -79,6 +81,7 @@ The current short paid Phase 6 render produces useful example evidence and now i
 - Structured audio review JSON must match `schemas/director-style-audio-review.schema.json` and must not include raw audio bytes, transcripts with secrets, local media paths, signed URLs, or provider payloads.
 - Structured runtime review JSON must match `schemas/director-style-runtime-review.schema.json` and must not include raw transcripts, raw lip-sync frame tracks, local media paths, signed URLs, secrets, or provider payloads.
 - Structured governance review JSON must match `schemas/director-style-governance-review.schema.json` and must not include secrets, local paths, signed URLs, raw legal correspondence, or provider payloads.
+- Semantic/audio/runtime/governance review schema contracts must reject unsafe review summaries or findings that contain local paths, raw or signed URLs, data URIs, bearer tokens, API keys, or credential-like strings; normalizers must also drop unsafe optional findings and fall back to generic checkpoint summaries when unsafe evidence text is supplied.
 - Generated-audio validation report JSON must match `schemas/generated-audio-validation-report.schema.json`; the benchmark may retain only status/count/gate summaries and must not include output URLs, provider payloads, validation text, voice IDs, local paths, signed URLs, or secrets.
 - Long-form validation report JSON must match `schemas/long-form-validation-report.schema.json`; the benchmark may retain only status/duration/count/gate summaries and must not include local artifact paths, provider payloads, output URLs, tokens, signed URLs, or secrets.
 - The report contains no API keys, bearer tokens, raw local artifact paths, inline media, provider payloads, or upstream implementation code.

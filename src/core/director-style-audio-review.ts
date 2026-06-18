@@ -5,6 +5,10 @@ import type {
   DirectorStyleBenchmarkAudioReviewerType,
   DirectorStyleBenchmarkAudioReviewStatus
 } from "../types/director-style-benchmark.js";
+import {
+  safeDirectorStyleReviewFindings,
+  safeDirectorStyleReviewText
+} from "./director-style-review-text.js";
 
 const METRIC_NAMES = new Set<DirectorStyleBenchmarkAudioReviewMetricName>([
   "narration_reasonableness",
@@ -45,7 +49,7 @@ export function normalizeDirectorStyleAudioReviewEvidence(
   const reviewedSegmentCount = normalizeCount(value.reviewedSegmentCount);
   const reviewedBoundaryCount = normalizeCount(value.reviewedBoundaryCount);
   const findings = [
-    ...stringsFrom(value.findings),
+    ...safeDirectorStyleReviewFindings(value.findings),
     ...metrics
       .filter((metric) => metric.status !== "accepted")
       .map((metric) => `${metric.metricName} audio review status is ${metric.status}.`)
@@ -91,7 +95,7 @@ function normalizeMetric(
     : status === "needs_review"
       ? Math.min(confidence, 0.59)
       : Math.min(confidence, 0.5);
-  const evidenceSummary = firstString(value.evidenceSummary, value.summary, value.evidence)
+  const evidenceSummary = safeDirectorStyleReviewText(firstString(value.evidenceSummary, value.summary, value.evidence))
     ?? `Structured audio review checkpoint for ${metricName}.`;
   const reviewedSegmentCount = normalizeCount(value.reviewedSegmentCount);
   const reviewedBoundaryCount = normalizeCount(value.reviewedBoundaryCount);
@@ -105,7 +109,7 @@ function normalizeMetric(
     evidenceSummary,
     ...(reviewedSegmentCount !== undefined ? { reviewedSegmentCount } : {}),
     ...(reviewedBoundaryCount !== undefined ? { reviewedBoundaryCount } : {}),
-    findings: stringsFrom(value.findings)
+    findings: safeDirectorStyleReviewFindings(value.findings)
   };
 }
 
@@ -206,14 +210,6 @@ function firstString(...values: readonly unknown[]): string | undefined {
     }
   }
   return undefined;
-}
-
-function stringsFrom(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    .map((item) => item.trim());
 }
 
 function average(values: readonly number[]): number | undefined {

@@ -2739,6 +2739,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "structured audio-review checkpoints can reinforce narration, BGM, and audio cross-modal metrics without importing upstream evaluator code",
       "structured runtime-review checkpoints can reinforce ASR transcript alignment and lip-sync timing metrics without importing upstream evaluator code",
       "structured governance-review checkpoints can record accepted license boundary, code reuse boundary, runtime evaluator independence, and evaluation-asset permission evidence without importing upstream evaluator code",
+      "structured review summaries and findings are bounded to aggregate redacted text before benchmark reports can retain them",
       "generated-audio validation reports can reinforce provider-backed audio evidence through redacted spend, billing, schema, execution, output-batch, ledger, and manual-review gates",
       "long-form validation reports can reinforce long-form duration and manual-review evidence through redacted budget, billing, paid-render, artifact, duration, cost-ledger, and manual quality-review gates",
       "benchmark runs can be appended to JSONL history without overwriting prior evidence"
@@ -2757,6 +2758,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/director-style-semantic-review.ts",
       "src/core/director-style-audio-review.ts",
       "src/core/director-style-runtime-review.ts",
+      "src/core/director-style-review-text.ts",
       "src/core/director-style-generated-audio-provider-evidence.ts",
       "src/core/director-style-long-form-validation-evidence.ts",
       "src/core/director-style-governance-review.ts",

@@ -817,6 +817,19 @@ function duplicateStrings(values) {
   return [...duplicates];
 }
 
+const unsafeDirectorReviewTextPatterns = [
+  /Bearer\s+[A-Za-z0-9._-]+/gi,
+  /sk-[A-Za-z0-9_-]+/g,
+  /apikey-[A-Za-z0-9]{20,}/gi,
+  /(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\s*[:=]\s*["']?[^"',\s&]+/gi,
+  /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/gi,
+  /[A-Za-z]:\\[^\s"'<>]+/g,
+  /\/(?:home|Users|var|tmp)\/[^\s"'<>]+/g,
+  /https?:\/\/[^\s"'<>]+/gi,
+  /(?:file|s3|gs|ftp):\/\/[^\s"'<>]+/gi,
+  /data:[^\s"'<>]+/gi
+];
+
 function validateDirectorStyleBenchmarkSemantics(report) {
   const issues = [];
   if (report?.summary?.canClaimDirectorBenchParity !== false) {
@@ -859,6 +872,14 @@ function validateDirectorStyleBenchmarkSemantics(report) {
   }
   if (requiredForParity.length > 0 && requiredForParityMetCount === requiredForParity.length) {
     issues.push("$.parityEvidenceMatrix: expected at least one unmet required parity evidence item while canClaimDirectorBenchParity=false.");
+  }
+  for (const [name, evidence] of [
+    ["semanticReviewEvidence", report?.facts?.semanticReviewEvidence],
+    ["audioReviewEvidence", report?.facts?.audioReviewEvidence],
+    ["runtimeReviewEvidence", report?.facts?.runtimeReviewEvidence],
+    ["governanceReviewEvidence", report?.facts?.governanceReviewEvidence]
+  ]) {
+    issues.push(...unsafeDirectorReviewTextIssues(evidence, `$.facts.${name}`));
   }
   const requirementIds = new Set();
   for (const requirement of requirements) {
@@ -947,6 +968,45 @@ function validateDirectorStyleBenchmarkSemantics(report) {
     issues.push("$.parityEvidenceMatrix.requirements[id=license_and_runtime_permission_review].status: expected met only with accepted governance permission evidence.");
   }
   return issues;
+}
+
+function unsafeDirectorReviewTextIssues(value, path) {
+  const issues = [];
+  collectUnsafeDirectorReviewTextIssues(value, path, issues);
+  return issues;
+}
+
+function collectUnsafeDirectorReviewTextIssues(value, path, issues) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectUnsafeDirectorReviewTextIssues(item, `${path}[${index}]`, issues));
+    return;
+  }
+  if (!value || typeof value !== "object") {
+    return;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    const itemPath = `${path}.${escapePath(key)}`;
+    if (key === "evidenceSummary" && typeof item === "string" && containsUnsafeDirectorReviewText(item)) {
+      issues.push(`${itemPath}: expected redacted aggregate review text without local paths, URLs, data URIs, bearer tokens, or credential-like strings.`);
+      continue;
+    }
+    if (key === "findings" && Array.isArray(item)) {
+      item.forEach((finding, index) => {
+        if (typeof finding === "string" && containsUnsafeDirectorReviewText(finding)) {
+          issues.push(`${itemPath}[${index}]: expected redacted aggregate review finding without local paths, URLs, data URIs, bearer tokens, or credential-like strings.`);
+        }
+      });
+      continue;
+    }
+    collectUnsafeDirectorReviewTextIssues(item, itemPath, issues);
+  }
+}
+
+function containsUnsafeDirectorReviewText(value) {
+  return unsafeDirectorReviewTextPatterns.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(value);
+  });
 }
 
 function validateRenderProviderHandoffActionLedgerSemantics(report) {

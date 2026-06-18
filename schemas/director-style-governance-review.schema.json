@@ -14,9 +14,28 @@
       "minItems": 1,
       "items": { "$ref": "#/$defs/check" }
     },
-    "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+    "findings": { "type": "array", "items": { "$ref": "#/$defs/safeReviewText" } }
   },
   "$defs": {
+    "safeReviewText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "not": {
+        "anyOf": [
+          { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+          { "pattern": "sk-[A-Za-z0-9_-]+" },
+          { "pattern": "apikey-[A-Za-z0-9]{20,}" },
+          { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\\s*[:=]\\s*[\\\"']?[^\\\"',\\s&]+" },
+          { "pattern": "([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\\s]+" },
+          { "pattern": "[A-Za-z]:\\\\[^\\s\\\"'<>]+" },
+          { "pattern": "\\/(?:home|Users|var|tmp)\\/[^\\s\\\"'<>]+" },
+          { "pattern": "https?:\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "data:[^\\s\\\"'<>]+" }
+        ]
+      }
+    },
     "reviewerType": { "enum": ["operator", "legal", "product", "security", "hybrid"] },
     "reviewStatus": { "enum": ["accepted", "needs_review", "rejected"] },
     "checkName": {
@@ -35,9 +54,9 @@
         "checkName": { "$ref": "#/$defs/checkName" },
         "status": { "$ref": "#/$defs/reviewStatus" },
         "reviewerType": { "$ref": "#/$defs/reviewerType" },
-        "evidenceSummary": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "evidenceSummary": { "$ref": "#/$defs/safeReviewText" },
         "reviewedAt": { "type": "string", "format": "date-time" },
-        "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/safeReviewText" } }
       }
     }
   }

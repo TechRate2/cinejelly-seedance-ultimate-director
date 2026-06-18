@@ -5,6 +5,10 @@ import type {
   DirectorStyleBenchmarkSemanticReviewerType,
   DirectorStyleBenchmarkSemanticReviewStatus
 } from "../types/director-style-benchmark.js";
+import {
+  safeDirectorStyleReviewFindings,
+  safeDirectorStyleReviewText
+} from "./director-style-review-text.js";
 
 const METRIC_NAMES = new Set<DirectorStyleBenchmarkSemanticReviewMetricName>([
   "script_video_fidelity",
@@ -47,7 +51,7 @@ export function normalizeDirectorStyleSemanticReviewEvidence(
   const reviewedShotCount = normalizeCount(value.reviewedShotCount);
   const reviewedBoundaryCount = normalizeCount(value.reviewedBoundaryCount);
   const findings = [
-    ...stringsFrom(value.findings),
+    ...safeDirectorStyleReviewFindings(value.findings),
     ...metrics
       .filter((metric) => metric.status !== "accepted")
       .map((metric) => `${metric.metricName} semantic review status is ${metric.status}.`)
@@ -93,7 +97,7 @@ function normalizeMetric(
     : status === "needs_review"
       ? Math.min(confidence, 0.59)
       : Math.min(confidence, 0.5);
-  const evidenceSummary = firstString(value.evidenceSummary, value.summary, value.evidence)
+  const evidenceSummary = safeDirectorStyleReviewText(firstString(value.evidenceSummary, value.summary, value.evidence))
     ?? `Structured semantic review checkpoint for ${metricName}.`;
   const reviewedShotCount = normalizeCount(value.reviewedShotCount);
   const reviewedBoundaryCount = normalizeCount(value.reviewedBoundaryCount);
@@ -107,7 +111,7 @@ function normalizeMetric(
     evidenceSummary,
     ...(reviewedShotCount !== undefined ? { reviewedShotCount } : {}),
     ...(reviewedBoundaryCount !== undefined ? { reviewedBoundaryCount } : {}),
-    findings: stringsFrom(value.findings)
+    findings: safeDirectorStyleReviewFindings(value.findings)
   };
 }
 
@@ -205,14 +209,6 @@ function firstString(...values: readonly unknown[]): string | undefined {
     }
   }
   return undefined;
-}
-
-function stringsFrom(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    .map((item) => item.trim());
 }
 
 function average(values: readonly number[]): number | undefined {

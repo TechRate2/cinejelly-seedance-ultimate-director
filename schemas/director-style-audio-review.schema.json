@@ -15,9 +15,28 @@
       "minItems": 1,
       "items": { "$ref": "#/$defs/metric" }
     },
-    "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+    "findings": { "type": "array", "items": { "$ref": "#/$defs/safeReviewText" } }
   },
   "$defs": {
+    "safeReviewText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "not": {
+        "anyOf": [
+          { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+          { "pattern": "sk-[A-Za-z0-9_-]+" },
+          { "pattern": "apikey-[A-Za-z0-9]{20,}" },
+          { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\\s*[:=]\\s*[\\\"']?[^\\\"',\\s&]+" },
+          { "pattern": "([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\\s]+" },
+          { "pattern": "[A-Za-z]:\\\\[^\\s\\\"'<>]+" },
+          { "pattern": "\\/(?:home|Users|var|tmp)\\/[^\\s\\\"'<>]+" },
+          { "pattern": "https?:\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "data:[^\\s\\\"'<>]+" }
+        ]
+      }
+    },
     "reviewerType": { "enum": ["manual", "asr", "waveform", "hybrid"] },
     "reviewStatus": { "enum": ["accepted", "needs_review", "rejected"] },
     "metricName": {
@@ -43,10 +62,10 @@
         "score": { "type": "number", "minimum": 0, "maximum": 1 },
         "likertScore": { "type": "number", "minimum": 1, "maximum": 5 },
         "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-        "evidenceSummary": { "type": "string", "minLength": 1 },
+        "evidenceSummary": { "$ref": "#/$defs/safeReviewText" },
         "reviewedSegmentCount": { "type": "integer", "minimum": 0 },
         "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
-        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/safeReviewText" } }
       }
     }
   }

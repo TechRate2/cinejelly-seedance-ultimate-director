@@ -5,6 +5,10 @@ import type {
   DirectorStyleBenchmarkGovernanceReviewEvidence,
   DirectorStyleBenchmarkGovernanceReviewStatus
 } from "../types/director-style-benchmark.js";
+import {
+  safeDirectorStyleReviewFindings,
+  safeDirectorStyleReviewText
+} from "./director-style-review-text.js";
 
 const CHECK_NAMES = new Set<DirectorStyleBenchmarkGovernanceReviewCheckName>([
   "directorbench_license_boundary",
@@ -26,16 +30,6 @@ const REVIEW_STATUSES = new Set<DirectorStyleBenchmarkGovernanceReviewStatus>([
   "needs_review",
   "rejected"
 ]);
-
-const SECRET_OR_PATH_PATTERNS = [
-  /Bearer\s+[A-Za-z0-9._-]+/gi,
-  /sk-[A-Za-z0-9_-]+/g,
-  /(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\s*[:=]\s*["']?[^"',\s&]+/gi,
-  /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/gi,
-  /[A-Za-z]:\\[^\s"'<>]+/g,
-  /\/(?:home|Users|var|tmp)\/[^\s"'<>]+/g,
-  /https?:\/\/[^\s"'<>]+/gi
-];
 
 export function normalizeDirectorStyleGovernanceReviewEvidence(
   value: unknown,
@@ -63,7 +57,7 @@ export function normalizeDirectorStyleGovernanceReviewEvidence(
   const status = normalizeStatus(value.status) ?? statusFromChecks(checks);
   const reviewedAt = normalizeDateTime(value.reviewedAt);
   const findings = [
-    ...stringsFrom(value.findings),
+    ...safeDirectorStyleReviewFindings(value.findings),
     ...checks
       .filter((check) => check.status !== "accepted")
       .map((check) => `${check.checkName} governance review status is ${check.status}.`)
@@ -96,7 +90,7 @@ function normalizeCheck(
   }
   const reviewerType = normalizeReviewerType(value.reviewerType) ?? defaultReviewerType;
   const status = normalizeStatus(value.status) ?? "needs_review";
-  const evidenceSummary = safeRequiredText(
+  const evidenceSummary = safeDirectorStyleReviewText(
     firstString(value.evidenceSummary, value.summary, value.evidence)
   ) ?? `Structured governance review checkpoint for ${checkName}.`;
   const reviewedAt = normalizeDateTime(value.reviewedAt);
@@ -107,7 +101,7 @@ function normalizeCheck(
     reviewerType,
     evidenceSummary,
     ...(reviewedAt ? { reviewedAt } : {}),
-    findings: stringsFrom(value.findings)
+    findings: safeDirectorStyleReviewFindings(value.findings)
   };
 }
 
@@ -177,34 +171,6 @@ function firstString(...values: readonly unknown[]): string | undefined {
     }
   }
   return undefined;
-}
-
-function stringsFrom(value: unknown): readonly string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    .map((item) => safeRequiredText(item))
-    .filter((item): item is string => item !== undefined);
-}
-
-function safeRequiredText(value: unknown): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const text = value.trim();
-  if (text.length === 0 || text.length > 500 || /[\u0000-\u001f\u007f]/.test(text)) {
-    return undefined;
-  }
-  return containsSecretOrPath(text) ? undefined : text;
-}
-
-function containsSecretOrPath(value: string): boolean {
-  return SECRET_OR_PATH_PATTERNS.some((pattern) => {
-    pattern.lastIndex = 0;
-    return pattern.test(value);
-  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
