@@ -127,6 +127,18 @@ function main() {
   const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
   const commandPlanAudit = buildCommandPlanAudit({ evidenceCommandPlan, budgetConstrainedPaidPlan });
   const status = statusFor(requiredInputs);
+  const sourceReports = summarizeSourceReports(reports);
+  const inputSummary = summarizeInputs(requiredInputs);
+  const operatorHandoffManifest = buildOperatorHandoffManifest({
+    status,
+    sourceReports,
+    inputSummary,
+    requiredInputs,
+    envPlaceholders,
+    evidenceCommandPlan,
+    budgetConstrainedPaidPlan,
+    commandPlanAudit
+  });
   const report = {
     schemaVersion: "cinejelly.commercial-launch-inputs.v1",
     generatedAt: new Date().toISOString(),
@@ -145,14 +157,15 @@ function main() {
       providerGraphResumePath: toRepoRelative(options.providerGraphResumePath),
       markdownOutputPath: options.writeMarkdown ? toRepoRelative(options.markdownOutputPath) : undefined
     },
-    sourceReports: summarizeSourceReports(reports),
-    inputSummary: summarizeInputs(requiredInputs),
+    sourceReports,
+    inputSummary,
     requiredInputs,
     envPlaceholders,
     atlasConfigurationSummary,
     evidenceCommandPlan,
     budgetConstrainedPaidPlan,
     commandPlanAudit,
+    operatorHandoffManifest,
     releaseGateSummary: buildReleaseGateSummary({ status, reports, requiredInputs }),
     nextActions: nextActionsFor(requiredInputs, reports.liveInputs.value)
   };
@@ -684,6 +697,334 @@ function buildCommandPlanAudit({ evidenceCommandPlan, budgetConstrainedPaidPlan 
   };
 }
 
+function buildOperatorHandoffManifest({
+  status,
+  sourceReports,
+  inputSummary,
+  requiredInputs,
+  envPlaceholders,
+  evidenceCommandPlan,
+  budgetConstrainedPaidPlan,
+  commandPlanAudit
+}) {
+  const operatorInputFiles = buildOperatorInputFiles(requiredInputs);
+  const draftFiles = buildDraftFiles(requiredInputs);
+  const reportArchiveFiles = buildReportArchiveFiles(sourceReports, requiredInputs);
+  const commandRunbook = buildCommandRunbook(evidenceCommandPlan, budgetConstrainedPaidPlan);
+  const readyCommandCount = commandRunbook.filter((item) => isRunnableStatus(item.status)).length;
+  const paidCommands = commandRunbook.filter((item) => item.requiresProviderSpend);
+  return {
+    purpose:
+      "Secret-free operator handoff manifest for the remaining commercial launch evidence sequence.",
+    status,
+    noSpend: true,
+    networkCallsMade: false,
+    providerCallsMade: false,
+    safety: {
+      shareableWithOperators: true,
+      secretValuesIncluded: false,
+      rawProviderPayloadsIncluded: false,
+      localAbsolutePathsIncluded: false,
+      customerMediaIncluded: false,
+      releaseEvidence: false,
+      operatorInstruction:
+        "Use this manifest to locate draft files, ignored operator input files, report archives, and guarded commands; keep raw secrets only in environment variables or ignored ops files."
+    },
+    summary: {
+      requiredInputCount: inputSummary.total,
+      configuredInputCount: inputSummary.configured,
+      missingOrBlockedInputCount: inputSummary.missing + inputSummary.blockedByBudget,
+      pendingAfterPaidRunCount: inputSummary.pendingAfterPaidRun,
+      operatorInputFileCount: operatorInputFiles.length,
+      draftFileCount: draftFiles.length,
+      reportArchiveFileCount: reportArchiveFiles.length,
+      commandCount: commandRunbook.length,
+      readyCommandCount,
+      blockedCommandCount: commandRunbook.length - readyCommandCount,
+      paidCommandCount: paidCommands.length,
+      readyPaidCommandCount: paidCommands.filter((item) => isRunnableStatus(item.status)).length,
+      commandPlanAuditStatus: String(commandPlanAudit?.status ?? "unknown"),
+      secretEnvPlaceholderCount: envPlaceholders.filter((item) => item.sensitivity === "secret").length
+    },
+    blockedInputIds: requiredInputs
+      .filter((item) => item.status === "missing" || item.status === "blocked_by_budget")
+      .map((item) => item.id),
+    operatorInputFiles,
+    draftFiles,
+    reportArchiveFiles,
+    envPlaceholders: envPlaceholders.map((item) => ({
+      name: item.name,
+      sensitivity: item.sensitivity,
+      required: item.required,
+      configured: item.configured,
+      purpose: item.purpose
+    })),
+    commandRunbook,
+    refreshCommands: [
+      "npm.cmd run validation:live-inputs",
+      "npm.cmd run validation:business-plan",
+      "npm.cmd run validation:commercial-inputs",
+      "npm.cmd run validation:completion-audit",
+      "npm.cmd run validation:report-contracts"
+    ]
+  };
+}
+
+function buildOperatorInputFiles(requiredInputs) {
+  const byPath = new Map();
+  for (const item of requiredInputs) {
+    for (const path of item.filePaths.filter((filePath) => filePath.startsWith("ops/"))) {
+      const existing = byPath.get(path);
+      const sourceInputIds = [...(existing?.sourceInputIds ?? []), item.id];
+      byPath.set(path, {
+        path,
+        sourceInputIds,
+        purpose: existing?.purpose ?? item.label,
+        status: combineStatuses(existing?.status, item.status),
+        sensitivity: strongestSensitivity(existing?.sensitivity, item.sensitivity),
+        validationCommand: existing?.validationCommand ?? item.validationCommand,
+        present: existsSync(resolve(repoRoot, path)),
+        evidenceRole: "ignored_operator_input"
+      });
+    }
+  }
+  return [...byPath.values()].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function buildDraftFiles(requiredInputs) {
+  const items = [];
+  for (const input of requiredInputs) {
+    const drafts = draftFilesForInput(input.id);
+    for (const draft of drafts) {
+      items.push({
+        sourceInputId: input.id,
+        path: draft.path,
+        kind: draft.kind,
+        present: existsSync(resolve(repoRoot, draft.path)),
+        copyTo: draft.copyTo,
+        evidenceRole: "draft_only_not_release_evidence"
+      });
+    }
+  }
+  return items.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function draftFilesForInput(inputId) {
+  const operatorDraftRoot = "assets/output_deliverables/business-readiness/operator-drafts";
+  const drafts = {
+    billing_admin_attestation: [
+      {
+        path: `${operatorDraftRoot}/billing-admin-attestation.draft.json`,
+        kind: "json_draft",
+        copyTo: "ops/billing-admin-attestation.json"
+      },
+      {
+        path: `${operatorDraftRoot}/operator-attestation-fillout-checklist.md`,
+        kind: "markdown_checklist",
+        copyTo: "ops/billing-admin-attestation.json"
+      }
+    ],
+    production_operations_attestation: [
+      {
+        path: `${operatorDraftRoot}/production-operations-attestation.draft.json`,
+        kind: "json_draft",
+        copyTo: "ops/production-operations-attestation.json"
+      },
+      {
+        path: `${operatorDraftRoot}/operator-attestation-fillout-checklist.md`,
+        kind: "markdown_checklist",
+        copyTo: "ops/production-operations-attestation.json"
+      }
+    ],
+    commercial_offer_scope_decision: [
+      {
+        path: `${operatorDraftRoot}/commercial-launch-intake.draft.json`,
+        kind: "json_draft",
+        copyTo: "ops/commercial-launch-intake.json"
+      },
+      {
+        path: `${operatorDraftRoot}/commercial-launch-intake-fillout.md`,
+        kind: "markdown_checklist",
+        copyTo: "ops/commercial-launch-intake.json"
+      }
+    ],
+    live_provider_action_evidence: [
+      {
+        path: `${operatorDraftRoot}/render-provider-live-actions.template.json`,
+        kind: "json_template",
+        copyTo: "ops/render-provider-live-actions.json"
+      },
+      {
+        path: `${operatorDraftRoot}/render-provider-live-actions-fillout-checklist.md`,
+        kind: "markdown_checklist",
+        copyTo: "ops/render-provider-live-actions.json"
+      }
+    ],
+    graph_resume_enqueue_evidence: [
+      {
+        path: `${operatorDraftRoot}/render-provider-graph-resume-enqueues.template.json`,
+        kind: "json_template",
+        copyTo: "ops/render-provider-graph-resume-enqueues.json"
+      },
+      {
+        path: `${operatorDraftRoot}/render-provider-graph-resume-enqueues-fillout-checklist.md`,
+        kind: "markdown_checklist",
+        copyTo: "ops/render-provider-graph-resume-enqueues.json"
+      }
+    ],
+    long_form_paid_media_review: [
+      {
+        path: `${operatorDraftRoot}/long-form-manual-quality-review.template.json`,
+        kind: "json_template",
+        copyTo: "ops/long-form-manual-quality-review.json"
+      },
+      {
+        path: `${operatorDraftRoot}/long-form-manual-quality-review-fillout-checklist.md`,
+        kind: "markdown_checklist",
+        copyTo: "ops/long-form-manual-quality-review.json"
+      }
+    ],
+    generated_audio_paid_review: [
+      {
+        path: `${operatorDraftRoot}/generated-audio-manual-review.template.json`,
+        kind: "json_template",
+        copyTo: "ops/generated-audio-manual-review.json"
+      },
+      {
+        path: `${operatorDraftRoot}/generated-audio-manual-review-fillout-checklist.md`,
+        kind: "markdown_checklist",
+        copyTo: "ops/generated-audio-manual-review.json"
+      }
+    ]
+  };
+  return drafts[inputId] ?? [];
+}
+
+function buildReportArchiveFiles(sourceReports, requiredInputs) {
+  const byPath = new Map();
+  for (const [name, report] of Object.entries(sourceReports ?? {})) {
+    if (typeof report?.path !== "string" || !report.path) {
+      continue;
+    }
+    byPath.set(report.path, {
+      path: report.path,
+      source: name,
+      status: String(report.status ?? "unknown"),
+      present: report.present === true,
+      evidenceRole: "source_report"
+    });
+  }
+  for (const input of requiredInputs) {
+    for (const path of input.filePaths.filter((filePath) => filePath.startsWith("assets/output_deliverables/"))) {
+      const existing = byPath.get(path);
+      byPath.set(path, {
+        path,
+        source: existing?.source ?? input.id,
+        status: existing?.status ?? input.status,
+        present: existsSync(resolve(repoRoot, path)),
+        evidenceRole: existing?.evidenceRole ?? "required_evidence_report"
+      });
+    }
+  }
+  return [...byPath.values()].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function buildCommandRunbook(evidenceCommandPlan, budgetConstrainedPaidPlan) {
+  const evidenceCommands = Object.entries(evidenceCommandPlan ?? {}).flatMap(([section, commands]) =>
+    Array.isArray(commands)
+      ? commands.map((item, index) => commandRunbookItem({
+          section,
+          index,
+          name: item.name,
+          kind: item.kind ?? section,
+          status: item.status,
+          command: item.command,
+          source: `evidenceCommandPlan.${section}`
+        }))
+      : []
+  );
+  const budgetCommands = Array.isArray(budgetConstrainedPaidPlan?.slices)
+    ? budgetConstrainedPaidPlan.slices.flatMap((slice, index) => {
+        const items = [];
+        if (typeof slice.billingReadinessCommand === "string") {
+          items.push(commandRunbookItem({
+            section: "paidBudgetSlice",
+            index: index * 2,
+            name: `${slice.name}_billing`,
+            kind: "atlas_billing_readiness",
+            status: slice.status,
+            command: slice.billingReadinessCommand,
+            source: `budgetConstrainedPaidPlan.slices.${slice.name}.billingReadinessCommand`
+          }));
+        }
+        items.push(commandRunbookItem({
+          section: "paidBudgetSlice",
+          index: index * 2 + 1,
+          name: slice.name,
+          kind: slice.kind,
+          status: slice.status,
+          command: slice.command,
+          source: `budgetConstrainedPaidPlan.slices.${slice.name}.command`
+        }));
+        return items;
+      })
+    : [];
+  return [...evidenceCommands, ...budgetCommands];
+}
+
+function commandRunbookItem({ section, index, name, kind, status, command, source }) {
+  const normalizedCommand = String(command ?? "");
+  const normalizedKind = String(kind ?? "unknown");
+  const normalizedStatus = String(status ?? "unknown");
+  return {
+    section,
+    index,
+    name: String(name ?? "unknown"),
+    kind: normalizedKind,
+    status: normalizedStatus,
+    command: normalizedCommand,
+    source,
+    runnable: isRunnableStatus(normalizedStatus),
+    requiresLiveNetwork: section === "liveNetwork" || normalizedCommand.includes("--confirm-live-network"),
+    requiresProviderSpend:
+      normalizedKind.startsWith("paid_") ||
+      normalizedCommand.includes("--confirm-paid-spend") ||
+      normalizedCommand.includes("--confirm-provider-spend"),
+    requiresOperatorConfirmation: normalizedCommand.includes("--confirm-"),
+    requiresManualReview: normalizedCommand.includes("manual-review") || normalizedCommand.includes("manual-audio-review"),
+    containsPlaceholder: normalizedCommand.includes("<")
+  };
+}
+
+function combineStatuses(left, right) {
+  if (!left) {
+    return right;
+  }
+  const rank = new Map([
+    ["blocked_by_budget", 4],
+    ["missing", 3],
+    ["pending_after_paid_run", 2],
+    ["configured", 1]
+  ]);
+  return (rank.get(right) ?? 0) > (rank.get(left) ?? 0) ? right : left;
+}
+
+function strongestSensitivity(left, right) {
+  if (!left) {
+    return right;
+  }
+  const rank = new Map([
+    ["secret_env", 6],
+    ["budget_approval", 5],
+    ["manual_review", 4],
+    ["operator_decision", 3],
+    ["non_secret_operator_attestation", 2],
+    ["public_url", 1],
+    ["boolean_env", 1]
+  ]);
+  return (rank.get(right) ?? 0) > (rank.get(left) ?? 0) ? right : left;
+}
+
 function packageScriptSet() {
   const packageJson = readJsonIfExists("package.json");
   return new Set(Object.keys(packageJson?.scripts ?? {}));
@@ -902,6 +1243,10 @@ function renderMarkdown(report) {
     "",
     `Status: ${report.status}`,
     "",
+    "## Operator Handoff Manifest",
+    "",
+    ...markdownOperatorHandoffManifest(report.operatorHandoffManifest),
+    "",
     "## Atlas Configuration",
     "",
     ...markdownAtlasConfiguration(report.atlasConfigurationSummary),
@@ -959,6 +1304,24 @@ function renderMarkdown(report) {
     report.releaseGateSummary.releaseBlocker,
     ""
   ].join("\n");
+}
+
+function markdownOperatorHandoffManifest(manifest) {
+  if (!manifest) {
+    return ["- Operator handoff manifest unavailable. Rerun `npm.cmd run validation:commercial-inputs`."];
+  }
+  const summary = manifest.summary;
+  const operatorFiles = manifest.operatorInputFiles.length === 0
+    ? ["- Operator input files: none."]
+    : manifest.operatorInputFiles.map((item) => `- ${item.path} (${item.status}; ${item.sensitivity}; present=${item.present})`);
+  return [
+    `- Status: ${manifest.status}`,
+    `- Required inputs: ${summary.requiredInputCount}; missing/blocked: ${summary.missingOrBlockedInputCount}; pending after paid runs: ${summary.pendingAfterPaidRunCount}`,
+    `- Operator files: ${summary.operatorInputFileCount}; draft/template files: ${summary.draftFileCount}; archive reports: ${summary.reportArchiveFileCount}`,
+    `- Commands: ${summary.commandCount}; ready: ${summary.readyCommandCount}; paid-spend commands: ${summary.paidCommandCount}`,
+    `- Safe to share: ${manifest.safety.shareableWithOperators}; release evidence: ${manifest.safety.releaseEvidence}`,
+    ...operatorFiles
+  ];
 }
 
 function markdownCommandPlanAudit(audit) {

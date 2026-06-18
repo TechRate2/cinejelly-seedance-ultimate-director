@@ -2103,6 +2103,106 @@ function validateCommercialLaunchInputsSemantics(report) {
     issues.push("$.sourceReports.launchIntake: expected commercial launch intake source status.");
   }
   const requiredInputs = Array.isArray(report?.requiredInputs) ? report.requiredInputs : [];
+  const manifest = report?.operatorHandoffManifest;
+  if (!manifest) {
+    issues.push("$.operatorHandoffManifest: expected secret-free operator handoff manifest.");
+  } else {
+    if (manifest.status !== report.status) {
+      issues.push("$.operatorHandoffManifest.status: expected to match report status.");
+    }
+    if (
+      manifest.noSpend !== true ||
+      manifest.networkCallsMade !== false ||
+      manifest.providerCallsMade !== false
+    ) {
+      issues.push("$.operatorHandoffManifest: expected no-spend/no-network/no-provider-call flags.");
+    }
+    if (
+      manifest.safety?.secretValuesIncluded !== false ||
+      manifest.safety?.rawProviderPayloadsIncluded !== false ||
+      manifest.safety?.localAbsolutePathsIncluded !== false ||
+      manifest.safety?.releaseEvidence !== false
+    ) {
+      issues.push("$.operatorHandoffManifest.safety: expected secret-free non-release handoff flags.");
+    }
+    const requiredInputCount = requiredInputs.length;
+    if (manifest.summary?.requiredInputCount !== requiredInputCount) {
+      issues.push("$.operatorHandoffManifest.summary.requiredInputCount: expected to match requiredInputs length.");
+    }
+    if (manifest.summary?.commandPlanAuditStatus !== report?.commandPlanAudit?.status) {
+      issues.push("$.operatorHandoffManifest.summary.commandPlanAuditStatus: expected to match commandPlanAudit.status.");
+    }
+    const expectedBlockedInputIds = requiredInputs
+      .filter((item) => item?.status === "missing" || item?.status === "blocked_by_budget")
+      .map((item) => item.id);
+    const manifestBlockedInputIds = Array.isArray(manifest.blockedInputIds) ? manifest.blockedInputIds : [];
+    if (JSON.stringify(manifestBlockedInputIds) !== JSON.stringify(expectedBlockedInputIds)) {
+      issues.push("$.operatorHandoffManifest.blockedInputIds: expected missing/blocked required input IDs in requiredInputs order.");
+    }
+    const manifestOperatorFiles = new Set(
+      Array.isArray(manifest.operatorInputFiles)
+        ? manifest.operatorInputFiles.map((item) => item?.path).filter(Boolean)
+        : []
+    );
+    const expectedOperatorFiles = new Set(
+      requiredInputs.flatMap((item) =>
+        Array.isArray(item?.filePaths)
+          ? item.filePaths.filter((filePath) => typeof filePath === "string" && filePath.startsWith("ops/"))
+          : []
+      )
+    );
+    for (const expectedPath of expectedOperatorFiles) {
+      if (!manifestOperatorFiles.has(expectedPath)) {
+        issues.push(`$.operatorHandoffManifest.operatorInputFiles: expected ${expectedPath}.`);
+      }
+    }
+    const manifestDraftFiles = new Set(
+      Array.isArray(manifest.draftFiles)
+        ? manifest.draftFiles.map((item) => item?.path).filter(Boolean)
+        : []
+    );
+    for (const expectedDraft of [
+      "assets/output_deliverables/business-readiness/operator-drafts/commercial-launch-intake.draft.json",
+      "assets/output_deliverables/business-readiness/operator-drafts/render-provider-live-actions.template.json",
+      "assets/output_deliverables/business-readiness/operator-drafts/render-provider-graph-resume-enqueues.template.json"
+    ]) {
+      if (!manifestDraftFiles.has(expectedDraft)) {
+        issues.push(`$.operatorHandoffManifest.draftFiles: expected ${expectedDraft}.`);
+      }
+    }
+    const commandRunbook = Array.isArray(manifest.commandRunbook) ? manifest.commandRunbook : [];
+    if (manifest.summary?.commandCount !== commandRunbook.length) {
+      issues.push("$.operatorHandoffManifest.summary.commandCount: expected to match commandRunbook length.");
+    }
+    if (manifest.summary?.readyCommandCount !== commandRunbook.filter((item) => item?.runnable === true).length) {
+      issues.push("$.operatorHandoffManifest.summary.readyCommandCount: expected to match runnable command count.");
+    }
+    if (manifest.summary?.paidCommandCount !== commandRunbook.filter((item) => item?.requiresProviderSpend === true).length) {
+      issues.push("$.operatorHandoffManifest.summary.paidCommandCount: expected to match provider-spend command count.");
+    }
+    const evidenceCommandCount = Object.values(report?.evidenceCommandPlan ?? {}).reduce(
+      (count, commands) => count + (Array.isArray(commands) ? commands.length : 0),
+      0
+    );
+    const budgetCommandCount = Array.isArray(report?.budgetConstrainedPaidPlan?.slices)
+      ? report.budgetConstrainedPaidPlan.slices.reduce(
+          (count, slice) => count + 1 + (typeof slice?.billingReadinessCommand === "string" ? 1 : 0),
+          0
+        )
+      : 0;
+    if (commandRunbook.length !== evidenceCommandCount + budgetCommandCount) {
+      issues.push("$.operatorHandoffManifest.commandRunbook: expected flattened evidence command plan plus budget slice commands.");
+    }
+    const refreshCommands = Array.isArray(manifest.refreshCommands) ? manifest.refreshCommands : [];
+    for (const expectedCommand of [
+      "npm.cmd run validation:commercial-inputs",
+      "npm.cmd run validation:report-contracts"
+    ]) {
+      if (!refreshCommands.includes(expectedCommand)) {
+        issues.push(`$.operatorHandoffManifest.refreshCommands: expected ${expectedCommand}.`);
+      }
+    }
+  }
   const scopeDecisionInput = requiredInputs.find((item) => item?.id === "commercial_offer_scope_decision");
   if (!scopeDecisionInput) {
     issues.push("$.requiredInputs: expected commercial_offer_scope_decision checklist item.");

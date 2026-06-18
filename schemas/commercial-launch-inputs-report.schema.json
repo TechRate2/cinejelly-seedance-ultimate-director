@@ -20,6 +20,7 @@
     "evidenceCommandPlan",
     "budgetConstrainedPaidPlan",
     "commandPlanAudit",
+    "operatorHandoffManifest",
     "releaseGateSummary",
     "nextActions"
   ],
@@ -314,6 +315,203 @@
             }
           }
         }
+      }
+    },
+    "operatorHandoffManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purpose",
+        "status",
+        "noSpend",
+        "networkCallsMade",
+        "providerCallsMade",
+        "safety",
+        "summary",
+        "blockedInputIds",
+        "operatorInputFiles",
+        "draftFiles",
+        "reportArchiveFiles",
+        "envPlaceholders",
+        "commandRunbook",
+        "refreshCommands"
+      ],
+      "properties": {
+        "purpose": { "type": "string" },
+        "status": { "enum": ["blocked_by_operator_inputs", "ready_for_live_evidence_sequence"] },
+        "noSpend": { "const": true },
+        "networkCallsMade": { "const": false },
+        "providerCallsMade": { "const": false },
+        "safety": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shareableWithOperators",
+            "secretValuesIncluded",
+            "rawProviderPayloadsIncluded",
+            "localAbsolutePathsIncluded",
+            "customerMediaIncluded",
+            "releaseEvidence",
+            "operatorInstruction"
+          ],
+          "properties": {
+            "shareableWithOperators": { "const": true },
+            "secretValuesIncluded": { "const": false },
+            "rawProviderPayloadsIncluded": { "const": false },
+            "localAbsolutePathsIncluded": { "const": false },
+            "customerMediaIncluded": { "const": false },
+            "releaseEvidence": { "const": false },
+            "operatorInstruction": { "type": "string" }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requiredInputCount",
+            "configuredInputCount",
+            "missingOrBlockedInputCount",
+            "pendingAfterPaidRunCount",
+            "operatorInputFileCount",
+            "draftFileCount",
+            "reportArchiveFileCount",
+            "commandCount",
+            "readyCommandCount",
+            "blockedCommandCount",
+            "paidCommandCount",
+            "readyPaidCommandCount",
+            "commandPlanAuditStatus",
+            "secretEnvPlaceholderCount"
+          ],
+          "properties": {
+            "requiredInputCount": { "type": "integer", "minimum": 0 },
+            "configuredInputCount": { "type": "integer", "minimum": 0 },
+            "missingOrBlockedInputCount": { "type": "integer", "minimum": 0 },
+            "pendingAfterPaidRunCount": { "type": "integer", "minimum": 0 },
+            "operatorInputFileCount": { "type": "integer", "minimum": 0 },
+            "draftFileCount": { "type": "integer", "minimum": 0 },
+            "reportArchiveFileCount": { "type": "integer", "minimum": 0 },
+            "commandCount": { "type": "integer", "minimum": 0 },
+            "readyCommandCount": { "type": "integer", "minimum": 0 },
+            "blockedCommandCount": { "type": "integer", "minimum": 0 },
+            "paidCommandCount": { "type": "integer", "minimum": 0 },
+            "readyPaidCommandCount": { "type": "integer", "minimum": 0 },
+            "commandPlanAuditStatus": { "type": "string" },
+            "secretEnvPlaceholderCount": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "blockedInputIds": { "type": "array", "items": { "type": "string" } },
+        "operatorInputFiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sourceInputIds",
+              "purpose",
+              "status",
+              "sensitivity",
+              "validationCommand",
+              "present",
+              "evidenceRole"
+            ],
+            "properties": {
+              "path": { "type": "string" },
+              "sourceInputIds": { "type": "array", "items": { "type": "string" } },
+              "purpose": { "type": "string" },
+              "status": { "type": "string" },
+              "sensitivity": { "type": "string" },
+              "validationCommand": { "type": "string" },
+              "present": { "type": "boolean" },
+              "evidenceRole": { "const": "ignored_operator_input" }
+            }
+          }
+        },
+        "draftFiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sourceInputId", "path", "kind", "present", "evidenceRole"],
+            "properties": {
+              "sourceInputId": { "type": "string" },
+              "path": { "type": "string" },
+              "kind": { "enum": ["json_draft", "json_template", "markdown_checklist"] },
+              "present": { "type": "boolean" },
+              "copyTo": { "type": "string" },
+              "evidenceRole": { "const": "draft_only_not_release_evidence" }
+            }
+          }
+        },
+        "reportArchiveFiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "source", "status", "present", "evidenceRole"],
+            "properties": {
+              "path": { "type": "string" },
+              "source": { "type": "string" },
+              "status": { "type": "string" },
+              "present": { "type": "boolean" },
+              "evidenceRole": { "enum": ["source_report", "required_evidence_report"] }
+            }
+          }
+        },
+        "envPlaceholders": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "sensitivity", "required", "configured", "purpose"],
+            "properties": {
+              "name": { "type": "string" },
+              "sensitivity": { "enum": ["public_url", "secret", "boolean"] },
+              "required": { "type": "boolean" },
+              "configured": { "type": "boolean" },
+              "purpose": { "type": "string" }
+            }
+          }
+        },
+        "commandRunbook": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "section",
+              "index",
+              "name",
+              "kind",
+              "status",
+              "command",
+              "source",
+              "runnable",
+              "requiresLiveNetwork",
+              "requiresProviderSpend",
+              "requiresOperatorConfirmation",
+              "requiresManualReview",
+              "containsPlaceholder"
+            ],
+            "properties": {
+              "section": { "type": "string" },
+              "index": { "type": "integer", "minimum": 0 },
+              "name": { "type": "string" },
+              "kind": { "type": "string" },
+              "status": { "type": "string" },
+              "command": { "type": "string" },
+              "source": { "type": "string" },
+              "runnable": { "type": "boolean" },
+              "requiresLiveNetwork": { "type": "boolean" },
+              "requiresProviderSpend": { "type": "boolean" },
+              "requiresOperatorConfirmation": { "type": "boolean" },
+              "requiresManualReview": { "type": "boolean" },
+              "containsPlaceholder": { "type": "boolean" }
+            }
+          }
+        },
+        "refreshCommands": { "type": "array", "items": { "type": "string" } }
       }
     },
     "releaseGateSummary": {

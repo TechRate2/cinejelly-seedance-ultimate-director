@@ -1,10 +1,10 @@
 # Commercial Launch Inputs
 
-Implementation status as of 2026-06-19: implemented as a CineJelly-owned no-spend Node.js report generator, JSON schema, package command, Markdown checklist writer, launch-intake scope gate, and command-plan audit. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-19: implemented as a CineJelly-owned no-spend Node.js report generator, JSON schema, package command, Markdown checklist writer, launch-intake scope gate, command-plan audit, and secret-free operator handoff manifest. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Purpose
 
-Before asking an operator for the remaining production inputs, CineJelly needs one secret-free packet that converts the current readiness reports into a concrete checklist: URLs, secret env placeholders, commercial offer scope, operator attestations, approved Atlas budget, live evidence commands, paid Atlas commands, and manual review gates.
+Before asking an operator for the remaining production inputs, CineJelly needs one secret-free packet that converts the current readiness reports into a concrete checklist and machine-readable handoff manifest: URLs, secret env placeholders, commercial offer scope, operator attestations, ignored operator input files, draft/template files, report archives, approved Atlas budget, live evidence commands, paid Atlas commands, and manual review gates.
 
 ## Rules
 
@@ -24,6 +24,7 @@ Before asking an operator for the remaining production inputs, CineJelly needs o
 14. The packet must include graph-resume enqueue payload evidence as a separate operator input, backed by `validation:provider-graph-resume`, so a provider callback cannot be mistaken for proven resumable graph state or queue payloads.
 15. The packet must include the launch-intake commercial offer scope decision so an API/CLI-only launch is explicit and a UI-required launch remains blocked until the UI exists.
 16. The packet must audit its own command plan against `package.json` scripts and paid-spend guard flags so stale checklist commands are caught before an operator copies them into a live or paid run.
+17. The packet must include an `operatorHandoffManifest` that is safe to share, contains no raw secrets/provider payloads/local absolute paths/customer media, lists ignored operator input files, draft/template files, report archives, flattened guarded commands, and explicitly marks itself as non-release evidence.
 
 ## Report Shape
 
@@ -92,6 +93,29 @@ interface CommercialLaunchInputsReport {
     npmScriptCount: number;
     issues: Array<{ severity: "warn" | "fail"; location: string; commandName: string; command: string; message: string }>;
   };
+  operatorHandoffManifest: {
+    purpose: string;
+    status: "blocked_by_operator_inputs" | "ready_for_live_evidence_sequence";
+    noSpend: true;
+    networkCallsMade: false;
+    providerCallsMade: false;
+    safety: {
+      shareableWithOperators: true;
+      secretValuesIncluded: false;
+      rawProviderPayloadsIncluded: false;
+      localAbsolutePathsIncluded: false;
+      customerMediaIncluded: false;
+      releaseEvidence: false;
+    };
+    summary: Record<string, number | string>;
+    blockedInputIds: string[];
+    operatorInputFiles: Array<{ path: string; sourceInputIds: string[]; status: string; sensitivity: string; present: boolean }>;
+    draftFiles: Array<{ sourceInputId: string; path: string; kind: string; present: boolean; copyTo?: string }>;
+    reportArchiveFiles: Array<{ path: string; source: string; status: string; present: boolean }>;
+    envPlaceholders: Array<{ name: string; sensitivity: "public_url" | "secret" | "boolean"; required: boolean; configured: boolean }>;
+    commandRunbook: Array<{ section: string; name: string; status: string; command: string; runnable: boolean; requiresProviderSpend: boolean }>;
+    refreshCommands: string[];
+  };
   releaseGateSummary: {
     canRunNoSpendPrep: boolean;
     canRunLiveNetworkEvidence: boolean;
@@ -115,6 +139,7 @@ interface CommercialLaunchInputsReport {
 - Done: include the live provider action evidence packet and validator command in the checklist and command-plan audit.
 - Done: include the graph-resume enqueue payload evidence packet and validator command in the checklist and command-plan audit.
 - Done: include the commercial offer scope decision from `validation:launch-intake` as an operator-decision checklist item.
+- Done: include a contract-validated `operatorHandoffManifest` that maps remaining operator files, draft/template files, report archives, env placeholders, and flattened guarded command order without making release claims.
 
 ## Acceptance Checks
 
@@ -132,3 +157,4 @@ interface CommercialLaunchInputsReport {
 - Current output includes a `graph_resume_enqueue_evidence` checklist item pointing to ignored `ops/render-provider-graph-resume-enqueues.json` and `validation:provider-graph-resume -- --confirm-graph-resume-enqueues`.
 - Current output includes a `commercial_offer_scope_decision` checklist item pointing to ignored `ops/commercial-launch-intake.json` and `validation:launch-intake -- --write-draft`.
 - Current output includes `commandPlanAudit.status: "pass"` after checking command names against `package.json` scripts and confirming ready paid commands retain required confirmation/billing flags.
+- Current output includes `operatorHandoffManifest.safety.releaseEvidence=false`, no raw secrets, the expected `ops/*` input files, launch-intake/live-provider/graph-resume draft files, report archive paths, and a flattened command runbook whose counts match the source command plans.
