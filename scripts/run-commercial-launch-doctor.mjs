@@ -211,6 +211,11 @@ function buildCommands(options) {
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
+      command("production_graph_resume_state", ["scripts/run-production-graph-resume-state-smoke.mjs"], {
+        reportPath: "assets/output_deliverables/business-readiness/production-graph-resume-state-report.json",
+        expectedExitCodes: [0],
+        blocksCodeReadiness: true
+      }),
       command("provider_multi_worker_handoff", ["scripts/run-render-provider-multi-worker-handoff-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json",
         expectedExitCodes: [0],
@@ -347,6 +352,7 @@ function buildReport(options, commandRuns) {
     providerExternalLease: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
     providerLeaseService: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-lease-service-smoke-report.json"),
     providerHandoffActions: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
+    productionGraphResumeState: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/production-graph-resume-state-report.json"),
     providerMultiWorkerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
     providerLiveActions: summarizeReport("assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"),
     providerGraphResume: summarizeReport("assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"),
@@ -400,6 +406,7 @@ function buildReport(options, commandRuns) {
       providerExternalLeaseStatus: reportSummaries.providerExternalLease.status,
       providerLeaseServiceStatus: reportSummaries.providerLeaseService.status,
       providerHandoffActionsStatus: reportSummaries.providerHandoffActions.status,
+      productionGraphResumeStateStatus: reportSummaries.productionGraphResumeState.status,
       providerMultiWorkerHandoffStatus: reportSummaries.providerMultiWorkerHandoff.status,
       providerLiveActionsStatus: reportSummaries.providerLiveActions.status,
       providerGraphResumeStatus: reportSummaries.providerGraphResume.status,
@@ -577,6 +584,7 @@ function renderMarkdown(report) {
     `- Provider external lease: ${report.readinessSnapshot.providerExternalLeaseStatus}`,
     `- Provider lease service: ${report.readinessSnapshot.providerLeaseServiceStatus}`,
     `- Provider handoff actions: ${report.readinessSnapshot.providerHandoffActionsStatus}`,
+    `- Production graph resume state: ${report.readinessSnapshot.productionGraphResumeStateStatus}`,
     `- Provider multi-worker handoff: ${report.readinessSnapshot.providerMultiWorkerHandoffStatus}`,
     `- Provider live actions: ${report.readinessSnapshot.providerLiveActionsStatus}`,
     `- Provider graph resume: ${report.readinessSnapshot.providerGraphResumeStatus}`,

@@ -34,6 +34,7 @@
     "validation:provider-external-lease": "node scripts/run-render-provider-external-lease-smoke.mjs",
     "validation:provider-lease-service": "node scripts/run-render-provider-lease-service-smoke.mjs",
     "validation:provider-handoff-actions": "node scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
+    "validation:graph-resume-state": "node scripts/run-production-graph-resume-state-smoke.mjs",
     "validation:provider-multi-worker-handoff": "node scripts/run-render-provider-multi-worker-handoff-smoke.mjs",
     "validation:provider-production-handoff": "node --env-file-if-exists=.env scripts/capture-render-provider-production-handoff.mjs",
     "validation:provider-live-action-draft": "node scripts/create-render-provider-live-action-evidence-draft.mjs",

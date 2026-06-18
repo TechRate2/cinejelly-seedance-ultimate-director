@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/production-graph-resume-state-report.schema.json",
+  "title": "CineJelly Production Graph Resume State Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "queueCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "capsule",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.production-graph-resume-state-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "queueCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "statePath", "fakeGraph", "graphNodeCount", "graphEdgeCount"],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "statePath": { "type": "string" },
+        "fakeGraph": { "const": true },
+        "graphNodeCount": { "type": "integer", "minimum": 1 },
+        "graphEdgeCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "createdCapsuleCount",
+        "restoredCapsuleCount",
+        "nodeCount",
+        "edgeCount",
+        "sourceGraphSha256",
+        "redactedGraphSha256",
+        "capsuleSha256",
+        "activeClipRenderCount",
+        "activePredictionIdCount",
+        "rawGraphStateStored",
+        "rawProviderPayloadStored",
+        "outputUrlsStored",
+        "localPathsStored",
+        "secretLikeTextStored",
+        "canClaimDistributedResume",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "createdCapsuleCount": { "const": 1 },
+        "restoredCapsuleCount": { "type": "integer", "minimum": 1 },
+        "nodeCount": { "type": "integer", "minimum": 1 },
+        "edgeCount": { "type": "integer", "minimum": 0 },
+        "sourceGraphSha256": { "$ref": "#/$defs/sha256" },
+        "redactedGraphSha256": { "$ref": "#/$defs/sha256" },
+        "capsuleSha256": { "$ref": "#/$defs/sha256" },
+        "activeClipRenderCount": { "type": "integer", "minimum": 0 },
+        "activePredictionIdCount": { "type": "integer", "minimum": 0 },
+        "rawGraphStateStored": { "const": false },
+        "rawProviderPayloadStored": { "const": false },
+        "outputUrlsStored": { "const": false },
+        "localPathsStored": { "const": false },
+        "secretLikeTextStored": { "const": false },
+        "canClaimDistributedResume": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "capsule": { "$ref": "#/$defs/capsule" },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "capsule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "capsuleId",
+        "jobId",
+        "actionId",
+        "createdAt",
+        "expiresAt",
+        "sourceGraphSha256",
+        "redactedGraphSha256",
+        "capsuleSha256",
+        "graphSummary",
+        "providerWorkSummary",
+        "resumeCursor",
+        "redactionSummary",
+        "releaseGateSummary"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.production-graph-resume-state.v1" },
+        "capsuleId": { "type": "string", "minLength": 1 },
+        "jobId": { "type": "string", "minLength": 1 },
+        "actionId": { "type": "string", "minLength": 1 },
+        "createdAt": { "$ref": "#/$defs/dateTime" },
+        "expiresAt": { "$ref": "#/$defs/dateTime" },
+        "sourceGraphSha256": { "$ref": "#/$defs/sha256" },
+        "redactedGraphSha256": { "$ref": "#/$defs/sha256" },
+        "capsuleSha256": { "$ref": "#/$defs/sha256" },
+        "graphSummary": { "$ref": "#/$defs/graphSummary" },
+        "providerWorkSummary": { "$ref": "#/$defs/providerWorkSummary" },
+        "resumeCursor": { "$ref": "#/$defs/resumeCursor" },
+        "redactionSummary": { "$ref": "#/$defs/redactionSummary" },
+        "releaseGateSummary": { "$ref": "#/$defs/releaseGateSummary" }
+      }
+    },
+    "graphSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodeCount", "edgeCount", "nodeTypeCounts", "nodes", "edges"],
+      "properties": {
+        "nodeCount": { "type": "integer", "minimum": 1 },
+        "edgeCount": { "type": "integer", "minimum": 0 },
+        "nodeTypeCounts": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/nodeSummary" }
+        },
+        "edges": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/edgeSummary" }
+        }
+      }
+    },
+    "nodeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodeIdSha256", "type", "dataSha256", "createdAt", "updatedAt"],
+      "properties": {
+        "nodeIdSha256": { "$ref": "#/$defs/sha256" },
+        "type": { "type": "string", "minLength": 1 },
+        "dataSha256": { "$ref": "#/$defs/sha256" },
+        "createdAt": { "$ref": "#/$defs/dateTime" },
+        "updatedAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "edgeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edgeIdSha256", "fromNodeIdSha256", "toNodeIdSha256", "type", "createdAt"],
+      "properties": {
+        "edgeIdSha256": { "$ref": "#/$defs/sha256" },
+        "fromNodeIdSha256": { "$ref": "#/$defs/sha256" },
+        "toNodeIdSha256": { "$ref": "#/$defs/sha256" },
+        "type": { "type": "string", "minLength": 1 },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "providerWorkSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providers",
+        "operations",
+        "predictionIdCount",
+        "activePredictionIdCount",
+        "terminalPredictionIdCount",
+        "predictionIdsSha256",
+        "activePredictionIdsSha256",
+        "terminalPredictionIdsSha256",
+        "requiresActionLedgerPredictionIds"
+      ],
+      "properties": {
+        "providers": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "operations": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "predictionIdCount": { "type": "integer", "minimum": 0 },
+        "activePredictionIdCount": { "type": "integer", "minimum": 0 },
+        "terminalPredictionIdCount": { "type": "integer", "minimum": 0 },
+        "predictionIdsSha256": { "$ref": "#/$defs/sha256" },
+        "activePredictionIdsSha256": { "$ref": "#/$defs/sha256" },
+        "terminalPredictionIdsSha256": { "$ref": "#/$defs/sha256" },
+        "requiresActionLedgerPredictionIds": { "const": true }
+      }
+    },
+    "resumeCursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "cursorId",
+        "nextNodeIdSha256",
+        "nextNodeType",
+        "activeClipRenderCount",
+        "pendingRepairActionCount",
+        "terminalDeliverablePresent"
+      ],
+      "properties": {
+        "kind": { "const": "provider_work_resume" },
+        "cursorId": { "type": "string", "minLength": 1 },
+        "nextNodeIdSha256": { "$ref": "#/$defs/sha256" },
+        "nextNodeType": { "type": "string", "minLength": 1 },
+        "activeClipRenderCount": { "type": "integer", "minimum": 0 },
+        "pendingRepairActionCount": { "type": "integer", "minimum": 0 },
+        "terminalDeliverablePresent": { "type": "boolean" }
+      }
+    },
+    "redactionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rawGraphStateStored",
+        "rawProviderPayloadStored",
+        "outputUrlsStored",
+        "localPathsStored",
+        "secretLikeTextStored",
+        "publicPayloadSha256"
+      ],
+      "properties": {
+        "rawGraphStateStored": { "const": false },
+        "rawProviderPayloadStored": { "const": false },
+        "outputUrlsStored": { "const": false },
+        "localPathsStored": { "const": false },
+        "secretLikeTextStored": { "const": false },
+        "publicPayloadSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resumeStateCapsulePass",
+        "canClaimDistributedResume",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "resumeStateCapsulePass": { "type": "boolean" },
+        "canClaimDistributedResume": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

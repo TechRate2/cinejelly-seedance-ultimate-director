@@ -25,6 +25,7 @@ const defaultContracts = [
   contract("render_provider_external_lease", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
   contract("render_provider_lease_service_smoke", "schemas/render-provider-lease-service-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-lease-service-smoke-report.json"),
   contract("render_provider_handoff_action_ledger", "schemas/render-provider-handoff-action-ledger-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
+  contract("production_graph_resume_state", "schemas/production-graph-resume-state-report.schema.json", "assets/output_deliverables/business-readiness/production-graph-resume-state-report.json"),
   contract("render_provider_multi_worker_handoff", "schemas/render-provider-multi-worker-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
   contract("render_provider_production_handoff", "schemas/render-provider-production-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-production-handoff-report.json"),
   contract("render_provider_live_action_evidence_draft", "schemas/render-provider-live-action-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-live-action-evidence-draft-report.json"),
@@ -299,6 +300,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "render_provider_handoff_action_ledger") {
     return validateRenderProviderHandoffActionLedgerSemantics(report);
   }
+  if (item.name === "production_graph_resume_state") {
+    return validateProductionGraphResumeStateSemantics(report);
+  }
   if (item.name === "render_provider_production_handoff") {
     return validateRenderProviderProductionHandoffSemantics(report);
   }
@@ -344,6 +348,7 @@ const LAUNCH_DOCTOR_PROVIDER_COMMANDS = [
   ["provider_external_lease", "providerExternalLeaseStatus"],
   ["provider_lease_service", "providerLeaseServiceStatus"],
   ["provider_handoff_actions", "providerHandoffActionsStatus"],
+  ["production_graph_resume_state", "productionGraphResumeStateStatus"],
   ["provider_multi_worker_handoff", "providerMultiWorkerHandoffStatus"]
 ];
 
@@ -1173,6 +1178,73 @@ function validateRenderProviderHandoffActionLedgerSemantics(report) {
   ].filter((decision) => decision?.providerCallMade === true);
   if (providerCallDecisions.length > 0) {
     issues.push("$.firstExecution/secondExecution.decisions: expected zero real provider-call decisions in no-spend smoke evidence.");
+  }
+  return issues;
+}
+
+function validateProductionGraphResumeStateSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  const publicPayload = JSON.stringify(report ?? {});
+  const unsafePatterns = [
+    /https?:\/\//i,
+    /data:/i,
+    /[A-Za-z]:\\/,
+    /\\\\/,
+    /(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\//i,
+    /bearer\s+/i,
+    /api[_-]?key/i,
+    /sk_live/i,
+    /token_should_not_escape/i,
+    /pred_resume_active/i,
+    /cdn\.example\.com/i
+  ];
+
+  if (report?.status === "pass" && failedChecks.length > 0) {
+    issues.push("$.checks: status pass requires zero failed checks.");
+  }
+  if (report?.noSpend !== true || report?.networkCallsMade !== false || report?.providerCallsMade !== false || report?.queueCallsMade !== false) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade/queueCallsMade: expected no-spend local smoke evidence.");
+  }
+  if (report?.summary?.rawGraphStateStored !== false || report?.capsule?.redactionSummary?.rawGraphStateStored !== false) {
+    issues.push("$.summary.rawGraphStateStored: expected false for digest-only resume-state capsule.");
+  }
+  if (report?.summary?.rawProviderPayloadStored !== false || report?.capsule?.redactionSummary?.rawProviderPayloadStored !== false) {
+    issues.push("$.summary.rawProviderPayloadStored: expected false for digest-only resume-state capsule.");
+  }
+  if (report?.summary?.outputUrlsStored !== false || report?.capsule?.redactionSummary?.outputUrlsStored !== false) {
+    issues.push("$.summary.outputUrlsStored: expected false for digest-only resume-state capsule.");
+  }
+  if (report?.summary?.localPathsStored !== false || report?.capsule?.redactionSummary?.localPathsStored !== false) {
+    issues.push("$.summary.localPathsStored: expected false for digest-only resume-state capsule.");
+  }
+  if (report?.summary?.secretLikeTextStored !== false || report?.capsule?.redactionSummary?.secretLikeTextStored !== false) {
+    issues.push("$.summary.secretLikeTextStored: expected false for digest-only resume-state capsule.");
+  }
+  if (report?.summary?.canClaimDistributedResume !== false || report?.capsule?.releaseGateSummary?.canClaimDistributedResume !== false) {
+    issues.push("$.summary.canClaimDistributedResume: expected false until live distributed worker evidence exists.");
+  }
+  if (report?.summary?.canReleaseToCustomerTraffic !== false || report?.capsule?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.summary.canReleaseToCustomerTraffic: expected false for local resume-state smoke evidence.");
+  }
+  if (Number(report?.summary?.nodeCount ?? -1) !== Number(report?.capsule?.graphSummary?.nodeCount ?? -2)) {
+    issues.push("$.summary.nodeCount: expected to match capsule.graphSummary.nodeCount.");
+  }
+  if (Number(report?.summary?.edgeCount ?? -1) !== Number(report?.capsule?.graphSummary?.edgeCount ?? -2)) {
+    issues.push("$.summary.edgeCount: expected to match capsule.graphSummary.edgeCount.");
+  }
+  if (Number(report?.summary?.activePredictionIdCount ?? -1) !== Number(report?.capsule?.providerWorkSummary?.activePredictionIdCount ?? -2)) {
+    issues.push("$.summary.activePredictionIdCount: expected to match capsule.providerWorkSummary.activePredictionIdCount.");
+  }
+  if (Number(report?.summary?.activeClipRenderCount ?? -1) !== Number(report?.capsule?.resumeCursor?.activeClipRenderCount ?? -2)) {
+    issues.push("$.summary.activeClipRenderCount: expected to match capsule.resumeCursor.activeClipRenderCount.");
+  }
+  if (report?.capsule?.providerWorkSummary?.requiresActionLedgerPredictionIds !== true) {
+    issues.push("$.capsule.providerWorkSummary.requiresActionLedgerPredictionIds: expected true so raw prediction IDs stay outside the capsule.");
+  }
+  if (unsafePatterns.some((pattern) => pattern.test(publicPayload))) {
+    issues.push("$.capsule: public resume-state report must not contain raw URLs, local paths, token-like text, or raw prediction IDs.");
   }
   return issues;
 }
