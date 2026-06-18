@@ -136,6 +136,7 @@ function main() {
   const codeWorkSummary = buildCodeWorkSummary(reports, blockers, productCodeGaps);
   const operatorHandoffSummary = buildOperatorHandoffSummary(reports.commercialInputs.value);
   const snapshotParityCoverageSummary = buildSnapshotParityCoverageSummary(reports.snapshotParity.value, reports.snapshotParity);
+  const evidenceClosurePlan = buildEvidenceClosurePlan(blockers, productCodeGaps);
   const status = statusFor({ reports, blockers, codeWorkSummary });
   const report = {
     schemaVersion: "cinejelly.business-completion-audit.v1",
@@ -166,6 +167,7 @@ function main() {
     codeWorkSummary,
     productCodeGaps,
     blockerSummary: summarizeBlockers(blockers),
+    evidenceClosurePlan,
     blockers,
     releaseGateSummary: buildReleaseGateSummary({ reports, readinessSnapshot, codeWorkSummary, blockers }),
     nextActions: buildNextActions({ reports, readinessSnapshot, codeWorkSummary, blockers })
@@ -721,6 +723,148 @@ function blocker(value) {
   };
 }
 
+const evidencePhaseDefinitions = [
+  phaseDefinition("code_contract_fix", "Code/schema/contract fixes", "codebase"),
+  phaseDefinition("scope_decision", "Commercial scope decision", "operator"),
+  phaseDefinition("operator_attestation_prep", "Operator attestation prep", "operator"),
+  phaseDefinition("deployment_evidence", "HTTPS deployment evidence", "operator"),
+  phaseDefinition("live_provider_evidence", "Live provider and graph-resume evidence", "operator"),
+  phaseDefinition("source_video_input", "Source-video input and analysis evidence", "operator"),
+  phaseDefinition("remote_stock_live_terms", "Remote stock provider terms and live evidence", "operator_external_provider"),
+  phaseDefinition("budget_approval", "Atlas budget and billing approval", "budget_owner"),
+  phaseDefinition("post_paid_manual_review", "Post-paid manual review", "manual_reviewer")
+];
+
+function phaseDefinition(id, label, owner) {
+  return { id, label, owner };
+}
+
+function buildEvidenceClosurePlan(blockers, productCodeGaps) {
+  const blockersByPhase = groupBy(blockers, phaseForBlocker);
+  const productGapsByPhase = groupBy(productCodeGaps, phaseForProductGap);
+  const phases = evidencePhaseDefinitions
+    .map((definition, index) => {
+      const phaseBlockers = blockersByPhase.get(definition.id) ?? [];
+      const phaseProductGaps = productGapsByPhase.get(definition.id) ?? [];
+      return {
+        id: definition.id,
+        order: index + 1,
+        label: definition.label,
+        owner: definition.owner,
+        status: phaseStatusFor(phaseBlockers, phaseProductGaps),
+        blockerCount: phaseBlockers.length,
+        blockerIds: phaseBlockers.map((item) => item.id),
+        productGapCount: phaseProductGaps.length,
+        productGapIds: phaseProductGaps.map((item) => item.id),
+        commands: [...new Set(phaseBlockers.map((item) => item.validationCommand).filter(Boolean))],
+        releaseImpact: releaseImpactForPhase(definition.id, phaseBlockers, phaseProductGaps)
+      };
+    })
+    .filter((phase) => phase.blockerCount > 0 || phase.productGapCount > 0);
+  return {
+    status: blockers.length === 0 ? "clear" : "blocked",
+    releaseEvidence: false,
+    blockerCount: blockers.length,
+    codeActionCount: blockers.filter((item) => item.owner === "codebase").length,
+    externalOrPaidActionCount: blockers.filter((item) => item.owner !== "codebase").length,
+    paidDependencyCount: blockers.filter((item) => item.paidImpact !== "none").length,
+    phaseCount: phases.length,
+    phases
+  };
+}
+
+function phaseForBlocker(blockerItem) {
+  if (blockerItem.owner === "codebase") {
+    return "code_contract_fix";
+  }
+  if (blockerItem.category === "product_scope") {
+    return "scope_decision";
+  }
+  if (blockerItem.category === "deployment_evidence") {
+    return "deployment_evidence";
+  }
+  if (blockerItem.category === "operations_evidence") {
+    return blockerItem.validationCommand?.includes("--write-drafts")
+      ? "operator_attestation_prep"
+      : "live_provider_evidence";
+  }
+  if (blockerItem.category === "source_video_evidence") {
+    return "source_video_input";
+  }
+  if (blockerItem.category === "remote_stock_evidence") {
+    return "remote_stock_live_terms";
+  }
+  if (blockerItem.category === "budget_approval") {
+    return "budget_approval";
+  }
+  if (blockerItem.category === "manual_review_after_paid") {
+    return "post_paid_manual_review";
+  }
+  return "operator_attestation_prep";
+}
+
+function phaseForProductGap(gap) {
+  if (gap.id === "first_party_web_ui") {
+    return "scope_decision";
+  }
+  if (gap.id === "distributed_active_provider_work_resume") {
+    return "live_provider_evidence";
+  }
+  if (gap.id === "directorbench_style_benchmark_harness") {
+    return "post_paid_manual_review";
+  }
+  return "code_contract_fix";
+}
+
+function phaseStatusFor(blockers, productGaps) {
+  if (blockers.length > 0) {
+    if (blockers.every((item) => item.status === "pending_after_paid_run")) {
+      return "pending_after_paid_run";
+    }
+    if (blockers.some((item) => item.status === "blocked_by_budget")) {
+      return "blocked_by_budget";
+    }
+    return "blocked";
+  }
+  if (productGaps.length > 0) {
+    return "requires_external_evidence";
+  }
+  return "not_required";
+}
+
+function releaseImpactForPhase(phaseId, blockers, productGaps) {
+  if (blockers.length === 0 && productGaps.length === 0) {
+    return "No current action in this phase.";
+  }
+  if (phaseId === "code_contract_fix") {
+    return "Code/schema/contract blockers must be fixed before live or paid evidence can be trusted.";
+  }
+  if (phaseId === "scope_decision") {
+    return "Commercial launch cannot be fully interpreted until the API/CLI-only versus first-party Web UI decision is recorded.";
+  }
+  if (phaseId === "budget_approval") {
+    return "Paid validation must stay bounded by approved Atlas budget and fresh billing evidence.";
+  }
+  if (phaseId === "post_paid_manual_review") {
+    return "Customer traffic remains blocked until paid artifacts and audio outputs receive accepted manual review.";
+  }
+  if (productGaps.some((item) => item.completionRequiresExternalEvidence === true)) {
+    return "Full parity remains blocked until live external evidence is archived and validated.";
+  }
+  return "Commercial launch remains blocked until this evidence phase passes.";
+}
+
+function groupBy(items, keyFn) {
+  const result = new Map();
+  for (const item of items) {
+    const key = keyFn(item);
+    const bucket = result.get(key) ?? [];
+    bucket.push(item);
+    result.set(key, bucket);
+  }
+  return result;
+}
+
 function summarizeBlockers(blockers) {
   return {
     total: blockers.length,
@@ -872,6 +1016,10 @@ function renderMarkdown(report) {
     "",
     ...markdownBlockers(externalBlockers),
     "",
+    "## Evidence Closure Plan",
+    "",
+    ...markdownEvidenceClosurePlan(report.evidenceClosurePlan),
+    "",
     "## Release Gate",
     "",
     `- canReleaseToCustomerTraffic: ${report.releaseGateSummary.canReleaseToCustomerTraffic}`,
@@ -917,6 +1065,22 @@ function markdownOperatorHandoffSummary(summary) {
     ...(summary.operatorInputFiles.length === 0
       ? ["- Operator input files: none"]
       : summary.operatorInputFiles.map((item) => `- Operator input: ${item}`))
+  ];
+}
+
+function markdownEvidenceClosurePlan(plan) {
+  if (!plan) {
+    return ["- Evidence closure plan unavailable."];
+  }
+  return [
+    `- Status: ${plan.status}`,
+    `- Blockers: ${plan.blockerCount}; code actions: ${plan.codeActionCount}; external/paid actions: ${plan.externalOrPaidActionCount}; paid dependencies: ${plan.paidDependencyCount}`,
+    ...plan.phases.map((phase) => {
+      const commands = phase.commands.length === 0 ? "no direct command" : phase.commands.join(" | ");
+      const blockers = phase.blockerIds.length === 0 ? "no blocker ids" : phase.blockerIds.join(", ");
+      const gaps = phase.productGapIds.length === 0 ? "no product gaps" : phase.productGapIds.join(", ");
+      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; commands: ${commands}`;
+    })
   ];
 }
 

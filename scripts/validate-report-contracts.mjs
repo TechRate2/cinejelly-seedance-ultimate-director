@@ -474,6 +474,13 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
       report?.reportSummaries?.snapshotParity
     )
   );
+  issues.push(
+    ...validateEvidenceClosurePlan(
+      report?.evidenceClosurePlan,
+      "$.evidenceClosurePlan",
+      { blockerSummary: report?.blockerSummary }
+    )
+  );
 
   const providerGraphResumeRun = commandByName.get("provider_graph_resume");
   if (providerGraphResumeRun?.status !== "pass") {
@@ -722,6 +729,13 @@ function validateBusinessCompletionAuditSemantics(report) {
   }
   issues.push(...compareCountMap("$.blockerSummary.byOwner", report?.blockerSummary?.byOwner, countBy(blockers, "owner")));
   issues.push(...compareCountMap("$.blockerSummary.byCategory", report?.blockerSummary?.byCategory, countBy(blockers, "category")));
+  issues.push(
+    ...validateEvidenceClosurePlan(
+      report?.evidenceClosurePlan,
+      "$.evidenceClosurePlan",
+      { blockers, blockerSummary: report?.blockerSummary }
+    )
+  );
 
   const readyPaidGateCount = Array.isArray(report?.readinessSnapshot?.readyPaidGates)
     ? report.readinessSnapshot.readyPaidGates.length
@@ -784,6 +798,73 @@ function validateBusinessCompletionAuditSemantics(report) {
     }
     if (Number(report?.codeWorkSummary?.knownCodeBlockingIssueCount ?? 0) !== 0) {
       issues.push("$.releaseGateSummary.safeToRunFullPaidAtlasSequenceNow: true requires zero known code blockers.");
+    }
+  }
+  return issues;
+}
+
+function validateEvidenceClosurePlan(plan, path, context = {}) {
+  const issues = [];
+  if (!plan || typeof plan !== "object") {
+    return [`${path}: expected evidence closure plan.`];
+  }
+  const phases = Array.isArray(plan.phases) ? plan.phases : [];
+  const blockerSummary = context.blockerSummary ?? {};
+  const blockers = Array.isArray(context.blockers) ? context.blockers : undefined;
+  if (plan.releaseEvidence !== false) {
+    issues.push(`${path}.releaseEvidence: expected false.`);
+  }
+  if (Number(plan.phaseCount ?? -1) !== phases.length) {
+    issues.push(`${path}.phaseCount: expected to equal phases length.`);
+  }
+  if (Number(plan.blockerCount ?? -1) !== Number(blockerSummary.total ?? plan.blockerCount)) {
+    issues.push(`${path}.blockerCount: expected to match blockerSummary.total.`);
+  }
+  if (Number(plan.codeActionCount ?? -1) !== Number(blockerSummary.byOwner?.codebase ?? 0)) {
+    issues.push(`${path}.codeActionCount: expected to match codebase blocker count.`);
+  }
+  if (Number(plan.externalOrPaidActionCount ?? -1) !== Number(blockerSummary.externalOrPaid ?? 0)) {
+    issues.push(`${path}.externalOrPaidActionCount: expected to match blockerSummary.externalOrPaid.`);
+  }
+  if (Number(plan.blockerCount ?? 0) === 0 && plan.status !== "clear") {
+    issues.push(`${path}.status: expected clear when blockerCount is 0.`);
+  }
+  if (Number(plan.blockerCount ?? 0) > 0 && plan.status !== "blocked") {
+    issues.push(`${path}.status: expected blocked when blockerCount is positive.`);
+  }
+  const phaseBlockerIds = phases.flatMap((phase) => Array.isArray(phase?.blockerIds) ? phase.blockerIds : []);
+  if (phaseBlockerIds.length !== Number(plan.blockerCount ?? -1)) {
+    issues.push(`${path}.phases[*].blockerIds: expected flattened blocker ID count to equal blockerCount.`);
+  }
+  if (new Set(phaseBlockerIds).size !== phaseBlockerIds.length) {
+    issues.push(`${path}.phases[*].blockerIds: expected each blocker ID to appear only once.`);
+  }
+  if (blockers) {
+    const blockerIds = blockers.map((item) => item?.id).filter(Boolean);
+    const missing = blockerIds.filter((id) => !phaseBlockerIds.includes(id));
+    const unexpected = phaseBlockerIds.filter((id) => !blockerIds.includes(id));
+    if (missing.length > 0) {
+      issues.push(`${path}.phases[*].blockerIds: missing blocker IDs ${missing.join(", ")}.`);
+    }
+    if (unexpected.length > 0) {
+      issues.push(`${path}.phases[*].blockerIds: unexpected blocker IDs ${unexpected.join(", ")}.`);
+    }
+    const paidDependencyCount = blockers.filter((item) => item?.paidImpact && item.paidImpact !== "none").length;
+    if (Number(plan.paidDependencyCount ?? -1) !== paidDependencyCount) {
+      issues.push(`${path}.paidDependencyCount: expected to equal blockers with paidImpact.`);
+    }
+  }
+  for (const phase of phases) {
+    const blockerIds = Array.isArray(phase?.blockerIds) ? phase.blockerIds : [];
+    const productGapIds = Array.isArray(phase?.productGapIds) ? phase.productGapIds : [];
+    if (Number(phase?.blockerCount ?? -1) !== blockerIds.length) {
+      issues.push(`${path}.phases[id=${phase?.id}].blockerCount: expected to equal blockerIds length.`);
+    }
+    if (Number(phase?.productGapCount ?? -1) !== productGapIds.length) {
+      issues.push(`${path}.phases[id=${phase?.id}].productGapCount: expected to equal productGapIds length.`);
+    }
+    if (typeof phase?.releaseImpact !== "string" || phase.releaseImpact.trim().length === 0) {
+      issues.push(`${path}.phases[id=${phase?.id}].releaseImpact: expected a non-empty release impact.`);
     }
   }
   return issues;

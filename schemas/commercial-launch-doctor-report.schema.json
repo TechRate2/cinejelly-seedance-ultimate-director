@@ -20,6 +20,7 @@
     "readinessSnapshot",
     "codeWorkSummary",
     "blockerSummary",
+    "evidenceClosurePlan",
     "releaseGateSummary",
     "nextActions"
   ],
@@ -221,6 +222,7 @@
         "byCategory": { "$ref": "#/$defs/counts" }
       }
     },
+    "evidenceClosurePlan": { "$ref": "#/$defs/evidenceClosurePlan" },
     "releaseGateSummary": {
       "type": "object",
       "additionalProperties": false,
@@ -438,6 +440,83 @@
             }
           }
         }
+      }
+    },
+    "evidenceClosurePlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "releaseEvidence",
+        "blockerCount",
+        "codeActionCount",
+        "externalOrPaidActionCount",
+        "paidDependencyCount",
+        "phaseCount",
+        "phases"
+      ],
+      "properties": {
+        "status": { "enum": ["clear", "blocked"] },
+        "releaseEvidence": { "const": false },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "codeActionCount": { "type": "integer", "minimum": 0 },
+        "externalOrPaidActionCount": { "type": "integer", "minimum": 0 },
+        "paidDependencyCount": { "type": "integer", "minimum": 0 },
+        "phaseCount": { "type": "integer", "minimum": 0 },
+        "phases": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceClosurePhase" }
+        }
+      }
+    },
+    "evidenceClosurePhase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "order",
+        "label",
+        "owner",
+        "status",
+        "blockerCount",
+        "blockerIds",
+        "productGapCount",
+        "productGapIds",
+        "commands",
+        "releaseImpact"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "code_contract_fix",
+            "scope_decision",
+            "operator_attestation_prep",
+            "deployment_evidence",
+            "live_provider_evidence",
+            "source_video_input",
+            "remote_stock_live_terms",
+            "budget_approval",
+            "post_paid_manual_review"
+          ]
+        },
+        "order": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string" },
+        "owner": { "type": "string" },
+        "status": {
+          "enum": [
+            "blocked",
+            "blocked_by_budget",
+            "pending_after_paid_run",
+            "requires_external_evidence",
+            "not_required"
+          ]
+        },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "blockerIds": { "type": "array", "items": { "type": "string" } },
+        "productGapCount": { "type": "integer", "minimum": 0 },
+        "productGapIds": { "type": "array", "items": { "type": "string" } },
+        "commands": { "type": "array", "items": { "type": "string" } },
+        "releaseImpact": { "type": "string" }
       }
     }
   }

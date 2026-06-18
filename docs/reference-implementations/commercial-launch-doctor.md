@@ -33,6 +33,7 @@ It may:
 - surface the commercial offer scope summary from completion-audit so operators can see whether first-party Web UI is still undecided, scoped out for API/CLI-only launch, or required before customer traffic
 - surface the safe operator handoff summary from commercial-inputs so operators see missing input counts, ignored file packets, draft/report archive counts, and guarded command status from the top-level doctor report
 - surface snapshot parity coverage estimates so operators can compare the current backend against each upstream snapshot without treating those estimates as release evidence
+- surface the evidence closure plan from completion-audit so operators see the ordered blocker phases and direct commands before attempting live or paid evidence
 - run report-contract validation
 - summarize external/operator blockers
 
@@ -79,11 +80,12 @@ Because the doctor rewrites its own report before and after contract refreshes, 
 - The report includes `commercialOfferScopeSummary` plus matching readiness/release-gate scope flags sourced from the refreshed completion audit.
 - The report includes `operatorHandoffSummary` plus matching commercial-input status, safety flags, input counts, operator file counts, and command counts from the refreshed commercial-input packet.
 - The report includes `snapshotParityCoverageSummary` plus matching snapshot-parity status, per-upstream estimate counts, explicit main gaps, and `canClaimFullSnapshotParity=false`.
+- The report includes `evidenceClosurePlan` plus matching blocker counts, phase counts, paid-dependency counts, and phase-level commands sourced from completion audit.
 - The readiness snapshot includes the current Director-style quality benchmark status, review-evidence guard status, and accepted review-evidence readiness status.
 - The readiness snapshot includes current snapshot parity guardrail status.
 - The readiness snapshot includes the current provider reconciliation/handoff smoke statuses when those smokes are enabled.
 - The readiness snapshot includes the current graph-resume enqueue payload evidence status.
 - The report contract is included in `validation:report-contracts`.
-- The report contract rejects stale launch-doctor evidence when command coverage, provider-smoke refresh/skip state, quality benchmark refresh, review-evidence guard refresh, review-evidence refresh, operator-handoff safety/count alignment, snapshot parity estimate/count alignment, final contract status, or code-failure summary is internally inconsistent.
+- The report contract rejects stale launch-doctor evidence when command coverage, provider-smoke refresh/skip state, quality benchmark refresh, review-evidence guard refresh, review-evidence refresh, operator-handoff safety/count alignment, snapshot parity estimate/count alignment, evidence-closure count/phase alignment, final contract status, or code-failure summary is internally inconsistent.
 - Customer traffic remains blocked unless `validation:business-readiness` approves it.
 - Paid Atlas work remains opt-in through the existing paid validation commands.

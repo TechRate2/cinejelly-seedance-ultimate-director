@@ -422,6 +422,7 @@ function buildReport(options, commandRuns) {
   const commercialOfferScopeSummary = buildCommercialOfferScopeSummary(completion, reportSummaries.launchIntake);
   const operatorHandoffSummary = buildOperatorHandoffSummary(reportSummaries.commercialInputs.value);
   const snapshotParityCoverageSummary = buildSnapshotParityCoverageSummary(reportSummaries.snapshotParity.value, reportSummaries.snapshotParity);
+  const evidenceClosurePlan = buildEvidenceClosurePlan(completion);
   const status = statusFor({
     canReleaseToCustomerTraffic,
     readyForLiveEvidence,
@@ -454,6 +455,7 @@ function buildReport(options, commandRuns) {
     commercialOfferScopeSummary,
     operatorHandoffSummary,
     snapshotParityCoverageSummary,
+    evidenceClosurePlan,
     readinessSnapshot: {
       evidenceCompletionPercent: numberOrZero(business?.completion?.evidenceCompletionPercent ?? completion?.readinessSnapshot?.evidenceCompletionPercent),
       businessReadinessStatus: reportSummaries.businessReadiness.status,
@@ -641,6 +643,46 @@ function buildSnapshotParityCoverageSummary(snapshotParity, sourceReport) {
   };
 }
 
+function buildEvidenceClosurePlan(completion) {
+  const plan = completion?.evidenceClosurePlan;
+  if (plan && typeof plan === "object") {
+    return {
+      status: String(plan.status ?? "blocked"),
+      releaseEvidence: false,
+      blockerCount: numberOrZero(plan.blockerCount),
+      codeActionCount: numberOrZero(plan.codeActionCount),
+      externalOrPaidActionCount: numberOrZero(plan.externalOrPaidActionCount),
+      paidDependencyCount: numberOrZero(plan.paidDependencyCount),
+      phaseCount: numberOrZero(plan.phaseCount),
+      phases: Array.isArray(plan.phases)
+        ? plan.phases.map((phase) => ({
+            id: String(phase?.id ?? ""),
+            order: numberOrZero(phase?.order),
+            label: String(phase?.label ?? ""),
+            owner: String(phase?.owner ?? ""),
+            status: String(phase?.status ?? "blocked"),
+            blockerCount: numberOrZero(phase?.blockerCount),
+            blockerIds: arrayOfStrings(phase?.blockerIds),
+            productGapCount: numberOrZero(phase?.productGapCount),
+            productGapIds: arrayOfStrings(phase?.productGapIds),
+            commands: arrayOfStrings(phase?.commands),
+            releaseImpact: String(phase?.releaseImpact ?? "")
+          })).filter((phase) => phase.id && phase.label)
+        : []
+    };
+  }
+  return {
+    status: "blocked",
+    releaseEvidence: false,
+    blockerCount: numberOrZero(completion?.blockerSummary?.total),
+    codeActionCount: numberOrZero(completion?.blockerSummary?.byOwner?.codebase),
+    externalOrPaidActionCount: numberOrZero(completion?.blockerSummary?.externalOrPaid),
+    paidDependencyCount: 0,
+    phaseCount: 0,
+    phases: []
+  };
+}
+
 function statusFor({ canReleaseToCustomerTraffic, readyForLiveEvidence, knownCodeBlockingIssueCount }) {
   if (canReleaseToCustomerTraffic) {
     return "ready_for_customer_traffic";
@@ -811,6 +853,10 @@ function renderMarkdown(report) {
     `- Command plan pass: ${report.codeWorkSummary.commandPlanPass}`,
     `- ${report.codeWorkSummary.message}`,
     "",
+    "## Evidence Closure Plan",
+    "",
+    ...markdownEvidenceClosurePlan(report.evidenceClosurePlan),
+    "",
     "## Command Runs",
     "",
     ...report.commandRuns.map((item) => `- ${item.name}: ${item.status} (exit ${item.exitCode}, ${item.durationMs}ms)`),
@@ -862,6 +908,22 @@ function markdownOperatorHandoffSummary(summary) {
     ...(summary.operatorInputFiles.length === 0
       ? ["- Operator input files: none"]
       : summary.operatorInputFiles.map((item) => `- Operator input: ${item}`))
+  ];
+}
+
+function markdownEvidenceClosurePlan(plan) {
+  if (!plan) {
+    return ["- Evidence closure plan unavailable."];
+  }
+  return [
+    `- Status: ${plan.status}`,
+    `- Blockers: ${plan.blockerCount}; code actions: ${plan.codeActionCount}; external/paid actions: ${plan.externalOrPaidActionCount}; paid dependencies: ${plan.paidDependencyCount}`,
+    ...plan.phases.map((phase) => {
+      const commands = phase.commands.length === 0 ? "no direct command" : phase.commands.join(" | ");
+      const blockers = phase.blockerIds.length === 0 ? "no blocker ids" : phase.blockerIds.join(", ");
+      const gaps = phase.productGapIds.length === 0 ? "no product gaps" : phase.productGapIds.join(", ");
+      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; commands: ${commands}`;
+    })
   ];
 }
 
