@@ -218,12 +218,13 @@ async function main() {
   }
 
   const paidRenderReport = readJson(options.paidRenderReportPath, true);
+  const expectedArtifactBinding = expectedArtifactBindingFor(paidRenderReport);
   const request = options.useRequest ? readJson(options.requestPath, false) : undefined;
   const manualReviewText = options.useManualReview ? readText(options.manualReviewPath, false) : undefined;
-  const semanticReviewEvidence = options.useSemanticReview ? await collectSemanticReviewEvidence(options) : undefined;
-  const audioReviewEvidence = options.useAudioReview ? await collectAudioReviewEvidence(options) : undefined;
-  const runtimeReviewEvidence = options.useRuntimeReview ? await collectRuntimeReviewEvidence(options) : undefined;
-  const governanceReviewEvidence = options.useGovernanceReview ? await collectGovernanceReviewEvidence(options) : undefined;
+  const semanticReviewEvidence = options.useSemanticReview ? await collectSemanticReviewEvidence(options, expectedArtifactBinding) : undefined;
+  const audioReviewEvidence = options.useAudioReview ? await collectAudioReviewEvidence(options, expectedArtifactBinding) : undefined;
+  const runtimeReviewEvidence = options.useRuntimeReview ? await collectRuntimeReviewEvidence(options, expectedArtifactBinding) : undefined;
+  const governanceReviewEvidence = options.useGovernanceReview ? await collectGovernanceReviewEvidence(options, expectedArtifactBinding) : undefined;
   const generatedAudioProviderEvidence = options.useGeneratedAudioValidation ? await collectGeneratedAudioProviderEvidence(options) : undefined;
   const longFormValidationEvidence = options.useLongFormValidation ? await collectLongFormValidationEvidence(options) : undefined;
   const mediaEvidence = options.useMedia ? await collectMediaEvidence(options) : undefined;
@@ -296,44 +297,76 @@ async function collectMediaEvidence(options) {
   });
 }
 
-async function collectSemanticReviewEvidence(options) {
+async function collectSemanticReviewEvidence(options, expectedArtifactBinding) {
   const absolutePath = resolve(repoRoot, options.semanticReviewPath);
   if (!existsSync(absolutePath)) {
     return undefined;
   }
   const raw = readJson(options.semanticReviewPath, true);
   const { normalizeDirectorStyleSemanticReviewEvidence } = await import("../dist/core/director-style-semantic-review.js");
-  return normalizeDirectorStyleSemanticReviewEvidence(raw, { sourcePath: toRepoRelative(options.semanticReviewPath) });
+  return normalizeDirectorStyleSemanticReviewEvidence(raw, {
+    sourcePath: toRepoRelative(options.semanticReviewPath),
+    expectedArtifactBinding
+  });
 }
 
-async function collectAudioReviewEvidence(options) {
+async function collectAudioReviewEvidence(options, expectedArtifactBinding) {
   const absolutePath = resolve(repoRoot, options.audioReviewPath);
   if (!existsSync(absolutePath)) {
     return undefined;
   }
   const raw = readJson(options.audioReviewPath, true);
   const { normalizeDirectorStyleAudioReviewEvidence } = await import("../dist/core/director-style-audio-review.js");
-  return normalizeDirectorStyleAudioReviewEvidence(raw, { sourcePath: toRepoRelative(options.audioReviewPath) });
+  return normalizeDirectorStyleAudioReviewEvidence(raw, {
+    sourcePath: toRepoRelative(options.audioReviewPath),
+    expectedArtifactBinding
+  });
 }
 
-async function collectRuntimeReviewEvidence(options) {
+async function collectRuntimeReviewEvidence(options, expectedArtifactBinding) {
   const absolutePath = resolve(repoRoot, options.runtimeReviewPath);
   if (!existsSync(absolutePath)) {
     return undefined;
   }
   const raw = readJson(options.runtimeReviewPath, true);
   const { normalizeDirectorStyleRuntimeReviewEvidence } = await import("../dist/core/director-style-runtime-review.js");
-  return normalizeDirectorStyleRuntimeReviewEvidence(raw, { sourcePath: toRepoRelative(options.runtimeReviewPath) });
+  return normalizeDirectorStyleRuntimeReviewEvidence(raw, {
+    sourcePath: toRepoRelative(options.runtimeReviewPath),
+    expectedArtifactBinding
+  });
 }
 
-async function collectGovernanceReviewEvidence(options) {
+async function collectGovernanceReviewEvidence(options, expectedArtifactBinding) {
   const absolutePath = resolve(repoRoot, options.governanceReviewPath);
   if (!existsSync(absolutePath)) {
     return undefined;
   }
   const raw = readJson(options.governanceReviewPath, true);
   const { normalizeDirectorStyleGovernanceReviewEvidence } = await import("../dist/core/director-style-governance-review.js");
-  return normalizeDirectorStyleGovernanceReviewEvidence(raw, { sourcePath: toRepoRelative(options.governanceReviewPath) });
+  return normalizeDirectorStyleGovernanceReviewEvidence(raw, {
+    sourcePath: toRepoRelative(options.governanceReviewPath),
+    expectedArtifactBinding
+  });
+}
+
+function expectedArtifactBindingFor(paidRenderReport) {
+  const deliverable = Array.isArray(paidRenderReport?.artifactBundle?.entries)
+    ? paidRenderReport.artifactBundle.entries.find((entry) => entry?.kind === "deliverable")
+    : undefined;
+  const projectId = typeof paidRenderReport?.artifactBundle?.projectId === "string"
+    ? paidRenderReport.artifactBundle.projectId
+    : undefined;
+  const requestId = typeof paidRenderReport?.requestId === "string"
+    ? paidRenderReport.requestId
+    : undefined;
+  const deliverableSha256 = typeof deliverable?.sha256 === "string" && /^[a-f0-9]{64}$/i.test(deliverable.sha256)
+    ? deliverable.sha256.toLowerCase()
+    : undefined;
+  return {
+    ...(projectId ? { projectId } : {}),
+    ...(requestId ? { requestId } : {}),
+    ...(deliverableSha256 ? { deliverableSha256 } : {})
+  };
 }
 
 async function collectGeneratedAudioProviderEvidence(options) {

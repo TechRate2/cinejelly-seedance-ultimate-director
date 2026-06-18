@@ -2743,6 +2743,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "structured audio-review checkpoints can reinforce narration, BGM, and audio cross-modal metrics without importing upstream evaluator code",
       "structured runtime-review checkpoints can reinforce ASR transcript alignment and lip-sync timing metrics without importing upstream evaluator code",
       "structured governance-review checkpoints can record accepted license boundary, code reuse boundary, runtime evaluator independence, and evaluation-asset permission evidence without importing upstream evaluator code",
+      "structured semantic/audio/runtime/governance review checkpoints must be bound to the paid-render project, request, and deliverable fingerprint before they can satisfy parity rows",
       "structured review summaries and findings are bounded to aggregate redacted text before benchmark reports can retain them",
       "generated-audio validation reports can reinforce provider-backed audio evidence through redacted spend, billing, schema, execution, output-batch, ledger, and manual-review gates",
       "long-form validation reports can reinforce long-form duration and manual-review evidence through redacted budget, billing, paid-render, artifact, duration, cost-ledger, and artifact-fingerprint-bound manual quality-review gates",
@@ -2750,8 +2751,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     behaviorChanged: [
       "DirectorBench implementation code is not copied, imported, linked, or executed",
-      "CineJelly evaluates persisted artifact-contract evidence plus local FFprobe, sampled-frame RGB proxy signals, FFmpeg scene-change transition-boundary proxy signals, bounded FFmpeg audio waveform/volume proxy signals, FFprobe audio-video duration-delta proxy signals, optional structured semantic/audio/runtime/governance review JSON, optional generated-audio validation report JSON, optional long-form validation report JSON, and a parity evidence matrix instead of running PySceneDetect, OpenCV, ASR, VLM, lip-sync analyzers, or Python LangGraph agents",
-      "reports explicitly state canClaimDirectorBenchParity=false until live long-form, accepted long-form validation, semantic visual, accepted generated-audio validation, accepted ASR/lip-sync runtime review, accepted governance evidence, and every required parity row exists",
+      "CineJelly evaluates persisted artifact-contract evidence plus local FFprobe, sampled-frame RGB proxy signals, FFmpeg scene-change transition-boundary proxy signals, bounded FFmpeg audio waveform/volume proxy signals, FFprobe audio-video duration-delta proxy signals, optional artifact-bound structured semantic/audio/runtime/governance review JSON, optional generated-audio validation report JSON, optional long-form validation report JSON, and a parity evidence matrix instead of running PySceneDetect, OpenCV, ASR, VLM, lip-sync analyzers, or Python LangGraph agents",
+      "reports explicitly state canClaimDirectorBenchParity=false until live long-form, accepted long-form validation, artifact-bound semantic visual review, accepted generated-audio validation, artifact-bound ASR/lip-sync runtime review, artifact-bound governance evidence, and every required parity row exists",
       "the CLI is no-spend/no-network and writes a schema-validated backend quality report"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-style-benchmark-harness.md",
@@ -2763,6 +2764,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/director-style-audio-review.ts",
       "src/core/director-style-runtime-review.ts",
       "src/core/director-style-review-text.ts",
+      "src/core/director-style-review-artifact-binding.ts",
       "src/core/director-style-generated-audio-provider-evidence.ts",
       "src/core/director-style-long-form-validation-evidence.ts",
       "src/core/director-style-governance-review.ts",

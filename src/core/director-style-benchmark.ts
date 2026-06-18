@@ -749,6 +749,18 @@ export class DirectorStyleBenchmarkEvaluator {
     } else if (facts.runtimeReviewEvidence.status !== "accepted") {
       actions.add("Resolve structured runtime ASR/lip-sync review findings before treating runtime parity checkpoints as accepted.");
     }
+    if (facts.semanticReviewEvidence && !this.reviewArtifactBindingMatched(facts.semanticReviewEvidence)) {
+      actions.add("Bind structured semantic review JSON to the paid-render projectId, requestId, and deliverableSha256 before using it as artifact-bound parity evidence.");
+    }
+    if (facts.audioReviewEvidence && !this.reviewArtifactBindingMatched(facts.audioReviewEvidence)) {
+      actions.add("Bind structured audio review JSON to the paid-render projectId, requestId, and deliverableSha256 before using it as artifact-bound parity evidence.");
+    }
+    if (facts.runtimeReviewEvidence && !this.reviewArtifactBindingMatched(facts.runtimeReviewEvidence)) {
+      actions.add("Bind structured runtime ASR/lip-sync review JSON to the paid-render projectId, requestId, and deliverableSha256 before using it as artifact-bound parity evidence.");
+    }
+    if (facts.governanceReviewEvidence && !this.reviewArtifactBindingMatched(facts.governanceReviewEvidence)) {
+      actions.add("Bind structured governance review JSON to the paid-render projectId, requestId, and deliverableSha256 before using it as artifact-bound parity evidence.");
+    }
     if (!this.hasAcceptedGovernanceReview(facts)) {
       actions.add("Provide structured governance review JSON for DirectorBench license boundary, runtime evaluator independence, and evaluation-asset permissions.");
     }
@@ -796,15 +808,21 @@ export class DirectorStyleBenchmarkEvaluator {
     const hasAcceptedLongFormValidation = this.hasAcceptedLongFormValidation(facts);
     const hasLongFormDuration = hasMeasuredLongFormDuration || hasAcceptedLongFormValidation;
     const hasAcceptedSemanticReview =
-      facts.semanticReviewEvidence?.status === "accepted" && facts.semanticReviewEvidence.metricCount >= 4;
+      facts.semanticReviewEvidence?.status === "accepted" &&
+      facts.semanticReviewEvidence.metricCount >= 4 &&
+      this.reviewArtifactBindingMatched(facts.semanticReviewEvidence);
     const hasGeneratedAudioProviderEvidence = this.hasAcceptedGeneratedAudioProviderEvidence(facts);
     const hasAcceptedAudioReview =
-      facts.audioReviewEvidence?.status === "accepted" && facts.audioReviewEvidence.metricCount >= 4;
+      facts.audioReviewEvidence?.status === "accepted" &&
+      facts.audioReviewEvidence.metricCount >= 4 &&
+      this.reviewArtifactBindingMatched(facts.audioReviewEvidence);
     const hasAsrReview =
       facts.runtimeReviewEvidence?.status === "accepted" &&
+      this.reviewArtifactBindingMatched(facts.runtimeReviewEvidence) &&
       facts.runtimeReviewEvidence.metrics.some((item) => item.metricName === "asr_transcript_alignment" && item.status === "accepted");
     const hasLipSyncProxy =
       facts.runtimeReviewEvidence?.status === "accepted" &&
+      this.reviewArtifactBindingMatched(facts.runtimeReviewEvidence) &&
       facts.runtimeReviewEvidence.metrics.some((item) => item.metricName === "lip_sync_timing" && item.status === "accepted");
     const hasAcceptedManualReview = facts.manualReviewAccepted === true;
     const hasAcceptedGovernanceReview = this.hasAcceptedGovernanceReview(facts);
@@ -883,8 +901,8 @@ export class DirectorStyleBenchmarkEvaluator {
           : [],
         missingEvidence: hasAcceptedSemanticReview
           ? []
-          : ["Accepted structured semantic visual review covering script-video, transition, lighting, and text-video consistency."],
-        notes: "VLM or manual semantic checkpoint evidence is required before visual proxy scores become parity evidence."
+          : ["Accepted artifact-bound structured semantic visual review covering script-video, transition, lighting, and text-video consistency."],
+        notes: "VLM or manual semantic checkpoint evidence must be bound to the paid artifact before visual proxy scores become parity evidence."
       }),
       this.parityRequirement({
         id: "generated_audio_provider_evidence",
@@ -913,8 +931,8 @@ export class DirectorStyleBenchmarkEvaluator {
           : [],
         missingEvidence: hasAcceptedAudioReview
           ? []
-          : ["Accepted structured audio review for narration, BGM, video-audio, and text-audio checkpoints."],
-        notes: "Waveform and duration-sync proxies cannot evaluate narration meaning or BGM appropriateness by themselves."
+          : ["Accepted artifact-bound structured audio review for narration, BGM, video-audio, and text-audio checkpoints."],
+        notes: "Waveform and duration-sync proxies cannot evaluate narration meaning or BGM appropriateness by themselves; accepted review evidence must be bound to the paid artifact."
       }),
       this.parityRequirement({
         id: "asr_transcript_alignment",
@@ -922,7 +940,7 @@ export class DirectorStyleBenchmarkEvaluator {
         met: hasAsrReview,
         partial: facts.runtimeReviewEvidence !== undefined && !hasAsrReview,
         evidence: hasAsrReview ? ["Accepted runtime ASR transcript-alignment checkpoint evidence is present."] : [],
-        missingEvidence: hasAsrReview ? [] : ["Accepted runtime ASR transcript alignment evidence for generated narration and script intent."],
+        missingEvidence: hasAsrReview ? [] : ["Accepted artifact-bound runtime ASR transcript alignment evidence for generated narration and script intent."],
         notes: "ASR alignment remains separate from generic audio review and waveform evidence."
       }),
       this.parityRequirement({
@@ -931,7 +949,7 @@ export class DirectorStyleBenchmarkEvaluator {
         met: hasLipSyncProxy,
         partial: facts.runtimeReviewEvidence !== undefined && !hasLipSyncProxy,
         evidence: hasLipSyncProxy ? ["Accepted runtime lip-sync timing checkpoint evidence is present."] : [],
-        missingEvidence: hasLipSyncProxy ? [] : ["Dedicated lip-sync or equivalent video-audio timing evidence."],
+        missingEvidence: hasLipSyncProxy ? [] : ["Dedicated artifact-bound lip-sync or equivalent video-audio timing evidence."],
         notes: "The current CineJelly harness ingests dedicated lip-sync review evidence but does not run a lip-sync analyzer itself."
       }),
       this.parityRequirement({
@@ -968,7 +986,7 @@ export class DirectorStyleBenchmarkEvaluator {
           : [
               "Accepted legal/permission review covering DirectorBench license boundary, no upstream code reuse, evaluator independence, and evaluation-asset permissions."
             ],
-        notes: "The snapshot has no top-level license, so CineJelly must keep this implementation independent unless permissions change."
+        notes: "The snapshot has no top-level license, so CineJelly must keep this implementation independent unless permissions change; review acceptance must be bound to the artifact under evaluation."
       })
     ];
 
@@ -1152,7 +1170,7 @@ export class DirectorStyleBenchmarkEvaluator {
 
   private hasAcceptedGovernanceReview(facts: DirectorStyleBenchmarkFacts): boolean {
     const evidence = facts.governanceReviewEvidence;
-    if (evidence?.status !== "accepted") {
+    if (evidence?.status !== "accepted" || !this.reviewArtifactBindingMatched(evidence)) {
       return false;
     }
     const requiredChecks: readonly DirectorStyleBenchmarkGovernanceReviewCheckName[] = [
@@ -1164,6 +1182,15 @@ export class DirectorStyleBenchmarkEvaluator {
     return requiredChecks.every((checkName) =>
       evidence.checks.some((check) => check.checkName === checkName && check.status === "accepted")
     );
+  }
+
+  private reviewArtifactBindingMatched(
+    evidence: Pick<NonNullable<DirectorStyleBenchmarkFacts["semanticReviewEvidence"]>, "artifactBindingStatus"> |
+      Pick<NonNullable<DirectorStyleBenchmarkFacts["audioReviewEvidence"]>, "artifactBindingStatus"> |
+      Pick<NonNullable<DirectorStyleBenchmarkFacts["runtimeReviewEvidence"]>, "artifactBindingStatus"> |
+      Pick<NonNullable<DirectorStyleBenchmarkFacts["governanceReviewEvidence"]>, "artifactBindingStatus">
+  ): boolean {
+    return evidence.artifactBindingStatus === "matched";
   }
 
   private hasAcceptedGeneratedAudioProviderEvidence(facts: DirectorStyleBenchmarkFacts): boolean {

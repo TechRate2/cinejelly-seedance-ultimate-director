@@ -3,12 +3,14 @@ import type {
   DirectorStyleBenchmarkSemanticReviewMetricEvidence,
   DirectorStyleBenchmarkSemanticReviewMetricName,
   DirectorStyleBenchmarkSemanticReviewerType,
-  DirectorStyleBenchmarkSemanticReviewStatus
+  DirectorStyleBenchmarkSemanticReviewStatus,
+  DirectorStyleBenchmarkReviewArtifactBinding
 } from "../types/director-style-benchmark.js";
 import {
   safeDirectorStyleReviewFindings,
   safeDirectorStyleReviewText
 } from "./director-style-review-text.js";
+import { normalizeDirectorStyleReviewArtifactBinding } from "./director-style-review-artifact-binding.js";
 
 const METRIC_NAMES = new Set<DirectorStyleBenchmarkSemanticReviewMetricName>([
   "script_video_fidelity",
@@ -24,7 +26,10 @@ const REVIEW_STATUSES = new Set<DirectorStyleBenchmarkSemanticReviewStatus>(["ac
 
 export function normalizeDirectorStyleSemanticReviewEvidence(
   value: unknown,
-  options: { readonly sourcePath?: string } = {}
+  options: {
+    readonly sourcePath?: string;
+    readonly expectedArtifactBinding?: DirectorStyleBenchmarkReviewArtifactBinding;
+  } = {}
 ): DirectorStyleBenchmarkSemanticReviewEvidence {
   if (!isRecord(value)) {
     throw new Error("semantic review must be a JSON object");
@@ -50,8 +55,12 @@ export function normalizeDirectorStyleSemanticReviewEvidence(
   const status = normalizeStatus(value.status) ?? statusFromMetrics(metrics);
   const reviewedShotCount = normalizeCount(value.reviewedShotCount);
   const reviewedBoundaryCount = normalizeCount(value.reviewedBoundaryCount);
+  const artifactBinding = normalizeDirectorStyleReviewArtifactBinding(value, {
+    expectedArtifactBinding: options.expectedArtifactBinding
+  });
   const findings = [
     ...safeDirectorStyleReviewFindings(value.findings),
+    ...artifactBinding.findings,
     ...metrics
       .filter((metric) => metric.status !== "accepted")
       .map((metric) => `${metric.metricName} semantic review status is ${metric.status}.`)
@@ -62,6 +71,8 @@ export function normalizeDirectorStyleSemanticReviewEvidence(
     ...(options.sourcePath ? { sourcePath: options.sourcePath } : {}),
     status,
     reviewerType,
+    ...(artifactBinding.artifactBinding ? { artifactBinding: artifactBinding.artifactBinding } : {}),
+    artifactBindingStatus: artifactBinding.artifactBindingStatus,
     ...(reviewedShotCount !== undefined ? { reviewedShotCount } : {}),
     ...(reviewedBoundaryCount !== undefined ? { reviewedBoundaryCount } : {}),
     metricCount: metrics.length,

@@ -3,12 +3,14 @@ import type {
   DirectorStyleBenchmarkGovernanceReviewCheckName,
   DirectorStyleBenchmarkGovernanceReviewerType,
   DirectorStyleBenchmarkGovernanceReviewEvidence,
-  DirectorStyleBenchmarkGovernanceReviewStatus
+  DirectorStyleBenchmarkGovernanceReviewStatus,
+  DirectorStyleBenchmarkReviewArtifactBinding
 } from "../types/director-style-benchmark.js";
 import {
   safeDirectorStyleReviewFindings,
   safeDirectorStyleReviewText
 } from "./director-style-review-text.js";
+import { normalizeDirectorStyleReviewArtifactBinding } from "./director-style-review-artifact-binding.js";
 
 const CHECK_NAMES = new Set<DirectorStyleBenchmarkGovernanceReviewCheckName>([
   "directorbench_license_boundary",
@@ -33,7 +35,10 @@ const REVIEW_STATUSES = new Set<DirectorStyleBenchmarkGovernanceReviewStatus>([
 
 export function normalizeDirectorStyleGovernanceReviewEvidence(
   value: unknown,
-  options: { readonly sourcePath?: string } = {}
+  options: {
+    readonly sourcePath?: string;
+    readonly expectedArtifactBinding?: DirectorStyleBenchmarkReviewArtifactBinding;
+  } = {}
 ): DirectorStyleBenchmarkGovernanceReviewEvidence {
   if (!isRecord(value)) {
     throw new Error("governance review must be a JSON object");
@@ -56,8 +61,12 @@ export function normalizeDirectorStyleGovernanceReviewEvidence(
 
   const status = normalizeStatus(value.status) ?? statusFromChecks(checks);
   const reviewedAt = normalizeDateTime(value.reviewedAt);
+  const artifactBinding = normalizeDirectorStyleReviewArtifactBinding(value, {
+    expectedArtifactBinding: options.expectedArtifactBinding
+  });
   const findings = [
     ...safeDirectorStyleReviewFindings(value.findings),
+    ...artifactBinding.findings,
     ...checks
       .filter((check) => check.status !== "accepted")
       .map((check) => `${check.checkName} governance review status is ${check.status}.`)
@@ -68,6 +77,8 @@ export function normalizeDirectorStyleGovernanceReviewEvidence(
     ...(options.sourcePath ? { sourcePath: options.sourcePath } : {}),
     status,
     reviewerType,
+    ...(artifactBinding.artifactBinding ? { artifactBinding: artifactBinding.artifactBinding } : {}),
+    artifactBindingStatus: artifactBinding.artifactBindingStatus,
     ...(reviewedAt ? { reviewedAt } : {}),
     checkCount: checks.length,
     acceptedCheckCount: checks.filter((check) => check.status === "accepted").length,

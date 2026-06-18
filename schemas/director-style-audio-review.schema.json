@@ -8,6 +8,7 @@
     "schemaVersion": { "const": "cinejelly.director-style-audio-review.v1" },
     "reviewerType": { "$ref": "#/$defs/reviewerType" },
     "status": { "$ref": "#/$defs/reviewStatus" },
+    "artifactBinding": { "$ref": "#/$defs/artifactBinding" },
     "reviewedSegmentCount": { "type": "integer", "minimum": 0 },
     "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
     "metrics": {
@@ -35,6 +36,15 @@
           { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
           { "pattern": "data:[^\\s\\\"'<>]+" }
         ]
+      }
+    },
+    "artifactBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
+        "deliverableSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
       }
     },
     "reviewerType": { "enum": ["manual", "asr", "waveform", "hybrid"] },

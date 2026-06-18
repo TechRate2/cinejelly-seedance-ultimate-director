@@ -64,12 +64,19 @@ export type DirectorStyleBenchmarkGovernanceReviewStatus = "accepted" | "needs_r
 export type DirectorStyleBenchmarkGovernanceReviewerType = "operator" | "legal" | "product" | "security" | "hybrid";
 export type DirectorStyleBenchmarkGeneratedAudioProviderEvidenceStatus = "accepted" | "needs_review" | "rejected";
 export type DirectorStyleBenchmarkLongFormValidationEvidenceStatus = "accepted" | "needs_review" | "rejected";
+export type DirectorStyleBenchmarkReviewArtifactBindingStatus = "matched" | "missing" | "mismatched";
 
 export interface DirectorStyleBenchmarkEvidence {
   readonly kind: string;
   readonly severity: DirectorStyleBenchmarkSeverity;
   readonly message: string;
   readonly source?: string;
+}
+
+export interface DirectorStyleBenchmarkReviewArtifactBinding {
+  readonly projectId?: string;
+  readonly requestId?: string;
+  readonly deliverableSha256?: string;
 }
 
 export interface DirectorStyleBenchmarkMetricResult {
@@ -222,6 +229,8 @@ export interface DirectorStyleBenchmarkSemanticReviewEvidence {
   readonly sourcePath?: string;
   readonly status: DirectorStyleBenchmarkSemanticReviewStatus;
   readonly reviewerType: DirectorStyleBenchmarkSemanticReviewerType;
+  readonly artifactBinding?: DirectorStyleBenchmarkReviewArtifactBinding;
+  readonly artifactBindingStatus?: DirectorStyleBenchmarkReviewArtifactBindingStatus;
   readonly reviewedShotCount?: number;
   readonly reviewedBoundaryCount?: number;
   readonly metricCount: number;
@@ -248,6 +257,8 @@ export interface DirectorStyleBenchmarkAudioReviewEvidence {
   readonly sourcePath?: string;
   readonly status: DirectorStyleBenchmarkAudioReviewStatus;
   readonly reviewerType: DirectorStyleBenchmarkAudioReviewerType;
+  readonly artifactBinding?: DirectorStyleBenchmarkReviewArtifactBinding;
+  readonly artifactBindingStatus?: DirectorStyleBenchmarkReviewArtifactBindingStatus;
   readonly reviewedSegmentCount?: number;
   readonly reviewedBoundaryCount?: number;
   readonly metricCount: number;
@@ -274,6 +285,8 @@ export interface DirectorStyleBenchmarkRuntimeReviewEvidence {
   readonly sourcePath?: string;
   readonly status: DirectorStyleBenchmarkRuntimeReviewStatus;
   readonly reviewerType: DirectorStyleBenchmarkRuntimeReviewerType;
+  readonly artifactBinding?: DirectorStyleBenchmarkReviewArtifactBinding;
+  readonly artifactBindingStatus?: DirectorStyleBenchmarkReviewArtifactBindingStatus;
   readonly reviewedSegmentCount?: number;
   readonly reviewedBoundaryCount?: number;
   readonly metricCount: number;
@@ -302,6 +315,8 @@ export interface DirectorStyleBenchmarkGovernanceReviewEvidence {
   readonly sourcePath?: string;
   readonly status: DirectorStyleBenchmarkGovernanceReviewStatus;
   readonly reviewerType: DirectorStyleBenchmarkGovernanceReviewerType;
+  readonly artifactBinding?: DirectorStyleBenchmarkReviewArtifactBinding;
+  readonly artifactBindingStatus?: DirectorStyleBenchmarkReviewArtifactBindingStatus;
   readonly reviewedAt?: string;
   readonly checkCount: number;
   readonly acceptedCheckCount: number;

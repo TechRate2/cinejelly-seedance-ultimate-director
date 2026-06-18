@@ -171,6 +171,16 @@
     "metricStatus": { "enum": ["pass", "warn", "fail", "skipped"] },
     "severity": { "enum": ["info", "warn", "block"] },
     "parityEvidenceStatus": { "enum": ["met", "partial", "missing"] },
+    "reviewArtifactBindingStatus": { "enum": ["matched", "missing", "mismatched"] },
+    "reviewArtifactBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "deliverableSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
     "parityEvidenceCategory": {
       "enum": [
         "artifact_contract",
@@ -379,6 +389,8 @@
         "sourcePath": { "type": "string", "minLength": 1 },
         "status": { "$ref": "#/$defs/semanticReviewStatus" },
         "reviewerType": { "$ref": "#/$defs/semanticReviewerType" },
+        "artifactBinding": { "$ref": "#/$defs/reviewArtifactBinding" },
+        "artifactBindingStatus": { "$ref": "#/$defs/reviewArtifactBindingStatus" },
         "reviewedShotCount": { "type": "integer", "minimum": 0 },
         "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
         "metricCount": { "type": "integer", "minimum": 1 },
@@ -442,6 +454,8 @@
         "sourcePath": { "type": "string", "minLength": 1 },
         "status": { "$ref": "#/$defs/audioReviewStatus" },
         "reviewerType": { "$ref": "#/$defs/audioReviewerType" },
+        "artifactBinding": { "$ref": "#/$defs/reviewArtifactBinding" },
+        "artifactBindingStatus": { "$ref": "#/$defs/reviewArtifactBindingStatus" },
         "reviewedSegmentCount": { "type": "integer", "minimum": 0 },
         "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
         "metricCount": { "type": "integer", "minimum": 1 },
@@ -503,6 +517,8 @@
         "sourcePath": { "type": "string", "minLength": 1 },
         "status": { "$ref": "#/$defs/runtimeReviewStatus" },
         "reviewerType": { "$ref": "#/$defs/runtimeReviewerType" },
+        "artifactBinding": { "$ref": "#/$defs/reviewArtifactBinding" },
+        "artifactBindingStatus": { "$ref": "#/$defs/reviewArtifactBindingStatus" },
         "reviewedSegmentCount": { "type": "integer", "minimum": 0 },
         "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
         "metricCount": { "type": "integer", "minimum": 1 },
@@ -553,6 +569,8 @@
         "sourcePath": { "type": "string", "minLength": 1 },
         "status": { "enum": ["accepted", "needs_review", "rejected"] },
         "reviewerType": { "enum": ["operator", "legal", "product", "security", "hybrid"] },
+        "artifactBinding": { "$ref": "#/$defs/reviewArtifactBinding" },
+        "artifactBindingStatus": { "$ref": "#/$defs/reviewArtifactBindingStatus" },
         "reviewedAt": { "type": "string", "format": "date-time" },
         "checkCount": { "type": "integer", "minimum": 1 },
         "acceptedCheckCount": { "type": "integer", "minimum": 0 },

@@ -898,20 +898,31 @@ function validateDirectorStyleBenchmarkSemantics(report) {
     }
   }
   const requirementById = new Map(requirements.map((requirement) => [requirement?.id, requirement]));
+  const acceptedSemanticReview =
+    report?.facts?.semanticReviewEvidence?.status === "accepted" &&
+    report.facts.semanticReviewEvidence.artifactBindingStatus === "matched" &&
+    Number(report.facts.semanticReviewEvidence.metricCount ?? 0) >= 4;
+  const acceptedAudioReview =
+    report?.facts?.audioReviewEvidence?.status === "accepted" &&
+    report.facts.audioReviewEvidence.artifactBindingStatus === "matched" &&
+    Number(report.facts.audioReviewEvidence.metricCount ?? 0) >= 4;
   const runtimeMetrics = Array.isArray(report?.facts?.runtimeReviewEvidence?.metrics)
     ? report.facts.runtimeReviewEvidence.metrics
     : [];
   const acceptedAsrRuntimeReview =
     report?.facts?.runtimeReviewEvidence?.status === "accepted" &&
+    report.facts.runtimeReviewEvidence.artifactBindingStatus === "matched" &&
     runtimeMetrics.some((metric) => metric?.metricName === "asr_transcript_alignment" && metric?.status === "accepted");
   const acceptedLipSyncRuntimeReview =
     report?.facts?.runtimeReviewEvidence?.status === "accepted" &&
+    report.facts.runtimeReviewEvidence.artifactBindingStatus === "matched" &&
     runtimeMetrics.some((metric) => metric?.metricName === "lip_sync_timing" && metric?.status === "accepted");
   const governanceChecks = Array.isArray(report?.facts?.governanceReviewEvidence?.checks)
     ? report.facts.governanceReviewEvidence.checks
     : [];
   const acceptedGovernanceReview =
     report?.facts?.governanceReviewEvidence?.status === "accepted" &&
+    report.facts.governanceReviewEvidence.artifactBindingStatus === "matched" &&
     [
       "directorbench_license_boundary",
       "upstream_code_reuse_boundary",
@@ -954,8 +965,14 @@ function validateDirectorStyleBenchmarkSemantics(report) {
   const acceptedLongFormManualReview =
     acceptedLongFormValidationEvidence ||
     (report?.facts?.manualReviewAccepted === true && (measuredLongFormDuration || acceptedLongFormValidationEvidence));
+  if ((requirementById.get("semantic_visual_review")?.status === "met") !== acceptedSemanticReview) {
+    issues.push("$.parityEvidenceMatrix.requirements[id=semantic_visual_review].status: expected met only with accepted artifact-bound semantic visual review evidence.");
+  }
+  if ((requirementById.get("structured_audio_review")?.status === "met") !== acceptedAudioReview) {
+    issues.push("$.parityEvidenceMatrix.requirements[id=structured_audio_review].status: expected met only with accepted artifact-bound structured audio review evidence.");
+  }
   if ((requirementById.get("asr_transcript_alignment")?.status === "met") !== acceptedAsrRuntimeReview) {
-    issues.push("$.parityEvidenceMatrix.requirements[id=asr_transcript_alignment].status: expected met only with accepted runtime ASR transcript-alignment evidence.");
+    issues.push("$.parityEvidenceMatrix.requirements[id=asr_transcript_alignment].status: expected met only with accepted artifact-bound runtime ASR transcript-alignment evidence.");
   }
   if ((requirementById.get("generated_audio_provider_evidence")?.status === "met") !== acceptedGeneratedAudioProviderEvidence) {
     issues.push("$.parityEvidenceMatrix.requirements[id=generated_audio_provider_evidence].status: expected met only with accepted generated-audio provider evidence.");
@@ -967,10 +984,10 @@ function validateDirectorStyleBenchmarkSemantics(report) {
     issues.push("$.parityEvidenceMatrix.requirements[id=manual_long_form_media_review].status: expected met only with accepted long-form manual review evidence tied to 2-8 minute media.");
   }
   if ((requirementById.get("lip_sync_evidence")?.status === "met") !== acceptedLipSyncRuntimeReview) {
-    issues.push("$.parityEvidenceMatrix.requirements[id=lip_sync_evidence].status: expected met only with accepted runtime lip-sync timing evidence.");
+    issues.push("$.parityEvidenceMatrix.requirements[id=lip_sync_evidence].status: expected met only with accepted artifact-bound runtime lip-sync timing evidence.");
   }
   if ((requirementById.get("license_and_runtime_permission_review")?.status === "met") !== acceptedGovernanceReview) {
-    issues.push("$.parityEvidenceMatrix.requirements[id=license_and_runtime_permission_review].status: expected met only with accepted governance permission evidence.");
+    issues.push("$.parityEvidenceMatrix.requirements[id=license_and_runtime_permission_review].status: expected met only with accepted artifact-bound governance permission evidence.");
   }
   return issues;
 }
