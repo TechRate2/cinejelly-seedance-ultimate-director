@@ -8,7 +8,7 @@ The repository contains a production-oriented TypeScript foundation. A short pai
 
 - Atlas Cloud is the default provider target for both LLM reasoning and Seedance 2.0 rendering.
 - `src/` contains working foundations for the provider layer, structured LLM parsing, Reference Librarian validation and graph lineage, Atlas media upload/direct-reference handling, configurable render cost gating, prompt compilation, Production Graph planning and run-recording, continuity ledger generation, Consistency Guardian checks, director orchestration, assembly/postproduction engines, postproduction asset planning, generated-audio intent/execution planning, generated-audio output validation, batch reconciliation, optional batch artifact evidence, generated-audio asset resolution plus catalog preflight, Atlas generated-audio submit/poll execution behind capability and spend gates, and production HTTP API.
-- `validation:quality-benchmark` now supports optional structured semantic-review and audio-review JSON checkpoints plus a parity evidence matrix on top of artifact, media probe, sampled-frame, and transition-boundary proxy evidence; it remains no-spend/no-network and never claims full DirectorBench parity or customer-traffic readiness by itself.
+- `validation:quality-benchmark` now supports optional structured semantic-review, audio-review, and ASR/lip-sync runtime-review JSON checkpoints plus a parity evidence matrix on top of artifact, media probe, sampled-frame, and transition-boundary proxy evidence; it remains no-spend/no-network and never claims full DirectorBench parity or customer-traffic readiness by itself.
 - Local Git Subtree snapshots of upstream projects are stored under `external/upstream/` for source-fidelity review, copy/adaptation, and product integration. Productized behavior should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution instead of depending on live upstream availability or importing directly from snapshots. Behavior-critical source logic should follow Faithful Logic Translation before production rewriting.
 - Faithful Logic Translation is now defined, but only per-logic implementation work can make a module source-faithful. Current source-inspired modules should be upgraded one at a time with Reference Implementations, lineage records, and validation checklists.
 - Quality mode now drives actual render behavior: Economy/Standard/High/Ultimate produce one to four Seedance candidates per shot, authorize zero to three targeted repair attempts, the Consistency Guardian selects the best candidate, and the Production Graph records selected, rejected, and repair candidate evidence.
@@ -284,6 +284,7 @@ npm run validation:atlas-billing
 npm run validation:commercial-inputs
 npm run validation:quality-benchmark
 npm run validation:quality-benchmark -- --audio-review assets/output_deliverables/business-readiness/director-style-audio-review.json
+npm run validation:quality-benchmark -- --runtime-review assets/output_deliverables/business-readiness/director-style-runtime-review.json
 npm run validation:report-contracts
 npm run validation:billing-admin-ops -- --base-url <deployment-url> --attestation ops/billing-admin-attestation.json
 npm run validation:production-ops -- --base-url <deployment-url> --attestation ops/production-operations-attestation.json

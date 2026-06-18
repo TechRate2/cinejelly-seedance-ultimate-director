@@ -50,6 +50,7 @@ export * from "./core/delivery-gate.js";
 export * from "./core/director-style-audio-review.js";
 export * from "./core/director-style-benchmark.js";
 export * from "./core/director-style-media-evidence.js";
+export * from "./core/director-style-runtime-review.js";
 export * from "./core/director-style-semantic-review.js";
 export * from "./core/generated-audio-execution-planner.js";
 export * from "./core/generated-audio-provider-execution-runner.js";

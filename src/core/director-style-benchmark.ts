@@ -17,6 +17,8 @@ import type {
   DirectorStyleBenchmarkParityEvidenceStatus,
   DirectorStyleBenchmarkProfile,
   DirectorStyleBenchmarkReport,
+  DirectorStyleBenchmarkRuntimeReviewMetricEvidence,
+  DirectorStyleBenchmarkRuntimeReviewMetricName,
   DirectorStyleBenchmarkSemanticReviewMetricEvidence,
   DirectorStyleBenchmarkSemanticReviewMetricName,
   DirectorStyleBenchmarkSeverity,
@@ -90,6 +92,7 @@ export class DirectorStyleBenchmarkEvaluator {
     readonly maxTransitionBoundaries?: number;
     readonly semanticReviewPath?: string;
     readonly audioReviewPath?: string;
+    readonly runtimeReviewPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
   }): DirectorStyleBenchmarkReport {
@@ -123,6 +126,7 @@ export class DirectorStyleBenchmarkEvaluator {
     const mediaPath = input.mediaPath ?? input.facts.mediaEvidence?.mediaPath;
     const semanticReviewPath = input.semanticReviewPath ?? input.facts.semanticReviewEvidence?.sourcePath;
     const audioReviewPath = input.audioReviewPath ?? input.facts.audioReviewEvidence?.sourcePath;
+    const runtimeReviewPath = input.runtimeReviewPath ?? input.facts.runtimeReviewEvidence?.sourcePath;
     const frameSamplingIntervalSeconds =
       input.frameSamplingIntervalSeconds ?? input.facts.mediaEvidence?.frameSamplingIntervalSeconds;
 
@@ -151,6 +155,7 @@ export class DirectorStyleBenchmarkEvaluator {
         ...(input.maxTransitionBoundaries ? { maxTransitionBoundaries: input.maxTransitionBoundaries } : {}),
         ...(semanticReviewPath ? { semanticReviewPath } : {}),
         ...(audioReviewPath ? { audioReviewPath } : {}),
+        ...(runtimeReviewPath ? { runtimeReviewPath } : {}),
         ...(input.outputPath ? { outputPath: input.outputPath } : {}),
         ...(input.jsonlPath ? { jsonlPath: input.jsonlPath } : {}),
         minPassingScore,
@@ -528,10 +533,11 @@ export class DirectorStyleBenchmarkEvaluator {
     dimension: DirectorStyleBenchmarkDimension = "audio"
   ): DirectorStyleBenchmarkMetricResult {
     const reviewMetric = this.audioReviewMetric(facts, metricName);
+    const runtimeMetric = this.runtimeMetricForAudioMetric(facts, metricName);
     const waveformMetric = this.audioWaveformMetric(facts);
     const syncMetric = this.audioVideoSyncMetric(facts);
     const proxyMetric = this.audioProxyMetric(metricName, waveformMetric, syncMetric);
-    if (!facts.hasAudioEvidence && !reviewMetric) {
+    if (!facts.hasAudioEvidence && !reviewMetric && !runtimeMetric) {
       return {
         dimension,
         metricName,
@@ -554,30 +560,53 @@ export class DirectorStyleBenchmarkEvaluator {
       metricName,
       upstreamMetric,
       requiredKinds: [ARTIFACT_KINDS.postproductionAssetPlan, ARTIFACT_KINDS.reviewPacket],
-      score: reviewMetric?.score ?? proxyMetric?.score ?? (facts.manualReviewAccepted ? 0.78 : 0.62),
-      confidence: reviewMetric?.confidence ?? proxyMetric?.confidence ?? (facts.manualReviewAccepted ? 0.64 : 0.46),
+      score: runtimeMetric?.score ?? reviewMetric?.score ?? proxyMetric?.score ?? (facts.manualReviewAccepted ? 0.78 : 0.62),
+      confidence: runtimeMetric?.confidence ?? reviewMetric?.confidence ?? proxyMetric?.confidence ?? (facts.manualReviewAccepted ? 0.64 : 0.46),
       passMessage: reviewMetric
-        ? "Audio/postproduction evidence is reinforced by structured audio review evidence."
+        ? runtimeMetric
+          ? "Audio/postproduction evidence is reinforced by structured audio review and runtime ASR/lip-sync checkpoint evidence."
+          : "Audio/postproduction evidence is reinforced by structured audio review evidence."
+        : runtimeMetric
+        ? "Audio/postproduction evidence is reinforced by structured runtime ASR/lip-sync checkpoint evidence."
         : proxyMetric
         ? "Audio/postproduction evidence is reinforced by local audio signal and sync proxy evidence."
         : "Audio/postproduction evidence exists and manual review status is reflected.",
-      failMessage: "Audio/postproduction review evidence is incomplete.",
+      failMessage: "Audio/postproduction runtime review evidence is incomplete.",
       suggestion: reviewMetric
-        ? "Capture provider-backed generated-audio output validation and manual listening review."
+        ? runtimeMetric
+          ? "Keep runtime review evidence attached to the same generated-audio and long-form artifact bundle."
+          : "Capture provider-backed generated-audio output validation plus ASR/lip-sync runtime review."
+        : runtimeMetric
+        ? "Pair runtime ASR/lip-sync review with generated-audio output validation and manual listening review."
         : proxyMetric
         ? "Add structured audio review, ASR/lip-sync, and generated-audio provider evidence before accepting audio quality."
         : "Capture provider-backed generated-audio output validation and manual listening review.",
-      extraEvidence: reviewMetric
-        ? [
+      extraEvidence: [
+        ...(reviewMetric
+          ? [
             this.audioEvidence(
               reviewMetric,
               `${reviewMetric.metricName} audio review score=${reviewMetric.score}, confidence=${reviewMetric.confidence}; ${reviewMetric.evidenceSummary}`
             )
           ]
-        : proxyMetric
-        ? proxyMetric.evidence
-        : [],
-      ...(reviewMetric
+          : []),
+        ...(runtimeMetric
+          ? [
+              this.runtimeEvidence(
+                runtimeMetric,
+                `${runtimeMetric.metricName} runtime review score=${runtimeMetric.score}, confidence=${runtimeMetric.confidence}; ${runtimeMetric.evidenceSummary}`
+              )
+            ]
+          : []),
+        ...(!reviewMetric && !runtimeMetric && proxyMetric ? proxyMetric.evidence : [])
+      ],
+      ...(runtimeMetric
+        ? {
+            limitations: [
+              "Structured runtime review evidence is checkpoint evidence; it must still be tied to generated-audio provider output, long-form media, manual listening review, and permission review before DirectorBench-style parity can be claimed."
+            ]
+          }
+        : reviewMetric
         ? {
             limitations: [
               "Structured audio review evidence is checkpoint evidence; ASR/lip-sync, waveform analysis, live generated-audio output, and full DirectorBench runtime parity remain separate gates."
@@ -676,6 +705,11 @@ export class DirectorStyleBenchmarkEvaluator {
     } else if (facts.audioReviewEvidence.status !== "accepted") {
       actions.add("Resolve structured audio review findings before treating audio metrics as accepted.");
     }
+    if (!facts.runtimeReviewEvidence || facts.runtimeReviewEvidence.metricCount < 2) {
+      actions.add("Provide structured runtime review JSON for ASR transcript alignment and lip-sync timing checkpoints.");
+    } else if (facts.runtimeReviewEvidence.status !== "accepted") {
+      actions.add("Resolve structured runtime ASR/lip-sync review findings before treating runtime parity checkpoints as accepted.");
+    }
     if (!facts.mediaEvidence || facts.mediaEvidence.status === "unavailable") {
       actions.add("Provide a local rendered media file to add media probe and sampled-frame evidence to the Director-style benchmark.");
     } else if (facts.mediaEvidence.status !== "frame_sampled") {
@@ -725,13 +759,11 @@ export class DirectorStyleBenchmarkEvaluator {
     const hasAcceptedAudioReview =
       facts.audioReviewEvidence?.status === "accepted" && facts.audioReviewEvidence.metricCount >= 4;
     const hasAsrReview =
-      facts.audioReviewEvidence?.status === "accepted" &&
-      (facts.audioReviewEvidence.reviewerType === "asr" || facts.audioReviewEvidence.reviewerType === "hybrid") &&
-      facts.audioReviewEvidence.metrics.some((item) => item.metricName === "text_audio_consistency");
+      facts.runtimeReviewEvidence?.status === "accepted" &&
+      facts.runtimeReviewEvidence.metrics.some((item) => item.metricName === "asr_transcript_alignment" && item.status === "accepted");
     const hasLipSyncProxy =
-      facts.audioReviewEvidence?.status === "accepted" &&
-      facts.audioReviewEvidence.reviewerType === "hybrid" &&
-      facts.audioReviewEvidence.metrics.some((item) => item.metricName === "video_audio_consistency");
+      facts.runtimeReviewEvidence?.status === "accepted" &&
+      facts.runtimeReviewEvidence.metrics.some((item) => item.metricName === "lip_sync_timing" && item.status === "accepted");
     const hasAcceptedManualReview = facts.manualReviewAccepted === true;
 
     const requirements: DirectorStyleBenchmarkParityEvidenceRequirement[] = [
@@ -831,19 +863,19 @@ export class DirectorStyleBenchmarkEvaluator {
         id: "asr_transcript_alignment",
         category: "runtime_parity",
         met: hasAsrReview,
-        partial: facts.audioReviewEvidence?.reviewerType === "asr" || facts.audioReviewEvidence?.reviewerType === "hybrid",
-        evidence: hasAsrReview ? ["Accepted ASR or hybrid text-audio review evidence is present."] : [],
-        missingEvidence: hasAsrReview ? [] : ["ASR transcript alignment evidence for generated narration and script intent."],
+        partial: facts.runtimeReviewEvidence !== undefined && !hasAsrReview,
+        evidence: hasAsrReview ? ["Accepted runtime ASR transcript-alignment checkpoint evidence is present."] : [],
+        missingEvidence: hasAsrReview ? [] : ["Accepted runtime ASR transcript alignment evidence for generated narration and script intent."],
         notes: "ASR alignment remains separate from generic audio review and waveform evidence."
       }),
       this.parityRequirement({
         id: "lip_sync_evidence",
         category: "runtime_parity",
         met: hasLipSyncProxy,
-        partial: false,
-        evidence: hasLipSyncProxy ? ["Hybrid video-audio review evidence is present as a lip-sync proxy."] : [],
+        partial: facts.runtimeReviewEvidence !== undefined && !hasLipSyncProxy,
+        evidence: hasLipSyncProxy ? ["Accepted runtime lip-sync timing checkpoint evidence is present."] : [],
         missingEvidence: hasLipSyncProxy ? [] : ["Dedicated lip-sync or equivalent video-audio timing evidence."],
-        notes: "The current CineJelly harness does not run a dedicated lip-sync analyzer."
+        notes: "The current CineJelly harness ingests dedicated lip-sync review evidence but does not run a lip-sync analyzer itself."
       }),
       this.parityRequirement({
         id: "manual_long_form_media_review",
@@ -907,6 +939,7 @@ export class DirectorStyleBenchmarkEvaluator {
   private evidenceScope(facts: DirectorStyleBenchmarkFacts): DirectorStyleBenchmarkEvidenceScope {
     const hasSemanticReview = facts.semanticReviewEvidence !== undefined && facts.semanticReviewEvidence.metricCount > 0;
     const hasAudioReview = facts.audioReviewEvidence !== undefined && facts.audioReviewEvidence.metricCount > 0;
+    const hasRuntimeReview = facts.runtimeReviewEvidence !== undefined && facts.runtimeReviewEvidence.metricCount > 0;
     const hasAudioProxy =
       facts.mediaEvidence?.audio?.waveformSignals?.status === "analyzed" ||
       facts.mediaEvidence?.audio?.audioVideoSyncSignals?.status === "analyzed";
@@ -914,6 +947,18 @@ export class DirectorStyleBenchmarkEvaluator {
       facts.mediaEvidence?.deliveryStatus !== undefined ||
       facts.mediaEvidence?.status === "probe_only" ||
       facts.mediaEvidence?.status === "frame_sampled";
+    if (hasSemanticReview && hasAudioReview && hasRuntimeReview && hasMediaEvidence) {
+      return "artifact_contract_plus_media_semantic_audio_runtime_review";
+    }
+    if (hasSemanticReview && hasAudioReview && hasRuntimeReview) {
+      return "artifact_contract_plus_semantic_audio_runtime_review";
+    }
+    if (hasRuntimeReview && hasMediaEvidence) {
+      return "artifact_contract_plus_media_runtime_review";
+    }
+    if (hasRuntimeReview) {
+      return "artifact_contract_plus_runtime_review";
+    }
     if (hasSemanticReview && hasAudioReview && hasMediaEvidence) {
       return "artifact_contract_plus_media_semantic_audio_review";
     }
@@ -973,6 +1018,26 @@ export class DirectorStyleBenchmarkEvaluator {
     return facts.audioReviewEvidence?.metrics.find((metric) => metric.metricName === metricName);
   }
 
+  private runtimeReviewMetric(
+    facts: DirectorStyleBenchmarkFacts,
+    metricName: DirectorStyleBenchmarkRuntimeReviewMetricName
+  ): DirectorStyleBenchmarkRuntimeReviewMetricEvidence | undefined {
+    return facts.runtimeReviewEvidence?.metrics.find((metric) => metric.metricName === metricName);
+  }
+
+  private runtimeMetricForAudioMetric(
+    facts: DirectorStyleBenchmarkFacts,
+    metricName: DirectorStyleBenchmarkAudioReviewMetricName
+  ): DirectorStyleBenchmarkRuntimeReviewMetricEvidence | undefined {
+    if (metricName === "text_audio_consistency") {
+      return this.runtimeReviewMetric(facts, "asr_transcript_alignment");
+    }
+    if (metricName === "video_audio_consistency") {
+      return this.runtimeReviewMetric(facts, "lip_sync_timing");
+    }
+    return undefined;
+  }
+
   private semanticEvidence(
     metric: DirectorStyleBenchmarkSemanticReviewMetricEvidence,
     message: string
@@ -994,6 +1059,18 @@ export class DirectorStyleBenchmarkEvaluator {
       severity: metric.status === "accepted" ? "info" : metric.status === "needs_review" ? "warn" : "block",
       message,
       source: `${metric.reviewerType}_audio_review`
+    };
+  }
+
+  private runtimeEvidence(
+    metric: DirectorStyleBenchmarkRuntimeReviewMetricEvidence,
+    message: string
+  ): DirectorStyleBenchmarkEvidence {
+    return {
+      kind: "runtime_review_checkpoint",
+      severity: metric.status === "accepted" ? "info" : metric.status === "needs_review" ? "warn" : "block",
+      message,
+      source: `${metric.reviewerType}_runtime_review`
     };
   }
 

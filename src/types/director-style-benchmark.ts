@@ -23,7 +23,11 @@ export type DirectorStyleBenchmarkEvidenceScope =
   | "artifact_contract_plus_media_semantic_audio_waveform"
   | "artifact_contract_plus_audio_review"
   | "artifact_contract_plus_media_audio_review"
-  | "artifact_contract_plus_media_semantic_audio_review";
+  | "artifact_contract_plus_media_semantic_audio_review"
+  | "artifact_contract_plus_runtime_review"
+  | "artifact_contract_plus_media_runtime_review"
+  | "artifact_contract_plus_semantic_audio_runtime_review"
+  | "artifact_contract_plus_media_semantic_audio_runtime_review";
 export type DirectorStyleBenchmarkProfile =
   | "balanced"
   | "story_first"
@@ -46,6 +50,11 @@ export type DirectorStyleBenchmarkAudioReviewMetricName =
   | "text_audio_consistency";
 export type DirectorStyleBenchmarkAudioReviewStatus = "accepted" | "needs_review" | "rejected";
 export type DirectorStyleBenchmarkAudioReviewerType = "manual" | "asr" | "waveform" | "hybrid";
+export type DirectorStyleBenchmarkRuntimeReviewMetricName =
+  | "asr_transcript_alignment"
+  | "lip_sync_timing";
+export type DirectorStyleBenchmarkRuntimeReviewStatus = "accepted" | "needs_review" | "rejected";
+export type DirectorStyleBenchmarkRuntimeReviewerType = "manual" | "asr" | "lip_sync" | "hybrid";
 
 export interface DirectorStyleBenchmarkEvidence {
   readonly kind: string;
@@ -239,6 +248,32 @@ export interface DirectorStyleBenchmarkAudioReviewEvidence {
   readonly findings: readonly string[];
 }
 
+export interface DirectorStyleBenchmarkRuntimeReviewMetricEvidence {
+  readonly metricName: DirectorStyleBenchmarkRuntimeReviewMetricName;
+  readonly status: DirectorStyleBenchmarkRuntimeReviewStatus;
+  readonly reviewerType: DirectorStyleBenchmarkRuntimeReviewerType;
+  readonly score: number;
+  readonly confidence: number;
+  readonly evidenceSummary: string;
+  readonly reviewedSegmentCount?: number;
+  readonly reviewedBoundaryCount?: number;
+  readonly findings: readonly string[];
+}
+
+export interface DirectorStyleBenchmarkRuntimeReviewEvidence {
+  readonly source: "manual_runtime_json" | "asr_json" | "lip_sync_json" | "hybrid_runtime_json";
+  readonly sourcePath?: string;
+  readonly status: DirectorStyleBenchmarkRuntimeReviewStatus;
+  readonly reviewerType: DirectorStyleBenchmarkRuntimeReviewerType;
+  readonly reviewedSegmentCount?: number;
+  readonly reviewedBoundaryCount?: number;
+  readonly metricCount: number;
+  readonly averageScore?: number;
+  readonly averageConfidence?: number;
+  readonly metrics: readonly DirectorStyleBenchmarkRuntimeReviewMetricEvidence[];
+  readonly findings: readonly string[];
+}
+
 export interface DirectorStyleBenchmarkMediaEvidence {
   readonly status: "unavailable" | "probe_only" | "frame_sampled";
   readonly source: "local_file";
@@ -278,6 +313,7 @@ export interface DirectorStyleBenchmarkFacts {
   readonly mediaEvidence?: DirectorStyleBenchmarkMediaEvidence;
   readonly semanticReviewEvidence?: DirectorStyleBenchmarkSemanticReviewEvidence;
   readonly audioReviewEvidence?: DirectorStyleBenchmarkAudioReviewEvidence;
+  readonly runtimeReviewEvidence?: DirectorStyleBenchmarkRuntimeReviewEvidence;
 }
 
 export interface DirectorStyleBenchmarkReport {
@@ -301,6 +337,7 @@ export interface DirectorStyleBenchmarkReport {
     readonly maxTransitionBoundaries?: number;
     readonly semanticReviewPath?: string;
     readonly audioReviewPath?: string;
+    readonly runtimeReviewPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
     readonly minPassingScore: number;

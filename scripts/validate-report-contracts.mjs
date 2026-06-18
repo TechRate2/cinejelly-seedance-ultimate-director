@@ -41,6 +41,7 @@ const defaultContracts = [
   contract("generated_audio_validation", "schemas/generated-audio-validation-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
   contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
   contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),
+  contract("director_style_runtime_review", "schemas/director-style-runtime-review.schema.json", "assets/output_deliverables/business-readiness/director-style-runtime-review.json"),
   contract("director_style_benchmark", "schemas/director-style-benchmark-report.schema.json", "assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
   contract("billing_admin_ops", "schemas/billing-admin-ops-report.schema.json", "assets/output_deliverables/business-readiness/billing-admin-ops-report.json"),
   contract("production_operations", "schemas/production-operations-report.schema.json", "assets/output_deliverables/business-readiness/production-operations-report.json"),
@@ -864,6 +865,22 @@ function validateDirectorStyleBenchmarkSemantics(report) {
     if ((requirement?.status === "missing" || requirement?.status === "partial") && (!Array.isArray(requirement?.missingEvidence) || requirement.missingEvidence.length === 0)) {
       issues.push(`$.parityEvidenceMatrix.requirements[id=${requirement?.id}].missingEvidence: expected at least one item when status is not met.`);
     }
+  }
+  const requirementById = new Map(requirements.map((requirement) => [requirement?.id, requirement]));
+  const runtimeMetrics = Array.isArray(report?.facts?.runtimeReviewEvidence?.metrics)
+    ? report.facts.runtimeReviewEvidence.metrics
+    : [];
+  const acceptedAsrRuntimeReview =
+    report?.facts?.runtimeReviewEvidence?.status === "accepted" &&
+    runtimeMetrics.some((metric) => metric?.metricName === "asr_transcript_alignment" && metric?.status === "accepted");
+  const acceptedLipSyncRuntimeReview =
+    report?.facts?.runtimeReviewEvidence?.status === "accepted" &&
+    runtimeMetrics.some((metric) => metric?.metricName === "lip_sync_timing" && metric?.status === "accepted");
+  if ((requirementById.get("asr_transcript_alignment")?.status === "met") !== acceptedAsrRuntimeReview) {
+    issues.push("$.parityEvidenceMatrix.requirements[id=asr_transcript_alignment].status: expected met only with accepted runtime ASR transcript-alignment evidence.");
+  }
+  if ((requirementById.get("lip_sync_evidence")?.status === "met") !== acceptedLipSyncRuntimeReview) {
+    issues.push("$.parityEvidenceMatrix.requirements[id=lip_sync_evidence].status: expected met only with accepted runtime lip-sync timing evidence.");
   }
   return issues;
 }

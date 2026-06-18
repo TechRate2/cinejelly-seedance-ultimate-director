@@ -11,6 +11,7 @@ const defaults = {
   manualReviewPath: "assets/output_deliverables/phase6-validation/manual-review-report.md",
   semanticReviewPath: "assets/output_deliverables/business-readiness/director-style-semantic-review.json",
   audioReviewPath: "assets/output_deliverables/business-readiness/director-style-audio-review.json",
+  runtimeReviewPath: "assets/output_deliverables/business-readiness/director-style-runtime-review.json",
   mediaPath: "assets/output_deliverables/phase6-validation/final.mp4",
   outputPath: "assets/output_deliverables/business-readiness/director-style-benchmark-report.json",
   jsonlPath: "assets/output_deliverables/business-readiness/director-style-benchmark-results.jsonl",
@@ -33,6 +34,7 @@ function parseArgs(args) {
     useManualReview: true,
     useSemanticReview: true,
     useAudioReview: true,
+    useRuntimeReview: true,
     useMedia: true,
     buildFirst: false
   };
@@ -42,6 +44,7 @@ function parseArgs(args) {
     ["--manual-review", "manualReviewPath"],
     ["--semantic-review", "semanticReviewPath"],
     ["--audio-review", "audioReviewPath"],
+    ["--runtime-review", "runtimeReviewPath"],
     ["--media", "mediaPath"],
     ["--output", "outputPath"],
     ["--jsonl", "jsonlPath"],
@@ -83,6 +86,10 @@ function parseArgs(args) {
     }
     if (arg === "--no-audio-review") {
       options.useAudioReview = false;
+      continue;
+    }
+    if (arg === "--no-runtime-review") {
+      options.useRuntimeReview = false;
       continue;
     }
     if (arg === "--no-media") {
@@ -136,6 +143,7 @@ Options:
   --manual-review <path>          Optional manual review note. Default: ${defaults.manualReviewPath}
   --semantic-review <path>        Optional structured semantic review JSON. Default: ${defaults.semanticReviewPath}
   --audio-review <path>           Optional structured audio review JSON. Default: ${defaults.audioReviewPath}
+  --runtime-review <path>         Optional structured ASR/lip-sync runtime review JSON. Default: ${defaults.runtimeReviewPath}
   --media <path>                  Optional local rendered media for probe/frame-signal evidence. Default: ${defaults.mediaPath}
   --profile <name>                balanced, story_first, visual_heavy, audio_emotion, sync_perfectionist. Default: balanced
   --min-passing-score <number>    Default: ${defaults.minPassingScore}
@@ -151,6 +159,7 @@ Options:
   --no-manual-review              Do not read manual review evidence.
   --no-semantic-review            Do not read structured semantic review evidence.
   --no-audio-review               Do not read structured audio review evidence.
+  --no-runtime-review             Do not read structured runtime review evidence.
   --no-media                      Do not inspect local rendered media.
   --build                         Build TypeScript before importing the benchmark evaluator.
   --no-output                     Print only; do not write the JSON report.
@@ -185,8 +194,9 @@ async function main() {
   const manualReviewText = options.useManualReview ? readText(options.manualReviewPath, false) : undefined;
   const semanticReviewEvidence = options.useSemanticReview ? await collectSemanticReviewEvidence(options) : undefined;
   const audioReviewEvidence = options.useAudioReview ? await collectAudioReviewEvidence(options) : undefined;
+  const runtimeReviewEvidence = options.useRuntimeReview ? await collectRuntimeReviewEvidence(options) : undefined;
   const mediaEvidence = options.useMedia ? await collectMediaEvidence(options) : undefined;
-  const facts = factsFrom({ paidRenderReport, request, manualReviewText, semanticReviewEvidence, audioReviewEvidence, mediaEvidence, options });
+  const facts = factsFrom({ paidRenderReport, request, manualReviewText, semanticReviewEvidence, audioReviewEvidence, runtimeReviewEvidence, mediaEvidence, options });
   const { DirectorStyleBenchmarkEvaluator } = await import("../dist/core/director-style-benchmark.js");
   const evaluator = new DirectorStyleBenchmarkEvaluator();
   const report = evaluator.evaluate({
@@ -202,6 +212,7 @@ async function main() {
     ...(options.useMedia ? { maxTransitionBoundaries: options.maxTransitionBoundaries } : {}),
     ...(semanticReviewEvidence ? { semanticReviewPath: toRepoRelative(options.semanticReviewPath) } : {}),
     ...(audioReviewEvidence ? { audioReviewPath: toRepoRelative(options.audioReviewPath) } : {}),
+    ...(runtimeReviewEvidence ? { runtimeReviewPath: toRepoRelative(options.runtimeReviewPath) } : {}),
     ...(options.writeOutput ? { outputPath: toRepoRelative(options.outputPath) } : {}),
     ...(options.appendJsonl ? { jsonlPath: toRepoRelative(options.jsonlPath) } : {})
   });
@@ -259,6 +270,16 @@ async function collectAudioReviewEvidence(options) {
   return normalizeDirectorStyleAudioReviewEvidence(raw, { sourcePath: toRepoRelative(options.audioReviewPath) });
 }
 
+async function collectRuntimeReviewEvidence(options) {
+  const absolutePath = resolve(repoRoot, options.runtimeReviewPath);
+  if (!existsSync(absolutePath)) {
+    return undefined;
+  }
+  const raw = readJson(options.runtimeReviewPath, true);
+  const { normalizeDirectorStyleRuntimeReviewEvidence } = await import("../dist/core/director-style-runtime-review.js");
+  return normalizeDirectorStyleRuntimeReviewEvidence(raw, { sourcePath: toRepoRelative(options.runtimeReviewPath) });
+}
+
 function validateOptions(options) {
   const profiles = new Set(["balanced", "story_first", "visual_heavy", "audio_emotion", "sync_perfectionist"]);
   if (!profiles.has(options.profile)) {
@@ -302,6 +323,7 @@ function validateOptions(options) {
     ["--request", options.requestPath],
     ["--semantic-review", options.semanticReviewPath],
     ["--audio-review", options.audioReviewPath],
+    ["--runtime-review", options.runtimeReviewPath],
     ["--media", options.mediaPath],
     ["--output", options.outputPath],
     ["--jsonl", options.jsonlPath]
@@ -318,7 +340,7 @@ function validateOptions(options) {
   }
 }
 
-function factsFrom({ paidRenderReport, request, manualReviewText, semanticReviewEvidence, audioReviewEvidence, mediaEvidence, options }) {
+function factsFrom({ paidRenderReport, request, manualReviewText, semanticReviewEvidence, audioReviewEvidence, runtimeReviewEvidence, mediaEvidence, options }) {
   const artifactEntries = Array.isArray(paidRenderReport?.artifactBundle?.entries)
     ? paidRenderReport.artifactBundle.entries
     : [];
@@ -376,6 +398,7 @@ function factsFrom({ paidRenderReport, request, manualReviewText, semanticReview
     sourcePatternOrigins,
     ...(semanticReviewEvidence ? { semanticReviewEvidence } : {}),
     ...(audioReviewEvidence ? { audioReviewEvidence } : {}),
+    ...(runtimeReviewEvidence ? { runtimeReviewEvidence } : {}),
     ...(mediaEvidence ? { mediaEvidence } : {})
   };
 }
