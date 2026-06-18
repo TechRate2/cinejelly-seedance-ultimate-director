@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-live-action-evidence.schema.json",
+  "title": "CineJelly Render Provider Live Action Evidence Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "environmentKind",
+    "deploymentBaseUrl",
+    "approvedBy",
+    "approvedAt",
+    "executions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-live-action-evidence.v1" },
+    "environmentKind": { "const": "deployment" },
+    "deploymentBaseUrl": { "type": "string", "format": "uri" },
+    "approvedBy": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "approvedAt": { "type": "string", "format": "date-time" },
+    "executions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/execution" }
+    }
+  },
+  "$defs": {
+    "workerAction": {
+      "enum": [
+        "resume_polling",
+        "close_terminal_succeeded",
+        "close_terminal_failed",
+        "close_terminal_canceled",
+        "close_terminal_timeout",
+        "close_terminal_mixed",
+        "manual_audit_required"
+      ]
+    },
+    "providerCallKind": {
+      "enum": [
+        "prediction_poll",
+        "terminal_closeout",
+        "manual_audit_enqueue",
+        "provider_cancel_or_close",
+        "graph_resume_enqueue"
+      ]
+    },
+    "resultStatus": {
+      "enum": [
+        "succeeded",
+        "still_active",
+        "terminal_failed",
+        "manual_audit_queued",
+        "resume_enqueued",
+        "closeout_recorded"
+      ]
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionId",
+        "jobId",
+        "action",
+        "predictionIds",
+        "provider",
+        "providerCallKind",
+        "providerCallMade",
+        "resultStatus",
+        "executedAt",
+        "evidenceSummary",
+        "redactionReviewed",
+        "rawProviderPayloadStored",
+        "outputUrlsStored"
+      ],
+      "properties": {
+        "actionId": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "jobId": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "action": { "$ref": "#/$defs/workerAction" },
+        "predictionIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1, "maxLength": 240 }
+        },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "providerCallKind": { "$ref": "#/$defs/providerCallKind" },
+        "providerCallMade": { "const": true },
+        "resultStatus": { "$ref": "#/$defs/resultStatus" },
+        "executedAt": { "type": "string", "format": "date-time" },
+        "evidenceSummary": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "redactionReviewed": { "const": true },
+        "rawProviderPayloadStored": { "const": false },
+        "outputUrlsStored": { "const": false }
+      }
+    }
+  }
+}

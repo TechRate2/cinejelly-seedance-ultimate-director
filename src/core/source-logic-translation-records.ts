@@ -1082,12 +1082,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "an active task lease should not be stolen from another worker",
       "terminal provider work can be closed while still-active provider work heartbeat-renews a retained lease for polling",
       "state evidence is durable enough to survive the local smoke process reload",
-      "queue/state backend concerns stay behind an adapter contract"
+      "queue/state backend concerns stay behind an adapter contract",
+      "live provider action evidence must be archived and reviewed before replay callbacks count as production resume proof"
     ],
     behaviorChanged: [
       "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
       "local JSON and HTTPS lease-store adapters replace direct Redis coupling in the production TypeScript boundary",
-      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, and production capture tooling can exercise the real HTTPS lease-service route without claiming distributed resume parity",
+      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, production capture tooling can exercise the real HTTPS lease-service route, and live action evidence validation checks archived provider callbacks without claiming distributed resume parity",
       "idempotent action-ledger records let terminal-close, resume-polling, and manual-audit intents replay by stable key without duplicating worker action records or callback execution evidence",
       "handoff reports expose redacted lease/action evidence and refuse to claim distributed resume parity",
       "raw provider payloads, output URLs, hostnames, worker owner IDs, local paths, bearer tokens, and secrets are excluded from public reports"
@@ -1105,16 +1106,19 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
       "scripts/run-render-provider-multi-worker-handoff-smoke.mjs",
       "scripts/capture-render-provider-production-handoff.mjs",
+      "scripts/validate-render-provider-live-actions.mjs",
       "schemas/render-provider-handoff-report.schema.json",
       "schemas/render-provider-lease-service-smoke-report.schema.json",
       "schemas/render-provider-handoff-action-ledger-report.schema.json",
       "schemas/render-provider-multi-worker-handoff-report.schema.json",
       "schemas/render-provider-production-handoff-report.schema.json",
+      "schemas/render-provider-live-action-evidence.schema.json",
+      "schemas/render-provider-live-actions-report.schema.json",
       "scripts/validate-report-contracts.mjs"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "production parity still requires live provider action execution and archived production multi-worker deployment evidence",
+      "production parity still requires real live provider action execution evidence and archived production multi-worker graph-resume deployment evidence",
       "live Atlas prediction IDs must be validated before using handoff output as paid-provider closeout evidence",
       "automatic graph resume/cancel/close behavior is intentionally not claimed by the adapter foundation"
     ],
@@ -1132,12 +1136,12 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "status refresh happens before release-facing handoff decisions",
       "still-active provider work remains warning evidence rather than release approval",
-      "operator reports distinguish terminal closeout, continued polling with heartbeat, skipped work, and manual audit states"
+      "operator reports distinguish terminal closeout, continued polling with heartbeat, skipped work, manual audit states, and archived live provider callback evidence"
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten into CineJelly provider handoff contracts",
-      "local, protected HTTP-service, HTTPS-adapted lease decisions, heartbeat renewal, local two-worker no-steal/expiry handoff validation, and production capture tooling wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
-      "idempotent action-ledger execution evidence is added for deterministic worker replay without treating replay evidence as live provider execution",
+      "local, protected HTTP-service, HTTPS-adapted lease decisions, heartbeat renewal, local two-worker no-steal/expiry handoff validation, production capture tooling, and live action evidence validation wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
+      "idempotent action-ledger execution evidence is added for deterministic worker replay, and live action evidence validation stays separate from local replay evidence",
       "distributed resume remains blocked until production multi-worker ownership handoff and live provider actions are proven"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",
@@ -1152,9 +1156,12 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
       "scripts/run-render-provider-multi-worker-handoff-smoke.mjs",
       "scripts/capture-render-provider-production-handoff.mjs",
+      "scripts/validate-render-provider-live-actions.mjs",
       "schemas/render-provider-handoff-report.schema.json",
       "schemas/render-provider-multi-worker-handoff-report.schema.json",
-      "schemas/render-provider-production-handoff-report.schema.json"
+      "schemas/render-provider-production-handoff-report.schema.json",
+      "schemas/render-provider-live-action-evidence.schema.json",
+      "schemas/render-provider-live-actions-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [

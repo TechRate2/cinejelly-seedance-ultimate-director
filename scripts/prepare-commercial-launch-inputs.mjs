@@ -11,7 +11,8 @@ const defaults = {
   businessPlanPath: "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json",
   liveInputsPath: "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json",
   atlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
-  opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json"
+  opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
+  providerLiveActionsPath: "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"
 };
 
 function parseArgs(args) {
@@ -27,7 +28,8 @@ function parseArgs(args) {
     ["--business-plan-report", "businessPlanPath"],
     ["--live-inputs-report", "liveInputsPath"],
     ["--atlas-billing-report", "atlasBillingPath"],
-    ["--ops-config-report", "opsConfigPath"]
+    ["--ops-config-report", "opsConfigPath"],
+    ["--provider-live-actions-report", "providerLiveActionsPath"]
   ]);
 
   for (let index = 0; index < args.length; index += 1) {
@@ -78,6 +80,8 @@ Options:
   --live-inputs-report <path>         Default: ${defaults.liveInputsPath}
   --atlas-billing-report <path>       Default: ${defaults.atlasBillingPath}
   --ops-config-report <path>          Default: ${defaults.opsConfigPath}
+  --provider-live-actions-report <path>
+                                      Default: ${defaults.providerLiveActionsPath}
   --output <path>                     JSON report path. Default: ${defaults.outputPath}
   --markdown-output <path>            Markdown checklist path. Default: ${defaults.markdownOutputPath}
   --no-markdown                       Do not write the Markdown checklist.
@@ -99,12 +103,17 @@ function main() {
     businessPlan: summarizeReport(options.businessPlanPath),
     liveInputs: summarizeReport(options.liveInputsPath),
     atlasBilling: summarizeReport(options.atlasBillingPath),
-    opsConfig: summarizeReport(options.opsConfigPath)
+    opsConfig: summarizeReport(options.opsConfigPath),
+    providerLiveActions: summarizeReport(options.providerLiveActionsPath)
   };
   const requiredInputs = buildRequiredInputs(reports);
   const envPlaceholders = buildEnvPlaceholders(reports, requiredInputs);
   const atlasConfigurationSummary = buildAtlasConfigurationSummary(reports);
-  const evidenceCommandPlan = buildEvidenceCommandPlan(reports.businessPlan.value, reports.liveInputs.value);
+  const evidenceCommandPlan = buildEvidenceCommandPlan(
+    reports.businessPlan.value,
+    reports.liveInputs.value,
+    reports.providerLiveActions.value
+  );
   const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
   const commandPlanAudit = buildCommandPlanAudit({ evidenceCommandPlan, budgetConstrainedPaidPlan });
   const status = statusFor(requiredInputs);
@@ -121,6 +130,7 @@ function main() {
       liveInputsPath: toRepoRelative(options.liveInputsPath),
       atlasBillingPath: toRepoRelative(options.atlasBillingPath),
       opsConfigPath: toRepoRelative(options.opsConfigPath),
+      providerLiveActionsPath: toRepoRelative(options.providerLiveActionsPath),
       markdownOutputPath: options.writeMarkdown ? toRepoRelative(options.markdownOutputPath) : undefined
     },
     sourceReports: summarizeSourceReports(reports),
@@ -188,6 +198,7 @@ function buildRequiredInputs(reports) {
   const live = reports.liveInputs.value;
   const atlasBilling = reports.atlasBilling.value;
   const opsConfig = reports.opsConfig.value;
+  const providerLiveActions = reports.providerLiveActions.value;
   const liveGate = gateFinder(live?.gates);
   const opsEnvironment = live?.environment?.operations;
   const deployment = live?.environment?.deployment;
@@ -254,6 +265,22 @@ function buildRequiredInputs(reports) {
       acceptance: "Fill durable storage, retention, backups, restore test, monitoring, incident response, support, redaction, rotation, and data-retention fields.",
       validationCommand: "npm.cmd run validation:ops-config -- --write-drafts",
       blockerMessage: failingMessage(business, "production_storage_observability_support") ?? firstFailure(liveGate("operations_attestation_inputs"))
+    }),
+    input({
+      id: "live_provider_action_evidence",
+      label: "Live provider action evidence packet",
+      category: "operations",
+      status: providerLiveActions?.status === "pass" ? "configured" : "missing",
+      sensitivity: "manual_review",
+      requiredFor: ["distributed_active_provider_work_resume"],
+      envVars: [],
+      filePaths: [
+        "ops/render-provider-live-actions.json",
+        "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"
+      ],
+      acceptance: "After a real deployment worker executes provider handoff actions, archive the ignored evidence packet and validate it with explicit confirmation; it must include resume-polling plus terminal-closeout or manual-audit evidence with redaction review.",
+      validationCommand: "npm.cmd run validation:provider-live-actions -- --evidence ops/render-provider-live-actions.json --confirm-live-provider-actions",
+      blockerMessage: providerLiveActions?.releaseGateSummary?.releaseBlocker ?? "Live provider action evidence is missing, unconfirmed, or incomplete."
     }),
     input({
       id: "atlas_validation_budget",
@@ -486,7 +513,7 @@ function buildAtlasConfigurationSummary(reports) {
   };
 }
 
-function buildEvidenceCommandPlan(plan, live) {
+function buildEvidenceCommandPlan(plan, live, providerLiveActions) {
   const sequence = Array.isArray(plan?.validationSequence) ? plan.validationSequence : [];
   return {
     noSpendLocal: commandsFor(sequence, (step) => step.kind === "no_spend"),
@@ -497,6 +524,11 @@ function buildEvidenceCommandPlan(plan, live) {
       live
     ),
     finalAudit: [
+      {
+        name: "live_provider_action_evidence",
+        status: providerLiveActions?.status === "pass" ? "ready" : "blocked",
+        command: "npm.cmd run validation:provider-live-actions -- --evidence ops/render-provider-live-actions.json --confirm-live-provider-actions"
+      },
       {
         name: "final_business_readiness_audit",
         status: "blocked",
@@ -783,7 +815,7 @@ function nextActionsFor(requiredInputs, live) {
       actions.push(`${item.label}: ${item.acceptance}`);
     }
   }
-  actions.push("Refresh validation:live-inputs, validation:business-plan, validation:business-readiness, and validation:report-contracts after filling inputs.");
+  actions.push("Refresh validation:live-inputs, validation:business-plan, validation:provider-live-actions, validation:business-readiness, and validation:report-contracts after filling inputs.");
   if (live?.releaseGateSummary?.canRunGeneratedAudioPaidValidation === true) {
     actions.push("Generated-audio paid smoke is the only currently ready Atlas paid slice; run it only when intentionally spending Atlas budget, then complete the manual audio review.");
   } else {
@@ -996,7 +1028,16 @@ function writeText(path, content) {
 
 function toRepoRelative(path) {
   const absolutePath = resolve(repoRoot, path);
-  return absolutePath.startsWith(repoRoot) ? absolutePath.slice(repoRoot.length + 1) : path;
+  const normalizedRoot = repoRoot.replace(/\\/g, "/").replace(/\/$/, "").toLowerCase();
+  const normalizedAbsolute = absolutePath.replace(/\\/g, "/");
+  const normalizedAbsoluteLower = normalizedAbsolute.toLowerCase();
+  if (normalizedAbsoluteLower === normalizedRoot) {
+    return ".";
+  }
+  if (normalizedAbsoluteLower.startsWith(`${normalizedRoot}/`)) {
+    return normalizedAbsolute.slice(normalizedRoot.length + 1);
+  }
+  return "[outside-repo]";
 }
 
 try {

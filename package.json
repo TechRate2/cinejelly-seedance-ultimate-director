@@ -36,6 +36,7 @@
     "validation:provider-handoff-actions": "node scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
     "validation:provider-multi-worker-handoff": "node scripts/run-render-provider-multi-worker-handoff-smoke.mjs",
     "validation:provider-production-handoff": "node --env-file-if-exists=.env scripts/capture-render-provider-production-handoff.mjs",
+    "validation:provider-live-actions": "node scripts/validate-render-provider-live-actions.mjs",
     "validation:snapshot-parity": "node scripts/audit-snapshot-parity.mjs",
     "validation:long-form": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-long-form-validation.mjs",
     "validation:source-video-auto-analysis": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-source-video-auto-analysis-validation.mjs",

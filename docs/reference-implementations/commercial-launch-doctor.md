@@ -27,7 +27,7 @@ It may:
 
 - run TypeScript build
 - run local smoke with a temporary localhost API
-- refresh local provider reconciliation, handoff, external-lease, protected lease-service, action-ledger, and multi-worker handoff smoke evidence
+- refresh local provider reconciliation, handoff, external-lease, protected lease-service, action-ledger, multi-worker handoff smoke evidence, and live provider action evidence status
 - refresh the no-spend Director-style quality benchmark
 - refresh local JSON/Markdown readiness reports
 - run report-contract validation
@@ -40,27 +40,28 @@ It may:
 3. Run snapshot parity guardrail audit.
 4. Optionally run local smoke unless `--skip-local-smoke` is set.
 5. Optionally refresh provider resume/handoff smoke evidence unless `--skip-provider-handoff-smokes` is set.
-6. Run release audit.
-7. Run the no-spend Director-style quality benchmark.
-8. Run launch intake validation.
-9. Run live input validation.
-10. Run business validation plan.
-11. Run commercial input packet generation.
-12. Run business completion audit.
-13. Run business readiness audit.
-14. Write the launch doctor report.
-15. Run report-contract validation.
-16. Rerun business completion audit so it reads the fresh report-contract status.
-17. Rewrite the launch doctor report with the refreshed completion-audit status.
-18. Run report-contract validation one final time, then rewrite the doctor report with the final contract status.
+6. Refresh live provider action evidence status from the ignored operator packet if present.
+7. Run release audit.
+8. Run the no-spend Director-style quality benchmark.
+9. Run launch intake validation.
+10. Run live input validation.
+11. Run business validation plan.
+12. Run commercial input packet generation.
+13. Run business completion audit.
+14. Run business readiness audit.
+15. Write the launch doctor report.
+16. Run report-contract validation.
+17. Rerun business completion audit so it reads the fresh report-contract status.
+18. Rewrite the launch doctor report with the refreshed completion-audit status.
+19. Run report-contract validation one final time, then rewrite the doctor report with the final contract status.
 
-Expected blocked or review-required commands can exit non-zero without becoming code blockers. The quality benchmark is refreshed as backend evidence, but a `blocked` or `review_required` benchmark remains product/evidence status rather than launch-doctor code failure. Provider handoff smokes are local/fake-provider checks; they strengthen backend evidence but do not replace production HTTPS deployment handoff capture or live provider action execution. Unexpected build, local-smoke, provider-handoff smoke, release-audit, deployment-package, or report-contract failures become code-side blockers.
+Expected blocked or review-required commands can exit non-zero without becoming code blockers. The quality benchmark is refreshed as backend evidence, but a `blocked` or `review_required` benchmark remains product/evidence status rather than launch-doctor code failure. Provider handoff smokes are local/fake-provider checks; they strengthen backend evidence but do not replace production HTTPS deployment handoff capture or live provider action execution. The live provider action validator may report `blocked_by_missing_inputs` until an ignored operator evidence packet is present and confirmed. Unexpected build, local-smoke, provider-handoff smoke, release-audit, deployment-package, or report-contract failures become code-side blockers.
 
 Snapshot parity audit failures also become code-side blockers because they mean the subtree/source-lineage/import-boundary evidence is no longer trustworthy.
 
 When `--skip-provider-handoff-smokes` is used, provider smoke statuses in the launch-doctor snapshot must be `skipped` rather than reusing stale report files.
 
-The report-contract validator enforces these launch-doctor semantics in addition to JSON schema shape. A launch-doctor report must show the core command sequence, refreshed snapshot parity guardrail evidence, refreshed quality benchmark command evidence, final report-contract pass, provider handoff smoke pass/warn snapshot statuses when enabled, explicit skipped provider statuses when provider smokes are disabled, and no stale unexpected command failures when code blockers are zero.
+The report-contract validator enforces these launch-doctor semantics in addition to JSON schema shape. A launch-doctor report must show the core command sequence, refreshed snapshot parity guardrail evidence, refreshed live provider action evidence status, refreshed quality benchmark command evidence, final report-contract pass, provider handoff smoke pass/warn snapshot statuses when enabled, explicit skipped provider statuses when provider smokes are disabled, and no stale unexpected command failures when code blockers are zero.
 
 Because the doctor rewrites its own report before and after contract refreshes, its internal report-contract commands use `--allow-launch-doctor-in-progress`. That mode still validates the base command sequence and refreshed provider/quality evidence, while standalone/default report-contract validation remains strict and requires the completed final contract command.
 

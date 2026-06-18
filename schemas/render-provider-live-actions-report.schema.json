@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-live-actions-report.schema.json",
+  "title": "CineJelly Render Provider Live Actions Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "summary",
+    "evidence",
+    "executions",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-live-actions.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "blocked_by_missing_inputs", "blocked_by_confirmation", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidencePath",
+        "productionHandoffPath",
+        "outputPath",
+        "evidenceConfigured",
+        "productionHandoffReportPresent",
+        "confirmLiveProviderActions"
+      ],
+      "properties": {
+        "evidencePath": { "type": "string", "minLength": 1 },
+        "productionHandoffPath": { "type": "string", "minLength": 1 },
+        "outputPath": { "type": "string", "minLength": 1 },
+        "evidenceConfigured": { "type": "boolean" },
+        "productionHandoffReportPresent": { "type": "boolean" },
+        "confirmLiveProviderActions": { "type": "boolean" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceExecutionCount",
+        "providerCallEvidenceCount",
+        "resumePollingEvidenceCount",
+        "terminalCloseEvidenceCount",
+        "manualAuditEvidenceCount",
+        "redactionReviewedCount",
+        "productionHandoffStatus",
+        "productionHandoffUsable",
+        "canUseAsLiveProviderActionEvidence",
+        "canClaimDistributedResume"
+      ],
+      "properties": {
+        "evidenceExecutionCount": { "type": "integer", "minimum": 0 },
+        "providerCallEvidenceCount": { "type": "integer", "minimum": 0 },
+        "resumePollingEvidenceCount": { "type": "integer", "minimum": 0 },
+        "terminalCloseEvidenceCount": { "type": "integer", "minimum": 0 },
+        "manualAuditEvidenceCount": { "type": "integer", "minimum": 0 },
+        "redactionReviewedCount": { "type": "integer", "minimum": 0 },
+        "productionHandoffStatus": { "type": "string" },
+        "productionHandoffUsable": { "type": "boolean" },
+        "canUseAsLiveProviderActionEvidence": { "type": "boolean" },
+        "canClaimDistributedResume": { "const": false }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configured"],
+      "properties": {
+        "configured": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "environmentKind": { "type": "string" },
+        "deploymentBaseUrl": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "executionCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "executions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/execution" }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "liveProviderActionEvidencePass",
+        "canUseAsDistributedResumeEvidence",
+        "canClaimDistributedResume",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "liveProviderActionEvidencePass": { "type": "boolean" },
+        "canUseAsDistributedResumeEvidence": { "type": "boolean" },
+        "canClaimDistributedResume": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionId",
+        "jobId",
+        "action",
+        "provider",
+        "providerCallKind",
+        "providerCallMade",
+        "resultStatus",
+        "executedAt",
+        "predictionIdCount",
+        "evidenceSummary",
+        "redactionReviewed",
+        "rawProviderPayloadStored",
+        "outputUrlsStored"
+      ],
+      "properties": {
+        "actionId": { "type": "string", "minLength": 1 },
+        "jobId": { "type": "string", "minLength": 1 },
+        "action": {
+          "enum": [
+            "resume_polling",
+            "close_terminal_succeeded",
+            "close_terminal_failed",
+            "close_terminal_canceled",
+            "close_terminal_timeout",
+            "close_terminal_mixed",
+            "manual_audit_required"
+          ]
+        },
+        "provider": { "type": "string", "minLength": 1 },
+        "providerCallKind": {
+          "enum": [
+            "prediction_poll",
+            "terminal_closeout",
+            "manual_audit_enqueue",
+            "provider_cancel_or_close",
+            "graph_resume_enqueue"
+          ]
+        },
+        "providerCallMade": { "const": true },
+        "resultStatus": {
+          "enum": [
+            "succeeded",
+            "still_active",
+            "terminal_failed",
+            "manual_audit_queued",
+            "resume_enqueued",
+            "closeout_recorded"
+          ]
+        },
+        "executedAt": { "type": "string", "format": "date-time" },
+        "predictionIdCount": { "type": "integer", "minimum": 0 },
+        "evidenceSummary": { "type": "string", "minLength": 1 },
+        "redactionReviewed": { "type": "boolean" },
+        "rawProviderPayloadStored": { "type": "boolean" },
+        "outputUrlsStored": { "type": "boolean" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -27,6 +27,8 @@ const defaultContracts = [
   contract("render_provider_handoff_action_ledger", "schemas/render-provider-handoff-action-ledger-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
   contract("render_provider_multi_worker_handoff", "schemas/render-provider-multi-worker-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
   contract("render_provider_production_handoff", "schemas/render-provider-production-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-production-handoff-report.json"),
+  contract("render_provider_live_action_evidence", "schemas/render-provider-live-action-evidence.schema.json", "ops/render-provider-live-actions.json"),
+  contract("render_provider_live_actions", "schemas/render-provider-live-actions-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"),
   contract("snapshot_parity_audit", "schemas/snapshot-parity-audit-report.schema.json", "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
   contract("atlas_billing_readiness", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json"),
   contract("atlas_billing_generated_audio_smoke", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json"),
@@ -288,6 +290,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "render_provider_handoff_action_ledger") {
     return validateRenderProviderHandoffActionLedgerSemantics(report);
   }
+  if (item.name === "render_provider_live_actions") {
+    return validateRenderProviderLiveActionsSemantics(report);
+  }
   return [];
 }
 
@@ -295,6 +300,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "build",
   "deployment_package",
   "snapshot_parity",
+  "provider_live_actions",
   "release_audit",
   "quality_benchmark",
   "launch_intake",
@@ -935,6 +941,74 @@ function validateRenderProviderHandoffActionLedgerSemantics(report) {
   return issues;
 }
 
+function validateRenderProviderLiveActionsSemantics(report) {
+  const issues = [];
+  const executions = Array.isArray(report?.executions) ? report.executions : [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  const providerCallEvidenceCount = executions.filter((item) => item?.providerCallMade === true).length;
+  const resumePollingEvidenceCount = executions.filter((item) => item?.action === "resume_polling").length;
+  const terminalCloseEvidenceCount = executions.filter((item) => typeof item?.action === "string" && item.action.startsWith("close_terminal_")).length;
+  const manualAuditEvidenceCount = executions.filter((item) => item?.action === "manual_audit_required").length;
+  const redactionReviewedCount = executions.filter((item) => item?.redactionReviewed === true).length;
+  const unsafeStoredEvidenceCount = executions.filter((item) => item?.rawProviderPayloadStored === true || item?.outputUrlsStored === true).length;
+
+  if (report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.networkCallsMade/$.providerCallsMade: expected false; this validator must only read archived evidence.");
+  }
+  if (Number(report?.summary?.evidenceExecutionCount ?? -1) !== executions.length) {
+    issues.push("$.summary.evidenceExecutionCount: expected to match executions length.");
+  }
+  if (Number(report?.summary?.providerCallEvidenceCount ?? -1) !== providerCallEvidenceCount) {
+    issues.push("$.summary.providerCallEvidenceCount: expected to match executions with providerCallMade=true.");
+  }
+  if (Number(report?.summary?.resumePollingEvidenceCount ?? -1) !== resumePollingEvidenceCount) {
+    issues.push("$.summary.resumePollingEvidenceCount: expected to match resume_polling executions.");
+  }
+  if (Number(report?.summary?.terminalCloseEvidenceCount ?? -1) !== terminalCloseEvidenceCount) {
+    issues.push("$.summary.terminalCloseEvidenceCount: expected to match close_terminal_* executions.");
+  }
+  if (Number(report?.summary?.manualAuditEvidenceCount ?? -1) !== manualAuditEvidenceCount) {
+    issues.push("$.summary.manualAuditEvidenceCount: expected to match manual_audit_required executions.");
+  }
+  if (Number(report?.summary?.redactionReviewedCount ?? -1) !== redactionReviewedCount) {
+    issues.push("$.summary.redactionReviewedCount: expected to match executions with redactionReviewed=true.");
+  }
+  if (unsafeStoredEvidenceCount > 0) {
+    issues.push("$.executions: raw provider payloads and output URLs must not be stored in live action reports.");
+  }
+  if (report?.releaseGateSummary?.canClaimDistributedResume !== false || report?.summary?.canClaimDistributedResume !== false) {
+    issues.push("$.releaseGateSummary.canClaimDistributedResume/$.summary.canClaimDistributedResume: expected false until deployed graph-resume parity exists.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; live action evidence is not customer-release approval.");
+  }
+  if (report?.status === "pass") {
+    if (failedChecks.length > 0) {
+      issues.push("$.checks: status pass requires zero failed checks.");
+    }
+    if (report?.checkedInputs?.confirmLiveProviderActions !== true) {
+      issues.push("$.checkedInputs.confirmLiveProviderActions: status pass requires explicit live-provider-action confirmation.");
+    }
+    if (report?.summary?.productionHandoffUsable !== true || report?.summary?.productionHandoffStatus !== "pass") {
+      issues.push("$.summary.productionHandoff*: status pass requires a usable passing production handoff capture.");
+    }
+    if (providerCallEvidenceCount < 1 || resumePollingEvidenceCount < 1 || terminalCloseEvidenceCount + manualAuditEvidenceCount < 1) {
+      issues.push("$.executions: status pass requires provider-call, resume-polling, and terminal-close/manual-audit evidence.");
+    }
+    if (redactionReviewedCount !== executions.length) {
+      issues.push("$.executions: status pass requires every live action evidence item to be redaction reviewed.");
+    }
+    if (report?.summary?.canUseAsLiveProviderActionEvidence !== true || report?.releaseGateSummary?.canUseAsDistributedResumeEvidence !== true) {
+      issues.push("$.summary/releaseGateSummary: status pass requires live action evidence usability flags to be true.");
+    }
+  }
+  if (report?.status !== "pass" && (report?.summary?.canUseAsLiveProviderActionEvidence === true || report?.releaseGateSummary?.canUseAsDistributedResumeEvidence === true)) {
+    issues.push("$.summary/releaseGateSummary: non-pass live action report cannot be usable distributed-resume evidence.");
+  }
+  return issues;
+}
+
 function validateCommercialLaunchInputsSemantics(report) {
   const issues = [];
   if (report?.commandPlanAudit?.status !== "pass") {
@@ -942,6 +1016,28 @@ function validateCommercialLaunchInputsSemantics(report) {
   }
   if (Array.isArray(report?.commandPlanAudit?.issues) && report.commandPlanAudit.issues.length > 0) {
     issues.push(`$.commandPlanAudit.issues: expected no command-plan audit issues, found ${report.commandPlanAudit.issues.length}.`);
+  }
+  if (!report?.sourceReports?.providerLiveActions) {
+    issues.push("$.sourceReports.providerLiveActions: expected live provider action report source status.");
+  }
+  const requiredInputs = Array.isArray(report?.requiredInputs) ? report.requiredInputs : [];
+  const liveActionInput = requiredInputs.find((item) => item?.id === "live_provider_action_evidence");
+  if (!liveActionInput) {
+    issues.push("$.requiredInputs: expected live_provider_action_evidence checklist item.");
+  } else {
+    if (!Array.isArray(liveActionInput.filePaths) || !liveActionInput.filePaths.includes("ops/render-provider-live-actions.json")) {
+      issues.push("$.requiredInputs[live_provider_action_evidence].filePaths: expected ops/render-provider-live-actions.json.");
+    }
+    if (liveActionInput.validationCommand !== "npm.cmd run validation:provider-live-actions -- --evidence ops/render-provider-live-actions.json --confirm-live-provider-actions") {
+      issues.push("$.requiredInputs[live_provider_action_evidence].validationCommand: expected provider-live-actions confirmation command.");
+    }
+  }
+  const finalAuditCommands = Array.isArray(report?.evidenceCommandPlan?.finalAudit) ? report.evidenceCommandPlan.finalAudit : [];
+  const liveActionCommand = finalAuditCommands.find((item) => item?.name === "live_provider_action_evidence");
+  if (!liveActionCommand) {
+    issues.push("$.evidenceCommandPlan.finalAudit: expected live_provider_action_evidence command.");
+  } else if (liveActionCommand.command !== "npm.cmd run validation:provider-live-actions -- --evidence ops/render-provider-live-actions.json --confirm-live-provider-actions") {
+    issues.push("$.evidenceCommandPlan.finalAudit[live_provider_action_evidence].command: expected provider-live-actions confirmation command.");
   }
   return issues;
 }
