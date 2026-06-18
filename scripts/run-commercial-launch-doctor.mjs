@@ -234,8 +234,18 @@ function buildCommands(options) {
     );
   }
   commands.push(
+    command("provider_live_action_draft", ["scripts/create-render-provider-live-action-evidence-draft.mjs", "--force"], {
+      reportPath: "assets/output_deliverables/business-readiness/render-provider-live-action-evidence-draft-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
     command("provider_live_actions", ["scripts/validate-render-provider-live-actions.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
+    command("provider_graph_resume_draft", ["scripts/create-render-provider-graph-resume-enqueue-evidence-draft.mjs", "--force"], {
+      reportPath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueue-evidence-draft-report.json",
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
@@ -254,6 +264,11 @@ function buildCommands(options) {
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
+    command("quality_review_drafts", ["scripts/create-director-style-review-drafts.mjs", "--force"], {
+      reportPath: "assets/output_deliverables/business-readiness/director-style-review-drafts-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
     command("quality_review_guard", ["scripts/run-director-style-review-evidence-guard-smoke.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/director-style-review-evidence-guard-smoke-report.json",
       expectedExitCodes: [0],
@@ -261,6 +276,16 @@ function buildCommands(options) {
     }),
     command("quality_review_evidence", ["scripts/validate-director-style-review-evidence.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/director-style-review-evidence-readiness-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
+    command("generated_audio_review_draft", ["scripts/create-generated-audio-manual-review-draft.mjs", "--force"], {
+      reportPath: "assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
+    command("long_form_review_draft", ["scripts/create-long-form-manual-quality-review-draft.mjs", "--force"], {
+      reportPath: "assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json",
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
@@ -360,8 +385,11 @@ function buildReport(options, commandRuns) {
     commercialInputs: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"),
     completionAudit: summarizeReport("assets/output_deliverables/business-readiness/business-completion-audit-report.json"),
     qualityBenchmark: summarizeReport("assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
+    qualityReviewDrafts: summarizeReport("assets/output_deliverables/business-readiness/director-style-review-drafts-report.json"),
     qualityReviewGuard: summarizeReport("assets/output_deliverables/business-readiness/director-style-review-evidence-guard-smoke-report.json"),
     qualityReviewEvidence: summarizeReport("assets/output_deliverables/business-readiness/director-style-review-evidence-readiness-report.json"),
+    generatedAudioReviewDraft: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json"),
+    longFormReviewDraft: summarizeReport("assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
     snapshotParity: summarizeReport("assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
     providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
     providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
@@ -372,7 +400,9 @@ function buildReport(options, commandRuns) {
     productionGraphResumeQueueService: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/production-graph-resume-queue-service-smoke-report.json"),
     providerGraphResumeWorker: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-graph-resume-worker-smoke-report.json"),
     providerMultiWorkerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
+    providerLiveActionDraft: summarizeReport("assets/output_deliverables/business-readiness/render-provider-live-action-evidence-draft-report.json"),
     providerLiveActions: summarizeReport("assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"),
+    providerGraphResumeDraft: summarizeReport("assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueue-evidence-draft-report.json"),
     providerGraphResume: summarizeReport("assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"),
     reportContracts: summarizeReport("assets/output_deliverables/business-readiness/report-contract-validation-report.json"),
     launchIntake: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json")
@@ -418,8 +448,11 @@ function buildReport(options, commandRuns) {
       releaseAuditStatus: reportSummaries.releaseAudit.status,
       snapshotParityStatus: reportSummaries.snapshotParity.status,
       qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
+      qualityReviewDraftsStatus: reportSummaries.qualityReviewDrafts.status,
       qualityReviewGuardStatus: reportSummaries.qualityReviewGuard.status,
       qualityReviewEvidenceStatus: reportSummaries.qualityReviewEvidence.status,
+      generatedAudioReviewDraftStatus: reportSummaries.generatedAudioReviewDraft.status,
+      longFormReviewDraftStatus: reportSummaries.longFormReviewDraft.status,
       providerReconciliationStatus: reportSummaries.providerReconciliation.status,
       providerHandoffStatus: reportSummaries.providerHandoff.status,
       providerExternalLeaseStatus: reportSummaries.providerExternalLease.status,
@@ -429,7 +462,9 @@ function buildReport(options, commandRuns) {
       productionGraphResumeQueueServiceStatus: reportSummaries.productionGraphResumeQueueService.status,
       providerGraphResumeWorkerStatus: reportSummaries.providerGraphResumeWorker.status,
       providerMultiWorkerHandoffStatus: reportSummaries.providerMultiWorkerHandoff.status,
+      providerLiveActionDraftStatus: reportSummaries.providerLiveActionDraft.status,
       providerLiveActionsStatus: reportSummaries.providerLiveActions.status,
+      providerGraphResumeDraftStatus: reportSummaries.providerGraphResumeDraft.status,
       providerGraphResumeStatus: reportSummaries.providerGraphResume.status,
       reportContractsStatus: reportSummaries.reportContracts.status,
       commercialInputsStatus: reportSummaries.commercialInputs.status,
@@ -599,8 +634,11 @@ function renderMarkdown(report) {
     `- Release audit: ${report.readinessSnapshot.releaseAuditStatus}`,
     `- Snapshot parity: ${report.readinessSnapshot.snapshotParityStatus}`,
     `- Quality benchmark: ${report.readinessSnapshot.qualityBenchmarkStatus}`,
+    `- Quality review drafts: ${report.readinessSnapshot.qualityReviewDraftsStatus}`,
     `- Quality review guard: ${report.readinessSnapshot.qualityReviewGuardStatus}`,
     `- Quality review evidence: ${report.readinessSnapshot.qualityReviewEvidenceStatus}`,
+    `- Generated-audio review draft: ${report.readinessSnapshot.generatedAudioReviewDraftStatus}`,
+    `- Long-form review draft: ${report.readinessSnapshot.longFormReviewDraftStatus}`,
     `- Provider reconciliation: ${report.readinessSnapshot.providerReconciliationStatus}`,
     `- Provider handoff: ${report.readinessSnapshot.providerHandoffStatus}`,
     `- Provider external lease: ${report.readinessSnapshot.providerExternalLeaseStatus}`,
@@ -610,7 +648,9 @@ function renderMarkdown(report) {
     `- Production graph resume queue service: ${report.readinessSnapshot.productionGraphResumeQueueServiceStatus}`,
     `- Provider graph resume worker: ${report.readinessSnapshot.providerGraphResumeWorkerStatus}`,
     `- Provider multi-worker handoff: ${report.readinessSnapshot.providerMultiWorkerHandoffStatus}`,
+    `- Provider live-action draft: ${report.readinessSnapshot.providerLiveActionDraftStatus}`,
     `- Provider live actions: ${report.readinessSnapshot.providerLiveActionsStatus}`,
+    `- Provider graph-resume draft: ${report.readinessSnapshot.providerGraphResumeDraftStatus}`,
     `- Provider graph resume: ${report.readinessSnapshot.providerGraphResumeStatus}`,
     `- Report contracts: ${report.readinessSnapshot.reportContractsStatus}`,
     `- Launch intake: ${report.readinessSnapshot.launchIntakeStatus}`,
