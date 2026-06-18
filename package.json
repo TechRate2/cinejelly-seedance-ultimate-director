@@ -47,6 +47,7 @@
     "validation:source-video-auto-analysis": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-source-video-auto-analysis-validation.mjs",
     "validation:remote-stock": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-remote-stock-validation.mjs",
     "validation:generated-audio": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-atlas-generated-audio-validation.mjs",
+    "validation:generated-audio-polling-resilience": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-generated-audio-polling-resilience-smoke.mjs",
     "validation:quality-benchmark": "node scripts/run-director-style-benchmark.mjs --build",
     "validation:quality-review-drafts": "node scripts/create-director-style-review-drafts.mjs",
     "validation:quality-review-evidence": "node scripts/validate-director-style-review-evidence.mjs",

@@ -52,6 +52,11 @@ export interface AssetProvider {
 export interface AudioProvider {
   readonly name: string;
   generateAudio(request: AudioGenerationRequest, signal?: AbortSignal): Promise<AudioGenerationResult>;
+  resumeAudioPrediction?(
+    request: AudioGenerationRequest,
+    predictionId: string,
+    signal?: AbortSignal
+  ): Promise<AudioGenerationResult>;
   audioCapabilities(modelId?: string): readonly AudioGenerationCapability[];
 }
 

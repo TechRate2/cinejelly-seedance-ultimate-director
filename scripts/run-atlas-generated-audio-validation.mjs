@@ -9,7 +9,7 @@ const defaults = {
   modelId: process.env.ATLASCLOUD_GENERATED_AUDIO_MODEL || "xai/tts-v1",
   text: "Xin chao, day la ban kiem tra am thanh ngan cua CineJelly.",
   language: "vi",
-  voiceId: process.env.ATLASCLOUD_GENERATED_AUDIO_VOICE_ID || "mai",
+  voiceId: process.env.ATLASCLOUD_GENERATED_AUDIO_VOICE_ID || "eve",
   outputFormat: "mp3",
   durationSeconds: 6,
   maxCostUsd: 0.05,
@@ -41,7 +41,7 @@ const atlasDocsEvidence = {
   documentedAsyncStatuses: ["processing", "completed", "failed"],
   documentedMaxTextCharacters: 15_000,
   documentedCostUsdPer1kCharacters: 0.015,
-  observedInDocsAt: "2026-06-16"
+  observedInDocsAt: "2026-06-19"
 };
 
 const secretPatterns = [
@@ -87,6 +87,8 @@ function parseArgs(args) {
     ["--timeout-ms", "timeoutMs"],
     ["--manual-audio-review", "manualAudioReviewPath"],
     ["--review-existing-report", "reviewExistingReportPath"],
+    ["--resume-existing-report", "resumeExistingReportPath"],
+    ["--resume-prediction-id", "resumePredictionId"],
     ["--output", "outputPath"]
   ]);
 
@@ -160,6 +162,8 @@ Options:
   --timeout-ms <ms>                    Abort live validation after this many ms. Default: ${defaults.timeoutMs}
   --manual-audio-review <path>         Optional operator review note containing a pass decision.
   --review-existing-report <path>      Re-score an existing paid generated-audio report with manual review evidence without calling Atlas.
+  --resume-existing-report <path>      Poll the existing report's active audio prediction without submitting a new Atlas job.
+  --resume-prediction-id <id>          Poll an existing Atlas audio prediction without submitting a new Atlas job.
   --confirm-provider-spend             Required before any Atlas generated-audio provider execution can be attempted.
   --confirm-audio-schema-reviewed      Required before docs-derived Atlas audio schema can count as business evidence.
   --confirm-manual-audio-review        Operator confirms the generated audio output was listened to and accepted.
@@ -183,6 +187,10 @@ async function main() {
   const intent = buildIntent(options);
   const costEstimate = estimatedAudioCost(options);
   const atlasBillingGate = summarizeAtlasBillingGate(options, costEstimate);
+  const resolvedResumePredictionId = resolveResumePredictionId(options);
+  if (!options.resumePredictionId && resolvedResumePredictionId) {
+    options.resumePredictionId = resolvedResumePredictionId;
+  }
   const inputChecks = [
     pass("validation_text", "Generated-audio validation text is bounded."),
     pass("output_report_path", "Output report path is JSON."),
@@ -190,6 +198,13 @@ async function main() {
     costEstimate <= options.maxCostUsd
       ? pass("estimated_cost_budget", `Estimated audio validation cost ${formatUsd(costEstimate)} is within maxCostUsd ${formatUsd(options.maxCostUsd)}.`)
       : fail("estimated_cost_budget", `Estimated audio validation cost ${formatUsd(costEstimate)} exceeds maxCostUsd ${formatUsd(options.maxCostUsd)}.`),
+    ...(options.resumeExistingReportPath || options.resumePredictionId
+      ? [
+          resolvedResumePredictionId
+            ? pass("resume_prediction_id", "Existing Atlas generated-audio prediction id is available for resume polling.")
+            : fail("resume_prediction_id", "Resume mode requires --resume-prediction-id or an existing report with a provider ledger predictionId.")
+        ]
+      : []),
     ...atlasBillingGate.checks
   ];
   const planningEvidence = await buildPlanningEvidence({ options, intent });
@@ -357,6 +372,14 @@ function validateOptions(options) {
   if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs < 30_000 || options.timeoutMs > 1_800_000) {
     throw new Error("--timeout-ms must be an integer between 30000 and 1800000.");
   }
+  if (options.resumePredictionId !== undefined) {
+    if (typeof options.resumePredictionId !== "string" || !/^[A-Za-z0-9_-]{6,160}$/.test(options.resumePredictionId)) {
+      throw new Error("--resume-prediction-id must be a prediction id containing only letters, digits, underscore, or hyphen.");
+    }
+  }
+  if (options.resumeExistingReportPath !== undefined && extname(options.resumeExistingReportPath).toLowerCase() !== ".json") {
+    throw new Error("--resume-existing-report must point to a JSON file.");
+  }
 }
 
 function buildIntent(options) {
@@ -448,6 +471,14 @@ async function runGeneratedAudioValidation({ options, intent, plan, runtimeSetti
 
   const ledger = new ProviderCostLedger();
   const provider = new AtlasCloudProvider(runtimeSettings, ledger);
+  const resumePredictionId = resolveResumePredictionId(options);
+  const audioProvider = resumePredictionId
+    ? {
+        name: provider.name,
+        audioCapabilities: (modelId) => provider.audioCapabilities(modelId),
+        generateAudio: (request, signal) => provider.resumeAudioPrediction(request, resumePredictionId, signal)
+      }
+    : provider;
   const runner = new GeneratedAudioProviderExecutionRunner();
   const validator = new GeneratedAudioOutputBatchValidator();
   const controller = new AbortController();
@@ -456,7 +487,7 @@ async function runGeneratedAudioValidation({ options, intent, plan, runtimeSetti
   try {
     const run = await runner.run({
       executionPlan: plan,
-      audioProvider: provider,
+      audioProvider,
       signal: controller.signal
     });
     const batch = validator.validate({
@@ -500,6 +531,26 @@ function checksForLiveEvidence(run, batch, ledgerEntries) {
       ? pass("provider_ledger", `${ledgerEntries.length} provider ledger entr${ledgerEntries.length === 1 ? "y" : "ies"} captured for generated-audio validation.`)
       : fail("provider_ledger", "Generated-audio validation did not capture provider ledger evidence.")
   ];
+}
+
+function resolveResumePredictionId(options) {
+  if (options.resumePredictionId) {
+    return options.resumePredictionId;
+  }
+  if (!options.resumeExistingReportPath) {
+    return undefined;
+  }
+  const report = readJsonIfExists(options.resumeExistingReportPath);
+  const ledgerEntries = Array.isArray(report?.providerLedger?.entries) ? report.providerLedger.entries : [];
+  const activeEntry = [...ledgerEntries].reverse().find((entry) =>
+    typeof entry?.predictionId === "string" &&
+    entry.predictionId.trim() &&
+    ["running", "queued"].includes(String(entry.providerStatus ?? ""))
+  );
+  const fallbackEntry = [...ledgerEntries].reverse().find((entry) =>
+    typeof entry?.predictionId === "string" && entry.predictionId.trim()
+  );
+  return activeEntry?.predictionId ?? fallbackEntry?.predictionId;
 }
 
 function estimatedAudioCost(options) {
@@ -808,6 +859,8 @@ function buildReport({
       outputFormat: options.outputFormat,
       durationSeconds: options.durationSeconds,
       estimatedCostUsd: costEstimate,
+      ...(options.resumeExistingReportPath ? { resumeExistingReportPath: toRepoRelative(options.resumeExistingReportPath) } : {}),
+      ...(resolveResumePredictionId(options) ? { resumePredictionId: resolveResumePredictionId(options) } : {}),
       outputPath: toRepoRelative(options.outputPath)
     },
     spendGate,

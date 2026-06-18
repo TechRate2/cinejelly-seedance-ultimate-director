@@ -2008,6 +2008,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "MoneyPrinterTurbo runtime audio code is not copied or executed",
       "CineJelly executes only generated-audio items that were already marked ready by verified capability planning",
       "provider exceptions become stack-free generated-audio result evidence for batch validation",
+      "retryable Atlas generated-audio polling failures continue polling active predictions before the overall timeout",
+      "structured terminal provider bodies become terminal generated-audio failure evidence instead of hidden retries",
+      "existing generated-audio prediction IDs can be resume-polled without submitting a second paid job",
       "approved generated-audio tracks can enter assembly only after CineJelly-owned output batch validation"
     ],
     referenceImplementationPath: "docs/reference-implementations/generated-audio-provider-execution-runner.md",
@@ -2018,6 +2021,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/generated-audio-output-batch-validator.ts",
       "src/agents/director-agent.ts",
       "src/application/director-factory.ts",
+      "scripts/run-generated-audio-polling-resilience-smoke.mjs",
+      "schemas/generated-audio-polling-resilience-smoke-report.schema.json",
       "src/index.ts",
       "src/core/source-logic-translation-records.ts"
     ],
@@ -2044,6 +2049,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "VibeFrame execution/report discipline is rewritten into CineJelly generated-audio runner and batch validation contracts",
       "CineJelly runner does not approve URLs, inspect media, or create files",
+      "retryable Atlas polling errors are represented as continued active prediction polling in no-spend backend evidence",
+      "terminal failed prediction bodies are preserved as reportable provider evidence",
+      "resume polling preserves deterministic evidence without duplicating provider generation",
       "batch validation owns approval before generated-audio results can become mix tracks"
     ],
     referenceImplementationPath: "docs/reference-implementations/generated-audio-provider-execution-runner.md",
@@ -2052,11 +2060,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/generated-audio-provider-execution-runner.ts",
       "src/core/generated-audio-output-batch-validator.ts",
       "src/agents/director-agent.ts",
+      "scripts/run-generated-audio-polling-resilience-smoke.mjs",
+      "schemas/generated-audio-polling-resilience-smoke-report.schema.json",
       "src/core/source-logic-translation-records.ts"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "paid provider validation must later confirm real provider status mapping, cost ledger entries, and output evidence"
+      "paid provider validation now confirms one Atlas TTS provider/output-batch success path, but manual listening quality and BGM/SFX mappings remain pending"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },

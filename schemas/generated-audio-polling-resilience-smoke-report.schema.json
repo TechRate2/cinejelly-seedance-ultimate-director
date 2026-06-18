@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/generated-audio-polling-resilience-smoke-report.schema.json",
+  "title": "CineJelly Generated Audio Polling Resilience Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "execution",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.generated-audio-polling-resilience-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "const": "pass" },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "fakeProvider",
+        "predictionId",
+        "modelId",
+        "pollingTimeoutMs",
+        "pollingIntervalMs"
+      ],
+      "properties": {
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "fakeProvider": { "const": true },
+        "predictionId": { "type": "string", "minLength": 1 },
+        "modelId": { "type": "string", "minLength": 1 },
+        "pollingTimeoutMs": { "type": "integer", "minimum": 1 },
+        "pollingIntervalMs": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "submittedPredictionStatus",
+        "transientPollingErrorCount",
+        "getPredictionCallCount",
+        "postGenerateAudioCallCount",
+        "finalResultStatus",
+        "finalProviderStatus",
+        "ledgerEntryCount",
+        "retryCount",
+        "toleratedRetryablePollingFailure",
+        "structuredFailureErrorCode",
+        "structuredFailureProviderStatus",
+        "structuredFailureGetPredictionCallCount"
+      ],
+      "properties": {
+        "submittedPredictionStatus": { "const": "running" },
+        "transientPollingErrorCount": { "type": "integer", "minimum": 1 },
+        "getPredictionCallCount": { "type": "integer", "minimum": 5 },
+        "postGenerateAudioCallCount": { "const": 1 },
+        "finalResultStatus": { "const": "succeeded" },
+        "finalProviderStatus": { "enum": ["running", "succeeded"] },
+        "ledgerEntryCount": { "type": "integer", "minimum": 1 },
+        "retryCount": { "type": "integer", "minimum": 2 },
+        "toleratedRetryablePollingFailure": { "const": true },
+        "structuredFailureErrorCode": { "const": "GENERATION_FAILED" },
+        "structuredFailureProviderStatus": { "const": "failed" },
+        "structuredFailureGetPredictionCallCount": { "type": "integer", "minimum": 1, "maximum": 3 }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "ledgerEntry", "structuredFailure"],
+      "properties": {
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "provider",
+            "modelId",
+            "intentId",
+            "kind",
+            "outputUrl",
+            "providerAssetId",
+            "durationSeconds",
+            "latencyMs"
+          ],
+          "properties": {
+            "status": { "const": "succeeded" },
+            "provider": { "const": "atlascloud" },
+            "modelId": { "type": "string", "minLength": 1 },
+            "intentId": { "type": "string", "minLength": 1 },
+            "kind": { "const": "tts_narration" },
+            "outputUrl": { "type": "string", "format": "uri" },
+            "providerAssetId": { "type": "string", "minLength": 1 },
+            "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+            "latencyMs": { "type": "number", "minimum": 0 }
+          }
+        },
+        "ledgerEntry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "operation",
+            "modelId",
+            "predictionId",
+            "graphNodeId",
+            "status",
+            "providerStatus",
+            "retryCount",
+            "latencyMs"
+          ],
+          "properties": {
+            "provider": { "const": "atlascloud" },
+            "operation": { "const": "audio.generate" },
+            "modelId": { "type": "string", "minLength": 1 },
+            "predictionId": { "type": "string", "minLength": 1 },
+            "graphNodeId": { "type": "string", "minLength": 1 },
+            "status": { "const": "succeeded" },
+            "providerStatus": { "enum": ["running", "succeeded"] },
+            "retryCount": { "type": "integer", "minimum": 2 },
+            "errorCode": { "type": "string" },
+            "retryable": { "type": "boolean" },
+            "latencyMs": { "type": "number", "minimum": 0 }
+          }
+        },
+        "structuredFailure": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "errorCode",
+            "retryable",
+            "getPredictionCallCount",
+            "ledgerEntry"
+          ],
+          "properties": {
+            "errorCode": { "const": "GENERATION_FAILED" },
+            "retryable": { "const": false },
+            "getPredictionCallCount": { "type": "integer", "minimum": 1, "maximum": 3 },
+            "ledgerEntry": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider",
+                "operation",
+                "modelId",
+                "predictionId",
+                "graphNodeId",
+                "status",
+                "providerStatus",
+                "retryCount",
+                "errorCode",
+                "retryable",
+                "latencyMs"
+              ],
+              "properties": {
+                "provider": { "const": "atlascloud" },
+                "operation": { "const": "audio.generate" },
+                "modelId": { "type": "string", "minLength": 1 },
+                "predictionId": { "type": "string", "minLength": 1 },
+                "graphNodeId": { "type": "string", "minLength": 1 },
+                "status": { "const": "failed" },
+                "providerStatus": { "const": "failed" },
+                "retryCount": { "type": "integer", "minimum": 2 },
+                "errorCode": { "const": "GENERATION_FAILED" },
+                "retryable": { "const": false },
+                "latencyMs": { "type": "number", "minimum": 0 }
+              }
+            }
+          }
+        },
+        "unexpectedError": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 13,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generatedAudioPollingResiliencePass",
+        "canUseAsNoSpendBackendEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "generatedAudioPollingResiliencePass": { "const": true },
+        "canUseAsNoSpendBackendEvidence": { "const": true },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "const": "pass" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 360,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    }
+  }
+}

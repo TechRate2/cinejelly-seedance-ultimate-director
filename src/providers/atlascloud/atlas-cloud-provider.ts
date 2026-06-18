@@ -478,6 +478,36 @@ export class AtlasCloudProvider implements ModelProvider {
     );
   }
 
+  public resumeAudioPrediction(
+    request: AudioGenerationRequest,
+    predictionId: string,
+    signal?: AbortSignal
+  ): Promise<AudioGenerationResult> {
+    const startedAt = now();
+    let latestMetadata: LedgerMetadata = { predictionId, providerStatus: "running" };
+    return this.trackProviderCall(
+      "audio.resume_prediction",
+      request.modelId,
+      request.metadata?.graphNodeId,
+      startedAt,
+      async (recordRetry) => {
+        this.validateAudioRequest(request);
+        const finalPrediction = await this.waitForAudioPrediction({
+          predictionId,
+          modelId: request.modelId,
+          recordRetry,
+          ...(signal ? { signal } : {}),
+          onMetadata: (metadata) => {
+            latestMetadata = metadata;
+          }
+        });
+        return this.audioResultFromPrediction(request, finalPrediction, startedAt);
+      },
+      (result) => this.audioLedgerMetadata(result),
+      () => latestMetadata
+    );
+  }
+
   private async submitVideoGeneration(
     expectedMode: ProviderMode,
     request: VideoGenerationRequest,
@@ -623,11 +653,24 @@ export class AtlasCloudProvider implements ModelProvider {
   }): Promise<Prediction> {
     const startedAt = now();
     const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
+    let latestMetadata: LedgerMetadata = { predictionId: input.predictionId, providerStatus: "running" };
     while (Date.now() <= deadline) {
       this.throwIfAborted(input.signal);
-      const response = await this.getPredictionPayload(input.predictionId, input.signal, input.recordRetry);
+      let response: unknown;
+      try {
+        response = await this.getPredictionPayload(input.predictionId, input.signal, input.recordRetry);
+      } catch (error) {
+        const providerError = asProviderError(ATLAS_PROVIDER_NAME, error);
+        if (!this.shouldContinueAudioPollingAfterError(providerError, deadline)) {
+          throw providerError;
+        }
+        input.onMetadata(latestMetadata);
+        await this.sleepForPolling(input.signal);
+        continue;
+      }
       const prediction = mapPrediction(response, input.modelId, startedAt);
-      input.onMetadata(this.predictionLedgerMetadata(prediction));
+      latestMetadata = this.predictionLedgerMetadata(prediction);
+      input.onMetadata(latestMetadata);
       if (prediction.status === "succeeded") {
         return prediction;
       }
@@ -659,6 +702,13 @@ export class AtlasCloudProvider implements ModelProvider {
     });
   }
 
+  private shouldContinueAudioPollingAfterError(error: ProviderError, deadline: number): boolean {
+    if (Date.now() > deadline || !error.retryable) {
+      return false;
+    }
+    return error.code === "NETWORK_ERROR" || error.code === "REQUEST_TIMEOUT" || error.code === "RATE_LIMITED";
+  }
+
   private async getPredictionPayload(
     predictionId: string,
     signal: AbortSignal | undefined,
@@ -677,6 +727,10 @@ export class AtlasCloudProvider implements ModelProvider {
         recordRetry
       );
     } catch (error) {
+      const predictionPayload = this.predictionPayloadFromProviderError(error);
+      if (predictionPayload) {
+        return predictionPayload;
+      }
       if (!this.shouldTryPredictionFallback(error)) {
         throw error;
       }
@@ -692,21 +746,50 @@ export class AtlasCloudProvider implements ModelProvider {
           recordRetry
         );
       } catch (resultError) {
+        const resultPayload = this.predictionPayloadFromProviderError(resultError);
+        if (resultPayload) {
+          return resultPayload;
+        }
         if (!this.shouldTryPredictionFallback(resultError)) {
           throw resultError;
         }
-        return withRetry(
-          () =>
-            this.http.getJson<unknown>(
-              this.url(this.settings.assetBaseUrl, `/model/getResult?predictionId=${encodedPredictionId}`),
-              signal
-            ),
-          DEFAULT_RETRY_POLICY,
-          signal,
-          recordRetry
-        );
+        try {
+          return await withRetry(
+            () =>
+              this.http.getJson<unknown>(
+                this.url(this.settings.assetBaseUrl, `/model/getResult?predictionId=${encodedPredictionId}`),
+                signal
+              ),
+            DEFAULT_RETRY_POLICY,
+            signal,
+            recordRetry
+          );
+        } catch (getResultError) {
+          const getResultPayload = this.predictionPayloadFromProviderError(getResultError);
+          if (getResultPayload) {
+            return getResultPayload;
+          }
+          throw getResultError;
+        }
       }
     }
+  }
+
+  private predictionPayloadFromProviderError(error: unknown): unknown | undefined {
+    if (!(error instanceof ProviderError) || !error.details || typeof error.details !== "object") {
+      return undefined;
+    }
+    const payload = error.details as Record<string, unknown>;
+    const data = payload.data && typeof payload.data === "object"
+      ? (payload.data as Record<string, unknown>)
+      : payload;
+    if (typeof data.status !== "string") {
+      return undefined;
+    }
+    if (!("id" in data) && !("outputs" in data) && !("output" in data) && !("error" in data)) {
+      return undefined;
+    }
+    return payload;
   }
 
   private shouldTryPredictionFallback(error: unknown): boolean {

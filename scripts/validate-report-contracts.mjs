@@ -47,6 +47,7 @@ const defaultContracts = [
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
   contract("remote_stock_validation", "schemas/remote-stock-validation-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-validation-report.json"),
   contract("generated_audio_validation", "schemas/generated-audio-validation-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
+  contract("generated_audio_polling_resilience", "schemas/generated-audio-polling-resilience-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"),
   contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
   contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),
   contract("director_style_runtime_review", "schemas/director-style-runtime-review.schema.json", "assets/output_deliverables/business-readiness/director-style-runtime-review.json"),
@@ -302,6 +303,9 @@ function validateSemanticContract(item, report, options) {
   }
   if (item.name === "director_style_review_evidence_guard") {
     return validateDirectorStyleReviewEvidenceGuardSemantics(report);
+  }
+  if (item.name === "generated_audio_polling_resilience") {
+    return validateGeneratedAudioPollingResilienceSemantics(report);
   }
   if (item.name === "render_provider_handoff_action_ledger") {
     return validateRenderProviderHandoffActionLedgerSemantics(report);
@@ -1155,6 +1159,67 @@ function validateDirectorStyleReviewEvidenceGuardSemantics(report) {
   }
   if (/review\.example\.invalid|director_guard_secret|https?:\/\/(?!cinejelly\.local\/schemas)/i.test(publicPayload)) {
     issues.push("$.publicPayload: guard smoke report must not echo the raw unsafe review URL or token-like text.");
+  }
+  return issues;
+}
+
+function validateGeneratedAudioPollingResilienceSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status !== "pass");
+  const publicPayload = JSON.stringify(report ?? {});
+
+  if (report?.status !== "pass") {
+    issues.push("$.status: expected pass for generated-audio polling resilience smoke.");
+  }
+  if (report?.noSpend !== true || report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade: expected fake-provider no-spend smoke.");
+  }
+  if (report?.checkedInputs?.fakeProvider !== true) {
+    issues.push("$.checkedInputs.fakeProvider: expected true for no-spend polling resilience evidence.");
+  }
+  if (Number(report?.summary?.transientPollingErrorCount ?? 0) < 1) {
+    issues.push("$.summary.transientPollingErrorCount: expected at least one simulated retryable polling error.");
+  }
+  if (Number(report?.summary?.getPredictionCallCount ?? 0) < 5) {
+    issues.push("$.summary.getPredictionCallCount: expected polling to continue after retry exhaustion.");
+  }
+  if (report?.summary?.finalResultStatus !== "succeeded" || report?.execution?.result?.status !== "succeeded") {
+    issues.push("$.summary/execution.result: expected generated audio to succeed after transient polling errors.");
+  }
+  if (report?.execution?.ledgerEntry?.status !== "succeeded" || Number(report?.execution?.ledgerEntry?.retryCount ?? 0) < 2) {
+    issues.push("$.execution.ledgerEntry: expected succeeded provider ledger entry with retry count preserved.");
+  }
+  if (report?.summary?.toleratedRetryablePollingFailure !== true) {
+    issues.push("$.summary.toleratedRetryablePollingFailure: expected true.");
+  }
+  if (
+    report?.summary?.structuredFailureErrorCode !== "GENERATION_FAILED" ||
+    report?.summary?.structuredFailureProviderStatus !== "failed" ||
+    Number(report?.summary?.structuredFailureGetPredictionCallCount ?? 0) < 1 ||
+    Number(report?.summary?.structuredFailureGetPredictionCallCount ?? 0) > 3
+  ) {
+    issues.push("$.summary.structuredFailure*: expected structured failed prediction payload to become terminal GENERATION_FAILED without polling until timeout.");
+  }
+  if (
+    report?.execution?.structuredFailure?.ledgerEntry?.status !== "failed" ||
+    report?.execution?.structuredFailure?.ledgerEntry?.providerStatus !== "failed" ||
+    report?.execution?.structuredFailure?.ledgerEntry?.errorCode !== "GENERATION_FAILED"
+  ) {
+    issues.push("$.execution.structuredFailure.ledgerEntry: expected failed ledger entry from structured terminal provider body.");
+  }
+  if (failedChecks.length > 0) {
+    issues.push("$.checks: expected every smoke check to pass.");
+  }
+  if (
+    report?.releaseGateSummary?.generatedAudioPollingResiliencePass !== true ||
+    report?.releaseGateSummary?.canUseAsNoSpendBackendEvidence !== true ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: expected backend evidence pass while keeping customer-release claim false.");
+  }
+  if (/test-atlas-api-key|test-atlas-llm-api-key|apikey-|sk_[A-Za-z0-9]/.test(publicPayload)) {
+    issues.push("$.publicPayload: polling resilience smoke report must not include API keys or credential-like text.");
   }
   return issues;
 }

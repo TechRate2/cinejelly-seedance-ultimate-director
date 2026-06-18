@@ -64,6 +64,8 @@
         "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
         "estimatedCostUsd": { "type": "number", "minimum": 0 },
         "reviewExistingReportPath": { "type": "string" },
+        "resumeExistingReportPath": { "type": "string" },
+        "resumePredictionId": { "type": "string" },
         "outputPath": { "type": "string" }
       }
     },

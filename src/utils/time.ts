@@ -15,14 +15,18 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     return Promise.resolve();
   }
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timeout);
-        reject(signal.reason instanceof Error ? signal.reason : new Error("Sleep aborted."));
-      },
-      { once: true }
-    );
+    const cleanup = () => {
+      signal?.removeEventListener("abort", onAbort);
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      cleanup();
+      reject(signal?.reason instanceof Error ? signal.reason : new Error("Sleep aborted."));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }

@@ -1,6 +1,6 @@
 # Reference Implementation: Generated Audio Provider Execution Runner
 
-Implementation status as of 2026-06-14: implemented foundation for a CineJelly-owned provider-neutral runner that executes ready generated-audio requests only after `GeneratedAudioExecutionPlanner` has produced verified `ready_for_provider` items. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The runner must not create fake audio files, mint public URLs, bypass capability planning, or call Atlas audio endpoints unless verified capabilities and provider wiring are present.
+Implementation status as of 2026-06-19: implemented foundation for a CineJelly-owned provider-neutral runner that executes ready generated-audio requests only after `GeneratedAudioExecutionPlanner` has produced verified `ready_for_provider` items. Atlas generated-audio polling now tolerates retryable transient polling failures while a prediction is still active, and `validation:generated-audio-polling-resilience` proves that behavior without network or spend. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The runner must not create fake audio files, mint public URLs, bypass capability planning, or call Atlas audio endpoints unless verified capabilities and provider wiring are present.
 
 ## Upstream Sources
 
@@ -28,6 +28,8 @@ Implementation status as of 2026-06-14: implemented foundation for a CineJelly-o
 - Mixed plan has ready and blocked items: call provider only for ready items; blocked items remain represented by the plan and batch validator.
 - Provider throws `ProviderError` with `POLLING_TIMEOUT` or `REQUEST_TIMEOUT`: return a `timeout` result.
 - Provider throws `ProviderError` with `REQUEST_ABORTED` or `PREDICTION_CANCELED`: return a `canceled` result.
+- Atlas audio prediction polling observes a retryable `NETWORK_ERROR`, `REQUEST_TIMEOUT`, or `RATE_LIMITED` error before the overall polling deadline: keep the prediction metadata active and continue polling instead of converting an in-progress provider job into a final failure.
+- Atlas returns a structured prediction payload with terminal `failed` inside an HTTP error response: parse the prediction body and return terminal `GENERATION_FAILED` evidence instead of retrying until timeout.
 - Provider throws any other error: return a `failed` result with stack-free raw error metadata.
 - Provider returns a result for the wrong intent, kind, provider, or model: preserve the raw result; batch/output validation rejects the mismatch.
 - Abort signal is already aborted before an item starts: stop before spending on later items and return no synthetic results for unattempted items.
@@ -111,9 +113,17 @@ async function runGeneratedAudioExecution(input: {
 - Runner does not approve URLs, create tracks, download media, inspect waveform data, or create generated audio files.
 - Atlas remains no-spend by default until verified generated-audio capabilities exist.
 - No production runtime import from `external/upstream/`.
+- `validation:generated-audio-polling-resilience` passes with a fake Atlas HTTP client that returns `running`, exhausts retryable polling attempts, then returns `completed` with an output URL while the ledger records `audio.generate` as `succeeded`.
 
 Local validation on 2026-06-14:
 
 - `npm.cmd run typecheck` passed.
 - `npm.cmd run build` passed.
 - A no-network smoke through the built `dist/index.js` surface confirmed the runner calls only ready execution-plan items, preserves plan order, skips blocked items, converts provider failures into failed result evidence, allows `GeneratedAudioOutputBatchValidator` to produce a `partially_approved` batch from mixed success/failure results, and turns provider mismatch into failed `UNSUPPORTED_SETTING` result evidence without calling the wrong provider.
+
+Additional local validation on 2026-06-19:
+
+- `node ./node_modules/typescript/bin/tsc -p tsconfig.json` passed.
+- `node scripts/run-generated-audio-polling-resilience-smoke.mjs` passed with 13/13 checks and no network/provider calls.
+- `node scripts/validate-report-contracts.mjs --only-contract generated_audio_polling_resilience:schemas/generated-audio-polling-resilience-smoke-report.schema.json=assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json --no-output` passed.
+- Paid Atlas validation with voice `eve` on 2026-06-19 produced a provider-success result, approved output-batch evidence, and a succeeded `audio.generate` ledger entry; manual listening review remains required before business readiness can count it.
