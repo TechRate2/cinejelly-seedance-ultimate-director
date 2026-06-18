@@ -9,6 +9,7 @@ import type {
   DirectorStyleBenchmarkEvidence,
   DirectorStyleBenchmarkEvidenceScope,
   DirectorStyleBenchmarkFacts,
+  DirectorStyleBenchmarkGovernanceReviewCheckName,
   DirectorStyleBenchmarkMetricResult,
   DirectorStyleBenchmarkMetricStatus,
   DirectorStyleBenchmarkParityEvidenceCategory,
@@ -93,6 +94,7 @@ export class DirectorStyleBenchmarkEvaluator {
     readonly semanticReviewPath?: string;
     readonly audioReviewPath?: string;
     readonly runtimeReviewPath?: string;
+    readonly governanceReviewPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
   }): DirectorStyleBenchmarkReport {
@@ -127,6 +129,7 @@ export class DirectorStyleBenchmarkEvaluator {
     const semanticReviewPath = input.semanticReviewPath ?? input.facts.semanticReviewEvidence?.sourcePath;
     const audioReviewPath = input.audioReviewPath ?? input.facts.audioReviewEvidence?.sourcePath;
     const runtimeReviewPath = input.runtimeReviewPath ?? input.facts.runtimeReviewEvidence?.sourcePath;
+    const governanceReviewPath = input.governanceReviewPath ?? input.facts.governanceReviewEvidence?.sourcePath;
     const frameSamplingIntervalSeconds =
       input.frameSamplingIntervalSeconds ?? input.facts.mediaEvidence?.frameSamplingIntervalSeconds;
 
@@ -156,6 +159,7 @@ export class DirectorStyleBenchmarkEvaluator {
         ...(semanticReviewPath ? { semanticReviewPath } : {}),
         ...(audioReviewPath ? { audioReviewPath } : {}),
         ...(runtimeReviewPath ? { runtimeReviewPath } : {}),
+        ...(governanceReviewPath ? { governanceReviewPath } : {}),
         ...(input.outputPath ? { outputPath: input.outputPath } : {}),
         ...(input.jsonlPath ? { jsonlPath: input.jsonlPath } : {}),
         minPassingScore,
@@ -187,10 +191,10 @@ export class DirectorStyleBenchmarkEvaluator {
           status === "blocked"
             ? "Benchmark evidence is blocked by missing core artifact or render completion evidence."
             : evidenceScope === "artifact_contract_only"
-              ? "Director-style benchmark evidence is artifact-contract-only; customer release still requires real long-form paid output, frame/audio review, production deployment evidence, and manual approval."
+              ? "Director-style benchmark evidence is artifact-contract-only; customer release still requires real long-form paid output, frame/audio review, governance review, production deployment evidence, and manual approval."
               : evidenceScope.includes("audio_waveform")
-              ? "Director-style benchmark includes local media probe/frame/audio-waveform/audio-duration-sync proxy evidence, but customer release still requires long-form paid output, semantic visual/audio review, generated-audio provider evidence, production deployment evidence, and manual approval."
-              : "Director-style benchmark includes local media probe/frame-signal evidence, but customer release still requires long-form paid output, semantic visual/audio review, production deployment evidence, and manual approval."
+              ? "Director-style benchmark includes local media probe/frame/audio-waveform/audio-duration-sync proxy evidence, but customer release still requires long-form paid output, semantic visual/audio review, generated-audio provider evidence, governance review, production deployment evidence, and manual approval."
+              : "Director-style benchmark includes local media probe/frame-signal evidence, but customer release still requires long-form paid output, semantic visual/audio review, governance review, production deployment evidence, and manual approval."
       },
       nextActions: this.nextActions(input.facts, metrics, bottlenecks)
     };
@@ -206,7 +210,7 @@ export class DirectorStyleBenchmarkEvaluator {
       "Sampled-frame color and brightness signals are structural proxies; VLM/ASR/lip-sync and shot-boundary review are still required for full DirectorBench-style parity."
     ];
     const semanticReviewLimitations = [
-      "Structured semantic review evidence is checkpoint evidence; long-form paid output, audio review, ASR/lip-sync, and full DirectorBench runtime parity remain separate gates."
+      "Structured semantic review evidence is checkpoint evidence; long-form paid output, audio review, ASR/lip-sync, governance review, and full DirectorBench runtime parity remain separate gates."
     ];
     const frameSignalEvidence = hasFrameSignals
       ? [
@@ -710,6 +714,9 @@ export class DirectorStyleBenchmarkEvaluator {
     } else if (facts.runtimeReviewEvidence.status !== "accepted") {
       actions.add("Resolve structured runtime ASR/lip-sync review findings before treating runtime parity checkpoints as accepted.");
     }
+    if (!this.hasAcceptedGovernanceReview(facts)) {
+      actions.add("Provide structured governance review JSON for DirectorBench license boundary, runtime evaluator independence, and evaluation-asset permissions.");
+    }
     if (!facts.mediaEvidence || facts.mediaEvidence.status === "unavailable") {
       actions.add("Provide a local rendered media file to add media probe and sampled-frame evidence to the Director-style benchmark.");
     } else if (facts.mediaEvidence.status !== "frame_sampled") {
@@ -765,6 +772,7 @@ export class DirectorStyleBenchmarkEvaluator {
       facts.runtimeReviewEvidence?.status === "accepted" &&
       facts.runtimeReviewEvidence.metrics.some((item) => item.metricName === "lip_sync_timing" && item.status === "accepted");
     const hasAcceptedManualReview = facts.manualReviewAccepted === true;
+    const hasAcceptedGovernanceReview = this.hasAcceptedGovernanceReview(facts);
 
     const requirements: DirectorStyleBenchmarkParityEvidenceRequirement[] = [
       this.parityRequirement({
@@ -891,10 +899,18 @@ export class DirectorStyleBenchmarkEvaluator {
       this.parityRequirement({
         id: "license_and_runtime_permission_review",
         category: "governance",
-        met: false,
-        partial: false,
-        evidence: [],
-        missingEvidence: ["Legal/permission review for deeper DirectorBench runtime parity or any reused evaluation assets."],
+        met: hasAcceptedGovernanceReview,
+        partial: facts.governanceReviewEvidence !== undefined && !hasAcceptedGovernanceReview,
+        evidence: facts.governanceReviewEvidence
+          ? [
+              `Structured governance review status=${facts.governanceReviewEvidence.status}; acceptedChecks=${facts.governanceReviewEvidence.acceptedCheckCount}/${facts.governanceReviewEvidence.checkCount}.`
+            ]
+          : [],
+        missingEvidence: hasAcceptedGovernanceReview
+          ? []
+          : [
+              "Accepted legal/permission review covering DirectorBench license boundary, no upstream code reuse, evaluator independence, and evaluation-asset permissions."
+            ],
         notes: "The snapshot has no top-level license, so CineJelly must keep this implementation independent unless permissions change."
       })
     ];
@@ -1023,6 +1039,22 @@ export class DirectorStyleBenchmarkEvaluator {
     metricName: DirectorStyleBenchmarkRuntimeReviewMetricName
   ): DirectorStyleBenchmarkRuntimeReviewMetricEvidence | undefined {
     return facts.runtimeReviewEvidence?.metrics.find((metric) => metric.metricName === metricName);
+  }
+
+  private hasAcceptedGovernanceReview(facts: DirectorStyleBenchmarkFacts): boolean {
+    const evidence = facts.governanceReviewEvidence;
+    if (evidence?.status !== "accepted") {
+      return false;
+    }
+    const requiredChecks: readonly DirectorStyleBenchmarkGovernanceReviewCheckName[] = [
+      "directorbench_license_boundary",
+      "upstream_code_reuse_boundary",
+      "runtime_evaluator_independence",
+      "evaluation_asset_permissions"
+    ];
+    return requiredChecks.every((checkName) =>
+      evidence.checks.some((check) => check.checkName === checkName && check.status === "accepted")
+    );
   }
 
   private runtimeMetricForAudioMetric(

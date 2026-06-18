@@ -1,0 +1,212 @@
+import type {
+  DirectorStyleBenchmarkGovernanceReviewCheckEvidence,
+  DirectorStyleBenchmarkGovernanceReviewCheckName,
+  DirectorStyleBenchmarkGovernanceReviewerType,
+  DirectorStyleBenchmarkGovernanceReviewEvidence,
+  DirectorStyleBenchmarkGovernanceReviewStatus
+} from "../types/director-style-benchmark.js";
+
+const CHECK_NAMES = new Set<DirectorStyleBenchmarkGovernanceReviewCheckName>([
+  "directorbench_license_boundary",
+  "upstream_code_reuse_boundary",
+  "runtime_evaluator_independence",
+  "evaluation_asset_permissions"
+]);
+
+const REVIEWER_TYPES = new Set<DirectorStyleBenchmarkGovernanceReviewerType>([
+  "operator",
+  "legal",
+  "product",
+  "security",
+  "hybrid"
+]);
+
+const REVIEW_STATUSES = new Set<DirectorStyleBenchmarkGovernanceReviewStatus>([
+  "accepted",
+  "needs_review",
+  "rejected"
+]);
+
+const SECRET_OR_PATH_PATTERNS = [
+  /Bearer\s+[A-Za-z0-9._-]+/gi,
+  /sk-[A-Za-z0-9_-]+/g,
+  /(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\s*[:=]\s*["']?[^"',\s&]+/gi,
+  /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/gi,
+  /[A-Za-z]:\\[^\s"'<>]+/g,
+  /\/(?:home|Users|var|tmp)\/[^\s"'<>]+/g,
+  /https?:\/\/[^\s"'<>]+/gi
+];
+
+export function normalizeDirectorStyleGovernanceReviewEvidence(
+  value: unknown,
+  options: { readonly sourcePath?: string } = {}
+): DirectorStyleBenchmarkGovernanceReviewEvidence {
+  if (!isRecord(value)) {
+    throw new Error("governance review must be a JSON object");
+  }
+
+  const reviewerType = normalizeReviewerType(value.reviewerType) ?? "operator";
+  const rawChecks = Array.isArray(value.checks)
+    ? value.checks
+    : Array.isArray(value.metrics)
+      ? value.metrics
+      : undefined;
+  if (!rawChecks) {
+    throw new Error("governance review must include a checks array");
+  }
+
+  const checks = rawChecks.map((item, index) => normalizeCheck(item, index, reviewerType));
+  if (checks.length === 0) {
+    throw new Error("governance review must include at least one supported check");
+  }
+
+  const status = normalizeStatus(value.status) ?? statusFromChecks(checks);
+  const reviewedAt = normalizeDateTime(value.reviewedAt);
+  const findings = [
+    ...stringsFrom(value.findings),
+    ...checks
+      .filter((check) => check.status !== "accepted")
+      .map((check) => `${check.checkName} governance review status is ${check.status}.`)
+  ];
+
+  return {
+    source: sourceFor(reviewerType),
+    ...(options.sourcePath ? { sourcePath: options.sourcePath } : {}),
+    status,
+    reviewerType,
+    ...(reviewedAt ? { reviewedAt } : {}),
+    checkCount: checks.length,
+    acceptedCheckCount: checks.filter((check) => check.status === "accepted").length,
+    checks,
+    findings
+  };
+}
+
+function normalizeCheck(
+  value: unknown,
+  index: number,
+  defaultReviewerType: DirectorStyleBenchmarkGovernanceReviewerType
+): DirectorStyleBenchmarkGovernanceReviewCheckEvidence {
+  if (!isRecord(value)) {
+    throw new Error(`governance review check at index ${index} must be an object`);
+  }
+  const checkName = normalizeCheckName(value.checkName ?? value.check ?? value.metricName ?? value.id);
+  if (!checkName) {
+    throw new Error(`governance review check at index ${index} has an unsupported checkName`);
+  }
+  const reviewerType = normalizeReviewerType(value.reviewerType) ?? defaultReviewerType;
+  const status = normalizeStatus(value.status) ?? "needs_review";
+  const evidenceSummary = safeRequiredText(
+    firstString(value.evidenceSummary, value.summary, value.evidence)
+  ) ?? `Structured governance review checkpoint for ${checkName}.`;
+  const reviewedAt = normalizeDateTime(value.reviewedAt);
+
+  return {
+    checkName,
+    status,
+    reviewerType,
+    evidenceSummary,
+    ...(reviewedAt ? { reviewedAt } : {}),
+    findings: stringsFrom(value.findings)
+  };
+}
+
+function normalizeCheckName(value: unknown): DirectorStyleBenchmarkGovernanceReviewCheckName | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim();
+  return CHECK_NAMES.has(normalized as DirectorStyleBenchmarkGovernanceReviewCheckName)
+    ? normalized as DirectorStyleBenchmarkGovernanceReviewCheckName
+    : undefined;
+}
+
+function normalizeReviewerType(value: unknown): DirectorStyleBenchmarkGovernanceReviewerType | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  return REVIEWER_TYPES.has(normalized as DirectorStyleBenchmarkGovernanceReviewerType)
+    ? normalized as DirectorStyleBenchmarkGovernanceReviewerType
+    : undefined;
+}
+
+function normalizeStatus(value: unknown): DirectorStyleBenchmarkGovernanceReviewStatus | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  return REVIEW_STATUSES.has(normalized as DirectorStyleBenchmarkGovernanceReviewStatus)
+    ? normalized as DirectorStyleBenchmarkGovernanceReviewStatus
+    : undefined;
+}
+
+function statusFromChecks(
+  checks: readonly DirectorStyleBenchmarkGovernanceReviewCheckEvidence[]
+): DirectorStyleBenchmarkGovernanceReviewStatus {
+  if (checks.some((check) => check.status === "rejected")) {
+    return "rejected";
+  }
+  if (checks.some((check) => check.status === "needs_review")) {
+    return "needs_review";
+  }
+  return "accepted";
+}
+
+function sourceFor(
+  reviewerType: DirectorStyleBenchmarkGovernanceReviewerType
+): DirectorStyleBenchmarkGovernanceReviewEvidence["source"] {
+  if (reviewerType === "hybrid") {
+    return "hybrid_governance_json";
+  }
+  return `${reviewerType}_governance_json` as DirectorStyleBenchmarkGovernanceReviewEvidence["source"];
+}
+
+function normalizeDateTime(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && value.includes("T") ? value : undefined;
+}
+
+function firstString(...values: readonly unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function stringsFrom(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => safeRequiredText(item))
+    .filter((item): item is string => item !== undefined);
+}
+
+function safeRequiredText(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const text = value.trim();
+  if (text.length === 0 || text.length > 500 || /[\u0000-\u001f\u007f]/.test(text)) {
+    return undefined;
+  }
+  return containsSecretOrPath(text) ? undefined : text;
+}
+
+function containsSecretOrPath(value: string): boolean {
+  return SECRET_OR_PATH_PATTERNS.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(value);
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

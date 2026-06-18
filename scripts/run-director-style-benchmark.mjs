@@ -12,6 +12,7 @@ const defaults = {
   semanticReviewPath: "assets/output_deliverables/business-readiness/director-style-semantic-review.json",
   audioReviewPath: "assets/output_deliverables/business-readiness/director-style-audio-review.json",
   runtimeReviewPath: "assets/output_deliverables/business-readiness/director-style-runtime-review.json",
+  governanceReviewPath: "assets/output_deliverables/business-readiness/director-style-governance-review.json",
   mediaPath: "assets/output_deliverables/phase6-validation/final.mp4",
   outputPath: "assets/output_deliverables/business-readiness/director-style-benchmark-report.json",
   jsonlPath: "assets/output_deliverables/business-readiness/director-style-benchmark-results.jsonl",
@@ -35,6 +36,7 @@ function parseArgs(args) {
     useSemanticReview: true,
     useAudioReview: true,
     useRuntimeReview: true,
+    useGovernanceReview: true,
     useMedia: true,
     buildFirst: false
   };
@@ -45,6 +47,7 @@ function parseArgs(args) {
     ["--semantic-review", "semanticReviewPath"],
     ["--audio-review", "audioReviewPath"],
     ["--runtime-review", "runtimeReviewPath"],
+    ["--governance-review", "governanceReviewPath"],
     ["--media", "mediaPath"],
     ["--output", "outputPath"],
     ["--jsonl", "jsonlPath"],
@@ -90,6 +93,10 @@ function parseArgs(args) {
     }
     if (arg === "--no-runtime-review") {
       options.useRuntimeReview = false;
+      continue;
+    }
+    if (arg === "--no-governance-review") {
+      options.useGovernanceReview = false;
       continue;
     }
     if (arg === "--no-media") {
@@ -144,6 +151,7 @@ Options:
   --semantic-review <path>        Optional structured semantic review JSON. Default: ${defaults.semanticReviewPath}
   --audio-review <path>           Optional structured audio review JSON. Default: ${defaults.audioReviewPath}
   --runtime-review <path>         Optional structured ASR/lip-sync runtime review JSON. Default: ${defaults.runtimeReviewPath}
+  --governance-review <path>      Optional structured license/runtime permission review JSON. Default: ${defaults.governanceReviewPath}
   --media <path>                  Optional local rendered media for probe/frame-signal evidence. Default: ${defaults.mediaPath}
   --profile <name>                balanced, story_first, visual_heavy, audio_emotion, sync_perfectionist. Default: balanced
   --min-passing-score <number>    Default: ${defaults.minPassingScore}
@@ -160,6 +168,7 @@ Options:
   --no-semantic-review            Do not read structured semantic review evidence.
   --no-audio-review               Do not read structured audio review evidence.
   --no-runtime-review             Do not read structured runtime review evidence.
+  --no-governance-review          Do not read structured governance review evidence.
   --no-media                      Do not inspect local rendered media.
   --build                         Build TypeScript before importing the benchmark evaluator.
   --no-output                     Print only; do not write the JSON report.
@@ -195,8 +204,19 @@ async function main() {
   const semanticReviewEvidence = options.useSemanticReview ? await collectSemanticReviewEvidence(options) : undefined;
   const audioReviewEvidence = options.useAudioReview ? await collectAudioReviewEvidence(options) : undefined;
   const runtimeReviewEvidence = options.useRuntimeReview ? await collectRuntimeReviewEvidence(options) : undefined;
+  const governanceReviewEvidence = options.useGovernanceReview ? await collectGovernanceReviewEvidence(options) : undefined;
   const mediaEvidence = options.useMedia ? await collectMediaEvidence(options) : undefined;
-  const facts = factsFrom({ paidRenderReport, request, manualReviewText, semanticReviewEvidence, audioReviewEvidence, runtimeReviewEvidence, mediaEvidence, options });
+  const facts = factsFrom({
+    paidRenderReport,
+    request,
+    manualReviewText,
+    semanticReviewEvidence,
+    audioReviewEvidence,
+    runtimeReviewEvidence,
+    governanceReviewEvidence,
+    mediaEvidence,
+    options
+  });
   const { DirectorStyleBenchmarkEvaluator } = await import("../dist/core/director-style-benchmark.js");
   const evaluator = new DirectorStyleBenchmarkEvaluator();
   const report = evaluator.evaluate({
@@ -213,6 +233,7 @@ async function main() {
     ...(semanticReviewEvidence ? { semanticReviewPath: toRepoRelative(options.semanticReviewPath) } : {}),
     ...(audioReviewEvidence ? { audioReviewPath: toRepoRelative(options.audioReviewPath) } : {}),
     ...(runtimeReviewEvidence ? { runtimeReviewPath: toRepoRelative(options.runtimeReviewPath) } : {}),
+    ...(governanceReviewEvidence ? { governanceReviewPath: toRepoRelative(options.governanceReviewPath) } : {}),
     ...(options.writeOutput ? { outputPath: toRepoRelative(options.outputPath) } : {}),
     ...(options.appendJsonl ? { jsonlPath: toRepoRelative(options.jsonlPath) } : {})
   });
@@ -280,6 +301,16 @@ async function collectRuntimeReviewEvidence(options) {
   return normalizeDirectorStyleRuntimeReviewEvidence(raw, { sourcePath: toRepoRelative(options.runtimeReviewPath) });
 }
 
+async function collectGovernanceReviewEvidence(options) {
+  const absolutePath = resolve(repoRoot, options.governanceReviewPath);
+  if (!existsSync(absolutePath)) {
+    return undefined;
+  }
+  const raw = readJson(options.governanceReviewPath, true);
+  const { normalizeDirectorStyleGovernanceReviewEvidence } = await import("../dist/core/director-style-governance-review.js");
+  return normalizeDirectorStyleGovernanceReviewEvidence(raw, { sourcePath: toRepoRelative(options.governanceReviewPath) });
+}
+
 function validateOptions(options) {
   const profiles = new Set(["balanced", "story_first", "visual_heavy", "audio_emotion", "sync_perfectionist"]);
   if (!profiles.has(options.profile)) {
@@ -324,6 +355,7 @@ function validateOptions(options) {
     ["--semantic-review", options.semanticReviewPath],
     ["--audio-review", options.audioReviewPath],
     ["--runtime-review", options.runtimeReviewPath],
+    ["--governance-review", options.governanceReviewPath],
     ["--media", options.mediaPath],
     ["--output", options.outputPath],
     ["--jsonl", options.jsonlPath]
@@ -340,7 +372,17 @@ function validateOptions(options) {
   }
 }
 
-function factsFrom({ paidRenderReport, request, manualReviewText, semanticReviewEvidence, audioReviewEvidence, runtimeReviewEvidence, mediaEvidence, options }) {
+function factsFrom({
+  paidRenderReport,
+  request,
+  manualReviewText,
+  semanticReviewEvidence,
+  audioReviewEvidence,
+  runtimeReviewEvidence,
+  governanceReviewEvidence,
+  mediaEvidence,
+  options
+}) {
   const artifactEntries = Array.isArray(paidRenderReport?.artifactBundle?.entries)
     ? paidRenderReport.artifactBundle.entries
     : [];
@@ -399,6 +441,7 @@ function factsFrom({ paidRenderReport, request, manualReviewText, semanticReview
     ...(semanticReviewEvidence ? { semanticReviewEvidence } : {}),
     ...(audioReviewEvidence ? { audioReviewEvidence } : {}),
     ...(runtimeReviewEvidence ? { runtimeReviewEvidence } : {}),
+    ...(governanceReviewEvidence ? { governanceReviewEvidence } : {}),
     ...(mediaEvidence ? { mediaEvidence } : {})
   };
 }

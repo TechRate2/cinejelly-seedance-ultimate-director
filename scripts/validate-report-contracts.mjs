@@ -44,6 +44,7 @@ const defaultContracts = [
   contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
   contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),
   contract("director_style_runtime_review", "schemas/director-style-runtime-review.schema.json", "assets/output_deliverables/business-readiness/director-style-runtime-review.json"),
+  contract("director_style_governance_review", "schemas/director-style-governance-review.schema.json", "assets/output_deliverables/business-readiness/director-style-governance-review.json"),
   contract("director_style_benchmark", "schemas/director-style-benchmark-report.schema.json", "assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
   contract("billing_admin_ops", "schemas/billing-admin-ops-report.schema.json", "assets/output_deliverables/business-readiness/billing-admin-ops-report.json"),
   contract("production_operations", "schemas/production-operations-report.schema.json", "assets/output_deliverables/business-readiness/production-operations-report.json"),
@@ -882,11 +883,27 @@ function validateDirectorStyleBenchmarkSemantics(report) {
   const acceptedLipSyncRuntimeReview =
     report?.facts?.runtimeReviewEvidence?.status === "accepted" &&
     runtimeMetrics.some((metric) => metric?.metricName === "lip_sync_timing" && metric?.status === "accepted");
+  const governanceChecks = Array.isArray(report?.facts?.governanceReviewEvidence?.checks)
+    ? report.facts.governanceReviewEvidence.checks
+    : [];
+  const acceptedGovernanceReview =
+    report?.facts?.governanceReviewEvidence?.status === "accepted" &&
+    [
+      "directorbench_license_boundary",
+      "upstream_code_reuse_boundary",
+      "runtime_evaluator_independence",
+      "evaluation_asset_permissions"
+    ].every((name) =>
+      governanceChecks.some((check) => check?.checkName === name && check?.status === "accepted")
+    );
   if ((requirementById.get("asr_transcript_alignment")?.status === "met") !== acceptedAsrRuntimeReview) {
     issues.push("$.parityEvidenceMatrix.requirements[id=asr_transcript_alignment].status: expected met only with accepted runtime ASR transcript-alignment evidence.");
   }
   if ((requirementById.get("lip_sync_evidence")?.status === "met") !== acceptedLipSyncRuntimeReview) {
     issues.push("$.parityEvidenceMatrix.requirements[id=lip_sync_evidence].status: expected met only with accepted runtime lip-sync timing evidence.");
+  }
+  if ((requirementById.get("license_and_runtime_permission_review")?.status === "met") !== acceptedGovernanceReview) {
+    issues.push("$.parityEvidenceMatrix.requirements[id=license_and_runtime_permission_review].status: expected met only with accepted governance permission evidence.");
   }
   return issues;
 }

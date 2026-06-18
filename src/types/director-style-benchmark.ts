@@ -55,6 +55,13 @@ export type DirectorStyleBenchmarkRuntimeReviewMetricName =
   | "lip_sync_timing";
 export type DirectorStyleBenchmarkRuntimeReviewStatus = "accepted" | "needs_review" | "rejected";
 export type DirectorStyleBenchmarkRuntimeReviewerType = "manual" | "asr" | "lip_sync" | "hybrid";
+export type DirectorStyleBenchmarkGovernanceReviewCheckName =
+  | "directorbench_license_boundary"
+  | "upstream_code_reuse_boundary"
+  | "runtime_evaluator_independence"
+  | "evaluation_asset_permissions";
+export type DirectorStyleBenchmarkGovernanceReviewStatus = "accepted" | "needs_review" | "rejected";
+export type DirectorStyleBenchmarkGovernanceReviewerType = "operator" | "legal" | "product" | "security" | "hybrid";
 
 export interface DirectorStyleBenchmarkEvidence {
   readonly kind: string;
@@ -274,6 +281,32 @@ export interface DirectorStyleBenchmarkRuntimeReviewEvidence {
   readonly findings: readonly string[];
 }
 
+export interface DirectorStyleBenchmarkGovernanceReviewCheckEvidence {
+  readonly checkName: DirectorStyleBenchmarkGovernanceReviewCheckName;
+  readonly status: DirectorStyleBenchmarkGovernanceReviewStatus;
+  readonly reviewerType: DirectorStyleBenchmarkGovernanceReviewerType;
+  readonly evidenceSummary: string;
+  readonly reviewedAt?: string;
+  readonly findings: readonly string[];
+}
+
+export interface DirectorStyleBenchmarkGovernanceReviewEvidence {
+  readonly source:
+    | "operator_governance_json"
+    | "legal_governance_json"
+    | "product_governance_json"
+    | "security_governance_json"
+    | "hybrid_governance_json";
+  readonly sourcePath?: string;
+  readonly status: DirectorStyleBenchmarkGovernanceReviewStatus;
+  readonly reviewerType: DirectorStyleBenchmarkGovernanceReviewerType;
+  readonly reviewedAt?: string;
+  readonly checkCount: number;
+  readonly acceptedCheckCount: number;
+  readonly checks: readonly DirectorStyleBenchmarkGovernanceReviewCheckEvidence[];
+  readonly findings: readonly string[];
+}
+
 export interface DirectorStyleBenchmarkMediaEvidence {
   readonly status: "unavailable" | "probe_only" | "frame_sampled";
   readonly source: "local_file";
@@ -314,6 +347,7 @@ export interface DirectorStyleBenchmarkFacts {
   readonly semanticReviewEvidence?: DirectorStyleBenchmarkSemanticReviewEvidence;
   readonly audioReviewEvidence?: DirectorStyleBenchmarkAudioReviewEvidence;
   readonly runtimeReviewEvidence?: DirectorStyleBenchmarkRuntimeReviewEvidence;
+  readonly governanceReviewEvidence?: DirectorStyleBenchmarkGovernanceReviewEvidence;
 }
 
 export interface DirectorStyleBenchmarkReport {
@@ -338,6 +372,7 @@ export interface DirectorStyleBenchmarkReport {
     readonly semanticReviewPath?: string;
     readonly audioReviewPath?: string;
     readonly runtimeReviewPath?: string;
+    readonly governanceReviewPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
     readonly minPassingScore: number;

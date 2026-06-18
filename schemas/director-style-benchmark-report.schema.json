@@ -47,6 +47,7 @@
         "semanticReviewPath": { "type": "string", "minLength": 1 },
         "audioReviewPath": { "type": "string", "minLength": 1 },
         "runtimeReviewPath": { "type": "string", "minLength": 1 },
+        "governanceReviewPath": { "type": "string", "minLength": 1 },
         "outputPath": { "type": "string", "minLength": 1 },
         "jsonlPath": { "type": "string", "minLength": 1 },
         "minPassingScore": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -122,7 +123,8 @@
         "mediaEvidence": { "$ref": "#/$defs/mediaEvidence" },
         "semanticReviewEvidence": { "$ref": "#/$defs/semanticReviewEvidence" },
         "audioReviewEvidence": { "$ref": "#/$defs/audioReviewEvidence" },
-        "runtimeReviewEvidence": { "$ref": "#/$defs/runtimeReviewEvidence" }
+        "runtimeReviewEvidence": { "$ref": "#/$defs/runtimeReviewEvidence" },
+        "governanceReviewEvidence": { "$ref": "#/$defs/governanceReviewEvidence" }
       }
     },
     "dimensionScores": {
@@ -508,6 +510,54 @@
           "items": { "$ref": "#/$defs/runtimeReviewMetricEvidence" }
         },
         "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "governanceReviewCheckEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checkName", "status", "reviewerType", "evidenceSummary", "findings"],
+      "properties": {
+        "checkName": {
+          "enum": [
+            "directorbench_license_boundary",
+            "upstream_code_reuse_boundary",
+            "runtime_evaluator_independence",
+            "evaluation_asset_permissions"
+          ]
+        },
+        "status": { "enum": ["accepted", "needs_review", "rejected"] },
+        "reviewerType": { "enum": ["operator", "legal", "product", "security", "hybrid"] },
+        "evidenceSummary": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      }
+    },
+    "governanceReviewEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "status", "reviewerType", "checkCount", "acceptedCheckCount", "checks", "findings"],
+      "properties": {
+        "source": {
+          "enum": [
+            "operator_governance_json",
+            "legal_governance_json",
+            "product_governance_json",
+            "security_governance_json",
+            "hybrid_governance_json"
+          ]
+        },
+        "sourcePath": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["accepted", "needs_review", "rejected"] },
+        "reviewerType": { "enum": ["operator", "legal", "product", "security", "hybrid"] },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "checkCount": { "type": "integer", "minimum": 1 },
+        "acceptedCheckCount": { "type": "integer", "minimum": 0 },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/governanceReviewCheckEvidence" }
+        },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
       }
     },
     "evidence": {
