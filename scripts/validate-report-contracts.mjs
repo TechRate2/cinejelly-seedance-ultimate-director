@@ -1198,6 +1198,8 @@ function validateProductionGraphResumeStateSemantics(report) {
     /sk_live/i,
     /token_should_not_escape/i,
     /pred_resume_active/i,
+    /graph_resume_lane_primary/i,
+    /resume_worker_a/i,
     /cdn\.example\.com/i
   ];
 
@@ -1239,6 +1241,24 @@ function validateProductionGraphResumeStateSemantics(report) {
   }
   if (Number(report?.summary?.activeClipRenderCount ?? -1) !== Number(report?.capsule?.resumeCursor?.activeClipRenderCount ?? -2)) {
     issues.push("$.summary.activeClipRenderCount: expected to match capsule.resumeCursor.activeClipRenderCount.");
+  }
+  if (report?.queue?.firstEnqueueStatus !== "enqueued" || report?.queue?.replayStatus !== "replayed") {
+    issues.push("$.queue: expected first enqueue to record and second enqueue to replay by idempotency key.");
+  }
+  if (report?.queue?.leaseStatus !== "leased" || report?.queue?.ackStatus !== "acknowledged" || report?.queue?.record?.status !== "acknowledged") {
+    issues.push("$.queue: expected lease and acknowledgement lifecycle to complete.");
+  }
+  if (Number(report?.summary?.enqueuedRecordCount ?? -1) < 1 || Number(report?.summary?.idempotentReplayCount ?? -1) < 1) {
+    issues.push("$.summary.enqueuedRecordCount/idempotentReplayCount: expected local queue enqueue plus idempotent replay evidence.");
+  }
+  if (Number(report?.summary?.leasedRecordCount ?? -1) < 1 || Number(report?.summary?.acknowledgedRecordCount ?? -1) < 1) {
+    issues.push("$.summary.leasedRecordCount/acknowledgedRecordCount: expected local queue lease and ack evidence.");
+  }
+  if (report?.queue?.record?.predictionIdsSha256 !== report?.capsule?.providerWorkSummary?.predictionIdsSha256) {
+    issues.push("$.queue.record.predictionIdsSha256: expected to match capsule.providerWorkSummary.predictionIdsSha256.");
+  }
+  if (report?.queue?.record?.graphStateSha256 !== report?.capsule?.redactedGraphSha256) {
+    issues.push("$.queue.record.graphStateSha256: expected to match capsule.redactedGraphSha256.");
   }
   if (report?.capsule?.providerWorkSummary?.requiresActionLedgerPredictionIds !== true) {
     issues.push("$.capsule.providerWorkSummary.requiresActionLedgerPredictionIds: expected true so raw prediction IDs stay outside the capsule.");

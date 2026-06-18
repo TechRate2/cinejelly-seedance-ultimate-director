@@ -13,6 +13,7 @@ if (compile.status !== 0) {
 }
 
 const {
+  FileProductionGraphResumeQueueStore,
   FileProductionGraphResumeStateStore,
   ProductionGraphResumeStateBuilder
 } = await import("../dist/core/production-graph-resume-state.js");
@@ -25,6 +26,8 @@ const outputPath = resolve(
 );
 const workDir = resolve("assets/output_deliverables/business-readiness/production-graph-resume-state-smoke");
 const statePath = resolve(workDir, "resume-state.json");
+const queuePath = resolve(workDir, "resume-queue.json");
+const queueName = "graph_resume_lane_primary";
 const sourcePatternOrigins = [
   "harry0703/MoneyPrinterTurbo durable task ownership and resume-state persistence",
   "vericontext/vibeframe deterministic status/report evidence before release claims",
@@ -71,11 +74,44 @@ await store.save(capsule);
 const reloaded = await new FileProductionGraphResumeStateStore({ statePath }).list();
 const reloadedByJob = await new FileProductionGraphResumeStateStore({ statePath }).findByJobId(capsule.jobId);
 const persistedStore = JSON.parse(await readFile(statePath, "utf8"));
-const publicPayload = JSON.stringify({ capsule, reloaded, persistedStore });
+const queueStore = new FileProductionGraphResumeQueueStore({ queuePath });
+const enqueueFirst = await queueStore.enqueue({
+  queueName,
+  capsule,
+  now: new Date("2026-06-18T00:01:00.000Z")
+});
+const enqueueReplay = await queueStore.enqueue({
+  queueName,
+  capsule,
+  now: new Date("2026-06-18T00:01:01.000Z")
+});
+const lease = await queueStore.leaseNext({
+  queueName,
+  workerId: "resume_worker_a",
+  leaseTtlMs: 120_000,
+  now: new Date("2026-06-18T00:02:00.000Z")
+});
+const reloadedLeasedQueue = await new FileProductionGraphResumeQueueStore({ queuePath }).list();
+const ack = lease.record?.leaseId
+  ? await queueStore.acknowledge({
+      queueRecordId: lease.record.queueRecordId,
+      leaseId: lease.record.leaseId,
+      now: new Date("2026-06-18T00:03:00.000Z")
+    })
+  : { status: "not_found" };
+const reloadedAckedQueue = await new FileProductionGraphResumeQueueStore({ queuePath }).list();
+const persistedQueue = JSON.parse(await readFile(queuePath, "utf8"));
+const publicPayload = JSON.stringify({ capsule, reloaded, persistedStore, enqueueFirst, enqueueReplay, lease, ack, persistedQueue });
 const checks = [
   check("capsule_schema_version_is_current", capsule.schemaVersion === "cinejelly.production-graph-resume-state.v1"),
   check("capsule_digest_is_stable_for_same_inputs", capsule.capsuleSha256 === secondCapsule.capsuleSha256),
   check("store_reload_preserves_one_capsule", reloaded.length === 1 && reloadedByJob?.capsuleSha256 === capsule.capsuleSha256),
+  check("queue_first_enqueue_records_one_item", enqueueFirst.status === "enqueued" && persistedQueue.records?.length === 1),
+  check("queue_second_enqueue_replays_idempotently", enqueueReplay.status === "replayed" && enqueueReplay.record.idempotencyKey === enqueueFirst.record.idempotencyKey),
+  check("queue_lease_marks_record_leased", lease.status === "leased" && lease.record?.status === "leased" && reloadedLeasedQueue[0]?.status === "leased"),
+  check("queue_ack_persists_acknowledged_state", ack.status === "acknowledged" && reloadedAckedQueue[0]?.status === "acknowledged"),
+  check("queue_stores_digests_not_raw_queue_names", !publicPayload.includes(queueName) && /^[a-f0-9]{64}$/.test(enqueueFirst.record.queueNameSha256)),
+  check("queue_stores_digests_not_worker_ids", !publicPayload.includes("resume_worker_a") && /^[a-f0-9]{64}$/.test(lease.record?.workerIdSha256 ?? "")),
   check("graph_counts_match_source_snapshot", capsule.graphSummary.nodeCount === graph.nodes.length && capsule.graphSummary.edgeCount === graph.edges.length),
   check("active_clip_cursor_selected", capsule.resumeCursor.nextNodeType === "clip_render" && capsule.resumeCursor.activeClipRenderCount === 1),
   check("provider_prediction_ids_are_digest_only", capsule.providerWorkSummary.predictionIdCount === 2 && !publicPayload.includes("pred_resume_active")),
@@ -101,6 +137,7 @@ const report = {
   checkedInputs: {
     outputPath: toRepoRelative(outputPath),
     statePath: toRepoRelative(statePath),
+    queuePath: toRepoRelative(queuePath),
     fakeGraph: true,
     graphNodeCount: graph.nodes.length,
     graphEdgeCount: graph.edges.length
@@ -108,6 +145,10 @@ const report = {
   summary: {
     createdCapsuleCount: 1,
     restoredCapsuleCount: reloaded.length,
+    enqueuedRecordCount: persistedQueue.records?.length ?? 0,
+    idempotentReplayCount: enqueueReplay.status === "replayed" ? 1 : 0,
+    leasedRecordCount: reloadedLeasedQueue.filter((item) => item.status === "leased").length,
+    acknowledgedRecordCount: reloadedAckedQueue.filter((item) => item.status === "acknowledged").length,
     nodeCount: capsule.graphSummary.nodeCount,
     edgeCount: capsule.graphSummary.edgeCount,
     sourceGraphSha256: capsule.sourceGraphSha256,
@@ -124,6 +165,14 @@ const report = {
     canReleaseToCustomerTraffic: capsule.releaseGateSummary.canReleaseToCustomerTraffic
   },
   capsule: publicCapsule(capsule),
+  queue: {
+    schemaVersion: "cinejelly.production-graph-resume-queue.v1",
+    firstEnqueueStatus: enqueueFirst.status,
+    replayStatus: enqueueReplay.status,
+    leaseStatus: lease.status,
+    ackStatus: ack.status,
+    record: publicQueueRecord(ack.record ?? lease.record ?? enqueueFirst.record)
+  },
   checks
 };
 
@@ -258,6 +307,31 @@ function publicCapsule(value) {
     resumeCursor: value.resumeCursor,
     redactionSummary: value.redactionSummary,
     releaseGateSummary: value.releaseGateSummary
+  };
+}
+
+function publicQueueRecord(value) {
+  return {
+    queueRecordId: value.queueRecordId,
+    idempotencyKey: value.idempotencyKey,
+    queueNameSha256: value.queueNameSha256,
+    capsuleId: value.capsuleId,
+    capsuleSha256: value.capsuleSha256,
+    jobId: value.jobId,
+    actionId: value.actionId,
+    graphStateSha256: value.graphStateSha256,
+    resumeCursorSha256: value.resumeCursorSha256,
+    predictionIdsSha256: value.predictionIdsSha256,
+    predictionIdCount: value.predictionIdCount,
+    activePredictionIdCount: value.activePredictionIdCount,
+    status: value.status,
+    enqueuedAt: value.enqueuedAt.toISOString(),
+    attemptCount: value.attemptCount,
+    leaseId: value.leaseId,
+    workerIdSha256: value.workerIdSha256,
+    leasedAt: value.leasedAt?.toISOString(),
+    leaseExpiresAt: value.leaseExpiresAt?.toISOString(),
+    acknowledgedAt: value.acknowledgedAt?.toISOString()
   };
 }
 

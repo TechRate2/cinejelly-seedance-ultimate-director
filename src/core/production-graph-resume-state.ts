@@ -11,9 +11,12 @@ import type { GraphNodeType, ProductionGraphSnapshot } from "../types/graph.js";
 
 export const PRODUCTION_GRAPH_RESUME_STATE_SCHEMA_VERSION = "cinejelly.production-graph-resume-state.v1";
 export const PRODUCTION_GRAPH_RESUME_STATE_STORE_SCHEMA_VERSION = "cinejelly.production-graph-resume-state-store.v1";
+export const PRODUCTION_GRAPH_RESUME_QUEUE_SCHEMA_VERSION = "cinejelly.production-graph-resume-queue.v1";
+export const PRODUCTION_GRAPH_RESUME_QUEUE_STORE_SCHEMA_VERSION = "cinejelly.production-graph-resume-queue-store.v1";
 
 const DEFAULT_TTL_MS = 86_400_000;
 const DEFAULT_MAX_CAPSULES = 500;
+const DEFAULT_MAX_QUEUE_RECORDS = 1_000;
 const MAX_ID_LENGTH = 240;
 const MIN_TTL_MS = 60_000;
 const MAX_TTL_MS = 7 * 86_400_000;
@@ -105,6 +108,54 @@ export interface ProductionGraphResumeStateCapsule {
 export interface ProductionGraphResumeStateStoreRecord {
   readonly writtenAt: Date;
   readonly capsules: readonly ProductionGraphResumeStateCapsule[];
+}
+
+export type ProductionGraphResumeQueueRecordStatus = "queued" | "leased" | "acknowledged";
+export type ProductionGraphResumeQueueEnqueueStatus = "enqueued" | "replayed";
+export type ProductionGraphResumeQueueLeaseStatus = "leased" | "empty";
+export type ProductionGraphResumeQueueAckStatus = "acknowledged" | "not_found" | "not_leased" | "lease_mismatch";
+
+export interface ProductionGraphResumeQueueRecord {
+  readonly queueRecordId: string;
+  readonly idempotencyKey: string;
+  readonly queueNameSha256: string;
+  readonly capsuleId: string;
+  readonly capsuleSha256: string;
+  readonly jobId: string;
+  readonly actionId?: string;
+  readonly graphStateSha256: string;
+  readonly resumeCursorSha256: string;
+  readonly predictionIdsSha256: string;
+  readonly predictionIdCount: number;
+  readonly activePredictionIdCount: number;
+  readonly status: ProductionGraphResumeQueueRecordStatus;
+  readonly enqueuedAt: Date;
+  readonly attemptCount: number;
+  readonly leaseId?: string;
+  readonly workerIdSha256?: string;
+  readonly leasedAt?: Date;
+  readonly leaseExpiresAt?: Date;
+  readonly acknowledgedAt?: Date;
+}
+
+export interface ProductionGraphResumeQueueEnqueueResult {
+  readonly status: ProductionGraphResumeQueueEnqueueStatus;
+  readonly record: ProductionGraphResumeQueueRecord;
+}
+
+export interface ProductionGraphResumeQueueLeaseResult {
+  readonly status: ProductionGraphResumeQueueLeaseStatus;
+  readonly record?: ProductionGraphResumeQueueRecord;
+}
+
+export interface ProductionGraphResumeQueueAckResult {
+  readonly status: ProductionGraphResumeQueueAckStatus;
+  readonly record?: ProductionGraphResumeQueueRecord;
+}
+
+export interface ProductionGraphResumeQueueStoreRecord {
+  readonly writtenAt: Date;
+  readonly records: readonly ProductionGraphResumeQueueRecord[];
 }
 
 export class ProductionGraphResumeStateBuilder {
@@ -347,6 +398,213 @@ export class FileProductionGraphResumeStateStore {
   }
 }
 
+export class FileProductionGraphResumeQueueStore {
+  private readonly queuePath: string;
+  private readonly maxRecords: number;
+
+  public constructor(input: {
+    readonly queuePath: string;
+    readonly maxRecords?: number;
+  }) {
+    this.queuePath = input.queuePath;
+    this.maxRecords = Math.max(10, input.maxRecords ?? DEFAULT_MAX_QUEUE_RECORDS);
+  }
+
+  public async enqueue(input: {
+    readonly queueName: string;
+    readonly capsule: ProductionGraphResumeStateCapsule;
+    readonly now?: Date;
+  }): Promise<ProductionGraphResumeQueueEnqueueResult> {
+    const now = input.now ?? new Date();
+    const queueNameSha256 = sha256(safeLabel(input.queueName, "queueName"));
+    const idempotencyKey = this.idempotencyKey(queueNameSha256, input.capsule);
+    const current = await this.readStore();
+    const existing = current.records.find((record) => record.idempotencyKey === idempotencyKey);
+    if (existing) {
+      return {
+        status: "replayed",
+        record: existing
+      };
+    }
+    const record: ProductionGraphResumeQueueRecord = {
+      queueRecordId: `graph_resume_queue_${randomUUID()}`,
+      idempotencyKey,
+      queueNameSha256,
+      capsuleId: safeId(input.capsule.capsuleId, "capsuleId"),
+      capsuleSha256: sha256Value(input.capsule.capsuleSha256, "capsuleSha256"),
+      jobId: safeId(input.capsule.jobId, "jobId"),
+      ...(input.capsule.actionId ? { actionId: safeId(input.capsule.actionId, "actionId") } : {}),
+      graphStateSha256: sha256Value(input.capsule.redactedGraphSha256, "redactedGraphSha256"),
+      resumeCursorSha256: sha256(canonicalJson(input.capsule.resumeCursor)),
+      predictionIdsSha256: sha256Value(input.capsule.providerWorkSummary.predictionIdsSha256, "predictionIdsSha256"),
+      predictionIdCount: integerValue(input.capsule.providerWorkSummary.predictionIdCount, "predictionIdCount"),
+      activePredictionIdCount: integerValue(input.capsule.providerWorkSummary.activePredictionIdCount, "activePredictionIdCount"),
+      status: "queued",
+      enqueuedAt: now,
+      attemptCount: 0
+    };
+    await this.writeStore({
+      writtenAt: new Date(),
+      records: [...current.records, record].slice(-this.maxRecords)
+    });
+    return {
+      status: "enqueued",
+      record
+    };
+  }
+
+  public async leaseNext(input: {
+    readonly queueName: string;
+    readonly workerId: string;
+    readonly leaseTtlMs: number;
+    readonly now?: Date;
+  }): Promise<ProductionGraphResumeQueueLeaseResult> {
+    const now = input.now ?? new Date();
+    const ttlMs = safeTtl(input.leaseTtlMs, "leaseTtlMs");
+    const queueNameSha256 = sha256(safeLabel(input.queueName, "queueName"));
+    const workerIdSha256 = sha256(safeId(input.workerId, "workerId"));
+    const current = await this.readStore();
+    const candidate = [...current.records]
+      .filter((record) =>
+        record.queueNameSha256 === queueNameSha256 &&
+        record.status !== "acknowledged" &&
+        (record.status === "queued" || !record.leaseExpiresAt || record.leaseExpiresAt.getTime() <= now.getTime())
+      )
+      .sort((left, right) => left.enqueuedAt.getTime() - right.enqueuedAt.getTime())[0];
+    if (!candidate) {
+      return {
+        status: "empty"
+      };
+    }
+    const leased: ProductionGraphResumeQueueRecord = {
+      ...candidate,
+      status: "leased",
+      leaseId: `graph_resume_lease_${randomUUID()}`,
+      workerIdSha256,
+      leasedAt: now,
+      leaseExpiresAt: new Date(now.getTime() + ttlMs),
+      attemptCount: candidate.attemptCount + 1
+    };
+    await this.writeStore({
+      writtenAt: new Date(),
+      records: current.records.map((record) =>
+        record.queueRecordId === candidate.queueRecordId ? leased : record
+      )
+    });
+    return {
+      status: "leased",
+      record: leased
+    };
+  }
+
+  public async acknowledge(input: {
+    readonly queueRecordId: string;
+    readonly leaseId: string;
+    readonly now?: Date;
+  }): Promise<ProductionGraphResumeQueueAckResult> {
+    const queueRecordId = safeId(input.queueRecordId, "queueRecordId");
+    const leaseId = safeId(input.leaseId, "leaseId");
+    const now = input.now ?? new Date();
+    const current = await this.readStore();
+    const target = current.records.find((record) => record.queueRecordId === queueRecordId);
+    if (!target) {
+      return { status: "not_found" };
+    }
+    if (target.status !== "leased") {
+      return {
+        status: "not_leased",
+        record: target
+      };
+    }
+    if (target.leaseId !== leaseId) {
+      return {
+        status: "lease_mismatch",
+        record: target
+      };
+    }
+    const acknowledged: ProductionGraphResumeQueueRecord = {
+      ...target,
+      status: "acknowledged",
+      acknowledgedAt: now
+    };
+    await this.writeStore({
+      writtenAt: new Date(),
+      records: current.records.map((record) =>
+        record.queueRecordId === target.queueRecordId ? acknowledged : record
+      )
+    });
+    return {
+      status: "acknowledged",
+      record: acknowledged
+    };
+  }
+
+  public async list(): Promise<readonly ProductionGraphResumeQueueRecord[]> {
+    return (await this.readStore()).records;
+  }
+
+  private idempotencyKey(queueNameSha256: string, capsule: ProductionGraphResumeStateCapsule): string {
+    return `graph_resume_enqueue_${sha256(canonicalJson({
+      schemaVersion: PRODUCTION_GRAPH_RESUME_QUEUE_SCHEMA_VERSION,
+      queueNameSha256,
+      capsuleSha256: capsule.capsuleSha256,
+      jobId: capsule.jobId,
+      actionId: capsule.actionId ?? ""
+    })).slice(0, 32)}`;
+  }
+
+  private async readStore(): Promise<ProductionGraphResumeQueueStoreRecord> {
+    let text: string;
+    try {
+      text = await readFile(this.queuePath, "utf8");
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+        return {
+          writtenAt: new Date(0),
+          records: []
+        };
+      }
+      throw error;
+    }
+    if (!text.trim()) {
+      return {
+        writtenAt: new Date(0),
+        records: []
+      };
+    }
+    return this.parseStore(JSON.parse(text) as unknown);
+  }
+
+  private async writeStore(record: ProductionGraphResumeQueueStoreRecord): Promise<void> {
+    await mkdir(dirname(this.queuePath), { recursive: true });
+    const tempPath = `${this.queuePath}.${process.pid}.${Date.now()}.tmp`;
+    const payload = {
+      schemaVersion: PRODUCTION_GRAPH_RESUME_QUEUE_STORE_SCHEMA_VERSION,
+      writtenAt: record.writtenAt.toISOString(),
+      records: record.records.map((item) => storedQueueRecord(item))
+    };
+    await writeFile(tempPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    await rename(tempPath, this.queuePath);
+  }
+
+  private parseStore(value: unknown): ProductionGraphResumeQueueStoreRecord {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Production Graph resume queue store must be a JSON object.");
+    }
+    const payload = value as Record<string, unknown>;
+    if (payload.schemaVersion !== PRODUCTION_GRAPH_RESUME_QUEUE_STORE_SCHEMA_VERSION) {
+      throw new Error(`Production Graph resume queue store schema must be ${PRODUCTION_GRAPH_RESUME_QUEUE_STORE_SCHEMA_VERSION}.`);
+    }
+    if (!Array.isArray(payload.records)) {
+      throw new Error("Production Graph resume queue store must contain a records array.");
+    }
+    return {
+      writtenAt: dateFrom(payload.writtenAt, "writtenAt"),
+      records: payload.records.map((item, index) => queueRecord(item, `records[${index}]`))
+    };
+  }
+}
+
 function parseCapsule(value: unknown, label: string): ProductionGraphResumeStateCapsule {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`${label} must be an object.`);
@@ -491,6 +749,65 @@ function storedCapsule(capsule: ProductionGraphResumeStateCapsule): Record<strin
   };
 }
 
+function queueRecord(value: unknown, label: string): ProductionGraphResumeQueueRecord {
+  const payload = objectValue(value, label);
+  return {
+    queueRecordId: safeId(payload.queueRecordId, `${label}.queueRecordId`),
+    idempotencyKey: safeId(payload.idempotencyKey, `${label}.idempotencyKey`),
+    queueNameSha256: sha256Value(payload.queueNameSha256, `${label}.queueNameSha256`),
+    capsuleId: safeId(payload.capsuleId, `${label}.capsuleId`),
+    capsuleSha256: sha256Value(payload.capsuleSha256, `${label}.capsuleSha256`),
+    jobId: safeId(payload.jobId, `${label}.jobId`),
+    ...(payload.actionId !== undefined ? { actionId: safeId(payload.actionId, `${label}.actionId`) } : {}),
+    graphStateSha256: sha256Value(payload.graphStateSha256, `${label}.graphStateSha256`),
+    resumeCursorSha256: sha256Value(payload.resumeCursorSha256, `${label}.resumeCursorSha256`),
+    predictionIdsSha256: sha256Value(payload.predictionIdsSha256, `${label}.predictionIdsSha256`),
+    predictionIdCount: integerValue(payload.predictionIdCount, `${label}.predictionIdCount`),
+    activePredictionIdCount: integerValue(payload.activePredictionIdCount, `${label}.activePredictionIdCount`),
+    status: queueRecordStatus(payload.status, `${label}.status`),
+    enqueuedAt: dateFrom(payload.enqueuedAt, `${label}.enqueuedAt`),
+    attemptCount: integerValue(payload.attemptCount, `${label}.attemptCount`),
+    ...(payload.leaseId !== undefined ? { leaseId: safeId(payload.leaseId, `${label}.leaseId`) } : {}),
+    ...(payload.workerIdSha256 !== undefined ? { workerIdSha256: sha256Value(payload.workerIdSha256, `${label}.workerIdSha256`) } : {}),
+    ...(payload.leasedAt !== undefined ? { leasedAt: dateFrom(payload.leasedAt, `${label}.leasedAt`) } : {}),
+    ...(payload.leaseExpiresAt !== undefined ? { leaseExpiresAt: dateFrom(payload.leaseExpiresAt, `${label}.leaseExpiresAt`) } : {}),
+    ...(payload.acknowledgedAt !== undefined ? { acknowledgedAt: dateFrom(payload.acknowledgedAt, `${label}.acknowledgedAt`) } : {})
+  };
+}
+
+function storedQueueRecord(record: ProductionGraphResumeQueueRecord): Record<string, unknown> {
+  return {
+    queueRecordId: record.queueRecordId,
+    idempotencyKey: record.idempotencyKey,
+    queueNameSha256: record.queueNameSha256,
+    capsuleId: record.capsuleId,
+    capsuleSha256: record.capsuleSha256,
+    jobId: record.jobId,
+    ...(record.actionId ? { actionId: record.actionId } : {}),
+    graphStateSha256: record.graphStateSha256,
+    resumeCursorSha256: record.resumeCursorSha256,
+    predictionIdsSha256: record.predictionIdsSha256,
+    predictionIdCount: record.predictionIdCount,
+    activePredictionIdCount: record.activePredictionIdCount,
+    status: record.status,
+    enqueuedAt: record.enqueuedAt.toISOString(),
+    attemptCount: record.attemptCount,
+    ...(record.leaseId ? { leaseId: record.leaseId } : {}),
+    ...(record.workerIdSha256 ? { workerIdSha256: record.workerIdSha256 } : {}),
+    ...(record.leasedAt ? { leasedAt: record.leasedAt.toISOString() } : {}),
+    ...(record.leaseExpiresAt ? { leaseExpiresAt: record.leaseExpiresAt.toISOString() } : {}),
+    ...(record.acknowledgedAt ? { acknowledgedAt: record.acknowledgedAt.toISOString() } : {})
+  };
+}
+
+function queueRecordStatus(value: unknown, label: string): ProductionGraphResumeQueueRecordStatus {
+  const allowed: readonly ProductionGraphResumeQueueRecordStatus[] = ["queued", "leased", "acknowledged"];
+  if (typeof value !== "string" || !allowed.includes(value as ProductionGraphResumeQueueRecordStatus)) {
+    throw new Error(`${label} must be a supported resume queue record status.`);
+  }
+  return value as ProductionGraphResumeQueueRecordStatus;
+}
+
 function sortedSafeIds(values: readonly string[], label: string): readonly string[] {
   return [...new Set(values.map((item, index) => safeId(item, `${label}[${index}]`)))].sort();
 }
@@ -606,6 +923,13 @@ function safeMessage(value: unknown, label: string): string {
     throw new Error(`${label} is not a safe bounded message.`);
   }
   return trimmed;
+}
+
+function safeTtl(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value < MIN_TTL_MS || value > MAX_TTL_MS) {
+    throw new Error(`${label} must be an integer from ${MIN_TTL_MS} to ${MAX_TTL_MS} ms.`);
+  }
+  return value;
 }
 
 function sha256Value(value: unknown, label: string): string {
