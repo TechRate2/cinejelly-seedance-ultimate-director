@@ -1,4 +1,6 @@
 import type {
+  DirectorStyleBenchmarkAudioReviewMetricEvidence,
+  DirectorStyleBenchmarkAudioReviewMetricName,
   DirectorStyleBenchmarkBottleneck,
   DirectorStyleBenchmarkDimension,
   DirectorStyleBenchmarkDimensionScore,
@@ -81,6 +83,7 @@ export class DirectorStyleBenchmarkEvaluator {
     readonly transitionBoundaryWindowSeconds?: number;
     readonly maxTransitionBoundaries?: number;
     readonly semanticReviewPath?: string;
+    readonly audioReviewPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
   }): DirectorStyleBenchmarkReport {
@@ -112,6 +115,7 @@ export class DirectorStyleBenchmarkEvaluator {
     const evidenceScope = this.evidenceScope(input.facts);
     const mediaPath = input.mediaPath ?? input.facts.mediaEvidence?.mediaPath;
     const semanticReviewPath = input.semanticReviewPath ?? input.facts.semanticReviewEvidence?.sourcePath;
+    const audioReviewPath = input.audioReviewPath ?? input.facts.audioReviewEvidence?.sourcePath;
     const frameSamplingIntervalSeconds =
       input.frameSamplingIntervalSeconds ?? input.facts.mediaEvidence?.frameSamplingIntervalSeconds;
 
@@ -139,6 +143,7 @@ export class DirectorStyleBenchmarkEvaluator {
           : {}),
         ...(input.maxTransitionBoundaries ? { maxTransitionBoundaries: input.maxTransitionBoundaries } : {}),
         ...(semanticReviewPath ? { semanticReviewPath } : {}),
+        ...(audioReviewPath ? { audioReviewPath } : {}),
         ...(input.outputPath ? { outputPath: input.outputPath } : {}),
         ...(input.jsonlPath ? { jsonlPath: input.jsonlPath } : {}),
         minPassingScore,
@@ -508,11 +513,12 @@ export class DirectorStyleBenchmarkEvaluator {
 
   private audioMetric(
     facts: DirectorStyleBenchmarkFacts,
-    metricName: string,
+    metricName: DirectorStyleBenchmarkAudioReviewMetricName,
     upstreamMetric: string,
     dimension: DirectorStyleBenchmarkDimension = "audio"
   ): DirectorStyleBenchmarkMetricResult {
-    if (!facts.hasAudioEvidence) {
+    const reviewMetric = this.audioReviewMetric(facts, metricName);
+    if (!facts.hasAudioEvidence && !reviewMetric) {
       return {
         dimension,
         metricName,
@@ -535,11 +541,28 @@ export class DirectorStyleBenchmarkEvaluator {
       metricName,
       upstreamMetric,
       requiredKinds: [ARTIFACT_KINDS.postproductionAssetPlan, ARTIFACT_KINDS.reviewPacket],
-      score: facts.manualReviewAccepted ? 0.78 : 0.62,
-      confidence: facts.manualReviewAccepted ? 0.64 : 0.46,
-      passMessage: "Audio/postproduction evidence exists and manual review status is reflected.",
+      score: reviewMetric?.score ?? (facts.manualReviewAccepted ? 0.78 : 0.62),
+      confidence: reviewMetric?.confidence ?? (facts.manualReviewAccepted ? 0.64 : 0.46),
+      passMessage: reviewMetric
+        ? "Audio/postproduction evidence is reinforced by structured audio review evidence."
+        : "Audio/postproduction evidence exists and manual review status is reflected.",
       failMessage: "Audio/postproduction review evidence is incomplete.",
-      suggestion: "Capture provider-backed generated-audio output validation and manual listening review."
+      suggestion: "Capture provider-backed generated-audio output validation and manual listening review.",
+      extraEvidence: reviewMetric
+        ? [
+            this.audioEvidence(
+              reviewMetric,
+              `${reviewMetric.metricName} audio review score=${reviewMetric.score}, confidence=${reviewMetric.confidence}; ${reviewMetric.evidenceSummary}`
+            )
+          ]
+        : [],
+      ...(reviewMetric
+        ? {
+            limitations: [
+              "Structured audio review evidence is checkpoint evidence; ASR/lip-sync, waveform analysis, live generated-audio output, and full DirectorBench runtime parity remain separate gates."
+            ]
+          }
+        : {})
     });
   }
 
@@ -621,6 +644,10 @@ export class DirectorStyleBenchmarkEvaluator {
     }
     if (!facts.hasAudioEvidence) {
       actions.add("Add generated-audio provider output validation and manual listening review to score audio and audio cross-modal metrics.");
+    } else if (!facts.audioReviewEvidence || facts.audioReviewEvidence.metricCount < 2) {
+      actions.add("Provide structured audio review JSON for narration, BGM, and audio cross-modal quality checkpoints.");
+    } else if (facts.audioReviewEvidence.status !== "accepted") {
+      actions.add("Resolve structured audio review findings before treating audio metrics as accepted.");
     }
     if (!facts.mediaEvidence || facts.mediaEvidence.status === "unavailable") {
       actions.add("Provide a local rendered media file to add media probe and sampled-frame evidence to the Director-style benchmark.");
@@ -644,12 +671,25 @@ export class DirectorStyleBenchmarkEvaluator {
 
   private evidenceScope(facts: DirectorStyleBenchmarkFacts): DirectorStyleBenchmarkEvidenceScope {
     const hasSemanticReview = facts.semanticReviewEvidence !== undefined && facts.semanticReviewEvidence.metricCount > 0;
+    const hasAudioReview = facts.audioReviewEvidence !== undefined && facts.audioReviewEvidence.metricCount > 0;
     const hasMediaEvidence =
       facts.mediaEvidence?.deliveryStatus !== undefined ||
       facts.mediaEvidence?.status === "probe_only" ||
       facts.mediaEvidence?.status === "frame_sampled";
+    if (hasSemanticReview && hasAudioReview && hasMediaEvidence) {
+      return "artifact_contract_plus_media_semantic_audio_review";
+    }
+    if (hasSemanticReview && hasAudioReview) {
+      return "artifact_contract_plus_semantic_audio_review";
+    }
+    if (hasAudioReview && hasMediaEvidence) {
+      return "artifact_contract_plus_media_audio_review";
+    }
     if (hasSemanticReview && hasMediaEvidence) {
       return "artifact_contract_plus_media_semantic_review";
+    }
+    if (hasAudioReview) {
+      return "artifact_contract_plus_audio_review";
     }
     if (hasSemanticReview) {
       return "artifact_contract_plus_semantic_review";
@@ -682,6 +722,13 @@ export class DirectorStyleBenchmarkEvaluator {
     return facts.semanticReviewEvidence?.metrics.find((metric) => metric.metricName === metricName);
   }
 
+  private audioReviewMetric(
+    facts: DirectorStyleBenchmarkFacts,
+    metricName: DirectorStyleBenchmarkAudioReviewMetricName
+  ): DirectorStyleBenchmarkAudioReviewMetricEvidence | undefined {
+    return facts.audioReviewEvidence?.metrics.find((metric) => metric.metricName === metricName);
+  }
+
   private semanticEvidence(
     metric: DirectorStyleBenchmarkSemanticReviewMetricEvidence,
     message: string
@@ -691,6 +738,18 @@ export class DirectorStyleBenchmarkEvaluator {
       severity: metric.status === "accepted" ? "info" : metric.status === "needs_review" ? "warn" : "block",
       message,
       source: `${metric.reviewerType}_semantic_review`
+    };
+  }
+
+  private audioEvidence(
+    metric: DirectorStyleBenchmarkAudioReviewMetricEvidence,
+    message: string
+  ): DirectorStyleBenchmarkEvidence {
+    return {
+      kind: "audio_review_checkpoint",
+      severity: metric.status === "accepted" ? "info" : metric.status === "needs_review" ? "warn" : "block",
+      message,
+      source: `${metric.reviewerType}_audio_review`
     };
   }
 

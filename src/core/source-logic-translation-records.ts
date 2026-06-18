@@ -2726,12 +2726,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "local media metadata and sampled-frame proxy signals can strengthen video/stability evidence without copying upstream implementation code",
       "FFmpeg scene-change transition-boundary candidates can be analyzed through redacted pre/post frame proxy signals when rendered media contains detectable cuts",
       "structured semantic-review checkpoints can reinforce individual visual/cross-modal metrics without importing upstream evaluator code",
+      "structured audio-review checkpoints can reinforce narration, BGM, and audio cross-modal metrics without importing upstream evaluator code",
       "benchmark runs can be appended to JSONL history without overwriting prior evidence"
     ],
     behaviorChanged: [
       "DirectorBench implementation code is not copied, imported, linked, or executed",
-      "CineJelly evaluates persisted artifact-contract evidence plus local FFprobe, sampled-frame RGB proxy signals, FFmpeg scene-change transition-boundary proxy signals, and optional structured semantic-review JSON instead of running PySceneDetect, OpenCV, ASR, VLM, or Python LangGraph agents",
-      "reports explicitly state canClaimDirectorBenchParity=false until live long-form, semantic visual, and audio evidence exists",
+      "CineJelly evaluates persisted artifact-contract evidence plus local FFprobe, sampled-frame RGB proxy signals, FFmpeg scene-change transition-boundary proxy signals, and optional structured semantic/audio review JSON instead of running PySceneDetect, OpenCV, ASR, VLM, waveform/lip-sync analyzers, or Python LangGraph agents",
+      "reports explicitly state canClaimDirectorBenchParity=false until live long-form, semantic visual, generated-audio, and deeper audio media evidence exists",
       "the CLI is no-spend/no-network and writes a schema-validated backend quality report"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-style-benchmark-harness.md",
@@ -2740,9 +2741,11 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/director-style-benchmark.ts",
       "src/core/director-style-media-evidence.ts",
       "src/core/director-style-semantic-review.ts",
+      "src/core/director-style-audio-review.ts",
       "scripts/run-director-style-benchmark.mjs",
       "schemas/director-style-benchmark-report.schema.json",
       "schemas/director-style-semantic-review.schema.json",
+      "schemas/director-style-audio-review.schema.json",
       "scripts/validate-report-contracts.mjs",
       "package.json",
       "src/index.ts",
@@ -2750,7 +2753,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "sampled-frame, transition-boundary proxy, and structured semantic-review signals do not replace lip sync, audio waveform quality, ASR transcript alignment, real long-form paid evidence, or full DirectorBench runtime parity",
+      "sampled-frame, transition-boundary proxy, and structured semantic/audio review signals do not replace lip sync, audio waveform quality, ASR transcript alignment, real long-form paid evidence, generated-audio provider evidence, or full DirectorBench runtime parity",
       "full DirectorBench parity still requires legal/permission review and dedicated VLM/ASR/audio media evaluation evidence",
       "current short no-audio paid smoke can only produce review_required benchmark evidence, not customer-release approval"
     ],

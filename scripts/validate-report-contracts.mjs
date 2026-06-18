@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, extname, resolve } from "node:path";
+import { basename, dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -37,6 +37,8 @@ const defaultContracts = [
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
   contract("remote_stock_validation", "schemas/remote-stock-validation-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-validation-report.json"),
   contract("generated_audio_validation", "schemas/generated-audio-validation-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
+  contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
+  contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),
   contract("director_style_benchmark", "schemas/director-style-benchmark-report.schema.json", "assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
   contract("billing_admin_ops", "schemas/billing-admin-ops-report.schema.json", "assets/output_deliverables/business-readiness/billing-admin-ops-report.json"),
   contract("production_operations", "schemas/production-operations-report.schema.json", "assets/output_deliverables/business-readiness/production-operations-report.json"),
@@ -516,7 +518,10 @@ function writeReport(path, report) {
 
 function toRepoRelative(path) {
   const absolutePath = resolve(repoRoot, path);
-  return absolutePath.startsWith(repoRoot) ? absolutePath.slice(repoRoot.length + 1) : path;
+  const relativePath = relative(repoRoot, absolutePath);
+  return relativePath && !relativePath.startsWith("..") && !isAbsolute(relativePath)
+    ? relativePath
+    : `external:${basename(path) || "input"}`;
 }
 
 try {

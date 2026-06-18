@@ -44,6 +44,7 @@
         "transitionBoundaryWindowSeconds": { "type": "number", "exclusiveMinimum": 0 },
         "maxTransitionBoundaries": { "type": "integer", "minimum": 0 },
         "semanticReviewPath": { "type": "string", "minLength": 1 },
+        "audioReviewPath": { "type": "string", "minLength": 1 },
         "outputPath": { "type": "string", "minLength": 1 },
         "jsonlPath": { "type": "string", "minLength": 1 },
         "minPassingScore": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -74,7 +75,11 @@
             "artifact_contract_plus_media_frames",
             "artifact_contract_plus_media_boundaries",
             "artifact_contract_plus_semantic_review",
-            "artifact_contract_plus_media_semantic_review"
+            "artifact_contract_plus_semantic_audio_review",
+            "artifact_contract_plus_media_semantic_review",
+            "artifact_contract_plus_audio_review",
+            "artifact_contract_plus_media_audio_review",
+            "artifact_contract_plus_media_semantic_audio_review"
           ]
         },
         "metricCount": { "type": "integer", "minimum": 1 },
@@ -107,7 +112,8 @@
         "artifactKinds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "sourcePatternOrigins": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "mediaEvidence": { "$ref": "#/$defs/mediaEvidence" },
-        "semanticReviewEvidence": { "$ref": "#/$defs/semanticReviewEvidence" }
+        "semanticReviewEvidence": { "$ref": "#/$defs/semanticReviewEvidence" },
+        "audioReviewEvidence": { "$ref": "#/$defs/audioReviewEvidence" }
       }
     },
     "dimensionScores": {
@@ -317,6 +323,69 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/semanticReviewMetricEvidence" }
+        },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "audioReviewMetricName": {
+      "enum": [
+        "narration_reasonableness",
+        "bgm_consistency",
+        "video_audio_consistency",
+        "text_audio_consistency"
+      ]
+    },
+    "audioReviewStatus": { "enum": ["accepted", "needs_review", "rejected"] },
+    "audioReviewerType": { "enum": ["manual", "asr", "waveform", "hybrid"] },
+    "audioReviewMetricEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metricName",
+        "status",
+        "reviewerType",
+        "score",
+        "confidence",
+        "evidenceSummary",
+        "findings"
+      ],
+      "properties": {
+        "metricName": { "$ref": "#/$defs/audioReviewMetricName" },
+        "status": { "$ref": "#/$defs/audioReviewStatus" },
+        "reviewerType": { "$ref": "#/$defs/audioReviewerType" },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidenceSummary": { "type": "string", "minLength": 1 },
+        "reviewedSegmentCount": { "type": "integer", "minimum": 0 },
+        "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "audioReviewEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "status",
+        "reviewerType",
+        "metricCount",
+        "metrics",
+        "findings"
+      ],
+      "properties": {
+        "source": { "enum": ["manual_json", "asr_json", "waveform_json", "hybrid_json"] },
+        "sourcePath": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/audioReviewStatus" },
+        "reviewerType": { "$ref": "#/$defs/audioReviewerType" },
+        "reviewedSegmentCount": { "type": "integer", "minimum": 0 },
+        "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
+        "metricCount": { "type": "integer", "minimum": 1 },
+        "averageScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "averageConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/audioReviewMetricEvidence" }
         },
         "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }

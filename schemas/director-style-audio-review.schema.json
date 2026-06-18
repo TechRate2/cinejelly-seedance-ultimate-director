@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/director-style-audio-review.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reviewerType", "metrics"],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.director-style-audio-review.v1" },
+    "reviewerType": { "$ref": "#/$defs/reviewerType" },
+    "status": { "$ref": "#/$defs/reviewStatus" },
+    "reviewedSegmentCount": { "type": "integer", "minimum": 0 },
+    "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
+    "metrics": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/metric" }
+    },
+    "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "$defs": {
+    "reviewerType": { "enum": ["manual", "asr", "waveform", "hybrid"] },
+    "reviewStatus": { "enum": ["accepted", "needs_review", "rejected"] },
+    "metricName": {
+      "enum": [
+        "narration_reasonableness",
+        "bgm_consistency",
+        "video_audio_consistency",
+        "text_audio_consistency"
+      ]
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metricName", "evidenceSummary"],
+      "oneOf": [
+        { "required": ["score"] },
+        { "required": ["likertScore"] }
+      ],
+      "properties": {
+        "metricName": { "$ref": "#/$defs/metricName" },
+        "status": { "$ref": "#/$defs/reviewStatus" },
+        "reviewerType": { "$ref": "#/$defs/reviewerType" },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "likertScore": { "type": "number", "minimum": 1, "maximum": 5 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidenceSummary": { "type": "string", "minLength": 1 },
+        "reviewedSegmentCount": { "type": "integer", "minimum": 0 },
+        "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}

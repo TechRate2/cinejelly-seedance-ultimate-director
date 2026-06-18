@@ -8,7 +8,11 @@ export type DirectorStyleBenchmarkEvidenceScope =
   | "artifact_contract_plus_media_frames"
   | "artifact_contract_plus_media_boundaries"
   | "artifact_contract_plus_semantic_review"
-  | "artifact_contract_plus_media_semantic_review";
+  | "artifact_contract_plus_semantic_audio_review"
+  | "artifact_contract_plus_media_semantic_review"
+  | "artifact_contract_plus_audio_review"
+  | "artifact_contract_plus_media_audio_review"
+  | "artifact_contract_plus_media_semantic_audio_review";
 export type DirectorStyleBenchmarkProfile =
   | "balanced"
   | "story_first"
@@ -24,6 +28,13 @@ export type DirectorStyleBenchmarkSemanticReviewMetricName =
   | "text_video_consistency";
 export type DirectorStyleBenchmarkSemanticReviewStatus = "accepted" | "needs_review" | "rejected";
 export type DirectorStyleBenchmarkSemanticReviewerType = "manual" | "vlm" | "hybrid";
+export type DirectorStyleBenchmarkAudioReviewMetricName =
+  | "narration_reasonableness"
+  | "bgm_consistency"
+  | "video_audio_consistency"
+  | "text_audio_consistency";
+export type DirectorStyleBenchmarkAudioReviewStatus = "accepted" | "needs_review" | "rejected";
+export type DirectorStyleBenchmarkAudioReviewerType = "manual" | "asr" | "waveform" | "hybrid";
 
 export interface DirectorStyleBenchmarkEvidence {
   readonly kind: string;
@@ -141,6 +152,32 @@ export interface DirectorStyleBenchmarkSemanticReviewEvidence {
   readonly findings: readonly string[];
 }
 
+export interface DirectorStyleBenchmarkAudioReviewMetricEvidence {
+  readonly metricName: DirectorStyleBenchmarkAudioReviewMetricName;
+  readonly status: DirectorStyleBenchmarkAudioReviewStatus;
+  readonly reviewerType: DirectorStyleBenchmarkAudioReviewerType;
+  readonly score: number;
+  readonly confidence: number;
+  readonly evidenceSummary: string;
+  readonly reviewedSegmentCount?: number;
+  readonly reviewedBoundaryCount?: number;
+  readonly findings: readonly string[];
+}
+
+export interface DirectorStyleBenchmarkAudioReviewEvidence {
+  readonly source: "manual_json" | "asr_json" | "waveform_json" | "hybrid_json";
+  readonly sourcePath?: string;
+  readonly status: DirectorStyleBenchmarkAudioReviewStatus;
+  readonly reviewerType: DirectorStyleBenchmarkAudioReviewerType;
+  readonly reviewedSegmentCount?: number;
+  readonly reviewedBoundaryCount?: number;
+  readonly metricCount: number;
+  readonly averageScore?: number;
+  readonly averageConfidence?: number;
+  readonly metrics: readonly DirectorStyleBenchmarkAudioReviewMetricEvidence[];
+  readonly findings: readonly string[];
+}
+
 export interface DirectorStyleBenchmarkMediaEvidence {
   readonly status: "unavailable" | "probe_only" | "frame_sampled";
   readonly source: "local_file";
@@ -179,6 +216,7 @@ export interface DirectorStyleBenchmarkFacts {
   readonly sourcePatternOrigins: readonly string[];
   readonly mediaEvidence?: DirectorStyleBenchmarkMediaEvidence;
   readonly semanticReviewEvidence?: DirectorStyleBenchmarkSemanticReviewEvidence;
+  readonly audioReviewEvidence?: DirectorStyleBenchmarkAudioReviewEvidence;
 }
 
 export interface DirectorStyleBenchmarkReport {
@@ -201,6 +239,7 @@ export interface DirectorStyleBenchmarkReport {
     readonly transitionBoundaryWindowSeconds?: number;
     readonly maxTransitionBoundaries?: number;
     readonly semanticReviewPath?: string;
+    readonly audioReviewPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
     readonly minPassingScore: number;
