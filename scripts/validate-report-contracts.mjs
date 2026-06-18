@@ -857,14 +857,48 @@ function validateEvidenceClosurePlan(plan, path, context = {}) {
   for (const phase of phases) {
     const blockerIds = Array.isArray(phase?.blockerIds) ? phase.blockerIds : [];
     const productGapIds = Array.isArray(phase?.productGapIds) ? phase.productGapIds : [];
+    const requiredInputIds = Array.isArray(phase?.requiredInputIds) ? phase.requiredInputIds : [];
     if (Number(phase?.blockerCount ?? -1) !== blockerIds.length) {
       issues.push(`${path}.phases[id=${phase?.id}].blockerCount: expected to equal blockerIds length.`);
     }
     if (Number(phase?.productGapCount ?? -1) !== productGapIds.length) {
       issues.push(`${path}.phases[id=${phase?.id}].productGapCount: expected to equal productGapIds length.`);
     }
+    if (Number(phase?.requiredInputCount ?? -1) !== requiredInputIds.length) {
+      issues.push(`${path}.phases[id=${phase?.id}].requiredInputCount: expected to equal requiredInputIds length.`);
+    }
+    const orphanInputIds = requiredInputIds.filter((id) => !blockerIds.includes(id));
+    if (orphanInputIds.length > 0) {
+      issues.push(`${path}.phases[id=${phase?.id}].requiredInputIds: expected every required input to also be a phase blocker (${orphanInputIds.join(", ")}).`);
+    }
+    issues.push(...validateEvidenceClosureFileList(phase?.operatorInputFiles, `${path}.phases[id=${phase?.id}].operatorInputFiles`, ["ops/"]));
+    issues.push(...validateEvidenceClosureFileList(phase?.draftFiles, `${path}.phases[id=${phase?.id}].draftFiles`, ["assets/output_deliverables/"]));
+    issues.push(...validateEvidenceClosureFileList(phase?.reportArchiveFiles, `${path}.phases[id=${phase?.id}].reportArchiveFiles`, ["assets/output_deliverables/"]));
     if (typeof phase?.releaseImpact !== "string" || phase.releaseImpact.trim().length === 0) {
       issues.push(`${path}.phases[id=${phase?.id}].releaseImpact: expected a non-empty release impact.`);
+    }
+  }
+  return issues;
+}
+
+function validateEvidenceClosureFileList(value, path, allowedPrefixes) {
+  const issues = [];
+  if (!Array.isArray(value)) {
+    return [`${path}: expected an array.`];
+  }
+  if (duplicateStrings(value).length > 0) {
+    issues.push(`${path}: expected unique file paths.`);
+  }
+  for (const filePath of value) {
+    const normalized = String(filePath ?? "").replace(/\\/g, "/");
+    if (!allowedPrefixes.some((prefix) => normalized.startsWith(prefix))) {
+      issues.push(`${path}: expected ${normalized} to start with ${allowedPrefixes.join(" or ")}.`);
+    }
+    if (/^[A-Za-z]:\//.test(normalized) || normalized.startsWith("/") || normalized.includes("://")) {
+      issues.push(`${path}: expected relative operator/evidence paths only, found ${normalized}.`);
+    }
+    if (/[?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=/i.test(normalized)) {
+      issues.push(`${path}: expected paths without credential-like query parameters.`);
     }
   }
   return issues;

@@ -548,6 +548,11 @@
         "blockerIds",
         "productGapCount",
         "productGapIds",
+        "requiredInputCount",
+        "requiredInputIds",
+        "operatorInputFiles",
+        "draftFiles",
+        "reportArchiveFiles",
         "commands",
         "releaseImpact"
       ],
@@ -581,6 +586,11 @@
         "blockerIds": { "type": "array", "items": { "type": "string" } },
         "productGapCount": { "type": "integer", "minimum": 0 },
         "productGapIds": { "type": "array", "items": { "type": "string" } },
+        "requiredInputCount": { "type": "integer", "minimum": 0 },
+        "requiredInputIds": { "type": "array", "items": { "type": "string" } },
+        "operatorInputFiles": { "type": "array", "items": { "type": "string" } },
+        "draftFiles": { "type": "array", "items": { "type": "string" } },
+        "reportArchiveFiles": { "type": "array", "items": { "type": "string" } },
         "commands": { "type": "array", "items": { "type": "string" } },
         "releaseImpact": { "type": "string" }
       }

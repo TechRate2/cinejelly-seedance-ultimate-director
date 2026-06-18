@@ -136,7 +136,7 @@ function main() {
   const codeWorkSummary = buildCodeWorkSummary(reports, blockers, productCodeGaps);
   const operatorHandoffSummary = buildOperatorHandoffSummary(reports.commercialInputs.value);
   const snapshotParityCoverageSummary = buildSnapshotParityCoverageSummary(reports.snapshotParity.value, reports.snapshotParity);
-  const evidenceClosurePlan = buildEvidenceClosurePlan(blockers, productCodeGaps);
+  const evidenceClosurePlan = buildEvidenceClosurePlan(blockers, productCodeGaps, reports.commercialInputs.value);
   const status = statusFor({ reports, blockers, codeWorkSummary });
   const report = {
     schemaVersion: "cinejelly.business-completion-audit.v1",
@@ -739,13 +739,15 @@ function phaseDefinition(id, label, owner) {
   return { id, label, owner };
 }
 
-function buildEvidenceClosurePlan(blockers, productCodeGaps) {
+function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
   const blockersByPhase = groupBy(blockers, phaseForBlocker);
   const productGapsByPhase = groupBy(productCodeGaps, phaseForProductGap);
+  const operatorPacketIndex = buildOperatorPacketIndex(commercialInputs);
   const phases = evidencePhaseDefinitions
     .map((definition, index) => {
       const phaseBlockers = blockersByPhase.get(definition.id) ?? [];
       const phaseProductGaps = productGapsByPhase.get(definition.id) ?? [];
+      const operatorPacket = operatorPacketForPhase(phaseBlockers, operatorPacketIndex);
       return {
         id: definition.id,
         order: index + 1,
@@ -756,6 +758,11 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps) {
         blockerIds: phaseBlockers.map((item) => item.id),
         productGapCount: phaseProductGaps.length,
         productGapIds: phaseProductGaps.map((item) => item.id),
+        requiredInputCount: operatorPacket.requiredInputIds.length,
+        requiredInputIds: operatorPacket.requiredInputIds,
+        operatorInputFiles: operatorPacket.operatorInputFiles,
+        draftFiles: operatorPacket.draftFiles,
+        reportArchiveFiles: operatorPacket.reportArchiveFiles,
         commands: [...new Set(phaseBlockers.map((item) => item.validationCommand).filter(Boolean))],
         releaseImpact: releaseImpactForPhase(definition.id, phaseBlockers, phaseProductGaps)
       };
@@ -771,6 +778,59 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps) {
     phaseCount: phases.length,
     phases
   };
+}
+
+function buildOperatorPacketIndex(commercialInputs) {
+  const requiredInputs = Array.isArray(commercialInputs?.requiredInputs) ? commercialInputs.requiredInputs : [];
+  const requiredInputIds = new Set(
+    requiredInputs.map((item) => String(item?.id ?? "")).filter(Boolean)
+  );
+  const reportArchiveFilesByInputId = new Map(
+    requiredInputs.map((item) => [
+      String(item?.id ?? ""),
+      arrayOfStrings(item?.filePaths).filter((filePath) => filePath.startsWith("assets/output_deliverables/"))
+    ])
+  );
+  const manifest = commercialInputs?.operatorHandoffManifest ?? {};
+  return {
+    requiredInputIds,
+    reportArchiveFilesByInputId,
+    operatorInputFiles: Array.isArray(manifest.operatorInputFiles) ? manifest.operatorInputFiles : [],
+    draftFiles: Array.isArray(manifest.draftFiles) ? manifest.draftFiles : [],
+    reportArchiveFiles: Array.isArray(manifest.reportArchiveFiles) ? manifest.reportArchiveFiles : []
+  };
+}
+
+function operatorPacketForPhase(blockers, index) {
+  const requiredInputIds = blockers
+    .map((item) => item.id)
+    .filter((id) => index.requiredInputIds.has(id));
+  const inputIdSet = new Set(requiredInputIds);
+  return {
+    requiredInputIds,
+    operatorInputFiles: uniqueSortedStrings(
+      index.operatorInputFiles
+        .filter((item) => arrayOfStrings(item?.sourceInputIds).some((id) => inputIdSet.has(id)))
+        .map((item) => item?.path)
+    ),
+    draftFiles: uniqueSortedStrings(
+      index.draftFiles
+        .filter((item) => inputIdSet.has(String(item?.sourceInputId ?? "")))
+        .map((item) => item?.path)
+    ),
+    reportArchiveFiles: uniqueSortedStrings(
+      [
+        ...requiredInputIds.flatMap((id) => index.reportArchiveFilesByInputId.get(id) ?? []),
+        ...index.reportArchiveFiles
+          .filter((item) => inputIdSet.has(String(item?.source ?? "")))
+          .map((item) => item?.path)
+      ]
+    )
+  };
+}
+
+function uniqueSortedStrings(values) {
+  return [...new Set(values.map((value) => String(value ?? "")).filter(Boolean))].sort((left, right) => left.localeCompare(right));
 }
 
 function phaseForBlocker(blockerItem) {
@@ -1079,7 +1139,10 @@ function markdownEvidenceClosurePlan(plan) {
       const commands = phase.commands.length === 0 ? "no direct command" : phase.commands.join(" | ");
       const blockers = phase.blockerIds.length === 0 ? "no blocker ids" : phase.blockerIds.join(", ");
       const gaps = phase.productGapIds.length === 0 ? "no product gaps" : phase.productGapIds.join(", ");
-      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; commands: ${commands}`;
+      const inputs = phase.requiredInputIds.length === 0 ? "no operator inputs" : phase.requiredInputIds.join(", ");
+      const files = [...phase.operatorInputFiles, ...phase.draftFiles, ...phase.reportArchiveFiles];
+      const packet = files.length === 0 ? "no operator packet files" : files.join(", ");
+      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; files: ${packet}; commands: ${commands}`;
     })
   ];
 }

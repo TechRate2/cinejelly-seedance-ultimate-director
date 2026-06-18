@@ -665,6 +665,11 @@ function buildEvidenceClosurePlan(completion) {
             blockerIds: arrayOfStrings(phase?.blockerIds),
             productGapCount: numberOrZero(phase?.productGapCount),
             productGapIds: arrayOfStrings(phase?.productGapIds),
+            requiredInputCount: numberOrZero(phase?.requiredInputCount),
+            requiredInputIds: arrayOfStrings(phase?.requiredInputIds),
+            operatorInputFiles: arrayOfStrings(phase?.operatorInputFiles),
+            draftFiles: arrayOfStrings(phase?.draftFiles),
+            reportArchiveFiles: arrayOfStrings(phase?.reportArchiveFiles),
             commands: arrayOfStrings(phase?.commands),
             releaseImpact: String(phase?.releaseImpact ?? "")
           })).filter((phase) => phase.id && phase.label)
@@ -922,7 +927,10 @@ function markdownEvidenceClosurePlan(plan) {
       const commands = phase.commands.length === 0 ? "no direct command" : phase.commands.join(" | ");
       const blockers = phase.blockerIds.length === 0 ? "no blocker ids" : phase.blockerIds.join(", ");
       const gaps = phase.productGapIds.length === 0 ? "no product gaps" : phase.productGapIds.join(", ");
-      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; commands: ${commands}`;
+      const inputs = phase.requiredInputIds.length === 0 ? "no operator inputs" : phase.requiredInputIds.join(", ");
+      const files = [...phase.operatorInputFiles, ...phase.draftFiles, ...phase.reportArchiveFiles];
+      const packet = files.length === 0 ? "no operator packet files" : files.join(", ");
+      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; files: ${packet}; commands: ${commands}`;
     })
   ];
 }
