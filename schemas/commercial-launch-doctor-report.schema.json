@@ -16,6 +16,7 @@
     "reportSummaries",
     "commercialOfferScopeSummary",
     "operatorHandoffSummary",
+    "snapshotParityCoverageSummary",
     "readinessSnapshot",
     "codeWorkSummary",
     "blockerSummary",
@@ -89,6 +90,7 @@
     },
     "commercialOfferScopeSummary": { "$ref": "#/$defs/commercialOfferScopeSummary" },
     "operatorHandoffSummary": { "$ref": "#/$defs/operatorHandoffSummary" },
+    "snapshotParityCoverageSummary": { "$ref": "#/$defs/snapshotParityCoverageSummary" },
     "readinessSnapshot": {
       "type": "object",
       "additionalProperties": false,
@@ -375,6 +377,67 @@
         "blockedInputIds": { "type": "array", "items": { "type": "string" } },
         "operatorInputFiles": { "type": "array", "items": { "type": "string" } },
         "refreshCommands": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "snapshotParityCoverageSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "status",
+        "guardrailsPass",
+        "canClaimFullSnapshotParity",
+        "releaseEvidence",
+        "sourceEstimateCount",
+        "estimatedSourceCount",
+        "lowestEstimatePercent",
+        "highestEstimatePercent",
+        "averageEstimateMinPercent",
+        "averageEstimateMaxPercent",
+        "sourceEstimates"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "snapshot_parity_audit",
+            "missing_snapshot_parity_estimates"
+          ]
+        },
+        "status": { "type": "string" },
+        "guardrailsPass": { "type": "boolean" },
+        "canClaimFullSnapshotParity": { "type": "boolean" },
+        "releaseEvidence": { "const": false },
+        "sourceEstimateCount": { "type": "integer", "minimum": 0 },
+        "estimatedSourceCount": { "type": "integer", "minimum": 0 },
+        "lowestEstimatePercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "highestEstimatePercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "averageEstimateMinPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "averageEstimateMaxPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "sourceEstimates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "localPath",
+              "upstreamRepository",
+              "estimateMinPercent",
+              "estimateMaxPercent",
+              "estimateText",
+              "mainGaps"
+            ],
+            "properties": {
+              "id": { "type": "string" },
+              "localPath": { "type": "string" },
+              "upstreamRepository": { "type": "string" },
+              "estimateMinPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "estimateMaxPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+              "estimateText": { "type": "string" },
+              "mainGaps": { "type": "string" }
+            }
+          }
+        }
       }
     }
   }

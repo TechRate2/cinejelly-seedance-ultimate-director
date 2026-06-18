@@ -135,6 +135,7 @@ function main() {
   const readinessSnapshot = buildReadinessSnapshot(reports);
   const codeWorkSummary = buildCodeWorkSummary(reports, blockers, productCodeGaps);
   const operatorHandoffSummary = buildOperatorHandoffSummary(reports.commercialInputs.value);
+  const snapshotParityCoverageSummary = buildSnapshotParityCoverageSummary(reports.snapshotParity.value, reports.snapshotParity);
   const status = statusFor({ reports, blockers, codeWorkSummary });
   const report = {
     schemaVersion: "cinejelly.business-completion-audit.v1",
@@ -161,6 +162,7 @@ function main() {
     readinessSnapshot,
     commercialOfferScopeSummary,
     operatorHandoffSummary,
+    snapshotParityCoverageSummary,
     codeWorkSummary,
     productCodeGaps,
     blockerSummary: summarizeBlockers(blockers),
@@ -262,6 +264,35 @@ function buildOperatorHandoffSummary(commercialInputs) {
     blockedInputIds,
     operatorInputFiles,
     refreshCommands
+  };
+}
+
+function buildSnapshotParityCoverageSummary(snapshotParity, sourceReport) {
+  const estimates = Array.isArray(snapshotParity?.functionalParityEstimates)
+    ? snapshotParity.functionalParityEstimates
+    : [];
+  const sourceEstimates = estimates.map((item) => ({
+    id: String(item?.id ?? ""),
+    localPath: String(item?.localPath ?? ""),
+    upstreamRepository: String(item?.upstreamRepository ?? ""),
+    estimateMinPercent: numberOrZero(item?.estimateMinPercent),
+    estimateMaxPercent: numberOrZero(item?.estimateMaxPercent),
+    estimateText: String(item?.estimateText ?? ""),
+    mainGaps: String(item?.mainGaps ?? "")
+  })).filter((item) => item.id && item.upstreamRepository);
+  return {
+    source: estimates.length > 0 ? "snapshot_parity_audit" : "missing_snapshot_parity_estimates",
+    status: String(snapshotParity?.status ?? sourceReport?.status ?? "unknown"),
+    guardrailsPass: snapshotParity?.releaseGateSummary?.snapshotGuardrailsPass === true,
+    canClaimFullSnapshotParity: snapshotParity?.releaseGateSummary?.canClaimFullSnapshotParity === true,
+    releaseEvidence: false,
+    sourceEstimateCount: sourceEstimates.length,
+    estimatedSourceCount: numberOrZero(snapshotParity?.summary?.functionalParityEstimateCount ?? sourceEstimates.length),
+    lowestEstimatePercent: numberOrZero(snapshotParity?.summary?.lowestSnapshotParityEstimatePercent),
+    highestEstimatePercent: numberOrZero(snapshotParity?.summary?.highestSnapshotParityEstimatePercent),
+    averageEstimateMinPercent: numberOrZero(snapshotParity?.summary?.averageSnapshotParityEstimateMinPercent),
+    averageEstimateMaxPercent: numberOrZero(snapshotParity?.summary?.averageSnapshotParityEstimateMaxPercent),
+    sourceEstimates
   };
 }
 
@@ -808,6 +839,10 @@ function renderMarkdown(report) {
     `- Blocks API/CLI commercial launch: ${report.commercialOfferScopeSummary.blocksApiCliCommercialLaunch}`,
     `- ${report.commercialOfferScopeSummary.message}`,
     "",
+    "## Snapshot Parity Coverage",
+    "",
+    ...markdownSnapshotParityCoverageSummary(report.snapshotParityCoverageSummary),
+    "",
     "## Operator Handoff",
     "",
     ...markdownOperatorHandoffSummary(report.operatorHandoffSummary),
@@ -851,6 +886,20 @@ function renderMarkdown(report) {
     ...report.nextActions.map((item) => `- ${item}`),
     ""
   ].join("\n");
+}
+
+function markdownSnapshotParityCoverageSummary(summary) {
+  if (!summary) {
+    return ["- Snapshot parity coverage summary unavailable."];
+  }
+  return [
+    `- Source: ${summary.source}`,
+    `- Status: ${summary.status}; guardrails pass: ${summary.guardrailsPass}; can claim full parity: ${summary.canClaimFullSnapshotParity}`,
+    `- Estimates: ${summary.sourceEstimateCount}; range: ${summary.lowestEstimatePercent}-${summary.highestEstimatePercent}%; average: ${summary.averageEstimateMinPercent}-${summary.averageEstimateMaxPercent}%`,
+    ...(summary.sourceEstimates.length === 0
+      ? ["- Source estimates: none"]
+      : summary.sourceEstimates.map((item) => `- ${item.upstreamRepository}: ${item.estimateText} (${item.mainGaps})`))
+  ];
 }
 
 function markdownOperatorHandoffSummary(summary) {

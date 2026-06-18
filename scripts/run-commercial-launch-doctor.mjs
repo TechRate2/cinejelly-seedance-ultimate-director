@@ -421,6 +421,7 @@ function buildReport(options, commandRuns) {
   const readyForLiveEvidence = completion?.status === "ready_for_live_evidence_sequence";
   const commercialOfferScopeSummary = buildCommercialOfferScopeSummary(completion, reportSummaries.launchIntake);
   const operatorHandoffSummary = buildOperatorHandoffSummary(reportSummaries.commercialInputs.value);
+  const snapshotParityCoverageSummary = buildSnapshotParityCoverageSummary(reportSummaries.snapshotParity.value, reportSummaries.snapshotParity);
   const status = statusFor({
     canReleaseToCustomerTraffic,
     readyForLiveEvidence,
@@ -452,6 +453,7 @@ function buildReport(options, commandRuns) {
     reportSummaries: summarizeSourceReports(reportSummaries),
     commercialOfferScopeSummary,
     operatorHandoffSummary,
+    snapshotParityCoverageSummary,
     readinessSnapshot: {
       evidenceCompletionPercent: numberOrZero(business?.completion?.evidenceCompletionPercent ?? completion?.readinessSnapshot?.evidenceCompletionPercent),
       businessReadinessStatus: reportSummaries.businessReadiness.status,
@@ -610,6 +612,35 @@ function buildOperatorHandoffSummary(commercialInputs) {
   };
 }
 
+function buildSnapshotParityCoverageSummary(snapshotParity, sourceReport) {
+  const estimates = Array.isArray(snapshotParity?.functionalParityEstimates)
+    ? snapshotParity.functionalParityEstimates
+    : [];
+  const sourceEstimates = estimates.map((item) => ({
+    id: String(item?.id ?? ""),
+    localPath: String(item?.localPath ?? ""),
+    upstreamRepository: String(item?.upstreamRepository ?? ""),
+    estimateMinPercent: numberOrZero(item?.estimateMinPercent),
+    estimateMaxPercent: numberOrZero(item?.estimateMaxPercent),
+    estimateText: String(item?.estimateText ?? ""),
+    mainGaps: String(item?.mainGaps ?? "")
+  })).filter((item) => item.id && item.upstreamRepository);
+  return {
+    source: estimates.length > 0 ? "snapshot_parity_audit" : "missing_snapshot_parity_estimates",
+    status: String(snapshotParity?.status ?? sourceReport?.status ?? "unknown"),
+    guardrailsPass: snapshotParity?.releaseGateSummary?.snapshotGuardrailsPass === true,
+    canClaimFullSnapshotParity: snapshotParity?.releaseGateSummary?.canClaimFullSnapshotParity === true,
+    releaseEvidence: false,
+    sourceEstimateCount: sourceEstimates.length,
+    estimatedSourceCount: numberOrZero(snapshotParity?.summary?.functionalParityEstimateCount ?? sourceEstimates.length),
+    lowestEstimatePercent: numberOrZero(snapshotParity?.summary?.lowestSnapshotParityEstimatePercent),
+    highestEstimatePercent: numberOrZero(snapshotParity?.summary?.highestSnapshotParityEstimatePercent),
+    averageEstimateMinPercent: numberOrZero(snapshotParity?.summary?.averageSnapshotParityEstimateMinPercent),
+    averageEstimateMaxPercent: numberOrZero(snapshotParity?.summary?.averageSnapshotParityEstimateMaxPercent),
+    sourceEstimates
+  };
+}
+
 function statusFor({ canReleaseToCustomerTraffic, readyForLiveEvidence, knownCodeBlockingIssueCount }) {
   if (canReleaseToCustomerTraffic) {
     return "ready_for_customer_traffic";
@@ -763,6 +794,10 @@ function renderMarkdown(report) {
     `- Blocks API/CLI commercial launch: ${report.commercialOfferScopeSummary.blocksApiCliCommercialLaunch}`,
     `- ${report.commercialOfferScopeSummary.message}`,
     "",
+    "## Snapshot Parity Coverage",
+    "",
+    ...markdownSnapshotParityCoverageSummary(report.snapshotParityCoverageSummary),
+    "",
     "## Operator Handoff",
     "",
     ...markdownOperatorHandoffSummary(report.operatorHandoffSummary),
@@ -796,6 +831,20 @@ function renderMarkdown(report) {
     ...report.nextActions.map((item) => `- ${item}`),
     ""
   ].join("\n");
+}
+
+function markdownSnapshotParityCoverageSummary(summary) {
+  if (!summary) {
+    return ["- Snapshot parity coverage summary unavailable."];
+  }
+  return [
+    `- Source: ${summary.source}`,
+    `- Status: ${summary.status}; guardrails pass: ${summary.guardrailsPass}; can claim full parity: ${summary.canClaimFullSnapshotParity}`,
+    `- Estimates: ${summary.sourceEstimateCount}; range: ${summary.lowestEstimatePercent}-${summary.highestEstimatePercent}%; average: ${summary.averageEstimateMinPercent}-${summary.averageEstimateMaxPercent}%`,
+    ...(summary.sourceEstimates.length === 0
+      ? ["- Source estimates: none"]
+      : summary.sourceEstimates.map((item) => `- ${item.upstreamRepository}: ${item.estimateText} (${item.mainGaps})`))
+  ];
 }
 
 function markdownOperatorHandoffSummary(summary) {

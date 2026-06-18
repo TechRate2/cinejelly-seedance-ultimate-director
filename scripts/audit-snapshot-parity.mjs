@@ -113,8 +113,9 @@ function main() {
   const snapshotInventory = expectedSnapshots.map((item) => buildSnapshotStatus(item, docs));
   const referenceImplementations = requiredReferenceImplementations.map((path) => buildReferenceImplementationStatus(path));
   const directExternalImports = findDirectExternalImports();
-  const checks = buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports });
-  const summary = buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, checks });
+  const functionalParityEstimates = buildFunctionalParityEstimates(docs, snapshotInventory);
+  const checks = buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates });
+  const summary = buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates, checks });
   const status = checks.some((check) => check.status === "fail") ? "fail" : checks.some((check) => check.status === "warn") ? "warn" : "pass";
 
   const report = {
@@ -133,6 +134,7 @@ function main() {
     },
     summary,
     snapshotInventory,
+    functionalParityEstimates,
     referenceImplementations,
     directExternalImports,
     checks,
@@ -153,6 +155,68 @@ function main() {
   }
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   return status === "fail" ? 1 : 0;
+}
+
+function buildFunctionalParityEstimates(docs, snapshotInventory) {
+  const parityText = docs["docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md"]?.text ?? "";
+  return snapshotInventory.map((snapshot) => {
+    const row = findMarkdownTableRow(parityText, snapshot.upstreamRepository);
+    const capability = row?.[1] ?? "";
+    const implementedCoverage = row?.[2] ?? "";
+    const estimateText = row?.[3] ?? "";
+    const estimate = parseEstimateRange(estimateText);
+    const mainGaps = row?.[4] ?? "";
+    const coverageStatus = row && estimate ? "estimated" : "missing_estimate";
+    return {
+      id: snapshot.id,
+      localPath: snapshot.localPath,
+      upstreamRepository: snapshot.upstreamRepository,
+      status: coverageStatus,
+      estimateMinPercent: estimate?.min ?? 0,
+      estimateMaxPercent: estimate?.max ?? 0,
+      estimateText,
+      mainCapability: cleanMarkdownCell(capability),
+      implementedCoverage: cleanMarkdownCell(implementedCoverage),
+      mainGaps: cleanMarkdownCell(mainGaps),
+      sourceAuditPath: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
+      releaseEvidence: false
+    };
+  });
+}
+
+function findMarkdownTableRow(markdown, firstCellText) {
+  const rows = markdown.split(/\r?\n/);
+  for (const line of rows) {
+    if (!line.startsWith("|") || !line.includes(firstCellText)) {
+      continue;
+    }
+    const cells = line
+      .split("|")
+      .slice(1, -1)
+      .map((cell) => cell.trim());
+    if (cells.length >= 5 && cleanMarkdownCell(cells[0]) === firstCellText) {
+      return cells.map(cleanMarkdownCell);
+    }
+  }
+  return undefined;
+}
+
+function parseEstimateRange(value) {
+  const matches = Array.from(String(value).matchAll(/(\d+(?:\.\d+)?)\s*%/g)).map((match) => Number(match[1]));
+  if (matches.length === 0 || matches.some((item) => !Number.isFinite(item))) {
+    return undefined;
+  }
+  return {
+    min: Math.min(...matches),
+    max: Math.max(...matches)
+  };
+}
+
+function cleanMarkdownCell(value) {
+  return String(value ?? "")
+    .replace(/`/g, "")
+    .replace(/<br\s*\/?>/gi, " ")
+    .trim();
 }
 
 function validateOptions(options) {
@@ -274,7 +338,7 @@ function listSourceFiles(root) {
   return files;
 }
 
-function buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports }) {
+function buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates }) {
   const checks = [];
   for (const doc of Object.values(docs)) {
     checks.push(check({
@@ -311,6 +375,26 @@ function buildChecks({ docs, snapshotInventory, referenceImplementations, direct
     evidence: `${directExternalImports.length} direct import finding(s)`,
     blocker: directExternalImports.length === 0 ? undefined : "Production code must translate upstream behavior into owned modules instead of importing snapshot files."
   }));
+  const missingFunctionalEstimates = functionalParityEstimates.filter((item) => item.status !== "estimated");
+  checks.push(check({
+    id: "functional_parity_estimate_coverage",
+    label: "Static parity audit has functional estimates for every configured snapshot",
+    status: missingFunctionalEstimates.length === 0 ? "pass" : "fail",
+    evidence: `${functionalParityEstimates.length - missingFunctionalEstimates.length}/${snapshotInventory.length} estimate row(s) covered`,
+    blocker: missingFunctionalEstimates.length === 0
+      ? undefined
+      : "Every configured snapshot must have a parseable functional parity estimate before operator reports can compare upstream coverage."
+  }));
+  const unsafeFullEstimate = functionalParityEstimates.find((item) => item.estimateMaxPercent >= 100 || item.releaseEvidence !== false);
+  checks.push(check({
+    id: "functional_parity_estimates_keep_no_release_claim",
+    label: "Functional parity estimates remain below 100% and non-release evidence",
+    status: unsafeFullEstimate ? "fail" : "pass",
+    evidence: unsafeFullEstimate ? unsafeFullEstimate.id : "all estimates below 100% and releaseEvidence=false",
+    blocker: unsafeFullEstimate
+      ? "Functional parity estimates must not become 100% or release evidence without external/live proof."
+      : undefined
+  }));
   const parityText = docs["docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md"]?.text ?? "";
   const staticParityAuditRefusesFullClaim = parityText.includes("No claim of 100% parity") || parityText.includes("No first-party web UI");
   checks.push(check({
@@ -333,18 +417,33 @@ function check(value) {
   };
 }
 
-function buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, checks }) {
+function buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates, checks }) {
+  const estimatedItems = functionalParityEstimates.filter((item) => item.status === "estimated");
+  const minValues = estimatedItems.map((item) => item.estimateMinPercent);
+  const maxValues = estimatedItems.map((item) => item.estimateMaxPercent);
   return {
     snapshotDirectoriesPresent: snapshotInventory.filter((item) => item.directoryPresent).length,
     expectedSnapshotCount: snapshotInventory.length,
     inventoryCoverageCount: snapshotInventory.filter((item) => item.inventoryCovered).length,
     sourceLineageCoverageCount: snapshotInventory.filter((item) => item.sourceLineageCovered).length,
+    functionalParityEstimateCount: estimatedItems.length,
+    lowestSnapshotParityEstimatePercent: minValues.length > 0 ? Math.min(...minValues) : 0,
+    highestSnapshotParityEstimatePercent: maxValues.length > 0 ? Math.max(...maxValues) : 0,
+    averageSnapshotParityEstimateMinPercent: averageRounded(minValues),
+    averageSnapshotParityEstimateMaxPercent: averageRounded(maxValues),
     referenceImplementationCount: referenceImplementations.filter((item) => item.present).length,
     directExternalImportFindingCount: directExternalImports.length,
     passedChecks: checks.filter((item) => item.status === "pass").length,
     warningChecks: checks.filter((item) => item.status === "warn").length,
     failedChecks: checks.filter((item) => item.status === "fail").length
   };
+}
+
+function averageRounded(values) {
+  if (values.length === 0) {
+    return 0;
+  }
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
 function buildNextActions({ status, checks }) {

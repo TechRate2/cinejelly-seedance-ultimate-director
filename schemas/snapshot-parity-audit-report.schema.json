@@ -14,6 +14,7 @@
     "checkedInputs",
     "summary",
     "snapshotInventory",
+    "functionalParityEstimates",
     "referenceImplementations",
     "directExternalImports",
     "checks",
@@ -53,6 +54,11 @@
         "expectedSnapshotCount",
         "inventoryCoverageCount",
         "sourceLineageCoverageCount",
+        "functionalParityEstimateCount",
+        "lowestSnapshotParityEstimatePercent",
+        "highestSnapshotParityEstimatePercent",
+        "averageSnapshotParityEstimateMinPercent",
+        "averageSnapshotParityEstimateMaxPercent",
         "referenceImplementationCount",
         "directExternalImportFindingCount",
         "passedChecks",
@@ -64,6 +70,11 @@
         "expectedSnapshotCount": { "type": "integer", "minimum": 0 },
         "inventoryCoverageCount": { "type": "integer", "minimum": 0 },
         "sourceLineageCoverageCount": { "type": "integer", "minimum": 0 },
+        "functionalParityEstimateCount": { "type": "integer", "minimum": 0 },
+        "lowestSnapshotParityEstimatePercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "highestSnapshotParityEstimatePercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "averageSnapshotParityEstimateMinPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "averageSnapshotParityEstimateMaxPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
         "referenceImplementationCount": { "type": "integer", "minimum": 0 },
         "directExternalImportFindingCount": { "type": "integer", "minimum": 0 },
         "passedChecks": { "type": "integer", "minimum": 0 },
@@ -74,6 +85,10 @@
     "snapshotInventory": {
       "type": "array",
       "items": { "$ref": "#/$defs/snapshotInventoryItem" }
+    },
+    "functionalParityEstimates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/functionalParityEstimateItem" }
     },
     "referenceImplementations": {
       "type": "array",
@@ -146,6 +161,38 @@
         "parityAuditCovered": { "type": "boolean" },
         "projectContextCovered": { "type": "boolean" },
         "sourceLineageCovered": { "type": "boolean" }
+      }
+    },
+    "functionalParityEstimateItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "localPath",
+        "upstreamRepository",
+        "status",
+        "estimateMinPercent",
+        "estimateMaxPercent",
+        "estimateText",
+        "mainCapability",
+        "implementedCoverage",
+        "mainGaps",
+        "sourceAuditPath",
+        "releaseEvidence"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "localPath": { "type": "string" },
+        "upstreamRepository": { "type": "string" },
+        "status": { "enum": ["estimated", "missing_estimate"] },
+        "estimateMinPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "estimateMaxPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "estimateText": { "type": "string" },
+        "mainCapability": { "type": "string" },
+        "implementedCoverage": { "type": "string" },
+        "mainGaps": { "type": "string" },
+        "sourceAuditPath": { "type": "string" },
+        "releaseEvidence": { "const": false }
       }
     },
     "referenceImplementationItem": {

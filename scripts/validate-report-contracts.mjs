@@ -467,6 +467,13 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
       { expectedCommandPlanPass: report?.codeWorkSummary?.commandPlanPass }
     )
   );
+  issues.push(
+    ...validateSnapshotParityCoverageSummary(
+      report?.snapshotParityCoverageSummary,
+      "$.snapshotParityCoverageSummary",
+      report?.reportSummaries?.snapshotParity
+    )
+  );
 
   const providerGraphResumeRun = commandByName.get("provider_graph_resume");
   if (providerGraphResumeRun?.status !== "pass") {
@@ -556,6 +563,40 @@ function validateSnapshotParityAuditSemantics(report) {
   }
   if (report?.summary?.sourceLineageCoverageCount !== report?.summary?.expectedSnapshotCount) {
     issues.push("$.summary.sourceLineageCoverageCount: expected every configured snapshot to have source-lineage coverage.");
+  }
+  const functionalEstimates = Array.isArray(report?.functionalParityEstimates) ? report.functionalParityEstimates : [];
+  if (functionalEstimates.length !== report?.summary?.expectedSnapshotCount) {
+    issues.push("$.functionalParityEstimates: expected one functional parity estimate per configured snapshot.");
+  }
+  if (Number(report?.summary?.functionalParityEstimateCount ?? -1) !== functionalEstimates.filter((item) => item?.status === "estimated").length) {
+    issues.push("$.summary.functionalParityEstimateCount: expected to equal estimated functionalParityEstimates length.");
+  }
+  for (const snapshot of Array.isArray(report?.snapshotInventory) ? report.snapshotInventory : []) {
+    const estimate = functionalEstimates.find((item) => item?.id === snapshot?.id);
+    if (!estimate) {
+      issues.push(`$.functionalParityEstimates: expected estimate for snapshot ${snapshot?.id}.`);
+      continue;
+    }
+    if (estimate.localPath !== snapshot.localPath || estimate.upstreamRepository !== snapshot.upstreamRepository) {
+      issues.push(`$.functionalParityEstimates[id=${snapshot?.id}]: expected localPath/upstreamRepository to match snapshotInventory.`);
+    }
+  }
+  for (const estimate of functionalEstimates) {
+    if (estimate?.status !== "estimated") {
+      issues.push(`$.functionalParityEstimates[id=${estimate?.id}].status: expected estimated.`);
+    }
+    if (estimate?.releaseEvidence !== false) {
+      issues.push(`$.functionalParityEstimates[id=${estimate?.id}].releaseEvidence: expected false.`);
+    }
+    if (Number(estimate?.estimateMinPercent ?? -1) < 0 || Number(estimate?.estimateMaxPercent ?? -1) < Number(estimate?.estimateMinPercent ?? 0)) {
+      issues.push(`$.functionalParityEstimates[id=${estimate?.id}]: expected valid estimate percent range.`);
+    }
+    if (Number(estimate?.estimateMaxPercent ?? 100) >= 100) {
+      issues.push(`$.functionalParityEstimates[id=${estimate?.id}].estimateMaxPercent: expected below 100 until full parity is proven.`);
+    }
+    if (typeof estimate?.mainGaps !== "string" || estimate.mainGaps.trim().length === 0) {
+      issues.push(`$.functionalParityEstimates[id=${estimate?.id}].mainGaps: expected explicit remaining gaps.`);
+    }
   }
   if (Number(report?.summary?.directExternalImportFindingCount ?? 0) !== 0) {
     issues.push("$.summary.directExternalImportFindingCount: expected zero direct imports from external/upstream.");
@@ -662,6 +703,13 @@ function validateBusinessCompletionAuditSemantics(report) {
       { expectedCommandPlanStatus: report?.readinessSnapshot?.commandPlanAuditStatus }
     )
   );
+  issues.push(
+    ...validateSnapshotParityCoverageSummary(
+      report?.snapshotParityCoverageSummary,
+      "$.snapshotParityCoverageSummary",
+      report?.sourceReports?.snapshotParity
+    )
+  );
 
   if (Number(report?.blockerSummary?.total ?? -1) !== blockers.length) {
     issues.push("$.blockerSummary.total: expected to equal blockers length.");
@@ -736,6 +784,61 @@ function validateBusinessCompletionAuditSemantics(report) {
     }
     if (Number(report?.codeWorkSummary?.knownCodeBlockingIssueCount ?? 0) !== 0) {
       issues.push("$.releaseGateSummary.safeToRunFullPaidAtlasSequenceNow: true requires zero known code blockers.");
+    }
+  }
+  return issues;
+}
+
+function validateSnapshotParityCoverageSummary(summary, path, snapshotParitySummary) {
+  const issues = [];
+  if (!summary || typeof summary !== "object") {
+    return [`${path}: expected snapshot parity coverage summary.`];
+  }
+  if (typeof snapshotParitySummary?.status === "string" && summary.status !== snapshotParitySummary.status) {
+    issues.push(`${path}.status: expected to match snapshot parity report status.`);
+  }
+  const sourceEstimates = Array.isArray(summary.sourceEstimates) ? summary.sourceEstimates : [];
+  const expectedSource = sourceEstimates.length > 0 ? "snapshot_parity_audit" : "missing_snapshot_parity_estimates";
+  if (summary.source !== expectedSource) {
+    issues.push(`${path}.source: expected ${expectedSource}.`);
+  }
+  if (summary.releaseEvidence !== false) {
+    issues.push(`${path}.releaseEvidence: expected false.`);
+  }
+  if (summary.canClaimFullSnapshotParity !== false) {
+    issues.push(`${path}.canClaimFullSnapshotParity: expected false until all product/external parity evidence gates close.`);
+  }
+  if (Number(summary.sourceEstimateCount ?? -1) !== sourceEstimates.length) {
+    issues.push(`${path}.sourceEstimateCount: expected to equal sourceEstimates length.`);
+  }
+  if (Number(summary.estimatedSourceCount ?? -1) !== sourceEstimates.length) {
+    issues.push(`${path}.estimatedSourceCount: expected to equal sourceEstimates length.`);
+  }
+  if (snapshotParitySummary?.status === "pass" && summary.guardrailsPass !== true) {
+    issues.push(`${path}.guardrailsPass: expected true when snapshot parity status is pass.`);
+  }
+  if (snapshotParitySummary?.present === true && snapshotParitySummary?.status === "pass" && sourceEstimates.length === 0) {
+    issues.push(`${path}.sourceEstimates: expected functional estimates when snapshot parity report is present and passing.`);
+  }
+  const minValues = sourceEstimates.map((item) => Number(item?.estimateMinPercent ?? 0));
+  const maxValues = sourceEstimates.map((item) => Number(item?.estimateMaxPercent ?? 0));
+  if (minValues.length > 0) {
+    if (Number(summary.lowestEstimatePercent ?? -1) !== Math.min(...minValues)) {
+      issues.push(`${path}.lowestEstimatePercent: expected to match source estimate minimum.`);
+    }
+    if (Number(summary.highestEstimatePercent ?? -1) !== Math.max(...maxValues)) {
+      issues.push(`${path}.highestEstimatePercent: expected to match source estimate maximum.`);
+    }
+  }
+  for (const estimate of sourceEstimates) {
+    if (Number(estimate?.estimateMaxPercent ?? 100) >= 100) {
+      issues.push(`${path}.sourceEstimates[id=${estimate?.id}].estimateMaxPercent: expected below 100.`);
+    }
+    if (Number(estimate?.estimateMaxPercent ?? -1) < Number(estimate?.estimateMinPercent ?? 0)) {
+      issues.push(`${path}.sourceEstimates[id=${estimate?.id}]: expected max estimate to be >= min estimate.`);
+    }
+    if (typeof estimate?.mainGaps !== "string" || estimate.mainGaps.trim().length === 0) {
+      issues.push(`${path}.sourceEstimates[id=${estimate?.id}].mainGaps: expected explicit remaining gaps.`);
     }
   }
   return issues;
