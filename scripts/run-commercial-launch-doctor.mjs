@@ -234,6 +234,11 @@ function buildCommands(options) {
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
+    command("quality_review_evidence", ["scripts/validate-director-style-review-evidence.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/director-style-review-evidence-readiness-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
     command("launch_intake", ["--env-file-if-exists=.env", "scripts/validate-commercial-launch-intake.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json",
       expectedExitCodes: [0, 1],
@@ -330,6 +335,7 @@ function buildReport(options, commandRuns) {
     commercialInputs: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"),
     completionAudit: summarizeReport("assets/output_deliverables/business-readiness/business-completion-audit-report.json"),
     qualityBenchmark: summarizeReport("assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
+    qualityReviewEvidence: summarizeReport("assets/output_deliverables/business-readiness/director-style-review-evidence-readiness-report.json"),
     snapshotParity: summarizeReport("assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
     providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
     providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
@@ -382,6 +388,7 @@ function buildReport(options, commandRuns) {
       releaseAuditStatus: reportSummaries.releaseAudit.status,
       snapshotParityStatus: reportSummaries.snapshotParity.status,
       qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
+      qualityReviewEvidenceStatus: reportSummaries.qualityReviewEvidence.status,
       providerReconciliationStatus: reportSummaries.providerReconciliation.status,
       providerHandoffStatus: reportSummaries.providerHandoff.status,
       providerExternalLeaseStatus: reportSummaries.providerExternalLease.status,
@@ -554,6 +561,7 @@ function renderMarkdown(report) {
     `- Release audit: ${report.readinessSnapshot.releaseAuditStatus}`,
     `- Snapshot parity: ${report.readinessSnapshot.snapshotParityStatus}`,
     `- Quality benchmark: ${report.readinessSnapshot.qualityBenchmarkStatus}`,
+    `- Quality review evidence: ${report.readinessSnapshot.qualityReviewEvidenceStatus}`,
     `- Provider reconciliation: ${report.readinessSnapshot.providerReconciliationStatus}`,
     `- Provider handoff: ${report.readinessSnapshot.providerHandoffStatus}`,
     `- Provider external lease: ${report.readinessSnapshot.providerExternalLeaseStatus}`,

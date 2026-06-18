@@ -316,6 +316,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "provider_live_actions",
   "release_audit",
   "quality_benchmark",
+  "quality_review_evidence",
   "launch_intake",
   "live_inputs",
   "business_plan",
@@ -360,6 +361,13 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (["missing", "skipped", undefined].includes(report?.readinessSnapshot?.qualityBenchmarkStatus)) {
     issues.push("$.readinessSnapshot.qualityBenchmarkStatus: expected a refreshed benchmark status, not missing/skipped.");
+  }
+  const qualityReviewEvidenceRun = commandByName.get("quality_review_evidence");
+  if (qualityReviewEvidenceRun?.status !== "pass") {
+    issues.push("$.commandRuns[quality_review_evidence].status: expected pass for no-spend quality review-evidence command.");
+  }
+  if (["missing", "skipped", undefined].includes(report?.readinessSnapshot?.qualityReviewEvidenceStatus)) {
+    issues.push("$.readinessSnapshot.qualityReviewEvidenceStatus: expected a refreshed review-evidence status, not missing/skipped.");
   }
 
   const snapshotRun = commandByName.get("snapshot_parity");
