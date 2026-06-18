@@ -158,6 +158,14 @@ export interface ProductionGraphResumeQueueStoreRecord {
   readonly records: readonly ProductionGraphResumeQueueRecord[];
 }
 
+export function parseProductionGraphResumeStateCapsule(value: unknown, label = "capsule"): ProductionGraphResumeStateCapsule {
+  return parseCapsule(value, label);
+}
+
+export function serializeProductionGraphResumeQueueRecord(record: ProductionGraphResumeQueueRecord): Record<string, unknown> {
+  return storedQueueRecord(record);
+}
+
 export class ProductionGraphResumeStateBuilder {
   public build(input: {
     readonly jobId: string;

@@ -10,8 +10,10 @@ import { RenderJobHistoryStore } from "../api/render-job-history-store.js";
 import { FileRenderProviderHandoffLeaseStore } from "../api/render-provider-handoff.js";
 import { readRenderProviderLeasePath } from "../api/render-provider-handoff-lease-service.js";
 import { parseApiClientPoliciesJson } from "../api/api-client-policy.js";
+import { readProductionGraphResumeQueuePath } from "../api/production-graph-resume-queue-service.js";
 import { GeneratedAudioAssetResolver } from "../core/generated-audio-asset-resolver.js";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
+import { FileProductionGraphResumeQueueStore } from "../core/production-graph-resume-state.js";
 import type { LocalMaterialCatalog } from "../types/material.js";
 import type { PreflightCheck, PreflightStatus, RuntimePreflightReport } from "../types/preflight.js";
 import {
@@ -65,6 +67,7 @@ export class RuntimePreflight {
       this.optionalPositiveInteger("CINEJELLY_API_JOB_HISTORY_LIMIT", this.env.CINEJELLY_API_JOB_HISTORY_LIMIT),
       this.optionalPositiveInteger("CINEJELLY_API_JOB_QUEUE_LIMIT", this.env.CINEJELLY_API_JOB_QUEUE_LIMIT),
       this.optionalPositiveInteger("CINEJELLY_RENDER_PROVIDER_LEASE_MAX_RECORDS", this.env.CINEJELLY_RENDER_PROVIDER_LEASE_MAX_RECORDS),
+      this.optionalPositiveInteger("CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_MAX_RECORDS", this.env.CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_MAX_RECORDS),
       this.optionalPositiveInteger("CINEJELLY_API_MAX_BODY_BYTES", this.env.CINEJELLY_API_MAX_BODY_BYTES),
       this.optionalPositiveInteger("CINEJELLY_API_RATE_LIMIT_WINDOW_MS", this.env.CINEJELLY_API_RATE_LIMIT_WINDOW_MS),
       this.optionalPositiveInteger("CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS", this.env.CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS),
@@ -107,6 +110,7 @@ export class RuntimePreflight {
     checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
     checks.push(await this.renderJobHistoryStoreCheck());
     checks.push(await this.renderProviderLeaseStoreCheck());
+    checks.push(await this.productionGraphResumeQueueStoreCheck());
     checks.push(await this.sourceVideoAutoAnalysisCheck());
     checks.push(await this.localMaterialCatalogCheck(
       "CINEJELLY_LOCAL_MATERIAL_CATALOG_PATH",
@@ -282,6 +286,44 @@ export class RuntimePreflight {
         message: error instanceof Error
           ? `CINEJELLY_RENDER_PROVIDER_LEASE_PATH is not usable: ${error.message}`
           : "CINEJELLY_RENDER_PROVIDER_LEASE_PATH is not usable."
+      };
+    }
+  }
+
+  private async productionGraphResumeQueueStoreCheck(): Promise<PreflightCheck> {
+    let queuePath: string | undefined;
+    try {
+      queuePath = readProductionGraphResumeQueuePath(this.env);
+    } catch (error) {
+      return {
+        name: "CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH",
+        status: "fail",
+        message: error instanceof Error ? error.message : "CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH is invalid."
+      };
+    }
+    if (!queuePath) {
+      return {
+        name: "CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH",
+        status: "pass",
+        message: "CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH is not set; Production Graph resume queue service is disabled."
+      };
+    }
+    try {
+      await mkdir(dirname(queuePath), { recursive: true });
+      await access(dirname(queuePath), constants.W_OK);
+      await new FileProductionGraphResumeQueueStore({ queuePath }).list();
+      return {
+        name: "CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH",
+        status: "pass",
+        message: "CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH points to a writable Production Graph resume queue file."
+      };
+    } catch (error) {
+      return {
+        name: "CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH",
+        status: "fail",
+        message: error instanceof Error
+          ? `CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH is not usable: ${error.message}`
+          : "CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH is not usable."
       };
     }
   }

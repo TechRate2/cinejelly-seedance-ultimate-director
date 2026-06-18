@@ -1,6 +1,6 @@
 # Reference Implementation: Production Graph Resume State Capsule
 
-Implementation status as of 2026-06-19: CineJelly-owned TypeScript foundation implemented as `ProductionGraphResumeStateBuilder`, `FileProductionGraphResumeStateStore`, and `FileProductionGraphResumeQueueStore`, with `validation:graph-resume-state` producing a no-spend contract report. The capsule creates digest-only graph/provider-work resume context for future durable workers, and the local queue store proves idempotent enqueue, replay, lease, reload, and acknowledgement lifecycle while refusing distributed-resume or customer-release claims.
+Implementation status as of 2026-06-19: CineJelly-owned TypeScript foundation implemented as `ProductionGraphResumeStateBuilder`, `FileProductionGraphResumeStateStore`, `FileProductionGraphResumeQueueStore`, and the deployment-token-protected `ProductionGraphResumeQueueService`, with `validation:graph-resume-state` and `validation:graph-resume-queue-service` producing no-spend contract reports. The capsule creates digest-only graph/provider-work resume context for future durable workers, the local queue store proves idempotent enqueue, replay, lease, reload, and acknowledgement lifecycle, and the protected HTTP queue service exposes that lifecycle to deployment workers while refusing distributed-resume or customer-release claims.
 
 ## Upstream Sources
 
@@ -22,15 +22,19 @@ Implementation status as of 2026-06-19: CineJelly-owned TypeScript foundation im
 ## Intentional Changes
 
 1. CineJelly does not copy upstream task managers, graph runtimes, or queue code.
-2. The capsule and local queue store are typed TypeScript security boundaries, not Redis-compatible queue implementations.
+2. The capsule, local queue store, and protected HTTP queue service are typed TypeScript security boundaries, not Redis-compatible queue implementations.
 3. The report stores node/edge/data digests and counts rather than replaying raw graph JSON.
 4. The capsule requires action-ledger prediction IDs for any future provider callback worker, so the resume-state artifact does not become another sensitive provider-ID store.
 
 ## Production Destination
 
 - `src/core/production-graph-resume-state.ts`
+- `src/api/production-graph-resume-queue-service.ts`
+- `src/api/server.ts`
 - `scripts/run-production-graph-resume-state-smoke.mjs`
+- `scripts/run-production-graph-resume-queue-service-smoke.mjs`
 - `schemas/production-graph-resume-state-report.schema.json`
+- `schemas/production-graph-resume-queue-service-smoke-report.schema.json`
 - `scripts/validate-report-contracts.mjs`
 - `scripts/run-commercial-launch-doctor.mjs`
 
@@ -41,10 +45,11 @@ Implementation status as of 2026-06-19: CineJelly-owned TypeScript foundation im
 - The capsule digest is stable for the same inputs.
 - The local queue records the first enqueue and replays the second enqueue by idempotency key.
 - The local queue leases the queued record to a worker, reloads the leased state from disk, acknowledges it by lease ID, and reloads the acknowledged state.
+- `validation:graph-resume-queue-service` starts the local API, protects `/v1/production-graph-resume-queue/*` with the deployment token, validates preflight queue-path readiness, and proves enqueue/replay/lease/ack through HTTP without serializing raw queue names, raw worker IDs, raw prediction IDs, URLs, local paths, or tokens.
 - The active `clip_render` node is selected as the resume cursor when provider work is still running.
 - The report confirms raw graph state, raw provider payloads, output URLs, local paths, secret-like text, raw queue names, raw worker IDs, and raw prediction IDs are absent from public evidence.
 - Report contract validation rejects customer-release or distributed-resume claims for this local smoke.
 
 ## Remaining Scope
 
-To claim distributed/HA resume parity, CineJelly still needs deployed durable worker execution against an external queue backend, live queue enqueue evidence, live provider callbacks, production multi-worker ownership evidence, and archived graph-resume enqueue payload evidence bound to a passing live-action report.
+To claim distributed/HA resume parity, CineJelly still needs deployed durable worker execution against the protected queue service or an external HA queue backend, live queue enqueue evidence, live provider callbacks, production multi-worker ownership evidence, and archived graph-resume enqueue payload evidence bound to a passing live-action report.

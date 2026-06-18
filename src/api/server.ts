@@ -40,6 +40,12 @@ import { ApiRateLimiter, readRateLimitDisabled, readTrustProxyHeaders } from "./
 import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
 import { isApplicationJsonMediaType } from "./media-type.js";
 import {
+  createProductionGraphResumeQueueService,
+  PRODUCTION_GRAPH_RESUME_QUEUE_SERVICE_PATH,
+  readProductionGraphResumeQueuePath,
+  type ProductionGraphResumeQueueService
+} from "./production-graph-resume-queue-service.js";
+import {
   RenderJobCapacityError,
   RenderJobIdempotencyConflictError,
   RenderJobManager
@@ -120,6 +126,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
     ...renderJobHistoryStoreConfig(process.env)
   });
   const renderProviderLeaseService = renderProviderLeaseServiceConfig(process.env);
+  const productionGraphResumeQueueService = productionGraphResumeQueueServiceConfig(process.env);
   const shutdownCoordinator = new ApiShutdownCoordinator();
 
   const server = createServer(async (request, response) => {
@@ -200,6 +207,27 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           method: request.method,
           operation: renderProviderLeaseOperation,
           searchParams: requestUrl.searchParams,
+          ...(body !== undefined ? { body } : {})
+        });
+        sendJson(response, serviceResponse.statusCode, serviceResponse.payload, requestContext);
+        return;
+      }
+      const productionGraphResumeQueueOperation = productionGraphResumeQueueOperationFor(requestUrl.pathname);
+      if (productionGraphResumeQueueOperation) {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for Production Graph resume queue operations.");
+        if (!productionGraphResumeQueueService) {
+          throw new ApiClientPolicyError(
+            "CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH is required before Production Graph resume queue operations can be used.",
+            503
+          );
+        }
+        if (request.method === "POST") {
+          assertJsonContentType(request);
+        }
+        const body = request.method === "POST" ? await readJsonBody<unknown>(request, maxBodyBytes) : undefined;
+        const serviceResponse = await productionGraphResumeQueueService.handle({
+          method: request.method,
+          operation: productionGraphResumeQueueOperation,
           ...(body !== undefined ? { body } : {})
         });
         sendJson(response, serviceResponse.statusCode, serviceResponse.payload, requestContext);
@@ -553,11 +581,29 @@ function renderProviderLeaseServiceConfig(env: NodeJS.ProcessEnv): RenderProvide
     : undefined;
 }
 
+function productionGraphResumeQueueServiceConfig(env: NodeJS.ProcessEnv): ProductionGraphResumeQueueService | undefined {
+  const queuePath = readProductionGraphResumeQueuePath(env);
+  return queuePath
+    ? createProductionGraphResumeQueueService({
+        queuePath,
+        maxRecords: readPositiveInteger(env.CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_MAX_RECORDS, 1_000)
+      })
+    : undefined;
+}
+
 function renderProviderLeaseOperationFor(pathname: string): string | undefined {
   if (!pathname.startsWith(`${RENDER_PROVIDER_HANDOFF_LEASE_SERVICE_PATH}/`)) {
     return undefined;
   }
   const operation = pathname.slice(RENDER_PROVIDER_HANDOFF_LEASE_SERVICE_PATH.length + 1);
+  return operation && !operation.includes("/") ? operation : undefined;
+}
+
+function productionGraphResumeQueueOperationFor(pathname: string): string | undefined {
+  if (!pathname.startsWith(`${PRODUCTION_GRAPH_RESUME_QUEUE_SERVICE_PATH}/`)) {
+    return undefined;
+  }
+  const operation = pathname.slice(PRODUCTION_GRAPH_RESUME_QUEUE_SERVICE_PATH.length + 1);
   return operation && !operation.includes("/") ? operation : undefined;
 }
 

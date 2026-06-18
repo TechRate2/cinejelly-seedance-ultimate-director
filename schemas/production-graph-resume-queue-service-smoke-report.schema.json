@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/production-graph-resume-queue-service-smoke-report.schema.json",
+  "title": "CineJelly Production Graph Resume Queue Service Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "externalNetworkCallsMade",
+    "localHttpCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "queue",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.production-graph-resume-queue-service-smoke.v1" },
+    "generatedAt": { "$ref": "#/$defs/dateTime" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "externalNetworkCallsMade": { "const": false },
+    "localHttpCallsMade": { "const": true },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "queuePath", "endpointPath", "localServer", "fakeGraph"],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "queuePath": { "type": "string" },
+        "endpointPath": { "const": "/v1/production-graph-resume-queue" },
+        "localServer": { "const": true },
+        "fakeGraph": { "const": true }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "firstEnqueueStatus",
+        "replayStatus",
+        "leaseStatus",
+        "wrongAckStatus",
+        "ackStatus",
+        "recordCount",
+        "acknowledgedRecordCount",
+        "preflightQueuePathStatus",
+        "rawQueueNamesStored",
+        "rawWorkerIdsStored",
+        "canClaimDistributedResume"
+      ],
+      "properties": {
+        "firstEnqueueStatus": { "const": "enqueued" },
+        "replayStatus": { "const": "replayed" },
+        "leaseStatus": { "const": "leased" },
+        "wrongAckStatus": { "const": "lease_mismatch" },
+        "ackStatus": { "const": "acknowledged" },
+        "recordCount": { "type": "integer", "minimum": 1 },
+        "acknowledgedRecordCount": { "type": "integer", "minimum": 1 },
+        "preflightQueuePathStatus": { "const": "pass" },
+        "rawQueueNamesStored": { "const": false },
+        "rawWorkerIdsStored": { "const": false },
+        "canClaimDistributedResume": { "const": false }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "endpointPath", "record"],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.production-graph-resume-queue.v1" },
+        "endpointPath": { "const": "/v1/production-graph-resume-queue" },
+        "record": { "$ref": "#/$defs/queueRecord" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "queueRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "queueRecordId",
+        "idempotencyKey",
+        "queueNameSha256",
+        "capsuleId",
+        "capsuleSha256",
+        "jobId",
+        "actionId",
+        "graphStateSha256",
+        "resumeCursorSha256",
+        "predictionIdsSha256",
+        "predictionIdCount",
+        "activePredictionIdCount",
+        "status",
+        "enqueuedAt",
+        "attemptCount",
+        "leaseId",
+        "workerIdSha256",
+        "leasedAt",
+        "leaseExpiresAt",
+        "acknowledgedAt"
+      ],
+      "properties": {
+        "queueRecordId": { "type": "string", "minLength": 1 },
+        "idempotencyKey": { "type": "string", "minLength": 1 },
+        "queueNameSha256": { "$ref": "#/$defs/sha256" },
+        "capsuleId": { "type": "string", "minLength": 1 },
+        "capsuleSha256": { "$ref": "#/$defs/sha256" },
+        "jobId": { "type": "string", "minLength": 1 },
+        "actionId": { "type": "string", "minLength": 1 },
+        "graphStateSha256": { "$ref": "#/$defs/sha256" },
+        "resumeCursorSha256": { "$ref": "#/$defs/sha256" },
+        "predictionIdsSha256": { "$ref": "#/$defs/sha256" },
+        "predictionIdCount": { "type": "integer", "minimum": 0 },
+        "activePredictionIdCount": { "type": "integer", "minimum": 0 },
+        "status": { "const": "acknowledged" },
+        "enqueuedAt": { "$ref": "#/$defs/dateTime" },
+        "attemptCount": { "type": "integer", "minimum": 1 },
+        "leaseId": { "type": "string", "minLength": 1 },
+        "workerIdSha256": { "$ref": "#/$defs/sha256" },
+        "leasedAt": { "$ref": "#/$defs/dateTime" },
+        "leaseExpiresAt": { "$ref": "#/$defs/dateTime" },
+        "acknowledgedAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

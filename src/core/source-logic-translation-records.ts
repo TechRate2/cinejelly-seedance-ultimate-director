@@ -1090,13 +1090,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "graph-resume enqueue payload evidence must be archived as digest-only queue, graph state, resume cursor, and prediction-ID summaries bound to live action evidence",
       "live provider action evidence must be bound to the same deployment fingerprint as the production handoff capture",
       "secure graph resume state must be stored as bounded digest-only capsule evidence before any durable worker queue can use it",
-      "local graph-resume queue records must replay duplicate enqueue attempts by idempotency key, lease by worker hash, and acknowledge by lease ID without exposing raw queue names or worker IDs"
+      "local graph-resume queue records must replay duplicate enqueue attempts by idempotency key, lease by worker hash, and acknowledge by lease ID without exposing raw queue names or worker IDs",
+      "protected graph-resume queue service calls must require a deployment token, validate preflight queue-path readiness, and expose only digest-only enqueue/replay/lease/ack/records evidence"
     ],
     behaviorChanged: [
       "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
       "local JSON and HTTPS lease-store adapters replace direct Redis coupling in the production TypeScript boundary",
-      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, production capture tooling can exercise the real HTTPS lease-service route while redacting deployment hostnames/raw lease job IDs and retaining only a deployment fingerprint, a live action evidence draft helper writes a template/checklist that cannot count as proof, live action evidence validation checks archived provider callbacks plus action/kind/result/deployment-fingerprint consistency, and graph-resume enqueue payload validation checks digest-only queue/graph/resume/prediction evidence without claiming distributed resume parity",
-      "ProductionGraphResumeStateBuilder, FileProductionGraphResumeStateStore, and FileProductionGraphResumeQueueStore add a digest-only graph resume-state capsule plus local enqueue/replay/lease/ack queue lifecycle that records node/edge/provider-work summaries without raw graph state, raw provider payloads, output URLs, local paths, raw queue names, raw worker IDs, or secrets",
+      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, production capture tooling can exercise the real HTTPS lease-service route while redacting deployment hostnames/raw lease job IDs and retaining only a deployment fingerprint, a live action evidence draft helper writes a template/checklist that cannot count as proof, live action evidence validation checks archived provider callbacks plus action/kind/result/deployment-fingerprint consistency, graph-resume queue-service validation proves protected HTTP enqueue/lease/ack behavior, and graph-resume enqueue payload validation checks digest-only queue/graph/resume/prediction evidence without claiming distributed resume parity",
+      "ProductionGraphResumeStateBuilder, FileProductionGraphResumeStateStore, FileProductionGraphResumeQueueStore, and ProductionGraphResumeQueueService add a digest-only graph resume-state capsule plus local and protected-HTTP enqueue/replay/lease/ack queue lifecycle that records node/edge/provider-work summaries without raw graph state, raw provider payloads, output URLs, local paths, raw queue names, raw worker IDs, or secrets",
       "idempotent action-ledger records let terminal-close, resume-polling, and manual-audit intents replay by stable key without duplicating worker action records or callback execution evidence",
       "handoff reports expose redacted lease/action evidence and refuse to claim distributed resume parity",
       "raw provider payloads, output URLs, hostnames, raw lease job IDs, worker owner IDs, local paths, bearer tokens, and secrets are excluded from public reports"
@@ -1107,6 +1108,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/api/render-provider-handoff-external-lease.ts",
       "src/api/render-provider-handoff-lease-service.ts",
       "src/api/render-provider-handoff-action-ledger.ts",
+      "src/api/production-graph-resume-queue-service.ts",
       "src/core/production-graph-resume-state.ts",
       "src/api/server.ts",
       "scripts/run-render-provider-handoff-smoke.mjs",
@@ -1114,6 +1116,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-render-provider-lease-service-smoke.mjs",
       "scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
       "scripts/run-production-graph-resume-state-smoke.mjs",
+      "scripts/run-production-graph-resume-queue-service-smoke.mjs",
       "scripts/run-render-provider-multi-worker-handoff-smoke.mjs",
       "scripts/capture-render-provider-production-handoff.mjs",
       "scripts/create-render-provider-live-action-evidence-draft.mjs",
@@ -1123,6 +1126,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "schemas/render-provider-lease-service-smoke-report.schema.json",
       "schemas/render-provider-handoff-action-ledger-report.schema.json",
       "schemas/production-graph-resume-state-report.schema.json",
+      "schemas/production-graph-resume-queue-service-smoke-report.schema.json",
       "schemas/render-provider-multi-worker-handoff-report.schema.json",
       "schemas/render-provider-production-handoff-report.schema.json",
       "schemas/render-provider-live-action-evidence-draft-report.schema.json",
@@ -1136,7 +1140,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     fidelityRisks: [
       "draft live action templates are not evidence; production parity still requires real live provider action execution evidence, graph-resume enqueue payload evidence, and archived production multi-worker ownership handoff evidence",
       "live Atlas prediction IDs must be validated before using handoff output as paid-provider closeout evidence",
-      "resume-state capsule and local queue lifecycle evidence are not an external live queue enqueue or automatic graph resume engine; production worker replay and live provider callback proof are still required"
+      "resume-state capsule plus local/protected queue-service lifecycle evidence are not an external live queue enqueue or automatic graph resume engine; production worker replay and live provider callback proof are still required"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -1156,12 +1160,12 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "archived live callback evidence should be tied to the same deployment capture before release-facing claims",
       "live graph-resume evidence must be tied to a resume-polling action with graph-resume enqueue and resume-enqueued result",
       "graph-resume enqueue payload evidence must stay digest-only and matched to live action action/job IDs",
-      "graph resume-state capsules and local queue records must summarize graph/provider context without serializing raw graph state, output URLs, local paths, provider payloads, raw queue names, raw worker IDs, or secrets"
+      "graph resume-state capsules and local/protected queue records must summarize graph/provider context without serializing raw graph state, output URLs, local paths, provider payloads, raw queue names, raw worker IDs, or secrets"
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten into CineJelly provider handoff contracts",
-      "local, protected HTTP-service, HTTPS-adapted lease decisions, heartbeat renewal, local two-worker no-steal/expiry handoff validation, production capture tooling, non-evidence live action draft tooling, live action evidence validation, and graph-resume enqueue payload validation wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
-      "Production Graph resume-state capsules plus local queue lifecycle records provide digest-only replay context for future durable workers while keeping release claims false",
+      "local, protected HTTP-service, HTTPS-adapted lease decisions, heartbeat renewal, local two-worker no-steal/expiry handoff validation, production capture tooling, protected graph-resume queue-service validation, non-evidence live action draft tooling, live action evidence validation, and graph-resume enqueue payload validation wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
+      "Production Graph resume-state capsules plus local/protected queue lifecycle records provide digest-only replay context for future durable workers while keeping release claims false",
       "idempotent action-ledger execution evidence is added for deterministic worker replay, and live action plus graph-resume payload evidence validation stays separate from local replay evidence while rejecting inconsistent action/provider-call/result/deployment-fingerprint tuples",
       "distributed resume remains blocked until production multi-worker ownership handoff, live provider actions, and graph-resume enqueue evidence are proven"
     ],
@@ -1171,12 +1175,15 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/api/render-provider-handoff-external-lease.ts",
       "src/api/render-provider-handoff-lease-service.ts",
       "src/api/render-provider-handoff-action-ledger.ts",
+      "src/api/production-graph-resume-queue-service.ts",
       "src/core/production-graph-resume-state.ts",
+      "src/api/server.ts",
       "scripts/run-render-provider-handoff-smoke.mjs",
       "scripts/run-render-provider-external-lease-smoke.mjs",
       "scripts/run-render-provider-lease-service-smoke.mjs",
       "scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
       "scripts/run-production-graph-resume-state-smoke.mjs",
+      "scripts/run-production-graph-resume-queue-service-smoke.mjs",
       "scripts/run-render-provider-multi-worker-handoff-smoke.mjs",
       "scripts/capture-render-provider-production-handoff.mjs",
       "scripts/create-render-provider-live-action-evidence-draft.mjs",
@@ -1184,6 +1191,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/validate-render-provider-graph-resume-enqueues.mjs",
       "schemas/render-provider-handoff-report.schema.json",
       "schemas/production-graph-resume-state-report.schema.json",
+      "schemas/production-graph-resume-queue-service-smoke-report.schema.json",
       "schemas/render-provider-multi-worker-handoff-report.schema.json",
       "schemas/render-provider-production-handoff-report.schema.json",
       "schemas/render-provider-live-action-evidence-draft-report.schema.json",
@@ -1194,7 +1202,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "operator tooling must not treat fake-provider, local graph-resume queue, local two-worker, or production lease-service capture evidence as live Atlas provider action evidence",
+      "operator tooling must not treat fake-provider, local/protected graph-resume queue, local two-worker, or production lease-service capture evidence as live Atlas provider action evidence",
       "future worker automation must preserve the same redaction, bearer-token, and warning boundaries"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"

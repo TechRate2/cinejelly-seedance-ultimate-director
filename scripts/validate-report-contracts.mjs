@@ -26,6 +26,7 @@ const defaultContracts = [
   contract("render_provider_lease_service_smoke", "schemas/render-provider-lease-service-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-lease-service-smoke-report.json"),
   contract("render_provider_handoff_action_ledger", "schemas/render-provider-handoff-action-ledger-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
   contract("production_graph_resume_state", "schemas/production-graph-resume-state-report.schema.json", "assets/output_deliverables/business-readiness/production-graph-resume-state-report.json"),
+  contract("production_graph_resume_queue_service", "schemas/production-graph-resume-queue-service-smoke-report.schema.json", "assets/output_deliverables/business-readiness/production-graph-resume-queue-service-smoke-report.json"),
   contract("render_provider_multi_worker_handoff", "schemas/render-provider-multi-worker-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
   contract("render_provider_production_handoff", "schemas/render-provider-production-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-production-handoff-report.json"),
   contract("render_provider_live_action_evidence_draft", "schemas/render-provider-live-action-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-live-action-evidence-draft-report.json"),
@@ -303,6 +304,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "production_graph_resume_state") {
     return validateProductionGraphResumeStateSemantics(report);
   }
+  if (item.name === "production_graph_resume_queue_service") {
+    return validateProductionGraphResumeQueueServiceSemantics(report);
+  }
   if (item.name === "render_provider_production_handoff") {
     return validateRenderProviderProductionHandoffSemantics(report);
   }
@@ -349,6 +353,7 @@ const LAUNCH_DOCTOR_PROVIDER_COMMANDS = [
   ["provider_lease_service", "providerLeaseServiceStatus"],
   ["provider_handoff_actions", "providerHandoffActionsStatus"],
   ["production_graph_resume_state", "productionGraphResumeStateStatus"],
+  ["production_graph_resume_queue_service", "productionGraphResumeQueueServiceStatus"],
   ["provider_multi_worker_handoff", "providerMultiWorkerHandoffStatus"]
 ];
 
@@ -1265,6 +1270,67 @@ function validateProductionGraphResumeStateSemantics(report) {
   }
   if (unsafePatterns.some((pattern) => pattern.test(publicPayload))) {
     issues.push("$.capsule: public resume-state report must not contain raw URLs, local paths, token-like text, or raw prediction IDs.");
+  }
+  return issues;
+}
+
+function validateProductionGraphResumeQueueServiceSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  const publicPayload = JSON.stringify(report ?? {});
+  const unsafePatterns = [
+    /https?:\/\/(?!cinejelly\.local\/schemas)/i,
+    /data:/i,
+    /[A-Za-z]:\\/,
+    /\\\\/,
+    /(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\//i,
+    /bearer\s+/i,
+    /api[_-]?key/i,
+    /sk_live/i,
+    /token_should_not_escape/i,
+    /pred_resume_queue_service_active/i,
+    /graph_resume_service_lane/i,
+    /resume_service_worker_a/i,
+    /graph_resume_queue_service_deployment/i,
+    /cdn\.example\.com/i
+  ];
+
+  if (report?.status === "pass" && failedChecks.length > 0) {
+    issues.push("$.checks: status pass requires zero failed checks.");
+  }
+  if (report?.noSpend !== true || report?.externalNetworkCallsMade !== false || report?.localHttpCallsMade !== true || report?.providerCallsMade !== false) {
+    issues.push("$.noSpend/externalNetworkCallsMade/localHttpCallsMade/providerCallsMade: expected local no-spend HTTP smoke evidence.");
+  }
+  if (report?.summary?.firstEnqueueStatus !== "enqueued" || report?.summary?.replayStatus !== "replayed") {
+    issues.push("$.summary: expected enqueue then idempotent replay lifecycle.");
+  }
+  if (report?.summary?.leaseStatus !== "leased" || report?.summary?.wrongAckStatus !== "lease_mismatch" || report?.summary?.ackStatus !== "acknowledged") {
+    issues.push("$.summary: expected lease, lease-mismatch rejection, and acknowledgement lifecycle.");
+  }
+  if (Number(report?.summary?.recordCount ?? -1) < 1 || Number(report?.summary?.acknowledgedRecordCount ?? -1) < 1) {
+    issues.push("$.summary.recordCount/acknowledgedRecordCount: expected acknowledged queue record evidence.");
+  }
+  if (report?.summary?.preflightQueuePathStatus !== "pass") {
+    issues.push("$.summary.preflightQueuePathStatus: expected preflight to validate the configured queue path.");
+  }
+  if (report?.summary?.rawQueueNamesStored !== false || report?.summary?.rawWorkerIdsStored !== false) {
+    issues.push("$.summary.rawQueueNamesStored/rawWorkerIdsStored: expected false.");
+  }
+  if (report?.summary?.canClaimDistributedResume !== false) {
+    issues.push("$.summary.canClaimDistributedResume: expected false until live distributed worker evidence exists.");
+  }
+  if (report?.queue?.record?.status !== "acknowledged") {
+    issues.push("$.queue.record.status: expected acknowledged final record.");
+  }
+  if (typeof report?.queue?.record?.queueNameSha256 !== "string" || !/^[a-f0-9]{64}$/.test(report.queue.record.queueNameSha256)) {
+    issues.push("$.queue.record.queueNameSha256: expected queue name hash.");
+  }
+  if (typeof report?.queue?.record?.workerIdSha256 !== "string" || !/^[a-f0-9]{64}$/.test(report.queue.record.workerIdSha256)) {
+    issues.push("$.queue.record.workerIdSha256: expected worker ID hash.");
+  }
+  if (unsafePatterns.some((pattern) => pattern.test(publicPayload))) {
+    issues.push("$.queue: public queue-service report must not contain raw URLs, local paths, token-like text, raw prediction IDs, raw queue names, raw worker IDs, or deployment tokens.");
   }
   return issues;
 }
