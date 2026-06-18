@@ -403,9 +403,9 @@ function buildRequiredInputs(reports) {
       sensitivity: "manual_review",
       requiredFor: ["atlas_generated_audio_validation"],
       envVars: [],
-      filePaths: ["assets/output_deliverables/business-readiness/generated-audio-validation-report.json"],
-      acceptance: "After Atlas generated-audio execution, approve schema review, output-batch validation, ledger evidence, and manual listening review.",
-      validationCommand: "npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review",
+      filePaths: ["assets/output_deliverables/business-readiness/generated-audio-validation-report.json", "ops/generated-audio-manual-review.json"],
+      acceptance: "After Atlas generated-audio execution, create the review draft, listen to the output, fill the structured review JSON, and approve schema review, output-batch validation, ledger evidence, and manual listening review.",
+      validationCommand: "npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review",
       blockerMessage: failingMessage(business, "atlas_generated_audio_validation")
     })
   ];

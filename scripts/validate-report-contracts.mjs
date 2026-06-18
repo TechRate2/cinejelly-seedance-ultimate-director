@@ -47,6 +47,8 @@ const defaultContracts = [
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
   contract("remote_stock_validation", "schemas/remote-stock-validation-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-validation-report.json"),
   contract("generated_audio_validation", "schemas/generated-audio-validation-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
+  contract("generated_audio_manual_review", "schemas/generated-audio-manual-review.schema.json", "ops/generated-audio-manual-review.json"),
+  contract("generated_audio_manual_review_draft", "schemas/generated-audio-manual-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json"),
   contract("generated_audio_polling_resilience", "schemas/generated-audio-polling-resilience-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"),
   contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
   contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),
@@ -306,6 +308,9 @@ function validateSemanticContract(item, report, options) {
   }
   if (item.name === "generated_audio_polling_resilience") {
     return validateGeneratedAudioPollingResilienceSemantics(report);
+  }
+  if (item.name === "generated_audio_manual_review_draft") {
+    return validateGeneratedAudioManualReviewDraftSemantics(report);
   }
   if (item.name === "render_provider_handoff_action_ledger") {
     return validateRenderProviderHandoffActionLedgerSemantics(report);
@@ -1220,6 +1225,44 @@ function validateGeneratedAudioPollingResilienceSemantics(report) {
   }
   if (/test-atlas-api-key|test-atlas-llm-api-key|apikey-|sk_[A-Za-z0-9]/.test(publicPayload)) {
     issues.push("$.publicPayload: polling resilience smoke report must not include API keys or credential-like text.");
+  }
+  return issues;
+}
+
+function validateGeneratedAudioManualReviewDraftSemantics(report) {
+  const issues = [];
+  if (report?.noSpend !== true || report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade: expected no-spend, no-network draft generation.");
+  }
+  if (report?.template?.templateOnly !== true || report?.template?.directUseRejectedByValidation !== true) {
+    issues.push("$.template: expected template-only output that is rejected by final manual-review validation if used directly.");
+  }
+  if (report?.template?.safeForEvidenceUse !== false) {
+    issues.push("$.template.safeForEvidenceUse: expected false for draft template.");
+  }
+  if (
+    report?.releaseGateSummary?.canUseTemplateAsManualAudioReviewEvidence !== false ||
+    report?.releaseGateSummary?.canUseAsBusinessReadinessGeneratedAudioEvidence !== false ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: manual-review drafts must not unlock generated-audio evidence or customer traffic.");
+  }
+  if (report?.status === "pass") {
+    if (report?.sourceReportContext?.readyForManualReview !== true) {
+      issues.push("$.sourceReportContext.readyForManualReview: pass draft reports require provider/output/ledger evidence ready for operator listening.");
+    }
+    if (report?.template?.available !== true || report?.checklist?.available !== true) {
+      issues.push("$.template/$.checklist: pass draft reports must have an available template and checklist.");
+    }
+    if (Array.isArray(report?.issues) && report.issues.length > 0) {
+      issues.push("$.issues: pass draft reports must not carry issues.");
+    }
+  }
+  const binding = report?.sourceReportContext?.artifactBinding;
+  if (binding && typeof binding === "object") {
+    if (typeof binding.outputUrlPreview === "string" && /[?&#]/.test(binding.outputUrlPreview)) {
+      issues.push("$.sourceReportContext.artifactBinding.outputUrlPreview: expected credential-free URL preview without query or fragment.");
+    }
   }
   return issues;
 }

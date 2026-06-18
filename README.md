@@ -238,7 +238,7 @@ Optional environment variables:
 - `CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED`
 
 `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` can be used in production to pin the exact verified Atlas Cloud Seedance model capabilities. `setup:local` writes documented default assumptions based on the configured Standard/Fast model IDs so local readiness is less fragile, but those assumptions still need Atlas catalog verification before customer release.
-`ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON` can pin verified Atlas generated-audio capability records for `tts_narration`, `bgm`, `ambience`, or `sfx`. The local validation command defaults to Atlas's documented `xai/tts-v1` TTS model shape for evidence, but business readiness requires `npm run validation:generated-audio` to pass with explicit spend, schema-review, output validation, ledger, and manual audio review evidence.
+`ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON` can pin verified Atlas generated-audio capability records for `tts_narration`, `bgm`, `ambience`, or `sfx`. The local validation command defaults to Atlas's documented `xai/tts-v1` TTS model shape for evidence, but business readiness requires `npm run validation:generated-audio` to pass with explicit spend, schema-review, output validation, ledger, and structured manual audio review evidence. `npm run validation:generated-audio-review-draft` prepares the ignored review template/checklist after a provider-backed output exists; the draft itself is not release evidence.
 Preflight, live-input checks, and business-readiness planning validate generated-audio capability JSON shape when it is configured, while keeping Atlas generated-audio execution disabled when no reviewed capability records are present.
 Atlas endpoint overrides (`ATLASCLOUD_LLM_BASE_URL`, `ATLASCLOUD_API_BASE_URL`, `ATLASCLOUD_MEDIA_BASE_URL`, `ATLASCLOUD_BASE_URL`, `ATLASCLOUD_ASSET_BASE_URL`) must be valid HTTPS URLs without embedded credentials, query strings, or fragments; insecure or credential-bearing protocols are rejected by runtime configuration and `/v1/preflight` before any provider request can use credentials. When the official `api.atlascloud.ai` host is used, runtime configuration and preflight also require the documented path split: Atlas LLM calls use `/v1`; image/video/upload calls use `/api/v1`.
 Numeric runtime environment values must be plain base-10 integer or decimal strings without units or suffixes; malformed deployment knobs fail runtime loading or `/v1/preflight` instead of being partially parsed.
@@ -269,7 +269,8 @@ npm run validation:source-video-auto-analysis -- --source-video-url <clean-https
 npm run validation:remote-stock -- --confirm-live-network --confirm-commercial-terms-reviewed
 npm run validation:atlas-billing -- --max-budget-usd 5 --planned-cost-usd 0.000870 --output assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json --confirm-live-network
 npm run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed
-npm run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review
+npm run validation:generated-audio-review-draft
+npm run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review
 npm run ops:create-client-policy -- --client-id pilot-client
 npm run ops:apply-client-policy-env
 npm run validation:ops-config -- --write-drafts

@@ -622,7 +622,7 @@ function buildBudgetConstrainedSlices({
         "ATLASCLOUD_GENERATED_AUDIO_MODEL",
         "ATLASCLOUD_GENERATED_AUDIO_VOICE_ID",
         "reviewed ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON",
-        "after output review, run npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review"
+        "after output review, fill ops/generated-audio-manual-review.json and run npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review"
       ],
       limitations: [
         "does not validate Seedance video generation",
@@ -938,7 +938,7 @@ function buildValidationSequence({
       estimatedCostUsd: costPlan.generatedAudio.estimatedCostUsd,
       notes: [
         `Estimated generated-audio validation cost: ${formatUsd(costPlan.generatedAudio.estimatedCostUsd)}.`,
-        "After the provider run writes output evidence, listen to the result and run npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review to update manual review without another Atlas call.",
+        "After the provider run writes output evidence, run npm.cmd run validation:generated-audio-review-draft, listen to the result, fill ops/generated-audio-manual-review.json, then run npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review to update manual review without another Atlas call.",
         ...(generatedAudioBillingReady ? [] : [generatedAudioBillingGateNote, ...generatedAudioAtlasBilling.nextActions])
       ]
     }),

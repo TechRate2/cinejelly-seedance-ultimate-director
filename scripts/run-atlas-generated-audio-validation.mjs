@@ -160,13 +160,13 @@ Options:
   --atlas-billing-evidence-max-age-hours <hours>
                                        Maximum age for Atlas billing readiness evidence. Default: ${defaults.atlasBillingEvidenceMaxAgeHours}
   --timeout-ms <ms>                    Abort live validation after this many ms. Default: ${defaults.timeoutMs}
-  --manual-audio-review <path>         Optional operator review note containing a pass decision.
+  --manual-audio-review <path>         Optional operator review JSON/note containing accepted listening evidence.
   --review-existing-report <path>      Re-score an existing paid generated-audio report with manual review evidence without calling Atlas.
   --resume-existing-report <path>      Poll the existing report's active audio prediction without submitting a new Atlas job.
   --resume-prediction-id <id>          Poll an existing Atlas audio prediction without submitting a new Atlas job.
   --confirm-provider-spend             Required before any Atlas generated-audio provider execution can be attempted.
   --confirm-audio-schema-reviewed      Required before docs-derived Atlas audio schema can count as business evidence.
-  --confirm-manual-audio-review        Operator confirms the generated audio output was listened to and accepted.
+  --confirm-manual-audio-review        Operator confirms the supplied manual-review evidence was created after listening.
   --output <path>                      JSON report path. Default: ${defaults.outputPath}
   --no-output                          Print only; do not write the report.
 
@@ -307,11 +307,22 @@ async function main() {
     plan: planningEvidence.plan,
     runtimeSettings: planningEvidence.runtimeSettingsRaw
   });
+  const liveManualAudioReview = readManualAudioReview(options, {
+    checkedInputs: {
+      modelId: options.modelId,
+      language: options.language,
+      voiceId: options.voiceId,
+      outputFormat: options.outputFormat
+    },
+    executionRun: liveEvidence.executionRun,
+    outputBatchValidation: liveEvidence.outputBatchValidation,
+    providerLedger: liveEvidence.providerLedger
+  });
   const checks = [
     ...inputChecks,
     ...planningEvidence.checks,
     ...liveEvidence.checks,
-    manualAudioReview.passed
+    liveManualAudioReview.passed
       ? pass("manual_audio_review", "Operator manual generated-audio review passed.")
       : fail("manual_audio_review", "Manual generated-audio review is required before this evidence can count for business readiness.")
   ];
@@ -330,7 +341,7 @@ async function main() {
     executionRun: liveEvidence.executionRun,
     outputBatchValidation: liveEvidence.outputBatchValidation,
     providerLedger: liveEvidence.providerLedger,
-    manualAudioReview,
+    manualAudioReview: liveManualAudioReview,
     error: liveEvidence.error
   });
   writeMaybe(options, report);
@@ -579,20 +590,16 @@ function schemaGate(options) {
   };
 }
 
-function readManualAudioReview(options) {
-  if (options.confirmManualAudioReview) {
-    return {
-      present: true,
-      source: "operator_flag",
-      passed: true,
-      message: "Operator confirmed generated-audio manual review passed."
-    };
-  }
+function readManualAudioReview(options, sourceReport) {
   if (!options.manualAudioReviewPath) {
     return {
       present: false,
       passed: false,
-      message: "No manual generated-audio review evidence was supplied."
+      confirmManualAudioReview: options.confirmManualAudioReview,
+      source: options.confirmManualAudioReview ? "operator_flag_without_evidence" : undefined,
+      message: options.confirmManualAudioReview
+        ? "--confirm-manual-audio-review requires --manual-audio-review evidence before generated-audio review can pass."
+        : "No manual generated-audio review evidence was supplied."
     };
   }
   const absolutePath = resolve(repoRoot, options.manualAudioReviewPath);
@@ -601,28 +608,46 @@ function readManualAudioReview(options) {
       present: false,
       passed: false,
       path: toRepoRelative(options.manualAudioReviewPath),
+      confirmManualAudioReview: options.confirmManualAudioReview,
       message: "Manual generated-audio review file does not exist."
     };
   }
   const text = readFileSync(absolutePath, "utf8");
+  const parsed = parseManualAudioReviewJson(text);
+  if (parsed) {
+    return evaluateStructuredManualAudioReview({
+      options,
+      review: parsed,
+      path: options.manualAudioReviewPath,
+      sourceReport
+    });
+  }
   const normalized = text.toLowerCase();
   const passed =
-    normalized.includes("manual audio review passes") ||
-    (normalized.includes("decision") && normalized.includes("pass")) ||
-    normalized.includes("generated-audio review passed");
+    options.confirmManualAudioReview === true &&
+    !normalized.includes("needs_review") &&
+    !normalized.includes("templateonly") &&
+    !normalized.includes("template only") &&
+    (normalized.includes("manual audio review passes") ||
+      normalized.includes("generated-audio review passed"));
   return {
     present: true,
     path: toRepoRelative(options.manualAudioReviewPath),
+    source: "legacy_text_note",
+    evidenceType: "legacy_text_note",
+    confirmManualAudioReview: options.confirmManualAudioReview,
     passed,
     message: passed
       ? "Manual generated-audio review file contains a pass decision."
-      : "Manual generated-audio review file does not contain a clear pass decision."
+      : options.confirmManualAudioReview
+        ? "Manual generated-audio review file does not contain a clear pass decision."
+        : "--confirm-manual-audio-review is required with manual review evidence before generated-audio review can pass."
   };
 }
 
 function reviewExistingReport(options) {
   const existing = readJsonIfExists(options.reviewExistingReportPath);
-  const manualAudioReview = readManualAudioReview(options);
+  const manualAudioReview = readManualAudioReview(options, existing);
   const baseChecks = Array.isArray(existing?.checks)
     ? existing.checks.filter((check) => check?.name !== "manual_audio_review").map((check) => ({
         name: String(check.name ?? "unknown"),
@@ -729,6 +754,137 @@ function reviewExistingReport(options) {
   writeMaybe(options, report);
   process.stdout.write(`${JSON.stringify(redactUnknown(report), null, 2)}\n`);
   return status === "fail" ? 1 : 0;
+}
+
+function parseManualAudioReviewJson(text) {
+  try {
+    const trimmed = text.replace(/^\uFEFF/, "").trim();
+    if (!trimmed.startsWith("{")) {
+      return undefined;
+    }
+    const parsed = JSON.parse(trimmed);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function evaluateStructuredManualAudioReview({ options, review, path, sourceReport }) {
+  const requiredCheckNames = [
+    "listenedFullOutput",
+    "outputIsAudible",
+    "languageMatchesRequest",
+    "narrationMatchesValidationText",
+    "noObviousArtifacts",
+    "noCredentialLeak",
+    "safeForBusinessEvidence"
+  ];
+  const checks = review.checks && typeof review.checks === "object" && !Array.isArray(review.checks)
+    ? review.checks
+    : {};
+  const passedCheckCount = requiredCheckNames.filter((name) => checks[name] === true).length;
+  const binding = compareGeneratedAudioManualReviewBinding(review, sourceReport);
+  const issues = [];
+  if (review.schemaVersion !== "cinejelly.generated-audio-manual-review.v1") {
+    issues.push("schemaVersion must be cinejelly.generated-audio-manual-review.v1.");
+  }
+  if (!["manual", "approved_analyzer"].includes(review.reviewerType)) {
+    issues.push("reviewerType must be manual or approved_analyzer.");
+  }
+  if (review.status !== "accepted") {
+    issues.push("status must be accepted.");
+  }
+  if (review.decision !== "pass") {
+    issues.push("decision must be pass.");
+  }
+  if (options.confirmManualAudioReview !== true) {
+    issues.push("--confirm-manual-audio-review is required.");
+  }
+  if (review.redactionReviewed !== true) {
+    issues.push("redactionReviewed must be true.");
+  }
+  if (passedCheckCount !== requiredCheckNames.length) {
+    issues.push("all required audio-review checks must be true.");
+  }
+  if (!binding.matches) {
+    issues.push(binding.message);
+  }
+  return {
+    present: true,
+    path: toRepoRelative(path),
+    source: "structured_json",
+    evidenceType: "structured_json",
+    confirmManualAudioReview: options.confirmManualAudioReview,
+    passed: issues.length === 0,
+    schemaVersion: typeof review.schemaVersion === "string" ? review.schemaVersion : undefined,
+    status: typeof review.status === "string" ? review.status : undefined,
+    decision: typeof review.decision === "string" ? review.decision : undefined,
+    reviewerType: typeof review.reviewerType === "string" ? review.reviewerType : undefined,
+    reviewedAt: typeof review.reviewedAt === "string" ? review.reviewedAt : undefined,
+    requiredCheckCount: requiredCheckNames.length,
+    passedCheckCount,
+    artifactBindingChecked: binding.checked,
+    artifactBindingMatchesReport: binding.matches,
+    message: issues.length === 0
+      ? "Structured manual generated-audio review evidence passed."
+      : `Structured manual generated-audio review evidence is incomplete: ${issues.join(" ")}`
+  };
+}
+
+function compareGeneratedAudioManualReviewBinding(review, sourceReport) {
+  if (!sourceReport) {
+    return {
+      checked: false,
+      matches: true,
+      message: "No generated-audio report was available for binding comparison."
+    };
+  }
+  const binding = review.artifactBinding;
+  if (!binding || typeof binding !== "object" || Array.isArray(binding)) {
+    return {
+      checked: true,
+      matches: false,
+      message: "artifactBinding is required for review-existing-report manual evidence."
+    };
+  }
+  const expected = generatedAudioBindingFromReport(sourceReport);
+  const missingOrMismatched = Object.entries(expected)
+    .filter(([, expectedValue]) => typeof expectedValue === "string" && expectedValue.trim())
+    .filter(([key, expectedValue]) => binding[key] !== expectedValue)
+    .map(([key]) => key);
+  return {
+    checked: true,
+    matches: missingOrMismatched.length === 0,
+    message: missingOrMismatched.length === 0
+      ? "Manual review artifact binding matches the generated-audio report."
+      : `artifactBinding does not match the generated-audio report for: ${missingOrMismatched.join(", ")}.`
+  };
+}
+
+function generatedAudioBindingFromReport(report) {
+  const result = Array.isArray(report?.executionRun?.results)
+    ? report.executionRun.results.find((item) => item?.status === "succeeded") ?? report.executionRun.results[0]
+    : undefined;
+  const batchReport = Array.isArray(report?.outputBatchValidation?.reports)
+    ? report.outputBatchValidation.reports.find((item) => item?.status === "approved") ?? report.outputBatchValidation.reports[0]
+    : undefined;
+  const ledgerEntry = Array.isArray(report?.providerLedger?.entries)
+    ? report.providerLedger.entries.find((item) => item?.operation === "audio.generate") ?? report.providerLedger.entries[0]
+    : undefined;
+  return {
+    modelId: stringOrUndefined(report?.checkedInputs?.modelId),
+    language: stringOrUndefined(report?.checkedInputs?.language),
+    voiceId: stringOrUndefined(report?.checkedInputs?.voiceId),
+    outputFormat: stringOrUndefined(report?.checkedInputs?.outputFormat),
+    intentId: stringOrUndefined(result?.intentId ?? batchReport?.intentId),
+    providerAssetId: stringOrUndefined(result?.providerAssetId ?? ledgerEntry?.predictionId),
+    predictionId: stringOrUndefined(ledgerEntry?.predictionId ?? result?.providerAssetId),
+    outputUrlPreview: stringOrUndefined(result?.outputUrlPreview ?? batchReport?.outputUrlPreview)
+  };
+}
+
+function stringOrUndefined(value) {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function summarizeAtlasBillingGate(options, estimatedCostUsd) {

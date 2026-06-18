@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/generated-audio-manual-review-draft-report.schema.json",
+  "title": "CineJelly Generated Audio Manual Review Draft Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "sourceReportContext",
+    "template",
+    "checklist",
+    "issues",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.generated-audio-manual-review-draft.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "blocked"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generatedAudioReportPath",
+        "evidencePath",
+        "outputPath",
+        "templatePath",
+        "checklistPath",
+        "writeDrafts",
+        "force"
+      ],
+      "properties": {
+        "generatedAudioReportPath": { "$ref": "#/$defs/repoPath" },
+        "evidencePath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "templatePath": { "$ref": "#/$defs/repoPath" },
+        "checklistPath": { "$ref": "#/$defs/repoPath" },
+        "writeDrafts": { "type": "boolean" },
+        "force": { "type": "boolean" }
+      }
+    },
+    "sourceReportContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reportPresent",
+        "schemaVersion",
+        "status",
+        "providerSpendEvidence",
+        "atlasBillingEvidence",
+        "schemaReviewEvidence",
+        "providerExecutionSucceeded",
+        "outputBatchApproved",
+        "approvedTrackCount",
+        "providerLedgerEntryCount",
+        "outputUrlClean",
+        "manualReviewPassed",
+        "canUseAsBusinessReadinessGeneratedAudioEvidence",
+        "readyForManualReview",
+        "artifactBinding"
+      ],
+      "properties": {
+        "reportPresent": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "status": { "type": "string" },
+        "providerSpendEvidence": { "type": "boolean" },
+        "atlasBillingEvidence": { "type": "boolean" },
+        "schemaReviewEvidence": { "type": "boolean" },
+        "providerExecutionSucceeded": { "type": "boolean" },
+        "outputBatchApproved": { "type": "boolean" },
+        "approvedTrackCount": { "type": "integer", "minimum": 0 },
+        "providerLedgerEntryCount": { "type": "integer", "minimum": 0 },
+        "outputUrlClean": { "type": "boolean" },
+        "manualReviewPassed": { "type": "boolean" },
+        "canUseAsBusinessReadinessGeneratedAudioEvidence": { "type": "boolean" },
+        "readyForManualReview": { "type": "boolean" },
+        "artifactBinding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "modelId",
+            "language",
+            "voiceId",
+            "outputFormat",
+            "intentId",
+            "providerAssetId",
+            "predictionId",
+            "outputUrlPreview"
+          ],
+          "properties": {
+            "modelId": { "type": "string", "minLength": 1 },
+            "language": { "type": "string", "minLength": 1 },
+            "voiceId": { "type": "string", "minLength": 1 },
+            "outputFormat": { "type": "string", "minLength": 1 },
+            "intentId": { "type": "string", "minLength": 1 },
+            "providerAssetId": { "type": "string", "minLength": 1 },
+            "predictionId": { "type": "string", "minLength": 1 },
+            "outputUrlPreview": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "written",
+        "available",
+        "templateOnly",
+        "directUseRejectedByValidation",
+        "safeForEvidenceUse"
+      ],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "written": { "type": "boolean" },
+        "available": { "type": "boolean" },
+        "templateOnly": { "const": true },
+        "directUseRejectedByValidation": { "const": true },
+        "safeForEvidenceUse": { "const": false }
+      }
+    },
+    "checklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "written", "available"],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "written": { "type": "boolean" },
+        "available": { "type": "boolean" }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseTemplateAsManualAudioReviewEvidence",
+        "canUseAsBusinessReadinessGeneratedAudioEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseTemplateAsManualAudioReviewEvidence": { "const": false },
+        "canUseAsBusinessReadinessGeneratedAudioEvidence": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 260,
+      "pattern": "^[^:\\\\]+(?:[\\\\/][^:\\\\]+)*$"
+    }
+  }
+}

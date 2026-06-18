@@ -122,7 +122,7 @@ interface CommercialLaunchInputsReport {
 - Current output includes a paid budget slice section that names generated-audio smoke as within the `$5` ceiling while long-form/full sequence remain blocked.
 - The generated-audio smoke slice shows a no-spend Atlas billing probe with `--planned-cost-usd` before the paid generated-audio command.
 - The generated-audio paid command references `atlas-billing-generated-audio-smoke-report.json`, `--max-cost-usd`, `--cost-usd-per-1k-chars`, and the planned validation text.
-- The generated-audio manual review item points to `validation:generated-audio -- --review-existing-report ... --confirm-manual-audio-review`, not a second provider execution.
+- The generated-audio manual review item points to `validation:generated-audio-review-draft` and `validation:generated-audio -- --review-existing-report ... --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review`, not a second provider execution.
 - Current output can mark the generated-audio paid smoke command ready when live-inputs confirms its billing slice, reports the exact ready paid gate names, keeps `shouldDeferFullSequenceSpend=true`, and keeps customer traffic release false.
 - When the approved budget changes, checklist output points operators to rerun `validation:atlas-billing -- --max-budget-usd <current-budget> --confirm-live-network` instead of repeating stale audit text.
 - Current output includes a no-secret Atlas configuration section showing whether media/LLM keys, endpoint families, Seedance model/capability config, generated-audio config, and the generated-audio billing slice are ready without printing key values.

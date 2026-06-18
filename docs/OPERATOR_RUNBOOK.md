@@ -271,10 +271,11 @@ npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-aud
 If that paid run succeeds but manual listening review was not attached yet, update the evidence without calling Atlas again:
 
 ```powershell
-npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --confirm-manual-audio-review
+npm.cmd run validation:generated-audio-review-draft
+npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review
 ```
 
-The runner writes `assets/output_deliverables/business-readiness/generated-audio-validation-report.json`. The polling-resilience smoke writes `assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json` and proves only backend retry behavior, not live media quality. The validation default voice is Atlas' documented multilingual `eve`; verify language-specific voices before making them presets. The business-readiness gate counts generated audio only when the live report schema is recognized, provider execution was explicitly allowed, schema review is confirmed, generated-audio output batch validation is approved, provider ledger evidence exists, and manual audio review passes. See `docs/reference-implementations/generated-audio-validation-runner.md` for the exact report contract.
+The draft helper writes an ignored template and checklist under `assets/output_deliverables/business-readiness/operator-drafts`; it does not call Atlas and it is not release evidence. The runner writes `assets/output_deliverables/business-readiness/generated-audio-validation-report.json`. The polling-resilience smoke writes `assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json` and proves only backend retry behavior, not live media quality. The validation default voice is Atlas' documented multilingual `eve`; verify language-specific voices before making them presets. The business-readiness gate counts generated audio only when the live report schema is recognized, provider execution was explicitly allowed, schema review is confirmed, generated-audio output batch validation is approved, provider ledger evidence exists, and structured manual audio review passes. See `docs/reference-implementations/generated-audio-validation-runner.md` for the exact report contract.
 
 Create the billing/admin/quota evidence after client policy, a persistent usage ledger, a real deployment admin endpoint, and the non-secret billing/admin attestation are ready:
 
