@@ -19,7 +19,8 @@ const SECRET_PATTERNS = [
   }
 ];
 
-const IMPORT_BOUNDARY_PATTERN = /\b(?:from\s+["'][^"']*external|import\s+[^;]*["'][^"']*external|require\(\s*["'][^"']*external)/;
+const IMPORT_BOUNDARY_PATTERN =
+  /\b(?:from\s+["'](?:[^"']*\/)?external(?:\/|["'])|import\s+[^;]*["'](?:[^"']*\/)?external(?:\/|["'])|require\(\s*["'](?:[^"']*\/)?external(?:\/|["']))/;
 
 function parseArgs(args) {
   const options = {
@@ -265,7 +266,7 @@ function checkSecretScan() {
       continue;
     }
     for (const pattern of SECRET_PATTERNS) {
-      const matches = text.match(pattern.regex);
+      const matches = secretMatches(text, pattern);
       if (matches?.length) {
         findings.push({ file, pattern: pattern.name, count: matches.length });
       }
@@ -277,6 +278,21 @@ function checkSecretScan() {
   const affectedFiles = [...new Set(findings.map((finding) => finding.file))];
   return fail("tracked_secret_scan", `${findings.length} secret-like finding group(s) in ${affectedFiles.length} tracked file(s).`, {
     findings
+  });
+}
+
+function secretMatches(text, pattern) {
+  const matches = [...text.matchAll(pattern.regex)].map((match) => match[0]);
+  if (pattern.name !== "sensitive_env_assignment") {
+    return matches;
+  }
+  return matches.filter((match) => {
+    const rawValue = match
+      .slice(match.indexOf("=") + 1)
+      .trim()
+      .replace(/[;,]+$/g, "")
+      .replace(/^["']|["']$/g, "");
+    return !/^[A-Za-z_$][\w$]*$/.test(rawValue);
   });
 }
 

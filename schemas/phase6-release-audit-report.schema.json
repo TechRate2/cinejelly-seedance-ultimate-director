@@ -41,7 +41,11 @@
         "properties": {
           "name": { "type": "string" },
           "status": { "enum": ["pass", "warn", "fail"] },
-          "message": { "type": "string" }
+          "message": { "type": "string" },
+          "findings": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/finding" }
+          }
         }
       }
     },
@@ -61,5 +65,13 @@
       "items": { "type": "string" }
     },
     "error": { "type": "string" }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "integer", "number", "boolean"]
+      }
+    }
   }
 }

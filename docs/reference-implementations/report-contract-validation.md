@@ -26,6 +26,7 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Done: validate optional deployment-readiness captures, including local smoke evidence, against the deployment capture schema when those reports exist.
 - Done: validate optional Director-style structured semantic-review and audio-review input packets when those files exist.
 - Done: fail the commercial launch inputs contract when its local `commandPlanAudit` is not `pass`, so stale or unsafe launch commands are caught before operators copy them into live or paid runs.
+- Done: allow release-audit checks to carry redacted `findings` arrays so failed secret/import-boundary scans remain schema-valid and actionable.
 
 ## Acceptance Checks
 
@@ -38,3 +39,4 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - When `director-style-semantic-review.json` or `director-style-audio-review.json` exists, report-contract validation checks the structured review input schema before the quality benchmark consumes it.
 - When `director-style-benchmark-report.json` exists, report-contract validation includes the artifact-contract benchmark schema and verifies it still reports `canClaimDirectorBenchParity=false`.
 - When `commercial-launch-inputs-report.json` exists, report-contract validation requires `commandPlanAudit.status` to be `pass` with no command-plan issues.
+- When release-audit checks include redacted findings, the schema accepts only primitive finding fields and still rejects unrelated report drift.
