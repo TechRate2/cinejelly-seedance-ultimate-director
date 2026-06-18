@@ -667,10 +667,33 @@ function buildEvidenceClosurePlan(completion) {
             productGapIds: arrayOfStrings(phase?.productGapIds),
             requiredInputCount: numberOrZero(phase?.requiredInputCount),
             requiredInputIds: arrayOfStrings(phase?.requiredInputIds),
+            envVarCount: numberOrZero(phase?.envVarCount),
+            envVars: arrayOfStrings(phase?.envVars),
+            envPlaceholders: Array.isArray(phase?.envPlaceholders)
+              ? phase.envPlaceholders.map((item) => ({
+                  name: String(item?.name ?? ""),
+                  sensitivity: String(item?.sensitivity ?? "unknown"),
+                  required: item?.required === true,
+                  configured: item?.configured === true,
+                  purpose: String(item?.purpose ?? "")
+                })).filter((item) => item.name)
+              : [],
             operatorInputFiles: arrayOfStrings(phase?.operatorInputFiles),
             draftFiles: arrayOfStrings(phase?.draftFiles),
             reportArchiveFiles: arrayOfStrings(phase?.reportArchiveFiles),
             commands: arrayOfStrings(phase?.commands),
+            commandGuards: Array.isArray(phase?.commandGuards)
+              ? phase.commandGuards.map((item) => ({
+                  command: String(item?.command ?? ""),
+                  source: String(item?.source ?? "unknown"),
+                  runnable: item?.runnable === true,
+                  requiresLiveNetwork: item?.requiresLiveNetwork === true,
+                  requiresProviderSpend: item?.requiresProviderSpend === true,
+                  requiresOperatorConfirmation: item?.requiresOperatorConfirmation === true,
+                  requiresManualReview: item?.requiresManualReview === true,
+                  containsPlaceholder: item?.containsPlaceholder === true
+                })).filter((item) => item.command)
+              : [],
             releaseImpact: String(phase?.releaseImpact ?? "")
           })).filter((phase) => phase.id && phase.label)
         : []
@@ -928,11 +951,26 @@ function markdownEvidenceClosurePlan(plan) {
       const blockers = phase.blockerIds.length === 0 ? "no blocker ids" : phase.blockerIds.join(", ");
       const gaps = phase.productGapIds.length === 0 ? "no product gaps" : phase.productGapIds.join(", ");
       const inputs = phase.requiredInputIds.length === 0 ? "no operator inputs" : phase.requiredInputIds.join(", ");
+      const env = phase.envVars.length === 0 ? "no env placeholders" : phase.envVars.join(", ");
       const files = [...phase.operatorInputFiles, ...phase.draftFiles, ...phase.reportArchiveFiles];
       const packet = files.length === 0 ? "no operator packet files" : files.join(", ");
-      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; files: ${packet}; commands: ${commands}`;
+      const guards = phase.commandGuards.length === 0
+        ? "no command guards"
+        : phase.commandGuards.map((item) => guardSummary(item)).join(" | ");
+      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; env: ${env}; files: ${packet}; guards: ${guards}; commands: ${commands}`;
     })
   ];
+}
+
+function guardSummary(item) {
+  const flags = [
+    item.requiresLiveNetwork ? "live-network" : undefined,
+    item.requiresProviderSpend ? "provider-spend" : undefined,
+    item.requiresOperatorConfirmation ? "confirmation" : undefined,
+    item.requiresManualReview ? "manual-review" : undefined,
+    item.containsPlaceholder ? "placeholder" : undefined
+  ].filter(Boolean);
+  return `${item.source}:${item.runnable ? "runnable" : "blocked"}:${flags.length === 0 ? "no-extra-guard" : flags.join("+")}`;
 }
 
 function summarizeProcessOutput(value) {

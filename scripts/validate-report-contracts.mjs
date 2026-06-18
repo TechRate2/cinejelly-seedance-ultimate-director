@@ -858,6 +858,10 @@ function validateEvidenceClosurePlan(plan, path, context = {}) {
     const blockerIds = Array.isArray(phase?.blockerIds) ? phase.blockerIds : [];
     const productGapIds = Array.isArray(phase?.productGapIds) ? phase.productGapIds : [];
     const requiredInputIds = Array.isArray(phase?.requiredInputIds) ? phase.requiredInputIds : [];
+    const envVars = Array.isArray(phase?.envVars) ? phase.envVars : [];
+    const envPlaceholders = Array.isArray(phase?.envPlaceholders) ? phase.envPlaceholders : [];
+    const commands = Array.isArray(phase?.commands) ? phase.commands : [];
+    const commandGuards = Array.isArray(phase?.commandGuards) ? phase.commandGuards : [];
     if (Number(phase?.blockerCount ?? -1) !== blockerIds.length) {
       issues.push(`${path}.phases[id=${phase?.id}].blockerCount: expected to equal blockerIds length.`);
     }
@@ -867,18 +871,57 @@ function validateEvidenceClosurePlan(plan, path, context = {}) {
     if (Number(phase?.requiredInputCount ?? -1) !== requiredInputIds.length) {
       issues.push(`${path}.phases[id=${phase?.id}].requiredInputCount: expected to equal requiredInputIds length.`);
     }
+    if (Number(phase?.envVarCount ?? -1) !== envVars.length) {
+      issues.push(`${path}.phases[id=${phase?.id}].envVarCount: expected to equal envVars length.`);
+    }
     const orphanInputIds = requiredInputIds.filter((id) => !blockerIds.includes(id));
     if (orphanInputIds.length > 0) {
       issues.push(`${path}.phases[id=${phase?.id}].requiredInputIds: expected every required input to also be a phase blocker (${orphanInputIds.join(", ")}).`);
     }
+    const placeholderNames = envPlaceholders.map((item) => item?.name).filter(Boolean);
+    const orphanPlaceholderNames = placeholderNames.filter((name) => !envVars.includes(name));
+    if (orphanPlaceholderNames.length > 0) {
+      issues.push(`${path}.phases[id=${phase?.id}].envPlaceholders: expected placeholder names to be listed in envVars (${orphanPlaceholderNames.join(", ")}).`);
+    }
+    for (const envName of envVars) {
+      if (!/^[A-Z][A-Z0-9_]*$/.test(String(envName))) {
+        issues.push(`${path}.phases[id=${phase?.id}].envVars: expected safe env var names, found ${envName}.`);
+      }
+    }
     issues.push(...validateEvidenceClosureFileList(phase?.operatorInputFiles, `${path}.phases[id=${phase?.id}].operatorInputFiles`, ["ops/"]));
     issues.push(...validateEvidenceClosureFileList(phase?.draftFiles, `${path}.phases[id=${phase?.id}].draftFiles`, ["assets/output_deliverables/"]));
     issues.push(...validateEvidenceClosureFileList(phase?.reportArchiveFiles, `${path}.phases[id=${phase?.id}].reportArchiveFiles`, ["assets/output_deliverables/"]));
+    if (commandGuards.length !== commands.length) {
+      issues.push(`${path}.phases[id=${phase?.id}].commandGuards: expected one guard per command.`);
+    }
+    for (const guard of commandGuards) {
+      const command = String(guard?.command ?? "");
+      if (!commands.includes(command)) {
+        issues.push(`${path}.phases[id=${phase?.id}].commandGuards: expected guard command to be listed in commands.`);
+      }
+      const expectedFlags = commandGuardFlags(command);
+      for (const [key, expected] of Object.entries(expectedFlags)) {
+        if (guard?.[key] !== expected) {
+          issues.push(`${path}.phases[id=${phase?.id}].commandGuards[command=${command}].${key}: expected ${expected}.`);
+        }
+      }
+    }
     if (typeof phase?.releaseImpact !== "string" || phase.releaseImpact.trim().length === 0) {
       issues.push(`${path}.phases[id=${phase?.id}].releaseImpact: expected a non-empty release impact.`);
     }
   }
   return issues;
+}
+
+function commandGuardFlags(command) {
+  const text = String(command ?? "");
+  return {
+    requiresLiveNetwork: text.includes("--confirm-live-network"),
+    requiresProviderSpend: text.includes("--confirm-paid-spend") || text.includes("--confirm-provider-spend"),
+    requiresOperatorConfirmation: text.includes("--confirm-"),
+    requiresManualReview: text.includes("manual-review") || text.includes("manual-audio-review") || text.includes("manual-quality-review"),
+    containsPlaceholder: text.includes("<")
+  };
 }
 
 function validateEvidenceClosureFileList(value, path, allowedPrefixes) {

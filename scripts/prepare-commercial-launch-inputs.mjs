@@ -991,7 +991,10 @@ function commandRunbookItem({ section, index, name, kind, status, command, sourc
       normalizedCommand.includes("--confirm-paid-spend") ||
       normalizedCommand.includes("--confirm-provider-spend"),
     requiresOperatorConfirmation: normalizedCommand.includes("--confirm-"),
-    requiresManualReview: normalizedCommand.includes("manual-review") || normalizedCommand.includes("manual-audio-review"),
+    requiresManualReview:
+      normalizedCommand.includes("manual-review") ||
+      normalizedCommand.includes("manual-audio-review") ||
+      normalizedCommand.includes("manual-quality-review"),
     containsPlaceholder: normalizedCommand.includes("<")
   };
 }

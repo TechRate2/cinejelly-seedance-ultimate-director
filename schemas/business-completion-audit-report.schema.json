@@ -550,10 +550,14 @@
         "productGapIds",
         "requiredInputCount",
         "requiredInputIds",
+        "envVarCount",
+        "envVars",
+        "envPlaceholders",
         "operatorInputFiles",
         "draftFiles",
         "reportArchiveFiles",
         "commands",
+        "commandGuards",
         "releaseImpact"
       ],
       "properties": {
@@ -588,11 +592,57 @@
         "productGapIds": { "type": "array", "items": { "type": "string" } },
         "requiredInputCount": { "type": "integer", "minimum": 0 },
         "requiredInputIds": { "type": "array", "items": { "type": "string" } },
+        "envVarCount": { "type": "integer", "minimum": 0 },
+        "envVars": { "type": "array", "items": { "type": "string" } },
+        "envPlaceholders": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceClosureEnvPlaceholder" }
+        },
         "operatorInputFiles": { "type": "array", "items": { "type": "string" } },
         "draftFiles": { "type": "array", "items": { "type": "string" } },
         "reportArchiveFiles": { "type": "array", "items": { "type": "string" } },
         "commands": { "type": "array", "items": { "type": "string" } },
+        "commandGuards": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceClosureCommandGuard" }
+        },
         "releaseImpact": { "type": "string" }
+      }
+    },
+    "evidenceClosureEnvPlaceholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sensitivity", "required", "configured", "purpose"],
+      "properties": {
+        "name": { "type": "string" },
+        "sensitivity": { "type": "string" },
+        "required": { "type": "boolean" },
+        "configured": { "type": "boolean" },
+        "purpose": { "type": "string" }
+      }
+    },
+    "evidenceClosureCommandGuard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "source",
+        "runnable",
+        "requiresLiveNetwork",
+        "requiresProviderSpend",
+        "requiresOperatorConfirmation",
+        "requiresManualReview",
+        "containsPlaceholder"
+      ],
+      "properties": {
+        "command": { "type": "string" },
+        "source": { "enum": ["operator_handoff_manifest", "derived_from_command_text"] },
+        "runnable": { "type": "boolean" },
+        "requiresLiveNetwork": { "type": "boolean" },
+        "requiresProviderSpend": { "type": "boolean" },
+        "requiresOperatorConfirmation": { "type": "boolean" },
+        "requiresManualReview": { "type": "boolean" },
+        "containsPlaceholder": { "type": "boolean" }
       }
     }
   }

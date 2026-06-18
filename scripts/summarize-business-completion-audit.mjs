@@ -748,6 +748,7 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
       const phaseBlockers = blockersByPhase.get(definition.id) ?? [];
       const phaseProductGaps = productGapsByPhase.get(definition.id) ?? [];
       const operatorPacket = operatorPacketForPhase(phaseBlockers, operatorPacketIndex);
+      const commands = [...new Set(phaseBlockers.map((item) => item.validationCommand).filter(Boolean))];
       return {
         id: definition.id,
         order: index + 1,
@@ -760,10 +761,14 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
         productGapIds: phaseProductGaps.map((item) => item.id),
         requiredInputCount: operatorPacket.requiredInputIds.length,
         requiredInputIds: operatorPacket.requiredInputIds,
+        envVarCount: operatorPacket.envVars.length,
+        envVars: operatorPacket.envVars,
+        envPlaceholders: operatorPacket.envPlaceholders,
         operatorInputFiles: operatorPacket.operatorInputFiles,
         draftFiles: operatorPacket.draftFiles,
         reportArchiveFiles: operatorPacket.reportArchiveFiles,
-        commands: [...new Set(phaseBlockers.map((item) => item.validationCommand).filter(Boolean))],
+        commands,
+        commandGuards: commandGuardsForCommands(commands, operatorPacketIndex.commandRunbook),
         releaseImpact: releaseImpactForPhase(definition.id, phaseBlockers, phaseProductGaps)
       };
     })
@@ -791,13 +796,27 @@ function buildOperatorPacketIndex(commercialInputs) {
       arrayOfStrings(item?.filePaths).filter((filePath) => filePath.startsWith("assets/output_deliverables/"))
     ])
   );
+  const envVarsByInputId = new Map(
+    requiredInputs.map((item) => [
+      String(item?.id ?? ""),
+      arrayOfStrings(item?.envVars)
+    ])
+  );
   const manifest = commercialInputs?.operatorHandoffManifest ?? {};
+  const envPlaceholdersByName = new Map(
+    Array.isArray(manifest.envPlaceholders)
+      ? manifest.envPlaceholders.map((item) => [String(item?.name ?? ""), item]).filter(([name]) => name)
+      : []
+  );
   return {
     requiredInputIds,
     reportArchiveFilesByInputId,
+    envVarsByInputId,
+    envPlaceholdersByName,
     operatorInputFiles: Array.isArray(manifest.operatorInputFiles) ? manifest.operatorInputFiles : [],
     draftFiles: Array.isArray(manifest.draftFiles) ? manifest.draftFiles : [],
-    reportArchiveFiles: Array.isArray(manifest.reportArchiveFiles) ? manifest.reportArchiveFiles : []
+    reportArchiveFiles: Array.isArray(manifest.reportArchiveFiles) ? manifest.reportArchiveFiles : [],
+    commandRunbook: Array.isArray(manifest.commandRunbook) ? manifest.commandRunbook : []
   };
 }
 
@@ -806,8 +825,13 @@ function operatorPacketForPhase(blockers, index) {
     .map((item) => item.id)
     .filter((id) => index.requiredInputIds.has(id));
   const inputIdSet = new Set(requiredInputIds);
+  const envVars = uniqueSortedStrings(requiredInputIds.flatMap((id) => index.envVarsByInputId.get(id) ?? []));
   return {
     requiredInputIds,
+    envVars,
+    envPlaceholders: envVars
+      .map((name) => normalizeEnvPlaceholder(index.envPlaceholdersByName.get(name), name))
+      .filter(Boolean),
     operatorInputFiles: uniqueSortedStrings(
       index.operatorInputFiles
         .filter((item) => arrayOfStrings(item?.sourceInputIds).some((id) => inputIdSet.has(id)))
@@ -826,6 +850,51 @@ function operatorPacketForPhase(blockers, index) {
           .map((item) => item?.path)
       ]
     )
+  };
+}
+
+function normalizeEnvPlaceholder(value, fallbackName) {
+  const name = String(value?.name ?? fallbackName ?? "");
+  if (!name) {
+    return undefined;
+  }
+  return {
+    name,
+    sensitivity: String(value?.sensitivity ?? "unknown"),
+    required: value?.required === true,
+    configured: value?.configured === true,
+    purpose: String(value?.purpose ?? "")
+  };
+}
+
+function commandGuardsForCommands(commands, commandRunbook) {
+  return commands.map((command) => {
+    const manifestItem = commandRunbook.find((item) => String(item?.command ?? "") === command);
+    const flags = commandGuardFlags(command);
+    if (manifestItem) {
+      return {
+        command,
+        source: "operator_handoff_manifest",
+        runnable: manifestItem.runnable === true,
+        ...flags
+      };
+    }
+    return {
+      command,
+      source: "derived_from_command_text",
+      runnable: false,
+      ...flags
+    };
+  });
+}
+
+function commandGuardFlags(command) {
+  return {
+    requiresLiveNetwork: command.includes("--confirm-live-network"),
+    requiresProviderSpend: command.includes("--confirm-paid-spend") || command.includes("--confirm-provider-spend"),
+    requiresOperatorConfirmation: command.includes("--confirm-"),
+    requiresManualReview: command.includes("manual-review") || command.includes("manual-audio-review") || command.includes("manual-quality-review"),
+    containsPlaceholder: command.includes("<")
   };
 }
 
@@ -1140,11 +1209,26 @@ function markdownEvidenceClosurePlan(plan) {
       const blockers = phase.blockerIds.length === 0 ? "no blocker ids" : phase.blockerIds.join(", ");
       const gaps = phase.productGapIds.length === 0 ? "no product gaps" : phase.productGapIds.join(", ");
       const inputs = phase.requiredInputIds.length === 0 ? "no operator inputs" : phase.requiredInputIds.join(", ");
+      const env = phase.envVars.length === 0 ? "no env placeholders" : phase.envVars.join(", ");
       const files = [...phase.operatorInputFiles, ...phase.draftFiles, ...phase.reportArchiveFiles];
       const packet = files.length === 0 ? "no operator packet files" : files.join(", ");
-      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; files: ${packet}; commands: ${commands}`;
+      const guards = phase.commandGuards.length === 0
+        ? "no command guards"
+        : phase.commandGuards.map((item) => guardSummary(item)).join(" | ");
+      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; env: ${env}; files: ${packet}; guards: ${guards}; commands: ${commands}`;
     })
   ];
+}
+
+function guardSummary(item) {
+  const flags = [
+    item.requiresLiveNetwork ? "live-network" : undefined,
+    item.requiresProviderSpend ? "provider-spend" : undefined,
+    item.requiresOperatorConfirmation ? "confirmation" : undefined,
+    item.requiresManualReview ? "manual-review" : undefined,
+    item.containsPlaceholder ? "placeholder" : undefined
+  ].filter(Boolean);
+  return `${item.source}:${item.runnable ? "runnable" : "blocked"}:${flags.length === 0 ? "no-extra-guard" : flags.join("+")}`;
 }
 
 function markdownProductCodeGaps(items) {
