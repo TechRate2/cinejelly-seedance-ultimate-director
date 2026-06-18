@@ -6,7 +6,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const defaults = {
   outputPath: "assets/output_deliverables/business-readiness/report-contract-validation-report.json",
-  maxIssuesPerContract: 20
+  maxIssuesPerContract: 20,
+  allowLaunchDoctorInProgress: false
 };
 
 const defaultContracts = [
@@ -68,6 +69,10 @@ function parseArgs(args) {
     }
     if (arg === "--no-output") {
       options.writeReport = false;
+      continue;
+    }
+    if (arg === "--allow-launch-doctor-in-progress") {
+      options.allowLaunchDoctorInProgress = true;
       continue;
     }
     if (arg === "--contract") {
@@ -164,7 +169,8 @@ function main() {
     checkedInputs: {
       contractCount: contracts.length,
       outputPath: toRepoRelative(options.outputPath),
-      maxIssuesPerContract: options.maxIssuesPerContract
+      maxIssuesPerContract: options.maxIssuesPerContract,
+      allowLaunchDoctorInProgress: options.allowLaunchDoctorInProgress
     },
     summary: {
       passed: contracts.filter((item) => item.status === "pass").length,
@@ -226,7 +232,7 @@ function validateContract(item, options) {
   }
   const issues = [
     ...validateAgainstSchema(schemaRead.value, reportRead.value, "$", schemaRead.value),
-    ...validateSemanticContract(item, reportRead.value)
+    ...validateSemanticContract(item, reportRead.value, options)
   ].slice(0, options.maxIssuesPerContract);
   return {
     name: item.name,
@@ -253,7 +259,12 @@ function failContract(item, issues) {
   };
 }
 
-function validateSemanticContract(item, report) {
+function validateSemanticContract(item, report, options) {
+  if (item.name === "commercial_launch_doctor") {
+    return validateCommercialLaunchDoctorSemantics(report, {
+      allowInProgress: options.allowLaunchDoctorInProgress
+    });
+  }
   if (item.name === "commercial_launch_inputs") {
     return validateCommercialLaunchInputsSemantics(report);
   }
@@ -261,6 +272,113 @@ function validateSemanticContract(item, report) {
     return validateDirectorStyleBenchmarkSemantics(report);
   }
   return [];
+}
+
+const LAUNCH_DOCTOR_BASE_COMMANDS = [
+  "build",
+  "deployment_package",
+  "release_audit",
+  "quality_benchmark",
+  "launch_intake",
+  "live_inputs",
+  "business_plan",
+  "commercial_inputs",
+  "completion_audit",
+  "business_readiness"
+];
+
+const LAUNCH_DOCTOR_FINAL_COMMANDS = [
+  ...LAUNCH_DOCTOR_BASE_COMMANDS,
+  "report_contracts",
+  "completion_audit_after_contracts",
+  "report_contracts_final"
+];
+
+const LAUNCH_DOCTOR_PROVIDER_COMMANDS = [
+  ["provider_reconciliation", "providerReconciliationStatus"],
+  ["provider_handoff", "providerHandoffStatus"],
+  ["provider_external_lease", "providerExternalLeaseStatus"],
+  ["provider_lease_service", "providerLeaseServiceStatus"],
+  ["provider_handoff_actions", "providerHandoffActionsStatus"],
+  ["provider_multi_worker_handoff", "providerMultiWorkerHandoffStatus"]
+];
+
+function validateCommercialLaunchDoctorSemantics(report, options = {}) {
+  const issues = [];
+  const commandRuns = Array.isArray(report?.commandRuns) ? report.commandRuns : [];
+  const commandByName = new Map(commandRuns.map((item) => [item?.name, item]));
+  const requiredCommands = options.allowInProgress ? LAUNCH_DOCTOR_BASE_COMMANDS : LAUNCH_DOCTOR_FINAL_COMMANDS;
+  for (const commandName of requiredCommands) {
+    if (!commandByName.has(commandName)) {
+      issues.push(`$.commandRuns: expected launch doctor command '${commandName}'.`);
+    }
+  }
+  if (report?.checkedInputs?.skipLocalSmoke !== true && !commandByName.has("local_smoke")) {
+    issues.push("$.commandRuns: expected local_smoke when checkedInputs.skipLocalSmoke is false.");
+  }
+
+  const qualityRun = commandByName.get("quality_benchmark");
+  if (qualityRun?.status !== "pass") {
+    issues.push("$.commandRuns[quality_benchmark].status: expected pass for no-spend quality benchmark command.");
+  }
+  if (["missing", "skipped", undefined].includes(report?.readinessSnapshot?.qualityBenchmarkStatus)) {
+    issues.push("$.readinessSnapshot.qualityBenchmarkStatus: expected a refreshed benchmark status, not missing/skipped.");
+  }
+
+  const reportContractsRun = commandByName.get("report_contracts");
+  if (reportContractsRun && reportContractsRun.status !== "pass") {
+    issues.push("$.commandRuns[report_contracts].status: expected pass for report-contract validation.");
+  }
+  const completionAfterContractsRun = commandByName.get("completion_audit_after_contracts");
+  if (completionAfterContractsRun && completionAfterContractsRun.status !== "pass") {
+    issues.push("$.commandRuns[completion_audit_after_contracts].status: expected pass for post-contract completion-audit refresh.");
+  }
+  const finalContractsRun = commandByName.get("report_contracts_final");
+  if (!options.allowInProgress || finalContractsRun) {
+    if (finalContractsRun?.status !== "pass") {
+      issues.push("$.commandRuns[report_contracts_final].status: expected pass for final report-contract validation.");
+    }
+    if (report?.readinessSnapshot?.reportContractsStatus !== "pass") {
+      issues.push("$.readinessSnapshot.reportContractsStatus: expected pass after final report-contract validation.");
+    }
+  }
+
+  if (report?.checkedInputs?.skipProviderHandoffSmokes === true) {
+    for (const [commandName, statusKey] of LAUNCH_DOCTOR_PROVIDER_COMMANDS) {
+      if (commandByName.has(commandName)) {
+        issues.push(`$.commandRuns: did not expect '${commandName}' when checkedInputs.skipProviderHandoffSmokes is true.`);
+      }
+      if (report?.readinessSnapshot?.[statusKey] !== "skipped") {
+        issues.push(`$.readinessSnapshot.${statusKey}: expected skipped when provider handoff smokes are skipped.`);
+      }
+    }
+  } else {
+    for (const [commandName, statusKey] of LAUNCH_DOCTOR_PROVIDER_COMMANDS) {
+      const run = commandByName.get(commandName);
+      if (!run) {
+        issues.push(`$.commandRuns: expected provider handoff command '${commandName}'.`);
+        continue;
+      }
+      if (run.status !== "pass") {
+        issues.push(`$.commandRuns[${commandName}].status: expected pass for provider handoff smoke command.`);
+      }
+      const status = report?.readinessSnapshot?.[statusKey];
+      if (!["pass", "warn"].includes(status)) {
+        issues.push(`$.readinessSnapshot.${statusKey}: expected pass or warn for refreshed provider handoff smoke evidence.`);
+      }
+    }
+  }
+
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic === true && report?.status !== "ready_for_customer_traffic") {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: true is only allowed when launch doctor status is ready_for_customer_traffic.");
+  }
+  const unexpectedFailures = Array.isArray(report?.codeWorkSummary?.unexpectedCodeCommandFailures)
+    ? report.codeWorkSummary.unexpectedCodeCommandFailures
+    : [];
+  if (Number(report?.codeWorkSummary?.knownCodeBlockingIssueCount ?? 0) === 0 && unexpectedFailures.length > 0) {
+    issues.push("$.codeWorkSummary: unexpectedCodeCommandFailures must be empty when knownCodeBlockingIssueCount is 0.");
+  }
+  return issues;
 }
 
 function validateDirectorStyleBenchmarkSemantics(report) {

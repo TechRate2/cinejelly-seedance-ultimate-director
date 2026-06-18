@@ -263,7 +263,7 @@ function completionAuditCommand(name) {
 }
 
 function reportContractCommand(name = "report_contracts") {
-  return command(name, ["scripts/validate-report-contracts.mjs"], {
+  return command(name, ["scripts/validate-report-contracts.mjs", "--allow-launch-doctor-in-progress"], {
     reportPath: "assets/output_deliverables/business-readiness/report-contract-validation-report.json",
     expectedExitCodes: [0],
     blocksCodeReadiness: true

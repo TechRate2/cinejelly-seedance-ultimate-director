@@ -29,7 +29,8 @@
       "properties": {
         "contractCount": { "type": "integer", "minimum": 0 },
         "outputPath": { "type": "string" },
-        "maxIssuesPerContract": { "type": "integer", "minimum": 1 }
+        "maxIssuesPerContract": { "type": "integer", "minimum": 1 },
+        "allowLaunchDoctorInProgress": { "type": "boolean" }
       }
     },
     "summary": {

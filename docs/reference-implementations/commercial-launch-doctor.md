@@ -57,6 +57,10 @@ Expected blocked or review-required commands can exit non-zero without becoming 
 
 When `--skip-provider-handoff-smokes` is used, provider smoke statuses in the launch-doctor snapshot must be `skipped` rather than reusing stale report files.
 
+The report-contract validator enforces these launch-doctor semantics in addition to JSON schema shape. A launch-doctor report must show the core command sequence, refreshed quality benchmark command evidence, final report-contract pass, provider handoff smoke pass/warn snapshot statuses when enabled, explicit skipped provider statuses when provider smokes are disabled, and no stale unexpected command failures when code blockers are zero.
+
+Because the doctor rewrites its own report before and after contract refreshes, its internal report-contract commands use `--allow-launch-doctor-in-progress`. That mode still validates the base command sequence and refreshed provider/quality evidence, while standalone/default report-contract validation remains strict and requires the completed final contract command.
+
 ## Acceptance Criteria
 
 - `npm.cmd run validation:launch-doctor` writes a JSON report and a Markdown report.
@@ -65,5 +69,6 @@ When `--skip-provider-handoff-smokes` is used, provider smoke statuses in the la
 - The readiness snapshot includes the current Director-style quality benchmark status.
 - The readiness snapshot includes the current provider reconciliation/handoff smoke statuses when those smokes are enabled.
 - The report contract is included in `validation:report-contracts`.
+- The report contract rejects stale launch-doctor evidence when command coverage, provider-smoke refresh/skip state, quality benchmark refresh, final contract status, or code-failure summary is internally inconsistent.
 - Customer traffic remains blocked unless `validation:business-readiness` approves it.
 - Paid Atlas work remains opt-in through the existing paid validation commands.
