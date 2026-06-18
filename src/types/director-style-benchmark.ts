@@ -5,7 +5,8 @@ export type DirectorStyleBenchmarkSeverity = "info" | "warn" | "block";
 export type DirectorStyleBenchmarkEvidenceScope =
   | "artifact_contract_only"
   | "artifact_contract_plus_media_probe"
-  | "artifact_contract_plus_media_frames";
+  | "artifact_contract_plus_media_frames"
+  | "artifact_contract_plus_media_boundaries";
 export type DirectorStyleBenchmarkProfile =
   | "balanced"
   | "story_first"
@@ -79,6 +80,30 @@ export interface DirectorStyleBenchmarkVisualSignals {
   readonly findings: readonly string[];
 }
 
+export interface DirectorStyleBenchmarkTransitionBoundarySignal {
+  readonly index: number;
+  readonly timeSeconds: number;
+  readonly preTimeSeconds: number;
+  readonly postTimeSeconds: number;
+  readonly colorDelta: number;
+  readonly brightnessDelta: number;
+  readonly continuityScore: number;
+}
+
+export interface DirectorStyleBenchmarkTransitionSignals {
+  readonly status: "not_detected" | "analyzed" | "unavailable";
+  readonly sceneChangeThreshold: number;
+  readonly boundaryWindowSeconds: number;
+  readonly candidateBoundaryCount: number;
+  readonly analyzedBoundaryCount: number;
+  readonly meanBoundaryColorDelta?: number;
+  readonly maxBoundaryColorDelta?: number;
+  readonly meanBrightnessDelta?: number;
+  readonly transitionContinuityScore?: number;
+  readonly boundaries?: readonly DirectorStyleBenchmarkTransitionBoundarySignal[];
+  readonly findings: readonly string[];
+}
+
 export interface DirectorStyleBenchmarkMediaEvidence {
   readonly status: "unavailable" | "probe_only" | "frame_sampled";
   readonly source: "local_file";
@@ -94,6 +119,7 @@ export interface DirectorStyleBenchmarkMediaEvidence {
   readonly frameSamplingIntervalSeconds?: number;
   readonly sampledFramesRedacted?: true;
   readonly visualSignals?: DirectorStyleBenchmarkVisualSignals;
+  readonly transitionSignals?: DirectorStyleBenchmarkTransitionSignals;
   readonly findings: readonly string[];
 }
 
@@ -133,6 +159,9 @@ export interface DirectorStyleBenchmarkReport {
     readonly mediaPath?: string;
     readonly frameSamplingIntervalSeconds?: number;
     readonly maxFrameSamples?: number;
+    readonly sceneChangeThreshold?: number;
+    readonly transitionBoundaryWindowSeconds?: number;
+    readonly maxTransitionBoundaries?: number;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
     readonly minPassingScore: number;

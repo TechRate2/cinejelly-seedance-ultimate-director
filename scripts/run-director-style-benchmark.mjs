@@ -16,7 +16,10 @@ const defaults = {
   minPassingScore: 0.7,
   minConfidence: 0.6,
   frameSamplingIntervalSeconds: 3,
-  maxFrameSamples: 8
+  maxFrameSamples: 8,
+  sceneChangeThreshold: 0.12,
+  transitionBoundaryWindowSeconds: 0.12,
+  maxTransitionBoundaries: 8
 };
 
 function parseArgs(args) {
@@ -40,7 +43,10 @@ function parseArgs(args) {
     ["--min-passing-score", "minPassingScore"],
     ["--min-confidence", "minConfidence"],
     ["--frame-sampling-interval-seconds", "frameSamplingIntervalSeconds"],
-    ["--max-frame-samples", "maxFrameSamples"]
+    ["--max-frame-samples", "maxFrameSamples"],
+    ["--scene-change-threshold", "sceneChangeThreshold"],
+    ["--transition-boundary-window-seconds", "transitionBoundaryWindowSeconds"],
+    ["--max-transition-boundaries", "maxTransitionBoundaries"]
   ]);
 
   for (let index = 0; index < args.length; index += 1) {
@@ -82,7 +88,10 @@ function parseArgs(args) {
         "minPassingScore",
         "minConfidence",
         "frameSamplingIntervalSeconds",
-        "maxFrameSamples"
+        "maxFrameSamples",
+        "sceneChangeThreshold",
+        "transitionBoundaryWindowSeconds",
+        "maxTransitionBoundaries"
       ].includes(key) ? Number(rawValue) : rawValue;
       index += equalsIndex >= 0 ? 0 : 1;
       continue;
@@ -117,6 +126,9 @@ Options:
   --min-confidence <number>       Default: ${defaults.minConfidence}
   --frame-sampling-interval-seconds <n> Default: ${defaults.frameSamplingIntervalSeconds}
   --max-frame-samples <n>         Default: ${defaults.maxFrameSamples}
+  --scene-change-threshold <n>    FFmpeg scene-change threshold 0-1. Default: ${defaults.sceneChangeThreshold}
+  --transition-boundary-window-seconds <n> Pre/post sample window. Default: ${defaults.transitionBoundaryWindowSeconds}
+  --max-transition-boundaries <n> Max detected boundaries to analyze. Default: ${defaults.maxTransitionBoundaries}
   --output <path>                 JSON report path. Default: ${defaults.outputPath}
   --jsonl <path>                  Append-only JSONL history path. Default: ${defaults.jsonlPath}
   --no-request                    Do not read request evidence.
@@ -165,6 +177,9 @@ async function main() {
     ...(options.useMedia ? { mediaPath: toRepoRelative(options.mediaPath) } : {}),
     ...(options.useMedia ? { frameSamplingIntervalSeconds: options.frameSamplingIntervalSeconds } : {}),
     ...(options.useMedia ? { maxFrameSamples: options.maxFrameSamples } : {}),
+    ...(options.useMedia ? { sceneChangeThreshold: options.sceneChangeThreshold } : {}),
+    ...(options.useMedia ? { transitionBoundaryWindowSeconds: options.transitionBoundaryWindowSeconds } : {}),
+    ...(options.useMedia ? { maxTransitionBoundaries: options.maxTransitionBoundaries } : {}),
     ...(options.writeOutput ? { outputPath: toRepoRelative(options.outputPath) } : {}),
     ...(options.appendJsonl ? { jsonlPath: toRepoRelative(options.jsonlPath) } : {})
   });
@@ -195,7 +210,10 @@ async function collectMediaEvidence(options) {
     mediaPath: absoluteMediaPath,
     mediaPathForReport: toRepoRelative(options.mediaPath),
     frameSamplingIntervalSeconds: options.frameSamplingIntervalSeconds,
-    maxFrameSamples: options.maxFrameSamples
+    maxFrameSamples: options.maxFrameSamples,
+    sceneChangeThreshold: options.sceneChangeThreshold,
+    transitionBoundaryWindowSeconds: options.transitionBoundaryWindowSeconds,
+    maxTransitionBoundaries: options.maxTransitionBoundaries
   });
 }
 
@@ -212,9 +230,26 @@ function validateOptions(options) {
       throw new Error(`${name} must be a number from 0 to 1.`);
     }
   }
+  if (
+    typeof options.sceneChangeThreshold !== "number" ||
+    !Number.isFinite(options.sceneChangeThreshold) ||
+    options.sceneChangeThreshold <= 0 ||
+    options.sceneChangeThreshold >= 1
+  ) {
+    throw new Error("--scene-change-threshold must be a number greater than 0 and less than 1.");
+  }
+  if (
+    typeof options.transitionBoundaryWindowSeconds !== "number" ||
+    !Number.isFinite(options.transitionBoundaryWindowSeconds) ||
+    options.transitionBoundaryWindowSeconds <= 0 ||
+    options.transitionBoundaryWindowSeconds > 2
+  ) {
+    throw new Error("--transition-boundary-window-seconds must be a number greater than 0 and at most 2.");
+  }
   for (const [name, value] of [
     ["--frame-sampling-interval-seconds", options.frameSamplingIntervalSeconds],
-    ["--max-frame-samples", options.maxFrameSamples]
+    ["--max-frame-samples", options.maxFrameSamples],
+    ["--max-transition-boundaries", options.maxTransitionBoundaries]
   ]) {
     if (!Number.isSafeInteger(value) || value < 1 || value > 60) {
       throw new Error(`${name} must be an integer from 1 to 60.`);

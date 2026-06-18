@@ -40,6 +40,9 @@
         "mediaPath": { "type": "string", "minLength": 1 },
         "frameSamplingIntervalSeconds": { "type": "integer", "minimum": 1 },
         "maxFrameSamples": { "type": "integer", "minimum": 0 },
+        "sceneChangeThreshold": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "transitionBoundaryWindowSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "maxTransitionBoundaries": { "type": "integer", "minimum": 0 },
         "outputPath": { "type": "string", "minLength": 1 },
         "jsonlPath": { "type": "string", "minLength": 1 },
         "minPassingScore": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -67,7 +70,8 @@
           "enum": [
             "artifact_contract_only",
             "artifact_contract_plus_media_probe",
-            "artifact_contract_plus_media_frames"
+            "artifact_contract_plus_media_frames",
+            "artifact_contract_plus_media_boundaries"
           ]
         },
         "metricCount": { "type": "integer", "minimum": 1 },
@@ -197,6 +201,54 @@
         "frameSamplingIntervalSeconds": { "type": "integer", "minimum": 1 },
         "sampledFramesRedacted": { "const": true },
         "visualSignals": { "$ref": "#/$defs/visualSignals" },
+        "transitionSignals": { "$ref": "#/$defs/transitionSignals" },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "transitionBoundarySignal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "timeSeconds",
+        "preTimeSeconds",
+        "postTimeSeconds",
+        "colorDelta",
+        "brightnessDelta",
+        "continuityScore"
+      ],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "timeSeconds": { "type": "number", "minimum": 0 },
+        "preTimeSeconds": { "type": "number", "minimum": 0 },
+        "postTimeSeconds": { "type": "number", "minimum": 0 },
+        "colorDelta": { "type": "number", "minimum": 0, "maximum": 1 },
+        "brightnessDelta": { "type": "number", "minimum": 0, "maximum": 1 },
+        "continuityScore": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "transitionSignals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "sceneChangeThreshold",
+        "boundaryWindowSeconds",
+        "candidateBoundaryCount",
+        "analyzedBoundaryCount",
+        "findings"
+      ],
+      "properties": {
+        "status": { "enum": ["not_detected", "analyzed", "unavailable"] },
+        "sceneChangeThreshold": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        "boundaryWindowSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "candidateBoundaryCount": { "type": "integer", "minimum": 0 },
+        "analyzedBoundaryCount": { "type": "integer", "minimum": 0 },
+        "meanBoundaryColorDelta": { "type": "number", "minimum": 0, "maximum": 1 },
+        "maxBoundaryColorDelta": { "type": "number", "minimum": 0, "maximum": 1 },
+        "meanBrightnessDelta": { "type": "number", "minimum": 0, "maximum": 1 },
+        "transitionContinuityScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "boundaries": { "type": "array", "items": { "$ref": "#/$defs/transitionBoundarySignal" } },
         "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }
     },

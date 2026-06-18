@@ -4,6 +4,8 @@ import { basename, join } from "node:path";
 import type {
   DirectorStyleBenchmarkMediaEvidence,
   DirectorStyleBenchmarkMediaStreamEvidence,
+  DirectorStyleBenchmarkTransitionBoundarySignal,
+  DirectorStyleBenchmarkTransitionSignals,
   DirectorStyleBenchmarkVisualSignals
 } from "../types/director-style-benchmark.js";
 import type { FrameSample, MediaMetadata } from "../types/media.js";
@@ -16,6 +18,9 @@ export interface DirectorStyleMediaEvidenceOptions {
   readonly mediaPathForReport?: string;
   readonly frameSamplingIntervalSeconds?: number;
   readonly maxFrameSamples?: number;
+  readonly sceneChangeThreshold?: number;
+  readonly transitionBoundaryWindowSeconds?: number;
+  readonly maxTransitionBoundaries?: number;
   readonly signal?: AbortSignal;
 }
 
@@ -27,6 +32,9 @@ interface AverageRgb {
 
 const DEFAULT_FRAME_INTERVAL_SECONDS = 3;
 const DEFAULT_MAX_FRAME_SAMPLES = 8;
+const DEFAULT_SCENE_CHANGE_THRESHOLD = 0.12;
+const DEFAULT_TRANSITION_BOUNDARY_WINDOW_SECONDS = 0.12;
+const DEFAULT_MAX_TRANSITION_BOUNDARIES = 8;
 
 export async function collectDirectorStyleMediaEvidence(
   options: DirectorStyleMediaEvidenceOptions
@@ -69,6 +77,15 @@ export async function collectDirectorStyleMediaEvidence(
     DEFAULT_FRAME_INTERVAL_SECONDS
   );
   const maxFrameSamples = normalizePositiveInteger(options.maxFrameSamples, DEFAULT_MAX_FRAME_SAMPLES);
+  const sceneChangeThreshold = normalizeThreshold(options.sceneChangeThreshold, DEFAULT_SCENE_CHANGE_THRESHOLD);
+  const transitionBoundaryWindowSeconds = normalizePositiveNumber(
+    options.transitionBoundaryWindowSeconds,
+    DEFAULT_TRANSITION_BOUNDARY_WINDOW_SECONDS
+  );
+  const maxTransitionBoundaries = normalizePositiveInteger(
+    options.maxTransitionBoundaries,
+    DEFAULT_MAX_TRANSITION_BOUNDARIES
+  );
   const findings = [...delivery.findings];
   const baseEvidence = {
     ...common,
@@ -105,6 +122,15 @@ export async function collectDirectorStyleMediaEvidence(
       options.signal
     );
     const visualSignals = await visualSignalsFromSamples(samples, sampleDirectory, options.signal);
+    const transitionSignals = await transitionSignalsFromMedia({
+      mediaPath: options.mediaPath,
+      workDirectory: sampleDirectory,
+      ...(metadata.durationSeconds !== undefined ? { durationSeconds: metadata.durationSeconds } : {}),
+      sceneChangeThreshold,
+      boundaryWindowSeconds: transitionBoundaryWindowSeconds,
+      maxBoundaries: maxTransitionBoundaries,
+      ...(options.signal ? { signal: options.signal } : {})
+    });
     return {
       ...baseEvidence,
       status: visualSignals.sampleCount > 0 ? "frame_sampled" : "probe_only",
@@ -112,7 +138,8 @@ export async function collectDirectorStyleMediaEvidence(
       frameSamplingIntervalSeconds,
       sampledFramesRedacted: true,
       visualSignals,
-      findings: [...findings, ...visualSignals.findings]
+      transitionSignals,
+      findings: [...findings, ...visualSignals.findings, ...transitionSignals.findings]
     };
   } catch (error) {
     return {
@@ -220,6 +247,193 @@ async function averageRgbFromFrame(sample: FrameSample, workDirectory: string, s
   };
 }
 
+async function transitionSignalsFromMedia(input: {
+  readonly mediaPath: string;
+  readonly workDirectory: string;
+  readonly durationSeconds?: number;
+  readonly sceneChangeThreshold: number;
+  readonly boundaryWindowSeconds: number;
+  readonly maxBoundaries: number;
+  readonly signal?: AbortSignal;
+}): Promise<DirectorStyleBenchmarkTransitionSignals> {
+  let boundaryTimes: readonly number[];
+  try {
+    boundaryTimes = await detectSceneChangeTimes({
+      mediaPath: input.mediaPath,
+      sceneChangeThreshold: input.sceneChangeThreshold,
+      maxBoundaries: input.maxBoundaries,
+      ...(input.signal ? { signal: input.signal } : {})
+    });
+  } catch (error) {
+    return {
+      status: "unavailable",
+      sceneChangeThreshold: input.sceneChangeThreshold,
+      boundaryWindowSeconds: input.boundaryWindowSeconds,
+      candidateBoundaryCount: 0,
+      analyzedBoundaryCount: 0,
+      findings: [`Scene-change detection failed: ${messageFrom(error)}.`]
+    };
+  }
+
+  const durationSeconds = input.durationSeconds;
+  const candidateTimes = boundaryTimes
+    .filter((time) => time > input.boundaryWindowSeconds)
+    .filter((time) => durationSeconds === undefined || time < durationSeconds - input.boundaryWindowSeconds)
+    .slice(0, input.maxBoundaries);
+
+  if (candidateTimes.length === 0) {
+    return {
+      status: "not_detected",
+      sceneChangeThreshold: input.sceneChangeThreshold,
+      boundaryWindowSeconds: input.boundaryWindowSeconds,
+      candidateBoundaryCount: boundaryTimes.length,
+      analyzedBoundaryCount: 0,
+      findings: boundaryTimes.length === 0
+        ? ["FFmpeg scene-change detection did not find transition boundaries at the configured threshold."]
+        : ["Detected scene changes were too close to the media edges for safe pre/post boundary sampling."]
+    };
+  }
+
+  const boundaries: DirectorStyleBenchmarkTransitionBoundarySignal[] = [];
+  const findings: string[] = [];
+  for (const [index, timeSeconds] of candidateTimes.entries()) {
+    const preTimeSeconds = Math.max(0, timeSeconds - input.boundaryWindowSeconds);
+    const postTimeSeconds = timeSeconds + input.boundaryWindowSeconds;
+    try {
+      const preColor = await averageRgbFromMediaTime(input.mediaPath, preTimeSeconds, input.workDirectory, `boundary_${index}_pre`, input.signal);
+      const postColor = await averageRgbFromMediaTime(input.mediaPath, postTimeSeconds, input.workDirectory, `boundary_${index}_post`, input.signal);
+      const brightnessDelta = Math.abs(brightness(preColor) - brightness(postColor));
+      const delta = colorDistance(preColor, postColor);
+      boundaries.push({
+        index,
+        timeSeconds: round(timeSeconds),
+        preTimeSeconds: round(preTimeSeconds),
+        postTimeSeconds: round(postTimeSeconds),
+        colorDelta: round(delta),
+        brightnessDelta: round(brightnessDelta),
+        continuityScore: round(clamp01(1 - delta / 0.75))
+      });
+    } catch (error) {
+      findings.push(`Boundary ${index} at ${round(timeSeconds)}s could not be sampled: ${messageFrom(error)}.`);
+    }
+  }
+
+  if (boundaries.length === 0) {
+    return {
+      status: "unavailable",
+      sceneChangeThreshold: input.sceneChangeThreshold,
+      boundaryWindowSeconds: input.boundaryWindowSeconds,
+      candidateBoundaryCount: candidateTimes.length,
+      analyzedBoundaryCount: 0,
+      findings: findings.length > 0 ? findings : ["Transition boundary candidates could not be analyzed."]
+    };
+  }
+
+  const colorDeltas = boundaries.map((boundary) => boundary.colorDelta);
+  const brightnessDeltas = boundaries.map((boundary) => boundary.brightnessDelta);
+  const meanBoundaryColorDelta = average(colorDeltas);
+  const maxBoundaryColorDelta = Math.max(...colorDeltas);
+  const meanBrightnessDelta = average(brightnessDeltas);
+  const transitionContinuityScore = average(boundaries.map((boundary) => boundary.continuityScore));
+
+  if (maxBoundaryColorDelta > 0.65) {
+    findings.push("At least one detected boundary has a high color delta; semantic/manual transition review is required.");
+  }
+  if ((meanBrightnessDelta ?? 0) > 0.35) {
+    findings.push("Detected boundaries show a high average brightness delta; lighting continuity needs review.");
+  }
+
+  return {
+    status: "analyzed",
+    sceneChangeThreshold: input.sceneChangeThreshold,
+    boundaryWindowSeconds: input.boundaryWindowSeconds,
+    candidateBoundaryCount: boundaryTimes.length,
+    analyzedBoundaryCount: boundaries.length,
+    ...(meanBoundaryColorDelta !== undefined ? { meanBoundaryColorDelta: round(meanBoundaryColorDelta) } : {}),
+    maxBoundaryColorDelta: round(maxBoundaryColorDelta),
+    ...(meanBrightnessDelta !== undefined ? { meanBrightnessDelta: round(meanBrightnessDelta) } : {}),
+    ...(transitionContinuityScore !== undefined ? { transitionContinuityScore: round(transitionContinuityScore) } : {}),
+    boundaries,
+    findings
+  };
+}
+
+async function detectSceneChangeTimes(input: {
+  readonly mediaPath: string;
+  readonly sceneChangeThreshold: number;
+  readonly maxBoundaries: number;
+  readonly signal?: AbortSignal;
+}): Promise<readonly number[]> {
+  const result = await runProcess(
+    readMediaToolCommand("ffmpeg"),
+    [
+      "-hide_banner",
+      "-i",
+      input.mediaPath,
+      "-vf",
+      `select='gt(scene,${input.sceneChangeThreshold})',showinfo`,
+      "-frames:v",
+      String(input.maxBoundaries),
+      "-f",
+      "null",
+      "-"
+    ],
+    {
+      ...(input.signal ? { signal: input.signal } : {}),
+      maxOutputBytes: 1024 * 1024
+    }
+  );
+  const times = new Set<number>();
+  const text = `${result.stdout}\n${result.stderr}`;
+  for (const match of text.matchAll(/pts_time:([0-9]+(?:\.[0-9]+)?)/g)) {
+    const value = Number.parseFloat(match[1] ?? "");
+    if (Number.isFinite(value)) {
+      times.add(round(value));
+    }
+  }
+  return [...times].sort((left, right) => left - right);
+}
+
+async function averageRgbFromMediaTime(
+  mediaPath: string,
+  timeSeconds: number,
+  workDirectory: string,
+  name: string,
+  signal?: AbortSignal
+): Promise<AverageRgb> {
+  const rawPath = join(workDirectory, `${name}.rgb`);
+  await runProcess(
+    readMediaToolCommand("ffmpeg"),
+    [
+      "-y",
+      "-ss",
+      String(Math.max(0, timeSeconds)),
+      "-i",
+      mediaPath,
+      "-frames:v",
+      "1",
+      "-vf",
+      "scale=1:1,format=rgb24",
+      "-f",
+      "rawvideo",
+      rawPath
+    ],
+    {
+      ...(signal ? { signal } : {}),
+      maxOutputBytes: 256 * 1024
+    }
+  );
+  const bytes = await readFile(rawPath);
+  if (bytes.length < 3) {
+    throw new Error("raw RGB output was empty");
+  }
+  return {
+    red: bytes[0] ?? 0,
+    green: bytes[1] ?? 0,
+    blue: bytes[2] ?? 0
+  };
+}
+
 function pairwise<T>(items: readonly T[], fn: (left: T, right: T) => number): readonly number[] {
   const values: number[] = [];
   for (let index = 0; index < items.length - 1; index += 1) {
@@ -237,6 +451,10 @@ function colorDistance(left: AverageRgb, right: AverageRgb): number {
   const green = (left.green - right.green) / 255;
   const blue = (left.blue - right.blue) / 255;
   return Math.sqrt(red * red + green * green + blue * blue) / Math.sqrt(3);
+}
+
+function brightness(color: AverageRgb): number {
+  return (color.red + color.green + color.blue) / (3 * 255);
 }
 
 function average(values: readonly number[]): number | undefined {
@@ -258,6 +476,14 @@ function standardDeviation(values: readonly number[]): number {
 
 function normalizePositiveInteger(value: number | undefined, fallback: number): number {
   return Number.isSafeInteger(value) && value !== undefined && value > 0 ? value : fallback;
+}
+
+function normalizePositiveNumber(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function normalizeThreshold(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value < 1 ? value : fallback;
 }
 
 function clamp01(value: number): number {

@@ -22,9 +22,9 @@ Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScr
 
 1. No DirectorBench Python code, LangGraph graph, OpenCV routines, prompts, or agent implementations are copied or executed.
 2. The current harness reads CineJelly paid-render evidence, request evidence, optional manual review text, and optional local rendered media.
-3. Local media evidence is limited to FFprobe delivery metadata plus bounded sampled-frame RGB signals for structural temporal, lighting, and transition-continuity proxies; sampled frame paths are redacted from reports.
+3. Local media evidence is limited to FFprobe delivery metadata, bounded sampled-frame RGB signals, and FFmpeg scene-change transition-boundary pre/post RGB proxies; sampled frame paths are redacted from reports.
 4. It performs no provider calls, no media downloads, no deployment calls, no Atlas calls, and no paid validation.
-5. It always reports `canClaimDirectorBenchParity=false` because true shot-boundary transition checks, semantic visual/fidelity analysis, ASR, lip-sync, and generated-audio waveform/listening review are not fully implemented in this harness.
+5. It always reports `canClaimDirectorBenchParity=false` because scene-change boundary proxies do not replace semantic visual/fidelity analysis, ASR, lip-sync, generated-audio waveform/listening review, or long-form paid evidence.
 6. It is allowed to produce useful backend evidence, but it cannot approve customer traffic by itself.
 
 ## Destination Paths
@@ -50,7 +50,7 @@ Default output:
 - `assets/output_deliverables/business-readiness/director-style-benchmark-report.json`
 - `assets/output_deliverables/business-readiness/director-style-benchmark-results.jsonl`
 
-The current short paid Phase 6 render produces useful example evidence and now includes local media probe plus sampled-frame proxy signals, but it should remain `review_required`: it is a roughly 13.5 second text-to-video run with `audioMode:none`, so audio and audio cross-modal metrics are skipped, long-form stability is not proven, and transition/lighting/text-video metrics still need shot-boundary, semantic visual, and/or manual media review evidence.
+The current short paid Phase 6 render produces useful example evidence and now includes local media probe plus sampled-frame proxy signals, but it should remain `review_required`: it is a roughly 13.5 second text-to-video run with `audioMode:none`, so audio and audio cross-modal metrics are skipped, long-form stability is not proven, and FFmpeg scene-change detection does not find transition boundaries in that smoke output at the configured threshold. Transition/lighting/text-video metrics still need long-form outputs with real boundaries plus semantic visual and/or manual media review evidence.
 
 ## Acceptance Criteria
 
@@ -58,11 +58,11 @@ The current short paid Phase 6 render produces useful example evidence and now i
 - The report schema is covered by `validation:report-contracts`.
 - The report contains no API keys, bearer tokens, raw local artifact paths, inline media, provider payloads, or upstream implementation code.
 - A short/no-audio smoke report must not be treated as long-form or audio evidence.
-- Full DirectorBench parity remains blocked until legal/permission review, long-form paid evidence, shot-boundary/VLM/ASR/lip-sync evidence, and audio review evidence exist.
+- Full DirectorBench parity remains blocked until legal/permission review, long-form paid evidence, semantic visual/VLM/ASR/lip-sync evidence, and audio review evidence exist.
 
 ## Remaining Scope
 
-- Add true frame-boundary transition checks against real rendered media.
+- Run the transition-boundary analyzer against real long-form rendered media with detected scene changes.
 - Add semantic visual/fidelity review from sampled frames or manual review packets.
 - Add generated-audio output and manual listening evidence to audio/cross-modal metrics.
 - Run the harness against a real 2-8 minute paid long-form artifact bundle.

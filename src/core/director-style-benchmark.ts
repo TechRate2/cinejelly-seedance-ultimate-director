@@ -75,6 +75,9 @@ export class DirectorStyleBenchmarkEvaluator {
     readonly mediaPath?: string;
     readonly frameSamplingIntervalSeconds?: number;
     readonly maxFrameSamples?: number;
+    readonly sceneChangeThreshold?: number;
+    readonly transitionBoundaryWindowSeconds?: number;
+    readonly maxTransitionBoundaries?: number;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
   }): DirectorStyleBenchmarkReport {
@@ -126,6 +129,11 @@ export class DirectorStyleBenchmarkEvaluator {
         ...(mediaPath ? { mediaPath } : {}),
         ...(frameSamplingIntervalSeconds ? { frameSamplingIntervalSeconds } : {}),
         ...(input.maxFrameSamples ? { maxFrameSamples: input.maxFrameSamples } : {}),
+        ...(input.sceneChangeThreshold ? { sceneChangeThreshold: input.sceneChangeThreshold } : {}),
+        ...(input.transitionBoundaryWindowSeconds
+          ? { transitionBoundaryWindowSeconds: input.transitionBoundaryWindowSeconds }
+          : {}),
+        ...(input.maxTransitionBoundaries ? { maxTransitionBoundaries: input.maxTransitionBoundaries } : {}),
         ...(input.outputPath ? { outputPath: input.outputPath } : {}),
         ...(input.jsonlPath ? { jsonlPath: input.jsonlPath } : {}),
         minPassingScore,
@@ -165,7 +173,9 @@ export class DirectorStyleBenchmarkEvaluator {
 
   private metricsFor(facts: DirectorStyleBenchmarkFacts): readonly DirectorStyleBenchmarkMetricResult[] {
     const visualSignals = facts.mediaEvidence?.visualSignals;
+    const transitionSignals = facts.mediaEvidence?.transitionSignals;
     const hasFrameSignals = facts.mediaEvidence?.status === "frame_sampled" && (visualSignals?.sampleCount ?? 0) >= 2;
+    const hasBoundarySignals = transitionSignals?.status === "analyzed" && transitionSignals.analyzedBoundaryCount > 0;
     const hasMediaProbe = facts.mediaEvidence?.deliveryStatus !== undefined;
     const mediaProxyLimitations = [
       "Sampled-frame color and brightness signals are structural proxies; VLM/ASR/lip-sync and shot-boundary review are still required for full DirectorBench-style parity."
@@ -175,6 +185,14 @@ export class DirectorStyleBenchmarkEvaluator {
           this.mediaEvidence(
             "media_frame_signal",
             `Sampled ${visualSignals?.sampleCount ?? 0} frame signal(s) from local rendered media; frame paths are redacted from this report.`
+          )
+        ]
+      : [];
+    const boundarySignalEvidence = hasBoundarySignals
+      ? [
+          this.mediaEvidence(
+            "media_boundary_signal",
+            `Analyzed ${transitionSignals?.analyzedBoundaryCount ?? 0} detected transition boundary/boundaries with pre/post frame signals; frame paths are redacted from this report.`
           )
         ]
       : [];
@@ -192,10 +210,14 @@ export class DirectorStyleBenchmarkEvaluator {
       ? Math.max(0.7, Math.min(0.84, 0.58 + visualSignals.temporalContinuityScore * 0.26))
       : 0.78;
     const temporalCoherenceConfidence = hasFrameSignals ? 0.68 : 0.64;
-    const transitionQualityScore = hasFrameSignals && visualSignals?.transitionContinuityScore !== undefined
+    const transitionQualityScore = hasBoundarySignals && transitionSignals?.transitionContinuityScore !== undefined
+      ? Math.max(0.6, Math.min(0.78, 0.5 + transitionSignals.transitionContinuityScore * 0.28))
+      : hasFrameSignals && visualSignals?.transitionContinuityScore !== undefined
       ? Math.max(0.56, Math.min(0.72, 0.48 + visualSignals.transitionContinuityScore * 0.24))
       : facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.68 : 0.56;
-    const transitionQualityConfidence = hasFrameSignals ? 0.56 : facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.48 : 0.34;
+    const transitionQualityConfidence = hasBoundarySignals
+      ? 0.64
+      : hasFrameSignals ? 0.56 : facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.48 : 0.34;
     const lightingConsistencyScore = hasFrameSignals && visualSignals?.lightingConsistencyScore !== undefined
       ? Math.max(0.56, Math.min(0.76, 0.48 + visualSignals.lightingConsistencyScore * 0.28))
       : 0.56;
@@ -287,13 +309,21 @@ export class DirectorStyleBenchmarkEvaluator {
         requiredKinds: [ARTIFACT_KINDS.deliverable, ARTIFACT_KINDS.stageLifecycle],
         score: transitionQualityScore,
         confidence: transitionQualityConfidence,
-        passMessage: hasFrameSignals
-          ? "Deliverable/lifecycle evidence is reinforced by sampled-frame color-continuity signals."
+        passMessage: hasBoundarySignals
+          ? "Deliverable/lifecycle evidence is reinforced by detected transition-boundary pre/post frame signals."
+          : hasFrameSignals
+            ? "Deliverable/lifecycle evidence is reinforced by sampled-frame color-continuity signals."
           : "Deliverable and lifecycle evidence exist, but transition quality is not frame-boundary analyzed.",
         failMessage: "Deliverable or lifecycle evidence is missing.",
-        suggestion: "Add true shot-boundary transition checks or manual transition review for long-form outputs.",
-        extraEvidence: frameSignalEvidence,
-        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
+        suggestion: "Run this benchmark on long-form outputs with detected transition boundaries and add semantic/manual transition review.",
+        extraEvidence: hasBoundarySignals ? boundarySignalEvidence : frameSignalEvidence,
+        ...(hasBoundarySignals
+          ? {
+              limitations: [
+                "FFmpeg scene-change boundary signals are structural proxies; semantic/manual transition review is still required for full DirectorBench-style parity."
+              ]
+            }
+          : hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.metric({
         facts,
@@ -544,7 +574,7 @@ export class DirectorStyleBenchmarkEvaluator {
       actions.add("Enable successful sampled-frame extraction so transition, lighting, and temporal continuity evidence can move beyond metadata-only checks.");
     }
     if (metrics.some((metric) => metric.limitations.length > 0)) {
-      actions.add("Add true shot-boundary, semantic visual, ASR/lip-sync, or manual media review evidence for metrics still limited to structural proxies.");
+      actions.add("Add long-form boundary-rich media, semantic visual review, ASR/lip-sync, or manual media review evidence for metrics still limited to structural proxies.");
     }
     if (bottlenecks.length > 0) {
       actions.add("Review benchmark bottlenecks and feed them into the repair/manual-review checklist before commercial release.");
@@ -554,6 +584,9 @@ export class DirectorStyleBenchmarkEvaluator {
   }
 
   private evidenceScope(facts: DirectorStyleBenchmarkFacts): DirectorStyleBenchmarkEvidenceScope {
+    if (facts.mediaEvidence?.transitionSignals?.status === "analyzed") {
+      return "artifact_contract_plus_media_boundaries";
+    }
     if (facts.mediaEvidence?.status === "frame_sampled") {
       return "artifact_contract_plus_media_frames";
     }
