@@ -261,6 +261,9 @@ function failContract(item, issues) {
 }
 
 function validateSemanticContract(item, report, options) {
+  if (item.name === "snapshot_parity_audit") {
+    return validateSnapshotParityAuditSemantics(report);
+  }
   if (item.name === "commercial_launch_doctor") {
     return validateCommercialLaunchDoctorSemantics(report, {
       allowInProgress: options.allowLaunchDoctorInProgress
@@ -327,6 +330,17 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
     issues.push("$.readinessSnapshot.qualityBenchmarkStatus: expected a refreshed benchmark status, not missing/skipped.");
   }
 
+  const snapshotRun = commandByName.get("snapshot_parity");
+  if (snapshotRun?.status !== "pass") {
+    issues.push("$.commandRuns[snapshot_parity].status: expected pass for snapshot parity guardrail command.");
+  }
+  if (report?.readinessSnapshot?.snapshotParityStatus !== "pass") {
+    issues.push("$.readinessSnapshot.snapshotParityStatus: expected pass after refreshing snapshot parity guardrails.");
+  }
+  if (report?.codeWorkSummary?.snapshotParityPass !== true) {
+    issues.push("$.codeWorkSummary.snapshotParityPass: expected true after refreshing snapshot parity guardrails.");
+  }
+
   const reportContractsRun = commandByName.get("report_contracts");
   if (reportContractsRun && reportContractsRun.status !== "pass") {
     issues.push("$.commandRuns[report_contracts].status: expected pass for report-contract validation.");
@@ -379,6 +393,48 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
     : [];
   if (Number(report?.codeWorkSummary?.knownCodeBlockingIssueCount ?? 0) === 0 && unexpectedFailures.length > 0) {
     issues.push("$.codeWorkSummary: unexpectedCodeCommandFailures must be empty when knownCodeBlockingIssueCount is 0.");
+  }
+  return issues;
+}
+
+function validateSnapshotParityAuditSemantics(report) {
+  const issues = [];
+  if (report?.status !== "pass") {
+    issues.push("$.status: expected pass for snapshot parity guardrail evidence.");
+  }
+  if (report?.summary?.snapshotDirectoriesPresent !== report?.summary?.expectedSnapshotCount) {
+    issues.push("$.summary.snapshotDirectoriesPresent: expected all configured snapshot directories to be present.");
+  }
+  if (report?.summary?.inventoryCoverageCount !== report?.summary?.expectedSnapshotCount) {
+    issues.push("$.summary.inventoryCoverageCount: expected every configured snapshot to be covered by inventory docs.");
+  }
+  if (report?.summary?.sourceLineageCoverageCount !== report?.summary?.expectedSnapshotCount) {
+    issues.push("$.summary.sourceLineageCoverageCount: expected every configured snapshot to have source-lineage coverage.");
+  }
+  if (Number(report?.summary?.directExternalImportFindingCount ?? 0) !== 0) {
+    issues.push("$.summary.directExternalImportFindingCount: expected zero direct imports from external/upstream.");
+  }
+  if (Number(report?.summary?.failedChecks ?? 0) !== 0) {
+    issues.push("$.summary.failedChecks: expected zero failed snapshot parity checks.");
+  }
+  if (report?.releaseGateSummary?.snapshotGuardrailsPass !== true) {
+    issues.push("$.releaseGateSummary.snapshotGuardrailsPass: expected true for passing snapshot guardrails.");
+  }
+  if (report?.releaseGateSummary?.canClaimFullSnapshotParity !== false) {
+    issues.push("$.releaseGateSummary.canClaimFullSnapshotParity: expected false; guardrails do not prove full upstream parity.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; snapshot guardrails are not commercial release approval.");
+  }
+  const failedSnapshots = Array.isArray(report?.snapshotInventory)
+    ? report.snapshotInventory.filter((item) => item?.status !== "pass")
+    : [];
+  if (failedSnapshots.length > 0) {
+    issues.push(`$.snapshotInventory: expected all snapshots to pass guardrails, found ${failedSnapshots.length} non-pass item(s).`);
+  }
+  const directImports = Array.isArray(report?.directExternalImports) ? report.directExternalImports : [];
+  if (directImports.length > 0) {
+    issues.push(`$.directExternalImports: expected zero direct external import findings, found ${directImports.length}.`);
   }
   return issues;
 }

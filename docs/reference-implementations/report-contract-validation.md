@@ -26,6 +26,7 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Done: validate optional budget-slice Atlas billing reports, such as generated-audio smoke billing readiness, when those reports exist.
 - Done: validate optional deployment-readiness captures, including local smoke evidence, against the deployment capture schema when those reports exist.
 - Done: validate optional snapshot parity audit reports against the snapshot parity audit schema when those reports exist.
+- Done: fail snapshot parity audit contracts when guardrail evidence is not `pass`, expected snapshot coverage is incomplete, direct external imports are found, or the report claims full parity/customer release approval.
 - Done: validate optional Director-style structured semantic-review and audio-review input packets when those files exist.
 - Done: fail the commercial launch inputs contract when its local `commandPlanAudit` is not `pass`, so stale or unsafe launch commands are caught before operators copy them into live or paid runs.
 - Done: allow release-audit checks to carry redacted `findings` arrays so failed secret/import-boundary scans remain schema-valid and actionable.
@@ -41,6 +42,7 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - When `atlas-billing-generated-audio-smoke-report.json` exists, report-contract validation includes it against the Atlas billing readiness schema.
 - When deployment-readiness capture reports exist, report-contract validation includes them and catches missing `atlasCloudDocsConformanceStatus` summary evidence.
 - When `snapshot-parity-audit-report.json` exists, report-contract validation includes it and catches schema drift in subtree/source-lineage/import-boundary guardrail evidence.
+- When `snapshot-parity-audit-report.json` exists, report-contract validation also requires all configured snapshot guardrails to pass and keeps `canClaimFullSnapshotParity=false` plus `canReleaseToCustomerTraffic=false`.
 - When `director-style-semantic-review.json` or `director-style-audio-review.json` exists, report-contract validation checks the structured review input schema before the quality benchmark consumes it.
 - When `director-style-benchmark-report.json` exists, report-contract validation includes the artifact-contract benchmark schema and verifies it still reports `canClaimDirectorBenchParity=false`.
 - When `commercial-launch-inputs-report.json` exists, report-contract validation requires `commandPlanAudit.status` to be `pass` with no command-plan issues.

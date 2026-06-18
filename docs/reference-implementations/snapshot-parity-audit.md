@@ -58,3 +58,4 @@ npm.cmd run validation:snapshot-parity
 - The configured Reference Implementation files exist and expose enough structure to audit source behavior and validation expectations.
 - Production `src/` and `scripts/` files do not import directly from `external/upstream`.
 - `releaseGateSummary.canClaimFullSnapshotParity` remains false until product-code gaps and external/live evidence gates are closed.
+- `validation:report-contracts` rejects snapshot parity reports that have non-pass guardrails, missing snapshot/source-lineage coverage, direct external import findings, or release-gate claims that imply full parity or customer-traffic approval.
