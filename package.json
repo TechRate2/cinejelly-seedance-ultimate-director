@@ -45,6 +45,7 @@
     "validation:generated-audio": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-atlas-generated-audio-validation.mjs",
     "validation:quality-benchmark": "node scripts/run-director-style-benchmark.mjs --build",
     "validation:quality-review-drafts": "node scripts/create-director-style-review-drafts.mjs",
+    "validation:quality-review-evidence": "node scripts/validate-director-style-review-evidence.mjs",
     "validation:billing-admin-ops": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/capture-billing-admin-ops.mjs",
     "validation:production-ops": "node --env-file-if-exists=.env scripts/capture-production-operations.mjs",
     "validation:ops-config": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/validate-business-readiness-ops-config.mjs",

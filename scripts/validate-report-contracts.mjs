@@ -47,6 +47,7 @@ const defaultContracts = [
   contract("director_style_runtime_review", "schemas/director-style-runtime-review.schema.json", "assets/output_deliverables/business-readiness/director-style-runtime-review.json"),
   contract("director_style_governance_review", "schemas/director-style-governance-review.schema.json", "assets/output_deliverables/business-readiness/director-style-governance-review.json"),
   contract("director_style_review_drafts", "schemas/director-style-review-drafts-report.schema.json", "assets/output_deliverables/business-readiness/director-style-review-drafts-report.json"),
+  contract("director_style_review_evidence_readiness", "schemas/director-style-review-evidence-readiness-report.schema.json", "assets/output_deliverables/business-readiness/director-style-review-evidence-readiness-report.json"),
   contract("director_style_benchmark", "schemas/director-style-benchmark-report.schema.json", "assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
   contract("billing_admin_ops", "schemas/billing-admin-ops-report.schema.json", "assets/output_deliverables/business-readiness/billing-admin-ops-report.json"),
   contract("production_operations", "schemas/production-operations-report.schema.json", "assets/output_deliverables/business-readiness/production-operations-report.json"),
@@ -289,6 +290,9 @@ function validateSemanticContract(item, report, options) {
   }
   if (item.name === "director_style_benchmark") {
     return validateDirectorStyleBenchmarkSemantics(report);
+  }
+  if (item.name === "director_style_review_evidence_readiness") {
+    return validateDirectorStyleReviewEvidenceReadinessSemantics(report);
   }
   if (item.name === "render_provider_handoff_action_ledger") {
     return validateRenderProviderHandoffActionLedgerSemantics(report);
@@ -993,6 +997,71 @@ function validateDirectorStyleBenchmarkSemantics(report) {
   }
   if ((requirementById.get("license_and_runtime_permission_review")?.status === "met") !== acceptedGovernanceReview) {
     issues.push("$.parityEvidenceMatrix.requirements[id=license_and_runtime_permission_review].status: expected met only with accepted artifact-bound governance permission evidence.");
+  }
+  return issues;
+}
+
+function validateDirectorStyleReviewEvidenceReadinessSemantics(report) {
+  const issues = [];
+  const reviews = Array.isArray(report?.reviews) ? report.reviews : [];
+  const presentCount = reviews.filter((review) => review?.present === true).length;
+  const acceptedCount = reviews.filter((review) => review?.accepted === true).length;
+  const artifactBoundCount = reviews.filter((review) => review?.artifactBindingStatus === "matched").length;
+  const passReady = report?.status === "pass";
+
+  if (report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.networkCallsMade/$.providerCallsMade: expected false; review-evidence readiness must be no-network/no-provider.");
+  }
+  if (Number(report?.summary?.requiredReviewCount ?? -1) !== 4 || reviews.length !== 4) {
+    issues.push("$.summary.requiredReviewCount/$.reviews: expected exactly four Director-style review kinds.");
+  }
+  if (Number(report?.summary?.presentReviewCount ?? -1) !== presentCount) {
+    issues.push("$.summary.presentReviewCount: expected to match reviews with present=true.");
+  }
+  if (Number(report?.summary?.acceptedReviewCount ?? -1) !== acceptedCount) {
+    issues.push("$.summary.acceptedReviewCount: expected to match reviews with accepted=true.");
+  }
+  if (Number(report?.summary?.artifactBoundReviewCount ?? -1) !== artifactBoundCount) {
+    issues.push("$.summary.artifactBoundReviewCount: expected to match reviews with artifactBindingStatus=matched.");
+  }
+  if (report?.summary?.canClaimDirectorBenchParity !== false || report?.releaseGateSummary?.canClaimDirectorBenchParity !== false) {
+    issues.push("$.summary/releaseGateSummary.canClaimDirectorBenchParity: expected false for review readiness evidence.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; review readiness is not customer-release approval.");
+  }
+  if (report?.summary?.canUseAsAcceptedDirectorReviewEvidence !== passReady ||
+      report?.summary?.canRunQualityBenchmarkWithAcceptedReviews !== passReady ||
+      report?.releaseGateSummary?.acceptedDirectorReviewEvidencePass !== passReady ||
+      report?.releaseGateSummary?.canUseAsAcceptedDirectorReviewEvidence !== passReady) {
+    issues.push("$.summary/releaseGateSummary accepted-review flags: expected true only when status=pass.");
+  }
+  if (passReady) {
+    if (report?.expectedArtifactBinding?.complete !== true) {
+      issues.push("$.expectedArtifactBinding.complete: status pass requires complete paid-artifact binding.");
+    }
+    if (!reviews.every((review) =>
+      review?.present === true &&
+      review?.jsonValid === true &&
+      review?.schemaValid === true &&
+      review?.status === "accepted" &&
+      review?.artifactBindingStatus === "matched" &&
+      review?.accepted === true &&
+      Number(review?.acceptedCheckpointCount ?? -1) === Number(review?.requiredCheckpointCount ?? -2) &&
+      Array.isArray(review?.missingCheckpointNames) &&
+      review.missingCheckpointNames.length === 0 &&
+      Array.isArray(review?.nonAcceptedCheckpointNames) &&
+      review.nonAcceptedCheckpointNames.length === 0
+    )) {
+      issues.push("$.reviews: status pass requires every review to be present, schema-valid, accepted, artifact-bound, and complete.");
+    }
+  }
+  if (!passReady && (
+    report?.summary?.canUseAsAcceptedDirectorReviewEvidence === true ||
+    report?.releaseGateSummary?.acceptedDirectorReviewEvidencePass === true ||
+    report?.releaseGateSummary?.canUseAsAcceptedDirectorReviewEvidence === true
+  )) {
+    issues.push("$.summary/releaseGateSummary: non-pass readiness reports cannot expose accepted review evidence flags.");
   }
   return issues;
 }
