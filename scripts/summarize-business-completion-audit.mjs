@@ -22,7 +22,8 @@ function parseArgs(args) {
   const options = {
     ...defaults,
     writeReport: true,
-    writeMarkdown: true
+    writeMarkdown: true,
+    skipLaunchDoctorReport: false
   };
   const flagMap = new Map([
     ["--output", "outputPath"],
@@ -50,6 +51,10 @@ function parseArgs(args) {
     }
     if (arg === "--no-markdown") {
       options.writeMarkdown = false;
+      continue;
+    }
+    if (arg === "--skip-launch-doctor-report") {
+      options.skipLaunchDoctorReport = true;
       continue;
     }
     const equalsIndex = arg.indexOf("=");
@@ -90,6 +95,7 @@ Options:
   --report-contracts-report <path>    Default: ${defaults.reportContractsPath}
   --launch-doctor-report <path>       Default: ${defaults.commercialLaunchDoctorPath}
   --ops-config-report <path>          Default: ${defaults.opsConfigPath}
+  --skip-launch-doctor-report         Do not read the launch-doctor report. Used only while launch-doctor is still in progress.
   --output <path>                     JSON report path. Default: ${defaults.outputPath}
   --markdown-output <path>            Markdown summary path. Default: ${defaults.markdownOutputPath}
   --no-markdown                       Do not write the Markdown summary.
@@ -114,7 +120,9 @@ function main() {
     releaseAudit: summarizeReport(options.releaseAuditPath),
     snapshotParity: summarizeReport(options.snapshotParityPath),
     reportContracts: summarizeReport(options.reportContractsPath),
-    commercialLaunchDoctor: summarizeReport(options.commercialLaunchDoctorPath),
+    commercialLaunchDoctor: options.skipLaunchDoctorReport
+      ? skippedReport(options.commercialLaunchDoctorPath, "skipped_launch_doctor_in_progress")
+      : summarizeReport(options.commercialLaunchDoctorPath),
     opsConfig: summarizeReport(options.opsConfigPath)
   };
   const blockers = buildBlockers(reports);
@@ -138,6 +146,7 @@ function main() {
       snapshotParityPath: toRepoRelative(options.snapshotParityPath),
       reportContractsPath: toRepoRelative(options.reportContractsPath),
       commercialLaunchDoctorPath: toRepoRelative(options.commercialLaunchDoctorPath),
+      commercialLaunchDoctorSkipped: options.skipLaunchDoctorReport,
       opsConfigPath: toRepoRelative(options.opsConfigPath),
       markdownOutputPath: options.writeMarkdown ? toRepoRelative(options.markdownOutputPath) : undefined
     },
@@ -181,6 +190,14 @@ function summarizeReport(path) {
     schemaVersion: typeof read.schemaVersion === "string" ? read.schemaVersion : undefined,
     status: String(read.status ?? "unknown"),
     value: read
+  };
+}
+
+function skippedReport(path, status) {
+  return {
+    present: true,
+    path: toRepoRelative(path),
+    status
   };
 }
 

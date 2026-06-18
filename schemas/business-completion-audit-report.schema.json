@@ -48,6 +48,7 @@
         "snapshotParityPath",
         "reportContractsPath",
         "commercialLaunchDoctorPath",
+        "commercialLaunchDoctorSkipped",
         "opsConfigPath"
       ],
       "properties": {
@@ -59,6 +60,7 @@
         "snapshotParityPath": { "type": "string" },
         "reportContractsPath": { "type": "string" },
         "commercialLaunchDoctorPath": { "type": "string" },
+        "commercialLaunchDoctorSkipped": { "type": "boolean" },
         "opsConfigPath": { "type": "string" },
         "markdownOutputPath": { "type": "string" }
       }

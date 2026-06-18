@@ -325,7 +325,7 @@ function buildCommands(options) {
 }
 
 function completionAuditCommand(name) {
-  return command(name, ["scripts/summarize-business-completion-audit.mjs"], {
+  return command(name, ["scripts/summarize-business-completion-audit.mjs", "--skip-launch-doctor-report"], {
     reportPath: "assets/output_deliverables/business-readiness/business-completion-audit-report.json",
     expectedExitCodes: [0, 1],
     blocksCodeReadiness: false

@@ -28,6 +28,8 @@ Default outputs:
 
 The command reads local JSON reports only. It does not call Atlas, deployment hosts, remote stock providers, source URLs, FFmpeg, render routes, or billing providers.
 
+When `validation:launch-doctor` invokes this command as part of its own run, it passes `--skip-launch-doctor-report` so the completion audit does not read a stale doctor report from the previous run. Standalone `validation:completion-audit` keeps reading the latest completed launch-doctor report.
+
 ## Acceptance
 
 The report is valid when:
@@ -43,6 +45,7 @@ The report is valid when:
 9. `validation:report-contracts` also validates report-local semantics: blocker counts, owner/category totals, product-code gap counts, parity flags, ready paid-gate counts, snapshot/report/release status booleans, and customer-traffic/full-paid release flags must match the underlying arrays and readiness snapshot.
 10. A failing snapshot parity audit becomes a codebase-owned blocker before any full-parity claim is trusted.
 11. Any code-side blocker reported by `validation:launch-doctor` becomes a codebase-owned completion-audit blocker until the doctor is clean.
+12. When `commercialLaunchDoctorSkipped=true`, the launch-doctor source status is `skipped_launch_doctor_in_progress` and must not create a missing-report blocker.
 
 ## Current Interpretation
 
