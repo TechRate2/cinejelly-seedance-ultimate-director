@@ -1,6 +1,6 @@
 # Director-Style Benchmark Harness
 
-Implementation status as of 2026-06-17: implemented as a CineJelly-owned TypeScript evaluator, no-spend CLI, JSON schema, report-contract entry, source lineage record, and package command. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScript evaluator, local media-evidence collector, no-spend CLI, JSON schema, report-contract entry, source lineage record, and package command. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Source Logic
 
@@ -21,15 +21,17 @@ Implementation status as of 2026-06-17: implemented as a CineJelly-owned TypeScr
 ## CineJelly Changes
 
 1. No DirectorBench Python code, LangGraph graph, OpenCV routines, prompts, or agent implementations are copied or executed.
-2. The current harness is artifact-contract-only: it reads CineJelly paid-render evidence, request evidence, and optional manual review text.
-3. It performs no provider calls, no media downloads, no deployment calls, no Atlas calls, and no paid validation.
-4. It always reports `canClaimDirectorBenchParity=false` because frame-level transition checks, lighting/fidelity visual analysis, ASR, lip-sync, and audio waveform review are not implemented in this harness.
-5. It is allowed to produce useful backend evidence, but it cannot approve customer traffic by itself.
+2. The current harness reads CineJelly paid-render evidence, request evidence, optional manual review text, and optional local rendered media.
+3. Local media evidence is limited to FFprobe delivery metadata plus bounded sampled-frame RGB signals for structural temporal, lighting, and transition-continuity proxies; sampled frame paths are redacted from reports.
+4. It performs no provider calls, no media downloads, no deployment calls, no Atlas calls, and no paid validation.
+5. It always reports `canClaimDirectorBenchParity=false` because true shot-boundary transition checks, semantic visual/fidelity analysis, ASR, lip-sync, and generated-audio waveform/listening review are not fully implemented in this harness.
+6. It is allowed to produce useful backend evidence, but it cannot approve customer traffic by itself.
 
 ## Destination Paths
 
 - `src/types/director-style-benchmark.ts`
 - `src/core/director-style-benchmark.ts`
+- `src/core/director-style-media-evidence.ts`
 - `scripts/run-director-style-benchmark.mjs`
 - `schemas/director-style-benchmark-report.schema.json`
 - `scripts/validate-report-contracts.mjs`
@@ -48,7 +50,7 @@ Default output:
 - `assets/output_deliverables/business-readiness/director-style-benchmark-report.json`
 - `assets/output_deliverables/business-readiness/director-style-benchmark-results.jsonl`
 
-The current short paid Phase 6 render produces useful example evidence but should remain `review_required`: it is a 15 second text-to-video run with `audioMode:none`, so audio and audio cross-modal metrics are skipped, while transition, lighting, script-video fidelity, long-form stability, and text-video consistency require stronger media evidence.
+The current short paid Phase 6 render produces useful example evidence and now includes local media probe plus sampled-frame proxy signals, but it should remain `review_required`: it is a roughly 13.5 second text-to-video run with `audioMode:none`, so audio and audio cross-modal metrics are skipped, long-form stability is not proven, and transition/lighting/text-video metrics still need shot-boundary, semantic visual, and/or manual media review evidence.
 
 ## Acceptance Criteria
 
@@ -56,12 +58,12 @@ The current short paid Phase 6 render produces useful example evidence but shoul
 - The report schema is covered by `validation:report-contracts`.
 - The report contains no API keys, bearer tokens, raw local artifact paths, inline media, provider payloads, or upstream implementation code.
 - A short/no-audio smoke report must not be treated as long-form or audio evidence.
-- Full DirectorBench parity remains blocked until legal/permission review and media-level evaluation evidence exist.
+- Full DirectorBench parity remains blocked until legal/permission review, long-form paid evidence, shot-boundary/VLM/ASR/lip-sync evidence, and audio review evidence exist.
 
 ## Remaining Scope
 
-- Add optional frame-boundary transition checks against real rendered media.
-- Add optional semantic visual/fidelity review from sampled frames or manual review packets.
+- Add true frame-boundary transition checks against real rendered media.
+- Add semantic visual/fidelity review from sampled frames or manual review packets.
 - Add generated-audio output and manual listening evidence to audio/cross-modal metrics.
 - Run the harness against a real 2-8 minute paid long-form artifact bundle.
 - Decide whether to build a deeper CineJelly-owned evaluation graph after licensing and product review.

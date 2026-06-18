@@ -3,6 +3,7 @@ import type {
   DirectorStyleBenchmarkDimension,
   DirectorStyleBenchmarkDimensionScore,
   DirectorStyleBenchmarkEvidence,
+  DirectorStyleBenchmarkEvidenceScope,
   DirectorStyleBenchmarkFacts,
   DirectorStyleBenchmarkMetricResult,
   DirectorStyleBenchmarkMetricStatus,
@@ -71,6 +72,9 @@ export class DirectorStyleBenchmarkEvaluator {
     readonly profile?: DirectorStyleBenchmarkProfile;
     readonly minPassingScore?: number;
     readonly minConfidence?: number;
+    readonly mediaPath?: string;
+    readonly frameSamplingIntervalSeconds?: number;
+    readonly maxFrameSamples?: number;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
   }): DirectorStyleBenchmarkReport {
@@ -99,6 +103,10 @@ export class DirectorStyleBenchmarkEvaluator {
     const scoredMetrics = metrics.filter((metric) => metric.status !== "skipped");
     const lowConfidenceMetricCount = scoredMetrics.filter((metric) => (metric.confidence ?? 0) < minConfidence).length;
     const status = this.statusFor(weightedScore, bottlenecks, metrics, minPassingScore, minConfidence);
+    const evidenceScope = this.evidenceScope(input.facts);
+    const mediaPath = input.mediaPath ?? input.facts.mediaEvidence?.mediaPath;
+    const frameSamplingIntervalSeconds =
+      input.frameSamplingIntervalSeconds ?? input.facts.mediaEvidence?.frameSamplingIntervalSeconds;
 
     return {
       schemaVersion: "cinejelly.director-style-benchmark.v1",
@@ -115,6 +123,9 @@ export class DirectorStyleBenchmarkEvaluator {
         ...(input.facts.sourceReportPath ? { sourceReportPath: input.facts.sourceReportPath } : {}),
         ...(input.facts.requestPath ? { requestPath: input.facts.requestPath } : {}),
         ...(input.facts.artifactDirectory ? { artifactDirectory: input.facts.artifactDirectory } : {}),
+        ...(mediaPath ? { mediaPath } : {}),
+        ...(frameSamplingIntervalSeconds ? { frameSamplingIntervalSeconds } : {}),
+        ...(input.maxFrameSamples ? { maxFrameSamples: input.maxFrameSamples } : {}),
         ...(input.outputPath ? { outputPath: input.outputPath } : {}),
         ...(input.jsonlPath ? { jsonlPath: input.jsonlPath } : {}),
         minPassingScore,
@@ -124,7 +135,7 @@ export class DirectorStyleBenchmarkEvaluator {
         ...(weightedScore !== undefined ? { overallScore: this.round(weightedScore) } : {}),
         ...(weightedConfidence !== undefined ? { overallConfidence: this.round(weightedConfidence) } : {}),
         grade: this.grade(weightedScore),
-        evidenceScope: "artifact_contract_only",
+        evidenceScope,
         metricCount: metrics.length,
         scoredMetricCount: scoredMetrics.length,
         skippedMetricCount: metrics.filter((metric) => metric.status === "skipped").length,
@@ -144,13 +155,59 @@ export class DirectorStyleBenchmarkEvaluator {
         releaseBlocker:
           status === "blocked"
             ? "Benchmark evidence is blocked by missing core artifact or render completion evidence."
-            : "Director-style benchmark evidence is artifact-contract-only; customer release still requires real long-form paid output, frame/audio review, production deployment evidence, and manual approval."
+            : evidenceScope === "artifact_contract_only"
+              ? "Director-style benchmark evidence is artifact-contract-only; customer release still requires real long-form paid output, frame/audio review, production deployment evidence, and manual approval."
+              : "Director-style benchmark includes local media probe/frame-signal evidence, but customer release still requires long-form paid output, semantic visual/audio review, production deployment evidence, and manual approval."
       },
       nextActions: this.nextActions(input.facts, metrics, bottlenecks)
     };
   }
 
   private metricsFor(facts: DirectorStyleBenchmarkFacts): readonly DirectorStyleBenchmarkMetricResult[] {
+    const visualSignals = facts.mediaEvidence?.visualSignals;
+    const hasFrameSignals = facts.mediaEvidence?.status === "frame_sampled" && (visualSignals?.sampleCount ?? 0) >= 2;
+    const hasMediaProbe = facts.mediaEvidence?.deliveryStatus !== undefined;
+    const mediaProxyLimitations = [
+      "Sampled-frame color and brightness signals are structural proxies; VLM/ASR/lip-sync and shot-boundary review are still required for full DirectorBench-style parity."
+    ];
+    const frameSignalEvidence = hasFrameSignals
+      ? [
+          this.mediaEvidence(
+            "media_frame_signal",
+            `Sampled ${visualSignals?.sampleCount ?? 0} frame signal(s) from local rendered media; frame paths are redacted from this report.`
+          )
+        ]
+      : [];
+    const probedMediaEvidence = hasMediaProbe
+      ? [
+          this.mediaEvidence(
+            "media_probe",
+            `FFprobe delivery status is ${facts.mediaEvidence?.deliveryStatus}; duration=${facts.mediaEvidence?.durationSeconds ?? "unknown"}s, audio=${facts.mediaEvidence?.audio?.hasAudio === true ? "present" : "absent"}.`
+          )
+        ]
+      : [];
+    const scriptVideoFidelityScore = hasFrameSignals && facts.manualReviewAccepted ? 0.74 : 0.68;
+    const scriptVideoFidelityConfidence = hasFrameSignals && facts.manualReviewAccepted ? 0.6 : 0.46;
+    const temporalCoherenceScore = hasFrameSignals && visualSignals?.temporalContinuityScore !== undefined
+      ? Math.max(0.7, Math.min(0.84, 0.58 + visualSignals.temporalContinuityScore * 0.26))
+      : 0.78;
+    const temporalCoherenceConfidence = hasFrameSignals ? 0.68 : 0.64;
+    const transitionQualityScore = hasFrameSignals && visualSignals?.transitionContinuityScore !== undefined
+      ? Math.max(0.56, Math.min(0.72, 0.48 + visualSignals.transitionContinuityScore * 0.24))
+      : facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.68 : 0.56;
+    const transitionQualityConfidence = hasFrameSignals ? 0.56 : facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.48 : 0.34;
+    const lightingConsistencyScore = hasFrameSignals && visualSignals?.lightingConsistencyScore !== undefined
+      ? Math.max(0.56, Math.min(0.76, 0.48 + visualSignals.lightingConsistencyScore * 0.28))
+      : 0.56;
+    const lightingConsistencyConfidence = hasFrameSignals ? 0.62 : 0.34;
+    const generationStabilityConfidence = facts.finalDurationSeconds && facts.finalDurationSeconds >= 120
+      ? 0.7
+      : hasMediaProbe
+        ? 0.56
+        : 0.52;
+    const textVideoConsistencyScore = hasFrameSignals && facts.manualReviewAccepted ? 0.69 : 0.66;
+    const textVideoConsistencyConfidence = hasFrameSignals && facts.manualReviewAccepted ? 0.55 : 0.45;
+
     return [
       this.metric({
         facts,
@@ -184,11 +241,15 @@ export class DirectorStyleBenchmarkEvaluator {
         metricName: "script_video_fidelity",
         upstreamMetric: "script_video_fidelity",
         requiredKinds: [ARTIFACT_KINDS.storyboard, ARTIFACT_KINDS.renderedShots],
-        score: 0.68,
-        confidence: 0.46,
-        passMessage: "Storyboard and rendered-shot evidence can be cross-counted, but no visual frame analysis is run.",
+        score: scriptVideoFidelityScore,
+        confidence: scriptVideoFidelityConfidence,
+        passMessage: hasFrameSignals
+          ? "Storyboard/rendered-shot evidence is reinforced by sampled-frame media signals and accepted manual review."
+          : "Storyboard and rendered-shot evidence can be cross-counted, but no visual frame analysis is run.",
         failMessage: "Storyboard or rendered-shot evidence is missing.",
-        suggestion: "Add real frame/VLM or manual shot-fidelity review before claiming script-video fidelity."
+        suggestion: "Add real VLM or shot-level manual fidelity review before claiming script-video fidelity.",
+        extraEvidence: frameSignalEvidence,
+        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.metric({
         facts,
@@ -208,11 +269,15 @@ export class DirectorStyleBenchmarkEvaluator {
         metricName: "temporal_coherence",
         upstreamMetric: "temporal_coherence",
         requiredKinds: [ARTIFACT_KINDS.stageLifecycle, ARTIFACT_KINDS.renderedShots, ARTIFACT_KINDS.productionGraph],
-        score: 0.78,
-        confidence: 0.64,
-        passMessage: "Stage lifecycle, production graph, and rendered-shot artifacts preserve ordered temporal evidence.",
+        score: temporalCoherenceScore,
+        confidence: temporalCoherenceConfidence,
+        passMessage: hasFrameSignals
+          ? "Stage lifecycle evidence is reinforced by sampled-frame continuity signals from the rendered media."
+          : "Stage lifecycle, production graph, and rendered-shot artifacts preserve ordered temporal evidence.",
         failMessage: "Temporal planning or rendered-shot evidence is missing.",
-        suggestion: "Keep stage lifecycle and production graph evidence synchronized with rendered shots."
+        suggestion: "Keep stage lifecycle and production graph evidence synchronized with rendered shots.",
+        extraEvidence: frameSignalEvidence,
+        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.metric({
         facts,
@@ -220,11 +285,15 @@ export class DirectorStyleBenchmarkEvaluator {
         metricName: "transition_quality",
         upstreamMetric: "transition_quality",
         requiredKinds: [ARTIFACT_KINDS.deliverable, ARTIFACT_KINDS.stageLifecycle],
-        score: facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.68 : 0.56,
-        confidence: facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.48 : 0.34,
-        passMessage: "Deliverable and lifecycle evidence exist, but transition quality is not frame-boundary analyzed.",
+        score: transitionQualityScore,
+        confidence: transitionQualityConfidence,
+        passMessage: hasFrameSignals
+          ? "Deliverable/lifecycle evidence is reinforced by sampled-frame color-continuity signals."
+          : "Deliverable and lifecycle evidence exist, but transition quality is not frame-boundary analyzed.",
         failMessage: "Deliverable or lifecycle evidence is missing.",
-        suggestion: "Add frame-boundary transition checks or manual transition review for long-form outputs."
+        suggestion: "Add true shot-boundary transition checks or manual transition review for long-form outputs.",
+        extraEvidence: frameSignalEvidence,
+        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.metric({
         facts,
@@ -232,11 +301,15 @@ export class DirectorStyleBenchmarkEvaluator {
         metricName: "lighting_consistency",
         upstreamMetric: "lighting_consistency",
         requiredKinds: [ARTIFACT_KINDS.reviewPacket, ARTIFACT_KINDS.renderedShots],
-        score: 0.56,
-        confidence: 0.34,
-        passMessage: "Rendered-shot and review evidence exist, but lighting is not visually inspected by this no-spend harness.",
+        score: lightingConsistencyScore,
+        confidence: lightingConsistencyConfidence,
+        passMessage: hasFrameSignals
+          ? "Rendered-shot and review evidence is reinforced by sampled-frame brightness consistency signals."
+          : "Rendered-shot and review evidence exist, but lighting is not visually inspected by this no-spend harness.",
         failMessage: "Rendered-shot or review evidence is missing.",
-        suggestion: "Use semantic visual inspection or manual review to raise lighting-confidence evidence."
+        suggestion: "Use semantic visual inspection or manual review to raise lighting-confidence evidence.",
+        extraEvidence: frameSignalEvidence,
+        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.audioMetric(facts, "narration_reasonableness", "narration_reasonableness"),
       this.audioMetric(facts, "bgm_consistency", "bgm_consistency"),
@@ -247,10 +320,16 @@ export class DirectorStyleBenchmarkEvaluator {
         upstreamMetric: "generation_stability",
         requiredKinds: [ARTIFACT_KINDS.costLedger, ARTIFACT_KINDS.deliverable],
         score: facts.renderStatus === "completed" && facts.artifactValidationStatus === "pass" ? 0.82 : 0.52,
-        confidence: facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.66 : 0.52,
-        passMessage: "Render completion, cost ledger, and deliverable validation evidence exist.",
+        confidence: generationStabilityConfidence,
+        passMessage: hasMediaProbe
+          ? "Render completion, cost ledger, deliverable validation, and local media probe evidence exist."
+          : "Render completion, cost ledger, and deliverable validation evidence exist.",
         failMessage: "Render completion, cost ledger, or deliverable evidence is incomplete.",
-        suggestion: "Run this benchmark on a real 2-8 minute paid output to prove long-form stability."
+        suggestion: "Run this benchmark on a real 2-8 minute paid output to prove long-form stability.",
+        extraEvidence: probedMediaEvidence,
+        ...(facts.finalDurationSeconds && facts.finalDurationSeconds >= 120
+          ? {}
+          : { limitations: ["Short media probe evidence cannot prove long-form quality maintenance."] })
       }),
       this.metric({
         facts,
@@ -270,11 +349,15 @@ export class DirectorStyleBenchmarkEvaluator {
         metricName: "text_video_consistency",
         upstreamMetric: "text_video_consistency",
         requiredKinds: [ARTIFACT_KINDS.compiledPrompts, ARTIFACT_KINDS.renderedShots, ARTIFACT_KINDS.reviewPacket],
-        score: 0.66,
-        confidence: 0.45,
-        passMessage: "Compiled prompt, rendered-shot, and review evidence exist, but semantic frame matching is not run.",
+        score: textVideoConsistencyScore,
+        confidence: textVideoConsistencyConfidence,
+        passMessage: hasFrameSignals
+          ? "Compiled prompt/rendered-shot/review evidence is reinforced by sampled-frame media signals, but semantic matching is still limited."
+          : "Compiled prompt, rendered-shot, and review evidence exist, but semantic frame matching is not run.",
         failMessage: "Prompt, rendered-shot, or review evidence is missing.",
-        suggestion: "Add frame/VLM or manual review evidence before claiming text-video semantic alignment."
+        suggestion: "Add VLM or shot-level manual review evidence before claiming text-video semantic alignment.",
+        extraEvidence: frameSignalEvidence,
+        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.audioMetric(facts, "video_audio_consistency", "video_audio_consistency", "cross_modal"),
       this.audioMetric(facts, "text_audio_consistency", "text_audio_consistency", "cross_modal")
@@ -292,6 +375,9 @@ export class DirectorStyleBenchmarkEvaluator {
     readonly passMessage: string;
     readonly failMessage: string;
     readonly suggestion: string;
+    readonly evidenceKind?: string;
+    readonly extraEvidence?: readonly DirectorStyleBenchmarkEvidence[];
+    readonly limitations?: readonly string[];
   }): DirectorStyleBenchmarkMetricResult {
     const missingKinds = input.requiredKinds.filter((kind) => !input.facts.artifactKinds.includes(kind));
     if (missingKinds.length > 0) {
@@ -313,9 +399,9 @@ export class DirectorStyleBenchmarkEvaluator {
         limitations: ["This no-spend benchmark only evaluates persisted CineJelly artifact evidence."]
       };
     }
-    const limitations = input.confidence < 0.6
+    const limitations = input.limitations ?? (input.confidence < 0.6
       ? ["No frame-level/VLM/ASR media analysis is performed by this artifact-contract harness."]
-      : [];
+      : []);
     return {
       dimension: input.dimension,
       metricName: input.metricName,
@@ -325,10 +411,11 @@ export class DirectorStyleBenchmarkEvaluator {
       confidence: this.round(input.confidence),
       evidence: [
         {
-          kind: "artifact_contract",
+          kind: input.evidenceKind ?? "artifact_contract",
           severity: input.score >= 0.7 && input.confidence >= 0.6 ? "info" : "warn",
           message: input.passMessage
-        }
+        },
+        ...(input.extraEvidence ?? [])
       ],
       suggestions: input.score >= 0.7 && input.confidence >= 0.6 ? [] : [input.suggestion],
       limitations
@@ -451,14 +538,38 @@ export class DirectorStyleBenchmarkEvaluator {
     if (!facts.hasAudioEvidence) {
       actions.add("Add generated-audio provider output validation and manual listening review to score audio and audio cross-modal metrics.");
     }
+    if (!facts.mediaEvidence || facts.mediaEvidence.status === "unavailable") {
+      actions.add("Provide a local rendered media file to add media probe and sampled-frame evidence to the Director-style benchmark.");
+    } else if (facts.mediaEvidence.status !== "frame_sampled") {
+      actions.add("Enable successful sampled-frame extraction so transition, lighting, and temporal continuity evidence can move beyond metadata-only checks.");
+    }
     if (metrics.some((metric) => metric.limitations.length > 0)) {
-      actions.add("Add frame-level transition/lighting/fidelity evidence or manual media review for metrics currently limited to artifact contracts.");
+      actions.add("Add true shot-boundary, semantic visual, ASR/lip-sync, or manual media review evidence for metrics still limited to structural proxies.");
     }
     if (bottlenecks.length > 0) {
       actions.add("Review benchmark bottlenecks and feed them into the repair/manual-review checklist before commercial release.");
     }
     actions.add("Keep this report as backend quality evidence only; do not treat it as UI readiness or customer-traffic approval.");
     return [...actions];
+  }
+
+  private evidenceScope(facts: DirectorStyleBenchmarkFacts): DirectorStyleBenchmarkEvidenceScope {
+    if (facts.mediaEvidence?.status === "frame_sampled") {
+      return "artifact_contract_plus_media_frames";
+    }
+    if (facts.mediaEvidence?.deliveryStatus !== undefined || facts.mediaEvidence?.status === "probe_only") {
+      return "artifact_contract_plus_media_probe";
+    }
+    return "artifact_contract_only";
+  }
+
+  private mediaEvidence(kind: string, message: string): DirectorStyleBenchmarkEvidence {
+    return {
+      kind,
+      severity: "info",
+      message,
+      source: "local_media_probe"
+    };
   }
 
   private metricStatusFor(

@@ -434,7 +434,7 @@ flowchart TD
 | `HKUDS/VideoAgent` | Source-video analysis boundaries and metadata flow. Full VideoRAG/tool graph is not implemented. |
 | `calesthio/OpenMontage` | Approval/self-review/source-media concepts only as AGPL-aware behavior notes. No direct production import. |
 | `harry0703/MoneyPrinterTurbo` | One-input pipeline, material sourcing, task progress, compact job history with stale-active recovery plus provider checkpoint/reconciliation/handoff heartbeat evidence, protected lease-service endpoint, HTTPS external lease adapter contract, idempotent handoff action-ledger replay, local two-worker handoff validation, production handoff capture runner, batch evidence, subtitles/audio planning. Full WebUI and deployed multi-worker active-job resume with live provider action execution are not implemented. |
-| `DirectorBench` | CineJelly-owned artifact-contract benchmark via `npm.cmd run validation:quality-benchmark`; full media-level DirectorBench parity is not claimed until frame/audio/VLM/ASR evidence and license review exist. |
+| `DirectorBench` | CineJelly-owned benchmark via `npm.cmd run validation:quality-benchmark`; local FFprobe and sampled-frame proxy evidence can be included, but full DirectorBench parity is not claimed until shot-boundary/audio/VLM/ASR evidence and license review exist. |
 
 ## Important Documents
 

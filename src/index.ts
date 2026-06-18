@@ -48,6 +48,7 @@ export * from "./core/consistency-guardian.js";
 export * from "./core/continuity-ledger-builder.js";
 export * from "./core/delivery-gate.js";
 export * from "./core/director-style-benchmark.js";
+export * from "./core/director-style-media-evidence.js";
 export * from "./core/generated-audio-execution-planner.js";
 export * from "./core/generated-audio-provider-execution-runner.js";
 export * from "./core/generated-audio-asset-resolver.js";

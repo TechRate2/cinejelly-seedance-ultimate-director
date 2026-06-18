@@ -9,11 +9,14 @@ const defaults = {
   paidRenderReportPath: "assets/output_deliverables/phase6-validation/paid-render-report.json",
   requestPath: "assets/output_deliverables/phase6-validation/request.json",
   manualReviewPath: "assets/output_deliverables/phase6-validation/manual-review-report.md",
+  mediaPath: "assets/output_deliverables/phase6-validation/final.mp4",
   outputPath: "assets/output_deliverables/business-readiness/director-style-benchmark-report.json",
   jsonlPath: "assets/output_deliverables/business-readiness/director-style-benchmark-results.jsonl",
   profile: "balanced",
   minPassingScore: 0.7,
-  minConfidence: 0.6
+  minConfidence: 0.6,
+  frameSamplingIntervalSeconds: 3,
+  maxFrameSamples: 8
 };
 
 function parseArgs(args) {
@@ -23,17 +26,21 @@ function parseArgs(args) {
     appendJsonl: true,
     useRequest: true,
     useManualReview: true,
+    useMedia: true,
     buildFirst: false
   };
   const flagMap = new Map([
     ["--paid-render-report", "paidRenderReportPath"],
     ["--request", "requestPath"],
     ["--manual-review", "manualReviewPath"],
+    ["--media", "mediaPath"],
     ["--output", "outputPath"],
     ["--jsonl", "jsonlPath"],
     ["--profile", "profile"],
     ["--min-passing-score", "minPassingScore"],
-    ["--min-confidence", "minConfidence"]
+    ["--min-confidence", "minConfidence"],
+    ["--frame-sampling-interval-seconds", "frameSamplingIntervalSeconds"],
+    ["--max-frame-samples", "maxFrameSamples"]
   ]);
 
   for (let index = 0; index < args.length; index += 1) {
@@ -58,6 +65,10 @@ function parseArgs(args) {
       options.useManualReview = false;
       continue;
     }
+    if (arg === "--no-media") {
+      options.useMedia = false;
+      continue;
+    }
     if (arg === "--build") {
       options.buildFirst = true;
       continue;
@@ -67,7 +78,12 @@ function parseArgs(args) {
     const key = flagMap.get(flag);
     if (key) {
       const rawValue = equalsIndex >= 0 ? arg.slice(equalsIndex + 1) : readRequiredValue(args, index, flag);
-      options[key] = key === "minPassingScore" || key === "minConfidence" ? Number(rawValue) : rawValue;
+      options[key] = [
+        "minPassingScore",
+        "minConfidence",
+        "frameSamplingIntervalSeconds",
+        "maxFrameSamples"
+      ].includes(key) ? Number(rawValue) : rawValue;
       index += equalsIndex >= 0 ? 0 : 1;
       continue;
     }
@@ -95,19 +111,23 @@ Options:
   --paid-render-report <path>     Paid render validation report. Default: ${defaults.paidRenderReportPath}
   --request <path>                Original render request JSON. Default: ${defaults.requestPath}
   --manual-review <path>          Optional manual review note. Default: ${defaults.manualReviewPath}
+  --media <path>                  Optional local rendered media for probe/frame-signal evidence. Default: ${defaults.mediaPath}
   --profile <name>                balanced, story_first, visual_heavy, audio_emotion, sync_perfectionist. Default: balanced
   --min-passing-score <number>    Default: ${defaults.minPassingScore}
   --min-confidence <number>       Default: ${defaults.minConfidence}
+  --frame-sampling-interval-seconds <n> Default: ${defaults.frameSamplingIntervalSeconds}
+  --max-frame-samples <n>         Default: ${defaults.maxFrameSamples}
   --output <path>                 JSON report path. Default: ${defaults.outputPath}
   --jsonl <path>                  Append-only JSONL history path. Default: ${defaults.jsonlPath}
   --no-request                    Do not read request evidence.
   --no-manual-review              Do not read manual review evidence.
+  --no-media                      Do not inspect local rendered media.
   --build                         Build TypeScript before importing the benchmark evaluator.
   --no-output                     Print only; do not write the JSON report.
   --no-jsonl                      Do not append the JSONL history.
 
 This benchmark performs no provider calls, no media downloads, no deployment calls, and no paid validation.
-It evaluates persisted CineJelly artifact-contract evidence and does not claim full DirectorBench parity.`);
+It evaluates persisted CineJelly artifact-contract evidence plus optional local media probe/frame signals and does not claim full DirectorBench parity.`);
 }
 
 async function main() {
@@ -133,7 +153,8 @@ async function main() {
   const paidRenderReport = readJson(options.paidRenderReportPath, true);
   const request = options.useRequest ? readJson(options.requestPath, false) : undefined;
   const manualReviewText = options.useManualReview ? readText(options.manualReviewPath, false) : undefined;
-  const facts = factsFrom({ paidRenderReport, request, manualReviewText, options });
+  const mediaEvidence = options.useMedia ? await collectMediaEvidence(options) : undefined;
+  const facts = factsFrom({ paidRenderReport, request, manualReviewText, mediaEvidence, options });
   const { DirectorStyleBenchmarkEvaluator } = await import("../dist/core/director-style-benchmark.js");
   const evaluator = new DirectorStyleBenchmarkEvaluator();
   const report = evaluator.evaluate({
@@ -141,6 +162,9 @@ async function main() {
     profile: options.profile,
     minPassingScore: options.minPassingScore,
     minConfidence: options.minConfidence,
+    ...(options.useMedia ? { mediaPath: toRepoRelative(options.mediaPath) } : {}),
+    ...(options.useMedia ? { frameSamplingIntervalSeconds: options.frameSamplingIntervalSeconds } : {}),
+    ...(options.useMedia ? { maxFrameSamples: options.maxFrameSamples } : {}),
     ...(options.writeOutput ? { outputPath: toRepoRelative(options.outputPath) } : {}),
     ...(options.appendJsonl ? { jsonlPath: toRepoRelative(options.jsonlPath) } : {})
   });
@@ -153,6 +177,26 @@ async function main() {
   }
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   return report.status === "blocked" ? 1 : 0;
+}
+
+async function collectMediaEvidence(options) {
+  const absoluteMediaPath = resolve(repoRoot, options.mediaPath);
+  if (!existsSync(absoluteMediaPath)) {
+    return {
+      status: "unavailable",
+      source: "local_file",
+      mediaPath: toRepoRelative(options.mediaPath),
+      mediaFileName: String(options.mediaPath).split(/[\\/]/).pop(),
+      findings: [`Media file is absent at ${toRepoRelative(options.mediaPath)}.`]
+    };
+  }
+  const { collectDirectorStyleMediaEvidence } = await import("../dist/core/director-style-media-evidence.js");
+  return collectDirectorStyleMediaEvidence({
+    mediaPath: absoluteMediaPath,
+    mediaPathForReport: toRepoRelative(options.mediaPath),
+    frameSamplingIntervalSeconds: options.frameSamplingIntervalSeconds,
+    maxFrameSamples: options.maxFrameSamples
+  });
 }
 
 function validateOptions(options) {
@@ -169,11 +213,23 @@ function validateOptions(options) {
     }
   }
   for (const [name, value] of [
+    ["--frame-sampling-interval-seconds", options.frameSamplingIntervalSeconds],
+    ["--max-frame-samples", options.maxFrameSamples]
+  ]) {
+    if (!Number.isSafeInteger(value) || value < 1 || value > 60) {
+      throw new Error(`${name} must be an integer from 1 to 60.`);
+    }
+  }
+  for (const [name, value] of [
     ["--paid-render-report", options.paidRenderReportPath],
     ["--request", options.requestPath],
+    ["--media", options.mediaPath],
     ["--output", options.outputPath],
     ["--jsonl", options.jsonlPath]
   ]) {
+    if (name === "--media") {
+      continue;
+    }
     if (name !== "--jsonl" && extname(value).toLowerCase() !== ".json") {
       throw new Error(`${name} must point to a JSON file.`);
     }
@@ -183,7 +239,7 @@ function validateOptions(options) {
   }
 }
 
-function factsFrom({ paidRenderReport, request, manualReviewText, options }) {
+function factsFrom({ paidRenderReport, request, manualReviewText, mediaEvidence, options }) {
   const artifactEntries = Array.isArray(paidRenderReport?.artifactBundle?.entries)
     ? paidRenderReport.artifactBundle.entries
     : [];
@@ -197,7 +253,8 @@ function factsFrom({ paidRenderReport, request, manualReviewText, options }) {
     typeof requestSettings?.durationTargetSeconds === "number" ? requestSettings.durationTargetSeconds : undefined;
   const hasAudioEvidence =
     audioMode !== undefined && audioMode !== "none" ||
-    artifactKinds.includes("generated_audio_output_batch_validation");
+    artifactKinds.includes("generated_audio_output_batch_validation") ||
+    mediaEvidence?.audio?.hasAudio === true;
   const manualReviewProvided = typeof manualReviewText === "string" && manualReviewText.trim().length > 0;
   const manualReviewAccepted =
     manualReviewProvided && /\b(pass|passed|approved|accepted|ok)\b/i.test(manualReviewText ?? "");
@@ -224,7 +281,11 @@ function factsFrom({ paidRenderReport, request, manualReviewText, options }) {
       : {}),
     ...(typeof paidRenderReport?.requestId === "string" ? { requestId: paidRenderReport.requestId } : {}),
     ...(targetDurationSeconds !== undefined ? { targetDurationSeconds } : {}),
-    ...(targetDurationSeconds !== undefined ? { finalDurationSeconds: targetDurationSeconds } : {}),
+    ...(mediaEvidence?.durationSeconds !== undefined
+      ? { finalDurationSeconds: mediaEvidence.durationSeconds }
+      : targetDurationSeconds !== undefined
+        ? { finalDurationSeconds: targetDurationSeconds }
+        : {}),
     hasAudioEvidence,
     manualReviewProvided,
     manualReviewAccepted,
@@ -232,7 +293,8 @@ function factsFrom({ paidRenderReport, request, manualReviewText, options }) {
       ? { costLedgerEntryCount: paidRenderReport.costLedgerEntryCount }
       : {}),
     artifactKinds,
-    sourcePatternOrigins
+    sourcePatternOrigins,
+    ...(mediaEvidence ? { mediaEvidence } : {})
   };
 }
 

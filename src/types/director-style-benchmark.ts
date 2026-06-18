@@ -2,6 +2,10 @@ export type DirectorStyleBenchmarkStatus = "pass" | "review_required" | "blocked
 export type DirectorStyleBenchmarkMetricStatus = "pass" | "warn" | "fail" | "skipped";
 export type DirectorStyleBenchmarkDimension = "script" | "video" | "audio" | "stability" | "cross_modal";
 export type DirectorStyleBenchmarkSeverity = "info" | "warn" | "block";
+export type DirectorStyleBenchmarkEvidenceScope =
+  | "artifact_contract_only"
+  | "artifact_contract_plus_media_probe"
+  | "artifact_contract_plus_media_frames";
 export type DirectorStyleBenchmarkProfile =
   | "balanced"
   | "story_first"
@@ -48,6 +52,51 @@ export interface DirectorStyleBenchmarkBottleneck {
   readonly suggestions: readonly string[];
 }
 
+export interface DirectorStyleBenchmarkMediaStreamEvidence {
+  readonly codecName?: string;
+  readonly width?: number;
+  readonly height?: number;
+  readonly frameRate?: number;
+  readonly durationSeconds?: number;
+}
+
+export interface DirectorStyleBenchmarkAudioMediaEvidence {
+  readonly hasAudio: boolean;
+  readonly codecName?: string;
+  readonly durationSeconds?: number;
+}
+
+export interface DirectorStyleBenchmarkVisualSignals {
+  readonly sampleCount: number;
+  readonly meanBrightness?: number;
+  readonly brightnessRange?: number;
+  readonly brightnessStdDev?: number;
+  readonly meanColorDelta?: number;
+  readonly maxColorDelta?: number;
+  readonly temporalContinuityScore?: number;
+  readonly lightingConsistencyScore?: number;
+  readonly transitionContinuityScore?: number;
+  readonly findings: readonly string[];
+}
+
+export interface DirectorStyleBenchmarkMediaEvidence {
+  readonly status: "unavailable" | "probe_only" | "frame_sampled";
+  readonly source: "local_file";
+  readonly mediaPath?: string;
+  readonly mediaFileName?: string;
+  readonly sizeBytes?: number;
+  readonly deliveryStatus?: "pass" | "warn" | "fail";
+  readonly durationSeconds?: number;
+  readonly bitrate?: number;
+  readonly video?: DirectorStyleBenchmarkMediaStreamEvidence;
+  readonly audio?: DirectorStyleBenchmarkAudioMediaEvidence;
+  readonly frameSampleCount?: number;
+  readonly frameSamplingIntervalSeconds?: number;
+  readonly sampledFramesRedacted?: true;
+  readonly visualSignals?: DirectorStyleBenchmarkVisualSignals;
+  readonly findings: readonly string[];
+}
+
 export interface DirectorStyleBenchmarkFacts {
   readonly sourceReportPath?: string;
   readonly requestPath?: string;
@@ -65,6 +114,7 @@ export interface DirectorStyleBenchmarkFacts {
   readonly costLedgerEntryCount?: number;
   readonly artifactKinds: readonly string[];
   readonly sourcePatternOrigins: readonly string[];
+  readonly mediaEvidence?: DirectorStyleBenchmarkMediaEvidence;
 }
 
 export interface DirectorStyleBenchmarkReport {
@@ -80,6 +130,9 @@ export interface DirectorStyleBenchmarkReport {
     readonly sourceReportPath?: string;
     readonly requestPath?: string;
     readonly artifactDirectory?: string;
+    readonly mediaPath?: string;
+    readonly frameSamplingIntervalSeconds?: number;
+    readonly maxFrameSamples?: number;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
     readonly minPassingScore: number;
@@ -89,7 +142,7 @@ export interface DirectorStyleBenchmarkReport {
     readonly overallScore?: number;
     readonly overallConfidence?: number;
     readonly grade: "A" | "B" | "C" | "D" | "F" | "N/A";
-    readonly evidenceScope: "artifact_contract_only";
+    readonly evidenceScope: DirectorStyleBenchmarkEvidenceScope;
     readonly metricCount: number;
     readonly scoredMetricCount: number;
     readonly skippedMetricCount: number;

@@ -37,6 +37,9 @@
         "sourceReportPath": { "type": "string", "minLength": 1 },
         "requestPath": { "type": "string", "minLength": 1 },
         "artifactDirectory": { "type": "string", "minLength": 1 },
+        "mediaPath": { "type": "string", "minLength": 1 },
+        "frameSamplingIntervalSeconds": { "type": "integer", "minimum": 1 },
+        "maxFrameSamples": { "type": "integer", "minimum": 0 },
         "outputPath": { "type": "string", "minLength": 1 },
         "jsonlPath": { "type": "string", "minLength": 1 },
         "minPassingScore": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -60,7 +63,13 @@
         "overallScore": { "type": "number", "minimum": 0, "maximum": 1 },
         "overallConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
         "grade": { "enum": ["A", "B", "C", "D", "F", "N/A"] },
-        "evidenceScope": { "const": "artifact_contract_only" },
+        "evidenceScope": {
+          "enum": [
+            "artifact_contract_only",
+            "artifact_contract_plus_media_probe",
+            "artifact_contract_plus_media_frames"
+          ]
+        },
         "metricCount": { "type": "integer", "minimum": 1 },
         "scoredMetricCount": { "type": "integer", "minimum": 0 },
         "skippedMetricCount": { "type": "integer", "minimum": 0 },
@@ -89,7 +98,8 @@
         "manualReviewAccepted": { "type": "boolean" },
         "costLedgerEntryCount": { "type": "integer", "minimum": 0 },
         "artifactKinds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "sourcePatternOrigins": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "sourcePatternOrigins": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "mediaEvidence": { "$ref": "#/$defs/mediaEvidence" }
       }
     },
     "dimensionScores": {
@@ -130,6 +140,66 @@
     "dimension": { "enum": ["script", "video", "audio", "stability", "cross_modal"] },
     "metricStatus": { "enum": ["pass", "warn", "fail", "skipped"] },
     "severity": { "enum": ["info", "warn", "block"] },
+    "mediaStreamEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "codecName": { "type": "string", "minLength": 1 },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "frameRate": { "type": "number", "minimum": 0 },
+        "durationSeconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "audioMediaEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hasAudio"],
+      "properties": {
+        "hasAudio": { "type": "boolean" },
+        "codecName": { "type": "string", "minLength": 1 },
+        "durationSeconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "visualSignals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sampleCount", "findings"],
+      "properties": {
+        "sampleCount": { "type": "integer", "minimum": 0 },
+        "meanBrightness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "brightnessRange": { "type": "number", "minimum": 0, "maximum": 1 },
+        "brightnessStdDev": { "type": "number", "minimum": 0, "maximum": 1 },
+        "meanColorDelta": { "type": "number", "minimum": 0, "maximum": 1 },
+        "maxColorDelta": { "type": "number", "minimum": 0, "maximum": 1 },
+        "temporalContinuityScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "lightingConsistencyScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "transitionContinuityScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "mediaEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "source", "findings"],
+      "properties": {
+        "status": { "enum": ["unavailable", "probe_only", "frame_sampled"] },
+        "source": { "const": "local_file" },
+        "mediaPath": { "type": "string", "minLength": 1 },
+        "mediaFileName": { "type": "string", "minLength": 1 },
+        "sizeBytes": { "type": "integer", "minimum": 0 },
+        "deliveryStatus": { "enum": ["pass", "warn", "fail"] },
+        "durationSeconds": { "type": "number", "minimum": 0 },
+        "bitrate": { "type": "integer", "minimum": 0 },
+        "video": { "$ref": "#/$defs/mediaStreamEvidence" },
+        "audio": { "$ref": "#/$defs/audioMediaEvidence" },
+        "frameSampleCount": { "type": "integer", "minimum": 0 },
+        "frameSamplingIntervalSeconds": { "type": "integer", "minimum": 1 },
+        "sampledFramesRedacted": { "const": true },
+        "visualSignals": { "$ref": "#/$defs/visualSignals" },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
     "evidence": {
       "type": "object",
       "additionalProperties": false,
