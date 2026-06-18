@@ -37,6 +37,7 @@ const defaultContracts = [
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
   contract("remote_stock_validation", "schemas/remote-stock-validation-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-validation-report.json"),
   contract("generated_audio_validation", "schemas/generated-audio-validation-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
+  contract("director_style_benchmark", "schemas/director-style-benchmark-report.schema.json", "assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
   contract("billing_admin_ops", "schemas/billing-admin-ops-report.schema.json", "assets/output_deliverables/business-readiness/billing-admin-ops-report.json"),
   contract("production_operations", "schemas/production-operations-report.schema.json", "assets/output_deliverables/business-readiness/production-operations-report.json"),
   contract("report_contract_validation", "schemas/report-contract-validation-report.schema.json", "assets/output_deliverables/business-readiness/report-contract-validation-report.json")
@@ -254,7 +255,24 @@ function validateSemanticContract(item, report) {
   if (item.name === "commercial_launch_inputs") {
     return validateCommercialLaunchInputsSemantics(report);
   }
+  if (item.name === "director_style_benchmark") {
+    return validateDirectorStyleBenchmarkSemantics(report);
+  }
   return [];
+}
+
+function validateDirectorStyleBenchmarkSemantics(report) {
+  const issues = [];
+  if (report?.summary?.canClaimDirectorBenchParity !== false) {
+    issues.push("$.summary.canClaimDirectorBenchParity: expected false for artifact-contract benchmark evidence.");
+  }
+  if (report?.releaseGateSummary?.canClaimDirectorBenchParity !== false) {
+    issues.push("$.releaseGateSummary.canClaimDirectorBenchParity: expected false until media-level DirectorBench parity evidence exists.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; benchmark evidence is not commercial release approval.");
+  }
+  return issues;
 }
 
 function validateCommercialLaunchInputsSemantics(report) {

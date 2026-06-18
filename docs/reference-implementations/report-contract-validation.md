@@ -34,4 +34,5 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Report redaction still removes string secrets but preserves boolean readiness fields such as `apiKeyConfigured`.
 - When `atlas-billing-generated-audio-smoke-report.json` exists, report-contract validation includes it against the Atlas billing readiness schema.
 - When deployment-readiness capture reports exist, report-contract validation includes them and catches missing `atlasCloudDocsConformanceStatus` summary evidence.
+- When `director-style-benchmark-report.json` exists, report-contract validation includes the artifact-contract benchmark schema and verifies it still reports `canClaimDirectorBenchParity=false`.
 - When `commercial-launch-inputs-report.json` exists, report-contract validation requires `commandPlanAudit.status` to be `pass` with no command-plan issues.

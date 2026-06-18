@@ -125,6 +125,7 @@ cinejelly-seedance-ultimate-director/
 - `docs/ROADMAP_FIDELITY_AUDIT_2026-06-14.md`: owner-level audit of roadmap completion, subtree fidelity, remaining blockers, and next validation steps.
 - `docs/reference-implementations/live-readiness-input-validator.md`: no-spend input gate for confirming live deployment, ops, source-video, stock, audio, and long-form budget inputs before paid validation.
 - `docs/reference-implementations/report-contract-validation.md`: no-spend schema contract gate for generated release, deployment-capture, and business-readiness reports.
+- `docs/reference-implementations/director-style-benchmark-harness.md`: no-spend DirectorBench-style artifact-contract benchmark for backend quality evidence before UI work.
 - `docs/reference-implementations/business-readiness-validation-plan.md`: no-spend planner contract for sequencing remaining commercial validation before paid Atlas spend.
 - `docs/reference-implementations/atlas-billing-readiness.md`: no-spend Atlas Billing Public API readiness gate for checking billing-capable key access and budget fit before paid Atlas validation.
 - `docs/reference-implementations/deployment-container-packaging.md`: Docker packaging contract and no-spend package validator for repeatable HTTPS deployment preparation without baking secrets or artifacts into images.
@@ -280,6 +281,7 @@ npm run validation:live-inputs
 npm run validation:business-plan
 npm run validation:atlas-billing
 npm run validation:commercial-inputs
+npm run validation:quality-benchmark
 npm run validation:report-contracts
 npm run validation:billing-admin-ops -- --base-url <deployment-url> --attestation ops/billing-admin-attestation.json
 npm run validation:production-ops -- --base-url <deployment-url> --attestation ops/production-operations-attestation.json

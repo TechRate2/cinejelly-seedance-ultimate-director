@@ -304,19 +304,19 @@ function buildProductCodeGaps() {
     },
     {
       id: "directorbench_style_benchmark_harness",
-      label: "DirectorBench-style benchmark harness is not implemented",
+      label: "DirectorBench-style benchmark harness is partial",
       category: "evaluation_harness",
-      status: "planning_influence_only",
-      currentCoveragePercent: 25,
+      status: "artifact_contract_harness_foundation",
+      currentCoveragePercent: 45,
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["jiaminchen-1031/DirectorBench"],
       requiredAction:
-        "Create a CineJelly-owned benchmark harness for script, visual, audio, cross-modal, stability, transition, and quality checkpoints after license/permission review.",
-      canAutomateNow: false,
+        "Run validation:quality-benchmark on real 2-8 minute paid artifacts, then add frame-level transition/lighting/fidelity evidence, generated-audio/manual listening evidence, and optional VLM/ASR review before claiming DirectorBench-style parity.",
+      canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "Blocks DirectorBench parity claims; commercial launch still requires artifact/manual-review evidence through existing gates."
+        "A CineJelly-owned no-spend artifact-contract benchmark now emits script/video/audio/stability/cross-modal checkpoint evidence, bottlenecks, and report contracts, but it still cannot replace real media inspection, audio review, long-form paid evidence, or full DirectorBench parity."
     }
   ];
 }

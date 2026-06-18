@@ -2707,6 +2707,48 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "real provider artifacts must still be inspected to confirm postproduction planning evidence lines up with final media outputs"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Director-Style Benchmark Harness",
+    sourceRepository: "jiaminchen-1031/DirectorBench",
+    snapshotPath: "external/upstream/directorbench",
+    upstreamPaths: [
+      "external/upstream/directorbench/README.md",
+      "external/upstream/directorbench/directorbench/schemas.py",
+      "external/upstream/directorbench/directorbench/report.py"
+    ],
+    license: "NO-LICENSE-FOUND",
+    behaviorPreserved: [
+      "script, video, audio, stability, and cross-modal evaluation dimensions remain separate",
+      "metrics carry normalized score, confidence, evidence, suggestions, and bottleneck reporting",
+      "audio-only metrics are skipped rather than treated as failures when no audio evidence exists",
+      "overall scoring uses confidence-weighted dimension scores and profile weights",
+      "benchmark runs can be appended to JSONL history without overwriting prior evidence"
+    ],
+    behaviorChanged: [
+      "DirectorBench implementation code is not copied, imported, linked, or executed",
+      "CineJelly evaluates persisted artifact-contract evidence instead of running PySceneDetect, OpenCV, ASR, VLM, or Python LangGraph agents",
+      "reports explicitly state canClaimDirectorBenchParity=false until live media/frame/audio evidence exists",
+      "the CLI is no-spend/no-network and writes a schema-validated backend quality report"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/director-style-benchmark-harness.md",
+    cineJellyDestinationPaths: [
+      "src/types/director-style-benchmark.ts",
+      "src/core/director-style-benchmark.ts",
+      "scripts/run-director-style-benchmark.mjs",
+      "schemas/director-style-benchmark-report.schema.json",
+      "scripts/validate-report-contracts.mjs",
+      "package.json",
+      "src/index.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "artifact-contract benchmarking does not inspect video frames, transitions, lip sync, audio waveform quality, or ASR transcript alignment",
+      "full DirectorBench parity still requires legal/permission review and dedicated frame/VLM/ASR/media evaluation evidence",
+      "current short no-audio paid smoke can only produce review_required benchmark evidence, not customer-release approval"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }
 ];
 

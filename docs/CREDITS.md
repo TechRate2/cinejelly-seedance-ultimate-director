@@ -94,7 +94,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 
 - URL: https://arxiv.org/html/2605.30090v1
 - Code/data snapshot: `external/upstream/directorbench` from https://github.com/jiaminchen-1031/DirectorBench
-- License shown in local snapshot: no top-level license file found; use the snapshot for evaluation dimensions and planning notes until permission or a compatible reuse path is clarified.
+- License shown in local snapshot: no top-level license file found; use the snapshot for evaluation dimensions and planning notes only until permission or a compatible reuse path is clarified. CineJelly production code must not copy, import, link, or execute the upstream implementation.
 - Used for: long-form quality diagnosis.
 - Source-derived patterns adopted:
   - Evaluate long-form video across script, visual, audio, cross-modal, and stability dimensions.
@@ -103,6 +103,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Pay special attention to transition quality because the paper reports transition quality as a key bottleneck across workflows.
 - CineJelly extension:
   - Converts DirectorBench's evaluation philosophy into runtime Consistency Guardian inspections and repair routing.
+  - Adds a CineJelly-owned no-spend artifact-contract benchmark harness that reports script/video/audio/stability/cross-modal scores, confidence, bottlenecks, and limitations while explicitly keeping `canClaimDirectorBenchParity=false` until media-level evidence exists.
 
 ### HKUDS/VideoAgent
 
