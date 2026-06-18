@@ -78,6 +78,7 @@ interface BusinessReadinessReport {
 - Done: surface budget-ready paid slices from the current business-readiness validation plan without treating them as full-sequence approval.
 - Done: add schema-aware billing/admin/quota evidence evaluation through `cinejelly.billing-admin-ops.v1`.
 - Done: add schema-aware production operations evidence evaluation through `cinejelly.production-operations.v1`.
+- Done: add report-contract semantic checks so status, weighted completion, paid-validation flags, paid-gate counts, customer-traffic approval, and release blockers cannot drift from the check evidence.
 - Pending: feed the audit with real deployment, passing paid long-form, source-video, remote stock, generated-audio, Atlas billing readiness under the approved budget, billing/admin, and production operations evidence.
 
 ## Validation Checklist
@@ -90,3 +91,4 @@ interface BusinessReadinessReport {
 - Letting the Atlas billing readiness report exceed the configured max age leaves the Atlas billing audit check failed as stale.
 - The script does not import from `src/providers`, create runtimes, call Atlas, or write media artifacts.
 - No production runtime import from `external/upstream/`.
+- `validation:report-contracts` fails if the business-readiness report claims customer traffic readiness, long-form paid-validation readiness, or a different evidence-completion percent than the underlying checks justify.

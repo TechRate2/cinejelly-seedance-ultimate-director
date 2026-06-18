@@ -272,6 +272,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "commercial_launch_inputs") {
     return validateCommercialLaunchInputsSemantics(report);
   }
+  if (item.name === "business_readiness_audit") {
+    return validateBusinessReadinessAuditSemantics(report);
+  }
   if (item.name === "business_completion_audit") {
     return validateBusinessCompletionAuditSemantics(report);
   }
@@ -529,6 +532,95 @@ function validateBusinessCompletionAuditSemantics(report) {
     }
   }
   return issues;
+}
+
+function validateBusinessReadinessAuditSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const totalWeight = checks.reduce((sum, check) => sum + Number(check?.weight ?? 0), 0);
+  const completedWeight = checks.reduce((sum, check) => {
+    const weight = Number(check?.weight ?? 0);
+    if (check?.status === "pass") {
+      return sum + weight;
+    }
+    if (check?.status === "warn") {
+      return sum + weight / 2;
+    }
+    return sum;
+  }, 0);
+  const expectedEvidenceCompletionPercent = totalWeight > 0
+    ? Math.round((completedWeight / totalWeight) * 100)
+    : 0;
+
+  if (Number(report?.completion?.totalWeight ?? -1) !== totalWeight) {
+    issues.push("$.completion.totalWeight: expected to equal the sum of checks[*].weight.");
+  }
+  if (Number(report?.completion?.completedWeight ?? -1) !== completedWeight) {
+    issues.push("$.completion.completedWeight: expected to match pass/warn weighted check completion.");
+  }
+  if (Number(report?.completion?.evidenceCompletionPercent ?? -1) !== expectedEvidenceCompletionPercent) {
+    issues.push("$.completion.evidenceCompletionPercent: expected to match rounded completedWeight/totalWeight.");
+  }
+
+  const expectedStatus = businessReadinessStatusForChecks(checks);
+  if (report?.status !== expectedStatus) {
+    issues.push(`$.status: expected ${expectedStatus} from checks[*].status.`);
+  }
+
+  const readyPaidGateCount = Array.isArray(report?.releaseGateSummary?.readyPaidGates)
+    ? report.releaseGateSummary.readyPaidGates.length
+    : 0;
+  if (Number(report?.releaseGateSummary?.readyPaidGateCount ?? -1) !== readyPaidGateCount) {
+    issues.push("$.releaseGateSummary.readyPaidGateCount: expected to equal releaseGateSummary.readyPaidGates length.");
+  }
+
+  const canRunAdditionalPaidValidation = [
+    "release_audit_and_source_hygiene",
+    "short_paid_render_and_artifacts",
+    "manual_short_media_redaction_review",
+    "atlas_billing_readiness"
+  ].every((name) => findCheckStatus(checks, name) === "pass");
+  if (report?.releaseGateSummary?.canRunAdditionalPaidValidation !== canRunAdditionalPaidValidation) {
+    issues.push("$.releaseGateSummary.canRunAdditionalPaidValidation: expected to match required release/short-render/manual-review/Atlas-billing pass checks.");
+  }
+  if (report?.releaseGateSummary?.canRunLongFormValidation !== canRunAdditionalPaidValidation) {
+    issues.push("$.releaseGateSummary.canRunLongFormValidation: expected to match canRunAdditionalPaidValidation.");
+  }
+
+  const expectedCanReleaseToCustomerTraffic = expectedStatus === "ready_for_limited_customer_traffic";
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== expectedCanReleaseToCustomerTraffic) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected to be true only when all business-readiness checks pass.");
+  }
+  if (expectedCanReleaseToCustomerTraffic) {
+    if (Number(report?.completion?.evidenceCompletionPercent ?? 0) !== 100) {
+      issues.push("$.completion.evidenceCompletionPercent: customer traffic readiness requires 100 percent evidence completion.");
+    }
+    if (typeof report?.releaseGateSummary?.releaseBlocker === "string") {
+      issues.push("$.releaseGateSummary.releaseBlocker: expected no release blocker when customer traffic is ready.");
+    }
+  } else if (typeof report?.releaseGateSummary?.releaseBlocker !== "string" || report.releaseGateSummary.releaseBlocker.length === 0) {
+    issues.push("$.releaseGateSummary.releaseBlocker: expected a clear blocker unless customer traffic is ready.");
+  }
+
+  const hasFailingChecks = checks.some((check) => check?.status === "fail");
+  if (hasFailingChecks && report?.releaseGateSummary?.canReleaseToCustomerTraffic === true) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: cannot be true while any check is fail.");
+  }
+  return issues;
+}
+
+function businessReadinessStatusForChecks(checks) {
+  if (checks.some((check) => check?.status === "fail")) {
+    return "blocked";
+  }
+  if (checks.some((check) => check?.status === "warn")) {
+    return "review_warnings";
+  }
+  return "ready_for_limited_customer_traffic";
+}
+
+function findCheckStatus(checks, name) {
+  return checks.find((check) => check?.name === name)?.status;
 }
 
 function countBy(items, key) {
