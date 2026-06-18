@@ -907,11 +907,38 @@ function validateDirectorStyleBenchmarkSemantics(report) {
     Number(report.facts.generatedAudioProviderEvidence.approvedTrackCount ?? 0) > 0 &&
     Number(report.facts.generatedAudioProviderEvidence.providerLedgerEntryCount ?? 0) > 0 &&
     report.facts.generatedAudioProviderEvidence.manualReviewPassed === true;
+  const acceptedLongFormValidationEvidence =
+    report?.facts?.longFormValidationEvidence?.status === "accepted" &&
+    report.facts.longFormValidationEvidence.canUseAsBusinessReadinessLongFormEvidence === true &&
+    report.facts.longFormValidationEvidence.providerSpendAllowed === true &&
+    report.facts.longFormValidationEvidence.atlasBillingReady === true &&
+    report.facts.longFormValidationEvidence.requestValidationStatus === "pass" &&
+    report.facts.longFormValidationEvidence.chunkPlanStatus === "pass" &&
+    report.facts.longFormValidationEvidence.paidRenderStatus === "completed" &&
+    report.facts.longFormValidationEvidence.artifactValidationStatus === "pass" &&
+    report.facts.longFormValidationEvidence.artifactEvidencePresent === true &&
+    report.facts.longFormValidationEvidence.deliverablePresent === true &&
+    Number(report.facts.longFormValidationEvidence.costLedgerEntryCount ?? 0) > 0 &&
+    report.facts.longFormValidationEvidence.manualQualityReviewPassed === true &&
+    Number(report.facts.longFormValidationEvidence.finalDurationSeconds ?? 0) >= 120 &&
+    Number(report.facts.longFormValidationEvidence.finalDurationSeconds ?? 0) <= 480;
+  const measuredLongFormDuration =
+    Number(report?.facts?.finalDurationSeconds ?? 0) >= 120 &&
+    Number(report?.facts?.finalDurationSeconds ?? 0) <= 480;
+  const acceptedLongFormManualReview =
+    acceptedLongFormValidationEvidence ||
+    (report?.facts?.manualReviewAccepted === true && (measuredLongFormDuration || acceptedLongFormValidationEvidence));
   if ((requirementById.get("asr_transcript_alignment")?.status === "met") !== acceptedAsrRuntimeReview) {
     issues.push("$.parityEvidenceMatrix.requirements[id=asr_transcript_alignment].status: expected met only with accepted runtime ASR transcript-alignment evidence.");
   }
   if ((requirementById.get("generated_audio_provider_evidence")?.status === "met") !== acceptedGeneratedAudioProviderEvidence) {
     issues.push("$.parityEvidenceMatrix.requirements[id=generated_audio_provider_evidence].status: expected met only with accepted generated-audio provider evidence.");
+  }
+  if ((requirementById.get("long_form_duration")?.status === "met") !== (measuredLongFormDuration || acceptedLongFormValidationEvidence)) {
+    issues.push("$.parityEvidenceMatrix.requirements[id=long_form_duration].status: expected met only with measured 2-8 minute media duration or accepted long-form validation evidence.");
+  }
+  if ((requirementById.get("manual_long_form_media_review")?.status === "met") !== acceptedLongFormManualReview) {
+    issues.push("$.parityEvidenceMatrix.requirements[id=manual_long_form_media_review].status: expected met only with accepted long-form manual review evidence tied to 2-8 minute media.");
   }
   if ((requirementById.get("lip_sync_evidence")?.status === "met") !== acceptedLipSyncRuntimeReview) {
     issues.push("$.parityEvidenceMatrix.requirements[id=lip_sync_evidence].status: expected met only with accepted runtime lip-sync timing evidence.");

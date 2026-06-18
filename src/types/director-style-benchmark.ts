@@ -63,6 +63,7 @@ export type DirectorStyleBenchmarkGovernanceReviewCheckName =
 export type DirectorStyleBenchmarkGovernanceReviewStatus = "accepted" | "needs_review" | "rejected";
 export type DirectorStyleBenchmarkGovernanceReviewerType = "operator" | "legal" | "product" | "security" | "hybrid";
 export type DirectorStyleBenchmarkGeneratedAudioProviderEvidenceStatus = "accepted" | "needs_review" | "rejected";
+export type DirectorStyleBenchmarkLongFormValidationEvidenceStatus = "accepted" | "needs_review" | "rejected";
 
 export interface DirectorStyleBenchmarkEvidence {
   readonly kind: string;
@@ -329,6 +330,28 @@ export interface DirectorStyleBenchmarkGeneratedAudioProviderEvidence {
   readonly findings: readonly string[];
 }
 
+export interface DirectorStyleBenchmarkLongFormValidationEvidence {
+  readonly source: "long_form_validation_report";
+  readonly sourcePath?: string;
+  readonly status: DirectorStyleBenchmarkLongFormValidationEvidenceStatus;
+  readonly reportStatus: string;
+  readonly canUseAsBusinessReadinessLongFormEvidence: boolean;
+  readonly plannedDurationSeconds?: number;
+  readonly finalDurationSeconds?: number;
+  readonly providerSpendAllowed: boolean;
+  readonly atlasBillingReady: boolean;
+  readonly requestValidationStatus?: string;
+  readonly readinessDecision?: string;
+  readonly chunkPlanStatus?: string;
+  readonly paidRenderStatus?: string;
+  readonly artifactValidationStatus?: string;
+  readonly artifactEvidencePresent: boolean;
+  readonly deliverablePresent: boolean;
+  readonly costLedgerEntryCount: number;
+  readonly manualQualityReviewPassed: boolean;
+  readonly findings: readonly string[];
+}
+
 export interface DirectorStyleBenchmarkMediaEvidence {
   readonly status: "unavailable" | "probe_only" | "frame_sampled";
   readonly source: "local_file";
@@ -371,6 +394,7 @@ export interface DirectorStyleBenchmarkFacts {
   readonly runtimeReviewEvidence?: DirectorStyleBenchmarkRuntimeReviewEvidence;
   readonly governanceReviewEvidence?: DirectorStyleBenchmarkGovernanceReviewEvidence;
   readonly generatedAudioProviderEvidence?: DirectorStyleBenchmarkGeneratedAudioProviderEvidence;
+  readonly longFormValidationEvidence?: DirectorStyleBenchmarkLongFormValidationEvidence;
 }
 
 export interface DirectorStyleBenchmarkReport {
@@ -397,6 +421,7 @@ export interface DirectorStyleBenchmarkReport {
     readonly runtimeReviewPath?: string;
     readonly governanceReviewPath?: string;
     readonly generatedAudioValidationPath?: string;
+    readonly longFormValidationPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
     readonly minPassingScore: number;

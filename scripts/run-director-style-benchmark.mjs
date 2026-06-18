@@ -14,6 +14,7 @@ const defaults = {
   runtimeReviewPath: "assets/output_deliverables/business-readiness/director-style-runtime-review.json",
   governanceReviewPath: "assets/output_deliverables/business-readiness/director-style-governance-review.json",
   generatedAudioValidationPath: "assets/output_deliverables/business-readiness/generated-audio-validation-report.json",
+  longFormValidationPath: "assets/output_deliverables/business-readiness/long-form-validation-report.json",
   mediaPath: "assets/output_deliverables/phase6-validation/final.mp4",
   outputPath: "assets/output_deliverables/business-readiness/director-style-benchmark-report.json",
   jsonlPath: "assets/output_deliverables/business-readiness/director-style-benchmark-results.jsonl",
@@ -39,6 +40,7 @@ function parseArgs(args) {
     useRuntimeReview: true,
     useGovernanceReview: true,
     useGeneratedAudioValidation: true,
+    useLongFormValidation: true,
     useMedia: true,
     buildFirst: false
   };
@@ -51,6 +53,7 @@ function parseArgs(args) {
     ["--runtime-review", "runtimeReviewPath"],
     ["--governance-review", "governanceReviewPath"],
     ["--generated-audio-validation", "generatedAudioValidationPath"],
+    ["--long-form-validation", "longFormValidationPath"],
     ["--media", "mediaPath"],
     ["--output", "outputPath"],
     ["--jsonl", "jsonlPath"],
@@ -104,6 +107,10 @@ function parseArgs(args) {
     }
     if (arg === "--no-generated-audio-validation") {
       options.useGeneratedAudioValidation = false;
+      continue;
+    }
+    if (arg === "--no-long-form-validation") {
+      options.useLongFormValidation = false;
       continue;
     }
     if (arg === "--no-media") {
@@ -161,6 +168,7 @@ Options:
   --governance-review <path>      Optional structured license/runtime permission review JSON. Default: ${defaults.governanceReviewPath}
   --generated-audio-validation <path>
                                   Optional generated-audio validation report JSON. Default: ${defaults.generatedAudioValidationPath}
+  --long-form-validation <path>   Optional long-form validation report JSON. Default: ${defaults.longFormValidationPath}
   --media <path>                  Optional local rendered media for probe/frame-signal evidence. Default: ${defaults.mediaPath}
   --profile <name>                balanced, story_first, visual_heavy, audio_emotion, sync_perfectionist. Default: balanced
   --min-passing-score <number>    Default: ${defaults.minPassingScore}
@@ -179,6 +187,7 @@ Options:
   --no-runtime-review             Do not read structured runtime review evidence.
   --no-governance-review          Do not read structured governance review evidence.
   --no-generated-audio-validation Do not read generated-audio validation report evidence.
+  --no-long-form-validation       Do not read long-form validation report evidence.
   --no-media                      Do not inspect local rendered media.
   --build                         Build TypeScript before importing the benchmark evaluator.
   --no-output                     Print only; do not write the JSON report.
@@ -216,6 +225,7 @@ async function main() {
   const runtimeReviewEvidence = options.useRuntimeReview ? await collectRuntimeReviewEvidence(options) : undefined;
   const governanceReviewEvidence = options.useGovernanceReview ? await collectGovernanceReviewEvidence(options) : undefined;
   const generatedAudioProviderEvidence = options.useGeneratedAudioValidation ? await collectGeneratedAudioProviderEvidence(options) : undefined;
+  const longFormValidationEvidence = options.useLongFormValidation ? await collectLongFormValidationEvidence(options) : undefined;
   const mediaEvidence = options.useMedia ? await collectMediaEvidence(options) : undefined;
   const facts = factsFrom({
     paidRenderReport,
@@ -226,6 +236,7 @@ async function main() {
     runtimeReviewEvidence,
     governanceReviewEvidence,
     generatedAudioProviderEvidence,
+    longFormValidationEvidence,
     mediaEvidence,
     options
   });
@@ -247,6 +258,7 @@ async function main() {
     ...(runtimeReviewEvidence ? { runtimeReviewPath: toRepoRelative(options.runtimeReviewPath) } : {}),
     ...(governanceReviewEvidence ? { governanceReviewPath: toRepoRelative(options.governanceReviewPath) } : {}),
     ...(generatedAudioProviderEvidence ? { generatedAudioValidationPath: toRepoRelative(options.generatedAudioValidationPath) } : {}),
+    ...(longFormValidationEvidence ? { longFormValidationPath: toRepoRelative(options.longFormValidationPath) } : {}),
     ...(options.writeOutput ? { outputPath: toRepoRelative(options.outputPath) } : {}),
     ...(options.appendJsonl ? { jsonlPath: toRepoRelative(options.jsonlPath) } : {})
   });
@@ -334,6 +346,16 @@ async function collectGeneratedAudioProviderEvidence(options) {
   return normalizeDirectorStyleGeneratedAudioProviderEvidence(raw, { sourcePath: toRepoRelative(options.generatedAudioValidationPath) });
 }
 
+async function collectLongFormValidationEvidence(options) {
+  const absolutePath = resolve(repoRoot, options.longFormValidationPath);
+  if (!existsSync(absolutePath)) {
+    return undefined;
+  }
+  const raw = readJson(options.longFormValidationPath, true);
+  const { normalizeDirectorStyleLongFormValidationEvidence } = await import("../dist/core/director-style-long-form-validation-evidence.js");
+  return normalizeDirectorStyleLongFormValidationEvidence(raw, { sourcePath: toRepoRelative(options.longFormValidationPath) });
+}
+
 function validateOptions(options) {
   const profiles = new Set(["balanced", "story_first", "visual_heavy", "audio_emotion", "sync_perfectionist"]);
   if (!profiles.has(options.profile)) {
@@ -380,6 +402,7 @@ function validateOptions(options) {
     ["--runtime-review", options.runtimeReviewPath],
     ["--governance-review", options.governanceReviewPath],
     ["--generated-audio-validation", options.generatedAudioValidationPath],
+    ["--long-form-validation", options.longFormValidationPath],
     ["--media", options.mediaPath],
     ["--output", options.outputPath],
     ["--jsonl", options.jsonlPath]
@@ -405,6 +428,7 @@ function factsFrom({
   runtimeReviewEvidence,
   governanceReviewEvidence,
   generatedAudioProviderEvidence,
+  longFormValidationEvidence,
   mediaEvidence,
   options
 }) {
@@ -453,8 +477,9 @@ function factsFrom({
     ...(targetDurationSeconds !== undefined ? { targetDurationSeconds } : {}),
     ...(mediaEvidence?.durationSeconds !== undefined
       ? { finalDurationSeconds: mediaEvidence.durationSeconds }
-      : targetDurationSeconds !== undefined
-        ? { finalDurationSeconds: targetDurationSeconds }
+      : longFormValidationEvidence?.status === "accepted" &&
+          longFormValidationEvidence.finalDurationSeconds !== undefined
+        ? { finalDurationSeconds: longFormValidationEvidence.finalDurationSeconds }
         : {}),
     hasAudioEvidence,
     manualReviewProvided,
@@ -469,6 +494,7 @@ function factsFrom({
     ...(runtimeReviewEvidence ? { runtimeReviewEvidence } : {}),
     ...(governanceReviewEvidence ? { governanceReviewEvidence } : {}),
     ...(generatedAudioProviderEvidence ? { generatedAudioProviderEvidence } : {}),
+    ...(longFormValidationEvidence ? { longFormValidationEvidence } : {}),
     ...(mediaEvidence ? { mediaEvidence } : {})
   };
 }

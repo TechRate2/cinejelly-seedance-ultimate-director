@@ -96,6 +96,7 @@ export class DirectorStyleBenchmarkEvaluator {
     readonly runtimeReviewPath?: string;
     readonly governanceReviewPath?: string;
     readonly generatedAudioValidationPath?: string;
+    readonly longFormValidationPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
   }): DirectorStyleBenchmarkReport {
@@ -133,6 +134,7 @@ export class DirectorStyleBenchmarkEvaluator {
     const governanceReviewPath = input.governanceReviewPath ?? input.facts.governanceReviewEvidence?.sourcePath;
     const generatedAudioValidationPath =
       input.generatedAudioValidationPath ?? input.facts.generatedAudioProviderEvidence?.sourcePath;
+    const longFormValidationPath = input.longFormValidationPath ?? input.facts.longFormValidationEvidence?.sourcePath;
     const frameSamplingIntervalSeconds =
       input.frameSamplingIntervalSeconds ?? input.facts.mediaEvidence?.frameSamplingIntervalSeconds;
 
@@ -164,6 +166,7 @@ export class DirectorStyleBenchmarkEvaluator {
         ...(runtimeReviewPath ? { runtimeReviewPath } : {}),
         ...(governanceReviewPath ? { governanceReviewPath } : {}),
         ...(generatedAudioValidationPath ? { generatedAudioValidationPath } : {}),
+        ...(longFormValidationPath ? { longFormValidationPath } : {}),
         ...(input.outputPath ? { outputPath: input.outputPath } : {}),
         ...(input.jsonlPath ? { jsonlPath: input.jsonlPath } : {}),
         minPassingScore,
@@ -210,6 +213,8 @@ export class DirectorStyleBenchmarkEvaluator {
     const hasFrameSignals = facts.mediaEvidence?.status === "frame_sampled" && (visualSignals?.sampleCount ?? 0) >= 2;
     const hasBoundarySignals = transitionSignals?.status === "analyzed" && transitionSignals.analyzedBoundaryCount > 0;
     const hasMediaProbe = facts.mediaEvidence?.deliveryStatus !== undefined;
+    const hasAcceptedLongFormValidation = this.hasAcceptedLongFormValidation(facts);
+    const hasLongFormDuration = this.hasMeasuredLongFormDuration(facts) || hasAcceptedLongFormValidation;
     const mediaProxyLimitations = [
       "Sampled-frame color and brightness signals are structural proxies; VLM/ASR/lip-sync and shot-boundary review are still required for full DirectorBench-style parity."
     ];
@@ -277,7 +282,12 @@ export class DirectorStyleBenchmarkEvaluator {
       ? Math.max(0.56, Math.min(0.76, 0.48 + visualSignals.lightingConsistencyScore * 0.28))
       : 0.56);
     const lightingConsistencyConfidence = lightingConsistencyReview?.confidence ?? (hasFrameSignals ? 0.62 : 0.34);
-    const generationStabilityConfidence = facts.finalDurationSeconds && facts.finalDurationSeconds >= 120
+    const generationStabilityScore = hasAcceptedLongFormValidation
+      ? 0.88
+      : facts.renderStatus === "completed" && facts.artifactValidationStatus === "pass" ? 0.82 : 0.52;
+    const generationStabilityConfidence = hasAcceptedLongFormValidation
+      ? 0.76
+      : hasLongFormDuration
       ? 0.7
       : hasMediaProbe
         ? 0.56
@@ -427,15 +437,20 @@ export class DirectorStyleBenchmarkEvaluator {
         metricName: "generation_stability",
         upstreamMetric: "generation_stability",
         requiredKinds: [ARTIFACT_KINDS.costLedger, ARTIFACT_KINDS.deliverable],
-        score: facts.renderStatus === "completed" && facts.artifactValidationStatus === "pass" ? 0.82 : 0.52,
+        score: generationStabilityScore,
         confidence: generationStabilityConfidence,
-        passMessage: hasMediaProbe
+        passMessage: hasAcceptedLongFormValidation
+          ? "Accepted long-form validation report reinforces render completion, artifact validation, duration, and manual review evidence."
+          : hasMediaProbe
           ? "Render completion, cost ledger, deliverable validation, and local media probe evidence exist."
           : "Render completion, cost ledger, and deliverable validation evidence exist.",
         failMessage: "Render completion, cost ledger, or deliverable evidence is incomplete.",
         suggestion: "Run this benchmark on a real 2-8 minute paid output to prove long-form stability.",
-        extraEvidence: probedMediaEvidence,
-        ...(facts.finalDurationSeconds && facts.finalDurationSeconds >= 120
+        extraEvidence: [
+          ...probedMediaEvidence,
+          ...(facts.longFormValidationEvidence ? [this.longFormValidationEvidence(facts.longFormValidationEvidence)] : [])
+        ],
+        ...(hasLongFormDuration
           ? {}
           : { limitations: ["Short media probe evidence cannot prove long-form quality maintenance."] })
       }),
@@ -715,7 +730,9 @@ export class DirectorStyleBenchmarkEvaluator {
     bottlenecks: readonly DirectorStyleBenchmarkBottleneck[]
   ): readonly string[] {
     const actions = new Set<string>();
-    if (!facts.finalDurationSeconds || facts.finalDurationSeconds < 120) {
+    if (facts.longFormValidationEvidence && facts.longFormValidationEvidence.status !== "accepted") {
+      actions.add("Complete long-form validation budget, Atlas billing, paid render, artifact, duration, cost-ledger, and manual quality-review gates before treating long-form evidence as accepted.");
+    } else if (!this.hasMeasuredLongFormDuration(facts) && !this.hasAcceptedLongFormValidation(facts)) {
       actions.add("Run the benchmark against a paid 2-8 minute long-form output before using it as long-form production evidence.");
     }
     if (facts.generatedAudioProviderEvidence && facts.generatedAudioProviderEvidence.status !== "accepted") {
@@ -775,8 +792,9 @@ export class DirectorStyleBenchmarkEvaluator {
       mediaEvidence?.transitionSignals?.status === "analyzed" &&
       mediaEvidence.transitionSignals.analyzedBoundaryCount > 0;
     const transitionAnalyzerRan = mediaEvidence?.transitionSignals?.status === "not_detected" || hasDetectedTransitionBoundaries;
-    const hasLongFormDuration =
-      facts.finalDurationSeconds !== undefined && facts.finalDurationSeconds >= 120 && facts.finalDurationSeconds <= 480;
+    const hasMeasuredLongFormDuration = this.hasMeasuredLongFormDuration(facts);
+    const hasAcceptedLongFormValidation = this.hasAcceptedLongFormValidation(facts);
+    const hasLongFormDuration = hasMeasuredLongFormDuration || hasAcceptedLongFormValidation;
     const hasAcceptedSemanticReview =
       facts.semanticReviewEvidence?.status === "accepted" && facts.semanticReviewEvidence.metricCount >= 4;
     const hasGeneratedAudioProviderEvidence = this.hasAcceptedGeneratedAudioProviderEvidence(facts);
@@ -841,10 +859,18 @@ export class DirectorStyleBenchmarkEvaluator {
         id: "long_form_duration",
         category: "long_form",
         met: hasLongFormDuration,
-        evidence: hasLongFormDuration
-          ? [`Final media duration is ${facts.finalDurationSeconds}s within the 120-480s validation range.`]
-          : [],
-        missingEvidence: hasLongFormDuration ? [] : ["Paid 2-8 minute render output with validated final duration."],
+        partial: facts.longFormValidationEvidence !== undefined && !hasAcceptedLongFormValidation,
+        evidence: [
+          ...(hasMeasuredLongFormDuration
+            ? [`Measured final media duration is ${facts.mediaEvidence?.durationSeconds ?? facts.finalDurationSeconds}s within the 120-480s validation range.`]
+            : []),
+          ...(facts.longFormValidationEvidence
+            ? [
+                `Long-form validation status=${facts.longFormValidationEvidence.status}; reportStatus=${facts.longFormValidationEvidence.reportStatus}; finalDuration=${facts.longFormValidationEvidence.finalDurationSeconds ?? "missing"}s; ledgerEntries=${facts.longFormValidationEvidence.costLedgerEntryCount}.`
+              ]
+            : [])
+        ],
+        missingEvidence: hasLongFormDuration ? [] : ["Accepted long-form validation report or measured paid 2-8 minute render output with validated final duration."],
         notes: "Short smoke renders cannot prove long-form stability or pacing."
       }),
       this.parityRequirement({
@@ -911,12 +937,20 @@ export class DirectorStyleBenchmarkEvaluator {
       this.parityRequirement({
         id: "manual_long_form_media_review",
         category: "semantic_review",
-        met: hasAcceptedManualReview && hasLongFormDuration,
-        partial: hasAcceptedManualReview && !hasLongFormDuration,
-        evidence: hasAcceptedManualReview ? ["Manual review text is present and accepted."] : [],
-        missingEvidence: hasAcceptedManualReview && hasLongFormDuration
+        met: hasAcceptedLongFormValidation || (hasAcceptedManualReview && hasLongFormDuration),
+        partial: (hasAcceptedManualReview && !hasLongFormDuration) ||
+          (facts.longFormValidationEvidence !== undefined && !hasAcceptedLongFormValidation),
+        evidence: [
+          ...(hasAcceptedManualReview ? ["Manual review text is present and accepted."] : []),
+          ...(facts.longFormValidationEvidence
+            ? [
+                `Long-form validation manualReviewPassed=${facts.longFormValidationEvidence.manualQualityReviewPassed}; status=${facts.longFormValidationEvidence.status}.`
+              ]
+            : [])
+        ],
+        missingEvidence: hasAcceptedLongFormValidation || (hasAcceptedManualReview && hasLongFormDuration)
           ? []
-          : ["Accepted manual review for the same paid 2-8 minute long-form media artifact."],
+          : ["Accepted manual review for the same paid 2-8 minute long-form media artifact or accepted long-form validation report with manual quality/redaction review."],
         notes: "Manual review only proves parity evidence when attached to the same long-form artifact under test."
       }),
       this.parityRequirement({
@@ -1057,6 +1091,20 @@ export class DirectorStyleBenchmarkEvaluator {
     };
   }
 
+  private longFormValidationEvidence(
+    evidence: NonNullable<DirectorStyleBenchmarkFacts["longFormValidationEvidence"]>
+  ): DirectorStyleBenchmarkEvidence {
+    return {
+      kind: "long_form_validation_evidence",
+      severity: evidence.status === "accepted" ? "info" : evidence.status === "needs_review" ? "warn" : "block",
+      message:
+        evidence.status === "accepted"
+          ? `Long-form validation report is accepted; finalDuration=${evidence.finalDurationSeconds}s, ledgerEntries=${evidence.costLedgerEntryCount}.`
+          : `Long-form validation report is ${evidence.status}; reportStatus=${evidence.reportStatus}, finalDuration=${evidence.finalDurationSeconds ?? "missing"}s, manualReview=${evidence.manualQualityReviewPassed}.`,
+      source: "long_form_validation_report"
+    };
+  }
+
   private generatedAudioProviderScore(
     evidence: DirectorStyleBenchmarkFacts["generatedAudioProviderEvidence"]
   ): number | undefined {
@@ -1130,6 +1178,30 @@ export class DirectorStyleBenchmarkEvaluator {
       evidence.approvedTrackCount > 0 &&
       evidence.providerLedgerEntryCount > 0 &&
       evidence.manualReviewPassed === true;
+  }
+
+  private hasAcceptedLongFormValidation(facts: DirectorStyleBenchmarkFacts): boolean {
+    const evidence = facts.longFormValidationEvidence;
+    return evidence?.status === "accepted" &&
+      evidence.canUseAsBusinessReadinessLongFormEvidence === true &&
+      evidence.providerSpendAllowed === true &&
+      evidence.atlasBillingReady === true &&
+      evidence.requestValidationStatus === "pass" &&
+      evidence.chunkPlanStatus === "pass" &&
+      evidence.paidRenderStatus === "completed" &&
+      evidence.artifactValidationStatus === "pass" &&
+      evidence.artifactEvidencePresent === true &&
+      evidence.deliverablePresent === true &&
+      evidence.costLedgerEntryCount > 0 &&
+      evidence.manualQualityReviewPassed === true &&
+      evidence.finalDurationSeconds !== undefined &&
+      evidence.finalDurationSeconds >= 120 &&
+      evidence.finalDurationSeconds <= 480;
+  }
+
+  private hasMeasuredLongFormDuration(facts: DirectorStyleBenchmarkFacts): boolean {
+    const durationSeconds = facts.mediaEvidence?.durationSeconds ?? (facts.longFormValidationEvidence ? undefined : facts.finalDurationSeconds);
+    return durationSeconds !== undefined && durationSeconds >= 120 && durationSeconds <= 480;
   }
 
   private runtimeMetricForAudioMetric(

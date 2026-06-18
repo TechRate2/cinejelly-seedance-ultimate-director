@@ -49,6 +49,7 @@
         "runtimeReviewPath": { "type": "string", "minLength": 1 },
         "governanceReviewPath": { "type": "string", "minLength": 1 },
         "generatedAudioValidationPath": { "type": "string", "minLength": 1 },
+        "longFormValidationPath": { "type": "string", "minLength": 1 },
         "outputPath": { "type": "string", "minLength": 1 },
         "jsonlPath": { "type": "string", "minLength": 1 },
         "minPassingScore": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -126,7 +127,8 @@
         "audioReviewEvidence": { "$ref": "#/$defs/audioReviewEvidence" },
         "runtimeReviewEvidence": { "$ref": "#/$defs/runtimeReviewEvidence" },
         "governanceReviewEvidence": { "$ref": "#/$defs/governanceReviewEvidence" },
-        "generatedAudioProviderEvidence": { "$ref": "#/$defs/generatedAudioProviderEvidence" }
+        "generatedAudioProviderEvidence": { "$ref": "#/$defs/generatedAudioProviderEvidence" },
+        "longFormValidationEvidence": { "$ref": "#/$defs/longFormValidationEvidence" }
       }
     },
     "dimensionScores": {
@@ -596,6 +598,44 @@
         "approvedTrackCount": { "type": "integer", "minimum": 0 },
         "providerLedgerEntryCount": { "type": "integer", "minimum": 0 },
         "manualReviewPassed": { "type": "boolean" },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      }
+    },
+    "longFormValidationEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "status",
+        "reportStatus",
+        "canUseAsBusinessReadinessLongFormEvidence",
+        "providerSpendAllowed",
+        "atlasBillingReady",
+        "artifactEvidencePresent",
+        "deliverablePresent",
+        "costLedgerEntryCount",
+        "manualQualityReviewPassed",
+        "findings"
+      ],
+      "properties": {
+        "source": { "const": "long_form_validation_report" },
+        "sourcePath": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["accepted", "needs_review", "rejected"] },
+        "reportStatus": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "canUseAsBusinessReadinessLongFormEvidence": { "type": "boolean" },
+        "plannedDurationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "finalDurationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "providerSpendAllowed": { "type": "boolean" },
+        "atlasBillingReady": { "type": "boolean" },
+        "requestValidationStatus": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "readinessDecision": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "chunkPlanStatus": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "paidRenderStatus": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "artifactValidationStatus": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "artifactEvidencePresent": { "type": "boolean" },
+        "deliverablePresent": { "type": "boolean" },
+        "costLedgerEntryCount": { "type": "integer", "minimum": 0 },
+        "manualQualityReviewPassed": { "type": "boolean" },
         "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
       }
     },

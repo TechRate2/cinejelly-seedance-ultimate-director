@@ -2740,12 +2740,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "structured runtime-review checkpoints can reinforce ASR transcript alignment and lip-sync timing metrics without importing upstream evaluator code",
       "structured governance-review checkpoints can record accepted license boundary, code reuse boundary, runtime evaluator independence, and evaluation-asset permission evidence without importing upstream evaluator code",
       "generated-audio validation reports can reinforce provider-backed audio evidence through redacted spend, billing, schema, execution, output-batch, ledger, and manual-review gates",
+      "long-form validation reports can reinforce long-form duration and manual-review evidence through redacted budget, billing, paid-render, artifact, duration, cost-ledger, and manual quality-review gates",
       "benchmark runs can be appended to JSONL history without overwriting prior evidence"
     ],
     behaviorChanged: [
       "DirectorBench implementation code is not copied, imported, linked, or executed",
-      "CineJelly evaluates persisted artifact-contract evidence plus local FFprobe, sampled-frame RGB proxy signals, FFmpeg scene-change transition-boundary proxy signals, bounded FFmpeg audio waveform/volume proxy signals, FFprobe audio-video duration-delta proxy signals, optional structured semantic/audio/runtime/governance review JSON, optional generated-audio validation report JSON, and a parity evidence matrix instead of running PySceneDetect, OpenCV, ASR, VLM, lip-sync analyzers, or Python LangGraph agents",
-      "reports explicitly state canClaimDirectorBenchParity=false until live long-form, semantic visual, accepted generated-audio validation, accepted ASR/lip-sync runtime review, accepted governance evidence, and every required parity row exists",
+      "CineJelly evaluates persisted artifact-contract evidence plus local FFprobe, sampled-frame RGB proxy signals, FFmpeg scene-change transition-boundary proxy signals, bounded FFmpeg audio waveform/volume proxy signals, FFprobe audio-video duration-delta proxy signals, optional structured semantic/audio/runtime/governance review JSON, optional generated-audio validation report JSON, optional long-form validation report JSON, and a parity evidence matrix instead of running PySceneDetect, OpenCV, ASR, VLM, lip-sync analyzers, or Python LangGraph agents",
+      "reports explicitly state canClaimDirectorBenchParity=false until live long-form, accepted long-form validation, semantic visual, accepted generated-audio validation, accepted ASR/lip-sync runtime review, accepted governance evidence, and every required parity row exists",
       "the CLI is no-spend/no-network and writes a schema-validated backend quality report"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-style-benchmark-harness.md",
@@ -2757,6 +2758,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/director-style-audio-review.ts",
       "src/core/director-style-runtime-review.ts",
       "src/core/director-style-generated-audio-provider-evidence.ts",
+      "src/core/director-style-long-form-validation-evidence.ts",
       "src/core/director-style-governance-review.ts",
       "scripts/run-director-style-benchmark.mjs",
       "schemas/director-style-benchmark-report.schema.json",
@@ -2771,7 +2773,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "sampled-frame, transition-boundary proxy, waveform/volume proxy, duration-sync proxy, structured semantic/audio/runtime/governance review signals, generated-audio validation report signals, and parity evidence matrix rows do not replace automated lip sync, ASR transcript alignment, real long-form paid evidence, accepted live generated-audio provider evidence, accepted legal/operator review, or full DirectorBench runtime parity",
+      "sampled-frame, transition-boundary proxy, waveform/volume proxy, duration-sync proxy, structured semantic/audio/runtime/governance review signals, generated-audio validation report signals, long-form validation report signals, and parity evidence matrix rows do not replace automated lip sync, ASR transcript alignment, real long-form paid evidence, accepted live generated-audio provider evidence, accepted legal/operator review, or full DirectorBench runtime parity",
       "full DirectorBench parity still requires accepted governance review plus dedicated VLM/ASR/audio media evaluation evidence",
       "current short no-audio paid smoke can only produce review_required benchmark evidence, not customer-release approval"
     ],
