@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type {
+  DirectorStyleBenchmarkAudioWaveformSignals,
   DirectorStyleBenchmarkMediaEvidence,
   DirectorStyleBenchmarkMediaStreamEvidence,
   DirectorStyleBenchmarkTransitionBoundarySignal,
@@ -35,6 +36,7 @@ const DEFAULT_MAX_FRAME_SAMPLES = 8;
 const DEFAULT_SCENE_CHANGE_THRESHOLD = 0.12;
 const DEFAULT_TRANSITION_BOUNDARY_WINDOW_SECONDS = 0.12;
 const DEFAULT_MAX_TRANSITION_BOUNDARIES = 8;
+const DEFAULT_AUDIO_ANALYSIS_WINDOW_SECONDS = 30;
 
 export async function collectDirectorStyleMediaEvidence(
   options: DirectorStyleMediaEvidenceOptions
@@ -86,7 +88,15 @@ export async function collectDirectorStyleMediaEvidence(
     options.maxTransitionBoundaries,
     DEFAULT_MAX_TRANSITION_BOUNDARIES
   );
-  const findings = [...delivery.findings];
+  const audioWaveformDurationSeconds = delivery.audio.durationSeconds ?? metadata.durationSeconds;
+  const audioWaveformSignals = delivery.audio.hasAudio
+    ? await audioWaveformSignalsFromMedia({
+        mediaPath: options.mediaPath,
+        ...(audioWaveformDurationSeconds !== undefined ? { durationSeconds: audioWaveformDurationSeconds } : {}),
+        ...(options.signal ? { signal: options.signal } : {})
+      })
+    : undefined;
+  const findings = [...delivery.findings, ...(audioWaveformSignals?.findings ?? [])];
   const baseEvidence = {
     ...common,
     sizeBytes,
@@ -97,7 +107,10 @@ export async function collectDirectorStyleMediaEvidence(
     audio: {
       hasAudio: delivery.audio.hasAudio,
       ...(delivery.audio.codecName ? { codecName: delivery.audio.codecName } : {}),
-      ...(delivery.audio.durationSeconds !== undefined ? { durationSeconds: round(delivery.audio.durationSeconds) } : {})
+      ...(delivery.audio.sampleRate !== undefined ? { sampleRate: delivery.audio.sampleRate } : {}),
+      ...(delivery.audio.channelCount !== undefined ? { channelCount: delivery.audio.channelCount } : {}),
+      ...(delivery.audio.durationSeconds !== undefined ? { durationSeconds: round(delivery.audio.durationSeconds) } : {}),
+      ...(audioWaveformSignals ? { waveformSignals: audioWaveformSignals } : {})
     },
     findings
   } satisfies Omit<DirectorStyleBenchmarkMediaEvidence, "status">;
@@ -159,8 +172,87 @@ function mediaStreamEvidence(stream: MediaMetadata["streams"][number]): Director
     ...(stream.width !== undefined ? { width: stream.width } : {}),
     ...(stream.height !== undefined ? { height: stream.height } : {}),
     ...(stream.frameRate !== undefined ? { frameRate: round(stream.frameRate) } : {}),
+    ...(stream.sampleRate !== undefined ? { sampleRate: stream.sampleRate } : {}),
+    ...(stream.channelCount !== undefined ? { channelCount: stream.channelCount } : {}),
     ...(stream.durationSeconds !== undefined ? { durationSeconds: round(stream.durationSeconds) } : {})
   };
+}
+
+async function audioWaveformSignalsFromMedia(input: {
+  readonly mediaPath: string;
+  readonly durationSeconds?: number;
+  readonly signal?: AbortSignal;
+}): Promise<DirectorStyleBenchmarkAudioWaveformSignals> {
+  const analyzedDurationSeconds = round(
+    Math.min(
+      normalizePositiveNumber(input.durationSeconds, DEFAULT_AUDIO_ANALYSIS_WINDOW_SECONDS),
+      DEFAULT_AUDIO_ANALYSIS_WINDOW_SECONDS
+    )
+  );
+  try {
+    const result = await runProcess(
+      readMediaToolCommand("ffmpeg"),
+      [
+        "-hide_banner",
+        "-nostats",
+        "-i",
+        input.mediaPath,
+        "-map",
+        "0:a:0",
+        "-t",
+        String(analyzedDurationSeconds),
+        "-vn",
+        "-af",
+        "volumedetect",
+        "-f",
+        "null",
+        "-"
+      ],
+      {
+        ...(input.signal ? { signal: input.signal } : {}),
+        maxOutputBytes: 1024 * 1024
+      }
+    );
+    const text = `${result.stdout}\n${result.stderr}`;
+    const meanVolumeDb = readVolumeDb(text, "mean_volume");
+    const maxVolumeDb = readVolumeDb(text, "max_volume");
+    if (meanVolumeDb === undefined && maxVolumeDb === undefined) {
+      return {
+        status: "unavailable",
+        analyzer: "ffmpeg_volumedetect",
+        analyzedDurationSeconds,
+        findings: ["FFmpeg volumedetect did not return usable volume statistics for the first audio stream."]
+      };
+    }
+    const headroomDb = maxVolumeDb !== undefined ? round(Math.max(0, -maxVolumeDb)) : undefined;
+    const signalPresenceScore = audioSignalPresenceScore(meanVolumeDb, maxVolumeDb);
+    const findings = [
+      `Audio waveform proxy analyzed ${analyzedDurationSeconds}s with FFmpeg volumedetect; raw audio bytes were not stored.`
+    ];
+    if (meanVolumeDb !== undefined && meanVolumeDb < -50) {
+      findings.push("Mean audio level is very low; manual listening review should check for silence or unusable narration/BGM.");
+    }
+    if (maxVolumeDb !== undefined && maxVolumeDb > -0.3) {
+      findings.push("Peak audio level is close to clipping; manual listening review should check distortion.");
+    }
+    return {
+      status: "analyzed",
+      analyzer: "ffmpeg_volumedetect",
+      analyzedDurationSeconds,
+      ...(meanVolumeDb !== undefined ? { meanVolumeDb } : {}),
+      ...(maxVolumeDb !== undefined ? { maxVolumeDb } : {}),
+      ...(headroomDb !== undefined ? { headroomDb } : {}),
+      ...(signalPresenceScore !== undefined ? { signalPresenceScore } : {}),
+      findings
+    };
+  } catch (error) {
+    return {
+      status: "unavailable",
+      analyzer: "ffmpeg_volumedetect",
+      analyzedDurationSeconds,
+      findings: [`FFmpeg audio waveform proxy failed: ${messageFrom(error)}.`]
+    };
+  }
 }
 
 async function visualSignalsFromSamples(
@@ -245,6 +337,32 @@ async function averageRgbFromFrame(sample: FrameSample, workDirectory: string, s
     green: bytes[1] ?? 0,
     blue: bytes[2] ?? 0
   };
+}
+
+function readVolumeDb(text: string, label: "mean_volume" | "max_volume"): number | undefined {
+  const escapedLabel = label.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  const match = text.match(new RegExp(`${escapedLabel}:\\s*(-?(?:inf|\\d+(?:\\.\\d+)?))\\s*dB`, "i"));
+  const raw = match?.[1]?.toLowerCase();
+  if (!raw || raw.includes("inf")) {
+    return undefined;
+  }
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) ? round(value) : undefined;
+}
+
+function audioSignalPresenceScore(meanVolumeDb: number | undefined, maxVolumeDb: number | undefined): number | undefined {
+  if (meanVolumeDb === undefined && maxVolumeDb === undefined) {
+    return undefined;
+  }
+  const mean = meanVolumeDb ?? -45;
+  const meanScore =
+    mean <= -60 ? 0.2 :
+    mean <= -38 ? 0.56 :
+    mean <= -14 ? 0.76 :
+    mean <= -6 ? 0.68 :
+    0.56;
+  const clippingPenalty = maxVolumeDb !== undefined && maxVolumeDb > -0.3 ? 0.12 : 0;
+  return round(clamp01(meanScore - clippingPenalty));
 }
 
 async function transitionSignalsFromMedia(input: {

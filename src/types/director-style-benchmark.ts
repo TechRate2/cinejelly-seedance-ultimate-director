@@ -7,9 +7,11 @@ export type DirectorStyleBenchmarkEvidenceScope =
   | "artifact_contract_plus_media_probe"
   | "artifact_contract_plus_media_frames"
   | "artifact_contract_plus_media_boundaries"
+  | "artifact_contract_plus_media_audio_waveform"
   | "artifact_contract_plus_semantic_review"
   | "artifact_contract_plus_semantic_audio_review"
   | "artifact_contract_plus_media_semantic_review"
+  | "artifact_contract_plus_media_semantic_audio_waveform"
   | "artifact_contract_plus_audio_review"
   | "artifact_contract_plus_media_audio_review"
   | "artifact_contract_plus_media_semantic_audio_review";
@@ -80,13 +82,29 @@ export interface DirectorStyleBenchmarkMediaStreamEvidence {
   readonly width?: number;
   readonly height?: number;
   readonly frameRate?: number;
+  readonly sampleRate?: number;
+  readonly channelCount?: number;
   readonly durationSeconds?: number;
+}
+
+export interface DirectorStyleBenchmarkAudioWaveformSignals {
+  readonly status: "analyzed" | "unavailable";
+  readonly analyzer: "ffmpeg_volumedetect";
+  readonly analyzedDurationSeconds?: number;
+  readonly meanVolumeDb?: number;
+  readonly maxVolumeDb?: number;
+  readonly headroomDb?: number;
+  readonly signalPresenceScore?: number;
+  readonly findings: readonly string[];
 }
 
 export interface DirectorStyleBenchmarkAudioMediaEvidence {
   readonly hasAudio: boolean;
   readonly codecName?: string;
+  readonly sampleRate?: number;
+  readonly channelCount?: number;
   readonly durationSeconds?: number;
+  readonly waveformSignals?: DirectorStyleBenchmarkAudioWaveformSignals;
 }
 
 export interface DirectorStyleBenchmarkVisualSignals {

@@ -74,9 +74,11 @@
             "artifact_contract_plus_media_probe",
             "artifact_contract_plus_media_frames",
             "artifact_contract_plus_media_boundaries",
+            "artifact_contract_plus_media_audio_waveform",
             "artifact_contract_plus_semantic_review",
             "artifact_contract_plus_semantic_audio_review",
             "artifact_contract_plus_media_semantic_review",
+            "artifact_contract_plus_media_semantic_audio_waveform",
             "artifact_contract_plus_audio_review",
             "artifact_contract_plus_media_audio_review",
             "artifact_contract_plus_media_semantic_audio_review"
@@ -162,7 +164,24 @@
         "width": { "type": "integer", "minimum": 1 },
         "height": { "type": "integer", "minimum": 1 },
         "frameRate": { "type": "number", "minimum": 0 },
+        "sampleRate": { "type": "integer", "minimum": 1 },
+        "channelCount": { "type": "integer", "minimum": 1 },
         "durationSeconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "audioWaveformSignals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "analyzer", "findings"],
+      "properties": {
+        "status": { "enum": ["analyzed", "unavailable"] },
+        "analyzer": { "const": "ffmpeg_volumedetect" },
+        "analyzedDurationSeconds": { "type": "number", "minimum": 0 },
+        "meanVolumeDb": { "type": "number" },
+        "maxVolumeDb": { "type": "number" },
+        "headroomDb": { "type": "number", "minimum": 0 },
+        "signalPresenceScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }
     },
     "audioMediaEvidence": {
@@ -172,7 +191,10 @@
       "properties": {
         "hasAudio": { "type": "boolean" },
         "codecName": { "type": "string", "minLength": 1 },
-        "durationSeconds": { "type": "number", "minimum": 0 }
+        "sampleRate": { "type": "integer", "minimum": 1 },
+        "channelCount": { "type": "integer", "minimum": 1 },
+        "durationSeconds": { "type": "number", "minimum": 0 },
+        "waveformSignals": { "$ref": "#/$defs/audioWaveformSignals" }
       }
     },
     "visualSignals": {

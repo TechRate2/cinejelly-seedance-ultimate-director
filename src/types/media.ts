@@ -12,6 +12,8 @@ export interface MediaStreamInfo {
   readonly width?: number;
   readonly height?: number;
   readonly frameRate?: number;
+  readonly sampleRate?: number;
+  readonly channelCount?: number;
   readonly durationSeconds?: number;
 }
 
@@ -27,6 +29,8 @@ export interface AudioInspectionReport {
   readonly hasAudio: boolean;
   readonly durationSeconds?: number;
   readonly codecName?: string;
+  readonly sampleRate?: number;
+  readonly channelCount?: number;
   readonly findings: readonly string[];
 }
 

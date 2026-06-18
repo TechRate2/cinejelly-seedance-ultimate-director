@@ -6,6 +6,8 @@ This audit records the current implementation fidelity of CineJelly Seedance Ult
 
 It is an owner-level readiness snapshot, not a customer-release certification. The repo can continue implementation under the roadmap, but paid Atlas validation and real artifact review are still required before customer traffic.
 
+Historical note as of 2026-06-18: this file is retained as the 2026-06-14 baseline. Current parity and Director-style benchmark status are tracked in `docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md`, `docs/PROJECT_CONTEXT.md`, and `docs/reference-implementations/director-style-benchmark-harness.md`.
+
 ## Scope Reviewed
 
 - `docs/IMPLEMENTATION_ROADMAP.md`
@@ -69,7 +71,7 @@ These percentages describe roadmap foundation readiness, not full upstream parit
 | `HKUDS/VideoAgent` | 58% | Source-video analysis boundaries and metadata flow exist. Full VideoRAG/tool-graph parity is not implemented. |
 | `calesthio/OpenMontage` | 52% | Used carefully as AGPL-aware behavior notes for approval gates, source media review, and self-review. Direct implementation reuse is intentionally avoided. |
 | `harry0703/MoneyPrinterTurbo` | 75% | Strong translation of staged one-input pipeline, material sourcing, progress visibility, batch evidence, subtitles/audio planning, and operator surfaces. Full WebUI/task persistence and live TTS/BGM parity are not complete. |
-| `jiaminchen-1031/DirectorBench` | 20% | Planning/evaluation influence only because no top-level license was found in the snapshot. |
+| `jiaminchen-1031/DirectorBench` | 20% | Historical 2026-06-14 baseline. Current CineJelly-owned benchmark coverage is tracked in the newer snapshot parity audit. |
 
 ## Main Remaining Gaps
 
@@ -82,7 +84,7 @@ These percentages describe roadmap foundation readiness, not full upstream parit
 7. Superseded on 2026-06-16: Atlas `xai/tts-v1` submit/poll execution is now wired behind verified capability, schema-review, budget, explicit spend, output-validation, and manual-review gates; live paid validation remains pending.
 8. Exact community prompt corpus bundling still needs attribution/product review before release.
 9. In-process queue and job history are useful foundations, but durable queue/storage may be needed for commercial SaaS deployment.
-10. No complete DirectorBench-style evaluation harness exists yet.
+10. Historical 2026-06-14 baseline: no complete DirectorBench-style evaluation harness existed yet. Current benchmark harness status is tracked in the newer snapshot parity audit.
 
 ## Roadmap Adherence Verdict
 

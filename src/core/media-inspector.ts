@@ -58,6 +58,8 @@ export class MediaInspector {
       hasAudio: true,
       ...(audioStream.durationSeconds !== undefined ? { durationSeconds: audioStream.durationSeconds } : {}),
       ...(audioStream.codecName ? { codecName: audioStream.codecName } : {}),
+      ...(audioStream.sampleRate !== undefined ? { sampleRate: audioStream.sampleRate } : {}),
+      ...(audioStream.channelCount !== undefined ? { channelCount: audioStream.channelCount } : {}),
       findings
     };
   }
@@ -127,6 +129,8 @@ export class MediaInspector {
     const payload = this.object(stream);
     const frameRate = this.parseFrameRate(typeof payload.avg_frame_rate === "string" ? payload.avg_frame_rate : undefined);
     const durationSeconds = this.readNumber(payload.duration);
+    const sampleRate = this.readInteger(payload.sample_rate);
+    const channelCount = this.readInteger(payload.channels);
 
     return {
       index: typeof payload.index === "number" ? payload.index : fallbackIndex,
@@ -135,6 +139,8 @@ export class MediaInspector {
       ...(typeof payload.width === "number" ? { width: payload.width } : {}),
       ...(typeof payload.height === "number" ? { height: payload.height } : {}),
       ...(frameRate !== undefined ? { frameRate } : {}),
+      ...(sampleRate !== undefined ? { sampleRate } : {}),
+      ...(channelCount !== undefined ? { channelCount } : {}),
       ...(durationSeconds !== undefined ? { durationSeconds } : {})
     };
   }
@@ -152,6 +158,11 @@ export class MediaInspector {
       return Number.isFinite(parsed) ? parsed : undefined;
     }
     return undefined;
+  }
+
+  private readInteger(value: unknown): number | undefined {
+    const parsed = this.readNumber(value);
+    return parsed !== undefined && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
   }
 
   private parseFrameRate(value: string | undefined): number | undefined {

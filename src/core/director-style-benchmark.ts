@@ -1,4 +1,5 @@
 import type {
+  DirectorStyleBenchmarkAudioWaveformSignals,
   DirectorStyleBenchmarkAudioReviewMetricEvidence,
   DirectorStyleBenchmarkAudioReviewMetricName,
   DirectorStyleBenchmarkBottleneck,
@@ -175,6 +176,8 @@ export class DirectorStyleBenchmarkEvaluator {
             ? "Benchmark evidence is blocked by missing core artifact or render completion evidence."
             : evidenceScope === "artifact_contract_only"
               ? "Director-style benchmark evidence is artifact-contract-only; customer release still requires real long-form paid output, frame/audio review, production deployment evidence, and manual approval."
+              : evidenceScope.includes("audio_waveform")
+              ? "Director-style benchmark includes local media probe/frame/audio-waveform proxy evidence, but customer release still requires long-form paid output, semantic visual/audio review, generated-audio provider evidence, production deployment evidence, and manual approval."
               : "Director-style benchmark includes local media probe/frame-signal evidence, but customer release still requires long-form paid output, semantic visual/audio review, production deployment evidence, and manual approval."
       },
       nextActions: this.nextActions(input.facts, metrics, bottlenecks)
@@ -518,6 +521,7 @@ export class DirectorStyleBenchmarkEvaluator {
     dimension: DirectorStyleBenchmarkDimension = "audio"
   ): DirectorStyleBenchmarkMetricResult {
     const reviewMetric = this.audioReviewMetric(facts, metricName);
+    const waveformMetric = this.audioWaveformMetric(facts);
     if (!facts.hasAudioEvidence && !reviewMetric) {
       return {
         dimension,
@@ -541,13 +545,19 @@ export class DirectorStyleBenchmarkEvaluator {
       metricName,
       upstreamMetric,
       requiredKinds: [ARTIFACT_KINDS.postproductionAssetPlan, ARTIFACT_KINDS.reviewPacket],
-      score: reviewMetric?.score ?? (facts.manualReviewAccepted ? 0.78 : 0.62),
-      confidence: reviewMetric?.confidence ?? (facts.manualReviewAccepted ? 0.64 : 0.46),
+      score: reviewMetric?.score ?? waveformMetric?.score ?? (facts.manualReviewAccepted ? 0.78 : 0.62),
+      confidence: reviewMetric?.confidence ?? waveformMetric?.confidence ?? (facts.manualReviewAccepted ? 0.64 : 0.46),
       passMessage: reviewMetric
         ? "Audio/postproduction evidence is reinforced by structured audio review evidence."
+        : waveformMetric
+        ? "Audio/postproduction evidence is reinforced by local audio waveform proxy evidence."
         : "Audio/postproduction evidence exists and manual review status is reflected.",
       failMessage: "Audio/postproduction review evidence is incomplete.",
-      suggestion: "Capture provider-backed generated-audio output validation and manual listening review.",
+      suggestion: reviewMetric
+        ? "Capture provider-backed generated-audio output validation and manual listening review."
+        : waveformMetric
+        ? "Add structured audio review, ASR/lip-sync, and generated-audio provider evidence before accepting audio quality."
+        : "Capture provider-backed generated-audio output validation and manual listening review.",
       extraEvidence: reviewMetric
         ? [
             this.audioEvidence(
@@ -555,11 +565,19 @@ export class DirectorStyleBenchmarkEvaluator {
               `${reviewMetric.metricName} audio review score=${reviewMetric.score}, confidence=${reviewMetric.confidence}; ${reviewMetric.evidenceSummary}`
             )
           ]
+        : waveformMetric
+        ? [this.audioWaveformEvidence(waveformMetric.signals)]
         : [],
       ...(reviewMetric
         ? {
             limitations: [
               "Structured audio review evidence is checkpoint evidence; ASR/lip-sync, waveform analysis, live generated-audio output, and full DirectorBench runtime parity remain separate gates."
+            ]
+          }
+        : waveformMetric
+        ? {
+            limitations: [
+              "FFmpeg volume/waveform evidence is a structural signal proxy; it cannot verify narration meaning, BGM appropriateness, audio-video sync, ASR transcript accuracy, lip sync, or generated-audio provider quality."
             ]
           }
         : {})
@@ -672,6 +690,7 @@ export class DirectorStyleBenchmarkEvaluator {
   private evidenceScope(facts: DirectorStyleBenchmarkFacts): DirectorStyleBenchmarkEvidenceScope {
     const hasSemanticReview = facts.semanticReviewEvidence !== undefined && facts.semanticReviewEvidence.metricCount > 0;
     const hasAudioReview = facts.audioReviewEvidence !== undefined && facts.audioReviewEvidence.metricCount > 0;
+    const hasAudioWaveform = facts.mediaEvidence?.audio?.waveformSignals?.status === "analyzed";
     const hasMediaEvidence =
       facts.mediaEvidence?.deliveryStatus !== undefined ||
       facts.mediaEvidence?.status === "probe_only" ||
@@ -686,10 +705,16 @@ export class DirectorStyleBenchmarkEvaluator {
       return "artifact_contract_plus_media_audio_review";
     }
     if (hasSemanticReview && hasMediaEvidence) {
+      if (hasAudioWaveform) {
+        return "artifact_contract_plus_media_semantic_audio_waveform";
+      }
       return "artifact_contract_plus_media_semantic_review";
     }
     if (hasAudioReview) {
       return "artifact_contract_plus_audio_review";
+    }
+    if (hasAudioWaveform && hasMediaEvidence) {
+      return "artifact_contract_plus_media_audio_waveform";
     }
     if (hasSemanticReview) {
       return "artifact_contract_plus_semantic_review";
@@ -751,6 +776,31 @@ export class DirectorStyleBenchmarkEvaluator {
       message,
       source: `${metric.reviewerType}_audio_review`
     };
+  }
+
+  private audioWaveformMetric(facts: DirectorStyleBenchmarkFacts):
+    | { readonly score: number; readonly confidence: number; readonly signals: DirectorStyleBenchmarkAudioWaveformSignals }
+    | undefined {
+    const signals = facts.mediaEvidence?.audio?.waveformSignals;
+    if (!signals || signals.status !== "analyzed") {
+      return undefined;
+    }
+    const signalPresenceScore = signals.signalPresenceScore ?? 0.56;
+    return {
+      score: this.round(Math.max(0.56, Math.min(0.68, 0.52 + signalPresenceScore * 0.2))),
+      confidence: signals.signalPresenceScore !== undefined ? 0.52 : 0.48,
+      signals
+    };
+  }
+
+  private audioWaveformEvidence(signals: DirectorStyleBenchmarkAudioWaveformSignals): DirectorStyleBenchmarkEvidence {
+    const mean = signals.meanVolumeDb !== undefined ? `${signals.meanVolumeDb}dB` : "unknown";
+    const peak = signals.maxVolumeDb !== undefined ? `${signals.maxVolumeDb}dB` : "unknown";
+    const score = signals.signalPresenceScore !== undefined ? signals.signalPresenceScore : "unknown";
+    return this.mediaEvidence(
+      "audio_waveform_signal",
+      `FFmpeg volumedetect analyzed ${signals.analyzedDurationSeconds ?? "bounded"}s of local media audio; mean=${mean}, peak=${peak}, signalPresenceScore=${score}.`
+    );
   }
 
   private metricStatusFor(
