@@ -289,8 +289,13 @@ function buildCommands(options) {
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
-    command("launch_intake", ["--env-file-if-exists=.env", "scripts/validate-commercial-launch-intake.mjs"], {
+    command("launch_intake", ["--env-file-if-exists=.env", "scripts/validate-commercial-launch-intake.mjs", "--write-draft", "--force"], {
       reportPath: "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
+    command("ops_config", ["--env-file-if-exists=.env", "scripts/validate-business-readiness-ops-config.mjs", "--write-drafts", "--force"], {
+      reportPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
@@ -405,7 +410,8 @@ function buildReport(options, commandRuns) {
     providerGraphResumeDraft: summarizeReport("assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueue-evidence-draft-report.json"),
     providerGraphResume: summarizeReport("assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"),
     reportContracts: summarizeReport("assets/output_deliverables/business-readiness/report-contract-validation-report.json"),
-    launchIntake: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json")
+    launchIntake: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json"),
+    opsConfig: summarizeReport("assets/output_deliverables/business-readiness/ops-config-validation-report.json")
   };
   const completion = reportSummaries.completionAudit.value;
   const business = reportSummaries.businessReadiness.value;
@@ -468,6 +474,7 @@ function buildReport(options, commandRuns) {
       providerGraphResumeStatus: reportSummaries.providerGraphResume.status,
       reportContractsStatus: reportSummaries.reportContracts.status,
       commercialInputsStatus: reportSummaries.commercialInputs.status,
+      opsConfigStatus: reportSummaries.opsConfig.status,
       liveInputsStatus: reportSummaries.liveInputs.status,
       launchIntakeStatus: reportSummaries.launchIntake.status,
       readyPaidGates,
@@ -604,6 +611,9 @@ function buildNextActions({ completion, business, reportSummaries, codeBlockingR
   if (reportSummaries.launchIntake.status === "missing_intake") {
     actions.push("Run validation:launch-intake -- --write-draft, fill the ignored secret-free intake, then rerun validation:launch-doctor.");
   }
+  if (reportSummaries.opsConfig.status !== "pass") {
+    actions.push("Fill the ignored billing/admin and production-operations attestation drafts, then rerun validation:ops-config and validation:launch-doctor.");
+  }
   if (reportSummaries.providerLiveActions.status !== "pass") {
     actions.push("After production handoff capture passes, archive live provider callback evidence in ops/render-provider-live-actions.json and rerun validation:provider-live-actions with --confirm-live-provider-actions.");
   }
@@ -653,6 +663,7 @@ function renderMarkdown(report) {
     `- Provider graph-resume draft: ${report.readinessSnapshot.providerGraphResumeDraftStatus}`,
     `- Provider graph resume: ${report.readinessSnapshot.providerGraphResumeStatus}`,
     `- Report contracts: ${report.readinessSnapshot.reportContractsStatus}`,
+    `- Ops config: ${report.readinessSnapshot.opsConfigStatus}`,
     `- Launch intake: ${report.readinessSnapshot.launchIntakeStatus}`,
     `- Approved budget: ${formatUsd(report.readinessSnapshot.approvedBudgetUsd)}`,
     `- Known paid estimate: ${formatUsd(report.readinessSnapshot.knownPaidEstimateUsd)}`,
