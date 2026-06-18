@@ -941,6 +941,8 @@ function validateDirectorStyleBenchmarkSemantics(report) {
     report.facts.longFormValidationEvidence.deliverablePresent === true &&
     Number(report.facts.longFormValidationEvidence.costLedgerEntryCount ?? 0) > 0 &&
     report.facts.longFormValidationEvidence.manualQualityReviewPassed === true &&
+    report.facts.longFormValidationEvidence.manualReviewArtifactBindingMatched === true &&
+    report.facts.longFormValidationEvidence.manualReviewArtifactBindingStatus === "matched" &&
     Number(report.facts.longFormValidationEvidence.finalDurationSeconds ?? 0) >= 120 &&
     Number(report.facts.longFormValidationEvidence.finalDurationSeconds ?? 0) <= 480;
   const measuredLongFormDuration =

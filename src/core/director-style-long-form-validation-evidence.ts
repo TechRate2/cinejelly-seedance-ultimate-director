@@ -32,6 +32,8 @@ export function normalizeDirectorStyleLongFormValidationEvidence(
   const deliverablePresent = value.artifactEvidence?.deliverablePresent === true;
   const costLedgerEntryCount = safeNonNegativeInteger(value.paidRender?.costLedgerEntryCount);
   const manualQualityReviewPassed = value.manualQualityReview?.passed === true;
+  const manualReviewArtifactBindingMatched = value.manualQualityReview?.bindingMatched === true;
+  const manualReviewArtifactBindingStatus = safeStatus(value.manualQualityReview?.artifactBindingStatus);
   const statusInput = {
     reportStatus,
     canUseAsBusinessReadinessLongFormEvidence,
@@ -45,6 +47,8 @@ export function normalizeDirectorStyleLongFormValidationEvidence(
     deliverablePresent,
     costLedgerEntryCount,
     manualQualityReviewPassed,
+    manualReviewArtifactBindingMatched,
+    ...(manualReviewArtifactBindingStatus ? { manualReviewArtifactBindingStatus } : {}),
     ...(finalDurationSeconds ? { finalDurationSeconds } : {})
   };
   const status = statusFor(statusInput);
@@ -68,6 +72,8 @@ export function normalizeDirectorStyleLongFormValidationEvidence(
     deliverablePresent,
     costLedgerEntryCount,
     manualQualityReviewPassed,
+    manualReviewArtifactBindingMatched,
+    ...(manualReviewArtifactBindingStatus ? { manualReviewArtifactBindingStatus } : {}),
     findings: findingsFor({ ...statusInput, status })
   };
 }
@@ -85,6 +91,8 @@ function statusFor(input: {
   readonly deliverablePresent: boolean;
   readonly costLedgerEntryCount: number;
   readonly manualQualityReviewPassed: boolean;
+  readonly manualReviewArtifactBindingMatched: boolean;
+  readonly manualReviewArtifactBindingStatus?: string;
   readonly finalDurationSeconds?: number;
 }): DirectorStyleBenchmarkLongFormValidationEvidenceStatus {
   if (
@@ -100,6 +108,8 @@ function statusFor(input: {
     input.deliverablePresent &&
     input.costLedgerEntryCount > 0 &&
     input.manualQualityReviewPassed &&
+    input.manualReviewArtifactBindingMatched &&
+    input.manualReviewArtifactBindingStatus === "matched" &&
     isLongFormDuration(input.finalDurationSeconds)
   ) {
     return "accepted";
@@ -122,6 +132,8 @@ function findingsFor(input: {
   readonly deliverablePresent: boolean;
   readonly costLedgerEntryCount: number;
   readonly manualQualityReviewPassed: boolean;
+  readonly manualReviewArtifactBindingMatched: boolean;
+  readonly manualReviewArtifactBindingStatus?: string;
   readonly finalDurationSeconds?: number;
 }): readonly string[] {
   if (input.status === "accepted") {
@@ -154,6 +166,9 @@ function findingsFor(input: {
   }
   if (!input.manualQualityReviewPassed) {
     findings.push("Long-form manual quality/redaction review is missing or not accepted.");
+  }
+  if (!input.manualReviewArtifactBindingMatched || input.manualReviewArtifactBindingStatus !== "matched") {
+    findings.push(`Long-form manual quality/redaction review artifact binding is ${input.manualReviewArtifactBindingStatus ?? "missing"}.`);
   }
   if (!isLongFormDuration(input.finalDurationSeconds)) {
     findings.push(`Long-form final duration is ${input.finalDurationSeconds ?? "missing"}; expected 120-480s.`);

@@ -95,7 +95,7 @@ flowchart LR
 - `Snapshot Parity Audit`: no-spend local guardrail that verifies expected subtree snapshots, source-lineage coverage, Reference Implementation anchors, and the no-direct-import boundary before parity claims or launch-doctor handoff.
 - `Billing Admin Operations Evidence`: archives no-spend client-policy, usage-ledger, deployment admin endpoint, and non-secret billing/admin attestation evidence; it does not call payment provider APIs or replace external billing systems.
 - `Production Operations Evidence`: archives no-spend real-host diagnostic endpoint evidence plus non-secret durable storage, backup, monitoring, incident, support, redaction, and retention attestation evidence.
-- `Long-Form Validation Evidence`: archives 2-8 minute request admission, readiness, budget, provider-safe chunking, paid-render, artifact, and manual quality/redaction review evidence before business-readiness can count long-form rendering.
+- `Long-Form Validation Evidence`: archives 2-8 minute request admission, readiness, budget, provider-safe chunking, paid-render, artifact, and artifact-bound manual quality/redaction review evidence before business-readiness can count long-form rendering.
 - `Generated Audio Validation Evidence`: archives Atlas generated-audio capability, spend gate, schema-review, execution, output-batch, ledger, and manual-review evidence for the business-readiness audit.
 - `Review Packet`: redacted customer/operator handoff artifact summarizing planning, render, cost, delivery, and QC evidence.
 

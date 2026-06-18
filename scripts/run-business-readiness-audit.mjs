@@ -416,7 +416,9 @@ function evaluateLongFormValidationReport(report) {
     report.paidRender?.artifactValidationStatus === "pass" &&
     report.chunkPlan?.status === "pass" &&
     Number(report.artifactEvidence?.renderedShotCount ?? 0) > 0 &&
-    report.manualQualityReview?.passed === true
+    report.manualQualityReview?.passed === true &&
+    report.manualQualityReview?.bindingMatched === true &&
+    report.manualQualityReview?.artifactBindingStatus === "matched"
   ) {
     return pass(`Long-form validation evidence covers ${finalDurationSeconds}s and passed required checks.`);
   }

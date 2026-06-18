@@ -318,7 +318,7 @@ function buildProductCodeGaps() {
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["jiaminchen-1031/DirectorBench"],
       requiredAction:
-        "Run validation:quality-benchmark on real 2-8 minute paid artifacts and close every unmet parityEvidenceMatrix requirement: actual detected transition boundaries, waveform-analyzed and duration-sync-checked audio, structured semantic/audio/runtime review JSON, structured governance-review JSON, accepted generated-audio validation report evidence, accepted long-form validation report evidence, accepted ASR transcript alignment and lip-sync timing checkpoints, accepted long-form manual review, and accepted permission/legal review before claiming DirectorBench-style parity.",
+        "Run validation:quality-benchmark on real 2-8 minute paid artifacts and close every unmet parityEvidenceMatrix requirement: actual detected transition boundaries, waveform-analyzed and duration-sync-checked audio, structured semantic/audio/runtime review JSON, structured governance-review JSON, accepted generated-audio validation report evidence, accepted long-form validation report evidence, accepted ASR transcript alignment and lip-sync timing checkpoints, accepted artifact-bound long-form manual review, and accepted permission/legal review before claiming DirectorBench-style parity.",
       canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,

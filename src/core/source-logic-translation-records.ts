@@ -2743,7 +2743,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "structured governance-review checkpoints can record accepted license boundary, code reuse boundary, runtime evaluator independence, and evaluation-asset permission evidence without importing upstream evaluator code",
       "structured review summaries and findings are bounded to aggregate redacted text before benchmark reports can retain them",
       "generated-audio validation reports can reinforce provider-backed audio evidence through redacted spend, billing, schema, execution, output-batch, ledger, and manual-review gates",
-      "long-form validation reports can reinforce long-form duration and manual-review evidence through redacted budget, billing, paid-render, artifact, duration, cost-ledger, and manual quality-review gates",
+      "long-form validation reports can reinforce long-form duration and manual-review evidence through redacted budget, billing, paid-render, artifact, duration, cost-ledger, and artifact-fingerprint-bound manual quality-review gates",
       "benchmark runs can be appended to JSONL history without overwriting prior evidence"
     ],
     behaviorChanged: [

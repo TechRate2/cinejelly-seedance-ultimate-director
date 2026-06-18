@@ -366,9 +366,9 @@ function buildRequiredInputs(reports) {
       sensitivity: "manual_review",
       requiredFor: ["long_form_paid_validation"],
       envVars: [],
-      filePaths: ["assets/output_deliverables/business-readiness/long-form-validation-report.json"],
-      acceptance: "After the paid 2-8 minute validation run, inspect artifacts, media quality, cost ledger, review packet, and redaction evidence.",
-      validationCommand: "npm.cmd run validation:long-form -- --duration-seconds 120 --max-cost-usd <approved-budget> --confirm-paid-spend --confirm-manual-quality-review",
+      filePaths: ["assets/output_deliverables/business-readiness/long-form-validation-report.json", "ops/long-form-manual-quality-review.json"],
+      acceptance: "After the paid 2-8 minute validation run, inspect artifacts, media quality, cost ledger, review packet, and redaction evidence; bind the review JSON to the paid projectId, manifestSha256, and deliverableSha256.",
+      validationCommand: "npm.cmd run validation:long-form -- --duration-seconds 120 --max-cost-usd <approved-budget> --confirm-paid-spend --manual-quality-review ops/long-form-manual-quality-review.json --confirm-manual-quality-review",
       blockerMessage: failingMessage(business, "long_form_paid_validation")
     }),
     input({
@@ -704,7 +704,10 @@ function paidCommandIssues(item, scriptName, command) {
       "--max-cost-usd"
     ]);
   }
-  if (scriptName === "validation:long-form" || scriptName === "validation:paid-render") {
+  if (scriptName === "validation:long-form") {
+    return requiredFlagIssues(item, command, ["--confirm-paid-spend", "--max-cost-usd", "--manual-quality-review", "--confirm-manual-quality-review"]);
+  }
+  if (scriptName === "validation:paid-render") {
     return requiredFlagIssues(item, command, ["--confirm-paid-spend", "--max-cost-usd"]);
   }
   if (scriptName === "validation:source-video-auto-analysis") {

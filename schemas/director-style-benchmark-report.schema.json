@@ -615,6 +615,7 @@
         "deliverablePresent",
         "costLedgerEntryCount",
         "manualQualityReviewPassed",
+        "manualReviewArtifactBindingMatched",
         "findings"
       ],
       "properties": {
@@ -636,6 +637,8 @@
         "deliverablePresent": { "type": "boolean" },
         "costLedgerEntryCount": { "type": "integer", "minimum": 0 },
         "manualQualityReviewPassed": { "type": "boolean" },
+        "manualReviewArtifactBindingMatched": { "type": "boolean" },
+        "manualReviewArtifactBindingStatus": { "type": "string", "minLength": 1, "maxLength": 80 },
         "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
       }
     },

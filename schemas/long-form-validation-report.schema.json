@@ -262,11 +262,13 @@
         "present": { "type": "boolean" },
         "projectId": { "type": "string" },
         "artifactRoot": { "type": "string" },
+        "manifestSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "targetDurationSeconds": { "type": "number", "minimum": 0 },
         "finalDurationSeconds": { "type": "number", "minimum": 0 },
         "renderedShotCount": { "type": "integer", "minimum": 0 },
         "compiledPromptCount": { "type": "integer", "minimum": 0 },
         "deliverablePresent": { "type": "boolean" },
+        "deliverableSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "deliveryGateStatus": { "type": "string" },
         "costGateStatus": { "type": "string" },
         "message": { "type": "string" }
@@ -275,12 +277,32 @@
     "manualQualityReview": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["present", "passed", "message"],
+      "required": ["present", "passed", "bindingMatched", "artifactBindingStatus", "message"],
       "properties": {
         "present": { "type": "boolean" },
-        "source": { "type": "string" },
+        "source": {
+          "enum": [
+            "operator_flag",
+            "operator_review_json",
+            "operator_review_text"
+          ]
+        },
         "path": { "type": "string" },
         "passed": { "type": "boolean" },
+        "bindingMatched": { "type": "boolean" },
+        "artifactBindingStatus": {
+          "enum": [
+            "not_evaluated",
+            "missing_artifact_evidence",
+            "missing_review_binding",
+            "matched",
+            "mismatch",
+            "unbound_operator_flag"
+          ]
+        },
+        "reviewedProjectId": { "type": "string", "pattern": "^[a-zA-Z0-9_.:-]{1,160}$" },
+        "reviewedManifestSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "reviewedDeliverableSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "message": { "type": "string" }
       }
     },

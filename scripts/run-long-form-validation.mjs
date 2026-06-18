@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -145,10 +146,10 @@ Options:
                                          Maximum age for Atlas billing readiness evidence. Default: ${defaults.atlasBillingEvidenceMaxAgeHours}
   --user-input <text>                    Used only when creating the default request.
   --paid-report <path>                   Nested paid-render report path. Default: ${defaults.paidReportPath}
-  --manual-quality-review <path>         Optional operator review note containing a pass decision.
+  --manual-quality-review <path>         Operator review JSON/text with pass decision and artifact fingerprints.
   --confirm-paid-spend                   Required before invoking the paid render validation runner.
   --allow-warnings                       Pass through readiness warnings after operator acceptance.
-  --confirm-manual-quality-review        Operator confirms the final long-form output was watched and accepted.
+  --confirm-manual-quality-review        Operator attests the supplied manual review was completed after output review.
   --output <path>                        JSON report path. Default: ${defaults.outputPath}
   --no-output                            Print only; do not write the report.
 
@@ -173,7 +174,7 @@ async function main() {
   const costEstimate = estimateCost(durationSeconds);
   const atlasBillingGate = summarizeAtlasBillingGate(options, costEstimate);
   const chunkPlan = buildChunkPlan(modules, normalizedSettings);
-  const manualQualityReview = readManualQualityReview(options);
+  const manualQualityReviewInput = readManualQualityReview(options);
   const baseChecks = [
     ...checksForRequest(requestEvidence, normalizedSettings, requestValidation),
     ...checksForReadiness(readiness, options.allowWarnings),
@@ -197,7 +198,7 @@ async function main() {
       atlasBillingGate,
       paidRender: emptyPaidRenderSummary(),
       artifactEvidence: emptyArtifactEvidence(),
-      manualQualityReview
+      manualQualityReview: manualQualityReviewInput
     });
     writeMaybe(options, report);
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -223,7 +224,7 @@ async function main() {
       atlasBillingGate,
       paidRender: emptyPaidRenderSummary(),
       artifactEvidence: emptyArtifactEvidence(),
-      manualQualityReview
+      manualQualityReview: manualQualityReviewInput
     });
     writeMaybe(options, report);
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -247,7 +248,7 @@ async function main() {
       atlasBillingGate,
       paidRender: emptyPaidRenderSummary(),
       artifactEvidence: emptyArtifactEvidence(),
-      manualQualityReview
+      manualQualityReview: manualQualityReviewInput
     });
     writeMaybe(options, report);
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -260,12 +261,16 @@ async function main() {
     requestPath: requestEvidence.absoluteRequestPath,
     normalizedRequest
   });
+  const manualQualityReview = bindManualQualityReviewToArtifact(manualQualityReviewInput, liveEvidence.artifactEvidence);
   const checks = [
     ...baseChecks,
     ...liveEvidence.checks,
     manualQualityReview.passed
       ? pass("manual_quality_review", "Operator manual long-form quality/redaction review passed.")
-      : fail("manual_quality_review", "Manual long-form quality/redaction review is required before this evidence can count for business readiness.")
+      : fail("manual_quality_review", "Manual long-form quality/redaction review is required before this evidence can count for business readiness."),
+    manualQualityReview.artifactBindingStatus === "matched"
+      ? pass("manual_quality_review_artifact_binding", "Manual long-form quality review is bound to the paid artifact fingerprints.")
+      : fail("manual_quality_review_artifact_binding", manualQualityReview.message)
   ];
   const status = statusForChecks(checks);
   const report = buildReport({
@@ -567,11 +572,14 @@ function readArtifactEvidence({ outputRoot, artifactDirectory, projectId }) {
     };
   }
   const runSummary = readJsonIfExists(join(artifactRoot, "run-summary.json"));
-  const deliverable = readJsonIfExists(join(artifactRoot, "deliverable.json"));
+  const manifestPath = join(artifactRoot, "manifest.json");
+  const deliverablePath = join(artifactRoot, "deliverable.json");
+  const deliverable = readJsonIfExists(deliverablePath);
   return {
     present: true,
     projectId,
     artifactRoot: evidencePathForArtifactRoot(artifactRoot, projectId),
+    manifestSha256: sha256File(manifestPath),
     targetDurationSeconds: numberOrUndefined(runSummary?.targetDurationSeconds),
     finalDurationSeconds:
       numberOrUndefined(deliverable?.inspection?.metadata?.durationSeconds) ??
@@ -579,6 +587,7 @@ function readArtifactEvidence({ outputRoot, artifactDirectory, projectId }) {
     renderedShotCount: numberOrUndefined(runSummary?.renderedShotCount) ?? 0,
     compiledPromptCount: numberOrUndefined(runSummary?.compiledPromptCount) ?? 0,
     deliverablePresent: Boolean(deliverable),
+    ...(deliverable ? { deliverableSha256: sha256File(deliverablePath) } : {}),
     deliveryGateStatus: typeof runSummary?.deliveryGateStatus === "string" ? runSummary.deliveryGateStatus : undefined,
     costGateStatus: typeof runSummary?.costGateStatus === "string" ? runSummary.costGateStatus : undefined
   };
@@ -643,7 +652,8 @@ function buildReport({
     finalDuration <= 480 &&
     chunkPlan.status === "pass" &&
     artifactEvidence.renderedShotCount > 0 &&
-    manualQualityReview.passed === true;
+    manualQualityReview.passed === true &&
+    manualQualityReview.artifactBindingStatus === "matched";
 
   return {
     schemaVersion: "cinejelly.long-form-validation.v1",
@@ -732,19 +742,16 @@ function emptyArtifactEvidence() {
 }
 
 function readManualQualityReview(options) {
-  if (options.confirmManualQualityReview) {
-    return {
-      present: true,
-      source: "operator_flag",
-      passed: true,
-      message: "Operator confirmed long-form manual quality/redaction review passed."
-    };
-  }
   if (!options.manualQualityReviewPath) {
     return {
-      present: false,
+      present: options.confirmManualQualityReview,
+      ...(options.confirmManualQualityReview ? { source: "operator_flag" } : {}),
       passed: false,
-      message: "No manual long-form quality/redaction review evidence was supplied."
+      bindingMatched: false,
+      artifactBindingStatus: options.confirmManualQualityReview ? "unbound_operator_flag" : "not_evaluated",
+      message: options.confirmManualQualityReview
+        ? "Operator flag was supplied without a manual review file bound to the paid artifact fingerprints."
+        : "No manual long-form quality/redaction review evidence was supplied."
     };
   }
   const absolutePath = resolve(repoRoot, options.manualQualityReviewPath);
@@ -752,24 +759,163 @@ function readManualQualityReview(options) {
     return {
       present: false,
       passed: false,
+      bindingMatched: false,
+      artifactBindingStatus: "not_evaluated",
       path: toRepoRelative(options.manualQualityReviewPath),
       message: "Manual long-form review file does not exist."
     };
   }
   const text = readFileSync(absolutePath, "utf8");
+  const parsed = parseManualQualityReviewJson(text);
+  if (parsed) {
+    const passed =
+      parseReviewPass(parsed.decision ?? parsed.status ?? parsed.qualityReviewDecision) &&
+      booleanOrPassString(parsed.redactionReviewPassed ?? parsed.redactionReview ?? parsed.redactionStatus) &&
+      options.confirmManualQualityReview === true;
+    return {
+      present: true,
+      source: "operator_review_json",
+      path: toRepoRelative(options.manualQualityReviewPath),
+      passed,
+      bindingMatched: false,
+      artifactBindingStatus: "not_evaluated",
+      ...(safeFingerprint(parsed.reviewedProjectId ?? parsed.projectId) ? { reviewedProjectId: safeFingerprint(parsed.reviewedProjectId ?? parsed.projectId) } : {}),
+      ...(safeSha256(parsed.reviewedManifestSha256 ?? parsed.manifestSha256) ? { reviewedManifestSha256: safeSha256(parsed.reviewedManifestSha256 ?? parsed.manifestSha256) } : {}),
+      ...(safeSha256(parsed.reviewedDeliverableSha256 ?? parsed.deliverableSha256) ? { reviewedDeliverableSha256: safeSha256(parsed.reviewedDeliverableSha256 ?? parsed.deliverableSha256) } : {}),
+      message: passed
+        ? "Manual long-form review JSON contains a confirmed pass decision and redaction review."
+        : "Manual long-form review JSON must pass quality and redaction review, and --confirm-manual-quality-review must be supplied."
+    };
+  }
   const normalized = text.toLowerCase();
+  const textBinding = parseManualQualityReviewTextBinding(text);
   const passed =
-    normalized.includes("manual long-form review passes") ||
-    normalized.includes("long-form quality review passes") ||
-    (normalized.includes("decision") && normalized.includes("pass") && normalized.includes("redaction"));
+    options.confirmManualQualityReview === true &&
+    (
+      normalized.includes("manual long-form review passes") ||
+      normalized.includes("long-form quality review passes") ||
+      (normalized.includes("decision") && normalized.includes("pass") && normalized.includes("redaction"))
+    );
   return {
     present: true,
+    source: "operator_review_text",
     path: toRepoRelative(options.manualQualityReviewPath),
     passed,
+    bindingMatched: false,
+    artifactBindingStatus: "not_evaluated",
+    ...(textBinding.reviewedProjectId ? { reviewedProjectId: textBinding.reviewedProjectId } : {}),
+    ...(textBinding.reviewedManifestSha256 ? { reviewedManifestSha256: textBinding.reviewedManifestSha256 } : {}),
+    ...(textBinding.reviewedDeliverableSha256 ? { reviewedDeliverableSha256: textBinding.reviewedDeliverableSha256 } : {}),
     message: passed
       ? "Manual long-form review file contains a pass decision."
-      : "Manual long-form review file does not contain a clear pass decision and redaction review."
+      : "Manual long-form review file does not contain a confirmed pass decision and redaction review."
   };
+}
+
+function bindManualQualityReviewToArtifact(review, artifactEvidence) {
+  if (!review.present) {
+    return review;
+  }
+  if (!artifactEvidence.present) {
+    return {
+      ...review,
+      passed: false,
+      bindingMatched: false,
+      artifactBindingStatus: "missing_artifact_evidence",
+      message: "Manual long-form review cannot be bound because paid artifact evidence is missing."
+    };
+  }
+  if (review.source === "operator_flag") {
+    return {
+      ...review,
+      passed: false,
+      bindingMatched: false,
+      artifactBindingStatus: "unbound_operator_flag",
+      message: "Operator flag is not enough; provide a manual review file with project, manifest, and deliverable fingerprints."
+    };
+  }
+  const requiredReviewBindingPresent =
+    Boolean(review.reviewedProjectId) &&
+    Boolean(review.reviewedManifestSha256) &&
+    Boolean(review.reviewedDeliverableSha256);
+  const artifactBindingPresent =
+    Boolean(artifactEvidence.projectId) &&
+    Boolean(artifactEvidence.manifestSha256) &&
+    Boolean(artifactEvidence.deliverableSha256);
+  if (!requiredReviewBindingPresent || !artifactBindingPresent) {
+    return {
+      ...review,
+      passed: false,
+      bindingMatched: false,
+      artifactBindingStatus: "missing_review_binding",
+      message: "Manual long-form review must include reviewedProjectId, reviewedManifestSha256, and reviewedDeliverableSha256 matching the paid artifact."
+    };
+  }
+  const bindingMatched =
+    review.reviewedProjectId === artifactEvidence.projectId &&
+    review.reviewedManifestSha256 === artifactEvidence.manifestSha256 &&
+    review.reviewedDeliverableSha256 === artifactEvidence.deliverableSha256;
+  return {
+    ...review,
+    passed: review.passed === true && bindingMatched,
+    bindingMatched,
+    artifactBindingStatus: bindingMatched ? "matched" : "mismatch",
+    message: bindingMatched
+      ? "Manual long-form review is bound to the paid artifact project, manifest, and deliverable fingerprints."
+      : "Manual long-form review fingerprints do not match the paid artifact evidence."
+  };
+}
+
+function parseManualQualityReviewJson(text) {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("{")) {
+    return undefined;
+  }
+  try {
+    const value = JSON.parse(trimmed);
+    return value && typeof value === "object" && !Array.isArray(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseManualQualityReviewTextBinding(text) {
+  return {
+    reviewedProjectId: safeFingerprint(captureKeyValue(text, "reviewedProjectId") ?? captureKeyValue(text, "projectId")),
+    reviewedManifestSha256: safeSha256(captureKeyValue(text, "reviewedManifestSha256") ?? captureKeyValue(text, "manifestSha256")),
+    reviewedDeliverableSha256: safeSha256(captureKeyValue(text, "reviewedDeliverableSha256") ?? captureKeyValue(text, "deliverableSha256"))
+  };
+}
+
+function captureKeyValue(text, key) {
+  const pattern = new RegExp(`(?:^|\\n)\\s*${key}\\s*[:=]\\s*([^\\s,;]+)`, "i");
+  return text.match(pattern)?.[1];
+}
+
+function parseReviewPass(value) {
+  if (value === true) {
+    return true;
+  }
+  return typeof value === "string" && ["pass", "passed", "accepted"].includes(value.trim().toLowerCase());
+}
+
+function booleanOrPassString(value) {
+  if (value === true) {
+    return true;
+  }
+  return typeof value === "string" && ["pass", "passed", "accepted"].includes(value.trim().toLowerCase());
+}
+
+function safeSha256(value) {
+  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim()) ? value.trim().toLowerCase() : undefined;
+}
+
+function safeFingerprint(value) {
+  return typeof value === "string" && /^[a-z0-9_.:-]{1,160}$/i.test(value.trim()) ? value.trim() : undefined;
+}
+
+function sha256File(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
 function summarizeAtlasBillingGate(options, costEstimate) {

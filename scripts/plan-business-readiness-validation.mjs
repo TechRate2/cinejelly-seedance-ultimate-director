@@ -641,11 +641,11 @@ function buildBudgetConstrainedSlices({
         plannedCostUsd: longFormEstimate,
         outputPath: "assets/output_deliverables/business-readiness/atlas-billing-long-form-120s-report.json"
       }),
-      command: `npm.cmd run validation:long-form -- --duration-seconds ${longFormDurationSeconds} --max-cost-usd ${formatNumber(maxBudgetUsd)} --confirm-paid-spend --confirm-manual-quality-review`,
+      command: `npm.cmd run validation:long-form -- --duration-seconds ${longFormDurationSeconds} --max-cost-usd ${formatNumber(maxBudgetUsd)} --confirm-paid-spend --manual-quality-review ops/long-form-manual-quality-review.json --confirm-manual-quality-review`,
       prerequisites: [
         "fresh Atlas billing readiness captured for the long-form budget",
         "Atlas media API key and Seedance model configuration",
-        "manual long-form media/redaction review after output"
+        "manual long-form media/redaction review JSON bound to the paid projectId, manifestSha256, and deliverableSha256 after output"
       ],
       limitations: [
         "requires a 120-480s paid render budget",
@@ -946,10 +946,10 @@ function buildValidationSequence({
       name: "long_form_paid_validation",
       kind: "paid_atlas_video",
       status: longFormReady ? "ready" : "blocked",
-      command: `npm.cmd run validation:long-form -- --duration-seconds ${options.longFormDurationSeconds} --max-cost-usd ${options.maxBudgetUsd} --confirm-paid-spend --confirm-manual-quality-review`,
+      command: `npm.cmd run validation:long-form -- --duration-seconds ${options.longFormDurationSeconds} --max-cost-usd ${options.maxBudgetUsd} --confirm-paid-spend --manual-quality-review ops/long-form-manual-quality-review.json --confirm-manual-quality-review`,
       requiredInputs:
         longFormReady
-          ? ["manual long-form media/redaction review after output"]
+          ? ["manual long-form media/redaction review JSON bound to the paid projectId, manifestSha256, and deliverableSha256 after output"]
           : [
               ...(longFormInputReady ? [] : ["approved long-form budget at or above the current estimate", "Atlas media API key/model config"]),
               ...(longFormBillingReady ? [] : [longFormBillingGateInput])

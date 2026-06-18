@@ -349,6 +349,8 @@ export interface DirectorStyleBenchmarkLongFormValidationEvidence {
   readonly deliverablePresent: boolean;
   readonly costLedgerEntryCount: number;
   readonly manualQualityReviewPassed: boolean;
+  readonly manualReviewArtifactBindingMatched: boolean;
+  readonly manualReviewArtifactBindingStatus?: string;
   readonly findings: readonly string[];
 }
 

@@ -731,7 +731,7 @@ export class DirectorStyleBenchmarkEvaluator {
   ): readonly string[] {
     const actions = new Set<string>();
     if (facts.longFormValidationEvidence && facts.longFormValidationEvidence.status !== "accepted") {
-      actions.add("Complete long-form validation budget, Atlas billing, paid render, artifact, duration, cost-ledger, and manual quality-review gates before treating long-form evidence as accepted.");
+      actions.add("Complete long-form validation budget, Atlas billing, paid render, artifact, duration, cost-ledger, and artifact-bound manual quality-review gates before treating long-form evidence as accepted.");
     } else if (!this.hasMeasuredLongFormDuration(facts) && !this.hasAcceptedLongFormValidation(facts)) {
       actions.add("Run the benchmark against a paid 2-8 minute long-form output before using it as long-form production evidence.");
     }
@@ -866,7 +866,7 @@ export class DirectorStyleBenchmarkEvaluator {
             : []),
           ...(facts.longFormValidationEvidence
             ? [
-                `Long-form validation status=${facts.longFormValidationEvidence.status}; reportStatus=${facts.longFormValidationEvidence.reportStatus}; finalDuration=${facts.longFormValidationEvidence.finalDurationSeconds ?? "missing"}s; ledgerEntries=${facts.longFormValidationEvidence.costLedgerEntryCount}.`
+                `Long-form validation status=${facts.longFormValidationEvidence.status}; reportStatus=${facts.longFormValidationEvidence.reportStatus}; finalDuration=${this.formatSeconds(facts.longFormValidationEvidence.finalDurationSeconds)}; ledgerEntries=${facts.longFormValidationEvidence.costLedgerEntryCount}; manualReviewBinding=${facts.longFormValidationEvidence.manualReviewArtifactBindingStatus ?? "missing"}.`
               ]
             : [])
         ],
@@ -944,13 +944,13 @@ export class DirectorStyleBenchmarkEvaluator {
           ...(hasAcceptedManualReview ? ["Manual review text is present and accepted."] : []),
           ...(facts.longFormValidationEvidence
             ? [
-                `Long-form validation manualReviewPassed=${facts.longFormValidationEvidence.manualQualityReviewPassed}; status=${facts.longFormValidationEvidence.status}.`
+                `Long-form validation manualReviewPassed=${facts.longFormValidationEvidence.manualQualityReviewPassed}; manualReviewBinding=${facts.longFormValidationEvidence.manualReviewArtifactBindingStatus ?? "missing"}; status=${facts.longFormValidationEvidence.status}.`
               ]
             : [])
         ],
         missingEvidence: hasAcceptedLongFormValidation || (hasAcceptedManualReview && hasLongFormDuration)
           ? []
-          : ["Accepted manual review for the same paid 2-8 minute long-form media artifact or accepted long-form validation report with manual quality/redaction review."],
+          : ["Accepted manual review for the same paid 2-8 minute long-form media artifact or accepted long-form validation report with artifact-bound manual quality/redaction review."],
         notes: "Manual review only proves parity evidence when attached to the same long-form artifact under test."
       }),
       this.parityRequirement({
@@ -1099,8 +1099,8 @@ export class DirectorStyleBenchmarkEvaluator {
       severity: evidence.status === "accepted" ? "info" : evidence.status === "needs_review" ? "warn" : "block",
       message:
         evidence.status === "accepted"
-          ? `Long-form validation report is accepted; finalDuration=${evidence.finalDurationSeconds}s, ledgerEntries=${evidence.costLedgerEntryCount}.`
-          : `Long-form validation report is ${evidence.status}; reportStatus=${evidence.reportStatus}, finalDuration=${evidence.finalDurationSeconds ?? "missing"}s, manualReview=${evidence.manualQualityReviewPassed}.`,
+          ? `Long-form validation report is accepted; finalDuration=${this.formatSeconds(evidence.finalDurationSeconds)}, ledgerEntries=${evidence.costLedgerEntryCount}, manualReviewBinding=${evidence.manualReviewArtifactBindingStatus ?? "missing"}.`
+          : `Long-form validation report is ${evidence.status}; reportStatus=${evidence.reportStatus}, finalDuration=${this.formatSeconds(evidence.finalDurationSeconds)}, manualReview=${evidence.manualQualityReviewPassed}, manualReviewBinding=${evidence.manualReviewArtifactBindingStatus ?? "missing"}.`,
       source: "long_form_validation_report"
     };
   }
@@ -1194,6 +1194,8 @@ export class DirectorStyleBenchmarkEvaluator {
       evidence.deliverablePresent === true &&
       evidence.costLedgerEntryCount > 0 &&
       evidence.manualQualityReviewPassed === true &&
+      evidence.manualReviewArtifactBindingMatched === true &&
+      evidence.manualReviewArtifactBindingStatus === "matched" &&
       evidence.finalDurationSeconds !== undefined &&
       evidence.finalDurationSeconds >= 120 &&
       evidence.finalDurationSeconds <= 480;
@@ -1403,5 +1405,9 @@ export class DirectorStyleBenchmarkEvaluator {
 
   private round(value: number): number {
     return Math.round(value * 1000) / 1000;
+  }
+
+  private formatSeconds(value: number | undefined): string {
+    return value === undefined ? "missing" : `${value}s`;
   }
 }

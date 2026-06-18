@@ -1,6 +1,6 @@
 # Reference Implementation: Long-Form Validation Runner
 
-Implementation status as of 2026-06-16: implemented as a CineJelly-owned no-spend-by-default evidence CLI, JSON schema, package command, business-readiness input, and operator documentation. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-18: implemented as a CineJelly-owned no-spend-by-default evidence CLI, JSON schema, package command, business-readiness input, manual-review artifact fingerprint binding, and operator documentation. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Source And Provider Pattern
 
@@ -24,7 +24,7 @@ The runner must:
 6. Block before live render validation when the estimated total cost exceeds `--max-cost-usd`.
 7. Delegate live provider work to the existing paid-render validation runner instead of duplicating provider orchestration.
 8. Require a fresh Atlas billing-readiness report for the long-form slice whose `plannedCostUsd` matches the current duration estimate and whose approved budget covers `--max-cost-usd`.
-9. Require paid render completion, artifact validation pass, 120 to 480 second final duration, rendered shot evidence, and manual quality/redaction review before business-readiness can count the evidence.
+9. Require paid render completion, artifact validation pass, 120 to 480 second final duration, rendered shot evidence, and manual quality/redaction review bound to the same paid `projectId`, `manifestSha256`, and `deliverableSha256` before business-readiness can count the evidence.
 10. Redact secrets, signed URL query values, provider credentials, raw stack traces, and server-local artifact roots from archived reports.
 11. Never mark customer traffic open from long-form evidence alone; all other business-readiness gates must pass too.
 
@@ -66,8 +66,23 @@ interface LongFormValidationReport {
   costEstimate: object;
   chunkPlan: object;
   paidRender: object;
-  artifactEvidence: object;
-  manualQualityReview: object;
+  artifactEvidence: {
+    present: boolean;
+    manifestSha256?: string;
+    deliverableSha256?: string;
+  };
+  manualQualityReview: {
+    present: boolean;
+    passed: boolean;
+    bindingMatched: boolean;
+    artifactBindingStatus:
+      | "not_evaluated"
+      | "missing_artifact_evidence"
+      | "missing_review_binding"
+      | "matched"
+      | "mismatch"
+      | "unbound_operator_flag";
+  };
   releaseGateSummary: {
     canUseAsBusinessReadinessLongFormEvidence: boolean;
     canOpenPaidCustomerTraffic: false;
@@ -81,10 +96,23 @@ interface LongFormValidationReport {
 ```powershell
 npm.cmd run validation:long-form -- --duration-seconds 120
 npm.cmd run validation:atlas-billing -- --max-budget-usd 25 --planned-cost-usd 24.000000 --output assets/output_deliverables/business-readiness/atlas-billing-long-form-120s-report.json --confirm-live-network
-npm.cmd run validation:long-form -- --request "assets/output_deliverables/business-readiness/long-form-request.json" --max-cost-usd 25 --confirm-paid-spend
+npm.cmd run validation:long-form -- --request "assets/output_deliverables/business-readiness/long-form-request.json" --max-cost-usd 25 --confirm-paid-spend --manual-quality-review ops/long-form-manual-quality-review.json --confirm-manual-quality-review
 ```
 
-The default run writes a blocked no-spend report when spend confirmation is missing or the local budget ceiling is too low. A live run still requires a slice-specific Atlas billing report before provider spend, the paid-render runner to pass, artifact validation to pass, and an operator manual quality/redaction review before the business-readiness audit accepts it.
+The default run writes a blocked no-spend report when spend confirmation is missing or the local budget ceiling is too low. A live run still requires a slice-specific Atlas billing report before provider spend, the paid-render runner to pass, artifact validation to pass, and an operator manual quality/redaction review JSON bound to the emitted paid artifact fingerprints before the business-readiness audit accepts it. A bare `--confirm-manual-quality-review` flag without a review file remains archived as an unbound operator attestation and cannot make the report accepted.
+
+Manual review JSON should be written only after the paid run emits artifact evidence:
+
+```json
+{
+  "schemaVersion": "cinejelly.long-form-manual-quality-review.v1",
+  "decision": "pass",
+  "redactionReviewPassed": true,
+  "reviewedProjectId": "<artifactEvidence.projectId>",
+  "reviewedManifestSha256": "<artifactEvidence.manifestSha256>",
+  "reviewedDeliverableSha256": "<artifactEvidence.deliverableSha256>"
+}
+```
 
 ## Done
 
@@ -92,10 +120,10 @@ The default run writes a blocked no-spend report when spend confirmation is miss
 - Done: add `schemas/long-form-validation-report.schema.json`.
 - Done: add `npm.cmd run validation:long-form`.
 - Done: add schema-aware long-form evaluation to `validation:business-readiness`.
-- Done: document the no-spend, budget, Atlas billing, paid-spend, artifact, and manual-review gates.
+- Done: document the no-spend, budget, Atlas billing, paid-spend, artifact, and artifact-bound manual-review gates.
 
 ## Remaining
 
 - Run the paid long-form validation only after the operator approves a budget ceiling that covers the estimated duration cost.
-- Archive manual quality/redaction review evidence for the live long-form output.
+- Archive artifact-bound manual quality/redaction review evidence for the live long-form output.
 - Re-run `validation:business-readiness` after deployment, source-video, remote-stock, generated-audio, billing/admin, and production-operations evidence also exists.
