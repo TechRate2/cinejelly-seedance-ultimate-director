@@ -45,6 +45,7 @@ const defaultContracts = [
   contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),
   contract("director_style_runtime_review", "schemas/director-style-runtime-review.schema.json", "assets/output_deliverables/business-readiness/director-style-runtime-review.json"),
   contract("director_style_governance_review", "schemas/director-style-governance-review.schema.json", "assets/output_deliverables/business-readiness/director-style-governance-review.json"),
+  contract("director_style_review_drafts", "schemas/director-style-review-drafts-report.schema.json", "assets/output_deliverables/business-readiness/director-style-review-drafts-report.json"),
   contract("director_style_benchmark", "schemas/director-style-benchmark-report.schema.json", "assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
   contract("billing_admin_ops", "schemas/billing-admin-ops-report.schema.json", "assets/output_deliverables/business-readiness/billing-admin-ops-report.json"),
   contract("production_operations", "schemas/production-operations-report.schema.json", "assets/output_deliverables/business-readiness/production-operations-report.json"),

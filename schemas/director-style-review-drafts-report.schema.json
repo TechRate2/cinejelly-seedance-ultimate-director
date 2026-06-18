@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/director-style-review-drafts-report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "artifactBinding",
+    "benchmarkContext",
+    "drafts",
+    "checklist",
+    "issues",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.director-style-review-drafts.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "blocked"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paidRenderReportPath",
+        "benchmarkReportPath",
+        "draftDir",
+        "checklistPath",
+        "writeDrafts",
+        "force"
+      ],
+      "properties": {
+        "paidRenderReportPath": { "$ref": "#/$defs/repoPath" },
+        "benchmarkReportPath": { "$ref": "#/$defs/repoPath" },
+        "draftDir": { "$ref": "#/$defs/repoPath" },
+        "checklistPath": { "$ref": "#/$defs/repoPath" },
+        "writeDrafts": { "type": "boolean" },
+        "force": { "type": "boolean" }
+      }
+    },
+    "artifactBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["complete"],
+      "properties": {
+        "complete": { "type": "boolean" },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
+        "requestId": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
+        "deliverableSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "benchmarkContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reportPresent", "canClaimDirectorBenchParity", "nonMetRequirementIds"],
+      "properties": {
+        "reportPresent": { "type": "boolean" },
+        "status": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "canClaimDirectorBenchParity": { "const": false },
+        "nonMetRequirementIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9_.:-]+$" }
+        }
+      }
+    },
+    "drafts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "path",
+          "schemaVersion",
+          "reviewerType",
+          "status",
+          "checkpointCount",
+          "artifactBindingComplete",
+          "written"
+        ],
+        "properties": {
+          "kind": { "enum": ["semantic", "audio", "runtime", "governance"] },
+          "path": { "$ref": "#/$defs/repoPath" },
+          "schemaVersion": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "reviewerType": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "status": { "const": "needs_review" },
+          "checkpointCount": { "type": "integer", "minimum": 1 },
+          "artifactBindingComplete": { "type": "boolean" },
+          "written": { "type": "boolean" }
+        }
+      }
+    },
+    "checklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "written"],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "written": { "type": "boolean" }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseDraftsAsAcceptedReviewEvidence",
+        "canRunQualityBenchmarkWithDrafts",
+        "canClaimDirectorBenchParity",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseDraftsAsAcceptedReviewEvidence": { "const": false },
+        "canRunQualityBenchmarkWithDrafts": { "type": "boolean" },
+        "canClaimDirectorBenchParity": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 800 }
+    }
+  },
+  "$defs": {
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    }
+  }
+}
