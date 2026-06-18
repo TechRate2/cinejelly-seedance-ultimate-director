@@ -159,6 +159,11 @@ function buildCommands(options) {
       expectedExitCodes: [0],
       blocksCodeReadiness: true
     }),
+    command("quality_benchmark", ["scripts/run-director-style-benchmark.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/director-style-benchmark-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
     command("launch_intake", ["--env-file-if-exists=.env", "scripts/validate-commercial-launch-intake.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json",
       expectedExitCodes: [0, 1],
@@ -250,6 +255,7 @@ function buildReport(options, commandRuns) {
     businessPlan: summarizeReport("assets/output_deliverables/business-readiness/business-readiness-validation-plan.json"),
     commercialInputs: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"),
     completionAudit: summarizeReport("assets/output_deliverables/business-readiness/business-completion-audit-report.json"),
+    qualityBenchmark: summarizeReport("assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
     reportContracts: summarizeReport("assets/output_deliverables/business-readiness/report-contract-validation-report.json"),
     launchIntake: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json")
   };
@@ -291,6 +297,7 @@ function buildReport(options, commandRuns) {
       evidenceCompletionPercent: numberOrZero(business?.completion?.evidenceCompletionPercent ?? completion?.readinessSnapshot?.evidenceCompletionPercent),
       businessReadinessStatus: reportSummaries.businessReadiness.status,
       releaseAuditStatus: reportSummaries.releaseAudit.status,
+      qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
       reportContractsStatus: reportSummaries.reportContracts.status,
       commercialInputsStatus: reportSummaries.commercialInputs.status,
       liveInputsStatus: reportSummaries.liveInputs.status,
@@ -439,6 +446,7 @@ function renderMarkdown(report) {
     `- Evidence completion: ${report.readinessSnapshot.evidenceCompletionPercent}%`,
     `- Business-readiness: ${report.readinessSnapshot.businessReadinessStatus}`,
     `- Release audit: ${report.readinessSnapshot.releaseAuditStatus}`,
+    `- Quality benchmark: ${report.readinessSnapshot.qualityBenchmarkStatus}`,
     `- Report contracts: ${report.readinessSnapshot.reportContractsStatus}`,
     `- Launch intake: ${report.readinessSnapshot.launchIntakeStatus}`,
     `- Approved budget: ${formatUsd(report.readinessSnapshot.approvedBudgetUsd)}`,

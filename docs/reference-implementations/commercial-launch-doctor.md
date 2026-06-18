@@ -27,6 +27,7 @@ It may:
 
 - run TypeScript build
 - run local smoke with a temporary localhost API
+- refresh the no-spend Director-style quality benchmark
 - refresh local JSON/Markdown readiness reports
 - run report-contract validation
 - summarize external/operator blockers
@@ -37,22 +38,24 @@ It may:
 2. Validate deployment package shape.
 3. Optionally run local smoke unless `--skip-local-smoke` is set.
 4. Run release audit.
-5. Run launch intake validation.
-6. Run live input validation.
-7. Run business validation plan.
-8. Run commercial input packet generation.
-9. Run business completion audit.
-10. Run business readiness audit.
-11. Write the launch doctor report.
-12. Run report-contract validation, then rewrite the doctor report with the final contract status.
+5. Run the no-spend Director-style quality benchmark.
+6. Run launch intake validation.
+7. Run live input validation.
+8. Run business validation plan.
+9. Run commercial input packet generation.
+10. Run business completion audit.
+11. Run business readiness audit.
+12. Write the launch doctor report.
+13. Run report-contract validation, then rewrite the doctor report with the final contract status.
 
-Expected blocked commands can exit non-zero without becoming code blockers. Unexpected build, local-smoke, release-audit, deployment-package, or report-contract failures become code-side blockers.
+Expected blocked or review-required commands can exit non-zero without becoming code blockers. The quality benchmark is refreshed as backend evidence, but a `blocked` or `review_required` benchmark remains product/evidence status rather than launch-doctor code failure. Unexpected build, local-smoke, release-audit, deployment-package, or report-contract failures become code-side blockers.
 
 ## Acceptance Criteria
 
 - `npm.cmd run validation:launch-doctor` writes a JSON report and a Markdown report.
 - The JSON report uses schema version `cinejelly.commercial-launch-doctor.v1`.
 - The report includes command runs, source report statuses, readiness snapshot, code-side status, blocker summary, release gate, and next actions.
+- The readiness snapshot includes the current Director-style quality benchmark status.
 - The report contract is included in `validation:report-contracts`.
 - Customer traffic remains blocked unless `validation:business-readiness` approves it.
 - Paid Atlas work remains opt-in through the existing paid validation commands.
