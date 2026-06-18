@@ -307,7 +307,7 @@ function buildProductCodeGaps() {
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, HTTPS external lease heartbeat contract evidence, a deployment-token-protected lease-service route, idempotent action-ledger execution replay, local two-worker handoff evidence, launch-doctor evidence refresh, a production handoff capture runner, and a live provider action plus graph-resume evidence contract improve post-restart auditability, but distributed/HA runtime parity still requires archived real deployment evidence, production multi-worker ownership handoff evidence, live provider action execution, and live Atlas handoff validation."
+        "Provider prediction checkpoints, reconciliation reports, local handoff smoke, HTTPS external lease heartbeat contract evidence, a deployment-token-protected lease-service route, idempotent action-ledger execution replay, local two-worker handoff evidence, launch-doctor evidence refresh, a production handoff capture runner, and a live provider action plus graph-resume evidence contract improve post-restart auditability. The live action contract now requires consistent action/providerCallKind/resultStatus tuples before graph-resume evidence can count, but distributed/HA runtime parity still requires archived real deployment evidence, production multi-worker ownership handoff evidence, live provider action execution, and live Atlas handoff validation."
     },
     {
       id: "directorbench_style_benchmark_harness",

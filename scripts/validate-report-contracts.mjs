@@ -1066,9 +1066,7 @@ function validateRenderProviderLiveActionsSemantics(report) {
   const failedChecks = checks.filter((check) => check?.status === "fail");
   const providerCallEvidenceCount = executions.filter((item) => item?.providerCallMade === true).length;
   const resumePollingEvidenceCount = executions.filter((item) => item?.action === "resume_polling").length;
-  const graphResumeEvidenceCount = executions.filter((item) =>
-    item?.providerCallKind === "graph_resume_enqueue" || item?.resultStatus === "resume_enqueued"
-  ).length;
+  const graphResumeEvidenceCount = executions.filter(isValidLiveActionGraphResumeExecution).length;
   const terminalCloseEvidenceCount = executions.filter((item) => typeof item?.action === "string" && item.action.startsWith("close_terminal_")).length;
   const manualAuditEvidenceCount = executions.filter((item) => item?.action === "manual_audit_required").length;
   const redactionReviewedCount = executions.filter((item) => item?.redactionReviewed === true).length;
@@ -1101,6 +1099,11 @@ function validateRenderProviderLiveActionsSemantics(report) {
   }
   if (unsafeStoredEvidenceCount > 0) {
     issues.push("$.executions: raw provider payloads and output URLs must not be stored in live action reports.");
+  }
+  for (const [index, execution] of executions.entries()) {
+    if (!liveActionExecutionRelationshipValid(execution)) {
+      issues.push(`$.executions[${index}]: expected action/providerCallKind/resultStatus to be internally consistent.`);
+    }
   }
   if (report?.releaseGateSummary?.canClaimDistributedResume !== false || report?.summary?.canClaimDistributedResume !== false) {
     issues.push("$.releaseGateSummary.canClaimDistributedResume/$.summary.canClaimDistributedResume: expected false until deployed graph-resume parity exists.");
@@ -1146,6 +1149,36 @@ function validateRenderProviderLiveActionsSemantics(report) {
     issues.push("$.summary/releaseGateSummary: non-pass live action report cannot be usable live-action or graph-resume evidence.");
   }
   return issues;
+}
+
+function isValidLiveActionGraphResumeExecution(item) {
+  return item?.action === "resume_polling" &&
+    item?.providerCallKind === "graph_resume_enqueue" &&
+    item?.resultStatus === "resume_enqueued" &&
+    item?.providerCallMade === true;
+}
+
+function liveActionExecutionRelationshipValid(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return false;
+  }
+  if (item.action === "resume_polling") {
+    if (item.providerCallKind === "graph_resume_enqueue") {
+      return item.resultStatus === "resume_enqueued";
+    }
+    return item.providerCallKind === "prediction_poll" && item.resultStatus === "still_active";
+  }
+  if (typeof item.action === "string" && item.action.startsWith("close_terminal_")) {
+    const kindOk = item.providerCallKind === "terminal_closeout" || item.providerCallKind === "provider_cancel_or_close";
+    const statusOk = item.action === "close_terminal_succeeded"
+      ? item.resultStatus === "closeout_recorded" || item.resultStatus === "succeeded"
+      : item.resultStatus === "closeout_recorded" || item.resultStatus === "terminal_failed";
+    return kindOk && statusOk;
+  }
+  if (item.action === "manual_audit_required") {
+    return item.providerCallKind === "manual_audit_enqueue" && item.resultStatus === "manual_audit_queued";
+  }
+  return false;
 }
 
 function validateCommercialLaunchInputsSemantics(report) {

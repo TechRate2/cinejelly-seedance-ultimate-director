@@ -45,7 +45,10 @@ const secretPatterns = [
   /(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\s*[:=]\s*["']?[^"',\s&]+/gi,
   /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/gi,
   /[A-Za-z]:\\[^\s"'<>]+/g,
-  /\/(?:home|Users|var|tmp)\/[^\s"'<>]+/g
+  /\/(?:home|Users|var|tmp)\/[^\s"'<>]+/g,
+  /https?:\/\/[^\s"'<>]+/gi,
+  /(?:file|s3|gs|ftp):\/\/[^\s"'<>]+/gi,
+  /data:[^\s"'<>]+/gi
 ];
 
 function parseArgs(args) {
@@ -314,8 +317,51 @@ function executionChecks(execution, index) {
       : fail(`${prefix}.raw_payload_not_stored`, "rawProviderPayloadStored must be false."),
     execution.outputUrlsStored === false
       ? pass(`${prefix}.output_urls_not_stored`, "Provider output URLs are not stored.")
-      : fail(`${prefix}.output_urls_not_stored`, "outputUrlsStored must be false.")
+      : fail(`${prefix}.output_urls_not_stored`, "outputUrlsStored must be false."),
+    ...executionRelationshipChecks(execution, prefix)
   ];
+}
+
+function executionRelationshipChecks(execution, prefix) {
+  if (
+    !workerActions.has(execution.action) ||
+    !providerCallKinds.has(execution.providerCallKind) ||
+    !resultStatuses.has(execution.resultStatus)
+  ) {
+    return [];
+  }
+  if (execution.action === "resume_polling") {
+    const validKind = execution.providerCallKind === "prediction_poll" || execution.providerCallKind === "graph_resume_enqueue";
+    const validStatus = execution.resultStatus === "still_active" || execution.resultStatus === "resume_enqueued";
+    const graphResumePairValid =
+      execution.providerCallKind === "graph_resume_enqueue"
+        ? execution.resultStatus === "resume_enqueued"
+        : execution.resultStatus !== "resume_enqueued";
+    return [
+      validKind && validStatus && graphResumePairValid
+        ? pass(`${prefix}.action_kind_result_consistency`, "Resume-polling action/kind/result relationship is consistent.")
+        : fail(`${prefix}.action_kind_result_consistency`, "resume_polling must use prediction_poll/still_active or graph_resume_enqueue/resume_enqueued.")
+    ];
+  }
+  if (typeof execution.action === "string" && execution.action.startsWith("close_terminal_")) {
+    const validKind = execution.providerCallKind === "terminal_closeout" || execution.providerCallKind === "provider_cancel_or_close";
+    const validStatus = execution.action === "close_terminal_succeeded"
+      ? execution.resultStatus === "closeout_recorded" || execution.resultStatus === "succeeded"
+      : execution.resultStatus === "closeout_recorded" || execution.resultStatus === "terminal_failed";
+    return [
+      validKind && validStatus
+        ? pass(`${prefix}.action_kind_result_consistency`, "Terminal-close action/kind/result relationship is consistent.")
+        : fail(`${prefix}.action_kind_result_consistency`, "close_terminal_* must use terminal close/cancel evidence and a terminal closeout result.")
+    ];
+  }
+  if (execution.action === "manual_audit_required") {
+    return [
+      execution.providerCallKind === "manual_audit_enqueue" && execution.resultStatus === "manual_audit_queued"
+        ? pass(`${prefix}.action_kind_result_consistency`, "Manual-audit action/kind/result relationship is consistent.")
+        : fail(`${prefix}.action_kind_result_consistency`, "manual_audit_required must use manual_audit_enqueue/manual_audit_queued.")
+    ];
+  }
+  return [];
 }
 
 function productionHandoffChecksFor(report) {
@@ -344,11 +390,18 @@ function summarizeExecutions(executions) {
     evidenceExecutionCount: entries.length,
     providerCallEvidenceCount: entries.filter((item) => item?.providerCallMade === true).length,
     resumePollingEvidenceCount: entries.filter((item) => item?.action === "resume_polling").length,
-    graphResumeEvidenceCount: entries.filter((item) => item?.providerCallKind === "graph_resume_enqueue" || item?.resultStatus === "resume_enqueued").length,
+    graphResumeEvidenceCount: entries.filter(isGraphResumeExecution).length,
     terminalCloseEvidenceCount: entries.filter((item) => typeof item?.action === "string" && item.action.startsWith("close_terminal_")).length,
     manualAuditEvidenceCount: entries.filter((item) => item?.action === "manual_audit_required").length,
     redactionReviewedCount: entries.filter((item) => item?.redactionReviewed === true).length
   };
+}
+
+function isGraphResumeExecution(item) {
+  return item?.action === "resume_polling" &&
+    item?.providerCallKind === "graph_resume_enqueue" &&
+    item?.resultStatus === "resume_enqueued" &&
+    item?.providerCallMade === true;
 }
 
 function emptyExecutionSummary() {

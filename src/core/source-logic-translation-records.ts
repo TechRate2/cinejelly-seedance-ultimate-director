@@ -1084,12 +1084,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "state evidence is durable enough to survive the local smoke process reload",
       "queue/state backend concerns stay behind an adapter contract",
       "live provider action evidence must be archived and reviewed before replay callbacks count as production resume proof",
-      "graph-resume enqueue evidence must be counted separately from provider polling and terminal-close callbacks before distributed-resume evidence can be considered usable"
+      "graph-resume enqueue evidence must be counted separately from provider polling and terminal-close callbacks before distributed-resume evidence can be considered usable",
+      "graph-resume evidence requires same-entry action/kind/result consistency instead of loose provider-call or status matching"
     ],
     behaviorChanged: [
       "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
       "local JSON and HTTPS lease-store adapters replace direct Redis coupling in the production TypeScript boundary",
-      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, production capture tooling can exercise the real HTTPS lease-service route, and live action evidence validation checks archived provider callbacks without claiming distributed resume parity",
+      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, production capture tooling can exercise the real HTTPS lease-service route, and live action evidence validation checks archived provider callbacks plus action/kind/result consistency without claiming distributed resume parity",
       "idempotent action-ledger records let terminal-close, resume-polling, and manual-audit intents replay by stable key without duplicating worker action records or callback execution evidence",
       "handoff reports expose redacted lease/action evidence and refuse to claim distributed resume parity",
       "raw provider payloads, output URLs, hostnames, worker owner IDs, local paths, bearer tokens, and secrets are excluded from public reports"
@@ -1137,12 +1138,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "status refresh happens before release-facing handoff decisions",
       "still-active provider work remains warning evidence rather than release approval",
-      "operator reports distinguish terminal closeout, continued polling with heartbeat, skipped work, manual audit states, and archived live provider callback evidence"
+      "operator reports distinguish terminal closeout, continued polling with heartbeat, skipped work, manual audit states, and archived live provider callback evidence",
+      "live graph-resume evidence must be tied to a resume-polling action with graph-resume enqueue and resume-enqueued result"
     ],
     behaviorChanged: [
       "VibeFrame report discipline is rewritten into CineJelly provider handoff contracts",
       "local, protected HTTP-service, HTTPS-adapted lease decisions, heartbeat renewal, local two-worker no-steal/expiry handoff validation, production capture tooling, and live action evidence validation wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
-      "idempotent action-ledger execution evidence is added for deterministic worker replay, and live action evidence validation stays separate from local replay evidence",
+      "idempotent action-ledger execution evidence is added for deterministic worker replay, and live action evidence validation stays separate from local replay evidence while rejecting inconsistent action/provider-call/result tuples",
       "distributed resume remains blocked until production multi-worker ownership handoff, live provider actions, and graph-resume enqueue evidence are proven"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",

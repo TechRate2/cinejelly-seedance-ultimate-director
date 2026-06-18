@@ -127,6 +127,24 @@
     }
   },
   "$defs": {
+    "safeEvidenceText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "not": {
+        "anyOf": [
+          { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+          { "pattern": "sk-[A-Za-z0-9_-]+" },
+          { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\\s*[:=]\\s*[\\\"']?[^\\\"',\\s&]+" },
+          { "pattern": "([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\\s]+" },
+          { "pattern": "[A-Za-z]:\\\\[^\\s\\\"'<>]+" },
+          { "pattern": "\\/(?:home|Users|var|tmp)\\/[^\\s\\\"'<>]+" },
+          { "pattern": "https?:\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "data:[^\\s\\\"'<>]+" }
+        ]
+      }
+    },
     "execution": {
       "type": "object",
       "additionalProperties": false,
@@ -144,6 +162,68 @@
         "redactionReviewed",
         "rawProviderPayloadStored",
         "outputUrlsStored"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": { "action": { "const": "resume_polling" } },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "providerCallKind": { "enum": ["prediction_poll", "graph_resume_enqueue"] },
+              "resultStatus": { "enum": ["still_active", "resume_enqueued"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "providerCallKind": { "const": "graph_resume_enqueue" } },
+            "required": ["providerCallKind"]
+          },
+          "then": {
+            "properties": {
+              "action": { "const": "resume_polling" },
+              "resultStatus": { "const": "resume_enqueued" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "resultStatus": { "const": "resume_enqueued" } },
+            "required": ["resultStatus"]
+          },
+          "then": {
+            "properties": {
+              "action": { "const": "resume_polling" },
+              "providerCallKind": { "const": "graph_resume_enqueue" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "action": { "enum": ["close_terminal_succeeded", "close_terminal_failed", "close_terminal_canceled", "close_terminal_timeout", "close_terminal_mixed"] } },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "providerCallKind": { "enum": ["terminal_closeout", "provider_cancel_or_close"] },
+              "resultStatus": { "enum": ["succeeded", "terminal_failed", "closeout_recorded"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "action": { "const": "manual_audit_required" } },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "providerCallKind": { "const": "manual_audit_enqueue" },
+              "resultStatus": { "const": "manual_audit_queued" }
+            }
+          }
+        }
       ],
       "properties": {
         "actionId": { "type": "string", "minLength": 1 },
@@ -182,7 +262,7 @@
         },
         "executedAt": { "type": "string", "format": "date-time" },
         "predictionIdCount": { "type": "integer", "minimum": 0 },
-        "evidenceSummary": { "type": "string", "minLength": 1 },
+        "evidenceSummary": { "$ref": "#/$defs/safeEvidenceText" },
         "redactionReviewed": { "type": "boolean" },
         "rawProviderPayloadStored": { "type": "boolean" },
         "outputUrlsStored": { "type": "boolean" }
