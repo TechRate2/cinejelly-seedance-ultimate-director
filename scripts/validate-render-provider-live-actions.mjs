@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -128,7 +129,7 @@ async function main() {
   const evidenceRead = readJson(options.evidencePath);
   const handoffRead = readJson(options.productionHandoffPath);
   const evidenceChecks = evidenceChecksFor(evidenceRead.value);
-  const handoffChecks = productionHandoffChecksFor(handoffRead.value);
+  const handoffChecks = productionHandoffChecksFor(handoffRead.value, evidenceRead.value);
   const evidenceExecutions = evidenceRead.value && evidenceChecks.every((item) => item.status === "pass")
     ? summarizeExecutions(evidenceRead.value.executions)
     : emptyExecutionSummary();
@@ -180,6 +181,7 @@ async function main() {
       ...evidenceExecutions,
       productionHandoffStatus: String(handoffRead.value?.status ?? "missing"),
       productionHandoffUsable: handoffRead.value?.releaseGateSummary?.canUseAsProductionHandoffEvidence === true,
+      productionHandoffDeploymentMatch: deploymentBaseUrlMatchesHandoff(evidenceRead.value, handoffRead.value),
       canUseAsLiveProviderActionEvidence: status === "pass",
       canUseAsGraphResumeEvidence: graphResumeEvidencePass,
       canClaimDistributedResume: false
@@ -364,10 +366,11 @@ function executionRelationshipChecks(execution, prefix) {
   return [];
 }
 
-function productionHandoffChecksFor(report) {
+function productionHandoffChecksFor(report, evidence) {
   if (!report || typeof report !== "object" || Array.isArray(report)) {
     return [];
   }
+  const deploymentMatch = deploymentBaseUrlMatchesHandoff(evidence, report);
   return [
     report.schemaVersion === "cinejelly.render-provider-production-handoff-capture.v1"
       ? pass("production_handoff.schema", "Production handoff capture schema is recognized.")
@@ -380,7 +383,10 @@ function productionHandoffChecksFor(report) {
       : fail("production_handoff.environment_kind", "Production handoff capture must be deployment evidence."),
     report.releaseGateSummary?.canUseAsProductionHandoffEvidence === true
       ? pass("production_handoff.usable", "Production handoff capture is usable as deployment evidence.")
-      : fail("production_handoff.usable", "Production handoff capture must be usable as deployment evidence.")
+      : fail("production_handoff.usable", "Production handoff capture must be usable as deployment evidence."),
+    deploymentMatch
+      ? pass("production_handoff.deployment_binding", "Live action evidence is bound to the same deployment base URL fingerprint as production handoff.")
+      : fail("production_handoff.deployment_binding", "Live action evidence deploymentBaseUrl must match production handoff deploymentBaseUrlSha256.")
   ];
 }
 
@@ -442,6 +448,7 @@ function publicEvidenceSummary(evidence) {
     schemaVersion: typeof evidence.schemaVersion === "string" ? evidence.schemaVersion : "unknown",
     environmentKind: typeof evidence.environmentKind === "string" ? evidence.environmentKind : "unknown",
     deploymentBaseUrl: safePublicUrl(evidence.deploymentBaseUrl),
+    deploymentBaseUrlSha256: safeDeploymentBaseUrlSha256(evidence.deploymentBaseUrl),
     approvedBy: safePublicText(evidence.approvedBy),
     approvedAt: typeof evidence.approvedAt === "string" ? evidence.approvedAt : "unknown",
     executionCount: Array.isArray(evidence.executions) ? evidence.executions.length : 0
@@ -506,7 +513,39 @@ function safeHttpsDeploymentUrl(value) {
 }
 
 function safePublicUrl(value) {
-  return safeHttpsDeploymentUrl(value) ? String(value).replace(/\/$/, "") : "invalid_or_missing";
+  if (!safeHttpsDeploymentUrl(value)) {
+    return "invalid_or_missing";
+  }
+  const url = new URL(value);
+  const path = url.pathname.replace(/\/+$/, "");
+  return `${url.protocol}//[deployment-host]${path}`.replace(/\/$/, "");
+}
+
+function deploymentBaseUrlMatchesHandoff(evidence, report) {
+  const evidenceHash = safeDeploymentBaseUrlSha256(evidence?.deploymentBaseUrl);
+  const handoffHash = typeof report?.checkedInputs?.deploymentBaseUrlSha256 === "string"
+    ? report.checkedInputs.deploymentBaseUrlSha256
+    : undefined;
+  return Boolean(evidenceHash && handoffHash && evidenceHash === handoffHash);
+}
+
+function safeDeploymentBaseUrlSha256(value) {
+  if (!safeHttpsDeploymentUrl(value)) {
+    return undefined;
+  }
+  return createHash("sha256").update(canonicalBaseUrl(new URL(value))).digest("hex");
+}
+
+function canonicalBaseUrl(baseUrl) {
+  const next = new URL(baseUrl.href);
+  next.protocol = next.protocol.toLowerCase();
+  next.hostname = next.hostname.toLowerCase();
+  next.pathname = next.pathname.replace(/\/+$/, "");
+  next.search = "";
+  next.hash = "";
+  next.username = "";
+  next.password = "";
+  return next.href.replace(/\/$/, "");
 }
 
 function isLocalhost(hostname) {

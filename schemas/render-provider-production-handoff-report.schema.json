@@ -36,6 +36,7 @@
       "additionalProperties": false,
       "required": [
         "baseUrl",
+        "deploymentBaseUrlSha256",
         "endpointPath",
         "outputPath",
         "authTokenEnv",
@@ -46,6 +47,7 @@
       ],
       "properties": {
         "baseUrl": { "type": "string" },
+        "deploymentBaseUrlSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "endpointPath": { "const": "/v1/render-provider-handoff-leases" },
         "outputPath": { "type": "string" },
         "authTokenEnv": { "type": "string" },

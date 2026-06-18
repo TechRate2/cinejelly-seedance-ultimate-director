@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -154,6 +155,7 @@ async function main() {
     environmentKind,
     checkedInputs: {
       baseUrl: safeBaseUrl(baseUrl),
+      deploymentBaseUrlSha256: deploymentBaseUrlSha256(baseUrl),
       endpointPath,
       outputPath: toRepoRelative(options.outputPath),
       authTokenEnv: auth.tokenEnvName,
@@ -551,6 +553,22 @@ function nextActionsFor({ status, environmentKind, auth, capture }) {
 function safeBaseUrl(baseUrl) {
   const host = isLocalhost(baseUrl.hostname) ? "localhost" : "[deployment-host]";
   return `${baseUrl.protocol}//${host}${baseUrl.pathname}`.replace(/\/$/, "");
+}
+
+function deploymentBaseUrlSha256(baseUrl) {
+  return createHash("sha256").update(canonicalBaseUrl(baseUrl)).digest("hex");
+}
+
+function canonicalBaseUrl(baseUrl) {
+  const next = new URL(baseUrl.href);
+  next.protocol = next.protocol.toLowerCase();
+  next.hostname = next.hostname.toLowerCase();
+  next.pathname = next.pathname.replace(/\/+$/, "");
+  next.search = "";
+  next.hash = "";
+  next.username = "";
+  next.password = "";
+  return next.href.replace(/\/$/, "");
 }
 
 function redactText(value) {

@@ -1231,6 +1231,9 @@ function validateRenderProviderLiveActionsSemantics(report) {
     if (report?.summary?.productionHandoffUsable !== true || report?.summary?.productionHandoffStatus !== "pass") {
       issues.push("$.summary.productionHandoff*: status pass requires a usable passing production handoff capture.");
     }
+    if (report?.summary?.productionHandoffDeploymentMatch !== true) {
+      issues.push("$.summary.productionHandoffDeploymentMatch: status pass requires live action evidence to match the production handoff deployment fingerprint.");
+    }
     if (providerCallEvidenceCount < 1 || resumePollingEvidenceCount < 1 || terminalCloseEvidenceCount + manualAuditEvidenceCount < 1) {
       issues.push("$.executions: status pass requires provider-call, resume-polling, and terminal-close/manual-audit evidence.");
     }

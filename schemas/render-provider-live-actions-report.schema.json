@@ -59,6 +59,7 @@
         "redactionReviewedCount",
         "productionHandoffStatus",
         "productionHandoffUsable",
+        "productionHandoffDeploymentMatch",
         "canUseAsLiveProviderActionEvidence",
         "canUseAsGraphResumeEvidence",
         "canClaimDistributedResume"
@@ -73,6 +74,7 @@
         "redactionReviewedCount": { "type": "integer", "minimum": 0 },
         "productionHandoffStatus": { "type": "string" },
         "productionHandoffUsable": { "type": "boolean" },
+        "productionHandoffDeploymentMatch": { "type": "boolean" },
         "canUseAsLiveProviderActionEvidence": { "type": "boolean" },
         "canUseAsGraphResumeEvidence": { "type": "boolean" },
         "canClaimDistributedResume": { "const": false }
@@ -87,6 +89,7 @@
         "schemaVersion": { "type": "string" },
         "environmentKind": { "type": "string" },
         "deploymentBaseUrl": { "type": "string" },
+        "deploymentBaseUrlSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "approvedBy": { "type": "string" },
         "approvedAt": { "type": "string" },
         "executionCount": { "type": "integer", "minimum": 0 }
