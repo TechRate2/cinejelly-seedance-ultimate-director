@@ -12,6 +12,7 @@ const defaults = {
   liveInputsPath: "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json",
   commercialInputsPath: "assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json",
   releaseAuditPath: "assets/output_deliverables/phase6-validation/release-audit-report.json",
+  snapshotParityPath: "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json",
   reportContractsPath: "assets/output_deliverables/business-readiness/report-contract-validation-report.json"
 };
 
@@ -29,6 +30,7 @@ function parseArgs(args) {
     ["--live-inputs-report", "liveInputsPath"],
     ["--commercial-inputs-report", "commercialInputsPath"],
     ["--release-audit-report", "releaseAuditPath"],
+    ["--snapshot-parity-report", "snapshotParityPath"],
     ["--report-contracts-report", "reportContractsPath"]
   ]);
 
@@ -80,6 +82,7 @@ Options:
   --live-inputs-report <path>         Default: ${defaults.liveInputsPath}
   --commercial-inputs-report <path>   Default: ${defaults.commercialInputsPath}
   --release-audit-report <path>       Default: ${defaults.releaseAuditPath}
+  --snapshot-parity-report <path>     Default: ${defaults.snapshotParityPath}
   --report-contracts-report <path>    Default: ${defaults.reportContractsPath}
   --output <path>                     JSON report path. Default: ${defaults.outputPath}
   --markdown-output <path>            Markdown summary path. Default: ${defaults.markdownOutputPath}
@@ -103,6 +106,7 @@ function main() {
     liveInputs: summarizeReport(options.liveInputsPath),
     commercialInputs: summarizeReport(options.commercialInputsPath),
     releaseAudit: summarizeReport(options.releaseAuditPath),
+    snapshotParity: summarizeReport(options.snapshotParityPath),
     reportContracts: summarizeReport(options.reportContractsPath)
   };
   const blockers = buildBlockers(reports);
@@ -123,6 +127,7 @@ function main() {
       liveInputsPath: toRepoRelative(options.liveInputsPath),
       commercialInputsPath: toRepoRelative(options.commercialInputsPath),
       releaseAuditPath: toRepoRelative(options.releaseAuditPath),
+      snapshotParityPath: toRepoRelative(options.snapshotParityPath),
       reportContractsPath: toRepoRelative(options.reportContractsPath),
       markdownOutputPath: options.writeMarkdown ? toRepoRelative(options.markdownOutputPath) : undefined
     },
@@ -203,6 +208,7 @@ function buildReadinessSnapshot(reports) {
     evidenceCompletionPercent: numberOrZero(business?.completion?.evidenceCompletionPercent),
     businessReadinessStatus: reports.businessReadiness.status,
     releaseAuditStatus: reports.releaseAudit.status,
+    snapshotParityStatus: reports.snapshotParity.status,
     reportContractsStatus: reports.reportContracts.status,
     commercialInputsStatus: reports.commercialInputs.status,
     commandPlanAuditStatus: String(commercial?.commandPlanAudit?.status ?? "unknown"),
@@ -248,6 +254,7 @@ function buildCodeWorkSummary(reports, blockers, productCodeGaps) {
   return {
     reportContractsPass: reports.reportContracts.status === "pass",
     releaseAuditReady: reports.releaseAudit.status === "release_ready",
+    snapshotParityPass: reports.snapshotParity.status === "pass",
     commercialInputsGenerated: reports.commercialInputs.present === true,
     commercialCommandPlanPass: commercial?.commandPlanAudit?.status === "pass" && Array.isArray(commercial?.commandPlanAudit?.issues) && commercial.commandPlanAudit.issues.length === 0,
     atlasKeyAndModelConfigPresent:
@@ -350,6 +357,20 @@ function buildBlockers(reports) {
         status: reports.reportContracts.status,
         sourceReport: reports.reportContracts.path,
         requiredAction: "Fix schema/semantic contract drift and rerun validation:report-contracts.",
+        canAutomateNow: true
+      })
+    );
+  }
+  if (reports.snapshotParity.present && reports.snapshotParity.status === "fail") {
+    blockers.push(
+      blocker({
+        id: "snapshot_parity_not_pass",
+        label: "Snapshot parity guardrail audit is not passing",
+        owner: "codebase",
+        category: "snapshot_parity",
+        status: reports.snapshotParity.status,
+        sourceReport: reports.snapshotParity.path,
+        requiredAction: "Fix subtree inventory, source-lineage, reference implementation, or import-boundary drift and rerun validation:snapshot-parity.",
         canAutomateNow: true
       })
     );
@@ -561,6 +582,7 @@ function renderMarkdown(report) {
     `- Evidence completion: ${report.readinessSnapshot.evidenceCompletionPercent}%`,
     `- Business-readiness: ${report.readinessSnapshot.businessReadinessStatus}`,
     `- Release audit: ${report.readinessSnapshot.releaseAuditStatus}`,
+    `- Snapshot parity: ${report.readinessSnapshot.snapshotParityStatus}`,
     `- Report contracts: ${report.readinessSnapshot.reportContractsStatus}`,
     `- Commercial inputs: ${report.readinessSnapshot.commercialInputsStatus}`,
     `- Atlas media/LLM/Seedance ready: ${report.readinessSnapshot.atlas.mediaReady}/${report.readinessSnapshot.atlas.llmReady}/${report.readinessSnapshot.atlas.seedanceVideoReady}`,
@@ -572,6 +594,7 @@ function renderMarkdown(report) {
     "",
     `- Report contracts pass: ${report.codeWorkSummary.reportContractsPass}`,
     `- Release audit ready: ${report.codeWorkSummary.releaseAuditReady}`,
+    `- Snapshot parity pass: ${report.codeWorkSummary.snapshotParityPass}`,
     `- Commercial command plan pass: ${report.codeWorkSummary.commercialCommandPlanPass}`,
     `- Known code blockers: ${report.codeWorkSummary.knownCodeBlockingIssueCount}`,
     `- Product-code gaps: ${report.codeWorkSummary.knownProductCodeGapCount}`,

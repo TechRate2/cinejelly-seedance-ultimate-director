@@ -1,0 +1,413 @@
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, extname, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+const defaults = {
+  outputPath: "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"
+};
+
+const expectedSnapshots = [
+  snapshot("seedance_2_0", "external/upstream/seedance-2.0", "Emily2040/seedance-2.0", "MIT"),
+  snapshot("awesome_seedance_2_prompts", "external/upstream/awesome-seedance-2-prompts", "YouMind-OpenLab/awesome-seedance-2-prompts", "CC-BY-4.0"),
+  snapshot("vimax", "external/upstream/vimax", "HKUDS/ViMax", "MIT"),
+  snapshot("vibeframe", "external/upstream/vibeframe", "vericontext/vibeframe", "MIT"),
+  snapshot("videoagent", "external/upstream/videoagent", "HKUDS/VideoAgent", "MIT top level; nested review required"),
+  snapshot("openmontage", "external/upstream/openmontage", "calesthio/OpenMontage", "AGPL-3.0"),
+  snapshot("moneyprinterturbo", "external/upstream/moneyprinterturbo", "harry0703/MoneyPrinterTurbo", "MIT"),
+  snapshot("directorbench", "external/upstream/directorbench", "jiaminchen-1031/DirectorBench", "No top-level license found in snapshot")
+];
+
+const requiredDocs = [
+  "docs/EXTERNAL_SOURCE_SNAPSHOTS.md",
+  "docs/SUBTREE_POLICY.md",
+  "docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md",
+  "docs/IMPLEMENTATION_ROADMAP.md",
+  "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
+  "docs/PROJECT_CONTEXT.md",
+  "src/core/source-logic-translation-records.ts"
+];
+
+const requiredReferenceImplementations = [
+  "docs/reference-implementations/prompt-reference-binding-plan.md",
+  "docs/reference-implementations/guardian-repair-decision-provenance.md",
+  "docs/reference-implementations/reference-selection-scoring.md",
+  "docs/reference-implementations/source-video-auto-analysis-adapter.md",
+  "docs/reference-implementations/provider-polling-retry-cost.md",
+  "docs/reference-implementations/long-form-planning-batch-workflow.md",
+  "docs/reference-implementations/render-job-history-persistence.md",
+  "docs/reference-implementations/render-provider-handoff.md",
+  "docs/reference-implementations/director-style-benchmark-harness.md",
+  "docs/reference-implementations/report-contract-validation.md",
+  "docs/reference-implementations/business-completion-audit.md",
+  "docs/reference-implementations/commercial-launch-doctor.md"
+];
+
+const sourceScanRoots = ["src", "scripts"];
+const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".tsx"]);
+
+function snapshot(id, localPath, upstreamRepository, license) {
+  return { id, localPath, upstreamRepository, license };
+}
+
+function parseArgs(args) {
+  const options = {
+    ...defaults,
+    writeReport: true
+  };
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--help" || arg === "-h") {
+      options.help = true;
+      continue;
+    }
+    if (arg === "--no-output") {
+      options.writeReport = false;
+      continue;
+    }
+    if (arg === "--output") {
+      options.outputPath = readRequiredValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--output=")) {
+      options.outputPath = arg.slice("--output=".length);
+      continue;
+    }
+    throw new Error(`Unknown option: ${arg}`);
+  }
+  return options;
+}
+
+function readRequiredValue(args, index, flag) {
+  const value = args[index + 1];
+  if (!value) {
+    throw new Error(`Expected a value after ${flag}.`);
+  }
+  return value;
+}
+
+function printHelp() {
+  console.log(`Audit CineJelly subtree snapshot parity guardrails without network or provider calls.
+
+Usage:
+  npm.cmd run validation:snapshot-parity
+
+Options:
+  --output <path>  JSON report path. Default: ${defaults.outputPath}
+  --no-output      Print only; do not write the report.
+
+This validates snapshot inventory, source-lineage coverage, reference implementation anchors, and direct-import boundaries. It does not claim customer release readiness or full upstream parity.`);
+}
+
+function main() {
+  const options = parseArgs(process.argv.slice(2));
+  if (options.help) {
+    printHelp();
+    return 0;
+  }
+  validateOptions(options);
+
+  const docs = readDocs(requiredDocs);
+  const snapshotInventory = expectedSnapshots.map((item) => buildSnapshotStatus(item, docs));
+  const referenceImplementations = requiredReferenceImplementations.map((path) => buildReferenceImplementationStatus(path));
+  const directExternalImports = findDirectExternalImports();
+  const checks = buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports });
+  const summary = buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, checks });
+  const status = checks.some((check) => check.status === "fail") ? "fail" : checks.some((check) => check.status === "warn") ? "warn" : "pass";
+
+  const report = {
+    schemaVersion: "cinejelly.snapshot-parity-audit.v1",
+    generatedAt: new Date().toISOString(),
+    status,
+    noSpend: true,
+    networkCallsMade: false,
+    providerCallsMade: false,
+    checkedInputs: {
+      expectedSnapshotCount: expectedSnapshots.length,
+      requiredDocumentCount: requiredDocs.length,
+      requiredReferenceImplementationCount: requiredReferenceImplementations.length,
+      scannedSourceRoots: sourceScanRoots,
+      outputPath: toRepoRelative(options.outputPath)
+    },
+    summary,
+    snapshotInventory,
+    referenceImplementations,
+    directExternalImports,
+    checks,
+    releaseGateSummary: {
+      snapshotGuardrailsPass: status !== "fail",
+      canClaimFullSnapshotParity: false,
+      canReleaseToCustomerTraffic: false,
+      releaseBlocker:
+        status === "fail"
+          ? "Snapshot parity guardrails failed; fix snapshot inventory, source-lineage, reference implementation, or external import drift before trusting parity claims."
+          : "Snapshot parity guardrails pass, but this does not prove full upstream parity or customer traffic readiness."
+    },
+    nextActions: buildNextActions({ status, checks })
+  };
+
+  if (options.writeReport) {
+    writeJson(options.outputPath, report);
+  }
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  return status === "fail" ? 1 : 0;
+}
+
+function validateOptions(options) {
+  if (extname(options.outputPath).toLowerCase() !== ".json") {
+    throw new Error("--output must point to a JSON file.");
+  }
+}
+
+function readDocs(paths) {
+  return Object.fromEntries(
+    paths.map((path) => {
+      const absolutePath = resolve(repoRoot, path);
+      if (!existsSync(absolutePath)) {
+        return [path, { path, present: false, text: "" }];
+      }
+      return [path, { path, present: true, text: readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, "") }];
+    })
+  );
+}
+
+function buildSnapshotStatus(item, docs) {
+  const absolutePath = resolve(repoRoot, item.localPath);
+  const directoryPresent = existsSync(absolutePath) && statSync(absolutePath).isDirectory();
+  const fileCount = directoryPresent ? countFiles(absolutePath) : 0;
+  const inventoryText = docs["docs/EXTERNAL_SOURCE_SNAPSHOTS.md"]?.text ?? "";
+  const subtreePolicyText = docs["docs/SUBTREE_POLICY.md"]?.text ?? "";
+  const parityText = docs["docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md"]?.text ?? "";
+  const contextText = docs["docs/PROJECT_CONTEXT.md"]?.text ?? "";
+  const lineageText = docs["src/core/source-logic-translation-records.ts"]?.text ?? "";
+  const inventoryCovered = includesAll(inventoryText, [item.localPath, item.upstreamRepository]);
+  const subtreePolicyCovered = subtreePolicyText.includes(item.localPath);
+  const parityAuditCovered = parityText.includes(item.localPath) || parityText.includes(item.upstreamRepository);
+  const projectContextCovered = contextText.includes(item.upstreamRepository) || contextText.includes(item.localPath);
+  const sourceLineageCovered = lineageText.includes(item.localPath);
+  const status = directoryPresent && fileCount > 0 && inventoryCovered && subtreePolicyCovered && parityAuditCovered && sourceLineageCovered ? "pass" : "fail";
+  return {
+    id: item.id,
+    localPath: item.localPath,
+    upstreamRepository: item.upstreamRepository,
+    license: item.license,
+    status,
+    directoryPresent,
+    fileCount,
+    inventoryCovered,
+    subtreePolicyCovered,
+    parityAuditCovered,
+    projectContextCovered,
+    sourceLineageCovered
+  };
+}
+
+function buildReferenceImplementationStatus(path) {
+  const absolutePath = resolve(repoRoot, path);
+  const present = existsSync(absolutePath) && statSync(absolutePath).isFile();
+  const text = present ? readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, "") : "";
+  return {
+    path,
+    present,
+    hasPurposeSection:
+      /^## Purpose/m.test(text) ||
+      /^## Status/m.test(text) ||
+      /^## Upstream Sources/m.test(text) ||
+      /^## Source Logic/m.test(text) ||
+      /^## Behavior To Preserve/m.test(text),
+    hasAcceptanceSection:
+      /^## Acceptance/m.test(text) ||
+      /^## Acceptance Criteria/m.test(text) ||
+      /^## Acceptance Checks/m.test(text) ||
+      /^## Milestone/m.test(text) ||
+      /^## Validation/m.test(text) ||
+      /^## Edge Cases/m.test(text)
+  };
+}
+
+function findDirectExternalImports() {
+  const files = sourceScanRoots.flatMap((root) => listSourceFiles(resolve(repoRoot, root)));
+  const findings = [];
+  const patterns = [
+    /\bfrom\s+["'][^"']*external[\\/]+upstream/iu,
+    /\bimport\s*\(\s*["'][^"']*external[\\/]+upstream/iu,
+    /\brequire\s*\(\s*["'][^"']*external[\\/]+upstream/iu
+  ];
+  for (const file of files) {
+    const text = readFileSync(file, "utf8").replace(/^\uFEFF/, "");
+    const lines = text.split(/\r?\n/);
+    lines.forEach((line, index) => {
+      if (patterns.some((pattern) => pattern.test(line))) {
+        findings.push({
+          path: toRepoRelative(file),
+          line: index + 1,
+          kind: "direct_external_upstream_import"
+        });
+      }
+    });
+  }
+  return findings;
+}
+
+function listSourceFiles(root) {
+  if (!existsSync(root)) {
+    return [];
+  }
+  const stat = statSync(root);
+  if (stat.isFile()) {
+    return sourceExtensions.has(extname(root).toLowerCase()) ? [root] : [];
+  }
+  const files = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name === "dist") {
+      continue;
+    }
+    const child = resolve(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listSourceFiles(child));
+    } else if (entry.isFile() && sourceExtensions.has(extname(entry.name).toLowerCase())) {
+      files.push(child);
+    }
+  }
+  return files;
+}
+
+function buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports }) {
+  const checks = [];
+  for (const doc of Object.values(docs)) {
+    checks.push(check({
+      id: `doc_present_${slug(doc.path)}`,
+      label: `${doc.path} exists`,
+      status: doc.present ? "pass" : "fail",
+      evidence: doc.path,
+      blocker: doc.present ? undefined : "Required snapshot/parity document is missing."
+    }));
+  }
+  for (const item of snapshotInventory) {
+    checks.push(check({
+      id: `snapshot_guard_${item.id}`,
+      label: `${item.localPath} inventory and lineage guardrails`,
+      status: item.status,
+      evidence: item.localPath,
+      blocker: item.status === "pass" ? undefined : "Snapshot directory, docs coverage, or runtime lineage coverage is incomplete."
+    }));
+  }
+  for (const item of referenceImplementations) {
+    const status = item.present && item.hasPurposeSection && item.hasAcceptanceSection ? "pass" : "fail";
+    checks.push(check({
+      id: `reference_impl_${slug(item.path)}`,
+      label: `${item.path} has basic RI structure`,
+      status,
+      evidence: item.path,
+      blocker: status === "pass" ? undefined : "Reference Implementation file is missing Purpose or Acceptance evidence."
+    }));
+  }
+  checks.push(check({
+    id: "direct_external_import_boundary",
+    label: "Production scripts/source do not import directly from external/upstream",
+    status: directExternalImports.length === 0 ? "pass" : "fail",
+    evidence: `${directExternalImports.length} direct import finding(s)`,
+    blocker: directExternalImports.length === 0 ? undefined : "Production code must translate upstream behavior into owned modules instead of importing snapshot files."
+  }));
+  const parityText = docs["docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md"]?.text ?? "";
+  const staticParityAuditRefusesFullClaim = parityText.includes("No claim of 100% parity") || parityText.includes("No first-party web UI");
+  checks.push(check({
+    id: "static_parity_audit_keeps_no_100_percent_claim",
+    label: "Static parity audit refuses 100% parity claim",
+    status: staticParityAuditRefusesFullClaim ? "pass" : "fail",
+    evidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
+    blocker: staticParityAuditRefusesFullClaim ? undefined : "Snapshot parity audit must keep full-parity limits explicit."
+  }));
+  return checks;
+}
+
+function check(value) {
+  return {
+    id: value.id,
+    label: value.label,
+    status: value.status,
+    evidence: value.evidence,
+    ...(value.blocker ? { blocker: value.blocker } : {})
+  };
+}
+
+function buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, checks }) {
+  return {
+    snapshotDirectoriesPresent: snapshotInventory.filter((item) => item.directoryPresent).length,
+    expectedSnapshotCount: snapshotInventory.length,
+    inventoryCoverageCount: snapshotInventory.filter((item) => item.inventoryCovered).length,
+    sourceLineageCoverageCount: snapshotInventory.filter((item) => item.sourceLineageCovered).length,
+    referenceImplementationCount: referenceImplementations.filter((item) => item.present).length,
+    directExternalImportFindingCount: directExternalImports.length,
+    passedChecks: checks.filter((item) => item.status === "pass").length,
+    warningChecks: checks.filter((item) => item.status === "warn").length,
+    failedChecks: checks.filter((item) => item.status === "fail").length
+  };
+}
+
+function buildNextActions({ status, checks }) {
+  const failed = checks.filter((item) => item.status === "fail");
+  if (status === "fail") {
+    return failed.map((item) => `${item.label}: ${item.blocker}`);
+  }
+  return [
+    "Keep running validation:snapshot-parity before parity claims, launch doctor refreshes, and release evidence handoff.",
+    "Do not claim full upstream parity until productCodeGaps and external/live evidence gates are closed."
+  ];
+}
+
+function countFiles(root) {
+  let count = 0;
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.name === ".git") {
+      continue;
+    }
+    const child = resolve(root, entry.name);
+    if (entry.isDirectory()) {
+      count += countFiles(child);
+    } else if (entry.isFile()) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function includesAll(text, values) {
+  return values.every((value) => text.includes(value));
+}
+
+function slug(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function writeJson(path, report) {
+  const absolutePath = resolve(repoRoot, path);
+  mkdirSync(dirname(absolutePath), { recursive: true });
+  writeFileSync(absolutePath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+}
+
+function toRepoRelative(path) {
+  const absolutePath = resolve(repoRoot, path);
+  const repoRelative = relative(repoRoot, absolutePath);
+  return repoRelative && !repoRelative.startsWith("..") ? repoRelative : path;
+}
+
+try {
+  process.exitCode = main();
+} catch (error) {
+  process.stderr.write(
+    `${JSON.stringify(
+      {
+        schemaVersion: "cinejelly.snapshot-parity-audit.v1",
+        generatedAt: new Date().toISOString(),
+        status: "fail",
+        error: error instanceof Error ? error.message : String(error)
+      },
+      null,
+      2
+    )}\n`
+  );
+  process.exitCode = 1;
+}

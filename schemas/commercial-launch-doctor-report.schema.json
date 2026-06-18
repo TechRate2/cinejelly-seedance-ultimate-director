@@ -92,6 +92,7 @@
         "evidenceCompletionPercent",
         "businessReadinessStatus",
         "releaseAuditStatus",
+        "snapshotParityStatus",
         "qualityBenchmarkStatus",
         "providerReconciliationStatus",
         "providerHandoffStatus",
@@ -114,6 +115,7 @@
         "evidenceCompletionPercent": { "type": "number", "minimum": 0, "maximum": 100 },
         "businessReadinessStatus": { "type": "string" },
         "releaseAuditStatus": { "type": "string" },
+        "snapshotParityStatus": { "type": "string" },
         "qualityBenchmarkStatus": { "type": "string" },
         "providerReconciliationStatus": { "type": "string" },
         "providerHandoffStatus": { "type": "string" },
@@ -141,6 +143,7 @@
       "required": [
         "commandPlanPass",
         "releaseAuditReady",
+        "snapshotParityPass",
         "reportContractsPass",
         "knownCodeBlockingIssueCount",
         "unexpectedCodeCommandFailures",
@@ -149,6 +152,7 @@
       "properties": {
         "commandPlanPass": { "type": "boolean" },
         "releaseAuditReady": { "type": "boolean" },
+        "snapshotParityPass": { "type": "boolean" },
         "reportContractsPass": { "type": "boolean" },
         "knownCodeBlockingIssueCount": { "type": "integer", "minimum": 0 },
         "unexpectedCodeCommandFailures": { "type": "array", "items": { "type": "string" } },

@@ -31,6 +31,7 @@ The current primary upstream snapshots are:
 | `external/upstream/videoagent` | `HKUDS/VideoAgent` | Intent decomposition, video understanding, graph-powered planning, multimodal retrieval. |
 | `external/upstream/openmontage` | `calesthio/OpenMontage` | Reference-video analysis, approval gates, provider scoring, real-footage path, self-review. |
 | `external/upstream/moneyprinterturbo` | `harry0703/MoneyPrinterTurbo` | Staged one-input pipeline, material sourcing, batch outputs, subtitles/TTS/BGM, task progress, API/CLI/WebUI. |
+| `external/upstream/directorbench` | `jiaminchen-1031/DirectorBench` | Checkpoint-level long-form diagnosis across script, visual, audio, cross-modal, stability, and transition quality. |
 
 ## Required Git Subtree Commands
 

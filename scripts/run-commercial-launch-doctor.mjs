@@ -168,6 +168,11 @@ function buildCommands(options) {
       reportPath: "assets/output_deliverables/business-readiness/deployment-package-validation-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
+    }),
+    command("snapshot_parity", ["scripts/audit-snapshot-parity.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json",
+      expectedExitCodes: [0],
+      blocksCodeReadiness: true
     })
   ];
   if (!options.skipLocalSmoke) {
@@ -320,6 +325,7 @@ function buildReport(options, commandRuns) {
     commercialInputs: summarizeReport("assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"),
     completionAudit: summarizeReport("assets/output_deliverables/business-readiness/business-completion-audit-report.json"),
     qualityBenchmark: summarizeReport("assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
+    snapshotParity: summarizeReport("assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
     providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
     providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
     providerExternalLease: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
@@ -368,6 +374,7 @@ function buildReport(options, commandRuns) {
       evidenceCompletionPercent: numberOrZero(business?.completion?.evidenceCompletionPercent ?? completion?.readinessSnapshot?.evidenceCompletionPercent),
       businessReadinessStatus: reportSummaries.businessReadiness.status,
       releaseAuditStatus: reportSummaries.releaseAudit.status,
+      snapshotParityStatus: reportSummaries.snapshotParity.status,
       qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
       providerReconciliationStatus: reportSummaries.providerReconciliation.status,
       providerHandoffStatus: reportSummaries.providerHandoff.status,
@@ -394,6 +401,7 @@ function buildReport(options, commandRuns) {
     codeWorkSummary: {
       commandPlanPass: completion?.codeWorkSummary?.commercialCommandPlanPass === true,
       releaseAuditReady: reportSummaries.releaseAudit.status === "release_ready",
+      snapshotParityPass: reportSummaries.snapshotParity.status === "pass",
       reportContractsPass: reportSummaries.reportContracts.status === "pass",
       knownCodeBlockingIssueCount,
       unexpectedCodeCommandFailures: codeBlockingRuns.map((item) => item.name),
@@ -534,6 +542,7 @@ function renderMarkdown(report) {
     `- Evidence completion: ${report.readinessSnapshot.evidenceCompletionPercent}%`,
     `- Business-readiness: ${report.readinessSnapshot.businessReadinessStatus}`,
     `- Release audit: ${report.readinessSnapshot.releaseAuditStatus}`,
+    `- Snapshot parity: ${report.readinessSnapshot.snapshotParityStatus}`,
     `- Quality benchmark: ${report.readinessSnapshot.qualityBenchmarkStatus}`,
     `- Provider reconciliation: ${report.readinessSnapshot.providerReconciliationStatus}`,
     `- Provider handoff: ${report.readinessSnapshot.providerHandoffStatus}`,
@@ -551,6 +560,7 @@ function renderMarkdown(report) {
     "",
     `- Known code blockers: ${report.codeWorkSummary.knownCodeBlockingIssueCount}`,
     `- Release audit ready: ${report.codeWorkSummary.releaseAuditReady}`,
+    `- Snapshot parity pass: ${report.codeWorkSummary.snapshotParityPass}`,
     `- Report contracts pass: ${report.codeWorkSummary.reportContractsPass}`,
     `- Command plan pass: ${report.codeWorkSummary.commandPlanPass}`,
     `- ${report.codeWorkSummary.message}`,

@@ -45,6 +45,7 @@
         "liveInputsPath",
         "commercialInputsPath",
         "releaseAuditPath",
+        "snapshotParityPath",
         "reportContractsPath"
       ],
       "properties": {
@@ -53,6 +54,7 @@
         "liveInputsPath": { "type": "string" },
         "commercialInputsPath": { "type": "string" },
         "releaseAuditPath": { "type": "string" },
+        "snapshotParityPath": { "type": "string" },
         "reportContractsPath": { "type": "string" },
         "markdownOutputPath": { "type": "string" }
       }
@@ -78,6 +80,7 @@
         "evidenceCompletionPercent",
         "businessReadinessStatus",
         "releaseAuditStatus",
+        "snapshotParityStatus",
         "reportContractsStatus",
         "commercialInputsStatus",
         "commandPlanAuditStatus",
@@ -94,6 +97,7 @@
         "evidenceCompletionPercent": { "type": "number", "minimum": 0, "maximum": 100 },
         "businessReadinessStatus": { "type": "string" },
         "releaseAuditStatus": { "type": "string" },
+        "snapshotParityStatus": { "type": "string" },
         "reportContractsStatus": { "type": "string" },
         "commercialInputsStatus": { "type": "string" },
         "commandPlanAuditStatus": { "type": "string" },
@@ -150,6 +154,7 @@
       "required": [
         "reportContractsPass",
         "releaseAuditReady",
+        "snapshotParityPass",
         "commercialInputsGenerated",
         "commercialCommandPlanPass",
         "atlasKeyAndModelConfigPresent",
@@ -163,6 +168,7 @@
       "properties": {
         "reportContractsPass": { "type": "boolean" },
         "releaseAuditReady": { "type": "boolean" },
+        "snapshotParityPass": { "type": "boolean" },
         "commercialInputsGenerated": { "type": "boolean" },
         "commercialCommandPlanPass": { "type": "boolean" },
         "atlasKeyAndModelConfigPresent": { "type": "boolean" },
