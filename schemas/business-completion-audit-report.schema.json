@@ -14,6 +14,7 @@
     "checkedInputs",
     "sourceReports",
     "readinessSnapshot",
+    "commercialOfferScopeSummary",
     "codeWorkSummary",
     "productCodeGaps",
     "blockerSummary",
@@ -44,6 +45,7 @@
         "businessPlanPath",
         "liveInputsPath",
         "commercialInputsPath",
+        "launchIntakePath",
         "releaseAuditPath",
         "snapshotParityPath",
         "reportContractsPath",
@@ -56,6 +58,7 @@
         "businessPlanPath": { "type": "string" },
         "liveInputsPath": { "type": "string" },
         "commercialInputsPath": { "type": "string" },
+        "launchIntakePath": { "type": "string" },
         "releaseAuditPath": { "type": "string" },
         "snapshotParityPath": { "type": "string" },
         "reportContractsPath": { "type": "string" },
@@ -158,6 +161,42 @@
         "canRunGeneratedAudioPaidSlice": { "type": "boolean" },
         "canRunFullKnownPaidSequence": { "type": "boolean" },
         "canReleaseToCustomerTraffic": { "type": "boolean" }
+      }
+    },
+    "commercialOfferScopeSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "launchIntakePresent",
+        "launchIntakeStatus",
+        "configured",
+        "status",
+        "uiRequiredBeforeCustomerTraffic",
+        "scopeDecisionRequired",
+        "blocksApiCliCommercialLaunch",
+        "blocksFullSnapshotParity",
+        "sourceReport",
+        "message"
+      ],
+      "properties": {
+        "launchIntakePresent": { "type": "boolean" },
+        "launchIntakeStatus": { "type": "string" },
+        "configured": { "type": "boolean" },
+        "status": {
+          "enum": [
+            "missing_launch_intake_report",
+            "scope_decision_pending",
+            "api_cli_only_scoped",
+            "first_party_web_ui_required"
+          ]
+        },
+        "productSurface": { "enum": ["api_cli_only", "first_party_web_ui_required"] },
+        "uiRequiredBeforeCustomerTraffic": { "type": "boolean" },
+        "scopeDecisionRequired": { "type": "boolean" },
+        "blocksApiCliCommercialLaunch": { "type": "boolean" },
+        "blocksFullSnapshotParity": { "type": "boolean" },
+        "sourceReport": { "type": "string" },
+        "message": { "type": "string" }
       }
     },
     "codeWorkSummary": {

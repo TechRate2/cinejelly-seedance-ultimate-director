@@ -556,6 +556,12 @@ function validateBusinessCompletionAuditSemantics(report) {
   const scopeDecisionProductGaps = productCodeGaps.filter((item) => item?.scopeDecisionRequired === true);
   const blocksFullSnapshotParity = productCodeGaps.some((item) => item?.blocksFullSnapshotParity === true);
   const blocksApiCliCommercialLaunch = productCodeGaps.some((item) => item?.blocksApiCliCommercialLaunch === true);
+  const scopeSummary = report?.commercialOfferScopeSummary;
+  const firstPartyUiGap = productCodeGaps.find((item) => item?.id === "first_party_web_ui");
+
+  if (!report?.sourceReports?.launchIntake) {
+    issues.push("$.sourceReports.launchIntake: expected commercial launch intake report source status.");
+  }
 
   if (Number(report?.codeWorkSummary?.knownCodeBlockingIssueCount ?? -1) !== codeBlockers.length) {
     issues.push("$.codeWorkSummary.knownCodeBlockingIssueCount: expected to equal codebase-owned blocker count.");
@@ -577,6 +583,35 @@ function validateBusinessCompletionAuditSemantics(report) {
   }
   if (report?.codeWorkSummary?.blocksApiCliCommercialLaunch !== blocksApiCliCommercialLaunch) {
     issues.push("$.codeWorkSummary.blocksApiCliCommercialLaunch: expected to match productCodeGaps[*].blocksApiCliCommercialLaunch.");
+  }
+  if (!scopeSummary || typeof scopeSummary !== "object") {
+    issues.push("$.commercialOfferScopeSummary: expected commercial offer scope summary.");
+  } else {
+    if (scopeSummary.launchIntakeStatus !== report?.sourceReports?.launchIntake?.status) {
+      issues.push("$.commercialOfferScopeSummary.launchIntakeStatus: expected to match sourceReports.launchIntake.status.");
+    }
+    if (scopeSummary.blocksFullSnapshotParity !== true) {
+      issues.push("$.commercialOfferScopeSummary.blocksFullSnapshotParity: expected true while first-party Web UI is not implemented.");
+    }
+    if (firstPartyUiGap) {
+      if (firstPartyUiGap.scopeDecisionRequired !== scopeSummary.scopeDecisionRequired) {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].scopeDecisionRequired: expected to match commercialOfferScopeSummary.scopeDecisionRequired.");
+      }
+      if (firstPartyUiGap.blocksApiCliCommercialLaunch !== scopeSummary.blocksApiCliCommercialLaunch) {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].blocksApiCliCommercialLaunch: expected to match commercialOfferScopeSummary.blocksApiCliCommercialLaunch.");
+      }
+      if (scopeSummary.status === "api_cli_only_scoped" && firstPartyUiGap.status !== "scoped_out_for_api_cli_launch") {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].status: expected scoped_out_for_api_cli_launch when commercial offer is API/CLI-only.");
+      }
+      if (scopeSummary.status === "first_party_web_ui_required" && firstPartyUiGap.status !== "required_before_customer_traffic") {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].status: expected required_before_customer_traffic when commercial offer requires Web UI.");
+      }
+      if (scopeSummary.status === "scope_decision_pending" && firstPartyUiGap.status !== "scope_decision_pending") {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].status: expected scope_decision_pending when commercial offer scope is undecided.");
+      }
+    } else {
+      issues.push("$.productCodeGaps: expected first_party_web_ui product-code gap while no first-party UI exists.");
+    }
   }
 
   if (Number(report?.blockerSummary?.total ?? -1) !== blockers.length) {

@@ -11,6 +11,7 @@ const defaults = {
   businessPlanPath: "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json",
   liveInputsPath: "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json",
   commercialInputsPath: "assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json",
+  launchIntakePath: "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json",
   releaseAuditPath: "assets/output_deliverables/phase6-validation/release-audit-report.json",
   snapshotParityPath: "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json",
   reportContractsPath: "assets/output_deliverables/business-readiness/report-contract-validation-report.json",
@@ -32,6 +33,7 @@ function parseArgs(args) {
     ["--business-plan-report", "businessPlanPath"],
     ["--live-inputs-report", "liveInputsPath"],
     ["--commercial-inputs-report", "commercialInputsPath"],
+    ["--launch-intake-report", "launchIntakePath"],
     ["--release-audit-report", "releaseAuditPath"],
     ["--snapshot-parity-report", "snapshotParityPath"],
     ["--report-contracts-report", "reportContractsPath"],
@@ -90,6 +92,7 @@ Options:
   --business-plan-report <path>       Default: ${defaults.businessPlanPath}
   --live-inputs-report <path>         Default: ${defaults.liveInputsPath}
   --commercial-inputs-report <path>   Default: ${defaults.commercialInputsPath}
+  --launch-intake-report <path>       Default: ${defaults.launchIntakePath}
   --release-audit-report <path>       Default: ${defaults.releaseAuditPath}
   --snapshot-parity-report <path>     Default: ${defaults.snapshotParityPath}
   --report-contracts-report <path>    Default: ${defaults.reportContractsPath}
@@ -117,6 +120,7 @@ function main() {
     businessPlan: summarizeReport(options.businessPlanPath),
     liveInputs: summarizeReport(options.liveInputsPath),
     commercialInputs: summarizeReport(options.commercialInputsPath),
+    launchIntake: summarizeReport(options.launchIntakePath),
     releaseAudit: summarizeReport(options.releaseAuditPath),
     snapshotParity: summarizeReport(options.snapshotParityPath),
     reportContracts: summarizeReport(options.reportContractsPath),
@@ -125,8 +129,9 @@ function main() {
       : summarizeReport(options.commercialLaunchDoctorPath),
     opsConfig: summarizeReport(options.opsConfigPath)
   };
+  const commercialOfferScopeSummary = buildCommercialOfferScopeSummary(reports);
   const blockers = buildBlockers(reports);
-  const productCodeGaps = buildProductCodeGaps();
+  const productCodeGaps = buildProductCodeGaps(commercialOfferScopeSummary);
   const readinessSnapshot = buildReadinessSnapshot(reports);
   const codeWorkSummary = buildCodeWorkSummary(reports, blockers, productCodeGaps);
   const status = statusFor({ reports, blockers, codeWorkSummary });
@@ -142,6 +147,7 @@ function main() {
       businessPlanPath: toRepoRelative(options.businessPlanPath),
       liveInputsPath: toRepoRelative(options.liveInputsPath),
       commercialInputsPath: toRepoRelative(options.commercialInputsPath),
+      launchIntakePath: toRepoRelative(options.launchIntakePath),
       releaseAuditPath: toRepoRelative(options.releaseAuditPath),
       snapshotParityPath: toRepoRelative(options.snapshotParityPath),
       reportContractsPath: toRepoRelative(options.reportContractsPath),
@@ -152,6 +158,7 @@ function main() {
     },
     sourceReports: summarizeSourceReports(reports),
     readinessSnapshot,
+    commercialOfferScopeSummary,
     codeWorkSummary,
     productCodeGaps,
     blockerSummary: summarizeBlockers(blockers),
@@ -278,6 +285,60 @@ function buildReadinessSnapshot(reports) {
   };
 }
 
+function buildCommercialOfferScopeSummary(reports) {
+  const launchIntake = reports.launchIntake;
+  const intakeSummary = launchIntake.value?.intakeSummary;
+  const productSurface = typeof intakeSummary?.commercialOfferProductSurface === "string"
+    ? intakeSummary.commercialOfferProductSurface
+    : undefined;
+  const configured = launchIntake.status === "pass" && intakeSummary?.commercialOfferScopeConfigured === true;
+  if (configured && productSurface === "api_cli_only") {
+    return {
+      launchIntakePresent: launchIntake.present === true,
+      launchIntakeStatus: launchIntake.status,
+      configured: true,
+      status: "api_cli_only_scoped",
+      productSurface,
+      uiRequiredBeforeCustomerTraffic: false,
+      scopeDecisionRequired: false,
+      blocksApiCliCommercialLaunch: false,
+      blocksFullSnapshotParity: true,
+      sourceReport: launchIntake.path,
+      message:
+        "Commercial launch scope is explicitly API/CLI/operator-report only; first-party Web UI remains a full snapshot parity gap but does not block the scoped API/CLI launch path."
+    };
+  }
+  if (configured && productSurface === "first_party_web_ui_required") {
+    return {
+      launchIntakePresent: launchIntake.present === true,
+      launchIntakeStatus: launchIntake.status,
+      configured: true,
+      status: "first_party_web_ui_required",
+      productSurface,
+      uiRequiredBeforeCustomerTraffic: true,
+      scopeDecisionRequired: false,
+      blocksApiCliCommercialLaunch: true,
+      blocksFullSnapshotParity: true,
+      sourceReport: launchIntake.path,
+      message:
+        "Commercial launch scope requires a first-party Web UI before customer traffic; API/CLI-only launch is not an approved scope escape hatch."
+    };
+  }
+  return {
+    launchIntakePresent: launchIntake.present === true,
+    launchIntakeStatus: launchIntake.status,
+    configured: false,
+    status: launchIntake.present === true ? "scope_decision_pending" : "missing_launch_intake_report",
+    uiRequiredBeforeCustomerTraffic: false,
+    scopeDecisionRequired: true,
+    blocksApiCliCommercialLaunch: false,
+    blocksFullSnapshotParity: true,
+    sourceReport: launchIntake.path,
+    message:
+      "Commercial launch scope is not yet decided; first-party Web UI remains a product-scope decision before any completeness claim."
+  };
+}
+
 function buildCodeWorkSummary(reports, blockers, productCodeGaps) {
   const commercial = reports.commercialInputs.value;
   const codeBlockingIssues = blockers.filter((item) => item.owner === "codebase");
@@ -308,29 +369,10 @@ function buildCodeWorkSummary(reports, blockers, productCodeGaps) {
   };
 }
 
-function buildProductCodeGaps() {
+function buildProductCodeGaps(commercialOfferScopeSummary) {
+  const firstPartyUiGap = buildFirstPartyWebUiGap(commercialOfferScopeSummary);
   return [
-    {
-      id: "first_party_web_ui",
-      label: "First-party web UI is not implemented",
-      category: "operator_surface",
-      status: "not_implemented",
-      currentCoveragePercent: 0,
-      sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
-      sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo"],
-      requiredAction:
-        "Build and validate a first-party customer/operator UI, or explicitly scope the commercial offer as API/CLI-only before claiming launch completeness.",
-      canAutomateNow: false,
-      localPreparationAvailable: false,
-      completionRequiresExternalEvidence: false,
-      remainingEvidenceGateCount: 0,
-      scopeDecisionRequired: true,
-      scopeDecisionOptions: ["build_first_party_web_ui", "scope_commercial_offer_api_cli_only"],
-      blocksApiCliCommercialLaunch: false,
-      blocksFullSnapshotParity: true,
-      releaseImpact:
-        "Blocks 100% source-parity/product-completeness claims; API/CLI-only customer traffic still depends on business-readiness evidence."
-    },
+    firstPartyUiGap,
     {
       id: "distributed_active_provider_work_resume",
       label: "Distributed active provider-work resume is not fully implemented",
@@ -374,6 +416,59 @@ function buildProductCodeGaps() {
         "A CineJelly-owned no-spend benchmark now emits script/video/audio/stability/cross-modal checkpoint evidence, bottlenecks, report contracts, FFprobe media metadata, sampled-frame proxy signals, FFmpeg scene-change transition-boundary proxy evidence when boundaries are detected, bounded FFmpeg audio waveform/volume proxy evidence, FFprobe audio-video duration-sync proxy evidence when audio is present, optional structured semantic/audio/runtime/governance review checkpoints with paid-artifact binding checks for parity rows, artifact-bound needs_review draft packets for reviewer handoff, an accepted review-evidence readiness validator for the four-packet review bundle with self-contained schema/redaction enforcement, an unsafe-review guard smoke, a long-form manual quality/redaction review draft gate with schema/report contracts, optional generated-audio validation report checkpoints, optional long-form validation report checkpoints, and a contract-validated parity evidence matrix, but it still cannot replace accepted live generated-audio provider evidence, real accepted ASR/lip-sync evidence from paid media, accepted legal/operator governance review, accepted paid long-form validation evidence, or full DirectorBench runtime parity."
     }
   ];
+}
+
+function buildFirstPartyWebUiGap(scopeSummary) {
+  const base = {
+    id: "first_party_web_ui",
+    label: "First-party web UI is not implemented",
+    category: "operator_surface",
+    currentCoveragePercent: 0,
+    sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
+    sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo"],
+    canAutomateNow: false,
+    localPreparationAvailable: false,
+    completionRequiresExternalEvidence: false,
+    remainingEvidenceGateCount: 0,
+    blocksFullSnapshotParity: true
+  };
+  if (scopeSummary.status === "api_cli_only_scoped") {
+    return {
+      ...base,
+      status: "scoped_out_for_api_cli_launch",
+      requiredAction:
+        "Keep first-party Web UI visible as a full snapshot parity gap; the current commercial intake explicitly scopes the offer as API/CLI/operator-report only.",
+      scopeDecisionRequired: false,
+      scopeDecisionOptions: [],
+      blocksApiCliCommercialLaunch: false,
+      releaseImpact:
+        "Does not block the explicitly scoped API/CLI commercial launch path, but still blocks 100% MoneyPrinterTurbo-style WebUI/source-parity claims."
+    };
+  }
+  if (scopeSummary.status === "first_party_web_ui_required") {
+    return {
+      ...base,
+      status: "required_before_customer_traffic",
+      requiredAction:
+        "Build and validate a first-party customer/operator Web UI before customer traffic, or update the commercial launch intake to an approved API/CLI-only scope.",
+      scopeDecisionRequired: false,
+      scopeDecisionOptions: [],
+      blocksApiCliCommercialLaunch: true,
+      releaseImpact:
+        "Blocks the current scoped commercial launch because the operator decision requires a first-party Web UI before customer traffic."
+    };
+  }
+  return {
+    ...base,
+    status: "scope_decision_pending",
+    requiredAction:
+      "Build and validate a first-party customer/operator UI, or explicitly scope the commercial offer as API/CLI-only before claiming launch completeness.",
+    scopeDecisionRequired: true,
+    scopeDecisionOptions: ["build_first_party_web_ui", "scope_commercial_offer_api_cli_only"],
+    blocksApiCliCommercialLaunch: false,
+    releaseImpact:
+      "Blocks 100% source-parity/product-completeness claims; API/CLI-only customer traffic still depends on business-readiness evidence and an explicit commercial scope decision."
+  };
 }
 
 function buildBlockers(reports) {
@@ -660,6 +755,15 @@ function renderMarkdown(report) {
     `- Approved budget: ${formatUsd(report.readinessSnapshot.budget.approvedBudgetUsd)}`,
     `- Known paid estimate: ${formatUsd(report.readinessSnapshot.budget.knownPaidEstimateUsd)}`,
     `- Ready paid gates: ${report.readinessSnapshot.readyPaidGates.length === 0 ? "none" : report.readinessSnapshot.readyPaidGates.join(", ")}`,
+    "",
+    "## Commercial Offer Scope",
+    "",
+    `- Status: ${report.commercialOfferScopeSummary.status}`,
+    `- Configured: ${report.commercialOfferScopeSummary.configured}`,
+    `- Product surface: ${report.commercialOfferScopeSummary.productSurface ?? "not_decided"}`,
+    `- UI required before customer traffic: ${report.commercialOfferScopeSummary.uiRequiredBeforeCustomerTraffic}`,
+    `- Blocks API/CLI commercial launch: ${report.commercialOfferScopeSummary.blocksApiCliCommercialLaunch}`,
+    `- ${report.commercialOfferScopeSummary.message}`,
     "",
     "## Code-Side Status",
     "",
