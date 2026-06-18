@@ -550,6 +550,7 @@ function validateBusinessCompletionAuditSemantics(report) {
   const externalOrPaidBlockers = blockers.filter((item) => item?.canAutomateNow !== true);
   const automatableProductGaps = productCodeGaps.filter((item) => item?.canAutomateNow === true);
   const externalEvidenceProductGaps = productCodeGaps.filter((item) => item?.completionRequiresExternalEvidence === true);
+  const scopeDecisionProductGaps = productCodeGaps.filter((item) => item?.scopeDecisionRequired === true);
   const blocksFullSnapshotParity = productCodeGaps.some((item) => item?.blocksFullSnapshotParity === true);
   const blocksApiCliCommercialLaunch = productCodeGaps.some((item) => item?.blocksApiCliCommercialLaunch === true);
 
@@ -564,6 +565,9 @@ function validateBusinessCompletionAuditSemantics(report) {
   }
   if (Number(report?.codeWorkSummary?.externalEvidenceProductCodeGapCount ?? -1) !== externalEvidenceProductGaps.length) {
     issues.push("$.codeWorkSummary.externalEvidenceProductCodeGapCount: expected to equal product-code gaps that require external evidence.");
+  }
+  if (Number(report?.codeWorkSummary?.scopeDecisionProductCodeGapCount ?? -1) !== scopeDecisionProductGaps.length) {
+    issues.push("$.codeWorkSummary.scopeDecisionProductCodeGapCount: expected to equal product-code gaps that require a product-scope decision.");
   }
   if (report?.codeWorkSummary?.blocksFullSnapshotParity !== blocksFullSnapshotParity) {
     issues.push("$.codeWorkSummary.blocksFullSnapshotParity: expected to match productCodeGaps[*].blocksFullSnapshotParity.");
@@ -605,6 +609,14 @@ function validateBusinessCompletionAuditSemantics(report) {
     }
     if (!Number.isSafeInteger(gap?.remainingEvidenceGateCount) || gap.remainingEvidenceGateCount <= 0) {
       issues.push(`$.productCodeGaps[id=${gap?.id}].remainingEvidenceGateCount: expected a positive integer when external evidence is required.`);
+    }
+  }
+  for (const gap of scopeDecisionProductGaps) {
+    if (gap?.canAutomateNow === true || gap?.completionRequiresExternalEvidence === true) {
+      issues.push(`$.productCodeGaps[id=${gap?.id}]: scope-decision gaps must not also be automatable or external-evidence gaps.`);
+    }
+    if (!Array.isArray(gap?.scopeDecisionOptions) || gap.scopeDecisionOptions.length < 2) {
+      issues.push(`$.productCodeGaps[id=${gap?.id}].scopeDecisionOptions: expected at least two explicit scope options.`);
     }
   }
 

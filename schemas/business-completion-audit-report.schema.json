@@ -174,6 +174,7 @@
         "knownProductCodeGapCount",
         "automatableProductCodeGapCount",
         "externalEvidenceProductCodeGapCount",
+        "scopeDecisionProductCodeGapCount",
         "blocksFullSnapshotParity",
         "blocksApiCliCommercialLaunch",
         "message"
@@ -189,6 +190,7 @@
         "knownProductCodeGapCount": { "type": "integer", "minimum": 0 },
         "automatableProductCodeGapCount": { "type": "integer", "minimum": 0 },
         "externalEvidenceProductCodeGapCount": { "type": "integer", "minimum": 0 },
+        "scopeDecisionProductCodeGapCount": { "type": "integer", "minimum": 0 },
         "blocksFullSnapshotParity": { "type": "boolean" },
         "blocksApiCliCommercialLaunch": { "type": "boolean" },
         "message": { "type": "string" }
@@ -212,6 +214,8 @@
           "localPreparationAvailable",
           "completionRequiresExternalEvidence",
           "remainingEvidenceGateCount",
+          "scopeDecisionRequired",
+          "scopeDecisionOptions",
           "blocksApiCliCommercialLaunch",
           "blocksFullSnapshotParity",
           "releaseImpact"
@@ -229,6 +233,8 @@
           "localPreparationAvailable": { "type": "boolean" },
           "completionRequiresExternalEvidence": { "type": "boolean" },
           "remainingEvidenceGateCount": { "type": "integer", "minimum": 0 },
+          "scopeDecisionRequired": { "type": "boolean" },
+          "scopeDecisionOptions": { "type": "array", "items": { "type": "string" } },
           "blocksApiCliCommercialLaunch": { "type": "boolean" },
           "blocksFullSnapshotParity": { "type": "boolean" },
           "releaseImpact": { "type": "string" }

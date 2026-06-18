@@ -296,6 +296,7 @@ function buildCodeWorkSummary(reports, blockers, productCodeGaps) {
     knownProductCodeGapCount: productCodeGaps.length,
     automatableProductCodeGapCount: productCodeGaps.filter((item) => item.canAutomateNow === true).length,
     externalEvidenceProductCodeGapCount: productCodeGaps.filter((item) => item.completionRequiresExternalEvidence === true).length,
+    scopeDecisionProductCodeGapCount: productCodeGaps.filter((item) => item.scopeDecisionRequired === true).length,
     blocksFullSnapshotParity: productCodeGaps.some((item) => item.blocksFullSnapshotParity === true),
     blocksApiCliCommercialLaunch,
     message:
@@ -323,6 +324,8 @@ function buildProductCodeGaps() {
       localPreparationAvailable: false,
       completionRequiresExternalEvidence: false,
       remainingEvidenceGateCount: 0,
+      scopeDecisionRequired: true,
+      scopeDecisionOptions: ["build_first_party_web_ui", "scope_commercial_offer_api_cli_only"],
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
@@ -342,6 +345,8 @@ function buildProductCodeGaps() {
       localPreparationAvailable: true,
       completionRequiresExternalEvidence: true,
       remainingEvidenceGateCount: 4,
+      scopeDecisionRequired: false,
+      scopeDecisionOptions: [],
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
@@ -361,6 +366,8 @@ function buildProductCodeGaps() {
       localPreparationAvailable: true,
       completionRequiresExternalEvidence: true,
       remainingEvidenceGateCount: 8,
+      scopeDecisionRequired: false,
+      scopeDecisionOptions: [],
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
@@ -663,6 +670,7 @@ function renderMarkdown(report) {
     `- Known code blockers: ${report.codeWorkSummary.knownCodeBlockingIssueCount}`,
     `- Product-code gaps: ${report.codeWorkSummary.knownProductCodeGapCount}`,
     `- Product-code gaps requiring external evidence: ${report.codeWorkSummary.externalEvidenceProductCodeGapCount}`,
+    `- Product-code gaps requiring scope decision: ${report.codeWorkSummary.scopeDecisionProductCodeGapCount}`,
     `- Blocks full snapshot parity: ${report.codeWorkSummary.blocksFullSnapshotParity}`,
     `- ${report.codeWorkSummary.message}`,
     "",
@@ -703,7 +711,8 @@ function markdownProductCodeGaps(items) {
       ? `; external evidence gates: ${item.remainingEvidenceGateCount}`
       : "";
     const localPrepNote = item.localPreparationAvailable ? "; local prep available" : "";
-    return `- ${item.label} [${item.status}; ${item.currentCoveragePercent}%${localPrepNote}${evidenceNote}]: ${item.requiredAction}`;
+    const scopeNote = item.scopeDecisionRequired ? `; scope decision: ${item.scopeDecisionOptions.join(" or ")}` : "";
+    return `- ${item.label} [${item.status}; ${item.currentCoveragePercent}%${localPrepNote}${evidenceNote}${scopeNote}]: ${item.requiredAction}`;
   });
 }
 
