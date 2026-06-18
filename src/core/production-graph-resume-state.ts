@@ -162,6 +162,10 @@ export function parseProductionGraphResumeStateCapsule(value: unknown, label = "
   return parseCapsule(value, label);
 }
 
+export function serializeProductionGraphResumeStateCapsule(capsule: ProductionGraphResumeStateCapsule): Record<string, unknown> {
+  return storedCapsule(capsule);
+}
+
 export function serializeProductionGraphResumeQueueRecord(record: ProductionGraphResumeQueueRecord): Record<string, unknown> {
   return storedQueueRecord(record);
 }

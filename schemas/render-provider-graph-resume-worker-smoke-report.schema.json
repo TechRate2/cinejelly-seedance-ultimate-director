@@ -1,0 +1,259 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-graph-resume-worker-smoke-report.schema.json",
+  "title": "CineJelly Render Provider Graph Resume Worker Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "localHttpCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "firstRun",
+    "secondRun",
+    "queue",
+    "checks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-graph-resume-worker-smoke.v1" },
+    "generatedAt": { "$ref": "#/$defs/dateTime" },
+    "status": { "const": "pass" },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "localHttpCallsMade": { "const": true },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "ledgerPath", "statePath", "queuePath", "localServer", "fakeGraph"],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "ledgerPath": { "type": "string" },
+        "statePath": { "type": "string" },
+        "queuePath": { "type": "string" },
+        "localServer": { "const": true },
+        "fakeGraph": { "const": true }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionLedgerStatus",
+        "checkedActionCount",
+        "resumeActionCount",
+        "firstRunStatus",
+        "secondRunStatus",
+        "firstEnqueuedCount",
+        "secondReplayedCount",
+        "skippedNonResumeCount",
+        "queueRecordCount",
+        "realProviderCallCount",
+        "canUseAsLiveProviderActionEvidence",
+        "canUseAsGraphResumePayloadEvidence",
+        "canClaimDistributedResume"
+      ],
+      "properties": {
+        "actionLedgerStatus": { "enum": ["pass", "warn"] },
+        "checkedActionCount": { "const": 3 },
+        "resumeActionCount": { "const": 1 },
+        "firstRunStatus": { "const": "pass" },
+        "secondRunStatus": { "const": "pass" },
+        "firstEnqueuedCount": { "const": 1 },
+        "secondReplayedCount": { "const": 1 },
+        "skippedNonResumeCount": { "const": 2 },
+        "queueRecordCount": { "const": 1 },
+        "realProviderCallCount": { "const": 0 },
+        "canUseAsLiveProviderActionEvidence": { "const": false },
+        "canUseAsGraphResumePayloadEvidence": { "const": false },
+        "canClaimDistributedResume": { "const": false }
+      }
+    },
+    "firstRun": { "$ref": "#/$defs/workerRun" },
+    "secondRun": { "$ref": "#/$defs/workerRun" },
+    "queue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordCount", "record"],
+      "properties": {
+        "recordCount": { "const": 1 },
+        "record": { "$ref": "#/$defs/queueRecord" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    }
+  },
+  "$defs": {
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workerRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "generatedAt", "status", "summary", "decisions", "releaseGateSummary"],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.render-provider-graph-resume-worker.v1" },
+        "generatedAt": { "$ref": "#/$defs/dateTime" },
+        "status": { "const": "pass" },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "checkedActionCount",
+            "resumeActionCount",
+            "enqueuedCount",
+            "replayedCount",
+            "skippedCount",
+            "missingCapsuleCount",
+            "failedCount",
+            "queueRecordCount",
+            "realProviderCallCount"
+          ],
+          "properties": {
+            "checkedActionCount": { "const": 3 },
+            "resumeActionCount": { "const": 1 },
+            "enqueuedCount": { "type": "integer", "minimum": 0, "maximum": 1 },
+            "replayedCount": { "type": "integer", "minimum": 0, "maximum": 1 },
+            "skippedCount": { "const": 2 },
+            "missingCapsuleCount": { "const": 0 },
+            "failedCount": { "const": 0 },
+            "queueRecordCount": { "const": 1 },
+            "realProviderCallCount": { "const": 0 }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/decision" }
+        },
+        "releaseGateSummary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "graphResumeWorkerBridgePass",
+            "canUseAsLiveProviderActionEvidence",
+            "canUseAsGraphResumePayloadEvidence",
+            "canClaimDistributedResume",
+            "canReleaseToCustomerTraffic",
+            "releaseBlocker"
+          ],
+          "properties": {
+            "graphResumeWorkerBridgePass": { "const": true },
+            "canUseAsLiveProviderActionEvidence": { "const": false },
+            "canUseAsGraphResumePayloadEvidence": { "const": false },
+            "canClaimDistributedResume": { "const": false },
+            "canReleaseToCustomerTraffic": { "const": false },
+            "releaseBlocker": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "jobId",
+        "actionId",
+        "action",
+        "status",
+        "predictionIdCount",
+        "predictionIdsSha256",
+        "message"
+      ],
+      "properties": {
+        "jobId": { "type": "string", "minLength": 1 },
+        "actionId": { "type": "string", "minLength": 1 },
+        "action": {
+          "enum": [
+            "resume_polling",
+            "close_terminal_succeeded",
+            "close_terminal_failed",
+            "close_terminal_canceled",
+            "close_terminal_timeout",
+            "close_terminal_mixed",
+            "manual_audit_required"
+          ]
+        },
+        "status": {
+          "enum": [
+            "enqueued",
+            "replayed",
+            "skipped_not_resume_action",
+            "skipped_missing_capsule",
+            "failed"
+          ]
+        },
+        "predictionIdCount": { "type": "integer", "minimum": 0 },
+        "predictionIdsSha256": { "$ref": "#/$defs/sha256" },
+        "capsuleId": { "type": "string", "minLength": 1 },
+        "capsuleSha256": { "$ref": "#/$defs/sha256" },
+        "queueRecord": { "$ref": "#/$defs/queueRecord" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "queueRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "queueRecordId",
+        "idempotencyKey",
+        "queueNameSha256",
+        "capsuleId",
+        "capsuleSha256",
+        "jobId",
+        "actionId",
+        "graphStateSha256",
+        "resumeCursorSha256",
+        "predictionIdsSha256",
+        "predictionIdCount",
+        "activePredictionIdCount",
+        "status"
+      ],
+      "properties": {
+        "queueRecordId": { "type": "string", "minLength": 1 },
+        "idempotencyKey": { "type": "string", "minLength": 1 },
+        "queueNameSha256": { "$ref": "#/$defs/sha256" },
+        "capsuleId": { "type": "string", "minLength": 1 },
+        "capsuleSha256": { "$ref": "#/$defs/sha256" },
+        "jobId": { "type": "string", "minLength": 1 },
+        "actionId": { "type": "string", "minLength": 1 },
+        "graphStateSha256": { "$ref": "#/$defs/sha256" },
+        "resumeCursorSha256": { "$ref": "#/$defs/sha256" },
+        "predictionIdsSha256": { "$ref": "#/$defs/sha256" },
+        "predictionIdCount": { "type": "integer", "minimum": 1 },
+        "activePredictionIdCount": { "type": "integer", "minimum": 1 },
+        "status": { "const": "queued" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

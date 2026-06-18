@@ -27,6 +27,7 @@ const defaultContracts = [
   contract("render_provider_handoff_action_ledger", "schemas/render-provider-handoff-action-ledger-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
   contract("production_graph_resume_state", "schemas/production-graph-resume-state-report.schema.json", "assets/output_deliverables/business-readiness/production-graph-resume-state-report.json"),
   contract("production_graph_resume_queue_service", "schemas/production-graph-resume-queue-service-smoke-report.schema.json", "assets/output_deliverables/business-readiness/production-graph-resume-queue-service-smoke-report.json"),
+  contract("render_provider_graph_resume_worker", "schemas/render-provider-graph-resume-worker-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-graph-resume-worker-smoke-report.json"),
   contract("render_provider_multi_worker_handoff", "schemas/render-provider-multi-worker-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
   contract("render_provider_production_handoff", "schemas/render-provider-production-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-production-handoff-report.json"),
   contract("render_provider_live_action_evidence_draft", "schemas/render-provider-live-action-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-live-action-evidence-draft-report.json"),
@@ -307,6 +308,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "production_graph_resume_queue_service") {
     return validateProductionGraphResumeQueueServiceSemantics(report);
   }
+  if (item.name === "render_provider_graph_resume_worker") {
+    return validateRenderProviderGraphResumeWorkerSemantics(report);
+  }
   if (item.name === "render_provider_production_handoff") {
     return validateRenderProviderProductionHandoffSemantics(report);
   }
@@ -354,6 +358,7 @@ const LAUNCH_DOCTOR_PROVIDER_COMMANDS = [
   ["provider_handoff_actions", "providerHandoffActionsStatus"],
   ["production_graph_resume_state", "productionGraphResumeStateStatus"],
   ["production_graph_resume_queue_service", "productionGraphResumeQueueServiceStatus"],
+  ["provider_graph_resume_worker", "providerGraphResumeWorkerStatus"],
   ["provider_multi_worker_handoff", "providerMultiWorkerHandoffStatus"]
 ];
 
@@ -1331,6 +1336,77 @@ function validateProductionGraphResumeQueueServiceSemantics(report) {
   }
   if (unsafePatterns.some((pattern) => pattern.test(publicPayload))) {
     issues.push("$.queue: public queue-service report must not contain raw URLs, local paths, token-like text, raw prediction IDs, raw queue names, raw worker IDs, or deployment tokens.");
+  }
+  return issues;
+}
+
+function validateRenderProviderGraphResumeWorkerSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  const publicPayload = JSON.stringify(report ?? {});
+  const unsafePatterns = [
+    /https?:\/\/(?!cinejelly\.local\/schemas)/i,
+    /data:/i,
+    /[A-Za-z]:\\/,
+    /\\\\/,
+    /(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\//i,
+    /bearer\s+/i,
+    /api[_-]?key/i,
+    /token_must_not_leak/i,
+    /secret_should_not_escape/i,
+    /graph_resume_worker_lane/i,
+    /pred_graph_resume_worker_active/i,
+    /pred_graph_resume_worker_terminal/i,
+    /pred_graph_resume_worker_manual/i,
+    /cdn\.example\.com/i
+  ];
+
+  if (report?.status === "pass" && failedChecks.length > 0) {
+    issues.push("$.checks: status pass requires zero failed checks.");
+  }
+  if (report?.noSpend !== true || report?.networkCallsMade !== false || report?.localHttpCallsMade !== true || report?.providerCallsMade !== false) {
+    issues.push("$.noSpend/networkCallsMade/localHttpCallsMade/providerCallsMade: expected no-spend local HTTP worker bridge evidence.");
+  }
+  if (report?.summary?.firstRunStatus !== "pass" || report?.summary?.secondRunStatus !== "pass") {
+    issues.push("$.summary.firstRunStatus/secondRunStatus: expected both worker runs to pass.");
+  }
+  if (report?.summary?.firstEnqueuedCount !== 1 || report?.summary?.secondReplayedCount !== 1 || report?.summary?.skippedNonResumeCount !== 2) {
+    issues.push("$.summary: expected first enqueue, second replay, and two non-resume skips.");
+  }
+  if (report?.summary?.queueRecordCount !== 1 || report?.queue?.recordCount !== 1) {
+    issues.push("$.summary.queueRecordCount/$.queue.recordCount: expected one digest-only queue record.");
+  }
+  if (report?.summary?.realProviderCallCount !== 0) {
+    issues.push("$.summary.realProviderCallCount: expected zero for no-spend worker bridge smoke.");
+  }
+  if (
+    report?.summary?.canUseAsLiveProviderActionEvidence !== false ||
+    report?.summary?.canUseAsGraphResumePayloadEvidence !== false ||
+    report?.summary?.canClaimDistributedResume !== false
+  ) {
+    issues.push("$.summary release flags: expected false for live-action, graph-resume-payload, and distributed-resume claims.");
+  }
+  const firstDecisions = Array.isArray(report?.firstRun?.decisions) ? report.firstRun.decisions : [];
+  const secondDecisions = Array.isArray(report?.secondRun?.decisions) ? report.secondRun.decisions : [];
+  if (!firstDecisions.some((item) => item?.action === "resume_polling" && item?.status === "enqueued" && item?.queueRecord)) {
+    issues.push("$.firstRun.decisions: expected resume_polling enqueue decision with queue record.");
+  }
+  if (!secondDecisions.some((item) => item?.action === "resume_polling" && item?.status === "replayed" && item?.queueRecord)) {
+    issues.push("$.secondRun.decisions: expected resume_polling replay decision with queue record.");
+  }
+  const queueRecord = report?.queue?.record;
+  if (typeof queueRecord?.queueNameSha256 !== "string" || !/^[a-f0-9]{64}$/.test(queueRecord.queueNameSha256)) {
+    issues.push("$.queue.record.queueNameSha256: expected queue name hash.");
+  }
+  if (typeof queueRecord?.predictionIdsSha256 !== "string" || !/^[a-f0-9]{64}$/.test(queueRecord.predictionIdsSha256)) {
+    issues.push("$.queue.record.predictionIdsSha256: expected prediction ID hash.");
+  }
+  if (queueRecord?.status !== "queued") {
+    issues.push("$.queue.record.status: expected queued bridge output.");
+  }
+  if (unsafePatterns.some((pattern) => pattern.test(publicPayload))) {
+    issues.push("$.worker: public graph-resume worker report must not contain raw URLs, local paths, token-like text, raw prediction IDs, raw queue names, or deployment tokens.");
   }
   return issues;
 }

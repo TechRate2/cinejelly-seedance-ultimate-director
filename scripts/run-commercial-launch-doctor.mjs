@@ -221,6 +221,11 @@ function buildCommands(options) {
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
+      command("provider_graph_resume_worker", ["scripts/run-render-provider-graph-resume-worker-smoke.mjs"], {
+        reportPath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-worker-smoke-report.json",
+        expectedExitCodes: [0],
+        blocksCodeReadiness: true
+      }),
       command("provider_multi_worker_handoff", ["scripts/run-render-provider-multi-worker-handoff-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json",
         expectedExitCodes: [0],
@@ -359,6 +364,7 @@ function buildReport(options, commandRuns) {
     providerHandoffActions: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
     productionGraphResumeState: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/production-graph-resume-state-report.json"),
     productionGraphResumeQueueService: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/production-graph-resume-queue-service-smoke-report.json"),
+    providerGraphResumeWorker: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-graph-resume-worker-smoke-report.json"),
     providerMultiWorkerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
     providerLiveActions: summarizeReport("assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"),
     providerGraphResume: summarizeReport("assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"),
@@ -414,6 +420,7 @@ function buildReport(options, commandRuns) {
       providerHandoffActionsStatus: reportSummaries.providerHandoffActions.status,
       productionGraphResumeStateStatus: reportSummaries.productionGraphResumeState.status,
       productionGraphResumeQueueServiceStatus: reportSummaries.productionGraphResumeQueueService.status,
+      providerGraphResumeWorkerStatus: reportSummaries.providerGraphResumeWorker.status,
       providerMultiWorkerHandoffStatus: reportSummaries.providerMultiWorkerHandoff.status,
       providerLiveActionsStatus: reportSummaries.providerLiveActions.status,
       providerGraphResumeStatus: reportSummaries.providerGraphResume.status,
@@ -593,6 +600,7 @@ function renderMarkdown(report) {
     `- Provider handoff actions: ${report.readinessSnapshot.providerHandoffActionsStatus}`,
     `- Production graph resume state: ${report.readinessSnapshot.productionGraphResumeStateStatus}`,
     `- Production graph resume queue service: ${report.readinessSnapshot.productionGraphResumeQueueServiceStatus}`,
+    `- Provider graph resume worker: ${report.readinessSnapshot.providerGraphResumeWorkerStatus}`,
     `- Provider multi-worker handoff: ${report.readinessSnapshot.providerMultiWorkerHandoffStatus}`,
     `- Provider live actions: ${report.readinessSnapshot.providerLiveActionsStatus}`,
     `- Provider graph resume: ${report.readinessSnapshot.providerGraphResumeStatus}`,
