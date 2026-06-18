@@ -31,6 +31,7 @@ It may:
 - refresh the no-spend Director-style quality benchmark, review-evidence guard smoke, and accepted review-evidence readiness gate
 - refresh local JSON/Markdown readiness reports
 - surface the commercial offer scope summary from completion-audit so operators can see whether first-party Web UI is still undecided, scoped out for API/CLI-only launch, or required before customer traffic
+- surface the safe operator handoff summary from commercial-inputs so operators see missing input counts, ignored file packets, draft/report archive counts, and guarded command status from the top-level doctor report
 - run report-contract validation
 - summarize external/operator blockers
 
@@ -75,11 +76,12 @@ Because the doctor rewrites its own report before and after contract refreshes, 
 - The JSON report uses schema version `cinejelly.commercial-launch-doctor.v1`.
 - The report includes command runs, source report statuses, readiness snapshot, code-side status, blocker summary, release gate, and next actions.
 - The report includes `commercialOfferScopeSummary` plus matching readiness/release-gate scope flags sourced from the refreshed completion audit.
+- The report includes `operatorHandoffSummary` plus matching commercial-input status, safety flags, input counts, operator file counts, and command counts from the refreshed commercial-input packet.
 - The readiness snapshot includes the current Director-style quality benchmark status, review-evidence guard status, and accepted review-evidence readiness status.
 - The readiness snapshot includes current snapshot parity guardrail status.
 - The readiness snapshot includes the current provider reconciliation/handoff smoke statuses when those smokes are enabled.
 - The readiness snapshot includes the current graph-resume enqueue payload evidence status.
 - The report contract is included in `validation:report-contracts`.
-- The report contract rejects stale launch-doctor evidence when command coverage, provider-smoke refresh/skip state, quality benchmark refresh, review-evidence guard refresh, review-evidence refresh, final contract status, or code-failure summary is internally inconsistent.
+- The report contract rejects stale launch-doctor evidence when command coverage, provider-smoke refresh/skip state, quality benchmark refresh, review-evidence guard refresh, review-evidence refresh, operator-handoff safety/count alignment, final contract status, or code-failure summary is internally inconsistent.
 - Customer traffic remains blocked unless `validation:business-readiness` approves it.
 - Paid Atlas work remains opt-in through the existing paid validation commands.

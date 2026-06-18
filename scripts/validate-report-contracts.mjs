@@ -459,6 +459,14 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
       issues.push("$.commercialOfferScopeSummary.blocksApiCliCommercialLaunch: expected true when first-party Web UI is required before customer traffic.");
     }
   }
+  issues.push(
+    ...validateOperatorHandoffSummary(
+      report?.operatorHandoffSummary,
+      "$.operatorHandoffSummary",
+      report?.reportSummaries?.commercialInputs,
+      { expectedCommandPlanPass: report?.codeWorkSummary?.commandPlanPass }
+    )
+  );
 
   const providerGraphResumeRun = commandByName.get("provider_graph_resume");
   if (providerGraphResumeRun?.status !== "pass") {
@@ -646,6 +654,14 @@ function validateBusinessCompletionAuditSemantics(report) {
       issues.push("$.productCodeGaps: expected first_party_web_ui product-code gap while no first-party UI exists.");
     }
   }
+  issues.push(
+    ...validateOperatorHandoffSummary(
+      report?.operatorHandoffSummary,
+      "$.operatorHandoffSummary",
+      report?.sourceReports?.commercialInputs,
+      { expectedCommandPlanStatus: report?.readinessSnapshot?.commandPlanAuditStatus }
+    )
+  );
 
   if (Number(report?.blockerSummary?.total ?? -1) !== blockers.length) {
     issues.push("$.blockerSummary.total: expected to equal blockers length.");
@@ -721,6 +737,78 @@ function validateBusinessCompletionAuditSemantics(report) {
     if (Number(report?.codeWorkSummary?.knownCodeBlockingIssueCount ?? 0) !== 0) {
       issues.push("$.releaseGateSummary.safeToRunFullPaidAtlasSequenceNow: true requires zero known code blockers.");
     }
+  }
+  return issues;
+}
+
+function validateOperatorHandoffSummary(summary, path, commercialInputsSummary, options = {}) {
+  const issues = [];
+  if (!summary || typeof summary !== "object") {
+    return [`${path}: expected operator handoff summary from commercial launch inputs.`];
+  }
+  const commercialInputsPresent = commercialInputsSummary?.present === true;
+  const expectedSource = commercialInputsPresent
+    ? "commercial_launch_inputs"
+    : "missing_commercial_launch_inputs_manifest";
+  if (summary.source !== expectedSource) {
+    issues.push(`${path}.source: expected ${expectedSource}.`);
+  }
+  if (typeof commercialInputsSummary?.status === "string" && summary.status !== commercialInputsSummary.status) {
+    issues.push(`${path}.status: expected to match commercial inputs status.`);
+  }
+  if (summary.safeToShareWithOperators !== true) {
+    issues.push(`${path}.safeToShareWithOperators: expected true for the redacted operator handoff summary.`);
+  }
+  for (const [key, expected] of [
+    ["releaseEvidence", false],
+    ["secretValuesIncluded", false],
+    ["rawProviderPayloadsIncluded", false],
+    ["localAbsolutePathsIncluded", false],
+    ["customerMediaIncluded", false]
+  ]) {
+    if (summary[key] !== expected) {
+      issues.push(`${path}.${key}: expected ${expected}.`);
+    }
+  }
+
+  const requiredInputCount = Number(summary.requiredInputCount ?? 0);
+  const configuredInputCount = Number(summary.configuredInputCount ?? 0);
+  const missingOrBlockedInputCount = Number(summary.missingOrBlockedInputCount ?? 0);
+  const pendingAfterPaidRunCount = Number(summary.pendingAfterPaidRunCount ?? 0);
+  if (requiredInputCount !== configuredInputCount + missingOrBlockedInputCount + pendingAfterPaidRunCount) {
+    issues.push(`${path}: input counts must equal configured + missing/blocked + pending-after-paid.`);
+  }
+  const blockedInputIds = Array.isArray(summary.blockedInputIds) ? summary.blockedInputIds : [];
+  if (blockedInputIds.length !== missingOrBlockedInputCount) {
+    issues.push(`${path}.blockedInputIds: expected length to match missingOrBlockedInputCount.`);
+  }
+  const operatorInputFiles = Array.isArray(summary.operatorInputFiles) ? summary.operatorInputFiles : [];
+  if (operatorInputFiles.length !== Number(summary.operatorInputFileCount ?? -1)) {
+    issues.push(`${path}.operatorInputFiles: expected length to match operatorInputFileCount.`);
+  }
+
+  const commandCount = Number(summary.commandCount ?? 0);
+  const readyCommandCount = Number(summary.readyCommandCount ?? 0);
+  const blockedCommandCount = Number(summary.blockedCommandCount ?? 0);
+  const paidCommandCount = Number(summary.paidCommandCount ?? 0);
+  const readyPaidCommandCount = Number(summary.readyPaidCommandCount ?? 0);
+  if (commandCount !== readyCommandCount + blockedCommandCount) {
+    issues.push(`${path}: command counts must equal ready + blocked command counts.`);
+  }
+  if (readyPaidCommandCount > paidCommandCount || paidCommandCount > commandCount) {
+    issues.push(`${path}: paid command counts must be bounded by total command count.`);
+  }
+  if (!Array.isArray(summary.refreshCommands) || summary.refreshCommands.length === 0) {
+    issues.push(`${path}.refreshCommands: expected at least one refresh command.`);
+  }
+  if (
+    typeof options.expectedCommandPlanStatus === "string" &&
+    summary.commandPlanAuditStatus !== options.expectedCommandPlanStatus
+  ) {
+    issues.push(`${path}.commandPlanAuditStatus: expected to match readinessSnapshot.commandPlanAuditStatus.`);
+  }
+  if (options.expectedCommandPlanPass === true && summary.commandPlanAuditStatus !== "pass") {
+    issues.push(`${path}.commandPlanAuditStatus: expected pass when codeWorkSummary.commandPlanPass is true.`);
   }
   return issues;
 }

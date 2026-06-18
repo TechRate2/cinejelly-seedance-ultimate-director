@@ -420,6 +420,7 @@ function buildReport(options, commandRuns) {
   const canReleaseToCustomerTraffic = business?.releaseGateSummary?.canReleaseToCustomerTraffic === true;
   const readyForLiveEvidence = completion?.status === "ready_for_live_evidence_sequence";
   const commercialOfferScopeSummary = buildCommercialOfferScopeSummary(completion, reportSummaries.launchIntake);
+  const operatorHandoffSummary = buildOperatorHandoffSummary(reportSummaries.commercialInputs.value);
   const status = statusFor({
     canReleaseToCustomerTraffic,
     readyForLiveEvidence,
@@ -450,6 +451,7 @@ function buildReport(options, commandRuns) {
     commandRuns,
     reportSummaries: summarizeSourceReports(reportSummaries),
     commercialOfferScopeSummary,
+    operatorHandoffSummary,
     readinessSnapshot: {
       evidenceCompletionPercent: numberOrZero(business?.completion?.evidenceCompletionPercent ?? completion?.readinessSnapshot?.evidenceCompletionPercent),
       businessReadinessStatus: reportSummaries.businessReadiness.status,
@@ -564,6 +566,47 @@ function buildCommercialOfferScopeSummary(completion, launchIntakeSummary) {
     blocksFullSnapshotParity: true,
     sourceReport: launchIntakeSummary.path,
     message: "Commercial offer scope is unavailable from completion audit; rerun validation:completion-audit after validation:launch-intake."
+  };
+}
+
+function buildOperatorHandoffSummary(commercialInputs) {
+  const manifest = commercialInputs?.operatorHandoffManifest;
+  const summary = manifest?.summary ?? {};
+  const safety = manifest?.safety ?? {};
+  const operatorInputFiles = Array.isArray(manifest?.operatorInputFiles)
+    ? manifest.operatorInputFiles.map((item) => String(item?.path ?? "")).filter(Boolean)
+    : [];
+  const blockedInputIds = Array.isArray(manifest?.blockedInputIds)
+    ? manifest.blockedInputIds.map(String)
+    : [];
+  const refreshCommands = Array.isArray(manifest?.refreshCommands)
+    ? manifest.refreshCommands.map(String)
+    : [];
+  return {
+    source: manifest ? "commercial_launch_inputs" : "missing_commercial_launch_inputs_manifest",
+    status: String(manifest?.status ?? commercialInputs?.status ?? "unknown"),
+    safeToShareWithOperators: safety.shareableWithOperators === true,
+    releaseEvidence: safety.releaseEvidence === true,
+    secretValuesIncluded: safety.secretValuesIncluded === true,
+    rawProviderPayloadsIncluded: safety.rawProviderPayloadsIncluded === true,
+    localAbsolutePathsIncluded: safety.localAbsolutePathsIncluded === true,
+    customerMediaIncluded: safety.customerMediaIncluded === true,
+    requiredInputCount: numberOrZero(summary.requiredInputCount),
+    configuredInputCount: numberOrZero(summary.configuredInputCount),
+    missingOrBlockedInputCount: numberOrZero(summary.missingOrBlockedInputCount),
+    pendingAfterPaidRunCount: numberOrZero(summary.pendingAfterPaidRunCount),
+    operatorInputFileCount: numberOrZero(summary.operatorInputFileCount),
+    draftFileCount: numberOrZero(summary.draftFileCount),
+    reportArchiveFileCount: numberOrZero(summary.reportArchiveFileCount),
+    commandCount: numberOrZero(summary.commandCount),
+    readyCommandCount: numberOrZero(summary.readyCommandCount),
+    blockedCommandCount: numberOrZero(summary.blockedCommandCount),
+    paidCommandCount: numberOrZero(summary.paidCommandCount),
+    readyPaidCommandCount: numberOrZero(summary.readyPaidCommandCount),
+    commandPlanAuditStatus: String(summary.commandPlanAuditStatus ?? commercialInputs?.commandPlanAudit?.status ?? "unknown"),
+    blockedInputIds,
+    operatorInputFiles,
+    refreshCommands
   };
 }
 
@@ -720,6 +763,10 @@ function renderMarkdown(report) {
     `- Blocks API/CLI commercial launch: ${report.commercialOfferScopeSummary.blocksApiCliCommercialLaunch}`,
     `- ${report.commercialOfferScopeSummary.message}`,
     "",
+    "## Operator Handoff",
+    "",
+    ...markdownOperatorHandoffSummary(report.operatorHandoffSummary),
+    "",
     "## Code-Side Status",
     "",
     `- Known code blockers: ${report.codeWorkSummary.knownCodeBlockingIssueCount}`,
@@ -749,6 +796,24 @@ function renderMarkdown(report) {
     ...report.nextActions.map((item) => `- ${item}`),
     ""
   ].join("\n");
+}
+
+function markdownOperatorHandoffSummary(summary) {
+  if (!summary) {
+    return ["- Operator handoff summary unavailable."];
+  }
+  return [
+    `- Source: ${summary.source}`,
+    `- Status: ${summary.status}`,
+    `- Safe to share: ${summary.safeToShareWithOperators}; release evidence: ${summary.releaseEvidence}`,
+    `- Inputs: ${summary.requiredInputCount}; missing/blocked: ${summary.missingOrBlockedInputCount}; pending after paid: ${summary.pendingAfterPaidRunCount}`,
+    `- Operator files: ${summary.operatorInputFileCount}; drafts/templates: ${summary.draftFileCount}; report archives: ${summary.reportArchiveFileCount}`,
+    `- Commands: ${summary.commandCount}; ready: ${summary.readyCommandCount}; paid commands: ${summary.paidCommandCount}`,
+    `- Blocked input IDs: ${summary.blockedInputIds.length === 0 ? "none" : summary.blockedInputIds.join(", ")}`,
+    ...(summary.operatorInputFiles.length === 0
+      ? ["- Operator input files: none"]
+      : summary.operatorInputFiles.map((item) => `- Operator input: ${item}`))
+  ];
 }
 
 function summarizeProcessOutput(value) {

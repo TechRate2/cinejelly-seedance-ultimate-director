@@ -15,6 +15,7 @@
     "commandRuns",
     "reportSummaries",
     "commercialOfferScopeSummary",
+    "operatorHandoffSummary",
     "readinessSnapshot",
     "codeWorkSummary",
     "blockerSummary",
@@ -87,6 +88,7 @@
       "additionalProperties": { "$ref": "#/$defs/reportSummary" }
     },
     "commercialOfferScopeSummary": { "$ref": "#/$defs/commercialOfferScopeSummary" },
+    "operatorHandoffSummary": { "$ref": "#/$defs/operatorHandoffSummary" },
     "readinessSnapshot": {
       "type": "object",
       "additionalProperties": false,
@@ -312,6 +314,67 @@
         "blocksFullSnapshotParity": { "type": "boolean" },
         "sourceReport": { "type": "string" },
         "message": { "type": "string" }
+      }
+    },
+    "operatorHandoffSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "status",
+        "safeToShareWithOperators",
+        "releaseEvidence",
+        "secretValuesIncluded",
+        "rawProviderPayloadsIncluded",
+        "localAbsolutePathsIncluded",
+        "customerMediaIncluded",
+        "requiredInputCount",
+        "configuredInputCount",
+        "missingOrBlockedInputCount",
+        "pendingAfterPaidRunCount",
+        "operatorInputFileCount",
+        "draftFileCount",
+        "reportArchiveFileCount",
+        "commandCount",
+        "readyCommandCount",
+        "blockedCommandCount",
+        "paidCommandCount",
+        "readyPaidCommandCount",
+        "commandPlanAuditStatus",
+        "blockedInputIds",
+        "operatorInputFiles",
+        "refreshCommands"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "commercial_launch_inputs",
+            "missing_commercial_launch_inputs_manifest"
+          ]
+        },
+        "status": { "type": "string" },
+        "safeToShareWithOperators": { "type": "boolean" },
+        "releaseEvidence": { "type": "boolean" },
+        "secretValuesIncluded": { "type": "boolean" },
+        "rawProviderPayloadsIncluded": { "type": "boolean" },
+        "localAbsolutePathsIncluded": { "type": "boolean" },
+        "customerMediaIncluded": { "type": "boolean" },
+        "requiredInputCount": { "type": "integer", "minimum": 0 },
+        "configuredInputCount": { "type": "integer", "minimum": 0 },
+        "missingOrBlockedInputCount": { "type": "integer", "minimum": 0 },
+        "pendingAfterPaidRunCount": { "type": "integer", "minimum": 0 },
+        "operatorInputFileCount": { "type": "integer", "minimum": 0 },
+        "draftFileCount": { "type": "integer", "minimum": 0 },
+        "reportArchiveFileCount": { "type": "integer", "minimum": 0 },
+        "commandCount": { "type": "integer", "minimum": 0 },
+        "readyCommandCount": { "type": "integer", "minimum": 0 },
+        "blockedCommandCount": { "type": "integer", "minimum": 0 },
+        "paidCommandCount": { "type": "integer", "minimum": 0 },
+        "readyPaidCommandCount": { "type": "integer", "minimum": 0 },
+        "commandPlanAuditStatus": { "type": "string" },
+        "blockedInputIds": { "type": "array", "items": { "type": "string" } },
+        "operatorInputFiles": { "type": "array", "items": { "type": "string" } },
+        "refreshCommands": { "type": "array", "items": { "type": "string" } }
       }
     }
   }

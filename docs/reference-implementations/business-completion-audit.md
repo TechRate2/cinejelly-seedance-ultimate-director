@@ -10,6 +10,7 @@ Operators need a single report that answers whether the remaining commercial gap
 - snapshot/subtree parity guardrail drift from `validation:snapshot-parity`
 - product-code parity gaps such as first-party Web UI, full deployed durable queue-backed active provider-work resume/reconciliation/handoff with live provider action execution, and full semantic/audio/ASR/lip-sync benchmark evidence coverage
 - commercial offer scope evidence from `validation:launch-intake`, including whether first-party Web UI is still undecided, explicitly scoped out for API/CLI-only launch, or required before customer traffic
+- operator handoff evidence from `validation:commercial-inputs`, including safe-to-share input counts, ignored operator file paths, draft/report archive counts, and guarded refresh commands
 - operator inputs such as deployment URL, attestations, source-video settings, and remote-stock provider choices
 - budget approval gaps such as the current full paid Atlas sequence exceeding the approved cap
 - paid-validation/manual-review gates that can only pass after a real provider run and human review
@@ -39,15 +40,16 @@ The report is valid when:
 2. `noSpend=true`, `networkCallsMade=false`, and `providerCallsMade=false`.
 3. `readinessSnapshot` records current business-readiness completion, snapshot parity status, launch-doctor status, ops-config status, report statuses, Atlas key/model booleans, budget fit, and ready paid gates.
 4. `commercialOfferScopeSummary` records the launch-intake status, configured commercial surface, UI-before-traffic flag, and whether first-party Web UI still blocks the scoped API/CLI commercial path.
-5. `codeWorkSummary` separates code/schema/command-plan blockers from external/operator blockers and reports product-code gaps separately from API/CLI commercial gates.
-6. `productCodeGaps` lists known parity blockers that prevent a 100% upstream/product-completeness claim even when schema/command-plan contracts are passing; gaps that require deployment, paid, live-provider, or manual-review evidence must set `completionRequiresExternalEvidence=true` and `canAutomateNow=false`, while product-scope decisions such as first-party Web UI versus API/CLI-only launch must set `scopeDecisionRequired=true` only while the launch-intake scope is undecided.
-7. `blockers` assigns every remaining non-configured commercial input to an owner and category.
-8. `releaseGateSummary.canReleaseToCustomerTraffic` mirrors the real business-readiness gate rather than the completion audit's own status, while `canClaimFullSnapshotParity=false` remains true until product-code gaps are closed or intentionally scoped out of the commercial offer.
-9. `validation:report-contracts` validates `schemas/business-completion-audit-report.schema.json` against the generated report.
-10. `validation:report-contracts` also validates report-local semantics: blocker counts, owner/category totals, product-code gap counts, commercial-offer scope alignment, parity flags, ready paid-gate counts, snapshot/report/release status booleans, and customer-traffic/full-paid release flags must match the underlying arrays and readiness snapshot.
-11. A failing snapshot parity audit becomes a codebase-owned blocker before any full-parity claim is trusted.
-12. Any code-side blocker reported by `validation:launch-doctor` becomes a codebase-owned completion-audit blocker until the doctor is clean.
-13. When `commercialLaunchDoctorSkipped=true`, the launch-doctor source status is `skipped_launch_doctor_in_progress` and must not create a missing-report blocker.
+5. `operatorHandoffSummary` mirrors the safe `operatorHandoffManifest` from commercial launch inputs without secrets, raw provider payloads, local absolute paths, customer media, or release-evidence claims.
+6. `codeWorkSummary` separates code/schema/command-plan blockers from external/operator blockers and reports product-code gaps separately from API/CLI commercial gates.
+7. `productCodeGaps` lists known parity blockers that prevent a 100% upstream/product-completeness claim even when schema/command-plan contracts are passing; gaps that require deployment, paid, live-provider, or manual-review evidence must set `completionRequiresExternalEvidence=true` and `canAutomateNow=false`, while product-scope decisions such as first-party Web UI versus API/CLI-only launch must set `scopeDecisionRequired=true` only while the launch-intake scope is undecided.
+8. `blockers` assigns every remaining non-configured commercial input to an owner and category.
+9. `releaseGateSummary.canReleaseToCustomerTraffic` mirrors the real business-readiness gate rather than the completion audit's own status, while `canClaimFullSnapshotParity=false` remains true until product-code gaps are closed or intentionally scoped out of the commercial offer.
+10. `validation:report-contracts` validates `schemas/business-completion-audit-report.schema.json` against the generated report.
+11. `validation:report-contracts` also validates report-local semantics: blocker counts, owner/category totals, product-code gap counts, commercial-offer scope alignment, operator-handoff safety/count alignment, parity flags, ready paid-gate counts, snapshot/report/release status booleans, and customer-traffic/full-paid release flags must match the underlying arrays and readiness snapshot.
+12. A failing snapshot parity audit becomes a codebase-owned blocker before any full-parity claim is trusted.
+13. Any code-side blocker reported by `validation:launch-doctor` becomes a codebase-owned completion-audit blocker until the doctor is clean.
+14. When `commercialLaunchDoctorSkipped=true`, the launch-doctor source status is `skipped_launch_doctor_in_progress` and must not create a missing-report blocker.
 
 ## Current Interpretation
 
