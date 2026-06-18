@@ -11,6 +11,10 @@ import type {
   DirectorStyleBenchmarkFacts,
   DirectorStyleBenchmarkMetricResult,
   DirectorStyleBenchmarkMetricStatus,
+  DirectorStyleBenchmarkParityEvidenceCategory,
+  DirectorStyleBenchmarkParityEvidenceMatrix,
+  DirectorStyleBenchmarkParityEvidenceRequirement,
+  DirectorStyleBenchmarkParityEvidenceStatus,
   DirectorStyleBenchmarkProfile,
   DirectorStyleBenchmarkReport,
   DirectorStyleBenchmarkSemanticReviewMetricEvidence,
@@ -115,6 +119,7 @@ export class DirectorStyleBenchmarkEvaluator {
     const lowConfidenceMetricCount = scoredMetrics.filter((metric) => (metric.confidence ?? 0) < minConfidence).length;
     const status = this.statusFor(weightedScore, bottlenecks, metrics, minPassingScore, minConfidence);
     const evidenceScope = this.evidenceScope(input.facts);
+    const parityEvidenceMatrix = this.parityEvidenceMatrix(input.facts);
     const mediaPath = input.mediaPath ?? input.facts.mediaEvidence?.mediaPath;
     const semanticReviewPath = input.semanticReviewPath ?? input.facts.semanticReviewEvidence?.sourcePath;
     const audioReviewPath = input.audioReviewPath ?? input.facts.audioReviewEvidence?.sourcePath;
@@ -167,6 +172,7 @@ export class DirectorStyleBenchmarkEvaluator {
       dimensionScores,
       metrics,
       bottlenecks,
+      parityEvidenceMatrix,
       releaseGateSummary: {
         benchmarkHarnessPass: status === "pass",
         canUseAsBackendBenchmarkEvidence: status !== "blocked",
@@ -686,8 +692,216 @@ export class DirectorStyleBenchmarkEvaluator {
     if (bottlenecks.length > 0) {
       actions.add("Review benchmark bottlenecks and feed them into the repair/manual-review checklist before commercial release.");
     }
+    actions.add("Use parityEvidenceMatrix to close every missing DirectorBench-style parity evidence requirement before claiming full benchmark parity.");
     actions.add("Keep this report as backend quality evidence only; do not treat it as UI readiness or customer-traffic approval.");
     return [...actions];
+  }
+
+  private parityEvidenceMatrix(facts: DirectorStyleBenchmarkFacts): DirectorStyleBenchmarkParityEvidenceMatrix {
+    const allCoreArtifactsPresent = [
+      ARTIFACT_KINDS.storyPlan,
+      ARTIFACT_KINDS.storyboard,
+      ARTIFACT_KINDS.compiledPrompts,
+      ARTIFACT_KINDS.renderedShots,
+      ARTIFACT_KINDS.reviewPacket,
+      ARTIFACT_KINDS.productionGraph,
+      ARTIFACT_KINDS.stageLifecycle,
+      ARTIFACT_KINDS.deliverable,
+      ARTIFACT_KINDS.costLedger
+    ].every((kind) => facts.artifactKinds.includes(kind));
+    const mediaEvidence = facts.mediaEvidence;
+    const hasLocalVideoProbe = mediaEvidence?.deliveryStatus !== undefined && mediaEvidence.video !== undefined;
+    const hasSampledFrames = mediaEvidence?.status === "frame_sampled" && (mediaEvidence.frameSampleCount ?? 0) >= 2;
+    const hasDetectedTransitionBoundaries =
+      mediaEvidence?.transitionSignals?.status === "analyzed" &&
+      mediaEvidence.transitionSignals.analyzedBoundaryCount > 0;
+    const transitionAnalyzerRan = mediaEvidence?.transitionSignals?.status === "not_detected" || hasDetectedTransitionBoundaries;
+    const hasLongFormDuration =
+      facts.finalDurationSeconds !== undefined && facts.finalDurationSeconds >= 120 && facts.finalDurationSeconds <= 480;
+    const hasAcceptedSemanticReview =
+      facts.semanticReviewEvidence?.status === "accepted" && facts.semanticReviewEvidence.metricCount >= 4;
+    const hasGeneratedAudioProviderEvidence =
+      facts.hasAudioEvidence === true && facts.artifactKinds.includes("generated_audio_output_batch_validation");
+    const hasAcceptedAudioReview =
+      facts.audioReviewEvidence?.status === "accepted" && facts.audioReviewEvidence.metricCount >= 4;
+    const hasAsrReview =
+      facts.audioReviewEvidence?.status === "accepted" &&
+      (facts.audioReviewEvidence.reviewerType === "asr" || facts.audioReviewEvidence.reviewerType === "hybrid") &&
+      facts.audioReviewEvidence.metrics.some((item) => item.metricName === "text_audio_consistency");
+    const hasLipSyncProxy =
+      facts.audioReviewEvidence?.status === "accepted" &&
+      facts.audioReviewEvidence.reviewerType === "hybrid" &&
+      facts.audioReviewEvidence.metrics.some((item) => item.metricName === "video_audio_consistency");
+    const hasAcceptedManualReview = facts.manualReviewAccepted === true;
+
+    const requirements: DirectorStyleBenchmarkParityEvidenceRequirement[] = [
+      this.parityRequirement({
+        id: "artifact_contracts",
+        category: "artifact_contract",
+        met: allCoreArtifactsPresent,
+        evidence: allCoreArtifactsPresent
+          ? [`Core artifact contracts are present across ${facts.artifactKinds.length} artifact kind(s).`]
+          : [],
+        missingEvidence: allCoreArtifactsPresent ? [] : ["Complete story, graph, render, delivery, review, and cost-ledger artifact bundle."],
+        notes: "CineJelly artifact contracts are the local foundation for Director-style scoring."
+      }),
+      this.parityRequirement({
+        id: "local_media_probe",
+        category: "visual_media",
+        met: hasLocalVideoProbe,
+        evidence: hasLocalVideoProbe
+          ? [`FFprobe metadata exists for local video media; duration=${mediaEvidence?.durationSeconds ?? "unknown"}s.`]
+          : [],
+        missingEvidence: hasLocalVideoProbe ? [] : ["Local rendered media probe with video stream metadata."],
+        notes: "Media metadata proves the benchmark inspected a real local deliverable, not only JSON artifacts."
+      }),
+      this.parityRequirement({
+        id: "sampled_frame_signals",
+        category: "visual_media",
+        met: hasSampledFrames,
+        evidence: hasSampledFrames
+          ? [`Sampled-frame aggregate signals exist for ${mediaEvidence?.frameSampleCount ?? 0} frame(s).`]
+          : [],
+        missingEvidence: hasSampledFrames ? [] : ["Bounded sampled-frame RGB/brightness continuity signals."],
+        notes: "Sampled-frame signals are structural proxies and do not replace semantic visual review."
+      }),
+      this.parityRequirement({
+        id: "transition_boundary_signals",
+        category: "visual_media",
+        met: hasDetectedTransitionBoundaries,
+        partial: transitionAnalyzerRan && !hasDetectedTransitionBoundaries,
+        evidence: hasDetectedTransitionBoundaries
+          ? [`Detected and analyzed ${mediaEvidence?.transitionSignals?.analyzedBoundaryCount ?? 0} transition boundary/boundaries.`]
+          : transitionAnalyzerRan
+            ? ["Scene-change analyzer ran, but the current media did not expose detected transition boundaries."]
+            : [],
+        missingEvidence: hasDetectedTransitionBoundaries
+          ? []
+          : ["Boundary-rich long-form media with detected scene transitions and reviewed pre/post evidence."],
+        notes: "Director-style transition quality needs boundary evidence, not only evenly sampled frames."
+      }),
+      this.parityRequirement({
+        id: "long_form_duration",
+        category: "long_form",
+        met: hasLongFormDuration,
+        evidence: hasLongFormDuration
+          ? [`Final media duration is ${facts.finalDurationSeconds}s within the 120-480s validation range.`]
+          : [],
+        missingEvidence: hasLongFormDuration ? [] : ["Paid 2-8 minute render output with validated final duration."],
+        notes: "Short smoke renders cannot prove long-form stability or pacing."
+      }),
+      this.parityRequirement({
+        id: "semantic_visual_review",
+        category: "semantic_review",
+        met: hasAcceptedSemanticReview,
+        partial: facts.semanticReviewEvidence !== undefined && !hasAcceptedSemanticReview,
+        evidence: facts.semanticReviewEvidence
+          ? [`Structured semantic review status=${facts.semanticReviewEvidence.status}; metricCount=${facts.semanticReviewEvidence.metricCount}.`]
+          : [],
+        missingEvidence: hasAcceptedSemanticReview
+          ? []
+          : ["Accepted structured semantic visual review covering script-video, transition, lighting, and text-video consistency."],
+        notes: "VLM or manual semantic checkpoint evidence is required before visual proxy scores become parity evidence."
+      }),
+      this.parityRequirement({
+        id: "generated_audio_provider_evidence",
+        category: "audio_media",
+        met: hasGeneratedAudioProviderEvidence,
+        partial: facts.hasAudioEvidence === true && !hasGeneratedAudioProviderEvidence,
+        evidence: facts.hasAudioEvidence === true ? ["Some audio evidence is present in the benchmark facts."] : [],
+        missingEvidence: hasGeneratedAudioProviderEvidence
+          ? []
+          : ["Generated-audio provider output batch validation tied to the render artifact bundle."],
+        notes: "Director-style audio scoring needs provider-backed generated-audio evidence, not only optional audio flags."
+      }),
+      this.parityRequirement({
+        id: "structured_audio_review",
+        category: "audio_media",
+        met: hasAcceptedAudioReview,
+        partial: facts.audioReviewEvidence !== undefined && !hasAcceptedAudioReview,
+        evidence: facts.audioReviewEvidence
+          ? [`Structured audio review status=${facts.audioReviewEvidence.status}; metricCount=${facts.audioReviewEvidence.metricCount}.`]
+          : [],
+        missingEvidence: hasAcceptedAudioReview
+          ? []
+          : ["Accepted structured audio review for narration, BGM, video-audio, and text-audio checkpoints."],
+        notes: "Waveform and duration-sync proxies cannot evaluate narration meaning or BGM appropriateness by themselves."
+      }),
+      this.parityRequirement({
+        id: "asr_transcript_alignment",
+        category: "runtime_parity",
+        met: hasAsrReview,
+        partial: facts.audioReviewEvidence?.reviewerType === "asr" || facts.audioReviewEvidence?.reviewerType === "hybrid",
+        evidence: hasAsrReview ? ["Accepted ASR or hybrid text-audio review evidence is present."] : [],
+        missingEvidence: hasAsrReview ? [] : ["ASR transcript alignment evidence for generated narration and script intent."],
+        notes: "ASR alignment remains separate from generic audio review and waveform evidence."
+      }),
+      this.parityRequirement({
+        id: "lip_sync_evidence",
+        category: "runtime_parity",
+        met: hasLipSyncProxy,
+        partial: false,
+        evidence: hasLipSyncProxy ? ["Hybrid video-audio review evidence is present as a lip-sync proxy."] : [],
+        missingEvidence: hasLipSyncProxy ? [] : ["Dedicated lip-sync or equivalent video-audio timing evidence."],
+        notes: "The current CineJelly harness does not run a dedicated lip-sync analyzer."
+      }),
+      this.parityRequirement({
+        id: "manual_long_form_media_review",
+        category: "semantic_review",
+        met: hasAcceptedManualReview && hasLongFormDuration,
+        partial: hasAcceptedManualReview && !hasLongFormDuration,
+        evidence: hasAcceptedManualReview ? ["Manual review text is present and accepted."] : [],
+        missingEvidence: hasAcceptedManualReview && hasLongFormDuration
+          ? []
+          : ["Accepted manual review for the same paid 2-8 minute long-form media artifact."],
+        notes: "Manual review only proves parity evidence when attached to the same long-form artifact under test."
+      }),
+      this.parityRequirement({
+        id: "license_and_runtime_permission_review",
+        category: "governance",
+        met: false,
+        partial: false,
+        evidence: [],
+        missingEvidence: ["Legal/permission review for deeper DirectorBench runtime parity or any reused evaluation assets."],
+        notes: "The snapshot has no top-level license, so CineJelly must keep this implementation independent unless permissions change."
+      })
+    ];
+
+    const metCount = requirements.filter((item) => item.status === "met").length;
+    const partialCount = requirements.filter((item) => item.status === "partial").length;
+    const missingCount = requirements.filter((item) => item.status === "missing").length;
+    const requiredForParity = requirements.filter((item) => item.requiredForDirectorBenchParity);
+    return {
+      requirementCount: requirements.length,
+      metCount,
+      partialCount,
+      missingCount,
+      requiredForParityCount: requiredForParity.length,
+      requiredForParityMetCount: requiredForParity.filter((item) => item.status === "met").length,
+      canClaimDirectorBenchParity: false,
+      requirements
+    };
+  }
+
+  private parityRequirement(input: {
+    readonly id: string;
+    readonly category: DirectorStyleBenchmarkParityEvidenceCategory;
+    readonly met: boolean;
+    readonly partial?: boolean;
+    readonly evidence: readonly string[];
+    readonly missingEvidence: readonly string[];
+    readonly notes: string;
+  }): DirectorStyleBenchmarkParityEvidenceRequirement {
+    const status: DirectorStyleBenchmarkParityEvidenceStatus = input.met ? "met" : input.partial ? "partial" : "missing";
+    return {
+      id: input.id,
+      category: input.category,
+      status,
+      requiredForDirectorBenchParity: true,
+      evidence: input.evidence,
+      missingEvidence: input.missingEvidence,
+      notes: input.notes
+    };
   }
 
   private evidenceScope(facts: DirectorStyleBenchmarkFacts): DirectorStyleBenchmarkEvidenceScope {

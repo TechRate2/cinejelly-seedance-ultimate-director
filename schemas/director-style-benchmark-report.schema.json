@@ -17,6 +17,7 @@
     "dimensionScores",
     "metrics",
     "bottlenecks",
+    "parityEvidenceMatrix",
     "releaseGateSummary",
     "nextActions"
   ],
@@ -132,6 +133,7 @@
       "type": "array",
       "items": { "$ref": "#/$defs/bottleneck" }
     },
+    "parityEvidenceMatrix": { "$ref": "#/$defs/parityEvidenceMatrix" },
     "releaseGateSummary": {
       "type": "object",
       "additionalProperties": false,
@@ -156,6 +158,18 @@
     "dimension": { "enum": ["script", "video", "audio", "stability", "cross_modal"] },
     "metricStatus": { "enum": ["pass", "warn", "fail", "skipped"] },
     "severity": { "enum": ["info", "warn", "block"] },
+    "parityEvidenceStatus": { "enum": ["met", "partial", "missing"] },
+    "parityEvidenceCategory": {
+      "enum": [
+        "artifact_contract",
+        "visual_media",
+        "audio_media",
+        "long_form",
+        "semantic_review",
+        "runtime_parity",
+        "governance"
+      ]
+    },
     "mediaStreamEvidence": {
       "type": "object",
       "additionalProperties": false,
@@ -490,6 +504,56 @@
         "severity": { "$ref": "#/$defs/severity" },
         "message": { "type": "string", "minLength": 1 },
         "suggestions": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "parityEvidenceRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "category",
+        "status",
+        "requiredForDirectorBenchParity",
+        "evidence",
+        "missingEvidence",
+        "notes"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "category": { "$ref": "#/$defs/parityEvidenceCategory" },
+        "status": { "$ref": "#/$defs/parityEvidenceStatus" },
+        "requiredForDirectorBenchParity": { "type": "boolean" },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "missingEvidence": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "parityEvidenceMatrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirementCount",
+        "metCount",
+        "partialCount",
+        "missingCount",
+        "requiredForParityCount",
+        "requiredForParityMetCount",
+        "canClaimDirectorBenchParity",
+        "requirements"
+      ],
+      "properties": {
+        "requirementCount": { "type": "integer", "minimum": 1 },
+        "metCount": { "type": "integer", "minimum": 0 },
+        "partialCount": { "type": "integer", "minimum": 0 },
+        "missingCount": { "type": "integer", "minimum": 0 },
+        "requiredForParityCount": { "type": "integer", "minimum": 1 },
+        "requiredForParityMetCount": { "type": "integer", "minimum": 0 },
+        "canClaimDirectorBenchParity": { "const": false },
+        "requirements": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/parityEvidenceRequirement" }
+        }
       }
     }
   }

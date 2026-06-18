@@ -103,7 +103,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Pay special attention to transition quality because the paper reports transition quality as a key bottleneck across workflows.
 - CineJelly extension:
   - Converts DirectorBench's evaluation philosophy into runtime Consistency Guardian inspections and repair routing.
-  - Adds a CineJelly-owned no-spend benchmark harness that reports script/video/audio/stability/cross-modal scores, confidence, bottlenecks, limitations, FFprobe media metadata, sampled-frame proxy signals, scene-change transition-boundary proxy signals, bounded FFmpeg audio waveform/volume proxy signals, FFprobe audio-video duration-sync proxy signals, optional structured semantic-review checkpoints, and optional structured audio-review checkpoints while explicitly keeping `canClaimDirectorBenchParity=false` until full semantic/audio media evidence exists.
+  - Adds a CineJelly-owned no-spend benchmark harness that reports script/video/audio/stability/cross-modal scores, confidence, bottlenecks, limitations, FFprobe media metadata, sampled-frame proxy signals, scene-change transition-boundary proxy signals, bounded FFmpeg audio waveform/volume proxy signals, FFprobe audio-video duration-sync proxy signals, optional structured semantic-review checkpoints, optional structured audio-review checkpoints, and a parity evidence matrix while explicitly keeping `canClaimDirectorBenchParity=false` until full semantic/audio media evidence exists.
 
 ### HKUDS/VideoAgent
 

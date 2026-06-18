@@ -652,11 +652,56 @@ function validateDirectorStyleBenchmarkSemantics(report) {
   if (report?.summary?.canClaimDirectorBenchParity !== false) {
     issues.push("$.summary.canClaimDirectorBenchParity: expected false for artifact-contract benchmark evidence.");
   }
+  if (report?.parityEvidenceMatrix?.canClaimDirectorBenchParity !== false) {
+    issues.push("$.parityEvidenceMatrix.canClaimDirectorBenchParity: expected false until every required parity evidence item is met.");
+  }
   if (report?.releaseGateSummary?.canClaimDirectorBenchParity !== false) {
     issues.push("$.releaseGateSummary.canClaimDirectorBenchParity: expected false until media-level DirectorBench parity evidence exists.");
   }
   if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
     issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; benchmark evidence is not commercial release approval.");
+  }
+  const requirements = Array.isArray(report?.parityEvidenceMatrix?.requirements)
+    ? report.parityEvidenceMatrix.requirements
+    : [];
+  const metCount = requirements.filter((item) => item?.status === "met").length;
+  const partialCount = requirements.filter((item) => item?.status === "partial").length;
+  const missingCount = requirements.filter((item) => item?.status === "missing").length;
+  const requiredForParity = requirements.filter((item) => item?.requiredForDirectorBenchParity === true);
+  const requiredForParityMetCount = requiredForParity.filter((item) => item?.status === "met").length;
+  if (Number(report?.parityEvidenceMatrix?.requirementCount ?? -1) !== requirements.length) {
+    issues.push("$.parityEvidenceMatrix.requirementCount: expected to match requirements length.");
+  }
+  if (Number(report?.parityEvidenceMatrix?.metCount ?? -1) !== metCount) {
+    issues.push("$.parityEvidenceMatrix.metCount: expected to match requirements with status=met.");
+  }
+  if (Number(report?.parityEvidenceMatrix?.partialCount ?? -1) !== partialCount) {
+    issues.push("$.parityEvidenceMatrix.partialCount: expected to match requirements with status=partial.");
+  }
+  if (Number(report?.parityEvidenceMatrix?.missingCount ?? -1) !== missingCount) {
+    issues.push("$.parityEvidenceMatrix.missingCount: expected to match requirements with status=missing.");
+  }
+  if (Number(report?.parityEvidenceMatrix?.requiredForParityCount ?? -1) !== requiredForParity.length) {
+    issues.push("$.parityEvidenceMatrix.requiredForParityCount: expected to match requiredForDirectorBenchParity requirements.");
+  }
+  if (Number(report?.parityEvidenceMatrix?.requiredForParityMetCount ?? -1) !== requiredForParityMetCount) {
+    issues.push("$.parityEvidenceMatrix.requiredForParityMetCount: expected to match met required-for-parity requirements.");
+  }
+  if (requiredForParity.length > 0 && requiredForParityMetCount === requiredForParity.length) {
+    issues.push("$.parityEvidenceMatrix: expected at least one unmet required parity evidence item while canClaimDirectorBenchParity=false.");
+  }
+  const requirementIds = new Set();
+  for (const requirement of requirements) {
+    if (requirementIds.has(requirement?.id)) {
+      issues.push(`$.parityEvidenceMatrix.requirements[id=${requirement?.id}]: expected unique requirement id.`);
+    }
+    requirementIds.add(requirement?.id);
+    if (requirement?.status === "met" && Array.isArray(requirement?.missingEvidence) && requirement.missingEvidence.length > 0) {
+      issues.push(`$.parityEvidenceMatrix.requirements[id=${requirement?.id}].missingEvidence: expected empty when status=met.`);
+    }
+    if ((requirement?.status === "missing" || requirement?.status === "partial") && (!Array.isArray(requirement?.missingEvidence) || requirement.missingEvidence.length === 0)) {
+      issues.push(`$.parityEvidenceMatrix.requirements[id=${requirement?.id}].missingEvidence: expected at least one item when status is not met.`);
+    }
   }
   return issues;
 }

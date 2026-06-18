@@ -2,6 +2,15 @@ export type DirectorStyleBenchmarkStatus = "pass" | "review_required" | "blocked
 export type DirectorStyleBenchmarkMetricStatus = "pass" | "warn" | "fail" | "skipped";
 export type DirectorStyleBenchmarkDimension = "script" | "video" | "audio" | "stability" | "cross_modal";
 export type DirectorStyleBenchmarkSeverity = "info" | "warn" | "block";
+export type DirectorStyleBenchmarkParityEvidenceStatus = "met" | "partial" | "missing";
+export type DirectorStyleBenchmarkParityEvidenceCategory =
+  | "artifact_contract"
+  | "visual_media"
+  | "audio_media"
+  | "long_form"
+  | "semantic_review"
+  | "runtime_parity"
+  | "governance";
 export type DirectorStyleBenchmarkEvidenceScope =
   | "artifact_contract_only"
   | "artifact_contract_plus_media_probe"
@@ -75,6 +84,27 @@ export interface DirectorStyleBenchmarkBottleneck {
   readonly severity: DirectorStyleBenchmarkSeverity;
   readonly message: string;
   readonly suggestions: readonly string[];
+}
+
+export interface DirectorStyleBenchmarkParityEvidenceRequirement {
+  readonly id: string;
+  readonly category: DirectorStyleBenchmarkParityEvidenceCategory;
+  readonly status: DirectorStyleBenchmarkParityEvidenceStatus;
+  readonly requiredForDirectorBenchParity: boolean;
+  readonly evidence: readonly string[];
+  readonly missingEvidence: readonly string[];
+  readonly notes: string;
+}
+
+export interface DirectorStyleBenchmarkParityEvidenceMatrix {
+  readonly requirementCount: number;
+  readonly metCount: number;
+  readonly partialCount: number;
+  readonly missingCount: number;
+  readonly requiredForParityCount: number;
+  readonly requiredForParityMetCount: number;
+  readonly canClaimDirectorBenchParity: false;
+  readonly requirements: readonly DirectorStyleBenchmarkParityEvidenceRequirement[];
 }
 
 export interface DirectorStyleBenchmarkMediaStreamEvidence {
@@ -292,6 +322,7 @@ export interface DirectorStyleBenchmarkReport {
   readonly dimensionScores: readonly DirectorStyleBenchmarkDimensionScore[];
   readonly metrics: readonly DirectorStyleBenchmarkMetricResult[];
   readonly bottlenecks: readonly DirectorStyleBenchmarkBottleneck[];
+  readonly parityEvidenceMatrix: DirectorStyleBenchmarkParityEvidenceMatrix;
   readonly releaseGateSummary: {
     readonly benchmarkHarnessPass: boolean;
     readonly canUseAsBackendBenchmarkEvidence: boolean;

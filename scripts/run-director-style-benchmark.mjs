@@ -157,7 +157,7 @@ Options:
   --no-jsonl                      Do not append the JSONL history.
 
 This benchmark performs no provider calls, no media downloads, no deployment calls, and no paid validation.
-It evaluates persisted CineJelly artifact-contract evidence plus optional local media probe/frame signals and does not claim full DirectorBench parity.`);
+It evaluates persisted CineJelly artifact-contract evidence plus optional local media probe/frame signals, emits a parityEvidenceMatrix, and does not claim full DirectorBench parity.`);
 }
 
 async function main() {

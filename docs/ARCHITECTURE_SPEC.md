@@ -49,7 +49,7 @@ Snapshot-derived integration targets:
 
 Extension based on these sources:
 
-- CineJelly adds a typed Production Graph, a Consistency Guardian, a Model Provider Abstraction Layer, generated-audio execution planning, provider-neutral generated-audio ready-item execution, Atlas generated-audio submit/poll execution behind validation gates, generated-audio output validation, batch reconciliation and optional artifact evidence, generated-audio asset resolution/catalog preflight, governed material sourcing, batch production evidence, a Director-style artifact benchmark harness, and commercial delivery contracts. These are product architecture extensions based on ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, MoneyPrinterTurbo, Emily2040/seedance-2.0, and Atlas Cloud docs.
+- CineJelly adds a typed Production Graph, a Consistency Guardian, a Model Provider Abstraction Layer, generated-audio execution planning, provider-neutral generated-audio ready-item execution, Atlas generated-audio submit/poll execution behind validation gates, generated-audio output validation, batch reconciliation and optional artifact evidence, generated-audio asset resolution/catalog preflight, governed material sourcing, batch production evidence, a Director-style artifact benchmark harness with parity evidence matrix, and commercial delivery contracts. These are product architecture extensions based on ViMax, VibeFrame, DirectorBench, VideoAgent, OpenMontage, MoneyPrinterTurbo, Emily2040/seedance-2.0, and Atlas Cloud docs.
 
 ## Git Subtree And Snapshot Workflow
 
@@ -311,7 +311,7 @@ The goal is to surpass TopView Agent V2 through architecture, not only prompt wo
 6. `preflight`: run prompt/reference safety, contradiction, and schema checks.
 7. `testTake`: for high-risk shots, render a short test take before full duration.
 8. `render`: submit parallel-safe jobs; preserve dependencies for continuity-bound shots.
-9. `inspect`: run Consistency Guardian and DirectorBench-style checkpoint scoring.
+9. `inspect`: run Consistency Guardian, DirectorBench-style checkpoint scoring, and parity evidence matrix validation.
 10. `repair`: rerender only failed nodes or use deterministic postproduction fixes.
 11. `postproductionAssets`: classify supplied caption cues and audio tracks into deterministic planning evidence; do not claim provider-backed TTS/BGM generation without a separate module.
 12. `assemble`: stitch clips with handles and transitions.
