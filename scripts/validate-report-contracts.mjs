@@ -27,6 +27,7 @@ const defaultContracts = [
   contract("render_provider_handoff_action_ledger", "schemas/render-provider-handoff-action-ledger-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
   contract("render_provider_multi_worker_handoff", "schemas/render-provider-multi-worker-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json"),
   contract("render_provider_production_handoff", "schemas/render-provider-production-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-production-handoff-report.json"),
+  contract("render_provider_live_action_evidence_draft", "schemas/render-provider-live-action-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-live-action-evidence-draft-report.json"),
   contract("render_provider_live_action_evidence", "schemas/render-provider-live-action-evidence.schema.json", "ops/render-provider-live-actions.json"),
   contract("render_provider_live_actions", "schemas/render-provider-live-actions-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"),
   contract("snapshot_parity_audit", "schemas/snapshot-parity-audit-report.schema.json", "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
@@ -297,6 +298,9 @@ function validateSemanticContract(item, report, options) {
   }
   if (item.name === "render_provider_live_actions") {
     return validateRenderProviderLiveActionsSemantics(report);
+  }
+  if (item.name === "render_provider_live_action_evidence_draft") {
+    return validateRenderProviderLiveActionEvidenceDraftSemantics(report);
   }
   return [];
 }
@@ -1269,6 +1273,36 @@ function validateRenderProviderLiveActionsSemantics(report) {
     report?.releaseGateSummary?.graphResumeEvidencePass === true
   )) {
     issues.push("$.summary/releaseGateSummary: non-pass live action report cannot be usable live-action or graph-resume evidence.");
+  }
+  return issues;
+}
+
+function validateRenderProviderLiveActionEvidenceDraftSemantics(report) {
+  const issues = [];
+  if (report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.networkCallsMade/$.providerCallsMade: expected false; draft helper must be no-network/no-provider.");
+  }
+  if (report?.template?.templateOnly !== true || report?.template?.directUseRejectedByEvidenceSchema !== true) {
+    issues.push("$.template: draft template must stay template-only and rejected by the evidence schema if copied directly.");
+  }
+  if (report?.template?.safeForEvidenceUse !== false) {
+    issues.push("$.template.safeForEvidenceUse: expected false for operator templates.");
+  }
+  if (
+    report?.releaseGateSummary?.canUseTemplateAsLiveProviderActionEvidence !== false ||
+    report?.releaseGateSummary?.canUseTemplateAsGraphResumeEvidence !== false ||
+    report?.releaseGateSummary?.canClaimDistributedResume !== false ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: draft reports must not unlock live-action, graph-resume, distributed-resume, or customer-traffic claims.");
+  }
+  if (report?.status === "pass") {
+    if (report?.template?.available !== true || report?.checklist?.available !== true) {
+      issues.push("$.template/$.checklist: pass draft reports must have an available template and checklist.");
+    }
+    if (Array.isArray(report?.issues) && report.issues.length > 0) {
+      issues.push("$.issues: pass draft reports must not carry issues.");
+    }
   }
   return issues;
 }

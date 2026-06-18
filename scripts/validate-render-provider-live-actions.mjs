@@ -40,6 +40,38 @@ const resultStatuses = new Set([
   "closeout_recorded"
 ]);
 
+const evidenceKeys = new Set([
+  "schemaVersion",
+  "environmentKind",
+  "deploymentBaseUrl",
+  "approvedBy",
+  "approvedAt",
+  "executions"
+]);
+
+const executionKeys = new Set([
+  "actionId",
+  "jobId",
+  "action",
+  "predictionIds",
+  "provider",
+  "providerCallKind",
+  "providerCallMade",
+  "resultStatus",
+  "executedAt",
+  "evidenceSummary",
+  "redactionReviewed",
+  "rawProviderPayloadStored",
+  "outputUrlsStored"
+]);
+
+const placeholderPatterns = [
+  /replace[-_\s]?with/i,
+  /placeholder/i,
+  /\btodo\b/i,
+  /\btbd\b/i
+];
+
 const secretPatterns = [
   /Bearer\s+[A-Za-z0-9._-]+/gi,
   /sk-[A-Za-z0-9_-]+/g,
@@ -248,6 +280,9 @@ function evidenceChecksFor(evidence) {
     return [];
   }
   const checks = [
+    unknownKeys(evidence, evidenceKeys).length === 0
+      ? pass("evidence.no_unknown_fields", "Live action evidence has no template-only or unknown top-level fields.")
+      : fail("evidence.no_unknown_fields", `Live action evidence contains unsupported top-level fields: ${unknownKeys(evidence, evidenceKeys).join(", ")}.`),
     evidence.schemaVersion === "cinejelly.render-provider-live-action-evidence.v1"
       ? pass("evidence.schema", "Live action evidence schema is recognized.")
       : fail("evidence.schema", "schemaVersion must be cinejelly.render-provider-live-action-evidence.v1."),
@@ -281,6 +316,9 @@ function executionChecks(execution, index) {
     return [fail(prefix, `${prefix} must be an object.`)];
   }
   return [
+    unknownKeys(execution, executionKeys).length === 0
+      ? pass(`${prefix}.no_unknown_fields`, "Execution evidence has no template-only or unknown fields.")
+      : fail(`${prefix}.no_unknown_fields`, `${prefix} contains unsupported fields: ${unknownKeys(execution, executionKeys).join(", ")}.`),
     safeIdentifier(execution.actionId)
       ? pass(`${prefix}.action_id`, "Action ID is safe.")
       : fail(`${prefix}.action_id`, "actionId must be a safe non-empty identifier."),
@@ -558,7 +596,8 @@ function safeIdentifier(value) {
     value.trim().length > 0 &&
     value.trim().length <= 240 &&
     !/[\u0000-\u001f\u007f]/.test(value) &&
-    !containsSecretLikeText(value);
+    !containsSecretLikeText(value) &&
+    !containsPlaceholderText(value);
 }
 
 function safeRequiredText(value) {
@@ -566,7 +605,8 @@ function safeRequiredText(value) {
     value.trim().length > 0 &&
     value.trim().length <= 500 &&
     !/[\u0000-\u001f\u007f]/.test(value) &&
-    !containsSecretLikeText(value);
+    !containsSecretLikeText(value) &&
+    !containsPlaceholderText(value);
 }
 
 function safePublicText(value) {
@@ -579,6 +619,18 @@ function containsSecretLikeText(value) {
     pattern.lastIndex = 0;
     return pattern.test(text);
   });
+}
+
+function containsPlaceholderText(value) {
+  const text = String(value);
+  return placeholderPatterns.some((pattern) => pattern.test(text));
+}
+
+function unknownKeys(value, allowedKeys) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [];
+  }
+  return Object.keys(value).filter((key) => !allowedKeys.has(key));
 }
 
 function isDateTime(value) {
