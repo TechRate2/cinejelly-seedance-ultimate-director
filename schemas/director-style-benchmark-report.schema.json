@@ -48,6 +48,7 @@
         "audioReviewPath": { "type": "string", "minLength": 1 },
         "runtimeReviewPath": { "type": "string", "minLength": 1 },
         "governanceReviewPath": { "type": "string", "minLength": 1 },
+        "generatedAudioValidationPath": { "type": "string", "minLength": 1 },
         "outputPath": { "type": "string", "minLength": 1 },
         "jsonlPath": { "type": "string", "minLength": 1 },
         "minPassingScore": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -124,7 +125,8 @@
         "semanticReviewEvidence": { "$ref": "#/$defs/semanticReviewEvidence" },
         "audioReviewEvidence": { "$ref": "#/$defs/audioReviewEvidence" },
         "runtimeReviewEvidence": { "$ref": "#/$defs/runtimeReviewEvidence" },
-        "governanceReviewEvidence": { "$ref": "#/$defs/governanceReviewEvidence" }
+        "governanceReviewEvidence": { "$ref": "#/$defs/governanceReviewEvidence" },
+        "generatedAudioProviderEvidence": { "$ref": "#/$defs/generatedAudioProviderEvidence" }
       }
     },
     "dimensionScores": {
@@ -557,6 +559,43 @@
           "minItems": 1,
           "items": { "$ref": "#/$defs/governanceReviewCheckEvidence" }
         },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      }
+    },
+    "generatedAudioProviderEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "status",
+        "reportStatus",
+        "canUseAsBusinessReadinessGeneratedAudioEvidence",
+        "providerNetworkCallsAllowed",
+        "atlasBillingReady",
+        "schemaReviewed",
+        "approvedTrackCount",
+        "providerLedgerEntryCount",
+        "manualReviewPassed",
+        "findings"
+      ],
+      "properties": {
+        "source": { "const": "generated_audio_validation_report" },
+        "sourcePath": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["accepted", "needs_review", "rejected"] },
+        "reportStatus": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "canUseAsBusinessReadinessGeneratedAudioEvidence": { "type": "boolean" },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "outputFormat": { "enum": ["mp3", "wav"] },
+        "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "estimatedCostUsd": { "type": "number", "minimum": 0 },
+        "providerNetworkCallsAllowed": { "type": "boolean" },
+        "atlasBillingReady": { "type": "boolean" },
+        "schemaReviewed": { "type": "boolean" },
+        "executionStatus": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "outputBatchStatus": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "approvedTrackCount": { "type": "integer", "minimum": 0 },
+        "providerLedgerEntryCount": { "type": "integer", "minimum": 0 },
+        "manualReviewPassed": { "type": "boolean" },
         "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
       }
     },

@@ -62,6 +62,7 @@ export type DirectorStyleBenchmarkGovernanceReviewCheckName =
   | "evaluation_asset_permissions";
 export type DirectorStyleBenchmarkGovernanceReviewStatus = "accepted" | "needs_review" | "rejected";
 export type DirectorStyleBenchmarkGovernanceReviewerType = "operator" | "legal" | "product" | "security" | "hybrid";
+export type DirectorStyleBenchmarkGeneratedAudioProviderEvidenceStatus = "accepted" | "needs_review" | "rejected";
 
 export interface DirectorStyleBenchmarkEvidence {
   readonly kind: string;
@@ -307,6 +308,27 @@ export interface DirectorStyleBenchmarkGovernanceReviewEvidence {
   readonly findings: readonly string[];
 }
 
+export interface DirectorStyleBenchmarkGeneratedAudioProviderEvidence {
+  readonly source: "generated_audio_validation_report";
+  readonly sourcePath?: string;
+  readonly status: DirectorStyleBenchmarkGeneratedAudioProviderEvidenceStatus;
+  readonly reportStatus: string;
+  readonly canUseAsBusinessReadinessGeneratedAudioEvidence: boolean;
+  readonly modelId?: string;
+  readonly outputFormat?: "mp3" | "wav";
+  readonly durationSeconds?: number;
+  readonly estimatedCostUsd?: number;
+  readonly providerNetworkCallsAllowed: boolean;
+  readonly atlasBillingReady: boolean;
+  readonly schemaReviewed: boolean;
+  readonly executionStatus?: string;
+  readonly outputBatchStatus?: string;
+  readonly approvedTrackCount: number;
+  readonly providerLedgerEntryCount: number;
+  readonly manualReviewPassed: boolean;
+  readonly findings: readonly string[];
+}
+
 export interface DirectorStyleBenchmarkMediaEvidence {
   readonly status: "unavailable" | "probe_only" | "frame_sampled";
   readonly source: "local_file";
@@ -348,6 +370,7 @@ export interface DirectorStyleBenchmarkFacts {
   readonly audioReviewEvidence?: DirectorStyleBenchmarkAudioReviewEvidence;
   readonly runtimeReviewEvidence?: DirectorStyleBenchmarkRuntimeReviewEvidence;
   readonly governanceReviewEvidence?: DirectorStyleBenchmarkGovernanceReviewEvidence;
+  readonly generatedAudioProviderEvidence?: DirectorStyleBenchmarkGeneratedAudioProviderEvidence;
 }
 
 export interface DirectorStyleBenchmarkReport {
@@ -373,6 +396,7 @@ export interface DirectorStyleBenchmarkReport {
     readonly audioReviewPath?: string;
     readonly runtimeReviewPath?: string;
     readonly governanceReviewPath?: string;
+    readonly generatedAudioValidationPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
     readonly minPassingScore: number;

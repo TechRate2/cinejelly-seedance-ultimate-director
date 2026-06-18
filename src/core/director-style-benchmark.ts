@@ -95,6 +95,7 @@ export class DirectorStyleBenchmarkEvaluator {
     readonly audioReviewPath?: string;
     readonly runtimeReviewPath?: string;
     readonly governanceReviewPath?: string;
+    readonly generatedAudioValidationPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
   }): DirectorStyleBenchmarkReport {
@@ -130,6 +131,8 @@ export class DirectorStyleBenchmarkEvaluator {
     const audioReviewPath = input.audioReviewPath ?? input.facts.audioReviewEvidence?.sourcePath;
     const runtimeReviewPath = input.runtimeReviewPath ?? input.facts.runtimeReviewEvidence?.sourcePath;
     const governanceReviewPath = input.governanceReviewPath ?? input.facts.governanceReviewEvidence?.sourcePath;
+    const generatedAudioValidationPath =
+      input.generatedAudioValidationPath ?? input.facts.generatedAudioProviderEvidence?.sourcePath;
     const frameSamplingIntervalSeconds =
       input.frameSamplingIntervalSeconds ?? input.facts.mediaEvidence?.frameSamplingIntervalSeconds;
 
@@ -160,6 +163,7 @@ export class DirectorStyleBenchmarkEvaluator {
         ...(audioReviewPath ? { audioReviewPath } : {}),
         ...(runtimeReviewPath ? { runtimeReviewPath } : {}),
         ...(governanceReviewPath ? { governanceReviewPath } : {}),
+        ...(generatedAudioValidationPath ? { generatedAudioValidationPath } : {}),
         ...(input.outputPath ? { outputPath: input.outputPath } : {}),
         ...(input.jsonlPath ? { jsonlPath: input.jsonlPath } : {}),
         minPassingScore,
@@ -541,7 +545,8 @@ export class DirectorStyleBenchmarkEvaluator {
     const waveformMetric = this.audioWaveformMetric(facts);
     const syncMetric = this.audioVideoSyncMetric(facts);
     const proxyMetric = this.audioProxyMetric(metricName, waveformMetric, syncMetric);
-    if (!facts.hasAudioEvidence && !reviewMetric && !runtimeMetric) {
+    const providerEvidence = facts.generatedAudioProviderEvidence;
+    if (!facts.hasAudioEvidence && !reviewMetric && !runtimeMetric && providerEvidence?.status !== "accepted") {
       return {
         dimension,
         metricName,
@@ -564,8 +569,8 @@ export class DirectorStyleBenchmarkEvaluator {
       metricName,
       upstreamMetric,
       requiredKinds: [ARTIFACT_KINDS.postproductionAssetPlan, ARTIFACT_KINDS.reviewPacket],
-      score: runtimeMetric?.score ?? reviewMetric?.score ?? proxyMetric?.score ?? (facts.manualReviewAccepted ? 0.78 : 0.62),
-      confidence: runtimeMetric?.confidence ?? reviewMetric?.confidence ?? proxyMetric?.confidence ?? (facts.manualReviewAccepted ? 0.64 : 0.46),
+      score: runtimeMetric?.score ?? reviewMetric?.score ?? proxyMetric?.score ?? this.generatedAudioProviderScore(providerEvidence) ?? (facts.manualReviewAccepted ? 0.78 : 0.62),
+      confidence: runtimeMetric?.confidence ?? reviewMetric?.confidence ?? proxyMetric?.confidence ?? this.generatedAudioProviderConfidence(providerEvidence) ?? (facts.manualReviewAccepted ? 0.64 : 0.46),
       passMessage: reviewMetric
         ? runtimeMetric
           ? "Audio/postproduction evidence is reinforced by structured audio review and runtime ASR/lip-sync checkpoint evidence."
@@ -574,6 +579,8 @@ export class DirectorStyleBenchmarkEvaluator {
         ? "Audio/postproduction evidence is reinforced by structured runtime ASR/lip-sync checkpoint evidence."
         : proxyMetric
         ? "Audio/postproduction evidence is reinforced by local audio signal and sync proxy evidence."
+        : providerEvidence
+        ? "Audio/postproduction evidence is reinforced by generated-audio provider validation evidence."
         : "Audio/postproduction evidence exists and manual review status is reflected.",
       failMessage: "Audio/postproduction runtime review evidence is incomplete.",
       suggestion: reviewMetric
@@ -602,7 +609,10 @@ export class DirectorStyleBenchmarkEvaluator {
               )
             ]
           : []),
-        ...(!reviewMetric && !runtimeMetric && proxyMetric ? proxyMetric.evidence : [])
+        ...(!reviewMetric && !runtimeMetric && proxyMetric ? proxyMetric.evidence : []),
+        ...(!reviewMetric && !runtimeMetric && !proxyMetric && providerEvidence
+          ? [this.generatedAudioProviderEvidence(providerEvidence)]
+          : [])
       ],
       ...(runtimeMetric
         ? {
@@ -620,6 +630,12 @@ export class DirectorStyleBenchmarkEvaluator {
         ? {
             limitations: [
               "FFmpeg waveform and FFprobe duration-alignment evidence are structural proxies; they cannot verify narration meaning, BGM appropriateness, true audio-video sync, ASR transcript accuracy, lip sync, or generated-audio provider quality."
+            ]
+          }
+        : providerEvidence
+        ? {
+            limitations: [
+              "Generated-audio provider validation evidence proves provider execution/output validation/manual listening gates, but structured audio review, ASR alignment, lip-sync timing, and long-form media binding remain separate gates."
             ]
           }
         : {})
@@ -702,7 +718,9 @@ export class DirectorStyleBenchmarkEvaluator {
     if (!facts.finalDurationSeconds || facts.finalDurationSeconds < 120) {
       actions.add("Run the benchmark against a paid 2-8 minute long-form output before using it as long-form production evidence.");
     }
-    if (!facts.hasAudioEvidence) {
+    if (facts.generatedAudioProviderEvidence && facts.generatedAudioProviderEvidence.status !== "accepted") {
+      actions.add("Complete generated-audio validation provider spend, billing, schema, output-batch, ledger, and manual listening gates before treating audio provider evidence as accepted.");
+    } else if (!facts.hasAudioEvidence && facts.generatedAudioProviderEvidence?.status !== "accepted") {
       actions.add("Add generated-audio provider output validation and manual listening review to score audio and audio cross-modal metrics.");
     } else if (!facts.audioReviewEvidence || facts.audioReviewEvidence.metricCount < 2) {
       actions.add("Provide structured audio review JSON for narration, BGM, and audio cross-modal quality checkpoints.");
@@ -761,8 +779,7 @@ export class DirectorStyleBenchmarkEvaluator {
       facts.finalDurationSeconds !== undefined && facts.finalDurationSeconds >= 120 && facts.finalDurationSeconds <= 480;
     const hasAcceptedSemanticReview =
       facts.semanticReviewEvidence?.status === "accepted" && facts.semanticReviewEvidence.metricCount >= 4;
-    const hasGeneratedAudioProviderEvidence =
-      facts.hasAudioEvidence === true && facts.artifactKinds.includes("generated_audio_output_batch_validation");
+    const hasGeneratedAudioProviderEvidence = this.hasAcceptedGeneratedAudioProviderEvidence(facts);
     const hasAcceptedAudioReview =
       facts.audioReviewEvidence?.status === "accepted" && facts.audioReviewEvidence.metricCount >= 4;
     const hasAsrReview =
@@ -847,11 +864,17 @@ export class DirectorStyleBenchmarkEvaluator {
         id: "generated_audio_provider_evidence",
         category: "audio_media",
         met: hasGeneratedAudioProviderEvidence,
-        partial: facts.hasAudioEvidence === true && !hasGeneratedAudioProviderEvidence,
-        evidence: facts.hasAudioEvidence === true ? ["Some audio evidence is present in the benchmark facts."] : [],
+        partial: (facts.hasAudioEvidence === true || facts.generatedAudioProviderEvidence !== undefined) && !hasGeneratedAudioProviderEvidence,
+        evidence: facts.generatedAudioProviderEvidence
+          ? [
+              `Generated-audio validation status=${facts.generatedAudioProviderEvidence.status}; reportStatus=${facts.generatedAudioProviderEvidence.reportStatus}; approvedTracks=${facts.generatedAudioProviderEvidence.approvedTrackCount}; ledgerEntries=${facts.generatedAudioProviderEvidence.providerLedgerEntryCount}.`
+            ]
+          : facts.hasAudioEvidence === true
+            ? ["Some audio evidence is present in the benchmark facts."]
+            : [],
         missingEvidence: hasGeneratedAudioProviderEvidence
           ? []
-          : ["Generated-audio provider output batch validation tied to the render artifact bundle."],
+          : ["Accepted generated-audio validation report with provider spend, Atlas billing, schema review, output batch approval, provider ledger, and manual listening review."],
         notes: "Director-style audio scoring needs provider-backed generated-audio evidence, not only optional audio flags."
       }),
       this.parityRequirement({
@@ -1020,6 +1043,44 @@ export class DirectorStyleBenchmarkEvaluator {
     };
   }
 
+  private generatedAudioProviderEvidence(
+    evidence: NonNullable<DirectorStyleBenchmarkFacts["generatedAudioProviderEvidence"]>
+  ): DirectorStyleBenchmarkEvidence {
+    return {
+      kind: "generated_audio_provider_evidence",
+      severity: evidence.status === "accepted" ? "info" : evidence.status === "needs_review" ? "warn" : "block",
+      message:
+        evidence.status === "accepted"
+          ? `Generated-audio validation report is accepted; approvedTracks=${evidence.approvedTrackCount}, ledgerEntries=${evidence.providerLedgerEntryCount}.`
+          : `Generated-audio validation report is ${evidence.status}; reportStatus=${evidence.reportStatus}, approvedTracks=${evidence.approvedTrackCount}, ledgerEntries=${evidence.providerLedgerEntryCount}.`,
+      source: "generated_audio_validation_report"
+    };
+  }
+
+  private generatedAudioProviderScore(
+    evidence: DirectorStyleBenchmarkFacts["generatedAudioProviderEvidence"]
+  ): number | undefined {
+    if (!evidence) {
+      return undefined;
+    }
+    if (evidence.status === "accepted") {
+      return 0.76;
+    }
+    return evidence.status === "needs_review" ? 0.58 : 0.42;
+  }
+
+  private generatedAudioProviderConfidence(
+    evidence: DirectorStyleBenchmarkFacts["generatedAudioProviderEvidence"]
+  ): number | undefined {
+    if (!evidence) {
+      return undefined;
+    }
+    if (evidence.status === "accepted") {
+      return 0.62;
+    }
+    return evidence.status === "needs_review" ? 0.48 : 0.58;
+  }
+
   private semanticReviewMetric(
     facts: DirectorStyleBenchmarkFacts,
     metricName: DirectorStyleBenchmarkSemanticReviewMetricName
@@ -1055,6 +1116,20 @@ export class DirectorStyleBenchmarkEvaluator {
     return requiredChecks.every((checkName) =>
       evidence.checks.some((check) => check.checkName === checkName && check.status === "accepted")
     );
+  }
+
+  private hasAcceptedGeneratedAudioProviderEvidence(facts: DirectorStyleBenchmarkFacts): boolean {
+    const evidence = facts.generatedAudioProviderEvidence;
+    return evidence?.status === "accepted" &&
+      evidence.canUseAsBusinessReadinessGeneratedAudioEvidence === true &&
+      evidence.providerNetworkCallsAllowed === true &&
+      evidence.atlasBillingReady === true &&
+      evidence.schemaReviewed === true &&
+      evidence.executionStatus === "succeeded" &&
+      evidence.outputBatchStatus === "approved" &&
+      evidence.approvedTrackCount > 0 &&
+      evidence.providerLedgerEntryCount > 0 &&
+      evidence.manualReviewPassed === true;
   }
 
   private runtimeMetricForAudioMetric(

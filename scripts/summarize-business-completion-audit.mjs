@@ -313,17 +313,17 @@ function buildProductCodeGaps() {
       id: "directorbench_style_benchmark_harness",
       label: "DirectorBench-style benchmark harness is partial",
       category: "evaluation_harness",
-      status: "governance_review_contract_ready",
-      currentCoveragePercent: 84,
+      status: "generated_audio_evidence_contract_ready",
+      currentCoveragePercent: 86,
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["jiaminchen-1031/DirectorBench"],
       requiredAction:
-        "Run validation:quality-benchmark on real 2-8 minute paid artifacts and close every unmet parityEvidenceMatrix requirement: actual detected transition boundaries, waveform-analyzed and duration-sync-checked audio, structured semantic/audio/runtime review JSON, structured governance-review JSON, generated-audio provider evidence, accepted ASR transcript alignment and lip-sync timing checkpoints, accepted long-form manual review, and accepted permission/legal review before claiming DirectorBench-style parity.",
+        "Run validation:quality-benchmark on real 2-8 minute paid artifacts and close every unmet parityEvidenceMatrix requirement: actual detected transition boundaries, waveform-analyzed and duration-sync-checked audio, structured semantic/audio/runtime review JSON, structured governance-review JSON, accepted generated-audio validation report evidence, accepted ASR transcript alignment and lip-sync timing checkpoints, accepted long-form manual review, and accepted permission/legal review before claiming DirectorBench-style parity.",
       canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "A CineJelly-owned no-spend benchmark now emits script/video/audio/stability/cross-modal checkpoint evidence, bottlenecks, report contracts, FFprobe media metadata, sampled-frame proxy signals, FFmpeg scene-change transition-boundary proxy evidence when boundaries are detected, bounded FFmpeg audio waveform/volume proxy evidence, FFprobe audio-video duration-sync proxy evidence when audio is present, optional structured semantic/audio/runtime/governance review checkpoints, and a contract-validated parity evidence matrix, but it still cannot replace generated-audio provider evidence, real accepted ASR/lip-sync evidence from paid media, accepted legal/operator governance review, long-form paid evidence, or full DirectorBench runtime parity."
+        "A CineJelly-owned no-spend benchmark now emits script/video/audio/stability/cross-modal checkpoint evidence, bottlenecks, report contracts, FFprobe media metadata, sampled-frame proxy signals, FFmpeg scene-change transition-boundary proxy evidence when boundaries are detected, bounded FFmpeg audio waveform/volume proxy evidence, FFprobe audio-video duration-sync proxy evidence when audio is present, optional structured semantic/audio/runtime/governance review checkpoints, optional generated-audio validation report checkpoints, and a contract-validated parity evidence matrix, but it still cannot replace accepted live generated-audio provider evidence, real accepted ASR/lip-sync evidence from paid media, accepted legal/operator governance review, long-form paid evidence, or full DirectorBench runtime parity."
     }
   ];
 }

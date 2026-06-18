@@ -13,6 +13,7 @@ const defaults = {
   audioReviewPath: "assets/output_deliverables/business-readiness/director-style-audio-review.json",
   runtimeReviewPath: "assets/output_deliverables/business-readiness/director-style-runtime-review.json",
   governanceReviewPath: "assets/output_deliverables/business-readiness/director-style-governance-review.json",
+  generatedAudioValidationPath: "assets/output_deliverables/business-readiness/generated-audio-validation-report.json",
   mediaPath: "assets/output_deliverables/phase6-validation/final.mp4",
   outputPath: "assets/output_deliverables/business-readiness/director-style-benchmark-report.json",
   jsonlPath: "assets/output_deliverables/business-readiness/director-style-benchmark-results.jsonl",
@@ -37,6 +38,7 @@ function parseArgs(args) {
     useAudioReview: true,
     useRuntimeReview: true,
     useGovernanceReview: true,
+    useGeneratedAudioValidation: true,
     useMedia: true,
     buildFirst: false
   };
@@ -48,6 +50,7 @@ function parseArgs(args) {
     ["--audio-review", "audioReviewPath"],
     ["--runtime-review", "runtimeReviewPath"],
     ["--governance-review", "governanceReviewPath"],
+    ["--generated-audio-validation", "generatedAudioValidationPath"],
     ["--media", "mediaPath"],
     ["--output", "outputPath"],
     ["--jsonl", "jsonlPath"],
@@ -97,6 +100,10 @@ function parseArgs(args) {
     }
     if (arg === "--no-governance-review") {
       options.useGovernanceReview = false;
+      continue;
+    }
+    if (arg === "--no-generated-audio-validation") {
+      options.useGeneratedAudioValidation = false;
       continue;
     }
     if (arg === "--no-media") {
@@ -152,6 +159,8 @@ Options:
   --audio-review <path>           Optional structured audio review JSON. Default: ${defaults.audioReviewPath}
   --runtime-review <path>         Optional structured ASR/lip-sync runtime review JSON. Default: ${defaults.runtimeReviewPath}
   --governance-review <path>      Optional structured license/runtime permission review JSON. Default: ${defaults.governanceReviewPath}
+  --generated-audio-validation <path>
+                                  Optional generated-audio validation report JSON. Default: ${defaults.generatedAudioValidationPath}
   --media <path>                  Optional local rendered media for probe/frame-signal evidence. Default: ${defaults.mediaPath}
   --profile <name>                balanced, story_first, visual_heavy, audio_emotion, sync_perfectionist. Default: balanced
   --min-passing-score <number>    Default: ${defaults.minPassingScore}
@@ -169,6 +178,7 @@ Options:
   --no-audio-review               Do not read structured audio review evidence.
   --no-runtime-review             Do not read structured runtime review evidence.
   --no-governance-review          Do not read structured governance review evidence.
+  --no-generated-audio-validation Do not read generated-audio validation report evidence.
   --no-media                      Do not inspect local rendered media.
   --build                         Build TypeScript before importing the benchmark evaluator.
   --no-output                     Print only; do not write the JSON report.
@@ -205,6 +215,7 @@ async function main() {
   const audioReviewEvidence = options.useAudioReview ? await collectAudioReviewEvidence(options) : undefined;
   const runtimeReviewEvidence = options.useRuntimeReview ? await collectRuntimeReviewEvidence(options) : undefined;
   const governanceReviewEvidence = options.useGovernanceReview ? await collectGovernanceReviewEvidence(options) : undefined;
+  const generatedAudioProviderEvidence = options.useGeneratedAudioValidation ? await collectGeneratedAudioProviderEvidence(options) : undefined;
   const mediaEvidence = options.useMedia ? await collectMediaEvidence(options) : undefined;
   const facts = factsFrom({
     paidRenderReport,
@@ -214,6 +225,7 @@ async function main() {
     audioReviewEvidence,
     runtimeReviewEvidence,
     governanceReviewEvidence,
+    generatedAudioProviderEvidence,
     mediaEvidence,
     options
   });
@@ -234,6 +246,7 @@ async function main() {
     ...(audioReviewEvidence ? { audioReviewPath: toRepoRelative(options.audioReviewPath) } : {}),
     ...(runtimeReviewEvidence ? { runtimeReviewPath: toRepoRelative(options.runtimeReviewPath) } : {}),
     ...(governanceReviewEvidence ? { governanceReviewPath: toRepoRelative(options.governanceReviewPath) } : {}),
+    ...(generatedAudioProviderEvidence ? { generatedAudioValidationPath: toRepoRelative(options.generatedAudioValidationPath) } : {}),
     ...(options.writeOutput ? { outputPath: toRepoRelative(options.outputPath) } : {}),
     ...(options.appendJsonl ? { jsonlPath: toRepoRelative(options.jsonlPath) } : {})
   });
@@ -311,6 +324,16 @@ async function collectGovernanceReviewEvidence(options) {
   return normalizeDirectorStyleGovernanceReviewEvidence(raw, { sourcePath: toRepoRelative(options.governanceReviewPath) });
 }
 
+async function collectGeneratedAudioProviderEvidence(options) {
+  const absolutePath = resolve(repoRoot, options.generatedAudioValidationPath);
+  if (!existsSync(absolutePath)) {
+    return undefined;
+  }
+  const raw = readJson(options.generatedAudioValidationPath, true);
+  const { normalizeDirectorStyleGeneratedAudioProviderEvidence } = await import("../dist/core/director-style-generated-audio-provider-evidence.js");
+  return normalizeDirectorStyleGeneratedAudioProviderEvidence(raw, { sourcePath: toRepoRelative(options.generatedAudioValidationPath) });
+}
+
 function validateOptions(options) {
   const profiles = new Set(["balanced", "story_first", "visual_heavy", "audio_emotion", "sync_perfectionist"]);
   if (!profiles.has(options.profile)) {
@@ -356,6 +379,7 @@ function validateOptions(options) {
     ["--audio-review", options.audioReviewPath],
     ["--runtime-review", options.runtimeReviewPath],
     ["--governance-review", options.governanceReviewPath],
+    ["--generated-audio-validation", options.generatedAudioValidationPath],
     ["--media", options.mediaPath],
     ["--output", options.outputPath],
     ["--jsonl", options.jsonlPath]
@@ -380,6 +404,7 @@ function factsFrom({
   audioReviewEvidence,
   runtimeReviewEvidence,
   governanceReviewEvidence,
+  generatedAudioProviderEvidence,
   mediaEvidence,
   options
 }) {
@@ -398,7 +423,8 @@ function factsFrom({
     audioMode !== undefined && audioMode !== "none" ||
     artifactKinds.includes("generated_audio_output_batch_validation") ||
     mediaEvidence?.audio?.hasAudio === true ||
-    audioReviewEvidence !== undefined;
+    audioReviewEvidence !== undefined ||
+    generatedAudioProviderEvidence?.status === "accepted";
   const manualReviewProvided = typeof manualReviewText === "string" && manualReviewText.trim().length > 0;
   const manualReviewAccepted =
     manualReviewProvided && /\b(pass|passed|approved|accepted|ok)\b/i.test(manualReviewText ?? "");
@@ -442,6 +468,7 @@ function factsFrom({
     ...(audioReviewEvidence ? { audioReviewEvidence } : {}),
     ...(runtimeReviewEvidence ? { runtimeReviewEvidence } : {}),
     ...(governanceReviewEvidence ? { governanceReviewEvidence } : {}),
+    ...(generatedAudioProviderEvidence ? { generatedAudioProviderEvidence } : {}),
     ...(mediaEvidence ? { mediaEvidence } : {})
   };
 }

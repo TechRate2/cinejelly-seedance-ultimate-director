@@ -49,6 +49,7 @@ export * from "./core/continuity-ledger-builder.js";
 export * from "./core/delivery-gate.js";
 export * from "./core/director-style-audio-review.js";
 export * from "./core/director-style-benchmark.js";
+export * from "./core/director-style-generated-audio-provider-evidence.js";
 export * from "./core/director-style-governance-review.js";
 export * from "./core/director-style-media-evidence.js";
 export * from "./core/director-style-runtime-review.js";

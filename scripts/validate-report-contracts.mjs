@@ -896,8 +896,22 @@ function validateDirectorStyleBenchmarkSemantics(report) {
     ].every((name) =>
       governanceChecks.some((check) => check?.checkName === name && check?.status === "accepted")
     );
+  const acceptedGeneratedAudioProviderEvidence =
+    report?.facts?.generatedAudioProviderEvidence?.status === "accepted" &&
+    report.facts.generatedAudioProviderEvidence.canUseAsBusinessReadinessGeneratedAudioEvidence === true &&
+    report.facts.generatedAudioProviderEvidence.providerNetworkCallsAllowed === true &&
+    report.facts.generatedAudioProviderEvidence.atlasBillingReady === true &&
+    report.facts.generatedAudioProviderEvidence.schemaReviewed === true &&
+    report.facts.generatedAudioProviderEvidence.executionStatus === "succeeded" &&
+    report.facts.generatedAudioProviderEvidence.outputBatchStatus === "approved" &&
+    Number(report.facts.generatedAudioProviderEvidence.approvedTrackCount ?? 0) > 0 &&
+    Number(report.facts.generatedAudioProviderEvidence.providerLedgerEntryCount ?? 0) > 0 &&
+    report.facts.generatedAudioProviderEvidence.manualReviewPassed === true;
   if ((requirementById.get("asr_transcript_alignment")?.status === "met") !== acceptedAsrRuntimeReview) {
     issues.push("$.parityEvidenceMatrix.requirements[id=asr_transcript_alignment].status: expected met only with accepted runtime ASR transcript-alignment evidence.");
+  }
+  if ((requirementById.get("generated_audio_provider_evidence")?.status === "met") !== acceptedGeneratedAudioProviderEvidence) {
+    issues.push("$.parityEvidenceMatrix.requirements[id=generated_audio_provider_evidence].status: expected met only with accepted generated-audio provider evidence.");
   }
   if ((requirementById.get("lip_sync_evidence")?.status === "met") !== acceptedLipSyncRuntimeReview) {
     issues.push("$.parityEvidenceMatrix.requirements[id=lip_sync_evidence].status: expected met only with accepted runtime lip-sync timing evidence.");
