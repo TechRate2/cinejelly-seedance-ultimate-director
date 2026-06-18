@@ -34,6 +34,7 @@ const defaultContracts = [
   contract("render_provider_live_action_evidence", "schemas/render-provider-live-action-evidence.schema.json", "ops/render-provider-live-actions.json"),
   contract("render_provider_live_actions", "schemas/render-provider-live-actions-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json"),
   contract("render_provider_graph_resume_enqueue_evidence", "schemas/render-provider-graph-resume-enqueue-evidence.schema.json", "ops/render-provider-graph-resume-enqueues.json"),
+  contract("render_provider_graph_resume_enqueue_evidence_draft", "schemas/render-provider-graph-resume-enqueue-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueue-evidence-draft-report.json"),
   contract("render_provider_graph_resume_enqueues", "schemas/render-provider-graph-resume-enqueues-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"),
   contract("snapshot_parity_audit", "schemas/snapshot-parity-audit-report.schema.json", "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
   contract("atlas_billing_readiness", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json"),
@@ -332,6 +333,9 @@ function validateSemanticContract(item, report, options) {
   }
   if (item.name === "render_provider_graph_resume_enqueues") {
     return validateRenderProviderGraphResumeEnqueuesSemantics(report);
+  }
+  if (item.name === "render_provider_graph_resume_enqueue_evidence_draft") {
+    return validateRenderProviderGraphResumeEnqueueEvidenceDraftSemantics(report);
   }
   if (item.name === "render_provider_live_action_evidence_draft") {
     return validateRenderProviderLiveActionEvidenceDraftSemantics(report);
@@ -1832,6 +1836,36 @@ function validateRenderProviderGraphResumeEnqueuesSemantics(report) {
     report?.releaseGateSummary?.canUseAsGraphResumePayloadEvidence === true
   )) {
     issues.push("$.summary/releaseGateSummary: non-pass graph-resume enqueue reports cannot expose usable payload evidence flags.");
+  }
+  return issues;
+}
+
+function validateRenderProviderGraphResumeEnqueueEvidenceDraftSemantics(report) {
+  const issues = [];
+  if (report?.networkCallsMade !== false || report?.providerCallsMade !== false || report?.queueCallsMade !== false) {
+    issues.push("$.networkCallsMade/$.providerCallsMade/$.queueCallsMade: expected false; graph-resume enqueue draft helper must not call network, providers, or queues.");
+  }
+  if (report?.template?.templateOnly !== true || report?.template?.directUseRejectedByEvidenceSchema !== true) {
+    issues.push("$.template: expected template-only output that is rejected by final graph-resume enqueue evidence validation if used directly.");
+  }
+  if (report?.template?.safeForEvidenceUse !== false) {
+    issues.push("$.template.safeForEvidenceUse: expected false for graph-resume enqueue templates.");
+  }
+  if (
+    report?.releaseGateSummary?.canUseTemplateAsGraphResumePayloadEvidence !== false ||
+    report?.releaseGateSummary?.canUseAsDistributedResumeEvidence !== false ||
+    report?.releaseGateSummary?.canClaimDistributedResume !== false ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: graph-resume enqueue drafts must not unlock graph-resume payload, distributed-resume, or customer-release claims.");
+  }
+  if (report?.status === "pass") {
+    if (report?.template?.available !== true || report?.checklist?.available !== true) {
+      issues.push("$.template/$.checklist: pass draft reports must have an available template and checklist.");
+    }
+    if (Array.isArray(report?.issues) && report.issues.length > 0) {
+      issues.push("$.issues: pass draft reports must not carry issues.");
+    }
   }
   return issues;
 }

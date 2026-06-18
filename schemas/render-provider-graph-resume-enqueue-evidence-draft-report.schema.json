@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-provider-graph-resume-enqueue-evidence-draft-report.schema.json",
+  "title": "CineJelly Render Provider Graph Resume Enqueue Evidence Draft Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "queueCallsMade",
+    "checkedInputs",
+    "sourceReportContext",
+    "template",
+    "checklist",
+    "issues",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-provider-graph-resume-enqueue-evidence-draft.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "blocked"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "queueCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "liveActionsReportPath",
+        "evidencePath",
+        "outputPath",
+        "templatePath",
+        "checklistPath",
+        "writeDrafts",
+        "force"
+      ],
+      "properties": {
+        "liveActionsReportPath": { "$ref": "#/$defs/repoPath" },
+        "evidencePath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "templatePath": { "$ref": "#/$defs/repoPath" },
+        "checklistPath": { "$ref": "#/$defs/repoPath" },
+        "writeDrafts": { "type": "boolean" },
+        "force": { "type": "boolean" }
+      }
+    },
+    "sourceReportContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reportPresent",
+        "schemaVersion",
+        "status",
+        "graphResumeExecutionCount",
+        "liveActionsGraphResumeEvidenceUsable",
+        "deploymentBaseUrlSha256Present",
+        "canUseAsDistributedResumeEvidence",
+        "sampleActionBinding"
+      ],
+      "properties": {
+        "reportPresent": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "status": { "type": "string" },
+        "graphResumeExecutionCount": { "type": "integer", "minimum": 0 },
+        "liveActionsGraphResumeEvidenceUsable": { "type": "boolean" },
+        "deploymentBaseUrlSha256Present": { "type": "boolean" },
+        "canUseAsDistributedResumeEvidence": { "type": "boolean" },
+        "sampleActionBinding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["actionId", "jobId"],
+          "properties": {
+            "actionId": { "type": "string", "minLength": 1, "maxLength": 240 },
+            "jobId": { "type": "string", "minLength": 1, "maxLength": 240 }
+          }
+        }
+      }
+    },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "written",
+        "available",
+        "templateOnly",
+        "directUseRejectedByEvidenceSchema",
+        "safeForEvidenceUse",
+        "prefilledFromLiveActions"
+      ],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "written": { "type": "boolean" },
+        "available": { "type": "boolean" },
+        "templateOnly": { "const": true },
+        "directUseRejectedByEvidenceSchema": { "const": true },
+        "safeForEvidenceUse": { "const": false },
+        "prefilledFromLiveActions": { "type": "boolean" }
+      }
+    },
+    "checklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "written", "available"],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "written": { "type": "boolean" },
+        "available": { "type": "boolean" }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseTemplateAsGraphResumePayloadEvidence",
+        "canUseAsDistributedResumeEvidence",
+        "canClaimDistributedResume",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseTemplateAsGraphResumePayloadEvidence": { "const": false },
+        "canUseAsDistributedResumeEvidence": { "const": false },
+        "canClaimDistributedResume": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 360,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "^\\[outside-repo\\]$" },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    }
+  }
+}

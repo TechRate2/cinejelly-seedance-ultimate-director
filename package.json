@@ -41,6 +41,7 @@
     "validation:provider-production-handoff": "node --env-file-if-exists=.env scripts/capture-render-provider-production-handoff.mjs",
     "validation:provider-live-action-draft": "node scripts/create-render-provider-live-action-evidence-draft.mjs",
     "validation:provider-live-actions": "node scripts/validate-render-provider-live-actions.mjs",
+    "validation:provider-graph-resume-draft": "node scripts/create-render-provider-graph-resume-enqueue-evidence-draft.mjs",
     "validation:provider-graph-resume": "node scripts/validate-render-provider-graph-resume-enqueues.mjs",
     "validation:snapshot-parity": "node scripts/audit-snapshot-parity.mjs",
     "validation:long-form": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-long-form-validation.mjs",
