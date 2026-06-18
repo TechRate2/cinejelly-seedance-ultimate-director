@@ -1090,10 +1090,10 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
       "local JSON and HTTPS lease-store adapters replace direct Redis coupling in the production TypeScript boundary",
-      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, production capture tooling can exercise the real HTTPS lease-service route, and live action evidence validation checks archived provider callbacks plus action/kind/result consistency without claiming distributed resume parity",
+      "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, production capture tooling can exercise the real HTTPS lease-service route while redacting deployment hostnames and raw lease job IDs, and live action evidence validation checks archived provider callbacks plus action/kind/result consistency without claiming distributed resume parity",
       "idempotent action-ledger records let terminal-close, resume-polling, and manual-audit intents replay by stable key without duplicating worker action records or callback execution evidence",
       "handoff reports expose redacted lease/action evidence and refuse to claim distributed resume parity",
-      "raw provider payloads, output URLs, hostnames, worker owner IDs, local paths, bearer tokens, and secrets are excluded from public reports"
+      "raw provider payloads, output URLs, hostnames, raw lease job IDs, worker owner IDs, local paths, bearer tokens, and secrets are excluded from public reports"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",
     cineJellyDestinationPaths: [

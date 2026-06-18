@@ -291,6 +291,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "render_provider_handoff_action_ledger") {
     return validateRenderProviderHandoffActionLedgerSemantics(report);
   }
+  if (item.name === "render_provider_production_handoff") {
+    return validateRenderProviderProductionHandoffSemantics(report);
+  }
   if (item.name === "render_provider_live_actions") {
     return validateRenderProviderLiveActionsSemantics(report);
   }
@@ -1059,6 +1062,102 @@ function validateRenderProviderHandoffActionLedgerSemantics(report) {
     issues.push("$.firstExecution/secondExecution.decisions: expected zero real provider-call decisions in no-spend smoke evidence.");
   }
   return issues;
+}
+
+function validateRenderProviderProductionHandoffSemantics(report) {
+  const issues = [];
+  const operations = Array.isArray(report?.operations) ? report.operations : [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  const failedOrSkippedOperations = operations.filter((operation) => operation?.status === "fail" || operation?.status === "skipped");
+  const requiredOperationNames = [
+    "worker_a_acquire",
+    "worker_b_immediate_acquire",
+    "worker_a_heartbeat",
+    "worker_a_release",
+    "worker_b_after_release_acquire",
+    "worker_b_release",
+    "active_after_cleanup",
+    "list_leases_after_cleanup"
+  ];
+
+  if (report?.providerCallsMade !== false || report?.renderCallsMade !== false || report?.noSpend !== true) {
+    issues.push("$.providerCallsMade/$.renderCallsMade/$.noSpend: production handoff capture must remain no-spend and must not call provider/render endpoints.");
+  }
+  if (report?.externalNetworkCallsMade !== (report?.environmentKind === "deployment" && operations.length > 0)) {
+    issues.push("$.externalNetworkCallsMade: expected true only for deployment captures with attempted endpoint operations.");
+  }
+  if (report?.localHttpCallsMade !== (report?.environmentKind === "local" && operations.length > 0)) {
+    issues.push("$.localHttpCallsMade: expected true only for local captures with attempted endpoint operations.");
+  }
+  if (Number(report?.summary?.operationCount ?? -1) !== operations.length) {
+    issues.push("$.summary.operationCount: expected to match operations length.");
+  }
+  if (Number(report?.summary?.failedOperationCount ?? -1) !== operations.filter((operation) => operation?.status === "fail").length) {
+    issues.push("$.summary.failedOperationCount: expected to match failed operations.");
+  }
+  if (Number(report?.summary?.skippedOperationCount ?? -1) !== operations.filter((operation) => operation?.status === "skipped").length) {
+    issues.push("$.summary.skippedOperationCount: expected to match skipped operations.");
+  }
+  for (const name of requiredOperationNames) {
+    if (!operations.some((operation) => operation?.name === name)) {
+      issues.push(`$.operations: missing required production handoff operation ${name}.`);
+    }
+  }
+  const rawJobIdPaths = collectForbiddenKeyPaths(operations, "$.operations", "jobId");
+  if (rawJobIdPaths.length > 0) {
+    issues.push(`${rawJobIdPaths[0]}: raw lease job IDs must not be serialized in production handoff reports.`);
+  }
+  if (report?.environmentKind === "deployment" && !String(report?.checkedInputs?.baseUrl ?? "").startsWith("https://[deployment-host]")) {
+    issues.push("$.checkedInputs.baseUrl: deployment reports must redact the hostname as https://[deployment-host].");
+  }
+  if (report?.environmentKind === "local" && report?.releaseGateSummary?.canUseAsProductionHandoffEvidence === true) {
+    issues.push("$.releaseGateSummary.canUseAsProductionHandoffEvidence: local captures cannot be usable production handoff evidence.");
+  }
+  const usableExpected = report?.status === "pass" &&
+    report?.environmentKind === "deployment" &&
+    failedChecks.length === 0 &&
+    failedOrSkippedOperations.length === 0 &&
+    rawJobIdPaths.length === 0;
+  if (report?.releaseGateSummary?.canUseAsProductionHandoffEvidence !== usableExpected) {
+    issues.push("$.releaseGateSummary.canUseAsProductionHandoffEvidence: expected true only for pass deployment captures with complete redacted operations.");
+  }
+  if (report?.releaseGateSummary?.productionHandoffCapturePass !== usableExpected) {
+    issues.push("$.releaseGateSummary.productionHandoffCapturePass: expected to match usable production handoff evidence.");
+  }
+  if (report?.releaseGateSummary?.canClaimDistributedResume !== false || report?.summary?.canClaimDistributedResume !== false) {
+    issues.push("$.releaseGateSummary.canClaimDistributedResume/$.summary.canClaimDistributedResume: expected false; production handoff alone is not distributed resume parity.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; production handoff evidence is not customer-release approval.");
+  }
+  if (report?.status === "pass" && (failedChecks.length > 0 || failedOrSkippedOperations.length > 0)) {
+    issues.push("$.status: pass requires zero failed checks and zero failed/skipped operations.");
+  }
+  return issues;
+}
+
+function collectForbiddenKeyPaths(value, path, forbiddenKey) {
+  const matches = [];
+  collectForbiddenKeyPathsInto(value, path, forbiddenKey, matches);
+  return matches;
+}
+
+function collectForbiddenKeyPathsInto(value, path, forbiddenKey, matches) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectForbiddenKeyPathsInto(item, `${path}[${index}]`, forbiddenKey, matches));
+    return;
+  }
+  if (!value || typeof value !== "object") {
+    return;
+  }
+  for (const [key, item] of Object.entries(value)) {
+    const itemPath = `${path}.${escapePath(key)}`;
+    if (key === forbiddenKey) {
+      matches.push(itemPath);
+    }
+    collectForbiddenKeyPathsInto(item, itemPath, forbiddenKey, matches);
+  }
 }
 
 function validateRenderProviderLiveActionsSemantics(report) {

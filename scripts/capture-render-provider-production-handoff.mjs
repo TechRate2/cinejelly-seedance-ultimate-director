@@ -22,6 +22,14 @@ const secretPatterns = [
   /(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\s*[:=]\s*["']?[^"',\s&]+/gi,
   /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/gi
 ];
+const publicTextBlocklistPatterns = [
+  ...secretPatterns,
+  /[A-Za-z]:\\[^\s"'<>]+/g,
+  /\/(?:home|Users|var|tmp)\/[^\s"'<>]+/g,
+  /https?:\/\/[^\s"'<>]+/gi,
+  /(?:file|s3|gs|ftp):\/\/[^\s"'<>]+/gi,
+  /data:[^\s"'<>]+/gi
+];
 const secretKeyPattern = /api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization/i;
 
 function parseArgs(args) {
@@ -129,6 +137,7 @@ async function main() {
   const checks = [
     ...capture.checks,
     check("deployment_token_not_serialized", !publicPayload.includes(auth.token ?? "__missing_token__")),
+    check("probe_job_id_not_serialized", !publicPayload.includes(probe.jobId)),
     check("probe_owner_ids_not_serialized", !publicPayload.includes(probe.ownerA) && !publicPayload.includes(probe.ownerB)),
     check("no_provider_or_render_calls", capture.summary.providerCallsMade === false && capture.summary.renderCallsMade === false)
   ];
@@ -138,8 +147,8 @@ async function main() {
     generatedAt: new Date().toISOString(),
     status,
     noSpend: true,
-    externalNetworkCallsMade: environmentKind === "deployment",
-    localHttpCallsMade: environmentKind === "local",
+    externalNetworkCallsMade: environmentKind === "deployment" && capture.summary.operationCount > 0,
+    localHttpCallsMade: environmentKind === "local" && capture.summary.operationCount > 0,
     providerCallsMade: false,
     renderCallsMade: false,
     environmentKind,
@@ -449,7 +458,7 @@ function publicLeaseSummary(lease) {
     return {};
   }
   return {
-    jobId: String(lease.jobId ?? ""),
+    hasJobId: typeof lease.jobId === "string" && lease.jobId.length > 0,
     acquiredAt: String(lease.acquiredAt ?? ""),
     expiresAt: String(lease.expiresAt ?? ""),
     hasRenewedAt: typeof lease.renewedAt === "string",
@@ -506,8 +515,12 @@ function leaseHistoryContainsJob(payload, jobId) {
 
 function safeIdentifier(value) {
   const trimmed = String(value).trim();
-  if (!trimmed || trimmed.length > 160 || /[\u0000-\u001f\u007f]/.test(trimmed)) {
-    throw new Error("--job-id must be a safe non-empty identifier up to 160 characters.");
+  if (
+    !/^[A-Za-z0-9_.:-]{1,160}$/.test(trimmed) ||
+    /[\u0000-\u001f\u007f]/.test(trimmed) ||
+    containsUnsafePublicText(trimmed)
+  ) {
+    throw new Error("--job-id must be a safe non-secret identifier using only letters, numbers, underscore, dot, colon, or hyphen.");
   }
   return trimmed;
 }
@@ -536,11 +549,22 @@ function nextActionsFor({ status, environmentKind, auth, capture }) {
 }
 
 function safeBaseUrl(baseUrl) {
-  return `${baseUrl.protocol}//${baseUrl.host}${baseUrl.pathname}`.replace(/\/$/, "");
+  const host = isLocalhost(baseUrl.hostname) ? "localhost" : "[deployment-host]";
+  return `${baseUrl.protocol}//${host}${baseUrl.pathname}`.replace(/\/$/, "");
 }
 
 function redactText(value) {
-  return secretPatterns.reduce((current, pattern) => current.replace(pattern, "[REDACTED]"), String(value));
+  return publicTextBlocklistPatterns.reduce((current, pattern) => {
+    pattern.lastIndex = 0;
+    return current.replace(pattern, "[REDACTED]");
+  }, String(value));
+}
+
+function containsUnsafePublicText(value) {
+  return publicTextBlocklistPatterns.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(value);
+  });
 }
 
 function redactUnknown(value) {
