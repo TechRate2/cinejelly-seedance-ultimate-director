@@ -558,6 +558,7 @@
         "reportArchiveFiles",
         "commands",
         "commandGuards",
+        "executionReadiness",
         "releaseImpact"
       ],
       "properties": {
@@ -606,7 +607,68 @@
           "type": "array",
           "items": { "$ref": "#/$defs/evidenceClosureCommandGuard" }
         },
+        "executionReadiness": { "$ref": "#/$defs/evidenceClosureExecutionReadiness" },
         "releaseImpact": { "type": "string" }
+      }
+    },
+    "evidenceClosureExecutionReadiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "canAttemptNow",
+        "blockingReasonCount",
+        "blockingReasons",
+        "inputStatusCounts",
+        "missingRequiredEnvVars",
+        "optionalUnconfiguredEnvVars",
+        "missingOperatorInputFiles",
+        "missingReportArchiveFiles",
+        "guardSummary"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "ready_to_attempt",
+            "needs_operator_input",
+            "blocked_by_budget",
+            "pending_after_paid_run",
+            "needs_resolved_placeholders",
+            "requires_confirmation",
+            "blocked"
+          ]
+        },
+        "canAttemptNow": { "type": "boolean" },
+        "blockingReasonCount": { "type": "integer", "minimum": 0 },
+        "blockingReasons": { "type": "array", "items": { "type": "string" } },
+        "inputStatusCounts": { "$ref": "#/$defs/counts" },
+        "missingRequiredEnvVars": { "type": "array", "items": { "type": "string" } },
+        "optionalUnconfiguredEnvVars": { "type": "array", "items": { "type": "string" } },
+        "missingOperatorInputFiles": { "type": "array", "items": { "type": "string" } },
+        "missingReportArchiveFiles": { "type": "array", "items": { "type": "string" } },
+        "guardSummary": { "$ref": "#/$defs/evidenceClosureGuardSummary" }
+      }
+    },
+    "evidenceClosureGuardSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commandCount",
+        "runnableCommandCount",
+        "liveNetworkCommandCount",
+        "providerSpendCommandCount",
+        "operatorConfirmationCommandCount",
+        "manualReviewCommandCount",
+        "placeholderCommandCount"
+      ],
+      "properties": {
+        "commandCount": { "type": "integer", "minimum": 0 },
+        "runnableCommandCount": { "type": "integer", "minimum": 0 },
+        "liveNetworkCommandCount": { "type": "integer", "minimum": 0 },
+        "providerSpendCommandCount": { "type": "integer", "minimum": 0 },
+        "operatorConfirmationCommandCount": { "type": "integer", "minimum": 0 },
+        "manualReviewCommandCount": { "type": "integer", "minimum": 0 },
+        "placeholderCommandCount": { "type": "integer", "minimum": 0 }
       }
     },
     "evidenceClosureEnvPlaceholder": {

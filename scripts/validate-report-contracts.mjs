@@ -906,11 +906,99 @@ function validateEvidenceClosurePlan(plan, path, context = {}) {
         }
       }
     }
+    issues.push(...validateEvidenceClosureExecutionReadiness(phase, `${path}.phases[id=${phase?.id}].executionReadiness`, commandGuards));
     if (typeof phase?.releaseImpact !== "string" || phase.releaseImpact.trim().length === 0) {
       issues.push(`${path}.phases[id=${phase?.id}].releaseImpact: expected a non-empty release impact.`);
     }
   }
   return issues;
+}
+
+function validateEvidenceClosureExecutionReadiness(phase, path, commandGuards) {
+  const issues = [];
+  const readiness = phase?.executionReadiness;
+  if (!readiness || typeof readiness !== "object") {
+    return [`${path}: expected phase execution readiness.`];
+  }
+  const blockingReasons = Array.isArray(readiness.blockingReasons) ? readiness.blockingReasons : [];
+  const inputStatusCounts = readiness.inputStatusCounts && typeof readiness.inputStatusCounts === "object"
+    ? readiness.inputStatusCounts
+    : {};
+  const guardSummary = readiness.guardSummary && typeof readiness.guardSummary === "object"
+    ? readiness.guardSummary
+    : {};
+  if (Number(readiness.blockingReasonCount ?? -1) !== blockingReasons.length) {
+    issues.push(`${path}.blockingReasonCount: expected to equal blockingReasons length.`);
+  }
+  if (Number(guardSummary.commandCount ?? -1) !== commandGuards.length) {
+    issues.push(`${path}.guardSummary.commandCount: expected to equal commandGuards length.`);
+  }
+  const guardCountChecks = {
+    runnableCommandCount: commandGuards.filter((item) => item?.runnable === true).length,
+    liveNetworkCommandCount: commandGuards.filter((item) => item?.requiresLiveNetwork === true).length,
+    providerSpendCommandCount: commandGuards.filter((item) => item?.requiresProviderSpend === true).length,
+    operatorConfirmationCommandCount: commandGuards.filter((item) => item?.requiresOperatorConfirmation === true).length,
+    manualReviewCommandCount: commandGuards.filter((item) => item?.requiresManualReview === true).length,
+    placeholderCommandCount: commandGuards.filter((item) => item?.containsPlaceholder === true).length
+  };
+  for (const [key, expected] of Object.entries(guardCountChecks)) {
+    if (Number(guardSummary[key] ?? -1) !== expected) {
+      issues.push(`${path}.guardSummary.${key}: expected ${expected}.`);
+    }
+  }
+  const requiredInputIds = Array.isArray(phase?.requiredInputIds) ? phase.requiredInputIds : [];
+  const countedInputs = Object.values(inputStatusCounts).reduce((sum, value) => sum + Number(value ?? 0), 0);
+  if (countedInputs !== requiredInputIds.length) {
+    issues.push(`${path}.inputStatusCounts: expected counts to equal requiredInputIds length.`);
+  }
+  if (readiness.canAttemptNow === true && (blockingReasons.length > 0 || commandGuards.some((item) => item?.runnable !== true))) {
+    issues.push(`${path}.canAttemptNow: expected false while blocking reasons remain or commands are not runnable.`);
+  }
+  const expectedStatus = expectedExecutionReadinessStatus({
+    blockingReasons,
+    inputStatusCounts,
+    guardSummary,
+    blockerCount: Number(phase?.blockerCount ?? 0)
+  });
+  if (readiness.status !== expectedStatus) {
+    issues.push(`${path}.status: expected ${expectedStatus}.`);
+  }
+  return issues;
+}
+
+function expectedExecutionReadinessStatus({ blockingReasons, inputStatusCounts, guardSummary, blockerCount }) {
+  if (blockerCount === 0) {
+    return "ready_to_attempt";
+  }
+  if (Number(inputStatusCounts.blocked_by_budget ?? 0) > 0) {
+    return "blocked_by_budget";
+  }
+  if (Number(inputStatusCounts.pending_after_paid_run ?? 0) > 0) {
+    return "pending_after_paid_run";
+  }
+  if (
+    blockingReasons.some((item) =>
+      String(item).startsWith("required_env_missing:") ||
+      String(item).startsWith("operator_input_file_missing:") ||
+      item === "operator_input_missing"
+    )
+  ) {
+    return "needs_operator_input";
+  }
+  if (Number(guardSummary.placeholderCommandCount ?? 0) > 0) {
+    return "needs_resolved_placeholders";
+  }
+  if (
+    Number(guardSummary.providerSpendCommandCount ?? 0) > 0 ||
+    Number(guardSummary.liveNetworkCommandCount ?? 0) > 0 ||
+    Number(guardSummary.operatorConfirmationCommandCount ?? 0) > 0
+  ) {
+    return "requires_confirmation";
+  }
+  if (blockingReasons.length > 0) {
+    return "blocked";
+  }
+  return "ready_to_attempt";
 }
 
 function commandGuardFlags(command) {

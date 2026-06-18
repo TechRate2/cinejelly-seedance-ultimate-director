@@ -749,6 +749,12 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
       const phaseProductGaps = productGapsByPhase.get(definition.id) ?? [];
       const operatorPacket = operatorPacketForPhase(phaseBlockers, operatorPacketIndex);
       const commands = [...new Set(phaseBlockers.map((item) => item.validationCommand).filter(Boolean))];
+      const commandGuards = commandGuardsForCommands(commands, operatorPacketIndex.commandRunbook);
+      const executionReadiness = buildPhaseExecutionReadiness({
+        blockers: phaseBlockers,
+        operatorPacket,
+        commandGuards
+      });
       return {
         id: definition.id,
         order: index + 1,
@@ -768,7 +774,8 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
         draftFiles: operatorPacket.draftFiles,
         reportArchiveFiles: operatorPacket.reportArchiveFiles,
         commands,
-        commandGuards: commandGuardsForCommands(commands, operatorPacketIndex.commandRunbook),
+        commandGuards,
+        executionReadiness,
         releaseImpact: releaseImpactForPhase(definition.id, phaseBlockers, phaseProductGaps)
       };
     })
@@ -783,6 +790,84 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
     phaseCount: phases.length,
     phases
   };
+}
+
+function buildPhaseExecutionReadiness({ blockers, operatorPacket, commandGuards }) {
+  const inputStatusCounts = countBy(blockers.filter((item) => operatorPacket.requiredInputIds.includes(item.id)), "status");
+  const missingRequiredEnvVars = operatorPacket.envPlaceholders
+    .filter((item) => item.required === true && item.configured !== true)
+    .map((item) => item.name);
+  const optionalUnconfiguredEnvVars = operatorPacket.envPlaceholders
+    .filter((item) => item.required !== true && item.configured !== true)
+    .map((item) => item.name);
+  const missingOperatorInputFiles = operatorPacket.operatorInputFileRecords
+    .filter((item) => item.present !== true)
+    .map((item) => item.path);
+  const missingReportArchiveFiles = operatorPacket.reportArchiveFileRecords
+    .filter((item) => item.present !== true)
+    .map((item) => item.path);
+  const guardSummary = {
+    commandCount: commandGuards.length,
+    runnableCommandCount: commandGuards.filter((item) => item.runnable === true).length,
+    liveNetworkCommandCount: commandGuards.filter((item) => item.requiresLiveNetwork === true).length,
+    providerSpendCommandCount: commandGuards.filter((item) => item.requiresProviderSpend === true).length,
+    operatorConfirmationCommandCount: commandGuards.filter((item) => item.requiresOperatorConfirmation === true).length,
+    manualReviewCommandCount: commandGuards.filter((item) => item.requiresManualReview === true).length,
+    placeholderCommandCount: commandGuards.filter((item) => item.containsPlaceholder === true).length
+  };
+  const blockingReasons = [
+    ...missingRequiredEnvVars.map((name) => `required_env_missing:${name}`),
+    ...missingOperatorInputFiles.map((path) => `operator_input_file_missing:${path}`),
+    ...missingReportArchiveFiles.map((path) => `report_archive_missing:${path}`),
+    ...(Number(inputStatusCounts.blocked_by_budget ?? 0) > 0 ? ["budget_blocked"] : []),
+    ...(Number(inputStatusCounts.pending_after_paid_run ?? 0) > 0 ? ["pending_after_paid_run"] : []),
+    ...(Number(inputStatusCounts.missing ?? 0) > 0 ? ["operator_input_missing"] : []),
+    ...(guardSummary.placeholderCommandCount > 0 ? ["command_placeholder_unresolved"] : [])
+  ];
+  return {
+    status: phaseExecutionStatus({
+      blockers,
+      blockingReasons,
+      inputStatusCounts,
+      guardSummary,
+      missingRequiredEnvVars,
+      missingOperatorInputFiles
+    }),
+    canAttemptNow: blockingReasons.length === 0 && commandGuards.every((item) => item.runnable === true),
+    blockingReasonCount: blockingReasons.length,
+    blockingReasons,
+    inputStatusCounts,
+    missingRequiredEnvVars,
+    optionalUnconfiguredEnvVars,
+    missingOperatorInputFiles,
+    missingReportArchiveFiles,
+    guardSummary
+  };
+}
+
+function phaseExecutionStatus({ blockers, blockingReasons, inputStatusCounts, guardSummary, missingRequiredEnvVars, missingOperatorInputFiles }) {
+  if (blockers.length === 0) {
+    return "ready_to_attempt";
+  }
+  if (Number(inputStatusCounts.blocked_by_budget ?? 0) > 0) {
+    return "blocked_by_budget";
+  }
+  if (Number(inputStatusCounts.pending_after_paid_run ?? 0) > 0) {
+    return "pending_after_paid_run";
+  }
+  if (missingRequiredEnvVars.length > 0 || missingOperatorInputFiles.length > 0 || Number(inputStatusCounts.missing ?? 0) > 0) {
+    return "needs_operator_input";
+  }
+  if (guardSummary.placeholderCommandCount > 0) {
+    return "needs_resolved_placeholders";
+  }
+  if (guardSummary.providerSpendCommandCount > 0 || guardSummary.liveNetworkCommandCount > 0 || guardSummary.operatorConfirmationCommandCount > 0) {
+    return "requires_confirmation";
+  }
+  if (blockingReasons.length > 0) {
+    return "blocked";
+  }
+  return "ready_to_attempt";
 }
 
 function buildOperatorPacketIndex(commercialInputs) {
@@ -826,31 +911,59 @@ function operatorPacketForPhase(blockers, index) {
     .filter((id) => index.requiredInputIds.has(id));
   const inputIdSet = new Set(requiredInputIds);
   const envVars = uniqueSortedStrings(requiredInputIds.flatMap((id) => index.envVarsByInputId.get(id) ?? []));
+  const operatorInputFileRecords = uniqueFileRecords(
+    index.operatorInputFiles
+      .filter((item) => arrayOfStrings(item?.sourceInputIds).some((id) => inputIdSet.has(id)))
+      .map((item) => normalizeFileRecord(item))
+      .filter(Boolean)
+  );
+  const reportArchiveFileRecords = uniqueFileRecords(
+    [
+      ...requiredInputIds.flatMap((id) => (index.reportArchiveFilesByInputId.get(id) ?? []).map((path) => normalizeFileRecord({ path, present: false }))),
+      ...index.reportArchiveFiles
+        .filter((item) => inputIdSet.has(String(item?.source ?? "")))
+        .map((item) => normalizeFileRecord(item))
+    ].filter(Boolean)
+  );
   return {
     requiredInputIds,
     envVars,
     envPlaceholders: envVars
       .map((name) => normalizeEnvPlaceholder(index.envPlaceholdersByName.get(name), name))
       .filter(Boolean),
-    operatorInputFiles: uniqueSortedStrings(
-      index.operatorInputFiles
-        .filter((item) => arrayOfStrings(item?.sourceInputIds).some((id) => inputIdSet.has(id)))
-        .map((item) => item?.path)
-    ),
+    operatorInputFiles: operatorInputFileRecords.map((item) => item.path),
+    operatorInputFileRecords,
     draftFiles: uniqueSortedStrings(
       index.draftFiles
         .filter((item) => inputIdSet.has(String(item?.sourceInputId ?? "")))
         .map((item) => item?.path)
     ),
-    reportArchiveFiles: uniqueSortedStrings(
-      [
-        ...requiredInputIds.flatMap((id) => index.reportArchiveFilesByInputId.get(id) ?? []),
-        ...index.reportArchiveFiles
-          .filter((item) => inputIdSet.has(String(item?.source ?? "")))
-          .map((item) => item?.path)
-      ]
-    )
+    reportArchiveFiles: reportArchiveFileRecords.map((item) => item.path),
+    reportArchiveFileRecords
   };
+}
+
+function normalizeFileRecord(value) {
+  const path = String(value?.path ?? "");
+  if (!path) {
+    return undefined;
+  }
+  return {
+    path,
+    present: value?.present === true
+  };
+}
+
+function uniqueFileRecords(values) {
+  const byPath = new Map();
+  for (const item of values) {
+    const existing = byPath.get(item.path);
+    byPath.set(item.path, {
+      path: item.path,
+      present: existing?.present === true || item.present === true
+    });
+  }
+  return [...byPath.values()].sort((left, right) => left.path.localeCompare(right.path));
 }
 
 function normalizeEnvPlaceholder(value, fallbackName) {
@@ -1215,7 +1328,10 @@ function markdownEvidenceClosurePlan(plan) {
       const guards = phase.commandGuards.length === 0
         ? "no command guards"
         : phase.commandGuards.map((item) => guardSummary(item)).join(" | ");
-      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; env: ${env}; files: ${packet}; guards: ${guards}; commands: ${commands}`;
+      const readiness = phase.executionReadiness
+        ? `${phase.executionReadiness.status}/${phase.executionReadiness.canAttemptNow ? "can-attempt" : "cannot-attempt"} (${phase.executionReadiness.blockingReasonCount} blockers)`
+        : "readiness unavailable";
+      return `- ${phase.order}. ${phase.label}: ${phase.status}; readiness: ${readiness}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; env: ${env}; files: ${packet}; guards: ${guards}; commands: ${commands}`;
     })
   ];
 }

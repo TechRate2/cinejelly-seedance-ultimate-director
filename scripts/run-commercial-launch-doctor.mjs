@@ -694,6 +694,7 @@ function buildEvidenceClosurePlan(completion) {
                   containsPlaceholder: item?.containsPlaceholder === true
                 })).filter((item) => item.command)
               : [],
+            executionReadiness: normalizeExecutionReadiness(phase?.executionReadiness),
             releaseImpact: String(phase?.releaseImpact ?? "")
           })).filter((phase) => phase.id && phase.label)
         : []
@@ -708,6 +709,43 @@ function buildEvidenceClosurePlan(completion) {
     paidDependencyCount: 0,
     phaseCount: 0,
     phases: []
+  };
+}
+
+function normalizeExecutionReadiness(value) {
+  const inputStatusCounts = value?.inputStatusCounts && typeof value.inputStatusCounts === "object"
+    ? Object.fromEntries(Object.entries(value.inputStatusCounts).map(([key, count]) => [key, numberOrZero(count)]))
+    : {};
+  const guardSummary = value?.guardSummary && typeof value.guardSummary === "object"
+    ? {
+        commandCount: numberOrZero(value.guardSummary.commandCount),
+        runnableCommandCount: numberOrZero(value.guardSummary.runnableCommandCount),
+        liveNetworkCommandCount: numberOrZero(value.guardSummary.liveNetworkCommandCount),
+        providerSpendCommandCount: numberOrZero(value.guardSummary.providerSpendCommandCount),
+        operatorConfirmationCommandCount: numberOrZero(value.guardSummary.operatorConfirmationCommandCount),
+        manualReviewCommandCount: numberOrZero(value.guardSummary.manualReviewCommandCount),
+        placeholderCommandCount: numberOrZero(value.guardSummary.placeholderCommandCount)
+      }
+    : {
+        commandCount: 0,
+        runnableCommandCount: 0,
+        liveNetworkCommandCount: 0,
+        providerSpendCommandCount: 0,
+        operatorConfirmationCommandCount: 0,
+        manualReviewCommandCount: 0,
+        placeholderCommandCount: 0
+      };
+  return {
+    status: String(value?.status ?? "blocked"),
+    canAttemptNow: value?.canAttemptNow === true,
+    blockingReasonCount: numberOrZero(value?.blockingReasonCount),
+    blockingReasons: arrayOfStrings(value?.blockingReasons),
+    inputStatusCounts,
+    missingRequiredEnvVars: arrayOfStrings(value?.missingRequiredEnvVars),
+    optionalUnconfiguredEnvVars: arrayOfStrings(value?.optionalUnconfiguredEnvVars),
+    missingOperatorInputFiles: arrayOfStrings(value?.missingOperatorInputFiles),
+    missingReportArchiveFiles: arrayOfStrings(value?.missingReportArchiveFiles),
+    guardSummary
   };
 }
 
@@ -957,7 +995,10 @@ function markdownEvidenceClosurePlan(plan) {
       const guards = phase.commandGuards.length === 0
         ? "no command guards"
         : phase.commandGuards.map((item) => guardSummary(item)).join(" | ");
-      return `- ${phase.order}. ${phase.label}: ${phase.status}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; env: ${env}; files: ${packet}; guards: ${guards}; commands: ${commands}`;
+      const readiness = phase.executionReadiness
+        ? `${phase.executionReadiness.status}/${phase.executionReadiness.canAttemptNow ? "can-attempt" : "cannot-attempt"} (${phase.executionReadiness.blockingReasonCount} blockers)`
+        : "readiness unavailable";
+      return `- ${phase.order}. ${phase.label}: ${phase.status}; readiness: ${readiness}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; env: ${env}; files: ${packet}; guards: ${guards}; commands: ${commands}`;
     })
   ];
 }
