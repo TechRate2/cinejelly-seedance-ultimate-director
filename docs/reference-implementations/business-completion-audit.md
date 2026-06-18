@@ -40,7 +40,8 @@ The report is valid when:
 6. `blockers` assigns every remaining non-configured commercial input to an owner and category.
 7. `releaseGateSummary.canReleaseToCustomerTraffic` mirrors the real business-readiness gate rather than the completion audit's own status, while `canClaimFullSnapshotParity=false` remains true until product-code gaps are closed or explicitly scoped out.
 8. `validation:report-contracts` validates `schemas/business-completion-audit-report.schema.json` against the generated report.
-9. A failing snapshot parity audit becomes a codebase-owned blocker before any full-parity claim is trusted.
+9. `validation:report-contracts` also validates report-local semantics: blocker counts, owner/category totals, product-code gap counts, parity flags, ready paid-gate counts, snapshot/report/release status booleans, and customer-traffic/full-paid release flags must match the underlying arrays and readiness snapshot.
+10. A failing snapshot parity audit becomes a codebase-owned blocker before any full-parity claim is trusted.
 
 ## Current Interpretation
 

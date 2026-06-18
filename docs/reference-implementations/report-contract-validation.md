@@ -32,6 +32,7 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Done: allow release-audit checks to carry redacted `findings` arrays so failed secret/import-boundary scans remain schema-valid and actionable.
 - Done: validate commercial launch doctor semantic invariants so stale command coverage, skipped provider-smoke evidence, missing quality benchmark refresh, or missing final report-contract pass cannot hide behind a schema-shape pass.
 - Done: give the commercial launch doctor an explicit in-progress contract mode so intermediate self-validation can pass while standalone/default validation stays strict for completed reports.
+- Done: fail business completion audit contracts when blocker totals, product-code gap counts, parity flags, ready paid-gate counts, or release booleans drift from the underlying report arrays.
 
 ## Acceptance Checks
 
@@ -49,3 +50,4 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - When release-audit checks include redacted findings, the schema accepts only primitive finding fields and still rejects unrelated report drift.
 - When `commercial-launch-doctor-report.json` exists, report-contract validation requires the core launch-doctor command sequence, refreshed quality benchmark evidence, final report-contract pass, provider handoff smoke pass/warn statuses when enabled, and explicit skipped provider statuses when `--skip-provider-handoff-smokes` is used.
 - When launch doctor calls report-contract validation before its final command has been appended, it must pass `--allow-launch-doctor-in-progress`; a normal standalone `validation:report-contracts` run must still reject incomplete final launch-doctor evidence.
+- When `business-completion-audit-report.json` exists, report-contract validation requires blocker summaries, product-code gap summaries, snapshot/report/release status booleans, ready paid-gate counts, and release flags to match the source arrays and readiness snapshot.

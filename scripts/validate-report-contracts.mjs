@@ -272,6 +272,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "commercial_launch_inputs") {
     return validateCommercialLaunchInputsSemantics(report);
   }
+  if (item.name === "business_completion_audit") {
+    return validateBusinessCompletionAuditSemantics(report);
+  }
   if (item.name === "director_style_benchmark") {
     return validateDirectorStyleBenchmarkSemantics(report);
   }
@@ -435,6 +438,116 @@ function validateSnapshotParityAuditSemantics(report) {
   const directImports = Array.isArray(report?.directExternalImports) ? report.directExternalImports : [];
   if (directImports.length > 0) {
     issues.push(`$.directExternalImports: expected zero direct external import findings, found ${directImports.length}.`);
+  }
+  return issues;
+}
+
+function validateBusinessCompletionAuditSemantics(report) {
+  const issues = [];
+  const blockers = Array.isArray(report?.blockers) ? report.blockers : [];
+  const productCodeGaps = Array.isArray(report?.productCodeGaps) ? report.productCodeGaps : [];
+  const codeBlockers = blockers.filter((item) => item?.owner === "codebase");
+  const automatableBlockers = blockers.filter((item) => item?.canAutomateNow === true);
+  const externalOrPaidBlockers = blockers.filter((item) => item?.canAutomateNow !== true);
+  const automatableProductGaps = productCodeGaps.filter((item) => item?.canAutomateNow === true);
+  const blocksFullSnapshotParity = productCodeGaps.some((item) => item?.blocksFullSnapshotParity === true);
+  const blocksApiCliCommercialLaunch = productCodeGaps.some((item) => item?.blocksApiCliCommercialLaunch === true);
+
+  if (Number(report?.codeWorkSummary?.knownCodeBlockingIssueCount ?? -1) !== codeBlockers.length) {
+    issues.push("$.codeWorkSummary.knownCodeBlockingIssueCount: expected to equal codebase-owned blocker count.");
+  }
+  if (Number(report?.codeWorkSummary?.knownProductCodeGapCount ?? -1) !== productCodeGaps.length) {
+    issues.push("$.codeWorkSummary.knownProductCodeGapCount: expected to equal productCodeGaps length.");
+  }
+  if (Number(report?.codeWorkSummary?.automatableProductCodeGapCount ?? -1) !== automatableProductGaps.length) {
+    issues.push("$.codeWorkSummary.automatableProductCodeGapCount: expected to equal automatable product-code gap count.");
+  }
+  if (report?.codeWorkSummary?.blocksFullSnapshotParity !== blocksFullSnapshotParity) {
+    issues.push("$.codeWorkSummary.blocksFullSnapshotParity: expected to match productCodeGaps[*].blocksFullSnapshotParity.");
+  }
+  if (report?.codeWorkSummary?.blocksApiCliCommercialLaunch !== blocksApiCliCommercialLaunch) {
+    issues.push("$.codeWorkSummary.blocksApiCliCommercialLaunch: expected to match productCodeGaps[*].blocksApiCliCommercialLaunch.");
+  }
+
+  if (Number(report?.blockerSummary?.total ?? -1) !== blockers.length) {
+    issues.push("$.blockerSummary.total: expected to equal blockers length.");
+  }
+  if (Number(report?.blockerSummary?.automatableNow ?? -1) !== automatableBlockers.length) {
+    issues.push("$.blockerSummary.automatableNow: expected to equal blockers with canAutomateNow=true.");
+  }
+  if (Number(report?.blockerSummary?.externalOrPaid ?? -1) !== externalOrPaidBlockers.length) {
+    issues.push("$.blockerSummary.externalOrPaid: expected to equal blockers with canAutomateNow=false.");
+  }
+  issues.push(...compareCountMap("$.blockerSummary.byOwner", report?.blockerSummary?.byOwner, countBy(blockers, "owner")));
+  issues.push(...compareCountMap("$.blockerSummary.byCategory", report?.blockerSummary?.byCategory, countBy(blockers, "category")));
+
+  const readyPaidGateCount = Array.isArray(report?.readinessSnapshot?.readyPaidGates)
+    ? report.readinessSnapshot.readyPaidGates.length
+    : 0;
+  if (Number(report?.readinessSnapshot?.readyPaidGateCount ?? -1) !== readyPaidGateCount) {
+    issues.push("$.readinessSnapshot.readyPaidGateCount: expected to equal readinessSnapshot.readyPaidGates length.");
+  }
+  const releaseReadyPaidGateCount = Array.isArray(report?.releaseGateSummary?.readyPaidGates)
+    ? report.releaseGateSummary.readyPaidGates.length
+    : 0;
+  if (Number(report?.releaseGateSummary?.readyPaidGateCount ?? -1) !== releaseReadyPaidGateCount) {
+    issues.push("$.releaseGateSummary.readyPaidGateCount: expected to equal releaseGateSummary.readyPaidGates length.");
+  }
+  if (Number(report?.releaseGateSummary?.productCodeGapCount ?? -1) !== productCodeGaps.length) {
+    issues.push("$.releaseGateSummary.productCodeGapCount: expected to equal productCodeGaps length.");
+  }
+
+  if (report?.codeWorkSummary?.snapshotParityPass !== (report?.readinessSnapshot?.snapshotParityStatus === "pass")) {
+    issues.push("$.codeWorkSummary.snapshotParityPass: expected to match readinessSnapshot.snapshotParityStatus === 'pass'.");
+  }
+  if (report?.codeWorkSummary?.reportContractsPass !== (report?.readinessSnapshot?.reportContractsStatus === "pass")) {
+    issues.push("$.codeWorkSummary.reportContractsPass: expected to match readinessSnapshot.reportContractsStatus === 'pass'.");
+  }
+  if (report?.codeWorkSummary?.releaseAuditReady !== (report?.readinessSnapshot?.releaseAuditStatus === "release_ready")) {
+    issues.push("$.codeWorkSummary.releaseAuditReady: expected to match readinessSnapshot.releaseAuditStatus === 'release_ready'.");
+  }
+  if (report?.codeWorkSummary?.commercialCommandPlanPass !== (report?.readinessSnapshot?.commandPlanAuditStatus === "pass")) {
+    issues.push("$.codeWorkSummary.commercialCommandPlanPass: expected to match readinessSnapshot.commandPlanAuditStatus === 'pass'.");
+  }
+
+  const expectedCanClaimFullSnapshotParity = blocksFullSnapshotParity !== true;
+  if (report?.releaseGateSummary?.canClaimFullSnapshotParity !== expectedCanClaimFullSnapshotParity) {
+    issues.push("$.releaseGateSummary.canClaimFullSnapshotParity: expected to be false while product-code gaps block full snapshot parity.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic === true && report?.status !== "ready_for_customer_traffic") {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: true is only allowed when completion audit status is ready_for_customer_traffic.");
+  }
+  if (report?.status === "ready_for_customer_traffic" && report?.releaseGateSummary?.canReleaseToCustomerTraffic !== true) {
+    issues.push("$.status: ready_for_customer_traffic requires releaseGateSummary.canReleaseToCustomerTraffic=true.");
+  }
+  if (report?.releaseGateSummary?.safeToRunFullPaidAtlasSequenceNow === true) {
+    if (report?.releaseGateSummary?.canRunFullKnownPaidSequence !== true) {
+      issues.push("$.releaseGateSummary.safeToRunFullPaidAtlasSequenceNow: true requires canRunFullKnownPaidSequence=true.");
+    }
+    if (Number(report?.codeWorkSummary?.knownCodeBlockingIssueCount ?? 0) !== 0) {
+      issues.push("$.releaseGateSummary.safeToRunFullPaidAtlasSequenceNow: true requires zero known code blockers.");
+    }
+  }
+  return issues;
+}
+
+function countBy(items, key) {
+  const counts = {};
+  for (const item of items) {
+    const value = String(item?.[key] ?? "unknown");
+    counts[value] = (counts[value] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function compareCountMap(path, actual, expected) {
+  const issues = [];
+  const actualMap = actual && typeof actual === "object" && !Array.isArray(actual) ? actual : {};
+  const keys = new Set([...Object.keys(actualMap), ...Object.keys(expected)]);
+  for (const key of keys) {
+    if (Number(actualMap[key] ?? 0) !== Number(expected[key] ?? 0)) {
+      issues.push(`${path}.${key}: expected ${Number(expected[key] ?? 0)}, found ${Number(actualMap[key] ?? 0)}.`);
+    }
   }
   return issues;
 }
