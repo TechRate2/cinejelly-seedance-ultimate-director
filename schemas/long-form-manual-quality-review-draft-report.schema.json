@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/long-form-manual-quality-review-draft-report.schema.json",
+  "title": "CineJelly Long-Form Manual Quality Review Draft Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "sourceReportContext",
+    "template",
+    "checklist",
+    "issues",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.long-form-manual-quality-review-draft.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "blocked"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "longFormReportPath",
+        "evidencePath",
+        "outputPath",
+        "templatePath",
+        "checklistPath",
+        "writeDrafts",
+        "force"
+      ],
+      "properties": {
+        "longFormReportPath": { "$ref": "#/$defs/repoPath" },
+        "evidencePath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "templatePath": { "$ref": "#/$defs/repoPath" },
+        "checklistPath": { "$ref": "#/$defs/repoPath" },
+        "writeDrafts": { "type": "boolean" },
+        "force": { "type": "boolean" }
+      }
+    },
+    "sourceReportContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reportPresent",
+        "schemaVersion",
+        "status",
+        "providerSpendAllowed",
+        "atlasBillingReady",
+        "paidRenderCompleted",
+        "artifactValidationPassed",
+        "artifactEvidencePresent",
+        "deliverablePresent",
+        "finalDurationSeconds",
+        "costLedgerEntryCount",
+        "manualQualityReviewPassed",
+        "manualReviewArtifactBindingStatus",
+        "canUseAsBusinessReadinessLongFormEvidence",
+        "readyForManualReview",
+        "artifactBinding"
+      ],
+      "properties": {
+        "reportPresent": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "status": { "type": "string" },
+        "providerSpendAllowed": { "type": "boolean" },
+        "atlasBillingReady": { "type": "boolean" },
+        "paidRenderCompleted": { "type": "boolean" },
+        "artifactValidationPassed": { "type": "boolean" },
+        "artifactEvidencePresent": { "type": "boolean" },
+        "deliverablePresent": { "type": "boolean" },
+        "finalDurationSeconds": { "type": "number", "minimum": 0 },
+        "costLedgerEntryCount": { "type": "integer", "minimum": 0 },
+        "manualQualityReviewPassed": { "type": "boolean" },
+        "manualReviewArtifactBindingStatus": { "type": "string" },
+        "canUseAsBusinessReadinessLongFormEvidence": { "type": "boolean" },
+        "readyForManualReview": { "type": "boolean" },
+        "artifactBinding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reviewedProjectId",
+            "reviewedManifestSha256",
+            "reviewedDeliverableSha256"
+          ],
+          "properties": {
+            "reviewedProjectId": { "type": "string", "minLength": 1, "maxLength": 160 },
+            "reviewedManifestSha256": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "reviewedDeliverableSha256": { "type": "string", "minLength": 1, "maxLength": 80 }
+          }
+        }
+      }
+    },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "written",
+        "available",
+        "templateOnly",
+        "directUseRejectedByValidation",
+        "safeForEvidenceUse"
+      ],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "written": { "type": "boolean" },
+        "available": { "type": "boolean" },
+        "templateOnly": { "const": true },
+        "directUseRejectedByValidation": { "const": true },
+        "safeForEvidenceUse": { "const": false }
+      }
+    },
+    "checklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "written", "available"],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "written": { "type": "boolean" },
+        "available": { "type": "boolean" }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseTemplateAsManualQualityReviewEvidence",
+        "canUseAsBusinessReadinessLongFormEvidence",
+        "canClaimDirectorBenchParity",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseTemplateAsManualQualityReviewEvidence": { "const": false },
+        "canUseAsBusinessReadinessLongFormEvidence": { "const": false },
+        "canClaimDirectorBenchParity": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 360,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "^\\[outside-repo\\]$" },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    }
+  }
+}

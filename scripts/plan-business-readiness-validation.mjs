@@ -645,7 +645,7 @@ function buildBudgetConstrainedSlices({
       prerequisites: [
         "fresh Atlas billing readiness captured for the long-form budget",
         "Atlas media API key and Seedance model configuration",
-        "manual long-form media/redaction review JSON bound to the paid projectId, manifestSha256, and deliverableSha256 after output"
+        "after the paid output report writes artifact fingerprints, run npm.cmd run validation:long-form-review-draft, inspect media/redaction, then fill ops/long-form-manual-quality-review.json with matching projectId, manifestSha256, and deliverableSha256"
       ],
       limitations: [
         "requires a 120-480s paid render budget",
@@ -949,7 +949,7 @@ function buildValidationSequence({
       command: `npm.cmd run validation:long-form -- --duration-seconds ${options.longFormDurationSeconds} --max-cost-usd ${options.maxBudgetUsd} --confirm-paid-spend --manual-quality-review ops/long-form-manual-quality-review.json --confirm-manual-quality-review`,
       requiredInputs:
         longFormReady
-          ? ["manual long-form media/redaction review JSON bound to the paid projectId, manifestSha256, and deliverableSha256 after output"]
+          ? ["manual long-form media/redaction review JSON bound to the paid projectId, manifestSha256, and deliverableSha256 after output; use npm.cmd run validation:long-form-review-draft after the paid report writes artifact fingerprints"]
           : [
               ...(longFormInputReady ? [] : ["approved long-form budget at or above the current estimate", "Atlas media API key/model config"]),
               ...(longFormBillingReady ? [] : [longFormBillingGateInput])
@@ -959,6 +959,7 @@ function buildValidationSequence({
         costPlan.longForm.estimatedCostUsd === undefined
           ? "Long-form estimate is unavailable because CINEJELLY_RENDER_COST_USD_PER_SECOND is not configured."
           : `Estimated long-form validation cost: ${formatUsd(costPlan.longForm.estimatedCostUsd)}.`,
+        "After the paid long-form run writes artifact evidence, run npm.cmd run validation:long-form-review-draft, inspect the deliverable, fill ops/long-form-manual-quality-review.json, then rerun validation:long-form with --manual-quality-review ops/long-form-manual-quality-review.json --confirm-manual-quality-review.",
         ...(longFormBillingReady ? [] : [longFormBillingGateNote, ...longFormAtlasBilling.nextActions])
       ]
     }),

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/long-form-manual-quality-review.schema.json",
+  "title": "CineJelly Long-Form Manual Quality Review Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "decision",
+    "redactionReviewPassed",
+    "reviewedProjectId",
+    "reviewedManifestSha256",
+    "reviewedDeliverableSha256",
+    "qualityChecks"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.long-form-manual-quality-review.v1" },
+    "decision": { "enum": ["pass", "fail", "needs_review"] },
+    "redactionReviewPassed": { "type": "boolean" },
+    "reviewedProjectId": { "$ref": "#/$defs/safeIdentifier" },
+    "reviewedManifestSha256": { "$ref": "#/$defs/sha256" },
+    "reviewedDeliverableSha256": { "$ref": "#/$defs/sha256" },
+    "reviewer": { "$ref": "#/$defs/safeEvidenceText" },
+    "reviewedAt": { "type": "string", "format": "date-time" },
+    "qualityChecks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "durationAndPacingAccepted",
+        "shotContinuityAccepted",
+        "visualArtifactsAccepted",
+        "promptFidelityAccepted",
+        "audioSyncAccepted",
+        "noUnsafeContentObserved"
+      ],
+      "properties": {
+        "durationAndPacingAccepted": { "type": "boolean" },
+        "shotContinuityAccepted": { "type": "boolean" },
+        "visualArtifactsAccepted": { "type": "boolean" },
+        "promptFidelityAccepted": { "type": "boolean" },
+        "audioSyncAccepted": { "type": "boolean" },
+        "noUnsafeContentObserved": { "type": "boolean" }
+      }
+    },
+    "notes": { "$ref": "#/$defs/safeEvidenceText" }
+  },
+  "$defs": {
+    "safeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "not": { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "safeEvidenceText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "not": {
+        "anyOf": [
+          { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" },
+          { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+          { "pattern": "sk-[A-Za-z0-9_-]+" },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\\s*[:=]\\s*[\\\"']?[^\\\"',\\s&]+" },
+          { "pattern": "([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\\s]+" },
+          { "pattern": "[A-Za-z]:\\\\[^\\s\\\"'<>]+" },
+          { "pattern": "\\/(?:home|Users|var|tmp)\\/[^\\s\\\"'<>]+" },
+          { "pattern": "https?:\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "data:[^\\s\\\"'<>]+" }
+        ]
+      }
+    }
+  }
+}

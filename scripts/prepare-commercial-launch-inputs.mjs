@@ -391,8 +391,8 @@ function buildRequiredInputs(reports) {
       requiredFor: ["long_form_paid_validation"],
       envVars: [],
       filePaths: ["assets/output_deliverables/business-readiness/long-form-validation-report.json", "ops/long-form-manual-quality-review.json"],
-      acceptance: "After the paid 2-8 minute validation run, inspect artifacts, media quality, cost ledger, review packet, and redaction evidence; bind the review JSON to the paid projectId, manifestSha256, and deliverableSha256.",
-      validationCommand: "npm.cmd run validation:long-form -- --duration-seconds 120 --max-cost-usd <approved-budget> --confirm-paid-spend --manual-quality-review ops/long-form-manual-quality-review.json --confirm-manual-quality-review",
+      acceptance: "After the paid 2-8 minute validation run, run validation:long-form-review-draft, inspect artifacts, media quality, cost ledger, review packet, and redaction evidence; bind the review JSON to the paid projectId, manifestSha256, and deliverableSha256.",
+      validationCommand: "Step 1: npm.cmd run validation:long-form-review-draft -- --force. Step 2: npm.cmd run validation:long-form -- --duration-seconds 120 --max-cost-usd <approved-budget> --confirm-paid-spend --manual-quality-review ops/long-form-manual-quality-review.json --confirm-manual-quality-review",
       blockerMessage: failingMessage(business, "long_form_paid_validation")
     }),
     input({
@@ -678,22 +678,30 @@ function commandItemsFromEvidencePlan(plan) {
 
 function commandItemsFromBudgetPlan(plan) {
   return Array.isArray(plan?.slices)
-    ? plan.slices.flatMap((slice) => [
-        {
-          location: `budgetConstrainedPaidPlan.slices.${slice.name}.billingReadinessCommand`,
-          name: `${slice.name}_billing`,
-          kind: "atlas_billing_readiness",
-          status: String(slice.status ?? "unknown"),
-          command: String(slice.billingReadinessCommand ?? "")
-        },
-        {
+    ? plan.slices.flatMap((slice) => {
+        const status = String(slice.status ?? "unknown");
+        const billingCommand = typeof slice.billingReadinessCommand === "string"
+          ? slice.billingReadinessCommand
+          : "";
+        const items = [];
+        if (billingCommand || isRunnableStatus(status)) {
+          items.push({
+            location: `budgetConstrainedPaidPlan.slices.${slice.name}.billingReadinessCommand`,
+            name: `${slice.name}_billing`,
+            kind: "atlas_billing_readiness",
+            status,
+            command: billingCommand
+          });
+        }
+        items.push({
           location: `budgetConstrainedPaidPlan.slices.${slice.name}.command`,
           name: String(slice.name ?? "unknown"),
           kind: String(slice.kind ?? "unknown"),
-          status: String(slice.status ?? "unknown"),
+          status,
           command: String(slice.command ?? "")
-        }
-      ])
+        });
+        return items;
+      })
     : [];
 }
 

@@ -45,6 +45,8 @@ const defaultContracts = [
   contract("business_completion_audit", "schemas/business-completion-audit-report.schema.json", "assets/output_deliverables/business-readiness/business-completion-audit-report.json"),
   contract("ops_config_validation", "schemas/business-readiness-ops-config-validation-report.schema.json", "assets/output_deliverables/business-readiness/ops-config-validation-report.json"),
   contract("long_form_validation", "schemas/long-form-validation-report.schema.json", "assets/output_deliverables/business-readiness/long-form-validation-report.json"),
+  contract("long_form_manual_quality_review", "schemas/long-form-manual-quality-review.schema.json", "ops/long-form-manual-quality-review.json"),
+  contract("long_form_manual_quality_review_draft", "schemas/long-form-manual-quality-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
   contract("remote_stock_validation", "schemas/remote-stock-validation-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-validation-report.json"),
   contract("generated_audio_validation", "schemas/generated-audio-validation-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
@@ -309,6 +311,12 @@ function validateSemanticContract(item, report, options) {
   }
   if (item.name === "generated_audio_polling_resilience") {
     return validateGeneratedAudioPollingResilienceSemantics(report);
+  }
+  if (item.name === "long_form_manual_quality_review") {
+    return validateLongFormManualQualityReviewSemantics(report);
+  }
+  if (item.name === "long_form_manual_quality_review_draft") {
+    return validateLongFormManualQualityReviewDraftSemantics(report);
   }
   if (item.name === "generated_audio_manual_review_draft") {
     return validateGeneratedAudioManualReviewDraftSemantics(report);
@@ -1229,6 +1237,58 @@ function validateGeneratedAudioPollingResilienceSemantics(report) {
   }
   if (/test-atlas-api-key|test-atlas-llm-api-key|apikey-|sk_[A-Za-z0-9]/.test(publicPayload)) {
     issues.push("$.publicPayload: polling resilience smoke report must not include API keys or credential-like text.");
+  }
+  return issues;
+}
+
+function validateLongFormManualQualityReviewSemantics(report) {
+  const issues = [];
+  const qualityChecks = report?.qualityChecks && typeof report.qualityChecks === "object"
+    ? Object.values(report.qualityChecks)
+    : [];
+  if (report?.decision === "pass") {
+    if (report?.redactionReviewPassed !== true) {
+      issues.push("$.redactionReviewPassed: pass reviews must include accepted redaction review.");
+    }
+    if (qualityChecks.length > 0 && qualityChecks.some((value) => value !== true)) {
+      issues.push("$.qualityChecks: every declared quality check must be true when decision=pass.");
+    }
+  }
+  if (report?.decision === "needs_review" && report?.redactionReviewPassed === true) {
+    issues.push("$.redactionReviewPassed: needs_review packets must not mark redaction review passed.");
+  }
+  return issues;
+}
+
+function validateLongFormManualQualityReviewDraftSemantics(report) {
+  const issues = [];
+  if (report?.noSpend !== true || report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade: expected no-spend, no-network long-form review draft generation.");
+  }
+  if (report?.template?.templateOnly !== true || report?.template?.directUseRejectedByValidation !== true) {
+    issues.push("$.template: expected template-only output that is rejected by final long-form validation if used directly.");
+  }
+  if (report?.template?.safeForEvidenceUse !== false) {
+    issues.push("$.template.safeForEvidenceUse: expected false for long-form review draft template.");
+  }
+  if (
+    report?.releaseGateSummary?.canUseTemplateAsManualQualityReviewEvidence !== false ||
+    report?.releaseGateSummary?.canUseAsBusinessReadinessLongFormEvidence !== false ||
+    report?.releaseGateSummary?.canClaimDirectorBenchParity !== false ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: long-form review drafts must not unlock long-form, DirectorBench, or customer-release claims.");
+  }
+  if (report?.status === "pass") {
+    if (report?.sourceReportContext?.readyForManualReview !== true) {
+      issues.push("$.sourceReportContext.readyForManualReview: pass draft reports require paid long-form artifact evidence ready for operator review.");
+    }
+    if (report?.template?.available !== true || report?.checklist?.available !== true) {
+      issues.push("$.template/$.checklist: pass draft reports must have an available template and checklist.");
+    }
+    if (Array.isArray(report?.issues) && report.issues.length > 0) {
+      issues.push("$.issues: pass draft reports must not carry issues.");
+    }
   }
   return issues;
 }

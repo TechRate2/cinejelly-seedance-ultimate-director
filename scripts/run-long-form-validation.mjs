@@ -768,9 +768,15 @@ function readManualQualityReview(options) {
   const text = readFileSync(absolutePath, "utf8");
   const parsed = parseManualQualityReviewJson(text);
   if (parsed) {
+    const schemaSupported = parsed.schemaVersion === "cinejelly.long-form-manual-quality-review.v1";
+    const templateOnly = parsed._templateOnly === true || parsed._doNotSubmitDirectly !== undefined;
+    const qualityChecksAccepted = qualityChecksPassed(parsed.qualityChecks);
     const passed =
+      schemaSupported &&
+      !templateOnly &&
       parseReviewPass(parsed.decision ?? parsed.status ?? parsed.qualityReviewDecision) &&
       booleanOrPassString(parsed.redactionReviewPassed ?? parsed.redactionReview ?? parsed.redactionStatus) &&
+      qualityChecksAccepted &&
       options.confirmManualQualityReview === true;
     return {
       present: true,
@@ -784,7 +790,7 @@ function readManualQualityReview(options) {
       ...(safeSha256(parsed.reviewedDeliverableSha256 ?? parsed.deliverableSha256) ? { reviewedDeliverableSha256: safeSha256(parsed.reviewedDeliverableSha256 ?? parsed.deliverableSha256) } : {}),
       message: passed
         ? "Manual long-form review JSON contains a confirmed pass decision and redaction review."
-        : "Manual long-form review JSON must pass quality and redaction review, and --confirm-manual-quality-review must be supplied."
+        : manualQualityReviewJsonFailureMessage({ schemaSupported, templateOnly, qualityChecksAccepted, confirmManualQualityReview: options.confirmManualQualityReview })
     };
   }
   const normalized = text.toLowerCase();
@@ -897,6 +903,33 @@ function parseReviewPass(value) {
     return true;
   }
   return typeof value === "string" && ["pass", "passed", "accepted"].includes(value.trim().toLowerCase());
+}
+
+function qualityChecksPassed(value) {
+  if (value === undefined) {
+    return false;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const checks = Object.values(value);
+  return checks.length > 0 && checks.every((item) => item === true);
+}
+
+function manualQualityReviewJsonFailureMessage({ schemaSupported, templateOnly, qualityChecksAccepted, confirmManualQualityReview }) {
+  if (!schemaSupported) {
+    return "Manual long-form review JSON must use schemaVersion cinejelly.long-form-manual-quality-review.v1.";
+  }
+  if (templateOnly) {
+    return "Manual long-form review JSON still contains template-only fields.";
+  }
+  if (!qualityChecksAccepted) {
+    return "Manual long-form review JSON must mark every declared quality check true before it can pass.";
+  }
+  if (!confirmManualQualityReview) {
+    return "Manual long-form review JSON requires --confirm-manual-quality-review after operator review.";
+  }
+  return "Manual long-form review JSON must pass quality and redaction review.";
 }
 
 function booleanOrPassString(value) {
