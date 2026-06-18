@@ -46,7 +46,10 @@ It may:
 10. Run business completion audit.
 11. Run business readiness audit.
 12. Write the launch doctor report.
-13. Run report-contract validation, then rewrite the doctor report with the final contract status.
+13. Run report-contract validation.
+14. Rerun business completion audit so it reads the fresh report-contract status.
+15. Rewrite the launch doctor report with the refreshed completion-audit status.
+16. Run report-contract validation one final time, then rewrite the doctor report with the final contract status.
 
 Expected blocked or review-required commands can exit non-zero without becoming code blockers. The quality benchmark is refreshed as backend evidence, but a `blocked` or `review_required` benchmark remains product/evidence status rather than launch-doctor code failure. Unexpected build, local-smoke, release-audit, deployment-package, or report-contract failures become code-side blockers.
 

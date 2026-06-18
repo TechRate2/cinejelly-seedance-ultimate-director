@@ -106,7 +106,27 @@ function main() {
   }
 
   const reportContracts = runCommand(reportContractCommand(), options);
-  const finalCommandRuns = [...commandRuns, reportContracts];
+  let finalCommandRuns = [...commandRuns, reportContracts];
+  report = buildReport(options, finalCommandRuns);
+  if (options.writeReport) {
+    writeJson(options.outputPath, report);
+  }
+  if (options.writeMarkdown) {
+    writeText(options.markdownOutputPath, renderMarkdown(report));
+  }
+
+  const completionAuditRefresh = runCommand(completionAuditCommand("completion_audit_after_contracts"), options);
+  finalCommandRuns = [...finalCommandRuns, completionAuditRefresh];
+  report = buildReport(options, finalCommandRuns);
+  if (options.writeReport) {
+    writeJson(options.outputPath, report);
+  }
+  if (options.writeMarkdown) {
+    writeText(options.markdownOutputPath, renderMarkdown(report));
+  }
+
+  const finalReportContracts = runCommand(reportContractCommand("report_contracts_final"), options);
+  finalCommandRuns = [...finalCommandRuns, finalReportContracts];
   report = buildReport(options, finalCommandRuns);
   if (options.writeReport) {
     writeJson(options.outputPath, report);
@@ -184,11 +204,7 @@ function buildCommands(options) {
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
-    command("completion_audit", ["scripts/summarize-business-completion-audit.mjs"], {
-      reportPath: "assets/output_deliverables/business-readiness/business-completion-audit-report.json",
-      expectedExitCodes: [0, 1],
-      blocksCodeReadiness: false
-    }),
+    completionAuditCommand("completion_audit"),
     command("business_readiness", ["scripts/run-business-readiness-audit.mjs"], {
       reportPath: "assets/output_deliverables/phase6-validation/business-readiness-report.json",
       expectedExitCodes: [0, 1],
@@ -198,8 +214,16 @@ function buildCommands(options) {
   return commands;
 }
 
-function reportContractCommand() {
-  return command("report_contracts", ["scripts/validate-report-contracts.mjs"], {
+function completionAuditCommand(name) {
+  return command(name, ["scripts/summarize-business-completion-audit.mjs"], {
+    reportPath: "assets/output_deliverables/business-readiness/business-completion-audit-report.json",
+    expectedExitCodes: [0, 1],
+    blocksCodeReadiness: false
+  });
+}
+
+function reportContractCommand(name = "report_contracts") {
+  return command(name, ["scripts/validate-report-contracts.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/report-contract-validation-report.json",
     expectedExitCodes: [0],
     blocksCodeReadiness: true
