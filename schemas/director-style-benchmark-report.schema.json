@@ -43,6 +43,7 @@
         "sceneChangeThreshold": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
         "transitionBoundaryWindowSeconds": { "type": "number", "exclusiveMinimum": 0 },
         "maxTransitionBoundaries": { "type": "integer", "minimum": 0 },
+        "semanticReviewPath": { "type": "string", "minLength": 1 },
         "outputPath": { "type": "string", "minLength": 1 },
         "jsonlPath": { "type": "string", "minLength": 1 },
         "minPassingScore": { "type": "number", "minimum": 0, "maximum": 1 },
@@ -71,7 +72,9 @@
             "artifact_contract_only",
             "artifact_contract_plus_media_probe",
             "artifact_contract_plus_media_frames",
-            "artifact_contract_plus_media_boundaries"
+            "artifact_contract_plus_media_boundaries",
+            "artifact_contract_plus_semantic_review",
+            "artifact_contract_plus_media_semantic_review"
           ]
         },
         "metricCount": { "type": "integer", "minimum": 1 },
@@ -103,7 +106,8 @@
         "costLedgerEntryCount": { "type": "integer", "minimum": 0 },
         "artifactKinds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "sourcePatternOrigins": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "mediaEvidence": { "$ref": "#/$defs/mediaEvidence" }
+        "mediaEvidence": { "$ref": "#/$defs/mediaEvidence" },
+        "semanticReviewEvidence": { "$ref": "#/$defs/semanticReviewEvidence" }
       }
     },
     "dimensionScores": {
@@ -249,6 +253,71 @@
         "meanBrightnessDelta": { "type": "number", "minimum": 0, "maximum": 1 },
         "transitionContinuityScore": { "type": "number", "minimum": 0, "maximum": 1 },
         "boundaries": { "type": "array", "items": { "$ref": "#/$defs/transitionBoundarySignal" } },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "semanticReviewMetricName": {
+      "enum": [
+        "script_video_fidelity",
+        "user_demand_fulfillment",
+        "temporal_coherence",
+        "transition_quality",
+        "lighting_consistency",
+        "text_video_consistency"
+      ]
+    },
+    "semanticReviewStatus": { "enum": ["accepted", "needs_review", "rejected"] },
+    "semanticReviewerType": { "enum": ["manual", "vlm", "hybrid"] },
+    "semanticReviewMetricEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metricName",
+        "status",
+        "reviewerType",
+        "score",
+        "confidence",
+        "evidenceSummary",
+        "findings"
+      ],
+      "properties": {
+        "metricName": { "$ref": "#/$defs/semanticReviewMetricName" },
+        "status": { "$ref": "#/$defs/semanticReviewStatus" },
+        "reviewerType": { "$ref": "#/$defs/semanticReviewerType" },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidenceSummary": { "type": "string", "minLength": 1 },
+        "reviewedShotCount": { "type": "integer", "minimum": 0 },
+        "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "semanticReviewEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "status",
+        "reviewerType",
+        "metricCount",
+        "metrics",
+        "findings"
+      ],
+      "properties": {
+        "source": { "enum": ["manual_json", "vlm_json", "hybrid_json"] },
+        "sourcePath": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/semanticReviewStatus" },
+        "reviewerType": { "$ref": "#/$defs/semanticReviewerType" },
+        "reviewedShotCount": { "type": "integer", "minimum": 0 },
+        "reviewedBoundaryCount": { "type": "integer", "minimum": 0 },
+        "metricCount": { "type": "integer", "minimum": 1 },
+        "averageScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "averageConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/semanticReviewMetricEvidence" }
+        },
         "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }
     },

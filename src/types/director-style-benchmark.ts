@@ -6,13 +6,24 @@ export type DirectorStyleBenchmarkEvidenceScope =
   | "artifact_contract_only"
   | "artifact_contract_plus_media_probe"
   | "artifact_contract_plus_media_frames"
-  | "artifact_contract_plus_media_boundaries";
+  | "artifact_contract_plus_media_boundaries"
+  | "artifact_contract_plus_semantic_review"
+  | "artifact_contract_plus_media_semantic_review";
 export type DirectorStyleBenchmarkProfile =
   | "balanced"
   | "story_first"
   | "visual_heavy"
   | "audio_emotion"
   | "sync_perfectionist";
+export type DirectorStyleBenchmarkSemanticReviewMetricName =
+  | "script_video_fidelity"
+  | "user_demand_fulfillment"
+  | "temporal_coherence"
+  | "transition_quality"
+  | "lighting_consistency"
+  | "text_video_consistency";
+export type DirectorStyleBenchmarkSemanticReviewStatus = "accepted" | "needs_review" | "rejected";
+export type DirectorStyleBenchmarkSemanticReviewerType = "manual" | "vlm" | "hybrid";
 
 export interface DirectorStyleBenchmarkEvidence {
   readonly kind: string;
@@ -104,6 +115,32 @@ export interface DirectorStyleBenchmarkTransitionSignals {
   readonly findings: readonly string[];
 }
 
+export interface DirectorStyleBenchmarkSemanticReviewMetricEvidence {
+  readonly metricName: DirectorStyleBenchmarkSemanticReviewMetricName;
+  readonly status: DirectorStyleBenchmarkSemanticReviewStatus;
+  readonly reviewerType: DirectorStyleBenchmarkSemanticReviewerType;
+  readonly score: number;
+  readonly confidence: number;
+  readonly evidenceSummary: string;
+  readonly reviewedShotCount?: number;
+  readonly reviewedBoundaryCount?: number;
+  readonly findings: readonly string[];
+}
+
+export interface DirectorStyleBenchmarkSemanticReviewEvidence {
+  readonly source: "manual_json" | "vlm_json" | "hybrid_json";
+  readonly sourcePath?: string;
+  readonly status: DirectorStyleBenchmarkSemanticReviewStatus;
+  readonly reviewerType: DirectorStyleBenchmarkSemanticReviewerType;
+  readonly reviewedShotCount?: number;
+  readonly reviewedBoundaryCount?: number;
+  readonly metricCount: number;
+  readonly averageScore?: number;
+  readonly averageConfidence?: number;
+  readonly metrics: readonly DirectorStyleBenchmarkSemanticReviewMetricEvidence[];
+  readonly findings: readonly string[];
+}
+
 export interface DirectorStyleBenchmarkMediaEvidence {
   readonly status: "unavailable" | "probe_only" | "frame_sampled";
   readonly source: "local_file";
@@ -141,6 +178,7 @@ export interface DirectorStyleBenchmarkFacts {
   readonly artifactKinds: readonly string[];
   readonly sourcePatternOrigins: readonly string[];
   readonly mediaEvidence?: DirectorStyleBenchmarkMediaEvidence;
+  readonly semanticReviewEvidence?: DirectorStyleBenchmarkSemanticReviewEvidence;
 }
 
 export interface DirectorStyleBenchmarkReport {
@@ -162,6 +200,7 @@ export interface DirectorStyleBenchmarkReport {
     readonly sceneChangeThreshold?: number;
     readonly transitionBoundaryWindowSeconds?: number;
     readonly maxTransitionBoundaries?: number;
+    readonly semanticReviewPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
     readonly minPassingScore: number;

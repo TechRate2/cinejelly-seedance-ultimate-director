@@ -9,6 +9,7 @@ const defaults = {
   paidRenderReportPath: "assets/output_deliverables/phase6-validation/paid-render-report.json",
   requestPath: "assets/output_deliverables/phase6-validation/request.json",
   manualReviewPath: "assets/output_deliverables/phase6-validation/manual-review-report.md",
+  semanticReviewPath: "assets/output_deliverables/business-readiness/director-style-semantic-review.json",
   mediaPath: "assets/output_deliverables/phase6-validation/final.mp4",
   outputPath: "assets/output_deliverables/business-readiness/director-style-benchmark-report.json",
   jsonlPath: "assets/output_deliverables/business-readiness/director-style-benchmark-results.jsonl",
@@ -29,6 +30,7 @@ function parseArgs(args) {
     appendJsonl: true,
     useRequest: true,
     useManualReview: true,
+    useSemanticReview: true,
     useMedia: true,
     buildFirst: false
   };
@@ -36,6 +38,7 @@ function parseArgs(args) {
     ["--paid-render-report", "paidRenderReportPath"],
     ["--request", "requestPath"],
     ["--manual-review", "manualReviewPath"],
+    ["--semantic-review", "semanticReviewPath"],
     ["--media", "mediaPath"],
     ["--output", "outputPath"],
     ["--jsonl", "jsonlPath"],
@@ -69,6 +72,10 @@ function parseArgs(args) {
     }
     if (arg === "--no-manual-review") {
       options.useManualReview = false;
+      continue;
+    }
+    if (arg === "--no-semantic-review") {
+      options.useSemanticReview = false;
       continue;
     }
     if (arg === "--no-media") {
@@ -120,6 +127,7 @@ Options:
   --paid-render-report <path>     Paid render validation report. Default: ${defaults.paidRenderReportPath}
   --request <path>                Original render request JSON. Default: ${defaults.requestPath}
   --manual-review <path>          Optional manual review note. Default: ${defaults.manualReviewPath}
+  --semantic-review <path>        Optional structured semantic review JSON. Default: ${defaults.semanticReviewPath}
   --media <path>                  Optional local rendered media for probe/frame-signal evidence. Default: ${defaults.mediaPath}
   --profile <name>                balanced, story_first, visual_heavy, audio_emotion, sync_perfectionist. Default: balanced
   --min-passing-score <number>    Default: ${defaults.minPassingScore}
@@ -133,6 +141,7 @@ Options:
   --jsonl <path>                  Append-only JSONL history path. Default: ${defaults.jsonlPath}
   --no-request                    Do not read request evidence.
   --no-manual-review              Do not read manual review evidence.
+  --no-semantic-review            Do not read structured semantic review evidence.
   --no-media                      Do not inspect local rendered media.
   --build                         Build TypeScript before importing the benchmark evaluator.
   --no-output                     Print only; do not write the JSON report.
@@ -165,8 +174,9 @@ async function main() {
   const paidRenderReport = readJson(options.paidRenderReportPath, true);
   const request = options.useRequest ? readJson(options.requestPath, false) : undefined;
   const manualReviewText = options.useManualReview ? readText(options.manualReviewPath, false) : undefined;
+  const semanticReviewEvidence = options.useSemanticReview ? await collectSemanticReviewEvidence(options) : undefined;
   const mediaEvidence = options.useMedia ? await collectMediaEvidence(options) : undefined;
-  const facts = factsFrom({ paidRenderReport, request, manualReviewText, mediaEvidence, options });
+  const facts = factsFrom({ paidRenderReport, request, manualReviewText, semanticReviewEvidence, mediaEvidence, options });
   const { DirectorStyleBenchmarkEvaluator } = await import("../dist/core/director-style-benchmark.js");
   const evaluator = new DirectorStyleBenchmarkEvaluator();
   const report = evaluator.evaluate({
@@ -180,6 +190,7 @@ async function main() {
     ...(options.useMedia ? { sceneChangeThreshold: options.sceneChangeThreshold } : {}),
     ...(options.useMedia ? { transitionBoundaryWindowSeconds: options.transitionBoundaryWindowSeconds } : {}),
     ...(options.useMedia ? { maxTransitionBoundaries: options.maxTransitionBoundaries } : {}),
+    ...(semanticReviewEvidence ? { semanticReviewPath: toRepoRelative(options.semanticReviewPath) } : {}),
     ...(options.writeOutput ? { outputPath: toRepoRelative(options.outputPath) } : {}),
     ...(options.appendJsonl ? { jsonlPath: toRepoRelative(options.jsonlPath) } : {})
   });
@@ -215,6 +226,16 @@ async function collectMediaEvidence(options) {
     transitionBoundaryWindowSeconds: options.transitionBoundaryWindowSeconds,
     maxTransitionBoundaries: options.maxTransitionBoundaries
   });
+}
+
+async function collectSemanticReviewEvidence(options) {
+  const absolutePath = resolve(repoRoot, options.semanticReviewPath);
+  if (!existsSync(absolutePath)) {
+    return undefined;
+  }
+  const raw = readJson(options.semanticReviewPath, true);
+  const { normalizeDirectorStyleSemanticReviewEvidence } = await import("../dist/core/director-style-semantic-review.js");
+  return normalizeDirectorStyleSemanticReviewEvidence(raw, { sourcePath: toRepoRelative(options.semanticReviewPath) });
 }
 
 function validateOptions(options) {
@@ -258,6 +279,7 @@ function validateOptions(options) {
   for (const [name, value] of [
     ["--paid-render-report", options.paidRenderReportPath],
     ["--request", options.requestPath],
+    ["--semantic-review", options.semanticReviewPath],
     ["--media", options.mediaPath],
     ["--output", options.outputPath],
     ["--jsonl", options.jsonlPath]
@@ -274,7 +296,7 @@ function validateOptions(options) {
   }
 }
 
-function factsFrom({ paidRenderReport, request, manualReviewText, mediaEvidence, options }) {
+function factsFrom({ paidRenderReport, request, manualReviewText, semanticReviewEvidence, mediaEvidence, options }) {
   const artifactEntries = Array.isArray(paidRenderReport?.artifactBundle?.entries)
     ? paidRenderReport.artifactBundle.entries
     : [];
@@ -329,6 +351,7 @@ function factsFrom({ paidRenderReport, request, manualReviewText, mediaEvidence,
       : {}),
     artifactKinds,
     sourcePatternOrigins,
+    ...(semanticReviewEvidence ? { semanticReviewEvidence } : {}),
     ...(mediaEvidence ? { mediaEvidence } : {})
   };
 }

@@ -1,6 +1,6 @@
 # Director-Style Benchmark Harness
 
-Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScript evaluator, local media-evidence collector, no-spend CLI, JSON schema, report-contract entry, source lineage record, and package command. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScript evaluator, local media-evidence collector, structured semantic-review normalizer, no-spend CLI, JSON schemas, report-contract entry, source lineage record, and package command. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Source Logic
 
@@ -21,19 +21,22 @@ Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScr
 ## CineJelly Changes
 
 1. No DirectorBench Python code, LangGraph graph, OpenCV routines, prompts, or agent implementations are copied or executed.
-2. The current harness reads CineJelly paid-render evidence, request evidence, optional manual review text, and optional local rendered media.
+2. The current harness reads CineJelly paid-render evidence, request evidence, optional manual review text, optional structured semantic review JSON, and optional local rendered media.
 3. Local media evidence is limited to FFprobe delivery metadata, bounded sampled-frame RGB signals, and FFmpeg scene-change transition-boundary pre/post RGB proxies; sampled frame paths are redacted from reports.
-4. It performs no provider calls, no media downloads, no deployment calls, no Atlas calls, and no paid validation.
-5. It always reports `canClaimDirectorBenchParity=false` because scene-change boundary proxies do not replace semantic visual/fidelity analysis, ASR, lip-sync, generated-audio waveform/listening review, or long-form paid evidence.
-6. It is allowed to produce useful backend evidence, but it cannot approve customer traffic by itself.
+4. Structured semantic review evidence can raise or lower the affected visual/cross-modal checkpoint scores, but it remains bounded checkpoint evidence rather than full DirectorBench runtime parity.
+5. It performs no provider calls, no media downloads, no deployment calls, no Atlas calls, and no paid validation.
+6. It always reports `canClaimDirectorBenchParity=false` because local proxies and structured review packets do not replace ASR, lip-sync, generated-audio waveform/listening review, live long-form paid evidence, or legal/permission review.
+7. It is allowed to produce useful backend evidence, but it cannot approve customer traffic by itself.
 
 ## Destination Paths
 
 - `src/types/director-style-benchmark.ts`
 - `src/core/director-style-benchmark.ts`
 - `src/core/director-style-media-evidence.ts`
+- `src/core/director-style-semantic-review.ts`
 - `scripts/run-director-style-benchmark.mjs`
 - `schemas/director-style-benchmark-report.schema.json`
+- `schemas/director-style-semantic-review.schema.json`
 - `scripts/validate-report-contracts.mjs`
 - `package.json`
 - `src/index.ts`
@@ -43,6 +46,7 @@ Implementation status as of 2026-06-18: implemented as a CineJelly-owned TypeScr
 
 ```powershell
 npm.cmd run validation:quality-benchmark
+npm.cmd run validation:quality-benchmark -- --semantic-review assets/output_deliverables/business-readiness/director-style-semantic-review.json
 ```
 
 Default output:
@@ -50,12 +54,13 @@ Default output:
 - `assets/output_deliverables/business-readiness/director-style-benchmark-report.json`
 - `assets/output_deliverables/business-readiness/director-style-benchmark-results.jsonl`
 
-The current short paid Phase 6 render produces useful example evidence and now includes local media probe plus sampled-frame proxy signals, but it should remain `review_required`: it is a roughly 13.5 second text-to-video run with `audioMode:none`, so audio and audio cross-modal metrics are skipped, long-form stability is not proven, and FFmpeg scene-change detection does not find transition boundaries in that smoke output at the configured threshold. Transition/lighting/text-video metrics still need long-form outputs with real boundaries plus semantic visual and/or manual media review evidence.
+The current short paid Phase 6 render produces useful example evidence and now includes local media probe plus sampled-frame proxy signals, but it should remain `review_required`: it is a roughly 13.5 second text-to-video run with `audioMode:none`, so audio and audio cross-modal metrics are skipped, long-form stability is not proven, and FFmpeg scene-change detection does not find transition boundaries in that smoke output at the configured threshold. A synthetic structured semantic-review JSON run proves the ingestion path can produce `semantic_review_checkpoint` evidence and `artifact_contract_plus_media_semantic_review` scope, but the default smoke has no archived semantic review packet and still cannot claim semantic/long-form/audio readiness.
 
 ## Acceptance Criteria
 
 - The CLI exits successfully for `pass` and `review_required`; it exits non-zero only for `blocked`.
 - The report schema is covered by `validation:report-contracts`.
+- Structured semantic review JSON must match `schemas/director-style-semantic-review.schema.json` and must not include raw frame paths, local media bytes, secrets, or provider payloads.
 - The report contains no API keys, bearer tokens, raw local artifact paths, inline media, provider payloads, or upstream implementation code.
 - A short/no-audio smoke report must not be treated as long-form or audio evidence.
 - Full DirectorBench parity remains blocked until legal/permission review, long-form paid evidence, semantic visual/VLM/ASR/lip-sync evidence, and audio review evidence exist.
@@ -63,7 +68,7 @@ The current short paid Phase 6 render produces useful example evidence and now i
 ## Remaining Scope
 
 - Run the transition-boundary analyzer against real long-form rendered media with detected scene changes.
-- Add semantic visual/fidelity review from sampled frames or manual review packets.
+- Archive real structured semantic visual/fidelity review JSON for a paid long-form artifact.
 - Add generated-audio output and manual listening evidence to audio/cross-modal metrics.
 - Run the harness against a real 2-8 minute paid long-form artifact bundle.
 - Decide whether to build a deeper CineJelly-owned evaluation graph after licensing and product review.

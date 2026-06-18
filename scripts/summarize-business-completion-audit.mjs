@@ -306,17 +306,17 @@ function buildProductCodeGaps() {
       id: "directorbench_style_benchmark_harness",
       label: "DirectorBench-style benchmark harness is partial",
       category: "evaluation_harness",
-      status: "scene_boundary_detector_ready",
-      currentCoveragePercent: 62,
+      status: "semantic_review_contract_ready",
+      currentCoveragePercent: 68,
       sourceEvidence: "docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md",
       sourcePatternOrigins: ["jiaminchen-1031/DirectorBench"],
       requiredAction:
-        "Run validation:quality-benchmark on real 2-8 minute paid artifacts with actual detected transition boundaries, then add semantic visual/fidelity review, generated-audio/manual listening evidence, and optional VLM/ASR/lip-sync review before claiming DirectorBench-style parity.",
+        "Run validation:quality-benchmark on real 2-8 minute paid artifacts with actual detected transition boundaries and a structured semantic review JSON, then add generated-audio/manual listening evidence and optional VLM/ASR/lip-sync review before claiming DirectorBench-style parity.",
       canAutomateNow: true,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
-        "A CineJelly-owned no-spend benchmark now emits script/video/audio/stability/cross-modal checkpoint evidence, bottlenecks, report contracts, FFprobe media metadata, sampled-frame proxy signals, and FFmpeg scene-change transition-boundary proxy evidence when boundaries are detected, but it still cannot replace semantic media inspection, audio review, long-form paid evidence, or full DirectorBench parity."
+        "A CineJelly-owned no-spend benchmark now emits script/video/audio/stability/cross-modal checkpoint evidence, bottlenecks, report contracts, FFprobe media metadata, sampled-frame proxy signals, FFmpeg scene-change transition-boundary proxy evidence when boundaries are detected, and optional structured semantic review checkpoints, but it still cannot replace generated-audio review, ASR/lip-sync, long-form paid evidence, or full DirectorBench runtime parity."
     }
   ];
 }

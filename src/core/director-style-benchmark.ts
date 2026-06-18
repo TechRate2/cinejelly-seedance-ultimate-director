@@ -9,6 +9,8 @@ import type {
   DirectorStyleBenchmarkMetricStatus,
   DirectorStyleBenchmarkProfile,
   DirectorStyleBenchmarkReport,
+  DirectorStyleBenchmarkSemanticReviewMetricEvidence,
+  DirectorStyleBenchmarkSemanticReviewMetricName,
   DirectorStyleBenchmarkSeverity,
   DirectorStyleBenchmarkStatus
 } from "../types/director-style-benchmark.js";
@@ -78,6 +80,7 @@ export class DirectorStyleBenchmarkEvaluator {
     readonly sceneChangeThreshold?: number;
     readonly transitionBoundaryWindowSeconds?: number;
     readonly maxTransitionBoundaries?: number;
+    readonly semanticReviewPath?: string;
     readonly outputPath?: string;
     readonly jsonlPath?: string;
   }): DirectorStyleBenchmarkReport {
@@ -108,6 +111,7 @@ export class DirectorStyleBenchmarkEvaluator {
     const status = this.statusFor(weightedScore, bottlenecks, metrics, minPassingScore, minConfidence);
     const evidenceScope = this.evidenceScope(input.facts);
     const mediaPath = input.mediaPath ?? input.facts.mediaEvidence?.mediaPath;
+    const semanticReviewPath = input.semanticReviewPath ?? input.facts.semanticReviewEvidence?.sourcePath;
     const frameSamplingIntervalSeconds =
       input.frameSamplingIntervalSeconds ?? input.facts.mediaEvidence?.frameSamplingIntervalSeconds;
 
@@ -134,6 +138,7 @@ export class DirectorStyleBenchmarkEvaluator {
           ? { transitionBoundaryWindowSeconds: input.transitionBoundaryWindowSeconds }
           : {}),
         ...(input.maxTransitionBoundaries ? { maxTransitionBoundaries: input.maxTransitionBoundaries } : {}),
+        ...(semanticReviewPath ? { semanticReviewPath } : {}),
         ...(input.outputPath ? { outputPath: input.outputPath } : {}),
         ...(input.jsonlPath ? { jsonlPath: input.jsonlPath } : {}),
         minPassingScore,
@@ -180,6 +185,9 @@ export class DirectorStyleBenchmarkEvaluator {
     const mediaProxyLimitations = [
       "Sampled-frame color and brightness signals are structural proxies; VLM/ASR/lip-sync and shot-boundary review are still required for full DirectorBench-style parity."
     ];
+    const semanticReviewLimitations = [
+      "Structured semantic review evidence is checkpoint evidence; long-form paid output, audio review, ASR/lip-sync, and full DirectorBench runtime parity remain separate gates."
+    ];
     const frameSignalEvidence = hasFrameSignals
       ? [
           this.mediaEvidence(
@@ -196,6 +204,17 @@ export class DirectorStyleBenchmarkEvaluator {
           )
         ]
       : [];
+    const semanticReviewEvidence = (metricName: DirectorStyleBenchmarkSemanticReviewMetricName) => {
+      const metric = this.semanticReviewMetric(facts, metricName);
+      return metric
+        ? [
+            this.semanticEvidence(
+              metric,
+              `${metric.metricName} semantic review score=${metric.score}, confidence=${metric.confidence}; ${metric.evidenceSummary}`
+            )
+          ]
+        : [];
+    };
     const probedMediaEvidence = hasMediaProbe
       ? [
           this.mediaEvidence(
@@ -204,31 +223,39 @@ export class DirectorStyleBenchmarkEvaluator {
           )
         ]
       : [];
-    const scriptVideoFidelityScore = hasFrameSignals && facts.manualReviewAccepted ? 0.74 : 0.68;
-    const scriptVideoFidelityConfidence = hasFrameSignals && facts.manualReviewAccepted ? 0.6 : 0.46;
-    const temporalCoherenceScore = hasFrameSignals && visualSignals?.temporalContinuityScore !== undefined
+    const scriptVideoFidelityReview = this.semanticReviewMetric(facts, "script_video_fidelity");
+    const userDemandReview = this.semanticReviewMetric(facts, "user_demand_fulfillment");
+    const temporalCoherenceReview = this.semanticReviewMetric(facts, "temporal_coherence");
+    const transitionQualityReview = this.semanticReviewMetric(facts, "transition_quality");
+    const lightingConsistencyReview = this.semanticReviewMetric(facts, "lighting_consistency");
+    const textVideoConsistencyReview = this.semanticReviewMetric(facts, "text_video_consistency");
+    const scriptVideoFidelityScore = scriptVideoFidelityReview?.score ?? (hasFrameSignals && facts.manualReviewAccepted ? 0.74 : 0.68);
+    const scriptVideoFidelityConfidence = scriptVideoFidelityReview?.confidence ?? (hasFrameSignals && facts.manualReviewAccepted ? 0.6 : 0.46);
+    const userDemandFulfillmentScore = userDemandReview?.score ?? (facts.artifactValidationStatus === "pass" ? 0.82 : 0.58);
+    const userDemandFulfillmentConfidence = userDemandReview?.confidence ?? 0.66;
+    const temporalCoherenceScore = temporalCoherenceReview?.score ?? (hasFrameSignals && visualSignals?.temporalContinuityScore !== undefined
       ? Math.max(0.7, Math.min(0.84, 0.58 + visualSignals.temporalContinuityScore * 0.26))
-      : 0.78;
-    const temporalCoherenceConfidence = hasFrameSignals ? 0.68 : 0.64;
-    const transitionQualityScore = hasBoundarySignals && transitionSignals?.transitionContinuityScore !== undefined
+      : 0.78);
+    const temporalCoherenceConfidence = temporalCoherenceReview?.confidence ?? (hasFrameSignals ? 0.68 : 0.64);
+    const transitionQualityScore = transitionQualityReview?.score ?? (hasBoundarySignals && transitionSignals?.transitionContinuityScore !== undefined
       ? Math.max(0.6, Math.min(0.78, 0.5 + transitionSignals.transitionContinuityScore * 0.28))
       : hasFrameSignals && visualSignals?.transitionContinuityScore !== undefined
       ? Math.max(0.56, Math.min(0.72, 0.48 + visualSignals.transitionContinuityScore * 0.24))
-      : facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.68 : 0.56;
-    const transitionQualityConfidence = hasBoundarySignals
+      : facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.68 : 0.56);
+    const transitionQualityConfidence = transitionQualityReview?.confidence ?? (hasBoundarySignals
       ? 0.64
-      : hasFrameSignals ? 0.56 : facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.48 : 0.34;
-    const lightingConsistencyScore = hasFrameSignals && visualSignals?.lightingConsistencyScore !== undefined
+      : hasFrameSignals ? 0.56 : facts.finalDurationSeconds && facts.finalDurationSeconds >= 60 ? 0.48 : 0.34);
+    const lightingConsistencyScore = lightingConsistencyReview?.score ?? (hasFrameSignals && visualSignals?.lightingConsistencyScore !== undefined
       ? Math.max(0.56, Math.min(0.76, 0.48 + visualSignals.lightingConsistencyScore * 0.28))
-      : 0.56;
-    const lightingConsistencyConfidence = hasFrameSignals ? 0.62 : 0.34;
+      : 0.56);
+    const lightingConsistencyConfidence = lightingConsistencyReview?.confidence ?? (hasFrameSignals ? 0.62 : 0.34);
     const generationStabilityConfidence = facts.finalDurationSeconds && facts.finalDurationSeconds >= 120
       ? 0.7
       : hasMediaProbe
         ? 0.56
         : 0.52;
-    const textVideoConsistencyScore = hasFrameSignals && facts.manualReviewAccepted ? 0.69 : 0.66;
-    const textVideoConsistencyConfidence = hasFrameSignals && facts.manualReviewAccepted ? 0.55 : 0.45;
+    const textVideoConsistencyScore = textVideoConsistencyReview?.score ?? (hasFrameSignals && facts.manualReviewAccepted ? 0.69 : 0.66);
+    const textVideoConsistencyConfidence = textVideoConsistencyReview?.confidence ?? (hasFrameSignals && facts.manualReviewAccepted ? 0.55 : 0.45);
 
     return [
       this.metric({
@@ -265,13 +292,17 @@ export class DirectorStyleBenchmarkEvaluator {
         requiredKinds: [ARTIFACT_KINDS.storyboard, ARTIFACT_KINDS.renderedShots],
         score: scriptVideoFidelityScore,
         confidence: scriptVideoFidelityConfidence,
-        passMessage: hasFrameSignals
+        passMessage: scriptVideoFidelityReview
+          ? "Storyboard/rendered-shot evidence is reinforced by structured semantic review evidence."
+          : hasFrameSignals
           ? "Storyboard/rendered-shot evidence is reinforced by sampled-frame media signals and accepted manual review."
           : "Storyboard and rendered-shot evidence can be cross-counted, but no visual frame analysis is run.",
         failMessage: "Storyboard or rendered-shot evidence is missing.",
         suggestion: "Add real VLM or shot-level manual fidelity review before claiming script-video fidelity.",
-        extraEvidence: frameSignalEvidence,
-        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
+        extraEvidence: [...semanticReviewEvidence("script_video_fidelity"), ...frameSignalEvidence],
+        ...(scriptVideoFidelityReview
+          ? { limitations: semanticReviewLimitations }
+          : hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.metric({
         facts,
@@ -279,11 +310,15 @@ export class DirectorStyleBenchmarkEvaluator {
         metricName: "user_demand_fulfillment",
         upstreamMetric: "user_demand_fulfillment",
         requiredKinds: [ARTIFACT_KINDS.deliverable, ARTIFACT_KINDS.reviewPacket],
-        score: facts.artifactValidationStatus === "pass" ? 0.82 : 0.58,
-        confidence: 0.66,
-        passMessage: "Deliverable and review-packet evidence exist, with artifact validation status considered.",
+        score: userDemandFulfillmentScore,
+        confidence: userDemandFulfillmentConfidence,
+        passMessage: userDemandReview
+          ? "Deliverable/review-packet evidence is reinforced by structured semantic user-demand review."
+          : "Deliverable and review-packet evidence exist, with artifact validation status considered.",
         failMessage: "Deliverable or review-packet evidence is missing.",
-        suggestion: "Keep artifact validation pass evidence with every benchmarked deliverable."
+        suggestion: "Keep artifact validation pass evidence with every benchmarked deliverable.",
+        extraEvidence: semanticReviewEvidence("user_demand_fulfillment"),
+        ...(userDemandReview ? { limitations: semanticReviewLimitations } : {})
       }),
       this.metric({
         facts,
@@ -293,13 +328,17 @@ export class DirectorStyleBenchmarkEvaluator {
         requiredKinds: [ARTIFACT_KINDS.stageLifecycle, ARTIFACT_KINDS.renderedShots, ARTIFACT_KINDS.productionGraph],
         score: temporalCoherenceScore,
         confidence: temporalCoherenceConfidence,
-        passMessage: hasFrameSignals
+        passMessage: temporalCoherenceReview
+          ? "Stage lifecycle evidence is reinforced by structured semantic temporal-coherence review."
+          : hasFrameSignals
           ? "Stage lifecycle evidence is reinforced by sampled-frame continuity signals from the rendered media."
           : "Stage lifecycle, production graph, and rendered-shot artifacts preserve ordered temporal evidence.",
         failMessage: "Temporal planning or rendered-shot evidence is missing.",
         suggestion: "Keep stage lifecycle and production graph evidence synchronized with rendered shots.",
-        extraEvidence: frameSignalEvidence,
-        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
+        extraEvidence: [...semanticReviewEvidence("temporal_coherence"), ...frameSignalEvidence],
+        ...(temporalCoherenceReview
+          ? { limitations: semanticReviewLimitations }
+          : hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.metric({
         facts,
@@ -309,15 +348,22 @@ export class DirectorStyleBenchmarkEvaluator {
         requiredKinds: [ARTIFACT_KINDS.deliverable, ARTIFACT_KINDS.stageLifecycle],
         score: transitionQualityScore,
         confidence: transitionQualityConfidence,
-        passMessage: hasBoundarySignals
+        passMessage: transitionQualityReview
+          ? "Deliverable/lifecycle evidence is reinforced by structured semantic transition-quality review."
+          : hasBoundarySignals
           ? "Deliverable/lifecycle evidence is reinforced by detected transition-boundary pre/post frame signals."
           : hasFrameSignals
             ? "Deliverable/lifecycle evidence is reinforced by sampled-frame color-continuity signals."
           : "Deliverable and lifecycle evidence exist, but transition quality is not frame-boundary analyzed.",
         failMessage: "Deliverable or lifecycle evidence is missing.",
         suggestion: "Run this benchmark on long-form outputs with detected transition boundaries and add semantic/manual transition review.",
-        extraEvidence: hasBoundarySignals ? boundarySignalEvidence : frameSignalEvidence,
-        ...(hasBoundarySignals
+        extraEvidence: [
+          ...semanticReviewEvidence("transition_quality"),
+          ...(hasBoundarySignals ? boundarySignalEvidence : frameSignalEvidence)
+        ],
+        ...(transitionQualityReview
+          ? { limitations: semanticReviewLimitations }
+          : hasBoundarySignals
           ? {
               limitations: [
                 "FFmpeg scene-change boundary signals are structural proxies; semantic/manual transition review is still required for full DirectorBench-style parity."
@@ -333,13 +379,17 @@ export class DirectorStyleBenchmarkEvaluator {
         requiredKinds: [ARTIFACT_KINDS.reviewPacket, ARTIFACT_KINDS.renderedShots],
         score: lightingConsistencyScore,
         confidence: lightingConsistencyConfidence,
-        passMessage: hasFrameSignals
+        passMessage: lightingConsistencyReview
+          ? "Rendered-shot/review evidence is reinforced by structured semantic lighting review."
+          : hasFrameSignals
           ? "Rendered-shot and review evidence is reinforced by sampled-frame brightness consistency signals."
           : "Rendered-shot and review evidence exist, but lighting is not visually inspected by this no-spend harness.",
         failMessage: "Rendered-shot or review evidence is missing.",
         suggestion: "Use semantic visual inspection or manual review to raise lighting-confidence evidence.",
-        extraEvidence: frameSignalEvidence,
-        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
+        extraEvidence: [...semanticReviewEvidence("lighting_consistency"), ...frameSignalEvidence],
+        ...(lightingConsistencyReview
+          ? { limitations: semanticReviewLimitations }
+          : hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.audioMetric(facts, "narration_reasonableness", "narration_reasonableness"),
       this.audioMetric(facts, "bgm_consistency", "bgm_consistency"),
@@ -381,13 +431,17 @@ export class DirectorStyleBenchmarkEvaluator {
         requiredKinds: [ARTIFACT_KINDS.compiledPrompts, ARTIFACT_KINDS.renderedShots, ARTIFACT_KINDS.reviewPacket],
         score: textVideoConsistencyScore,
         confidence: textVideoConsistencyConfidence,
-        passMessage: hasFrameSignals
+        passMessage: textVideoConsistencyReview
+          ? "Compiled prompt/rendered-shot/review evidence is reinforced by structured semantic text-video review."
+          : hasFrameSignals
           ? "Compiled prompt/rendered-shot/review evidence is reinforced by sampled-frame media signals, but semantic matching is still limited."
           : "Compiled prompt, rendered-shot, and review evidence exist, but semantic frame matching is not run.",
         failMessage: "Prompt, rendered-shot, or review evidence is missing.",
         suggestion: "Add VLM or shot-level manual review evidence before claiming text-video semantic alignment.",
-        extraEvidence: frameSignalEvidence,
-        ...(hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
+        extraEvidence: [...semanticReviewEvidence("text_video_consistency"), ...frameSignalEvidence],
+        ...(textVideoConsistencyReview
+          ? { limitations: semanticReviewLimitations }
+          : hasFrameSignals ? { limitations: mediaProxyLimitations } : {})
       }),
       this.audioMetric(facts, "video_audio_consistency", "video_audio_consistency", "cross_modal"),
       this.audioMetric(facts, "text_audio_consistency", "text_audio_consistency", "cross_modal")
@@ -576,6 +630,11 @@ export class DirectorStyleBenchmarkEvaluator {
     if (metrics.some((metric) => metric.limitations.length > 0)) {
       actions.add("Add long-form boundary-rich media, semantic visual review, ASR/lip-sync, or manual media review evidence for metrics still limited to structural proxies.");
     }
+    if (!facts.semanticReviewEvidence || facts.semanticReviewEvidence.metricCount < 4) {
+      actions.add("Provide structured semantic review JSON for script-video fidelity, transition quality, lighting, and text-video consistency.");
+    } else if (facts.semanticReviewEvidence.status !== "accepted") {
+      actions.add("Resolve structured semantic review findings before treating visual metrics as accepted.");
+    }
     if (bottlenecks.length > 0) {
       actions.add("Review benchmark bottlenecks and feed them into the repair/manual-review checklist before commercial release.");
     }
@@ -584,6 +643,17 @@ export class DirectorStyleBenchmarkEvaluator {
   }
 
   private evidenceScope(facts: DirectorStyleBenchmarkFacts): DirectorStyleBenchmarkEvidenceScope {
+    const hasSemanticReview = facts.semanticReviewEvidence !== undefined && facts.semanticReviewEvidence.metricCount > 0;
+    const hasMediaEvidence =
+      facts.mediaEvidence?.deliveryStatus !== undefined ||
+      facts.mediaEvidence?.status === "probe_only" ||
+      facts.mediaEvidence?.status === "frame_sampled";
+    if (hasSemanticReview && hasMediaEvidence) {
+      return "artifact_contract_plus_media_semantic_review";
+    }
+    if (hasSemanticReview) {
+      return "artifact_contract_plus_semantic_review";
+    }
     if (facts.mediaEvidence?.transitionSignals?.status === "analyzed") {
       return "artifact_contract_plus_media_boundaries";
     }
@@ -602,6 +672,25 @@ export class DirectorStyleBenchmarkEvaluator {
       severity: "info",
       message,
       source: "local_media_probe"
+    };
+  }
+
+  private semanticReviewMetric(
+    facts: DirectorStyleBenchmarkFacts,
+    metricName: DirectorStyleBenchmarkSemanticReviewMetricName
+  ): DirectorStyleBenchmarkSemanticReviewMetricEvidence | undefined {
+    return facts.semanticReviewEvidence?.metrics.find((metric) => metric.metricName === metricName);
+  }
+
+  private semanticEvidence(
+    metric: DirectorStyleBenchmarkSemanticReviewMetricEvidence,
+    message: string
+  ): DirectorStyleBenchmarkEvidence {
+    return {
+      kind: "semantic_review_checkpoint",
+      severity: metric.status === "accepted" ? "info" : metric.status === "needs_review" ? "warn" : "block",
+      message,
+      source: `${metric.reviewerType}_semantic_review`
     };
   }
 
