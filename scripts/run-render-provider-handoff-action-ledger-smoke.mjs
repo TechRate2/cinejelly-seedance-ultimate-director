@@ -91,9 +91,41 @@ const handoff = await coordinator.run(summaries);
 const ledger = new FileRenderProviderHandoffActionLedger({ ledgerPath });
 const firstApply = await ledger.applyHandoffReport(handoff, new Date("2026-06-17T00:02:00.000Z"));
 const secondApply = await ledger.applyHandoffReport(handoff, new Date("2026-06-17T00:03:00.000Z"));
+const fakeExecutionCalls = [];
+const fakeExecutor = {
+  async executeAction(record) {
+    fakeExecutionCalls.push({
+      actionId: record.actionId,
+      action: record.action,
+      predictionIds: record.predictionIds
+    });
+    if (record.action === "resume_polling") {
+      await fakeProvider.getPrediction(record.predictionIds[0]);
+      return {
+        status: "executed",
+        providerCallMade: false,
+        message: "Fake resume polling callback refreshed one active prediction."
+      };
+    }
+    if (record.action.startsWith("close_terminal_")) {
+      return {
+        status: "executed",
+        providerCallMade: false,
+        message: "Fake terminal close callback retained provider closeout evidence."
+      };
+    }
+    return {
+      status: "executed",
+      providerCallMade: false,
+      message: "Fake manual-audit callback retained operator handoff evidence."
+    };
+  }
+};
+const firstExecution = await ledger.executeRecordedActions(fakeExecutor, new Date("2026-06-17T00:04:00.000Z"));
+const secondExecution = await ledger.executeRecordedActions(fakeExecutor, new Date("2026-06-17T00:05:00.000Z"));
 const persistedLedger = JSON.parse(await readFile(ledgerPath, "utf8"));
 const reloadedRecords = await new FileRenderProviderHandoffActionLedger({ ledgerPath }).listRecords();
-const publicPayload = JSON.stringify({ handoff, firstApply, secondApply, persistedLedger });
+const publicPayload = JSON.stringify({ handoff, firstApply, secondApply, firstExecution, secondExecution, persistedLedger });
 const firstActionIds = new Set(firstApply.decisions.filter((item) => item.actionId).map((item) => item.actionId));
 const replayedActionIds = secondApply.decisions.filter((item) => item.actionId).map((item) => item.actionId);
 const checks = [
@@ -107,6 +139,11 @@ const checks = [
   check("terminal_close_action_recorded", firstApply.decisions.some((item) => item.action === "close_terminal_succeeded" && item.status === "recorded")),
   check("resume_polling_action_recorded", firstApply.decisions.some((item) => item.action === "resume_polling" && item.status === "recorded")),
   check("manual_audit_action_recorded", firstApply.decisions.some((item) => item.action === "manual_audit_required" && item.status === "recorded")),
+  check("first_execution_executes_four_actions", firstExecution.summary.executedActionCount === 4 && firstExecution.summary.failedActionCount === 0),
+  check("second_execution_reuses_four_persisted_executions", secondExecution.summary.alreadyExecutedActionCount === 4 && fakeExecutionCalls.length === 4),
+  check("execution_persistence_survives_reload", reloadedRecords.filter((item) => item.execution?.status === "executed").length === 4),
+  check("execution_does_not_claim_distributed_resume", firstExecution.releaseGateSummary.canClaimDistributedResume === false && secondExecution.releaseGateSummary.canClaimDistributedResume === false),
+  check("execution_reports_no_real_provider_calls", firstExecution.summary.providerCallMadeCount === 0 && secondExecution.summary.providerCallMadeCount === 0),
   check("idempotency_keys_are_stable", secondApply.decisions.every((item) => item.status === "skipped" || firstApply.decisions.some((first) => first.idempotencyKey === item.idempotencyKey))),
   check("ledger_does_not_claim_distributed_resume", firstApply.releaseGateSummary.canClaimDistributedResume === false && secondApply.releaseGateSummary.canClaimDistributedResume === false),
   check("raw_provider_payload_not_serialized", !publicPayload.includes("raw-action-ledger-provider-payload")),
@@ -136,10 +173,16 @@ const report = {
     firstRecordedActionCount: firstApply.summary.recordedActionCount,
     secondReplayedActionCount: secondApply.summary.replayedActionCount,
     persistedActionCount: persistedLedger.actions?.length ?? 0,
+    firstExecutedActionCount: firstExecution.summary.executedActionCount,
+    secondAlreadyExecutedActionCount: secondExecution.summary.alreadyExecutedActionCount,
+    persistedExecutedActionCount: reloadedRecords.filter((item) => item.execution?.status === "executed").length,
+    realProviderCallCount: firstExecution.summary.providerCallMadeCount + secondExecution.summary.providerCallMadeCount,
     canClaimDistributedResume: false
   },
   firstApply: publicApply(firstApply),
   secondApply: publicApply(secondApply),
+  firstExecution: publicExecution(firstExecution),
+  secondExecution: publicExecution(secondExecution),
   checks
 };
 
@@ -173,6 +216,25 @@ function publicApply(applyResult) {
       message: item.message
     })),
     releaseGateSummary: applyResult.releaseGateSummary
+  };
+}
+
+function publicExecution(executionResult) {
+  return {
+    schemaVersion: executionResult.schemaVersion,
+    generatedAt: executionResult.generatedAt.toISOString(),
+    status: executionResult.status,
+    summary: executionResult.summary,
+    decisions: executionResult.decisions.map((item) => ({
+      jobId: item.jobId,
+      actionId: item.actionId,
+      status: item.status,
+      action: item.action,
+      predictionIds: item.predictionIds,
+      message: item.message,
+      providerCallMade: item.providerCallMade
+    })),
+    releaseGateSummary: executionResult.releaseGateSummary
   };
 }
 

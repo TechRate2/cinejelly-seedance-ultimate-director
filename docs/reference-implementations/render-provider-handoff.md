@@ -1,6 +1,6 @@
 # Reference Implementation: Render Provider Handoff
 
-Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation implemented as `RenderProviderHandoffCoordinator`, `FileRenderProviderHandoffLeaseStore`, `HttpRenderProviderHandoffLeaseStore`, `RenderProviderHandoffLeaseService`, `FileRenderProviderHandoffActionLedger`, no-spend smoke reports, and a production handoff capture runner. It wraps provider reconciliation in bounded job leases so a worker can decide whether to close terminal provider work, heartbeat-renew still-active polling ownership, or defer to an existing lease holder. The protected HTTP lease-service route gives production deployments a built-in durable contract for external workers, the action ledger records redacted idempotent action intents so repeated worker runs can replay close/resume/manual-audit decisions without duplicating action records, the local two-worker smoke proves held-by-other behavior plus handoff after lease expiry against the protected route, and the production capture runner can exercise the real HTTPS lease-service route without Atlas spend. This is still not a live Redis-compatible distributed queue or automatic graph resume engine.
+Implementation status as of 2026-06-18: CineJelly-owned TypeScript foundation implemented as `RenderProviderHandoffCoordinator`, `FileRenderProviderHandoffLeaseStore`, `HttpRenderProviderHandoffLeaseStore`, `RenderProviderHandoffLeaseService`, `FileRenderProviderHandoffActionLedger`, no-spend smoke reports, and a production handoff capture runner. It wraps provider reconciliation in bounded job leases so a worker can decide whether to close terminal provider work, heartbeat-renew still-active polling ownership, or defer to an existing lease holder. The protected HTTP lease-service route gives production deployments a built-in durable contract for external workers, the action ledger records redacted idempotent action intents, and the action executor boundary persists callback execution evidence so repeated worker runs do not duplicate terminal close/resume/manual-audit callbacks. The local two-worker smoke proves held-by-other behavior plus handoff after lease expiry against the protected route, and the production capture runner can exercise the real HTTPS lease-service route without Atlas spend. This is still not a live Redis-compatible distributed queue or automatic graph resume engine.
 
 ## Upstream Sources
 
@@ -17,15 +17,16 @@ Implementation status as of 2026-06-17: CineJelly-owned TypeScript foundation im
 5. Missing checkpoints or no-active-provider-work states are skipped without pretending work resumed.
 6. Handoff reports remain redacted and schema-validated.
 7. Worker action intents have stable idempotency keys so repeated handoff processing reuses existing records instead of duplicating terminal close or polling-resume intents.
-8. A second worker cannot steal an active lease, but can take over after expiry while reusing the existing action intent.
-9. A real deployment can capture acquire, held-by-other, heartbeat, release, post-release handoff, list, and active lease-service evidence without serializing deployment tokens or worker owner IDs.
+8. Worker action callback execution is persisted by action ID so repeated executor runs report `already_executed` instead of calling the callback again.
+9. A second worker cannot steal an active lease, but can take over after expiry while reusing the existing action intent.
+10. A real deployment can capture acquire, held-by-other, heartbeat, release, post-release handoff, list, and active lease-service evidence without serializing deployment tokens or worker owner IDs.
 
 ## Intentional Changes
 
 1. CineJelly does not copy MoneyPrinterTurbo Python memory or Redis manager code.
 2. The local JSON store is for validation and single-host adapter design, not a distributed lock service.
 3. The protected lease-service route is backed by a serialized durable store for single-service deployments; the HTTPS lease-store adapter remains a strict external-service contract with no dependency on Redis client libraries.
-4. The coordinator reports handoff actions and the action ledger makes those action intents idempotent; neither recreates render requests nor continues the full Director graph after process loss.
+4. The coordinator reports handoff actions, the action ledger makes those action intents idempotent, and the executor boundary lets a future live worker attach provider close/resume/manual-audit callbacks without changing the report contract. This still does not recreate render requests or continue the full Director graph after process loss.
 5. Reports do not include raw provider payloads, output URLs, hostnames, worker IDs, local paths, bearer tokens, or secrets.
 
 ## Edge Cases
@@ -95,7 +96,7 @@ The public report omits owner ID and stores only:
 - Smoke reloads the file lease store to prove retained active leases survive process reload.
 - External lease smoke proves HTTPS-only base URL validation, bearer-auth request use without token serialization, acquire/release/heartbeat/list/active contract behavior, held-by-other protection, and owner-ID redaction from public reports.
 - Lease-service smoke proves deployment-token-only HTTP routing, preflight lease path validation, durable acquire/release/heartbeat/list/active behavior, invalid-body rejection, and token non-serialization against a local server.
-- Action-ledger smoke proves terminal-close, resume-polling, and manual-audit intents record once, replay by stable idempotency key on a second worker pass, persist across reload, and avoid raw provider payload/output URL/local path serialization.
+- Action-ledger smoke proves terminal-close, resume-polling, and manual-audit intents record once, replay by stable idempotency key on a second worker pass, execute callbacks once, persist execution evidence across reload, return `already_executed` on a second execution pass, and avoid raw provider payload/output URL/local path serialization.
 - Multi-worker handoff smoke starts the protected API locally, proves worker B receives `held_by_other` while worker A's retained lease is active, proves worker B acquires after lease expiry, and proves the action ledger replays the existing resume intent instead of recording a duplicate.
 - Production handoff capture runner can call a real HTTPS deployment route for acquire, held-by-other, heartbeat, release, post-release handoff, list, and active lease-service evidence without calling Atlas or render endpoints.
 - Smoke proves raw provider payloads, bearer tokens, and local paths are not serialized into the handoff report.

@@ -281,6 +281,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "director_style_benchmark") {
     return validateDirectorStyleBenchmarkSemantics(report);
   }
+  if (item.name === "render_provider_handoff_action_ledger") {
+    return validateRenderProviderHandoffActionLedgerSemantics(report);
+  }
   return [];
 }
 
@@ -654,6 +657,56 @@ function validateDirectorStyleBenchmarkSemantics(report) {
   }
   if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
     issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; benchmark evidence is not commercial release approval.");
+  }
+  return issues;
+}
+
+function validateRenderProviderHandoffActionLedgerSemantics(report) {
+  const issues = [];
+  const firstApplySummary = report?.firstApply?.summary ?? {};
+  const secondApplySummary = report?.secondApply?.summary ?? {};
+  const firstExecutionSummary = report?.firstExecution?.summary ?? {};
+  const secondExecutionSummary = report?.secondExecution?.summary ?? {};
+
+  if (report?.providerCallsMade !== false) {
+    issues.push("$.providerCallsMade: expected false for no-spend action-ledger smoke evidence.");
+  }
+  if (Number(report?.summary?.firstRecordedActionCount ?? -1) !== Number(firstApplySummary.recordedActionCount ?? -2)) {
+    issues.push("$.summary.firstRecordedActionCount: expected to match firstApply.summary.recordedActionCount.");
+  }
+  if (Number(report?.summary?.secondReplayedActionCount ?? -1) !== Number(secondApplySummary.replayedActionCount ?? -2)) {
+    issues.push("$.summary.secondReplayedActionCount: expected to match secondApply.summary.replayedActionCount.");
+  }
+  if (Number(report?.summary?.firstExecutedActionCount ?? -1) !== Number(firstExecutionSummary.executedActionCount ?? -2)) {
+    issues.push("$.summary.firstExecutedActionCount: expected to match firstExecution.summary.executedActionCount.");
+  }
+  if (Number(report?.summary?.secondAlreadyExecutedActionCount ?? -1) !== Number(secondExecutionSummary.alreadyExecutedActionCount ?? -2)) {
+    issues.push("$.summary.secondAlreadyExecutedActionCount: expected to match secondExecution.summary.alreadyExecutedActionCount.");
+  }
+  if (Number(report?.summary?.persistedExecutedActionCount ?? -1) !== Number(secondExecutionSummary.persistedExecutedActionCount ?? -2)) {
+    issues.push("$.summary.persistedExecutedActionCount: expected to match secondExecution.summary.persistedExecutedActionCount.");
+  }
+  const expectedRealProviderCallCount =
+    Number(firstExecutionSummary.providerCallMadeCount ?? 0) + Number(secondExecutionSummary.providerCallMadeCount ?? 0);
+  if (Number(report?.summary?.realProviderCallCount ?? -1) !== expectedRealProviderCallCount) {
+    issues.push("$.summary.realProviderCallCount: expected to match first/second execution providerCallMadeCount total.");
+  }
+  for (const path of ["firstApply", "secondApply", "firstExecution", "secondExecution"]) {
+    if (report?.[path]?.releaseGateSummary?.canClaimDistributedResume !== false) {
+      issues.push(`$.${path}.releaseGateSummary.canClaimDistributedResume: expected false for local no-spend handoff action evidence.`);
+    }
+  }
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  if (report?.status === "pass" && failedChecks.length > 0) {
+    issues.push("$.checks: status pass requires zero failed checks.");
+  }
+  const providerCallDecisions = [
+    ...(Array.isArray(report?.firstExecution?.decisions) ? report.firstExecution.decisions : []),
+    ...(Array.isArray(report?.secondExecution?.decisions) ? report.secondExecution.decisions : [])
+  ].filter((decision) => decision?.providerCallMade === true);
+  if (providerCallDecisions.length > 0) {
+    issues.push("$.firstExecution/secondExecution.decisions: expected zero real provider-call decisions in no-spend smoke evidence.");
   }
   return issues;
 }

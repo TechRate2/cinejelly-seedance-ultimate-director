@@ -16,6 +16,8 @@
     "summary",
     "firstApply",
     "secondApply",
+    "firstExecution",
+    "secondExecution",
     "checks"
   ],
   "properties": {
@@ -48,6 +50,10 @@
         "firstRecordedActionCount",
         "secondReplayedActionCount",
         "persistedActionCount",
+        "firstExecutedActionCount",
+        "secondAlreadyExecutedActionCount",
+        "persistedExecutedActionCount",
+        "realProviderCallCount",
         "canClaimDistributedResume"
       ],
       "properties": {
@@ -56,11 +62,17 @@
         "firstRecordedActionCount": { "type": "integer", "minimum": 0 },
         "secondReplayedActionCount": { "type": "integer", "minimum": 0 },
         "persistedActionCount": { "type": "integer", "minimum": 0 },
+        "firstExecutedActionCount": { "type": "integer", "minimum": 0 },
+        "secondAlreadyExecutedActionCount": { "type": "integer", "minimum": 0 },
+        "persistedExecutedActionCount": { "type": "integer", "minimum": 0 },
+        "realProviderCallCount": { "const": 0 },
         "canClaimDistributedResume": { "const": false }
       }
     },
     "firstApply": { "$ref": "#/$defs/applyResult" },
     "secondApply": { "$ref": "#/$defs/applyResult" },
+    "firstExecution": { "$ref": "#/$defs/executionResult" },
+    "secondExecution": { "$ref": "#/$defs/executionResult" },
     "checks": {
       "type": "array",
       "minItems": 1,
@@ -110,6 +122,79 @@
             "releaseBlocker": { "type": "string" }
           }
         }
+      }
+    },
+    "executionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "generatedAt", "status", "summary", "decisions", "releaseGateSummary"],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.render-provider-handoff-actions.v1" },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "status": { "enum": ["pass", "warn", "fail"] },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "checkedActionCount",
+            "executedActionCount",
+            "alreadyExecutedActionCount",
+            "skippedActionCount",
+            "failedActionCount",
+            "persistedExecutedActionCount",
+            "providerCallMadeCount"
+          ],
+          "properties": {
+            "checkedActionCount": { "type": "integer", "minimum": 0 },
+            "executedActionCount": { "type": "integer", "minimum": 0 },
+            "alreadyExecutedActionCount": { "type": "integer", "minimum": 0 },
+            "skippedActionCount": { "type": "integer", "minimum": 0 },
+            "failedActionCount": { "type": "integer", "minimum": 0 },
+            "persistedExecutedActionCount": { "type": "integer", "minimum": 0 },
+            "providerCallMadeCount": { "const": 0 }
+          }
+        },
+        "decisions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/executionDecision" }
+        },
+        "releaseGateSummary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["actionExecutionPass", "canClaimDistributedResume", "releaseBlocker"],
+          "properties": {
+            "actionExecutionPass": { "type": "boolean" },
+            "canClaimDistributedResume": { "const": false },
+            "releaseBlocker": { "type": "string" }
+          }
+        }
+      }
+    },
+    "executionDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jobId", "actionId", "status", "action", "predictionIds", "message", "providerCallMade"],
+      "properties": {
+        "jobId": { "type": "string" },
+        "actionId": { "type": "string" },
+        "status": { "enum": ["executed", "already_executed", "skipped", "failed"] },
+        "action": {
+          "enum": [
+            "resume_polling",
+            "close_terminal_succeeded",
+            "close_terminal_failed",
+            "close_terminal_canceled",
+            "close_terminal_timeout",
+            "close_terminal_mixed",
+            "manual_audit_required"
+          ]
+        },
+        "predictionIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "message": { "type": "string" },
+        "providerCallMade": { "const": false }
       }
     },
     "decision": {

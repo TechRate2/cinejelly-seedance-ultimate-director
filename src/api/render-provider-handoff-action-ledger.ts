@@ -24,6 +24,14 @@ export type RenderProviderHandoffWorkerAction =
   | "manual_audit_required";
 
 export type RenderProviderHandoffActionDecisionStatus = "recorded" | "replayed" | "skipped";
+export type RenderProviderHandoffActionExecutionDecisionStatus = "executed" | "already_executed" | "skipped" | "failed";
+
+export interface RenderProviderHandoffActionExecutionEvidence {
+  readonly status: "executed";
+  readonly executedAt: Date;
+  readonly message: string;
+  readonly providerCallMade: boolean;
+}
 
 export interface RenderProviderHandoffActionRecord {
   readonly actionId: string;
@@ -33,6 +41,7 @@ export interface RenderProviderHandoffActionRecord {
   readonly sourceHandoffAction: RenderProviderHandoffAction;
   readonly predictionIds: readonly string[];
   readonly recordedAt: Date;
+  readonly execution?: RenderProviderHandoffActionExecutionEvidence;
 }
 
 export interface RenderProviderHandoffActionDecision {
@@ -61,6 +70,50 @@ export interface RenderProviderHandoffActionLedgerApplyResult {
   readonly decisions: readonly RenderProviderHandoffActionDecision[];
   readonly releaseGateSummary: {
     readonly idempotentActionLedgerPass: boolean;
+    readonly canClaimDistributedResume: false;
+    readonly releaseBlocker: string;
+  };
+}
+
+export interface RenderProviderHandoffActionExecutionResult {
+  readonly status: "executed" | "skipped";
+  readonly message: string;
+  readonly providerCallMade?: boolean;
+}
+
+export interface RenderProviderHandoffActionExecutor {
+  executeAction(
+    action: RenderProviderHandoffActionRecord,
+    signal?: AbortSignal
+  ): Promise<RenderProviderHandoffActionExecutionResult>;
+}
+
+export interface RenderProviderHandoffActionExecutionDecision {
+  readonly jobId: string;
+  readonly actionId: string;
+  readonly status: RenderProviderHandoffActionExecutionDecisionStatus;
+  readonly action: RenderProviderHandoffWorkerAction;
+  readonly predictionIds: readonly string[];
+  readonly message: string;
+  readonly providerCallMade: boolean;
+}
+
+export interface RenderProviderHandoffActionExecutionApplyResult {
+  readonly schemaVersion: typeof RENDER_PROVIDER_HANDOFF_ACTION_LEDGER_SCHEMA_VERSION;
+  readonly generatedAt: Date;
+  readonly status: "pass" | "warn" | "fail";
+  readonly summary: {
+    readonly checkedActionCount: number;
+    readonly executedActionCount: number;
+    readonly alreadyExecutedActionCount: number;
+    readonly skippedActionCount: number;
+    readonly failedActionCount: number;
+    readonly persistedExecutedActionCount: number;
+    readonly providerCallMadeCount: number;
+  };
+  readonly decisions: readonly RenderProviderHandoffActionExecutionDecision[];
+  readonly releaseGateSummary: {
+    readonly actionExecutionPass: boolean;
     readonly canClaimDistributedResume: false;
     readonly releaseBlocker: string;
   };
@@ -121,6 +174,108 @@ export class FileRenderProviderHandoffActionLedger {
 
   public async listRecords(): Promise<readonly RenderProviderHandoffActionRecord[]> {
     return this.readRecords();
+  }
+
+  public async executeRecordedActions(
+    executor: RenderProviderHandoffActionExecutor,
+    now: Date = new Date(),
+    signal?: AbortSignal
+  ): Promise<RenderProviderHandoffActionExecutionApplyResult> {
+    const records = await this.readRecords();
+    const nextRecords = [...records];
+    const decisions: RenderProviderHandoffActionExecutionDecision[] = [];
+    let changed = false;
+    for (let index = 0; index < nextRecords.length; index += 1) {
+      const record = nextRecords[index];
+      if (!record) {
+        continue;
+      }
+      if (record.execution?.status === "executed") {
+        decisions.push({
+          jobId: record.jobId,
+          actionId: record.actionId,
+          status: "already_executed",
+          action: record.action,
+          predictionIds: record.predictionIds,
+          message: "Provider-worker action was already executed and persisted by actionId.",
+          providerCallMade: record.execution.providerCallMade
+        });
+        continue;
+      }
+      try {
+        const result = await executor.executeAction(record, signal);
+        const message = this.safeMessage(result.message, `executionResult[${index}].message`);
+        if (result.status === "skipped") {
+          decisions.push({
+            jobId: record.jobId,
+            actionId: record.actionId,
+            status: "skipped",
+            action: record.action,
+            predictionIds: record.predictionIds,
+            message,
+            providerCallMade: result.providerCallMade === true
+          });
+          continue;
+        }
+        const execution: RenderProviderHandoffActionExecutionEvidence = {
+          status: "executed",
+          executedAt: now,
+          message,
+          providerCallMade: result.providerCallMade === true
+        };
+        nextRecords[index] = { ...record, execution };
+        changed = true;
+        decisions.push({
+          jobId: record.jobId,
+          actionId: record.actionId,
+          status: "executed",
+          action: record.action,
+          predictionIds: record.predictionIds,
+          message,
+          providerCallMade: execution.providerCallMade
+        });
+      } catch (error) {
+        decisions.push({
+          jobId: record.jobId,
+          actionId: record.actionId,
+          status: "failed",
+          action: record.action,
+          predictionIds: record.predictionIds,
+          message: this.safeErrorMessage(error),
+          providerCallMade: false
+        });
+      }
+    }
+    if (changed) {
+      await this.writeRecords(nextRecords);
+    }
+    const executedRecords = nextRecords.filter((item) => item.execution?.status === "executed");
+    const summary = {
+      checkedActionCount: decisions.length,
+      executedActionCount: decisions.filter((item) => item.status === "executed").length,
+      alreadyExecutedActionCount: decisions.filter((item) => item.status === "already_executed").length,
+      skippedActionCount: decisions.filter((item) => item.status === "skipped").length,
+      failedActionCount: decisions.filter((item) => item.status === "failed").length,
+      persistedExecutedActionCount: executedRecords.length,
+      providerCallMadeCount: decisions.filter((item) => item.providerCallMade).length
+    };
+    const status = summary.failedActionCount > 0 ? "fail" : summary.skippedActionCount > 0 ? "warn" : "pass";
+    return {
+      schemaVersion: RENDER_PROVIDER_HANDOFF_ACTION_LEDGER_SCHEMA_VERSION,
+      generatedAt: now,
+      status,
+      summary,
+      decisions,
+      releaseGateSummary: {
+        actionExecutionPass: status !== "fail",
+        canClaimDistributedResume: false,
+        releaseBlocker: status === "pass"
+          ? "Provider-worker action callbacks executed idempotently for the recorded intents, but live Atlas action execution and production multi-worker evidence are still required."
+          : status === "warn"
+            ? "Some provider-worker action callbacks were skipped; resolve or explicitly accept them before live distributed resume."
+            : "One or more provider-worker action callbacks failed; stop handoff replay for manual audit."
+      }
+    };
   }
 
   private applyJob(
@@ -264,7 +419,8 @@ export class FileRenderProviderHandoffActionLedger {
       action: this.action(payload.action, `${label}.action`),
       sourceHandoffAction: this.sourceAction(payload.sourceHandoffAction, `${label}.sourceHandoffAction`),
       predictionIds: this.predictionIds(payload.predictionIds, `${label}.predictionIds`),
-      recordedAt: this.date(payload.recordedAt, `${label}.recordedAt`)
+      recordedAt: this.date(payload.recordedAt, `${label}.recordedAt`),
+      ...(payload.execution !== undefined ? { execution: this.executionEvidence(payload.execution, `${label}.execution`) } : {})
     };
   }
 
@@ -276,7 +432,33 @@ export class FileRenderProviderHandoffActionLedger {
       action: record.action,
       sourceHandoffAction: record.sourceHandoffAction,
       predictionIds: [...record.predictionIds],
-      recordedAt: record.recordedAt.toISOString()
+      recordedAt: record.recordedAt.toISOString(),
+      ...(record.execution
+        ? {
+            execution: {
+              status: record.execution.status,
+              executedAt: record.execution.executedAt.toISOString(),
+              message: record.execution.message,
+              providerCallMade: record.execution.providerCallMade
+            }
+          }
+        : {})
+    };
+  }
+
+  private executionEvidence(value: unknown, label: string): RenderProviderHandoffActionExecutionEvidence {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error(`${label} must be an object.`);
+    }
+    const payload = value as Record<string, unknown>;
+    if (payload.status !== "executed") {
+      throw new Error(`${label}.status must be executed.`);
+    }
+    return {
+      status: "executed",
+      executedAt: this.date(payload.executedAt, `${label}.executedAt`),
+      message: this.safeMessage(payload.message, `${label}.message`),
+      providerCallMade: payload.providerCallMade === true
     };
   }
 
@@ -331,6 +513,25 @@ export class FileRenderProviderHandoffActionLedger {
       throw new Error(`${label} is not a safe bounded identifier.`);
     }
     return trimmed;
+  }
+
+  private safeMessage(value: unknown, label: string): string {
+    if (typeof value !== "string" || !value.trim()) {
+      throw new Error(`${label} must be a non-empty string.`);
+    }
+    const trimmed = value.trim();
+    if (trimmed.length > 500 || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+      throw new Error(`${label} is not a safe bounded message.`);
+    }
+    if (/[A-Za-z]:\\|\/home\/|\/Users\/|https?:\/\/|bearer\s+|api[_-]?key|secret|token/i.test(trimmed)) {
+      throw new Error(`${label} must not contain URLs, local paths, or credential-like text.`);
+    }
+    return trimmed;
+  }
+
+  private safeErrorMessage(error: unknown): string {
+    const raw = error instanceof Error ? error.message : String(error);
+    return raw.replace(/[A-Za-z]:\\[^\s]+|https?:\/\/[^\s]+|bearer\s+\S+|api[_-]?key\s*[:=]\s*\S+|secret\s*[:=]\s*\S+|token\s*[:=]\s*\S+/gi, "[REDACTED]").slice(0, 500) || "Provider-worker action callback failed.";
   }
 
   private date(value: unknown, label: string): Date {

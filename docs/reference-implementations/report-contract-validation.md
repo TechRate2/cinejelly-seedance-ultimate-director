@@ -34,6 +34,7 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - Done: give the commercial launch doctor an explicit in-progress contract mode so intermediate self-validation can pass while standalone/default validation stays strict for completed reports.
 - Done: fail business completion audit contracts when blocker totals, product-code gap counts, parity flags, ready paid-gate counts, or release booleans drift from the underlying report arrays.
 - Done: fail business readiness audit contracts when status, weighted evidence completion, additional paid-validation flags, ready paid-gate counts, customer-traffic booleans, or release blockers drift from the underlying checks.
+- Done: fail render provider handoff action-ledger contracts when apply/execution summary counts, provider-call counts, distributed-resume booleans, or check status drift from the underlying action evidence.
 
 ## Acceptance Checks
 
@@ -53,3 +54,4 @@ CineJelly has many release and business-readiness reports. Operators need a sing
 - When launch doctor calls report-contract validation before its final command has been appended, it must pass `--allow-launch-doctor-in-progress`; a normal standalone `validation:report-contracts` run must still reject incomplete final launch-doctor evidence.
 - When `business-completion-audit-report.json` exists, report-contract validation requires blocker summaries, product-code gap summaries, snapshot/report/release status booleans, ready paid-gate counts, and release flags to match the source arrays and readiness snapshot.
 - When `business-readiness-report.json` exists, report-contract validation requires `status`, `completion`, `canRunAdditionalPaidValidation`, `canRunLongFormValidation`, `readyPaidGateCount`, `canReleaseToCustomerTraffic`, and `releaseBlocker` to match the underlying check statuses and weights.
+- When `render-provider-handoff-action-ledger-report.json` exists, report-contract validation requires apply and execution summaries to match their underlying result objects, keeps `providerCallsMade=false`, keeps every distributed-resume claim false, and rejects pass reports with failed checks.

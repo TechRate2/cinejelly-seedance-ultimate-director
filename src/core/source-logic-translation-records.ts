@@ -1088,7 +1088,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
       "local JSON and HTTPS lease-store adapters replace direct Redis coupling in the production TypeScript boundary",
       "the protected HTTP lease-service route and HTTPS adapter validate bearer-auth acquire, release, heartbeat, list, and active contracts, local two-worker smoke validates no-steal plus post-expiry handoff behavior, and production capture tooling can exercise the real HTTPS lease-service route without claiming distributed resume parity",
-      "idempotent action-ledger records let terminal-close, resume-polling, and manual-audit intents replay by stable key without duplicating worker action records",
+      "idempotent action-ledger records let terminal-close, resume-polling, and manual-audit intents replay by stable key without duplicating worker action records or callback execution evidence",
       "handoff reports expose redacted lease/action evidence and refuse to claim distributed resume parity",
       "raw provider payloads, output URLs, hostnames, worker owner IDs, local paths, bearer tokens, and secrets are excluded from public reports"
     ],
@@ -1137,7 +1137,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "VibeFrame report discipline is rewritten into CineJelly provider handoff contracts",
       "local, protected HTTP-service, HTTPS-adapted lease decisions, heartbeat renewal, local two-worker no-steal/expiry handoff validation, and production capture tooling wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
-      "idempotent action-ledger evidence is added for deterministic worker replay without treating replay evidence as live provider execution",
+      "idempotent action-ledger execution evidence is added for deterministic worker replay without treating replay evidence as live provider execution",
       "distributed resume remains blocked until production multi-worker ownership handoff and live provider actions are proven"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",
