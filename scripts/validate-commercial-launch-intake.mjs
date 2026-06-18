@@ -25,6 +25,7 @@ const placeholderPattern = /\b(?:todo|tbd|replace|placeholder|example\.com|your-
 const envNamePattern = /^[A-Z][A-Z0-9_]{2,80}$/;
 const providerNames = new Set(["pexels", "pixabay", "coverr"]);
 const scopeNames = new Set(["generated_audio_smoke", "long_form_120s_minimum", "source_video_auto_analysis", "full_business_readiness_paid_sequence"]);
+const commercialOfferScopeNames = new Set(["api_cli_only", "first_party_web_ui_required"]);
 
 function parseArgs(args) {
   const options = {
@@ -194,6 +195,7 @@ function validateIntake(read, options, sourceReports) {
     dateTimeCheck(intake?.preparedAt, "launch_intake.prepared_at", "preparedAt"),
     ...validateDeployment(intake?.deployment),
     ...validateOperatorEvidence(intake?.operatorEvidence),
+    ...validateCommercialOfferScope(intake?.commercialOfferScope),
     ...validateBudgetApproval(intake?.budgetApproval, sourceReports.businessPlan.value),
     ...validateSourceVideo(intake?.sourceVideo),
     ...validateRemoteStock(intake?.remoteStock),
@@ -221,6 +223,37 @@ function validateOperatorEvidence(evidence) {
     fileExistsCheck(evidence?.billingAttestationPath, "launch_intake.operator_evidence.billing_attestation_file", "billing/admin attestation file"),
     fileExistsCheck(evidence?.productionAttestationPath, "launch_intake.operator_evidence.production_attestation_file", "production operations attestation file")
   ];
+}
+
+function validateCommercialOfferScope(scope) {
+  const productSurface = String(scope?.productSurface ?? "");
+  const checks = [
+    commercialOfferScopeNames.has(productSurface)
+      ? pass("launch_intake.offer_scope.product_surface", "Commercial offer product surface is recognized.")
+      : fail("launch_intake.offer_scope.product_surface", `commercialOfferScope.productSurface must be one of: ${[...commercialOfferScopeNames].join(", ")}.`),
+    requiredTextCheck(scope?.decidedBy, "launch_intake.offer_scope.decided_by", "commercialOfferScope.decidedBy"),
+    dateTimeCheck(scope?.decidedAt, "launch_intake.offer_scope.decided_at", "commercialOfferScope.decidedAt")
+  ];
+  if (productSurface === "api_cli_only") {
+    checks.push(
+      scope?.apiCliOnlyAcknowledgesNoFirstPartyUi === true
+        ? pass("launch_intake.offer_scope.api_cli_acknowledgement", "API/CLI-only launch explicitly acknowledges no first-party Web UI.")
+        : fail("launch_intake.offer_scope.api_cli_acknowledgement", "commercialOfferScope.apiCliOnlyAcknowledgesNoFirstPartyUi must be true when productSurface=api_cli_only.")
+    );
+    checks.push(
+      scope?.uiRequiredBeforeCustomerTraffic === false
+        ? pass("launch_intake.offer_scope.ui_not_required", "First-party Web UI is not required before API/CLI-only customer traffic.")
+        : fail("launch_intake.offer_scope.ui_not_required", "commercialOfferScope.uiRequiredBeforeCustomerTraffic must be false when productSurface=api_cli_only.")
+    );
+  }
+  if (productSurface === "first_party_web_ui_required") {
+    checks.push(
+      scope?.uiRequiredBeforeCustomerTraffic === true
+        ? pass("launch_intake.offer_scope.ui_required", "First-party Web UI is required before customer traffic by operator decision.")
+        : fail("launch_intake.offer_scope.ui_required", "commercialOfferScope.uiRequiredBeforeCustomerTraffic must be true when productSurface=first_party_web_ui_required.")
+    );
+  }
+  return checks;
 }
 
 function validateBudgetApproval(budget, plan) {
@@ -351,6 +384,15 @@ function buildIntakeSummary(intake) {
   return {
     present: true,
     schemaVersion: typeof intake?.schemaVersion === "string" ? intake.schemaVersion : undefined,
+    commercialOfferScopeConfigured:
+      commercialOfferScopeNames.has(String(intake?.commercialOfferScope?.productSurface ?? "")) &&
+      typeof intake?.commercialOfferScope?.decidedBy === "string" &&
+      intake.commercialOfferScope.decidedBy.trim().length > 0 &&
+      Number.isFinite(Date.parse(String(intake?.commercialOfferScope?.decidedAt ?? ""))),
+    commercialOfferProductSurface: commercialOfferScopeNames.has(String(intake?.commercialOfferScope?.productSurface ?? ""))
+      ? String(intake.commercialOfferScope.productSurface)
+      : undefined,
+    uiRequiredBeforeCustomerTraffic: intake?.commercialOfferScope?.uiRequiredBeforeCustomerTraffic === true,
     selectedPaidScope: typeof intake?.budgetApproval?.scope === "string" ? intake.budgetApproval.scope : undefined,
     deploymentUrlConfigured: typeof intake?.deployment?.baseUrl === "string" && intake.deployment.baseUrl.length > 0,
     sourceVideoEnabled: intake?.sourceVideo?.enabled === true,
@@ -368,6 +410,8 @@ function buildIntakeSummary(intake) {
 function emptySummary(present) {
   return {
     present,
+    commercialOfferScopeConfigured: false,
+    uiRequiredBeforeCustomerTraffic: false,
     deploymentUrlConfigured: false,
     sourceVideoEnabled: false,
     remoteStockEnabled: false,
@@ -415,6 +459,13 @@ function buildDraft(sourceReports) {
     operatorEvidence: {
       billingAttestationPath: "ops/billing-admin-attestation.json",
       productionAttestationPath: "ops/production-operations-attestation.json"
+    },
+    commercialOfferScope: {
+      productSurface: "api_cli_only",
+      decidedAt: "",
+      decidedBy: "",
+      apiCliOnlyAcknowledgesNoFirstPartyUi: false,
+      uiRequiredBeforeCustomerTraffic: false
     },
     budgetApproval: {
       scope: "generated_audio_smoke",
@@ -478,6 +529,7 @@ function renderPacket(options, sourceReports, draft) {
     "",
     "- Use a real clean HTTPS deployment URL without credentials, query strings, or fragments.",
     "- Keep `deployment.authTokenEnvName` as an env var name only; put the secret value in `.env`, not this JSON.",
+    "- Set `commercialOfferScope.productSurface` to `api_cli_only` only when the launch is intentionally API/CLI/operator-report based without a first-party Web UI; otherwise use `first_party_web_ui_required` and keep customer traffic blocked until the UI exists.",
     "- Keep `remoteStock.keyEnvVars` as env var names only, such as `PEXELS_API_KEY`.",
     "- Set `budgetApproval.scope` to one of `generated_audio_smoke`, `long_form_120s_minimum`, `source_video_auto_analysis`, or `full_business_readiness_paid_sequence`.",
     "- Leave source-video disabled unless you have a credential-free HTTPS source video approved for Atlas LLM analysis.",

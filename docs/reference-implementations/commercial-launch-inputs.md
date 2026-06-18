@@ -1,10 +1,10 @@
 # Commercial Launch Inputs
 
-Implementation status as of 2026-06-16: implemented as a CineJelly-owned no-spend Node.js report generator, JSON schema, package command, and Markdown checklist writer. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-19: implemented as a CineJelly-owned no-spend Node.js report generator, JSON schema, package command, Markdown checklist writer, launch-intake scope gate, and command-plan audit. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Purpose
 
-Before asking an operator for the remaining production inputs, CineJelly needs one secret-free packet that converts the current readiness reports into a concrete checklist: URLs, secret env placeholders, operator attestations, approved Atlas budget, live evidence commands, paid Atlas commands, and manual review gates.
+Before asking an operator for the remaining production inputs, CineJelly needs one secret-free packet that converts the current readiness reports into a concrete checklist: URLs, secret env placeholders, commercial offer scope, operator attestations, approved Atlas budget, live evidence commands, paid Atlas commands, and manual review gates.
 
 ## Rules
 
@@ -22,7 +22,8 @@ Before asking an operator for the remaining production inputs, CineJelly needs o
 12. The packet must include a secret-free Atlas configuration summary derived from live-readiness evidence so operators can distinguish "Atlas keys/models are configured" from deployment, attestation, live-evidence, and budget blockers.
 13. The packet must include live provider action evidence as a separate operator input, backed by `validation:provider-live-actions`, so distributed-resume evidence is not conflated with Atlas key, deployment, or paid-budget readiness.
 14. The packet must include graph-resume enqueue payload evidence as a separate operator input, backed by `validation:provider-graph-resume`, so a provider callback cannot be mistaken for proven resumable graph state or queue payloads.
-15. The packet must audit its own command plan against `package.json` scripts and paid-spend guard flags so stale checklist commands are caught before an operator copies them into a live or paid run.
+15. The packet must include the launch-intake commercial offer scope decision so an API/CLI-only launch is explicit and a UI-required launch remains blocked until the UI exists.
+16. The packet must audit its own command plan against `package.json` scripts and paid-spend guard flags so stale checklist commands are caught before an operator copies them into a live or paid run.
 
 ## Report Shape
 
@@ -113,12 +114,13 @@ interface CommercialLaunchInputsReport {
 - Done: include the report in `validation:report-contracts`.
 - Done: include the live provider action evidence packet and validator command in the checklist and command-plan audit.
 - Done: include the graph-resume enqueue payload evidence packet and validator command in the checklist and command-plan audit.
+- Done: include the commercial offer scope decision from `validation:launch-intake` as an operator-decision checklist item.
 
 ## Acceptance Checks
 
 - Running the generator performs no network, provider, render, FFmpeg, or billing calls.
 - The report and Markdown checklist expose only placeholders, booleans, report paths, commands, and cost estimates.
-- Current output says commercial inputs are blocked by missing deployment URL, operator attestations, live provider action evidence, graph-resume enqueue payload evidence, source-video inputs, remote stock inputs, and approved Atlas budget.
+- Current output says commercial inputs are blocked by missing deployment URL, commercial offer scope decision, operator attestations, live provider action evidence, graph-resume enqueue payload evidence, source-video inputs, remote stock inputs, and approved Atlas budget.
 - Current output includes a paid budget slice section that names generated-audio smoke as within the `$5` ceiling while long-form/full sequence remain blocked.
 - The generated-audio smoke slice shows a no-spend Atlas billing probe with `--planned-cost-usd` before the paid generated-audio command.
 - The generated-audio paid command references `atlas-billing-generated-audio-smoke-report.json`, `--max-cost-usd`, `--cost-usd-per-1k-chars`, and the planned validation text.
@@ -128,4 +130,5 @@ interface CommercialLaunchInputsReport {
 - Current output includes a no-secret Atlas configuration section showing whether media/LLM keys, endpoint families, Seedance model/capability config, generated-audio config, and the generated-audio billing slice are ready without printing key values.
 - Current output includes a `live_provider_action_evidence` checklist item pointing to ignored `ops/render-provider-live-actions.json` and `validation:provider-live-actions -- --confirm-live-provider-actions`.
 - Current output includes a `graph_resume_enqueue_evidence` checklist item pointing to ignored `ops/render-provider-graph-resume-enqueues.json` and `validation:provider-graph-resume -- --confirm-graph-resume-enqueues`.
+- Current output includes a `commercial_offer_scope_decision` checklist item pointing to ignored `ops/commercial-launch-intake.json` and `validation:launch-intake -- --write-draft`.
 - Current output includes `commandPlanAudit.status: "pass"` after checking command names against `package.json` scripts and confirming ready paid commands retain required confirmation/billing flags.

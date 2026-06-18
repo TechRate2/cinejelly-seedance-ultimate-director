@@ -63,6 +63,7 @@
       "additionalProperties": false,
       "required": [
         "present",
+        "commercialOfferScopeConfigured",
         "deploymentUrlConfigured",
         "sourceVideoEnabled",
         "remoteStockEnabled",
@@ -75,6 +76,9 @@
       "properties": {
         "present": { "type": "boolean" },
         "schemaVersion": { "type": "string" },
+        "commercialOfferScopeConfigured": { "type": "boolean" },
+        "commercialOfferProductSurface": { "enum": ["api_cli_only", "first_party_web_ui_required"] },
+        "uiRequiredBeforeCustomerTraffic": { "type": "boolean" },
         "selectedPaidScope": { "type": "string" },
         "deploymentUrlConfigured": { "type": "boolean" },
         "sourceVideoEnabled": { "type": "boolean" },

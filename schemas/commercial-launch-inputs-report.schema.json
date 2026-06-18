@@ -37,6 +37,7 @@
         "businessReadinessPath",
         "businessPlanPath",
         "liveInputsPath",
+        "launchIntakePath",
         "atlasBillingPath",
         "opsConfigPath",
         "providerLiveActionsPath",
@@ -46,6 +47,7 @@
         "businessReadinessPath": { "type": "string" },
         "businessPlanPath": { "type": "string" },
         "liveInputsPath": { "type": "string" },
+        "launchIntakePath": { "type": "string" },
         "atlasBillingPath": { "type": "string" },
         "opsConfigPath": { "type": "string" },
         "providerLiveActionsPath": { "type": "string" },
@@ -100,7 +102,7 @@
           "id": { "type": "string" },
           "label": { "type": "string" },
           "category": {
-            "enum": ["deployment", "operations", "budget", "source_video", "remote_stock", "manual_review"]
+            "enum": ["deployment", "operations", "budget", "source_video", "remote_stock", "manual_review", "product_scope"]
           },
           "status": { "enum": ["missing", "configured", "blocked_by_budget", "pending_after_paid_run"] },
           "sensitivity": {
@@ -110,7 +112,8 @@
               "non_secret_operator_attestation",
               "budget_approval",
               "boolean_env",
-              "manual_review"
+              "manual_review",
+              "operator_decision"
             ]
           },
           "requiredFor": { "type": "array", "items": { "type": "string" } },

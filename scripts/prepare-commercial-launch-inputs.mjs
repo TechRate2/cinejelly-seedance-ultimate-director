@@ -10,6 +10,7 @@ const defaults = {
   businessReadinessPath: "assets/output_deliverables/phase6-validation/business-readiness-report.json",
   businessPlanPath: "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json",
   liveInputsPath: "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json",
+  launchIntakePath: "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json",
   atlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
   opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
   providerLiveActionsPath: "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json",
@@ -28,6 +29,7 @@ function parseArgs(args) {
     ["--business-readiness-report", "businessReadinessPath"],
     ["--business-plan-report", "businessPlanPath"],
     ["--live-inputs-report", "liveInputsPath"],
+    ["--launch-intake-report", "launchIntakePath"],
     ["--atlas-billing-report", "atlasBillingPath"],
     ["--ops-config-report", "opsConfigPath"],
     ["--provider-live-actions-report", "providerLiveActionsPath"],
@@ -80,6 +82,7 @@ Options:
   --business-readiness-report <path>  Default: ${defaults.businessReadinessPath}
   --business-plan-report <path>       Default: ${defaults.businessPlanPath}
   --live-inputs-report <path>         Default: ${defaults.liveInputsPath}
+  --launch-intake-report <path>       Default: ${defaults.launchIntakePath}
   --atlas-billing-report <path>       Default: ${defaults.atlasBillingPath}
   --ops-config-report <path>          Default: ${defaults.opsConfigPath}
   --provider-live-actions-report <path>
@@ -106,6 +109,7 @@ function main() {
     businessReadiness: summarizeReport(options.businessReadinessPath),
     businessPlan: summarizeReport(options.businessPlanPath),
     liveInputs: summarizeReport(options.liveInputsPath),
+    launchIntake: summarizeReport(options.launchIntakePath),
     atlasBilling: summarizeReport(options.atlasBillingPath),
     opsConfig: summarizeReport(options.opsConfigPath),
     providerLiveActions: summarizeReport(options.providerLiveActionsPath),
@@ -134,6 +138,7 @@ function main() {
       businessReadinessPath: toRepoRelative(options.businessReadinessPath),
       businessPlanPath: toRepoRelative(options.businessPlanPath),
       liveInputsPath: toRepoRelative(options.liveInputsPath),
+      launchIntakePath: toRepoRelative(options.launchIntakePath),
       atlasBillingPath: toRepoRelative(options.atlasBillingPath),
       opsConfigPath: toRepoRelative(options.opsConfigPath),
       providerLiveActionsPath: toRepoRelative(options.providerLiveActionsPath),
@@ -203,6 +208,7 @@ function buildRequiredInputs(reports) {
   const business = reports.businessReadiness.value;
   const plan = reports.businessPlan.value;
   const live = reports.liveInputs.value;
+  const launchIntake = reports.launchIntake.value;
   const atlasBilling = reports.atlasBilling.value;
   const opsConfig = reports.opsConfig.value;
   const providerLiveActions = reports.providerLiveActions.value;
@@ -273,6 +279,27 @@ function buildRequiredInputs(reports) {
       acceptance: "Fill durable storage, retention, backups, restore test, monitoring, incident response, support, redaction, rotation, and data-retention fields.",
       validationCommand: "npm.cmd run validation:ops-config -- --write-drafts",
       blockerMessage: failingMessage(business, "production_storage_observability_support") ?? firstFailure(liveGate("operations_attestation_inputs"))
+    }),
+    input({
+      id: "commercial_offer_scope_decision",
+      label: "Commercial offer scope decision",
+      category: "product_scope",
+      status:
+        reports.launchIntake.status === "pass" &&
+        launchIntake?.intakeSummary?.commercialOfferScopeConfigured === true
+          ? "configured"
+          : "missing",
+      sensitivity: "operator_decision",
+      requiredFor: ["first_party_web_ui_scope_decision", "commercial_offer_positioning"],
+      envVars: [],
+      filePaths: ["ops/commercial-launch-intake.json"],
+      acceptance:
+        "Decide whether this launch is intentionally API/CLI/operator-report only, or whether a first-party Web UI is required before customer traffic. Record the decision in commercialOfferScope and rerun validation:launch-intake.",
+      validationCommand: "npm.cmd run validation:launch-intake -- --write-draft",
+      blockerMessage:
+        launchIntake?.intakeSummary?.commercialOfferScopeConfigured === true
+          ? undefined
+          : "Commercial offer scope is not yet decided; first-party Web UI remains a product-scope blocker for full product parity until the intake records API/CLI-only scope or UI-required scope."
     }),
     input({
       id: "live_provider_action_evidence",

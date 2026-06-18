@@ -288,6 +288,9 @@ function validateSemanticContract(item, report, options) {
       allowInProgress: options.allowLaunchDoctorInProgress
     });
   }
+  if (item.name === "commercial_launch_intake") {
+    return validateCommercialLaunchIntakeSemantics(report);
+  }
   if (item.name === "commercial_launch_inputs") {
     return validateCommercialLaunchInputsSemantics(report);
   }
@@ -2028,7 +2031,24 @@ function validateCommercialLaunchInputsSemantics(report) {
   if (!report?.sourceReports?.providerGraphResume) {
     issues.push("$.sourceReports.providerGraphResume: expected graph-resume enqueue report source status.");
   }
+  if (!report?.sourceReports?.launchIntake) {
+    issues.push("$.sourceReports.launchIntake: expected commercial launch intake source status.");
+  }
   const requiredInputs = Array.isArray(report?.requiredInputs) ? report.requiredInputs : [];
+  const scopeDecisionInput = requiredInputs.find((item) => item?.id === "commercial_offer_scope_decision");
+  if (!scopeDecisionInput) {
+    issues.push("$.requiredInputs: expected commercial_offer_scope_decision checklist item.");
+  } else {
+    if (scopeDecisionInput.category !== "product_scope" || scopeDecisionInput.sensitivity !== "operator_decision") {
+      issues.push("$.requiredInputs[commercial_offer_scope_decision]: expected product_scope/operator_decision classification.");
+    }
+    if (!Array.isArray(scopeDecisionInput.filePaths) || !scopeDecisionInput.filePaths.includes("ops/commercial-launch-intake.json")) {
+      issues.push("$.requiredInputs[commercial_offer_scope_decision].filePaths: expected ops/commercial-launch-intake.json.");
+    }
+    if (scopeDecisionInput.validationCommand !== "npm.cmd run validation:launch-intake -- --write-draft") {
+      issues.push("$.requiredInputs[commercial_offer_scope_decision].validationCommand: expected launch-intake draft command.");
+    }
+  }
   const liveActionInput = requiredInputs.find((item) => item?.id === "live_provider_action_evidence");
   if (!liveActionInput) {
     issues.push("$.requiredInputs: expected live_provider_action_evidence checklist item.");
@@ -2063,6 +2083,39 @@ function validateCommercialLaunchInputsSemantics(report) {
     issues.push("$.evidenceCommandPlan.finalAudit: expected graph_resume_enqueue_evidence command.");
   } else if (graphResumeCommand.command !== "npm.cmd run validation:provider-graph-resume -- --evidence ops/render-provider-graph-resume-enqueues.json --confirm-graph-resume-enqueues") {
     issues.push("$.evidenceCommandPlan.finalAudit[graph_resume_enqueue_evidence].command: expected provider-graph-resume confirmation command.");
+  }
+  return issues;
+}
+
+function validateCommercialLaunchIntakeSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const hasFailingChecks = checks.some((check) => check?.status === "fail");
+  if (report?.status === "pass" && hasFailingChecks) {
+    issues.push("$.status: pass is not allowed while any launch-intake check is fail.");
+  }
+  if (report?.status === "pass" && report?.intakeSummary?.commercialOfferScopeConfigured !== true) {
+    issues.push("$.intakeSummary.commercialOfferScopeConfigured: expected true when launch intake passes.");
+  }
+  if (report?.status === "missing_intake") {
+    if (report?.intakeSummary?.present !== false) {
+      issues.push("$.intakeSummary.present: expected false when launch intake is missing.");
+    }
+    if (report?.intakeSummary?.commercialOfferScopeConfigured !== false) {
+      issues.push("$.intakeSummary.commercialOfferScopeConfigured: expected false when launch intake is missing.");
+    }
+  }
+  if (report?.intakeSummary?.commercialOfferProductSurface === "api_cli_only" && report?.intakeSummary?.uiRequiredBeforeCustomerTraffic !== false) {
+    issues.push("$.intakeSummary.uiRequiredBeforeCustomerTraffic: expected false for API/CLI-only commercial scope.");
+  }
+  if (report?.intakeSummary?.commercialOfferProductSurface === "first_party_web_ui_required" && report?.intakeSummary?.uiRequiredBeforeCustomerTraffic !== true) {
+    issues.push("$.intakeSummary.uiRequiredBeforeCustomerTraffic: expected true for first-party Web UI required scope.");
+  }
+  if (report?.releaseGateSummary?.canRunPaidAtlasValidation !== false) {
+    issues.push("$.releaseGateSummary.canRunPaidAtlasValidation: launch intake must not authorize paid Atlas execution by itself.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: launch intake must not authorize customer traffic by itself.");
   }
   return issues;
 }
