@@ -549,6 +549,7 @@ function validateBusinessCompletionAuditSemantics(report) {
   const automatableBlockers = blockers.filter((item) => item?.canAutomateNow === true);
   const externalOrPaidBlockers = blockers.filter((item) => item?.canAutomateNow !== true);
   const automatableProductGaps = productCodeGaps.filter((item) => item?.canAutomateNow === true);
+  const externalEvidenceProductGaps = productCodeGaps.filter((item) => item?.completionRequiresExternalEvidence === true);
   const blocksFullSnapshotParity = productCodeGaps.some((item) => item?.blocksFullSnapshotParity === true);
   const blocksApiCliCommercialLaunch = productCodeGaps.some((item) => item?.blocksApiCliCommercialLaunch === true);
 
@@ -560,6 +561,9 @@ function validateBusinessCompletionAuditSemantics(report) {
   }
   if (Number(report?.codeWorkSummary?.automatableProductCodeGapCount ?? -1) !== automatableProductGaps.length) {
     issues.push("$.codeWorkSummary.automatableProductCodeGapCount: expected to equal automatable product-code gap count.");
+  }
+  if (Number(report?.codeWorkSummary?.externalEvidenceProductCodeGapCount ?? -1) !== externalEvidenceProductGaps.length) {
+    issues.push("$.codeWorkSummary.externalEvidenceProductCodeGapCount: expected to equal product-code gaps that require external evidence.");
   }
   if (report?.codeWorkSummary?.blocksFullSnapshotParity !== blocksFullSnapshotParity) {
     issues.push("$.codeWorkSummary.blocksFullSnapshotParity: expected to match productCodeGaps[*].blocksFullSnapshotParity.");
@@ -594,6 +598,14 @@ function validateBusinessCompletionAuditSemantics(report) {
   }
   if (Number(report?.releaseGateSummary?.productCodeGapCount ?? -1) !== productCodeGaps.length) {
     issues.push("$.releaseGateSummary.productCodeGapCount: expected to equal productCodeGaps length.");
+  }
+  for (const gap of externalEvidenceProductGaps) {
+    if (gap?.canAutomateNow === true) {
+      issues.push(`$.productCodeGaps[id=${gap?.id}].canAutomateNow: expected false when completionRequiresExternalEvidence=true.`);
+    }
+    if (!Number.isSafeInteger(gap?.remainingEvidenceGateCount) || gap.remainingEvidenceGateCount <= 0) {
+      issues.push(`$.productCodeGaps[id=${gap?.id}].remainingEvidenceGateCount: expected a positive integer when external evidence is required.`);
+    }
   }
 
   if (report?.codeWorkSummary?.snapshotParityPass !== (report?.readinessSnapshot?.snapshotParityStatus === "pass")) {

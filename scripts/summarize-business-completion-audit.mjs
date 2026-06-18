@@ -295,6 +295,7 @@ function buildCodeWorkSummary(reports, blockers, productCodeGaps) {
     knownCodeBlockingIssueCount: codeBlockingIssues.length,
     knownProductCodeGapCount: productCodeGaps.length,
     automatableProductCodeGapCount: productCodeGaps.filter((item) => item.canAutomateNow === true).length,
+    externalEvidenceProductCodeGapCount: productCodeGaps.filter((item) => item.completionRequiresExternalEvidence === true).length,
     blocksFullSnapshotParity: productCodeGaps.some((item) => item.blocksFullSnapshotParity === true),
     blocksApiCliCommercialLaunch,
     message:
@@ -319,6 +320,9 @@ function buildProductCodeGaps() {
       requiredAction:
         "Build and validate a first-party customer/operator UI, or explicitly scope the commercial offer as API/CLI-only before claiming launch completeness.",
       canAutomateNow: false,
+      localPreparationAvailable: false,
+      completionRequiresExternalEvidence: false,
+      remainingEvidenceGateCount: 0,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
@@ -334,7 +338,10 @@ function buildProductCodeGaps() {
       sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
       requiredAction:
         "Run validation:graph-resume-state, validation:graph-resume-queue-service, and validation:provider-graph-resume-worker to refresh the digest-only capsule, protected queue-service lifecycle, and worker bridge enqueue/replay smokes; run validation:provider-live-action-draft and validation:provider-graph-resume-draft to prepare the operator fill-out checklists; run validation:provider-production-handoff against the real HTTPS deployment lease service; archive the production acquire/held/heartbeat/release handoff evidence; then run a live provider worker on the same deployment that maps persisted action-ledger execution callbacks and queued resume-state records to real Atlas close/resume/manual-audit behavior and graph_resume_enqueue evidence. Validate archived callbacks with validation:provider-live-actions -- --confirm-live-provider-actions, archive digest-only graph-resume enqueue payload evidence in ops/render-provider-graph-resume-enqueues.json, then validate it with validation:provider-graph-resume -- --confirm-graph-resume-enqueues. Keep the documented boundary until deployed multi-worker ownership handoff, live queue enqueue evidence, graph-resume enqueue payload evidence, and live provider action evidence all pass.",
-      canAutomateNow: true,
+      canAutomateNow: false,
+      localPreparationAvailable: true,
+      completionRequiresExternalEvidence: true,
+      remainingEvidenceGateCount: 4,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
@@ -350,7 +357,10 @@ function buildProductCodeGaps() {
       sourcePatternOrigins: ["jiaminchen-1031/DirectorBench"],
       requiredAction:
         "Run validation:quality-review-drafts to prepare artifact-bound reviewer packets, run validation:quality-review-guard to confirm the accepted-review readiness gate rejects unsafe review text, replace needs_review checkpoints with real accepted review decisions, run validation:quality-review-evidence to verify the accepted semantic/audio/runtime/governance review bundle is complete, schema/redaction safe, and bound to the paid artifact, run validation:long-form-review-draft after the paid 2-8 minute long-form report has artifact fingerprints so the manual quality/redaction review packet is bound correctly, then run validation:quality-benchmark on real 2-8 minute paid artifacts and close every unmet parityEvidenceMatrix requirement: actual detected transition boundaries, waveform-analyzed and duration-sync-checked audio, accepted structured semantic/audio/runtime review JSON, accepted structured governance-review JSON, accepted generated-audio validation report evidence, accepted long-form validation report evidence, accepted ASR transcript alignment and lip-sync timing checkpoints, accepted artifact-bound long-form manual review, and accepted permission/legal review before claiming DirectorBench-style parity.",
-      canAutomateNow: true,
+      canAutomateNow: false,
+      localPreparationAvailable: true,
+      completionRequiresExternalEvidence: true,
+      remainingEvidenceGateCount: 8,
       blocksApiCliCommercialLaunch: false,
       blocksFullSnapshotParity: true,
       releaseImpact:
@@ -652,6 +662,7 @@ function renderMarkdown(report) {
     `- Commercial command plan pass: ${report.codeWorkSummary.commercialCommandPlanPass}`,
     `- Known code blockers: ${report.codeWorkSummary.knownCodeBlockingIssueCount}`,
     `- Product-code gaps: ${report.codeWorkSummary.knownProductCodeGapCount}`,
+    `- Product-code gaps requiring external evidence: ${report.codeWorkSummary.externalEvidenceProductCodeGapCount}`,
     `- Blocks full snapshot parity: ${report.codeWorkSummary.blocksFullSnapshotParity}`,
     `- ${report.codeWorkSummary.message}`,
     "",
@@ -687,7 +698,13 @@ function markdownProductCodeGaps(items) {
   if (items.length === 0) {
     return ["- None."];
   }
-  return items.map((item) => `- ${item.label} [${item.status}; ${item.currentCoveragePercent}%]: ${item.requiredAction}`);
+  return items.map((item) => {
+    const evidenceNote = item.completionRequiresExternalEvidence
+      ? `; external evidence gates: ${item.remainingEvidenceGateCount}`
+      : "";
+    const localPrepNote = item.localPreparationAvailable ? "; local prep available" : "";
+    return `- ${item.label} [${item.status}; ${item.currentCoveragePercent}%${localPrepNote}${evidenceNote}]: ${item.requiredAction}`;
+  });
 }
 
 function markdownBlockers(items) {

@@ -63,7 +63,7 @@ This audit does not claim production-host deployment evidence, live source-video
 - Local release hygiene and report-contract validation commands.
 - A previous short paid Atlas text-to-video evidence run for Phase 6 smoke validation.
 - Business-readiness audit that intentionally remains blocked until real launch evidence exists.
-- Business-completion audit that separates API/CLI schema blockers from product-code gaps and reports `canClaimFullSnapshotParity=false` while Web UI, deployed durable queue-backed active provider-work resume/reconciliation/handoff with real graph-resume enqueue payload proof, or full semantic/audio media benchmark evidence beyond local guard fixtures remain.
+- Business-completion audit that separates API/CLI schema blockers from product-code gaps and reports `canClaimFullSnapshotParity=false` while Web UI, deployed durable queue-backed active provider-work resume/reconciliation/handoff with real graph-resume enqueue payload proof, or full semantic/audio media benchmark evidence beyond local guard fixtures remain. Product-gap automation flags are conservative: local prep/smoke tooling is separated from gaps that still require external live, paid, or manual-review evidence.
 - No first-party web UI.
 - No claim of 100% parity with any upstream snapshot.
 
