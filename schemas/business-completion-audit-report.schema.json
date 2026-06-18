@@ -46,7 +46,9 @@
         "commercialInputsPath",
         "releaseAuditPath",
         "snapshotParityPath",
-        "reportContractsPath"
+        "reportContractsPath",
+        "commercialLaunchDoctorPath",
+        "opsConfigPath"
       ],
       "properties": {
         "businessReadinessPath": { "type": "string" },
@@ -56,6 +58,8 @@
         "releaseAuditPath": { "type": "string" },
         "snapshotParityPath": { "type": "string" },
         "reportContractsPath": { "type": "string" },
+        "commercialLaunchDoctorPath": { "type": "string" },
+        "opsConfigPath": { "type": "string" },
         "markdownOutputPath": { "type": "string" }
       }
     },
@@ -83,6 +87,9 @@
         "snapshotParityStatus",
         "reportContractsStatus",
         "commercialInputsStatus",
+        "launchDoctorStatus",
+        "opsConfigStatus",
+        "launchDoctorKnownCodeBlockingIssueCount",
         "commandPlanAuditStatus",
         "atlas",
         "budget",
@@ -100,6 +107,9 @@
         "snapshotParityStatus": { "type": "string" },
         "reportContractsStatus": { "type": "string" },
         "commercialInputsStatus": { "type": "string" },
+        "launchDoctorStatus": { "type": "string" },
+        "opsConfigStatus": { "type": "string" },
+        "launchDoctorKnownCodeBlockingIssueCount": { "type": "integer", "minimum": 0 },
         "commandPlanAuditStatus": { "type": "string" },
         "atlas": {
           "type": "object",

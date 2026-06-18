@@ -13,7 +13,9 @@ const defaults = {
   commercialInputsPath: "assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json",
   releaseAuditPath: "assets/output_deliverables/phase6-validation/release-audit-report.json",
   snapshotParityPath: "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json",
-  reportContractsPath: "assets/output_deliverables/business-readiness/report-contract-validation-report.json"
+  reportContractsPath: "assets/output_deliverables/business-readiness/report-contract-validation-report.json",
+  commercialLaunchDoctorPath: "assets/output_deliverables/business-readiness/commercial-launch-doctor-report.json",
+  opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json"
 };
 
 function parseArgs(args) {
@@ -31,7 +33,9 @@ function parseArgs(args) {
     ["--commercial-inputs-report", "commercialInputsPath"],
     ["--release-audit-report", "releaseAuditPath"],
     ["--snapshot-parity-report", "snapshotParityPath"],
-    ["--report-contracts-report", "reportContractsPath"]
+    ["--report-contracts-report", "reportContractsPath"],
+    ["--launch-doctor-report", "commercialLaunchDoctorPath"],
+    ["--ops-config-report", "opsConfigPath"]
   ]);
 
   for (let index = 0; index < args.length; index += 1) {
@@ -84,6 +88,8 @@ Options:
   --release-audit-report <path>       Default: ${defaults.releaseAuditPath}
   --snapshot-parity-report <path>     Default: ${defaults.snapshotParityPath}
   --report-contracts-report <path>    Default: ${defaults.reportContractsPath}
+  --launch-doctor-report <path>       Default: ${defaults.commercialLaunchDoctorPath}
+  --ops-config-report <path>          Default: ${defaults.opsConfigPath}
   --output <path>                     JSON report path. Default: ${defaults.outputPath}
   --markdown-output <path>            Markdown summary path. Default: ${defaults.markdownOutputPath}
   --no-markdown                       Do not write the Markdown summary.
@@ -107,7 +113,9 @@ function main() {
     commercialInputs: summarizeReport(options.commercialInputsPath),
     releaseAudit: summarizeReport(options.releaseAuditPath),
     snapshotParity: summarizeReport(options.snapshotParityPath),
-    reportContracts: summarizeReport(options.reportContractsPath)
+    reportContracts: summarizeReport(options.reportContractsPath),
+    commercialLaunchDoctor: summarizeReport(options.commercialLaunchDoctorPath),
+    opsConfig: summarizeReport(options.opsConfigPath)
   };
   const blockers = buildBlockers(reports);
   const productCodeGaps = buildProductCodeGaps();
@@ -129,6 +137,8 @@ function main() {
       releaseAuditPath: toRepoRelative(options.releaseAuditPath),
       snapshotParityPath: toRepoRelative(options.snapshotParityPath),
       reportContractsPath: toRepoRelative(options.reportContractsPath),
+      commercialLaunchDoctorPath: toRepoRelative(options.commercialLaunchDoctorPath),
+      opsConfigPath: toRepoRelative(options.opsConfigPath),
       markdownOutputPath: options.writeMarkdown ? toRepoRelative(options.markdownOutputPath) : undefined
     },
     sourceReports: summarizeSourceReports(reports),
@@ -193,6 +203,7 @@ function buildReadinessSnapshot(reports) {
   const plan = reports.businessPlan.value;
   const live = reports.liveInputs.value;
   const commercial = reports.commercialInputs.value;
+  const launchDoctor = reports.commercialLaunchDoctor.value;
   const atlas = commercial?.atlasConfigurationSummary;
   const planCost = plan?.costPlan ?? {};
   const liveCost = live?.costPlan ?? {};
@@ -211,6 +222,9 @@ function buildReadinessSnapshot(reports) {
     snapshotParityStatus: reports.snapshotParity.status,
     reportContractsStatus: reports.reportContracts.status,
     commercialInputsStatus: reports.commercialInputs.status,
+    launchDoctorStatus: reports.commercialLaunchDoctor.status,
+    opsConfigStatus: reports.opsConfig.status,
+    launchDoctorKnownCodeBlockingIssueCount: numberOrZero(launchDoctor?.releaseGateSummary?.knownCodeBlockingIssueCount),
     commandPlanAuditStatus: String(commercial?.commandPlanAudit?.status ?? "unknown"),
     atlas: {
       mediaApiKeyConfigured: atlas?.keys?.mediaApiKeyConfigured === true,
@@ -385,6 +399,26 @@ function buildBlockers(reports) {
         status: String(commercial.commandPlanAudit.status),
         sourceReport: reports.commercialInputs.path,
         requiredAction: "Fix missing scripts/placeholders/paid-spend guard flags and rerun validation:commercial-inputs.",
+        canAutomateNow: true
+      })
+    );
+  }
+  const launchDoctorKnownCodeBlockingIssueCount = numberOrZero(
+    reports.commercialLaunchDoctor.value?.releaseGateSummary?.knownCodeBlockingIssueCount
+  );
+  if (
+    reports.commercialLaunchDoctor.present &&
+    (reports.commercialLaunchDoctor.status === "blocked_by_code_or_contracts" || launchDoctorKnownCodeBlockingIssueCount > 0)
+  ) {
+    blockers.push(
+      blocker({
+        id: "launch_doctor_code_blockers",
+        label: "Commercial launch doctor reports code-side blockers",
+        owner: "codebase",
+        category: "launch_doctor",
+        status: reports.commercialLaunchDoctor.status,
+        sourceReport: reports.commercialLaunchDoctor.path,
+        requiredAction: "Fix the launch-doctor code/schema/source-hygiene failures and rerun validation:launch-doctor.",
         canAutomateNow: true
       })
     );
@@ -585,6 +619,9 @@ function renderMarkdown(report) {
     `- Snapshot parity: ${report.readinessSnapshot.snapshotParityStatus}`,
     `- Report contracts: ${report.readinessSnapshot.reportContractsStatus}`,
     `- Commercial inputs: ${report.readinessSnapshot.commercialInputsStatus}`,
+    `- Launch doctor: ${report.readinessSnapshot.launchDoctorStatus}`,
+    `- Ops config: ${report.readinessSnapshot.opsConfigStatus}`,
+    `- Launch-doctor code blockers: ${report.readinessSnapshot.launchDoctorKnownCodeBlockingIssueCount}`,
     `- Atlas media/LLM/Seedance ready: ${report.readinessSnapshot.atlas.mediaReady}/${report.readinessSnapshot.atlas.llmReady}/${report.readinessSnapshot.atlas.seedanceVideoReady}`,
     `- Approved budget: ${formatUsd(report.readinessSnapshot.budget.approvedBudgetUsd)}`,
     `- Known paid estimate: ${formatUsd(report.readinessSnapshot.budget.knownPaidEstimateUsd)}`,

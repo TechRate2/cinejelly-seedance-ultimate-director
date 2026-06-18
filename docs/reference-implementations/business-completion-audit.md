@@ -4,7 +4,7 @@ Implementation status as of 2026-06-19: implemented as a CineJelly-owned no-spen
 
 ## Purpose
 
-Operators need a single report that answers whether the remaining commercial gap is code work or external launch evidence. `validation:completion-audit` reads the existing readiness reports and produces a secret-free blocker ownership summary:
+Operators need a single report that answers whether the remaining commercial gap is code work or external launch evidence. `validation:completion-audit` reads the existing readiness reports, the one-command commercial launch doctor report, and ops-config validation output, then produces a secret-free blocker ownership summary:
 
 - code/schema/command-plan blockers that Codex can fix in repo
 - snapshot/subtree parity guardrail drift from `validation:snapshot-parity`
@@ -34,7 +34,7 @@ The report is valid when:
 
 1. `schemaVersion` is `cinejelly.business-completion-audit.v1`.
 2. `noSpend=true`, `networkCallsMade=false`, and `providerCallsMade=false`.
-3. `readinessSnapshot` records current business-readiness completion, snapshot parity status, report statuses, Atlas key/model booleans, budget fit, and ready paid gates.
+3. `readinessSnapshot` records current business-readiness completion, snapshot parity status, launch-doctor status, ops-config status, report statuses, Atlas key/model booleans, budget fit, and ready paid gates.
 4. `codeWorkSummary` separates code/schema/command-plan blockers from external/operator blockers and reports product-code gaps separately from API/CLI commercial gates.
 5. `productCodeGaps` lists known parity blockers that prevent a 100% upstream/product-completeness claim even when schema/command-plan contracts are passing.
 6. `blockers` assigns every remaining non-configured commercial input to an owner and category.
@@ -42,6 +42,7 @@ The report is valid when:
 8. `validation:report-contracts` validates `schemas/business-completion-audit-report.schema.json` against the generated report.
 9. `validation:report-contracts` also validates report-local semantics: blocker counts, owner/category totals, product-code gap counts, parity flags, ready paid-gate counts, snapshot/report/release status booleans, and customer-traffic/full-paid release flags must match the underlying arrays and readiness snapshot.
 10. A failing snapshot parity audit becomes a codebase-owned blocker before any full-parity claim is trusted.
+11. Any code-side blocker reported by `validation:launch-doctor` becomes a codebase-owned completion-audit blocker until the doctor is clean.
 
 ## Current Interpretation
 
