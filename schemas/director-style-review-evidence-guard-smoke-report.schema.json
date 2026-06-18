@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/director-style-review-evidence-guard-smoke-report.schema.json",
+  "title": "CineJelly Director-Style Review Evidence Guard Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "safeReadiness",
+    "unsafeReadiness",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.director-style-review-evidence-guard-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "const": "pass" },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paidRenderReportPath",
+        "workDir",
+        "safeReportPath",
+        "unsafeReportPath",
+        "outputPath"
+      ],
+      "properties": {
+        "paidRenderReportPath": { "$ref": "#/$defs/repoPath" },
+        "workDir": { "$ref": "#/$defs/repoPath" },
+        "safeReportPath": { "$ref": "#/$defs/repoPath" },
+        "unsafeReportPath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "safeExitCode",
+        "safeStatus",
+        "unsafeExitCode",
+        "unsafeStatus",
+        "unsafeSemanticSchemaValid",
+        "canUseUnsafeAsAcceptedDirectorReviewEvidence"
+      ],
+      "properties": {
+        "safeExitCode": { "const": 0 },
+        "safeStatus": { "const": "pass" },
+        "unsafeExitCode": { "const": 1 },
+        "unsafeStatus": { "const": "fail" },
+        "unsafeSemanticSchemaValid": { "const": false },
+        "canUseUnsafeAsAcceptedDirectorReviewEvidence": { "const": false }
+      }
+    },
+    "safeReadiness": { "$ref": "#/$defs/readinessSummary" },
+    "unsafeReadiness": { "$ref": "#/$defs/readinessSummary" },
+    "checks": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewEvidenceGuardPass",
+        "canUseAsAcceptedDirectorReviewEvidence",
+        "canClaimDirectorBenchParity",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "reviewEvidenceGuardPass": { "const": true },
+        "canUseAsAcceptedDirectorReviewEvidence": { "const": false },
+        "canClaimDirectorBenchParity": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "readinessSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "reviews"],
+      "properties": {
+        "status": { "enum": ["pass", "fail", "blocked_by_missing_reviews", "blocked_by_review_status", "blocked_by_artifact_binding"] },
+        "summary": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "reviews": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "present",
+              "jsonValid",
+              "schemaValid",
+              "status",
+              "artifactBindingStatus",
+              "accepted",
+              "issueCount"
+            ],
+            "properties": {
+              "kind": { "enum": ["semantic", "audio", "runtime", "governance"] },
+              "present": { "type": "boolean" },
+              "jsonValid": { "type": "boolean" },
+              "schemaValid": { "type": "boolean" },
+              "status": { "type": "string", "minLength": 1 },
+              "artifactBindingStatus": { "type": "string", "minLength": 1 },
+              "accepted": { "type": "boolean" },
+              "issueCount": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "const": "pass" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 360,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    }
+  }
+}

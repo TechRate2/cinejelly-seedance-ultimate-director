@@ -53,6 +53,7 @@ const defaultContracts = [
   contract("director_style_governance_review", "schemas/director-style-governance-review.schema.json", "assets/output_deliverables/business-readiness/director-style-governance-review.json"),
   contract("director_style_review_drafts", "schemas/director-style-review-drafts-report.schema.json", "assets/output_deliverables/business-readiness/director-style-review-drafts-report.json"),
   contract("director_style_review_evidence_readiness", "schemas/director-style-review-evidence-readiness-report.schema.json", "assets/output_deliverables/business-readiness/director-style-review-evidence-readiness-report.json"),
+  contract("director_style_review_evidence_guard", "schemas/director-style-review-evidence-guard-smoke-report.schema.json", "assets/output_deliverables/business-readiness/director-style-review-evidence-guard-smoke-report.json"),
   contract("director_style_benchmark", "schemas/director-style-benchmark-report.schema.json", "assets/output_deliverables/business-readiness/director-style-benchmark-report.json"),
   contract("billing_admin_ops", "schemas/billing-admin-ops-report.schema.json", "assets/output_deliverables/business-readiness/billing-admin-ops-report.json"),
   contract("production_operations", "schemas/production-operations-report.schema.json", "assets/output_deliverables/business-readiness/production-operations-report.json"),
@@ -299,6 +300,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "director_style_review_evidence_readiness") {
     return validateDirectorStyleReviewEvidenceReadinessSemantics(report);
   }
+  if (item.name === "director_style_review_evidence_guard") {
+    return validateDirectorStyleReviewEvidenceGuardSemantics(report);
+  }
   if (item.name === "render_provider_handoff_action_ledger") {
     return validateRenderProviderHandoffActionLedgerSemantics(report);
   }
@@ -334,6 +338,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "provider_graph_resume",
   "release_audit",
   "quality_benchmark",
+  "quality_review_guard",
   "quality_review_evidence",
   "launch_intake",
   "live_inputs",
@@ -382,6 +387,13 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (["missing", "skipped", undefined].includes(report?.readinessSnapshot?.qualityBenchmarkStatus)) {
     issues.push("$.readinessSnapshot.qualityBenchmarkStatus: expected a refreshed benchmark status, not missing/skipped.");
+  }
+  const qualityReviewGuardRun = commandByName.get("quality_review_guard");
+  if (qualityReviewGuardRun?.status !== "pass") {
+    issues.push("$.commandRuns[quality_review_guard].status: expected pass for unsafe-review guard smoke command.");
+  }
+  if (report?.readinessSnapshot?.qualityReviewGuardStatus !== "pass") {
+    issues.push("$.readinessSnapshot.qualityReviewGuardStatus: expected pass after refreshing unsafe-review guard smoke.");
   }
   const qualityReviewEvidenceRun = commandByName.get("quality_review_evidence");
   if (qualityReviewEvidenceRun?.status !== "pass") {
@@ -1099,6 +1111,50 @@ function validateDirectorStyleReviewEvidenceReadinessSemantics(report) {
     report?.releaseGateSummary?.canUseAsAcceptedDirectorReviewEvidence === true
   )) {
     issues.push("$.summary/releaseGateSummary: non-pass readiness reports cannot expose accepted review evidence flags.");
+  }
+  return issues;
+}
+
+function validateDirectorStyleReviewEvidenceGuardSemantics(report) {
+  const issues = [];
+  const publicPayload = JSON.stringify(report ?? {});
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  const safeReviews = Array.isArray(report?.safeReadiness?.reviews) ? report.safeReadiness.reviews : [];
+  const unsafeReviews = Array.isArray(report?.unsafeReadiness?.reviews) ? report.unsafeReadiness.reviews : [];
+  const unsafeSemantic = unsafeReviews.find((review) => review?.kind === "semantic");
+
+  if (report?.noSpend !== true || report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade: expected no-spend/no-network guard smoke.");
+  }
+  if (report?.summary?.safeExitCode !== 0 || report?.summary?.safeStatus !== "pass") {
+    issues.push("$.summary.safe*: expected safe accepted review bundle to pass readiness.");
+  }
+  if (report?.summary?.unsafeExitCode !== 1 || report?.summary?.unsafeStatus !== "fail") {
+    issues.push("$.summary.unsafe*: expected unsafe review bundle to be rejected with failure.");
+  }
+  if (unsafeSemantic?.schemaValid !== false || unsafeSemantic?.accepted !== false) {
+    issues.push("$.unsafeReadiness.reviews[semantic]: expected unsafe semantic packet to be schema-invalid and not accepted.");
+  }
+  if (report?.summary?.canUseUnsafeAsAcceptedDirectorReviewEvidence !== false) {
+    issues.push("$.summary.canUseUnsafeAsAcceptedDirectorReviewEvidence: expected false.");
+  }
+  if (!safeReviews.every((review) => review?.present === true && review?.jsonValid === true && review?.schemaValid === true && review?.accepted === true)) {
+    issues.push("$.safeReadiness.reviews: expected every safe review to be present, schema-valid, and accepted.");
+  }
+  if (failedChecks.length > 0) {
+    issues.push("$.checks: guard smoke status pass requires zero failed checks.");
+  }
+  if (
+    report?.releaseGateSummary?.reviewEvidenceGuardPass !== true ||
+    report?.releaseGateSummary?.canUseAsAcceptedDirectorReviewEvidence !== false ||
+    report?.releaseGateSummary?.canClaimDirectorBenchParity !== false ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: guard smoke must pass while keeping accepted-review, parity, and customer-release claims false.");
+  }
+  if (/review\.example\.invalid|director_guard_secret|https?:\/\/(?!cinejelly\.local\/schemas)/i.test(publicPayload)) {
+    issues.push("$.publicPayload: guard smoke report must not echo the raw unsafe review URL or token-like text.");
   }
   return issues;
 }

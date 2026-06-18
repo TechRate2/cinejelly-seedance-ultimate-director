@@ -21,6 +21,29 @@ const reviewConfigs = [
     optionKey: "semanticReviewPath",
     schemaVersion: "cinejelly.director-style-semantic-review.v1",
     collectionKey: "metrics",
+    allowedTopLevelKeys: [
+      "schemaVersion",
+      "reviewerType",
+      "status",
+      "artifactBinding",
+      "reviewedShotCount",
+      "reviewedBoundaryCount",
+      "metrics",
+      "findings"
+    ],
+    allowedItemKeys: [
+      "metricName",
+      "status",
+      "reviewerType",
+      "score",
+      "likertScore",
+      "confidence",
+      "evidenceSummary",
+      "reviewedShotCount",
+      "reviewedBoundaryCount",
+      "findings"
+    ],
+    allowedReviewerTypes: ["manual", "vlm", "hybrid"],
     nameKeys: ["metricName", "metric", "id"],
     requiredNames: [
       "script_video_fidelity",
@@ -36,6 +59,29 @@ const reviewConfigs = [
     optionKey: "audioReviewPath",
     schemaVersion: "cinejelly.director-style-audio-review.v1",
     collectionKey: "metrics",
+    allowedTopLevelKeys: [
+      "schemaVersion",
+      "reviewerType",
+      "status",
+      "artifactBinding",
+      "reviewedSegmentCount",
+      "reviewedBoundaryCount",
+      "metrics",
+      "findings"
+    ],
+    allowedItemKeys: [
+      "metricName",
+      "status",
+      "reviewerType",
+      "score",
+      "likertScore",
+      "confidence",
+      "evidenceSummary",
+      "reviewedSegmentCount",
+      "reviewedBoundaryCount",
+      "findings"
+    ],
+    allowedReviewerTypes: ["manual", "asr", "waveform", "hybrid"],
     nameKeys: ["metricName", "metric", "id"],
     requiredNames: [
       "narration_reasonableness",
@@ -49,6 +95,29 @@ const reviewConfigs = [
     optionKey: "runtimeReviewPath",
     schemaVersion: "cinejelly.director-style-runtime-review.v1",
     collectionKey: "metrics",
+    allowedTopLevelKeys: [
+      "schemaVersion",
+      "reviewerType",
+      "status",
+      "artifactBinding",
+      "reviewedSegmentCount",
+      "reviewedBoundaryCount",
+      "metrics",
+      "findings"
+    ],
+    allowedItemKeys: [
+      "metricName",
+      "status",
+      "reviewerType",
+      "score",
+      "likertScore",
+      "confidence",
+      "evidenceSummary",
+      "reviewedSegmentCount",
+      "reviewedBoundaryCount",
+      "findings"
+    ],
+    allowedReviewerTypes: ["manual", "asr", "lip_sync", "hybrid"],
     nameKeys: ["metricName", "metric", "id"],
     requiredNames: [
       "asr_transcript_alignment",
@@ -61,6 +130,24 @@ const reviewConfigs = [
     schemaVersion: "cinejelly.director-style-governance-review.v1",
     collectionKey: "checks",
     fallbackCollectionKey: "metrics",
+    allowedTopLevelKeys: [
+      "schemaVersion",
+      "reviewerType",
+      "status",
+      "artifactBinding",
+      "reviewedAt",
+      "checks",
+      "findings"
+    ],
+    allowedItemKeys: [
+      "checkName",
+      "status",
+      "reviewerType",
+      "evidenceSummary",
+      "reviewedAt",
+      "findings"
+    ],
+    allowedReviewerTypes: ["operator", "legal", "product", "security", "hybrid"],
     nameKeys: ["checkName", "check", "metricName", "id"],
     requiredNames: [
       "directorbench_license_boundary",
@@ -213,7 +300,7 @@ function summarizeReview(config, path, expectedArtifactBinding) {
   if (read.error) {
     return emptyReview(config, path, "invalid_json", [`${config.kind} review JSON is invalid: ${read.error}.`], true);
   }
-  const value = read.value;
+    const value = read.value;
   if (!isRecord(value)) {
     return emptyReview(config, path, "invalid_shape", [`${config.kind} review must be a JSON object.`], true);
   }
@@ -235,7 +322,8 @@ function summarizeReview(config, path, expectedArtifactBinding) {
   const artifactBindingStatus = artifactBindingStatusFor(value.artifactBinding, expectedArtifactBinding);
   const topLevelStatus = normalizeStatus(value.status) ?? "missing";
   const schemaVersion = typeof value.schemaVersion === "string" ? value.schemaVersion : "missing";
-  const schemaValid = schemaVersion === config.schemaVersion && collection.length > 0;
+  const schemaIssues = reviewSchemaIssues(config, value, collection);
+  const schemaValid = schemaVersion === config.schemaVersion && collection.length > 0 && schemaIssues.length === 0;
   const accepted =
     schemaValid &&
     topLevelStatus === "accepted" &&
@@ -249,6 +337,7 @@ function summarizeReview(config, path, expectedArtifactBinding) {
   if (collection.length === 0) {
     issues.push(`${config.kind} review must contain ${config.collectionKey} evidence.`);
   }
+  issues.push(...schemaIssues);
   if (topLevelStatus !== "accepted") {
     issues.push(`${config.kind} review top-level status must be accepted.`);
   }
@@ -305,6 +394,9 @@ function statusFor({ paidRead, expectedArtifactBinding, reviews }) {
   if (paidRead.error || reviews.some((review) => review.present && !review.jsonValid)) {
     return "fail";
   }
+  if (reviews.some((review) => review.present && review.jsonValid && !review.schemaValid)) {
+    return "fail";
+  }
   if (!expectedArtifactBinding.complete || reviews.some((review) => review.present && review.artifactBindingStatus !== "matched")) {
     return "blocked_by_artifact_binding";
   }
@@ -315,6 +407,167 @@ function statusFor({ paidRead, expectedArtifactBinding, reviews }) {
     return "blocked_by_review_status";
   }
   return "pass";
+}
+
+function reviewSchemaIssues(config, value, collection) {
+  const issues = [];
+  const allowedTopLevelKeys = new Set(config.allowedTopLevelKeys);
+  const allowedItemKeys = new Set(config.allowedItemKeys);
+  const supportedNames = new Set(config.requiredNames);
+
+  for (const key of Object.keys(value)) {
+    if (!allowedTopLevelKeys.has(key)) {
+      issues.push(`${config.kind} review has unsupported top-level field ${key}.`);
+    }
+  }
+  if (value.schemaVersion !== config.schemaVersion) {
+    issues.push(`${config.kind} review schemaVersion must be ${config.schemaVersion}.`);
+  }
+  if (!config.allowedReviewerTypes.includes(value.reviewerType)) {
+    issues.push(`${config.kind} review reviewerType is unsupported.`);
+  }
+  if (value.status !== undefined && !normalizeStatus(value.status)) {
+    issues.push(`${config.kind} review status is unsupported.`);
+  }
+  issues.push(...artifactBindingShapeIssues(config.kind, value.artifactBinding));
+  issues.push(...countFieldIssues(config.kind, value, ["reviewedShotCount", "reviewedSegmentCount", "reviewedBoundaryCount"]));
+  if (value.reviewedAt !== undefined && !validDateTime(value.reviewedAt)) {
+    issues.push(`${config.kind} review reviewedAt must be a valid date-time string.`);
+  }
+  issues.push(...safeReviewTextArrayIssues(`${config.kind} review findings`, value.findings));
+
+  collection.forEach((item, index) => {
+    if (!isRecord(item)) {
+      issues.push(`${config.kind} review item ${index} must be an object.`);
+      return;
+    }
+    for (const key of Object.keys(item)) {
+      if (!allowedItemKeys.has(key)) {
+        issues.push(`${config.kind} review item ${index} has unsupported field ${key}.`);
+      }
+    }
+    const name = checkpointNameFor(item, config.nameKeys);
+    if (!name || !supportedNames.has(name)) {
+      issues.push(`${config.kind} review item ${index} has an unsupported checkpoint name.`);
+    }
+    if (item.status !== undefined && !normalizeStatus(item.status)) {
+      issues.push(`${config.kind} review item ${index} status is unsupported.`);
+    }
+    if (item.reviewerType !== undefined && !config.allowedReviewerTypes.includes(item.reviewerType)) {
+      issues.push(`${config.kind} review item ${index} reviewerType is unsupported.`);
+    }
+    if (typeof item.evidenceSummary !== "string" || !safeReviewText(item.evidenceSummary)) {
+      issues.push(`${config.kind} review item ${index} evidenceSummary must be safe bounded review text.`);
+    }
+    if (config.kind === "governance") {
+      if (item.status === undefined) {
+        issues.push(`${config.kind} review item ${index} must include status.`);
+      }
+    } else {
+      const hasScore = typeof item.score === "number";
+      const hasLikert = typeof item.likertScore === "number";
+      if (!hasScore && !hasLikert) {
+        issues.push(`${config.kind} review item ${index} must include score or likertScore.`);
+      }
+      if (hasScore && (item.score < 0 || item.score > 1 || !Number.isFinite(item.score))) {
+        issues.push(`${config.kind} review item ${index} score must be between 0 and 1.`);
+      }
+      if (hasLikert && (item.likertScore < 1 || item.likertScore > 5 || !Number.isFinite(item.likertScore))) {
+        issues.push(`${config.kind} review item ${index} likertScore must be between 1 and 5.`);
+      }
+      if (item.confidence !== undefined && (typeof item.confidence !== "number" || item.confidence < 0 || item.confidence > 1 || !Number.isFinite(item.confidence))) {
+        issues.push(`${config.kind} review item ${index} confidence must be between 0 and 1.`);
+      }
+    }
+    if (item.reviewedAt !== undefined && !validDateTime(item.reviewedAt)) {
+      issues.push(`${config.kind} review item ${index} reviewedAt must be a valid date-time string.`);
+    }
+    issues.push(...countFieldIssues(`${config.kind} review item ${index}`, item, ["reviewedShotCount", "reviewedSegmentCount", "reviewedBoundaryCount"]));
+    issues.push(...safeReviewTextArrayIssues(`${config.kind} review item ${index} findings`, item.findings));
+  });
+
+  return [...new Set(issues)];
+}
+
+function artifactBindingShapeIssues(kind, binding) {
+  if (binding === undefined) {
+    return [];
+  }
+  const issues = [];
+  if (!isRecord(binding)) {
+    return [`${kind} review artifactBinding must be an object when present.`];
+  }
+  for (const key of Object.keys(binding)) {
+    if (!["projectId", "requestId", "deliverableSha256"].includes(key)) {
+      issues.push(`${kind} review artifactBinding has unsupported field ${key}.`);
+    }
+  }
+  if (binding.projectId !== undefined && !safeIdentifier(binding.projectId)) {
+    issues.push(`${kind} review artifactBinding.projectId must be a safe identifier.`);
+  }
+  if (binding.requestId !== undefined && !safeIdentifier(binding.requestId)) {
+    issues.push(`${kind} review artifactBinding.requestId must be a safe identifier.`);
+  }
+  if (binding.deliverableSha256 !== undefined && !safeSha256(binding.deliverableSha256)) {
+    issues.push(`${kind} review artifactBinding.deliverableSha256 must be a SHA-256 digest.`);
+  }
+  return issues;
+}
+
+function countFieldIssues(label, value, names) {
+  const issues = [];
+  for (const name of names) {
+    if (value[name] !== undefined && (!Number.isSafeInteger(value[name]) || value[name] < 0)) {
+      issues.push(`${label} ${name} must be a non-negative integer.`);
+    }
+  }
+  return issues;
+}
+
+function safeReviewTextArrayIssues(label, value) {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    return [`${label} must be an array when present.`];
+  }
+  return value.flatMap((item, index) =>
+    typeof item === "string" && safeReviewText(item)
+      ? []
+      : [`${label}[${index}] must be safe bounded review text.`]
+  );
+}
+
+const unsafeReviewTextPatterns = [
+  /Bearer\s+[A-Za-z0-9._-]+/i,
+  /sk-[A-Za-z0-9_-]+/i,
+  /apikey-[A-Za-z0-9]{20,}/i,
+  /(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\s*[:=]\s*["']?[^"',\s&]+/i,
+  /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/i,
+  /[A-Za-z]:\\[^\s"'<>]+/,
+  /\/(?:home|Users|var|tmp)\/[^\s"'<>]+/,
+  /https?:\/\/[^\s"'<>]+/i,
+  /(?:file|s3|gs|ftp):\/\/[^\s"'<>]+/i,
+  /data:[^\s"'<>]+/i
+];
+
+function safeReviewText(value) {
+  return typeof value === "string" &&
+    value.trim().length >= 1 &&
+    value.length <= 500 &&
+    !unsafeReviewTextPatterns.some((pattern) => pattern.test(value));
+}
+
+function safeIdentifier(value) {
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,160}$/.test(value.trim());
+}
+
+function safeSha256(value) {
+  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value.trim());
+}
+
+function validDateTime(value) {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
 function nextActionsFor({ paidRead, expectedArtifactBinding, reviews, status }) {
