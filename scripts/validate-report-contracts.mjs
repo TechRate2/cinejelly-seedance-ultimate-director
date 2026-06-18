@@ -275,6 +275,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "business_readiness_audit") {
     return validateBusinessReadinessAuditSemantics(report);
   }
+  if (item.name === "business_readiness_plan") {
+    return validateBusinessReadinessPlanSemantics(report);
+  }
   if (item.name === "business_completion_audit") {
     return validateBusinessCompletionAuditSemantics(report);
   }
@@ -612,6 +615,133 @@ function validateBusinessReadinessAuditSemantics(report) {
   return issues;
 }
 
+function validateBusinessReadinessPlanSemantics(report) {
+  const issues = [];
+  const costPlan = report?.costPlan ?? {};
+  const longForm = costPlan.longForm ?? {};
+  const generatedAudio = costPlan.generatedAudio ?? {};
+  const budgetSlices = costPlan.budgetConstrainedSlices ?? {};
+  const slices = Array.isArray(budgetSlices.slices) ? budgetSlices.slices : [];
+  const sliceByName = new Map(slices.map((slice) => [slice?.name, slice]));
+  const requiredSliceNames = [
+    "generated_audio_smoke",
+    "long_form_120s_minimum",
+    "full_business_readiness_paid_sequence",
+    "source_video_auto_analysis"
+  ];
+
+  for (const name of requiredSliceNames) {
+    if (!sliceByName.has(name)) {
+      issues.push(`$.costPlan.budgetConstrainedSlices.slices: expected required paid slice '${name}'.`);
+    }
+  }
+
+  const duplicateSliceNames = duplicateStrings(slices.map((slice) => slice?.name).filter((name) => typeof name === "string"));
+  for (const name of duplicateSliceNames) {
+    issues.push(`$.costPlan.budgetConstrainedSlices.slices[name=${name}]: expected unique slice name.`);
+  }
+
+  const maxBudgetUsd = numberOrUndefined(costPlan.maxBudgetUsd);
+  const knownPaidEstimateUsd = numberOrUndefined(costPlan.knownPaidEstimateUsd);
+  if (!moneyEquals(budgetSlices.maxBudgetUsd, maxBudgetUsd)) {
+    issues.push("$.costPlan.budgetConstrainedSlices.maxBudgetUsd: expected to match costPlan.maxBudgetUsd.");
+  }
+  if (!moneyEquals(budgetSlices.knownPaidEstimateUsd, knownPaidEstimateUsd)) {
+    issues.push("$.costPlan.budgetConstrainedSlices.knownPaidEstimateUsd: expected to match costPlan.knownPaidEstimateUsd.");
+  }
+
+  const longFormEstimateAvailable = longForm.estimateAvailable === true;
+  const missingCostEstimateItems = Array.isArray(costPlan.missingCostEstimateItems)
+    ? costPlan.missingCostEstimateItems
+    : [];
+  if (costPlan.knownPaidEstimateComplete !== (missingCostEstimateItems.length === 0)) {
+    issues.push("$.costPlan.knownPaidEstimateComplete: expected to match missingCostEstimateItems length.");
+  }
+  if (longFormEstimateAvailable && missingCostEstimateItems.includes("long_form_paid_validation")) {
+    issues.push("$.costPlan.missingCostEstimateItems: did not expect long_form_paid_validation when longForm.estimateAvailable=true.");
+  }
+  if (!longFormEstimateAvailable && !missingCostEstimateItems.includes("long_form_paid_validation")) {
+    issues.push("$.costPlan.missingCostEstimateItems: expected long_form_paid_validation when longForm.estimateAvailable=false.");
+  }
+
+  const expectedBudgetFit = !longFormEstimateAvailable
+    ? "unknown"
+    : knownPaidEstimateUsd !== undefined && maxBudgetUsd !== undefined && knownPaidEstimateUsd <= maxBudgetUsd
+      ? "within_budget"
+      : "exceeds_budget";
+  if (costPlan.budgetFit !== expectedBudgetFit) {
+    issues.push(`$.costPlan.budgetFit: expected ${expectedBudgetFit} from long-form estimate availability and known paid estimate.`);
+  }
+  if (budgetSlices.fullKnownPaidSequenceWithinBudget !== (costPlan.budgetFit === "within_budget")) {
+    issues.push("$.costPlan.budgetConstrainedSlices.fullKnownPaidSequenceWithinBudget: expected true only when costPlan.budgetFit is within_budget.");
+  }
+
+  const generatedAudioSlice = sliceByName.get("generated_audio_smoke");
+  const generatedAudioEstimate = numberOrUndefined(generatedAudio.estimatedCostUsd);
+  const expectedGeneratedAudioStatus = statusForEstimate(generatedAudioEstimate, maxBudgetUsd);
+  if (generatedAudioSlice && generatedAudioSlice.status !== expectedGeneratedAudioStatus) {
+    issues.push(`$.costPlan.budgetConstrainedSlices.slices[name=generated_audio_smoke].status: expected ${expectedGeneratedAudioStatus}.`);
+  }
+  if (generatedAudioSlice && !moneyEquals(generatedAudioSlice.estimatedCostUsd, generatedAudioEstimate)) {
+    issues.push("$.costPlan.budgetConstrainedSlices.slices[name=generated_audio_smoke].estimatedCostUsd: expected to match generatedAudio.estimatedCostUsd.");
+  }
+
+  const longFormSlice = sliceByName.get("long_form_120s_minimum");
+  const longFormEstimate = numberOrUndefined(longForm.estimatedCostUsd);
+  const expectedLongFormStatus = longFormEstimateAvailable ? statusForEstimate(longFormEstimate, maxBudgetUsd) : "unknown_cost";
+  if (longFormSlice && longFormSlice.status !== expectedLongFormStatus) {
+    issues.push(`$.costPlan.budgetConstrainedSlices.slices[name=long_form_120s_minimum].status: expected ${expectedLongFormStatus}.`);
+  }
+  if (longFormEstimateAvailable && longFormSlice && !moneyEquals(longFormSlice.estimatedCostUsd, longFormEstimate)) {
+    issues.push("$.costPlan.budgetConstrainedSlices.slices[name=long_form_120s_minimum].estimatedCostUsd: expected to match longForm.estimatedCostUsd.");
+  }
+  if (!longFormEstimateAvailable && longFormSlice && "estimatedCostUsd" in longFormSlice) {
+    issues.push("$.costPlan.budgetConstrainedSlices.slices[name=long_form_120s_minimum].estimatedCostUsd: expected absent when long-form estimate is unavailable.");
+  }
+
+  const fullSequenceSlice = sliceByName.get("full_business_readiness_paid_sequence");
+  const expectedFullSequenceStatus = costPlan.budgetFit === "unknown"
+    ? "unknown_cost"
+    : costPlan.budgetFit === "within_budget"
+      ? "within_budget"
+      : "blocked_by_budget";
+  if (fullSequenceSlice && fullSequenceSlice.status !== expectedFullSequenceStatus) {
+    issues.push(`$.costPlan.budgetConstrainedSlices.slices[name=full_business_readiness_paid_sequence].status: expected ${expectedFullSequenceStatus}.`);
+  }
+  if (costPlan.budgetFit === "unknown" && fullSequenceSlice && "estimatedCostUsd" in fullSequenceSlice) {
+    issues.push("$.costPlan.budgetConstrainedSlices.slices[name=full_business_readiness_paid_sequence].estimatedCostUsd: expected absent when full sequence estimate is incomplete.");
+  }
+  if (costPlan.budgetFit !== "unknown" && fullSequenceSlice && !moneyEquals(fullSequenceSlice.estimatedCostUsd, knownPaidEstimateUsd)) {
+    issues.push("$.costPlan.budgetConstrainedSlices.slices[name=full_business_readiness_paid_sequence].estimatedCostUsd: expected to match knownPaidEstimateUsd when estimate is complete.");
+  }
+
+  const sourceVideoSlice = sliceByName.get("source_video_auto_analysis");
+  if (sourceVideoSlice && sourceVideoSlice.status !== "unknown_cost") {
+    issues.push("$.costPlan.budgetConstrainedSlices.slices[name=source_video_auto_analysis].status: expected unknown_cost until operator approves a source-video LLM budget.");
+  }
+
+  const paidSteps = Array.isArray(report?.validationSequence)
+    ? report.validationSequence.filter((step) => typeof step?.kind === "string" && step.kind.startsWith("paid_"))
+    : [];
+  const readyPaidSteps = paidSteps.filter((step) => step?.status === "ready");
+  const readyPaidGates = Array.isArray(report?.releaseGateSummary?.readyPaidGates)
+    ? report.releaseGateSummary.readyPaidGates
+    : [];
+  if (Number(report?.releaseGateSummary?.readyPaidGateCount ?? -1) !== readyPaidGates.length) {
+    issues.push("$.releaseGateSummary.readyPaidGateCount: expected to equal releaseGateSummary.readyPaidGates length.");
+  }
+  if (report?.releaseGateSummary?.canRunSomePaidValidationNow !== (readyPaidSteps.length > 0)) {
+    issues.push("$.releaseGateSummary.canRunSomePaidValidationNow: expected to match ready paid validation steps.");
+  }
+  if (readyPaidGates.length !== readyPaidSteps.length || readyPaidSteps.some((step) => !readyPaidGates.includes(step.name))) {
+    issues.push("$.releaseGateSummary.readyPaidGates: expected to list exactly the ready paid validation steps.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false because the business plan is no-spend planning evidence only.");
+  }
+  return issues;
+}
+
 function businessReadinessStatusForChecks(checks) {
   if (checks.some((check) => check?.status === "fail")) {
     return "blocked";
@@ -645,6 +775,38 @@ function compareCountMap(path, actual, expected) {
     }
   }
   return issues;
+}
+
+function numberOrUndefined(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function moneyEquals(left, right) {
+  const normalizedLeft = numberOrUndefined(left);
+  const normalizedRight = numberOrUndefined(right);
+  if (normalizedLeft === undefined || normalizedRight === undefined) {
+    return normalizedLeft === normalizedRight;
+  }
+  return Math.abs(normalizedLeft - normalizedRight) < 0.000001;
+}
+
+function statusForEstimate(estimateUsd, maxBudgetUsd) {
+  if (estimateUsd === undefined || maxBudgetUsd === undefined) {
+    return "unknown_cost";
+  }
+  return estimateUsd <= maxBudgetUsd ? "within_budget" : "blocked_by_budget";
+}
+
+function duplicateStrings(values) {
+  const seen = new Set();
+  const duplicates = new Set();
+  for (const value of values) {
+    if (seen.has(value)) {
+      duplicates.add(value);
+    }
+    seen.add(value);
+  }
+  return [...duplicates];
 }
 
 function validateDirectorStyleBenchmarkSemantics(report) {

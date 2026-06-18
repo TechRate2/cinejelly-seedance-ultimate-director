@@ -532,6 +532,10 @@ function buildCostPlan(options) {
     renderCostUsdPerSecond === undefined
       ? undefined
       : Number((options.longFormDurationSeconds * renderCostUsdPerSecond * costBufferMultiplier).toFixed(6));
+  const missingCostEstimateItems = [
+    ...(longFormEstimate === undefined ? ["long_form_paid_validation"] : [])
+  ];
+  const knownPaidEstimateComplete = missingCostEstimateItems.length === 0;
   const audioRate = numberFromEnv("ATLASCLOUD_GENERATED_AUDIO_COST_USD_PER_1K_CHARS") ?? 0.015;
   const generatedAudioEstimate = Number(((options.generatedAudioText.length / 1000) * audioRate).toFixed(6));
   const knownPaidEstimateUsd = Number(
@@ -552,6 +556,8 @@ function buildCostPlan(options) {
   return {
     maxBudgetUsd: options.maxBudgetUsd,
     knownPaidEstimateUsd,
+    knownPaidEstimateComplete,
+    missingCostEstimateItems,
     budgetFit: longFormEstimate === undefined
       ? "unknown"
       : knownPaidEstimateUsd <= options.maxBudgetUsd
@@ -591,6 +597,9 @@ function buildBudgetConstrainedSlices({
   generatedAudioText,
   generatedAudioCostUsdPer1kChars
 }) {
+  const fullKnownPaidEstimateUsd = typeof longFormEstimate === "number" && Number.isFinite(longFormEstimate)
+    ? knownPaidEstimateUsd
+    : undefined;
   const slices = [
     budgetSlice({
       name: "generated_audio_smoke",
@@ -646,11 +655,11 @@ function buildBudgetConstrainedSlices({
     budgetSlice({
       name: "full_business_readiness_paid_sequence",
       kind: "paid_atlas_full_sequence",
-      estimatedCostUsd: knownPaidEstimateUsd,
+      estimatedCostUsd: fullKnownPaidEstimateUsd,
       maxBudgetUsd,
       billingReadinessCommand: atlasBillingSliceCommand({
-        maxBudgetUsd: knownPaidEstimateUsd,
-        plannedCostUsd: knownPaidEstimateUsd,
+        maxBudgetUsd: fullKnownPaidEstimateUsd,
+        plannedCostUsd: fullKnownPaidEstimateUsd,
         outputPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json"
       }),
       command: "Run the no-spend/live-network gates, then execute the ready paid Atlas validations in sequence.",
@@ -688,7 +697,7 @@ function buildBudgetConstrainedSlices({
   return {
     maxBudgetUsd,
     knownPaidEstimateUsd,
-    fullKnownPaidSequenceWithinBudget: knownPaidEstimateUsd <= maxBudgetUsd,
+    fullKnownPaidSequenceWithinBudget: fullKnownPaidEstimateUsd !== undefined && fullKnownPaidEstimateUsd <= maxBudgetUsd,
     recommendedSliceName: affordableKnownCostSlices[0]?.name,
     slices
   };

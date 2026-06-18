@@ -85,15 +85,83 @@
       "required": [
         "maxBudgetUsd",
         "knownPaidEstimateUsd",
+        "knownPaidEstimateComplete",
+        "missingCostEstimateItems",
         "budgetFit",
         "longForm",
         "generatedAudio",
+        "budgetConstrainedSlices",
         "unknownCostItems"
       ],
       "properties": {
         "maxBudgetUsd": { "type": "number", "minimum": 0 },
         "knownPaidEstimateUsd": { "type": "number", "minimum": 0 },
+        "knownPaidEstimateComplete": { "type": "boolean" },
+        "missingCostEstimateItems": { "type": "array", "items": { "type": "string" } },
         "budgetFit": { "enum": ["within_budget", "exceeds_budget", "unknown"] },
+        "longForm": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["durationSeconds", "costBufferMultiplier", "estimateAvailable", "withinBudget"],
+          "properties": {
+            "durationSeconds": { "type": "integer", "minimum": 120, "maximum": 480 },
+            "renderCostUsdPerSecond": { "type": "number", "minimum": 0 },
+            "costBufferMultiplier": { "type": "number", "minimum": 0 },
+            "estimateAvailable": { "type": "boolean" },
+            "estimatedCostUsd": { "type": "number", "minimum": 0 },
+            "withinBudget": { "type": "boolean" },
+            "minimumBudgetUsdToRun": { "type": "number", "minimum": 0 }
+          }
+        },
+        "generatedAudio": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["textCharacterCount", "costUsdPer1kChars", "estimatedCostUsd", "withinBudget"],
+          "properties": {
+            "textCharacterCount": { "type": "integer", "minimum": 0 },
+            "costUsdPer1kChars": { "type": "number", "minimum": 0 },
+            "estimatedCostUsd": { "type": "number", "minimum": 0 },
+            "withinBudget": { "type": "boolean" }
+          }
+        },
+        "budgetConstrainedSlices": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maxBudgetUsd", "knownPaidEstimateUsd", "fullKnownPaidSequenceWithinBudget", "slices"],
+          "properties": {
+            "maxBudgetUsd": { "type": "number", "minimum": 0 },
+            "knownPaidEstimateUsd": { "type": "number", "minimum": 0 },
+            "fullKnownPaidSequenceWithinBudget": { "type": "boolean" },
+            "recommendedSliceName": { "type": "string" },
+            "slices": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "kind", "status", "maxBudgetUsd", "command", "prerequisites", "limitations"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "kind": {
+                    "enum": [
+                      "paid_atlas_audio",
+                      "paid_atlas_video",
+                      "paid_atlas_full_sequence",
+                      "paid_atlas_llm_and_source_fetch"
+                    ]
+                  },
+                  "status": { "enum": ["within_budget", "blocked_by_budget", "unknown_cost"] },
+                  "maxBudgetUsd": { "type": "number", "minimum": 0 },
+                  "estimatedCostUsd": { "type": "number", "minimum": 0 },
+                  "billingReadinessCommand": { "type": "string" },
+                  "command": { "type": "string" },
+                  "prerequisites": { "type": "array", "items": { "type": "string" } },
+                  "limitations": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
         "unknownCostItems": { "type": "array", "items": { "type": "string" } }
       }
     },
