@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type {
+  DirectorStyleBenchmarkAudioVideoSyncSignals,
   DirectorStyleBenchmarkAudioWaveformSignals,
   DirectorStyleBenchmarkMediaEvidence,
   DirectorStyleBenchmarkMediaStreamEvidence,
@@ -96,7 +97,18 @@ export async function collectDirectorStyleMediaEvidence(
         ...(options.signal ? { signal: options.signal } : {})
       })
     : undefined;
-  const findings = [...delivery.findings, ...(audioWaveformSignals?.findings ?? [])];
+  const audioVideoSyncSignals = delivery.audio.hasAudio
+    ? audioVideoSyncSignalsFromMetadata({
+        ...(metadata.durationSeconds !== undefined ? { containerDurationSeconds: metadata.durationSeconds } : {}),
+        ...(videoStream?.durationSeconds !== undefined ? { videoDurationSeconds: videoStream.durationSeconds } : {}),
+        ...(delivery.audio.durationSeconds !== undefined ? { audioDurationSeconds: delivery.audio.durationSeconds } : {})
+      })
+    : undefined;
+  const findings = [
+    ...delivery.findings,
+    ...(audioWaveformSignals?.findings ?? []),
+    ...(audioVideoSyncSignals?.findings ?? [])
+  ];
   const baseEvidence = {
     ...common,
     sizeBytes,
@@ -110,7 +122,8 @@ export async function collectDirectorStyleMediaEvidence(
       ...(delivery.audio.sampleRate !== undefined ? { sampleRate: delivery.audio.sampleRate } : {}),
       ...(delivery.audio.channelCount !== undefined ? { channelCount: delivery.audio.channelCount } : {}),
       ...(delivery.audio.durationSeconds !== undefined ? { durationSeconds: round(delivery.audio.durationSeconds) } : {}),
-      ...(audioWaveformSignals ? { waveformSignals: audioWaveformSignals } : {})
+      ...(audioWaveformSignals ? { waveformSignals: audioWaveformSignals } : {}),
+      ...(audioVideoSyncSignals ? { audioVideoSyncSignals } : {})
     },
     findings
   } satisfies Omit<DirectorStyleBenchmarkMediaEvidence, "status">;
@@ -255,6 +268,47 @@ async function audioWaveformSignalsFromMedia(input: {
   }
 }
 
+function audioVideoSyncSignalsFromMetadata(input: {
+  readonly containerDurationSeconds?: number;
+  readonly videoDurationSeconds?: number;
+  readonly audioDurationSeconds?: number;
+}): DirectorStyleBenchmarkAudioVideoSyncSignals {
+  const videoDurationSeconds = input.videoDurationSeconds ?? input.containerDurationSeconds;
+  const audioDurationSeconds = input.audioDurationSeconds;
+  if (videoDurationSeconds === undefined || audioDurationSeconds === undefined) {
+    return {
+      status: "unavailable",
+      analyzer: "ffprobe_duration_delta",
+      ...(input.containerDurationSeconds !== undefined ? { containerDurationSeconds: round(input.containerDurationSeconds) } : {}),
+      ...(videoDurationSeconds !== undefined ? { videoDurationSeconds: round(videoDurationSeconds) } : {}),
+      ...(audioDurationSeconds !== undefined ? { audioDurationSeconds: round(audioDurationSeconds) } : {}),
+      findings: ["Audio/video duration alignment could not be computed because FFprobe did not expose both stream durations."]
+    };
+  }
+
+  const durationDeltaSeconds = round(Math.abs(videoDurationSeconds - audioDurationSeconds));
+  const durationDeltaRatio = round(durationDeltaSeconds / Math.max(videoDurationSeconds, audioDurationSeconds, 0.001));
+  const durationAlignmentScore = durationAlignmentScoreForDelta(durationDeltaSeconds, durationDeltaRatio);
+  const findings = [
+    `Audio/video duration proxy compared FFprobe stream durations; delta=${durationDeltaSeconds}s, ratio=${durationDeltaRatio}.`
+  ];
+  if (durationDeltaSeconds > 1.5 || durationDeltaRatio > 0.08) {
+    findings.push("Audio and video durations differ enough to require manual sync review.");
+  }
+
+  return {
+    status: "analyzed",
+    analyzer: "ffprobe_duration_delta",
+    ...(input.containerDurationSeconds !== undefined ? { containerDurationSeconds: round(input.containerDurationSeconds) } : {}),
+    videoDurationSeconds: round(videoDurationSeconds),
+    audioDurationSeconds: round(audioDurationSeconds),
+    durationDeltaSeconds,
+    durationDeltaRatio,
+    durationAlignmentScore,
+    findings
+  };
+}
+
 async function visualSignalsFromSamples(
   samples: readonly FrameSample[],
   workDirectory: string,
@@ -363,6 +417,19 @@ function audioSignalPresenceScore(meanVolumeDb: number | undefined, maxVolumeDb:
     0.56;
   const clippingPenalty = maxVolumeDb !== undefined && maxVolumeDb > -0.3 ? 0.12 : 0;
   return round(clamp01(meanScore - clippingPenalty));
+}
+
+function durationAlignmentScoreForDelta(deltaSeconds: number, deltaRatio: number): number {
+  if (deltaSeconds <= 0.25 && deltaRatio <= 0.01) {
+    return 0.92;
+  }
+  if (deltaSeconds <= 0.75 && deltaRatio <= 0.03) {
+    return 0.82;
+  }
+  if (deltaSeconds <= 1.5 && deltaRatio <= 0.08) {
+    return 0.66;
+  }
+  return 0.42;
 }
 
 async function transitionSignalsFromMedia(input: {

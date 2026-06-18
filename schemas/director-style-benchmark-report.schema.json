@@ -184,6 +184,22 @@
         "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }
     },
+    "audioVideoSyncSignals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "analyzer", "findings"],
+      "properties": {
+        "status": { "enum": ["analyzed", "unavailable"] },
+        "analyzer": { "const": "ffprobe_duration_delta" },
+        "containerDurationSeconds": { "type": "number", "minimum": 0 },
+        "videoDurationSeconds": { "type": "number", "minimum": 0 },
+        "audioDurationSeconds": { "type": "number", "minimum": 0 },
+        "durationDeltaSeconds": { "type": "number", "minimum": 0 },
+        "durationDeltaRatio": { "type": "number", "minimum": 0 },
+        "durationAlignmentScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "findings": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
     "audioMediaEvidence": {
       "type": "object",
       "additionalProperties": false,
@@ -194,7 +210,8 @@
         "sampleRate": { "type": "integer", "minimum": 1 },
         "channelCount": { "type": "integer", "minimum": 1 },
         "durationSeconds": { "type": "number", "minimum": 0 },
-        "waveformSignals": { "$ref": "#/$defs/audioWaveformSignals" }
+        "waveformSignals": { "$ref": "#/$defs/audioWaveformSignals" },
+        "audioVideoSyncSignals": { "$ref": "#/$defs/audioVideoSyncSignals" }
       }
     },
     "visualSignals": {

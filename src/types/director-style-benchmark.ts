@@ -98,6 +98,18 @@ export interface DirectorStyleBenchmarkAudioWaveformSignals {
   readonly findings: readonly string[];
 }
 
+export interface DirectorStyleBenchmarkAudioVideoSyncSignals {
+  readonly status: "analyzed" | "unavailable";
+  readonly analyzer: "ffprobe_duration_delta";
+  readonly containerDurationSeconds?: number;
+  readonly videoDurationSeconds?: number;
+  readonly audioDurationSeconds?: number;
+  readonly durationDeltaSeconds?: number;
+  readonly durationDeltaRatio?: number;
+  readonly durationAlignmentScore?: number;
+  readonly findings: readonly string[];
+}
+
 export interface DirectorStyleBenchmarkAudioMediaEvidence {
   readonly hasAudio: boolean;
   readonly codecName?: string;
@@ -105,6 +117,7 @@ export interface DirectorStyleBenchmarkAudioMediaEvidence {
   readonly channelCount?: number;
   readonly durationSeconds?: number;
   readonly waveformSignals?: DirectorStyleBenchmarkAudioWaveformSignals;
+  readonly audioVideoSyncSignals?: DirectorStyleBenchmarkAudioVideoSyncSignals;
 }
 
 export interface DirectorStyleBenchmarkVisualSignals {
