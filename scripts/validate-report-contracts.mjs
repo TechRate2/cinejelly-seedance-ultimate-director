@@ -427,6 +427,39 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
     issues.push("$.readinessSnapshot.qualityReviewEvidenceStatus: expected a refreshed review-evidence status, not missing/skipped.");
   }
 
+  const scopeSummary = report?.commercialOfferScopeSummary;
+  if (!scopeSummary || typeof scopeSummary !== "object") {
+    issues.push("$.commercialOfferScopeSummary: expected commercial offer scope summary from completion audit.");
+  } else {
+    if (scopeSummary.launchIntakeStatus !== report?.reportSummaries?.launchIntake?.status) {
+      issues.push("$.commercialOfferScopeSummary.launchIntakeStatus: expected to match reportSummaries.launchIntake.status.");
+    }
+    if (report?.readinessSnapshot?.commercialOfferScopeStatus !== scopeSummary.status) {
+      issues.push("$.readinessSnapshot.commercialOfferScopeStatus: expected to match commercialOfferScopeSummary.status.");
+    }
+    if (report?.releaseGateSummary?.commercialOfferScopeStatus !== scopeSummary.status) {
+      issues.push("$.releaseGateSummary.commercialOfferScopeStatus: expected to match commercialOfferScopeSummary.status.");
+    }
+    if (report?.readinessSnapshot?.commercialOfferScopeConfigured !== scopeSummary.configured) {
+      issues.push("$.readinessSnapshot.commercialOfferScopeConfigured: expected to match commercialOfferScopeSummary.configured.");
+    }
+    if (report?.readinessSnapshot?.commercialOfferScopeDecisionRequired !== scopeSummary.scopeDecisionRequired) {
+      issues.push("$.readinessSnapshot.commercialOfferScopeDecisionRequired: expected to match commercialOfferScopeSummary.scopeDecisionRequired.");
+    }
+    if (report?.readinessSnapshot?.commercialOfferBlocksApiCliCommercialLaunch !== scopeSummary.blocksApiCliCommercialLaunch) {
+      issues.push("$.readinessSnapshot.commercialOfferBlocksApiCliCommercialLaunch: expected to match commercialOfferScopeSummary.blocksApiCliCommercialLaunch.");
+    }
+    if (report?.releaseGateSummary?.commercialOfferBlocksApiCliCommercialLaunch !== scopeSummary.blocksApiCliCommercialLaunch) {
+      issues.push("$.releaseGateSummary.commercialOfferBlocksApiCliCommercialLaunch: expected to match commercialOfferScopeSummary.blocksApiCliCommercialLaunch.");
+    }
+    if (scopeSummary.status === "api_cli_only_scoped" && scopeSummary.blocksApiCliCommercialLaunch !== false) {
+      issues.push("$.commercialOfferScopeSummary.blocksApiCliCommercialLaunch: expected false for API/CLI-only commercial scope.");
+    }
+    if (scopeSummary.status === "first_party_web_ui_required" && scopeSummary.blocksApiCliCommercialLaunch !== true) {
+      issues.push("$.commercialOfferScopeSummary.blocksApiCliCommercialLaunch: expected true when first-party Web UI is required before customer traffic.");
+    }
+  }
+
   const providerGraphResumeRun = commandByName.get("provider_graph_resume");
   if (providerGraphResumeRun?.status !== "pass") {
     issues.push("$.commandRuns[provider_graph_resume].status: expected pass for no-spend graph-resume enqueue evidence command.");

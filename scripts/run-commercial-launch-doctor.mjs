@@ -419,6 +419,7 @@ function buildReport(options, commandRuns) {
   const knownCodeBlockingIssueCount = Number(completion?.codeWorkSummary?.knownCodeBlockingIssueCount ?? 0) + codeBlockingRuns.length;
   const canReleaseToCustomerTraffic = business?.releaseGateSummary?.canReleaseToCustomerTraffic === true;
   const readyForLiveEvidence = completion?.status === "ready_for_live_evidence_sequence";
+  const commercialOfferScopeSummary = buildCommercialOfferScopeSummary(completion, reportSummaries.launchIntake);
   const status = statusFor({
     canReleaseToCustomerTraffic,
     readyForLiveEvidence,
@@ -448,6 +449,7 @@ function buildReport(options, commandRuns) {
     },
     commandRuns,
     reportSummaries: summarizeSourceReports(reportSummaries),
+    commercialOfferScopeSummary,
     readinessSnapshot: {
       evidenceCompletionPercent: numberOrZero(business?.completion?.evidenceCompletionPercent ?? completion?.readinessSnapshot?.evidenceCompletionPercent),
       businessReadinessStatus: reportSummaries.businessReadiness.status,
@@ -477,6 +479,12 @@ function buildReport(options, commandRuns) {
       opsConfigStatus: reportSummaries.opsConfig.status,
       liveInputsStatus: reportSummaries.liveInputs.status,
       launchIntakeStatus: reportSummaries.launchIntake.status,
+      commercialOfferScopeStatus: commercialOfferScopeSummary.status,
+      commercialOfferScopeConfigured: commercialOfferScopeSummary.configured,
+      ...(commercialOfferScopeSummary.productSurface ? { commercialOfferProductSurface: commercialOfferScopeSummary.productSurface } : {}),
+      uiRequiredBeforeCustomerTraffic: commercialOfferScopeSummary.uiRequiredBeforeCustomerTraffic,
+      commercialOfferScopeDecisionRequired: commercialOfferScopeSummary.scopeDecisionRequired,
+      commercialOfferBlocksApiCliCommercialLaunch: commercialOfferScopeSummary.blocksApiCliCommercialLaunch,
       readyPaidGates,
       readyPaidGateCount: readyPaidGates.length,
       approvedBudgetUsd: numberOrUndefined(completion?.readinessSnapshot?.budget?.approvedBudgetUsd ?? reportSummaries.businessPlan.value?.costPlan?.maxBudgetUsd),
@@ -520,9 +528,42 @@ function buildReport(options, commandRuns) {
         business?.releaseGateSummary?.shouldDeferFullSequenceSpend ??
         true,
       knownCodeBlockingIssueCount,
+      commercialOfferScopeStatus: commercialOfferScopeSummary.status,
+      commercialOfferBlocksApiCliCommercialLaunch: commercialOfferScopeSummary.blocksApiCliCommercialLaunch,
       releaseBlocker: releaseBlockerFor({ status, knownCodeBlockingIssueCount, completion, business })
     },
     nextActions
+  };
+}
+
+function buildCommercialOfferScopeSummary(completion, launchIntakeSummary) {
+  const completionSummary = completion?.commercialOfferScopeSummary;
+  if (completionSummary && typeof completionSummary === "object") {
+    return {
+      launchIntakePresent: completionSummary.launchIntakePresent === true,
+      launchIntakeStatus: String(completionSummary.launchIntakeStatus ?? launchIntakeSummary.status),
+      configured: completionSummary.configured === true,
+      status: String(completionSummary.status ?? "scope_decision_pending"),
+      ...(typeof completionSummary.productSurface === "string" ? { productSurface: completionSummary.productSurface } : {}),
+      uiRequiredBeforeCustomerTraffic: completionSummary.uiRequiredBeforeCustomerTraffic === true,
+      scopeDecisionRequired: completionSummary.scopeDecisionRequired !== false,
+      blocksApiCliCommercialLaunch: completionSummary.blocksApiCliCommercialLaunch === true,
+      blocksFullSnapshotParity: completionSummary.blocksFullSnapshotParity !== false,
+      sourceReport: String(completionSummary.sourceReport ?? launchIntakeSummary.path),
+      message: String(completionSummary.message ?? "Commercial offer scope is summarized from completion audit.")
+    };
+  }
+  return {
+    launchIntakePresent: launchIntakeSummary.present === true,
+    launchIntakeStatus: launchIntakeSummary.status,
+    configured: false,
+    status: launchIntakeSummary.present === true ? "scope_decision_pending" : "missing_launch_intake_report",
+    uiRequiredBeforeCustomerTraffic: false,
+    scopeDecisionRequired: true,
+    blocksApiCliCommercialLaunch: false,
+    blocksFullSnapshotParity: true,
+    sourceReport: launchIntakeSummary.path,
+    message: "Commercial offer scope is unavailable from completion audit; rerun validation:completion-audit after validation:launch-intake."
   };
 }
 
@@ -665,9 +706,19 @@ function renderMarkdown(report) {
     `- Report contracts: ${report.readinessSnapshot.reportContractsStatus}`,
     `- Ops config: ${report.readinessSnapshot.opsConfigStatus}`,
     `- Launch intake: ${report.readinessSnapshot.launchIntakeStatus}`,
+    `- Commercial offer scope: ${report.readinessSnapshot.commercialOfferScopeStatus}`,
     `- Approved budget: ${formatUsd(report.readinessSnapshot.approvedBudgetUsd)}`,
     `- Known paid estimate: ${formatUsd(report.readinessSnapshot.knownPaidEstimateUsd)}`,
     `- Ready paid gates: ${report.readinessSnapshot.readyPaidGates.length === 0 ? "none" : report.readinessSnapshot.readyPaidGates.join(", ")}`,
+    "",
+    "## Commercial Offer Scope",
+    "",
+    `- Status: ${report.commercialOfferScopeSummary.status}`,
+    `- Configured: ${report.commercialOfferScopeSummary.configured}`,
+    `- Product surface: ${report.commercialOfferScopeSummary.productSurface ?? "not_decided"}`,
+    `- UI required before customer traffic: ${report.commercialOfferScopeSummary.uiRequiredBeforeCustomerTraffic}`,
+    `- Blocks API/CLI commercial launch: ${report.commercialOfferScopeSummary.blocksApiCliCommercialLaunch}`,
+    `- ${report.commercialOfferScopeSummary.message}`,
     "",
     "## Code-Side Status",
     "",
@@ -688,6 +739,8 @@ function renderMarkdown(report) {
     `- canRunLiveNetworkEvidence: ${report.releaseGateSummary.canRunLiveNetworkEvidence}`,
     `- canRunGeneratedAudioPaidSlice: ${report.releaseGateSummary.canRunGeneratedAudioPaidSlice}`,
     `- canRunFullKnownPaidSequence: ${report.releaseGateSummary.canRunFullKnownPaidSequence}`,
+    `- commercialOfferScopeStatus: ${report.releaseGateSummary.commercialOfferScopeStatus}`,
+    `- commercialOfferBlocksApiCliCommercialLaunch: ${report.releaseGateSummary.commercialOfferBlocksApiCliCommercialLaunch}`,
     `- shouldDeferFullSequenceSpend: ${report.releaseGateSummary.shouldDeferFullSequenceSpend}`,
     `- ${report.releaseGateSummary.releaseBlocker}`,
     "",

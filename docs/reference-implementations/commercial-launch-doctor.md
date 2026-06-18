@@ -30,6 +30,7 @@ It may:
 - refresh local provider reconciliation, handoff, external-lease, protected lease-service, action-ledger, multi-worker handoff smoke evidence, live provider action evidence status, and graph-resume enqueue payload evidence status
 - refresh the no-spend Director-style quality benchmark, review-evidence guard smoke, and accepted review-evidence readiness gate
 - refresh local JSON/Markdown readiness reports
+- surface the commercial offer scope summary from completion-audit so operators can see whether first-party Web UI is still undecided, scoped out for API/CLI-only launch, or required before customer traffic
 - run report-contract validation
 - summarize external/operator blockers
 
@@ -73,6 +74,7 @@ Because the doctor rewrites its own report before and after contract refreshes, 
 - `npm.cmd run validation:launch-doctor` writes a JSON report and a Markdown report.
 - The JSON report uses schema version `cinejelly.commercial-launch-doctor.v1`.
 - The report includes command runs, source report statuses, readiness snapshot, code-side status, blocker summary, release gate, and next actions.
+- The report includes `commercialOfferScopeSummary` plus matching readiness/release-gate scope flags sourced from the refreshed completion audit.
 - The readiness snapshot includes the current Director-style quality benchmark status, review-evidence guard status, and accepted review-evidence readiness status.
 - The readiness snapshot includes current snapshot parity guardrail status.
 - The readiness snapshot includes the current provider reconciliation/handoff smoke statuses when those smokes are enabled.
