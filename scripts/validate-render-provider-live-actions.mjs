@@ -114,7 +114,7 @@ Options:
 This validator reads local JSON evidence only. It never calls Atlas, deployment hosts, provider APIs, render routes, or billing systems.`);
 }
 
-function main() {
+async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
     printHelp();
@@ -157,6 +157,7 @@ function main() {
       : fail("all_live_actions_redaction_reviewed", "Every live action evidence item must set redactionReviewed=true.")
   ];
   const status = statusFor({ evidenceRead, checks, confirmLiveProviderActions: options.confirmLiveProviderActions });
+  const graphResumeEvidencePass = status === "pass" && evidenceExecutions.graphResumeEvidenceCount > 0;
   const report = {
     schemaVersion: "cinejelly.render-provider-live-actions.v1",
     generatedAt: new Date().toISOString(),
@@ -177,6 +178,7 @@ function main() {
       productionHandoffStatus: String(handoffRead.value?.status ?? "missing"),
       productionHandoffUsable: handoffRead.value?.releaseGateSummary?.canUseAsProductionHandoffEvidence === true,
       canUseAsLiveProviderActionEvidence: status === "pass",
+      canUseAsGraphResumeEvidence: graphResumeEvidencePass,
       canClaimDistributedResume: false
     },
     evidence: publicEvidenceSummary(evidenceRead.value),
@@ -186,14 +188,17 @@ function main() {
     checks,
     releaseGateSummary: {
       liveProviderActionEvidencePass: status === "pass",
-      canUseAsDistributedResumeEvidence: status === "pass",
+      graphResumeEvidencePass,
+      canUseAsDistributedResumeEvidence: graphResumeEvidencePass,
       canClaimDistributedResume: false,
       canReleaseToCustomerTraffic: false,
       releaseBlocker: status === "pass"
-        ? "Live provider action evidence is archived, but distributed resume still requires deployed multi-worker graph resume proof and the full business-readiness gate."
+        ? graphResumeEvidencePass
+          ? "Live provider action and graph-resume enqueue evidence are archived, but distributed resume still requires deployed multi-worker ownership proof and the full business-readiness gate."
+          : "Live provider action evidence is archived, but graph-resume enqueue evidence, deployed multi-worker ownership proof, and the full business-readiness gate are still required."
         : "Live provider action evidence is missing, unconfirmed, or incomplete."
     },
-    nextActions: nextActionsFor({ status, checks, options })
+    nextActions: nextActionsFor({ status, checks, options, graphResumeEvidencePass })
   };
 
   if (options.writeReport) {
@@ -339,6 +344,7 @@ function summarizeExecutions(executions) {
     evidenceExecutionCount: entries.length,
     providerCallEvidenceCount: entries.filter((item) => item?.providerCallMade === true).length,
     resumePollingEvidenceCount: entries.filter((item) => item?.action === "resume_polling").length,
+    graphResumeEvidenceCount: entries.filter((item) => item?.providerCallKind === "graph_resume_enqueue" || item?.resultStatus === "resume_enqueued").length,
     terminalCloseEvidenceCount: entries.filter((item) => typeof item?.action === "string" && item.action.startsWith("close_terminal_")).length,
     manualAuditEvidenceCount: entries.filter((item) => item?.action === "manual_audit_required").length,
     redactionReviewedCount: entries.filter((item) => item?.redactionReviewed === true).length
@@ -350,6 +356,7 @@ function emptyExecutionSummary() {
     evidenceExecutionCount: 0,
     providerCallEvidenceCount: 0,
     resumePollingEvidenceCount: 0,
+    graphResumeEvidenceCount: 0,
     terminalCloseEvidenceCount: 0,
     manualAuditEvidenceCount: 0,
     redactionReviewedCount: 0
@@ -406,7 +413,7 @@ function publicExecution(execution) {
   };
 }
 
-function nextActionsFor({ status, checks, options }) {
+function nextActionsFor({ status, checks, options, graphResumeEvidencePass }) {
   const actions = [];
   if (status === "blocked_by_missing_inputs") {
     actions.push(`Create ignored live provider action evidence at ${toRepoRelative(options.evidencePath)} after a real deployment worker executes provider handoff actions.`);
@@ -420,7 +427,10 @@ function nextActionsFor({ status, checks, options }) {
     }
   }
   if (status === "pass") {
-    actions.push("Archive this report with production handoff and business-readiness evidence, then prove deployed multi-worker graph resume before any distributed-resume claim.");
+    actions.push("Archive this report with production handoff and business-readiness evidence.");
+    actions.push(graphResumeEvidencePass
+      ? "Prove deployed multi-worker ownership handoff before any distributed-resume claim."
+      : "Provide graph_resume_enqueue live evidence and deployed multi-worker ownership proof before any distributed-resume claim.");
   }
   return [...new Set(actions)];
 }

@@ -979,10 +979,14 @@ function validateRenderProviderLiveActionsSemantics(report) {
   const failedChecks = checks.filter((check) => check?.status === "fail");
   const providerCallEvidenceCount = executions.filter((item) => item?.providerCallMade === true).length;
   const resumePollingEvidenceCount = executions.filter((item) => item?.action === "resume_polling").length;
+  const graphResumeEvidenceCount = executions.filter((item) =>
+    item?.providerCallKind === "graph_resume_enqueue" || item?.resultStatus === "resume_enqueued"
+  ).length;
   const terminalCloseEvidenceCount = executions.filter((item) => typeof item?.action === "string" && item.action.startsWith("close_terminal_")).length;
   const manualAuditEvidenceCount = executions.filter((item) => item?.action === "manual_audit_required").length;
   const redactionReviewedCount = executions.filter((item) => item?.redactionReviewed === true).length;
   const unsafeStoredEvidenceCount = executions.filter((item) => item?.rawProviderPayloadStored === true || item?.outputUrlsStored === true).length;
+  const graphResumeEvidencePass = report?.status === "pass" && graphResumeEvidenceCount > 0;
 
   if (report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
     issues.push("$.networkCallsMade/$.providerCallsMade: expected false; this validator must only read archived evidence.");
@@ -995,6 +999,9 @@ function validateRenderProviderLiveActionsSemantics(report) {
   }
   if (Number(report?.summary?.resumePollingEvidenceCount ?? -1) !== resumePollingEvidenceCount) {
     issues.push("$.summary.resumePollingEvidenceCount: expected to match resume_polling executions.");
+  }
+  if (Number(report?.summary?.graphResumeEvidenceCount ?? -1) !== graphResumeEvidenceCount) {
+    issues.push("$.summary.graphResumeEvidenceCount: expected to match graph_resume_enqueue/resume_enqueued executions.");
   }
   if (Number(report?.summary?.terminalCloseEvidenceCount ?? -1) !== terminalCloseEvidenceCount) {
     issues.push("$.summary.terminalCloseEvidenceCount: expected to match close_terminal_* executions.");
@@ -1010,6 +1017,15 @@ function validateRenderProviderLiveActionsSemantics(report) {
   }
   if (report?.releaseGateSummary?.canClaimDistributedResume !== false || report?.summary?.canClaimDistributedResume !== false) {
     issues.push("$.releaseGateSummary.canClaimDistributedResume/$.summary.canClaimDistributedResume: expected false until deployed graph-resume parity exists.");
+  }
+  if (report?.releaseGateSummary?.graphResumeEvidencePass !== graphResumeEvidencePass) {
+    issues.push("$.releaseGateSummary.graphResumeEvidencePass: expected true only when a pass report includes graph-resume enqueue evidence.");
+  }
+  if (report?.summary?.canUseAsGraphResumeEvidence !== graphResumeEvidencePass) {
+    issues.push("$.summary.canUseAsGraphResumeEvidence: expected true only when a pass report includes graph-resume enqueue evidence.");
+  }
+  if (report?.releaseGateSummary?.canUseAsDistributedResumeEvidence !== graphResumeEvidencePass) {
+    issues.push("$.releaseGateSummary.canUseAsDistributedResumeEvidence: expected true only for pass reports with graph-resume enqueue evidence.");
   }
   if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
     issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; live action evidence is not customer-release approval.");
@@ -1030,12 +1046,17 @@ function validateRenderProviderLiveActionsSemantics(report) {
     if (redactionReviewedCount !== executions.length) {
       issues.push("$.executions: status pass requires every live action evidence item to be redaction reviewed.");
     }
-    if (report?.summary?.canUseAsLiveProviderActionEvidence !== true || report?.releaseGateSummary?.canUseAsDistributedResumeEvidence !== true) {
+    if (report?.summary?.canUseAsLiveProviderActionEvidence !== true || report?.releaseGateSummary?.liveProviderActionEvidencePass !== true) {
       issues.push("$.summary/releaseGateSummary: status pass requires live action evidence usability flags to be true.");
     }
   }
-  if (report?.status !== "pass" && (report?.summary?.canUseAsLiveProviderActionEvidence === true || report?.releaseGateSummary?.canUseAsDistributedResumeEvidence === true)) {
-    issues.push("$.summary/releaseGateSummary: non-pass live action report cannot be usable distributed-resume evidence.");
+  if (report?.status !== "pass" && (
+    report?.summary?.canUseAsLiveProviderActionEvidence === true ||
+    report?.summary?.canUseAsGraphResumeEvidence === true ||
+    report?.releaseGateSummary?.canUseAsDistributedResumeEvidence === true ||
+    report?.releaseGateSummary?.graphResumeEvidencePass === true
+  )) {
+    issues.push("$.summary/releaseGateSummary: non-pass live action report cannot be usable live-action or graph-resume evidence.");
   }
   return issues;
 }

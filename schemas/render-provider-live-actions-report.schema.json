@@ -53,24 +53,28 @@
         "evidenceExecutionCount",
         "providerCallEvidenceCount",
         "resumePollingEvidenceCount",
+        "graphResumeEvidenceCount",
         "terminalCloseEvidenceCount",
         "manualAuditEvidenceCount",
         "redactionReviewedCount",
         "productionHandoffStatus",
         "productionHandoffUsable",
         "canUseAsLiveProviderActionEvidence",
+        "canUseAsGraphResumeEvidence",
         "canClaimDistributedResume"
       ],
       "properties": {
         "evidenceExecutionCount": { "type": "integer", "minimum": 0 },
         "providerCallEvidenceCount": { "type": "integer", "minimum": 0 },
         "resumePollingEvidenceCount": { "type": "integer", "minimum": 0 },
+        "graphResumeEvidenceCount": { "type": "integer", "minimum": 0 },
         "terminalCloseEvidenceCount": { "type": "integer", "minimum": 0 },
         "manualAuditEvidenceCount": { "type": "integer", "minimum": 0 },
         "redactionReviewedCount": { "type": "integer", "minimum": 0 },
         "productionHandoffStatus": { "type": "string" },
         "productionHandoffUsable": { "type": "boolean" },
         "canUseAsLiveProviderActionEvidence": { "type": "boolean" },
+        "canUseAsGraphResumeEvidence": { "type": "boolean" },
         "canClaimDistributedResume": { "const": false }
       }
     },
@@ -102,6 +106,7 @@
       "additionalProperties": false,
       "required": [
         "liveProviderActionEvidencePass",
+        "graphResumeEvidencePass",
         "canUseAsDistributedResumeEvidence",
         "canClaimDistributedResume",
         "canReleaseToCustomerTraffic",
@@ -109,6 +114,7 @@
       ],
       "properties": {
         "liveProviderActionEvidencePass": { "type": "boolean" },
+        "graphResumeEvidencePass": { "type": "boolean" },
         "canUseAsDistributedResumeEvidence": { "type": "boolean" },
         "canClaimDistributedResume": { "const": false },
         "canReleaseToCustomerTraffic": { "const": false },

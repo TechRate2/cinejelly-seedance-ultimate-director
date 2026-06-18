@@ -1083,7 +1083,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "terminal provider work can be closed while still-active provider work heartbeat-renews a retained lease for polling",
       "state evidence is durable enough to survive the local smoke process reload",
       "queue/state backend concerns stay behind an adapter contract",
-      "live provider action evidence must be archived and reviewed before replay callbacks count as production resume proof"
+      "live provider action evidence must be archived and reviewed before replay callbacks count as production resume proof",
+      "graph-resume enqueue evidence must be counted separately from provider polling and terminal-close callbacks before distributed-resume evidence can be considered usable"
     ],
     behaviorChanged: [
       "CineJelly implements a typed TypeScript handoff coordinator instead of copying MoneyPrinterTurbo Python memory or Redis managers",
@@ -1118,7 +1119,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "production parity still requires real live provider action execution evidence and archived production multi-worker graph-resume deployment evidence",
+      "production parity still requires real live provider action execution evidence, graph-resume enqueue evidence, and archived production multi-worker ownership handoff evidence",
       "live Atlas prediction IDs must be validated before using handoff output as paid-provider closeout evidence",
       "automatic graph resume/cancel/close behavior is intentionally not claimed by the adapter foundation"
     ],
@@ -1142,7 +1143,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "VibeFrame report discipline is rewritten into CineJelly provider handoff contracts",
       "local, protected HTTP-service, HTTPS-adapted lease decisions, heartbeat renewal, local two-worker no-steal/expiry handoff validation, production capture tooling, and live action evidence validation wrap CineJelly provider reconciliation instead of executing an upstream CLI loop",
       "idempotent action-ledger execution evidence is added for deterministic worker replay, and live action evidence validation stays separate from local replay evidence",
-      "distributed resume remains blocked until production multi-worker ownership handoff and live provider actions are proven"
+      "distributed resume remains blocked until production multi-worker ownership handoff, live provider actions, and graph-resume enqueue evidence are proven"
     ],
     referenceImplementationPath: "docs/reference-implementations/render-provider-handoff.md",
     cineJellyDestinationPaths: [
