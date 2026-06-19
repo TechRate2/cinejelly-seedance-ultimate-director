@@ -2873,6 +2873,54 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Director Agentic Media Reasoning",
+    sourceRepository: "video-db/Director",
+    snapshotPath: "external/upstream/director",
+    upstreamPaths: [
+      "external/upstream/director/README.md",
+      "external/upstream/director/backend/director/core/reasoning.py",
+      "external/upstream/director/backend/director/agents/base.py",
+      "external/upstream/director/backend/director/core/session.py",
+      "external/upstream/director/backend/director/agents/text_to_movie.py",
+      "external/upstream/director/backend/director/agents/video_generation.py",
+      "external/upstream/director/backend/director/agents/audio_generation.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "natural-language media requests are decomposed into explicit workflow steps",
+      "agent and tool choices remain visible as operator-facing progress evidence",
+      "long-running media work emits status updates rather than hiding behind one opaque blocking request",
+      "media outputs are represented as typed content/artifact evidence instead of text-only responses",
+      "ambiguous or commercially risky requests route to review or safe blocking before provider spend"
+    ],
+    behaviorChanged: [
+      "rewritten into CineJelly-owned TypeScript planners, review approvals, async job state, and artifact contracts",
+      "Director's Python runtime, VideoDB dependency, and frontend code are not imported or executed",
+      "unbounded LLM tool routing is replaced by deterministic no-spend planning, admission control, approval gates, cost controls, and provider-safe handoff points",
+      "full chat UI, hosted playback, VideoDB library controls, and complete 20+ agent parity remain future product work"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/director-agentic-media-reasoning.md",
+    cineJellyDestinationPaths: [
+      "src/types/short-pipeline.ts",
+      "src/types/review-approval.ts",
+      "src/core/short-pipeline-planner.ts",
+      "src/core/review-approval-system.ts",
+      "src/api/server.ts",
+      "src/api/render-job-manager.ts",
+      "scripts/run-short-pipeline-smoke.mjs",
+      "schemas/short-pipeline-smoke-report.schema.json",
+      "docs/SHORT_PIPELINE_AGENTIC_DESIGN.md",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "reference-drafted",
+    fidelityRisks: [
+      "current coverage is backend planning/progress/review evidence, not Director chat UI or VideoDB media-library parity",
+      "future LLM-driven agent routing must preserve CineJelly cost, quota, redaction, approval, and artifact gates",
+      "full Director-style agent catalog parity requires additional source-video, search, editing, dubbing, subtitle, upload, playback, and UI evidence"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Director-Style Benchmark Harness",
     sourceRepository: "jiaminchen-1031/DirectorBench",
     snapshotPath: "external/upstream/directorbench",

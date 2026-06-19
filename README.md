@@ -130,6 +130,7 @@ cinejelly-seedance-ultimate-director/
 - `docs/reference-implementations/live-readiness-input-validator.md`: no-spend input gate for confirming live deployment, ops, source-video, stock, audio, and long-form budget inputs before paid validation.
 - `docs/reference-implementations/report-contract-validation.md`: no-spend schema contract gate for generated release, deployment-capture, and business-readiness reports.
 - `docs/reference-implementations/director-style-benchmark-harness.md`: no-spend DirectorBench-style artifact-contract benchmark and parity evidence matrix for backend quality evidence before UI work.
+- `docs/reference-implementations/director-agentic-media-reasoning.md`: `video-db/Director` source baseline for chat-style media reasoning, agent/tool orchestration, progress updates, and short-pipeline planning/review evidence.
 - `docs/reference-implementations/business-readiness-validation-plan.md`: no-spend planner contract for sequencing remaining commercial validation before paid Atlas spend.
 - `docs/reference-implementations/atlas-billing-readiness.md`: no-spend Atlas Billing Public API readiness gate for checking billing-capable key access and budget fit before paid Atlas validation.
 - `docs/reference-implementations/deployment-container-packaging.md`: Docker packaging contract and no-spend package validator for repeatable HTTPS deployment preparation without baking secrets or artifacts into images.
@@ -381,6 +382,6 @@ Detailed milestones are tracked in `docs/IMPLEMENTATION_ROADMAP.md`; validation 
 
 ## Source Snapshot Strategy
 
-CineJelly is source-traceable and product-owned. It keeps full upstream snapshots under `external/upstream/` so engineers can check behavior against original sources, copy or adapt useful pieces, and then develop them into CineJelly-owned modules under `src/`, `data/`, and `docs/`. The source snapshot is fuel; the production implementation remains CineJelly's own product layer.
+CineJelly is source-traceable and product-owned. It keeps full upstream snapshots under `external/upstream/` so engineers can check behavior against original sources, copy or adapt useful pieces, and then develop them into CineJelly-owned modules under `src/`, `data/`, and `docs/`. The current snapshot set includes `video-db/Director` under `external/upstream/director` for agentic chat/media workflow patterns, but the production implementation remains CineJelly's own product layer.
 
 Public source is not automatically unrestricted. MIT sources can be reused with attribution and notices, CC BY prompt content needs attribution review before bundled use, AGPL implementation code requires acceptance of AGPL obligations or legal approval, and no-license sources stay in the snapshot/audit layer until permission is clarified.

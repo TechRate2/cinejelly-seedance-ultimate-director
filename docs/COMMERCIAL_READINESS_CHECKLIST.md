@@ -50,9 +50,11 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Optional workflow template registry exists without forcing templates.
 - [x] Brand kit backend exists and influences planning/validation.
 - [x] Natural-language short pipeline can propose concept, script, scene plan, and review checkpoints.
+- [x] `video-db/Director` snapshot and Director Agentic Media Reasoning baseline are captured for chat/workflow parity tracking.
 - [x] Human-in-the-loop review checkpoints are emitted before render.
 - [ ] Live product URL crawling/extraction, accepted product facts, and rights-reviewed product media are proven on real URLs.
 - [ ] Short-pipeline accepted review handoff is wired into async render-job submission.
+- [ ] First-party chat/review UI and media-library evidence are implemented before claiming Director-style product parity.
 
 ## Evidence Commands
 

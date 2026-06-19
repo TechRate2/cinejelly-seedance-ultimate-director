@@ -187,7 +187,7 @@ const report = {
   },
   nextActions: [
     "Wire accepted short-pipeline plans into async render-job submission after human review approval.",
-    "Add the missing video-db/Director snapshot/translation audit before claiming full source coverage.",
+    "Build the first-party chat/review UI and media-library evidence before claiming Director-style product parity.",
     "Replace no-network product snapshots with a reviewed crawler/extractor only after URL privacy and rights policies are accepted."
   ]
 };

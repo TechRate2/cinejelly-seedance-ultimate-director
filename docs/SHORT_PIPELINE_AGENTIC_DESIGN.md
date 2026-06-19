@@ -4,7 +4,7 @@
 
 CineJelly short video must feel as easy as a top marketing video app, but it must not become a rigid template machine. The short pipeline is a natural-language, agentic workflow for fast commercial video creation with strong review, cost, approval, and evidence gates.
 
-Implementation status as of 2026-06-19: the first backend foundation is implemented as `ShortPipelinePlanner`, `ProductUrlBriefExtractor`, `BrandKitEvaluator`, `WorkflowTemplateRegistry`, API endpoint `POST /v1/short-pipeline/plan`, `npm run validation:short-pipeline`, and `schemas/short-pipeline-smoke-report.schema.json`. It is intentionally no-spend and no-network: product URL evidence is fingerprinted, template suggestions remain optional accelerators, brand-kit forbidden claims block planning, and scene/audio/caption/claim review checkpoints are emitted before render. It does not yet fetch live product pages, submit render jobs, or prove full `video-db/Director` snapshot parity.
+Implementation status as of 2026-06-19: the first backend foundation is implemented as `ShortPipelinePlanner`, `ProductUrlBriefExtractor`, `BrandKitEvaluator`, `WorkflowTemplateRegistry`, API endpoint `POST /v1/short-pipeline/plan`, `npm run validation:short-pipeline`, and `schemas/short-pipeline-smoke-report.schema.json`. It is intentionally no-spend and no-network: product URL evidence is fingerprinted, template suggestions remain optional accelerators, brand-kit forbidden claims block planning, and scene/audio/caption/claim review checkpoints are emitted before render. The `video-db/Director` snapshot is now captured as a source baseline, but this does not yet fetch live product pages, submit render jobs, provide a first-party chat UI, or prove full Director parity.
 
 This design is separate from the long-form Production Graph. Long-form can keep heavier graph chunking, multi-stage render orchestration, and long artifact evidence. Short-form needs a lighter planning loop:
 
@@ -31,7 +31,7 @@ This design is separate from the long-form Production Graph. Long-form can keep 
 | `calesthio/OpenMontage` | Agent-first workflow, dynamic pipeline construction, approval gates, media self-review. AGPL code is not copied into runtime. |
 | `HKUDS/ViMax` | Multi-agent collaboration, structured decomposition, continuity-aware planning. |
 | `HKUDS/VideoAgent` | Natural-language conversational experience and source-video understanding patterns. |
-| `video-db/Director` | Director-like media reasoning and operator-facing creative workflow patterns. Snapshot/translation still needs to be captured before production reuse. |
+| `video-db/Director` | Director-like media reasoning, agent/tool orchestration, progress updates, typed media content, and chat workflow patterns. Snapshot is captured; current translation is backend planning/review/progress evidence only, not full UI or media-library parity. |
 | `vericontext/vibeframe` | Validate-before-spend, deterministic artifacts, review/evidence reports. |
 
 ## Agent Roles

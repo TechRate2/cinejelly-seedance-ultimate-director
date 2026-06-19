@@ -32,6 +32,7 @@ The current primary upstream snapshots are:
 | `external/upstream/openmontage` | `calesthio/OpenMontage` | Reference-video analysis, approval gates, provider scoring, real-footage path, self-review. |
 | `external/upstream/moneyprinterturbo` | `harry0703/MoneyPrinterTurbo` | Staged one-input pipeline, material sourcing, batch outputs, subtitles/TTS/BGM, task progress, API/CLI/WebUI. |
 | `external/upstream/directorbench` | `jiaminchen-1031/DirectorBench` | Checkpoint-level long-form diagnosis across script, visual, audio, cross-modal, stability, and transition quality. |
+| `external/upstream/director` | `video-db/Director` | Chat-style media reasoning, dynamic agent/tool orchestration, typed content outputs, progress updates, and media workflow UI patterns. |
 
 ## Required Git Subtree Commands
 
@@ -106,6 +107,7 @@ For concrete examples, see the Practical Translation Examples in `docs/FAITHFUL_
 - Generated Audio Batch Artifact Evidence from MoneyPrinterTurbo operator-visible task artifacts plus VibeFrame deterministic artifact reports, with OpenMontage approval concepts kept as AGPL-aware behavior notes.
 - Generated Audio Asset Resolution from MoneyPrinterTurbo staged prepared-audio artifacts plus VibeFrame artifact-resolution reporting, with OpenMontage approval concepts kept as AGPL-aware behavior notes.
 - Generated Audio Asset Resolution Catalog from MoneyPrinterTurbo staged artifact visibility plus VibeFrame preflight/report discipline, with OpenMontage approval concepts kept as AGPL-aware behavior notes.
+- Director Agentic Media Reasoning from video-db/Director natural-language agent routing, content/status payloads, and chat workflow concepts, rewritten as CineJelly-owned short-pipeline planning, approval gates, async job progress, and artifact evidence rather than importing upstream Python/frontend code.
 - Focused Reference Implementations under `docs/reference-implementations/`, including Media Tool Binary Resolution, show how deployment-critical runtime behavior is translated without importing from upstream snapshots.
 
 For implementation order, milestones, and the shared validation checklist, use `docs/IMPLEMENTATION_ROADMAP.md`.

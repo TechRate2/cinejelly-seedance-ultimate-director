@@ -105,6 +105,22 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Converts DirectorBench's evaluation philosophy into runtime Consistency Guardian inspections and repair routing.
   - Adds a CineJelly-owned no-spend benchmark harness that reports script/video/audio/stability/cross-modal scores, confidence, bottlenecks, limitations, FFprobe media metadata, sampled-frame proxy signals, scene-change transition-boundary proxy signals, bounded FFmpeg audio waveform/volume proxy signals, FFprobe audio-video duration-sync proxy signals, optional structured semantic-review checkpoints, optional structured audio-review checkpoints, optional structured ASR/lip-sync runtime-review checkpoints, optional structured governance-review checkpoints, accepted review-evidence readiness validation with schema/redaction guard smoke, optional generated-audio validation report checkpoints, optional long-form validation report checkpoints, and a parity evidence matrix while explicitly keeping `canClaimDirectorBenchParity=false` until full semantic/audio/runtime/governance/generated-audio/long-form media evidence exists.
 
+### video-db/Director
+
+- URL: https://github.com/video-db/Director
+- Local snapshot: `external/upstream/director`
+- License shown in local snapshot: MIT, copyright Ashutosh Trivedi.
+- Used for: chat-style video reasoning, dynamic agent/tool orchestration, media content payloads, progress updates, media workflow agent catalog, VideoDB-backed upload/search/edit/generation concepts, and frontend chat/playback interaction patterns.
+- Source-derived patterns adopted:
+  - Treat natural-language media requests as workflows that can select and run specialized agents.
+  - Keep agent actions and progress visible to the operator while media work is running.
+  - Represent outputs as typed text/video/image/search content rather than unstructured text only.
+  - Use chat as a primary creative-control surface for video workflow operations.
+- CineJelly extension:
+  - Records a CineJelly-owned `director-agentic-media-reasoning` Reference Implementation that maps Director-style concepts into short-pipeline planning, review approval checkpoints, async job progress, source-video/material/generated-audio planning, and artifact evidence.
+  - Keeps runtime code in TypeScript and does not import or execute upstream Python/frontend code.
+  - Does not yet claim parity with Director's hosted chat UI, VideoDB media library, frontend player controls, arbitrary LLM tool-routing loop, or full 20+ agent catalog.
+
 ### HKUDS/VideoAgent
 
 - URL: https://github.com/HKUDS/VideoAgent

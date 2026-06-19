@@ -12,6 +12,7 @@ export type SourceRepositoryId =
   | "calesthio/OpenMontage"
   | "harry0703/MoneyPrinterTurbo"
   | "jiaminchen-1031/DirectorBench"
+  | "video-db/Director"
   | "Atlas Cloud"
   | "Other";
 

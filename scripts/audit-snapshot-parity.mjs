@@ -16,7 +16,8 @@ const expectedSnapshots = [
   snapshot("videoagent", "external/upstream/videoagent", "HKUDS/VideoAgent", "MIT top level; nested review required"),
   snapshot("openmontage", "external/upstream/openmontage", "calesthio/OpenMontage", "AGPL-3.0"),
   snapshot("moneyprinterturbo", "external/upstream/moneyprinterturbo", "harry0703/MoneyPrinterTurbo", "MIT"),
-  snapshot("directorbench", "external/upstream/directorbench", "jiaminchen-1031/DirectorBench", "No top-level license found in snapshot")
+  snapshot("directorbench", "external/upstream/directorbench", "jiaminchen-1031/DirectorBench", "No top-level license found in snapshot"),
+  snapshot("director", "external/upstream/director", "video-db/Director", "MIT")
 ];
 
 const requiredDocs = [
@@ -41,7 +42,8 @@ const requiredReferenceImplementations = [
   "docs/reference-implementations/director-style-benchmark-harness.md",
   "docs/reference-implementations/report-contract-validation.md",
   "docs/reference-implementations/business-completion-audit.md",
-  "docs/reference-implementations/commercial-launch-doctor.md"
+  "docs/reference-implementations/commercial-launch-doctor.md",
+  "docs/reference-implementations/director-agentic-media-reasoning.md"
 ];
 
 const sourceScanRoots = ["src", "scripts"];

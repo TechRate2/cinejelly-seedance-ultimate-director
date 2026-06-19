@@ -27,7 +27,7 @@ The audit does not claim 100% upstream parity. It verifies that the guardrails n
 ## CineJelly Changes
 
 1. The audit reads only local files and never executes upstream code.
-2. It checks eight expected subtree snapshots, inventory docs, subtree policy coverage, parity audit coverage, source-logic lineage coverage, key Reference Implementation files, direct import boundaries, and parseable functional estimate rows for every configured snapshot.
+2. It checks the configured expected subtree snapshots, inventory docs, subtree policy coverage, parity audit coverage, source-logic lineage coverage, key Reference Implementation files, direct import boundaries, and parseable functional estimate rows for every configured snapshot.
 3. It writes `assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json`.
 4. It exits non-zero only when guardrails fail; known product gaps remain in business completion audit and do not become false parity claims.
 
