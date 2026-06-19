@@ -20,6 +20,7 @@ const defaultContracts = [
   contract("deployment_readiness_capture", "schemas/deployment-readiness-capture-report.schema.json", "assets/output_deliverables/business-readiness/deployment-preflight-report.json"),
   contract("local_deployment_capture_smoke", "schemas/deployment-readiness-capture-report.schema.json", "assets/output_deliverables/business-readiness/local-deployment-capture-smoke.json"),
   contract("render_job_history_smoke", "schemas/render-job-history-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-job-history-smoke-report.json"),
+  contract("render_job_review_lifecycle_smoke", "schemas/render-job-review-lifecycle-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-job-review-lifecycle-smoke-report.json"),
   contract("render_provider_reconciliation", "schemas/render-provider-reconciliation-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
   contract("render_provider_handoff", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
   contract("render_provider_external_lease", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),

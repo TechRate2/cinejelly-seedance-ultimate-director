@@ -309,9 +309,10 @@ This is stricter than `doctor`. It reads local smoke evidence, paid-render evide
 | `/v1/validation-readiness` | GET | Phase 6 release-readiness decision. |
 | `/v1/render-settings` | GET | Secret-free settings/model/capability descriptor for API clients and future UI controls. |
 | `/v1/render` | POST | Synchronous render. Better for short validation jobs. |
-| `/v1/render-jobs` | POST | Async render job submission. Better for long-form work. |
+| `/v1/render-jobs` | POST | Async render job submission. Better for long-form work. Supports optional pre-render review gates before provider spend and optional pre-export review gates after artifact validation. |
 | `/v1/render-jobs` | GET | List retained async jobs. If `CINEJELLY_API_JOB_HISTORY_PATH` is configured, compact history can survive API restart. |
 | `/v1/render-jobs/<jobId>` | GET | Poll one job. Restored history entries expose compact status/progress/provider-checkpoint evidence only, not full runtime artifact/result detail. |
+| `/v1/render-jobs/<jobId>/review` | POST | Submit corrected scene/audio/caption/claim review checkpoints; approved `pre_render` review queues spend, approved `pre_export` review releases retained artifacts without rerendering. |
 | `/v1/render-jobs/<jobId>` | DELETE | Cancel one job. |
 | `/v1/short-pipeline/conversation` | POST | Stateless natural-language short-pipeline session planning with redacted turns and formal review gates. |
 | `/v1/short-pipeline/conversation-sessions` | POST | Persist a redacted no-spend short-pipeline conversation session when `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH` is configured. |

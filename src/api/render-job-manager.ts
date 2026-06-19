@@ -107,6 +107,7 @@ export interface RenderJobApprovedForRenderInput {
 export interface RenderJobReviewSubmission {
   readonly summary: RenderJobSummary;
   readonly queuedForRender: boolean;
+  readonly approvedForExport?: boolean;
 }
 
 export interface RenderJobSummary {
@@ -139,6 +140,12 @@ export interface RenderJobSummary {
   readonly hasReviewApproval: boolean;
   readonly reviewApprovalStatus?: ReviewApprovalStatus;
   readonly reviewApprovalLifecycleAction?: ReviewApprovalReport["lifecycle"]["action"];
+  readonly hasPreRenderReviewApproval: boolean;
+  readonly preRenderReviewApprovalStatus?: ReviewApprovalStatus;
+  readonly preRenderReviewApprovalLifecycleAction?: ReviewApprovalReport["lifecycle"]["action"];
+  readonly hasPreExportReviewApproval: boolean;
+  readonly preExportReviewApprovalStatus?: ReviewApprovalStatus;
+  readonly preExportReviewApprovalLifecycleAction?: ReviewApprovalReport["lifecycle"]["action"];
   readonly hasError: boolean;
   readonly error?: unknown;
   readonly costLedger?: readonly CostLedgerEntry[];
@@ -146,6 +153,8 @@ export interface RenderJobSummary {
   readonly artifacts?: ApiProjectArtifactBundle;
   readonly artifactValidation?: ApiProjectArtifactValidationReport;
   readonly reviewApproval?: ReviewApprovalReport;
+  readonly preRenderReviewApproval?: ReviewApprovalReport;
+  readonly preExportReviewApproval?: ReviewApprovalReport;
   readonly result?: DirectorRunResult;
 }
 
@@ -169,11 +178,17 @@ interface RenderJobRecordBase extends Omit<
   RenderJobSummary,
   "artifacts" | "hasError" | "currentStage" | "currentStageStatus" | "progressEventCount" | "stageProgressEvents"
   | "hasProviderCheckpoint" | "artifactValidation" | "hasReviewApproval" | "reviewApprovalStatus"
-  | "reviewApprovalLifecycleAction" | "reviewApproval"
+  | "reviewApprovalLifecycleAction" | "reviewApproval" | "hasPreRenderReviewApproval"
+  | "preRenderReviewApprovalStatus" | "preRenderReviewApprovalLifecycleAction" | "preRenderReviewApproval"
+  | "hasPreExportReviewApproval" | "preExportReviewApprovalStatus"
+  | "preExportReviewApprovalLifecycleAction" | "preExportReviewApproval"
 > {
   readonly artifacts?: ProjectArtifactBundle;
   readonly artifactValidation?: ProjectArtifactValidationReport;
   readonly reviewApproval?: ReviewApprovalReport;
+  readonly preRenderReviewApproval?: ReviewApprovalReport;
+  readonly preExportReviewApproval?: ReviewApprovalReport;
+  readonly preExportReviewInput?: RenderJobReviewInput;
   readonly stageProgressEvents: readonly ProductionStageProgressEvent[];
 }
 
@@ -246,6 +261,7 @@ export class RenderJobManager {
     readonly idempotencyKeyDigest?: string;
     readonly requestFingerprint?: string;
     readonly reviewApproval?: RenderJobReviewInput;
+    readonly preExportReviewApproval?: RenderJobReviewInput;
     readonly onAccepted?: (summary: RenderJobSummary) => void;
   }): RenderJobSubmission {
     const replayedJob = this.findIdempotentReplay(input.idempotencyKeyDigest, input.requestFingerprint);
@@ -258,8 +274,12 @@ export class RenderJobManager {
 
     const now = new Date();
     const jobId = `render_job_${randomUUID()}`;
-    const reviewApproval = this.evaluateReviewApproval(jobId, input.request, input.reviewApproval, now);
-    const initialStatus = this.initialStatusForReviewApproval(reviewApproval);
+    const preRenderReviewInput = input.reviewApproval?.gate === "pre_export" ? undefined : input.reviewApproval;
+    const preExportReviewInput = this.normalizedPreExportReviewInput(
+      input.preExportReviewApproval ?? (input.reviewApproval?.gate === "pre_export" ? input.reviewApproval : undefined)
+    );
+    const preRenderReviewApproval = this.evaluateReviewApproval(jobId, input.request, preRenderReviewInput, now);
+    const initialStatus = this.initialStatusForReviewApproval(preRenderReviewApproval);
     if (initialStatus === "queued") {
       this.assertQueueCapacity();
     }
@@ -282,7 +302,13 @@ export class RenderJobManager {
       hasCostLedger: false,
       hasArtifacts: false,
       hasArtifactValidation: false,
-      ...(reviewApproval ? { reviewApproval } : {}),
+      ...(preRenderReviewApproval
+        ? {
+            reviewApproval: preRenderReviewApproval,
+            preRenderReviewApproval
+          }
+        : {}),
+      ...(preExportReviewInput ? { preExportReviewInput } : {}),
       ...(initialStatus === "rejected"
         ? { error: this.errorPayload(new Error("Render job was rejected by required review approval checkpoint.")) }
         : {}),
@@ -371,9 +397,13 @@ export class RenderJobManager {
     }
 
     const now = new Date();
-    const reviewApproval = this.evaluateReviewApproval(jobId, record.request, input, now);
+    const reviewInput = this.reviewInputForRecord(record, input);
+    const reviewApproval = this.evaluateReviewApproval(jobId, record.request, reviewInput, now);
     if (!reviewApproval) {
       throw new RenderJobReviewStateError("Manual review requires at least one approval checkpoint.");
+    }
+    if (reviewApproval.gate === "pre_export") {
+      return this.applyPreExportReview(record, reviewApproval, now);
     }
     const nextStatus = this.initialStatusForReviewApproval(reviewApproval);
 
@@ -388,6 +418,7 @@ export class RenderJobManager {
         status: "queued",
         updatedAt: now,
         reviewApproval,
+        preRenderReviewApproval: reviewApproval,
         error: undefined
       });
       this.queue.push(jobId);
@@ -403,6 +434,7 @@ export class RenderJobManager {
       updatedAt: now,
       ...(nextStatus === "rejected" ? { completedAt: now } : {}),
       reviewApproval,
+      preRenderReviewApproval: reviewApproval,
       ...(nextStatus === "rejected"
         ? { error: this.errorPayload(new Error("Render job was rejected by required review approval checkpoint.")) }
         : {}),
@@ -517,6 +549,88 @@ export class RenderJobManager {
     return { queued, running, paused, terminal };
   }
 
+  private normalizedPreExportReviewInput(
+    input: RenderJobReviewInput | undefined
+  ): RenderJobReviewInput | undefined {
+    if (!input) {
+      return undefined;
+    }
+    if (input.gate !== undefined && input.gate !== "pre_export") {
+      throw new RenderJobReviewStateError("Pre-export review input must use gate=pre_export.");
+    }
+    return {
+      ...input,
+      gate: "pre_export"
+    };
+  }
+
+  private reviewInputForRecord(record: RenderJobRecord, input: RenderJobReviewInput): RenderJobReviewInput {
+    const hasRenderedArtifacts = record.hasResult || record.hasArtifacts || Boolean(record.result) || Boolean(record.artifacts);
+    if (hasRenderedArtifacts) {
+      if (input.gate !== undefined && input.gate !== "pre_export") {
+        throw new RenderJobReviewStateError("Rendered jobs can only receive gate=pre_export review decisions.");
+      }
+      return {
+        ...input,
+        gate: "pre_export"
+      };
+    }
+    if (input.gate === "pre_export") {
+      throw new RenderJobReviewStateError("Pre-export review can only be submitted after render artifacts exist.");
+    }
+    return input;
+  }
+
+  private applyPreExportReview(
+    record: ActiveRenderJobRecord,
+    reviewApproval: ReviewApprovalReport,
+    reviewedAt: Date
+  ): RenderJobReviewSubmission {
+    if (!record.result || !record.artifacts || !record.artifactValidation) {
+      throw new RenderJobReviewStateError("Pre-export review requires completed render artifacts and artifact validation.");
+    }
+    const nextStatus = this.statusForPreExportReviewApproval(reviewApproval);
+    this.updateJob(record.jobId, {
+      status: nextStatus,
+      updatedAt: reviewedAt,
+      ...(nextStatus === "succeeded" || nextStatus === "rejected" ? { completedAt: reviewedAt } : {}),
+      reviewApproval,
+      preExportReviewApproval: reviewApproval,
+      ...(nextStatus === "rejected"
+        ? { error: this.errorPayload(new Error("Render job export was rejected by required pre-export review checkpoint.")) }
+        : {}),
+      ...(nextStatus === "blocked"
+        ? { error: this.errorPayload(new Error("Render job export approval is blocked by unsafe or inconsistent review evidence.")) }
+        : {}),
+      ...(nextStatus === "succeeded" || nextStatus === "paused_for_review" || nextStatus === "paused_for_revision"
+        ? { error: undefined }
+        : {})
+    });
+    return {
+      summary: this.get(record.jobId) ?? this.toSummary(record, { includeDetails: false }),
+      queuedForRender: false,
+      approvedForExport: nextStatus === "succeeded"
+    };
+  }
+
+  private statusForPreExportReviewApproval(reviewApproval: ReviewApprovalReport | undefined): RenderJobStatus {
+    if (!reviewApproval) {
+      return "succeeded";
+    }
+    switch (reviewApproval.status) {
+      case "approved":
+        return "succeeded";
+      case "approval_required":
+        return "paused_for_review";
+      case "changes_requested":
+        return "paused_for_revision";
+      case "rejected":
+        return "rejected";
+      case "blocked":
+        return "blocked";
+    }
+  }
+
   private evaluateReviewApproval(
     jobId: string,
     request: CineJellyProjectRequest,
@@ -600,16 +714,35 @@ export class RenderJobManager {
       const artifactValidation = await this.validateArtifacts(artifacts);
       const providerCheckpoint = this.finalProviderCheckpoint(record.jobId, costLedger);
       const completedAt = new Date();
+      const preExportReviewApproval = this.evaluateReviewApproval(
+        record.jobId,
+        record.request,
+        record.preExportReviewInput,
+        completedAt
+      );
+      const finalStatus = this.statusForPreExportReviewApproval(preExportReviewApproval);
       this.updateJob(record.jobId, {
-        status: "succeeded",
+        status: finalStatus,
         updatedAt: completedAt,
-        completedAt,
+        ...(finalStatus === "succeeded" || finalStatus === "rejected" ? { completedAt } : {}),
         projectId: result.projectId,
         result,
         costLedger,
         ...(providerCheckpoint ? { providerCheckpoint } : {}),
         artifacts,
-        artifactValidation
+        artifactValidation,
+        ...(preExportReviewApproval
+          ? {
+              reviewApproval: preExportReviewApproval,
+              preExportReviewApproval
+            }
+          : {}),
+        ...(finalStatus === "rejected"
+          ? { error: this.errorPayload(new Error("Render job export was rejected by required pre-export review checkpoint.")) }
+          : {}),
+        ...(finalStatus === "blocked"
+          ? { error: this.errorPayload(new Error("Render job export approval is blocked by unsafe or inconsistent review evidence.")) }
+          : {})
       });
     } catch (error) {
       costLedger = runtime?.ledger.list() ?? costLedger;
@@ -940,7 +1073,14 @@ export class RenderJobManager {
       hasArtifacts: summary.hasArtifacts,
       hasArtifactValidation: summary.hasArtifactValidation,
       ...(summary.artifactValidationStatus ? { artifactValidationStatus: summary.artifactValidationStatus } : {}),
-      ...(summary.reviewApproval ? { reviewApproval: summary.reviewApproval } : {}),
+      ...(summary.reviewApproval
+        ? {
+            reviewApproval: summary.reviewApproval,
+            ...(summary.reviewApproval.gate === "pre_render"
+              ? { preRenderReviewApproval: summary.reviewApproval }
+              : { preExportReviewApproval: summary.reviewApproval })
+          }
+        : {}),
       ...(staleActive
         ? {
             error: this.errorPayload(
@@ -1018,9 +1158,17 @@ export class RenderJobManager {
       artifacts,
       artifactValidation,
       reviewApproval,
+      preRenderReviewApproval,
+      preExportReviewApproval,
       result
     } = record;
     const currentStageProgress = stageProgressEvents[stageProgressEvents.length - 1];
+    const effectivePreRenderReviewApproval =
+      preRenderReviewApproval ?? (reviewApproval?.gate === "pre_render" ? reviewApproval : undefined);
+    const effectivePreExportReviewApproval =
+      preExportReviewApproval ?? (reviewApproval?.gate === "pre_export" ? reviewApproval : undefined);
+    const effectiveReviewApproval =
+      effectivePreExportReviewApproval ?? effectivePreRenderReviewApproval ?? reviewApproval;
     return {
       jobId,
       ...(clientId ? { clientId } : {}),
@@ -1048,9 +1196,23 @@ export class RenderJobManager {
       hasArtifacts: Boolean(artifacts),
       hasArtifactValidation: Boolean(artifactValidation),
       ...(artifactValidation ? { artifactValidationStatus: artifactValidation.status } : {}),
-      hasReviewApproval: Boolean(reviewApproval),
-      ...(reviewApproval ? { reviewApprovalStatus: reviewApproval.status } : {}),
-      ...(reviewApproval ? { reviewApprovalLifecycleAction: reviewApproval.lifecycle.action } : {}),
+      hasReviewApproval: Boolean(effectiveReviewApproval),
+      ...(effectiveReviewApproval ? { reviewApprovalStatus: effectiveReviewApproval.status } : {}),
+      ...(effectiveReviewApproval ? { reviewApprovalLifecycleAction: effectiveReviewApproval.lifecycle.action } : {}),
+      hasPreRenderReviewApproval: Boolean(effectivePreRenderReviewApproval),
+      ...(effectivePreRenderReviewApproval
+        ? { preRenderReviewApprovalStatus: effectivePreRenderReviewApproval.status }
+        : {}),
+      ...(effectivePreRenderReviewApproval
+        ? { preRenderReviewApprovalLifecycleAction: effectivePreRenderReviewApproval.lifecycle.action }
+        : {}),
+      hasPreExportReviewApproval: Boolean(effectivePreExportReviewApproval),
+      ...(effectivePreExportReviewApproval
+        ? { preExportReviewApprovalStatus: effectivePreExportReviewApproval.status }
+        : {}),
+      ...(effectivePreExportReviewApproval
+        ? { preExportReviewApprovalLifecycleAction: effectivePreExportReviewApproval.lifecycle.action }
+        : {}),
       hasError: error !== undefined,
       ...(options.includeDetails && error !== undefined ? { error } : {}),
       ...(options.includeDetails && costLedger ? { costLedger } : {}),
@@ -1059,7 +1221,13 @@ export class RenderJobManager {
       ...(options.includeDetails && artifactValidation
         ? { artifactValidation: toApiProjectArtifactValidationReport(artifactValidation) }
         : {}),
-      ...(options.includeDetails && reviewApproval ? { reviewApproval } : {}),
+      ...(options.includeDetails && effectiveReviewApproval ? { reviewApproval: effectiveReviewApproval } : {}),
+      ...(options.includeDetails && effectivePreRenderReviewApproval
+        ? { preRenderReviewApproval: effectivePreRenderReviewApproval }
+        : {}),
+      ...(options.includeDetails && effectivePreExportReviewApproval
+        ? { preExportReviewApproval: effectivePreExportReviewApproval }
+        : {}),
       ...(options.includeDetails && result ? { result } : {})
     };
   }

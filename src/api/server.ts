@@ -120,6 +120,8 @@ interface RenderRequestBody extends CineJellyProjectRequest {
   readonly artifactDirectory?: string;
   readonly reviewApprovalGate?: ReviewApprovalGate;
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
+  readonly preExportReviewApprovalGate?: ReviewApprovalGate;
+  readonly preExportReviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
 }
 
 interface RenderJobReviewRequestBody {
@@ -625,6 +627,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ? {
               ...submission.summary,
               queuedForRender: submission.queuedForRender,
+              ...(submission.approvedForExport !== undefined ? { approvedForExport: submission.approvedForExport } : {}),
               ...(commercialReservation?.clientPolicyReservation
                 ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
                 : {}),
@@ -704,6 +707,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const body = await readJsonBody<RenderRequestBody>(request, maxBodyBytes);
         const renderBody = renderRequestBody(body);
         const reviewApproval = renderJobReviewInputFromRenderBody(body);
+        const preExportReviewApproval = preExportReviewInputFromRenderBody(body);
         requestAdmission.assertAcceptable(renderBody);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
@@ -726,6 +730,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
           ...(requestFingerprint ? { requestFingerprint } : {}),
           ...(reviewApproval ? { reviewApproval } : {}),
+          ...(preExportReviewApproval ? { preExportReviewApproval } : {}),
           onAccepted: () => {
             commercialReservation = reserveCommercialRender({
               clientPolicyGate,
@@ -1351,7 +1356,13 @@ function reserveCommercialRender(input: {
 }
 
 function renderRequestBody(body: RenderRequestBody): CineJellyProjectRequest {
-  const { reviewApprovalGate: _reviewApprovalGate, reviewApprovalCheckpoints: _reviewApprovalCheckpoints, ...renderBody } = body;
+  const {
+    reviewApprovalGate: _reviewApprovalGate,
+    reviewApprovalCheckpoints: _reviewApprovalCheckpoints,
+    preExportReviewApprovalGate: _preExportReviewApprovalGate,
+    preExportReviewApprovalCheckpoints: _preExportReviewApprovalCheckpoints,
+    ...renderBody
+  } = body;
   return renderBody;
 }
 
@@ -1363,6 +1374,20 @@ function renderJobReviewInputFromRenderBody(body: RenderRequestBody): RenderJobR
     gate: body.reviewApprovalGate,
     checkpoints: body.reviewApprovalCheckpoints
   });
+}
+
+function preExportReviewInputFromRenderBody(body: RenderRequestBody): RenderJobReviewInput | undefined {
+  if (body.preExportReviewApprovalGate === undefined && body.preExportReviewApprovalCheckpoints === undefined) {
+    return undefined;
+  }
+  const reviewInput = normalizeReviewApprovalInput({
+    gate: body.preExportReviewApprovalGate ?? "pre_export",
+    checkpoints: body.preExportReviewApprovalCheckpoints
+  });
+  if (reviewInput.gate !== "pre_export") {
+    throw new RenderRequestAdmissionError("preExportReviewApprovalGate must be pre_export.");
+  }
+  return reviewInput;
 }
 
 function renderJobReviewInputFromReviewBody(body: RenderJobReviewRequestBody): RenderJobReviewInput {

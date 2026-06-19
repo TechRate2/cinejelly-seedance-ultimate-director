@@ -2896,7 +2896,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "bounded Product URL-to-Video research can feed safe product facts and claim checkpoints into the planning loop",
       "durable no-spend conversation sessions can be persisted with atomic writes and client-scoped retrieval without storing raw transcript text",
       "stored conversation sessions can enter the async render-job review lifecycle without accepting client-side replacement plans",
-      "accepted short-plan review evidence can hand off into the async render-job lifecycle while preserving operator-visible status"
+      "accepted short-plan review evidence can hand off into the async render-job lifecycle while preserving operator-visible status",
+      "async jobs can pause after artifact validation for pre-export artifact-bound review without rerendering or reserving provider spend again"
     ],
     behaviorChanged: [
       "rewritten into CineJelly-owned TypeScript planners, review approvals, async job state, and artifact contracts",
@@ -2929,7 +2930,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "schemas/short-pipeline-session-render-handoff-smoke-report.schema.json",
       "schemas/short-pipeline-smoke-report.schema.json",
       "schemas/product-url-extraction-smoke-report.schema.json",
+      "schemas/render-job-review-lifecycle-smoke-report.schema.json",
       "docs/SHORT_PIPELINE_AGENTIC_DESIGN.md",
+      "scripts/run-render-job-review-lifecycle-smoke.mjs",
       "src/core/source-logic-translation-records.ts"
     ],
     validationStatus: "implemented",

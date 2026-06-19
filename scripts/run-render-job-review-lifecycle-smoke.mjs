@@ -199,6 +199,40 @@ const blockedSubmission = manager.submit({
   }
 });
 
+const countsBeforePreExportReview = {
+  runtimeRunCount,
+  reservationCount
+};
+const preExportSubmission = manager.submit({
+  request: request("req_review_lifecycle_pre_export"),
+  artifactDirectory: "assets/output_deliverables/business-readiness/render-job-review-lifecycle/pre-export",
+  preExportReviewApproval: {
+    gate: "pre_export",
+    checkpoints: [
+      { surface: "audio", label: "Rendered audio accepted", subjectId: "artifact_audio_001" },
+      { surface: "caption", label: "Rendered captions accepted", subjectId: "artifact_caption_001" },
+      { surface: "claim", label: "Rendered claim evidence accepted", subjectId: "artifact_claim_001" }
+    ]
+  },
+  onAccepted: () => {
+    reservationCount += 1;
+  }
+});
+const preExportPaused = await waitForStatus(manager, preExportSubmission.summary.jobId, "paused_for_review");
+const countsAfterPreExportPause = {
+  runtimeRunCount,
+  reservationCount
+};
+const preExportApproval = manager.review(preExportSubmission.summary.jobId, {
+  gate: "pre_export",
+  checkpoints: [
+    approvedCheckpoint("audio", "Rendered audio accepted", "artifact_audio_001", reviewedAt),
+    approvedCheckpoint("caption", "Rendered captions accepted", "artifact_caption_001", reviewedAt),
+    approvedCheckpoint("claim", "Rendered claim evidence accepted", "artifact_claim_001", reviewedAt)
+  ]
+});
+const preExportFinal = manager.get(preExportSubmission.summary.jobId);
+
 const apiSmoke = await runApiSmoke(startServer, reviewedAt);
 const stats = manager.stats();
 const checks = [
@@ -206,11 +240,25 @@ const checks = [
   check("pending_does_not_reserve_provider_spend", reservationsAfterPending === 0),
   check("changes_requested_pauses_revision", revisionSubmission?.summary.status === "paused_for_revision"),
   check("approval_queues_for_render", approvedSubmission?.queuedForRender === true),
-  check("approval_reserves_once", reservationCount === 1),
-  check("approved_job_succeeds", finalApproved?.status === "succeeded" && runtimeRunCount === 1),
+  check("approval_reserves_once", countsBeforePreExportReview.reservationCount === 1),
+  check("approved_job_succeeds", finalApproved?.status === "succeeded" && countsBeforePreExportReview.runtimeRunCount === 1),
   check("review_approval_detail_retained", finalApproved?.reviewApproval?.status === "approved"),
-  check("rejected_is_terminal_without_runtime", rejectedSubmission.summary.status === "rejected" && runtimeRunCount === 1),
-  check("blocked_is_paused_without_runtime", blockedSubmission.summary.status === "blocked" && runtimeRunCount === 1),
+  check("rejected_is_terminal_without_runtime", rejectedSubmission.summary.status === "rejected" && countsBeforePreExportReview.runtimeRunCount === 1),
+  check("blocked_is_paused_without_runtime", blockedSubmission.summary.status === "blocked" && countsBeforePreExportReview.runtimeRunCount === 1),
+  check("pre_export_renders_before_pausing", countsAfterPreExportPause.runtimeRunCount === countsBeforePreExportReview.runtimeRunCount + 1),
+  check("pre_export_reserves_once_before_render", countsAfterPreExportPause.reservationCount === countsBeforePreExportReview.reservationCount + 1),
+  check(
+    "pre_export_pauses_with_artifact_evidence",
+    preExportPaused?.status === "paused_for_review" &&
+      preExportPaused.hasResult === true &&
+      preExportPaused.hasArtifacts === true &&
+      preExportPaused.hasArtifactValidation === true &&
+      preExportPaused.reviewApproval?.gate === "pre_export" &&
+      preExportPaused.preExportReviewApproval?.status === "approval_required"
+  ),
+  check("pre_export_review_approves_export", preExportApproval?.approvedForExport === true && preExportFinal?.status === "succeeded"),
+  check("pre_export_approval_does_not_rerender", runtimeRunCount === countsAfterPreExportPause.runtimeRunCount),
+  check("pre_export_approval_does_not_reserve_again", reservationCount === countsAfterPreExportPause.reservationCount),
   check("queue_stats_count_paused_blocked", stats.pausedJobCount === 1),
   check("api_submit_pending_pauses", apiSmoke.submitStatusCode === 202 && apiSmoke.submitStatus === "paused_for_review"),
   check("api_submit_pending_no_reservation", apiSmoke.submitHasReservation === false),
@@ -231,8 +279,22 @@ const report = {
     afterApproval: finalApproved?.status,
     rejected: rejectedSubmission.summary.status,
     blocked: blockedSubmission.summary.status,
+    preExportPaused: preExportPaused?.status,
+    preExportFinal: preExportFinal?.status,
     apiSubmit: apiSmoke.submitStatus,
     apiReview: apiSmoke.reviewStatus
+  },
+  preExportReview: {
+    pausedStatus: preExportPaused?.status,
+    finalStatus: preExportFinal?.status,
+    hasResultAtPause: preExportPaused?.hasResult === true,
+    hasArtifactsAtPause: preExportPaused?.hasArtifacts === true,
+    hasArtifactValidationAtPause: preExportPaused?.hasArtifactValidation === true,
+    reviewGateAtPause: preExportPaused?.reviewApproval?.gate,
+    preExportReviewStatusAtPause: preExportPaused?.preExportReviewApprovalStatus,
+    approvedForExport: preExportApproval?.approvedForExport === true,
+    runtimeRunsDuringExportApproval: runtimeRunCount - countsAfterPreExportPause.runtimeRunCount,
+    reservationsDuringExportApproval: reservationCount - countsAfterPreExportPause.reservationCount
   },
   queue: stats,
   checks,

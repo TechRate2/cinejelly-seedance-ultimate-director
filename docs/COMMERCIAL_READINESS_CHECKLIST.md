@@ -18,12 +18,13 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Report contract validation exists.
 - [x] Review/approval primitive exists for scene, audio, caption, and claim gates.
 - [x] Async pre-render review/approval is wired into API job lifecycle as `pause -> review -> approve/reject`, with quota reservation deferred until approval.
+- [x] Async pre-export review/approval is wired after artifact validation so retained artifacts can pause for artifact-bound evidence and be approved for export without rerendering or reserving spend again.
 - [x] No-spend agentic short-pipeline planning foundation exists with product URL fingerprinting, optional template suggestions, brand-kit guardrails, and scene/audio/caption/claim review checkpoints.
 - [x] No-spend short-pipeline conversation backend exists for natural-language turns, revision tracking, optional-template rejection, approval-intent detection, and raw transcript redaction.
 - [x] No-spend durable short-pipeline conversation session store exists behind explicit `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH`, with atomic writes, client-scoped reads, and redaction checks for raw transcript, URLs, local paths, and secret-like values.
 - [x] No-spend short-pipeline session render handoff exists so a stored session can create a paused/blocked async render job only through server-side plan retrieval, rejection of client-side plan replacement, formal review evidence, client scope, and explicit spend confirmation.
 - [x] No-spend Product URL-to-Video backend extraction can parse bounded public HTML behind explicit live-network confirmation, feed safe product facts into short-pipeline planning, and emit schema-validated redaction evidence without provider spend.
-- [ ] Pre-export review, UI review screens, and artifact-bound manual media review are accepted for the first commercial launch scope.
+- [ ] First-party UI review screens and accepted artifact-bound manual media review are completed for the first commercial launch scope.
 
 ## Paid Provider Evidence
 

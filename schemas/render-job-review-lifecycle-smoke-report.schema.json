@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/render-job-review-lifecycle-smoke-report.schema.json",
+  "title": "CineJelly Render Job Review Lifecycle Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noExternalNetworkCallsMade",
+    "localHttpCallsMade",
+    "providerCallsMade",
+    "reservationCount",
+    "jobStatuses",
+    "preExportReview",
+    "queue",
+    "checks",
+    "releaseGateSummary"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.render-job-review-lifecycle-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noExternalNetworkCallsMade": { "const": true },
+    "localHttpCallsMade": { "const": true },
+    "providerCallsMade": { "const": 2 },
+    "reservationCount": { "const": 2 },
+    "jobStatuses": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pending",
+        "afterRevision",
+        "afterApproval",
+        "rejected",
+        "blocked",
+        "preExportPaused",
+        "preExportFinal",
+        "apiSubmit",
+        "apiReview"
+      ],
+      "properties": {
+        "pending": { "const": "paused_for_review" },
+        "afterRevision": { "const": "paused_for_revision" },
+        "afterApproval": { "const": "succeeded" },
+        "rejected": { "const": "rejected" },
+        "blocked": { "const": "blocked" },
+        "preExportPaused": { "const": "paused_for_review" },
+        "preExportFinal": { "const": "succeeded" },
+        "apiSubmit": { "const": "paused_for_review" },
+        "apiReview": { "const": "paused_for_revision" }
+      }
+    },
+    "preExportReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pausedStatus",
+        "finalStatus",
+        "hasResultAtPause",
+        "hasArtifactsAtPause",
+        "hasArtifactValidationAtPause",
+        "reviewGateAtPause",
+        "preExportReviewStatusAtPause",
+        "approvedForExport",
+        "runtimeRunsDuringExportApproval",
+        "reservationsDuringExportApproval"
+      ],
+      "properties": {
+        "pausedStatus": { "const": "paused_for_review" },
+        "finalStatus": { "const": "succeeded" },
+        "hasResultAtPause": { "const": true },
+        "hasArtifactsAtPause": { "const": true },
+        "hasArtifactValidationAtPause": { "const": true },
+        "reviewGateAtPause": { "const": "pre_export" },
+        "preExportReviewStatusAtPause": { "const": "approval_required" },
+        "approvedForExport": { "const": true },
+        "runtimeRunsDuringExportApproval": { "const": 0 },
+        "reservationsDuringExportApproval": { "const": 0 }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retainedJobCount",
+        "queuedJobCount",
+        "runningJobCount",
+        "pausedJobCount",
+        "terminalJobCount",
+        "maxConcurrentJobs",
+        "queueLimit",
+        "availableQueueSlots"
+      ],
+      "properties": {
+        "retainedJobCount": { "type": "integer", "minimum": 4 },
+        "queuedJobCount": { "const": 0 },
+        "runningJobCount": { "const": 0 },
+        "pausedJobCount": { "const": 1 },
+        "terminalJobCount": { "type": "integer", "minimum": 3 },
+        "maxConcurrentJobs": { "type": "integer", "minimum": 1 },
+        "queueLimit": { "type": "integer", "minimum": 1 },
+        "availableQueueSlots": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 19,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "fail"] }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsNoSpendBackendEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsNoSpendBackendEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
