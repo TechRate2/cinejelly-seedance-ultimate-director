@@ -36,6 +36,7 @@ It may:
 - surface the safe operator handoff summary from commercial-inputs so operators see missing input counts, ignored file packets, draft/report archive counts, and guarded command status from the top-level doctor report
 - surface snapshot parity coverage estimates so operators can compare the current backend against each upstream snapshot without treating those estimates as release evidence
 - surface the evidence closure plan from completion-audit so operators see the ordered blocker phases, required input IDs, env placeholders, related operator packet files, report archive paths, expanded input validation commands, command guards, execution-readiness verdicts, and direct commands before attempting live or paid evidence
+- surface generated-audio paid validation and artifact-evidence report statuses separately from the manual-review draft so operators can see whether provider output and SHA/duration media evidence already exist before asking for listening approval
 - refresh roadmap closure audit so roadmap/snapshot remaining-work requirements stay bound to current blocker IDs, product-code gaps, evidence reports, and local prep commands
 - run report-contract validation
 - summarize external/operator blockers
@@ -93,7 +94,7 @@ Because the doctor rewrites its own report before and after contract refreshes, 
 - The readiness snapshot includes the current Director-style quality benchmark status, review-evidence guard status, and accepted review-evidence readiness status.
 - The readiness snapshot includes current snapshot parity guardrail status.
 - The readiness snapshot includes current source-video auto-analysis smoke and remote-stock adapter smoke statuses.
-- The readiness snapshot includes current generated-audio mapping smoke status.
+- The readiness snapshot includes current generated-audio mapping smoke status, generated-audio paid validation status, generated-audio artifact-evidence status, and generated-audio manual-review draft status.
 - The readiness snapshot includes the current provider reconciliation/handoff smoke statuses when those smokes are enabled.
 - The readiness snapshot includes the current graph-resume enqueue payload evidence status.
 - The report contract is included in `validation:report-contracts`.

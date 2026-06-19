@@ -454,6 +454,12 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   if (["missing", "skipped", undefined].includes(report?.readinessSnapshot?.qualityReviewEvidenceStatus)) {
     issues.push("$.readinessSnapshot.qualityReviewEvidenceStatus: expected a refreshed review-evidence status, not missing/skipped.");
   }
+  if (report?.readinessSnapshot?.generatedAudioValidationStatus !== report?.reportSummaries?.generatedAudioValidation?.status) {
+    issues.push("$.readinessSnapshot.generatedAudioValidationStatus: expected to match reportSummaries.generatedAudioValidation.status.");
+  }
+  if (report?.readinessSnapshot?.generatedAudioArtifactEvidenceStatus !== report?.reportSummaries?.generatedAudioArtifactEvidence?.status) {
+    issues.push("$.readinessSnapshot.generatedAudioArtifactEvidenceStatus: expected to match reportSummaries.generatedAudioArtifactEvidence.status.");
+  }
   const materialSourceScoringRun = commandByName.get("material_source_scoring");
   if (materialSourceScoringRun?.status !== "pass") {
     issues.push("$.commandRuns[material_source_scoring].status: expected pass for material-source scoring smoke command.");
