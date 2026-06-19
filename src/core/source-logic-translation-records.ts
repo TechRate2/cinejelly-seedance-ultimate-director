@@ -769,7 +769,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "upstream downloader/provider code is not reused",
       "provider keys are parsed through secret-safe runtime configuration",
-      "candidate URIs must be credential-free HTTPS and pass CineJelly MaterialSourceValidator"
+      "candidate URIs must be credential-free HTTPS and pass CineJelly MaterialSourceValidator",
+      "no-spend adapter smoke validates provider credential boundaries, unsafe URL filtering, Coverr approval gating, fail-closed behavior, and aggregate material validation before live provider calls"
     ],
     referenceImplementationPath: "docs/reference-implementations/remote-stock-material-adapter.md",
     cineJellyDestinationPaths: [
@@ -779,7 +780,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/config/runtime-config.ts",
       "src/application/director-factory.ts",
       "src/application/runtime-preflight.ts",
-      "src/agents/director-agent.ts"
+      "src/agents/director-agent.ts",
+      "scripts/run-remote-stock-adapter-smoke.mjs",
+      "schemas/remote-stock-adapter-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -805,14 +808,17 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "VibeFrame validation discipline is rewritten into CineJelly remote stock preflight",
       "candidate metadata is redacted and safe for artifacts",
-      "remote stock adapter output stays behind centralized material validation"
+      "remote stock adapter output stays behind centralized material validation",
+      "fake-fetch adapter smoke keeps provider response compatibility and report redaction checks separate from live provider evidence"
     ],
     referenceImplementationPath: "docs/reference-implementations/remote-stock-material-adapter.md",
     cineJellyDestinationPaths: [
       "src/core/remote-stock-material-adapter.ts",
       "src/application/runtime-preflight.ts",
       "src/core/material-source-validator.ts",
-      "src/core/review-packet-builder.ts"
+      "src/core/review-packet-builder.ts",
+      "scripts/run-remote-stock-adapter-smoke.mjs",
+      "schemas/remote-stock-adapter-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -837,13 +843,16 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "AGPL implementation code is not copied, linked, or executed",
       "approval concepts are rewritten into CineJelly-owned provider gating and validation",
-      "Coverr commercial-use approval is explicit before that provider can be enabled"
+      "Coverr commercial-use approval is explicit before that provider can be enabled",
+      "adapter smoke proves approval-gate and unsafe-output rejection behavior without importing or executing OpenMontage runtime"
     ],
     referenceImplementationPath: "docs/reference-implementations/remote-stock-material-adapter.md",
     cineJellyDestinationPaths: [
       "src/core/remote-stock-material-adapter.ts",
       "src/core/material-source-validator.ts",
-      "src/application/runtime-preflight.ts"
+      "src/application/runtime-preflight.ts",
+      "scripts/run-remote-stock-adapter-smoke.mjs",
+      "schemas/remote-stock-adapter-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [

@@ -183,6 +183,11 @@ function buildCommands(options) {
       reportPath: "assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
+    }),
+    command("remote_stock_adapter_smoke", ["scripts/run-remote-stock-adapter-smoke.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json",
+      expectedExitCodes: [0],
+      blocksCodeReadiness: true
     })
   ];
   if (!options.skipLocalSmoke) {
@@ -417,6 +422,7 @@ function buildReport(options, commandRuns) {
     snapshotParity: summarizeReport("assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
     materialSourceScoring: summarizeReport("assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"),
     sourceVideoAutoAnalysisSmoke: summarizeReport("assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"),
+    remoteStockAdapterSmoke: summarizeReport("assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json"),
     providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
     providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
     providerExternalLease: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
@@ -483,6 +489,7 @@ function buildReport(options, commandRuns) {
       releaseAuditStatus: reportSummaries.releaseAudit.status,
       snapshotParityStatus: reportSummaries.snapshotParity.status,
       sourceVideoAutoAnalysisSmokeStatus: reportSummaries.sourceVideoAutoAnalysisSmoke.status,
+      remoteStockAdapterSmokeStatus: reportSummaries.remoteStockAdapterSmoke.status,
       qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
       qualityReviewDraftsStatus: reportSummaries.qualityReviewDrafts.status,
       qualityReviewGuardStatus: reportSummaries.qualityReviewGuard.status,
@@ -912,6 +919,8 @@ function renderMarkdown(report) {
     `- Business-readiness: ${report.readinessSnapshot.businessReadinessStatus}`,
     `- Release audit: ${report.readinessSnapshot.releaseAuditStatus}`,
     `- Snapshot parity: ${report.readinessSnapshot.snapshotParityStatus}`,
+    `- Source-video auto-analysis smoke: ${report.readinessSnapshot.sourceVideoAutoAnalysisSmokeStatus}`,
+    `- Remote-stock adapter smoke: ${report.readinessSnapshot.remoteStockAdapterSmokeStatus}`,
     `- Quality benchmark: ${report.readinessSnapshot.qualityBenchmarkStatus}`,
     `- Quality review drafts: ${report.readinessSnapshot.qualityReviewDraftsStatus}`,
     `- Quality review guard: ${report.readinessSnapshot.qualityReviewGuardStatus}`,

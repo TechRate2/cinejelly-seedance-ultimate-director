@@ -1,6 +1,6 @@
 # Reference Implementation: Remote Stock Provider Validation Runner
 
-Implementation status as of 2026-06-16: implemented as a CineJelly-owned live-network validation CLI, JSON schema, package command, business-readiness input, and operator documentation. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-19: implemented as a CineJelly-owned live-network validation CLI, JSON schema, package command, business-readiness input, operator documentation, plus a separate no-spend adapter smoke for backend provider-boundary behavior. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Upstream And Provider Sources
 
@@ -70,6 +70,7 @@ interface RemoteStockValidationReport {
 - Done: add `schemas/remote-stock-validation-report.schema.json`.
 - Done: make `validation:business-readiness` evaluate the versioned remote-stock report explicitly.
 - Done: document the live-network and commercial-terms confirmation gates.
+- Done: add `validation:remote-stock-adapter-smoke` as no-spend backend evidence for adapter behavior; it is intentionally not live remote-stock provider evidence.
 
 ## Validation Checklist
 

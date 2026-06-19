@@ -1,6 +1,6 @@
 # Reference Implementation: Remote Stock Material Adapter
 
-Implementation status as of 2026-06-19: implemented as CineJelly-owned TypeScript in remote stock material adapter contracts, runtime configuration, preflight, DirectorAgent material fulfillment, deterministic material-source scoring evidence, the public package export surface, and a live-network validation runner with explicit commercial-terms evidence. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-19: implemented as CineJelly-owned TypeScript in remote stock material adapter contracts, runtime configuration, preflight, DirectorAgent material fulfillment, deterministic material-source scoring evidence, a no-spend adapter smoke, the public package export surface, and a live-network validation runner with explicit commercial-terms evidence. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Upstream And Provider Sources
 
@@ -98,6 +98,8 @@ function normalizeProviderItem(source, item, brief) {
 - Done: add remote stock material settings to `src/types/settings.ts`.
 - Done: add remote stock candidate metadata to `src/types/material.ts`.
 - Done: add `src/core/remote-stock-material-adapter.ts` as a CineJelly-owned adapter for Pexels, Pixabay, and commercially approved Coverr.
+- Done: add `scripts/run-remote-stock-adapter-smoke.mjs` and `npm.cmd run validation:remote-stock-adapter-smoke` to prove disabled/no-fetch, Pexels header credential use, Pixabay outbound query-key handling, Coverr commercial approval gating, credential-free HTTPS candidate filtering, short-duration filtering, provider fail-closed behavior, and aggregate `MaterialSourceValidator` approval without stock-provider network calls.
+- Done: add `schemas/remote-stock-adapter-smoke-report.schema.json`, report-contract semantic validation, and commercial launch doctor coverage for the no-spend adapter smoke.
 - Done: add runtime env parsing for:
   - `CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS`
   - `CINEJELLY_REMOTE_STOCK_REQUEST_TIMEOUT_MS`
@@ -115,6 +117,7 @@ function normalizeProviderItem(source, item, brief) {
 ## Validation Checklist
 
 - Remote stock disabled produces no remote candidates and keeps material validation planned-only unless local/user candidates exist.
+- `validation:remote-stock-adapter-smoke` passes and remains non-release backend evidence.
 - Enabling remote stock with no approved provider fails runtime config/preflight.
 - Pexels adapter uses an `Authorization` header and never places the API key in URLs.
 - Pixabay adapter may place the key only in the outbound API request URL, never in candidate URI/artifacts/errors.

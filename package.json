@@ -49,6 +49,7 @@
     "validation:source-video-auto-analysis": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-source-video-auto-analysis-validation.mjs",
     "validation:source-video-auto-analysis-smoke": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-source-video-auto-analysis-smoke.mjs",
     "validation:remote-stock": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-remote-stock-validation.mjs",
+    "validation:remote-stock-adapter-smoke": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-remote-stock-adapter-smoke.mjs",
     "validation:material-source-scoring": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-material-source-scoring-smoke.mjs",
     "validation:generated-audio": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-atlas-generated-audio-validation.mjs",
     "validation:generated-audio-artifact": "node --env-file-if-exists=.env scripts/capture-generated-audio-artifact-evidence.mjs",

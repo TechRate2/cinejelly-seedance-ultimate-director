@@ -50,6 +50,7 @@ const defaultContracts = [
   contract("long_form_manual_quality_review_draft", "schemas/long-form-manual-quality-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
   contract("source_video_auto_analysis_smoke", "schemas/source-video-auto-analysis-smoke-report.schema.json", "assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"),
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
+  contract("remote_stock_adapter_smoke", "schemas/remote-stock-adapter-smoke-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json"),
   contract("remote_stock_validation", "schemas/remote-stock-validation-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-validation-report.json"),
   contract("material_source_scoring_smoke", "schemas/material-source-scoring-smoke-report.schema.json", "assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"),
   contract("generated_audio_validation", "schemas/generated-audio-validation-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
@@ -316,6 +317,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "source_video_auto_analysis_smoke") {
     return validateSourceVideoAutoAnalysisSmokeSemantics(report);
   }
+  if (item.name === "remote_stock_adapter_smoke") {
+    return validateRemoteStockAdapterSmokeSemantics(report);
+  }
   if (item.name === "director_style_benchmark") {
     return validateDirectorStyleBenchmarkSemantics(report);
   }
@@ -376,6 +380,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "snapshot_parity",
   "material_source_scoring",
   "source_video_auto_analysis_smoke",
+  "remote_stock_adapter_smoke",
   "provider_live_actions",
   "provider_graph_resume",
   "release_audit",
@@ -460,6 +465,16 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (report?.readinessSnapshot?.sourceVideoAutoAnalysisSmokeStatus !== "pass") {
     issues.push("$.readinessSnapshot.sourceVideoAutoAnalysisSmokeStatus: expected pass after refreshing source-video auto-analysis smoke.");
+  }
+  const remoteStockAdapterSmokeRun = commandByName.get("remote_stock_adapter_smoke");
+  if (remoteStockAdapterSmokeRun?.status !== "pass") {
+    issues.push("$.commandRuns[remote_stock_adapter_smoke].status: expected pass for remote-stock adapter smoke command.");
+  }
+  if (report?.reportSummaries?.remoteStockAdapterSmoke?.status !== "pass") {
+    issues.push("$.reportSummaries.remoteStockAdapterSmoke.status: expected pass after refreshing remote-stock adapter smoke.");
+  }
+  if (report?.readinessSnapshot?.remoteStockAdapterSmokeStatus !== "pass") {
+    issues.push("$.readinessSnapshot.remoteStockAdapterSmokeStatus: expected pass after refreshing remote-stock adapter smoke.");
   }
 
   const scopeSummary = report?.commercialOfferScopeSummary;
@@ -1161,6 +1176,162 @@ function validateSourceVideoAutoAnalysisSmokeSemantics(report) {
   const checks = Array.isArray(report?.checks) ? report.checks : [];
   if (checks.length === 0 || checks.some((check) => check?.status !== "pass")) {
     issues.push("$.checks: expected all source-video smoke checks to pass.");
+  }
+  return issues;
+}
+
+function validateRemoteStockAdapterSmokeSemantics(report) {
+  const issues = [];
+  if (report?.status !== "pass") {
+    issues.push("$.status: expected pass for remote-stock adapter smoke.");
+  }
+  if (report?.noSpend !== true || report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade: expected no-spend/no-network/no-real-provider smoke.");
+  }
+  if (report?.releaseGateSummary?.canUseAsRemoteStockAdapterBackendEvidence !== true) {
+    issues.push("$.releaseGateSummary.canUseAsRemoteStockAdapterBackendEvidence: expected true when smoke passes.");
+  }
+  if (report?.releaseGateSummary?.canUseAsLiveRemoteStockEvidence !== false) {
+    issues.push("$.releaseGateSummary.canUseAsLiveRemoteStockEvidence: expected false; smoke is not live provider evidence.");
+  }
+  if (report?.releaseGateSummary?.canOpenPaidCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canOpenPaidCustomerTraffic: expected false; smoke cannot open customer traffic.");
+  }
+
+  const scenarios = Array.isArray(report?.scenarioSummaries) ? report.scenarioSummaries : [];
+  const scenarioByName = new Map(scenarios.map((scenario) => [String(scenario?.name ?? ""), scenario]));
+  const requiredScenarios = [
+    "remote_disabled_skips_provider_fetch",
+    "pexels_header_credentials_and_safe_candidate",
+    "pixabay_key_query_not_artifact_candidate",
+    "coverr_requires_commercial_approval",
+    "coverr_approved_safe_candidate",
+    "provider_error_returns_empty_candidates"
+  ];
+  for (const scenarioName of requiredScenarios) {
+    if (!scenarioByName.has(scenarioName)) {
+      issues.push(`$.scenarioSummaries: expected ${scenarioName} scenario.`);
+    }
+  }
+  if (Number(report?.summary?.scenarioCount ?? -1) !== scenarios.length) {
+    issues.push("$.summary.scenarioCount: expected to match scenarioSummaries length.");
+  }
+  if (Number(report?.summary?.passingScenarioCount ?? -1) !== scenarios.filter((scenario) => scenario?.status === "pass").length) {
+    issues.push("$.summary.passingScenarioCount: expected to match passing scenarios.");
+  }
+  if (Number(report?.summary?.failingScenarioCount ?? -1) !== scenarios.filter((scenario) => scenario?.status === "fail").length) {
+    issues.push("$.summary.failingScenarioCount: expected to match failing scenarios.");
+  }
+  if (Number(report?.summary?.syntheticFetchCallCount ?? -1) !== scenarios.reduce((sum, scenario) => sum + Number(scenario?.syntheticFetchCallCount ?? 0), 0)) {
+    issues.push("$.summary.syntheticFetchCallCount: expected to match scenario fetch calls.");
+  }
+
+  const disabled = scenarioByName.get("remote_disabled_skips_provider_fetch");
+  if (disabled?.syntheticFetchCallCount !== 0 || disabled?.candidateCount !== 0 || disabled?.providerSearchSkipped !== true) {
+    issues.push("$.scenarioSummaries[remote_disabled_skips_provider_fetch]: expected no fetch and no candidates.");
+  }
+  const pexels = scenarioByName.get("pexels_header_credentials_and_safe_candidate");
+  if (
+    pexels?.authorizationHeaderObserved !== true ||
+    pexels?.searchUrlKeyQueryObserved !== false ||
+    pexels?.outboundCredentialUsedOnlyForSearch !== true ||
+    pexels?.unsafeRenditionSkipped !== true ||
+    pexels?.shortDurationSkipped !== true ||
+    pexels?.candidateCount !== 1 ||
+    pexels?.materialValidatorAccepted !== true
+  ) {
+    issues.push("$.scenarioSummaries[pexels_header_credentials_and_safe_candidate]: expected header credential use, unsafe/short filtering, one safe candidate, and approved material validation.");
+  }
+  const pixabay = scenarioByName.get("pixabay_key_query_not_artifact_candidate");
+  if (
+    pixabay?.searchUrlKeyQueryObserved !== true ||
+    pixabay?.outboundCredentialUsedOnlyForSearch !== true ||
+    pixabay?.unsafeRenditionSkipped !== true ||
+    pixabay?.shortDurationSkipped !== true ||
+    pixabay?.candidateCount !== 1 ||
+    pixabay?.materialValidatorAccepted !== true
+  ) {
+    issues.push("$.scenarioSummaries[pixabay_key_query_not_artifact_candidate]: expected outbound query-key use without artifact leakage and one approved safe candidate.");
+  }
+  const coverrGate = scenarioByName.get("coverr_requires_commercial_approval");
+  if (
+    coverrGate?.syntheticFetchCallCount !== 0 ||
+    coverrGate?.candidateCount !== 0 ||
+    coverrGate?.coverrCommercialApprovalRequired !== true ||
+    !String(coverrGate?.thrownErrorRedacted ?? "").includes("commercialUseApproved=true")
+  ) {
+    issues.push("$.scenarioSummaries[coverr_requires_commercial_approval]: expected constructor gate before fetch unless commercialUseApproved=true.");
+  }
+  const coverrApproved = scenarioByName.get("coverr_approved_safe_candidate");
+  if (
+    coverrApproved?.authorizationHeaderObserved !== true ||
+    coverrApproved?.outboundCredentialUsedOnlyForSearch !== true ||
+    coverrApproved?.candidateCount !== 1 ||
+    coverrApproved?.materialValidatorAccepted !== true ||
+    coverrApproved?.coverrCommercialApprovalRequired !== true
+  ) {
+    issues.push("$.scenarioSummaries[coverr_approved_safe_candidate]: expected explicit commercial approval, bearer search credential, and one approved safe candidate.");
+  }
+  const providerError = scenarioByName.get("provider_error_returns_empty_candidates");
+  if (
+    providerError?.syntheticFetchCallCount !== 1 ||
+    providerError?.candidateCount !== 0 ||
+    providerError?.providerFailureHandled !== true ||
+    providerError?.materialValidationStatus !== "planned_only"
+  ) {
+    issues.push("$.scenarioSummaries[provider_error_returns_empty_candidates]: expected one failed fake fetch to fail closed as zero candidates.");
+  }
+
+  for (const [index, scenario] of scenarios.entries()) {
+    if (scenario?.status !== "pass") {
+      issues.push(`$.scenarioSummaries[${index}].status: expected pass.`);
+    }
+    if (scenario?.onlyCredentialFreeHttpsCandidates !== true || scenario?.noCredentialMaterialized !== true) {
+      issues.push(`$.scenarioSummaries[${index}]: expected credential-free HTTPS-only candidate materialization.`);
+    }
+    if (scenario?.candidateCountWithinBounds !== true) {
+      issues.push(`$.scenarioSummaries[${index}].candidateCountWithinBounds: expected true.`);
+    }
+  }
+
+  const material = report?.materialValidation ?? {};
+  const evaluations = Array.isArray(report?.candidateEvaluations) ? report.candidateEvaluations : [];
+  const candidateSummaries = Array.isArray(report?.candidateSummaries) ? report.candidateSummaries : [];
+  if (material.status !== "approved" || Number(material.candidateCount ?? -1) !== 3 || Number(material.approvedCandidateCount ?? -1) !== 3) {
+    issues.push("$.materialValidation: expected approved aggregate validation with exactly 3 approved synthetic candidates.");
+  }
+  if (Number(report?.summary?.generatedCandidateCount ?? -1) !== candidateSummaries.length || candidateSummaries.length !== 3) {
+    issues.push("$.candidateSummaries: expected exactly 3 public candidate summaries matching summary.generatedCandidateCount.");
+  }
+  if (Number(material.candidateEvaluationCount ?? -1) !== evaluations.length || evaluations.length !== candidateSummaries.length) {
+    issues.push("$.candidateEvaluations: expected one aggregate evaluation per public candidate summary.");
+  }
+  for (const [index, evaluation] of evaluations.entries()) {
+    const fitScore = Number(evaluation?.fitScore);
+    const maxFitScore = Number(evaluation?.maxFitScore);
+    if (evaluation?.decision !== "approved" || !Number.isFinite(fitScore) || fitScore < 80 || fitScore > 100 || maxFitScore !== 100) {
+      issues.push(`$.candidateEvaluations[${index}]: expected approved decision with bounded 80-100 score.`);
+    }
+  }
+  for (const [index, candidate] of candidateSummaries.entries()) {
+    if (!/^[a-f0-9]{64}$/.test(String(candidate?.uriFingerprint ?? ""))) {
+      issues.push(`$.candidateSummaries[${index}].uriFingerprint: expected SHA-256 fingerprint instead of raw URI.`);
+    }
+    if (candidate?.rightsStatus !== "requires_attribution" || candidate?.attributionPresent !== true || candidate?.selected !== true) {
+      issues.push(`$.candidateSummaries[${index}]: expected selected attribution-required stock candidate with attribution present.`);
+    }
+  }
+
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  if (checks.length === 0 || checks.some((check) => check?.status !== "pass")) {
+    issues.push("$.checks: expected all remote-stock adapter smoke checks to pass.");
+  }
+  const text = JSON.stringify(report);
+  if (/https?:\/\/|asset:\/\//i.test(text)) {
+    issues.push("$.report: expected no raw URLs or asset URIs in public remote-stock adapter smoke report.");
+  }
+  if (/([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization|sig|auth)=)|Bearer\s+[A-Za-z0-9._-]{12,}/i.test(text)) {
+    issues.push("$.report: expected no bearer header or secret-like query text.");
   }
   return issues;
 }

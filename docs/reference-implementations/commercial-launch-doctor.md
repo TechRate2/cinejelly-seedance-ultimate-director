@@ -27,6 +27,7 @@ It may:
 
 - run TypeScript build
 - run local smoke with a temporary localhost API
+- refresh no-spend material-source scoring, source-video auto-analysis, and remote-stock adapter smoke evidence
 - refresh local provider reconciliation, handoff, external-lease, protected lease-service, action-ledger, multi-worker handoff smoke evidence, live provider action evidence status, and graph-resume enqueue payload evidence status
 - refresh the no-spend Director-style quality benchmark, review-evidence guard smoke, and accepted review-evidence readiness gate
 - refresh local JSON/Markdown readiness reports
@@ -43,26 +44,29 @@ It may:
 1. Build TypeScript directly through the local TypeScript compiler entrypoint.
 2. Validate deployment package shape.
 3. Run snapshot parity guardrail audit.
-4. Optionally run local smoke unless `--skip-local-smoke` is set.
-5. Optionally refresh provider resume/handoff smoke evidence unless `--skip-provider-handoff-smokes` is set.
-6. Refresh live provider action evidence status from the ignored operator packet if present.
-7. Refresh graph-resume enqueue payload evidence status from the ignored operator packet if present.
-8. Run release audit.
-9. Run the no-spend Director-style quality benchmark.
-10. Run the no-spend review-evidence guard smoke.
-11. Run the no-spend accepted review-evidence readiness validator.
-12. Run launch intake validation.
-13. Run live input validation.
-14. Run business validation plan.
-15. Run commercial input packet generation.
-16. Run business completion audit.
-17. Run roadmap closure audit with the in-progress doctor report skipped.
-18. Run business readiness audit.
-19. Write the launch doctor report.
-20. Run report-contract validation.
-21. Rerun business completion audit so it reads the fresh report-contract status.
-22. Rewrite the launch doctor report with the refreshed completion-audit status.
-23. Run report-contract validation one final time, then rewrite the doctor report with the final contract status.
+4. Run no-spend material-source scoring smoke.
+5. Run no-spend source-video auto-analysis smoke.
+6. Run no-spend remote-stock adapter smoke.
+7. Optionally run local smoke unless `--skip-local-smoke` is set.
+8. Optionally refresh provider resume/handoff smoke evidence unless `--skip-provider-handoff-smokes` is set.
+9. Refresh live provider action evidence status from the ignored operator packet if present.
+10. Refresh graph-resume enqueue payload evidence status from the ignored operator packet if present.
+11. Run release audit.
+12. Run the no-spend Director-style quality benchmark.
+13. Run the no-spend review-evidence guard smoke.
+14. Run the no-spend accepted review-evidence readiness validator.
+15. Run launch intake validation.
+16. Run live input validation.
+17. Run business validation plan.
+18. Run commercial input packet generation.
+19. Run business completion audit.
+20. Run roadmap closure audit with the in-progress doctor report skipped.
+21. Run business readiness audit.
+22. Write the launch doctor report.
+23. Run report-contract validation.
+24. Rerun business completion audit so it reads the fresh report-contract status.
+25. Rewrite the launch doctor report with the refreshed completion-audit status.
+26. Run report-contract validation one final time, then rewrite the doctor report with the final contract status.
 
 Expected blocked or review-required commands can exit non-zero without becoming code blockers. The quality benchmark, review-evidence guard, and review-evidence readiness reports are refreshed as backend evidence, but a `blocked` or `review_required` benchmark, a missing/incomplete review-evidence bundle, or a clean guard smoke still remains product/evidence status rather than launch approval. Provider handoff and resume-state smokes are local/fake-provider checks; they strengthen backend evidence but do not replace production HTTPS deployment handoff capture, live provider action execution, live queue execution, or real graph-resume enqueue payload proof. The live provider action and graph-resume enqueue validators may report `blocked_by_missing_inputs` until ignored operator evidence packets are present and confirmed. Unexpected build, local-smoke, provider-handoff/resume-state smoke, release-audit, deployment-package, review-evidence guard, or report-contract failures become code-side blockers.
 
@@ -70,7 +74,7 @@ Snapshot parity audit failures also become code-side blockers because they mean 
 
 When `--skip-provider-handoff-smokes` is used, provider smoke statuses in the launch-doctor snapshot must be `skipped` rather than reusing stale report files.
 
-The report-contract validator enforces these launch-doctor semantics in addition to JSON schema shape. A launch-doctor report must show the core command sequence, refreshed snapshot parity guardrail evidence, refreshed live provider action evidence status, refreshed graph-resume enqueue payload evidence status, refreshed quality benchmark command evidence, refreshed quality review guard smoke, refreshed quality review-evidence status, final report-contract pass, provider handoff, resume-state, and protected graph-resume queue-service smoke pass/warn snapshot statuses when enabled, explicit skipped provider statuses when provider smokes are disabled, and no stale unexpected command failures when code blockers are zero.
+The report-contract validator enforces these launch-doctor semantics in addition to JSON schema shape. A launch-doctor report must show the core command sequence, refreshed snapshot parity guardrail evidence, refreshed material-source scoring smoke, source-video auto-analysis smoke, remote-stock adapter smoke, refreshed live provider action evidence status, refreshed graph-resume enqueue payload evidence status, refreshed quality benchmark command evidence, refreshed quality review guard smoke, refreshed quality review-evidence status, final report-contract pass, provider handoff, resume-state, and protected graph-resume queue-service smoke pass/warn snapshot statuses when enabled, explicit skipped provider statuses when provider smokes are disabled, and no stale unexpected command failures when code blockers are zero.
 
 Because the doctor rewrites its own report before and after contract refreshes, its internal report-contract commands use `--allow-launch-doctor-in-progress`. That mode still validates the base command sequence and refreshed provider/quality evidence, while standalone/default report-contract validation remains strict and requires the completed final contract command.
 
@@ -86,6 +90,7 @@ Because the doctor rewrites its own report before and after contract refreshes, 
 - The Markdown output surfaces each phase's local prep commands separately from the real evidence commands so draft/template helpers stay visibly non-release evidence.
 - The readiness snapshot includes the current Director-style quality benchmark status, review-evidence guard status, and accepted review-evidence readiness status.
 - The readiness snapshot includes current snapshot parity guardrail status.
+- The readiness snapshot includes current source-video auto-analysis smoke and remote-stock adapter smoke statuses.
 - The readiness snapshot includes the current provider reconciliation/handoff smoke statuses when those smokes are enabled.
 - The readiness snapshot includes the current graph-resume enqueue payload evidence status.
 - The report contract is included in `validation:report-contracts`.

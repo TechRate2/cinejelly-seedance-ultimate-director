@@ -99,6 +99,7 @@ function validateMaterialCandidates(plan: MaterialSourcingPlan, candidates: Mate
 - Include the report in stage lifecycle evidence, durable artifacts, review packets, and artifact validation.
 - Keep stock API fulfillment out of this implementation; real adapters can implement the new contract later without changing the validation gate.
 - Done: add `validation:material-source-scoring` as a no-spend smoke that proves approved, review-required, and rejected scoring decisions before launch-doctor can trust source-material scoring evidence.
+- Done: add `validation:remote-stock-adapter-smoke` as a no-spend adapter-boundary smoke that proves remote-stock candidates from fake Pexels/Pixabay/Coverr payloads can reach approved material-source scoring without leaking raw URLs or credentials.
 
 ## Validation Checklist
 
