@@ -5,6 +5,8 @@ import type {
 
 const SAFE_STATUS_PATTERN = /^[a-z0-9_.:-]{1,80}$/i;
 const SUPPORTED_OUTPUT_FORMATS = new Set(["mp3", "wav"]);
+const SAFE_REPO_PATH_PATTERN = /^[A-Za-z0-9._/\\:-]{1,240}$/;
+const SHA256_PATTERN = /^[a-f0-9]{64}$/i;
 
 export function normalizeDirectorStyleGeneratedAudioProviderEvidence(
   value: unknown,
@@ -25,6 +27,10 @@ export function normalizeDirectorStyleGeneratedAudioProviderEvidence(
   const approvedTrackCount = safeNonNegativeInteger(value.outputBatchValidation?.approvedTrackCount);
   const providerLedgerEntryCount = safeNonNegativeInteger(value.providerLedger?.entryCount);
   const manualReviewPassed = value.manualAudioReview?.passed === true;
+  const artifactEvidenceChecked = value.manualAudioReview?.artifactEvidenceChecked === true;
+  const artifactEvidenceMatchesReport = value.manualAudioReview?.artifactEvidenceMatchesReport === true;
+  const artifactEvidenceReportPath = safeRepoPath(value.manualAudioReview?.artifactEvidenceReportPath);
+  const mediaSha256 = safeSha256(value.manualAudioReview?.mediaSha256);
   const canUseAsBusinessReadinessGeneratedAudioEvidence =
     value.releaseGateSummary?.canUseAsBusinessReadinessGeneratedAudioEvidence === true;
   const statusInput = {
@@ -35,7 +41,10 @@ export function normalizeDirectorStyleGeneratedAudioProviderEvidence(
     schemaReviewed,
     approvedTrackCount,
     providerLedgerEntryCount,
-    manualReviewPassed
+    manualReviewPassed,
+    artifactEvidenceChecked,
+    artifactEvidenceMatchesReport,
+    mediaSha256Present: mediaSha256 !== undefined
   };
   const status = statusFor({
     ...statusInput,
@@ -68,6 +77,10 @@ export function normalizeDirectorStyleGeneratedAudioProviderEvidence(
     approvedTrackCount,
     providerLedgerEntryCount,
     manualReviewPassed,
+    artifactEvidenceChecked,
+    artifactEvidenceMatchesReport,
+    ...(artifactEvidenceReportPath ? { artifactEvidenceReportPath } : {}),
+    ...(mediaSha256 ? { mediaSha256 } : {}),
     findings: findingsFor({
       status,
       providerNetworkCallsAllowed,
@@ -76,6 +89,9 @@ export function normalizeDirectorStyleGeneratedAudioProviderEvidence(
       approvedTrackCount,
       providerLedgerEntryCount,
       manualReviewPassed,
+      artifactEvidenceChecked,
+      artifactEvidenceMatchesReport,
+      mediaSha256Present: mediaSha256 !== undefined,
       ...(executionStatus ? { executionStatus } : {}),
       ...(outputBatchStatus ? { outputBatchStatus } : {})
     })
@@ -93,6 +109,9 @@ function statusFor(input: {
   readonly approvedTrackCount: number;
   readonly providerLedgerEntryCount: number;
   readonly manualReviewPassed: boolean;
+  readonly artifactEvidenceChecked: boolean;
+  readonly artifactEvidenceMatchesReport: boolean;
+  readonly mediaSha256Present: boolean;
 }): DirectorStyleBenchmarkGeneratedAudioProviderEvidenceStatus {
   if (
     input.canUseAsBusinessReadinessGeneratedAudioEvidence &&
@@ -104,11 +123,20 @@ function statusFor(input: {
     input.outputBatchStatus === "approved" &&
     input.approvedTrackCount > 0 &&
     input.providerLedgerEntryCount > 0 &&
-    input.manualReviewPassed
+    input.manualReviewPassed &&
+    input.artifactEvidenceChecked &&
+    input.artifactEvidenceMatchesReport &&
+    input.mediaSha256Present
   ) {
     return "accepted";
   }
-  if (input.reportStatus === "fail" || input.outputBatchStatus === "rejected") {
+  if (
+    input.outputBatchStatus === "rejected" ||
+    input.executionStatus === "failed" ||
+    input.executionStatus === "canceled" ||
+    input.executionStatus === "timeout" ||
+    (input.reportStatus === "fail" && input.executionStatus !== undefined && input.executionStatus !== "succeeded")
+  ) {
     return "rejected";
   }
   return "needs_review";
@@ -124,10 +152,13 @@ function findingsFor(input: {
   readonly approvedTrackCount: number;
   readonly providerLedgerEntryCount: number;
   readonly manualReviewPassed: boolean;
+  readonly artifactEvidenceChecked: boolean;
+  readonly artifactEvidenceMatchesReport: boolean;
+  readonly mediaSha256Present: boolean;
 }): readonly string[] {
   const findings: string[] = [];
   if (input.status === "accepted") {
-    return ["Generated-audio validation report is accepted for provider-backed audio evidence."];
+    return ["Generated-audio validation report is accepted for provider-backed audio evidence with matching artifact SHA evidence."];
   }
   if (!input.providerNetworkCallsAllowed) {
     findings.push("Generated-audio provider spend evidence is missing.");
@@ -150,6 +181,9 @@ function findingsFor(input: {
   if (!input.manualReviewPassed) {
     findings.push("Generated-audio manual listening review is missing or not accepted.");
   }
+  if (!input.artifactEvidenceChecked || !input.artifactEvidenceMatchesReport || !input.mediaSha256Present) {
+    findings.push("Generated-audio manual review is not bound to matching artifact evidence with a SHA-256 fingerprint.");
+  }
   return findings;
 }
 
@@ -167,6 +201,21 @@ function safeStatus(value: unknown): string | undefined {
   }
   const trimmed = value.trim();
   return SAFE_STATUS_PATTERN.test(trimmed) ? trimmed : undefined;
+}
+
+function safeRepoPath(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!SAFE_REPO_PATH_PATTERN.test(trimmed) || /(?:^|[\\/])\.\.(?:[\\/]|$)/.test(trimmed)) {
+    return undefined;
+  }
+  return trimmed;
+}
+
+function safeSha256(value: unknown): string | undefined {
+  return typeof value === "string" && SHA256_PATTERN.test(value.trim()) ? value.trim().toLowerCase() : undefined;
 }
 
 function safePositiveNumber(value: unknown): number | undefined {

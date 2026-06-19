@@ -596,6 +596,8 @@
         "approvedTrackCount",
         "providerLedgerEntryCount",
         "manualReviewPassed",
+        "artifactEvidenceChecked",
+        "artifactEvidenceMatchesReport",
         "findings"
       ],
       "properties": {
@@ -616,6 +618,10 @@
         "approvedTrackCount": { "type": "integer", "minimum": 0 },
         "providerLedgerEntryCount": { "type": "integer", "minimum": 0 },
         "manualReviewPassed": { "type": "boolean" },
+        "artifactEvidenceChecked": { "type": "boolean" },
+        "artifactEvidenceMatchesReport": { "type": "boolean" },
+        "artifactEvidenceReportPath": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "mediaSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "findings": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
       }
     },

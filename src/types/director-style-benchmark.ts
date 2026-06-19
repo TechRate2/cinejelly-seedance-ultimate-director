@@ -342,6 +342,10 @@ export interface DirectorStyleBenchmarkGeneratedAudioProviderEvidence {
   readonly approvedTrackCount: number;
   readonly providerLedgerEntryCount: number;
   readonly manualReviewPassed: boolean;
+  readonly artifactEvidenceChecked: boolean;
+  readonly artifactEvidenceMatchesReport: boolean;
+  readonly artifactEvidenceReportPath?: string;
+  readonly mediaSha256?: string;
   readonly findings: readonly string[];
 }
 

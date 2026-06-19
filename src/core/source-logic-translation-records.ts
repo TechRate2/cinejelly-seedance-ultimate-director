@@ -2836,16 +2836,16 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "accepted review-evidence readiness validation can confirm all four structured review packets are present, schema/redaction safe, explicitly accepted, complete for required checkpoint names, and bound to the paid artifact before they are treated as accepted review evidence",
       "unsafe-review guard smoke can prove accepted-looking structured review packets with raw URLs, local paths, or token-like text are rejected before benchmark parity rows can consume them",
       "structured review summaries and findings are bounded to aggregate redacted text before benchmark reports can retain them",
-      "generated-audio validation reports can reinforce provider-backed audio evidence through redacted spend, billing, schema, execution, output-batch, ledger, and manual-review gates",
+      "generated-audio validation reports can reinforce provider-backed audio evidence through redacted spend, billing, schema, execution, output-batch, ledger, manual-review, and artifact SHA binding gates",
       "long-form validation reports can reinforce long-form duration and manual-review evidence through redacted budget, billing, paid-render, artifact, duration, cost-ledger, and artifact-fingerprint-bound manual quality-review gates",
       "benchmark runs can be appended to JSONL history without overwriting prior evidence"
     ],
     behaviorChanged: [
       "DirectorBench implementation code is not copied, imported, linked, or executed",
-      "CineJelly evaluates persisted artifact-contract evidence plus local FFprobe, sampled-frame RGB proxy signals, FFmpeg scene-change transition-boundary proxy signals, bounded FFmpeg audio waveform/volume proxy signals, FFprobe audio-video duration-delta proxy signals, optional artifact-bound structured semantic/audio/runtime/governance review JSON, optional generated-audio validation report JSON, optional long-form validation report JSON, and a parity evidence matrix instead of running PySceneDetect, OpenCV, ASR, VLM, lip-sync analyzers, or Python LangGraph agents",
+      "CineJelly evaluates persisted artifact-contract evidence plus local FFprobe, sampled-frame RGB proxy signals, FFmpeg scene-change transition-boundary proxy signals, bounded FFmpeg audio waveform/volume proxy signals, FFprobe audio-video duration-delta proxy signals, optional artifact-bound structured semantic/audio/runtime/governance review JSON, optional generated-audio validation report JSON with artifact evidence status and media SHA only, optional long-form validation report JSON, and a parity evidence matrix instead of running PySceneDetect, OpenCV, ASR, VLM, lip-sync analyzers, or Python LangGraph agents",
       "CineJelly can prepare artifact-bound review draft packets, but generated drafts remain needs_review and cannot satisfy parity rows until a reviewer or approved analyzer accepts them",
       "CineJelly validates the accepted semantic/audio/runtime/governance review bundle separately from draft generation and benchmark scoring, so incomplete, unsafe, unaccepted, or mismatched packets cannot be promoted into accepted review evidence",
-      "reports explicitly state canClaimDirectorBenchParity=false until live long-form, accepted long-form validation, artifact-bound semantic visual review, accepted generated-audio validation, artifact-bound ASR/lip-sync runtime review, artifact-bound governance evidence, and every required parity row exists",
+      "reports explicitly state canClaimDirectorBenchParity=false until live long-form, accepted long-form validation, artifact-bound semantic visual review, accepted generated-audio validation with matching artifact SHA evidence, artifact-bound ASR/lip-sync runtime review, artifact-bound governance evidence, and every required parity row exists",
       "the CLI is no-spend/no-network and writes a schema-validated backend quality report"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-style-benchmark-harness.md",
@@ -2880,7 +2880,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "sampled-frame, transition-boundary proxy, waveform/volume proxy, duration-sync proxy, structured semantic/audio/runtime/governance review signals, accepted review-evidence readiness reports, generated-audio validation report signals, long-form validation report signals, and parity evidence matrix rows do not replace automated lip sync, ASR transcript alignment, real long-form paid evidence, accepted live generated-audio provider evidence, accepted legal/operator review, or full DirectorBench runtime parity",
+      "sampled-frame, transition-boundary proxy, waveform/volume proxy, duration-sync proxy, structured semantic/audio/runtime/governance review signals, accepted review-evidence readiness reports, generated-audio validation report signals with artifact SHA binding, long-form validation report signals, and parity evidence matrix rows do not replace automated lip sync, ASR transcript alignment, real long-form paid evidence, accepted live generated-audio provider evidence, accepted legal/operator review, or full DirectorBench runtime parity",
       "full DirectorBench parity still requires accepted governance review plus dedicated VLM/ASR/audio media evaluation evidence",
       "current short no-audio paid smoke can only produce review_required benchmark evidence, not customer-release approval"
     ],

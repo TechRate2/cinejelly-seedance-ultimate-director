@@ -911,15 +911,15 @@ export class DirectorStyleBenchmarkEvaluator {
         partial: (facts.hasAudioEvidence === true || facts.generatedAudioProviderEvidence !== undefined) && !hasGeneratedAudioProviderEvidence,
         evidence: facts.generatedAudioProviderEvidence
           ? [
-              `Generated-audio validation status=${facts.generatedAudioProviderEvidence.status}; reportStatus=${facts.generatedAudioProviderEvidence.reportStatus}; approvedTracks=${facts.generatedAudioProviderEvidence.approvedTrackCount}; ledgerEntries=${facts.generatedAudioProviderEvidence.providerLedgerEntryCount}.`
+              `Generated-audio validation status=${facts.generatedAudioProviderEvidence.status}; reportStatus=${facts.generatedAudioProviderEvidence.reportStatus}; approvedTracks=${facts.generatedAudioProviderEvidence.approvedTrackCount}; ledgerEntries=${facts.generatedAudioProviderEvidence.providerLedgerEntryCount}; artifactEvidence=${facts.generatedAudioProviderEvidence.artifactEvidenceChecked ? "checked" : "missing"}/${facts.generatedAudioProviderEvidence.artifactEvidenceMatchesReport ? "matched" : "unmatched"}.`
             ]
           : facts.hasAudioEvidence === true
             ? ["Some audio evidence is present in the benchmark facts."]
             : [],
         missingEvidence: hasGeneratedAudioProviderEvidence
           ? []
-          : ["Accepted generated-audio validation report with provider spend, Atlas billing, schema review, output batch approval, provider ledger, and manual listening review."],
-        notes: "Director-style audio scoring needs provider-backed generated-audio evidence, not only optional audio flags."
+          : ["Accepted generated-audio validation report with provider spend, Atlas billing, schema review, output batch approval, provider ledger, artifact SHA binding, and manual listening review."],
+        notes: "Director-style audio scoring needs provider-backed generated-audio evidence bound to the reviewed media artifact, not only optional audio flags."
       }),
       this.parityRequirement({
         id: "structured_audio_review",
@@ -1103,8 +1103,8 @@ export class DirectorStyleBenchmarkEvaluator {
       severity: evidence.status === "accepted" ? "info" : evidence.status === "needs_review" ? "warn" : "block",
       message:
         evidence.status === "accepted"
-          ? `Generated-audio validation report is accepted; approvedTracks=${evidence.approvedTrackCount}, ledgerEntries=${evidence.providerLedgerEntryCount}.`
-          : `Generated-audio validation report is ${evidence.status}; reportStatus=${evidence.reportStatus}, approvedTracks=${evidence.approvedTrackCount}, ledgerEntries=${evidence.providerLedgerEntryCount}.`,
+          ? `Generated-audio validation report is accepted; approvedTracks=${evidence.approvedTrackCount}, ledgerEntries=${evidence.providerLedgerEntryCount}, artifactEvidence=matched.`
+          : `Generated-audio validation report is ${evidence.status}; reportStatus=${evidence.reportStatus}, approvedTracks=${evidence.approvedTrackCount}, ledgerEntries=${evidence.providerLedgerEntryCount}, artifactEvidence=${evidence.artifactEvidenceChecked ? "checked" : "missing"}/${evidence.artifactEvidenceMatchesReport ? "matched" : "unmatched"}.`,
       source: "generated_audio_validation_report"
     };
   }
@@ -1204,7 +1204,10 @@ export class DirectorStyleBenchmarkEvaluator {
       evidence.outputBatchStatus === "approved" &&
       evidence.approvedTrackCount > 0 &&
       evidence.providerLedgerEntryCount > 0 &&
-      evidence.manualReviewPassed === true;
+      evidence.manualReviewPassed === true &&
+      evidence.artifactEvidenceChecked === true &&
+      evidence.artifactEvidenceMatchesReport === true &&
+      evidence.mediaSha256 !== undefined;
   }
 
   private hasAcceptedLongFormValidation(facts: DirectorStyleBenchmarkFacts): boolean {

@@ -1760,7 +1760,10 @@ function validateDirectorStyleBenchmarkSemantics(report) {
     report.facts.generatedAudioProviderEvidence.outputBatchStatus === "approved" &&
     Number(report.facts.generatedAudioProviderEvidence.approvedTrackCount ?? 0) > 0 &&
     Number(report.facts.generatedAudioProviderEvidence.providerLedgerEntryCount ?? 0) > 0 &&
-    report.facts.generatedAudioProviderEvidence.manualReviewPassed === true;
+    report.facts.generatedAudioProviderEvidence.manualReviewPassed === true &&
+    report.facts.generatedAudioProviderEvidence.artifactEvidenceChecked === true &&
+    report.facts.generatedAudioProviderEvidence.artifactEvidenceMatchesReport === true &&
+    /^[a-f0-9]{64}$/.test(String(report.facts.generatedAudioProviderEvidence.mediaSha256 ?? ""));
   const acceptedLongFormValidationEvidence =
     report?.facts?.longFormValidationEvidence?.status === "accepted" &&
     report.facts.longFormValidationEvidence.canUseAsBusinessReadinessLongFormEvidence === true &&
