@@ -25,6 +25,7 @@ const SUCCESS_REQUIRED_KINDS: readonly ProjectArtifactKind[] = [
   "production_graph",
   "long_form_continuity",
   "long_form_agent_review",
+  "long_form_timeline",
   "material_sourcing_plan",
   "material_source_validation",
   "postproduction_asset_plan",
@@ -90,6 +91,17 @@ const LONG_FORM_AGENT_REVIEW_ROLES = new Set([
   "commercial_risk_reviewer"
 ]);
 const LONG_FORM_AGENT_REVIEW_SEVERITIES = new Set(["info", "warn", "block"]);
+const LONG_FORM_TIMELINE_ISSUE_SEVERITIES = new Set(["info", "warn", "block"]);
+const LONG_FORM_TIMELINE_ISSUE_CODES = new Set([
+  "duration_drift",
+  "sequence_duration_drift",
+  "missing_render_schedule_item",
+  "caption_coverage_gap",
+  "caption_out_of_range",
+  "generated_audio_timing_gap",
+  "generated_audio_blocked",
+  "sequential_manual_review"
+]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DATA_URI_PATTERN = /"[^"]*data:[^"]*"/i;
 const CREDENTIAL_QUERY_URI_PATTERN =
@@ -378,6 +390,7 @@ export class ProjectArtifactValidator {
     this.validatePostproductionAssetPlan(manifest, artifacts.get("postproduction_asset_plan"), checks);
     this.validateLongFormContinuity(manifest, artifacts.get("long_form_continuity"), checks);
     this.validateLongFormAgentReview(manifest, artifacts.get("long_form_agent_review"), checks);
+    this.validateLongFormTimeline(manifest, artifacts.get("long_form_timeline"), checks);
     this.validateRenderSchedule(artifacts.get("render_schedule"), checks);
     this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
     this.validatePostproductionAssetConsistency(artifacts, checks);
@@ -446,6 +459,16 @@ export class ProjectArtifactValidator {
       typeof planning.longFormAgentReviewBlockingFindingCount !== "number"
     ) {
       checks.push({ name: "review_packet_long_form_agent_review", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing long-form agent review evidence." });
+    }
+    if (
+      !planning ||
+      typeof planning.longFormTimelineSegmentCount !== "number" ||
+      typeof planning.longFormTimelineSequentialSegmentCount !== "number" ||
+      typeof planning.longFormTimelineManualReviewSegmentCount !== "number" ||
+      typeof planning.longFormTimelineIssueCount !== "number" ||
+      typeof planning.longFormTimelineBlockingIssueCount !== "number"
+    ) {
+      checks.push({ name: "review_packet_long_form_timeline", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing long-form timeline evidence." });
     }
   }
 
@@ -1129,6 +1152,208 @@ export class ProjectArtifactValidator {
       checks.push({ name: "long_form_agent_review_release_gate", status: "fail", fileName, message: "long-form-agent-review release gate summary is invalid." });
     } else if (value.status === "blocked" && releaseGateSummary.canProceedToPromptCompilation !== false) {
       checks.push({ name: "long_form_agent_review_release_gate", status: "fail", fileName, message: "Blocked long-form review must not proceed to prompt compilation." });
+    }
+  }
+
+  private validateLongFormTimeline(
+    manifest: ProjectArtifactBundle,
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    const fileName = artifact.entry.fileName;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "long_form_timeline_shape", status: "fail", fileName, message: "long-form-timeline must be an object." });
+      return;
+    }
+    if (value.schemaVersion !== "cinejelly.long-form-timeline.v1") {
+      checks.push({ name: "long_form_timeline_schema", status: "fail", fileName, message: "Unexpected long-form-timeline schema version." });
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "long_form_timeline_project", status: "fail", fileName, message: "long-form-timeline projectId does not match manifest." });
+    }
+    if (value.noSpend !== true || value.networkCallsMade !== false || value.providerCallsMade !== false) {
+      checks.push({ name: "long_form_timeline_spend_boundary", status: "fail", fileName, message: "long-form-timeline must be no-spend/no-network/no-provider evidence." });
+    }
+    if (!Array.isArray(value.sourcePatternOrigins) || value.sourcePatternOrigins.some((origin) => typeof origin !== "string" || !origin)) {
+      checks.push({ name: "long_form_timeline_origins", status: "fail", fileName, message: "long-form-timeline sourcePatternOrigins are invalid." });
+    }
+    for (const field of [
+      "targetDurationSeconds",
+      "plannedDurationSeconds",
+      "sequenceCount",
+      "segmentCount",
+      "shotCount",
+      "transitionCount",
+      "sequentialSegmentCount",
+      "manualReviewSegmentCount",
+      "captionCueCount",
+      "audioEventCount",
+      "generatedAudioEventCount",
+      "issueCount",
+      "blockingIssueCount",
+      "warningIssueCount"
+    ] as const) {
+      if (typeof value[field] !== "number" || !Number.isFinite(value[field]) || value[field] < 0) {
+        checks.push({ name: "long_form_timeline_count", status: "fail", fileName, message: `long-form-timeline ${field} is invalid.` });
+      }
+    }
+    const sequences = Array.isArray(value.sequences) ? value.sequences : undefined;
+    const segments = Array.isArray(value.segments) ? value.segments : undefined;
+    const issues = Array.isArray(value.issues) ? value.issues : undefined;
+    if (!sequences || !segments || !issues || !this.isRecord(value.postproduction)) {
+      checks.push({ name: "long_form_timeline_collections", status: "fail", fileName, message: "long-form-timeline sequences, segments, postproduction, and issues must be present." });
+      return;
+    }
+    if (value.sequenceCount !== sequences.length) {
+      checks.push({ name: "long_form_timeline_sequence_count", status: "fail", fileName, message: "long-form-timeline sequenceCount must match sequences length." });
+    }
+    if (value.segmentCount !== segments.length) {
+      checks.push({ name: "long_form_timeline_segment_count", status: "fail", fileName, message: "long-form-timeline segmentCount must match segments length." });
+    }
+    if (value.shotCount !== segments.length) {
+      checks.push({ name: "long_form_timeline_shot_count", status: "fail", fileName, message: "long-form-timeline shotCount must match segment evidence." });
+    }
+    const blockingIssueCount = issues.filter((issue) => this.isRecord(issue) && issue.severity === "block").length;
+    const warningIssueCount = issues.filter((issue) => this.isRecord(issue) && issue.severity === "warn").length;
+    if (value.issueCount !== issues.length) {
+      checks.push({ name: "long_form_timeline_issue_count", status: "fail", fileName, message: "long-form-timeline issueCount must match issues length." });
+    }
+    if (value.blockingIssueCount !== blockingIssueCount) {
+      checks.push({ name: "long_form_timeline_block_count", status: "fail", fileName, message: "long-form-timeline blockingIssueCount must match block issues." });
+    }
+    if (value.warningIssueCount !== warningIssueCount) {
+      checks.push({ name: "long_form_timeline_warn_count", status: "fail", fileName, message: "long-form-timeline warningIssueCount must match warn issues." });
+    }
+
+    let previousEndSecond = 0;
+    const sequenceIds = new Set<string>();
+    for (const [index, sequence] of sequences.entries()) {
+      if (!this.isRecord(sequence)) {
+        checks.push({ name: "long_form_timeline_sequence_shape", status: "fail", fileName, message: `Timeline sequence ${index} must be an object.` });
+        continue;
+      }
+      if (typeof sequence.sequenceId !== "string" || !sequence.sequenceId) {
+        checks.push({ name: "long_form_timeline_sequence_id", status: "fail", fileName, message: `Timeline sequence ${index} is missing sequenceId.` });
+      } else {
+        sequenceIds.add(sequence.sequenceId);
+      }
+      if (typeof sequence.order !== "number" || !Number.isInteger(sequence.order) || sequence.order !== index) {
+        checks.push({ name: "long_form_timeline_sequence_order", status: "fail", fileName, message: `Timeline sequence ${index} order is not deterministic.` });
+      }
+      for (const field of ["segmentIds", "shotIds", "riskCodes", "sourceVideoSceneIds", "requiredBridgeAnchors"] as const) {
+        if (!Array.isArray(sequence[field])) {
+          checks.push({ name: "long_form_timeline_sequence_arrays", status: "fail", fileName, message: `Timeline sequence ${index} ${field} must be an array.` });
+        }
+      }
+      if (sequence.renderModeRecommendation !== "parallel_safe" && sequence.renderModeRecommendation !== "sequential_recommended") {
+        checks.push({ name: "long_form_timeline_sequence_render_mode", status: "fail", fileName, message: `Timeline sequence ${index} has invalid renderModeRecommendation.` });
+      }
+    }
+
+    for (const [index, segment] of segments.entries()) {
+      if (!this.isRecord(segment)) {
+        checks.push({ name: "long_form_timeline_segment_shape", status: "fail", fileName, message: `Timeline segment ${index} must be an object.` });
+        continue;
+      }
+      if (typeof segment.segmentId !== "string" || !segment.segmentId || typeof segment.shotId !== "string" || !segment.shotId) {
+        checks.push({ name: "long_form_timeline_segment_id", status: "fail", fileName, message: `Timeline segment ${index} identity fields are missing.` });
+      }
+      if (typeof segment.sequenceId !== "string" || !sequenceIds.has(segment.sequenceId)) {
+        checks.push({ name: "long_form_timeline_segment_sequence", status: "fail", fileName, message: `Timeline segment ${index} references an unknown sequence.` });
+      }
+      if (typeof segment.order !== "number" || !Number.isInteger(segment.order) || segment.order !== index) {
+        checks.push({ name: "long_form_timeline_segment_order", status: "fail", fileName, message: `Timeline segment ${index} order is not deterministic.` });
+      }
+      if (
+        typeof segment.startSecond !== "number" ||
+        typeof segment.endSecond !== "number" ||
+        typeof segment.durationSeconds !== "number" ||
+        segment.startSecond < previousEndSecond ||
+        segment.endSecond <= segment.startSecond ||
+        Math.abs(segment.endSecond - segment.startSecond - segment.durationSeconds) > 0.01
+      ) {
+        checks.push({ name: "long_form_timeline_segment_time", status: "fail", fileName, message: `Timeline segment ${index} has invalid timing.` });
+      }
+      previousEndSecond = typeof segment.endSecond === "number" ? segment.endSecond : previousEndSecond;
+      if (typeof segment.renderMode !== "string" || !RENDER_SCHEDULE_MODES.has(segment.renderMode)) {
+        checks.push({ name: "long_form_timeline_segment_render_mode", status: "fail", fileName, message: `Timeline segment ${index} has invalid renderMode.` });
+      }
+      if (!Array.isArray(segment.sequentialReasons)) {
+        checks.push({ name: "long_form_timeline_segment_reasons", status: "fail", fileName, message: `Timeline segment ${index} sequentialReasons must be an array.` });
+      } else {
+        for (const reason of segment.sequentialReasons) {
+          if (typeof reason !== "string" || !RENDER_SCHEDULE_SEQUENTIAL_REASONS.has(reason)) {
+            checks.push({ name: "long_form_timeline_segment_reason", status: "fail", fileName, message: `Timeline segment ${index} has invalid sequential reason.` });
+          }
+        }
+      }
+      for (const field of ["referenceRoles", "riskCodes", "continuityFields", "sourceVideoSceneIds"] as const) {
+        if (!Array.isArray(segment[field])) {
+          checks.push({ name: "long_form_timeline_segment_arrays", status: "fail", fileName, message: `Timeline segment ${index} ${field} must be an array.` });
+        }
+      }
+      if (!this.isRecord(segment.captionCoverage) || !Array.isArray(segment.captionCoverage.cueIndexes)) {
+        checks.push({ name: "long_form_timeline_caption_coverage", status: "fail", fileName, message: `Timeline segment ${index} caption coverage is invalid.` });
+      }
+      if (!this.isRecord(segment.audioCoverage) || !Array.isArray(segment.audioCoverage.suppliedTrackRoles) || !Array.isArray(segment.audioCoverage.generatedIntentIds)) {
+        checks.push({ name: "long_form_timeline_audio_coverage", status: "fail", fileName, message: `Timeline segment ${index} audio coverage is invalid.` });
+      }
+      if (typeof segment.requiresManualReview !== "boolean") {
+        checks.push({ name: "long_form_timeline_manual_review", status: "fail", fileName, message: `Timeline segment ${index} requiresManualReview must be boolean.` });
+      }
+    }
+    if (typeof value.plannedDurationSeconds === "number" && Math.abs(value.plannedDurationSeconds - previousEndSecond) > 0.01) {
+      checks.push({ name: "long_form_timeline_planned_duration", status: "fail", fileName, message: "long-form-timeline plannedDurationSeconds must match final segment endSecond." });
+    }
+
+    for (const [index, issue] of issues.entries()) {
+      if (!this.isRecord(issue)) {
+        checks.push({ name: "long_form_timeline_issue_shape", status: "fail", fileName, message: `Timeline issue ${index} must be an object.` });
+        continue;
+      }
+      if (typeof issue.issueId !== "string" || !issue.issueId) {
+        checks.push({ name: "long_form_timeline_issue_id", status: "fail", fileName, message: `Timeline issue ${index} issueId is missing.` });
+      }
+      if (typeof issue.severity !== "string" || !LONG_FORM_TIMELINE_ISSUE_SEVERITIES.has(issue.severity)) {
+        checks.push({ name: "long_form_timeline_issue_severity", status: "fail", fileName, message: `Timeline issue ${index} severity is invalid.` });
+      }
+      if (typeof issue.code !== "string" || !LONG_FORM_TIMELINE_ISSUE_CODES.has(issue.code)) {
+        checks.push({ name: "long_form_timeline_issue_code", status: "fail", fileName, message: `Timeline issue ${index} code is invalid.` });
+      }
+      if (typeof issue.message !== "string" || !issue.message || typeof issue.repair !== "string" || !issue.repair) {
+        checks.push({ name: "long_form_timeline_issue_text", status: "fail", fileName, message: `Timeline issue ${index} text fields are missing.` });
+      }
+      if (!Array.isArray(issue.affectedSequenceIds) || !Array.isArray(issue.affectedShotIds) || !this.isRecord(issue.evidence)) {
+        checks.push({ name: "long_form_timeline_issue_evidence", status: "fail", fileName, message: `Timeline issue ${index} evidence fields are invalid.` });
+      }
+    }
+
+    const postproduction = value.postproduction;
+    if (
+      !this.isRecord(postproduction) ||
+      postproduction.captionCueCount !== value.captionCueCount ||
+      postproduction.audioTrackCount !== value.audioEventCount ||
+      postproduction.generatedAudioIntentCount !== value.generatedAudioEventCount
+    ) {
+      checks.push({ name: "long_form_timeline_postproduction", status: "fail", fileName, message: "long-form-timeline postproduction summary does not match top-level counts." });
+    }
+
+    const releaseGateSummary = this.isRecord(value.releaseGateSummary) ? value.releaseGateSummary : undefined;
+    if (
+      !releaseGateSummary ||
+      typeof releaseGateSummary.canUseAsNoSpendTimelineEvidence !== "boolean" ||
+      typeof releaseGateSummary.canProceedToRender !== "boolean" ||
+      releaseGateSummary.canReleaseToCustomerTraffic !== false ||
+      typeof releaseGateSummary.releaseBlocker !== "string" ||
+      !releaseGateSummary.releaseBlocker
+    ) {
+      checks.push({ name: "long_form_timeline_release_gate", status: "fail", fileName, message: "long-form-timeline release gate summary is invalid." });
+    } else if (blockingIssueCount > 0 && releaseGateSummary.canProceedToRender !== false) {
+      checks.push({ name: "long_form_timeline_release_gate", status: "fail", fileName, message: "Blocking long-form timeline issues must prevent render." });
     }
   }
 

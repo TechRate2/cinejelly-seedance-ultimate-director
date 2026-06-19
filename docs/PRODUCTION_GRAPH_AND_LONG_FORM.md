@@ -335,6 +335,8 @@ Runtime implementation:
 
 `LongFormAgentReviewPlanner` then builds `long-form-agent-review.json` before prompt compilation. It is a deterministic no-spend review board translated from ViMax/VideoAgent/VibeFrame patterns, with five roles: script architect, continuity supervisor, source-video reviewer, render orchestrator, and commercial-risk reviewer. Blocking findings stop prompt compilation before provider spend; warning findings become manual-review directives in run artifacts and review packets. `scripts/run-long-form-agent-review-smoke.mjs` proves the review-required and blocked branches without network or provider calls.
 
+`LongFormTimelinePlanner` builds `long-form-timeline.json` after render scheduling and postproduction planning. It converts continuity sequences, scheduled shots, caption cues, supplied audio roles, and generated-audio intents into a deterministic timeline with per-segment start/end seconds, sequence boundaries, render batch IDs, sequential reasons, source-video scene IDs, caption coverage, audio coverage, manual-review segment counts, issue counts, and no-spend release gates. Missing schedule evidence blocks before provider spend; continuity-sensitive segments remain review-required evidence instead of release approval. `scripts/run-long-form-timeline-smoke.mjs` proves the ready and missing-schedule blocked branches without network or provider calls.
+
 ## Reference Reuse Policy
 
 Source basis:

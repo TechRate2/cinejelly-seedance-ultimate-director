@@ -60,6 +60,11 @@ export interface ReviewPacketPlanning {
   readonly longFormAgentReviewFindingCount: number;
   readonly longFormAgentReviewBlockingFindingCount: number;
   readonly longFormAgentReviewRequiredBeforeRenderCount: number;
+  readonly longFormTimelineSegmentCount: number;
+  readonly longFormTimelineSequentialSegmentCount: number;
+  readonly longFormTimelineManualReviewSegmentCount: number;
+  readonly longFormTimelineIssueCount: number;
+  readonly longFormTimelineBlockingIssueCount: number;
   readonly storyboardPanelCount: number;
   readonly storyboardPreflightStatus: GuardianStatus;
   readonly productionGraphNodeCount: number;

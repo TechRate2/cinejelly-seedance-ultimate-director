@@ -462,6 +462,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "continuity-sensitive dependencies remain explicit in scheduling and graph evidence",
       "source-video, transition, endpoint, and continuity-risk render barriers are visible in schedule evidence",
       "long-form multi-agent review is translated into role-specific script, continuity, source-video, render-orchestration, and commercial-risk findings before provider spend",
+      "long-form timeline evidence exposes sequence/shot timing, render batches, caption coverage, generated-audio coverage, and manual-review segments before provider spend",
       "candidate and repair evidence remains traceable by shot"
     ],
     behaviorChanged: [
@@ -480,6 +481,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/long-form-continuity-planner.ts",
       "src/types/long-form-agent-review.ts",
       "src/core/long-form-agent-review-planner.ts",
+      "src/types/long-form-timeline.ts",
+      "src/core/long-form-timeline-planner.ts",
       "src/types/artifact.ts",
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",
@@ -492,7 +495,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-long-form-continuity-smoke.mjs",
       "schemas/long-form-continuity-smoke-report.schema.json",
       "scripts/run-long-form-agent-review-smoke.mjs",
-      "schemas/long-form-agent-review-smoke-report.schema.json"
+      "schemas/long-form-agent-review-smoke-report.schema.json",
+      "scripts/run-long-form-timeline-smoke.mjs",
+      "schemas/long-form-timeline-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -516,6 +521,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "story, sequence, scene, beat, and shot graph layers remain inspectable in deterministic artifacts",
       "sequence-level continuity evidence is persisted as a deterministic reviewable artifact",
       "agentic review findings are persisted as deterministic no-spend planning evidence",
+      "timeline, caption, audio, render-batch, and manual-review segment evidence is persisted as deterministic no-spend planning evidence",
       "repair and inspection stages are separate lifecycle records"
     ],
     behaviorChanged: [
@@ -535,6 +541,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/long-form-continuity-planner.ts",
       "src/types/long-form-agent-review.ts",
       "src/core/long-form-agent-review-planner.ts",
+      "src/types/long-form-timeline.ts",
+      "src/core/long-form-timeline-planner.ts",
       "src/types/review.ts",
       "src/core/review-packet-builder.ts",
       "scripts/run-render-scheduler-smoke.mjs",
@@ -544,7 +552,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-long-form-continuity-smoke.mjs",
       "schemas/long-form-continuity-smoke-report.schema.json",
       "scripts/run-long-form-agent-review-smoke.mjs",
-      "schemas/long-form-agent-review-smoke-report.schema.json"
+      "schemas/long-form-agent-review-smoke-report.schema.json",
+      "scripts/run-long-form-timeline-smoke.mjs",
+      "schemas/long-form-timeline-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -611,6 +621,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "long-form production units stay grouped into sequence, scene, beat, and shot layers before render batches",
       "sequence-level continuity and bridge evidence stays visible before final composition",
       "render batches and sequential shot barriers are visible before final composition",
+      "timeline evidence maps long-form shots to sequence timing, render batches, captions, supplied audio, and generated-audio intents before final composition",
       "batch candidates and final deliverable evidence are visible to operators"
     ],
     behaviorChanged: [
@@ -626,6 +637,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/long-form-sequence-planner.ts",
       "src/types/long-form-continuity.ts",
       "src/core/long-form-continuity-planner.ts",
+      "src/types/long-form-timeline.ts",
+      "src/core/long-form-timeline-planner.ts",
       "src/core/production-graph-builder.ts",
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",
@@ -636,7 +649,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-production-graph-sequence-smoke.mjs",
       "schemas/production-graph-sequence-smoke-report.schema.json",
       "scripts/run-long-form-continuity-smoke.mjs",
-      "schemas/long-form-continuity-smoke-report.schema.json"
+      "schemas/long-form-continuity-smoke-report.schema.json",
+      "scripts/run-long-form-timeline-smoke.mjs",
+      "schemas/long-form-timeline-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [

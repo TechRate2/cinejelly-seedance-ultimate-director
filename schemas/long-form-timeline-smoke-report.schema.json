@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/long-form-timeline-smoke-report.schema.json",
+  "title": "CineJelly Long-Form Timeline Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.long-form-timeline-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "scenarioCount", "targetDurationSeconds", "rawUrlLeakCheckPassed"],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "scenarioCount": { "const": 2 },
+        "targetDurationSeconds": { "type": "number", "minimum": 120 },
+        "rawUrlLeakCheckPassed": { "type": "boolean" }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ready", "blocked"],
+      "properties": {
+        "ready": { "$ref": "#/$defs/scenario" },
+        "blocked": { "$ref": "#/$defs/scenario" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 10,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsNoSpendLongFormTimelineEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsNoSpendLongFormTimelineEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectId",
+        "plannedDurationSeconds",
+        "sequenceCount",
+        "segmentCount",
+        "shotCount",
+        "transitionCount",
+        "sequentialSegmentCount",
+        "manualReviewSegmentCount",
+        "captionCueCount",
+        "audioEventCount",
+        "generatedAudioEventCount",
+        "issueCount",
+        "blockingIssueCount",
+        "warningIssueCount",
+        "canProceedToRender",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1 },
+        "plannedDurationSeconds": { "type": "number", "minimum": 0 },
+        "sequenceCount": { "type": "integer", "minimum": 1 },
+        "segmentCount": { "type": "integer", "minimum": 1 },
+        "shotCount": { "type": "integer", "minimum": 1 },
+        "transitionCount": { "type": "integer", "minimum": 0 },
+        "sequentialSegmentCount": { "type": "integer", "minimum": 0 },
+        "manualReviewSegmentCount": { "type": "integer", "minimum": 0 },
+        "captionCueCount": { "type": "integer", "minimum": 0 },
+        "audioEventCount": { "type": "integer", "minimum": 0 },
+        "generatedAudioEventCount": { "type": "integer", "minimum": 0 },
+        "issueCount": { "type": "integer", "minimum": 0 },
+        "blockingIssueCount": { "type": "integer", "minimum": 0 },
+        "warningIssueCount": { "type": "integer", "minimum": 0 },
+        "canProceedToRender": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

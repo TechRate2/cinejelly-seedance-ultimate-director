@@ -66,6 +66,11 @@ export class ReviewPacketBuilder {
           (sum, decision) => sum + decision.requiredBeforeRender.length,
           0
         ),
+        longFormTimelineSegmentCount: input.result.longFormTimelinePlan.segmentCount,
+        longFormTimelineSequentialSegmentCount: input.result.longFormTimelinePlan.sequentialSegmentCount,
+        longFormTimelineManualReviewSegmentCount: input.result.longFormTimelinePlan.manualReviewSegmentCount,
+        longFormTimelineIssueCount: input.result.longFormTimelinePlan.issueCount,
+        longFormTimelineBlockingIssueCount: input.result.longFormTimelinePlan.blockingIssueCount,
         storyboardPanelCount: input.result.storyboard.panels.length,
         storyboardPreflightStatus: input.result.storyboardPreflight.status,
         productionGraphNodeCount: input.result.productionGraph.nodes.length,
@@ -217,7 +222,8 @@ export class ReviewPacketBuilder {
       delivery.mediaInspectionStatus === "fail" ||
       result.materialSourceValidation.status === "rejected" ||
       result.generatedAudioOutputBatchValidation?.status === "rejected" ||
-      result.longFormAgentReview.status === "blocked"
+      result.longFormAgentReview.status === "blocked" ||
+      result.longFormTimelinePlan.blockingIssueCount > 0
     ) {
       return "blocked";
     }
@@ -231,6 +237,8 @@ export class ReviewPacketBuilder {
       result.materialSourceValidation.status === "review_required" ||
       result.postproductionAssetPlan.status === "review_required" ||
       result.longFormAgentReview.status === "review_required" ||
+      result.longFormTimelinePlan.warningIssueCount > 0 ||
+      result.longFormTimelinePlan.manualReviewSegmentCount > 0 ||
       result.generatedAudioOutputBatchValidation?.status === "review_required" ||
       result.generatedAudioOutputBatchValidation?.status === "partially_approved" ||
       cost.failedProviderOperationCount > 0 ||
@@ -269,6 +277,9 @@ export class ReviewPacketBuilder {
     }
     for (const directive of result.longFormAgentReview.directives) {
       recommendations.add(directive);
+    }
+    for (const issue of result.longFormTimelinePlan.issues) {
+      recommendations.add(issue.repair);
     }
     for (const report of result.generatedAudioOutputBatchValidation?.reports ?? []) {
       for (const issue of report.issues) {

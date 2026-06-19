@@ -114,6 +114,12 @@ export class ProjectArtifactStore {
         (sum, decision) => sum + decision.requiredBeforeRender.length,
         0
       ),
+      longFormTimelineSegmentCount: result.longFormTimelinePlan.segmentCount,
+      longFormTimelineSequentialSegmentCount: result.longFormTimelinePlan.sequentialSegmentCount,
+      longFormTimelineManualReviewSegmentCount: result.longFormTimelinePlan.manualReviewSegmentCount,
+      longFormTimelineIssueCount: result.longFormTimelinePlan.issueCount,
+      longFormTimelineBlockingIssueCount: result.longFormTimelinePlan.blockingIssueCount,
+      longFormTimelinePlannedDurationSeconds: result.longFormTimelinePlan.plannedDurationSeconds,
       stageStatuses: result.stagePlan.records.map((record) => ({
         stage: record.stage,
         status: record.status
@@ -166,6 +172,7 @@ export class ProjectArtifactStore {
       { kind: "production_graph", fileName: "production-graph.json", value: result.productionGraph },
       { kind: "long_form_continuity", fileName: "long-form-continuity.json", value: result.longFormContinuityPlan },
       { kind: "long_form_agent_review", fileName: "long-form-agent-review.json", value: result.longFormAgentReview },
+      { kind: "long_form_timeline", fileName: "long-form-timeline.json", value: result.longFormTimelinePlan },
       { kind: "material_sourcing_plan", fileName: "material-sourcing-plan.json", value: result.materialSourcingPlan },
       { kind: "material_source_validation", fileName: "material-source-validation.json", value: result.materialSourceValidation },
       { kind: "postproduction_asset_plan", fileName: "postproduction-assets.json", value: result.postproductionAssetPlan },

@@ -16,6 +16,7 @@ import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
 import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
 import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
+import { LongFormTimelinePlanner } from "../core/long-form-timeline-planner.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
 import { ProductionStagePlanner } from "../core/production-stage-planner.js";
@@ -79,6 +80,7 @@ export class DirectorAgent {
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly longFormContinuityPlanner: LongFormContinuityPlanner;
   private readonly longFormAgentReviewPlanner: LongFormAgentReviewPlanner;
+  private readonly longFormTimelinePlanner: LongFormTimelinePlanner;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
   private readonly productionStagePlanner: ProductionStagePlanner;
@@ -116,6 +118,7 @@ export class DirectorAgent {
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly longFormContinuityPlanner?: LongFormContinuityPlanner;
     readonly longFormAgentReviewPlanner?: LongFormAgentReviewPlanner;
+    readonly longFormTimelinePlanner?: LongFormTimelinePlanner;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
     readonly productionStagePlanner?: ProductionStagePlanner;
@@ -147,6 +150,7 @@ export class DirectorAgent {
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.longFormContinuityPlanner = input.longFormContinuityPlanner ?? new LongFormContinuityPlanner();
     this.longFormAgentReviewPlanner = input.longFormAgentReviewPlanner ?? new LongFormAgentReviewPlanner();
+    this.longFormTimelinePlanner = input.longFormTimelinePlanner ?? new LongFormTimelinePlanner();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
     this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
@@ -372,11 +376,30 @@ export class DirectorAgent {
       };
     });
     const renderSchedulePlan = this.renderScheduler.plan(renderScheduleItems);
+    const longFormTimelinePlan = this.longFormTimelinePlanner.build({
+      projectId: intake.projectId,
+      targetDurationSeconds: storyPlan.targetDurationSeconds,
+      shots,
+      continuityPlan: longFormContinuityPlan,
+      renderSchedulePlan,
+      postproductionAssetPlan,
+      ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
+      ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {})
+    });
+    if (!longFormTimelinePlan.releaseGateSummary.canProceedToRender) {
+      this.reportStageProgress("render", "blocked", "Long-form timeline blocked render scheduling before provider spend.", {
+        longFormTimelineIssueCount: longFormTimelinePlan.issueCount,
+        longFormTimelineBlockingIssueCount: longFormTimelinePlan.blockingIssueCount
+      });
+      throw new Error("Long-form timeline blocked render scheduling before provider spend.");
+    }
     this.reportStageProgress("render", "running", "Rendering scheduled shots and candidates.", {
       scheduledShotCount: compiledPrompts.length,
       renderScheduleBatchCount: renderSchedulePlan.batchCount,
       renderScheduleParallelBatchCount: renderSchedulePlan.parallelBatchCount,
       renderScheduleSequentialShotCount: renderSchedulePlan.sequentialItemCount,
+      longFormTimelineSegmentCount: longFormTimelinePlan.segmentCount,
+      longFormTimelineIssueCount: longFormTimelinePlan.issueCount,
       candidateCount,
       repairAttemptCount
     });
@@ -539,6 +562,7 @@ export class DirectorAgent {
       productionGraph: finalProductionGraph,
       longFormContinuityPlan,
       longFormAgentReview,
+      longFormTimelinePlan,
       materialSourcingPlan,
       materialSourceValidation,
       postproductionAssetPlan,
