@@ -1,6 +1,6 @@
 # Commercial Launch Intake
 
-Implementation status as of 2026-06-19: implemented as a CineJelly-owned no-spend launch-intake validator, draft writer, JSON schema, package command, Markdown fill-out packet, report-contract input, and optional input source for `validation:live-inputs`, `validation:business-plan`, and `validation:commercial-inputs`. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-19: implemented as a CineJelly-owned no-spend launch-intake validator, raw intake JSON schema, draft writer, validation-report JSON schema, package command, Markdown fill-out packet, report-contract input, and optional input source for `validation:live-inputs`, `validation:business-plan`, and `validation:commercial-inputs`. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Purpose
 
@@ -18,6 +18,7 @@ npm.cmd run validation:launch-intake
 Default paths:
 
 - Final ignored intake: `ops/commercial-launch-intake.json`
+- Raw intake schema: `schemas/commercial-launch-intake.schema.json`
 - Draft JSON: `assets/output_deliverables/business-readiness/operator-drafts/commercial-launch-intake.draft.json`
 - Fill-out packet: `assets/output_deliverables/business-readiness/operator-drafts/commercial-launch-intake-fillout.md`
 - Validation report: `assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json`
@@ -26,17 +27,18 @@ The command reads local files and environment shape only. It does not call Atlas
 
 ## Acceptance
 
-The report is valid when:
+The raw intake and report are valid when:
 
-1. `schemaVersion` is `cinejelly.commercial-launch-intake-validation.v1`.
-2. `noSpend=true`, `networkCallsMade=false`, and `providerCallsMade=false`.
-3. Missing intake writes `status: "missing_intake"` without treating the draft as release evidence.
-4. Present intake validates clean non-localhost HTTPS deployment/source URLs, env var names instead of secret values, ignored `ops/*.json` evidence paths, ISO approval timestamps, positive budget approvals, product-surface decision, provider choices, paid-run policy booleans, and manual-review requirements.
-5. Commercial offer scope must be either `api_cli_only` or `first_party_web_ui_required`. API/CLI-only scope must explicitly acknowledge that no first-party Web UI is included before customer traffic; UI-required scope must keep customer traffic blocked until the UI exists.
-6. Source-video and remote-stock sections can be explicitly disabled, but when enabled they require the relevant clean URL, terms approval, provider names, and env var names.
-7. Long-form or full-sequence paid policy cannot pass unless approved budget covers the corresponding current business-plan estimate.
-8. A passing ignored intake can populate missing clean deployment/source-video URLs, approved budget values, and commercial scope status for no-spend live-input, business-plan, and commercial-input reports, without overriding explicit CLI flags or environment variables.
-9. The report is included in `validation:report-contracts`.
+1. Raw `ops/commercial-launch-intake.json`, when present, matches `schemas/commercial-launch-intake.schema.json` with `schemaVersion: "cinejelly.commercial-launch-intake.v1"`.
+2. The validation report `schemaVersion` is `cinejelly.commercial-launch-intake-validation.v1`.
+3. `noSpend=true`, `networkCallsMade=false`, and `providerCallsMade=false`.
+4. Missing intake writes `status: "missing_intake"` without treating the draft as release evidence.
+5. Present intake validates clean non-localhost HTTPS deployment/source URLs, env var names instead of secret values, ignored `ops/*.json` evidence paths, ISO approval timestamps, positive budget approvals, product-surface decision, provider choices, paid-run policy booleans, and manual-review requirements.
+6. Commercial offer scope must be either `api_cli_only` or `first_party_web_ui_required`. API/CLI-only scope must explicitly acknowledge that no first-party Web UI is included before customer traffic; UI-required scope must keep customer traffic blocked until the UI exists.
+7. Source-video and remote-stock sections can be explicitly disabled, but when enabled they require the relevant clean URL, terms approval, provider names, and env var names.
+8. Long-form or full-sequence paid policy cannot pass unless approved budget covers the corresponding current business-plan estimate.
+9. A passing ignored intake can populate missing clean deployment/source-video URLs, approved budget values, and commercial scope status for no-spend live-input, business-plan, and commercial-input reports, without overriding explicit CLI flags or environment variables.
+10. `validation:report-contracts` validates the raw ignored intake against its schema and semantic guard when `ops/commercial-launch-intake.json` exists, and validates the generated launch-intake report every time.
 
 ## Current Interpretation
 

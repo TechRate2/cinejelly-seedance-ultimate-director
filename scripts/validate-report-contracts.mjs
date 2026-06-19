@@ -39,6 +39,7 @@ const defaultContracts = [
   contract("snapshot_parity_audit", "schemas/snapshot-parity-audit-report.schema.json", "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
   contract("atlas_billing_readiness", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json"),
   contract("atlas_billing_generated_audio_smoke", "schemas/atlas-billing-readiness-report.schema.json", "assets/output_deliverables/business-readiness/atlas-billing-generated-audio-smoke-report.json"),
+  contract("commercial_launch_intake_packet", "schemas/commercial-launch-intake.schema.json", "ops/commercial-launch-intake.json"),
   contract("commercial_launch_intake", "schemas/commercial-launch-intake-validation-report.schema.json", "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json"),
   contract("commercial_launch_doctor", "schemas/commercial-launch-doctor-report.schema.json", "assets/output_deliverables/business-readiness/commercial-launch-doctor-report.json"),
   contract("commercial_launch_inputs", "schemas/commercial-launch-inputs-report.schema.json", "assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"),
@@ -295,6 +296,9 @@ function validateSemanticContract(item, report, options) {
     return validateCommercialLaunchDoctorSemantics(report, {
       allowInProgress: options.allowLaunchDoctorInProgress
     });
+  }
+  if (item.name === "commercial_launch_intake_packet") {
+    return validateCommercialLaunchIntakePacketSemantics(report);
   }
   if (item.name === "commercial_launch_intake") {
     return validateCommercialLaunchIntakeSemantics(report);
@@ -3754,6 +3758,163 @@ function splitValidationCommandSteps(command) {
     return [normalized];
   }
   return matches.map((match) => match[2].trim().replace(/\.$/, ""));
+}
+
+const launchIntakePacketSecretPatterns = [
+  /Bearer\s+[A-Za-z0-9._-]+/gi,
+  /apikey-[A-Za-z0-9]{20,}/gi,
+  /sk-[A-Za-z0-9_-]{20,}/g,
+  /(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\s*[:=]\s*["']?[^"',\s&]+/gi,
+  /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization|expires|policy|sig)=)[^&#\s]+/gi
+];
+
+const launchIntakePacketPlaceholderPattern = /\b(?:todo|tbd|replace|placeholder|example\.com|your-|fill[-_ ]?me)\b/i;
+const launchIntakePacketEnvNamePattern = /^[A-Z][A-Z0-9_]{2,80}$/;
+const launchIntakePacketProviderNames = new Set(["pexels", "pixabay", "coverr"]);
+
+function validateCommercialLaunchIntakePacketSemantics(report) {
+  const issues = [];
+  const serialized = JSON.stringify(report ?? {});
+  if (launchIntakePacketSecretPatterns.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(serialized);
+  })) {
+    issues.push("$: expected secret-free launch intake without API keys, bearer tokens, signed URL query values, or raw credentials.");
+  }
+
+  if (!isLaunchIntakePacketCleanHttpsUrl(report?.deployment?.baseUrl)) {
+    issues.push("$.deployment.baseUrl: expected a clean non-localhost HTTPS URL without credentials, query string, or fragment.");
+  }
+  if (!launchIntakePacketEnvNamePattern.test(String(report?.deployment?.authTokenEnvName ?? ""))) {
+    issues.push("$.deployment.authTokenEnvName: expected an environment variable name, not a token value.");
+  }
+  for (const [path, value] of [
+    ["$.operatorEvidence.billingAttestationPath", report?.operatorEvidence?.billingAttestationPath],
+    ["$.operatorEvidence.productionAttestationPath", report?.operatorEvidence?.productionAttestationPath]
+  ]) {
+    if (!isLaunchIntakePacketOpsJsonPath(value)) {
+      issues.push(`${path}: expected a relative ops/*.json path without traversal, URL, or absolute path syntax.`);
+    }
+  }
+
+  const productSurface = report?.commercialOfferScope?.productSurface;
+  if (productSurface === "api_cli_only") {
+    if (report?.commercialOfferScope?.apiCliOnlyAcknowledgesNoFirstPartyUi !== true) {
+      issues.push("$.commercialOfferScope.apiCliOnlyAcknowledgesNoFirstPartyUi: expected true for API/CLI-only commercial scope.");
+    }
+    if (report?.commercialOfferScope?.uiRequiredBeforeCustomerTraffic !== false) {
+      issues.push("$.commercialOfferScope.uiRequiredBeforeCustomerTraffic: expected false for API/CLI-only commercial scope.");
+    }
+  } else if (productSurface === "first_party_web_ui_required") {
+    if (report?.commercialOfferScope?.uiRequiredBeforeCustomerTraffic !== true) {
+      issues.push("$.commercialOfferScope.uiRequiredBeforeCustomerTraffic: expected true when first-party Web UI is required.");
+    }
+  }
+
+  const approvedBudgetUsd = numberOrUndefined(report?.budgetApproval?.approvedAtlasBudgetUsd);
+  const currentKnownPaidEstimateUsd = numberOrUndefined(report?.budgetApproval?.currentKnownPaidEstimateUsd);
+  const currentLongFormMinimumBudgetUsd = numberOrUndefined(report?.budgetApproval?.currentLongFormMinimumBudgetUsd);
+  const currentGeneratedAudioEstimateUsd = numberOrUndefined(report?.budgetApproval?.currentGeneratedAudioEstimateUsd);
+  const scope = report?.budgetApproval?.scope;
+  if (scope === "generated_audio_smoke" && currentGeneratedAudioEstimateUsd !== undefined && (approvedBudgetUsd === undefined || approvedBudgetUsd < currentGeneratedAudioEstimateUsd)) {
+    issues.push("$.budgetApproval.approvedAtlasBudgetUsd: expected to cover currentGeneratedAudioEstimateUsd when scope=generated_audio_smoke.");
+  }
+  if (scope === "long_form_120s_minimum" && currentLongFormMinimumBudgetUsd !== undefined && (approvedBudgetUsd === undefined || approvedBudgetUsd < currentLongFormMinimumBudgetUsd)) {
+    issues.push("$.budgetApproval.approvedAtlasBudgetUsd: expected to cover currentLongFormMinimumBudgetUsd when scope=long_form_120s_minimum.");
+  }
+  if (scope === "full_business_readiness_paid_sequence" && currentKnownPaidEstimateUsd !== undefined && (approvedBudgetUsd === undefined || approvedBudgetUsd < currentKnownPaidEstimateUsd)) {
+    issues.push("$.budgetApproval.approvedAtlasBudgetUsd: expected to cover currentKnownPaidEstimateUsd when scope=full_business_readiness_paid_sequence.");
+  }
+
+  if (report?.sourceVideo?.enabled === true) {
+    if (!isLaunchIntakePacketCleanHttpsUrl(report?.sourceVideo?.url)) {
+      issues.push("$.sourceVideo.url: expected a clean non-localhost HTTPS video URL when source-video analysis is enabled.");
+    }
+    if (report?.sourceVideo?.approvedForAtlasLlmAnalysis !== true) {
+      issues.push("$.sourceVideo.approvedForAtlasLlmAnalysis: expected true when source-video analysis is enabled.");
+    }
+  }
+
+  const providers = Array.isArray(report?.remoteStock?.providers) ? report.remoteStock.providers.map(String) : [];
+  const keyEnvVars = Array.isArray(report?.remoteStock?.keyEnvVars) ? report.remoteStock.keyEnvVars.map(String) : [];
+  if (report?.remoteStock?.enabled === true) {
+    if (providers.length === 0 || providers.some((provider) => !launchIntakePacketProviderNames.has(provider))) {
+      issues.push("$.remoteStock.providers: expected one or more supported provider names when remote stock is enabled.");
+    }
+    if (report?.remoteStock?.commercialTermsReviewed !== true) {
+      issues.push("$.remoteStock.commercialTermsReviewed: expected true when remote stock is enabled.");
+    }
+    if (keyEnvVars.length === 0 || keyEnvVars.some((name) => !launchIntakePacketEnvNamePattern.test(name))) {
+      issues.push("$.remoteStock.keyEnvVars: expected one or more env var names when remote stock is enabled.");
+    }
+  }
+
+  const sourceVideoBudgetUsd = numberOrUndefined(report?.budgetApproval?.sourceVideoAtlasLlmBudgetUsd);
+  if (report?.paidValidationPolicy?.allowGeneratedAudioSmoke === true && currentGeneratedAudioEstimateUsd !== undefined && (approvedBudgetUsd === undefined || approvedBudgetUsd < currentGeneratedAudioEstimateUsd)) {
+    issues.push("$.paidValidationPolicy.allowGeneratedAudioSmoke: expected approved budget to cover generated-audio estimate.");
+  }
+  if (report?.paidValidationPolicy?.allowLongForm === true && currentLongFormMinimumBudgetUsd !== undefined && (approvedBudgetUsd === undefined || approvedBudgetUsd < currentLongFormMinimumBudgetUsd)) {
+    issues.push("$.paidValidationPolicy.allowLongForm: expected approved budget to cover long-form minimum.");
+  }
+  if (report?.paidValidationPolicy?.allowSourceVideoAnalysis === true && (report?.sourceVideo?.enabled !== true || sourceVideoBudgetUsd === undefined || sourceVideoBudgetUsd <= 0)) {
+    issues.push("$.paidValidationPolicy.allowSourceVideoAnalysis: expected enabled source-video inputs and positive source-video Atlas LLM budget.");
+  }
+  if (report?.paidValidationPolicy?.allowFullSequence === true && currentKnownPaidEstimateUsd !== undefined && (approvedBudgetUsd === undefined || approvedBudgetUsd < currentKnownPaidEstimateUsd)) {
+    issues.push("$.paidValidationPolicy.allowFullSequence: expected approved budget to cover full known paid estimate.");
+  }
+
+  if (
+    report?.manualReview?.generatedAudioListeningRequired !== true ||
+    report?.manualReview?.longFormMediaReviewRequired !== true ||
+    report?.manualReview?.redactionReviewRequired !== true
+  ) {
+    issues.push("$.manualReview: expected generated-audio, long-form media, and redaction review requirements to stay true.");
+  }
+  for (const [path, value] of [
+    ["$.preparedBy", report?.preparedBy],
+    ["$.commercialOfferScope.decidedBy", report?.commercialOfferScope?.decidedBy],
+    ["$.budgetApproval.approvedBy", report?.budgetApproval?.approvedBy],
+    ["$.manualReview.reviewer", report?.manualReview?.reviewer]
+  ]) {
+    if (typeof value !== "string" || !value.trim() || launchIntakePacketPlaceholderPattern.test(value)) {
+      issues.push(`${path}: expected real non-placeholder operator text.`);
+    }
+  }
+  return issues;
+}
+
+function isLaunchIntakePacketCleanHttpsUrl(value) {
+  if (typeof value !== "string" || !value.trim() || launchIntakePacketPlaceholderPattern.test(value)) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    return url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      hostname !== "localhost" &&
+      hostname !== "127.0.0.1" &&
+      hostname !== "::1" &&
+      !hostname.endsWith(".local");
+  } catch {
+    return false;
+  }
+}
+
+function isLaunchIntakePacketOpsJsonPath(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.replace(/\\/g, "/");
+  return normalized.startsWith("ops/") &&
+    normalized.endsWith(".json") &&
+    !normalized.includes("..") &&
+    !normalized.startsWith("/") &&
+    !/^[A-Za-z]:\//.test(normalized) &&
+    !/^https?:\/\//i.test(normalized);
 }
 
 function validateCommercialLaunchIntakeSemantics(report) {

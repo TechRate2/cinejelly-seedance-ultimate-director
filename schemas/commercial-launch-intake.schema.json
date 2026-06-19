@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/commercial-launch-intake.schema.json",
+  "title": "CineJelly Commercial Launch Intake",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "preparedAt",
+    "preparedBy",
+    "deployment",
+    "operatorEvidence",
+    "commercialOfferScope",
+    "budgetApproval",
+    "sourceVideo",
+    "remoteStock",
+    "paidValidationPolicy",
+    "manualReview"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.commercial-launch-intake.v1" },
+    "preparedAt": { "type": "string", "format": "date-time" },
+    "preparedBy": { "$ref": "#/$defs/operatorText" },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseUrl", "authTokenEnvName"],
+      "properties": {
+        "baseUrl": { "$ref": "#/$defs/cleanHttpsUrl" },
+        "authTokenEnvName": { "$ref": "#/$defs/envName" }
+      }
+    },
+    "operatorEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["billingAttestationPath", "productionAttestationPath"],
+      "properties": {
+        "billingAttestationPath": { "$ref": "#/$defs/opsJsonPath" },
+        "productionAttestationPath": { "$ref": "#/$defs/opsJsonPath" }
+      }
+    },
+    "commercialOfferScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productSurface",
+        "decidedAt",
+        "decidedBy",
+        "apiCliOnlyAcknowledgesNoFirstPartyUi",
+        "uiRequiredBeforeCustomerTraffic"
+      ],
+      "properties": {
+        "productSurface": {
+          "enum": ["api_cli_only", "first_party_web_ui_required"]
+        },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "decidedBy": { "$ref": "#/$defs/operatorText" },
+        "apiCliOnlyAcknowledgesNoFirstPartyUi": { "type": "boolean" },
+        "uiRequiredBeforeCustomerTraffic": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "productSurface": { "const": "api_cli_only" }
+            }
+          },
+          "then": {
+            "properties": {
+              "apiCliOnlyAcknowledgesNoFirstPartyUi": { "const": true },
+              "uiRequiredBeforeCustomerTraffic": { "const": false }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "productSurface": { "const": "first_party_web_ui_required" }
+            }
+          },
+          "then": {
+            "properties": {
+              "uiRequiredBeforeCustomerTraffic": { "const": true }
+            }
+          }
+        }
+      ]
+    },
+    "budgetApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "approvedAtlasBudgetUsd",
+        "sourceVideoAtlasLlmBudgetUsd",
+        "approvedAt",
+        "approvedBy"
+      ],
+      "properties": {
+        "scope": {
+          "enum": [
+            "generated_audio_smoke",
+            "long_form_120s_minimum",
+            "source_video_auto_analysis",
+            "full_business_readiness_paid_sequence"
+          ]
+        },
+        "approvedAtlasBudgetUsd": { "type": "number", "minimum": 0 },
+        "sourceVideoAtlasLlmBudgetUsd": { "type": "number", "minimum": 0 },
+        "approvedAt": { "type": "string", "format": "date-time" },
+        "approvedBy": { "$ref": "#/$defs/operatorText" },
+        "currentKnownPaidEstimateUsd": { "type": "number", "minimum": 0 },
+        "currentLongFormMinimumBudgetUsd": { "type": "number", "minimum": 0 },
+        "currentGeneratedAudioEstimateUsd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "sourceVideo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "url", "approvedForAtlasLlmAnalysis"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "url": { "type": "string", "maxLength": 512 },
+        "approvedForAtlasLlmAnalysis": { "type": "boolean" }
+      },
+      "if": {
+        "properties": {
+          "enabled": { "const": true }
+        }
+      },
+      "then": {
+        "properties": {
+          "url": { "$ref": "#/$defs/cleanHttpsUrl" },
+          "approvedForAtlasLlmAnalysis": { "const": true }
+        }
+      }
+    },
+    "remoteStock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "providers", "commercialTermsReviewed", "keyEnvVars"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "providers": {
+          "type": "array",
+          "items": { "enum": ["pexels", "pixabay", "coverr"] },
+          "maxItems": 3
+        },
+        "commercialTermsReviewed": { "type": "boolean" },
+        "keyEnvVars": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/envName" },
+          "maxItems": 6
+        }
+      },
+      "if": {
+        "properties": {
+          "enabled": { "const": true }
+        }
+      },
+      "then": {
+        "properties": {
+          "providers": { "minItems": 1 },
+          "commercialTermsReviewed": { "const": true },
+          "keyEnvVars": { "minItems": 1 }
+        }
+      }
+    },
+    "paidValidationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowGeneratedAudioSmoke",
+        "allowLongForm",
+        "allowSourceVideoAnalysis",
+        "allowFullSequence"
+      ],
+      "properties": {
+        "allowGeneratedAudioSmoke": { "type": "boolean" },
+        "allowLongForm": { "type": "boolean" },
+        "allowSourceVideoAnalysis": { "type": "boolean" },
+        "allowFullSequence": { "type": "boolean" }
+      }
+    },
+    "manualReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewer",
+        "generatedAudioListeningRequired",
+        "longFormMediaReviewRequired",
+        "redactionReviewRequired"
+      ],
+      "properties": {
+        "reviewer": { "$ref": "#/$defs/operatorText" },
+        "generatedAudioListeningRequired": { "const": true },
+        "longFormMediaReviewRequired": { "const": true },
+        "redactionReviewRequired": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "operatorText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "not": {
+        "anyOf": [
+          { "pattern": "\\b([Tt][Oo][Dd][Oo]|[Tt][Bb][Dd]|[Rr][Ee][Pp][Ll][Aa][Cc][Ee]|[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]|[Ee][Xx][Aa][Mm][Pp][Ll][Ee]\\.com|[Yy][Oo][Uu][Rr]-|[Ff][Ii][Ll][Ll][-_ ]?[Mm][Ee])\\b" },
+          { "pattern": "[\\u0000-\\u001f\\u007f]" }
+        ]
+      }
+    },
+    "cleanHttpsUrl": {
+      "type": "string",
+      "format": "uri",
+      "minLength": 12,
+      "maxLength": 512,
+      "pattern": "^https://[^?#\\s]+$"
+    },
+    "envName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 80,
+      "pattern": "^[A-Z][A-Z0-9_]{2,80}$"
+    },
+    "opsJsonPath": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 180,
+      "pattern": "^ops/[A-Za-z0-9._/-]+\\.json$",
+      "not": {
+        "anyOf": [
+          { "pattern": "\\.\\." },
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?://" }
+        ]
+      }
+    }
+  }
+}
