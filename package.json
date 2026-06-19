@@ -65,6 +65,7 @@
     "validation:review-approval-smoke": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-review-approval-smoke.mjs",
     "validation:render-job-review-lifecycle": "node scripts/run-render-job-review-lifecycle-smoke.mjs",
     "validation:workspace-billing": "node scripts/run-workspace-billing-smoke.mjs",
+    "validation:short-pipeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-smoke.mjs",
     "validation:billing-admin-ops": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/capture-billing-admin-ops.mjs",
     "validation:production-ops": "node --env-file-if-exists=.env scripts/capture-production-operations.mjs",
     "validation:ops-config": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/validate-business-readiness-ops-config.mjs",

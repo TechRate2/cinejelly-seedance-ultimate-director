@@ -23,6 +23,7 @@ import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
+import { ShortPipelinePlanner } from "../core/short-pipeline-planner.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { ProjectArtifactBundle, ProjectArtifactValidationReport } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
@@ -33,6 +34,7 @@ import type {
   ReviewApprovalGate,
   ReviewApprovalSurface
 } from "../types/review-approval.js";
+import type { ShortPipelinePlanInput } from "../types/short-pipeline.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
@@ -134,6 +136,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const validationReadinessReporter = new Phase6ValidationReadinessReporter();
   const artifactStore = new ProjectArtifactStore();
   const artifactValidator = new ProjectArtifactValidator();
+  const shortPipelinePlanner = new ShortPipelinePlanner();
   const requestAdmission = renderRequestAdmissionFromEnv(process.env);
   const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
   const workspaceBillingGate = ApiWorkspaceBillingGate.fromEnv(process.env);
@@ -198,6 +201,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-settings") {
         sendJson(response, 200, buildRenderSettingsDescriptor(process.env), requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/plan") {
+        assertJsonContentType(request);
+        const body = await readJsonBody<ShortPipelinePlanInput>(request, maxBodyBytes);
+        const plan = shortPipelinePlanner.buildPlan(shortPipelinePlanInputFromBody(body, requestContext.requestId));
+        sendJson(response, plan.status === "blocked" ? 422 : 200, plan, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-jobs") {
@@ -619,6 +629,28 @@ function readIdempotencyKeyDigest(request: IncomingMessage): string | undefined 
 
 function createRequestFingerprint(payload: unknown): string {
   return createHash("sha256").update(stableJson(payload)).digest("hex");
+}
+
+function shortPipelinePlanInputFromBody(body: ShortPipelinePlanInput, requestId: string): ShortPipelinePlanInput {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new RenderRequestAdmissionError("Short pipeline request body must be a JSON object.");
+  }
+  if (typeof body.projectId !== "string" || !body.projectId.trim()) {
+    throw new RenderRequestAdmissionError("Short pipeline projectId is required.");
+  }
+  if (body.userPrompt !== undefined && typeof body.userPrompt !== "string") {
+    throw new RenderRequestAdmissionError("Short pipeline userPrompt must be a string when provided.");
+  }
+  if (body.userPrompt && body.userPrompt.length > 4000) {
+    throw new RenderRequestAdmissionError("Short pipeline userPrompt is too long.");
+  }
+  if (!body.userPrompt?.trim() && !body.product?.productUrl && !body.product?.snapshot) {
+    throw new RenderRequestAdmissionError("Short pipeline requires userPrompt, product.productUrl, or product.snapshot.");
+  }
+  return {
+    ...body,
+    requestId: body.requestId ?? requestId
+  };
 }
 
 function stableJson(value: unknown): string {

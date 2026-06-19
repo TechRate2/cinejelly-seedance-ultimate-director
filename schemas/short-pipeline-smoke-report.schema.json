@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-pipeline-smoke-report.schema.json",
+  "title": "CineJelly Short Pipeline Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-pipeline-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "type": "string" }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "scenarioCount", "endpointPath", "rawUrlLeakCheckPassed"],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "scenarioCount": { "const": 3 },
+        "endpointPath": { "const": "/v1/short-pipeline/plan" },
+        "rawUrlLeakCheckPassed": { "type": "boolean" }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewRequired", "blocked", "naturalOnly"],
+      "properties": {
+        "reviewRequired": { "$ref": "#/$defs/scenario" },
+        "blocked": { "$ref": "#/$defs/scenario" },
+        "naturalOnly": { "$ref": "#/$defs/scenario" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shortPipelineSmokePass",
+        "canUseAsNoSpendBackendEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "shortPipelineSmokePass": { "type": "boolean" },
+        "canUseAsNoSpendBackendEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "status",
+        "templatePolicy",
+        "dynamicWorkflowRequired",
+        "templateSuggestionCount",
+        "sceneCount",
+        "reviewApprovalStatus",
+        "reviewCheckpointCount",
+        "reviewIssueCount",
+        "productSourceUrlSha256Present",
+        "productRawUrlSerialized",
+        "brandIssueCodes",
+        "canUseAsNoSpendPlanningEvidence",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "status": { "enum": ["approval_required", "changes_requested", "blocked"] },
+        "templatePolicy": { "enum": ["none", "suggested_optional", "operator_selected_optional"] },
+        "dynamicWorkflowRequired": { "const": true },
+        "templateSuggestionCount": { "type": "integer", "minimum": 0 },
+        "sceneCount": { "type": "integer", "minimum": 1 },
+        "reviewApprovalStatus": { "type": "string" },
+        "reviewCheckpointCount": { "type": "integer", "minimum": 1 },
+        "reviewIssueCount": { "type": "integer", "minimum": 0 },
+        "productBriefStatus": { "type": "string" },
+        "productSourceStatus": { "type": "string" },
+        "productSourceUrlSha256Present": { "type": "boolean" },
+        "productRawUrlSerialized": { "const": false },
+        "brandKitStatus": { "type": "string" },
+        "brandIssueCodes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "canUseAsNoSpendPlanningEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    }
+  }
+}

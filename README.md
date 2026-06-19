@@ -267,6 +267,7 @@ npm run preflight
 npm run validation:readiness
 npm run validation:create-request -- --safe-default
 npm run validation:local-smoke
+npm run validation:short-pipeline
 npm run validation:deployment-package
 docker compose up -d --build
 npm run validation:deployment-readiness -- --base-url <deployment-url>
@@ -318,6 +319,7 @@ Production API:
 - `GET /v1/preflight`
 - `GET /v1/validation-readiness`
 - `GET /v1/render-settings`
+- `POST /v1/short-pipeline/plan`
 - `POST /v1/render`
 - `POST /v1/render-jobs`
 - `GET /v1/render-jobs`

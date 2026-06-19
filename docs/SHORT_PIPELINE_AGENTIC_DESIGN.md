@@ -4,6 +4,8 @@
 
 CineJelly short video must feel as easy as a top marketing video app, but it must not become a rigid template machine. The short pipeline is a natural-language, agentic workflow for fast commercial video creation with strong review, cost, approval, and evidence gates.
 
+Implementation status as of 2026-06-19: the first backend foundation is implemented as `ShortPipelinePlanner`, `ProductUrlBriefExtractor`, `BrandKitEvaluator`, `WorkflowTemplateRegistry`, API endpoint `POST /v1/short-pipeline/plan`, `npm run validation:short-pipeline`, and `schemas/short-pipeline-smoke-report.schema.json`. It is intentionally no-spend and no-network: product URL evidence is fingerprinted, template suggestions remain optional accelerators, brand-kit forbidden claims block planning, and scene/audio/caption/claim review checkpoints are emitted before render. It does not yet fetch live product pages, submit render jobs, or prove full `video-db/Director` snapshot parity.
+
 This design is separate from the long-form Production Graph. Long-form can keep heavier graph chunking, multi-stage render orchestration, and long artifact evidence. Short-form needs a lighter planning loop:
 
 1. Understand the user's natural-language brief, product URL, product media, or campaign goal.
@@ -94,6 +96,8 @@ The future registry should store accelerators such as TikTok Product Ad, UGC Ad,
 - Represented as planning hints, not hardcoded render paths.
 - Bound to approval checkpoints before spend/export.
 - Compatible with product URL, brand kit, and workspace policies.
+
+The current registry ships deterministic planning hints for TikTok Product Ad, UGC Ad, Explainer, Founder Story, Comparison, and Cinematic Product Reveal. The planner always marks template use as optional and keeps `dynamicWorkflowRequired=true` so user natural-language edits can override or discard any suggestion.
 
 ## Product URL-To-Video Contract
 
