@@ -49,7 +49,20 @@
       "minLength": 1,
       "maxLength": 240,
       "pattern": "^[A-Za-z0-9._:-]+$",
-      "not": { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" }
+      "not": {
+        "anyOf": [
+          { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" },
+          { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+          { "pattern": "sk-[A-Za-z0-9_-]+" },
+          { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\\s*[:=]\\s*[\\\"']?[^\\\"',\\s&]+" },
+          { "pattern": "([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\\s]+" },
+          { "pattern": "[A-Za-z]:\\\\[^\\s\\\"'<>]+" },
+          { "pattern": "\\/(?:home|Users|var|tmp)\\/[^\\s\\\"'<>]+" },
+          { "pattern": "https?:\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
+          { "pattern": "data:[^\\s\\\"'<>]+" }
+        ]
+      }
     },
     "sha256": {
       "type": "string",

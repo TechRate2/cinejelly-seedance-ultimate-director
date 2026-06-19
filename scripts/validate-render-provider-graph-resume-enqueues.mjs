@@ -543,6 +543,7 @@ function safeRequiredText(value) {
   const trimmed = value.trim();
   return trimmed.length > 0 &&
     trimmed.length <= 500 &&
+    !/[\u0000-\u001f\u007f]/.test(trimmed) &&
     !anyPatternMatches(placeholderPatterns, trimmed) &&
     !anyPatternMatches(secretPatterns, trimmed);
 }
@@ -556,6 +557,8 @@ function safeIdentifier(value) {
     value.length > 0 &&
     value.length <= 240 &&
     /^[A-Za-z0-9._:-]+$/.test(value) &&
+    !/[\u0000-\u001f\u007f]/.test(value) &&
+    !anyPatternMatches(secretPatterns, value) &&
     !anyPatternMatches(placeholderPatterns, value);
 }
 

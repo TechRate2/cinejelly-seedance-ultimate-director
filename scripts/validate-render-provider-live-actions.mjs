@@ -593,8 +593,9 @@ function isLocalhost(hostname) {
 
 function safeIdentifier(value) {
   return typeof value === "string" &&
-    value.trim().length > 0 &&
-    value.trim().length <= 240 &&
+    value.length > 0 &&
+    value.length <= 240 &&
+    /^[A-Za-z0-9._:-]+$/.test(value) &&
     !/[\u0000-\u001f\u007f]/.test(value) &&
     !containsSecretLikeText(value) &&
     !containsPlaceholderText(value);
