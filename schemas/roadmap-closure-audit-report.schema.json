@@ -96,6 +96,7 @@
         "blockedRequirementCount",
         "sourceAnchorIssueCount",
         "localPreparationCommandCount",
+        "directCommandCount",
         "blockerCount",
         "productGapCount",
         "statusCounts"
@@ -106,6 +107,7 @@
         "blockedRequirementCount": { "type": "integer", "minimum": 0 },
         "sourceAnchorIssueCount": { "type": "integer", "minimum": 0 },
         "localPreparationCommandCount": { "type": "integer", "minimum": 0 },
+        "directCommandCount": { "type": "integer", "minimum": 0 },
         "blockerCount": { "type": "integer", "minimum": 0 },
         "productGapCount": { "type": "integer", "minimum": 0 },
         "statusCounts": { "$ref": "#/$defs/counts" }
@@ -198,7 +200,9 @@
         "phaseIds",
         "localPreparationCommandCount",
         "localPreparationCommands",
+        "directCommandCount",
         "directCommands",
+        "directCommandGuards",
         "requiredAction"
       ],
       "properties": {
@@ -246,7 +250,12 @@
           "type": "array",
           "items": { "$ref": "#/$defs/localPreparationCommand" }
         },
+        "directCommandCount": { "type": "integer", "minimum": 0 },
         "directCommands": { "type": "array", "items": { "type": "string" } },
+        "directCommandGuards": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/directCommandGuard" }
+        },
         "requiredAction": { "type": "string" }
       }
     },
@@ -325,6 +334,30 @@
         "producesDrafts": { "type": "boolean" },
         "releaseEvidence": { "const": false },
         "draftFiles": { "type": "array", "items": { "type": "string" } },
+        "requiresLiveNetwork": { "type": "boolean" },
+        "requiresProviderSpend": { "type": "boolean" },
+        "requiresOperatorConfirmation": { "type": "boolean" },
+        "requiresManualReview": { "type": "boolean" },
+        "containsPlaceholder": { "type": "boolean" }
+      }
+    },
+    "directCommandGuard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "source",
+        "runnable",
+        "requiresLiveNetwork",
+        "requiresProviderSpend",
+        "requiresOperatorConfirmation",
+        "requiresManualReview",
+        "containsPlaceholder"
+      ],
+      "properties": {
+        "command": { "type": "string" },
+        "source": { "enum": ["evidence_closure_plan", "derived_from_command_text"] },
+        "runnable": { "type": "boolean" },
         "requiresLiveNetwork": { "type": "boolean" },
         "requiresProviderSpend": { "type": "boolean" },
         "requiresOperatorConfirmation": { "type": "boolean" },

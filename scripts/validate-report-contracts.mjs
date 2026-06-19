@@ -836,6 +836,10 @@ function validateRoadmapClosureAuditSemantics(report) {
   if (Number(report?.summary?.localPreparationCommandCount ?? -1) !== localPrepCount) {
     issues.push("$.summary.localPreparationCommandCount: expected to equal phase local prep command counts.");
   }
+  const directCommandCount = requirements.reduce((sum, item) => sum + Number(item?.directCommandCount ?? 0), 0);
+  if (Number(report?.summary?.directCommandCount ?? -1) !== directCommandCount) {
+    issues.push("$.summary.directCommandCount: expected to equal requirement direct command counts.");
+  }
   const blockerIds = uniqueStrings(requirements.flatMap((item) => arrayOfStrings(item?.blockerIds)));
   if (Number(report?.summary?.blockerCount ?? -1) !== blockerIds.length) {
     issues.push("$.summary.blockerCount: expected to equal unique blocker IDs across requirements.");
@@ -859,6 +863,8 @@ function validateRoadmapClosureAuditSemantics(report) {
     const blockers = Array.isArray(requirement?.blockers) ? requirement.blockers : [];
     const productGaps = Array.isArray(requirement?.productGaps) ? requirement.productGaps : [];
     const localPreparationCommands = Array.isArray(requirement?.localPreparationCommands) ? requirement.localPreparationCommands : [];
+    const directCommands = Array.isArray(requirement?.directCommands) ? requirement.directCommands : [];
+    const directCommandGuards = Array.isArray(requirement?.directCommandGuards) ? requirement.directCommandGuards : [];
     if (requirement?.releaseEvidence !== false) {
       issues.push(`${path}.releaseEvidence: expected false.`);
     }
@@ -870,6 +876,12 @@ function validateRoadmapClosureAuditSemantics(report) {
     }
     if (Number(requirement?.localPreparationCommandCount ?? -1) !== localPreparationCommands.length) {
       issues.push(`${path}.localPreparationCommandCount: expected to match localPreparationCommands length.`);
+    }
+    if (Number(requirement?.directCommandCount ?? -1) !== directCommands.length) {
+      issues.push(`${path}.directCommandCount: expected to match directCommands length.`);
+    }
+    if (directCommandGuards.length !== directCommands.length) {
+      issues.push(`${path}.directCommandGuards: expected one guard per direct command.`);
     }
     const expectedCoverageStatus = (Array.isArray(requirement?.sourceCoverage) ? requirement.sourceCoverage : []).every((item) => item?.present === true) ? "pass" : "fail";
     if (requirement?.sourceCoverageStatus !== expectedCoverageStatus) {
@@ -896,6 +908,53 @@ function validateRoadmapClosureAuditSemantics(report) {
         issues.push(`${path}.localPreparationCommands[name=${command?.name}]: expected draft-producing command with draft files.`);
       }
       issues.push(...validateEvidenceClosureFileList(command?.draftFiles, `${path}.localPreparationCommands[name=${command?.name}].draftFiles`, ["assets/output_deliverables/"]));
+    }
+    for (const command of directCommands) {
+      if (String(command ?? "").match(/\bStep\s+\d+:/)) {
+        issues.push(`${path}.directCommands: expected expanded commands without embedded Step labels.`);
+      }
+    }
+    for (const guard of directCommandGuards) {
+      const command = String(guard?.command ?? "");
+      if (!directCommands.includes(command)) {
+        issues.push(`${path}.directCommandGuards: expected guard command to be listed in directCommands.`);
+      }
+      const expectedFlags = commandGuardFlags(command);
+      for (const [key, expected] of Object.entries(expectedFlags)) {
+        if (guard?.[key] !== expected) {
+          issues.push(`${path}.directCommandGuards[command=${command}].${key}: expected ${expected}.`);
+        }
+      }
+    }
+    if (arrayOfStrings(requirement?.blockerIds).includes("generated_audio_paid_review")) {
+      const artifactIndex = directCommands.findIndex((command) => String(command).includes("validation:generated-audio-artifact"));
+      const reviewDraftIndex = directCommands.findIndex((command) => String(command).includes("validation:generated-audio-review-draft"));
+      const reviewExistingIndex = directCommands.findIndex((command) => String(command).includes("--review-existing-report") && String(command).includes("--manual-audio-review"));
+      if (artifactIndex < 0) {
+        issues.push(`${path}.directCommands: expected generated-audio artifact evidence capture command.`);
+      }
+      if (reviewDraftIndex < 0) {
+        issues.push(`${path}.directCommands: expected generated-audio manual-review draft command.`);
+      }
+      if (reviewExistingIndex < 0) {
+        issues.push(`${path}.directCommands: expected generated-audio review-existing manual-audio command.`);
+      }
+      if (artifactIndex >= 0 && reviewDraftIndex >= 0 && reviewExistingIndex >= 0 && !(artifactIndex < reviewDraftIndex && reviewDraftIndex < reviewExistingIndex)) {
+        issues.push(`${path}.directCommands: expected generated-audio commands in artifact, review-draft, review-existing order.`);
+      }
+    }
+    if (arrayOfStrings(requirement?.blockerIds).includes("long_form_paid_media_review")) {
+      const reviewDraftIndex = directCommands.findIndex((command) => String(command).includes("validation:long-form-review-draft"));
+      const paidRunIndex = directCommands.findIndex((command) => String(command).includes("validation:long-form") && String(command).includes("--manual-quality-review"));
+      if (reviewDraftIndex < 0) {
+        issues.push(`${path}.directCommands: expected long-form manual quality review draft command.`);
+      }
+      if (paidRunIndex < 0) {
+        issues.push(`${path}.directCommands: expected long-form paid manual-quality-review command.`);
+      }
+      if (reviewDraftIndex >= 0 && paidRunIndex >= 0 && reviewDraftIndex > paidRunIndex) {
+        issues.push(`${path}.directCommands: expected long-form commands in review-draft, paid-run order.`);
+      }
     }
   }
   if (report?.status === "ready_for_customer_traffic") {

@@ -352,7 +352,8 @@ function buildRequirements({ docs, reports }) {
     const sourceCoverage = definition.sourceAnchors.map((item) => sourceCoverageItem(item, docs));
     const relatedPhases = phasesForRequirement(phases, definition);
     const localPreparationCommands = uniqueLocalPreparationCommands(relatedPhases, definition);
-    const directCommands = uniqueSortedStrings(relatedPhases.flatMap((phase) => arrayOfStrings(phase?.commands)));
+    const directCommands = directCommandsForRequirement({ relatedPhases, definition, commercialInputs: reports.commercialInputs.value });
+    const directCommandGuards = commandGuardsForCommands(directCommands, relatedPhases);
     const evidenceReports = definition.reportPaths.map((path) => publicReportSummary(readJsonSummary(path)));
     const status = requirementStatus({ blockers, productGaps, sourceCoverage, evidenceReports });
     return {
@@ -376,7 +377,9 @@ function buildRequirements({ docs, reports }) {
       phaseIds: uniqueSortedStrings(relatedPhases.map((phase) => phase?.id)),
       localPreparationCommandCount: localPreparationCommands.length,
       localPreparationCommands,
+      directCommandCount: directCommands.length,
       directCommands,
+      directCommandGuards,
       requiredAction: definition.requiredAction
     };
   });
@@ -431,6 +434,55 @@ function uniqueLocalPreparationCommands(phases, definition) {
   return [...byCommand.values()].filter((item) => item.command).sort((left, right) => left.name.localeCompare(right.name));
 }
 
+function commandGuardsForCommands(commands, phases) {
+  const phaseGuards = new Map();
+  for (const phase of phases) {
+    for (const guard of Array.isArray(phase?.commandGuards) ? phase.commandGuards : []) {
+      const command = String(guard?.command ?? "");
+      if (!command) {
+        continue;
+      }
+      phaseGuards.set(command, guard);
+    }
+  }
+  return commands.map((command) => {
+    const guard = phaseGuards.get(command);
+    const flags = commandGuardFlags(command);
+    return {
+      command,
+      source: guard ? "evidence_closure_plan" : "derived_from_command_text",
+      runnable: guard?.runnable === true,
+      ...flags
+    };
+  });
+}
+
+function directCommandsForRequirement({ relatedPhases, definition, commercialInputs }) {
+  const manifest = commercialInputs?.operatorHandoffManifest;
+  const inputValidationRunbook = Array.isArray(manifest?.inputValidationRunbook)
+    ? manifest.inputValidationRunbook
+    : [];
+  const inputCommands = inputValidationRunbook
+    .filter((item) => definition.blockerIds.includes(String(item?.sourceInputId ?? "")))
+    .map((item) => String(item?.command ?? ""))
+    .filter(Boolean);
+  if (inputCommands.length > 0) {
+    return uniqueOrderedStrings(inputCommands);
+  }
+  return uniqueOrderedStrings(relatedPhases.flatMap((phase) => arrayOfStrings(phase?.commands)));
+}
+
+function commandGuardFlags(command) {
+  const text = String(command ?? "");
+  return {
+    requiresLiveNetwork: text.includes("--confirm-live-network"),
+    requiresProviderSpend: text.includes("--confirm-paid-spend") || text.includes("--confirm-provider-spend"),
+    requiresOperatorConfirmation: text.includes("--confirm-"),
+    requiresManualReview: text.includes("manual-review") || text.includes("manual-audio-review") || text.includes("manual-quality-review"),
+    containsPlaceholder: text.includes("<")
+  };
+}
+
 function requirementStatus({ blockers, productGaps, sourceCoverage, evidenceReports }) {
   if (sourceCoverage.some((item) => item.present !== true)) {
     return "docs_anchor_missing";
@@ -465,6 +517,7 @@ function summarizeRequirements(requirements) {
     blockedRequirementCount: requirements.length - Number(statusCounts.satisfied ?? 0),
     sourceAnchorIssueCount,
     localPreparationCommandCount: requirements.reduce((sum, item) => sum + item.localPreparationCommandCount, 0),
+    directCommandCount: requirements.reduce((sum, item) => sum + item.directCommandCount, 0),
     blockerCount: uniqueSortedStrings(requirements.flatMap((item) => item.blockerIds)).length,
     productGapCount: uniqueSortedStrings(requirements.flatMap((item) => item.productGapIds)).length,
     statusCounts
@@ -524,7 +577,10 @@ function nextActionsFor(requirements, summary, releaseGateSummary) {
     const prep = item.localPreparationCommands.length > 0
       ? ` Local prep: ${item.localPreparationCommands.map((command) => command.command).join(" | ")}.`
       : "";
-    actions.push(`${item.label}: ${item.requiredAction}${prep}`);
+    const evidence = item.directCommands.length > 0
+      ? ` Evidence commands: ${item.directCommands.join(" | ")}.`
+      : "";
+    actions.push(`${item.label}: ${item.requiredAction}${prep}${evidence}`);
   }
   if (actions.length === 0 && releaseGateSummary.canReleaseToCustomerTraffic !== true) {
     actions.push("Rerun business-readiness and launch-doctor before claiming customer traffic readiness.");
@@ -572,7 +628,7 @@ function renderMarkdown(report) {
     "",
     "## Requirements",
     "",
-    ...report.requirements.map((item) => `- ${item.order}. ${item.label}: ${item.status}; blockers=${item.blockerIds.length === 0 ? "none" : item.blockerIds.join(", ")}; productGaps=${item.productGapIds.length === 0 ? "none" : item.productGapIds.join(", ")}; prep=${item.localPreparationCommands.length === 0 ? "none" : item.localPreparationCommands.map((command) => command.name).join(", ")}`),
+    ...report.requirements.map((item) => `- ${item.order}. ${item.label}: ${item.status}; blockers=${item.blockerIds.length === 0 ? "none" : item.blockerIds.join(", ")}; productGaps=${item.productGapIds.length === 0 ? "none" : item.productGapIds.join(", ")}; prep=${item.localPreparationCommands.length === 0 ? "none" : item.localPreparationCommands.map((command) => command.name).join(", ")}; evidenceCommands=${item.directCommandCount}`),
     "",
     "## Next Actions",
     "",
@@ -680,6 +736,19 @@ function arrayOfStrings(value) {
 
 function uniqueSortedStrings(values) {
   return [...new Set(values.map((value) => String(value ?? "")).filter(Boolean))].sort((left, right) => left.localeCompare(right));
+}
+
+function uniqueOrderedStrings(values) {
+  const seen = new Set();
+  const ordered = [];
+  for (const value of values.map((item) => String(item ?? "")).filter(Boolean)) {
+    if (seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    ordered.push(value);
+  }
+  return ordered;
 }
 
 function toRepoRelative(path) {

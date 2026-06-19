@@ -6,18 +6,19 @@ Implementation status as of 2026-06-19: implemented as a CineJelly-owned no-spen
 
 Operators need a machine-readable answer to "what is still required by the roadmap and snapshot parity audit before customer traffic?" Markdown roadmap bullets are useful, but the backend must not rely on manual reading when deciding launch readiness. `validation:roadmap-closure` reads the current roadmap, snapshot parity audit, project context, completion audit, commercial launch doctor, business-readiness report, commercial inputs, and report-contract status, then writes a secret-free closure report.
 
-The report does not approve release. It maps remaining roadmap and snapshot requirements to the current blockers, product-code gaps, evidence reports, phases, local prep commands, and next actions.
+The report does not approve release. It maps remaining roadmap and snapshot requirements to the current blockers, product-code gaps, evidence reports, phases, local prep commands, direct evidence commands with guard flags, and next actions.
 
 ## Requirements
 
 1. The audit is no-spend and no-network.
 2. It must keep `releaseEvidence=false`.
 3. It must fail source coverage when expected roadmap or snapshot anchors disappear.
-4. It must list every closure requirement with stable IDs, owners, categories, evidence reports, blocker IDs, product-gap IDs, local prep commands, and direct evidence commands.
+4. It must list every closure requirement with stable IDs, owners, categories, evidence reports, blocker IDs, product-gap IDs, local prep commands, direct evidence commands, and direct command guard metadata.
 5. It must not mark a requirement `satisfied` while matching blockers or external-evidence product gaps remain.
 6. It must keep customer traffic blocked unless all requirements are satisfied and the business-readiness/customer-traffic gate is also true.
 7. It must surface local prep commands only as draft/template helpers, never as evidence closure.
-8. It must be validated by `validation:report-contracts`.
+8. It must keep generated-audio and long-form direct evidence commands separated per blocker source and in input-runbook order instead of inheriting unrelated commands from shared evidence-closure phases.
+9. It must be validated by `validation:report-contracts`.
 
 ## Command
 
