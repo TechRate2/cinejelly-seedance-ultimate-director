@@ -188,6 +188,11 @@ function buildCommands(options) {
       reportPath: "assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
+    }),
+    command("generated_audio_mapping_smoke", ["scripts/run-generated-audio-mapping-smoke.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json",
+      expectedExitCodes: [0],
+      blocksCodeReadiness: true
     })
   ];
   if (!options.skipLocalSmoke) {
@@ -423,6 +428,7 @@ function buildReport(options, commandRuns) {
     materialSourceScoring: summarizeReport("assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"),
     sourceVideoAutoAnalysisSmoke: summarizeReport("assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"),
     remoteStockAdapterSmoke: summarizeReport("assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json"),
+    generatedAudioMappingSmoke: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json"),
     providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
     providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
     providerExternalLease: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
@@ -490,6 +496,7 @@ function buildReport(options, commandRuns) {
       snapshotParityStatus: reportSummaries.snapshotParity.status,
       sourceVideoAutoAnalysisSmokeStatus: reportSummaries.sourceVideoAutoAnalysisSmoke.status,
       remoteStockAdapterSmokeStatus: reportSummaries.remoteStockAdapterSmoke.status,
+      generatedAudioMappingSmokeStatus: reportSummaries.generatedAudioMappingSmoke.status,
       qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
       qualityReviewDraftsStatus: reportSummaries.qualityReviewDrafts.status,
       qualityReviewGuardStatus: reportSummaries.qualityReviewGuard.status,
@@ -921,6 +928,7 @@ function renderMarkdown(report) {
     `- Snapshot parity: ${report.readinessSnapshot.snapshotParityStatus}`,
     `- Source-video auto-analysis smoke: ${report.readinessSnapshot.sourceVideoAutoAnalysisSmokeStatus}`,
     `- Remote-stock adapter smoke: ${report.readinessSnapshot.remoteStockAdapterSmokeStatus}`,
+    `- Generated-audio mapping smoke: ${report.readinessSnapshot.generatedAudioMappingSmokeStatus}`,
     `- Quality benchmark: ${report.readinessSnapshot.qualityBenchmarkStatus}`,
     `- Quality review drafts: ${report.readinessSnapshot.qualityReviewDraftsStatus}`,
     `- Quality review guard: ${report.readinessSnapshot.qualityReviewGuardStatus}`,

@@ -1,6 +1,6 @@
 # Reference Implementation: Generated Audio Execution Planner
 
-Implementation status as of 2026-06-14: planned for a CineJelly-owned execution-planning module that converts bounded `GeneratedAudioIntent` records into provider-neutral `AudioGenerationRequest` records when verified capabilities exist. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The planner must not call an audio provider or create generated audio files.
+Implementation status as of 2026-06-19: implemented as a CineJelly-owned execution-planning module that converts bounded `GeneratedAudioIntent` records into provider-neutral `AudioGenerationRequest` records when verified capabilities exist, plus a no-spend generated-audio mapping smoke report that proves narration, BGM, ambience, and SFX kind boundaries before live provider spend. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. The planner and smoke must not call an audio provider or create generated audio files.
 
 ## Upstream Sources
 
@@ -145,6 +145,7 @@ function planGeneratedAudioExecution(
 - Feed the execution plan into `PostproductionAssetPlanner` while preserving current no-capability behavior.
 - Extend artifact validation to accept `ready_for_provider` and `partially_ready` statuses without claiming generated outputs.
 - Export the planner from `src/index.ts` for production integrations.
+- Add `validation:generated-audio-mapping` as a no-spend smoke for kind identity, provider-preference blocking, duration blocking, result-to-track role mapping, and kind-mismatch rejection.
 - Done separately: `GeneratedAudioProviderExecutionRunner` consumes ready items only after this planner has produced verified requests.
 - Keep Atlas generated-audio capabilities empty until verified schemas/model IDs/pricing/output validation exist.
 
@@ -155,6 +156,8 @@ function planGeneratedAudioExecution(
 - Empty capabilities preserve current review-required planned-only behavior.
 - Provider preference is binding and produces a visible conflict when unavailable.
 - Output format, duration, provider, model ID, kind, and intent ID are captured in ready requests.
+- Narration, BGM, ambience, and SFX each map to their own provider request kind and final mix role only after safe output validation.
+- Provider result kind mismatches are rejected before an `AudioMixTrack` can be created.
 - Mixed ready/blocked intents keep item-level evidence.
 - `postproduction-assets.json`, run summary, review packet, and stage lifecycle can agree on generated-audio status and counts.
 - No production runtime import from `external/upstream/`.
@@ -164,3 +167,9 @@ Local validation on 2026-06-14:
 - `npm.cmd run typecheck` passed.
 - `npm.cmd run build` passed.
 - A no-network smoke confirmed empty capabilities produce `planned_only` blocked evidence, verified capabilities produce `ready_for_provider` requests, timing-derived durations are preserved, and `PostproductionAssetPlanner` keeps a review warning until provider execution actually runs.
+
+Local validation on 2026-06-19:
+
+- `npm.cmd run validation:generated-audio-mapping` passed.
+- The report contract `generated_audio_mapping_smoke` passed schema and semantic validation.
+- The smoke covers `tts_narration`, `bgm`, `ambience`, and `sfx`; keeps provider preference binding strict; blocks unsupported/overlong intents before spend; maps approved outputs to narration/music/ambience/SFX roles; rejects kind-mismatched provider results; and stores only URL SHA-256 fingerprints rather than raw output URLs.

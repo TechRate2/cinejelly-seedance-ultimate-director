@@ -2082,7 +2082,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "paid provider validation now confirms one Atlas TTS provider/output-batch success path, but manual listening quality and BGM/SFX mappings remain pending"
+      "paid provider validation now confirms one Atlas TTS provider/output-batch success path and no-spend mapping smoke covers BGM/SFX request-role boundaries, but manual listening quality and live BGM/SFX media quality remain pending"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
@@ -2143,15 +2143,19 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     cineJellyDestinationPaths: [
       "src/types/generated-audio-execution.ts",
       "src/core/generated-audio-execution-planner.ts",
+      "src/core/generated-audio-output-validator.ts",
       "src/types/postproduction-assets.ts",
       "src/core/postproduction-asset-planner.ts",
       "src/core/project-artifact-validator.ts",
+      "scripts/run-generated-audio-mapping-smoke.mjs",
+      "schemas/generated-audio-mapping-smoke-report.schema.json",
       "src/core/source-logic-translation-records.ts"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
       "actual provider-backed generation remains pending verified provider schema and paid validation",
-      "future execution orchestration must preserve item-level ready/blocked evidence"
+      "future execution orchestration must preserve item-level ready/blocked evidence",
+      "mapping smoke proves request and track-role boundaries but not live BGM/SFX media quality"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },

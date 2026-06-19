@@ -57,6 +57,7 @@ const defaultContracts = [
   contract("generated_audio_artifact_evidence", "schemas/generated-audio-artifact-evidence-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-artifact-evidence-report.json"),
   contract("generated_audio_manual_review", "schemas/generated-audio-manual-review.schema.json", "ops/generated-audio-manual-review.json"),
   contract("generated_audio_manual_review_draft", "schemas/generated-audio-manual-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json"),
+  contract("generated_audio_mapping_smoke", "schemas/generated-audio-mapping-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json"),
   contract("generated_audio_polling_resilience", "schemas/generated-audio-polling-resilience-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"),
   contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
   contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),
@@ -332,6 +333,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "generated_audio_polling_resilience") {
     return validateGeneratedAudioPollingResilienceSemantics(report);
   }
+  if (item.name === "generated_audio_mapping_smoke") {
+    return validateGeneratedAudioMappingSmokeSemantics(report);
+  }
   if (item.name === "generated_audio_artifact_evidence") {
     return validateGeneratedAudioArtifactEvidenceSemantics(report);
   }
@@ -381,6 +385,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "material_source_scoring",
   "source_video_auto_analysis_smoke",
   "remote_stock_adapter_smoke",
+  "generated_audio_mapping_smoke",
   "provider_live_actions",
   "provider_graph_resume",
   "release_audit",
@@ -475,6 +480,16 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (report?.readinessSnapshot?.remoteStockAdapterSmokeStatus !== "pass") {
     issues.push("$.readinessSnapshot.remoteStockAdapterSmokeStatus: expected pass after refreshing remote-stock adapter smoke.");
+  }
+  const generatedAudioMappingSmokeRun = commandByName.get("generated_audio_mapping_smoke");
+  if (generatedAudioMappingSmokeRun?.status !== "pass") {
+    issues.push("$.commandRuns[generated_audio_mapping_smoke].status: expected pass for generated-audio mapping smoke command.");
+  }
+  if (report?.reportSummaries?.generatedAudioMappingSmoke?.status !== "pass") {
+    issues.push("$.reportSummaries.generatedAudioMappingSmoke.status: expected pass after refreshing generated-audio mapping smoke.");
+  }
+  if (report?.readinessSnapshot?.generatedAudioMappingSmokeStatus !== "pass") {
+    issues.push("$.readinessSnapshot.generatedAudioMappingSmokeStatus: expected pass after refreshing generated-audio mapping smoke.");
   }
 
   const scopeSummary = report?.commercialOfferScopeSummary;
@@ -2358,6 +2373,83 @@ function validateDirectorStyleReviewEvidenceGuardSemantics(report) {
   }
   if (/review\.example\.invalid|director_guard_secret|https?:\/\/(?!cinejelly\.local\/schemas)/i.test(publicPayload)) {
     issues.push("$.publicPayload: guard smoke report must not echo the raw unsafe review URL or token-like text.");
+  }
+  return issues;
+}
+
+function validateGeneratedAudioMappingSmokeSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status !== "pass");
+  const publicPayload = JSON.stringify(report ?? {});
+  const readyKindCounts = report?.summary?.readyKindCounts ?? {};
+  const roleCounts = report?.summary?.approvedTrackRoleCounts ?? {};
+  const blockedReasonCounts = report?.summary?.blockedReasonCounts ?? {};
+  const allKindsReady = report?.plans?.allKindsReady;
+  const partialKindBoundary = report?.plans?.partialKindBoundary;
+  const providerPreferenceBinding = report?.plans?.providerPreferenceBinding;
+  const durationBoundary = report?.plans?.durationBoundary;
+  const kindMismatch = report?.outputValidation?.kindMismatch;
+
+  if (report?.status !== "pass") {
+    issues.push("$.status: expected pass for generated-audio mapping smoke.");
+  }
+  if (report?.noSpend !== true || report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade: expected no-spend/no-network/no-provider mapping smoke.");
+  }
+  for (const kind of ["tts_narration", "bgm", "ambience", "sfx"]) {
+    if (Number(readyKindCounts[kind] ?? 0) !== 1) {
+      issues.push(`$.summary.readyKindCounts.${kind}: expected exactly one ready mapping.`);
+    }
+  }
+  for (const role of ["narration", "music", "ambience", "sfx"]) {
+    if (Number(roleCounts[role] ?? 0) !== 1) {
+      issues.push(`$.summary.approvedTrackRoleCounts.${role}: expected exactly one approved mix role.`);
+    }
+  }
+  if (Number(report?.summary?.outputValidationApprovedCount ?? 0) !== 4) {
+    issues.push("$.summary.outputValidationApprovedCount: expected four approved safe output validations.");
+  }
+  if (report?.summary?.kindMismatchRejected !== true) {
+    issues.push("$.summary.kindMismatchRejected: expected true.");
+  }
+  if (report?.summary?.rawOutputUrlStored !== false || report?.summary?.rawPromptStored !== false) {
+    issues.push("$.summary.rawOutputUrlStored/rawPromptStored: expected false.");
+  }
+  if (allKindsReady?.status !== "ready_for_provider" || Number(allKindsReady?.readyCount ?? 0) !== 4 || Number(allKindsReady?.blockedCount ?? -1) !== 0) {
+    issues.push("$.plans.allKindsReady: expected ready_for_provider with four ready items and zero blocked items.");
+  }
+  const readyItems = Array.isArray(allKindsReady?.readyItems) ? allKindsReady.readyItems : [];
+  for (const item of readyItems) {
+    if (item?.kind && item?.requestOutputFormat !== "mp3") {
+      issues.push("$.plans.allKindsReady.readyItems: expected every request output format to remain mp3.");
+    }
+  }
+  if (partialKindBoundary?.status !== "partially_ready" || Number(blockedReasonCounts.kind_not_supported ?? 0) < 1) {
+    issues.push("$.plans.partialKindBoundary: expected partially_ready with a kind_not_supported blocked item.");
+  }
+  if (providerPreferenceBinding?.status !== "planned_only" || Number(blockedReasonCounts.provider_preference_unavailable ?? 0) < 1) {
+    issues.push("$.plans.providerPreferenceBinding: expected planned_only with provider_preference_unavailable.");
+  }
+  if (durationBoundary?.status !== "planned_only" || Number(blockedReasonCounts.duration_exceeds_capability ?? 0) < 1) {
+    issues.push("$.plans.durationBoundary: expected planned_only with duration_exceeds_capability.");
+  }
+  if (kindMismatch?.status !== "rejected" || kindMismatch?.audioTrackCreated !== false || !arrayOfStrings(kindMismatch?.issueCodes).includes("kind_mismatch")) {
+    issues.push("$.outputValidation.kindMismatch: expected rejected kind_mismatch without audioTrack creation.");
+  }
+  if (failedChecks.length > 0) {
+    issues.push("$.checks: expected every generated-audio mapping smoke check to pass.");
+  }
+  if (
+    report?.releaseGateSummary?.generatedAudioMappingSmokePass !== true ||
+    report?.releaseGateSummary?.canUseAsNoSpendBackendEvidence !== true ||
+    report?.releaseGateSummary?.canUseAsLiveGeneratedAudioEvidence !== false ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: expected backend evidence pass while keeping live/customer-release claims false.");
+  }
+  if (/https?:\/\/|[A-Za-z]:\\|\\\\|\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|apikey-|sk_[A-Za-z0-9]|bearer\s+/i.test(publicPayload)) {
+    issues.push("$.publicPayload: generated-audio mapping smoke report must not include raw URLs, local paths, or credential-like text.");
   }
   return issues;
 }
