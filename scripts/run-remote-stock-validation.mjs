@@ -339,6 +339,7 @@ async function runLiveValidation({ options, remoteStock }) {
         selectedCandidateCount: candidates.filter((candidate) => candidate.selected).length,
         approvedCandidateCount: validation.approvedCandidateCount,
         validationStatus: validation.status,
+        scoreSummary: summarizeCandidateEvaluations(validation.candidateEvaluations),
         issueCounts: countValidationIssues(validation.issues),
         sampleCandidates: sampleCandidates(candidates)
       });
@@ -449,7 +450,21 @@ function summarizeMaterialValidation(validation) {
     selectedCandidateCount: validation.selectedCandidateCount,
     approvedCandidateCount: validation.approvedCandidateCount,
     rejectedCandidateCount: validation.rejectedCandidateCount,
+    candidateEvaluationCount: Array.isArray(validation.candidateEvaluations) ? validation.candidateEvaluations.length : 0,
+    decisionCounts: countBy((validation.candidateEvaluations ?? []).map((item) => item.decision)),
+    scoreSummary: summarizeCandidateEvaluations(validation.candidateEvaluations ?? []),
     issueCounts: countValidationIssues(validation.issues)
+  };
+}
+
+function summarizeCandidateEvaluations(evaluations) {
+  const scores = evaluations.map((item) => item.fitScore).filter((score) => typeof score === "number" && Number.isFinite(score));
+  return {
+    evaluationCount: evaluations.length,
+    decisionCounts: countBy(evaluations.map((item) => item.decision)),
+    minFitScore: scores.length > 0 ? Math.min(...scores) : 0,
+    maxFitScore: scores.length > 0 ? Math.max(...scores) : 0,
+    averageFitScore: scores.length > 0 ? round(scores.reduce((sum, score) => sum + score, 0) / scores.length, 2) : 0
   };
 }
 
@@ -536,6 +551,15 @@ function emptyMaterialValidationSummary() {
     selectedCandidateCount: 0,
     approvedCandidateCount: 0,
     rejectedCandidateCount: 0,
+    candidateEvaluationCount: 0,
+    decisionCounts: {},
+    scoreSummary: {
+      evaluationCount: 0,
+      decisionCounts: {},
+      minFitScore: 0,
+      maxFitScore: 0,
+      averageFitScore: 0
+    },
     issueCounts: {
       total: 0,
       info: 0,
@@ -576,6 +600,11 @@ function countBy(values) {
     counts[value] = (counts[value] ?? 0) + 1;
     return counts;
   }, {});
+}
+
+function round(value, digits = 2) {
+  const scale = 10 ** digits;
+  return Math.round(value * scale) / scale;
 }
 
 function hostFor(value) {

@@ -102,6 +102,33 @@ export interface MaterialSourceValidationIssue {
   readonly candidateId?: string;
 }
 
+export type MaterialCandidateEvaluationDecision =
+  | "approved"
+  | "review_required"
+  | "rejected";
+
+export interface MaterialCandidateScoreFactor {
+  readonly name: string;
+  readonly score: number;
+  readonly maxScore: number;
+  readonly passed: boolean;
+  readonly message: string;
+}
+
+export interface MaterialCandidateEvaluation {
+  readonly candidateId: string;
+  readonly briefId: string;
+  readonly source: MaterialSource;
+  readonly selected: boolean;
+  readonly decision: MaterialCandidateEvaluationDecision;
+  readonly fitScore: number;
+  readonly maxFitScore: number;
+  readonly scoreFactors: readonly MaterialCandidateScoreFactor[];
+  readonly blockingIssueCodes: readonly MaterialSourceValidationIssueCode[];
+  readonly warningIssueCodes: readonly MaterialSourceValidationIssueCode[];
+  readonly recommendedAction: string;
+}
+
 export interface MaterialSourceValidationReport {
   readonly planId: string;
   readonly projectId: string;
@@ -112,6 +139,7 @@ export interface MaterialSourceValidationReport {
   readonly rejectedCandidateCount: number;
   readonly candidates: readonly MaterialCandidate[];
   readonly issues: readonly MaterialSourceValidationIssue[];
+  readonly candidateEvaluations: readonly MaterialCandidateEvaluation[];
 }
 
 export interface MaterialSourceAdapterInput {

@@ -1,6 +1,6 @@
 # Reference Implementation: Remote Stock Material Adapter
 
-Implementation status as of 2026-06-16: implemented as CineJelly-owned TypeScript in remote stock material adapter contracts, runtime configuration, preflight, DirectorAgent material fulfillment, the public package export surface, and a live-network validation runner with explicit commercial-terms evidence. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-19: implemented as CineJelly-owned TypeScript in remote stock material adapter contracts, runtime configuration, preflight, DirectorAgent material fulfillment, deterministic material-source scoring evidence, the public package export surface, and a live-network validation runner with explicit commercial-terms evidence. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Upstream And Provider Sources
 
@@ -24,6 +24,7 @@ Implementation status as of 2026-06-16: implemented as CineJelly-owned TypeScrip
 6. Attribution is preserved for every remote stock candidate.
 7. Coverr is not treated as commercially approved unless an explicit operator setting confirms commercial approval.
 8. `MaterialSourceValidator` remains the final gate; adapters only propose candidates.
+9. Live validation summaries must expose bounded score/decision summaries from `MaterialSourceValidator` without raw provider media URLs or credentials.
 
 ## Edge Cases
 
@@ -109,6 +110,7 @@ function normalizeProviderItem(source, item, brief) {
 - Done: update `MaterialSourcingPlanner` call options so remote sources enter briefs only when remote stock is explicitly enabled.
 - Done: keep `MaterialSourceValidator` as the final approval gate.
 - Done: add `docs/reference-implementations/remote-stock-provider-validation-runner.md` plus a CLI/report gate for live provider evidence.
+- Done: surface material-source candidate decision counts and score summaries in `validation:remote-stock` reports when live candidates exist, while blocked/no-network reports keep zero-count scoring summaries.
 
 ## Validation Checklist
 
@@ -120,4 +122,5 @@ function normalizeProviderItem(source, item, brief) {
 - Candidate URIs are credential-free HTTPS and never include signed or secret query keys.
 - Attribution is present for selected remote stock candidates.
 - Candidate count is bounded by both `brief.maxCandidates` and adapter max results.
+- Remote-stock validation report summaries include material candidate scoring counts without exposing raw candidate URLs.
 - No production runtime import from `external/upstream/`.

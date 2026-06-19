@@ -50,6 +50,7 @@ const defaultContracts = [
   contract("long_form_manual_quality_review_draft", "schemas/long-form-manual-quality-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
   contract("remote_stock_validation", "schemas/remote-stock-validation-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-validation-report.json"),
+  contract("material_source_scoring_smoke", "schemas/material-source-scoring-smoke-report.schema.json", "assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"),
   contract("generated_audio_validation", "schemas/generated-audio-validation-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
   contract("generated_audio_artifact_evidence", "schemas/generated-audio-artifact-evidence-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-artifact-evidence-report.json"),
   contract("generated_audio_manual_review", "schemas/generated-audio-manual-review.schema.json", "ops/generated-audio-manual-review.json"),
@@ -308,6 +309,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "roadmap_closure_audit") {
     return validateRoadmapClosureAuditSemantics(report);
   }
+  if (item.name === "material_source_scoring_smoke") {
+    return validateMaterialSourceScoringSmokeSemantics(report);
+  }
   if (item.name === "director_style_benchmark") {
     return validateDirectorStyleBenchmarkSemantics(report);
   }
@@ -366,6 +370,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "build",
   "deployment_package",
   "snapshot_parity",
+  "material_source_scoring",
   "provider_live_actions",
   "provider_graph_resume",
   "release_audit",
@@ -433,6 +438,13 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (["missing", "skipped", undefined].includes(report?.readinessSnapshot?.qualityReviewEvidenceStatus)) {
     issues.push("$.readinessSnapshot.qualityReviewEvidenceStatus: expected a refreshed review-evidence status, not missing/skipped.");
+  }
+  const materialSourceScoringRun = commandByName.get("material_source_scoring");
+  if (materialSourceScoringRun?.status !== "pass") {
+    issues.push("$.commandRuns[material_source_scoring].status: expected pass for material-source scoring smoke command.");
+  }
+  if (report?.reportSummaries?.materialSourceScoring?.status !== "pass") {
+    issues.push("$.reportSummaries.materialSourceScoring.status: expected pass after refreshing material-source scoring smoke.");
   }
 
   const scopeSummary = report?.commercialOfferScopeSummary;
@@ -976,6 +988,56 @@ function validateRoadmapClosureAuditSemantics(report) {
   }
   if (report?.status !== "ready_for_customer_traffic" && (!Array.isArray(report?.nextActions) || report.nextActions.length === 0)) {
     issues.push("$.nextActions: expected next actions while roadmap closure is not ready.");
+  }
+  return issues;
+}
+
+function validateMaterialSourceScoringSmokeSemantics(report) {
+  const issues = [];
+  if (report?.status !== "pass") {
+    issues.push("$.status: expected pass for material-source scoring smoke.");
+  }
+  if (report?.noSpend !== true || report?.networkCallsMade !== false || report?.providerCallsMade !== false) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade: expected no-spend/no-network/no-provider smoke.");
+  }
+  if (report?.releaseGateSummary?.canUseAsLiveRemoteStockEvidence !== false) {
+    issues.push("$.releaseGateSummary.canUseAsLiveRemoteStockEvidence: expected false; smoke is not live provider evidence.");
+  }
+  if (report?.releaseGateSummary?.canUseAsMaterialScoringBackendEvidence !== true) {
+    issues.push("$.releaseGateSummary.canUseAsMaterialScoringBackendEvidence: expected true when smoke passes.");
+  }
+  const evaluations = Array.isArray(report?.candidateEvaluations) ? report.candidateEvaluations : [];
+  const candidateCount = Number(report?.materialValidation?.candidateCount ?? -1);
+  if (evaluations.length !== candidateCount) {
+    issues.push("$.candidateEvaluations: expected one candidate evaluation per synthetic candidate.");
+  }
+  if (Number(report?.materialValidation?.candidateEvaluationCount ?? -1) !== evaluations.length) {
+    issues.push("$.materialValidation.candidateEvaluationCount: expected to match candidateEvaluations length.");
+  }
+  const decisions = new Set(evaluations.map((item) => String(item?.decision ?? "")));
+  for (const decision of ["approved", "review_required", "rejected"]) {
+    if (!decisions.has(decision) || Number(report?.materialValidation?.decisionCounts?.[decision] ?? 0) <= 0) {
+      issues.push(`$.candidateEvaluations: expected ${decision} decision coverage.`);
+    }
+  }
+  for (const [index, evaluation] of evaluations.entries()) {
+    const fitScore = Number(evaluation?.fitScore);
+    const maxFitScore = Number(evaluation?.maxFitScore);
+    if (!Number.isFinite(fitScore) || fitScore < 0 || fitScore > 100 || maxFitScore !== 100) {
+      issues.push(`$.candidateEvaluations[${index}].fitScore: expected bounded 0-100 score.`);
+    }
+    const scoreFactors = Array.isArray(evaluation?.scoreFactors) ? evaluation.scoreFactors : [];
+    const factorScore = scoreFactors.reduce((sum, factor) => sum + Number(factor?.score ?? 0), 0);
+    if (Math.min(100, factorScore) !== fitScore) {
+      issues.push(`$.candidateEvaluations[${index}].fitScore: expected to equal bounded sum of scoreFactors.`);
+    }
+  }
+  if (/https?:\/\/|asset:\/\/|token=/i.test(JSON.stringify(evaluations))) {
+    issues.push("$.candidateEvaluations: expected score evidence without raw candidate URIs or token-looking text.");
+  }
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  if (checks.length === 0 || checks.some((check) => check?.status !== "pass")) {
+    issues.push("$.checks: expected all smoke checks to pass.");
   }
   return issues;
 }

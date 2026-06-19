@@ -173,6 +173,11 @@ function buildCommands(options) {
       reportPath: "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
+    }),
+    command("material_source_scoring", ["scripts/run-material-source-scoring-smoke.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json",
+      expectedExitCodes: [0],
+      blocksCodeReadiness: true
     })
   ];
   if (!options.skipLocalSmoke) {
@@ -405,6 +410,7 @@ function buildReport(options, commandRuns) {
     generatedAudioReviewDraft: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json"),
     longFormReviewDraft: summarizeReport("assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
     snapshotParity: summarizeReport("assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
+    materialSourceScoring: summarizeReport("assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"),
     providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
     providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
     providerExternalLease: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),

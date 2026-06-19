@@ -1,6 +1,6 @@
 # Reference Implementation: Material Source Adapter Validation
 
-Implementation status as of 2026-06-13: CineJelly-owned production foundation implemented in material source contracts, `MaterialSourceValidator`, DirectorAgent stage evidence, durable artifacts, and operator validation. `npm.cmd run typecheck`, `npm.cmd run build`, a local material-validator smoke check, and a temporary artifact-validation smoke check passed. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-19: CineJelly-owned production foundation implemented in material source contracts, `MaterialSourceValidator`, deterministic candidate scoring/evaluation evidence, DirectorAgent stage evidence, durable artifacts, artifact validation, and operator validation. `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run validation:material-source-scoring`, and artifact-validation smoke coverage passed. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Upstream Sources
 
@@ -19,6 +19,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 5. Attribution-required material must carry attribution before it is selected.
 6. Candidate URI safety must be checked before artifacts or review packets expose it.
 7. Validation output must be deterministic and artifact-friendly so operators can inspect selected, rejected, and review-required candidates.
+8. Every supplied candidate must receive a URI-free `candidateEvaluation` with bounded 0-100 fit scoring, score factors, blocking/warning issue codes, decision, and recommended action.
 
 ## Edge Cases
 
@@ -29,6 +30,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 - Candidate URI contains embedded credentials, non-HTTPS remote URL, signed query material, or inline `data:` media: block the candidate.
 - Candidate duration is shorter than `minimumDurationSeconds` and the candidate is selected: block it.
 - Candidate aspect ratio or resolution differs from the brief: warn, because cropping/scaling may still be possible but needs operator review.
+- Candidate is syntactically safe but fit score is below the approval threshold: keep it visible as `review_required` evaluation evidence instead of silently treating it as equivalent to a perfect match.
 
 ## Reference Implementation
 
@@ -92,9 +94,11 @@ function validateMaterialCandidates(plan: MaterialSourcingPlan, candidates: Mate
 
 - Extend `src/types/material.ts` with adapter, candidate validation, issue, and report contracts.
 - Implement `src/core/material-source-validator.ts` as a deterministic candidate validation gate.
+- Done: add deterministic `candidateEvaluations` to `MaterialSourceValidationReport` with source, selected state, fit score, score factors, issue codes, decision, and recommended action without copying candidate URIs into the evaluation block.
 - Wire `DirectorAgent` to emit a `MaterialSourceValidationReport` after material planning and before graph/stage artifacts.
 - Include the report in stage lifecycle evidence, durable artifacts, review packets, and artifact validation.
 - Keep stock API fulfillment out of this implementation; real adapters can implement the new contract later without changing the validation gate.
+- Done: add `validation:material-source-scoring` as a no-spend smoke that proves approved, review-required, and rejected scoring decisions before launch-doctor can trust source-material scoring evidence.
 
 ## Validation Checklist
 
@@ -103,5 +107,6 @@ function validateMaterialCandidates(plan: MaterialSourcingPlan, candidates: Mate
 - Aspect ratio/resolution mismatch produces review-required evidence without silently approving the candidate.
 - Stage lifecycle source-material evidence includes material validation status and selected candidate counts.
 - Durable artifacts include `material-source-validation.json`.
-- Artifact validator checks the material validation report shape and blocks malformed reports.
+- Artifact validator checks the material validation report shape and blocks malformed candidate scoring evidence when the scoring block is present.
+- Report-contract validation checks `material-source-scoring-smoke-report.json` for no-spend/no-network semantics, decision coverage, score bounds, and URI-free evaluation evidence.
 - No production runtime import from `external/upstream/`.

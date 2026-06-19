@@ -47,6 +47,7 @@ const EXPECTED_STAGE_ORDER = [
 ];
 const MATERIAL_VALIDATION_STATUSES = new Set(["planned_only", "approved", "review_required", "rejected"]);
 const MATERIAL_VALIDATION_SEVERITIES = new Set(["info", "warn", "block"]);
+const MATERIAL_CANDIDATE_EVALUATION_DECISIONS = new Set(["approved", "review_required", "rejected"]);
 const POSTPRODUCTION_ASSET_STATUSES = new Set(["disabled", "planned", "review_required"]);
 const POSTPRODUCTION_CAPTION_DELIVERY_MODES = new Set(["disabled", "sidecar", "burn_in"]);
 const POSTPRODUCTION_ASSET_SEVERITIES = new Set(["info", "warn", "block"]);
@@ -507,6 +508,9 @@ export class ProjectArtifactValidator {
     if (!Array.isArray(value.candidates)) {
       checks.push({ name: "material_validation_candidates", status: "fail", fileName: artifact.entry.fileName, message: "material-source-validation candidates must be an array." });
     }
+    if (Array.isArray(value.candidateEvaluations)) {
+      this.validateMaterialCandidateEvaluations(value.candidateEvaluations, value.candidateCount, artifact, checks);
+    }
     if (!Array.isArray(value.issues)) {
       checks.push({ name: "material_validation_issues", status: "fail", fileName: artifact.entry.fileName, message: "material-source-validation issues must be an array." });
       return;
@@ -528,6 +532,46 @@ export class ProjectArtifactValidator {
       }
       if (typeof issue.message !== "string" || !issue.message || typeof issue.repair !== "string" || !issue.repair) {
         checks.push({ name: "material_validation_issue_text", status: "fail", fileName: artifact.entry.fileName, message: `Material validation issue ${index} is missing message or repair.` });
+      }
+    }
+  }
+
+  private validateMaterialCandidateEvaluations(
+    evaluations: readonly unknown[],
+    candidateCount: unknown,
+    artifact: LoadedArtifact,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (typeof candidateCount === "number" && evaluations.length !== candidateCount) {
+      checks.push({
+        name: "material_validation_candidate_evaluations",
+        status: "fail",
+        fileName: artifact.entry.fileName,
+        message: "material-source-validation candidateEvaluations length must match candidateCount."
+      });
+    }
+    for (const [index, evaluation] of evaluations.entries()) {
+      if (!this.isRecord(evaluation)) {
+        checks.push({ name: "material_validation_candidate_evaluation_shape", status: "fail", fileName: artifact.entry.fileName, message: `Material candidate evaluation ${index} is not an object.` });
+        continue;
+      }
+      if (typeof evaluation.candidateId !== "string" || !evaluation.candidateId) {
+        checks.push({ name: "material_validation_candidate_evaluation_id", status: "fail", fileName: artifact.entry.fileName, message: `Material candidate evaluation ${index} is missing candidateId.` });
+      }
+      if (typeof evaluation.decision !== "string" || !MATERIAL_CANDIDATE_EVALUATION_DECISIONS.has(evaluation.decision)) {
+        checks.push({ name: "material_validation_candidate_evaluation_decision", status: "fail", fileName: artifact.entry.fileName, message: `Material candidate evaluation ${index} has invalid decision.` });
+      }
+      if (typeof evaluation.fitScore !== "number" || evaluation.fitScore < 0 || evaluation.fitScore > 100) {
+        checks.push({ name: "material_validation_candidate_evaluation_score", status: "fail", fileName: artifact.entry.fileName, message: `Material candidate evaluation ${index} has invalid fitScore.` });
+      }
+      if (typeof evaluation.maxFitScore !== "number" || evaluation.maxFitScore !== 100) {
+        checks.push({ name: "material_validation_candidate_evaluation_score", status: "fail", fileName: artifact.entry.fileName, message: `Material candidate evaluation ${index} has invalid maxFitScore.` });
+      }
+      if (!Array.isArray(evaluation.scoreFactors) || evaluation.scoreFactors.length === 0) {
+        checks.push({ name: "material_validation_candidate_evaluation_factors", status: "fail", fileName: artifact.entry.fileName, message: `Material candidate evaluation ${index} is missing scoreFactors.` });
+      }
+      if (!Array.isArray(evaluation.blockingIssueCodes) || !Array.isArray(evaluation.warningIssueCodes)) {
+        checks.push({ name: "material_validation_candidate_evaluation_issues", status: "fail", fileName: artifact.entry.fileName, message: `Material candidate evaluation ${index} is missing issue code arrays.` });
       }
     }
   }
