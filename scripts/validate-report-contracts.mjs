@@ -43,6 +43,7 @@ const defaultContracts = [
   contract("commercial_launch_doctor", "schemas/commercial-launch-doctor-report.schema.json", "assets/output_deliverables/business-readiness/commercial-launch-doctor-report.json"),
   contract("commercial_launch_inputs", "schemas/commercial-launch-inputs-report.schema.json", "assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"),
   contract("business_completion_audit", "schemas/business-completion-audit-report.schema.json", "assets/output_deliverables/business-readiness/business-completion-audit-report.json"),
+  contract("roadmap_closure_audit", "schemas/roadmap-closure-audit-report.schema.json", "assets/output_deliverables/business-readiness/roadmap-closure-audit-report.json"),
   contract("ops_config_validation", "schemas/business-readiness-ops-config-validation-report.schema.json", "assets/output_deliverables/business-readiness/ops-config-validation-report.json"),
   contract("long_form_validation", "schemas/long-form-validation-report.schema.json", "assets/output_deliverables/business-readiness/long-form-validation-report.json"),
   contract("long_form_manual_quality_review", "schemas/long-form-manual-quality-review.schema.json", "ops/long-form-manual-quality-review.json"),
@@ -302,6 +303,9 @@ function validateSemanticContract(item, report, options) {
   }
   if (item.name === "business_completion_audit") {
     return validateBusinessCompletionAuditSemantics(report);
+  }
+  if (item.name === "roadmap_closure_audit") {
+    return validateRoadmapClosureAuditSemantics(report);
   }
   if (item.name === "director_style_benchmark") {
     return validateDirectorStyleBenchmarkSemantics(report);
@@ -799,6 +803,116 @@ function validateBusinessCompletionAuditSemantics(report) {
     if (Number(report?.codeWorkSummary?.knownCodeBlockingIssueCount ?? 0) !== 0) {
       issues.push("$.releaseGateSummary.safeToRunFullPaidAtlasSequenceNow: true requires zero known code blockers.");
     }
+  }
+  return issues;
+}
+
+function validateRoadmapClosureAuditSemantics(report) {
+  const issues = [];
+  const requirements = Array.isArray(report?.requirements) ? report.requirements : [];
+  if (report?.releaseEvidence !== false) {
+    issues.push("$.releaseEvidence: expected false.");
+  }
+  if (Number(report?.summary?.requirementCount ?? -1) !== requirements.length) {
+    issues.push("$.summary.requirementCount: expected to equal requirements length.");
+  }
+  const satisfiedCount = requirements.filter((item) => item?.status === "satisfied").length;
+  if (Number(report?.summary?.satisfiedRequirementCount ?? -1) !== satisfiedCount) {
+    issues.push("$.summary.satisfiedRequirementCount: expected to equal satisfied requirement count.");
+  }
+  if (Number(report?.summary?.blockedRequirementCount ?? -1) !== requirements.length - satisfiedCount) {
+    issues.push("$.summary.blockedRequirementCount: expected to equal unsatisfied requirement count.");
+  }
+  const sourceCoverage = requirements.flatMap((item) => Array.isArray(item?.sourceCoverage) ? item.sourceCoverage : []);
+  const sourceAnchorIssueCount = sourceCoverage.filter((item) => item?.present !== true).length;
+  if (Number(report?.summary?.sourceAnchorIssueCount ?? -1) !== sourceAnchorIssueCount) {
+    issues.push("$.summary.sourceAnchorIssueCount: expected to equal missing source anchor count.");
+  }
+  const localPrepCount = requirements.reduce((sum, item) => sum + Number(item?.localPreparationCommandCount ?? 0), 0);
+  if (Number(report?.summary?.localPreparationCommandCount ?? -1) !== localPrepCount) {
+    issues.push("$.summary.localPreparationCommandCount: expected to equal phase local prep command counts.");
+  }
+  const blockerIds = uniqueStrings(requirements.flatMap((item) => arrayOfStrings(item?.blockerIds)));
+  if (Number(report?.summary?.blockerCount ?? -1) !== blockerIds.length) {
+    issues.push("$.summary.blockerCount: expected to equal unique blocker IDs across requirements.");
+  }
+  const productGapIds = uniqueStrings(requirements.flatMap((item) => arrayOfStrings(item?.productGapIds)));
+  if (Number(report?.summary?.productGapCount ?? -1) !== productGapIds.length) {
+    issues.push("$.summary.productGapCount: expected to equal unique product gap IDs across requirements.");
+  }
+  issues.push(...compareCountMap("$.summary.statusCounts", report?.summary?.statusCounts, countBy(requirements, "status")));
+  for (const [name, summary] of Object.entries(report?.sourceDocSummary ?? {})) {
+    const coverage = sourceCoverage.filter((item) => item?.source === name);
+    if (Number(summary?.anchorCount ?? -1) !== coverage.length) {
+      issues.push(`$.sourceDocSummary.${name}.anchorCount: expected to equal coverage anchor count.`);
+    }
+    if (Number(summary?.missingAnchorCount ?? -1) !== coverage.filter((item) => item?.present !== true).length) {
+      issues.push(`$.sourceDocSummary.${name}.missingAnchorCount: expected to equal missing coverage anchor count.`);
+    }
+  }
+  for (const requirement of requirements) {
+    const path = `$.requirements[id=${requirement?.id}]`;
+    const blockers = Array.isArray(requirement?.blockers) ? requirement.blockers : [];
+    const productGaps = Array.isArray(requirement?.productGaps) ? requirement.productGaps : [];
+    const localPreparationCommands = Array.isArray(requirement?.localPreparationCommands) ? requirement.localPreparationCommands : [];
+    if (requirement?.releaseEvidence !== false) {
+      issues.push(`${path}.releaseEvidence: expected false.`);
+    }
+    if (Number(requirement?.blockerCount ?? -1) !== blockers.length || arrayOfStrings(requirement?.blockerIds).length !== blockers.length) {
+      issues.push(`${path}.blockerCount: expected to match blockers and blockerIds length.`);
+    }
+    if (Number(requirement?.productGapCount ?? -1) !== productGaps.length || arrayOfStrings(requirement?.productGapIds).length !== productGaps.length) {
+      issues.push(`${path}.productGapCount: expected to match productGaps and productGapIds length.`);
+    }
+    if (Number(requirement?.localPreparationCommandCount ?? -1) !== localPreparationCommands.length) {
+      issues.push(`${path}.localPreparationCommandCount: expected to match localPreparationCommands length.`);
+    }
+    const expectedCoverageStatus = (Array.isArray(requirement?.sourceCoverage) ? requirement.sourceCoverage : []).every((item) => item?.present === true) ? "pass" : "fail";
+    if (requirement?.sourceCoverageStatus !== expectedCoverageStatus) {
+      issues.push(`${path}.sourceCoverageStatus: expected ${expectedCoverageStatus}.`);
+    }
+    if (requirement?.evidenceSufficient !== (requirement?.status === "satisfied")) {
+      issues.push(`${path}.evidenceSufficient: expected true only when status is satisfied.`);
+    }
+    if (requirement?.status === "satisfied" && (blockers.length > 0 || productGaps.some((item) => item?.blocksFullSnapshotParity === true || item?.completionRequiresExternalEvidence === true))) {
+      issues.push(`${path}.status: cannot be satisfied while blocker or external product gap evidence remains.`);
+    }
+    for (const command of localPreparationCommands) {
+      if (
+        command?.releaseEvidence !== false ||
+        command?.requiresLiveNetwork === true ||
+        command?.requiresProviderSpend === true ||
+        command?.requiresOperatorConfirmation === true ||
+        command?.requiresManualReview === true ||
+        command?.containsPlaceholder === true
+      ) {
+        issues.push(`${path}.localPreparationCommands[name=${command?.name}]: expected local prep to remain no-spend, no-live, no-confirmation, no-manual-review, placeholder-free, and non-release evidence.`);
+      }
+      if (command?.producesDrafts !== true || !Array.isArray(command?.draftFiles) || command.draftFiles.length === 0) {
+        issues.push(`${path}.localPreparationCommands[name=${command?.name}]: expected draft-producing command with draft files.`);
+      }
+      issues.push(...validateEvidenceClosureFileList(command?.draftFiles, `${path}.localPreparationCommands[name=${command?.name}].draftFiles`, ["assets/output_deliverables/"]));
+    }
+  }
+  if (report?.status === "ready_for_customer_traffic") {
+    if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== true || satisfiedCount !== requirements.length) {
+      issues.push("$.status: ready_for_customer_traffic requires every requirement satisfied and releaseGateSummary.canReleaseToCustomerTraffic=true.");
+    }
+  }
+  if (report?.status === "fail" && sourceAnchorIssueCount === 0) {
+    issues.push("$.status: fail is only expected when source anchor coverage is missing.");
+  }
+  if (report?.status === "blocked_by_code_or_contracts" && Number(report?.releaseGateSummary?.knownCodeBlockingIssueCount ?? 0) <= 0) {
+    issues.push("$.status: blocked_by_code_or_contracts requires known code blockers.");
+  }
+  if (report?.status === "blocked_by_external_inputs" && satisfiedCount === requirements.length) {
+    issues.push("$.status: blocked_by_external_inputs requires at least one unsatisfied roadmap requirement.");
+  }
+  if (report?.releaseGateSummary?.canClaimFullSnapshotParity === true && requirements.some((item) => item?.productGapCount > 0 && item?.status !== "satisfied")) {
+    issues.push("$.releaseGateSummary.canClaimFullSnapshotParity: expected false while product-gap requirements remain unsatisfied.");
+  }
+  if (report?.status !== "ready_for_customer_traffic" && (!Array.isArray(report?.nextActions) || report.nextActions.length === 0)) {
+    issues.push("$.nextActions: expected next actions while roadmap closure is not ready.");
   }
   return issues;
 }
@@ -1471,6 +1585,10 @@ function arrayOfStrings(value) {
   return Array.isArray(value)
     ? value.map((item) => String(item ?? "")).filter(Boolean)
     : [];
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.map((item) => String(item ?? "")).filter(Boolean))];
 }
 
 function compareCountMap(path, actual, expected) {

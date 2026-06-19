@@ -34,6 +34,7 @@ It may:
 - surface the safe operator handoff summary from commercial-inputs so operators see missing input counts, ignored file packets, draft/report archive counts, and guarded command status from the top-level doctor report
 - surface snapshot parity coverage estimates so operators can compare the current backend against each upstream snapshot without treating those estimates as release evidence
 - surface the evidence closure plan from completion-audit so operators see the ordered blocker phases, required input IDs, env placeholders, related operator packet files, report archive paths, command guards, execution-readiness verdicts, and direct commands before attempting live or paid evidence
+- refresh roadmap closure audit so roadmap/snapshot remaining-work requirements stay bound to current blocker IDs, product-code gaps, evidence reports, and local prep commands
 - run report-contract validation
 - summarize external/operator blockers
 
@@ -55,12 +56,13 @@ It may:
 14. Run business validation plan.
 15. Run commercial input packet generation.
 16. Run business completion audit.
-17. Run business readiness audit.
-18. Write the launch doctor report.
-19. Run report-contract validation.
-20. Rerun business completion audit so it reads the fresh report-contract status.
-21. Rewrite the launch doctor report with the refreshed completion-audit status.
-22. Run report-contract validation one final time, then rewrite the doctor report with the final contract status.
+17. Run roadmap closure audit with the in-progress doctor report skipped.
+18. Run business readiness audit.
+19. Write the launch doctor report.
+20. Run report-contract validation.
+21. Rerun business completion audit so it reads the fresh report-contract status.
+22. Rewrite the launch doctor report with the refreshed completion-audit status.
+23. Run report-contract validation one final time, then rewrite the doctor report with the final contract status.
 
 Expected blocked or review-required commands can exit non-zero without becoming code blockers. The quality benchmark, review-evidence guard, and review-evidence readiness reports are refreshed as backend evidence, but a `blocked` or `review_required` benchmark, a missing/incomplete review-evidence bundle, or a clean guard smoke still remains product/evidence status rather than launch approval. Provider handoff and resume-state smokes are local/fake-provider checks; they strengthen backend evidence but do not replace production HTTPS deployment handoff capture, live provider action execution, live queue execution, or real graph-resume enqueue payload proof. The live provider action and graph-resume enqueue validators may report `blocked_by_missing_inputs` until ignored operator evidence packets are present and confirmed. Unexpected build, local-smoke, provider-handoff/resume-state smoke, release-audit, deployment-package, review-evidence guard, or report-contract failures become code-side blockers.
 

@@ -1,0 +1,340 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/roadmap-closure-audit-report.schema.json",
+  "title": "CineJelly Roadmap Closure Audit Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "releaseEvidence",
+    "checkedInputs",
+    "sourceDocSummary",
+    "summary",
+    "requirements",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.roadmap-closure-audit.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": [
+        "ready_for_customer_traffic",
+        "blocked_by_external_inputs",
+        "blocked_by_code_or_contracts",
+        "fail"
+      ]
+    },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "releaseEvidence": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "skipLaunchDoctorReport",
+        "sourceDocs",
+        "sourceReports"
+      ],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "markdownOutputPath": { "type": "string" },
+        "skipLaunchDoctorReport": { "type": "boolean" },
+        "sourceDocs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["roadmap", "snapshotParity", "projectContext"],
+          "properties": {
+            "roadmap": { "$ref": "#/$defs/sourceDoc" },
+            "snapshotParity": { "$ref": "#/$defs/sourceDoc" },
+            "projectContext": { "$ref": "#/$defs/sourceDoc" }
+          }
+        },
+        "sourceReports": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "completionAudit",
+            "launchDoctor",
+            "businessReadiness",
+            "commercialInputs",
+            "reportContracts"
+          ],
+          "properties": {
+            "completionAudit": { "$ref": "#/$defs/sourceReport" },
+            "launchDoctor": { "$ref": "#/$defs/sourceReport" },
+            "businessReadiness": { "$ref": "#/$defs/sourceReport" },
+            "commercialInputs": { "$ref": "#/$defs/sourceReport" },
+            "reportContracts": { "$ref": "#/$defs/sourceReport" }
+          }
+        }
+      }
+    },
+    "sourceDocSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roadmap", "snapshotParity", "projectContext"],
+      "properties": {
+        "roadmap": { "$ref": "#/$defs/sourceDocSummary" },
+        "snapshotParity": { "$ref": "#/$defs/sourceDocSummary" },
+        "projectContext": { "$ref": "#/$defs/sourceDocSummary" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirementCount",
+        "satisfiedRequirementCount",
+        "blockedRequirementCount",
+        "sourceAnchorIssueCount",
+        "localPreparationCommandCount",
+        "blockerCount",
+        "productGapCount",
+        "statusCounts"
+      ],
+      "properties": {
+        "requirementCount": { "type": "integer", "minimum": 0 },
+        "satisfiedRequirementCount": { "type": "integer", "minimum": 0 },
+        "blockedRequirementCount": { "type": "integer", "minimum": 0 },
+        "sourceAnchorIssueCount": { "type": "integer", "minimum": 0 },
+        "localPreparationCommandCount": { "type": "integer", "minimum": 0 },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "productGapCount": { "type": "integer", "minimum": 0 },
+        "statusCounts": { "$ref": "#/$defs/counts" }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/requirement" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canReleaseToCustomerTraffic",
+        "canRunNoSpendPrep",
+        "canRunLiveNetworkEvidence",
+        "canRunGeneratedAudioPaidSlice",
+        "canRunFullKnownPaidSequence",
+        "canClaimFullSnapshotParity",
+        "knownCodeBlockingIssueCount",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canReleaseToCustomerTraffic": { "type": "boolean" },
+        "canRunNoSpendPrep": { "type": "boolean" },
+        "canRunLiveNetworkEvidence": { "type": "boolean" },
+        "canRunGeneratedAudioPaidSlice": { "type": "boolean" },
+        "canRunFullKnownPaidSequence": { "type": "boolean" },
+        "canClaimFullSnapshotParity": { "type": "boolean" },
+        "knownCodeBlockingIssueCount": { "type": "integer", "minimum": 0 },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "sourceDoc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "path"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "path": { "type": "string" }
+      }
+    },
+    "sourceReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "path", "status"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "path": { "type": "string" },
+        "schemaVersion": { "type": "string" },
+        "status": { "type": "string" },
+        "error": { "type": "string" }
+      }
+    },
+    "sourceDocSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "present", "anchorCount", "missingAnchorCount"],
+      "properties": {
+        "path": { "type": "string" },
+        "present": { "type": "boolean" },
+        "anchorCount": { "type": "integer", "minimum": 0 },
+        "missingAnchorCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "order",
+        "label",
+        "category",
+        "owner",
+        "status",
+        "releaseEvidence",
+        "evidenceSufficient",
+        "sourceCoverageStatus",
+        "sourceCoverage",
+        "blockerCount",
+        "blockerIds",
+        "blockers",
+        "productGapCount",
+        "productGapIds",
+        "productGaps",
+        "evidenceReports",
+        "phaseIds",
+        "localPreparationCommandCount",
+        "localPreparationCommands",
+        "directCommands",
+        "requiredAction"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "order": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string" },
+        "category": { "type": "string" },
+        "owner": { "type": "string" },
+        "status": {
+          "enum": [
+            "satisfied",
+            "blocked_by_external_inputs",
+            "blocked_by_budget",
+            "pending_after_paid_run",
+            "scope_decision_required",
+            "docs_anchor_missing"
+          ]
+        },
+        "releaseEvidence": { "const": false },
+        "evidenceSufficient": { "type": "boolean" },
+        "sourceCoverageStatus": { "enum": ["pass", "fail"] },
+        "sourceCoverage": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sourceCoverage" }
+        },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "blockerIds": { "type": "array", "items": { "type": "string" } },
+        "blockers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/blocker" }
+        },
+        "productGapCount": { "type": "integer", "minimum": 0 },
+        "productGapIds": { "type": "array", "items": { "type": "string" } },
+        "productGaps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/productGap" }
+        },
+        "evidenceReports": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sourceReport" }
+        },
+        "phaseIds": { "type": "array", "items": { "type": "string" } },
+        "localPreparationCommandCount": { "type": "integer", "minimum": 0 },
+        "localPreparationCommands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/localPreparationCommand" }
+        },
+        "directCommands": { "type": "array", "items": { "type": "string" } },
+        "requiredAction": { "type": "string" }
+      }
+    },
+    "sourceCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "path", "anchor", "present"],
+      "properties": {
+        "source": { "enum": ["roadmap", "snapshotParity", "projectContext"] },
+        "path": { "type": "string" },
+        "anchor": { "type": "string" },
+        "present": { "type": "boolean" }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "owner", "category", "status", "paidImpact"],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "owner": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string" },
+        "paidImpact": { "type": "string" },
+        "validationCommand": { "type": "string" }
+      }
+    },
+    "productGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "category",
+        "status",
+        "blocksFullSnapshotParity",
+        "completionRequiresExternalEvidence",
+        "localPreparationAvailable",
+        "scopeDecisionRequired"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string" },
+        "blocksFullSnapshotParity": { "type": "boolean" },
+        "completionRequiresExternalEvidence": { "type": "boolean" },
+        "localPreparationAvailable": { "type": "boolean" },
+        "scopeDecisionRequired": { "type": "boolean" },
+        "currentCoveragePercent": { "type": "number" }
+      }
+    },
+    "localPreparationCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "command",
+        "sourceInputIds",
+        "runnable",
+        "producesDrafts",
+        "releaseEvidence",
+        "draftFiles",
+        "requiresLiveNetwork",
+        "requiresProviderSpend",
+        "requiresOperatorConfirmation",
+        "requiresManualReview",
+        "containsPlaceholder"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "command": { "type": "string" },
+        "sourceInputIds": { "type": "array", "items": { "type": "string" } },
+        "runnable": { "type": "boolean" },
+        "producesDrafts": { "type": "boolean" },
+        "releaseEvidence": { "const": false },
+        "draftFiles": { "type": "array", "items": { "type": "string" } },
+        "requiresLiveNetwork": { "type": "boolean" },
+        "requiresProviderSpend": { "type": "boolean" },
+        "requiresOperatorConfirmation": { "type": "boolean" },
+        "requiresManualReview": { "type": "boolean" },
+        "containsPlaceholder": { "type": "boolean" }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    }
+  }
+}
