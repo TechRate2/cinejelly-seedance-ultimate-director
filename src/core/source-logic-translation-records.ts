@@ -2894,6 +2894,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "media outputs are represented as typed content/artifact evidence instead of text-only responses",
       "ambiguous or commercially risky requests route to review or safe blocking before provider spend",
       "bounded Product URL-to-Video research can feed safe product facts and claim checkpoints into the planning loop",
+      "durable no-spend conversation sessions can be persisted with atomic writes and client-scoped retrieval without storing raw transcript text",
       "accepted short-plan review evidence can hand off into the async render-job lifecycle while preserving operator-visible status"
     ],
     behaviorChanged: [
@@ -2914,12 +2915,15 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/product-url-researcher.ts",
       "src/core/short-pipeline-render-handoff.ts",
       "src/core/review-approval-system.ts",
+      "src/api/short-pipeline-session-store.ts",
       "src/api/server.ts",
       "src/api/render-job-manager.ts",
       "scripts/run-short-pipeline-conversation-smoke.mjs",
+      "scripts/run-short-pipeline-session-store-smoke.mjs",
       "scripts/run-short-pipeline-smoke.mjs",
       "scripts/run-product-url-extraction-smoke.mjs",
       "schemas/short-pipeline-conversation-smoke-report.schema.json",
+      "schemas/short-pipeline-session-store-smoke-report.schema.json",
       "schemas/short-pipeline-smoke-report.schema.json",
       "schemas/product-url-extraction-smoke-report.schema.json",
       "docs/SHORT_PIPELINE_AGENTIC_DESIGN.md",
@@ -2928,7 +2932,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     validationStatus: "implemented",
     fidelityRisks: [
       "current coverage is backend planning/render-handoff/progress/review evidence, not Director chat UI or VideoDB media-library parity",
-      "conversation route is no-spend backend evidence and does not yet prove first-party chat UI or durable customer session storage",
+      "conversation/session routes are no-spend backend evidence and do not yet prove first-party chat UI, managed multi-instance storage, or hosted review controls",
       "live paid short-pipeline media evidence is still required before claiming end-to-end Director-style workflow evidence",
       "future LLM-driven agent routing must preserve CineJelly cost, quota, redaction, approval, and artifact gates",
       "full Director-style agent catalog parity requires additional source-video, search, editing, dubbing, subtitle, upload, playback, and UI evidence"

@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-pipeline-session-store-smoke-report.schema.json",
+  "title": "CineJelly Short Pipeline Session Store Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-pipeline-session-store-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "type": "string" }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "storePath",
+        "endpointPaths",
+        "persistedRecordCount",
+        "clientIsolationCheckPassed",
+        "rawTranscriptLeakCheckPassed",
+        "rawUrlLeakCheckPassed",
+        "localPathLeakCheckPassed"
+      ],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "storePath": { "type": "string" },
+        "endpointPaths": {
+          "type": "array",
+          "minItems": 3,
+          "items": { "type": "string" }
+        },
+        "persistedRecordCount": { "type": "integer", "minimum": 1 },
+        "clientIsolationCheckPassed": { "const": true },
+        "rawTranscriptLeakCheckPassed": { "const": true },
+        "rawUrlLeakCheckPassed": { "const": true },
+        "localPathLeakCheckPassed": { "const": true }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["savedSession", "clientScopedList"],
+      "properties": {
+        "savedSession": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sessionId",
+            "projectId",
+            "clientId",
+            "turnCount",
+            "rawTranscriptStored",
+            "planStatus",
+            "reviewApprovalStatus",
+            "userReviewState",
+            "templatePreference",
+            "canRenderAfterFormalApproval",
+            "canReleaseToCustomerTraffic"
+          ],
+          "properties": {
+            "sessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
+            "projectId": { "type": "string" },
+            "clientId": { "type": "string" },
+            "turnCount": { "type": "integer", "minimum": 1 },
+            "rawTranscriptStored": { "const": false },
+            "planStatus": { "enum": ["approval_required", "changes_requested", "blocked"] },
+            "reviewApprovalStatus": { "type": "string" },
+            "userReviewState": {
+              "enum": ["needs_review", "revision_requested", "approval_intent_detected"]
+            },
+            "templatePreference": {
+              "enum": ["suggest_optional", "user_requested_template", "user_rejected_templates"]
+            },
+            "canRenderAfterFormalApproval": { "const": false },
+            "canReleaseToCustomerTraffic": { "const": false }
+          }
+        },
+        "clientScopedList": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["clientAVisibleCount", "clientBVisibleCount", "invalidLookupVisible"],
+          "properties": {
+            "clientAVisibleCount": { "const": 1 },
+            "clientBVisibleCount": { "const": 0 },
+            "invalidLookupVisible": { "const": false }
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shortPipelineSessionStoreSmokePass",
+        "canUseAsNoSpendBackendEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "shortPipelineSessionStoreSmokePass": { "type": "boolean" },
+        "canUseAsNoSpendBackendEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    }
+  }
+}

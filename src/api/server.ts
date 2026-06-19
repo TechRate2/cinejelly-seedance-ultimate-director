@@ -92,6 +92,11 @@ import {
   type ApiRequestContext
 } from "./request-context.js";
 import {
+  readShortPipelineSessionStorePath,
+  ShortPipelineSessionStore,
+  type ShortPipelineStoredSessionRecord
+} from "./short-pipeline-session-store.js";
+import {
   ApiWorkspaceBillingError,
   ApiWorkspaceBillingGate,
   type ApiWorkspaceBillingReservation
@@ -202,6 +207,15 @@ class ShortPipelineRenderHandoffError extends Error {
   }
 }
 
+class ShortPipelineSessionStoreUnavailableError extends Error {
+  public readonly statusCode = 503;
+
+  public constructor() {
+    super("CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH is required before durable short-pipeline conversation sessions can be used.");
+    this.name = "ShortPipelineSessionStoreUnavailableError";
+  }
+}
+
 export function startServer(port = readPort(process.env.PORT)): Server {
   const maxBodyBytes = readPositiveInteger(process.env.CINEJELLY_API_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
   const preflight = new RuntimePreflight();
@@ -211,6 +225,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const shortPipelinePlanner = new ShortPipelinePlanner();
   const shortPipelineConversationEngine = new ShortPipelineConversationEngine({ planner: shortPipelinePlanner });
   const productUrlResearcher = new ProductUrlResearcher();
+  const shortPipelineSessionStore = shortPipelineSessionStoreConfig(process.env);
   const requestAdmission = renderRequestAdmissionFromEnv(process.env);
   const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
   const workspaceBillingGate = ApiWorkspaceBillingGate.fromEnv(process.env);
@@ -284,6 +299,45 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           shortPipelineConversationInputFromBody(body, requestContext.requestId)
         );
         sendJson(response, session.plan.status === "blocked" ? 422 : 200, session, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/conversation-sessions") {
+        assertJsonContentType(request);
+        const store = requireShortPipelineSessionStore(shortPipelineSessionStore);
+        const body = await readJsonBody<ShortPipelineConversationRequestBody>(request, maxBodyBytes);
+        const session = shortPipelineConversationEngine.buildSession(
+          shortPipelineConversationInputFromBody(body, requestContext.requestId)
+        );
+        const record = store.saveSession(session, clientFilter(authDecision.principal));
+        sendJson(response, session.plan.status === "blocked" ? 422 : 201, {
+          persisted: true,
+          session: record.session,
+          storedSession: storedShortPipelineSessionResponse(store, record)
+        }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/short-pipeline/conversation-sessions") {
+        const store = requireShortPipelineSessionStore(shortPipelineSessionStore);
+        sendJson(response, 200, {
+          persisted: true,
+          sessions: store.list(clientFilter(authDecision.principal))
+        }, requestContext);
+        return;
+      }
+      const shortPipelineConversationSessionMatch = requestUrl.pathname.match(/^\/v1\/short-pipeline\/conversation-sessions\/([^/]+)$/);
+      if (request.method === "GET" && shortPipelineConversationSessionMatch) {
+        const store = requireShortPipelineSessionStore(shortPipelineSessionStore);
+        const record = store.get(
+          decodeURIComponent(shortPipelineConversationSessionMatch[1] ?? ""),
+          clientFilter(authDecision.principal)
+        );
+        sendJson(response, record ? 200 : 404, record
+          ? {
+              persisted: true,
+              session: record.session,
+              storedSession: storedShortPipelineSessionResponse(store, record)
+            }
+          : { error: "Short-pipeline conversation session not found." }, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/plan") {
@@ -779,6 +833,7 @@ function errorStatusCode(error: unknown): number {
     error instanceof UnsupportedMediaTypeError ||
     error instanceof RequestBodyTooLargeError ||
     error instanceof ShortPipelineRenderHandoffError ||
+    error instanceof ShortPipelineSessionStoreUnavailableError ||
     error instanceof ApiClientPolicyError ||
     error instanceof ApiWorkspaceBillingError
     ? error.statusCode
@@ -1315,6 +1370,33 @@ function renderJobHistoryStoreConfig(env: NodeJS.ProcessEnv): { readonly history
         historyLimit: readPositiveInteger(env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100)
       }) }
     : {};
+}
+
+function shortPipelineSessionStoreConfig(env: NodeJS.ProcessEnv): ShortPipelineSessionStore | undefined {
+  const storePath = readShortPipelineSessionStorePath(env);
+  return storePath
+    ? new ShortPipelineSessionStore({
+        storePath,
+        maxSessions: readPositiveInteger(env.CINEJELLY_SHORT_PIPELINE_SESSION_STORE_LIMIT, 200)
+      })
+    : undefined;
+}
+
+function requireShortPipelineSessionStore(store: ShortPipelineSessionStore | undefined): ShortPipelineSessionStore {
+  if (!store) {
+    throw new ShortPipelineSessionStoreUnavailableError();
+  }
+  return store;
+}
+
+function storedShortPipelineSessionResponse(
+  store: ShortPipelineSessionStore,
+  record: ShortPipelineStoredSessionRecord
+): Record<string, unknown> {
+  return {
+    ...store.summaryFor(record),
+    schemaVersion: record.schemaVersion
+  };
 }
 
 function renderProviderLeaseServiceConfig(env: NodeJS.ProcessEnv): RenderProviderHandoffLeaseService | undefined {

@@ -96,6 +96,8 @@ Required variables:
 | `CINEJELLY_REQUIRE_CLIENT_POLICY_FOR_RENDER` | Optional | When `true`, render submissions must use a configured client key and pass quota policy before provider spend. | Set in deployment environment. |
 | `CINEJELLY_CLIENT_USAGE_LEDGER_PATH` | Optional | JSONL quota reservation ledger for client render submissions. | Set to an ignored/persistent writable path. |
 | `CINEJELLY_API_JOB_HISTORY_PATH` | Optional | Compact JSON history file for retained async render jobs. Restored jobs are marked `retentionSource=history_store` and `detailRetention=compact_restored`; stale queued/running jobs restore as canceled/audit-required with compact provider checkpoint evidence when ledger entries were recorded. Provider reconciliation and handoff smoke reports can use that evidence for local audit, including lease heartbeat renewal, but this path is not a distributed queue backend. | Set to an ignored/persistent writable path on durable storage. |
+| `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH` | Optional | Compact JSON store for redacted no-spend short-pipeline conversation sessions. Enables `/v1/short-pipeline/conversation-sessions` list/detail continuity for future UI without raw transcript, raw URLs, local paths, or secrets. | Set to an ignored/persistent writable path on durable storage. |
+| `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_LIMIT` | Optional | Maximum retained short-pipeline conversation session records. | Positive integer; defaults to 200 and is capped by the store. |
 | `CINEJELLY_RENDER_PROVIDER_LEASE_PATH` | Optional | Durable JSON lease file for the protected `/v1/render-provider-handoff-leases/*` service. When set, preflight validates writability and workers can use acquire/release/heartbeat/list/active through the deployment token. | Set to an ignored/persistent writable path on durable storage. |
 | `CINEJELLY_RENDER_PROVIDER_LEASE_MAX_RECORDS` | Optional | Maximum retained lease records for the built-in lease service. | Positive integer; defaults to 500. |
 | `CINEJELLY_PRODUCTION_GRAPH_RESUME_QUEUE_PATH` | Optional | Durable JSON queue file for the protected `/v1/production-graph-resume-queue/*` service. When set, preflight validates writability and workers can use enqueue/lease/acknowledge/records through the deployment token without exposing raw queue names or worker IDs. | Set to an ignored/persistent writable path on durable storage. |
@@ -311,6 +313,10 @@ This is stricter than `doctor`. It reads local smoke evidence, paid-render evide
 | `/v1/render-jobs` | GET | List retained async jobs. If `CINEJELLY_API_JOB_HISTORY_PATH` is configured, compact history can survive API restart. |
 | `/v1/render-jobs/<jobId>` | GET | Poll one job. Restored history entries expose compact status/progress/provider-checkpoint evidence only, not full runtime artifact/result detail. |
 | `/v1/render-jobs/<jobId>` | DELETE | Cancel one job. |
+| `/v1/short-pipeline/conversation` | POST | Stateless natural-language short-pipeline session planning with redacted turns and formal review gates. |
+| `/v1/short-pipeline/conversation-sessions` | POST | Persist a redacted no-spend short-pipeline conversation session when `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH` is configured. |
+| `/v1/short-pipeline/conversation-sessions` | GET | Client-scoped list of persisted redacted conversation-session summaries. |
+| `/v1/short-pipeline/conversation-sessions/<sessionId>` | GET | Client-scoped detail for one persisted redacted conversation session. |
 | `/v1/admin/client-policy` | GET | Deployment-token-only client policy and quota diagnostics without raw keys or key digests. |
 
 Protected `/v1/*` routes require one of:
