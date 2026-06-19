@@ -2891,12 +2891,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "agent and tool choices remain visible as operator-facing progress evidence",
       "long-running media work emits status updates rather than hiding behind one opaque blocking request",
       "media outputs are represented as typed content/artifact evidence instead of text-only responses",
-      "ambiguous or commercially risky requests route to review or safe blocking before provider spend"
+      "ambiguous or commercially risky requests route to review or safe blocking before provider spend",
+      "accepted short-plan review evidence can hand off into the async render-job lifecycle while preserving operator-visible status"
     ],
     behaviorChanged: [
       "rewritten into CineJelly-owned TypeScript planners, review approvals, async job state, and artifact contracts",
       "Director's Python runtime, VideoDB dependency, and frontend code are not imported or executed",
       "unbounded LLM tool routing is replaced by deterministic no-spend planning, admission control, approval gates, cost controls, and provider-safe handoff points",
+      "short-pipeline render handoff requires explicit confirmation before approved review evidence can queue provider spend",
       "full chat UI, hosted playback, VideoDB library controls, and complete 20+ agent parity remain future product work"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-agentic-media-reasoning.md",
@@ -2904,6 +2906,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/short-pipeline.ts",
       "src/types/review-approval.ts",
       "src/core/short-pipeline-planner.ts",
+      "src/core/short-pipeline-render-handoff.ts",
       "src/core/review-approval-system.ts",
       "src/api/server.ts",
       "src/api/render-job-manager.ts",
@@ -2912,9 +2915,10 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "docs/SHORT_PIPELINE_AGENTIC_DESIGN.md",
       "src/core/source-logic-translation-records.ts"
     ],
-    validationStatus: "reference-drafted",
+    validationStatus: "implemented",
     fidelityRisks: [
-      "current coverage is backend planning/progress/review evidence, not Director chat UI or VideoDB media-library parity",
+      "current coverage is backend planning/render-handoff/progress/review evidence, not Director chat UI or VideoDB media-library parity",
+      "live paid short-pipeline media evidence is still required before claiming end-to-end Director-style workflow evidence",
       "future LLM-driven agent routing must preserve CineJelly cost, quota, redaction, approval, and artifact gates",
       "full Director-style agent catalog parity requires additional source-video, search, editing, dubbing, subtitle, upload, playback, and UI evidence"
     ],

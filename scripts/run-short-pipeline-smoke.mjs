@@ -39,6 +39,10 @@ if (extname(options.outputPath).toLowerCase() !== ".json") {
 }
 
 const { ShortPipelinePlanner } = await import("../dist/core/short-pipeline-planner.js");
+const {
+  buildShortPipelineRenderHandoff,
+  reviewInputCanQueueRender
+} = await import("../dist/core/short-pipeline-render-handoff.js");
 const planner = new ShortPipelinePlanner();
 const generatedAt = new Date("2026-06-19T00:00:00.000Z");
 
@@ -115,7 +119,43 @@ const naturalOnlyPlan = planner.buildPlan({
   userPrompt: "Create a warm 20 second explainer for a founder-led B2B product launch. No template if the idea needs a custom workflow."
 });
 
-const serialized = JSON.stringify({ reviewRequiredPlan, blockedPlan, naturalOnlyPlan });
+const pendingRenderHandoff = buildShortPipelineRenderHandoff({
+  plan: reviewRequiredPlan,
+  includeGeneratedAudioIntents: true,
+  metadata: {
+    workspaceId: "short_pipeline_smoke_workspace"
+  }
+});
+const approvedRenderHandoff = buildShortPipelineRenderHandoff({
+  plan: reviewRequiredPlan,
+  reviewApproval: {
+    gate: "pre_render",
+    checkpoints: reviewRequiredPlan.reviewApproval.checkpoints.map((checkpoint) => ({
+      surface: checkpoint.surface,
+      label: checkpoint.label,
+      ...(checkpoint.subjectId ? { subjectId: checkpoint.subjectId } : {}),
+      required: checkpoint.required,
+      decision: "approved",
+      reviewer: "short_pipeline_smoke",
+      reviewedAt: generatedAt,
+      notes: "Approved in no-spend short-pipeline handoff smoke.",
+      issueCodes: checkpoint.issueCodes,
+      evidence: checkpoint.evidence
+    }))
+  },
+  includeGeneratedAudioIntents: true,
+  metadata: {
+    workspaceId: "short_pipeline_smoke_workspace"
+  }
+});
+
+const serialized = JSON.stringify({
+  reviewRequiredPlan,
+  blockedPlan,
+  naturalOnlyPlan,
+  pendingRenderHandoff,
+  approvedRenderHandoff
+});
 const rawUrlLeaked = serialized.includes("https://shop.example.com") ||
   serialized.includes("signature=abc123") ||
   serialized.includes("token=secret");
@@ -150,7 +190,22 @@ const checks = [
     naturalOnlyPlan.reviewApproval.summary.surfaceCounts.scene > 0 &&
     naturalOnlyPlan.reviewApproval.summary.surfaceCounts.claim > 0
     ? pass("natural_language_only_plan", "Natural-language-only briefs can create a custom workflow with review checkpoints.")
-    : fail("natural_language_only_plan", "Expected natural-language-only brief to plan without requiring a template or URL.")
+    : fail("natural_language_only_plan", "Expected natural-language-only brief to plan without requiring a template or URL."),
+  pendingRenderHandoff.request.metadata?.shortPipelinePlanId === reviewRequiredPlan.planId &&
+    pendingRenderHandoff.request.captionCues?.length === reviewRequiredPlan.scenes.length &&
+    pendingRenderHandoff.request.generatedAudioIntents?.length === reviewRequiredPlan.scenes.length &&
+    pendingRenderHandoff.request.userInput.includes("Scene plan:") &&
+    !reviewInputCanQueueRender(pendingRenderHandoff.reviewApproval) &&
+    !rawUrlLeaked
+    ? pass("render_handoff_request_contract", "Short plan can become a redacted render request with captions, generated-audio intents, lineage metadata, and pending review still blocking queue.")
+    : fail("render_handoff_request_contract", "Expected short-plan render handoff to preserve lineage, captions, generated-audio intents, redaction, and pending review block."),
+  approvedRenderHandoff.summary.canUseAsRenderJobHandoff &&
+    reviewInputCanQueueRender(approvedRenderHandoff.reviewApproval) &&
+    approvedRenderHandoff.request.settings?.durationTargetSeconds === reviewRequiredPlan.intent.targetDurationSeconds &&
+    approvedRenderHandoff.request.settings?.ratio === reviewRequiredPlan.intent.aspectRatio &&
+    approvedRenderHandoff.request.metadata?.shortPipelineSource === "agentic_short_pipeline"
+    ? pass("approved_handoff_ready_for_confirmed_async_submission", "Approved short-pipeline review evidence is ready for the API render-job handoff path after explicit render confirmation.")
+    : fail("approved_handoff_ready_for_confirmed_async_submission", "Expected approved short-pipeline handoff to be ready for confirmed async render-job submission.")
 ];
 
 const report = {
@@ -171,23 +226,25 @@ const report = {
     outputPath: options.outputPath,
     scenarioCount: 3,
     endpointPath: "/v1/short-pipeline/plan",
+    renderHandoffEndpointPath: "/v1/short-pipeline/render-jobs",
     rawUrlLeakCheckPassed: !rawUrlLeaked
   },
   scenarios: {
     reviewRequired: summarizePlan(reviewRequiredPlan),
     blocked: summarizePlan(blockedPlan),
-    naturalOnly: summarizePlan(naturalOnlyPlan)
+    naturalOnly: summarizePlan(naturalOnlyPlan),
+    renderHandoff: summarizeHandoff(pendingRenderHandoff, approvedRenderHandoff)
   },
   checks,
   releaseGateSummary: {
     shortPipelineSmokePass: checks.every((check) => check.status === "pass"),
     canUseAsNoSpendBackendEvidence: checks.every((check) => check.status === "pass"),
     canReleaseToCustomerTraffic: false,
-    releaseBlocker: "Short-pipeline smoke proves no-spend planning, optional templates, brand guard, product URL fingerprinting, and review checkpoints only; render, deployment, paid validation, and manual media review remain separate gates."
+    releaseBlocker: "Short-pipeline smoke proves no-spend planning, optional templates, brand guard, product URL fingerprinting, review checkpoints, and render-job handoff contracts only; deployment, paid validation, and manual media review remain separate gates."
   },
   nextActions: [
-    "Wire accepted short-pipeline plans into async render-job submission after human review approval.",
     "Build the first-party chat/review UI and media-library evidence before claiming Director-style product parity.",
+    "Run live short-pipeline render validation only after explicit operator confirmation, budget approval, and accepted review evidence.",
     "Replace no-network product snapshots with a reviewed crawler/extractor only after URL privacy and rights policies are accepted."
   ]
 };
@@ -223,6 +280,23 @@ function summarizePlan(plan) {
 function hasEveryReviewSurface(plan) {
   const counts = plan.reviewApproval.summary.surfaceCounts;
   return counts.scene > 0 && counts.audio > 0 && counts.caption > 0 && counts.claim > 0;
+}
+
+function summarizeHandoff(pending, approved) {
+  return {
+    planId: pending.summary.planId,
+    pendingReviewCanQueueRender: reviewInputCanQueueRender(pending.reviewApproval),
+    approvedReviewCanQueueRender: reviewInputCanQueueRender(approved.reviewApproval),
+    canUseAsRenderJobHandoff: approved.summary.canUseAsRenderJobHandoff,
+    captionCueCount: pending.summary.captionCueCount,
+    generatedAudioIntentCount: pending.summary.generatedAudioIntentCount,
+    requestHasPlanLineage: pending.request.metadata?.shortPipelinePlanId === pending.summary.planId,
+    requestHasWorkspaceLineage: pending.request.metadata?.workspaceId === "short_pipeline_smoke_workspace",
+    requestDurationSeconds: pending.request.settings?.durationTargetSeconds,
+    requestAspectRatio: pending.request.settings?.ratio,
+    requestRawUrlSerialized: false,
+    canReleaseToCustomerTraffic: pending.summary.canReleaseToCustomerTraffic
+  };
 }
 
 function pass(name, message) {

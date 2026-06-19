@@ -53,7 +53,8 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] `video-db/Director` snapshot and Director Agentic Media Reasoning baseline are captured for chat/workflow parity tracking.
 - [x] Human-in-the-loop review checkpoints are emitted before render.
 - [ ] Live product URL crawling/extraction, accepted product facts, and rights-reviewed product media are proven on real URLs.
-- [ ] Short-pipeline accepted review handoff is wired into async render-job submission.
+- [x] Short-pipeline accepted review handoff is wired into async render-job submission.
+- [ ] Live short-pipeline render validation is proven with approved review evidence, explicit spend confirmation, artifact validation, and manual media review.
 - [ ] First-party chat/review UI and media-library evidence are implemented before claiming Director-style product parity.
 
 ## Evidence Commands

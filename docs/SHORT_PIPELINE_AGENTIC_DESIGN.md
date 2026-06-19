@@ -4,7 +4,7 @@
 
 CineJelly short video must feel as easy as a top marketing video app, but it must not become a rigid template machine. The short pipeline is a natural-language, agentic workflow for fast commercial video creation with strong review, cost, approval, and evidence gates.
 
-Implementation status as of 2026-06-19: the first backend foundation is implemented as `ShortPipelinePlanner`, `ProductUrlBriefExtractor`, `BrandKitEvaluator`, `WorkflowTemplateRegistry`, API endpoint `POST /v1/short-pipeline/plan`, `npm run validation:short-pipeline`, and `schemas/short-pipeline-smoke-report.schema.json`. It is intentionally no-spend and no-network: product URL evidence is fingerprinted, template suggestions remain optional accelerators, brand-kit forbidden claims block planning, and scene/audio/caption/claim review checkpoints are emitted before render. The `video-db/Director` snapshot is now captured as a source baseline, but this does not yet fetch live product pages, submit render jobs, provide a first-party chat UI, or prove full Director parity.
+Implementation status as of 2026-06-19: the first backend foundation is implemented as `ShortPipelinePlanner`, `ProductUrlBriefExtractor`, `BrandKitEvaluator`, `WorkflowTemplateRegistry`, `ShortPipelineRenderHandoff`, API endpoints `POST /v1/short-pipeline/plan` and `POST /v1/short-pipeline/render-jobs`, `npm run validation:short-pipeline`, and `schemas/short-pipeline-smoke-report.schema.json`. It is intentionally no-spend and no-network until an approved render handoff enters the normal async job path: product URL evidence is fingerprinted, template suggestions remain optional accelerators, brand-kit forbidden claims block planning, scene/audio/caption/claim review checkpoints are emitted before render, pending review handoff creates a paused job, and approved review evidence still requires explicit `confirmRenderSubmission=true` before provider spend can be queued. The `video-db/Director` snapshot is now captured as a source baseline, but this does not yet fetch live product pages, provide a first-party chat UI, prove a live paid short-pipeline render, or claim full Director parity.
 
 This design is separate from the long-form Production Graph. Long-form can keep heavier graph chunking, multi-stage render orchestration, and long artifact evidence. Short-form needs a lighter planning loop:
 
@@ -131,5 +131,6 @@ Brand kit violations should become approval issues, not silent rewrites.
 - The system can suggest a template but can also create a custom workflow.
 - Scene/audio/caption/claim checkpoints are explicit before provider spend or export.
 - Rejected or unsafe approval evidence blocks the job.
+- Accepted short-pipeline review evidence can be mapped into the async render-job contract without bypassing admission, quota, cost, review, idempotency, or artifact gates.
 - Approved checkpoints do not claim full customer readiness by themselves.
 - All artifacts remain redacted, deterministic, and evidence-friendly.

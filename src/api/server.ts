@@ -24,6 +24,11 @@ import { Phase6ValidationReadinessReporter } from "../application/validation-rea
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import { ShortPipelinePlanner } from "../core/short-pipeline-planner.js";
+import {
+  buildShortPipelineRenderHandoff,
+  reviewInputCanQueueRender,
+  type ShortPipelineRenderHandoffReviewInput
+} from "../core/short-pipeline-render-handoff.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { ProjectArtifactBundle, ProjectArtifactValidationReport } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
@@ -107,6 +112,35 @@ interface RenderJobReviewRequestBody {
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
 }
 
+interface ShortPipelineRenderJobRequestBody {
+  readonly planInput?: ShortPipelinePlanInput;
+  readonly reviewApprovalGate?: ReviewApprovalGate;
+  readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
+  readonly confirmRenderSubmission?: boolean;
+  readonly includeGeneratedAudioIntents?: boolean;
+  readonly settings?: CineJellyProjectRequest["settings"];
+  readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
+  readonly references?: CineJellyProjectRequest["references"];
+  readonly metadata?: CineJellyProjectRequest["metadata"];
+  readonly outputPath?: string;
+  readonly workDirectory?: string;
+  readonly artifactDirectory?: string;
+}
+
+interface NormalizedShortPipelineRenderJobBody {
+  readonly planInput: ShortPipelinePlanInput;
+  readonly reviewApproval?: ShortPipelineRenderHandoffReviewInput;
+  readonly confirmRenderSubmission: boolean;
+  readonly includeGeneratedAudioIntents?: boolean;
+  readonly settings?: CineJellyProjectRequest["settings"];
+  readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
+  readonly references?: CineJellyProjectRequest["references"];
+  readonly metadata?: CineJellyProjectRequest["metadata"];
+  readonly outputPath?: string;
+  readonly workDirectory?: string;
+  readonly artifactDirectory?: string;
+}
+
 interface CommercialRenderReservation {
   readonly clientPolicyReservation?: ApiClientPolicyReservation;
   readonly workspaceBillingReservation?: ApiWorkspaceBillingReservation;
@@ -127,6 +161,15 @@ class RequestBodyTooLargeError extends Error {
   public constructor(maxBodyBytes: number) {
     super(`Request body exceeds maximum size of ${maxBodyBytes} bytes.`);
     this.name = "RequestBodyTooLargeError";
+  }
+}
+
+class ShortPipelineRenderHandoffError extends Error {
+  public readonly statusCode = 422;
+
+  public constructor(message: string) {
+    super(message);
+    this.name = "ShortPipelineRenderHandoffError";
   }
 }
 
@@ -208,6 +251,86 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const body = await readJsonBody<ShortPipelinePlanInput>(request, maxBodyBytes);
         const plan = shortPipelinePlanner.buildPlan(shortPipelinePlanInputFromBody(body, requestContext.requestId));
         sendJson(response, plan.status === "blocked" ? 422 : 200, plan, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/render-jobs") {
+        assertJsonContentType(request);
+        const body = await readJsonBody<ShortPipelineRenderJobRequestBody>(request, maxBodyBytes);
+        const handoffBody = shortPipelineRenderJobBodyFromBody(body, requestContext.requestId);
+        const plan = shortPipelinePlanner.buildPlan(handoffBody.planInput);
+        if (plan.status === "blocked") {
+          throw new ShortPipelineRenderHandoffError(
+            "Short-pipeline plan is blocked; correct product URL, brand-kit, or claim evidence before creating a render job."
+          );
+        }
+        if (
+          handoffBody.reviewApproval &&
+          reviewInputCanQueueRender(handoffBody.reviewApproval) &&
+          handoffBody.confirmRenderSubmission !== true
+        ) {
+          throw new ShortPipelineRenderHandoffError(
+            "confirmRenderSubmission=true is required before approved short-pipeline review evidence can queue a render job."
+          );
+        }
+        const handoff = buildShortPipelineRenderHandoff({
+          plan,
+          ...(handoffBody.reviewApproval ? { reviewApproval: handoffBody.reviewApproval } : {}),
+          ...(handoffBody.settings ? { settings: handoffBody.settings } : {}),
+          ...(handoffBody.modelPreferences ? { modelPreferences: handoffBody.modelPreferences } : {}),
+          ...(handoffBody.references ? { references: handoffBody.references } : {}),
+          ...(handoffBody.metadata ? { metadata: handoffBody.metadata } : {}),
+          ...(handoffBody.outputPath ? { outputPath: handoffBody.outputPath } : {}),
+          ...(handoffBody.workDirectory ? { workDirectory: handoffBody.workDirectory } : {}),
+          ...(handoffBody.artifactDirectory ? { artifactDirectory: handoffBody.artifactDirectory } : {}),
+          ...(handoffBody.includeGeneratedAudioIntents !== undefined
+            ? { includeGeneratedAudioIntents: handoffBody.includeGeneratedAudioIntents }
+            : {})
+        });
+        requestAdmission.assertAcceptable(handoff.request);
+        const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
+        const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
+        const normalizedRequest = normalizeRenderRequest(handoff.request, {
+          requestId: requestContext.requestId,
+          env: process.env
+        });
+        workspaceBillingGate.assertRenderAllowed({
+          principal: authDecision.principal,
+          request: normalizedRequest,
+          requestId: requestContext.requestId,
+          channel: "async"
+        });
+        const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
+        let commercialReservation: CommercialRenderReservation | undefined;
+        const submission = jobManager.submit({
+          request: normalizedRequest,
+          artifactDirectory,
+          ...clientFilter(authDecision.principal),
+          ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
+          ...(requestFingerprint ? { requestFingerprint } : {}),
+          reviewApproval: handoff.reviewApproval,
+          onAccepted: () => {
+            commercialReservation = reserveCommercialRender({
+              clientPolicyGate,
+              workspaceBillingGate,
+              principal: authDecision.principal,
+              request: normalizedRequest,
+              requestId: requestContext.requestId,
+              channel: "async"
+            });
+          }
+        });
+        sendJson(response, 202, {
+          shortPipeline: handoff.summary,
+          ...submission.summary,
+          ...(submission.idempotentReplay ? { idempotentReplay: true } : {}),
+          ...(commercialReservation?.clientPolicyReservation
+            ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
+            : {}),
+          ...(commercialReservation?.workspaceBillingReservation
+            ? { workspaceBillingReservation: commercialReservation.workspaceBillingReservation }
+            : {}),
+          statusUrl: `/v1/render-jobs/${encodeURIComponent(submission.summary.jobId)}`
+        }, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-jobs") {
@@ -579,6 +702,7 @@ function errorStatusCode(error: unknown): number {
     error instanceof RenderJobReviewStateError ||
     error instanceof UnsupportedMediaTypeError ||
     error instanceof RequestBodyTooLargeError ||
+    error instanceof ShortPipelineRenderHandoffError ||
     error instanceof ApiClientPolicyError ||
     error instanceof ApiWorkspaceBillingError
     ? error.statusCode
@@ -651,6 +775,55 @@ function shortPipelinePlanInputFromBody(body: ShortPipelinePlanInput, requestId:
     ...body,
     requestId: body.requestId ?? requestId
   };
+}
+
+function shortPipelineRenderJobBodyFromBody(
+  body: ShortPipelineRenderJobRequestBody,
+  requestId: string
+): NormalizedShortPipelineRenderJobBody {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new RenderRequestAdmissionError("Short pipeline render-job request body must be a JSON object.");
+  }
+  if (!body.planInput || typeof body.planInput !== "object" || Array.isArray(body.planInput)) {
+    throw new RenderRequestAdmissionError("Short pipeline render-job body must include planInput.");
+  }
+  const confirmRenderSubmission = optionalBoolean(
+    body.confirmRenderSubmission,
+    "confirmRenderSubmission"
+  ) ?? false;
+  const includeGeneratedAudioIntents = optionalBoolean(
+    body.includeGeneratedAudioIntents,
+    "includeGeneratedAudioIntents"
+  );
+  const reviewApproval = body.reviewApprovalGate !== undefined || body.reviewApprovalCheckpoints !== undefined
+    ? normalizeReviewApprovalInput({
+        gate: body.reviewApprovalGate,
+        checkpoints: body.reviewApprovalCheckpoints
+      })
+    : undefined;
+  return {
+    planInput: shortPipelinePlanInputFromBody(body.planInput, requestId),
+    ...(reviewApproval ? { reviewApproval } : {}),
+    confirmRenderSubmission,
+    ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
+    ...(body.settings ? { settings: body.settings } : {}),
+    ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
+    ...(body.references ? { references: body.references } : {}),
+    ...(body.metadata ? { metadata: body.metadata } : {}),
+    ...(body.outputPath ? { outputPath: body.outputPath } : {}),
+    ...(body.workDirectory ? { workDirectory: body.workDirectory } : {}),
+    ...(body.artifactDirectory ? { artifactDirectory: body.artifactDirectory } : {})
+  };
+}
+
+function optionalBoolean(value: unknown, label: string): boolean | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "boolean") {
+    throw new RenderRequestAdmissionError(`${label} must be a boolean when provided.`);
+  }
+  return value;
 }
 
 function stableJson(value: unknown): string {

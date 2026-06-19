@@ -1,6 +1,6 @@
 # Director Agentic Media Reasoning
 
-Implementation status as of 2026-06-19: reference-drafted and partially implemented through CineJelly-owned TypeScript foundations for short-pipeline planning, review approval, async job progress, source-video analysis, generated-audio planning, material sourcing, and artifact evidence. This Reference Implementation is documentation-only and must not import or execute upstream `video-db/Director` Python or frontend code.
+Implementation status as of 2026-06-19: reference-drafted and partially implemented through CineJelly-owned TypeScript foundations for short-pipeline planning, review approval, short-plan async render-job handoff, async job progress, source-video analysis, generated-audio planning, material sourcing, and artifact evidence. This Reference Implementation is documentation-only and must not import or execute upstream `video-db/Director` Python or frontend code.
 
 ## Purpose
 
@@ -38,7 +38,8 @@ Primary source files reviewed:
 3. Cost, quota, client policy, redaction, artifact hashes, report contracts, and approval gates are mandatory before commercial rendering.
 4. Product URL evidence is fingerprinted and claim-reviewed rather than treated as trusted page content.
 5. Template suggestions are optional accelerators; natural-language intent and review checkpoints remain the primary workflow.
-6. Full Director-style chat UI, media library, VideoDB collection controls, and 20+ agent parity are not yet implemented.
+6. Accepted short-pipeline plans now hand off into CineJelly's normal async render-job lifecycle with confirmation, quota, review, idempotency, and artifact gates still active.
+7. Full Director-style chat UI, media library, VideoDB collection controls, and 20+ agent parity are not yet implemented.
 
 ## Destination Paths
 
@@ -49,6 +50,7 @@ Primary source files reviewed:
 - `src/types/short-pipeline.ts`
 - `src/types/review-approval.ts`
 - `scripts/run-short-pipeline-smoke.mjs`
+- `src/core/short-pipeline-render-handoff.ts`
 - `schemas/short-pipeline-smoke-report.schema.json`
 - `docs/SHORT_PIPELINE_AGENTIC_DESIGN.md`
 - `src/core/source-logic-translation-records.ts`
@@ -67,5 +69,6 @@ node scripts\audit-snapshot-parity.mjs --no-output
 - Runtime code does not import from `external/upstream/director`.
 - A natural-language short-video brief can produce a no-spend plan with intent, optional template suggestions, scene plans, and scene/audio/caption/claim review checkpoints.
 - Async render jobs can be paused by review approval status before provider spend.
+- Accepted short-pipeline review checkpoints can be converted into a normal async render-job submission only after explicit render confirmation, while pending review evidence remains paused before provider spend.
 - Snapshot parity reports include a non-release-evidence Director parity estimate below 100% with explicit gaps.
 - CineJelly does not claim Director UI, VideoDB media-library, 20+ agent catalog, or fully dynamic LLM tool-routing parity until those product surfaces are implemented and validated.

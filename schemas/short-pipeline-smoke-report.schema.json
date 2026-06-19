@@ -33,22 +33,24 @@
     "checkedInputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["outputPath", "scenarioCount", "endpointPath", "rawUrlLeakCheckPassed"],
+      "required": ["outputPath", "scenarioCount", "endpointPath", "renderHandoffEndpointPath", "rawUrlLeakCheckPassed"],
       "properties": {
         "outputPath": { "type": "string" },
         "scenarioCount": { "const": 3 },
         "endpointPath": { "const": "/v1/short-pipeline/plan" },
+        "renderHandoffEndpointPath": { "const": "/v1/short-pipeline/render-jobs" },
         "rawUrlLeakCheckPassed": { "type": "boolean" }
       }
     },
     "scenarios": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reviewRequired", "blocked", "naturalOnly"],
+      "required": ["reviewRequired", "blocked", "naturalOnly", "renderHandoff"],
       "properties": {
         "reviewRequired": { "$ref": "#/$defs/scenario" },
         "blocked": { "$ref": "#/$defs/scenario" },
-        "naturalOnly": { "$ref": "#/$defs/scenario" }
+        "naturalOnly": { "$ref": "#/$defs/scenario" },
+        "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" }
       }
     },
     "checks": {
@@ -126,6 +128,38 @@
           "items": { "type": "string" }
         },
         "canUseAsNoSpendPlanningEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "renderHandoffScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "pendingReviewCanQueueRender",
+        "approvedReviewCanQueueRender",
+        "canUseAsRenderJobHandoff",
+        "captionCueCount",
+        "generatedAudioIntentCount",
+        "requestHasPlanLineage",
+        "requestHasWorkspaceLineage",
+        "requestDurationSeconds",
+        "requestAspectRatio",
+        "requestRawUrlSerialized",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "pendingReviewCanQueueRender": { "const": false },
+        "approvedReviewCanQueueRender": { "const": true },
+        "canUseAsRenderJobHandoff": { "type": "boolean" },
+        "captionCueCount": { "type": "integer", "minimum": 1 },
+        "generatedAudioIntentCount": { "type": "integer", "minimum": 1 },
+        "requestHasPlanLineage": { "type": "boolean" },
+        "requestHasWorkspaceLineage": { "type": "boolean" },
+        "requestDurationSeconds": { "type": "number", "minimum": 1 },
+        "requestAspectRatio": { "type": "string" },
+        "requestRawUrlSerialized": { "const": false },
         "canReleaseToCustomerTraffic": { "const": false }
       }
     }
