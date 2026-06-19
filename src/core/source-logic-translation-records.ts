@@ -2892,12 +2892,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "long-running media work emits status updates rather than hiding behind one opaque blocking request",
       "media outputs are represented as typed content/artifact evidence instead of text-only responses",
       "ambiguous or commercially risky requests route to review or safe blocking before provider spend",
+      "bounded Product URL-to-Video research can feed safe product facts and claim checkpoints into the planning loop",
       "accepted short-plan review evidence can hand off into the async render-job lifecycle while preserving operator-visible status"
     ],
     behaviorChanged: [
       "rewritten into CineJelly-owned TypeScript planners, review approvals, async job state, and artifact contracts",
       "Director's Python runtime, VideoDB dependency, and frontend code are not imported or executed",
       "unbounded LLM tool routing is replaced by deterministic no-spend planning, admission control, approval gates, cost controls, and provider-safe handoff points",
+      "product URL research is limited to clean HTTPS pages behind explicit live-network confirmation and publishes hashes/evidence instead of raw URLs",
       "short-pipeline render handoff requires explicit confirmation before approved review evidence can queue provider spend",
       "full chat UI, hosted playback, VideoDB library controls, and complete 20+ agent parity remain future product work"
     ],
@@ -2906,12 +2908,15 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/short-pipeline.ts",
       "src/types/review-approval.ts",
       "src/core/short-pipeline-planner.ts",
+      "src/core/product-url-researcher.ts",
       "src/core/short-pipeline-render-handoff.ts",
       "src/core/review-approval-system.ts",
       "src/api/server.ts",
       "src/api/render-job-manager.ts",
       "scripts/run-short-pipeline-smoke.mjs",
+      "scripts/run-product-url-extraction-smoke.mjs",
       "schemas/short-pipeline-smoke-report.schema.json",
+      "schemas/product-url-extraction-smoke-report.schema.json",
       "docs/SHORT_PIPELINE_AGENTIC_DESIGN.md",
       "src/core/source-logic-translation-records.ts"
     ],

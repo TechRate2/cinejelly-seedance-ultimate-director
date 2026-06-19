@@ -71,6 +71,7 @@ export * from "./core/production-graph.js";
 export * from "./core/production-graph-builder.js";
 export * from "./core/production-graph-run-recorder.js";
 export * from "./core/production-stage-planner.js";
+export * from "./core/product-url-researcher.js";
 export * from "./core/project-artifact-store.js";
 export * from "./core/project-artifact-validator.js";
 export * from "./core/reference-selection-planner.js";

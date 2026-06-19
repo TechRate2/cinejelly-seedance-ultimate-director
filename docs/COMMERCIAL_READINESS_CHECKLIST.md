@@ -19,6 +19,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Review/approval primitive exists for scene, audio, caption, and claim gates.
 - [x] Async pre-render review/approval is wired into API job lifecycle as `pause -> review -> approve/reject`, with quota reservation deferred until approval.
 - [x] No-spend agentic short-pipeline planning foundation exists with product URL fingerprinting, optional template suggestions, brand-kit guardrails, and scene/audio/caption/claim review checkpoints.
+- [x] No-spend Product URL-to-Video backend extraction can parse bounded public HTML behind explicit live-network confirmation, feed safe product facts into short-pipeline planning, and emit schema-validated redaction evidence without provider spend.
 - [ ] Pre-export review, UI review screens, and artifact-bound manual media review are accepted for the first commercial launch scope.
 
 ## Paid Provider Evidence
@@ -46,7 +47,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 
 ## Short Pipeline
 
-- [ ] Product URL-to-video extraction produces safe product facts and claim checkpoints.
+- [x] Product URL-to-video extraction produces safe product facts and claim checkpoints in the no-spend backend smoke.
 - [x] Optional workflow template registry exists without forcing templates.
 - [x] Brand kit backend exists and influences planning/validation.
 - [x] Natural-language short pipeline can propose concept, script, scene plan, and review checkpoints.
@@ -68,6 +69,7 @@ npm.cmd run validation:report-contracts
 npm.cmd run validation:render-job-review-lifecycle
 npm.cmd run validation:workspace-billing
 npm.cmd run validation:short-pipeline
+npm.cmd run validation:product-url-extraction
 npm.cmd run validation:release-audit
 npm.cmd run validation:business-readiness
 npm.cmd run validation:completion-audit

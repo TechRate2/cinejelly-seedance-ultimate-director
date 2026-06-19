@@ -4,7 +4,7 @@
 
 CineJelly short video must feel as easy as a top marketing video app, but it must not become a rigid template machine. The short pipeline is a natural-language, agentic workflow for fast commercial video creation with strong review, cost, approval, and evidence gates.
 
-Implementation status as of 2026-06-19: the first backend foundation is implemented as `ShortPipelinePlanner`, `ProductUrlBriefExtractor`, `BrandKitEvaluator`, `WorkflowTemplateRegistry`, `ShortPipelineRenderHandoff`, API endpoints `POST /v1/short-pipeline/plan` and `POST /v1/short-pipeline/render-jobs`, `npm run validation:short-pipeline`, and `schemas/short-pipeline-smoke-report.schema.json`. It is intentionally no-spend and no-network until an approved render handoff enters the normal async job path: product URL evidence is fingerprinted, template suggestions remain optional accelerators, brand-kit forbidden claims block planning, scene/audio/caption/claim review checkpoints are emitted before render, pending review handoff creates a paused job, and approved review evidence still requires explicit `confirmRenderSubmission=true` before provider spend can be queued. The `video-db/Director` snapshot is now captured as a source baseline, but this does not yet fetch live product pages, provide a first-party chat UI, prove a live paid short-pipeline render, or claim full Director parity.
+Implementation status as of 2026-06-19: the first backend foundation is implemented as `ShortPipelinePlanner`, `ProductUrlBriefExtractor`, `ProductUrlResearcher`, `BrandKitEvaluator`, `WorkflowTemplateRegistry`, `ShortPipelineRenderHandoff`, API endpoints `POST /v1/short-pipeline/plan`, `POST /v1/short-pipeline/product-url-plan`, and `POST /v1/short-pipeline/render-jobs`, `npm run validation:short-pipeline`, `npm run validation:product-url-extraction`, `schemas/short-pipeline-smoke-report.schema.json`, and `schemas/product-url-extraction-smoke-report.schema.json`. It is intentionally no-spend until an approved render handoff enters the normal async job path: product URL evidence is fingerprinted, Product URL-to-Video extraction requires explicit live-network confirmation and rejects unsafe URL queries before fetch, template suggestions remain optional accelerators, brand-kit forbidden claims block planning, scene/audio/caption/claim review checkpoints are emitted before render, pending review handoff creates a paused job, and approved review evidence still requires explicit `confirmRenderSubmission=true` before provider spend can be queued. The `video-db/Director` snapshot is now captured as a source baseline, but this does not yet provide accepted live product URL evidence, media-rights approval, a first-party chat UI, a live paid short-pipeline render, or full Director parity.
 
 This design is separate from the long-form Production Graph. Long-form can keep heavier graph chunking, multi-stage render orchestration, and long artifact evidence. Short-form needs a lighter planning loop:
 
@@ -112,6 +112,8 @@ The URL-to-video backend should produce a safe product brief:
 
 The extractor must not call paid render providers, must not trust product claims blindly, and must feed claim checkpoints into `ReviewApprovalSystem`.
 
+Current implementation: `ProductUrlResearcher` performs bounded HTML extraction only after `confirmLiveNetwork=true`, records safe source URL hashes/host/path hashes, omits raw URLs from public research summaries, and feeds the extracted snapshot through `ProductUrlBriefExtractor` into the planner. `POST /v1/short-pipeline/product-url-plan` returns `422` with safe research evidence when confirmation, URL hygiene, fetch, content type, size, or extraction checks fail. `npm run validation:product-url-extraction` proves the parser, guardrails, redaction, and planner handoff with an injected fake fetch; it is backend evidence, not a live product-page rights review.
+
 ## Brand Kit Contract
 
 A brand kit should influence planning and validation without forcing templates. Minimum fields:
@@ -128,6 +130,7 @@ Brand kit violations should become approval issues, not silent rewrites.
 ## Acceptance Criteria
 
 - A user can describe a short video naturally without selecting a template.
+- A clean product URL can be converted into safe extracted facts and claim checkpoints only after explicit live-network confirmation.
 - The system can suggest a template but can also create a custom workflow.
 - Scene/audio/caption/claim checkpoints are explicit before provider spend or export.
 - Rejected or unsafe approval evidence blocks the job.

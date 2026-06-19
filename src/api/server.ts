@@ -23,6 +23,11 @@ import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
+import {
+  mergeProductUrlSnapshots,
+  ProductUrlResearcher,
+  safeProductUrlResearchSummary
+} from "../core/product-url-researcher.js";
 import { ShortPipelinePlanner } from "../core/short-pipeline-planner.js";
 import {
   buildShortPipelineRenderHandoff,
@@ -112,6 +117,19 @@ interface RenderJobReviewRequestBody {
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
 }
 
+interface ShortPipelineProductUrlPlanRequestBody extends ShortPipelinePlanInput {
+  readonly confirmLiveNetwork?: boolean;
+  readonly maxProductUrlBytes?: number;
+  readonly productResearchTimeoutMs?: number;
+}
+
+interface NormalizedShortPipelineProductUrlPlanBody {
+  readonly planInput: ShortPipelinePlanInput;
+  readonly confirmLiveNetwork: boolean;
+  readonly maxProductUrlBytes?: number;
+  readonly productResearchTimeoutMs?: number;
+}
+
 interface ShortPipelineRenderJobRequestBody {
   readonly planInput?: ShortPipelinePlanInput;
   readonly reviewApprovalGate?: ReviewApprovalGate;
@@ -180,6 +198,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const artifactStore = new ProjectArtifactStore();
   const artifactValidator = new ProjectArtifactValidator();
   const shortPipelinePlanner = new ShortPipelinePlanner();
+  const productUrlResearcher = new ProductUrlResearcher();
   const requestAdmission = renderRequestAdmissionFromEnv(process.env);
   const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
   const workspaceBillingGate = ApiWorkspaceBillingGate.fromEnv(process.env);
@@ -251,6 +270,42 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const body = await readJsonBody<ShortPipelinePlanInput>(request, maxBodyBytes);
         const plan = shortPipelinePlanner.buildPlan(shortPipelinePlanInputFromBody(body, requestContext.requestId));
         sendJson(response, plan.status === "blocked" ? 422 : 200, plan, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/product-url-plan") {
+        assertJsonContentType(request);
+        const body = await readJsonBody<ShortPipelineProductUrlPlanRequestBody>(request, maxBodyBytes);
+        const productUrlBody = shortPipelineProductUrlPlanBodyFromBody(body, requestContext.requestId);
+        const productUrl = productUrlBody.planInput.product?.productUrl;
+        if (!productUrl) {
+          throw new RenderRequestAdmissionError("Short pipeline product URL plan requires product.productUrl.");
+        }
+        const research = await productUrlResearcher.research({
+          productUrl,
+          ...(productUrlBody.planInput.userPrompt ? { userPrompt: productUrlBody.planInput.userPrompt } : {}),
+          confirmLiveNetwork: productUrlBody.confirmLiveNetwork,
+          ...(productUrlBody.maxProductUrlBytes ? { maxBytes: productUrlBody.maxProductUrlBytes } : {}),
+          ...(productUrlBody.productResearchTimeoutMs ? { timeoutMs: productUrlBody.productResearchTimeoutMs } : {})
+        });
+        const safeResearch = safeProductUrlResearchSummary(research);
+        if (research.status !== "ready" || !research.snapshot) {
+          sendJson(response, 422, {
+            error: "Product URL research is not ready for short-pipeline planning.",
+            productUrlResearch: safeResearch
+          }, requestContext);
+          return;
+        }
+        const plan = shortPipelinePlanner.buildPlan({
+          ...productUrlBody.planInput,
+          product: {
+            ...productUrlBody.planInput.product,
+            snapshot: mergeProductUrlSnapshots(research.snapshot, productUrlBody.planInput.product?.snapshot)
+          }
+        });
+        sendJson(response, plan.status === "blocked" ? 422 : 200, {
+          productUrlResearch: safeResearch,
+          plan
+        }, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/render-jobs") {
@@ -777,6 +832,42 @@ function shortPipelinePlanInputFromBody(body: ShortPipelinePlanInput, requestId:
   };
 }
 
+function shortPipelineProductUrlPlanBodyFromBody(
+  body: ShortPipelineProductUrlPlanRequestBody,
+  requestId: string
+): NormalizedShortPipelineProductUrlPlanBody {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new RenderRequestAdmissionError("Short pipeline product URL plan request body must be a JSON object.");
+  }
+  const planInput = shortPipelinePlanInputFromBody({
+    projectId: body.projectId,
+    ...(body.requestId ? { requestId: body.requestId } : {}),
+    ...(body.userPrompt ? { userPrompt: body.userPrompt } : {}),
+    ...(body.product ? { product: body.product } : {}),
+    ...(body.brandKit ? { brandKit: body.brandKit } : {}),
+    ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
+    ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),
+    ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
+    ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+    ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
+  }, requestId);
+  if (!planInput.product || typeof planInput.product !== "object" || Array.isArray(planInput.product)) {
+    throw new RenderRequestAdmissionError("Short pipeline product URL plan requires a product object.");
+  }
+  if (typeof planInput.product.productUrl !== "string" || !planInput.product.productUrl.trim()) {
+    throw new RenderRequestAdmissionError("Short pipeline product URL plan requires product.productUrl.");
+  }
+  const confirmLiveNetwork = optionalBoolean(body.confirmLiveNetwork, "confirmLiveNetwork") ?? false;
+  const maxProductUrlBytes = optionalPositiveInteger(body.maxProductUrlBytes, "maxProductUrlBytes");
+  const productResearchTimeoutMs = optionalPositiveInteger(body.productResearchTimeoutMs, "productResearchTimeoutMs");
+  return {
+    planInput,
+    confirmLiveNetwork,
+    ...(maxProductUrlBytes !== undefined ? { maxProductUrlBytes } : {}),
+    ...(productResearchTimeoutMs !== undefined ? { productResearchTimeoutMs } : {})
+  };
+}
+
 function shortPipelineRenderJobBodyFromBody(
   body: ShortPipelineRenderJobRequestBody,
   requestId: string
@@ -822,6 +913,16 @@ function optionalBoolean(value: unknown, label: string): boolean | undefined {
   }
   if (typeof value !== "boolean") {
     throw new RenderRequestAdmissionError(`${label} must be a boolean when provided.`);
+  }
+  return value;
+}
+
+function optionalPositiveInteger(value: unknown, label: string): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw new RenderRequestAdmissionError(`${label} must be a positive integer when provided.`);
   }
   return value;
 }
