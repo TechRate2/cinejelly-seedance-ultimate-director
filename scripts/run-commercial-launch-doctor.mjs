@@ -314,6 +314,11 @@ function buildCommands(options) {
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
+    command("long_form_review_readiness", ["scripts/validate-long-form-manual-review-readiness.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/long-form-manual-quality-review-readiness-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
     command("launch_intake", ["--env-file-if-exists=.env", "scripts/validate-commercial-launch-intake.mjs", "--write-draft", "--force"], {
       reportPath: "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json",
       expectedExitCodes: [0, 1],
@@ -432,6 +437,7 @@ function buildReport(options, commandRuns) {
     generatedAudioReviewDraft: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json"),
     generatedAudioReviewReadiness: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-manual-review-readiness-report.json"),
     longFormReviewDraft: summarizeReport("assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
+    longFormReviewReadiness: summarizeReport("assets/output_deliverables/business-readiness/long-form-manual-quality-review-readiness-report.json"),
     snapshotParity: summarizeReport("assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
     materialSourceScoring: summarizeReport("assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"),
     sourceVideoAutoAnalysisSmoke: summarizeReport("assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"),
@@ -514,6 +520,7 @@ function buildReport(options, commandRuns) {
       generatedAudioReviewDraftStatus: reportSummaries.generatedAudioReviewDraft.status,
       generatedAudioReviewReadinessStatus: reportSummaries.generatedAudioReviewReadiness.status,
       longFormReviewDraftStatus: reportSummaries.longFormReviewDraft.status,
+      longFormReviewReadinessStatus: reportSummaries.longFormReviewReadiness.status,
       providerReconciliationStatus: reportSummaries.providerReconciliation.status,
       providerHandoffStatus: reportSummaries.providerHandoff.status,
       providerExternalLeaseStatus: reportSummaries.providerExternalLease.status,
@@ -949,6 +956,7 @@ function renderMarkdown(report) {
     `- Generated-audio review draft: ${report.readinessSnapshot.generatedAudioReviewDraftStatus}`,
     `- Generated-audio review readiness: ${report.readinessSnapshot.generatedAudioReviewReadinessStatus}`,
     `- Long-form review draft: ${report.readinessSnapshot.longFormReviewDraftStatus}`,
+    `- Long-form review readiness: ${report.readinessSnapshot.longFormReviewReadinessStatus}`,
     `- Provider reconciliation: ${report.readinessSnapshot.providerReconciliationStatus}`,
     `- Provider handoff: ${report.readinessSnapshot.providerHandoffStatus}`,
     `- Provider external lease: ${report.readinessSnapshot.providerExternalLeaseStatus}`,

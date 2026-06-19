@@ -551,6 +551,46 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Long-Form Validation Runner",
+    sourceRepository: "HKUDS/ViMax",
+    snapshotPath: "external/upstream/vimax",
+    upstreamPaths: [
+      "external/upstream/vimax/README.md",
+      "external/upstream/vimax/agents/reference_image_selector.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "long-form validation stays duration-bound and continuity-sensitive before release claims",
+      "manual review remains a separate post-artifact evidence step",
+      "review readiness depends on artifact fingerprints rather than operator intent alone"
+    ],
+    behaviorChanged: [
+      "CineJelly validates 120-480 second requests through no-spend gates before Atlas spend",
+      "manual-review readiness is machine-checkable only after paid render, billing, artifact validation, duration, cost-ledger, and artifact fingerprints are ready",
+      "manual-review readiness does not run ViMax agents, call providers, or approve customer traffic"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/long-form-validation-runner.md",
+    cineJellyDestinationPaths: [
+      "scripts/run-long-form-validation.mjs",
+      "scripts/create-long-form-manual-quality-review-draft.mjs",
+      "scripts/validate-long-form-manual-review-readiness.mjs",
+      "schemas/long-form-validation-report.schema.json",
+      "schemas/long-form-manual-quality-review.schema.json",
+      "schemas/long-form-manual-quality-review-draft-report.schema.json",
+      "schemas/long-form-manual-quality-review-readiness-report.schema.json",
+      "scripts/validate-report-contracts.mjs",
+      "scripts/run-commercial-launch-doctor.mjs",
+      "docs/OPERATOR_RUNBOOK.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "readiness reports cannot replace a real paid 2-8 minute Atlas validation run",
+      "accepted manual quality/redaction review still requires real media inspection by an operator or approved analyzer",
+      "full DirectorBench parity still requires separate semantic, audio, runtime, and governance evidence"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Material Source Adapter Validation",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
     snapshotPath: "external/upstream/moneyprinterturbo",

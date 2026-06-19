@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/long-form-manual-quality-review-readiness-report.schema.json",
+  "title": "CineJelly Long-Form Manual Quality Review Readiness Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "releaseEvidence",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "sourceReportContext",
+    "manualReviewContext",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.long-form-manual-quality-review-readiness.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": [
+        "accepted_manual_review",
+        "ready_for_manual_review",
+        "blocked_by_long_form_report",
+        "blocked_by_manual_review"
+      ]
+    },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "releaseEvidence": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "longFormReportPath",
+        "manualQualityReviewPath",
+        "outputPath"
+      ],
+      "properties": {
+        "longFormReportPath": { "$ref": "#/$defs/repoPath" },
+        "manualQualityReviewPath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" }
+      }
+    },
+    "sourceReportContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reportPresent",
+        "reportPath",
+        "schemaVersion",
+        "status",
+        "providerSpendAllowed",
+        "atlasBillingReady",
+        "paidRenderCompleted",
+        "artifactValidationPassed",
+        "artifactEvidencePresent",
+        "deliverablePresent",
+        "finalDurationSeconds",
+        "renderedShotCount",
+        "compiledPromptCount",
+        "costLedgerEntryCount",
+        "artifactBindingComplete",
+        "manualQualityReviewPassedInSourceReport",
+        "manualReviewArtifactBindingStatusInSourceReport",
+        "canUseAsBusinessReadinessLongFormEvidenceInSourceReport",
+        "readyForManualReview",
+        "artifactBinding"
+      ],
+      "properties": {
+        "reportPresent": { "type": "boolean" },
+        "reportPath": { "$ref": "#/$defs/repoPath" },
+        "schemaVersion": { "type": "string" },
+        "status": { "type": "string" },
+        "providerSpendAllowed": { "type": "boolean" },
+        "atlasBillingReady": { "type": "boolean" },
+        "paidRenderCompleted": { "type": "boolean" },
+        "artifactValidationPassed": { "type": "boolean" },
+        "artifactEvidencePresent": { "type": "boolean" },
+        "deliverablePresent": { "type": "boolean" },
+        "finalDurationSeconds": { "type": "number", "minimum": 0 },
+        "renderedShotCount": { "type": "integer", "minimum": 0 },
+        "compiledPromptCount": { "type": "integer", "minimum": 0 },
+        "costLedgerEntryCount": { "type": "integer", "minimum": 0 },
+        "artifactBindingComplete": { "type": "boolean" },
+        "manualQualityReviewPassedInSourceReport": { "type": "boolean" },
+        "manualReviewArtifactBindingStatusInSourceReport": { "type": "string" },
+        "canUseAsBusinessReadinessLongFormEvidenceInSourceReport": { "type": "boolean" },
+        "readyForManualReview": { "type": "boolean" },
+        "artifactBinding": { "$ref": "#/$defs/artifactBinding" }
+      }
+    },
+    "manualReviewContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "present",
+        "path",
+        "passed",
+        "decision",
+        "redactionReviewPassed",
+        "requiredCheckCount",
+        "passedCheckCount",
+        "artifactBindingMatchesReport",
+        "templateFieldsPresent",
+        "message"
+      ],
+      "properties": {
+        "present": { "type": "boolean" },
+        "path": { "$ref": "#/$defs/repoPath" },
+        "passed": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "decision": { "type": "string" },
+        "redactionReviewPassed": { "type": "boolean" },
+        "reviewedAt": { "type": "string" },
+        "reviewerPresent": { "type": "boolean" },
+        "requiredCheckCount": { "type": "integer", "minimum": 1 },
+        "passedCheckCount": { "type": "integer", "minimum": 0 },
+        "artifactBindingMatchesReport": { "type": "boolean" },
+        "reviewedProjectId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "reviewedManifestSha256": { "$ref": "#/$defs/sha256" },
+        "reviewedDeliverableSha256": { "$ref": "#/$defs/sha256" },
+        "templateFieldsPresent": { "type": "boolean" },
+        "unsafeTextFieldCount": { "type": "integer", "minimum": 0 },
+        "issues": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsManualReviewReadinessEvidence",
+        "canUseManualReviewAsLongFormEvidence",
+        "canUseAsBusinessReadinessLongFormEvidence",
+        "canClaimDirectorBenchParity",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsManualReviewReadinessEvidence": { "type": "boolean" },
+        "canUseManualReviewAsLongFormEvidence": { "type": "boolean" },
+        "canUseAsBusinessReadinessLongFormEvidence": { "const": false },
+        "canClaimDirectorBenchParity": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "artifactBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "manifestSha256": { "$ref": "#/$defs/sha256" },
+        "deliverableSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "warn", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 360,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?://" },
+          { "pattern": "\\.\\.(/|\\\\)" }
+        ]
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

@@ -37,6 +37,7 @@ It may:
 - surface snapshot parity coverage estimates so operators can compare the current backend against each upstream snapshot without treating those estimates as release evidence
 - surface the evidence closure plan from completion-audit so operators see the ordered blocker phases, required input IDs, env placeholders, related operator packet files, report archive paths, expanded input validation commands, command guards, execution-readiness verdicts, and direct commands before attempting live or paid evidence
 - surface generated-audio paid validation, artifact-evidence, manual-review draft, and manual-review readiness report statuses separately so operators can see whether provider output and SHA/duration media evidence already exist before asking for listening approval
+- surface long-form manual-review readiness separately so operators can see whether paid 2-8 minute artifact fingerprints exist before asking for manual quality/redaction approval
 - refresh roadmap closure audit so roadmap/snapshot remaining-work requirements stay bound to current blocker IDs, product-code gaps, evidence reports, and local prep commands
 - run report-contract validation
 - summarize external/operator blockers
@@ -59,18 +60,19 @@ It may:
 14. Run the no-spend review-evidence guard smoke.
 15. Run the no-spend accepted review-evidence readiness validator.
 16. Run the no-spend generated-audio manual-review readiness validator.
-17. Run launch intake validation.
-18. Run live input validation.
-19. Run business validation plan.
-20. Run commercial input packet generation.
-21. Run business completion audit.
-22. Run roadmap closure audit with the in-progress doctor report skipped.
-23. Run business readiness audit.
-24. Write the launch doctor report.
-25. Run report-contract validation.
-26. Rerun business completion audit so it reads the fresh report-contract status.
-27. Rewrite the launch doctor report with the refreshed completion-audit status.
-28. Run report-contract validation one final time, then rewrite the doctor report with the final contract status.
+17. Run the no-spend long-form manual-review readiness validator.
+18. Run launch intake validation.
+19. Run live input validation.
+20. Run business validation plan.
+21. Run commercial input packet generation.
+22. Run business completion audit.
+23. Run roadmap closure audit with the in-progress doctor report skipped.
+24. Run business readiness audit.
+25. Write the launch doctor report.
+26. Run report-contract validation.
+27. Rerun business completion audit so it reads the fresh report-contract status.
+28. Rewrite the launch doctor report with the refreshed completion-audit status.
+29. Run report-contract validation one final time, then rewrite the doctor report with the final contract status.
 
 Expected blocked or review-required commands can exit non-zero without becoming code blockers. The quality benchmark, review-evidence guard, and review-evidence readiness reports are refreshed as backend evidence, but a `blocked` or `review_required` benchmark, a missing/incomplete review-evidence bundle, or a clean guard smoke still remains product/evidence status rather than launch approval. Provider handoff and resume-state smokes are local/fake-provider checks; they strengthen backend evidence but do not replace production HTTPS deployment handoff capture, live provider action execution, live queue execution, or real graph-resume enqueue payload proof. The live provider action and graph-resume enqueue validators may report `blocked_by_missing_inputs` until ignored operator evidence packets are present and confirmed. Unexpected build, local-smoke, provider-handoff/resume-state smoke, release-audit, deployment-package, review-evidence guard, or report-contract failures become code-side blockers.
 
@@ -95,7 +97,7 @@ Because the doctor rewrites its own report before and after contract refreshes, 
 - The readiness snapshot includes the current Director-style quality benchmark status, review-evidence guard status, and accepted review-evidence readiness status.
 - The readiness snapshot includes current snapshot parity guardrail status.
 - The readiness snapshot includes current source-video auto-analysis smoke and remote-stock adapter smoke statuses.
-- The readiness snapshot includes current generated-audio mapping smoke status, generated-audio paid validation status, generated-audio artifact-evidence status, generated-audio manual-review draft status, and generated-audio manual-review readiness status.
+- The readiness snapshot includes current generated-audio mapping smoke status, generated-audio paid validation status, generated-audio artifact-evidence status, generated-audio manual-review draft status, generated-audio manual-review readiness status, long-form review-draft status, and long-form manual-review readiness status.
 - The readiness snapshot includes the current provider reconciliation/handoff smoke statuses when those smokes are enabled.
 - The readiness snapshot includes the current graph-resume enqueue payload evidence status.
 - The report contract is included in `validation:report-contracts`.

@@ -1,6 +1,6 @@
 # Reference Implementation: Long-Form Validation Runner
 
-Implementation status as of 2026-06-19: implemented as a CineJelly-owned no-spend-by-default evidence CLI, JSON schema, package command, business-readiness input, manual-review artifact fingerprint binding, no-spend manual quality/redaction review draft helper, report-contract validation, and operator documentation. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-19: implemented as a CineJelly-owned no-spend-by-default evidence CLI, JSON schema, package command, business-readiness input, manual-review artifact fingerprint binding, no-spend manual quality/redaction review draft helper, no-spend manual-review readiness helper, report-contract validation, and operator documentation. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Source And Provider Pattern
 
@@ -27,6 +27,7 @@ The runner must:
 9. Require paid render completion, artifact validation pass, 120 to 480 second final duration, rendered shot evidence, and manual quality/redaction review bound to the same paid `projectId`, `manifestSha256`, and `deliverableSha256` before business-readiness can count the evidence.
 10. Redact secrets, signed URL query values, provider credentials, raw stack traces, and server-local artifact roots from archived reports.
 11. Never mark customer traffic open from long-form evidence alone; all other business-readiness gates must pass too.
+12. The manual-review readiness helper must be no-spend/no-network and distinguish `ready_for_manual_review` from accepted review evidence; it may prove paid-render artifact fingerprints are ready, but it must not approve long-form business-readiness evidence, DirectorBench parity, or customer traffic by itself.
 
 ## Report Shape
 
@@ -97,6 +98,7 @@ interface LongFormValidationReport {
 npm.cmd run validation:long-form -- --duration-seconds 120
 npm.cmd run validation:atlas-billing -- --max-budget-usd 25 --planned-cost-usd 24.000000 --output assets/output_deliverables/business-readiness/atlas-billing-long-form-120s-report.json --confirm-live-network
 npm.cmd run validation:long-form-review-draft -- --force
+npm.cmd run validation:long-form-review-readiness
 npm.cmd run validation:long-form -- --request "assets/output_deliverables/business-readiness/long-form-request.json" --max-cost-usd 25 --confirm-paid-spend --manual-quality-review ops/long-form-manual-quality-review.json --confirm-manual-quality-review
 ```
 
@@ -132,6 +134,7 @@ Manual review JSON should be written only after the paid run emits artifact evid
 - Done: add `schemas/long-form-manual-quality-review-draft-report.schema.json`.
 - Done: add `npm.cmd run validation:long-form`.
 - Done: add `npm.cmd run validation:long-form-review-draft`.
+- Done: add `npm.cmd run validation:long-form-review-readiness`.
 - Done: add schema-aware long-form evaluation to `validation:business-readiness`.
 - Done: document the no-spend, budget, Atlas billing, paid-spend, artifact, draft-helper, and artifact-bound manual-review gates.
 

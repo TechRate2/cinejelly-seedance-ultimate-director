@@ -48,6 +48,7 @@ const defaultContracts = [
   contract("long_form_validation", "schemas/long-form-validation-report.schema.json", "assets/output_deliverables/business-readiness/long-form-validation-report.json"),
   contract("long_form_manual_quality_review", "schemas/long-form-manual-quality-review.schema.json", "ops/long-form-manual-quality-review.json"),
   contract("long_form_manual_quality_review_draft", "schemas/long-form-manual-quality-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
+  contract("long_form_manual_quality_review_readiness", "schemas/long-form-manual-quality-review-readiness-report.schema.json", "assets/output_deliverables/business-readiness/long-form-manual-quality-review-readiness-report.json"),
   contract("source_video_auto_analysis_smoke", "schemas/source-video-auto-analysis-smoke-report.schema.json", "assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"),
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
   contract("remote_stock_adapter_smoke", "schemas/remote-stock-adapter-smoke-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json"),
@@ -349,6 +350,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "long_form_manual_quality_review_draft") {
     return validateLongFormManualQualityReviewDraftSemantics(report);
   }
+  if (item.name === "long_form_manual_quality_review_readiness") {
+    return validateLongFormManualQualityReviewReadinessSemantics(report);
+  }
   if (item.name === "generated_audio_manual_review_draft") {
     return validateGeneratedAudioManualReviewDraftSemantics(report);
   }
@@ -397,6 +401,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "quality_review_guard",
   "quality_review_evidence",
   "generated_audio_review_readiness",
+  "long_form_review_readiness",
   "launch_intake",
   "live_inputs",
   "business_plan",
@@ -471,6 +476,13 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (report?.readinessSnapshot?.generatedAudioReviewReadinessStatus !== report?.reportSummaries?.generatedAudioReviewReadiness?.status) {
     issues.push("$.readinessSnapshot.generatedAudioReviewReadinessStatus: expected to match reportSummaries.generatedAudioReviewReadiness.status.");
+  }
+  const longFormReviewReadinessRun = commandByName.get("long_form_review_readiness");
+  if (longFormReviewReadinessRun?.status !== "pass") {
+    issues.push("$.commandRuns[long_form_review_readiness].status: expected pass for long-form manual-review readiness command.");
+  }
+  if (report?.readinessSnapshot?.longFormReviewReadinessStatus !== report?.reportSummaries?.longFormReviewReadiness?.status) {
+    issues.push("$.readinessSnapshot.longFormReviewReadinessStatus: expected to match reportSummaries.longFormReviewReadiness.status.");
   }
   const materialSourceScoringRun = commandByName.get("material_source_scoring");
   if (materialSourceScoringRun?.status !== "pass") {
@@ -2710,6 +2722,93 @@ function validateLongFormManualQualityReviewDraftSemantics(report) {
     if (Array.isArray(report?.issues) && report.issues.length > 0) {
       issues.push("$.issues: pass draft reports must not carry issues.");
     }
+  }
+  return issues;
+}
+
+function validateLongFormManualQualityReviewReadinessSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const sourceReady = report?.sourceReportContext?.readyForManualReview === true;
+  const manualPresent = report?.manualReviewContext?.present === true;
+  const manualPassed = report?.manualReviewContext?.passed === true;
+  let expectedStatus = "ready_for_manual_review";
+  if (!sourceReady) {
+    expectedStatus = "blocked_by_long_form_report";
+  } else if (manualPassed) {
+    expectedStatus = "accepted_manual_review";
+  } else if (manualPresent) {
+    expectedStatus = "blocked_by_manual_review";
+  }
+  if (report?.status !== expectedStatus) {
+    issues.push(`$.status: expected ${expectedStatus} from long-form/manual review readiness.`);
+  }
+  if (
+    report?.noSpend !== true ||
+    report?.networkCallsMade !== false ||
+    report?.providerCallsMade !== false ||
+    report?.releaseEvidence !== false
+  ) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade/releaseEvidence: expected no-spend, no-network, no-provider, non-release readiness evidence.");
+  }
+  if (sourceReady) {
+    if (report?.sourceReportContext?.providerSpendAllowed !== true) {
+      issues.push("$.sourceReportContext.providerSpendAllowed: expected true when source is ready.");
+    }
+    if (report?.sourceReportContext?.atlasBillingReady !== true) {
+      issues.push("$.sourceReportContext.atlasBillingReady: expected true when source is ready.");
+    }
+    if (report?.sourceReportContext?.paidRenderCompleted !== true) {
+      issues.push("$.sourceReportContext.paidRenderCompleted: expected true when source is ready.");
+    }
+    if (report?.sourceReportContext?.artifactValidationPassed !== true) {
+      issues.push("$.sourceReportContext.artifactValidationPassed: expected true when source is ready.");
+    }
+    if (report?.sourceReportContext?.artifactEvidencePresent !== true || report?.sourceReportContext?.deliverablePresent !== true) {
+      issues.push("$.sourceReportContext artifact/deliverable readiness: expected true when source is ready.");
+    }
+    const finalDurationSeconds = Number(report?.sourceReportContext?.finalDurationSeconds ?? 0);
+    if (finalDurationSeconds < 120 || finalDurationSeconds > 480) {
+      issues.push("$.sourceReportContext.finalDurationSeconds: expected 120-480s when source is ready.");
+    }
+    if (Number(report?.sourceReportContext?.renderedShotCount ?? 0) <= 0 || Number(report?.sourceReportContext?.compiledPromptCount ?? 0) <= 0) {
+      issues.push("$.sourceReportContext renderedShotCount/compiledPromptCount: expected positive counts when source is ready.");
+    }
+    if (Number(report?.sourceReportContext?.costLedgerEntryCount ?? 0) <= 0) {
+      issues.push("$.sourceReportContext.costLedgerEntryCount: expected positive count when source is ready.");
+    }
+    if (report?.sourceReportContext?.artifactBindingComplete !== true) {
+      issues.push("$.sourceReportContext.artifactBindingComplete: expected true when source is ready.");
+    }
+  }
+  if (manualPassed) {
+    if (report?.manualReviewContext?.decision !== "pass" || report?.manualReviewContext?.redactionReviewPassed !== true) {
+      issues.push("$.manualReviewContext.decision/redactionReviewPassed: expected pass/true when manual review passes.");
+    }
+    if (report?.manualReviewContext?.artifactBindingMatchesReport !== true) {
+      issues.push("$.manualReviewContext.artifactBindingMatchesReport: expected true when manual review passes.");
+    }
+    if (Number(report?.manualReviewContext?.passedCheckCount ?? 0) !== Number(report?.manualReviewContext?.requiredCheckCount ?? -1)) {
+      issues.push("$.manualReviewContext.passedCheckCount: expected every required quality check to pass.");
+    }
+    if (report?.manualReviewContext?.templateFieldsPresent !== false || Number(report?.manualReviewContext?.unsafeTextFieldCount ?? 0) !== 0) {
+      issues.push("$.manualReviewContext template/unsafe text guards: expected no template fields and no unsafe text.");
+    }
+    if (report?.releaseGateSummary?.canUseManualReviewAsLongFormEvidence !== true) {
+      issues.push("$.releaseGateSummary.canUseManualReviewAsLongFormEvidence: expected true for accepted manual review.");
+    }
+  } else if (report?.releaseGateSummary?.canUseManualReviewAsLongFormEvidence !== false) {
+    issues.push("$.releaseGateSummary.canUseManualReviewAsLongFormEvidence: expected false until manual review is accepted.");
+  }
+  if (
+    report?.releaseGateSummary?.canUseAsBusinessReadinessLongFormEvidence !== false ||
+    report?.releaseGateSummary?.canClaimDirectorBenchParity !== false ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: readiness evidence must not unlock long-form business evidence, DirectorBench parity, or customer traffic by itself.");
+  }
+  if (checks.filter((check) => check?.status === "fail").length > 0 && ["ready_for_manual_review", "accepted_manual_review"].includes(report?.status)) {
+    issues.push("$.checks: ready/accepted readiness reports must not contain failed checks.");
   }
   return issues;
 }
