@@ -353,6 +353,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "generated_audio_artifact_evidence") {
     return validateGeneratedAudioArtifactEvidenceSemantics(report);
   }
+  if (item.name === "generated_audio_manual_review") {
+    return validateGeneratedAudioManualReviewSemantics(report);
+  }
   if (item.name === "generated_audio_manual_review_readiness") {
     return validateGeneratedAudioManualReviewReadinessSemantics(report);
   }
@@ -2617,6 +2620,92 @@ function generatedAudioArtifactEvidenceStatusForChecks(checks) {
     return "blocked_by_source_report";
   }
   return checks.every((check) => check?.status === "pass") ? "pass" : "fail";
+}
+
+function validateGeneratedAudioManualReviewSemantics(report) {
+  const issues = [];
+  const requiredChecks = [
+    "listenedFullOutput",
+    "outputIsAudible",
+    "languageMatchesRequest",
+    "narrationMatchesValidationText",
+    "noObviousArtifacts",
+    "noCredentialLeak",
+    "safeForBusinessEvidence"
+  ];
+  if (report?.status !== "accepted" || report?.decision !== "pass") {
+    issues.push("$.status/decision: generated-audio manual review evidence must be accepted/pass.");
+  }
+  if (report?.redactionReviewed !== true) {
+    issues.push("$.redactionReviewed: expected true for accepted generated-audio manual review evidence.");
+  }
+  for (const checkName of requiredChecks) {
+    if (report?.checks?.[checkName] !== true) {
+      issues.push(`$.checks.${checkName}: expected true for accepted generated-audio manual review evidence.`);
+    }
+  }
+  for (const [path, value] of [
+    ["$.reviewerId", report?.reviewerId],
+    ...((Array.isArray(report?.findings) ? report.findings : []).map((finding, index) => [`$.findings[${index}]`, finding]))
+  ]) {
+    if (!isSafeManualReviewText(value)) {
+      issues.push(`${path}: expected real redacted non-placeholder review text without URLs, local paths, data URIs, bearer tokens, or credential-like strings.`);
+    }
+  }
+
+  if (!isGeneratedAudioReviewRepoPath(report?.sourceGeneratedAudioReportPath, ["assets/output_deliverables/business-readiness/"], ["generated-audio-validation-report.json"])) {
+    issues.push("$.sourceGeneratedAudioReportPath: expected a relative generated-audio validation report path under assets/output_deliverables/business-readiness/.");
+  }
+  const binding = report?.artifactBinding ?? {};
+  const evidence = report?.artifactEvidence ?? {};
+  if (!isLaunchIntakePacketCleanHttpsUrl(binding.outputUrlPreview)) {
+    issues.push("$.artifactBinding.outputUrlPreview: expected a clean non-localhost HTTPS URL without credentials, query string, or fragment.");
+  }
+  if (!isLaunchIntakePacketCleanHttpsUrl(evidence.outputUrlPreview)) {
+    issues.push("$.artifactEvidence.outputUrlPreview: expected a clean non-localhost HTTPS URL without credentials, query string, or fragment.");
+  }
+  for (const key of ["outputUrlPreview", "predictionId"]) {
+    if (binding[key] !== evidence[key]) {
+      issues.push(`$.artifactEvidence.${key}: expected to match artifactBinding.${key}.`);
+    }
+  }
+  if (!isGeneratedAudioReviewRepoPath(evidence.generatedAudioArtifactEvidenceReportPath, ["assets/output_deliverables/business-readiness/"], ["generated-audio-artifact-evidence-report.json"])) {
+    issues.push("$.artifactEvidence.generatedAudioArtifactEvidenceReportPath: expected a relative generated-audio artifact evidence report path under assets/output_deliverables/business-readiness/.");
+  }
+  if (!isGeneratedAudioReviewRepoPath(evidence.artifactPath, ["assets/output_deliverables/business-readiness/generated-audio-artifacts/"], [".mp3", ".wav"])) {
+    issues.push("$.artifactEvidence.artifactPath: expected a relative generated-audio artifact path under assets/output_deliverables/business-readiness/generated-audio-artifacts/.");
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(evidence.mediaSha256 ?? ""))) {
+    issues.push("$.artifactEvidence.mediaSha256: expected SHA-256 media fingerprint.");
+  }
+  if (Number(evidence.byteSize ?? 0) <= 0) {
+    issues.push("$.artifactEvidence.byteSize: expected positive byte size.");
+  }
+  if (Number(evidence.durationSeconds ?? 0) <= 0) {
+    issues.push("$.artifactEvidence.durationSeconds: expected positive duration.");
+  }
+  return issues;
+}
+
+function isGeneratedAudioReviewRepoPath(value, allowedPrefixes, allowedSuffixes) {
+  if (typeof value !== "string" || !value.trim() || containsUnsafeDirectorReviewText(value)) {
+    return false;
+  }
+  const normalized = value.replace(/\\/g, "/");
+  return allowedPrefixes.some((prefix) => normalized.startsWith(prefix)) &&
+    allowedSuffixes.some((suffix) => normalized.endsWith(suffix)) &&
+    !normalized.includes("..") &&
+    !normalized.startsWith("/") &&
+    !/^[A-Za-z]:\//.test(normalized) &&
+    !/^https?:\/\//i.test(normalized);
+}
+
+function isSafeManualReviewText(value) {
+  return typeof value === "string" &&
+    value.trim().length > 0 &&
+    !launchIntakePacketPlaceholderPattern.test(value) &&
+    !containsUnsafeDirectorReviewText(value) &&
+    !/[\u0000-\u001f\u007f]/.test(value);
 }
 
 function validateGeneratedAudioManualReviewReadinessSemantics(report) {

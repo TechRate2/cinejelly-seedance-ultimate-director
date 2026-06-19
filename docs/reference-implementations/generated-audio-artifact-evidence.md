@@ -37,4 +37,6 @@ Default outputs:
 
 `validation:generated-audio-review-draft` now includes an `artifactEvidence` block in the operator template. A final structured `ops/generated-audio-manual-review.json` must keep the artifact evidence report path, local artifact path, SHA-256, byte size, duration, output URL, and prediction id aligned with the artifact evidence report. `validation:generated-audio -- --review-existing-report ... --manual-audio-review ... --confirm-manual-audio-review` rejects structured review evidence when those fields drift.
 
+`validation:report-contracts` also validates the raw ignored `ops/generated-audio-manual-review.json` packet directly when it exists. The contract requires accepted/pass review status, every required listening check, redaction review, matching artifact binding/evidence URL and prediction id, safe repo-relative report/artifact paths, positive byte/duration evidence, and redacted findings without placeholders, raw URLs, local paths, data URIs, bearer tokens, or credential-like strings.
+
 This closes a backend evidence gap without pretending to replace the human or approved-analyzer listening decision.

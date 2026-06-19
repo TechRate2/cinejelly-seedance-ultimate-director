@@ -124,6 +124,7 @@ The default run writes a blocked no-spend report. A live run now uses Atlas `gen
 - Done: add structured generated-audio manual review schema plus no-spend draft template/checklist generation.
 - Done: add generated-audio artifact evidence capture so structured manual review can bind to SHA-256/duration evidence from the exact reviewed audio bytes.
 - Done: add no-spend generated-audio manual-review readiness validation so launch doctor can show when provider output and artifact evidence are ready but listening approval is still missing.
+- Done: add report-contract coverage for the ignored raw `ops/generated-audio-manual-review.json` packet when it exists, including accepted/pass status, required listening checks, artifact binding/evidence consistency, clean output URL previews, safe repo-relative paths, positive media metadata, and redacted non-placeholder findings.
 - Done: update README and operator runbook.
 
 ## Remaining
