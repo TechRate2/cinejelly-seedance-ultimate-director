@@ -1234,7 +1234,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "upstream runtime and nested tools are not imported or executed",
       "CineJelly samples bounded frames through MediaInspector and normalizes the LLM result through SourceVideoAnalyst",
-      "caller-provided sourceVideoAnalysis remains authoritative and is never overwritten by auto-analysis"
+      "caller-provided sourceVideoAnalysis remains authoritative and is never overwritten by auto-analysis",
+      "no-spend adapter smoke validates disabled, no-overwrite, unsafe-skip, bounded-success, leakage, and strict-failure behavior before live provider evidence"
     ],
     referenceImplementationPath: "docs/reference-implementations/source-video-auto-analysis-adapter.md",
     cineJellyDestinationPaths: [
@@ -1244,11 +1245,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/config/runtime-config.ts",
       "src/application/director-factory.ts",
       "src/application/runtime-preflight.ts",
-      "src/agents/director-agent.ts"
+      "src/agents/director-agent.ts",
+      "scripts/run-source-video-auto-analysis-smoke.mjs",
+      "schemas/source-video-auto-analysis-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "live Atlas multimodal model behavior must be validated with real video frames before release",
+      "no-spend smoke validates adapter guard behavior only; live Atlas multimodal model behavior must still be validated with real video frames before release",
       "asset:// source-video resolution is intentionally deferred until an internal resolver is implemented"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
@@ -1271,13 +1274,15 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "AGPL implementation code is not copied, linked, imported, or executed",
       "approval-gate concepts are rewritten into CineJelly-owned source-video normalization and preflight behavior",
-      "local frame paths and base64 payloads are forbidden from returned analysis and artifacts"
+      "local frame paths and base64 payloads are forbidden from returned analysis and artifacts and are covered by no-spend smoke evidence"
     ],
     referenceImplementationPath: "docs/reference-implementations/source-video-auto-analysis-adapter.md",
     cineJellyDestinationPaths: [
       "src/core/source-video-auto-analyzer.ts",
       "src/agents/source-video-analyst.ts",
-      "src/application/runtime-preflight.ts"
+      "src/application/runtime-preflight.ts",
+      "scripts/run-source-video-auto-analysis-smoke.mjs",
+      "schemas/source-video-auto-analysis-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -1304,13 +1309,15 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "ViMax agent code is not copied or imported",
       "CineJelly uses a provider-neutral SourceVideoDeconstruction contract",
-      "auto-analysis is opt-in and fails closed or skips based on operator configuration"
+      "auto-analysis is opt-in and fails closed or skips based on operator configuration, with no-spend smoke coverage for those guard branches"
     ],
     referenceImplementationPath: "docs/reference-implementations/source-video-auto-analysis-adapter.md",
     cineJellyDestinationPaths: [
       "src/core/source-video-auto-analyzer.ts",
       "src/agents/source-video-reference-metadata-enricher.ts",
-      "src/core/reference-selection-planner.ts"
+      "src/core/reference-selection-planner.ts",
+      "scripts/run-source-video-auto-analysis-smoke.mjs",
+      "schemas/source-video-auto-analysis-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [

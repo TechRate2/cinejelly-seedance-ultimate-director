@@ -1,6 +1,6 @@
 # Reference Implementation: Source Video Auto Analysis Adapter
 
-Implementation status as of 2026-06-16: CineJelly-owned TypeScript foundation implemented in source-video analysis contracts, runtime configuration, preflight, DirectorAgent request preparation, source lineage records, and a live validation runner with an explicit provider-spend gate. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. A real clean HTTPS source-video run through FFmpeg and the configured Atlas multimodal LLM still remains required before release.
+Implementation status as of 2026-06-19: CineJelly-owned TypeScript foundation implemented in source-video analysis contracts, runtime configuration, preflight, DirectorAgent request preparation, source lineage records, a no-spend adapter smoke, and a live validation runner with an explicit provider-spend gate. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code. A real clean HTTPS source-video run through FFmpeg and the configured Atlas multimodal LLM still remains required before release.
 
 ## Upstream And Provider Sources
 
@@ -82,6 +82,8 @@ async function prepareRequestWithAutoSourceVideoAnalysis(request, analyzer, sett
   - `CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR`
 - Done: wire the analyzer into `DirectorAgent` before `IntakeDirector.intake`.
 - Done: keep `SourceVideoAnalyst.normalize` as the final normalization gate.
+- Done: add `scripts/run-source-video-auto-analysis-smoke.mjs` and `npm.cmd run validation:source-video-auto-analysis-smoke` to prove disabled/no-overwrite/unsafe-skip/success/leak-guard/strict-failure behavior without Atlas, FFmpeg, or source-video fetches.
+- Done: add `schemas/source-video-auto-analysis-smoke-report.schema.json`, report-contract semantic validation, and commercial launch doctor coverage for the no-spend smoke.
 - Done: add `docs/reference-implementations/source-video-auto-analysis-validation-runner.md` plus a CLI/report gate for live validation evidence.
 
 ## Validation Checklist
@@ -93,4 +95,5 @@ async function prepareRequestWithAutoSourceVideoAnalysis(request, analyzer, sett
 - Malformed LLM output fails only when strict mode is enabled.
 - Output contains no local frame paths or inline `data:` media.
 - Generated scene/keyframe counts stay within `SOURCE_VIDEO_ANALYSIS_LIMITS`.
+- `validation:source-video-auto-analysis-smoke` passes and remains non-release backend evidence.
 - No production runtime import from `external/upstream/`.

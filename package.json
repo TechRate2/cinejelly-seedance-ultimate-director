@@ -47,6 +47,7 @@
     "validation:long-form": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-long-form-validation.mjs",
     "validation:long-form-review-draft": "node scripts/create-long-form-manual-quality-review-draft.mjs",
     "validation:source-video-auto-analysis": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-source-video-auto-analysis-validation.mjs",
+    "validation:source-video-auto-analysis-smoke": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-source-video-auto-analysis-smoke.mjs",
     "validation:remote-stock": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-remote-stock-validation.mjs",
     "validation:material-source-scoring": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-material-source-scoring-smoke.mjs",
     "validation:generated-audio": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-atlas-generated-audio-validation.mjs",

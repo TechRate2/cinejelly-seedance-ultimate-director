@@ -1,6 +1,6 @@
 # Reference Implementation: Source Video Auto Analysis Validation Runner
 
-Implementation status as of 2026-06-16: implemented as a CineJelly-owned live-validation CLI, JSON schema, package command, business-readiness input, and operator documentation. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
+Implementation status as of 2026-06-19: implemented as a CineJelly-owned live-validation CLI, JSON schema, package command, business-readiness input, operator documentation, plus a separate no-spend adapter smoke for backend guard behavior. This Reference Implementation is documentation-only and must not import or execute upstream snapshot code.
 
 ## Upstream And Provider Sources
 
@@ -88,6 +88,7 @@ interface SourceVideoAutoAnalysisValidationReport {
 - Done: add `schemas/source-video-auto-analysis-validation-report.schema.json`.
 - Done: make `validation:business-readiness` evaluate the versioned source-video report explicitly.
 - Done: document the spend gate, source-video billing gate, and clean-source-video requirements.
+- Done: add `validation:source-video-auto-analysis-smoke` as no-spend backend evidence for adapter behavior; it is intentionally not business-readiness source-video evidence.
 
 ## Validation Checklist
 
@@ -99,3 +100,4 @@ interface SourceVideoAutoAnalysisValidationReport {
 - Live mode uses `SourceVideoAutoAnalyzer`, not custom LLM payload code.
 - The report preserves provider-ledger operation counts without raw provider payloads.
 - The business-readiness gate accepts only a `pass` report with usable analysis, a passing Atlas billing gate, and no frame/base64 leakage.
+- The smoke report must keep `canUseAsBusinessReadinessSourceVideoEvidence=false` and `canOpenPaidCustomerTraffic=false`.

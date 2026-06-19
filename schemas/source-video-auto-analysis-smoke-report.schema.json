@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/source-video-auto-analysis-smoke-report.schema.json",
+  "title": "CineJelly Source Video Auto Analysis Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourceVideoFetchMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "scenarioSummaries",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.source-video-auto-analysis-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourceVideoFetchMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "workDirectory",
+        "defaultModelId",
+        "syntheticScenarioCount",
+        "syntheticFrameFileCount",
+        "maxFramesPerScenario"
+      ],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "workDirectory": { "type": "string" },
+        "defaultModelId": { "type": "string" },
+        "syntheticScenarioCount": { "type": "integer", "minimum": 1 },
+        "syntheticFrameFileCount": { "type": "integer", "minimum": 0 },
+        "maxFramesPerScenario": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenarioCount",
+        "passingScenarioCount",
+        "failingScenarioCount",
+        "frameSamplerCallCount",
+        "syntheticLlmCallCount",
+        "analysisGeneratedScenarioCount",
+        "skippedScenarioCount"
+      ],
+      "properties": {
+        "scenarioCount": { "type": "integer", "minimum": 0 },
+        "passingScenarioCount": { "type": "integer", "minimum": 0 },
+        "failingScenarioCount": { "type": "integer", "minimum": 0 },
+        "frameSamplerCallCount": { "type": "integer", "minimum": 0 },
+        "syntheticLlmCallCount": { "type": "integer", "minimum": 0 },
+        "analysisGeneratedScenarioCount": { "type": "integer", "minimum": 0 },
+        "skippedScenarioCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "scenarioSummaries": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/scenarioSummary" }
+    },
+    "checks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsSourceVideoAutoAnalysisBackendEvidence",
+        "canUseAsBusinessReadinessSourceVideoEvidence",
+        "canOpenPaidCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsSourceVideoAutoAnalysisBackendEvidence": { "type": "boolean" },
+        "canUseAsBusinessReadinessSourceVideoEvidence": { "const": false },
+        "canOpenPaidCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "scenarioSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "status",
+        "intent",
+        "frameSamplerCallCount",
+        "syntheticLlmCallCount",
+        "analysisPresent",
+        "sceneCount",
+        "keyframeCount",
+        "pacingNoteCount",
+        "styleNoteCount",
+        "structuralBeatCount",
+        "safetyNoteCount",
+        "noInlineFrameDataInAnalysis",
+        "noLocalFramePathsInAnalysis"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "status": { "enum": ["pass", "fail"] },
+        "intent": { "type": "string" },
+        "frameSamplerCallCount": { "type": "integer", "minimum": 0 },
+        "syntheticLlmCallCount": { "type": "integer", "minimum": 0 },
+        "analysisPresent": { "type": "boolean" },
+        "sceneCount": { "type": "integer", "minimum": 0 },
+        "keyframeCount": { "type": "integer", "minimum": 0 },
+        "pacingNoteCount": { "type": "integer", "minimum": 0 },
+        "styleNoteCount": { "type": "integer", "minimum": 0 },
+        "structuralBeatCount": { "type": "integer", "minimum": 0 },
+        "safetyNoteCount": { "type": "integer", "minimum": 0 },
+        "noInlineFrameDataInAnalysis": { "type": "boolean" },
+        "noLocalFramePathsInAnalysis": { "type": "boolean" },
+        "preservedExistingAnalysis": { "type": "boolean" },
+        "skippedReason": { "type": "string" },
+        "thrownErrorRedacted": { "type": "string" },
+        "llmImagePartCount": { "type": "integer", "minimum": 0 },
+        "llmDataImagePartCount": { "type": "integer", "minimum": 0 },
+        "llmNonDataImagePartCount": { "type": "integer", "minimum": 0 },
+        "llmLocalFramePathInPrompt": { "type": "boolean" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string" },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

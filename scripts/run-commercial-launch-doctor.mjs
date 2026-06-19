@@ -178,6 +178,11 @@ function buildCommands(options) {
       reportPath: "assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
+    }),
+    command("source_video_auto_analysis_smoke", ["scripts/run-source-video-auto-analysis-smoke.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json",
+      expectedExitCodes: [0],
+      blocksCodeReadiness: true
     })
   ];
   if (!options.skipLocalSmoke) {
@@ -411,6 +416,7 @@ function buildReport(options, commandRuns) {
     longFormReviewDraft: summarizeReport("assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
     snapshotParity: summarizeReport("assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
     materialSourceScoring: summarizeReport("assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"),
+    sourceVideoAutoAnalysisSmoke: summarizeReport("assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"),
     providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
     providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
     providerExternalLease: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
@@ -476,6 +482,7 @@ function buildReport(options, commandRuns) {
       businessReadinessStatus: reportSummaries.businessReadiness.status,
       releaseAuditStatus: reportSummaries.releaseAudit.status,
       snapshotParityStatus: reportSummaries.snapshotParity.status,
+      sourceVideoAutoAnalysisSmokeStatus: reportSummaries.sourceVideoAutoAnalysisSmoke.status,
       qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
       qualityReviewDraftsStatus: reportSummaries.qualityReviewDrafts.status,
       qualityReviewGuardStatus: reportSummaries.qualityReviewGuard.status,

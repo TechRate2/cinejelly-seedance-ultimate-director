@@ -48,6 +48,7 @@ const defaultContracts = [
   contract("long_form_validation", "schemas/long-form-validation-report.schema.json", "assets/output_deliverables/business-readiness/long-form-validation-report.json"),
   contract("long_form_manual_quality_review", "schemas/long-form-manual-quality-review.schema.json", "ops/long-form-manual-quality-review.json"),
   contract("long_form_manual_quality_review_draft", "schemas/long-form-manual-quality-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
+  contract("source_video_auto_analysis_smoke", "schemas/source-video-auto-analysis-smoke-report.schema.json", "assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"),
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
   contract("remote_stock_validation", "schemas/remote-stock-validation-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-validation-report.json"),
   contract("material_source_scoring_smoke", "schemas/material-source-scoring-smoke-report.schema.json", "assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"),
@@ -312,6 +313,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "material_source_scoring_smoke") {
     return validateMaterialSourceScoringSmokeSemantics(report);
   }
+  if (item.name === "source_video_auto_analysis_smoke") {
+    return validateSourceVideoAutoAnalysisSmokeSemantics(report);
+  }
   if (item.name === "director_style_benchmark") {
     return validateDirectorStyleBenchmarkSemantics(report);
   }
@@ -371,6 +375,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "deployment_package",
   "snapshot_parity",
   "material_source_scoring",
+  "source_video_auto_analysis_smoke",
   "provider_live_actions",
   "provider_graph_resume",
   "release_audit",
@@ -445,6 +450,16 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (report?.reportSummaries?.materialSourceScoring?.status !== "pass") {
     issues.push("$.reportSummaries.materialSourceScoring.status: expected pass after refreshing material-source scoring smoke.");
+  }
+  const sourceVideoAutoAnalysisSmokeRun = commandByName.get("source_video_auto_analysis_smoke");
+  if (sourceVideoAutoAnalysisSmokeRun?.status !== "pass") {
+    issues.push("$.commandRuns[source_video_auto_analysis_smoke].status: expected pass for source-video auto-analysis smoke command.");
+  }
+  if (report?.reportSummaries?.sourceVideoAutoAnalysisSmoke?.status !== "pass") {
+    issues.push("$.reportSummaries.sourceVideoAutoAnalysisSmoke.status: expected pass after refreshing source-video auto-analysis smoke.");
+  }
+  if (report?.readinessSnapshot?.sourceVideoAutoAnalysisSmokeStatus !== "pass") {
+    issues.push("$.readinessSnapshot.sourceVideoAutoAnalysisSmokeStatus: expected pass after refreshing source-video auto-analysis smoke.");
   }
 
   const scopeSummary = report?.commercialOfferScopeSummary;
@@ -1038,6 +1053,114 @@ function validateMaterialSourceScoringSmokeSemantics(report) {
   const checks = Array.isArray(report?.checks) ? report.checks : [];
   if (checks.length === 0 || checks.some((check) => check?.status !== "pass")) {
     issues.push("$.checks: expected all smoke checks to pass.");
+  }
+  return issues;
+}
+
+function validateSourceVideoAutoAnalysisSmokeSemantics(report) {
+  const issues = [];
+  if (report?.status !== "pass") {
+    issues.push("$.status: expected pass for source-video auto-analysis smoke.");
+  }
+  if (
+    report?.noSpend !== true ||
+    report?.networkCallsMade !== false ||
+    report?.providerCallsMade !== false ||
+    report?.sourceVideoFetchMade !== false
+  ) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade/sourceVideoFetchMade: expected no-spend/no-network/no-provider/no-fetch smoke.");
+  }
+  if (report?.releaseGateSummary?.canUseAsSourceVideoAutoAnalysisBackendEvidence !== true) {
+    issues.push("$.releaseGateSummary.canUseAsSourceVideoAutoAnalysisBackendEvidence: expected true when smoke passes.");
+  }
+  if (report?.releaseGateSummary?.canUseAsBusinessReadinessSourceVideoEvidence !== false) {
+    issues.push("$.releaseGateSummary.canUseAsBusinessReadinessSourceVideoEvidence: expected false; smoke is not live source-video evidence.");
+  }
+  if (report?.releaseGateSummary?.canOpenPaidCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canOpenPaidCustomerTraffic: expected false; smoke cannot open customer traffic.");
+  }
+
+  const scenarios = Array.isArray(report?.scenarioSummaries) ? report.scenarioSummaries : [];
+  const scenarioByName = new Map(scenarios.map((scenario) => [String(scenario?.name ?? ""), scenario]));
+  const requiredScenarios = [
+    "disabled_leaves_request_unchanged",
+    "existing_analysis_not_overwritten",
+    "asset_reference_skipped",
+    "secret_query_reference_skipped",
+    "clean_https_generates_bounded_analysis",
+    "leaking_output_rejected_non_strict",
+    "strict_empty_analysis_throws"
+  ];
+  for (const scenarioName of requiredScenarios) {
+    if (!scenarioByName.has(scenarioName)) {
+      issues.push(`$.scenarioSummaries: expected ${scenarioName} scenario.`);
+    }
+  }
+  if (Number(report?.summary?.scenarioCount ?? -1) !== scenarios.length) {
+    issues.push("$.summary.scenarioCount: expected to match scenarioSummaries length.");
+  }
+  if (Number(report?.summary?.passingScenarioCount ?? -1) !== scenarios.filter((scenario) => scenario?.status === "pass").length) {
+    issues.push("$.summary.passingScenarioCount: expected to match passing scenarios.");
+  }
+  if (Number(report?.summary?.failingScenarioCount ?? -1) !== scenarios.filter((scenario) => scenario?.status === "fail").length) {
+    issues.push("$.summary.failingScenarioCount: expected to match failing scenarios.");
+  }
+  if (Number(report?.summary?.frameSamplerCallCount ?? -1) !== scenarios.reduce((sum, scenario) => sum + Number(scenario?.frameSamplerCallCount ?? 0), 0)) {
+    issues.push("$.summary.frameSamplerCallCount: expected to match scenario frame sampler calls.");
+  }
+  if (Number(report?.summary?.syntheticLlmCallCount ?? -1) !== scenarios.reduce((sum, scenario) => sum + Number(scenario?.syntheticLlmCallCount ?? 0), 0)) {
+    issues.push("$.summary.syntheticLlmCallCount: expected to match scenario synthetic LLM calls.");
+  }
+
+  const disabled = scenarioByName.get("disabled_leaves_request_unchanged");
+  if (disabled?.frameSamplerCallCount !== 0 || disabled?.syntheticLlmCallCount !== 0 || disabled?.analysisPresent !== false) {
+    issues.push("$.scenarioSummaries[disabled_leaves_request_unchanged]: expected no sampler call, no LLM call, and no analysis.");
+  }
+  const existing = scenarioByName.get("existing_analysis_not_overwritten");
+  if (existing?.preservedExistingAnalysis !== true || existing?.frameSamplerCallCount !== 0 || existing?.syntheticLlmCallCount !== 0) {
+    issues.push("$.scenarioSummaries[existing_analysis_not_overwritten]: expected caller analysis to be preserved with no side effects.");
+  }
+  for (const scenarioName of ["asset_reference_skipped", "secret_query_reference_skipped"]) {
+    const scenario = scenarioByName.get(scenarioName);
+    if (scenario?.frameSamplerCallCount !== 0 || scenario?.syntheticLlmCallCount !== 0 || scenario?.analysisPresent !== false) {
+      issues.push(`$.scenarioSummaries[${scenarioName}]: expected unsafe reference to be skipped before frame sampling.`);
+    }
+  }
+  const cleanHttps = scenarioByName.get("clean_https_generates_bounded_analysis");
+  if (
+    cleanHttps?.analysisPresent !== true ||
+    Number(cleanHttps?.sceneCount ?? 0) < 1 ||
+    Number(cleanHttps?.keyframeCount ?? 0) < 1 ||
+    cleanHttps?.noInlineFrameDataInAnalysis !== true ||
+    cleanHttps?.noLocalFramePathsInAnalysis !== true
+  ) {
+    issues.push("$.scenarioSummaries[clean_https_generates_bounded_analysis]: expected safe bounded analysis with scenes and keyframes.");
+  }
+  if (
+    cleanHttps?.llmImagePartCount !== cleanHttps?.llmDataImagePartCount ||
+    Number(cleanHttps?.llmImagePartCount ?? 0) <= 0 ||
+    Number(cleanHttps?.llmNonDataImagePartCount ?? 0) !== 0 ||
+    cleanHttps?.llmLocalFramePathInPrompt !== false
+  ) {
+    issues.push("$.scenarioSummaries[clean_https_generates_bounded_analysis]: expected bounded data-image LLM parts without local frame paths.");
+  }
+  const leakGuard = scenarioByName.get("leaking_output_rejected_non_strict");
+  if (leakGuard?.analysisPresent !== false || leakGuard?.frameSamplerCallCount !== 1 || leakGuard?.syntheticLlmCallCount !== 1) {
+    issues.push("$.scenarioSummaries[leaking_output_rejected_non_strict]: expected leaking output to be rejected without attaching analysis.");
+  }
+  const strictEmpty = scenarioByName.get("strict_empty_analysis_throws");
+  if (!String(strictEmpty?.thrownErrorRedacted ?? "").includes("no usable deconstruction content")) {
+    issues.push("$.scenarioSummaries[strict_empty_analysis_throws].thrownErrorRedacted: expected strict unusable-output error.");
+  }
+  if (/data:image\/[a-z0-9.+-]+;base64,/i.test(JSON.stringify(report))) {
+    issues.push("$.report: expected no serialized inline frame data.");
+  }
+  if (/[A-Z]:\\[^\"'`\s]+/i.test(JSON.stringify(report))) {
+    issues.push("$.report: expected no serialized absolute local frame paths.");
+  }
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  if (checks.length === 0 || checks.some((check) => check?.status !== "pass")) {
+    issues.push("$.checks: expected all source-video smoke checks to pass.");
   }
   return issues;
 }
