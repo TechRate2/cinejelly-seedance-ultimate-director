@@ -14,6 +14,7 @@ export type ProjectArtifactKind =
   | "material_source_validation"
   | "postproduction_asset_plan"
   | "generated_audio_output_batch_validation"
+  | "render_schedule"
   | "stage_lifecycle"
   | "review_packet"
   | "compiled_prompts"

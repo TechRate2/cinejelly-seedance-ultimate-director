@@ -1,6 +1,6 @@
 # Reference Implementation: Long-Form Planning And Batch Workflow
 
-Implementation status as of 2026-06-13: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `material_sourcing` evidence, material source validation evidence, review-packet stage lifecycle, and stage/material artifacts. `npm.cmd run typecheck` and `npm.cmd run build` passed; real long-form Atlas validation remains pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
+Implementation status as of 2026-06-19: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `material_sourcing` evidence, material source validation evidence, review-packet stage lifecycle, render-schedule evidence, and stage/material/schedule artifacts. Direct `tsc -p tsconfig.json` and `scripts/run-render-scheduler-smoke.mjs` passed; real long-form Atlas validation remains pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
 
 ## Upstream Sources
 
@@ -19,7 +19,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 5. Continuity-sensitive shots render sequentially; independent shots may render concurrently within configured limits.
 6. Batch candidates must be traceable: selected candidate, rejected candidates, test-take candidate, repair candidates, and final deliverable evidence.
 7. Terminal failures must preserve the narrow failed stage and should not erase earlier stage evidence.
-8. Artifacts must be deterministic: stage lifecycle, story plan, storyboard, production graph, cost plan, prompts, rendered shots, and deliverable evidence keep stable names.
+8. Artifacts must be deterministic: stage lifecycle, render schedule, story plan, storyboard, production graph, cost plan, prompts, rendered shots, and deliverable evidence keep stable names.
 
 ## Edge Cases
 
@@ -29,6 +29,7 @@ Implementation status as of 2026-06-13: CineJelly-owned production foundation im
 - Remote material sourcing is disabled: material stage still succeeds with `user_owned` rights requirement and local/user-provided source policy.
 - Remote material sourcing is enabled: material briefs must require commercial stock or attribution-safe evidence before candidates can be selected.
 - A shot has first-frame, last-frame, source-video, transition, or explicit previous/next continuity: scheduler must keep it sequential.
+- A shot has source-video scene/timeline metadata or continuity risk: scheduler must record the exact sequential reason, not only serialize it implicitly.
 - A render candidate fails but a repair candidate succeeds: stage `repair` is succeeded and rejected candidate evidence remains in rendered shot artifacts.
 - No output path is provided: `assemble` and `deliver` are skipped, not failed.
 - Delivery gate blocks: `deliver` is blocked while render/inspect evidence remains inspectable.
@@ -124,7 +125,8 @@ function createStagePlan(input: RuntimeEvidence): StagePlan {
 - Instantiate `MaterialSourcingPlanner` in `DirectorAgent` after reference selection and before Production Graph build.
 - Wire `MaterialSourcingPlan` into `ProductionGraphBuilder` as a `material_sourcing` node with rights metadata from each brief.
 - Include stage lifecycle, material sourcing plan, and material source validation report in `DirectorRunResult`, review packet, and artifact payloads.
-- Keep RenderScheduler's dependency ordering as the first implementation of continuity-sensitive sequential render behavior.
+- Include render schedule evidence in `DirectorRunResult`, run summary, and `render-schedule.json` artifact payloads.
+- Keep RenderScheduler's dependency ordering as the first implementation of source-video, transition, and continuity-sensitive sequential render behavior.
 - Preserve candidate evidence through existing `RenderedShot.candidates` and Production Graph run recorder.
 
 ## Validation Checklist
@@ -135,6 +137,8 @@ function createStagePlan(input: RuntimeEvidence): StagePlan {
 - Material source validation report records planned-only, approved, review-required, or rejected status for adapter candidates.
 - Production Graph contains a material sourcing node linked to project and shots.
 - Review packet and run artifacts expose stage lifecycle without local paths or raw provider payloads.
-- Sequential render behavior is still driven by first/last frame, previous/next continuity, source-video/transition intent, and continuity risk.
+- Run artifacts expose `render-schedule.json` with batch IDs, source order, parallel/sequential mode, reference roles, risk codes, continuity fields, and sequential reasons.
+- Sequential render behavior is still driven by first/last frame, previous/next continuity, source-video/timeline structure, transition intent, and continuity risk.
+- `scripts/run-render-scheduler-smoke.mjs` passes for bounded parallel batches, endpoint references, source-video structure/timeline, continuity risk, transition intent, and stable source order.
 - No production import path references `external/upstream`.
 - Source lineage is added to `DEFAULT_SOURCE_LOGIC_TRANSLATIONS` after implementation.

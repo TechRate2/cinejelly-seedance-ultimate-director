@@ -1,9 +1,21 @@
 /**
  * Render scheduler for long-form production.
- * It parallelizes only shots that do not declare endpoint or transition dependencies.
+ * It parallelizes only shots that do not declare endpoint, source-video, transition,
+ * or continuity-sensitive dependencies.
  */
 
 import type { ShotContract } from "../types/prompt.js";
+
+export type RenderScheduleMode = "parallel" | "sequential";
+
+export type RenderScheduleSequentialReason =
+  | "endpoint_reference"
+  | "endpoint_continuity"
+  | "source_video_structure"
+  | "source_video_timeline"
+  | "continuity_risk"
+  | "transition_risk"
+  | "transition_intent";
 
 export interface RenderScheduleItem<TValue> {
   readonly index: number;
@@ -16,6 +28,47 @@ export interface RenderScheduleResult<TValue> {
   readonly value: TValue;
 }
 
+export interface RenderSchedulePlanItem {
+  readonly index: number;
+  readonly shotId: string;
+  readonly mode: RenderScheduleMode;
+  readonly batchId: string;
+  readonly sequentialReasons: readonly RenderScheduleSequentialReason[];
+  readonly referenceRoles: readonly string[];
+  readonly riskCodes: readonly string[];
+  readonly continuityFields: readonly string[];
+}
+
+export interface RenderScheduleBatch {
+  readonly batchId: string;
+  readonly mode: RenderScheduleMode;
+  readonly itemIndexes: readonly number[];
+  readonly shotIds: readonly string[];
+  readonly sequentialReasons: readonly RenderScheduleSequentialReason[];
+}
+
+export interface RenderSchedulePlan {
+  readonly concurrency: number;
+  readonly itemCount: number;
+  readonly batchCount: number;
+  readonly parallelBatchCount: number;
+  readonly sequentialItemCount: number;
+  readonly items: readonly RenderSchedulePlanItem[];
+  readonly batches: readonly RenderScheduleBatch[];
+  readonly sourcePatternOrigins: readonly string[];
+}
+
+interface InternalScheduledItem<TValue> {
+  readonly item: RenderScheduleItem<TValue>;
+  readonly sequentialReasons: readonly RenderScheduleSequentialReason[];
+}
+
+interface InternalScheduledBatch<TValue> {
+  readonly batchId: string;
+  readonly mode: RenderScheduleMode;
+  readonly items: readonly InternalScheduledItem<TValue>[];
+}
+
 export class RenderScheduler {
   private readonly concurrency: number;
 
@@ -26,33 +79,104 @@ export class RenderScheduler {
     this.concurrency = concurrency;
   }
 
+  public plan<TValue>(items: readonly RenderScheduleItem<TValue>[]): RenderSchedulePlan {
+    const batches = this.createSchedule(items);
+    const planItems = batches.flatMap((batch) =>
+      batch.items.map((scheduled) => ({
+        index: scheduled.item.index,
+        shotId: scheduled.item.shot.shotId,
+        mode: batch.mode,
+        batchId: batch.batchId,
+        sequentialReasons: scheduled.sequentialReasons,
+        referenceRoles: this.referenceRoles(scheduled.item.shot),
+        riskCodes: scheduled.item.shot.risks,
+        continuityFields: this.continuityFields(scheduled.item.shot)
+      }))
+    );
+    return {
+      concurrency: this.concurrency,
+      itemCount: items.length,
+      batchCount: batches.length,
+      parallelBatchCount: batches.filter((batch) => batch.mode === "parallel").length,
+      sequentialItemCount: planItems.filter((item) => item.mode === "sequential").length,
+      items: planItems.sort((left, right) => left.index - right.index),
+      batches: batches.map((batch) => ({
+        batchId: batch.batchId,
+        mode: batch.mode,
+        itemIndexes: batch.items.map((scheduled) => scheduled.item.index),
+        shotIds: batch.items.map((scheduled) => scheduled.item.shot.shotId),
+        sequentialReasons: this.uniqueReasons(batch.items.flatMap((scheduled) => scheduled.sequentialReasons))
+      })),
+      sourcePatternOrigins: ["HKUDS/ViMax", "HKUDS/VideoAgent", "vericontext/vibeframe"]
+    };
+  }
+
+  public explainSequentialReasons(shot: ShotContract): readonly RenderScheduleSequentialReason[] {
+    return this.sequentialReasons(shot);
+  }
+
   public async run<TInput, TOutput>(
     items: readonly RenderScheduleItem<TInput>[],
     worker: (item: RenderScheduleItem<TInput>) => Promise<TOutput>
   ): Promise<readonly RenderScheduleResult<TOutput>[]> {
     const results: RenderScheduleResult<TOutput>[] = [];
-    let parallelBatch: RenderScheduleItem<TInput>[] = [];
+    for (const batch of this.createSchedule(items)) {
+      if (batch.mode === "sequential") {
+        const scheduled = batch.items[0];
+        if (!scheduled) {
+          continue;
+        }
+        results.push({
+          index: scheduled.item.index,
+          value: await worker(scheduled.item)
+        });
+      } else {
+        await this.flushParallelBatch(batch.items.map((scheduled) => scheduled.item), worker, results);
+      }
+    }
+    return results.sort((left, right) => left.index - right.index);
+  }
+
+  private createSchedule<TValue>(items: readonly RenderScheduleItem<TValue>[]): readonly InternalScheduledBatch<TValue>[] {
+    const batches: InternalScheduledBatch<TValue>[] = [];
+    let parallelBatch: InternalScheduledItem<TValue>[] = [];
+    let batchIndex = 0;
+
+    const flushParallelBatch = (): void => {
+      if (parallelBatch.length === 0) {
+        return;
+      }
+      batches.push({
+        batchId: this.batchId(batchIndex),
+        mode: "parallel",
+        items: parallelBatch
+      });
+      batchIndex += 1;
+      parallelBatch = [];
+    };
 
     for (const item of items) {
-      if (this.requiresSequentialRender(item.shot)) {
-        await this.flushParallelBatch(parallelBatch, worker, results);
-        parallelBatch = [];
-        results.push({
-          index: item.index,
-          value: await worker(item)
+      const sequentialReasons = this.sequentialReasons(item.shot);
+      const scheduled = { item, sequentialReasons };
+      if (sequentialReasons.length > 0) {
+        flushParallelBatch();
+        batches.push({
+          batchId: this.batchId(batchIndex),
+          mode: "sequential",
+          items: [scheduled]
         });
+        batchIndex += 1;
         continue;
       }
 
-      parallelBatch.push(item);
+      parallelBatch.push(scheduled);
       if (parallelBatch.length >= this.concurrency) {
-        await this.flushParallelBatch(parallelBatch, worker, results);
-        parallelBatch = [];
+        flushParallelBatch();
       }
     }
 
-    await this.flushParallelBatch(parallelBatch, worker, results);
-    return results.sort((left, right) => left.index - right.index);
+    flushParallelBatch();
+    return batches;
   }
 
   private async flushParallelBatch<TInput, TOutput>(
@@ -72,18 +196,57 @@ export class RenderScheduler {
     results.push(...batchResults);
   }
 
-  private requiresSequentialRender(shot: ShotContract): boolean {
+  private sequentialReasons(shot: ShotContract): readonly RenderScheduleSequentialReason[] {
+    const reasons: RenderScheduleSequentialReason[] = [];
     const roles = new Set(shot.references.map((reference) => reference.role));
     if (roles.has("first_frame") || roles.has("last_frame")) {
-      return true;
+      reasons.push("endpoint_reference");
+    }
+    if (roles.has("source_video_structure")) {
+      reasons.push("source_video_structure");
+      if (shot.references.some((reference) =>
+        reference.role === "source_video_structure" &&
+        (
+          reference.selection?.sourceShotId ||
+          reference.selection?.sourceSceneId ||
+          reference.selection?.timelineIndex !== undefined
+        )
+      )) {
+        reasons.push("source_video_timeline");
+      }
     }
     if (shot.continuity.previousShotEndState || shot.continuity.nextShotStartState) {
-      return true;
+      reasons.push("endpoint_continuity");
+    }
+    if (shot.risks.some((risk) => risk !== "transition")) {
+      reasons.push("continuity_risk");
     }
     if (shot.risks.includes("transition")) {
-      return true;
+      reasons.push("transition_risk");
     }
     const transitionIntent = shot.transitionIntent?.toLowerCase() ?? "";
-    return /previous|next|anchor|continuous/.test(transitionIntent);
+    if (/previous|next|anchor|continuous|match cut|bridge|seamless/.test(transitionIntent)) {
+      reasons.push("transition_intent");
+    }
+    return this.uniqueReasons(reasons);
+  }
+
+  private batchId(index: number): string {
+    return `render_batch_${String(index).padStart(3, "0")}`;
+  }
+
+  private referenceRoles(shot: ShotContract): readonly string[] {
+    return [...new Set(shot.references.map((reference) => reference.role))].sort();
+  }
+
+  private continuityFields(shot: ShotContract): readonly string[] {
+    return Object.entries(shot.continuity)
+      .filter(([, value]) => Boolean(value))
+      .map(([key]) => key)
+      .sort();
+  }
+
+  private uniqueReasons(reasons: readonly RenderScheduleSequentialReason[]): readonly RenderScheduleSequentialReason[] {
+    return [...new Set(reasons)].sort();
   }
 }

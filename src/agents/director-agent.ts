@@ -25,7 +25,7 @@ import { MaterialSourcingPlanner } from "../core/material-sourcing-planner.js";
 import { MaterialSourceValidator } from "../core/material-source-validator.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS } from "../core/postproduction-engine.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
-import { RenderScheduler, type RenderScheduleResult } from "../core/render-scheduler.js";
+import { RenderScheduler, type RenderScheduleItem, type RenderScheduleResult } from "../core/render-scheduler.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
@@ -313,33 +313,42 @@ export class DirectorAgent {
 
     const candidateCount = candidateCountForQuality(intake.settings.qualityMode);
     const repairAttemptCount = repairAttemptCountForQuality(intake.settings.qualityMode);
+    const renderScheduleItems: readonly RenderScheduleItem<{
+      readonly compiledPrompt: CompiledPrompt;
+      readonly preflight: GuardianReport;
+      readonly shouldRunTestTake: boolean;
+    }>[] = compiledPrompts.map((compiledPrompt, promptIndex) => {
+      const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
+      const preflight = preflightReports[promptIndex];
+      if (!shot) {
+        throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
+      }
+      if (!preflight) {
+        throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
+      }
+      return {
+        index: promptIndex,
+        shot,
+        value: {
+          compiledPrompt,
+          preflight,
+          shouldRunTestTake: this.shouldRunTestTake(shot, intake.settings)
+        }
+      };
+    });
+    const renderSchedulePlan = this.renderScheduler.plan(renderScheduleItems);
     this.reportStageProgress("render", "running", "Rendering scheduled shots and candidates.", {
       scheduledShotCount: compiledPrompts.length,
+      renderScheduleBatchCount: renderSchedulePlan.batchCount,
+      renderScheduleParallelBatchCount: renderSchedulePlan.parallelBatchCount,
+      renderScheduleSequentialShotCount: renderSchedulePlan.sequentialItemCount,
       candidateCount,
       repairAttemptCount
     });
     let renderResults: readonly RenderScheduleResult<RenderedShot>[];
     try {
       renderResults = await this.renderScheduler.run(
-        compiledPrompts.map((compiledPrompt, promptIndex) => {
-          const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
-          const preflight = preflightReports[promptIndex];
-          if (!shot) {
-            throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
-          }
-          if (!preflight) {
-            throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
-          }
-          return {
-            index: promptIndex,
-            shot,
-            value: {
-              compiledPrompt,
-              preflight,
-              shouldRunTestTake: this.shouldRunTestTake(shot, intake.settings)
-            }
-          };
-        }),
+        renderScheduleItems,
         async (item) =>
           this.renderShot({
             shot: item.shot,
@@ -497,6 +506,7 @@ export class DirectorAgent {
       materialSourceValidation,
       postproductionAssetPlan,
       ...(generatedAudioOutputBatchValidation ? { generatedAudioOutputBatchValidation } : {}),
+      renderSchedulePlan,
       stagePlan,
       costEstimate,
       compiledPrompts,

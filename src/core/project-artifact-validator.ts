@@ -26,6 +26,7 @@ const SUCCESS_REQUIRED_KINDS: readonly ProjectArtifactKind[] = [
   "material_sourcing_plan",
   "material_source_validation",
   "postproduction_asset_plan",
+  "render_schedule",
   "stage_lifecycle",
   "cost_plan",
   "compiled_prompts",
@@ -59,6 +60,16 @@ const POSTPRODUCTION_GENERATED_AUDIO_STATUSES = new Set([
   "partially_ready"
 ]);
 const POSTPRODUCTION_GENERATED_AUDIO_KINDS = new Set(["tts_narration", "bgm", "ambience", "sfx"]);
+const RENDER_SCHEDULE_MODES = new Set(["parallel", "sequential"]);
+const RENDER_SCHEDULE_SEQUENTIAL_REASONS = new Set([
+  "endpoint_reference",
+  "endpoint_continuity",
+  "source_video_structure",
+  "source_video_timeline",
+  "continuity_risk",
+  "transition_risk",
+  "transition_intent"
+]);
 const GENERATED_AUDIO_OUTPUT_BATCH_STATUSES = new Set([
   "not_requested",
   "approved",
@@ -354,6 +365,7 @@ export class ProjectArtifactValidator {
     this.validateMaterialSourcingPlan(artifacts.get("material_sourcing_plan"), checks);
     this.validateMaterialSourceValidation(manifest, artifacts.get("material_source_validation"), checks);
     this.validatePostproductionAssetPlan(manifest, artifacts.get("postproduction_asset_plan"), checks);
+    this.validateRenderSchedule(artifacts.get("render_schedule"), checks);
     this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
     this.validatePostproductionAssetConsistency(artifacts, checks);
     this.validateGeneratedAudioOutputBatchConsistency(artifacts, checks);
@@ -532,6 +544,78 @@ export class ProjectArtifactValidator {
       }
       if (typeof issue.message !== "string" || !issue.message || typeof issue.repair !== "string" || !issue.repair) {
         checks.push({ name: "material_validation_issue_text", status: "fail", fileName: artifact.entry.fileName, message: `Material validation issue ${index} is missing message or repair.` });
+      }
+    }
+  }
+
+  private validateRenderSchedule(
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "render_schedule_shape", status: "fail", fileName: artifact.entry.fileName, message: "render-schedule must be an object." });
+      return;
+    }
+    if (typeof value.concurrency !== "number" || !Number.isInteger(value.concurrency) || value.concurrency <= 0) {
+      checks.push({ name: "render_schedule_concurrency", status: "fail", fileName: artifact.entry.fileName, message: "render-schedule concurrency must be a positive integer." });
+    }
+    if (!Array.isArray(value.items) || !Array.isArray(value.batches)) {
+      checks.push({ name: "render_schedule_collections", status: "fail", fileName: artifact.entry.fileName, message: "render-schedule items and batches must be arrays." });
+      return;
+    }
+    if (typeof value.itemCount === "number" && value.itemCount !== value.items.length) {
+      checks.push({ name: "render_schedule_item_count", status: "fail", fileName: artifact.entry.fileName, message: "render-schedule itemCount must match items length." });
+    }
+    if (typeof value.batchCount === "number" && value.batchCount !== value.batches.length) {
+      checks.push({ name: "render_schedule_batch_count", status: "fail", fileName: artifact.entry.fileName, message: "render-schedule batchCount must match batches length." });
+    }
+    for (const [index, item] of value.items.entries()) {
+      if (!this.isRecord(item)) {
+        checks.push({ name: "render_schedule_item_shape", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule item ${index} is not an object.` });
+        continue;
+      }
+      if (typeof item.shotId !== "string" || !item.shotId) {
+        checks.push({ name: "render_schedule_item_shot", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule item ${index} is missing shotId.` });
+      }
+      if (typeof item.batchId !== "string" || !item.batchId) {
+        checks.push({ name: "render_schedule_item_batch", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule item ${index} is missing batchId.` });
+      }
+      if (typeof item.mode !== "string" || !RENDER_SCHEDULE_MODES.has(item.mode)) {
+        checks.push({ name: "render_schedule_item_mode", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule item ${index} has invalid mode.` });
+      }
+      if (!Array.isArray(item.sequentialReasons)) {
+        checks.push({ name: "render_schedule_item_reasons", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule item ${index} sequentialReasons must be an array.` });
+      } else {
+        if (item.mode === "sequential" && item.sequentialReasons.length === 0) {
+          checks.push({ name: "render_schedule_item_reasons", status: "fail", fileName: artifact.entry.fileName, message: `Sequential render schedule item ${index} must include at least one reason.` });
+        }
+        if (item.mode === "parallel" && item.sequentialReasons.length !== 0) {
+          checks.push({ name: "render_schedule_item_reasons", status: "fail", fileName: artifact.entry.fileName, message: `Parallel render schedule item ${index} must not include sequential reasons.` });
+        }
+        for (const reason of item.sequentialReasons) {
+          if (typeof reason !== "string" || !RENDER_SCHEDULE_SEQUENTIAL_REASONS.has(reason)) {
+            checks.push({ name: "render_schedule_reason", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule item ${index} has invalid sequential reason.` });
+          }
+        }
+      }
+    }
+    for (const [index, batch] of value.batches.entries()) {
+      if (!this.isRecord(batch)) {
+        checks.push({ name: "render_schedule_batch_shape", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule batch ${index} is not an object.` });
+        continue;
+      }
+      if (typeof batch.batchId !== "string" || !batch.batchId) {
+        checks.push({ name: "render_schedule_batch_id", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule batch ${index} is missing batchId.` });
+      }
+      if (typeof batch.mode !== "string" || !RENDER_SCHEDULE_MODES.has(batch.mode)) {
+        checks.push({ name: "render_schedule_batch_mode", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule batch ${index} has invalid mode.` });
+      }
+      if (!Array.isArray(batch.itemIndexes) || !Array.isArray(batch.shotIds)) {
+        checks.push({ name: "render_schedule_batch_items", status: "fail", fileName: artifact.entry.fileName, message: `Render schedule batch ${index} must include itemIndexes and shotIds arrays.` });
       }
     }
   }

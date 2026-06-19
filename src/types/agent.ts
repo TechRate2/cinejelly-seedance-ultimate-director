@@ -23,6 +23,7 @@ import type { MaterialSourceValidationReport, MaterialSourcingPlan } from "./mat
 import type { ProductionStagePlan } from "./stage.js";
 import type { PostproductionAssetPlan } from "./postproduction-assets.js";
 import type { GeneratedAudioOutputValidationBatchReport } from "./generated-audio-output.js";
+import type { RenderSchedulePlan } from "../core/render-scheduler.js";
 
 export interface CineJellyProjectRequest {
   readonly userInput: string;
@@ -90,6 +91,7 @@ export interface DirectorRunResult {
   readonly materialSourceValidation: MaterialSourceValidationReport;
   readonly postproductionAssetPlan: PostproductionAssetPlan;
   readonly generatedAudioOutputBatchValidation?: GeneratedAudioOutputValidationBatchReport;
+  readonly renderSchedulePlan: RenderSchedulePlan;
   readonly stagePlan: ProductionStagePlan;
   readonly costEstimate: RenderCostEstimate;
   readonly compiledPrompts: readonly CompiledPrompt[];

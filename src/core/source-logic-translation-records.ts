@@ -458,6 +458,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "long-form work is decomposed into renderable shots before provider spend",
       "continuity-sensitive dependencies remain explicit in scheduling and graph evidence",
+      "source-video, transition, endpoint, and continuity-risk render barriers are visible in schedule evidence",
       "candidate and repair evidence remains traceable by shot"
     ],
     behaviorChanged: [
@@ -470,8 +471,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/stage.ts",
       "src/core/production-stage-planner.ts",
       "src/core/render-scheduler.ts",
+      "src/types/artifact.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
       "src/core/production-graph-builder.ts",
-      "src/agents/director-agent.ts"
+      "src/agents/director-agent.ts",
+      "scripts/run-render-scheduler-smoke.mjs",
+      "schemas/render-scheduler-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -491,12 +497,12 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     license: "MIT",
     behaviorPreserved: [
       "project stages remain deterministic and operator-visible",
-      "artifact order preserves planning, storyboard, graph, cost, render, review, and delivery evidence",
+      "artifact order preserves planning, storyboard, graph, schedule, cost, render, review, and delivery evidence",
       "repair and inspection stages are separate lifecycle records"
     ],
     behaviorChanged: [
       "CLI project-loop status is rewritten into typed stage lifecycle records",
-      "stage lifecycle is exposed through review packets and JSON artifacts",
+      "stage lifecycle and render schedule are exposed through reviewable JSON artifacts",
       "CineJelly keeps Atlas Cloud as provider default instead of adopting upstream provider routing"
     ],
     referenceImplementationPath: "docs/reference-implementations/long-form-planning-batch-workflow.md",
@@ -504,8 +510,12 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/stage.ts",
       "src/core/production-stage-planner.ts",
       "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
+      "src/core/render-scheduler.ts",
       "src/types/review.ts",
-      "src/core/review-packet-builder.ts"
+      "src/core/review-packet-builder.ts",
+      "scripts/run-render-scheduler-smoke.mjs",
+      "schemas/render-scheduler-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -527,12 +537,13 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "one-input work becomes explicit stages",
       "material sourcing happens before final composition",
+      "render batches and sequential shot barriers are visible before final composition",
       "batch candidates and final deliverable evidence are visible to operators"
     ],
     behaviorChanged: [
       "MoneyPrinterTurbo task progress is adapted into CineJelly stage lifecycle records",
       "material sourcing is represented as governed briefs rather than immediate stock downloads",
-      "batch render candidates remain Seedance/Atlas render candidates with graph and review evidence"
+      "batch render candidates remain Seedance/Atlas render candidates with graph, schedule, and review evidence"
     ],
     referenceImplementationPath: "docs/reference-implementations/long-form-planning-batch-workflow.md",
     cineJellyDestinationPaths: [
@@ -541,7 +552,11 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/graph.ts",
       "src/core/production-graph-builder.ts",
       "src/core/project-artifact-store.ts",
-      "src/agents/director-agent.ts"
+      "src/core/project-artifact-validator.ts",
+      "src/core/render-scheduler.ts",
+      "src/agents/director-agent.ts",
+      "scripts/run-render-scheduler-smoke.mjs",
+      "schemas/render-scheduler-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
