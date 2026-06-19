@@ -57,6 +57,7 @@ const defaultContracts = [
   contract("generated_audio_artifact_evidence", "schemas/generated-audio-artifact-evidence-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-artifact-evidence-report.json"),
   contract("generated_audio_manual_review", "schemas/generated-audio-manual-review.schema.json", "ops/generated-audio-manual-review.json"),
   contract("generated_audio_manual_review_draft", "schemas/generated-audio-manual-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json"),
+  contract("generated_audio_manual_review_readiness", "schemas/generated-audio-manual-review-readiness-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-manual-review-readiness-report.json"),
   contract("generated_audio_mapping_smoke", "schemas/generated-audio-mapping-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json"),
   contract("generated_audio_polling_resilience", "schemas/generated-audio-polling-resilience-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"),
   contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
@@ -339,6 +340,9 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "generated_audio_artifact_evidence") {
     return validateGeneratedAudioArtifactEvidenceSemantics(report);
   }
+  if (item.name === "generated_audio_manual_review_readiness") {
+    return validateGeneratedAudioManualReviewReadinessSemantics(report);
+  }
   if (item.name === "long_form_manual_quality_review") {
     return validateLongFormManualQualityReviewSemantics(report);
   }
@@ -392,6 +396,7 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "quality_benchmark",
   "quality_review_guard",
   "quality_review_evidence",
+  "generated_audio_review_readiness",
   "launch_intake",
   "live_inputs",
   "business_plan",
@@ -459,6 +464,13 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (report?.readinessSnapshot?.generatedAudioArtifactEvidenceStatus !== report?.reportSummaries?.generatedAudioArtifactEvidence?.status) {
     issues.push("$.readinessSnapshot.generatedAudioArtifactEvidenceStatus: expected to match reportSummaries.generatedAudioArtifactEvidence.status.");
+  }
+  const generatedAudioReviewReadinessRun = commandByName.get("generated_audio_review_readiness");
+  if (generatedAudioReviewReadinessRun?.status !== "pass") {
+    issues.push("$.commandRuns[generated_audio_review_readiness].status: expected pass for generated-audio manual-review readiness command.");
+  }
+  if (report?.readinessSnapshot?.generatedAudioReviewReadinessStatus !== report?.reportSummaries?.generatedAudioReviewReadiness?.status) {
+    issues.push("$.readinessSnapshot.generatedAudioReviewReadinessStatus: expected to match reportSummaries.generatedAudioReviewReadiness.status.");
   }
   const materialSourceScoringRun = commandByName.get("material_source_scoring");
   if (materialSourceScoringRun?.status !== "pass") {
@@ -2581,6 +2593,73 @@ function generatedAudioArtifactEvidenceStatusForChecks(checks) {
     return "blocked_by_source_report";
   }
   return checks.every((check) => check?.status === "pass") ? "pass" : "fail";
+}
+
+function validateGeneratedAudioManualReviewReadinessSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const sourceReady = report?.sourceReportContext?.readyForArtifactAndManualReview === true;
+  const artifactReady = report?.artifactEvidenceContext?.readyForManualReviewBinding === true;
+  const manualPresent = report?.manualReviewContext?.present === true;
+  const manualPassed = report?.manualReviewContext?.passed === true;
+  let expectedStatus = "ready_for_manual_review";
+  if (!sourceReady) {
+    expectedStatus = "blocked_by_generated_audio_report";
+  } else if (!artifactReady) {
+    expectedStatus = "blocked_by_artifact_evidence";
+  } else if (manualPassed) {
+    expectedStatus = "accepted_manual_review";
+  } else if (manualPresent) {
+    expectedStatus = "blocked_by_manual_review";
+  }
+  if (report?.status !== expectedStatus) {
+    issues.push(`$.status: expected ${expectedStatus} from source/artifact/manual review readiness.`);
+  }
+  if (
+    report?.noSpend !== true ||
+    report?.networkCallsMade !== false ||
+    report?.providerCallsMade !== false ||
+    report?.releaseEvidence !== false
+  ) {
+    issues.push("$.noSpend/networkCallsMade/providerCallsMade/releaseEvidence: expected no-spend, no-network, no-provider, non-release readiness evidence.");
+  }
+  if (sourceReady && report?.sourceReportContext?.outputUrlClean !== true) {
+    issues.push("$.sourceReportContext.outputUrlClean: expected clean HTTPS output URL when source is ready.");
+  }
+  if (artifactReady) {
+    if (report?.artifactEvidenceContext?.bindingMatchesSourceReport !== true) {
+      issues.push("$.artifactEvidenceContext.bindingMatchesSourceReport: expected true when artifact evidence is ready.");
+    }
+    if (Number(report?.artifactEvidenceContext?.byteSize ?? 0) <= 0) {
+      issues.push("$.artifactEvidenceContext.byteSize: expected positive byte size when artifact evidence is ready.");
+    }
+    if (Number(report?.artifactEvidenceContext?.durationSeconds ?? 0) <= 0) {
+      issues.push("$.artifactEvidenceContext.durationSeconds: expected positive duration when artifact evidence is ready.");
+    }
+  }
+  if (manualPassed) {
+    if (report?.manualReviewContext?.status !== "accepted" || report?.manualReviewContext?.decision !== "pass") {
+      issues.push("$.manualReviewContext.status/decision: expected accepted/pass when manual review passes.");
+    }
+    if (report?.manualReviewContext?.artifactBindingMatchesReport !== true || report?.manualReviewContext?.artifactEvidenceMatchesReport !== true) {
+      issues.push("$.manualReviewContext artifact binding/evidence: expected matches when manual review passes.");
+    }
+    if (report?.releaseGateSummary?.canUseManualReviewAsGeneratedAudioEvidence !== true) {
+      issues.push("$.releaseGateSummary.canUseManualReviewAsGeneratedAudioEvidence: expected true for accepted manual review.");
+    }
+  } else if (report?.releaseGateSummary?.canUseManualReviewAsGeneratedAudioEvidence !== false) {
+    issues.push("$.releaseGateSummary.canUseManualReviewAsGeneratedAudioEvidence: expected false until manual review is accepted.");
+  }
+  if (
+    report?.releaseGateSummary?.canUseAsBusinessReadinessGeneratedAudioEvidence !== false ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: readiness evidence must not unlock business-readiness generated audio or customer traffic by itself.");
+  }
+  if (checks.filter((check) => check?.status === "fail").length > 0 && ["ready_for_manual_review", "accepted_manual_review"].includes(report?.status)) {
+    issues.push("$.checks: ready/accepted readiness reports must not contain failed checks.");
+  }
+  return issues;
 }
 
 function validateLongFormManualQualityReviewSemantics(report) {

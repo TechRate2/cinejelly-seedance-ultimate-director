@@ -33,6 +33,7 @@ The runner must:
 16. Manual review for business evidence must use either structured `cinejelly.generated-audio-manual-review.v1` JSON evidence or a confirmed legacy review note; a flag by itself must not pass manual review.
 17. The generated-audio manual-review draft helper must create `needs_review` operator files only, and copied draft files must be rejected by the final manual-review schema until a real reviewer fills accepted evidence.
 18. Structured manual review evidence must include generated-audio artifact evidence captured from the already-generated clean output URL, including report path, local artifact path, SHA-256, byte size, duration, output URL, and prediction id, and the review-existing validator must reject drift from that artifact evidence report.
+19. The generated-audio manual-review readiness helper must be no-spend/no-network and distinguish `ready_for_manual_review` from accepted review evidence; it may prove provider and artifact evidence are ready, but it must not approve business-readiness generated audio or customer traffic by itself.
 
 ## Report Shape
 
@@ -100,6 +101,7 @@ npm.cmd run validation:generated-audio-polling-resilience
 npm.cmd run validation:generated-audio-artifact
 npm.cmd run validation:generated-audio-artifact -- --confirm-live-network
 npm.cmd run validation:generated-audio-review-draft
+npm.cmd run validation:generated-audio-review-readiness
 npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed
 npm.cmd run validation:generated-audio -- --confirm-provider-spend --confirm-audio-schema-reviewed --resume-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json
 npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review
@@ -121,6 +123,7 @@ The default run writes a blocked no-spend report. A live run now uses Atlas `gen
 - Done: classify structured terminal failed prediction bodies as terminal provider evidence even when Atlas returns them with HTTP error status.
 - Done: add structured generated-audio manual review schema plus no-spend draft template/checklist generation.
 - Done: add generated-audio artifact evidence capture so structured manual review can bind to SHA-256/duration evidence from the exact reviewed audio bytes.
+- Done: add no-spend generated-audio manual-review readiness validation so launch doctor can show when provider output and artifact evidence are ready but listening approval is still missing.
 - Done: update README and operator runbook.
 
 ## Remaining

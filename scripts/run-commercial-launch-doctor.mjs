@@ -304,6 +304,11 @@ function buildCommands(options) {
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
+    command("generated_audio_review_readiness", ["scripts/validate-generated-audio-manual-review-readiness.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/generated-audio-manual-review-readiness-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
     command("long_form_review_draft", ["scripts/create-long-form-manual-quality-review-draft.mjs", "--force"], {
       reportPath: "assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json",
       expectedExitCodes: [0, 1],
@@ -425,6 +430,7 @@ function buildReport(options, commandRuns) {
     generatedAudioValidation: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
     generatedAudioArtifactEvidence: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-artifact-evidence-report.json"),
     generatedAudioReviewDraft: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json"),
+    generatedAudioReviewReadiness: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-manual-review-readiness-report.json"),
     longFormReviewDraft: summarizeReport("assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
     snapshotParity: summarizeReport("assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"),
     materialSourceScoring: summarizeReport("assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"),
@@ -506,6 +512,7 @@ function buildReport(options, commandRuns) {
       generatedAudioValidationStatus: reportSummaries.generatedAudioValidation.status,
       generatedAudioArtifactEvidenceStatus: reportSummaries.generatedAudioArtifactEvidence.status,
       generatedAudioReviewDraftStatus: reportSummaries.generatedAudioReviewDraft.status,
+      generatedAudioReviewReadinessStatus: reportSummaries.generatedAudioReviewReadiness.status,
       longFormReviewDraftStatus: reportSummaries.longFormReviewDraft.status,
       providerReconciliationStatus: reportSummaries.providerReconciliation.status,
       providerHandoffStatus: reportSummaries.providerHandoff.status,
@@ -940,6 +947,7 @@ function renderMarkdown(report) {
     `- Generated-audio validation: ${report.readinessSnapshot.generatedAudioValidationStatus}`,
     `- Generated-audio artifact evidence: ${report.readinessSnapshot.generatedAudioArtifactEvidenceStatus}`,
     `- Generated-audio review draft: ${report.readinessSnapshot.generatedAudioReviewDraftStatus}`,
+    `- Generated-audio review readiness: ${report.readinessSnapshot.generatedAudioReviewReadinessStatus}`,
     `- Long-form review draft: ${report.readinessSnapshot.longFormReviewDraftStatus}`,
     `- Provider reconciliation: ${report.readinessSnapshot.providerReconciliationStatus}`,
     `- Provider handoff: ${report.readinessSnapshot.providerHandoffStatus}`,

@@ -2539,6 +2539,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "CineJelly downloads only an already-generated credential-free HTTPS audio URL after explicit live-network confirmation",
       "no Atlas model endpoint, provider execution, or generated-audio spend is performed by the artifact capture command",
+      "manual-review readiness is machine-checkable only after provider output and artifact SHA/duration evidence are bound",
       "structured manual review must bind to the captured SHA-256, byte size, duration, output URL, and prediction id before it can pass"
     ],
     referenceImplementationPath: "docs/reference-implementations/generated-audio-artifact-evidence.md",
@@ -2547,12 +2548,15 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "schemas/generated-audio-artifact-evidence-report.schema.json",
       "schemas/generated-audio-manual-review.schema.json",
       "scripts/create-generated-audio-manual-review-draft.mjs",
+      "scripts/validate-generated-audio-manual-review-readiness.mjs",
+      "schemas/generated-audio-manual-review-readiness-report.schema.json",
       "scripts/run-atlas-generated-audio-validation.mjs",
       "scripts/validate-report-contracts.mjs",
       "docs/OPERATOR_RUNBOOK.md"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
+      "manual-review readiness does not listen to audio or approve business evidence",
       "artifact evidence supports but does not replace manual listening review",
       "credential-free generated-audio URL availability can expire and may require a fresh paid provider run if the media host no longer serves the file"
     ],

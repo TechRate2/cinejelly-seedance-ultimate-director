@@ -54,6 +54,7 @@
     "validation:generated-audio": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-atlas-generated-audio-validation.mjs",
     "validation:generated-audio-artifact": "node --env-file-if-exists=.env scripts/capture-generated-audio-artifact-evidence.mjs",
     "validation:generated-audio-review-draft": "node scripts/create-generated-audio-manual-review-draft.mjs",
+    "validation:generated-audio-review-readiness": "node scripts/validate-generated-audio-manual-review-readiness.mjs",
     "validation:generated-audio-mapping": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-generated-audio-mapping-smoke.mjs",
     "validation:generated-audio-polling-resilience": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-generated-audio-polling-resilience-smoke.mjs",
     "validation:quality-benchmark": "node scripts/run-director-style-benchmark.mjs --build",
