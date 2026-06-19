@@ -458,6 +458,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "long-form work is decomposed into renderable shots before provider spend",
       "story arcs preserve deterministic sequence groupings before scenes, beats, and shots",
+      "sequence-level continuity anchors preserve identity, product, environment, style, source-video scene IDs, risk codes, and bridge intent before render",
       "continuity-sensitive dependencies remain explicit in scheduling and graph evidence",
       "source-video, transition, endpoint, and continuity-risk render barriers are visible in schedule evidence",
       "candidate and repair evidence remains traceable by shot"
@@ -465,13 +466,16 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "long-form lifecycle is represented through CineJelly ProductionStagePlan records",
       "material sourcing is separated from reference scoring and render selection",
-      "stage evidence is emitted in review packets and durable artifacts"
+      "stage and sequence-continuity evidence is emitted in review packets and durable artifacts"
     ],
     referenceImplementationPath: "docs/reference-implementations/long-form-planning-batch-workflow.md",
     cineJellyDestinationPaths: [
       "src/types/stage.ts",
       "src/core/production-stage-planner.ts",
       "src/core/render-scheduler.ts",
+      "src/core/long-form-sequence-planner.ts",
+      "src/types/long-form-continuity.ts",
+      "src/core/long-form-continuity-planner.ts",
       "src/types/artifact.ts",
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",
@@ -480,7 +484,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-render-scheduler-smoke.mjs",
       "schemas/render-scheduler-smoke-report.schema.json",
       "scripts/run-production-graph-sequence-smoke.mjs",
-      "schemas/production-graph-sequence-smoke-report.schema.json"
+      "schemas/production-graph-sequence-smoke-report.schema.json",
+      "scripts/run-long-form-continuity-smoke.mjs",
+      "schemas/long-form-continuity-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -502,6 +508,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "project stages remain deterministic and operator-visible",
       "artifact order preserves planning, storyboard, graph, schedule, cost, render, review, and delivery evidence",
       "story, sequence, scene, beat, and shot graph layers remain inspectable in deterministic artifacts",
+      "sequence-level continuity evidence is persisted as a deterministic reviewable artifact",
       "repair and inspection stages are separate lifecycle records"
     ],
     behaviorChanged: [
@@ -516,12 +523,17 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",
       "src/core/render-scheduler.ts",
+      "src/core/long-form-sequence-planner.ts",
+      "src/types/long-form-continuity.ts",
+      "src/core/long-form-continuity-planner.ts",
       "src/types/review.ts",
       "src/core/review-packet-builder.ts",
       "scripts/run-render-scheduler-smoke.mjs",
       "schemas/render-scheduler-smoke-report.schema.json",
       "scripts/run-production-graph-sequence-smoke.mjs",
-      "schemas/production-graph-sequence-smoke-report.schema.json"
+      "schemas/production-graph-sequence-smoke-report.schema.json",
+      "scripts/run-long-form-continuity-smoke.mjs",
+      "schemas/long-form-continuity-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -544,6 +556,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "one-input work becomes explicit stages",
       "material sourcing happens before final composition",
       "long-form production units stay grouped into sequence, scene, beat, and shot layers before render batches",
+      "sequence-level continuity and bridge evidence stays visible before final composition",
       "render batches and sequential shot barriers are visible before final composition",
       "batch candidates and final deliverable evidence are visible to operators"
     ],
@@ -557,6 +570,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/material.ts",
       "src/core/material-sourcing-planner.ts",
       "src/types/graph.ts",
+      "src/core/long-form-sequence-planner.ts",
+      "src/types/long-form-continuity.ts",
+      "src/core/long-form-continuity-planner.ts",
       "src/core/production-graph-builder.ts",
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",
@@ -565,7 +581,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-render-scheduler-smoke.mjs",
       "schemas/render-scheduler-smoke-report.schema.json",
       "scripts/run-production-graph-sequence-smoke.mjs",
-      "schemas/production-graph-sequence-smoke-report.schema.json"
+      "schemas/production-graph-sequence-smoke-report.schema.json",
+      "scripts/run-long-form-continuity-smoke.mjs",
+      "schemas/long-form-continuity-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [

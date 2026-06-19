@@ -8,22 +8,19 @@ import type { GraphEdgeType, ProductionGraphNode, ProductionGraphSnapshot } from
 import type { GuardianReport, GuardianSeverity } from "../types/guardian.js";
 import type { MaterialSourcingPlan } from "../types/material.js";
 import type { PromptReference, ShotContract } from "../types/prompt.js";
-import type { ScenePlan } from "./shot-planner.js";
 import type { Storyboard } from "../types/storyboard.js";
 import { createStableId } from "../utils/ids.js";
 import { now } from "../utils/time.js";
+import { LongFormSequencePlanner } from "./long-form-sequence-planner.js";
 import { ProductionGraph } from "./production-graph.js";
 
-interface SequenceGroup {
-  readonly sequenceId: string;
-  readonly title: string;
-  readonly purpose: string;
-  readonly targetDurationSeconds: number;
-  readonly order: number;
-  readonly scenes: readonly ScenePlan[];
-}
-
 export class ProductionGraphBuilder {
+  private readonly sequencePlanner: LongFormSequencePlanner;
+
+  public constructor(input: { readonly sequencePlanner?: LongFormSequencePlanner } = {}) {
+    this.sequencePlanner = input.sequencePlanner ?? new LongFormSequencePlanner();
+  }
+
   public build(input: {
     readonly intake: IntakeResult;
     readonly storyPlan: StoryPlan;
@@ -69,7 +66,10 @@ export class ProductionGraphBuilder {
       graph.addNode(materialNode);
       graph.addEdge(projectNode.id, materialNode.id, "depends_on");
     }
-    const sequenceGroups = this.sequenceGroups(input.intake.projectId, input.storyPlan);
+    const sequenceGroups = this.sequencePlanner.plan({
+      projectId: input.intake.projectId,
+      storyPlan: input.storyPlan
+    });
     let sceneOrder = 0;
     for (const sequenceGroup of sequenceGroups) {
       const sequenceNode = this.node("sequence", sequenceGroup.sequenceId, {
@@ -148,57 +148,6 @@ export class ProductionGraphBuilder {
     }
 
     return graph.snapshot();
-  }
-
-  private sequenceGroups(projectId: string, storyPlan: StoryPlan): readonly SequenceGroup[] {
-    if (storyPlan.scenes.length === 0) {
-      return [];
-    }
-    const targetSequenceCount = Math.min(
-      storyPlan.scenes.length,
-      Math.max(1, Math.ceil(storyPlan.targetDurationSeconds / 45))
-    );
-    const groups: SequenceGroup[] = [];
-    let sceneCursor = 0;
-
-    for (let sequenceIndex = 0; sequenceIndex < targetSequenceCount; sequenceIndex += 1) {
-      const remainingScenes = storyPlan.scenes.length - sceneCursor;
-      const remainingSequences = targetSequenceCount - sequenceIndex;
-      const scenesInGroup = Math.max(1, Math.ceil(remainingScenes / remainingSequences));
-      const scenes = storyPlan.scenes.slice(sceneCursor, sceneCursor + scenesInGroup);
-      sceneCursor += scenes.length;
-      const firstScene = scenes[0];
-      const lastScene = scenes[scenes.length - 1];
-      const targetDurationSeconds = scenes.reduce(
-        (sum, scene) => sum + scene.beats.reduce((beatSum, beat) => beatSum + beat.durationSeconds, 0),
-        0
-      );
-      groups.push({
-        sequenceId: createStableId("sequence", `${projectId}:${sequenceIndex}:${scenes.map((scene) => scene.sceneId).join("|")}`),
-        title: firstScene && lastScene && firstScene.sceneId !== lastScene.sceneId
-          ? `${firstScene.title} to ${lastScene.title}`
-          : firstScene?.title ?? `Sequence ${sequenceIndex + 1}`,
-        purpose: this.sequencePurpose(sequenceIndex, targetSequenceCount),
-        targetDurationSeconds,
-        order: sequenceIndex,
-        scenes
-      });
-    }
-
-    return groups;
-  }
-
-  private sequencePurpose(sequenceIndex: number, sequenceCount: number): string {
-    if (sequenceCount === 1) {
-      return "complete long-form story arc";
-    }
-    if (sequenceIndex === 0) {
-      return "hook, setup, and context";
-    }
-    if (sequenceIndex === sequenceCount - 1) {
-      return "payoff, proof, and delivery";
-    }
-    return "progressive story development and continuity bridge";
   }
 
   private addReferenceNodes(input: {

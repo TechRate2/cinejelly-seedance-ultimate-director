@@ -10,6 +10,7 @@ export type ProjectArtifactKind =
   | "storyboard"
   | "storyboard_preflight"
   | "production_graph"
+  | "long_form_continuity"
   | "material_sourcing_plan"
   | "material_source_validation"
   | "postproduction_asset_plan"

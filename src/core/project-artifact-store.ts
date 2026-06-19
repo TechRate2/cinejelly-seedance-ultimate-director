@@ -103,6 +103,10 @@ export class ProjectArtifactStore {
       sourceVideoTranscriptCueCount: sourceVideoAnalysis?.transcript?.length ?? 0,
       storyboardPanelCount: result.storyboard.panels.length,
       storyboardPreflightStatus: result.storyboardPreflight.status,
+      longFormSequenceCount: result.longFormContinuityPlan.sequenceCount,
+      longFormContinuityBridgeCount: result.longFormContinuityPlan.bridgeCount,
+      longFormHighRiskSequenceCount: result.longFormContinuityPlan.highRiskSequenceCount,
+      longFormSourceVideoAnchorCount: result.longFormContinuityPlan.sourceVideoAnchorCount,
       stageStatuses: result.stagePlan.records.map((record) => ({
         stage: record.stage,
         status: record.status
@@ -153,6 +157,7 @@ export class ProjectArtifactStore {
       { kind: "storyboard", fileName: "storyboard.json", value: result.storyboard },
       { kind: "storyboard_preflight", fileName: "storyboard-preflight.json", value: result.storyboardPreflight },
       { kind: "production_graph", fileName: "production-graph.json", value: result.productionGraph },
+      { kind: "long_form_continuity", fileName: "long-form-continuity.json", value: result.longFormContinuityPlan },
       { kind: "material_sourcing_plan", fileName: "material-sourcing-plan.json", value: result.materialSourcingPlan },
       { kind: "material_source_validation", fileName: "material-source-validation.json", value: result.materialSourceValidation },
       { kind: "postproduction_asset_plan", fileName: "postproduction-assets.json", value: result.postproductionAssetPlan },

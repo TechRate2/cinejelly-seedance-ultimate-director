@@ -14,6 +14,7 @@ import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
+import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
 import { ProductionStagePlanner } from "../core/production-stage-planner.js";
@@ -74,6 +75,7 @@ export class DirectorAgent {
   private readonly shotPlanner: ShotPlanner;
   private readonly storyboardPlanner: StoryboardPlanner;
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
+  private readonly longFormContinuityPlanner: LongFormContinuityPlanner;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
   private readonly productionStagePlanner: ProductionStagePlanner;
@@ -109,6 +111,7 @@ export class DirectorAgent {
     readonly shotPlanner?: ShotPlanner;
     readonly storyboardPlanner?: StoryboardPlanner;
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
+    readonly longFormContinuityPlanner?: LongFormContinuityPlanner;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
     readonly productionStagePlanner?: ProductionStagePlanner;
@@ -138,6 +141,7 @@ export class DirectorAgent {
     this.shotPlanner = input.shotPlanner ?? new ShotPlanner();
     this.storyboardPlanner = input.storyboardPlanner ?? new StoryboardPlanner();
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
+    this.longFormContinuityPlanner = input.longFormContinuityPlanner ?? new LongFormContinuityPlanner();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
     this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
@@ -181,9 +185,18 @@ export class DirectorAgent {
       ...(intake.metadata ? { metadata: intake.metadata } : {})
     });
     const shots = this.referenceSelectionPlanner.planForShots({ shots: plannedShots });
+    const longFormContinuityPlan = this.longFormContinuityPlanner.build({
+      projectId: intake.projectId,
+      storyPlan,
+      shots,
+      references: intake.references,
+      ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: intake.sourceVideoAnalysis } : {})
+    });
     this.reportStageProgress("plan", "succeeded", "Planning completed.", {
       sceneCount: storyPlan.scenes.length,
       shotCount: shots.length,
+      longFormSequenceCount: longFormContinuityPlan.sequenceCount,
+      highRiskSequenceCount: longFormContinuityPlan.highRiskSequenceCount,
       targetDurationSeconds: storyPlan.targetDurationSeconds,
       referenceCount: intake.references.length
     });
@@ -502,6 +515,7 @@ export class DirectorAgent {
       storyboard,
       storyboardPreflight,
       productionGraph: finalProductionGraph,
+      longFormContinuityPlan,
       materialSourcingPlan,
       materialSourceValidation,
       postproductionAssetPlan,

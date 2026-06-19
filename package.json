@@ -46,6 +46,7 @@
     "validation:provider-graph-resume": "node scripts/validate-render-provider-graph-resume-enqueues.mjs",
     "validation:snapshot-parity": "node scripts/audit-snapshot-parity.mjs",
     "validation:long-form": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-long-form-validation.mjs",
+    "validation:long-form-continuity": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-long-form-continuity-smoke.mjs",
     "validation:long-form-review-draft": "node scripts/create-long-form-manual-quality-review-draft.mjs",
     "validation:long-form-review-readiness": "node scripts/validate-long-form-manual-review-readiness.mjs",
     "validation:source-video-auto-analysis": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-source-video-auto-analysis-validation.mjs",

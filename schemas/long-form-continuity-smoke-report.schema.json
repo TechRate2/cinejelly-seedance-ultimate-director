@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/long-form-continuity-smoke-report.schema.json",
+  "title": "CineJelly Long-Form Continuity Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenario",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.long-form-continuity-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "scenarioCount", "targetDurationSeconds", "rawUrlLeakCheckPassed"],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "scenarioCount": { "const": 1 },
+        "targetDurationSeconds": { "type": "number", "minimum": 120 },
+        "rawUrlLeakCheckPassed": { "type": "boolean" }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectId",
+        "sequenceCount",
+        "sceneCount",
+        "beatCount",
+        "shotCount",
+        "bridgeCount",
+        "highRiskSequenceCount",
+        "sourceVideoAnchorCount",
+        "sequenceShotCount",
+        "sequenceSceneCount",
+        "sequentialRecommendedCount",
+        "sourceAnchoredSequenceCount",
+        "globalAnchorCounts"
+      ],
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1 },
+        "sequenceCount": { "type": "integer", "minimum": 1 },
+        "sceneCount": { "type": "integer", "minimum": 1 },
+        "beatCount": { "type": "integer", "minimum": 1 },
+        "shotCount": { "type": "integer", "minimum": 1 },
+        "bridgeCount": { "type": "integer", "minimum": 0 },
+        "highRiskSequenceCount": { "type": "integer", "minimum": 0 },
+        "sourceVideoAnchorCount": { "type": "integer", "minimum": 0 },
+        "sequenceShotCount": { "type": "integer", "minimum": 1 },
+        "sequenceSceneCount": { "type": "integer", "minimum": 1 },
+        "sequentialRecommendedCount": { "type": "integer", "minimum": 0 },
+        "sourceAnchoredSequenceCount": { "type": "integer", "minimum": 0 },
+        "globalAnchorCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["identity", "product", "environment", "style", "sourceVideoSceneIds"],
+          "properties": {
+            "identity": { "type": "integer", "minimum": 1 },
+            "product": { "type": "integer", "minimum": 1 },
+            "environment": { "type": "integer", "minimum": 1 },
+            "style": { "type": "integer", "minimum": 1 },
+            "sourceVideoSceneIds": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 8,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsNoSpendLongFormContinuityEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsNoSpendLongFormContinuityEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

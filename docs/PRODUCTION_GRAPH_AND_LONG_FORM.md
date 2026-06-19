@@ -181,6 +181,7 @@ Long-form grouping that allows parallel and staged production:
 Runtime implementation:
 
 - `ProductionGraphBuilder` now creates explicit `sequence` nodes between `story_arc` and `scene`, grouping contiguous scenes deterministically from target duration and scene count instead of wiring story directly to scenes.
+- `LongFormSequencePlanner` shares the same deterministic grouping between Production Graph and continuity evidence so sequence IDs, scene membership, order, and duration reasoning stay aligned.
 - `ProjectArtifactValidator` treats `story_arc`, `sequence`, `scene`, `shot`, and `material_sourcing` nodes as required production-graph evidence and checks sequence data, parent edges, and deterministic order.
 - `scripts/run-production-graph-sequence-smoke.mjs` proves the no-spend hierarchy for one-scene, 120-second, and 480-second graph fixtures, including documented sequence-count ranges and no direct `story_arc -> scene` dependency edges.
 
@@ -324,6 +325,13 @@ Continuity is represented in ledgers:
 - `NarrativeLedger`: facts already stated, promises, story state.
 
 Each shot reads the relevant ledgers and writes updates only when approved by the graph.
+
+Runtime implementation:
+
+- `LongFormContinuityPlanner` builds `long-form-continuity.json` after shot planning and reference selection.
+- The artifact records per-sequence identity, product, environment, style, source-video scene IDs, risk codes, opening/closing beat summaries, bridge-to-next intent, and `parallel_safe` versus `sequential_recommended` render guidance.
+- Source-video references are reduced to source scene IDs and labels; raw provider/reference URLs are not serialized into continuity evidence.
+- `ProjectArtifactValidator` now requires and validates this artifact on successful runs, and `scripts/run-long-form-continuity-smoke.mjs` proves the no-spend continuity contract for a 120-second fixture.
 
 ## Reference Reuse Policy
 

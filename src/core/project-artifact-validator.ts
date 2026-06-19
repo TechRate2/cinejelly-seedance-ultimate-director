@@ -23,6 +23,7 @@ const SUCCESS_REQUIRED_KINDS: readonly ProjectArtifactKind[] = [
   "storyboard",
   "storyboard_preflight",
   "production_graph",
+  "long_form_continuity",
   "material_sourcing_plan",
   "material_source_validation",
   "postproduction_asset_plan",
@@ -365,6 +366,7 @@ export class ProjectArtifactValidator {
     this.validateMaterialSourcingPlan(artifacts.get("material_sourcing_plan"), checks);
     this.validateMaterialSourceValidation(manifest, artifacts.get("material_source_validation"), checks);
     this.validatePostproductionAssetPlan(manifest, artifacts.get("postproduction_asset_plan"), checks);
+    this.validateLongFormContinuity(manifest, artifacts.get("long_form_continuity"), checks);
     this.validateRenderSchedule(artifacts.get("render_schedule"), checks);
     this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
     this.validatePostproductionAssetConsistency(artifacts, checks);
@@ -421,6 +423,10 @@ export class ProjectArtifactValidator {
     this.requireArray(value.sourceLineage, "review_packet_source_lineage", artifact.entry.fileName, checks);
     this.requireArray(value.repairProvenance, "review_packet_repair_provenance", artifact.entry.fileName, checks);
     this.requireArray(value.stageLifecycle, "review_packet_stage_lifecycle", artifact.entry.fileName, checks);
+    const planning = this.isRecord(value.planning) ? value.planning : undefined;
+    if (!planning || typeof planning.longFormSequenceCount !== "number" || typeof planning.longFormContinuityBridgeCount !== "number") {
+      checks.push({ name: "review_packet_long_form_continuity", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing long-form continuity counts." });
+    }
   }
 
   private validateStageLifecycle(
@@ -899,6 +905,62 @@ export class ProjectArtifactValidator {
         }
       } else {
         checks.push({ name: "postproduction_generated_audio_execution_item", status: "fail", fileName, message: `generatedAudio executionPlan item ${index} status is invalid.` });
+      }
+    }
+  }
+
+  private validateLongFormContinuity(
+    manifest: ProjectArtifactBundle,
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "long_form_continuity_shape", status: "fail", fileName: artifact.entry.fileName, message: "long-form-continuity must be an object." });
+      return;
+    }
+    if (value.schemaVersion !== "cinejelly.long-form-continuity.v1") {
+      checks.push({ name: "long_form_continuity_schema", status: "fail", fileName: artifact.entry.fileName, message: "Unexpected long-form-continuity schema version." });
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "long_form_continuity_project", status: "fail", fileName: artifact.entry.fileName, message: "long-form-continuity projectId does not match manifest." });
+    }
+    if (!Array.isArray(value.sequences)) {
+      checks.push({ name: "long_form_continuity_sequences", status: "fail", fileName: artifact.entry.fileName, message: "long-form-continuity sequences are missing." });
+      return;
+    }
+    if (typeof value.sequenceCount !== "number" || value.sequenceCount !== value.sequences.length) {
+      checks.push({ name: "long_form_continuity_sequence_count", status: "fail", fileName: artifact.entry.fileName, message: "long-form-continuity sequenceCount must match sequences length." });
+    }
+    const bridgeCount = value.sequences.filter((sequence) => this.isRecord(sequence) && this.isRecord(sequence.bridgeToNext)).length;
+    if (typeof value.bridgeCount !== "number" || value.bridgeCount !== bridgeCount) {
+      checks.push({ name: "long_form_continuity_bridge_count", status: "fail", fileName: artifact.entry.fileName, message: "long-form-continuity bridgeCount must match bridge evidence." });
+    }
+    for (const [index, sequence] of value.sequences.entries()) {
+      if (!this.isRecord(sequence)) {
+        checks.push({ name: "long_form_continuity_sequence_shape", status: "fail", fileName: artifact.entry.fileName, message: `Sequence ${index} is not an object.` });
+        continue;
+      }
+      if (typeof sequence.sequenceId !== "string" || !sequence.sequenceId) {
+        checks.push({ name: "long_form_continuity_sequence_id", status: "fail", fileName: artifact.entry.fileName, message: `Sequence ${index} is missing sequenceId.` });
+      }
+      if (typeof sequence.order !== "number" || !Number.isInteger(sequence.order) || sequence.order !== index) {
+        checks.push({ name: "long_form_continuity_sequence_order", status: "fail", fileName: artifact.entry.fileName, message: `Sequence ${index} order is not deterministic.` });
+      }
+      for (const field of ["sceneIds", "beatIds", "shotIds", "riskCodes"] as const) {
+        if (!Array.isArray(sequence[field])) {
+          checks.push({ name: "long_form_continuity_sequence_arrays", status: "fail", fileName: artifact.entry.fileName, message: `Sequence ${index} ${field} must be an array.` });
+        }
+      }
+      const anchors = this.isRecord(sequence.anchors) ? sequence.anchors : undefined;
+      if (!anchors || !Array.isArray(anchors.identity) || !Array.isArray(anchors.product) || !Array.isArray(anchors.environment) || !Array.isArray(anchors.style) || !Array.isArray(anchors.sourceVideoSceneIds)) {
+        checks.push({ name: "long_form_continuity_anchors", status: "fail", fileName: artifact.entry.fileName, message: `Sequence ${index} anchors are incomplete.` });
+      }
+      if (sequence.renderModeRecommendation !== "parallel_safe" && sequence.renderModeRecommendation !== "sequential_recommended") {
+        checks.push({ name: "long_form_continuity_render_mode", status: "fail", fileName: artifact.entry.fileName, message: `Sequence ${index} has invalid renderModeRecommendation.` });
       }
     }
   }

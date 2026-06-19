@@ -23,6 +23,7 @@ import type { MaterialSourceValidationReport, MaterialSourcingPlan } from "./mat
 import type { ProductionStagePlan } from "./stage.js";
 import type { PostproductionAssetPlan } from "./postproduction-assets.js";
 import type { GeneratedAudioOutputValidationBatchReport } from "./generated-audio-output.js";
+import type { LongFormContinuityPlan } from "./long-form-continuity.js";
 import type { RenderSchedulePlan } from "../core/render-scheduler.js";
 
 export interface CineJellyProjectRequest {
@@ -87,6 +88,7 @@ export interface DirectorRunResult {
   readonly storyboard: Storyboard;
   readonly storyboardPreflight: GuardianReport;
   readonly productionGraph: ProductionGraphSnapshot;
+  readonly longFormContinuityPlan: LongFormContinuityPlan;
   readonly materialSourcingPlan: MaterialSourcingPlan;
   readonly materialSourceValidation: MaterialSourceValidationReport;
   readonly postproductionAssetPlan: PostproductionAssetPlan;
