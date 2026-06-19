@@ -114,6 +114,8 @@ Manual review JSON should be written only after the paid run emits artifact evid
   "reviewedProjectId": "<artifactEvidence.projectId>",
   "reviewedManifestSha256": "<artifactEvidence.manifestSha256>",
   "reviewedDeliverableSha256": "<artifactEvidence.deliverableSha256>",
+  "reviewer": "Operator or approved reviewer name",
+  "reviewedAt": "2026-06-19T00:00:00.000Z",
   "qualityChecks": {
     "durationAndPacingAccepted": true,
     "shotContinuityAccepted": true,
@@ -136,6 +138,7 @@ Manual review JSON should be written only after the paid run emits artifact evid
 - Done: add `npm.cmd run validation:long-form-review-draft`.
 - Done: add `npm.cmd run validation:long-form-review-readiness`.
 - Done: add schema-aware long-form evaluation to `validation:business-readiness`.
+- Done: add report-contract semantic validation for raw long-form manual review packets so pass decisions require redaction review, every required quality check, real redacted reviewer text, and a valid reviewedAt timestamp.
 - Done: document the no-spend, budget, Atlas billing, paid-spend, artifact, draft-helper, and artifact-bound manual-review gates.
 
 ## Remaining

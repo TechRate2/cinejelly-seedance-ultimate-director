@@ -2893,19 +2893,43 @@ function validateGeneratedAudioManualReviewReadinessSemantics(report) {
 
 function validateLongFormManualQualityReviewSemantics(report) {
   const issues = [];
+  const requiredQualityCheckNames = [
+    "durationAndPacingAccepted",
+    "shotContinuityAccepted",
+    "visualArtifactsAccepted",
+    "promptFidelityAccepted",
+    "audioSyncAccepted",
+    "noUnsafeContentObserved"
+  ];
   const qualityChecks = report?.qualityChecks && typeof report.qualityChecks === "object"
-    ? Object.values(report.qualityChecks)
+    ? report.qualityChecks
     : [];
   if (report?.decision === "pass") {
     if (report?.redactionReviewPassed !== true) {
       issues.push("$.redactionReviewPassed: pass reviews must include accepted redaction review.");
     }
-    if (qualityChecks.length > 0 && qualityChecks.some((value) => value !== true)) {
-      issues.push("$.qualityChecks: every declared quality check must be true when decision=pass.");
+    for (const checkName of requiredQualityCheckNames) {
+      if (qualityChecks?.[checkName] !== true) {
+        issues.push(`$.qualityChecks.${checkName}: expected true when decision=pass.`);
+      }
+    }
+    if (!isSafeManualReviewText(report?.reviewer)) {
+      issues.push("$.reviewer: pass reviews must include real redacted non-placeholder reviewer text.");
+    }
+    if (typeof report?.reviewedAt !== "string" || Number.isNaN(Date.parse(report.reviewedAt))) {
+      issues.push("$.reviewedAt: pass reviews must include a valid review timestamp.");
     }
   }
   if (report?.decision === "needs_review" && report?.redactionReviewPassed === true) {
     issues.push("$.redactionReviewPassed: needs_review packets must not mark redaction review passed.");
+  }
+  for (const [path, value] of [
+    ["$.reviewer", report?.reviewer],
+    ["$.notes", report?.notes]
+  ]) {
+    if (value !== undefined && !isSafeManualReviewText(value)) {
+      issues.push(`${path}: expected redacted non-placeholder review text without URLs, local paths, data URIs, bearer tokens, or credential-like strings.`);
+    }
   }
   return issues;
 }
