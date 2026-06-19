@@ -29,10 +29,12 @@
     "checkedInputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["dockerfilePath", "dockerignorePath", "envTemplatePath", "containerDocPath", "outputPath"],
+      "required": ["dockerfilePath", "dockerignorePath", "composePath", "caddyfilePath", "envTemplatePath", "containerDocPath", "outputPath"],
       "properties": {
         "dockerfilePath": { "type": "string" },
         "dockerignorePath": { "type": "string" },
+        "composePath": { "type": "string" },
+        "caddyfilePath": { "type": "string" },
         "envTemplatePath": { "type": "string" },
         "containerDocPath": { "type": "string" },
         "outputPath": { "type": "string" }

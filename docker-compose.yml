@@ -1,0 +1,41 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${CINEJELLY_IMAGE:-cinejelly-seedance-ultimate-director:local}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "8787"
+      CINEJELLY_OUTPUT_DIR: /app/assets/output_deliverables
+      CINEJELLY_TRUST_PROXY_HEADERS: "true"
+    volumes:
+      - cinejelly-output:/app/assets/output_deliverables
+      - cinejelly-reference-inputs:/app/assets/reference_inputs
+    expose:
+      - "8787"
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      CINEJELLY_PUBLIC_HOST: ${CINEJELLY_PUBLIC_HOST:?Set CINEJELLY_PUBLIC_HOST to the HTTPS hostname, for example api.example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  cinejelly-output:
+  cinejelly-reference-inputs:
+  caddy-data:
+  caddy-config:
