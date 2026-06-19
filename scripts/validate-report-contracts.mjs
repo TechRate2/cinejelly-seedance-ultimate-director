@@ -335,6 +335,18 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "remote_stock_adapter_smoke") {
     return validateRemoteStockAdapterSmokeSemantics(report);
   }
+  if (item.name === "director_style_semantic_review") {
+    return validateDirectorStyleRawReviewSemantics(report, directorStyleRawReviewConfigs.semantic);
+  }
+  if (item.name === "director_style_audio_review") {
+    return validateDirectorStyleRawReviewSemantics(report, directorStyleRawReviewConfigs.audio);
+  }
+  if (item.name === "director_style_runtime_review") {
+    return validateDirectorStyleRawReviewSemantics(report, directorStyleRawReviewConfigs.runtime);
+  }
+  if (item.name === "director_style_governance_review") {
+    return validateDirectorStyleRawReviewSemantics(report, directorStyleRawReviewConfigs.governance);
+  }
   if (item.name === "director_style_benchmark") {
     return validateDirectorStyleBenchmarkSemantics(report);
   }
@@ -2150,6 +2162,110 @@ const unsafeDirectorReviewTextPatterns = [
   /(?:file|s3|gs|ftp):\/\/[^\s"'<>]+/gi,
   /data:[^\s"'<>]+/gi
 ];
+
+const directorStyleRawReviewConfigs = {
+  semantic: {
+    kind: "semantic",
+    collectionKey: "metrics",
+    nameKey: "metricName",
+    requiredNames: [
+      "script_video_fidelity",
+      "user_demand_fulfillment",
+      "temporal_coherence",
+      "transition_quality",
+      "lighting_consistency",
+      "text_video_consistency"
+    ],
+    countKeys: ["reviewedShotCount", "reviewedBoundaryCount"]
+  },
+  audio: {
+    kind: "audio",
+    collectionKey: "metrics",
+    nameKey: "metricName",
+    requiredNames: [
+      "narration_reasonableness",
+      "bgm_consistency",
+      "video_audio_consistency",
+      "text_audio_consistency"
+    ],
+    countKeys: ["reviewedSegmentCount", "reviewedBoundaryCount"]
+  },
+  runtime: {
+    kind: "runtime",
+    collectionKey: "metrics",
+    nameKey: "metricName",
+    requiredNames: [
+      "asr_transcript_alignment",
+      "lip_sync_timing"
+    ],
+    countKeys: ["reviewedSegmentCount", "reviewedBoundaryCount"]
+  },
+  governance: {
+    kind: "governance",
+    collectionKey: "checks",
+    nameKey: "checkName",
+    requiredNames: [
+      "directorbench_license_boundary",
+      "upstream_code_reuse_boundary",
+      "runtime_evaluator_independence",
+      "evaluation_asset_permissions"
+    ],
+    countKeys: []
+  }
+};
+
+function validateDirectorStyleRawReviewSemantics(report, config) {
+  const issues = [];
+  const collection = Array.isArray(report?.[config.collectionKey]) ? report[config.collectionKey] : [];
+  const topStatus = typeof report?.status === "string" ? report.status : "missing";
+  const names = collection.map((item) => String(item?.[config.nameKey] ?? "")).filter(Boolean);
+  const duplicateNames = duplicateStrings(names);
+  if (duplicateNames.length > 0) {
+    issues.push(`$.${config.collectionKey}: expected unique ${config.nameKey} values, duplicated ${duplicateNames.join(", ")}.`);
+  }
+
+  issues.push(...unsafeDirectorReviewTextIssues(report, "$"));
+
+  const itemAcceptedNames = collection
+    .filter((item) => item?.status === "accepted")
+    .map((item) => item?.[config.nameKey])
+    .filter(Boolean);
+  if (topStatus !== "accepted" && itemAcceptedNames.length > 0) {
+    issues.push(`$.status: expected accepted when any ${config.kind} checkpoint is accepted.`);
+  }
+  if (topStatus === "accepted") {
+    const missing = config.requiredNames.filter((name) => !names.includes(name));
+    const nonAccepted = config.requiredNames.filter((name) => {
+      const item = collection.find((entry) => entry?.[config.nameKey] === name);
+      return item?.status !== "accepted";
+    });
+    if (missing.length > 0) {
+      issues.push(`$.${config.collectionKey}: accepted ${config.kind} review is missing required checkpoint(s): ${missing.join(", ")}.`);
+    }
+    if (nonAccepted.length > 0) {
+      issues.push(`$.${config.collectionKey}: accepted ${config.kind} review has non-accepted required checkpoint(s): ${nonAccepted.join(", ")}.`);
+    }
+    if (!directorStyleArtifactBindingComplete(report?.artifactBinding)) {
+      issues.push("$.artifactBinding: accepted Director-style review packets must include projectId, requestId, and deliverableSha256.");
+    }
+    for (const countKey of config.countKeys) {
+      if (Number(report?.[countKey] ?? 0) <= 0) {
+        issues.push(`$.${countKey}: accepted ${config.kind} review requires a positive reviewed evidence count.`);
+      }
+    }
+  }
+  return issues;
+}
+
+function directorStyleArtifactBindingComplete(binding) {
+  return binding &&
+    typeof binding === "object" &&
+    typeof binding.projectId === "string" &&
+    binding.projectId.trim().length > 0 &&
+    typeof binding.requestId === "string" &&
+    binding.requestId.trim().length > 0 &&
+    /^[a-f0-9]{64}$/.test(String(binding.deliverableSha256 ?? ""));
+}
 
 function validateDirectorStyleBenchmarkSemantics(report) {
   const issues = [];
