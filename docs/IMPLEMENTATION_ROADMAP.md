@@ -32,8 +32,8 @@ Ready foundations:
 Not yet complete:
 
 - Real deployment capture from an HTTPS non-localhost host using `validation:deployment-readiness`.
-- Real billing/admin/quota capture from an HTTPS deployment host with enabled client policies, persistent usage ledger, admin endpoint evidence, and non-secret billing/admin attestation; `validation:ops-config` now creates drafts and validates the required shape before this capture.
-- Real production operations capture from an HTTPS deployment host with durable storage, backups, restore test, monitoring, incident, support, redaction, and retention evidence; `validation:ops-config` now creates drafts and validates the required shape before this capture.
+- Real billing/admin/quota capture from an HTTPS deployment host with enabled client policies, persistent usage ledger, admin endpoint evidence, and non-secret billing/admin attestation; `validation:ops-config` now creates/promotes drafts and `validation:report-contracts` validates the raw ignored attestation packet when present before this capture.
+- Real production operations capture from an HTTPS deployment host with durable storage, backups, restore test, monitoring, incident, support, redaction, and retention evidence; `validation:ops-config` now creates/promotes drafts and `validation:report-contracts` validates the raw ignored attestation packet when present before this capture.
 - Real end-to-end Atlas render validation with paid credentials and FFmpeg/FFprobe available through `PATH` or configured binary paths.
 - Real artifact review from a paid Atlas validation run, including validator output, review packet, cost ledger, stage lifecycle, and deliverable metadata.
 - Live evidence run for source-video auto-analysis with a real clean HTTPS source video, deployment FFmpeg frame extraction, and the configured Atlas multimodal LLM. The adapter smoke, report contract, launch-doctor gate, validation runner, and spend gate are implemented; the archived live report is still pending.

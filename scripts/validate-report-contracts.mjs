@@ -45,6 +45,8 @@ const defaultContracts = [
   contract("commercial_launch_inputs", "schemas/commercial-launch-inputs-report.schema.json", "assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"),
   contract("business_completion_audit", "schemas/business-completion-audit-report.schema.json", "assets/output_deliverables/business-readiness/business-completion-audit-report.json"),
   contract("roadmap_closure_audit", "schemas/roadmap-closure-audit-report.schema.json", "assets/output_deliverables/business-readiness/roadmap-closure-audit-report.json"),
+  contract("billing_admin_attestation_packet", "schemas/billing-admin-attestation.schema.json", "ops/billing-admin-attestation.json"),
+  contract("production_operations_attestation_packet", "schemas/production-operations-attestation.schema.json", "ops/production-operations-attestation.json"),
   contract("ops_config_validation", "schemas/business-readiness-ops-config-validation-report.schema.json", "assets/output_deliverables/business-readiness/ops-config-validation-report.json"),
   contract("long_form_validation", "schemas/long-form-validation-report.schema.json", "assets/output_deliverables/business-readiness/long-form-validation-report.json"),
   contract("long_form_manual_quality_review", "schemas/long-form-manual-quality-review.schema.json", "ops/long-form-manual-quality-review.json"),
@@ -299,6 +301,12 @@ function validateSemanticContract(item, report, options) {
   }
   if (item.name === "commercial_launch_intake_packet") {
     return validateCommercialLaunchIntakePacketSemantics(report);
+  }
+  if (item.name === "billing_admin_attestation_packet") {
+    return validateBillingAdminAttestationPacketSemantics(report);
+  }
+  if (item.name === "production_operations_attestation_packet") {
+    return validateProductionOperationsAttestationPacketSemantics(report);
   }
   if (item.name === "commercial_launch_intake") {
     return validateCommercialLaunchIntakeSemantics(report);
@@ -3915,6 +3923,123 @@ function isLaunchIntakePacketOpsJsonPath(value) {
     !normalized.startsWith("/") &&
     !/^[A-Za-z]:\//.test(normalized) &&
     !/^https?:\/\//i.test(normalized);
+}
+
+function validateBillingAdminAttestationPacketSemantics(report) {
+  const issues = [];
+  const serialized = JSON.stringify(report ?? {});
+  if (launchIntakePacketSecretPatterns.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(serialized);
+  })) {
+    issues.push("$: expected non-secret billing/admin attestation without API keys, bearer tokens, signed URL query values, or raw credentials.");
+  }
+
+  for (const [path, value] of [
+    ["$.termsUrl", report?.termsUrl],
+    ["$.privacyUrl", report?.privacyUrl],
+    ["$.refundPolicyUrl", report?.refundPolicyUrl]
+  ]) {
+    if (!isLaunchIntakePacketCleanHttpsUrl(value)) {
+      issues.push(`${path}: expected a clean non-localhost HTTPS URL without credentials, query string, or fragment.`);
+    }
+  }
+
+  for (const [path, value] of [
+    ["$.approvedBy", report?.approvedBy],
+    ["$.taxHandlingOwner", report?.taxHandlingOwner],
+    ["$.supportContact", report?.supportContact],
+    ["$.accountLifecycle.provisioning", report?.accountLifecycle?.provisioning],
+    ["$.accountLifecycle.suspension", report?.accountLifecycle?.suspension],
+    ["$.accountLifecycle.apiKeyRotation", report?.accountLifecycle?.apiKeyRotation],
+    ["$.accountLifecycle.refundHandling", report?.accountLifecycle?.refundHandling],
+    ["$.accountLifecycle.chargebackHandling", report?.accountLifecycle?.chargebackHandling],
+    ["$.spendControls.emergencyDisableProcedure", report?.spendControls?.emergencyDisableProcedure],
+    ["$.spendControls.quotaReviewCadence", report?.spendControls?.quotaReviewCadence]
+  ]) {
+    if (!isOperatorPacketText(value)) {
+      issues.push(`${path}: expected real non-placeholder non-secret procedure text.`);
+    }
+  }
+
+  if (report?.spendControls?.requiresClientPolicy !== true) {
+    issues.push("$.spendControls.requiresClientPolicy: expected true before commercial customer traffic.");
+  }
+  return issues;
+}
+
+function validateProductionOperationsAttestationPacketSemantics(report) {
+  const issues = [];
+  const serialized = JSON.stringify(report ?? {});
+  if (launchIntakePacketSecretPatterns.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(serialized);
+  })) {
+    issues.push("$: expected non-secret production-operations attestation without API keys, bearer tokens, signed URL query values, or raw credentials.");
+  }
+
+  for (const [path, value] of [
+    ["$.storage.restoreRunbookUrl", report?.storage?.restoreRunbookUrl],
+    ["$.observability.dashboardUrl", report?.observability?.dashboardUrl],
+    ["$.incidentResponse.runbookUrl", report?.incidentResponse?.runbookUrl],
+    ["$.supportWorkflow.supportRunbookUrl", report?.supportWorkflow?.supportRunbookUrl],
+    ["$.dataProtection.dataRetentionPolicyUrl", report?.dataProtection?.dataRetentionPolicyUrl]
+  ]) {
+    if (!isLaunchIntakePacketCleanHttpsUrl(value)) {
+      issues.push(`${path}: expected a clean non-localhost HTTPS URL without credentials, query string, or fragment.`);
+    }
+  }
+
+  for (const [path, value] of [
+    ["$.approvedBy", report?.approvedBy],
+    ["$.operationsOwner", report?.operationsOwner],
+    ["$.supportContact", report?.supportContact],
+    ["$.securityContact", report?.securityContact],
+    ["$.incidentEscalationContact", report?.incidentEscalationContact],
+    ["$.storage.backupCadence", report?.storage?.backupCadence],
+    ["$.observability.provider", report?.observability?.provider],
+    ["$.observability.onCallSchedule", report?.observability?.onCallSchedule],
+    ["$.observability.requestIdSearchProcedure", report?.observability?.requestIdSearchProcedure],
+    ["$.incidentResponse.severityPolicy", report?.incidentResponse?.severityPolicy],
+    ["$.incidentResponse.rollbackProcedure", report?.incidentResponse?.rollbackProcedure],
+    ["$.incidentResponse.postIncidentReviewProcedure", report?.incidentResponse?.postIncidentReviewProcedure],
+    ["$.supportWorkflow.responseSlo", report?.supportWorkflow?.responseSlo],
+    ["$.supportWorkflow.customerEscalationProcedure", report?.supportWorkflow?.customerEscalationProcedure],
+    ["$.dataProtection.secretRotationProcedure", report?.dataProtection?.secretRotationProcedure],
+    ["$.dataProtection.customerArtifactDeletionProcedure", report?.dataProtection?.customerArtifactDeletionProcedure]
+  ]) {
+    if (!isOperatorPacketText(value)) {
+      issues.push(`${path}: expected real non-placeholder non-secret operations text.`);
+    }
+  }
+
+  if (report?.storage?.durableStorage !== true) {
+    issues.push("$.storage.durableStorage: expected true before commercial production operations evidence.");
+  }
+  if (report?.storage?.backupEnabled !== true) {
+    issues.push("$.storage.backupEnabled: expected true before commercial production operations evidence.");
+  }
+  if (Number(report?.storage?.artifactRetentionDays ?? 0) < 30) {
+    issues.push("$.storage.artifactRetentionDays: expected at least 30 days.");
+  }
+  if (report?.observability?.alertingEnabled !== true) {
+    issues.push("$.observability.alertingEnabled: expected true before commercial production operations evidence.");
+  }
+  if (report?.dataProtection?.logRedactionReviewPassed !== true) {
+    issues.push("$.dataProtection.logRedactionReviewPassed: expected true before commercial production operations evidence.");
+  }
+  return issues;
+}
+
+function isOperatorPacketText(value) {
+  return typeof value === "string" &&
+    value.trim().length > 0 &&
+    !launchIntakePacketPlaceholderPattern.test(value) &&
+    !launchIntakePacketSecretPatterns.some((pattern) => {
+      pattern.lastIndex = 0;
+      return pattern.test(value);
+    }) &&
+    !/[\u0000-\u001f\u007f]/.test(value);
 }
 
 function validateCommercialLaunchIntakeSemantics(report) {

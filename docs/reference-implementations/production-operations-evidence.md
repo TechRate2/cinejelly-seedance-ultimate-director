@@ -106,6 +106,7 @@ interface ProductionOperationsReport {
 - Done: add `npm.cmd run validation:production-ops`.
 - Done: add `schemas/production-operations-report.schema.json`.
 - Done: add `schemas/production-operations-attestation.schema.json`, `schemas/operator-attestation-promotion-report.schema.json`, no-spend `npm.cmd run validation:ops-config` pre-capture validation/draft tooling, and `npm.cmd run ops:promote-attestations` so completed non-secret drafts can be validated before they become ignored `ops/*.json` inputs. With `--write-drafts`, the ops-config tooling also writes a Markdown fill-out packet that lists the production operations fields, validation loop, and deployment-capture commands without claiming release evidence.
+- Done: add report-contract coverage for the ignored raw `ops/production-operations-attestation.json` packet when it exists, including clean runbook/dashboard URLs, non-placeholder operations procedure text, durable storage, at least 30 days retention, backups, alerting, log-redaction review, and secret/signed-URL rejection.
 - Done: make `validation:business-readiness` evaluate the versioned production operations report explicitly.
 - Done: require production-operations endpoint capture to include passing `atlascloud_docs_conformance` alongside output directory, API auth, FFmpeg, and FFprobe checks.
 - Done: document the non-secret attestation contract.
@@ -116,6 +117,7 @@ interface ProductionOperationsReport {
 - Localhost deployment capture fails for commercial readiness.
 - Missing or failing `atlascloud_docs_conformance` fails production-operations evidence before customer traffic.
 - Missing attestation fails.
+- `validation:report-contracts` validates the raw ignored attestation when present before later production-operations evidence can trust it.
 - Missing durable storage/backup/restore/monitoring/incident/support/log-redaction controls fail.
 - `/health`, `/v1/preflight`, `/v1/validation-readiness`, and `/v1/render-settings` must pass from the real deployment host.
 - Required deployment preflight checks for `CINEJELLY_OUTPUT_DIR`, `CINEJELLY_API_AUTH_TOKEN`, `ffmpeg`, and `ffprobe` must pass.
