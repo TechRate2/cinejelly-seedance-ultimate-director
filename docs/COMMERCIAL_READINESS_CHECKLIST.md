@@ -12,6 +12,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] No tracked secrets in source/doc/schema files.
 - [x] API auth, rate limiting, body-size limits, and client policy gates exist.
 - [x] Async render job queue, polling, cancel, idempotency, and quota reservation exist.
+- [x] Workspace/project billing foundation exists with opt-in workspace policy, project policy, credit ceiling, quota reservation, and safe usage ledger.
 - [x] Artifact validation and redacted public API responses exist.
 - [x] Report contract validation exists.
 - [x] Review/approval primitive exists for scene, audio, caption, and claim gates.
@@ -57,6 +58,7 @@ Run these before any commercial claim:
 npm.cmd run build
 npm.cmd run validation:report-contracts
 npm.cmd run validation:render-job-review-lifecycle
+npm.cmd run validation:workspace-billing
 npm.cmd run validation:release-audit
 npm.cmd run validation:business-readiness
 npm.cmd run validation:completion-audit

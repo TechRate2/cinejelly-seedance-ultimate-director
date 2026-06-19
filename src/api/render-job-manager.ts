@@ -273,6 +273,7 @@ export class RenderJobManager {
       createdAt: now,
       updatedAt: now,
       ...(initialStatus === "rejected" ? { completedAt: now } : {}),
+      ...(input.request.metadata?.projectId ? { projectId: input.request.metadata.projectId } : {}),
       userInputPreview: this.preview(input.request.userInput),
       referenceCount: input.request.references?.length ?? 0,
       artifactDirectory: input.artifactDirectory,

@@ -73,6 +73,11 @@ import {
   createApiRequestContext,
   type ApiRequestContext
 } from "./request-context.js";
+import {
+  ApiWorkspaceBillingError,
+  ApiWorkspaceBillingGate,
+  type ApiWorkspaceBillingReservation
+} from "./workspace-billing-policy.js";
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_MAX_BODY_BYTES = 1_000_000;
@@ -98,6 +103,11 @@ interface RenderJobReviewRequestBody {
   readonly reviewApprovalGate?: ReviewApprovalGate;
   readonly checkpoints?: readonly ReviewApprovalCheckpointInput[];
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
+}
+
+interface CommercialRenderReservation {
+  readonly clientPolicyReservation?: ApiClientPolicyReservation;
+  readonly workspaceBillingReservation?: ApiWorkspaceBillingReservation;
 }
 
 class UnsupportedMediaTypeError extends Error {
@@ -126,6 +136,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const artifactValidator = new ProjectArtifactValidator();
   const requestAdmission = renderRequestAdmissionFromEnv(process.env);
   const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
+  const workspaceBillingGate = ApiWorkspaceBillingGate.fromEnv(process.env);
   const apiAuthGuard = new ApiAuthGuard({
     disabled: readApiAuthDisabled(process.env.CINEJELLY_DISABLE_API_AUTH),
     ...(process.env.CINEJELLY_API_AUTH_TOKEN ? { sharedKey: process.env.CINEJELLY_API_AUTH_TOKEN } : {}),
@@ -201,14 +212,16 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         assertJsonContentType(request);
         const body = await readJsonBody<RenderJobReviewRequestBody>(request, maxBodyBytes);
         const reviewInput = renderJobReviewInputFromReviewBody(body);
-        let clientPolicyReservation: ApiClientPolicyReservation | undefined;
+        let commercialReservation: CommercialRenderReservation | undefined;
         const submission = jobManager.review(
           decodeURIComponent(jobReviewMatch[1] ?? ""),
           reviewInput,
           clientFilter(authDecision.principal),
           {
             onApprovedForRender: ({ request: approvedRequest }) => {
-              clientPolicyReservation = clientPolicyGate.reserveRender({
+              commercialReservation = reserveCommercialRender({
+                clientPolicyGate,
+                workspaceBillingGate,
                 principal: authDecision.principal,
                 request: approvedRequest,
                 requestId: requestContext.requestId,
@@ -221,7 +234,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ? {
               ...submission.summary,
               queuedForRender: submission.queuedForRender,
-              ...(clientPolicyReservation ? { clientPolicyReservation } : {})
+              ...(commercialReservation?.clientPolicyReservation
+                ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
+                : {}),
+              ...(commercialReservation?.workspaceBillingReservation
+                ? { workspaceBillingReservation: commercialReservation.workspaceBillingReservation }
+                : {})
             }
           : { error: "Render job not found." }, requestContext);
         return;
@@ -240,6 +258,11 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "GET" && requestUrl.pathname === "/v1/admin/client-policy") {
         assertDeploymentPrincipal(authDecision.principal);
         sendJson(response, 200, clientPolicyGate.summary(), requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/workspace-billing") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for workspace billing diagnostics.");
+        sendJson(response, 200, workspaceBillingGate.summary(), requestContext);
         return;
       }
       const renderProviderLeaseOperation = renderProviderLeaseOperationFor(requestUrl.pathname);
@@ -297,8 +320,14 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           requestId: requestContext.requestId,
           env: process.env
         });
+        workspaceBillingGate.assertRenderAllowed({
+          principal: authDecision.principal,
+          request: normalizedRequest,
+          requestId: requestContext.requestId,
+          channel: "async"
+        });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
-        let clientPolicyReservation: ApiClientPolicyReservation | undefined;
+        let commercialReservation: CommercialRenderReservation | undefined;
         const submission = jobManager.submit({
           request: normalizedRequest,
           artifactDirectory,
@@ -307,7 +336,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(requestFingerprint ? { requestFingerprint } : {}),
           ...(reviewApproval ? { reviewApproval } : {}),
           onAccepted: () => {
-            clientPolicyReservation = clientPolicyGate.reserveRender({
+            commercialReservation = reserveCommercialRender({
+              clientPolicyGate,
+              workspaceBillingGate,
               principal: authDecision.principal,
               request: normalizedRequest,
               requestId: requestContext.requestId,
@@ -318,7 +349,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(response, 202, {
           ...submission.summary,
           ...(submission.idempotentReplay ? { idempotentReplay: true } : {}),
-          ...(clientPolicyReservation ? { clientPolicyReservation } : {}),
+          ...(commercialReservation?.clientPolicyReservation
+            ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
+            : {}),
+          ...(commercialReservation?.workspaceBillingReservation
+            ? { workspaceBillingReservation: commercialReservation.workspaceBillingReservation }
+            : {}),
           statusUrl: `/v1/render-jobs/${encodeURIComponent(submission.summary.jobId)}`
         }, requestContext);
         return;
@@ -333,7 +369,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           env: process.env
         });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
-        const clientPolicyReservation = clientPolicyGate.reserveRender({
+        const commercialReservation = reserveCommercialRender({
+          clientPolicyGate,
+          workspaceBillingGate,
           principal: authDecision.principal,
           request: normalizedRequest,
           requestId: requestContext.requestId,
@@ -361,7 +399,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           const artifactValidation = await validateArtifactsForApi(artifactValidator, artifacts);
           sendJson(response, 200, {
             ...result,
-            ...(clientPolicyReservation ? { clientPolicyReservation } : {}),
+            ...(commercialReservation.clientPolicyReservation
+              ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
+              : {}),
+            ...(commercialReservation.workspaceBillingReservation
+              ? { workspaceBillingReservation: commercialReservation.workspaceBillingReservation }
+              : {}),
             costLedger,
             artifacts: toApiProjectArtifactBundle(artifacts),
             artifactValidation: toApiProjectArtifactValidationReport(artifactValidation)
@@ -378,7 +421,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           const artifactValidation = await validateArtifactsForApi(artifactValidator, artifacts);
           sendJson(response, 500, {
             error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
-            ...(clientPolicyReservation ? { clientPolicyReservation } : {}),
+            ...(commercialReservation.clientPolicyReservation
+              ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
+              : {}),
+            ...(commercialReservation.workspaceBillingReservation
+              ? { workspaceBillingReservation: commercialReservation.workspaceBillingReservation }
+              : {}),
             costLedger,
             artifacts: toApiProjectArtifactBundle(artifacts),
             artifactValidation: toApiProjectArtifactValidationReport(artifactValidation)
@@ -521,13 +569,18 @@ function errorStatusCode(error: unknown): number {
     error instanceof RenderJobReviewStateError ||
     error instanceof UnsupportedMediaTypeError ||
     error instanceof RequestBodyTooLargeError ||
-    error instanceof ApiClientPolicyError
+    error instanceof ApiClientPolicyError ||
+    error instanceof ApiWorkspaceBillingError
     ? error.statusCode
     : 500;
 }
 
 function retryAfterSecondsFor(error: unknown): number | undefined {
-  if (error instanceof RenderJobCapacityError || error instanceof ApiClientPolicyError) {
+  if (
+    error instanceof RenderJobCapacityError ||
+    error instanceof ApiClientPolicyError ||
+    error instanceof ApiWorkspaceBillingError
+  ) {
     return error.retryAfterSeconds;
   }
   return undefined;
@@ -599,6 +652,38 @@ function assertJsonContentType(request: IncomingMessage): void {
   if (!isApplicationJsonMediaType(readHeader(request, "content-type"))) {
     throw new UnsupportedMediaTypeError();
   }
+}
+
+function reserveCommercialRender(input: {
+  readonly clientPolicyGate: ApiClientPolicyGate;
+  readonly workspaceBillingGate: ApiWorkspaceBillingGate;
+  readonly principal: ReturnType<ApiAuthGuard["authorize"]>["principal"];
+  readonly request: CineJellyProjectRequest;
+  readonly requestId: string;
+  readonly channel: "sync" | "async";
+}): CommercialRenderReservation {
+  input.workspaceBillingGate.assertRenderAllowed({
+    principal: input.principal,
+    request: input.request,
+    requestId: input.requestId,
+    channel: input.channel
+  });
+  const clientPolicyReservation = input.clientPolicyGate.reserveRender({
+    principal: input.principal,
+    request: input.request,
+    requestId: input.requestId,
+    channel: input.channel
+  });
+  const workspaceBillingReservation = input.workspaceBillingGate.reserveRender({
+    principal: input.principal,
+    request: input.request,
+    requestId: input.requestId,
+    channel: input.channel
+  });
+  return {
+    ...(clientPolicyReservation ? { clientPolicyReservation } : {}),
+    ...(workspaceBillingReservation ? { workspaceBillingReservation } : {})
+  };
 }
 
 function renderRequestBody(body: RenderRequestBody): CineJellyProjectRequest {
