@@ -332,8 +332,14 @@ function validateSemanticContract(item, report, options) {
   if (item.name === "source_video_auto_analysis_smoke") {
     return validateSourceVideoAutoAnalysisSmokeSemantics(report);
   }
+  if (item.name === "source_video_validation") {
+    return validateSourceVideoValidationSemantics(report);
+  }
   if (item.name === "remote_stock_adapter_smoke") {
     return validateRemoteStockAdapterSmokeSemantics(report);
+  }
+  if (item.name === "remote_stock_validation") {
+    return validateRemoteStockValidationSemantics(report);
   }
   if (item.name === "director_style_semantic_review") {
     return validateDirectorStyleRawReviewSemantics(report, directorStyleRawReviewConfigs.semantic);
@@ -1252,6 +1258,115 @@ function validateSourceVideoAutoAnalysisSmokeSemantics(report) {
   return issues;
 }
 
+function validateSourceVideoValidationSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  const warningChecks = checks.filter((check) => check?.status === "warn");
+  const spendGate = report?.spendGate ?? {};
+  const atlasBillingGate = report?.atlasBillingGate ?? {};
+  const analysis = report?.analysisSummary ?? {};
+  const ledger = report?.providerLedger ?? {};
+  const ledgerEntries = Array.isArray(ledger?.entries) ? ledger.entries : [];
+  const release = report?.releaseGateSummary ?? {};
+  const expectedUsable =
+    report?.status === "pass" &&
+    analysis?.present === true &&
+    spendGate?.providerNetworkCallsAllowed === true &&
+    atlasBillingGate?.canUseAsPrePaidAtlasBillingEvidence === true;
+
+  if (!cleanHttpsEvidenceUrl(report?.checkedInputs?.sourceVideoUrl)) {
+    issues.push("$.checkedInputs.sourceVideoUrl: expected a clean HTTPS source-video preview URL without credentials, query, fragment, or localhost.");
+  }
+  if (release?.canOpenPaidCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canOpenPaidCustomerTraffic: expected false; source-video validation alone cannot open customer traffic.");
+  }
+  if (release?.canUseAsBusinessReadinessSourceVideoEvidence !== expectedUsable) {
+    issues.push("$.releaseGateSummary.canUseAsBusinessReadinessSourceVideoEvidence: expected true only for pass reports with live spend allowed, billing evidence, and present analysis.");
+  }
+  if (Number(ledger?.entryCount ?? -1) !== ledgerEntries.length) {
+    issues.push("$.providerLedger.entryCount: expected to match entries length.");
+  }
+  if (objectValueSum(ledger?.operations) !== ledgerEntries.length) {
+    issues.push("$.providerLedger.operations: expected operation counts to sum to entries length.");
+  }
+  if (objectValueSum(ledger?.statuses) !== ledgerEntries.length) {
+    issues.push("$.providerLedger.statuses: expected status counts to sum to entries length.");
+  }
+  if (publicPayloadHasUnsafeEvidenceLeak(report, { allowCleanHttpsUrl: true })) {
+    issues.push("$.publicPayload: source-video validation report must not expose data URLs, local absolute paths, signed URLs, or credential-like text.");
+  }
+
+  if (report?.status === "blocked_by_spend_confirmation") {
+    if (
+      spendGate?.confirmProviderSpend !== false ||
+      spendGate?.providerNetworkCallsAllowed !== false ||
+      spendGate?.sourceVideoFetchAllowed !== false
+    ) {
+      issues.push("$.spendGate: blocked_by_spend_confirmation requires all live spend/fetch flags false.");
+    }
+    if (!failedChecks.some((check) => check?.name === "spend_confirmation")) {
+      issues.push("$.checks: blocked_by_spend_confirmation requires a failing spend_confirmation check.");
+    }
+    if (analysis?.present !== false || Number(ledger?.entryCount ?? -1) !== 0) {
+      issues.push("$.analysisSummary/$.providerLedger: blocked_by_spend_confirmation must not include live analysis or provider ledger entries.");
+    }
+  }
+
+  if (report?.status === "blocked_by_atlas_billing") {
+    if (spendGate?.confirmProviderSpend !== true || spendGate?.providerNetworkCallsAllowed !== false || spendGate?.sourceVideoFetchAllowed !== false) {
+      issues.push("$.spendGate: blocked_by_atlas_billing should confirm operator spend intent but still block provider network/source fetch.");
+    }
+    if (atlasBillingGate?.canUseAsPrePaidAtlasBillingEvidence !== false || !failedChecks.some((check) => String(check?.name ?? "").startsWith("atlas_billing_"))) {
+      issues.push("$.atlasBillingGate/$.checks: blocked_by_atlas_billing requires failed Atlas billing readiness evidence.");
+    }
+  }
+
+  if (report?.status === "blocked_by_readiness") {
+    if (spendGate?.confirmProviderSpend !== true || spendGate?.providerNetworkCallsAllowed !== false || spendGate?.sourceVideoFetchAllowed !== false) {
+      issues.push("$.spendGate: blocked_by_readiness should keep provider network/source fetch disabled.");
+    }
+    if (failedChecks.length === 0) {
+      issues.push("$.checks: blocked_by_readiness requires at least one readiness failure.");
+    }
+  }
+
+  if (report?.status === "pass") {
+    if (failedChecks.length > 0 || warningChecks.length > 0) {
+      issues.push("$.checks: pass source-video validation requires zero failed or warning checks.");
+    }
+    if (
+      spendGate?.confirmProviderSpend !== true ||
+      spendGate?.providerNetworkCallsAllowed !== true ||
+      spendGate?.sourceVideoFetchAllowed !== true
+    ) {
+      issues.push("$.spendGate: pass source-video validation requires confirmed spend plus provider network and source fetch allowance.");
+    }
+    if (atlasBillingGate?.canUseAsPrePaidAtlasBillingEvidence !== true || atlasBillingGate?.present !== true || atlasBillingGate?.status !== "pass") {
+      issues.push("$.atlasBillingGate: pass source-video validation requires fresh passing Atlas billing evidence.");
+    }
+    if (analysis?.present !== true || analysis?.usableContent !== true || analysis?.noInlineFrameData !== true || analysis?.noLocalFramePaths !== true) {
+      issues.push("$.analysisSummary: pass source-video validation requires usable redacted analysis without inline frames or local frame paths.");
+    }
+    if (Number(ledger?.entryCount ?? 0) < 1) {
+      issues.push("$.providerLedger.entryCount: pass source-video validation requires at least one provider ledger entry.");
+    }
+  }
+
+  if (report?.status === "warn") {
+    if (failedChecks.length > 0 || warningChecks.length === 0) {
+      issues.push("$.checks: warn source-video validation requires warnings and no failed checks.");
+    }
+  }
+  if (report?.status === "fail" && failedChecks.length === 0) {
+    issues.push("$.checks: fail source-video validation requires at least one failed check.");
+  }
+  if (report?.status !== "pass" && release?.canUseAsBusinessReadinessSourceVideoEvidence === true) {
+    issues.push("$.releaseGateSummary.canUseAsBusinessReadinessSourceVideoEvidence: non-pass source-video reports cannot be business-readiness evidence.");
+  }
+  return issues;
+}
+
 function validateRemoteStockAdapterSmokeSemantics(report) {
   const issues = [];
   if (report?.status !== "pass") {
@@ -1406,6 +1521,155 @@ function validateRemoteStockAdapterSmokeSemantics(report) {
     issues.push("$.report: expected no bearer header or secret-like query text.");
   }
   return issues;
+}
+
+function validateRemoteStockValidationSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  const failedChecks = checks.filter((check) => check?.status === "fail");
+  const warningChecks = checks.filter((check) => check?.status === "warn");
+  const gate = report?.liveNetworkGate ?? {};
+  const providers = Array.isArray(report?.providers) ? report.providers : [];
+  const material = report?.materialValidation ?? {};
+  const release = report?.releaseGateSummary ?? {};
+  const providerCandidateCount = providers.reduce((sum, provider) => sum + Number(provider?.candidateCount ?? 0), 0);
+  const providerSelectedCount = providers.reduce((sum, provider) => sum + Number(provider?.selectedCandidateCount ?? 0), 0);
+  const providerApprovedCount = providers.reduce((sum, provider) => sum + Number(provider?.approvedCandidateCount ?? 0), 0);
+  const expectedUsable =
+    report?.status === "pass" &&
+    gate?.providerNetworkCallsAllowed === true &&
+    gate?.confirmCommercialTermsReviewed === true &&
+    providers.length > 0 &&
+    providers.every((provider) => provider?.status === "pass") &&
+    material?.status === "approved";
+
+  if (release?.canOpenPaidCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canOpenPaidCustomerTraffic: expected false; remote-stock validation alone cannot open customer traffic.");
+  }
+  if (release?.canUseAsBusinessReadinessRemoteStockEvidence !== expectedUsable) {
+    issues.push("$.releaseGateSummary.canUseAsBusinessReadinessRemoteStockEvidence: expected true only for pass reports with confirmed live network, commercial terms, passing providers, and approved material validation.");
+  }
+  if (publicPayloadHasUnsafeEvidenceLeak(report, { allowCleanHttpsUrl: false })) {
+    issues.push("$.publicPayload: remote-stock validation report must not expose raw URLs, signed URLs, local absolute paths, or credential-like text.");
+  }
+  if (Number(material?.candidateCount ?? -1) !== providerCandidateCount) {
+    issues.push("$.materialValidation.candidateCount: expected to match summed provider candidateCount.");
+  }
+  if (Number(material?.selectedCandidateCount ?? -1) !== providerSelectedCount) {
+    issues.push("$.materialValidation.selectedCandidateCount: expected to match summed provider selectedCandidateCount.");
+  }
+  if (Number(material?.approvedCandidateCount ?? -1) !== providerApprovedCount) {
+    issues.push("$.materialValidation.approvedCandidateCount: expected to match summed provider approvedCandidateCount.");
+  }
+  if (Number(material?.candidateEvaluationCount ?? -1) !== Number(material?.candidateCount ?? -2)) {
+    issues.push("$.materialValidation.candidateEvaluationCount: expected one evaluation per remote-stock candidate.");
+  }
+  if (report?.runtimeSettings?.providerCount !== undefined && Number(report.runtimeSettings.providerCount) !== providers.length && gate?.providerNetworkCallsAllowed === true) {
+    issues.push("$.runtimeSettings.providerCount: expected to match provider summaries when live provider calls are allowed.");
+  }
+
+  if (report?.status === "blocked_by_network_confirmation") {
+    if (
+      gate?.confirmLiveNetwork !== false ||
+      gate?.providerNetworkCallsAllowed !== false ||
+      providers.length !== 0 ||
+      material?.status !== "planned_only"
+    ) {
+      issues.push("$.liveNetworkGate/$.providers/$.materialValidation: blocked_by_network_confirmation must not include live provider evidence.");
+    }
+    if (!failedChecks.some((check) => check?.name === "network_confirmation")) {
+      issues.push("$.checks: blocked_by_network_confirmation requires a failing network_confirmation check.");
+    }
+  }
+
+  if (report?.status === "blocked_by_configuration") {
+    if (gate?.confirmLiveNetwork !== true || gate?.providerNetworkCallsAllowed !== false || providers.length !== 0) {
+      issues.push("$.liveNetworkGate/$.providers: blocked_by_configuration should confirm live-network intent but keep provider calls blocked.");
+    }
+    if (failedChecks.length === 0) {
+      issues.push("$.checks: blocked_by_configuration requires at least one configuration failure.");
+    }
+  }
+
+  if (report?.status === "pass") {
+    if (failedChecks.length > 0 || warningChecks.length > 0) {
+      issues.push("$.checks: pass remote-stock validation requires zero failed or warning checks.");
+    }
+    if (gate?.confirmLiveNetwork !== true || gate?.providerNetworkCallsAllowed !== true || gate?.confirmCommercialTermsReviewed !== true) {
+      issues.push("$.liveNetworkGate: pass remote-stock validation requires confirmed live network and commercial terms review.");
+    }
+    if (providers.length === 0 || providers.some((provider) => provider?.status !== "pass" || Number(provider?.candidateCount ?? 0) <= 0 || Number(provider?.approvedCandidateCount ?? 0) <= 0)) {
+      issues.push("$.providers: pass remote-stock validation requires at least one passing provider with approved candidates.");
+    }
+    if (material?.status !== "approved" || Number(material?.approvedCandidateCount ?? 0) <= 0) {
+      issues.push("$.materialValidation: pass remote-stock validation requires approved aggregate material validation.");
+    }
+  }
+
+  if (report?.status === "warn") {
+    if (failedChecks.length > 0 || warningChecks.length === 0) {
+      issues.push("$.checks: warn remote-stock validation requires warnings and no failed checks.");
+    }
+  }
+  if (report?.status === "fail" && failedChecks.length === 0) {
+    issues.push("$.checks: fail remote-stock validation requires at least one failed check.");
+  }
+  if (report?.status !== "pass" && release?.canUseAsBusinessReadinessRemoteStockEvidence === true) {
+    issues.push("$.releaseGateSummary.canUseAsBusinessReadinessRemoteStockEvidence: non-pass remote-stock reports cannot be business-readiness evidence.");
+  }
+  return issues;
+}
+
+function objectValueSum(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return 0;
+  }
+  return Object.values(value).reduce((sum, item) => sum + Number(item ?? 0), 0);
+}
+
+function cleanHttpsEvidenceUrl(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      !isEvidenceLocalhost(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isEvidenceLocalhost(hostname) {
+  const normalized = String(hostname ?? "").toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
+}
+
+function publicPayloadHasUnsafeEvidenceLeak(value, { allowCleanHttpsUrl }) {
+  const text = JSON.stringify(value ?? "");
+  const unsafePatterns = [
+    /Bearer\s+[A-Za-z0-9._-]+/i,
+    /sk-[A-Za-z0-9_-]{8,}/i,
+    /(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\s*[:=]\s*["']?[^"',\s&]+/i,
+    /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization|sig|auth)=)[^&#\s"'<>]+/i,
+    /data:image\/[a-z0-9.+-]+;base64,/i,
+    /;base64,/i,
+    /[A-Za-z]:\\[^"'`\s<>]+/i,
+    /\/(?:home|Users|var|tmp)\/[^"'`\s<>]+/i,
+    /(?:file|s3|gs|ftp):\/\/[^"'`\s<>]+/i
+  ];
+  if (unsafePatterns.some((pattern) => pattern.test(text))) {
+    return true;
+  }
+  const urls = text.match(/https?:\/\/[^\s"'<>\\]+/gi) ?? [];
+  if (!allowCleanHttpsUrl && urls.length > 0) {
+    return true;
+  }
+  return urls.some((url) => !cleanHttpsEvidenceUrl(url));
 }
 
 function validateEvidenceClosurePlan(plan, path, context = {}) {

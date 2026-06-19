@@ -71,6 +71,7 @@ interface RemoteStockValidationReport {
 - Done: make `validation:business-readiness` evaluate the versioned remote-stock report explicitly.
 - Done: document the live-network and commercial-terms confirmation gates.
 - Done: add `validation:remote-stock-adapter-smoke` as no-spend backend evidence for adapter behavior; it is intentionally not live remote-stock provider evidence.
+- Done: make `validation:report-contracts` enforce live remote-stock validation semantics, including network/configuration gate consistency, commercial-terms confirmation, provider/material count consistency, raw URL/secret redaction, false customer-traffic claims, and business-readiness evidence only on a passing live report.
 
 ## Validation Checklist
 
@@ -82,3 +83,4 @@ interface RemoteStockValidationReport {
 - Reports include only host-level candidate samples, not full signed URLs.
 - Coverr signed/tokenized media URLs cannot satisfy evidence; they must be rejected by the adapter/validator path.
 - Business-readiness accepts only a `pass` report with confirmed terms, live network, approved candidates, and combined material validation status `approved`.
+- Report-contract validation rejects pass reports without confirmed live-network and commercial-terms gates, passing provider summaries, approved aggregate material validation, provider/material count agreement, no raw URL/secret leakage, and `canOpenPaidCustomerTraffic=false`.

@@ -89,6 +89,7 @@ interface SourceVideoAutoAnalysisValidationReport {
 - Done: make `validation:business-readiness` evaluate the versioned source-video report explicitly.
 - Done: document the spend gate, source-video billing gate, and clean-source-video requirements.
 - Done: add `validation:source-video-auto-analysis-smoke` as no-spend backend evidence for adapter behavior; it is intentionally not business-readiness source-video evidence.
+- Done: make `validation:report-contracts` enforce live source-video validation semantics, including spend/billing/readiness gate consistency, provider-ledger count consistency, leakage flags, clean source-video URL previews, false customer-traffic claims, and business-readiness evidence only on a passing live report.
 
 ## Validation Checklist
 
@@ -100,4 +101,5 @@ interface SourceVideoAutoAnalysisValidationReport {
 - Live mode uses `SourceVideoAutoAnalyzer`, not custom LLM payload code.
 - The report preserves provider-ledger operation counts without raw provider payloads.
 - The business-readiness gate accepts only a `pass` report with usable analysis, a passing Atlas billing gate, and no frame/base64 leakage.
+- Report-contract validation rejects pass reports without confirmed spend, fresh billing evidence, usable redacted analysis, consistent provider-ledger counts, and `canOpenPaidCustomerTraffic=false`.
 - The smoke report must keep `canUseAsBusinessReadinessSourceVideoEvidence=false` and `canOpenPaidCustomerTraffic=false`.
