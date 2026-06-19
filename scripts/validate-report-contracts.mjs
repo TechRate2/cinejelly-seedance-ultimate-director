@@ -2888,6 +2888,7 @@ function validateCommercialLaunchInputsSemantics(report) {
       }
     }
     const commandRunbook = Array.isArray(manifest.commandRunbook) ? manifest.commandRunbook : [];
+    const inputValidationRunbook = Array.isArray(manifest.inputValidationRunbook) ? manifest.inputValidationRunbook : [];
     if (manifest.summary?.commandCount !== commandRunbook.length) {
       issues.push("$.operatorHandoffManifest.summary.commandCount: expected to match commandRunbook length.");
     }
@@ -2896,6 +2897,15 @@ function validateCommercialLaunchInputsSemantics(report) {
     }
     if (manifest.summary?.paidCommandCount !== commandRunbook.filter((item) => item?.requiresProviderSpend === true).length) {
       issues.push("$.operatorHandoffManifest.summary.paidCommandCount: expected to match provider-spend command count.");
+    }
+    if (manifest.summary?.inputValidationCommandCount !== inputValidationRunbook.length) {
+      issues.push("$.operatorHandoffManifest.summary.inputValidationCommandCount: expected to match inputValidationRunbook length.");
+    }
+    if (
+      manifest.summary?.manualReviewInputValidationCommandCount !==
+      inputValidationRunbook.filter((item) => item?.requiresManualReview === true).length
+    ) {
+      issues.push("$.operatorHandoffManifest.summary.manualReviewInputValidationCommandCount: expected to match manual-review guarded input command count.");
     }
     const evidenceCommandCount = Object.values(report?.evidenceCommandPlan ?? {}).reduce(
       (count, commands) => count + (Array.isArray(commands) ? commands.length : 0),
@@ -2909,6 +2919,53 @@ function validateCommercialLaunchInputsSemantics(report) {
       : 0;
     if (commandRunbook.length !== evidenceCommandCount + budgetCommandCount) {
       issues.push("$.operatorHandoffManifest.commandRunbook: expected flattened evidence command plan plus budget slice commands.");
+    }
+    const requiredInputCommandCount = requiredInputs.reduce(
+      (count, item) => count + splitValidationCommandSteps(item?.validationCommand).length,
+      0
+    );
+    if (inputValidationRunbook.length !== requiredInputCommandCount) {
+      issues.push("$.operatorHandoffManifest.inputValidationRunbook: expected expanded requiredInputs validationCommand steps.");
+    }
+    if (report?.commandPlanAudit?.checkedCommandCount !== evidenceCommandCount + budgetCommandCount + requiredInputCommandCount) {
+      issues.push("$.commandPlanAudit.checkedCommandCount: expected required-input, evidence-plan, and budget-slice commands to be audited.");
+    }
+    for (const item of inputValidationRunbook) {
+      if (String(item?.command ?? "").match(/\bStep\s+\d+:/)) {
+        issues.push("$.operatorHandoffManifest.inputValidationRunbook.command: expected step-expanded command without embedded Step labels.");
+      }
+    }
+    const generatedAudioInputCommands = inputValidationRunbook.filter((item) => item?.sourceInputId === "generated_audio_paid_review");
+    if (generatedAudioInputCommands.length !== 3) {
+      issues.push("$.operatorHandoffManifest.inputValidationRunbook[generated_audio_paid_review]: expected three generated-audio manual review steps.");
+    } else {
+      if (!generatedAudioInputCommands[0]?.command?.includes("validation:generated-audio-artifact") || generatedAudioInputCommands[0]?.requiresLiveNetwork !== true) {
+        issues.push("$.operatorHandoffManifest.inputValidationRunbook[generated_audio_paid_review].step1: expected generated-audio artifact live-network capture.");
+      }
+      if (!generatedAudioInputCommands[1]?.command?.includes("validation:generated-audio-review-draft")) {
+        issues.push("$.operatorHandoffManifest.inputValidationRunbook[generated_audio_paid_review].step2: expected generated-audio manual-review draft command.");
+      }
+      if (
+        !generatedAudioInputCommands[2]?.command?.includes("--review-existing-report") ||
+        generatedAudioInputCommands[2]?.requiresManualReview !== true
+      ) {
+        issues.push("$.operatorHandoffManifest.inputValidationRunbook[generated_audio_paid_review].step3: expected review-existing manual-audio review command.");
+      }
+    }
+    const longFormInputCommands = inputValidationRunbook.filter((item) => item?.sourceInputId === "long_form_paid_media_review");
+    if (longFormInputCommands.length !== 2) {
+      issues.push("$.operatorHandoffManifest.inputValidationRunbook[long_form_paid_media_review]: expected two long-form manual review steps.");
+    } else {
+      if (!longFormInputCommands[0]?.command?.includes("validation:long-form-review-draft")) {
+        issues.push("$.operatorHandoffManifest.inputValidationRunbook[long_form_paid_media_review].step1: expected long-form review draft command.");
+      }
+      if (
+        !longFormInputCommands[1]?.command?.includes("validation:long-form") ||
+        longFormInputCommands[1]?.requiresProviderSpend !== true ||
+        longFormInputCommands[1]?.requiresManualReview !== true
+      ) {
+        issues.push("$.operatorHandoffManifest.inputValidationRunbook[long_form_paid_media_review].step2: expected paid long-form manual quality review command.");
+      }
     }
     const refreshCommands = Array.isArray(manifest.refreshCommands) ? manifest.refreshCommands : [];
     for (const expectedCommand of [
@@ -2970,6 +3027,18 @@ function validateCommercialLaunchInputsSemantics(report) {
     issues.push("$.evidenceCommandPlan.finalAudit[graph_resume_enqueue_evidence].command: expected provider-graph-resume confirmation command.");
   }
   return issues;
+}
+
+function splitValidationCommandSteps(command) {
+  const normalized = String(command ?? "").trim();
+  if (!normalized) {
+    return [];
+  }
+  const matches = [...normalized.matchAll(/\bStep\s+(\d+):\s*([\s\S]*?)(?=\s+\bStep\s+\d+:\s*|$)/g)];
+  if (matches.length === 0) {
+    return [normalized];
+  }
+  return matches.map((match) => match[2].trim().replace(/\.$/, ""));
 }
 
 function validateCommercialLaunchIntakeSemantics(report) {

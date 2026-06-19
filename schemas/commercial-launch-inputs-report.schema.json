@@ -334,6 +334,7 @@
         "reportArchiveFiles",
         "envPlaceholders",
         "commandRunbook",
+        "inputValidationRunbook",
         "refreshCommands"
       ],
       "properties": {
@@ -380,6 +381,8 @@
             "blockedCommandCount",
             "paidCommandCount",
             "readyPaidCommandCount",
+            "inputValidationCommandCount",
+            "manualReviewInputValidationCommandCount",
             "commandPlanAuditStatus",
             "secretEnvPlaceholderCount"
           ],
@@ -396,6 +399,8 @@
             "blockedCommandCount": { "type": "integer", "minimum": 0 },
             "paidCommandCount": { "type": "integer", "minimum": 0 },
             "readyPaidCommandCount": { "type": "integer", "minimum": 0 },
+            "inputValidationCommandCount": { "type": "integer", "minimum": 0 },
+            "manualReviewInputValidationCommandCount": { "type": "integer", "minimum": 0 },
             "commandPlanAuditStatus": { "type": "string" },
             "secretEnvPlaceholderCount": { "type": "integer", "minimum": 0 }
           }
@@ -476,40 +481,11 @@
         },
         "commandRunbook": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "section",
-              "index",
-              "name",
-              "kind",
-              "status",
-              "command",
-              "source",
-              "runnable",
-              "requiresLiveNetwork",
-              "requiresProviderSpend",
-              "requiresOperatorConfirmation",
-              "requiresManualReview",
-              "containsPlaceholder"
-            ],
-            "properties": {
-              "section": { "type": "string" },
-              "index": { "type": "integer", "minimum": 0 },
-              "name": { "type": "string" },
-              "kind": { "type": "string" },
-              "status": { "type": "string" },
-              "command": { "type": "string" },
-              "source": { "type": "string" },
-              "runnable": { "type": "boolean" },
-              "requiresLiveNetwork": { "type": "boolean" },
-              "requiresProviderSpend": { "type": "boolean" },
-              "requiresOperatorConfirmation": { "type": "boolean" },
-              "requiresManualReview": { "type": "boolean" },
-              "containsPlaceholder": { "type": "boolean" }
-            }
-          }
+          "items": { "$ref": "#/$defs/commandRunbookItem" }
+        },
+        "inputValidationRunbook": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/commandRunbookItem" }
         },
         "refreshCommands": { "type": "array", "items": { "type": "string" } }
       }
@@ -542,6 +518,43 @@
     "error": { "type": "string" }
   },
   "$defs": {
+    "commandRunbookItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "section",
+        "index",
+        "name",
+        "kind",
+        "status",
+        "command",
+        "source",
+        "runnable",
+        "requiresLiveNetwork",
+        "requiresProviderSpend",
+        "requiresOperatorConfirmation",
+        "requiresManualReview",
+        "containsPlaceholder"
+      ],
+      "properties": {
+        "section": { "type": "string" },
+        "index": { "type": "integer", "minimum": 0 },
+        "name": { "type": "string" },
+        "kind": { "type": "string" },
+        "status": { "type": "string" },
+        "command": { "type": "string" },
+        "source": { "type": "string" },
+        "sourceInputId": { "type": "string" },
+        "stepIndex": { "type": "integer", "minimum": 1 },
+        "stepCount": { "type": "integer", "minimum": 1 },
+        "runnable": { "type": "boolean" },
+        "requiresLiveNetwork": { "type": "boolean" },
+        "requiresProviderSpend": { "type": "boolean" },
+        "requiresOperatorConfirmation": { "type": "boolean" },
+        "requiresManualReview": { "type": "boolean" },
+        "containsPlaceholder": { "type": "boolean" }
+      }
+    },
     "commandList": {
       "type": "array",
       "items": {

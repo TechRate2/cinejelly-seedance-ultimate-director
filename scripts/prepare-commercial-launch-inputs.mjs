@@ -125,7 +125,7 @@ function main() {
     reports.providerGraphResume.value
   );
   const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
-  const commandPlanAudit = buildCommandPlanAudit({ evidenceCommandPlan, budgetConstrainedPaidPlan });
+  const commandPlanAudit = buildCommandPlanAudit({ requiredInputs, evidenceCommandPlan, budgetConstrainedPaidPlan });
   const status = statusFor(requiredInputs);
   const sourceReports = summarizeSourceReports(reports);
   const inputSummary = summarizeInputs(requiredInputs);
@@ -681,9 +681,10 @@ function commandsFor(sequence, predicate) {
     }));
 }
 
-function buildCommandPlanAudit({ evidenceCommandPlan, budgetConstrainedPaidPlan }) {
+function buildCommandPlanAudit({ requiredInputs, evidenceCommandPlan, budgetConstrainedPaidPlan }) {
   const scripts = packageScriptSet();
   const commandItems = [
+    ...commandItemsFromRequiredInputs(requiredInputs),
     ...commandItemsFromEvidencePlan(evidenceCommandPlan),
     ...commandItemsFromBudgetPlan(budgetConstrainedPaidPlan)
   ];
@@ -715,8 +716,10 @@ function buildOperatorHandoffManifest({
   const draftFiles = buildDraftFiles(requiredInputs);
   const reportArchiveFiles = buildReportArchiveFiles(sourceReports, requiredInputs);
   const commandRunbook = buildCommandRunbook(evidenceCommandPlan, budgetConstrainedPaidPlan);
+  const inputValidationRunbook = buildInputValidationRunbook(requiredInputs);
   const readyCommandCount = commandRunbook.filter((item) => isRunnableStatus(item.status)).length;
   const paidCommands = commandRunbook.filter((item) => item.requiresProviderSpend);
+  const manualReviewInputCommands = inputValidationRunbook.filter((item) => item.requiresManualReview);
   return {
     purpose:
       "Secret-free operator handoff manifest for the remaining commercial launch evidence sequence.",
@@ -747,6 +750,8 @@ function buildOperatorHandoffManifest({
       blockedCommandCount: commandRunbook.length - readyCommandCount,
       paidCommandCount: paidCommands.length,
       readyPaidCommandCount: paidCommands.filter((item) => isRunnableStatus(item.status)).length,
+      inputValidationCommandCount: inputValidationRunbook.length,
+      manualReviewInputValidationCommandCount: manualReviewInputCommands.length,
       commandPlanAuditStatus: String(commandPlanAudit?.status ?? "unknown"),
       secretEnvPlaceholderCount: envPlaceholders.filter((item) => item.sensitivity === "secret").length
     },
@@ -764,6 +769,7 @@ function buildOperatorHandoffManifest({
       purpose: item.purpose
     })),
     commandRunbook,
+    inputValidationRunbook,
     refreshCommands: [
       "npm.cmd run validation:live-inputs",
       "npm.cmd run validation:business-plan",
@@ -976,7 +982,28 @@ function buildCommandRunbook(evidenceCommandPlan, budgetConstrainedPaidPlan) {
   return [...evidenceCommands, ...budgetCommands];
 }
 
-function commandRunbookItem({ section, index, name, kind, status, command, source }) {
+function buildInputValidationRunbook(requiredInputs) {
+  return Array.isArray(requiredInputs)
+    ? requiredInputs.flatMap((inputItem, inputIndex) =>
+        validationCommandSteps(inputItem.validationCommand).map((step) =>
+          commandRunbookItem({
+            section: "requiredInput",
+            index: inputIndex * 10 + step.stepIndex,
+            name: step.stepCount > 1 ? `${inputItem.id}_step_${step.stepIndex}` : inputItem.id,
+            kind: inputCommandKind(inputItem, step.command),
+            status: commandStatusForInput(inputItem.status),
+            command: step.command,
+            source: `requiredInputs.${inputItem.id}.validationCommand`,
+            sourceInputId: inputItem.id,
+            stepIndex: step.stepIndex,
+            stepCount: step.stepCount
+          })
+        )
+      )
+    : [];
+}
+
+function commandRunbookItem({ section, index, name, kind, status, command, source, sourceInputId, stepIndex, stepCount }) {
   const normalizedCommand = String(command ?? "");
   const normalizedKind = String(kind ?? "unknown");
   const normalizedStatus = String(status ?? "unknown");
@@ -988,6 +1015,9 @@ function commandRunbookItem({ section, index, name, kind, status, command, sourc
     status: normalizedStatus,
     command: normalizedCommand,
     source,
+    ...(sourceInputId ? { sourceInputId } : {}),
+    ...(Number.isInteger(stepIndex) ? { stepIndex } : {}),
+    ...(Number.isInteger(stepCount) ? { stepCount } : {}),
     runnable: isRunnableStatus(normalizedStatus),
     requiresLiveNetwork: section === "liveNetwork" || normalizedCommand.includes("--confirm-live-network"),
     requiresProviderSpend:
@@ -1001,6 +1031,40 @@ function commandRunbookItem({ section, index, name, kind, status, command, sourc
       normalizedCommand.includes("manual-quality-review"),
     containsPlaceholder: normalizedCommand.includes("<")
   };
+}
+
+function validationCommandSteps(command) {
+  const normalized = String(command ?? "").trim();
+  if (!normalized) {
+    return [];
+  }
+  const matches = [...normalized.matchAll(/\bStep\s+(\d+):\s*([\s\S]*?)(?=\s+\bStep\s+\d+:\s*|$)/g)];
+  if (matches.length === 0) {
+    return [{ stepIndex: 1, stepCount: 1, command: normalized }];
+  }
+  return matches.map((match, index) => ({
+    stepIndex: Number(match[1] ?? index + 1),
+    stepCount: matches.length,
+    command: match[2].trim().replace(/\.$/, "")
+  }));
+}
+
+function inputCommandKind(inputItem, command) {
+  const scriptName = extractNpmScriptName(String(command ?? ""));
+  if (scriptName === "validation:long-form") {
+    return "paid_atlas_video";
+  }
+  if (scriptName === "validation:generated-audio" && !String(command ?? "").includes("--review-existing-report")) {
+    return "paid_atlas_audio";
+  }
+  if (scriptName === "validation:source-video-auto-analysis" && String(command ?? "").includes("--confirm-provider-spend")) {
+    return "paid_atlas_llm_and_source_fetch";
+  }
+  return String(inputItem?.category ?? "operator_input");
+}
+
+function commandStatusForInput(status) {
+  return String(status ?? "unknown");
 }
 
 function combineStatuses(left, right) {
@@ -1049,6 +1113,20 @@ function commandItemsFromEvidencePlan(plan) {
         }))
       : []
   );
+}
+
+function commandItemsFromRequiredInputs(requiredInputs) {
+  return Array.isArray(requiredInputs)
+    ? requiredInputs.flatMap((inputItem) =>
+        validationCommandSteps(inputItem.validationCommand).map((step) => ({
+          location: `requiredInputs.${inputItem.id}.validationCommand.step${step.stepIndex}`,
+          name: step.stepCount > 1 ? `${inputItem.id}_step_${step.stepIndex}` : String(inputItem.id ?? "unknown"),
+          kind: inputCommandKind(inputItem, step.command),
+          status: commandStatusForInput(inputItem.status),
+          command: step.command
+        }))
+      )
+    : [];
 }
 
 function commandItemsFromBudgetPlan(plan) {
@@ -1326,6 +1404,7 @@ function markdownOperatorHandoffManifest(manifest) {
     `- Required inputs: ${summary.requiredInputCount}; missing/blocked: ${summary.missingOrBlockedInputCount}; pending after paid runs: ${summary.pendingAfterPaidRunCount}`,
     `- Operator files: ${summary.operatorInputFileCount}; draft/template files: ${summary.draftFileCount}; archive reports: ${summary.reportArchiveFileCount}`,
     `- Commands: ${summary.commandCount}; ready: ${summary.readyCommandCount}; paid-spend commands: ${summary.paidCommandCount}`,
+    `- Required-input validation commands: ${summary.inputValidationCommandCount}; manual-review guarded: ${summary.manualReviewInputValidationCommandCount}`,
     `- Safe to share: ${manifest.safety.shareableWithOperators}; release evidence: ${manifest.safety.releaseEvidence}`,
     ...operatorFiles
   ];
