@@ -821,8 +821,8 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
       const phaseBlockers = blockersByPhase.get(definition.id) ?? [];
       const phaseProductGaps = productGapsByPhase.get(definition.id) ?? [];
       const operatorPacket = operatorPacketForPhase(phaseBlockers, operatorPacketIndex);
-      const commands = [...new Set(phaseBlockers.map((item) => item.validationCommand).filter(Boolean))];
-      const commandGuards = commandGuardsForCommands(commands, operatorPacketIndex.commandRunbook);
+      const commands = commandsForPhaseBlockers(phaseBlockers, operatorPacketIndex);
+      const commandGuards = commandGuardsForCommands(commands, operatorPacketIndex.commandGuardRunbook);
       const localPreparationCommands = localPreparationCommandsForPhase(operatorPacket, operatorPacketIndex);
       const executionReadiness = buildPhaseExecutionReadiness({
         blockers: phaseBlockers,
@@ -976,8 +976,30 @@ function buildOperatorPacketIndex(commercialInputs) {
     operatorInputFiles: Array.isArray(manifest.operatorInputFiles) ? manifest.operatorInputFiles : [],
     draftFiles: Array.isArray(manifest.draftFiles) ? manifest.draftFiles : [],
     reportArchiveFiles: Array.isArray(manifest.reportArchiveFiles) ? manifest.reportArchiveFiles : [],
-    commandRunbook: Array.isArray(manifest.commandRunbook) ? manifest.commandRunbook : []
+    commandRunbook: Array.isArray(manifest.commandRunbook) ? manifest.commandRunbook : [],
+    inputValidationRunbook: Array.isArray(manifest.inputValidationRunbook) ? manifest.inputValidationRunbook : [],
+    commandGuardRunbook: [
+      ...(Array.isArray(manifest.commandRunbook) ? manifest.commandRunbook : []),
+      ...(Array.isArray(manifest.inputValidationRunbook) ? manifest.inputValidationRunbook : [])
+    ]
   };
+}
+
+function commandsForPhaseBlockers(phaseBlockers, index) {
+  const commands = [];
+  for (const item of phaseBlockers) {
+    const inputId = String(item?.id ?? "");
+    const inputRunbookCommands = index.inputValidationRunbook
+      .filter((entry) => String(entry?.sourceInputId ?? "") === inputId)
+      .map((entry) => String(entry?.command ?? ""))
+      .filter(Boolean);
+    if (inputRunbookCommands.length > 0) {
+      commands.push(...inputRunbookCommands);
+      continue;
+    }
+    commands.push(...validationCommandSteps(item?.validationCommand).map((step) => step.command));
+  }
+  return [...new Set(commands.filter(Boolean))];
 }
 
 function operatorPacketForPhase(blockers, index) {
@@ -1135,6 +1157,22 @@ function commandGuardFlags(command) {
     requiresManualReview: command.includes("manual-review") || command.includes("manual-audio-review") || command.includes("manual-quality-review"),
     containsPlaceholder: command.includes("<")
   };
+}
+
+function validationCommandSteps(command) {
+  const normalized = String(command ?? "").trim();
+  if (!normalized) {
+    return [];
+  }
+  const matches = [...normalized.matchAll(/\bStep\s+(\d+):\s*([\s\S]*?)(?=\s+\bStep\s+\d+:\s*|$)/g)];
+  if (matches.length === 0) {
+    return [{ stepIndex: 1, stepCount: 1, command: normalized }];
+  }
+  return matches.map((match, index) => ({
+    stepIndex: Number(match[1] ?? index + 1),
+    stepCount: matches.length,
+    command: match[2].trim().replace(/\.$/, "")
+  }));
 }
 
 function uniqueSortedStrings(values) {

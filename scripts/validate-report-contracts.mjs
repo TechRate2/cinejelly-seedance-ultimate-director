@@ -1013,6 +1013,11 @@ function validateEvidenceClosurePlan(plan, path, context = {}) {
     if (commandGuards.length !== commands.length) {
       issues.push(`${path}.phases[id=${phase?.id}].commandGuards: expected one guard per command.`);
     }
+    for (const command of commands) {
+      if (String(command ?? "").match(/\bStep\s+\d+:/)) {
+        issues.push(`${path}.phases[id=${phase?.id}].commands: expected expanded validation commands without embedded Step labels.`);
+      }
+    }
     for (const guard of commandGuards) {
       const command = String(guard?.command ?? "");
       if (!commands.includes(command)) {
@@ -1023,6 +1028,25 @@ function validateEvidenceClosurePlan(plan, path, context = {}) {
         if (guard?.[key] !== expected) {
           issues.push(`${path}.phases[id=${phase?.id}].commandGuards[command=${command}].${key}: expected ${expected}.`);
         }
+      }
+    }
+    if (requiredInputIds.includes("generated_audio_paid_review")) {
+      if (!commands.some((command) => String(command).includes("validation:generated-audio-artifact"))) {
+        issues.push(`${path}.phases[id=${phase?.id}].commands: expected generated-audio artifact evidence capture command.`);
+      }
+      if (!commands.some((command) => String(command).includes("validation:generated-audio-review-draft"))) {
+        issues.push(`${path}.phases[id=${phase?.id}].commands: expected generated-audio manual-review draft command.`);
+      }
+      if (!commands.some((command) => String(command).includes("--review-existing-report") && String(command).includes("--manual-audio-review"))) {
+        issues.push(`${path}.phases[id=${phase?.id}].commands: expected generated-audio review-existing manual-audio command.`);
+      }
+    }
+    if (requiredInputIds.includes("long_form_paid_media_review")) {
+      if (!commands.some((command) => String(command).includes("validation:long-form-review-draft"))) {
+        issues.push(`${path}.phases[id=${phase?.id}].commands: expected long-form manual quality review draft command.`);
+      }
+      if (!commands.some((command) => String(command).includes("validation:long-form") && String(command).includes("--manual-quality-review"))) {
+        issues.push(`${path}.phases[id=${phase?.id}].commands: expected long-form paid manual-quality-review command.`);
       }
     }
     issues.push(...validateEvidenceClosureLocalPreparationCommands(phase, `${path}.phases[id=${phase?.id}].localPreparationCommands`, localPreparationCommands));
