@@ -31,6 +31,7 @@ The repository contains a production-oriented TypeScript foundation. A short pai
 - Successful runs emit `review-packet.json`, a redacted commercial handoff summary that ties planning, render, cost, delivery, and QC evidence together.
 - Optional reference selection metadata for camera, composition, character, view, timeline index, and authorization is validated at API admission, preserved by the Reference Librarian, and consumed by deterministic reference selection before provider request compilation.
 - Normalized source-video scene/keyframe metadata now enriches exact keyframe URI references and matching source-video structure references with typed camera/composition/timeline/source-scene/source-keyframe hints for reference scoring.
+- A reusable Review/Approval System now evaluates scene, audio, caption, and claim checkpoints for `pre_render` and `pre_export` gates, maps them to `continue`, `paused_for_review`, `paused_for_revision`, `rejected`, or `blocked` lifecycle decisions, and refuses unsafe public review text or approvals without reviewer/timestamp evidence.
 - Atlas provider cost ledger entries now record actual retry counts for retryable LLM, Seedance, prediction polling, and media upload/direct-reference handling, with prediction polling tied back to the originating model and graph node when context is available.
 - Atlas prediction output mapping now tolerates nested provider response shapes such as `output`, `result`, `data`, `videos`, and file objects before declaring `OUTPUT_MISSING`, and prediction polling falls back from `/model/prediction/{id}` to Atlas result compatibility routes, including the documented `/model/getResult?predictionId=...`, only when earlier routes are unavailable.
 - Atlas HTTP timeout and abort paths now normalize into retryable `ProviderError` records with redacted reason details instead of leaking raw runtime errors through provider boundaries.
@@ -132,6 +133,8 @@ cinejelly-seedance-ultimate-director/
 - `docs/reference-implementations/deployment-container-packaging.md`: Docker packaging contract and no-spend package validator for repeatable HTTPS deployment preparation without baking secrets or artifacts into images.
 - `docs/BEGINNER_QUICKSTART.md`: shortest setup path for non-specialist operators, including automation boundaries and clean-source checks.
 - `docs/RUNNING_AND_MODEL_SETTINGS_GUIDE.md`: practical install, environment, model, API, settings, and no-UI runtime guide.
+- `docs/SHORT_PIPELINE_AGENTIC_DESIGN.md`: short-form agentic pipeline design that keeps templates optional, chat natural, and human review explicit.
+- `docs/COMMERCIAL_READINESS_CHECKLIST.md`: commercial-core checklist for backend evidence, paid validation, operations, product scope, and UI readiness.
 - `docs/PROMPT_COMPILER_DESIGN.md`: adaptive Seedance prompt compiler design.
 - `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`: 2 to 8 minute graph and chunking strategy.
 - `docs/CONSISTENCY_GUARDIAN_DESIGN.md`: quality, continuity, inspection, and repair design.
