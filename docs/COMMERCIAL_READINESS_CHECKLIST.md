@@ -15,7 +15,8 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Artifact validation and redacted public API responses exist.
 - [x] Report contract validation exists.
 - [x] Review/approval primitive exists for scene, audio, caption, and claim gates.
-- [ ] Review/approval is wired into API job lifecycle as persisted `pause -> review -> approve/reject` state.
+- [x] Async pre-render review/approval is wired into API job lifecycle as `pause -> review -> approve/reject`, with quota reservation deferred until approval.
+- [ ] Pre-export review, UI review screens, and artifact-bound manual media review are accepted for the first commercial launch scope.
 
 ## Paid Provider Evidence
 
@@ -55,6 +56,7 @@ Run these before any commercial claim:
 ```powershell
 npm.cmd run build
 npm.cmd run validation:report-contracts
+npm.cmd run validation:render-job-review-lifecycle
 npm.cmd run validation:release-audit
 npm.cmd run validation:business-readiness
 npm.cmd run validation:completion-audit

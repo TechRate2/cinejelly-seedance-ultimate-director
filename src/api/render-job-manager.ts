@@ -7,9 +7,16 @@ import { randomUUID } from "node:crypto";
 import { createDirectorRuntime } from "../application/director-factory.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
+import { ReviewApprovalSystem } from "../core/review-approval-system.js";
 import type { CineJellyProjectRequest, DirectorRunResult } from "../types/agent.js";
 import type { ProjectArtifactBundle, ProjectArtifactValidationReport, ProjectArtifactValidationStatus } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
+import type {
+  ReviewApprovalCheckpointInput,
+  ReviewApprovalGate,
+  ReviewApprovalReport,
+  ReviewApprovalStatus
+} from "../types/review-approval.js";
 import type { ProductionStageName, ProductionStageProgressEvent, ProductionStageStatus } from "../types/stage.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
@@ -21,7 +28,16 @@ import {
 } from "./artifact-response.js";
 import type { RenderJobHistoryStore, RenderJobStoredSummary } from "./render-job-history-store.js";
 
-export type RenderJobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled";
+export type RenderJobStatus =
+  | "queued"
+  | "running"
+  | "paused_for_review"
+  | "paused_for_revision"
+  | "blocked"
+  | "succeeded"
+  | "failed"
+  | "canceled"
+  | "rejected";
 const MAX_STAGE_PROGRESS_EVENTS = 200;
 const MAX_PROVIDER_CHECKPOINT_IDS = 50;
 const EMBEDDED_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s"',;)]*/g;
@@ -68,6 +84,31 @@ export class RenderJobIdempotencyConflictError extends Error {
   }
 }
 
+export class RenderJobReviewStateError extends Error {
+  public readonly statusCode = 409;
+
+  public constructor(message: string) {
+    super(message);
+    this.name = "RenderJobReviewStateError";
+  }
+}
+
+export interface RenderJobReviewInput {
+  readonly gate?: ReviewApprovalGate;
+  readonly checkpoints: readonly ReviewApprovalCheckpointInput[];
+}
+
+export interface RenderJobApprovedForRenderInput {
+  readonly request: CineJellyProjectRequest;
+  readonly summary: RenderJobSummary;
+  readonly reviewApproval: ReviewApprovalReport;
+}
+
+export interface RenderJobReviewSubmission {
+  readonly summary: RenderJobSummary;
+  readonly queuedForRender: boolean;
+}
+
 export interface RenderJobSummary {
   readonly jobId: string;
   readonly clientId?: string;
@@ -95,12 +136,16 @@ export interface RenderJobSummary {
   readonly hasArtifacts: boolean;
   readonly hasArtifactValidation: boolean;
   readonly artifactValidationStatus?: ProjectArtifactValidationStatus;
+  readonly hasReviewApproval: boolean;
+  readonly reviewApprovalStatus?: ReviewApprovalStatus;
+  readonly reviewApprovalLifecycleAction?: ReviewApprovalReport["lifecycle"]["action"];
   readonly hasError: boolean;
   readonly error?: unknown;
   readonly costLedger?: readonly CostLedgerEntry[];
   readonly providerCheckpoint?: RenderJobProviderCheckpoint;
   readonly artifacts?: ApiProjectArtifactBundle;
   readonly artifactValidation?: ApiProjectArtifactValidationReport;
+  readonly reviewApproval?: ReviewApprovalReport;
   readonly result?: DirectorRunResult;
 }
 
@@ -108,6 +153,7 @@ export interface RenderJobQueueStats {
   readonly retainedJobCount: number;
   readonly queuedJobCount: number;
   readonly runningJobCount: number;
+  readonly pausedJobCount: number;
   readonly terminalJobCount: number;
   readonly maxConcurrentJobs: number;
   readonly queueLimit: number;
@@ -122,10 +168,12 @@ export interface RenderJobSubmission {
 interface RenderJobRecordBase extends Omit<
   RenderJobSummary,
   "artifacts" | "hasError" | "currentStage" | "currentStageStatus" | "progressEventCount" | "stageProgressEvents"
-  | "hasProviderCheckpoint" | "artifactValidation"
+  | "hasProviderCheckpoint" | "artifactValidation" | "hasReviewApproval" | "reviewApprovalStatus"
+  | "reviewApprovalLifecycleAction" | "reviewApproval"
 > {
   readonly artifacts?: ProjectArtifactBundle;
   readonly artifactValidation?: ProjectArtifactValidationReport;
+  readonly reviewApproval?: ReviewApprovalReport;
   readonly stageProgressEvents: readonly ProductionStageProgressEvent[];
 }
 
@@ -140,7 +188,7 @@ interface ActiveRenderJobRecord extends RenderJobRecordBase {
 interface RestoredRenderJobRecord extends RenderJobRecordBase {
   readonly retentionSource: "history_store";
   readonly detailRetention: "compact_restored";
-  readonly status: "succeeded" | "failed" | "canceled";
+  readonly status: "succeeded" | "failed" | "canceled" | "rejected";
 }
 
 type RenderJobRecord = ActiveRenderJobRecord | RestoredRenderJobRecord;
@@ -160,6 +208,7 @@ export type RenderJobRuntimeFactory = (input?: RenderJobRuntimeFactoryInput) => 
 export class RenderJobManager {
   private readonly artifactStore: ProjectArtifactStore;
   private readonly artifactValidator: ProjectArtifactValidator;
+  private readonly reviewApprovalSystem = new ReviewApprovalSystem();
   private readonly runtimeFactory: RenderJobRuntimeFactory;
   private readonly historyStore: RenderJobHistoryStore | undefined;
   private readonly maxConcurrentJobs: number;
@@ -196,6 +245,7 @@ export class RenderJobManager {
     readonly clientId?: string;
     readonly idempotencyKeyDigest?: string;
     readonly requestFingerprint?: string;
+    readonly reviewApproval?: RenderJobReviewInput;
     readonly onAccepted?: (summary: RenderJobSummary) => void;
   }): RenderJobSubmission {
     const replayedJob = this.findIdempotentReplay(input.idempotencyKeyDigest, input.requestFingerprint);
@@ -206,18 +256,23 @@ export class RenderJobManager {
       };
     }
 
-    this.assertQueueCapacity();
     const now = new Date();
     const jobId = `render_job_${randomUUID()}`;
+    const reviewApproval = this.evaluateReviewApproval(jobId, input.request, input.reviewApproval, now);
+    const initialStatus = this.initialStatusForReviewApproval(reviewApproval);
+    if (initialStatus === "queued") {
+      this.assertQueueCapacity();
+    }
     const record: RenderJobRecord = {
       jobId,
       ...(input.clientId ? { clientId: input.clientId } : {}),
       ...(input.request.metadata?.requestId ? { requestId: input.request.metadata.requestId } : {}),
-      status: "queued",
+      status: initialStatus,
       retentionSource: "memory",
       detailRetention: "full",
       createdAt: now,
       updatedAt: now,
+      ...(initialStatus === "rejected" ? { completedAt: now } : {}),
       userInputPreview: this.preview(input.request.userInput),
       referenceCount: input.request.references?.length ?? 0,
       artifactDirectory: input.artifactDirectory,
@@ -226,6 +281,10 @@ export class RenderJobManager {
       hasCostLedger: false,
       hasArtifacts: false,
       hasArtifactValidation: false,
+      ...(reviewApproval ? { reviewApproval } : {}),
+      ...(initialStatus === "rejected"
+        ? { error: this.errorPayload(new Error("Render job was rejected by required review approval checkpoint.")) }
+        : {}),
       request: input.request,
       abortController: new AbortController(),
       ...(input.request.settings?.durationTargetSeconds !== undefined
@@ -235,7 +294,9 @@ export class RenderJobManager {
       ...(input.request.settings?.resolution ? { requestedResolution: input.request.settings.resolution } : {})
     };
 
-    input.onAccepted?.(this.toSummary(record, { includeDetails: false }));
+    if (initialStatus === "queued") {
+      input.onAccepted?.(this.toSummary(record, { includeDetails: false }));
+    }
     this.jobs.set(jobId, record);
     if (input.idempotencyKeyDigest && input.requestFingerprint) {
       this.idempotencyIndex.set(input.idempotencyKeyDigest, {
@@ -243,10 +304,14 @@ export class RenderJobManager {
         requestFingerprint: input.requestFingerprint
       });
     }
-    this.queue.push(jobId);
+    if (initialStatus === "queued") {
+      this.queue.push(jobId);
+    }
     this.persistHistory();
     this.pruneHistory();
-    this.pumpQueue();
+    if (initialStatus === "queued") {
+      this.pumpQueue();
+    }
     return {
       summary: this.toSummary(record, { includeDetails: false }),
       idempotentReplay: false
@@ -274,10 +339,80 @@ export class RenderJobManager {
       retainedJobCount: this.jobs.size,
       queuedJobCount: counts.queued,
       runningJobCount: counts.running,
+      pausedJobCount: counts.paused,
       terminalJobCount: counts.terminal,
       maxConcurrentJobs: this.maxConcurrentJobs,
       queueLimit: this.queueLimit,
       availableQueueSlots: Math.max(0, this.queueLimit - counts.queued - counts.running)
+    };
+  }
+
+  public review(
+    jobId: string,
+    input: RenderJobReviewInput,
+    filter: { readonly clientId?: string } = {},
+    options: {
+      readonly onApprovedForRender?: (input: RenderJobApprovedForRenderInput) => void;
+    } = {}
+  ): RenderJobReviewSubmission | undefined {
+    const record = this.jobs.get(jobId);
+    if (!record) {
+      return undefined;
+    }
+    if (filter.clientId && record.clientId !== filter.clientId) {
+      return undefined;
+    }
+    if (record.retentionSource !== "memory") {
+      throw new RenderJobReviewStateError("Restored compact render jobs cannot be resumed from review; resubmit the render request with approval evidence.");
+    }
+    if (!this.isReviewable(record.status)) {
+      throw new RenderJobReviewStateError("Only paused or blocked render jobs can receive manual review decisions.");
+    }
+
+    const now = new Date();
+    const reviewApproval = this.evaluateReviewApproval(jobId, record.request, input, now);
+    if (!reviewApproval) {
+      throw new RenderJobReviewStateError("Manual review requires at least one approval checkpoint.");
+    }
+    const nextStatus = this.initialStatusForReviewApproval(reviewApproval);
+
+    if (nextStatus === "queued") {
+      this.assertQueueCapacity();
+      options.onApprovedForRender?.({
+        request: record.request,
+        summary: this.toSummary(record, { includeDetails: false }),
+        reviewApproval
+      });
+      this.updateJob(jobId, {
+        status: "queued",
+        updatedAt: now,
+        reviewApproval,
+        error: undefined
+      });
+      this.queue.push(jobId);
+      this.pumpQueue();
+      return {
+        summary: this.get(jobId) ?? this.toSummary(record, { includeDetails: false }),
+        queuedForRender: true
+      };
+    }
+
+    this.updateJob(jobId, {
+      status: nextStatus,
+      updatedAt: now,
+      ...(nextStatus === "rejected" ? { completedAt: now } : {}),
+      reviewApproval,
+      ...(nextStatus === "rejected"
+        ? { error: this.errorPayload(new Error("Render job was rejected by required review approval checkpoint.")) }
+        : {}),
+      ...(nextStatus === "blocked"
+        ? { error: this.errorPayload(new Error("Render job approval is blocked by unsafe or inconsistent review evidence.")) }
+        : {}),
+      ...(nextStatus === "paused_for_review" || nextStatus === "paused_for_revision" ? { error: undefined } : {})
+    });
+    return {
+      summary: this.get(jobId) ?? this.toSummary(record, { includeDetails: false }),
+      queuedForRender: false
     };
   }
 
@@ -343,7 +478,11 @@ export class RenderJobManager {
   }
 
   private isTerminal(status: RenderJobStatus): boolean {
-    return status === "succeeded" || status === "failed" || status === "canceled";
+    return status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected";
+  }
+
+  private isReviewable(status: RenderJobStatus): boolean {
+    return status === "paused_for_review" || status === "paused_for_revision" || status === "blocked";
   }
 
   private assertQueueCapacity(): void {
@@ -353,20 +492,64 @@ export class RenderJobManager {
     }
   }
 
-  private queueCounts(): { readonly queued: number; readonly running: number; readonly terminal: number } {
+  private queueCounts(): {
+    readonly queued: number;
+    readonly running: number;
+    readonly paused: number;
+    readonly terminal: number;
+  } {
     let queued = 0;
     let running = 0;
+    let paused = 0;
     let terminal = 0;
     for (const record of this.jobs.values()) {
       if (record.status === "queued") {
         queued += 1;
       } else if (record.status === "running") {
         running += 1;
+      } else if (this.isReviewable(record.status)) {
+        paused += 1;
       } else {
         terminal += 1;
       }
     }
-    return { queued, running, terminal };
+    return { queued, running, paused, terminal };
+  }
+
+  private evaluateReviewApproval(
+    jobId: string,
+    request: CineJellyProjectRequest,
+    reviewApproval: RenderJobReviewInput | undefined,
+    generatedAt: Date
+  ): ReviewApprovalReport | undefined {
+    if (!reviewApproval || reviewApproval.checkpoints.length === 0) {
+      return undefined;
+    }
+    return this.reviewApprovalSystem.evaluate({
+      projectId: request.metadata?.projectId ?? jobId,
+      ...(request.metadata?.requestId ? { requestId: request.metadata.requestId } : {}),
+      gate: reviewApproval.gate ?? "pre_render",
+      checkpoints: reviewApproval.checkpoints,
+      generatedAt
+    });
+  }
+
+  private initialStatusForReviewApproval(reviewApproval: ReviewApprovalReport | undefined): RenderJobStatus {
+    if (!reviewApproval) {
+      return "queued";
+    }
+    switch (reviewApproval.status) {
+      case "approved":
+        return "queued";
+      case "approval_required":
+        return "paused_for_review";
+      case "changes_requested":
+        return "paused_for_revision";
+      case "rejected":
+        return "rejected";
+      case "blocked":
+        return "blocked";
+    }
   }
 
   private pumpQueue(): void {
@@ -684,7 +867,7 @@ export class RenderJobManager {
       return;
     }
     const removable = [...this.jobs.values()]
-      .filter((record) => record.status === "succeeded" || record.status === "failed" || record.status === "canceled")
+      .filter((record) => this.isTerminal(record.status))
       .sort((left, right) => left.updatedAt.getTime() - right.updatedAt.getTime());
 
     for (const record of removable) {
@@ -718,13 +901,19 @@ export class RenderJobManager {
   }
 
   private fromStoredSummary(summary: RenderJobStoredSummary): RestoredRenderJobRecord {
-    const staleActive = summary.status === "queued" || summary.status === "running";
+    const staleActive =
+      summary.status === "queued" ||
+      summary.status === "running" ||
+      summary.status === "paused_for_review" ||
+      summary.status === "paused_for_revision" ||
+      summary.status === "blocked";
     const restoredAt = new Date();
+    const restoredStatus = staleActive ? "canceled" : this.restorableTerminalStatus(summary.status);
     return {
       jobId: summary.jobId,
       ...(summary.clientId ? { clientId: summary.clientId } : {}),
       ...(summary.requestId ? { requestId: summary.requestId } : {}),
-      status: staleActive ? "canceled" : summary.status,
+      status: restoredStatus,
       retentionSource: "history_store",
       detailRetention: "compact_restored",
       createdAt: summary.createdAt,
@@ -750,6 +939,7 @@ export class RenderJobManager {
       hasArtifacts: summary.hasArtifacts,
       hasArtifactValidation: summary.hasArtifactValidation,
       ...(summary.artifactValidationStatus ? { artifactValidationStatus: summary.artifactValidationStatus } : {}),
+      ...(summary.reviewApproval ? { reviewApproval: summary.reviewApproval } : {}),
       ...(staleActive
         ? {
             error: this.errorPayload(
@@ -760,6 +950,13 @@ export class RenderJobManager {
           }
         : summary.error !== undefined ? { error: summary.error } : {})
     };
+  }
+
+  private restorableTerminalStatus(status: RenderJobStatus): RestoredRenderJobRecord["status"] {
+    if (status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected") {
+      return status;
+    }
+    return "canceled";
   }
 
   private findIdempotentReplay(
@@ -819,6 +1016,7 @@ export class RenderJobManager {
       providerCheckpoint,
       artifacts,
       artifactValidation,
+      reviewApproval,
       result
     } = record;
     const currentStageProgress = stageProgressEvents[stageProgressEvents.length - 1];
@@ -849,6 +1047,9 @@ export class RenderJobManager {
       hasArtifacts: Boolean(artifacts),
       hasArtifactValidation: Boolean(artifactValidation),
       ...(artifactValidation ? { artifactValidationStatus: artifactValidation.status } : {}),
+      hasReviewApproval: Boolean(reviewApproval),
+      ...(reviewApproval ? { reviewApprovalStatus: reviewApproval.status } : {}),
+      ...(reviewApproval ? { reviewApprovalLifecycleAction: reviewApproval.lifecycle.action } : {}),
       hasError: error !== undefined,
       ...(options.includeDetails && error !== undefined ? { error } : {}),
       ...(options.includeDetails && costLedger ? { costLedger } : {}),
@@ -857,6 +1058,7 @@ export class RenderJobManager {
       ...(options.includeDetails && artifactValidation
         ? { artifactValidation: toApiProjectArtifactValidationReport(artifactValidation) }
         : {}),
+      ...(options.includeDetails && reviewApproval ? { reviewApproval } : {}),
       ...(options.includeDetails && result ? { result } : {})
     };
   }

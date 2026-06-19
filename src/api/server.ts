@@ -26,6 +26,13 @@ import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { ProjectArtifactBundle, ProjectArtifactValidationReport } from "../types/artifact.js";
 import type { CostLedgerEntry } from "../types/provider.js";
+import type {
+  ReviewApprovalCheckpointInput,
+  ReviewApprovalDecision,
+  ReviewApprovalEvidenceValue,
+  ReviewApprovalGate,
+  ReviewApprovalSurface
+} from "../types/review-approval.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
@@ -48,7 +55,9 @@ import {
 import {
   RenderJobCapacityError,
   RenderJobIdempotencyConflictError,
-  RenderJobManager
+  RenderJobManager,
+  RenderJobReviewStateError,
+  type RenderJobReviewInput
 } from "./render-job-manager.js";
 import { readRenderJobHistoryPath, RenderJobHistoryStore } from "./render-job-history-store.js";
 import {
@@ -71,11 +80,24 @@ const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_.:-]{8,160}$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const MIN_PORT = 1;
 const MAX_PORT = 65_535;
+const REVIEW_TEXT_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
+const MAX_REVIEW_APPROVAL_CHECKPOINTS = 120;
+const MAX_REVIEW_APPROVAL_EVIDENCE_ENTRIES = 60;
+const MAX_REVIEW_APPROVAL_ARRAY_ITEMS = 80;
 
 interface RenderRequestBody extends CineJellyProjectRequest {
   readonly outputPath?: string;
   readonly workDirectory?: string;
   readonly artifactDirectory?: string;
+  readonly reviewApprovalGate?: ReviewApprovalGate;
+  readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
+}
+
+interface RenderJobReviewRequestBody {
+  readonly gate?: ReviewApprovalGate;
+  readonly reviewApprovalGate?: ReviewApprovalGate;
+  readonly checkpoints?: readonly ReviewApprovalCheckpointInput[];
+  readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
 }
 
 class UnsupportedMediaTypeError extends Error {
@@ -174,6 +196,36 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         }, requestContext);
         return;
       }
+      const jobReviewMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)\/review$/);
+      if (request.method === "POST" && jobReviewMatch) {
+        assertJsonContentType(request);
+        const body = await readJsonBody<RenderJobReviewRequestBody>(request, maxBodyBytes);
+        const reviewInput = renderJobReviewInputFromReviewBody(body);
+        let clientPolicyReservation: ApiClientPolicyReservation | undefined;
+        const submission = jobManager.review(
+          decodeURIComponent(jobReviewMatch[1] ?? ""),
+          reviewInput,
+          clientFilter(authDecision.principal),
+          {
+            onApprovedForRender: ({ request: approvedRequest }) => {
+              clientPolicyReservation = clientPolicyGate.reserveRender({
+                principal: authDecision.principal,
+                request: approvedRequest,
+                requestId: requestContext.requestId,
+                channel: "async"
+              });
+            }
+          }
+        );
+        sendJson(response, submission ? 202 : 404, submission
+          ? {
+              ...submission.summary,
+              queuedForRender: submission.queuedForRender,
+              ...(clientPolicyReservation ? { clientPolicyReservation } : {})
+            }
+          : { error: "Render job not found." }, requestContext);
+        return;
+      }
       const jobMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)$/);
       if (request.method === "GET" && jobMatch) {
         const job = jobManager.get(decodeURIComponent(jobMatch[1] ?? ""), clientFilter(authDecision.principal));
@@ -236,10 +288,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
         assertJsonContentType(request);
         const body = await readJsonBody<RenderRequestBody>(request, maxBodyBytes);
-        requestAdmission.assertAcceptable(body);
+        const renderBody = renderRequestBody(body);
+        const reviewApproval = renderJobReviewInputFromRenderBody(body);
+        requestAdmission.assertAcceptable(renderBody);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
-        const normalizedRequest = normalizeRenderRequest(body, {
+        const normalizedRequest = normalizeRenderRequest(renderBody, {
           requestId: requestContext.requestId,
           env: process.env
         });
@@ -251,6 +305,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...clientFilter(authDecision.principal),
           ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
           ...(requestFingerprint ? { requestFingerprint } : {}),
+          ...(reviewApproval ? { reviewApproval } : {}),
           onAccepted: () => {
             clientPolicyReservation = clientPolicyGate.reserveRender({
               principal: authDecision.principal,
@@ -271,8 +326,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "POST" && requestUrl.pathname === "/v1/render") {
         assertJsonContentType(request);
         const body = await readJsonBody<RenderRequestBody>(request, maxBodyBytes);
-        requestAdmission.assertAcceptable(body);
-        const normalizedRequest = normalizeRenderRequest(body, {
+        const renderBody = renderRequestBody(body);
+        requestAdmission.assertAcceptable(renderBody);
+        const normalizedRequest = normalizeRenderRequest(renderBody, {
           requestId: requestContext.requestId,
           env: process.env
         });
@@ -462,6 +518,7 @@ function errorStatusCode(error: unknown): number {
     error instanceof RenderRequestNormalizationError ||
     error instanceof RenderJobCapacityError ||
     error instanceof RenderJobIdempotencyConflictError ||
+    error instanceof RenderJobReviewStateError ||
     error instanceof UnsupportedMediaTypeError ||
     error instanceof RequestBodyTooLargeError ||
     error instanceof ApiClientPolicyError
@@ -542,6 +599,209 @@ function assertJsonContentType(request: IncomingMessage): void {
   if (!isApplicationJsonMediaType(readHeader(request, "content-type"))) {
     throw new UnsupportedMediaTypeError();
   }
+}
+
+function renderRequestBody(body: RenderRequestBody): CineJellyProjectRequest {
+  const { reviewApprovalGate: _reviewApprovalGate, reviewApprovalCheckpoints: _reviewApprovalCheckpoints, ...renderBody } = body;
+  return renderBody;
+}
+
+function renderJobReviewInputFromRenderBody(body: RenderRequestBody): RenderJobReviewInput | undefined {
+  if (body.reviewApprovalGate === undefined && body.reviewApprovalCheckpoints === undefined) {
+    return undefined;
+  }
+  return normalizeReviewApprovalInput({
+    gate: body.reviewApprovalGate,
+    checkpoints: body.reviewApprovalCheckpoints
+  });
+}
+
+function renderJobReviewInputFromReviewBody(body: RenderJobReviewRequestBody): RenderJobReviewInput {
+  return normalizeReviewApprovalInput({
+    gate: body.gate ?? body.reviewApprovalGate,
+    checkpoints: body.checkpoints ?? body.reviewApprovalCheckpoints
+  });
+}
+
+function normalizeReviewApprovalInput(input: {
+  readonly gate?: unknown;
+  readonly checkpoints?: unknown;
+}): RenderJobReviewInput {
+  const checkpoints = reviewApprovalCheckpoints(input.checkpoints);
+  const gate = input.gate === undefined ? undefined : reviewApprovalGate(input.gate);
+  return {
+    ...(gate ? { gate } : {}),
+    checkpoints
+  };
+}
+
+function reviewApprovalCheckpoints(value: unknown): readonly ReviewApprovalCheckpointInput[] {
+  if (!Array.isArray(value)) {
+    throw new RenderRequestAdmissionError("reviewApprovalCheckpoints must be an array.");
+  }
+  if (value.length === 0) {
+    throw new RenderRequestAdmissionError("reviewApprovalCheckpoints must contain at least one checkpoint.");
+  }
+  if (value.length > MAX_REVIEW_APPROVAL_CHECKPOINTS) {
+    throw new RenderRequestAdmissionError(
+      `reviewApprovalCheckpoints cannot contain more than ${MAX_REVIEW_APPROVAL_CHECKPOINTS} items.`
+    );
+  }
+  return value.map((item, index) => reviewApprovalCheckpoint(item, index));
+}
+
+function reviewApprovalCheckpoint(value: unknown, index: number): ReviewApprovalCheckpointInput {
+  const payload = jsonObject(value, `reviewApprovalCheckpoints[${index}] must be an object.`);
+  return {
+    surface: reviewApprovalSurface(payload.surface, index),
+    label: boundedReviewText(payload.label, `reviewApprovalCheckpoints[${index}].label`, 240, true),
+    ...(payload.subjectId !== undefined
+      ? { subjectId: boundedReviewText(payload.subjectId, `reviewApprovalCheckpoints[${index}].subjectId`, 160, true) }
+      : {}),
+    ...(payload.required !== undefined
+      ? { required: booleanReviewValue(payload.required, `reviewApprovalCheckpoints[${index}].required`) }
+      : {}),
+    ...(payload.decision !== undefined
+      ? { decision: reviewApprovalDecision(payload.decision, `reviewApprovalCheckpoints[${index}].decision`) }
+      : {}),
+    ...(payload.reviewer !== undefined
+      ? { reviewer: boundedReviewText(payload.reviewer, `reviewApprovalCheckpoints[${index}].reviewer`, 160, true) }
+      : {}),
+    ...(payload.reviewedAt !== undefined
+      ? { reviewedAt: reviewApprovalDate(payload.reviewedAt, `reviewApprovalCheckpoints[${index}].reviewedAt`) }
+      : {}),
+    ...(payload.notes !== undefined
+      ? { notes: boundedReviewText(payload.notes, `reviewApprovalCheckpoints[${index}].notes`, 1_000, true) }
+      : {}),
+    ...(payload.issueCodes !== undefined
+      ? { issueCodes: reviewApprovalStringArray(payload.issueCodes, `reviewApprovalCheckpoints[${index}].issueCodes`, 80, 80) }
+      : {}),
+    ...(payload.evidence !== undefined
+      ? { evidence: reviewApprovalEvidence(payload.evidence, `reviewApprovalCheckpoints[${index}].evidence`) }
+      : {})
+  };
+}
+
+function reviewApprovalGate(value: unknown): ReviewApprovalGate {
+  if (value === "pre_render" || value === "pre_export") {
+    return value;
+  }
+  throw new RenderRequestAdmissionError("reviewApprovalGate must be pre_render or pre_export.");
+}
+
+function reviewApprovalSurface(value: unknown, index: number): ReviewApprovalSurface {
+  if (value === "scene" || value === "audio" || value === "caption" || value === "claim") {
+    return value;
+  }
+  throw new RenderRequestAdmissionError(
+    `reviewApprovalCheckpoints[${index}].surface must be scene, audio, caption, or claim.`
+  );
+}
+
+function reviewApprovalDecision(value: unknown, label: string): ReviewApprovalDecision {
+  if (
+    value === "pending" ||
+    value === "approved" ||
+    value === "changes_requested" ||
+    value === "rejected" ||
+    value === "blocked"
+  ) {
+    return value;
+  }
+  throw new RenderRequestAdmissionError(`${label} must use the review approval decision vocabulary.`);
+}
+
+function reviewApprovalEvidence(
+  value: unknown,
+  label: string
+): Readonly<Record<string, ReviewApprovalEvidenceValue>> {
+  const payload = jsonObject(value, `${label} must be an object.`);
+  const entries = Object.entries(payload);
+  if (entries.length > MAX_REVIEW_APPROVAL_EVIDENCE_ENTRIES) {
+    throw new RenderRequestAdmissionError(
+      `${label} cannot contain more than ${MAX_REVIEW_APPROVAL_EVIDENCE_ENTRIES} entries.`
+    );
+  }
+  const evidence: Record<string, ReviewApprovalEvidenceValue> = {};
+  for (const [key, item] of entries) {
+    const safeKey = boundedReviewText(key, `${label}.key`, 80, true).replace(/\s+/g, "_");
+    if (typeof item === "string") {
+      evidence[safeKey] = boundedReviewText(item, `${label}.${safeKey}`, 1_000, true);
+    } else if (typeof item === "number" && Number.isFinite(item)) {
+      evidence[safeKey] = item;
+    } else if (typeof item === "boolean") {
+      evidence[safeKey] = item;
+    } else if (Array.isArray(item) && item.every((entry) => typeof entry === "string")) {
+      evidence[safeKey] = reviewApprovalStringArray(item, `${label}.${safeKey}`, 500, MAX_REVIEW_APPROVAL_ARRAY_ITEMS);
+    } else if (Array.isArray(item) && item.every((entry) => typeof entry === "number" && Number.isFinite(entry))) {
+      evidence[safeKey] = item.slice(0, MAX_REVIEW_APPROVAL_ARRAY_ITEMS);
+    } else if (Array.isArray(item) && item.every((entry) => typeof entry === "boolean")) {
+      evidence[safeKey] = item.slice(0, MAX_REVIEW_APPROVAL_ARRAY_ITEMS);
+    } else {
+      throw new RenderRequestAdmissionError(`${label}.${safeKey} has an unsupported review evidence value.`);
+    }
+  }
+  return evidence;
+}
+
+function reviewApprovalStringArray(
+  value: unknown,
+  label: string,
+  maxItemLength: number,
+  maxItems: number
+): readonly string[] {
+  if (!Array.isArray(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an array.`);
+  }
+  if (value.length > maxItems) {
+    throw new RenderRequestAdmissionError(`${label} cannot contain more than ${maxItems} items.`);
+  }
+  return value.map((item, index) => boundedReviewText(item, `${label}[${index}]`, maxItemLength, true));
+}
+
+function reviewApprovalDate(value: unknown, label: string): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    throw new RenderRequestAdmissionError(`${label} must be an ISO timestamp.`);
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new RenderRequestAdmissionError(`${label} must be an ISO timestamp.`);
+  }
+  return parsed;
+}
+
+function booleanReviewValue(value: unknown, label: string): boolean {
+  if (typeof value !== "boolean") {
+    throw new RenderRequestAdmissionError(`${label} must be a boolean.`);
+  }
+  return value;
+}
+
+function boundedReviewText(value: unknown, label: string, maxLength: number, required: boolean): string {
+  if (typeof value !== "string") {
+    throw new RenderRequestAdmissionError(`${label} must be a string.`);
+  }
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (required && !normalized) {
+    throw new RenderRequestAdmissionError(`${label} cannot be empty.`);
+  }
+  if (normalized.length > maxLength) {
+    throw new RenderRequestAdmissionError(`${label} cannot exceed ${maxLength} characters.`);
+  }
+  if (REVIEW_TEXT_CONTROL_CHARACTER_PATTERN.test(normalized)) {
+    throw new RenderRequestAdmissionError(`${label} must not contain control characters.`);
+  }
+  return normalized;
+}
+
+function jsonObject(value: unknown, message: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new RenderRequestAdmissionError(message);
+  }
+  return value as Record<string, unknown>;
 }
 
 function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]): { readonly clientId?: string } {

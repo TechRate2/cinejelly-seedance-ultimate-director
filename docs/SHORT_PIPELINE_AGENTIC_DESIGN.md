@@ -83,7 +83,7 @@ It returns:
 - `rejected`: a required checkpoint rejects the current job path.
 - `blocked`: approval evidence is unsafe or internally inconsistent.
 
-The lifecycle recommendation maps directly to future job behavior: `continue`, `paused_for_review`, `paused_for_revision`, `rejected`, or `blocked`.
+The lifecycle recommendation now maps to async pre-render job behavior: `continue` queues the render, `paused_for_review` and `paused_for_revision` hold the job before provider spend, `rejected` ends the current job path, and `blocked` keeps the job paused until safe corrected review evidence is submitted. Pre-export review and first-party UI review screens remain future commercial-scope work.
 
 ## Template Registry Principles
 
@@ -129,4 +129,3 @@ Brand kit violations should become approval issues, not silent rewrites.
 - Rejected or unsafe approval evidence blocks the job.
 - Approved checkpoints do not claim full customer readiness by themselves.
 - All artifacts remain redacted, deterministic, and evidence-friendly.
-

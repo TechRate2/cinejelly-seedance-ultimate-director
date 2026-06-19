@@ -13,6 +13,7 @@ import {
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
 import type { RenderJobProviderCheckpoint, RenderJobStatus, RenderJobSummary } from "./render-job-manager.js";
+import type { ReviewApprovalReport } from "../types/review-approval.js";
 
 export const RENDER_JOB_HISTORY_SCHEMA_VERSION = "cinejelly.render-job-history.v1";
 
@@ -57,6 +58,7 @@ export interface RenderJobStoredSummary {
   readonly hasArtifacts: boolean;
   readonly hasArtifactValidation: boolean;
   readonly artifactValidationStatus?: "pass" | "warn" | "fail";
+  readonly reviewApproval?: ReviewApprovalReport;
   readonly hasError: boolean;
   readonly error?: unknown;
 }
@@ -171,6 +173,7 @@ export class RenderJobHistoryStore {
       hasArtifacts: summary.hasArtifacts,
       hasArtifactValidation: summary.hasArtifactValidation,
       ...(summary.artifactValidationStatus ? { artifactValidationStatus: summary.artifactValidationStatus } : {}),
+      ...(summary.reviewApproval ? { reviewApproval: this.serializableReviewApproval(summary.reviewApproval) } : {}),
       hasError: summary.hasError,
       ...(summary.error !== undefined ? { error: summary.error } : {})
     };
@@ -239,10 +242,24 @@ export class RenderJobHistoryStore {
       ...(payload.artifactValidationStatus !== undefined
         ? { artifactValidationStatus: this.artifactValidationStatus(payload.artifactValidationStatus) }
         : {}),
+      ...(payload.reviewApproval !== undefined
+        ? { reviewApproval: this.reviewApprovalReport(payload.reviewApproval) }
+        : {}),
       hasError: this.booleanValue(payload.hasError, "hasError"),
       ...(payload.error !== undefined ? { error: this.redactHistoryValue(payload.error) } : {})
     };
     return summary;
+  }
+
+  private serializableReviewApproval(report: ReviewApprovalReport): Record<string, unknown> {
+    return {
+      ...report,
+      generatedAt: report.generatedAt.toISOString(),
+      checkpoints: report.checkpoints.map((checkpoint) => ({
+        ...checkpoint,
+        ...(checkpoint.reviewedAt ? { reviewedAt: checkpoint.reviewedAt.toISOString() } : {})
+      }))
+    };
   }
 
   private serializableProviderCheckpoint(checkpoint: RenderJobProviderCheckpoint): Record<string, unknown> {
@@ -316,6 +333,108 @@ export class RenderJobHistoryStore {
     };
   }
 
+  private reviewApprovalReport(value: unknown): ReviewApprovalReport {
+    const payload = this.objectRecord(this.redactHistoryValue(value), "reviewApproval");
+    if (payload.schemaVersion !== "cinejelly.review-approval.v1") {
+      throw new Error("reviewApproval.schemaVersion must be cinejelly.review-approval.v1.");
+    }
+    const gate = this.reviewApprovalGate(payload.gate);
+    const status = this.reviewApprovalStatus(payload.status);
+    const lifecycle = this.objectRecord(payload.lifecycle, "reviewApproval.lifecycle");
+    const nextJobState = this.safeString(lifecycle.nextJobState, "reviewApproval.lifecycle.nextJobState");
+    if (
+      nextJobState !== "continue" &&
+      nextJobState !== "paused_for_review" &&
+      nextJobState !== "paused_for_revision" &&
+      nextJobState !== "rejected" &&
+      nextJobState !== "blocked"
+    ) {
+      throw new Error("reviewApproval.lifecycle.nextJobState must use the review lifecycle vocabulary.");
+    }
+    return {
+      schemaVersion: "cinejelly.review-approval.v1",
+      approvalId: this.safeString(payload.approvalId, "reviewApproval.approvalId"),
+      projectId: this.safeString(payload.projectId, "reviewApproval.projectId"),
+      ...(payload.requestId !== undefined
+        ? { requestId: this.safeString(payload.requestId, "reviewApproval.requestId") }
+        : {}),
+      gate,
+      generatedAt: this.date(payload.generatedAt, "reviewApproval.generatedAt"),
+      status,
+      checkpoints: this.reviewApprovalCheckpoints(payload.checkpoints),
+      summary: this.objectRecord(payload.summary, "reviewApproval.summary") as unknown as ReviewApprovalReport["summary"],
+      lifecycle: {
+        action: this.reviewApprovalLifecycleAction(lifecycle.action),
+        nextJobState: nextJobState as ReviewApprovalReport["lifecycle"]["nextJobState"],
+        message: this.safeString(lifecycle.message, "reviewApproval.lifecycle.message")
+      },
+      releaseGateSummary: this.objectRecord(
+        payload.releaseGateSummary,
+        "reviewApproval.releaseGateSummary"
+      ) as unknown as ReviewApprovalReport["releaseGateSummary"],
+      nextActions: this.stringArray(payload.nextActions, "reviewApproval.nextActions")
+    };
+  }
+
+  private reviewApprovalCheckpoints(value: unknown): ReviewApprovalReport["checkpoints"] {
+    if (!Array.isArray(value)) {
+      throw new Error("reviewApproval.checkpoints must be an array.");
+    }
+    return value.map((item, index) => {
+      const payload = this.objectRecord(item, `reviewApproval.checkpoints[${index}]`);
+      return {
+        checkpointId: this.safeString(payload.checkpointId, `reviewApproval.checkpoints[${index}].checkpointId`),
+        surface: this.reviewApprovalSurface(payload.surface, `reviewApproval.checkpoints[${index}].surface`),
+        label: this.safeString(payload.label, `reviewApproval.checkpoints[${index}].label`),
+        ...(payload.subjectId !== undefined
+          ? { subjectId: this.safeString(payload.subjectId, `reviewApproval.checkpoints[${index}].subjectId`) }
+          : {}),
+        required: this.booleanValue(payload.required, `reviewApproval.checkpoints[${index}].required`),
+        decision: this.reviewApprovalDecision(payload.decision, `reviewApproval.checkpoints[${index}].decision`),
+        ...(payload.reviewer !== undefined
+          ? { reviewer: this.safeString(payload.reviewer, `reviewApproval.checkpoints[${index}].reviewer`) }
+          : {}),
+        ...(payload.reviewedAt !== undefined
+          ? { reviewedAt: this.date(payload.reviewedAt, `reviewApproval.checkpoints[${index}].reviewedAt`) }
+          : {}),
+        ...(payload.notes !== undefined
+          ? { notes: this.safeString(payload.notes, `reviewApproval.checkpoints[${index}].notes`) }
+          : {}),
+        issueCodes: this.stringArray(payload.issueCodes, `reviewApproval.checkpoints[${index}].issueCodes`),
+        evidence: this.reviewApprovalEvidence(payload.evidence, `reviewApproval.checkpoints[${index}].evidence`),
+        sourcePatternOrigins: this.stringArray(
+          payload.sourcePatternOrigins,
+          `reviewApproval.checkpoints[${index}].sourcePatternOrigins`
+        )
+      };
+    });
+  }
+
+  private reviewApprovalEvidence(
+    value: unknown,
+    label: string
+  ): ReviewApprovalReport["checkpoints"][number]["evidence"] {
+    const payload = this.objectRecord(value, label);
+    const evidence: Record<string, string | number | boolean | readonly string[] | readonly number[] | readonly boolean[]> = {};
+    for (const [key, item] of Object.entries(payload)) {
+      const safeKey = this.safeString(key, `${label}.key`);
+      if (typeof item === "string") {
+        evidence[safeKey] = this.safeString(item, `${label}.${safeKey}`);
+      } else if (typeof item === "number" && Number.isFinite(item)) {
+        evidence[safeKey] = item;
+      } else if (typeof item === "boolean") {
+        evidence[safeKey] = item;
+      } else if (Array.isArray(item) && item.every((entry) => typeof entry === "string")) {
+        evidence[safeKey] = item.map((entry) => this.safeString(entry, `${label}.${safeKey}`));
+      } else if (Array.isArray(item) && item.every((entry) => typeof entry === "number" && Number.isFinite(entry))) {
+        evidence[safeKey] = item;
+      } else if (Array.isArray(item) && item.every((entry) => typeof entry === "boolean")) {
+        evidence[safeKey] = item;
+      }
+    }
+    return evidence;
+  }
+
   private stageProgressEvents(value: unknown): readonly RenderJobStoredProgressEvent[] {
     if (value === undefined) {
       return [];
@@ -386,13 +505,73 @@ export class RenderJobHistoryStore {
     if (
       value === "queued" ||
       value === "running" ||
+      value === "paused_for_review" ||
+      value === "paused_for_revision" ||
+      value === "blocked" ||
       value === "succeeded" ||
       value === "failed" ||
-      value === "canceled"
+      value === "canceled" ||
+      value === "rejected"
     ) {
       return value;
     }
     throw new Error("Render job history status must use the render job status vocabulary.");
+  }
+
+  private reviewApprovalGate(value: unknown): ReviewApprovalReport["gate"] {
+    if (value === "pre_render" || value === "pre_export") {
+      return value;
+    }
+    throw new Error("reviewApproval.gate must be pre_render or pre_export.");
+  }
+
+  private reviewApprovalStatus(value: unknown): ReviewApprovalReport["status"] {
+    if (
+      value === "approved" ||
+      value === "approval_required" ||
+      value === "changes_requested" ||
+      value === "rejected" ||
+      value === "blocked"
+    ) {
+      return value;
+    }
+    throw new Error("reviewApproval.status must use the review approval status vocabulary.");
+  }
+
+  private reviewApprovalLifecycleAction(value: unknown): ReviewApprovalReport["lifecycle"]["action"] {
+    if (
+      value === "continue" ||
+      value === "pause_for_human_review" ||
+      value === "pause_for_revision" ||
+      value === "reject_job" ||
+      value === "block_job"
+    ) {
+      return value;
+    }
+    throw new Error("reviewApproval.lifecycle.action must use the review lifecycle vocabulary.");
+  }
+
+  private reviewApprovalSurface(value: unknown, label: string): ReviewApprovalReport["checkpoints"][number]["surface"] {
+    if (value === "scene" || value === "audio" || value === "caption" || value === "claim") {
+      return value;
+    }
+    throw new Error(`${label} must be scene, audio, caption, or claim.`);
+  }
+
+  private reviewApprovalDecision(
+    value: unknown,
+    label: string
+  ): ReviewApprovalReport["checkpoints"][number]["decision"] {
+    if (
+      value === "pending" ||
+      value === "approved" ||
+      value === "changes_requested" ||
+      value === "rejected" ||
+      value === "blocked"
+    ) {
+      return value;
+    }
+    throw new Error(`${label} must use the review decision vocabulary.`);
   }
 
   private artifactValidationStatus(value: unknown): "pass" | "warn" | "fail" {
