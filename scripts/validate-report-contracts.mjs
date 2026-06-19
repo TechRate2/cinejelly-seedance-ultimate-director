@@ -51,6 +51,7 @@ const defaultContracts = [
   contract("source_video_validation", "schemas/source-video-auto-analysis-validation-report.schema.json", "assets/output_deliverables/business-readiness/source-video-validation-report.json"),
   contract("remote_stock_validation", "schemas/remote-stock-validation-report.schema.json", "assets/output_deliverables/business-readiness/remote-stock-validation-report.json"),
   contract("generated_audio_validation", "schemas/generated-audio-validation-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-validation-report.json"),
+  contract("generated_audio_artifact_evidence", "schemas/generated-audio-artifact-evidence-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-artifact-evidence-report.json"),
   contract("generated_audio_manual_review", "schemas/generated-audio-manual-review.schema.json", "ops/generated-audio-manual-review.json"),
   contract("generated_audio_manual_review_draft", "schemas/generated-audio-manual-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json"),
   contract("generated_audio_polling_resilience", "schemas/generated-audio-polling-resilience-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"),
@@ -318,6 +319,9 @@ function validateSemanticContract(item, report, options) {
   }
   if (item.name === "generated_audio_polling_resilience") {
     return validateGeneratedAudioPollingResilienceSemantics(report);
+  }
+  if (item.name === "generated_audio_artifact_evidence") {
+    return validateGeneratedAudioArtifactEvidenceSemantics(report);
   }
   if (item.name === "long_form_manual_quality_review") {
     return validateLongFormManualQualityReviewSemantics(report);
@@ -1977,6 +1981,68 @@ function validateGeneratedAudioPollingResilienceSemantics(report) {
   return issues;
 }
 
+function validateGeneratedAudioArtifactEvidenceSemantics(report) {
+  const issues = [];
+  const checks = Array.isArray(report?.checks) ? report.checks : [];
+  if (report?.noSpend !== true || report?.providerCallsMade !== false || report?.releaseEvidence !== false) {
+    issues.push("$.noSpend/providerCallsMade/releaseEvidence: expected no-spend, no provider calls, and non-release artifact support evidence.");
+  }
+  const expectedStatus = generatedAudioArtifactEvidenceStatusForChecks(checks);
+  if (report?.status !== expectedStatus) {
+    issues.push(`$.status: expected ${expectedStatus} from checks.`);
+  }
+  if (report?.status === "pass") {
+    if (report?.networkCallsMade !== true || report?.checkedInputs?.confirmLiveNetwork !== true) {
+      issues.push("$.networkCallsMade/$.checkedInputs.confirmLiveNetwork: pass artifact evidence requires explicit live-network capture.");
+    }
+    if (!report?.artifactEvidence || typeof report.artifactEvidence !== "object") {
+      issues.push("$.artifactEvidence: pass artifact evidence requires captured media metadata.");
+    }
+    if (report?.releaseGateSummary?.canUseAsManualReviewArtifactEvidence !== true) {
+      issues.push("$.releaseGateSummary.canUseAsManualReviewArtifactEvidence: expected true only for pass reports.");
+    }
+  } else if (report?.releaseGateSummary?.canUseAsManualReviewArtifactEvidence !== false) {
+    issues.push("$.releaseGateSummary.canUseAsManualReviewArtifactEvidence: expected false unless status is pass.");
+  }
+  if (
+    report?.releaseGateSummary?.canUseAsBusinessReadinessGeneratedAudioEvidence !== false ||
+    report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false
+  ) {
+    issues.push("$.releaseGateSummary: artifact capture must not unlock generated-audio business evidence or customer traffic by itself.");
+  }
+  const binding = report?.sourceReportContext?.artifactBinding;
+  const evidence = report?.artifactEvidence;
+  if (evidence && binding && typeof binding === "object") {
+    for (const key of ["modelId", "language", "voiceId", "outputFormat", "intentId", "providerAssetId", "predictionId", "outputUrlPreview"]) {
+      if (binding[key] !== evidence[key]) {
+        issues.push(`$.artifactEvidence.${key}: expected to match sourceReportContext.artifactBinding.${key}.`);
+      }
+    }
+  }
+  if (evidence) {
+    if (typeof evidence.outputUrlPreview === "string" && /[?&#]/.test(evidence.outputUrlPreview)) {
+      issues.push("$.artifactEvidence.outputUrlPreview: expected credential-free URL preview without query or fragment.");
+    }
+    if (Number(evidence.byteSize ?? 0) <= 0) {
+      issues.push("$.artifactEvidence.byteSize: expected positive byte size.");
+    }
+    if (Number(evidence.durationSeconds ?? 0) <= 0) {
+      issues.push("$.artifactEvidence.durationSeconds: expected positive duration.");
+    }
+  }
+  return issues;
+}
+
+function generatedAudioArtifactEvidenceStatusForChecks(checks) {
+  if (checks.some((check) => check?.name === "live_network_confirmation" && check?.status === "fail")) {
+    return "blocked_by_live_network_confirmation";
+  }
+  if (checks.some((check) => check?.name === "generated_audio_output_ready" && check?.status === "fail")) {
+    return "blocked_by_source_report";
+  }
+  return checks.every((check) => check?.status === "pass") ? "pass" : "fail";
+}
+
 function validateLongFormManualQualityReviewSemantics(report) {
   const issues = [];
   const qualityChecks = report?.qualityChecks && typeof report.qualityChecks === "object"
@@ -2063,6 +2129,13 @@ function validateGeneratedAudioManualReviewDraftSemantics(report) {
     if (typeof binding.outputUrlPreview === "string" && /[?&#]/.test(binding.outputUrlPreview)) {
       issues.push("$.sourceReportContext.artifactBinding.outputUrlPreview: expected credential-free URL preview without query or fragment.");
     }
+  }
+  const artifactContext = report?.artifactEvidenceContext;
+  if (
+    artifactContext?.canUseAsManualReviewArtifactEvidence === true &&
+    artifactContext?.bindingMatchesSourceReport !== true
+  ) {
+    issues.push("$.artifactEvidenceContext.bindingMatchesSourceReport: expected true when artifact evidence is available for manual-review binding.");
   }
   return issues;
 }

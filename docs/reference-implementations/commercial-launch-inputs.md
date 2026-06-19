@@ -19,12 +19,13 @@ Before asking an operator for the remaining production inputs, CineJelly needs o
 9. Each paid slice should include the slice-specific Atlas billing-readiness command before the paid command, using a distinct output path when the slice is not the full business-readiness plan.
 10. Generated-audio manual review checklist items must use `--review-existing-report` so manual review can update evidence without calling Atlas again.
 11. Generated-audio paid commands copied from the business plan must include the slice billing report path, local max-cost cap, cost-rate assumption, and validation text so operators do not depend on hidden CLI defaults.
-12. The packet must include a secret-free Atlas configuration summary derived from live-readiness evidence so operators can distinguish "Atlas keys/models are configured" from deployment, attestation, live-evidence, and budget blockers.
-13. The packet must include live provider action evidence as a separate operator input, backed by `validation:provider-live-actions`, so distributed-resume evidence is not conflated with Atlas key, deployment, or paid-budget readiness.
-14. The packet must include graph-resume enqueue payload evidence as a separate operator input, backed by `validation:provider-graph-resume`, so a provider callback cannot be mistaken for proven resumable graph state or queue payloads.
-15. The packet must include the launch-intake commercial offer scope decision so an API/CLI-only launch is explicit and a UI-required launch remains blocked until the UI exists.
-16. The packet must audit its own command plan against `package.json` scripts and paid-spend guard flags so stale checklist commands are caught before an operator copies them into a live or paid run.
-17. The packet must include an `operatorHandoffManifest` that is safe to share, contains no raw secrets/provider payloads/local absolute paths/customer media, lists ignored operator input files, draft/template files, report archives, flattened guarded commands, flags manual audio and long-form quality review commands as manual-review guarded, and explicitly marks itself as non-release evidence.
+12. Generated-audio manual review checklist items must include `validation:generated-audio-artifact -- --confirm-live-network` before the review-existing command so structured review binds to SHA-256/duration evidence from the exact audio bytes.
+13. The packet must include a secret-free Atlas configuration summary derived from live-readiness evidence so operators can distinguish "Atlas keys/models are configured" from deployment, attestation, live-evidence, and budget blockers.
+14. The packet must include live provider action evidence as a separate operator input, backed by `validation:provider-live-actions`, so distributed-resume evidence is not conflated with Atlas key, deployment, or paid-budget readiness.
+15. The packet must include graph-resume enqueue payload evidence as a separate operator input, backed by `validation:provider-graph-resume`, so a provider callback cannot be mistaken for proven resumable graph state or queue payloads.
+16. The packet must include the launch-intake commercial offer scope decision so an API/CLI-only launch is explicit and a UI-required launch remains blocked until the UI exists.
+17. The packet must audit its own command plan against `package.json` scripts and paid-spend guard flags so stale checklist commands are caught before an operator copies them into a live or paid run.
+18. The packet must include an `operatorHandoffManifest` that is safe to share, contains no raw secrets/provider payloads/local absolute paths/customer media, lists ignored operator input files, draft/template files, report archives, flattened guarded commands, flags manual audio and long-form quality review commands as manual-review guarded, and explicitly marks itself as non-release evidence.
 
 ## Report Shape
 
@@ -149,7 +150,7 @@ interface CommercialLaunchInputsReport {
 - Current output includes a paid budget slice section that names generated-audio smoke as within the `$5` ceiling while long-form/full sequence remain blocked.
 - The generated-audio smoke slice shows a no-spend Atlas billing probe with `--planned-cost-usd` before the paid generated-audio command.
 - The generated-audio paid command references `atlas-billing-generated-audio-smoke-report.json`, `--max-cost-usd`, `--cost-usd-per-1k-chars`, and the planned validation text.
-- The generated-audio manual review item points to `validation:generated-audio-review-draft` and `validation:generated-audio -- --review-existing-report ... --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review`, not a second provider execution.
+- The generated-audio manual review item points to `validation:generated-audio-artifact -- --confirm-live-network`, `validation:generated-audio-review-draft`, and `validation:generated-audio -- --review-existing-report ... --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review`, not a second provider execution.
 - Current output can mark the generated-audio paid smoke command ready when live-inputs confirms its billing slice, reports the exact ready paid gate names, keeps `shouldDeferFullSequenceSpend=true`, and keeps customer traffic release false.
 - When the approved budget changes, checklist output points operators to rerun `validation:atlas-billing -- --max-budget-usd <current-budget> --confirm-live-network` instead of repeating stale audit text.
 - Current output includes a no-secret Atlas configuration section showing whether media/LLM keys, endpoint families, Seedance model/capability config, generated-audio config, and the generated-audio billing slice are ready without printing key values.

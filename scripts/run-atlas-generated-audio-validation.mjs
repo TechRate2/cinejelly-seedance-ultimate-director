@@ -784,6 +784,7 @@ function evaluateStructuredManualAudioReview({ options, review, path, sourceRepo
     : {};
   const passedCheckCount = requiredCheckNames.filter((name) => checks[name] === true).length;
   const binding = compareGeneratedAudioManualReviewBinding(review, sourceReport);
+  const artifactEvidence = compareGeneratedAudioManualReviewArtifactEvidence(review);
   const issues = [];
   if (review.schemaVersion !== "cinejelly.generated-audio-manual-review.v1") {
     issues.push("schemaVersion must be cinejelly.generated-audio-manual-review.v1.");
@@ -809,6 +810,9 @@ function evaluateStructuredManualAudioReview({ options, review, path, sourceRepo
   if (!binding.matches) {
     issues.push(binding.message);
   }
+  if (!artifactEvidence.matches) {
+    issues.push(artifactEvidence.message);
+  }
   return {
     present: true,
     path: toRepoRelative(path),
@@ -825,6 +829,10 @@ function evaluateStructuredManualAudioReview({ options, review, path, sourceRepo
     passedCheckCount,
     artifactBindingChecked: binding.checked,
     artifactBindingMatchesReport: binding.matches,
+    artifactEvidenceChecked: artifactEvidence.checked,
+    artifactEvidenceMatchesReport: artifactEvidence.matches,
+    artifactEvidenceReportPath: artifactEvidence.reportPath,
+    mediaSha256: artifactEvidence.mediaSha256,
     message: issues.length === 0
       ? "Structured manual generated-audio review evidence passed."
       : `Structured manual generated-audio review evidence is incomplete: ${issues.join(" ")}`
@@ -858,6 +866,65 @@ function compareGeneratedAudioManualReviewBinding(review, sourceReport) {
     message: missingOrMismatched.length === 0
       ? "Manual review artifact binding matches the generated-audio report."
       : `artifactBinding does not match the generated-audio report for: ${missingOrMismatched.join(", ")}.`
+  };
+}
+
+function compareGeneratedAudioManualReviewArtifactEvidence(review) {
+  const evidence = review.artifactEvidence;
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) {
+    return {
+      checked: true,
+      matches: false,
+      message: "artifactEvidence is required for structured generated-audio manual review."
+    };
+  }
+  const reportPath = typeof evidence.generatedAudioArtifactEvidenceReportPath === "string"
+    ? evidence.generatedAudioArtifactEvidenceReportPath
+    : undefined;
+  if (!reportPath) {
+    return {
+      checked: true,
+      matches: false,
+      message: "artifactEvidence.generatedAudioArtifactEvidenceReportPath is required."
+    };
+  }
+  const report = readJsonIfExists(reportPath);
+  if (!report) {
+    return {
+      checked: true,
+      matches: false,
+      reportPath: toRepoRelative(reportPath),
+      mediaSha256: stringOrUndefined(evidence.mediaSha256),
+      message: "Generated-audio artifact evidence report is missing."
+    };
+  }
+  const reportEvidence = report.artifactEvidence;
+  const mismatches = [];
+  if (report.schemaVersion !== "cinejelly.generated-audio-artifact-evidence.v1") {
+    mismatches.push("schemaVersion");
+  }
+  if (report.status !== "pass" || report.releaseGateSummary?.canUseAsManualReviewArtifactEvidence !== true) {
+    mismatches.push("status");
+  }
+  for (const key of ["artifactPath", "mediaSha256", "byteSize", "durationSeconds", "outputUrlPreview", "predictionId"]) {
+    if (reportEvidence?.[key] !== evidence[key]) {
+      mismatches.push(key);
+    }
+  }
+  if (review.artifactBinding?.outputUrlPreview !== evidence.outputUrlPreview) {
+    mismatches.push("artifactBinding.outputUrlPreview");
+  }
+  if (review.artifactBinding?.predictionId !== evidence.predictionId) {
+    mismatches.push("artifactBinding.predictionId");
+  }
+  return {
+    checked: true,
+    matches: mismatches.length === 0,
+    reportPath: toRepoRelative(reportPath),
+    mediaSha256: stringOrUndefined(evidence.mediaSha256),
+    message: mismatches.length === 0
+      ? "Manual review artifact evidence matches the generated-audio artifact evidence report."
+      : `artifactEvidence does not match the generated-audio artifact evidence report for: ${mismatches.join(", ")}.`
   };
 }
 

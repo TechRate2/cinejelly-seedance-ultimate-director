@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/generated-audio-artifact-evidence-report.schema.json",
+  "title": "CineJelly Generated Audio Artifact Evidence Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "releaseEvidence",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "sourceReportContext",
+    "checks",
+    "diagnostics",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.generated-audio-artifact-evidence.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": {
+      "enum": [
+        "pass",
+        "blocked_by_live_network_confirmation",
+        "blocked_by_source_report",
+        "fail"
+      ]
+    },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "type": "boolean" },
+    "providerCallsMade": { "const": false },
+    "releaseEvidence": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generatedAudioReportPath",
+        "outputPath",
+        "artifactPath",
+        "maxBytes",
+        "timeoutMs",
+        "confirmLiveNetwork"
+      ],
+      "properties": {
+        "generatedAudioReportPath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "artifactPath": { "$ref": "#/$defs/repoPath" },
+        "maxBytes": { "type": "integer", "minimum": 1 },
+        "timeoutMs": { "type": "integer", "minimum": 1 },
+        "confirmLiveNetwork": { "type": "boolean" }
+      }
+    },
+    "sourceReportContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reportPresent",
+        "schemaVersion",
+        "status",
+        "providerSpendEvidence",
+        "atlasBillingEvidence",
+        "schemaReviewEvidence",
+        "providerExecutionSucceeded",
+        "outputBatchApproved",
+        "approvedTrackCount",
+        "providerLedgerEntryCount",
+        "outputUrlClean",
+        "readyForArtifactCapture",
+        "artifactBinding"
+      ],
+      "properties": {
+        "reportPresent": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "status": { "type": "string" },
+        "providerSpendEvidence": { "type": "boolean" },
+        "atlasBillingEvidence": { "type": "boolean" },
+        "schemaReviewEvidence": { "type": "boolean" },
+        "providerExecutionSucceeded": { "type": "boolean" },
+        "outputBatchApproved": { "type": "boolean" },
+        "approvedTrackCount": { "type": "integer", "minimum": 0 },
+        "providerLedgerEntryCount": { "type": "integer", "minimum": 0 },
+        "outputUrlClean": { "type": "boolean" },
+        "readyForArtifactCapture": { "type": "boolean" },
+        "artifactBinding": { "$ref": "#/$defs/generatedAudioBinding" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "artifactEvidence": { "$ref": "#/$defs/artifactEvidence" },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ffprobeAvailable", "ffprobeStatus"],
+      "properties": {
+        "ffprobeAvailable": { "type": "boolean" },
+        "ffprobeStatus": { "type": "string" },
+        "ffprobeFormatName": { "type": "string" },
+        "ffprobeStreamCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsManualReviewArtifactEvidence",
+        "canUseAsBusinessReadinessGeneratedAudioEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsManualReviewArtifactEvidence": { "type": "boolean" },
+        "canUseAsBusinessReadinessGeneratedAudioEvidence": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 260,
+      "pattern": "^[^:\\\\]+(?:[\\\\/][^:\\\\]+)*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "generatedAudioBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "modelId": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "minLength": 1 },
+        "voiceId": { "type": "string", "minLength": 1 },
+        "outputFormat": { "enum": ["mp3", "wav"] },
+        "intentId": { "type": "string", "minLength": 1 },
+        "providerAssetId": { "type": "string", "minLength": 1 },
+        "predictionId": { "type": "string", "minLength": 1 },
+        "outputUrlPreview": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[^?#]+$",
+          "maxLength": 600
+        }
+      }
+    },
+    "artifactEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generatedAudioReportPath",
+        "artifactPath",
+        "mediaSha256",
+        "byteSize",
+        "contentType",
+        "outputUrlPreview",
+        "modelId",
+        "language",
+        "voiceId",
+        "outputFormat",
+        "intentId",
+        "providerAssetId",
+        "predictionId",
+        "durationSeconds"
+      ],
+      "properties": {
+        "generatedAudioReportPath": { "$ref": "#/$defs/repoPath" },
+        "artifactPath": { "$ref": "#/$defs/repoPath" },
+        "mediaSha256": { "$ref": "#/$defs/sha256" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "contentType": { "type": "string", "minLength": 1 },
+        "outputUrlPreview": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[^?#]+$",
+          "maxLength": 600
+        },
+        "modelId": { "type": "string", "minLength": 1 },
+        "language": { "type": "string", "minLength": 1 },
+        "voiceId": { "type": "string", "minLength": 1 },
+        "outputFormat": { "enum": ["mp3", "wav"] },
+        "intentId": { "type": "string", "minLength": 1 },
+        "providerAssetId": { "type": "string", "minLength": 1 },
+        "predictionId": { "type": "string", "minLength": 1 },
+        "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "formatName": { "type": "string" },
+        "codecName": { "type": "string" },
+        "sampleRate": { "type": "number", "minimum": 0 },
+        "channels": { "type": "number", "minimum": 0 },
+        "bitRate": { "type": "number", "minimum": 0 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "pass" } },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["artifactEvidence"],
+        "properties": {
+          "networkCallsMade": { "const": true }
+        }
+      }
+    }
+  ]
+}

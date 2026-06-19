@@ -6,6 +6,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const defaults = {
   generatedAudioReportPath: "assets/output_deliverables/business-readiness/generated-audio-validation-report.json",
+  artifactEvidenceReportPath: "assets/output_deliverables/business-readiness/generated-audio-artifact-evidence-report.json",
   evidencePath: "ops/generated-audio-manual-review.json",
   outputPath: "assets/output_deliverables/business-readiness/generated-audio-manual-review-draft-report.json",
   templatePath: "assets/output_deliverables/business-readiness/operator-drafts/generated-audio-manual-review.template.json",
@@ -29,6 +30,7 @@ function parseArgs(args) {
   };
   const flagMap = new Map([
     ["--generated-audio-report", "generatedAudioReportPath"],
+    ["--artifact-evidence-report", "artifactEvidenceReportPath"],
     ["--evidence", "evidencePath"],
     ["--output", "outputPath"],
     ["--template", "templatePath"],
@@ -85,6 +87,9 @@ Usage:
 Options:
   --generated-audio-report <path>  Existing Atlas generated-audio validation report.
                                   Default: ${defaults.generatedAudioReportPath}
+  --artifact-evidence-report <path>
+                                  Optional generated-audio artifact evidence report.
+                                  Default: ${defaults.artifactEvidenceReportPath}
   --evidence <path>                Final ignored evidence packet path operators will fill.
                                   Default: ${defaults.evidencePath}
   --template <path>                Template JSON path. Default: ${defaults.templatePath}
@@ -107,6 +112,8 @@ async function main() {
 
   const sourceRead = readJson(options.generatedAudioReportPath);
   const sourceContext = generatedAudioContextFor(sourceRead);
+  const artifactEvidenceRead = readJson(options.artifactEvidenceReportPath);
+  const artifactEvidenceContext = generatedAudioArtifactEvidenceContextFor(artifactEvidenceRead, sourceContext);
   const issues = [];
   if (sourceRead.error) {
     issues.push(`Generated-audio report is invalid JSON: ${sourceRead.error}.`);
@@ -118,8 +125,8 @@ async function main() {
     issues.push("Template/checklist writing is disabled; rerun without --no-drafts to prepare operator files.");
   }
 
-  const template = buildTemplate(options, sourceContext);
-  const checklist = buildChecklist(options, sourceContext);
+  const template = buildTemplate(options, sourceContext, artifactEvidenceContext);
+  const checklist = buildChecklist(options, sourceContext, artifactEvidenceContext);
   const templateWrite = options.writeDrafts
     ? writeJsonFile(options.templatePath, template, { force: options.force })
     : { status: "skipped", available: false, written: false };
@@ -143,6 +150,7 @@ async function main() {
     sourcePatternOrigins,
     checkedInputs: {
       generatedAudioReportPath: toRepoRelative(options.generatedAudioReportPath),
+      artifactEvidenceReportPath: toRepoRelative(options.artifactEvidenceReportPath),
       evidencePath: toRepoRelative(options.evidencePath),
       outputPath: toRepoRelative(options.outputPath),
       templatePath: toRepoRelative(options.templatePath),
@@ -151,6 +159,7 @@ async function main() {
       force: options.force
     },
     sourceReportContext: sourceContext,
+    artifactEvidenceContext,
     template: {
       path: toRepoRelative(options.templatePath),
       written: templateWrite.written === true,
@@ -173,7 +182,7 @@ async function main() {
         ? "Template and checklist are available, but only a filled operator review file validated against the paid output can count."
         : "Manual review draft could not be prepared safely."
     },
-    nextActions: nextActionsFor(options, sourceContext, templateWrite, checklistWrite, issues)
+    nextActions: nextActionsFor(options, sourceContext, artifactEvidenceContext, templateWrite, checklistWrite, issues)
   };
 
   if (options.writeReport) {
@@ -239,6 +248,37 @@ function generatedAudioContextFor(read) {
   };
 }
 
+function generatedAudioArtifactEvidenceContextFor(read, sourceContext) {
+  const report = read.value;
+  const evidence = report?.artifactEvidence;
+  const reportPassed = report?.schemaVersion === "cinejelly.generated-audio-artifact-evidence.v1" &&
+    report?.status === "pass" &&
+    report?.releaseGateSummary?.canUseAsManualReviewArtifactEvidence === true;
+  const bindingMatches = reportPassed &&
+    evidence?.outputUrlPreview === sourceContext.artifactBinding.outputUrlPreview &&
+    evidence?.predictionId === sourceContext.artifactBinding.predictionId &&
+    evidence?.providerAssetId === sourceContext.artifactBinding.providerAssetId;
+  return {
+    reportPresent: read.exists === true,
+    schemaVersion: typeof report?.schemaVersion === "string" ? report.schemaVersion : "missing",
+    status: typeof report?.status === "string" ? report.status : "missing",
+    canUseAsManualReviewArtifactEvidence: report?.releaseGateSummary?.canUseAsManualReviewArtifactEvidence === true,
+    bindingMatchesSourceReport: bindingMatches === true,
+    readyForManualReviewBinding: reportPassed && bindingMatches === true,
+    artifactEvidence: reportPassed && evidence && typeof evidence === "object"
+      ? {
+          generatedAudioArtifactEvidenceReportPath: read.path,
+          artifactPath: stringOrPlaceholder(evidence.artifactPath, "replace-with-artifact-path"),
+          mediaSha256: stringOrPlaceholder(evidence.mediaSha256, "replace-with-media-sha256"),
+          byteSize: typeof evidence.byteSize === "number" ? evidence.byteSize : 0,
+          durationSeconds: typeof evidence.durationSeconds === "number" ? evidence.durationSeconds : 0,
+          outputUrlPreview: stringOrPlaceholder(evidence.outputUrlPreview, sourceContext.artifactBinding.outputUrlPreview),
+          predictionId: stringOrPlaceholder(evidence.predictionId, sourceContext.artifactBinding.predictionId)
+        }
+      : undefined
+  };
+}
+
 function generatedAudioBindingFromReport(report) {
   const result = Array.isArray(report?.executionRun?.results)
     ? report.executionRun.results.find((item) => item?.status === "succeeded") ?? report.executionRun.results[0]
@@ -265,7 +305,7 @@ function stringOrPlaceholder(value, placeholder) {
   return typeof value === "string" && value.trim() ? value : placeholder;
 }
 
-function buildTemplate(options, sourceContext) {
+function buildTemplate(options, sourceContext, artifactEvidenceContext) {
   return {
     _templateOnly: true,
     _doNotSubmitDirectly: "Fill this file after listening to the generated audio, remove underscore-prefixed fields, change status/decision only from real review, and store the final packet at ops/generated-audio-manual-review.json.",
@@ -277,6 +317,15 @@ function buildTemplate(options, sourceContext) {
     reviewerId: "replace-with-reviewer-name-or-team",
     sourceGeneratedAudioReportPath: toRepoRelative(options.generatedAudioReportPath),
     artifactBinding: sourceContext.artifactBinding,
+    artifactEvidence: artifactEvidenceContext.artifactEvidence ?? {
+      generatedAudioArtifactEvidenceReportPath: toRepoRelative(options.artifactEvidenceReportPath),
+      artifactPath: "replace-with-captured-artifact-path",
+      mediaSha256: "replace-with-64-character-sha256",
+      byteSize: 0,
+      durationSeconds: 0,
+      outputUrlPreview: sourceContext.artifactBinding.outputUrlPreview,
+      predictionId: sourceContext.artifactBinding.predictionId
+    },
     checks: {
       listenedFullOutput: false,
       outputIsAudible: false,
@@ -293,8 +342,11 @@ function buildTemplate(options, sourceContext) {
   };
 }
 
-function buildChecklist(options, sourceContext) {
+function buildChecklist(options, sourceContext, artifactEvidenceContext) {
   const binding = sourceContext.artifactBinding;
+  const artifactEvidenceStatus = artifactEvidenceContext.readyForManualReviewBinding
+    ? "ready"
+    : "missing_or_not_bound";
   return `# Generated Audio Manual Review Fill-Out Checklist
 
 This checklist is no-spend and no-network. It is not generated-audio review evidence by itself.
@@ -307,24 +359,27 @@ Current generated-audio context:
 - Output batch approved: \`${String(sourceContext.outputBatchApproved)}\`
 - Provider ledger entries: \`${sourceContext.providerLedgerEntryCount}\`
 - Output URL to listen to: ${binding.outputUrlPreview}
+- Artifact evidence report: \`${toRepoRelative(options.artifactEvidenceReportPath)}\`
+- Artifact evidence status: \`${artifactEvidenceStatus}\`
 - Final evidence packet path: \`${toRepoRelative(options.evidencePath)}\`
 - Template path: \`${toRepoRelative(options.templatePath)}\`
 
 Fill-out steps:
 
-1. Open the output URL above and listen to the full generated audio.
-2. Copy the template shape into \`${toRepoRelative(options.evidencePath)}\`.
-3. Remove every underscore-prefixed template field.
-4. Keep the artifact binding values unchanged unless the generated-audio report was refreshed.
-5. Set every check only from direct listening and redaction inspection.
-6. Keep findings concise and do not paste provider payloads, signed URLs, secrets, or local filesystem paths.
-7. Run \`npm.cmd run validation:generated-audio -- --review-existing-report ${toRepoRelative(options.generatedAudioReportPath)} --manual-audio-review ${toRepoRelative(options.evidencePath)} --confirm-manual-audio-review\`.
+1. If artifact evidence is not ready, run \`npm.cmd run validation:generated-audio-artifact -- --confirm-live-network\`.
+2. Open the output URL above and listen to the full generated audio.
+3. Copy the template shape into \`${toRepoRelative(options.evidencePath)}\`.
+4. Remove every underscore-prefixed template field.
+5. Keep the artifact binding and artifact evidence values unchanged unless the generated-audio report or artifact evidence report was refreshed.
+6. Set every check only from direct listening and redaction inspection.
+7. Keep findings concise and do not paste provider payloads, signed URLs, secrets, or local filesystem paths.
+8. Run \`npm.cmd run validation:generated-audio -- --review-existing-report ${toRepoRelative(options.generatedAudioReportPath)} --manual-audio-review ${toRepoRelative(options.evidencePath)} --confirm-manual-audio-review\`.
 
 This review can unlock only the generated-audio evidence slice. It does not approve long-form video quality, deployment, billing/admin controls, production operations, source-video validation, remote-stock validation, or customer traffic.
 `;
 }
 
-function nextActionsFor(options, sourceContext, templateWrite, checklistWrite, issues) {
+function nextActionsFor(options, sourceContext, artifactEvidenceContext, templateWrite, checklistWrite, issues) {
   const actions = [];
   if (!sourceContext.reportPresent) {
     actions.push(`Run validation:generated-audio with provider spend first; expected report path is ${toRepoRelative(options.generatedAudioReportPath)}.`);
@@ -333,6 +388,9 @@ function nextActionsFor(options, sourceContext, templateWrite, checklistWrite, i
   }
   if (templateWrite.available !== true || checklistWrite.available !== true) {
     actions.push("Rerun this draft helper with --force or writable output paths so the operator template and checklist are available.");
+  }
+  if (artifactEvidenceContext.readyForManualReviewBinding !== true) {
+    actions.push(`Run npm.cmd run validation:generated-audio-artifact -- --confirm-live-network so the manual review packet can bind to SHA-256/duration evidence from ${toRepoRelative(options.artifactEvidenceReportPath)}.`);
   }
   actions.push(`After listening to the output, fill ${toRepoRelative(options.evidencePath)} from real review data and remove _templateOnly fields.`);
   actions.push(`Run npm.cmd run validation:generated-audio -- --review-existing-report ${toRepoRelative(options.generatedAudioReportPath)} --manual-audio-review ${toRepoRelative(options.evidencePath)} --confirm-manual-audio-review.`);
@@ -343,16 +401,18 @@ function nextActionsFor(options, sourceContext, templateWrite, checklistWrite, i
 function readJson(path) {
   const absolutePath = resolve(repoRoot, path);
   if (!existsSync(absolutePath)) {
-    return { exists: false };
+    return { exists: false, path: toRepoRelative(path) };
   }
   try {
     return {
       exists: true,
+      path: toRepoRelative(path),
       value: JSON.parse(readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, ""))
     };
   } catch (error) {
     return {
       exists: true,
+      path: toRepoRelative(path),
       error: error instanceof Error ? error.message : String(error)
     };
   }

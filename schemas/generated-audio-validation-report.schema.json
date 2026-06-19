@@ -291,6 +291,13 @@
         "passedCheckCount": { "type": "integer", "minimum": 0 },
         "artifactBindingChecked": { "type": "boolean" },
         "artifactBindingMatchesReport": { "type": "boolean" },
+        "artifactEvidenceChecked": { "type": "boolean" },
+        "artifactEvidenceMatchesReport": { "type": "boolean" },
+        "artifactEvidenceReportPath": { "type": "string" },
+        "mediaSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
         "message": { "type": "string" }
       }
     },

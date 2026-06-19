@@ -14,6 +14,7 @@
     "sourcePatternOrigins",
     "checkedInputs",
     "sourceReportContext",
+    "artifactEvidenceContext",
     "template",
     "checklist",
     "issues",
@@ -37,6 +38,7 @@
       "additionalProperties": false,
       "required": [
         "generatedAudioReportPath",
+        "artifactEvidenceReportPath",
         "evidencePath",
         "outputPath",
         "templatePath",
@@ -46,12 +48,60 @@
       ],
       "properties": {
         "generatedAudioReportPath": { "$ref": "#/$defs/repoPath" },
+        "artifactEvidenceReportPath": { "$ref": "#/$defs/repoPath" },
         "evidencePath": { "$ref": "#/$defs/repoPath" },
         "outputPath": { "$ref": "#/$defs/repoPath" },
         "templatePath": { "$ref": "#/$defs/repoPath" },
         "checklistPath": { "$ref": "#/$defs/repoPath" },
         "writeDrafts": { "type": "boolean" },
         "force": { "type": "boolean" }
+      }
+    },
+    "artifactEvidenceContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reportPresent",
+        "schemaVersion",
+        "status",
+        "canUseAsManualReviewArtifactEvidence",
+        "bindingMatchesSourceReport",
+        "readyForManualReviewBinding"
+      ],
+      "properties": {
+        "reportPresent": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "status": { "type": "string" },
+        "canUseAsManualReviewArtifactEvidence": { "type": "boolean" },
+        "bindingMatchesSourceReport": { "type": "boolean" },
+        "readyForManualReviewBinding": { "type": "boolean" },
+        "artifactEvidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "generatedAudioArtifactEvidenceReportPath",
+            "artifactPath",
+            "mediaSha256",
+            "byteSize",
+            "durationSeconds",
+            "outputUrlPreview",
+            "predictionId"
+          ],
+          "properties": {
+            "generatedAudioArtifactEvidenceReportPath": { "$ref": "#/$defs/repoPath" },
+            "artifactPath": { "$ref": "#/$defs/repoPath" },
+            "mediaSha256": { "$ref": "#/$defs/sha256" },
+            "byteSize": { "type": "integer", "minimum": 1 },
+            "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+            "outputUrlPreview": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https://[^?#]+$",
+              "maxLength": 600
+            },
+            "predictionId": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     },
     "sourceReportContext": {
@@ -176,6 +226,10 @@
       "minLength": 1,
       "maxLength": 260,
       "pattern": "^[^:\\\\]+(?:[\\\\/][^:\\\\]+)*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
     }
   }
 }

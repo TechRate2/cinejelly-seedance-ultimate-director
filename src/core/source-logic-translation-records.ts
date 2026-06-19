@@ -2503,6 +2503,42 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Generated Audio Artifact Evidence Capture",
+    sourceRepository: "vericontext/vibeframe",
+    snapshotPath: "external/upstream/vibeframe",
+    upstreamPaths: [
+      "external/upstream/vibeframe/README.md",
+      "external/upstream/vibeframe/ROADMAP.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "generated media evidence is captured as deterministic report data before release-sensitive review",
+      "review handoff uses explicit artifact hashes and media metadata instead of trusting transient URLs",
+      "validation remains separated from release approval"
+    ],
+    behaviorChanged: [
+      "CineJelly downloads only an already-generated credential-free HTTPS audio URL after explicit live-network confirmation",
+      "no Atlas model endpoint, provider execution, or generated-audio spend is performed by the artifact capture command",
+      "structured manual review must bind to the captured SHA-256, byte size, duration, output URL, and prediction id before it can pass"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/generated-audio-artifact-evidence.md",
+    cineJellyDestinationPaths: [
+      "scripts/capture-generated-audio-artifact-evidence.mjs",
+      "schemas/generated-audio-artifact-evidence-report.schema.json",
+      "schemas/generated-audio-manual-review.schema.json",
+      "scripts/create-generated-audio-manual-review-draft.mjs",
+      "scripts/run-atlas-generated-audio-validation.mjs",
+      "scripts/validate-report-contracts.mjs",
+      "docs/OPERATOR_RUNBOOK.md"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "artifact evidence supports but does not replace manual listening review",
+      "credential-free generated-audio URL availability can expire and may require a fresh paid provider run if the media host no longer serves the file"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Generated Audio Asset Resolution",
     sourceRepository: "harry0703/MoneyPrinterTurbo",
     snapshotPath: "external/upstream/moneyprinterturbo",

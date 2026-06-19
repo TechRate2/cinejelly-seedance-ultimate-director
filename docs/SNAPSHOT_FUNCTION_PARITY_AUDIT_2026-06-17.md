@@ -49,7 +49,7 @@ This audit does not claim production-host deployment evidence, live source-video
 | Production Graph and storyboard planning | Implemented foundation with graph, storyboard, source lineage, stage lifecycle, and artifacts. | 75% |
 | Atlas media provider path | Implemented and previously validated with a short paid text-to-video run; broader terminal-state and long-form evidence remain pending. | 75% |
 | Atlas LLM/source-video path | Implemented as an opt-in gated path; real source-video evidence is pending. | 60% |
-| Generated audio path | Provider-neutral and Atlas execution plumbing exists behind gates; paid output validation and manual review are pending. | 65% |
+| Generated audio path | Provider-neutral and Atlas execution plumbing exists behind gates; paid output validation and artifact SHA-256/duration capture support exist; manual listening review is pending. | 67% |
 | Remote stock/material sourcing | Local and opt-in remote adapter foundations exist; live provider validation is pending. | 65% |
 | Long-form 2-8 minute workflow | Chunking, admission, budget, artifact, validation runner, schema-bound manual quality review, and Director-style benchmark foundations exist; local media, transition-boundary proxy evidence, semantic review ingestion, bounded audio waveform proxy evidence, audio-video duration-sync proxy evidence, long-form manual review draft handoff, and long-form validation report ingestion are implemented, while real paid long-form proof and accepted manual media review remain pending. | 74% |
 | Director-style backend benchmark | Benchmark harness now scores existing render evidence across script, video, optional audio, stability, and cross-modal dimensions with bottlenecks, report contracts, FFprobe media metadata, sampled-frame structural proxy signals, scene-change transition-boundary pre/post proxy signals when available, bounded audio waveform/volume proxy signals when audio is present, FFprobe audio-video duration-sync proxy signals when audio is present, optional structured semantic-review checkpoint evidence, optional structured audio-review checkpoint evidence, optional structured ASR/lip-sync runtime-review evidence, optional structured governance-review evidence, paid-artifact binding checks for review-backed parity rows, artifact-bound `needs_review` review draft generation, schema-bound long-form manual quality review draft generation, accepted review-evidence readiness validation with self-contained schema/redaction enforcement, unsafe-review guard smoke, bounded review-text redaction, optional generated-audio validation evidence, optional long-form validation evidence, and a `parityEvidenceMatrix` that makes met, partial, and missing DirectorBench-style requirements explicit. | 90% |
@@ -75,7 +75,7 @@ This audit does not claim production-host deployment evidence, live source-video
 4. Run long-form 2-8 minute paid Atlas validation and manually review artifacts.
 5. Run live source-video auto-analysis validation with a clean HTTPS source video.
 6. Run live remote stock provider validation with approved commercial provider terms and keys.
-7. Run live Atlas generated-audio validation with schema review, output validation, and manual review.
+7. Run live Atlas generated-audio validation with schema review, output validation, artifact SHA-256/duration capture, and manual review.
 8. Decide whether to build a first-party UI or ship API/CLI only.
 9. Keep updating this parity audit when source-derived behavior materially changes.
 

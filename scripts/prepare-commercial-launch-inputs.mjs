@@ -443,9 +443,13 @@ function buildRequiredInputs(reports) {
       sensitivity: "manual_review",
       requiredFor: ["atlas_generated_audio_validation"],
       envVars: [],
-      filePaths: ["assets/output_deliverables/business-readiness/generated-audio-validation-report.json", "ops/generated-audio-manual-review.json"],
-      acceptance: "After Atlas generated-audio execution, create the review draft, listen to the output, fill the structured review JSON, and approve schema review, output-batch validation, ledger evidence, and manual listening review.",
-      validationCommand: "npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review",
+      filePaths: [
+        "assets/output_deliverables/business-readiness/generated-audio-validation-report.json",
+        "assets/output_deliverables/business-readiness/generated-audio-artifact-evidence-report.json",
+        "ops/generated-audio-manual-review.json"
+      ],
+      acceptance: "After Atlas generated-audio execution, capture SHA-256/duration artifact evidence from the clean output URL, create the review draft, listen to the output, fill the structured review JSON, and approve schema review, output-batch validation, ledger evidence, artifact binding, and manual listening review.",
+      validationCommand: "Step 1: npm.cmd run validation:generated-audio-artifact -- --confirm-live-network. Step 2: npm.cmd run validation:generated-audio-review-draft -- --force. Step 3: npm.cmd run validation:generated-audio -- --review-existing-report assets/output_deliverables/business-readiness/generated-audio-validation-report.json --manual-audio-review ops/generated-audio-manual-review.json --confirm-manual-audio-review",
       blockerMessage: failingMessage(business, "atlas_generated_audio_validation")
     })
   ];

@@ -13,6 +13,7 @@
     "reviewerId",
     "sourceGeneratedAudioReportPath",
     "artifactBinding",
+    "artifactEvidence",
     "checks",
     "findings",
     "redactionReviewed"
@@ -54,6 +55,33 @@
         }
       }
     },
+    "artifactEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generatedAudioArtifactEvidenceReportPath",
+        "artifactPath",
+        "mediaSha256",
+        "byteSize",
+        "durationSeconds",
+        "outputUrlPreview",
+        "predictionId"
+      ],
+      "properties": {
+        "generatedAudioArtifactEvidenceReportPath": { "$ref": "#/$defs/repoPath" },
+        "artifactPath": { "$ref": "#/$defs/repoPath" },
+        "mediaSha256": { "$ref": "#/$defs/sha256" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "outputUrlPreview": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[^?#]+$",
+          "maxLength": 600
+        },
+        "predictionId": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
     "checks": {
       "type": "object",
       "additionalProperties": false,
@@ -90,6 +118,10 @@
       "minLength": 1,
       "maxLength": 260,
       "pattern": "^[^:\\\\]+(?:[\\\\/][^:\\\\]+)*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
     }
   }
 }
