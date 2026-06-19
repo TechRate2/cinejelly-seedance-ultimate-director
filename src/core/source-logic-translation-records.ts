@@ -457,6 +457,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     license: "MIT",
     behaviorPreserved: [
       "long-form work is decomposed into renderable shots before provider spend",
+      "story arcs preserve deterministic sequence groupings before scenes, beats, and shots",
       "continuity-sensitive dependencies remain explicit in scheduling and graph evidence",
       "source-video, transition, endpoint, and continuity-risk render barriers are visible in schedule evidence",
       "candidate and repair evidence remains traceable by shot"
@@ -477,7 +478,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/production-graph-builder.ts",
       "src/agents/director-agent.ts",
       "scripts/run-render-scheduler-smoke.mjs",
-      "schemas/render-scheduler-smoke-report.schema.json"
+      "schemas/render-scheduler-smoke-report.schema.json",
+      "scripts/run-production-graph-sequence-smoke.mjs",
+      "schemas/production-graph-sequence-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -498,6 +501,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "project stages remain deterministic and operator-visible",
       "artifact order preserves planning, storyboard, graph, schedule, cost, render, review, and delivery evidence",
+      "story, sequence, scene, beat, and shot graph layers remain inspectable in deterministic artifacts",
       "repair and inspection stages are separate lifecycle records"
     ],
     behaviorChanged: [
@@ -515,7 +519,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/review.ts",
       "src/core/review-packet-builder.ts",
       "scripts/run-render-scheduler-smoke.mjs",
-      "schemas/render-scheduler-smoke-report.schema.json"
+      "schemas/render-scheduler-smoke-report.schema.json",
+      "scripts/run-production-graph-sequence-smoke.mjs",
+      "schemas/production-graph-sequence-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -537,6 +543,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "one-input work becomes explicit stages",
       "material sourcing happens before final composition",
+      "long-form production units stay grouped into sequence, scene, beat, and shot layers before render batches",
       "render batches and sequential shot barriers are visible before final composition",
       "batch candidates and final deliverable evidence are visible to operators"
     ],
@@ -556,7 +563,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/render-scheduler.ts",
       "src/agents/director-agent.ts",
       "scripts/run-render-scheduler-smoke.mjs",
-      "schemas/render-scheduler-smoke-report.schema.json"
+      "schemas/render-scheduler-smoke-report.schema.json",
+      "scripts/run-production-graph-sequence-smoke.mjs",
+      "schemas/production-graph-sequence-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [

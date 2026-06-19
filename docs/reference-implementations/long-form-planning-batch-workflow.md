@@ -1,6 +1,6 @@
 # Reference Implementation: Long-Form Planning And Batch Workflow
 
-Implementation status as of 2026-06-19: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `material_sourcing` evidence, material source validation evidence, review-packet stage lifecycle, render-schedule evidence, and stage/material/schedule artifacts. Direct `tsc -p tsconfig.json` and `scripts/run-render-scheduler-smoke.mjs` passed; real long-form Atlas validation remains pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
+Implementation status as of 2026-06-19: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `story_arc -> sequence -> scene -> beat -> shot` evidence, Production Graph `material_sourcing` evidence, material source validation evidence, review-packet stage lifecycle, render-schedule evidence, and stage/material/schedule artifacts. Direct `tsc -p tsconfig.json`, `scripts/run-render-scheduler-smoke.mjs`, and `scripts/run-production-graph-sequence-smoke.mjs` passed; real long-form Atlas validation remains pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
 
 ## Upstream Sources
 
@@ -15,11 +15,12 @@ Implementation status as of 2026-06-19: CineJelly-owned production foundation im
 1. A 2-8 minute request must be decomposed into provider-safe shots before provider spend.
 2. Stage order must remain explicit: plan -> storyboard -> prompt -> source_material -> render -> inspect -> repair -> assemble -> deliver.
 3. Stage records must be operator-visible and artifact-safe, even when no deliverable is requested.
-4. Material sourcing must happen as a governed planning stage: rights requirement, allowed sources, search terms, duration, aspect ratio, and candidate limits must be visible.
-5. Continuity-sensitive shots render sequentially; independent shots may render concurrently within configured limits.
-6. Batch candidates must be traceable: selected candidate, rejected candidates, test-take candidate, repair candidates, and final deliverable evidence.
-7. Terminal failures must preserve the narrow failed stage and should not erase earlier stage evidence.
-8. Artifacts must be deterministic: stage lifecycle, render schedule, story plan, storyboard, production graph, cost plan, prompts, rendered shots, and deliverable evidence keep stable names.
+4. Long-form graph hierarchy must preserve sequence groupings between story arcs and scenes, with deterministic order and duration evidence.
+5. Material sourcing must happen as a governed planning stage: rights requirement, allowed sources, search terms, duration, aspect ratio, and candidate limits must be visible.
+6. Continuity-sensitive shots render sequentially; independent shots may render concurrently within configured limits.
+7. Batch candidates must be traceable: selected candidate, rejected candidates, test-take candidate, repair candidates, and final deliverable evidence.
+8. Terminal failures must preserve the narrow failed stage and should not erase earlier stage evidence.
+9. Artifacts must be deterministic: stage lifecycle, render schedule, story plan, storyboard, production graph, cost plan, prompts, rendered shots, and deliverable evidence keep stable names.
 
 ## Edge Cases
 
@@ -124,6 +125,7 @@ function createStagePlan(input: RuntimeEvidence): StagePlan {
 - Add a CineJelly-owned `ProductionStagePlanner` under `src/core/production-stage-planner.ts`.
 - Instantiate `MaterialSourcingPlanner` in `DirectorAgent` after reference selection and before Production Graph build.
 - Wire `MaterialSourcingPlan` into `ProductionGraphBuilder` as a `material_sourcing` node with rights metadata from each brief.
+- Wire deterministic `sequence` nodes into `ProductionGraphBuilder` so scene and shot evidence follows the documented long-form hierarchy.
 - Include stage lifecycle, material sourcing plan, and material source validation report in `DirectorRunResult`, review packet, and artifact payloads.
 - Include render schedule evidence in `DirectorRunResult`, run summary, and `render-schedule.json` artifact payloads.
 - Keep RenderScheduler's dependency ordering as the first implementation of source-video, transition, and continuity-sensitive sequential render behavior.
@@ -135,10 +137,12 @@ function createStagePlan(input: RuntimeEvidence): StagePlan {
 - Material sourcing stage exists even when remote sourcing is disabled.
 - Each material brief records rights requirement, preferred sources, target duration, aspect ratio, resolution, and max candidates.
 - Material source validation report records planned-only, approved, review-required, or rejected status for adapter candidates.
+- Production Graph contains deterministic sequence nodes between story arc and scenes, with documented sequence-count behavior for short and long fixtures.
 - Production Graph contains a material sourcing node linked to project and shots.
 - Review packet and run artifacts expose stage lifecycle without local paths or raw provider payloads.
 - Run artifacts expose `render-schedule.json` with batch IDs, source order, parallel/sequential mode, reference roles, risk codes, continuity fields, and sequential reasons.
 - Sequential render behavior is still driven by first/last frame, previous/next continuity, source-video/timeline structure, transition intent, and continuity risk.
+- `scripts/run-production-graph-sequence-smoke.mjs` passes for one-scene, 120-second, and 480-second graph fixtures without provider calls.
 - `scripts/run-render-scheduler-smoke.mjs` passes for bounded parallel batches, endpoint references, source-video structure/timeline, continuity risk, transition intent, and stable source order.
 - No production import path references `external/upstream`.
 - Source lineage is added to `DEFAULT_SOURCE_LOGIC_TRANSLATIONS` after implementation.

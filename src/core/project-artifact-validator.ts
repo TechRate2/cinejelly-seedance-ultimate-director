@@ -1619,13 +1619,68 @@ export class ProjectArtifactValidator {
         .map((node) => node.type)
         .filter((type): type is string => typeof type === "string")
     );
-    for (const type of ["project", "shot", "material_sourcing"] as const) {
+    for (const type of ["project", "story_arc", "sequence", "scene", "shot", "material_sourcing"] as const) {
       if (!nodeTypes.has(type)) {
         checks.push({ name: "production_graph_node_type", status: "fail", fileName: artifact.entry.fileName, message: `production-graph is missing ${type} node evidence.` });
       }
     }
+    this.validateSequenceGraphShape(value, artifact.entry.fileName, checks);
     if (artifacts.has("rendered_shots") && !nodeTypes.has("clip_render")) {
       checks.push({ name: "production_graph_render_nodes", status: "warn", fileName: artifact.entry.fileName, message: "production-graph has rendered_shots artifact but no clip_render node." });
+    }
+  }
+
+  private validateSequenceGraphShape(
+    value: Record<string, unknown>,
+    fileName: string,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    const nodes = Array.isArray(value.nodes) ? value.nodes.filter((node): node is Record<string, unknown> => this.isRecord(node)) : [];
+    const edges = Array.isArray(value.edges) ? value.edges.filter((edge): edge is Record<string, unknown> => this.isRecord(edge)) : [];
+    const sequenceNodes = nodes.filter((node) => node.type === "sequence");
+    const sceneNodes = nodes.filter((node) => node.type === "scene");
+    const storyNodes = nodes.filter((node) => node.type === "story_arc");
+    const sequenceIds = new Set(sequenceNodes.map((node) => node.id).filter((id): id is string => typeof id === "string"));
+    const storyIds = new Set(storyNodes.map((node) => node.id).filter((id): id is string => typeof id === "string"));
+
+    if (sequenceNodes.length === 0 || sceneNodes.length === 0) {
+      return;
+    }
+    for (const [index, node] of sequenceNodes.entries()) {
+      const data = this.isRecord(node.data) ? node.data : undefined;
+      if (!data) {
+        checks.push({ name: "production_graph_sequence_data", status: "fail", fileName, message: `Sequence node ${index} is missing data.` });
+        continue;
+      }
+      for (const field of ["title", "purpose"] as const) {
+        if (typeof data[field] !== "string" || !data[field]) {
+          checks.push({ name: "production_graph_sequence_data", status: "fail", fileName, message: `Sequence node ${index} is missing ${field}.` });
+        }
+      }
+      if (typeof data.targetDurationSeconds !== "number" || !Number.isFinite(data.targetDurationSeconds) || data.targetDurationSeconds <= 0) {
+        checks.push({ name: "production_graph_sequence_duration", status: "fail", fileName, message: `Sequence node ${index} has invalid targetDurationSeconds.` });
+      }
+      if (typeof data.order !== "number" || !Number.isInteger(data.order) || data.order !== index) {
+        checks.push({ name: "production_graph_sequence_order", status: "fail", fileName, message: `Sequence node ${index} order is not deterministic.` });
+      }
+      const hasStoryParent = edges.some((edge) =>
+        edge.type === "depends_on" &&
+        storyIds.has(String(edge.fromNodeId)) &&
+        edge.toNodeId === node.id
+      );
+      if (!hasStoryParent) {
+        checks.push({ name: "production_graph_sequence_parent", status: "fail", fileName, message: `Sequence node ${index} is not linked from a story_arc node.` });
+      }
+    }
+    for (const [index, node] of sceneNodes.entries()) {
+      const hasSequenceParent = edges.some((edge) =>
+        edge.type === "depends_on" &&
+        sequenceIds.has(String(edge.fromNodeId)) &&
+        edge.toNodeId === node.id
+      );
+      if (!hasSequenceParent) {
+        checks.push({ name: "production_graph_scene_parent", status: "fail", fileName, message: `Scene node ${index} is not linked from a sequence node.` });
+      }
     }
   }
 

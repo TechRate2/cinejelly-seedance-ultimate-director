@@ -35,6 +35,7 @@
     "validation:provider-lease-service": "node scripts/run-render-provider-lease-service-smoke.mjs",
     "validation:provider-handoff-actions": "node scripts/run-render-provider-handoff-action-ledger-smoke.mjs",
     "validation:graph-resume-state": "node scripts/run-production-graph-resume-state-smoke.mjs",
+    "validation:graph-sequence": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-production-graph-sequence-smoke.mjs",
     "validation:graph-resume-queue-service": "node scripts/run-production-graph-resume-queue-service-smoke.mjs",
     "validation:provider-graph-resume-worker": "node scripts/run-render-provider-graph-resume-worker-smoke.mjs",
     "validation:provider-multi-worker-handoff": "node scripts/run-render-provider-multi-worker-handoff-smoke.mjs",

@@ -178,6 +178,12 @@ Long-form grouping that allows parallel and staged production:
 - 2-minute video: usually 3 to 6 sequences.
 - 8-minute video: usually 8 to 16 sequences.
 
+Runtime implementation:
+
+- `ProductionGraphBuilder` now creates explicit `sequence` nodes between `story_arc` and `scene`, grouping contiguous scenes deterministically from target duration and scene count instead of wiring story directly to scenes.
+- `ProjectArtifactValidator` treats `story_arc`, `sequence`, `scene`, `shot`, and `material_sourcing` nodes as required production-graph evidence and checks sequence data, parent edges, and deterministic order.
+- `scripts/run-production-graph-sequence-smoke.mjs` proves the no-spend hierarchy for one-scene, 120-second, and 480-second graph fixtures, including documented sequence-count ranges and no direct `story_arc -> scene` dependency edges.
+
 ### Scene
 
 Contains:

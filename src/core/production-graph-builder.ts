@@ -8,10 +8,20 @@ import type { GraphEdgeType, ProductionGraphNode, ProductionGraphSnapshot } from
 import type { GuardianReport, GuardianSeverity } from "../types/guardian.js";
 import type { MaterialSourcingPlan } from "../types/material.js";
 import type { PromptReference, ShotContract } from "../types/prompt.js";
+import type { ScenePlan } from "./shot-planner.js";
 import type { Storyboard } from "../types/storyboard.js";
 import { createStableId } from "../utils/ids.js";
 import { now } from "../utils/time.js";
 import { ProductionGraph } from "./production-graph.js";
+
+interface SequenceGroup {
+  readonly sequenceId: string;
+  readonly title: string;
+  readonly purpose: string;
+  readonly targetDurationSeconds: number;
+  readonly order: number;
+  readonly scenes: readonly ScenePlan[];
+}
 
 export class ProductionGraphBuilder {
   public build(input: {
@@ -59,58 +69,72 @@ export class ProductionGraphBuilder {
       graph.addNode(materialNode);
       graph.addEdge(projectNode.id, materialNode.id, "depends_on");
     }
-    for (const [sceneIndex, scene] of input.storyPlan.scenes.entries()) {
-      const sceneNodeId = createStableId("scene", `${input.intake.projectId}:${scene.sceneId}`);
-      const sceneNode = this.node("scene", sceneNodeId, {
-        title: scene.title,
-        narrativeFunction: scene.title,
-        targetDurationSeconds: scene.beats.reduce((sum, beat) => sum + beat.durationSeconds, 0),
-        order: sceneIndex
+    const sequenceGroups = this.sequenceGroups(input.intake.projectId, input.storyPlan);
+    let sceneOrder = 0;
+    for (const sequenceGroup of sequenceGroups) {
+      const sequenceNode = this.node("sequence", sequenceGroup.sequenceId, {
+        title: sequenceGroup.title,
+        purpose: sequenceGroup.purpose,
+        targetDurationSeconds: sequenceGroup.targetDurationSeconds,
+        order: sequenceGroup.order
       });
-      graph.addNode(sceneNode);
-      graph.addEdge(storyNode.id, sceneNode.id, "depends_on");
+      graph.addNode(sequenceNode);
+      graph.addEdge(storyNode.id, sequenceNode.id, "depends_on");
 
-      for (const [beatIndex, beat] of scene.beats.entries()) {
-        const beatNodeId = createStableId("beat", `${sceneNodeId}:${beat.beatId}`);
-        const beatNode = this.node("beat", beatNodeId, {
-          purpose: beat.purpose,
-          action: beat.action,
-          targetDurationSeconds: beat.durationSeconds,
-          order: beatIndex
+      for (const scene of sequenceGroup.scenes) {
+        const sceneNodeId = createStableId("scene", `${input.intake.projectId}:${scene.sceneId}`);
+        const sceneNode = this.node("scene", sceneNodeId, {
+          title: scene.title,
+          narrativeFunction: scene.title,
+          targetDurationSeconds: scene.beats.reduce((sum, beat) => sum + beat.durationSeconds, 0),
+          order: sceneOrder
         });
-        graph.addNode(beatNode);
-        graph.addEdge(sceneNode.id, beatNode.id, "depends_on");
+        sceneOrder += 1;
+        graph.addNode(sceneNode);
+        graph.addEdge(sequenceNode.id, sceneNode.id, "depends_on");
 
-        const beatShots = input.shots.filter((shot) => shot.beatId === beat.beatId && shot.sceneId === scene.sceneId);
-        for (const shot of beatShots) {
-          const storyboardPanel = input.storyboard?.panels.find((panel) => panel.shotId === shot.shotId);
-          const storyboardNode = storyboardPanel ? this.node("storyboard_panel", storyboardPanel.panelId, storyboardPanel) : undefined;
-          const shotNode = this.node("shot", shot.shotId, shot);
-          if (storyboardNode) {
-            graph.addNode(storyboardNode);
-            graph.addEdge(beatNode.id, storyboardNode.id, "depends_on");
-          }
-          graph.addNode(shotNode);
-          graph.addEdge(storyboardNode?.id ?? beatNode.id, shotNode.id, "depends_on");
-          if (materialNode && input.materialSourcingPlan?.briefs.some((brief) => brief.shotId === shot.shotId)) {
-            graph.addEdge(shotNode.id, materialNode.id, "depends_on");
-          }
-          if (shot.referenceSelectionPlan) {
-            const referenceSelectionNode = this.node(
-              "reference_selection",
-              createStableId("reference_selection", `${shot.shotId}:${shot.referenceSelectionPlan.candidateCount}`),
-              shot.referenceSelectionPlan
-            );
-            graph.addNode(referenceSelectionNode);
-            graph.addEdge(shotNode.id, referenceSelectionNode.id, "depends_on");
-          }
-          this.addReferenceEdges({
-            graph,
-            shot,
-            shotNodeId: shotNode.id,
-            referenceNodeIds
+        for (const [beatIndex, beat] of scene.beats.entries()) {
+          const beatNodeId = createStableId("beat", `${sceneNodeId}:${beat.beatId}`);
+          const beatNode = this.node("beat", beatNodeId, {
+            purpose: beat.purpose,
+            action: beat.action,
+            targetDurationSeconds: beat.durationSeconds,
+            order: beatIndex
           });
-          shotNodes.push(shotNode);
+          graph.addNode(beatNode);
+          graph.addEdge(sceneNode.id, beatNode.id, "depends_on");
+
+          const beatShots = input.shots.filter((shot) => shot.beatId === beat.beatId && shot.sceneId === scene.sceneId);
+          for (const shot of beatShots) {
+            const storyboardPanel = input.storyboard?.panels.find((panel) => panel.shotId === shot.shotId);
+            const storyboardNode = storyboardPanel ? this.node("storyboard_panel", storyboardPanel.panelId, storyboardPanel) : undefined;
+            const shotNode = this.node("shot", shot.shotId, shot);
+            if (storyboardNode) {
+              graph.addNode(storyboardNode);
+              graph.addEdge(beatNode.id, storyboardNode.id, "depends_on");
+            }
+            graph.addNode(shotNode);
+            graph.addEdge(storyboardNode?.id ?? beatNode.id, shotNode.id, "depends_on");
+            if (materialNode && input.materialSourcingPlan?.briefs.some((brief) => brief.shotId === shot.shotId)) {
+              graph.addEdge(shotNode.id, materialNode.id, "depends_on");
+            }
+            if (shot.referenceSelectionPlan) {
+              const referenceSelectionNode = this.node(
+                "reference_selection",
+                createStableId("reference_selection", `${shot.shotId}:${shot.referenceSelectionPlan.candidateCount}`),
+                shot.referenceSelectionPlan
+              );
+              graph.addNode(referenceSelectionNode);
+              graph.addEdge(shotNode.id, referenceSelectionNode.id, "depends_on");
+            }
+            this.addReferenceEdges({
+              graph,
+              shot,
+              shotNodeId: shotNode.id,
+              referenceNodeIds
+            });
+            shotNodes.push(shotNode);
+          }
         }
       }
     }
@@ -124,6 +148,57 @@ export class ProductionGraphBuilder {
     }
 
     return graph.snapshot();
+  }
+
+  private sequenceGroups(projectId: string, storyPlan: StoryPlan): readonly SequenceGroup[] {
+    if (storyPlan.scenes.length === 0) {
+      return [];
+    }
+    const targetSequenceCount = Math.min(
+      storyPlan.scenes.length,
+      Math.max(1, Math.ceil(storyPlan.targetDurationSeconds / 45))
+    );
+    const groups: SequenceGroup[] = [];
+    let sceneCursor = 0;
+
+    for (let sequenceIndex = 0; sequenceIndex < targetSequenceCount; sequenceIndex += 1) {
+      const remainingScenes = storyPlan.scenes.length - sceneCursor;
+      const remainingSequences = targetSequenceCount - sequenceIndex;
+      const scenesInGroup = Math.max(1, Math.ceil(remainingScenes / remainingSequences));
+      const scenes = storyPlan.scenes.slice(sceneCursor, sceneCursor + scenesInGroup);
+      sceneCursor += scenes.length;
+      const firstScene = scenes[0];
+      const lastScene = scenes[scenes.length - 1];
+      const targetDurationSeconds = scenes.reduce(
+        (sum, scene) => sum + scene.beats.reduce((beatSum, beat) => beatSum + beat.durationSeconds, 0),
+        0
+      );
+      groups.push({
+        sequenceId: createStableId("sequence", `${projectId}:${sequenceIndex}:${scenes.map((scene) => scene.sceneId).join("|")}`),
+        title: firstScene && lastScene && firstScene.sceneId !== lastScene.sceneId
+          ? `${firstScene.title} to ${lastScene.title}`
+          : firstScene?.title ?? `Sequence ${sequenceIndex + 1}`,
+        purpose: this.sequencePurpose(sequenceIndex, targetSequenceCount),
+        targetDurationSeconds,
+        order: sequenceIndex,
+        scenes
+      });
+    }
+
+    return groups;
+  }
+
+  private sequencePurpose(sequenceIndex: number, sequenceCount: number): string {
+    if (sequenceCount === 1) {
+      return "complete long-form story arc";
+    }
+    if (sequenceIndex === 0) {
+      return "hook, setup, and context";
+    }
+    if (sequenceIndex === sequenceCount - 1) {
+      return "payoff, proof, and delivery";
+    }
+    return "progressive story development and continuity bridge";
   }
 
   private addReferenceNodes(input: {

@@ -27,6 +27,7 @@ const defaultContracts = [
   contract("render_provider_external_lease", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
   contract("render_provider_lease_service_smoke", "schemas/render-provider-lease-service-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-lease-service-smoke-report.json"),
   contract("render_provider_handoff_action_ledger", "schemas/render-provider-handoff-action-ledger-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json"),
+  contract("production_graph_sequence_smoke", "schemas/production-graph-sequence-smoke-report.schema.json", "assets/output_deliverables/business-readiness/production-graph-sequence-smoke-report.json"),
   contract("production_graph_resume_state", "schemas/production-graph-resume-state-report.schema.json", "assets/output_deliverables/business-readiness/production-graph-resume-state-report.json"),
   contract("production_graph_resume_queue_service", "schemas/production-graph-resume-queue-service-smoke-report.schema.json", "assets/output_deliverables/business-readiness/production-graph-resume-queue-service-smoke-report.json"),
   contract("render_provider_graph_resume_worker", "schemas/render-provider-graph-resume-worker-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-graph-resume-worker-smoke-report.json"),
