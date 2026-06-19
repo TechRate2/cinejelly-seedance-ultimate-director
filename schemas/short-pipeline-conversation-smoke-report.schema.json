@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-pipeline-conversation-smoke-report.schema.json",
+  "title": "CineJelly Short Pipeline Conversation Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-pipeline-conversation-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "type": "string" }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "scenarioCount",
+        "endpointPath",
+        "rawTranscriptLeakCheckPassed",
+        "rawUrlLeakCheckPassed"
+      ],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "scenarioCount": { "const": 3 },
+        "endpointPath": { "const": "/v1/short-pipeline/conversation" },
+        "rawTranscriptLeakCheckPassed": { "const": true },
+        "rawUrlLeakCheckPassed": { "const": true }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["naturalChat", "revisionNoTemplate", "approvalIntent"],
+      "properties": {
+        "naturalChat": { "$ref": "#/$defs/scenario" },
+        "revisionNoTemplate": { "$ref": "#/$defs/scenario" },
+        "approvalIntent": { "$ref": "#/$defs/scenario" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shortPipelineConversationSmokePass",
+        "canUseAsNoSpendBackendEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "shortPipelineConversationSmokePass": { "type": "boolean" },
+        "canUseAsNoSpendBackendEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sessionId",
+        "turnCount",
+        "rawTranscriptStored",
+        "analysisUserReviewState",
+        "templatePreference",
+        "requestedChangeCount",
+        "riskSignalCount",
+        "planStatus",
+        "templatePolicy",
+        "dynamicWorkflowRequired",
+        "sceneCount",
+        "reviewApprovalStatus",
+        "reviewCheckpointCount",
+        "canUseAsNoSpendConversationEvidence",
+        "canRenderAfterFormalApproval",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "turnCount": { "type": "integer", "minimum": 1 },
+        "rawTranscriptStored": { "const": false },
+        "analysisUserReviewState": {
+          "enum": ["needs_review", "revision_requested", "approval_intent_detected"]
+        },
+        "templatePreference": {
+          "enum": ["suggest_optional", "user_requested_template", "user_rejected_templates"]
+        },
+        "requestedChangeCount": { "type": "integer", "minimum": 0 },
+        "riskSignalCount": { "type": "integer", "minimum": 0 },
+        "planStatus": { "enum": ["approval_required", "changes_requested", "blocked"] },
+        "templatePolicy": { "enum": ["none", "suggested_optional", "operator_selected_optional"] },
+        "dynamicWorkflowRequired": { "const": true },
+        "sceneCount": { "type": "integer", "minimum": 1 },
+        "reviewApprovalStatus": { "type": "string" },
+        "reviewCheckpointCount": { "type": "integer", "minimum": 1 },
+        "canUseAsNoSpendConversationEvidence": { "type": "boolean" },
+        "canRenderAfterFormalApproval": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    }
+  }
+}

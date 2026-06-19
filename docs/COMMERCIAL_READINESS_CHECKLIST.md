@@ -19,6 +19,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Review/approval primitive exists for scene, audio, caption, and claim gates.
 - [x] Async pre-render review/approval is wired into API job lifecycle as `pause -> review -> approve/reject`, with quota reservation deferred until approval.
 - [x] No-spend agentic short-pipeline planning foundation exists with product URL fingerprinting, optional template suggestions, brand-kit guardrails, and scene/audio/caption/claim review checkpoints.
+- [x] No-spend short-pipeline conversation backend exists for natural-language turns, revision tracking, optional-template rejection, approval-intent detection, and raw transcript redaction.
 - [x] No-spend Product URL-to-Video backend extraction can parse bounded public HTML behind explicit live-network confirmation, feed safe product facts into short-pipeline planning, and emit schema-validated redaction evidence without provider spend.
 - [ ] Pre-export review, UI review screens, and artifact-bound manual media review are accepted for the first commercial launch scope.
 
@@ -51,6 +52,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Optional workflow template registry exists without forcing templates.
 - [x] Brand kit backend exists and influences planning/validation.
 - [x] Natural-language short pipeline can propose concept, script, scene plan, and review checkpoints.
+- [x] Natural-language conversation backend can accept multi-turn brief/revision/approval-intent messages without storing raw transcript in public evidence.
 - [x] `video-db/Director` snapshot and Director Agentic Media Reasoning baseline are captured for chat/workflow parity tracking.
 - [x] Human-in-the-loop review checkpoints are emitted before render.
 - [ ] Live product URL crawling/extraction, accepted product facts, and rights-reviewed product media are proven on real URLs.
@@ -68,6 +70,7 @@ npm.cmd run validation:deployment-package
 npm.cmd run validation:report-contracts
 npm.cmd run validation:render-job-review-lifecycle
 npm.cmd run validation:workspace-billing
+npm.cmd run validation:short-pipeline-conversation
 npm.cmd run validation:short-pipeline
 npm.cmd run validation:product-url-extraction
 npm.cmd run validation:release-audit

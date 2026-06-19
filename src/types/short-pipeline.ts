@@ -280,3 +280,83 @@ export interface ShortPipelinePlan {
   readonly releaseGateSummary: ShortPipelineReleaseGateSummary;
   readonly nextActions: readonly string[];
 }
+
+export type ShortPipelineConversationRole = "user" | "assistant" | "operator";
+
+export type ShortPipelineTemplatePreference =
+  | "suggest_optional"
+  | "user_requested_template"
+  | "user_rejected_templates";
+
+export type ShortPipelineUserReviewState =
+  | "needs_review"
+  | "revision_requested"
+  | "approval_intent_detected";
+
+export interface ShortPipelineConversationMessageInput {
+  readonly role?: ShortPipelineConversationRole;
+  readonly text: string;
+  readonly createdAt?: Date;
+}
+
+export interface ShortPipelineConversationInput {
+  readonly projectId: string;
+  readonly requestId?: string;
+  readonly messages: readonly ShortPipelineConversationMessageInput[];
+  readonly product?: ProductUrlBriefInput;
+  readonly brandKit?: BrandKitInput;
+  readonly preferredTemplateId?: string;
+  readonly allowTemplateSuggestions?: boolean;
+  readonly targetPlatform?: ShortPipelinePlatform;
+  readonly targetDurationSeconds?: number;
+  readonly generatedAt?: Date;
+}
+
+export interface ShortPipelineConversationTurn {
+  readonly turnId: string;
+  readonly role: ShortPipelineConversationRole;
+  readonly createdAt: Date;
+  readonly messageSha256: string;
+  readonly publicSummary: string;
+  readonly rawMessageStored: false;
+}
+
+export interface ShortPipelineConversationAnalysis {
+  readonly schemaVersion: "cinejelly.short-pipeline-conversation-analysis.v1";
+  readonly businessGoal: string;
+  readonly audience: string;
+  readonly platform: ShortPipelinePlatform;
+  readonly emotion: ShortPipelineEmotion;
+  readonly templatePreference: ShortPipelineTemplatePreference;
+  readonly userReviewState: ShortPipelineUserReviewState;
+  readonly requestedChanges: readonly string[];
+  readonly constraints: readonly string[];
+  readonly riskSignals: readonly string[];
+  readonly missingInputs: readonly string[];
+  readonly sourcePatternOrigins: readonly string[];
+}
+
+export interface ShortPipelineConversationReleaseGateSummary {
+  readonly canUseAsNoSpendConversationEvidence: boolean;
+  readonly canRenderAfterFormalApproval: boolean;
+  readonly canReleaseToCustomerTraffic: false;
+  readonly releaseBlocker: string;
+}
+
+export interface ShortPipelineConversationSession {
+  readonly schemaVersion: "cinejelly.short-pipeline-conversation-session.v1";
+  readonly sessionId: string;
+  readonly projectId: string;
+  readonly requestId?: string;
+  readonly generatedAt: Date;
+  readonly noSpend: true;
+  readonly networkCallsMade: false;
+  readonly providerCallsMade: false;
+  readonly rawTranscriptStored: false;
+  readonly sourcePatternOrigins: readonly string[];
+  readonly turns: readonly ShortPipelineConversationTurn[];
+  readonly analysis: ShortPipelineConversationAnalysis;
+  readonly plan: ShortPipelinePlan;
+  readonly releaseGateSummary: ShortPipelineConversationReleaseGateSummary;
+  readonly nextActions: readonly string[];
+}

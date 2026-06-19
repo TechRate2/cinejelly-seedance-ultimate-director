@@ -28,6 +28,7 @@ import {
   ProductUrlResearcher,
   safeProductUrlResearchSummary
 } from "../core/product-url-researcher.js";
+import { ShortPipelineConversationEngine } from "../core/short-pipeline-conversation.js";
 import { ShortPipelinePlanner } from "../core/short-pipeline-planner.js";
 import {
   buildShortPipelineRenderHandoff,
@@ -44,7 +45,12 @@ import type {
   ReviewApprovalGate,
   ReviewApprovalSurface
 } from "../types/review-approval.js";
-import type { ShortPipelinePlanInput } from "../types/short-pipeline.js";
+import type {
+  ShortPipelineConversationInput,
+  ShortPipelineConversationMessageInput,
+  ShortPipelineConversationRole,
+  ShortPipelinePlanInput
+} from "../types/short-pipeline.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
@@ -115,6 +121,11 @@ interface RenderJobReviewRequestBody {
   readonly reviewApprovalGate?: ReviewApprovalGate;
   readonly checkpoints?: readonly ReviewApprovalCheckpointInput[];
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
+}
+
+interface ShortPipelineConversationRequestBody extends Omit<ShortPipelineConversationInput, "messages"> {
+  readonly messages?: readonly ShortPipelineConversationMessageInput[];
+  readonly userPrompt?: string;
 }
 
 interface ShortPipelineProductUrlPlanRequestBody extends ShortPipelinePlanInput {
@@ -198,6 +209,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const artifactStore = new ProjectArtifactStore();
   const artifactValidator = new ProjectArtifactValidator();
   const shortPipelinePlanner = new ShortPipelinePlanner();
+  const shortPipelineConversationEngine = new ShortPipelineConversationEngine({ planner: shortPipelinePlanner });
   const productUrlResearcher = new ProductUrlResearcher();
   const requestAdmission = renderRequestAdmissionFromEnv(process.env);
   const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
@@ -263,6 +275,15 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-settings") {
         sendJson(response, 200, buildRenderSettingsDescriptor(process.env), requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/conversation") {
+        assertJsonContentType(request);
+        const body = await readJsonBody<ShortPipelineConversationRequestBody>(request, maxBodyBytes);
+        const session = shortPipelineConversationEngine.buildSession(
+          shortPipelineConversationInputFromBody(body, requestContext.requestId)
+        );
+        sendJson(response, session.plan.status === "blocked" ? 422 : 200, session, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/plan") {
@@ -810,6 +831,61 @@ function createRequestFingerprint(payload: unknown): string {
   return createHash("sha256").update(stableJson(payload)).digest("hex");
 }
 
+function shortPipelineConversationInputFromBody(
+  body: ShortPipelineConversationRequestBody,
+  requestId: string
+): ShortPipelineConversationInput {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new RenderRequestAdmissionError("Short pipeline conversation request body must be a JSON object.");
+  }
+  if (typeof body.projectId !== "string" || !body.projectId.trim()) {
+    throw new RenderRequestAdmissionError("Short pipeline conversation requires projectId.");
+  }
+  const messages = conversationMessagesFromBody(body);
+  if (messages.length === 0) {
+    throw new RenderRequestAdmissionError("Short pipeline conversation requires messages or userPrompt.");
+  }
+  return {
+    projectId: body.projectId,
+    requestId: body.requestId ?? requestId,
+    messages,
+    ...(body.product ? { product: body.product } : {}),
+    ...(body.brandKit ? { brandKit: body.brandKit } : {}),
+    ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
+    ...(body.allowTemplateSuggestions !== undefined
+      ? { allowTemplateSuggestions: optionalBoolean(body.allowTemplateSuggestions, "allowTemplateSuggestions") ?? true }
+      : {}),
+    ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
+    ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+    ...(body.generatedAt ? { generatedAt: optionalDate(body.generatedAt, "generatedAt") } : {})
+  };
+}
+
+function conversationMessagesFromBody(body: ShortPipelineConversationRequestBody): readonly ShortPipelineConversationMessageInput[] {
+  const sourceMessages = Array.isArray(body.messages)
+    ? body.messages
+    : body.userPrompt
+    ? [{ role: "user" as const, text: body.userPrompt }]
+    : [];
+  if (sourceMessages.length > 24) {
+    throw new RenderRequestAdmissionError("Short pipeline conversation cannot contain more than 24 messages.");
+  }
+  return sourceMessages.map((message, index) => {
+    if (!message || typeof message !== "object" || Array.isArray(message)) {
+      throw new RenderRequestAdmissionError(`messages[${index}] must be an object.`);
+    }
+    if (typeof message.text !== "string" || !message.text.trim()) {
+      throw new RenderRequestAdmissionError(`messages[${index}].text is required.`);
+    }
+    const role = conversationRole(message.role, index);
+    return {
+      role,
+      text: message.text,
+      ...(message.createdAt ? { createdAt: optionalDate(message.createdAt, `messages[${index}].createdAt`) } : {})
+    };
+  });
+}
+
 function shortPipelinePlanInputFromBody(body: ShortPipelinePlanInput, requestId: string): ShortPipelinePlanInput {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new RenderRequestAdmissionError("Short pipeline request body must be a JSON object.");
@@ -915,6 +991,29 @@ function optionalBoolean(value: unknown, label: string): boolean | undefined {
     throw new RenderRequestAdmissionError(`${label} must be a boolean when provided.`);
   }
   return value;
+}
+
+function conversationRole(value: unknown, index: number): ShortPipelineConversationRole {
+  if (value === undefined) {
+    return "user";
+  }
+  if (value === "user" || value === "assistant" || value === "operator") {
+    return value;
+  }
+  throw new RenderRequestAdmissionError(`messages[${index}].role must be user, assistant, or operator when provided.`);
+}
+
+function optionalDate(value: unknown, label: string): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  throw new RenderRequestAdmissionError(`${label} must be a valid date-time string when provided.`);
 }
 
 function optionalPositiveInteger(value: unknown, label: string): number | undefined {

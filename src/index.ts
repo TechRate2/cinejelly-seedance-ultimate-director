@@ -82,6 +82,7 @@ export * from "./core/review-approval-system.js";
 export * from "./core/review-packet-builder.js";
 export * from "./core/semantic-visual-inspector.js";
 export * from "./core/shot-planner.js";
+export * from "./core/short-pipeline-conversation.js";
 export * from "./core/short-pipeline-planner.js";
 export * from "./core/short-pipeline-render-handoff.js";
 export * from "./core/source-video-auto-analyzer.js";

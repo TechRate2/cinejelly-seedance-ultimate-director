@@ -2888,6 +2888,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     license: "MIT",
     behaviorPreserved: [
       "natural-language media requests are decomposed into explicit workflow steps",
+      "multi-turn conversation state can express revisions, optional-template rejection, and approval intent without bypassing formal review",
       "agent and tool choices remain visible as operator-facing progress evidence",
       "long-running media work emits status updates rather than hiding behind one opaque blocking request",
       "media outputs are represented as typed content/artifact evidence instead of text-only responses",
@@ -2898,6 +2899,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorChanged: [
       "rewritten into CineJelly-owned TypeScript planners, review approvals, async job state, and artifact contracts",
       "Director's Python runtime, VideoDB dependency, and frontend code are not imported or executed",
+      "public conversation evidence stores message digests and redacted summaries instead of raw transcript text",
       "unbounded LLM tool routing is replaced by deterministic no-spend planning, admission control, approval gates, cost controls, and provider-safe handoff points",
       "product URL research is limited to clean HTTPS pages behind explicit live-network confirmation and publishes hashes/evidence instead of raw URLs",
       "short-pipeline render handoff requires explicit confirmation before approved review evidence can queue provider spend",
@@ -2907,14 +2909,17 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     cineJellyDestinationPaths: [
       "src/types/short-pipeline.ts",
       "src/types/review-approval.ts",
+      "src/core/short-pipeline-conversation.ts",
       "src/core/short-pipeline-planner.ts",
       "src/core/product-url-researcher.ts",
       "src/core/short-pipeline-render-handoff.ts",
       "src/core/review-approval-system.ts",
       "src/api/server.ts",
       "src/api/render-job-manager.ts",
+      "scripts/run-short-pipeline-conversation-smoke.mjs",
       "scripts/run-short-pipeline-smoke.mjs",
       "scripts/run-product-url-extraction-smoke.mjs",
+      "schemas/short-pipeline-conversation-smoke-report.schema.json",
       "schemas/short-pipeline-smoke-report.schema.json",
       "schemas/product-url-extraction-smoke-report.schema.json",
       "docs/SHORT_PIPELINE_AGENTIC_DESIGN.md",
@@ -2923,6 +2928,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     validationStatus: "implemented",
     fidelityRisks: [
       "current coverage is backend planning/render-handoff/progress/review evidence, not Director chat UI or VideoDB media-library parity",
+      "conversation route is no-spend backend evidence and does not yet prove first-party chat UI or durable customer session storage",
       "live paid short-pipeline media evidence is still required before claiming end-to-end Director-style workflow evidence",
       "future LLM-driven agent routing must preserve CineJelly cost, quota, redaction, approval, and artifact gates",
       "full Director-style agent catalog parity requires additional source-video, search, editing, dubbing, subtitle, upload, playback, and UI evidence"
