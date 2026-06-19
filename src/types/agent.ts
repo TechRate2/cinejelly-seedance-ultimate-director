@@ -23,6 +23,7 @@ import type { MaterialSourceValidationReport, MaterialSourcingPlan } from "./mat
 import type { ProductionStagePlan } from "./stage.js";
 import type { PostproductionAssetPlan } from "./postproduction-assets.js";
 import type { GeneratedAudioOutputValidationBatchReport } from "./generated-audio-output.js";
+import type { LongFormAgentReviewPlan } from "./long-form-agent-review.js";
 import type { LongFormContinuityPlan } from "./long-form-continuity.js";
 import type { RenderSchedulePlan } from "../core/render-scheduler.js";
 
@@ -89,6 +90,7 @@ export interface DirectorRunResult {
   readonly storyboardPreflight: GuardianReport;
   readonly productionGraph: ProductionGraphSnapshot;
   readonly longFormContinuityPlan: LongFormContinuityPlan;
+  readonly longFormAgentReview: LongFormAgentReviewPlan;
   readonly materialSourcingPlan: MaterialSourcingPlan;
   readonly materialSourceValidation: MaterialSourceValidationReport;
   readonly postproductionAssetPlan: PostproductionAssetPlan;

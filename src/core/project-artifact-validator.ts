@@ -24,6 +24,7 @@ const SUCCESS_REQUIRED_KINDS: readonly ProjectArtifactKind[] = [
   "storyboard_preflight",
   "production_graph",
   "long_form_continuity",
+  "long_form_agent_review",
   "material_sourcing_plan",
   "material_source_validation",
   "postproduction_asset_plan",
@@ -80,6 +81,15 @@ const GENERATED_AUDIO_OUTPUT_BATCH_STATUSES = new Set([
 ]);
 const GENERATED_AUDIO_OUTPUT_VALIDATION_STATUSES = new Set(["approved", "review_required", "rejected"]);
 const GENERATED_AUDIO_OUTPUT_ISSUE_SEVERITIES = new Set(["info", "warn", "block"]);
+const LONG_FORM_AGENT_REVIEW_STATUSES = new Set(["ready", "review_required", "blocked"]);
+const LONG_FORM_AGENT_REVIEW_ROLES = new Set([
+  "script_architect",
+  "continuity_supervisor",
+  "source_video_reviewer",
+  "render_orchestrator",
+  "commercial_risk_reviewer"
+]);
+const LONG_FORM_AGENT_REVIEW_SEVERITIES = new Set(["info", "warn", "block"]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DATA_URI_PATTERN = /"[^"]*data:[^"]*"/i;
 const CREDENTIAL_QUERY_URI_PATTERN =
@@ -367,6 +377,7 @@ export class ProjectArtifactValidator {
     this.validateMaterialSourceValidation(manifest, artifacts.get("material_source_validation"), checks);
     this.validatePostproductionAssetPlan(manifest, artifacts.get("postproduction_asset_plan"), checks);
     this.validateLongFormContinuity(manifest, artifacts.get("long_form_continuity"), checks);
+    this.validateLongFormAgentReview(manifest, artifacts.get("long_form_agent_review"), checks);
     this.validateRenderSchedule(artifacts.get("render_schedule"), checks);
     this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
     this.validatePostproductionAssetConsistency(artifacts, checks);
@@ -426,6 +437,15 @@ export class ProjectArtifactValidator {
     const planning = this.isRecord(value.planning) ? value.planning : undefined;
     if (!planning || typeof planning.longFormSequenceCount !== "number" || typeof planning.longFormContinuityBridgeCount !== "number") {
       checks.push({ name: "review_packet_long_form_continuity", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing long-form continuity counts." });
+    }
+    if (
+      !planning ||
+      typeof planning.longFormAgentReviewStatus !== "string" ||
+      !LONG_FORM_AGENT_REVIEW_STATUSES.has(planning.longFormAgentReviewStatus) ||
+      typeof planning.longFormAgentReviewFindingCount !== "number" ||
+      typeof planning.longFormAgentReviewBlockingFindingCount !== "number"
+    ) {
+      checks.push({ name: "review_packet_long_form_agent_review", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing long-form agent review evidence." });
     }
   }
 
@@ -962,6 +982,153 @@ export class ProjectArtifactValidator {
       if (sequence.renderModeRecommendation !== "parallel_safe" && sequence.renderModeRecommendation !== "sequential_recommended") {
         checks.push({ name: "long_form_continuity_render_mode", status: "fail", fileName: artifact.entry.fileName, message: `Sequence ${index} has invalid renderModeRecommendation.` });
       }
+    }
+  }
+
+  private validateLongFormAgentReview(
+    manifest: ProjectArtifactBundle,
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    const fileName = artifact.entry.fileName;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "long_form_agent_review_shape", status: "fail", fileName, message: "long-form-agent-review must be an object." });
+      return;
+    }
+    if (value.schemaVersion !== "cinejelly.long-form-agent-review.v1") {
+      checks.push({ name: "long_form_agent_review_schema", status: "fail", fileName, message: "Unexpected long-form-agent-review schema version." });
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "long_form_agent_review_project", status: "fail", fileName, message: "long-form-agent-review projectId does not match manifest." });
+    }
+    if (value.noSpend !== true || value.networkCallsMade !== false || value.providerCallsMade !== false) {
+      checks.push({ name: "long_form_agent_review_spend_boundary", status: "fail", fileName, message: "long-form-agent-review must be no-spend/no-network/no-provider evidence." });
+    }
+    if (typeof value.status !== "string" || !LONG_FORM_AGENT_REVIEW_STATUSES.has(value.status)) {
+      checks.push({ name: "long_form_agent_review_status", status: "fail", fileName, message: "long-form-agent-review status is invalid." });
+    }
+    if (value.agentCount !== LONG_FORM_AGENT_REVIEW_ROLES.size) {
+      checks.push({ name: "long_form_agent_review_agent_count", status: "fail", fileName, message: "long-form-agent-review agentCount must cover every expected role." });
+    }
+    if (!Array.isArray(value.sourcePatternOrigins) || value.sourcePatternOrigins.some((origin) => typeof origin !== "string" || !origin)) {
+      checks.push({ name: "long_form_agent_review_origins", status: "fail", fileName, message: "long-form-agent-review sourcePatternOrigins are invalid." });
+    }
+    for (const field of [
+      "targetDurationSeconds",
+      "reviewedSequenceCount",
+      "reviewedShotCount",
+      "findingCount",
+      "blockingFindingCount",
+      "reviewRequiredFindingCount"
+    ] as const) {
+      if (typeof value[field] !== "number" || !Number.isInteger(value[field]) || value[field] < 0) {
+        checks.push({ name: "long_form_agent_review_count", status: "fail", fileName, message: `long-form-agent-review ${field} is invalid.` });
+      }
+    }
+
+    const decisions = Array.isArray(value.decisions) ? value.decisions : undefined;
+    const findings = Array.isArray(value.findings) ? value.findings : undefined;
+    if (!decisions || !findings || !Array.isArray(value.directives)) {
+      checks.push({ name: "long_form_agent_review_collections", status: "fail", fileName, message: "long-form-agent-review decisions, findings, and directives must be arrays." });
+      return;
+    }
+    if (decisions.length !== LONG_FORM_AGENT_REVIEW_ROLES.size) {
+      checks.push({ name: "long_form_agent_review_decision_count", status: "fail", fileName, message: "long-form-agent-review must include one decision per role." });
+    }
+    const findingCount = findings.length;
+    const blockingFindingCount = findings.filter((finding) => this.isRecord(finding) && finding.severity === "block").length;
+    const reviewRequiredFindingCount = findings.filter((finding) => this.isRecord(finding) && finding.severity === "warn").length;
+    if (value.findingCount !== findingCount) {
+      checks.push({ name: "long_form_agent_review_finding_count", status: "fail", fileName, message: "long-form-agent-review findingCount must match findings length." });
+    }
+    if (value.blockingFindingCount !== blockingFindingCount) {
+      checks.push({ name: "long_form_agent_review_block_count", status: "fail", fileName, message: "long-form-agent-review blockingFindingCount must match block findings." });
+    }
+    if (value.reviewRequiredFindingCount !== reviewRequiredFindingCount) {
+      checks.push({ name: "long_form_agent_review_warn_count", status: "fail", fileName, message: "long-form-agent-review reviewRequiredFindingCount must match warning findings." });
+    }
+    if (blockingFindingCount > 0 && value.status !== "blocked") {
+      checks.push({ name: "long_form_agent_review_status_semantics", status: "fail", fileName, message: "Blocking findings require blocked status." });
+    }
+    if (blockingFindingCount === 0 && reviewRequiredFindingCount > 0 && value.status !== "review_required") {
+      checks.push({ name: "long_form_agent_review_status_semantics", status: "fail", fileName, message: "Warning findings require review_required status when no blockers exist." });
+    }
+
+    const decisionRoles = new Set<string>();
+    for (const [index, decision] of decisions.entries()) {
+      if (!this.isRecord(decision)) {
+        checks.push({ name: "long_form_agent_review_decision_shape", status: "fail", fileName, message: `Decision ${index} must be an object.` });
+        continue;
+      }
+      if (typeof decision.role !== "string" || !LONG_FORM_AGENT_REVIEW_ROLES.has(decision.role)) {
+        checks.push({ name: "long_form_agent_review_decision_role", status: "fail", fileName, message: `Decision ${index} role is invalid.` });
+      } else {
+        decisionRoles.add(decision.role);
+      }
+      if (typeof decision.status !== "string" || !LONG_FORM_AGENT_REVIEW_STATUSES.has(decision.status)) {
+        checks.push({ name: "long_form_agent_review_decision_status", status: "fail", fileName, message: `Decision ${index} status is invalid.` });
+      }
+      if (
+        typeof decision.findingCount !== "number" ||
+        !Number.isInteger(decision.findingCount) ||
+        typeof decision.blockingFindingCount !== "number" ||
+        !Number.isInteger(decision.blockingFindingCount) ||
+        !Array.isArray(decision.requiredBeforeRender) ||
+        typeof decision.priorityDirective !== "string" ||
+        !decision.priorityDirective
+      ) {
+        checks.push({ name: "long_form_agent_review_decision_fields", status: "fail", fileName, message: `Decision ${index} fields are invalid.` });
+      }
+    }
+    if (decisionRoles.size !== LONG_FORM_AGENT_REVIEW_ROLES.size) {
+      checks.push({ name: "long_form_agent_review_role_coverage", status: "fail", fileName, message: "long-form-agent-review does not cover every review role." });
+    }
+
+    for (const [index, finding] of findings.entries()) {
+      if (!this.isRecord(finding)) {
+        checks.push({ name: "long_form_agent_review_finding_shape", status: "fail", fileName, message: `Finding ${index} must be an object.` });
+        continue;
+      }
+      if (typeof finding.findingId !== "string" || !finding.findingId) {
+        checks.push({ name: "long_form_agent_review_finding_id", status: "fail", fileName, message: `Finding ${index} findingId is missing.` });
+      }
+      if (typeof finding.role !== "string" || !LONG_FORM_AGENT_REVIEW_ROLES.has(finding.role)) {
+        checks.push({ name: "long_form_agent_review_finding_role", status: "fail", fileName, message: `Finding ${index} role is invalid.` });
+      }
+      if (typeof finding.severity !== "string" || !LONG_FORM_AGENT_REVIEW_SEVERITIES.has(finding.severity)) {
+        checks.push({ name: "long_form_agent_review_finding_severity", status: "fail", fileName, message: `Finding ${index} severity is invalid.` });
+      }
+      if (
+        typeof finding.code !== "string" ||
+        !finding.code ||
+        typeof finding.message !== "string" ||
+        !finding.message ||
+        typeof finding.repairDirective !== "string" ||
+        !finding.repairDirective
+      ) {
+        checks.push({ name: "long_form_agent_review_finding_text", status: "fail", fileName, message: `Finding ${index} text fields are missing.` });
+      }
+      if (!Array.isArray(finding.affectedSequenceIds) || !Array.isArray(finding.affectedShotIds) || !this.isRecord(finding.evidence)) {
+        checks.push({ name: "long_form_agent_review_finding_evidence", status: "fail", fileName, message: `Finding ${index} evidence fields are invalid.` });
+      }
+    }
+
+    const releaseGateSummary = this.isRecord(value.releaseGateSummary) ? value.releaseGateSummary : undefined;
+    if (
+      !releaseGateSummary ||
+      typeof releaseGateSummary.canProceedToPromptCompilation !== "boolean" ||
+      releaseGateSummary.canUseAsNoSpendAgenticReviewEvidence !== true ||
+      releaseGateSummary.canReleaseToCustomerTraffic !== false ||
+      typeof releaseGateSummary.releaseBlocker !== "string" ||
+      !releaseGateSummary.releaseBlocker
+    ) {
+      checks.push({ name: "long_form_agent_review_release_gate", status: "fail", fileName, message: "long-form-agent-review release gate summary is invalid." });
+    } else if (value.status === "blocked" && releaseGateSummary.canProceedToPromptCompilation !== false) {
+      checks.push({ name: "long_form_agent_review_release_gate", status: "fail", fileName, message: "Blocked long-form review must not proceed to prompt compilation." });
     }
   }
 

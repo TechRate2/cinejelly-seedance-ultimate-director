@@ -333,6 +333,8 @@ Runtime implementation:
 - Source-video references are reduced to source scene IDs and labels; raw provider/reference URLs are not serialized into continuity evidence.
 - `ProjectArtifactValidator` now requires and validates this artifact on successful runs, and `scripts/run-long-form-continuity-smoke.mjs` proves the no-spend continuity contract for a 120-second fixture.
 
+`LongFormAgentReviewPlanner` then builds `long-form-agent-review.json` before prompt compilation. It is a deterministic no-spend review board translated from ViMax/VideoAgent/VibeFrame patterns, with five roles: script architect, continuity supervisor, source-video reviewer, render orchestrator, and commercial-risk reviewer. Blocking findings stop prompt compilation before provider spend; warning findings become manual-review directives in run artifacts and review packets. `scripts/run-long-form-agent-review-smoke.mjs` proves the review-required and blocked branches without network or provider calls.
+
 ## Reference Reuse Policy
 
 Source basis:

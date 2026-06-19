@@ -59,6 +59,13 @@ export class ReviewPacketBuilder {
         longFormContinuityBridgeCount: input.result.longFormContinuityPlan.bridgeCount,
         longFormHighRiskSequenceCount: input.result.longFormContinuityPlan.highRiskSequenceCount,
         longFormSourceVideoAnchorCount: input.result.longFormContinuityPlan.sourceVideoAnchorCount,
+        longFormAgentReviewStatus: input.result.longFormAgentReview.status,
+        longFormAgentReviewFindingCount: input.result.longFormAgentReview.findingCount,
+        longFormAgentReviewBlockingFindingCount: input.result.longFormAgentReview.blockingFindingCount,
+        longFormAgentReviewRequiredBeforeRenderCount: input.result.longFormAgentReview.decisions.reduce(
+          (sum, decision) => sum + decision.requiredBeforeRender.length,
+          0
+        ),
         storyboardPanelCount: input.result.storyboard.panels.length,
         storyboardPreflightStatus: input.result.storyboardPreflight.status,
         productionGraphNodeCount: input.result.productionGraph.nodes.length,
@@ -209,7 +216,8 @@ export class ReviewPacketBuilder {
       delivery.semanticVisualInspectionStatus === "fail" ||
       delivery.mediaInspectionStatus === "fail" ||
       result.materialSourceValidation.status === "rejected" ||
-      result.generatedAudioOutputBatchValidation?.status === "rejected"
+      result.generatedAudioOutputBatchValidation?.status === "rejected" ||
+      result.longFormAgentReview.status === "blocked"
     ) {
       return "blocked";
     }
@@ -222,6 +230,7 @@ export class ReviewPacketBuilder {
       delivery.mediaInspectionStatus === "warn" ||
       result.materialSourceValidation.status === "review_required" ||
       result.postproductionAssetPlan.status === "review_required" ||
+      result.longFormAgentReview.status === "review_required" ||
       result.generatedAudioOutputBatchValidation?.status === "review_required" ||
       result.generatedAudioOutputBatchValidation?.status === "partially_approved" ||
       cost.failedProviderOperationCount > 0 ||
@@ -257,6 +266,9 @@ export class ReviewPacketBuilder {
     }
     for (const issue of result.generatedAudioOutputBatchValidation?.issues ?? []) {
       recommendations.add(issue.repair);
+    }
+    for (const directive of result.longFormAgentReview.directives) {
+      recommendations.add(directive);
     }
     for (const report of result.generatedAudioOutputBatchValidation?.reports ?? []) {
       for (const issue of report.issues) {

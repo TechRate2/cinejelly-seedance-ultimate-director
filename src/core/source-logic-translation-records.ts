@@ -461,12 +461,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "sequence-level continuity anchors preserve identity, product, environment, style, source-video scene IDs, risk codes, and bridge intent before render",
       "continuity-sensitive dependencies remain explicit in scheduling and graph evidence",
       "source-video, transition, endpoint, and continuity-risk render barriers are visible in schedule evidence",
+      "long-form multi-agent review is translated into role-specific script, continuity, source-video, render-orchestration, and commercial-risk findings before provider spend",
       "candidate and repair evidence remains traceable by shot"
     ],
     behaviorChanged: [
       "long-form lifecycle is represented through CineJelly ProductionStagePlan records",
       "material sourcing is separated from reference scoring and render selection",
-      "stage and sequence-continuity evidence is emitted in review packets and durable artifacts"
+      "stage, sequence-continuity, and agent-review evidence is emitted in review packets and durable artifacts",
+      "ViMax-style agent reasoning is rewritten as deterministic TypeScript review evidence rather than executing upstream agents"
     ],
     referenceImplementationPath: "docs/reference-implementations/long-form-planning-batch-workflow.md",
     cineJellyDestinationPaths: [
@@ -476,6 +478,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/long-form-sequence-planner.ts",
       "src/types/long-form-continuity.ts",
       "src/core/long-form-continuity-planner.ts",
+      "src/types/long-form-agent-review.ts",
+      "src/core/long-form-agent-review-planner.ts",
       "src/types/artifact.ts",
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",
@@ -486,7 +490,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-production-graph-sequence-smoke.mjs",
       "schemas/production-graph-sequence-smoke-report.schema.json",
       "scripts/run-long-form-continuity-smoke.mjs",
-      "schemas/long-form-continuity-smoke-report.schema.json"
+      "schemas/long-form-continuity-smoke-report.schema.json",
+      "scripts/run-long-form-agent-review-smoke.mjs",
+      "schemas/long-form-agent-review-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -509,11 +515,12 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "artifact order preserves planning, storyboard, graph, schedule, cost, render, review, and delivery evidence",
       "story, sequence, scene, beat, and shot graph layers remain inspectable in deterministic artifacts",
       "sequence-level continuity evidence is persisted as a deterministic reviewable artifact",
+      "agentic review findings are persisted as deterministic no-spend planning evidence",
       "repair and inspection stages are separate lifecycle records"
     ],
     behaviorChanged: [
       "CLI project-loop status is rewritten into typed stage lifecycle records",
-      "stage lifecycle and render schedule are exposed through reviewable JSON artifacts",
+      "stage lifecycle, render schedule, continuity, and agent-review decisions are exposed through reviewable JSON artifacts",
       "CineJelly keeps Atlas Cloud as provider default instead of adopting upstream provider routing"
     ],
     referenceImplementationPath: "docs/reference-implementations/long-form-planning-batch-workflow.md",
@@ -526,6 +533,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/long-form-sequence-planner.ts",
       "src/types/long-form-continuity.ts",
       "src/core/long-form-continuity-planner.ts",
+      "src/types/long-form-agent-review.ts",
+      "src/core/long-form-agent-review-planner.ts",
       "src/types/review.ts",
       "src/core/review-packet-builder.ts",
       "scripts/run-render-scheduler-smoke.mjs",
@@ -533,12 +542,56 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-production-graph-sequence-smoke.mjs",
       "schemas/production-graph-sequence-smoke-report.schema.json",
       "scripts/run-long-form-continuity-smoke.mjs",
-      "schemas/long-form-continuity-smoke-report.schema.json"
+      "schemas/long-form-continuity-smoke-report.schema.json",
+      "scripts/run-long-form-agent-review-smoke.mjs",
+      "schemas/long-form-agent-review-smoke-report.schema.json"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
       "stage records currently describe a completed run rather than a persisted live task monitor",
       "future resumable long-running builds should preserve this stage schema"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Long-Form Agentic Review Board",
+    sourceRepository: "HKUDS/VideoAgent",
+    snapshotPath: "external/upstream/videoagent",
+    upstreamPaths: [
+      "external/upstream/videoagent/README.md",
+      "external/upstream/videoagent/tools/videorag",
+      "external/upstream/videoagent/environment/roles"
+    ],
+    license: "MIXED",
+    behaviorPreserved: [
+      "video-workflow reasoning is decomposed into role-specific review decisions before generation",
+      "source-video structure is treated as bounded evidence rather than raw media reproduction",
+      "tool/agent readiness remains visible as operator-facing findings and directives",
+      "blocking findings stop prompt compilation before provider spend"
+    ],
+    behaviorChanged: [
+      "VideoAgent RAG/tool runtime code is not copied, imported, linked, or executed",
+      "CineJelly uses deterministic TypeScript review rules and artifact contracts instead of an arbitrary tool-routing loop",
+      "source-video evidence is reduced to scene IDs, labels, counts, and redacted directives"
+    ],
+    referenceImplementationPath: "docs/reference-implementations/long-form-planning-batch-workflow.md",
+    cineJellyDestinationPaths: [
+      "src/types/long-form-agent-review.ts",
+      "src/core/long-form-agent-review-planner.ts",
+      "src/agents/director-agent.ts",
+      "src/types/artifact.ts",
+      "src/types/review.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
+      "src/core/review-packet-builder.ts",
+      "scripts/run-long-form-agent-review-smoke.mjs",
+      "schemas/long-form-agent-review-smoke-report.schema.json",
+      "scripts/validate-report-contracts.mjs"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "this is deterministic no-spend review-board evidence, not full VideoRAG/tool-graph parity",
+      "live source-video and paid long-form media review evidence remain pending"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },

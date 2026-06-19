@@ -12,6 +12,7 @@ import type { ProductionStageRecord } from "./stage.js";
 import type { MaterialSourceValidationStatus } from "./material.js";
 import type { PostproductionAssetStatus, PostproductionGeneratedAudioStatus } from "./postproduction-assets.js";
 import type { GeneratedAudioOutputBatchValidationStatus } from "./generated-audio-output.js";
+import type { LongFormAgentReviewStatus } from "./long-form-agent-review.js";
 
 export type ReviewPacketStatus = "ready" | "review_required" | "blocked";
 
@@ -55,6 +56,10 @@ export interface ReviewPacketPlanning {
   readonly longFormContinuityBridgeCount: number;
   readonly longFormHighRiskSequenceCount: number;
   readonly longFormSourceVideoAnchorCount: number;
+  readonly longFormAgentReviewStatus: LongFormAgentReviewStatus;
+  readonly longFormAgentReviewFindingCount: number;
+  readonly longFormAgentReviewBlockingFindingCount: number;
+  readonly longFormAgentReviewRequiredBeforeRenderCount: number;
   readonly storyboardPanelCount: number;
   readonly storyboardPreflightStatus: GuardianStatus;
   readonly productionGraphNodeCount: number;

@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/long-form-agent-review-smoke-report.schema.json",
+  "title": "CineJelly Long-Form Agent Review Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.long-form-agent-review-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "scenarioCount", "targetDurationSeconds", "rawUrlLeakCheckPassed"],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "scenarioCount": { "const": 2 },
+        "targetDurationSeconds": { "type": "number", "minimum": 120 },
+        "rawUrlLeakCheckPassed": { "type": "boolean" }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewRequired", "blocked"],
+      "properties": {
+        "reviewRequired": { "$ref": "#/$defs/scenario" },
+        "blocked": { "$ref": "#/$defs/scenario" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 9,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsNoSpendAgenticReviewEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsNoSpendAgenticReviewEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectId",
+        "status",
+        "agentCount",
+        "reviewedSequenceCount",
+        "reviewedShotCount",
+        "findingCount",
+        "blockingFindingCount",
+        "reviewRequiredFindingCount",
+        "decisionCount",
+        "directiveCount",
+        "canProceedToPromptCompilation",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["ready", "review_required", "blocked"] },
+        "agentCount": { "const": 5 },
+        "reviewedSequenceCount": { "type": "integer", "minimum": 1 },
+        "reviewedShotCount": { "type": "integer", "minimum": 1 },
+        "findingCount": { "type": "integer", "minimum": 0 },
+        "blockingFindingCount": { "type": "integer", "minimum": 0 },
+        "reviewRequiredFindingCount": { "type": "integer", "minimum": 0 },
+        "decisionCount": { "const": 5 },
+        "directiveCount": { "type": "integer", "minimum": 1 },
+        "canProceedToPromptCompilation": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

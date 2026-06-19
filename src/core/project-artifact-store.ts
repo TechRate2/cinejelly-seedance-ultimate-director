@@ -107,6 +107,13 @@ export class ProjectArtifactStore {
       longFormContinuityBridgeCount: result.longFormContinuityPlan.bridgeCount,
       longFormHighRiskSequenceCount: result.longFormContinuityPlan.highRiskSequenceCount,
       longFormSourceVideoAnchorCount: result.longFormContinuityPlan.sourceVideoAnchorCount,
+      longFormAgentReviewStatus: result.longFormAgentReview.status,
+      longFormAgentReviewFindingCount: result.longFormAgentReview.findingCount,
+      longFormAgentReviewBlockingFindingCount: result.longFormAgentReview.blockingFindingCount,
+      longFormAgentReviewRequiredBeforeRenderCount: result.longFormAgentReview.decisions.reduce(
+        (sum, decision) => sum + decision.requiredBeforeRender.length,
+        0
+      ),
       stageStatuses: result.stagePlan.records.map((record) => ({
         stage: record.stage,
         status: record.status
@@ -158,6 +165,7 @@ export class ProjectArtifactStore {
       { kind: "storyboard_preflight", fileName: "storyboard-preflight.json", value: result.storyboardPreflight },
       { kind: "production_graph", fileName: "production-graph.json", value: result.productionGraph },
       { kind: "long_form_continuity", fileName: "long-form-continuity.json", value: result.longFormContinuityPlan },
+      { kind: "long_form_agent_review", fileName: "long-form-agent-review.json", value: result.longFormAgentReview },
       { kind: "material_sourcing_plan", fileName: "material-sourcing-plan.json", value: result.materialSourcingPlan },
       { kind: "material_source_validation", fileName: "material-source-validation.json", value: result.materialSourceValidation },
       { kind: "postproduction_asset_plan", fileName: "postproduction-assets.json", value: result.postproductionAssetPlan },

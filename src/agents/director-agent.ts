@@ -14,6 +14,7 @@ import { AssemblyEngine } from "../core/assembly-engine.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
+import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
 import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
@@ -39,6 +40,7 @@ import type {
 } from "../types/settings.js";
 import type { CineJellyProjectRequest, DirectorRunResult, RenderCandidate, RenderedShot } from "../types/agent.js";
 import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
+import type { LongFormAgentReviewPlan } from "../types/long-form-agent-review.js";
 import type {
   MaterialCandidate,
   MaterialSource,
@@ -76,6 +78,7 @@ export class DirectorAgent {
   private readonly storyboardPlanner: StoryboardPlanner;
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly longFormContinuityPlanner: LongFormContinuityPlanner;
+  private readonly longFormAgentReviewPlanner: LongFormAgentReviewPlanner;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
   private readonly productionStagePlanner: ProductionStagePlanner;
@@ -112,6 +115,7 @@ export class DirectorAgent {
     readonly storyboardPlanner?: StoryboardPlanner;
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly longFormContinuityPlanner?: LongFormContinuityPlanner;
+    readonly longFormAgentReviewPlanner?: LongFormAgentReviewPlanner;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
     readonly productionStagePlanner?: ProductionStagePlanner;
@@ -142,6 +146,7 @@ export class DirectorAgent {
     this.storyboardPlanner = input.storyboardPlanner ?? new StoryboardPlanner();
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.longFormContinuityPlanner = input.longFormContinuityPlanner ?? new LongFormContinuityPlanner();
+    this.longFormAgentReviewPlanner = input.longFormAgentReviewPlanner ?? new LongFormAgentReviewPlanner();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
     this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
@@ -192,11 +197,28 @@ export class DirectorAgent {
       references: intake.references,
       ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: intake.sourceVideoAnalysis } : {})
     });
+    const longFormAgentReview = this.longFormAgentReviewPlanner.build({
+      projectId: intake.projectId,
+      storyPlan,
+      shots,
+      continuityPlan: longFormContinuityPlan,
+      ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: intake.sourceVideoAnalysis } : {})
+    });
+    if (longFormAgentReview.status === "blocked") {
+      this.reportStageProgress("plan", "blocked", "Long-form agentic review blocked prompt compilation.", {
+        longFormAgentReviewFindingCount: longFormAgentReview.findingCount,
+        longFormAgentReviewBlockingFindingCount: longFormAgentReview.blockingFindingCount
+      });
+      throw new Error(this.describeLongFormAgentReviewBlock(longFormAgentReview));
+    }
     this.reportStageProgress("plan", "succeeded", "Planning completed.", {
       sceneCount: storyPlan.scenes.length,
       shotCount: shots.length,
       longFormSequenceCount: longFormContinuityPlan.sequenceCount,
       highRiskSequenceCount: longFormContinuityPlan.highRiskSequenceCount,
+      longFormAgentReviewStatus: longFormAgentReview.status,
+      longFormAgentReviewFindingCount: longFormAgentReview.findingCount,
+      longFormAgentReviewBlockingFindingCount: longFormAgentReview.blockingFindingCount,
       targetDurationSeconds: storyPlan.targetDurationSeconds,
       referenceCount: intake.references.length
     });
@@ -516,6 +538,7 @@ export class DirectorAgent {
       storyboardPreflight,
       productionGraph: finalProductionGraph,
       longFormContinuityPlan,
+      longFormAgentReview,
       materialSourcingPlan,
       materialSourceValidation,
       postproductionAssetPlan,
@@ -529,6 +552,15 @@ export class DirectorAgent {
       ...(deliveryGate ? { deliveryGate } : {}),
       ...(semanticVisualInspection ? { semanticVisualInspection } : {})
     };
+  }
+
+  private describeLongFormAgentReviewBlock(review: LongFormAgentReviewPlan): string {
+    const details = review.findings
+      .filter((finding) => finding.severity === "block")
+      .slice(0, 5)
+      .map((finding) => `${finding.role}:${finding.code} - ${finding.repairDirective}`)
+      .join("; ");
+    return `Long-form agentic review blocked prompt compilation before provider spend. ${details}`;
   }
 
   private canExecuteGeneratedAudio(request: CineJellyProjectRequest): boolean {

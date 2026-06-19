@@ -53,6 +53,7 @@ const defaultContracts = [
   contract("ops_config_validation", "schemas/business-readiness-ops-config-validation-report.schema.json", "assets/output_deliverables/business-readiness/ops-config-validation-report.json"),
   contract("long_form_validation", "schemas/long-form-validation-report.schema.json", "assets/output_deliverables/business-readiness/long-form-validation-report.json"),
   contract("long_form_continuity_smoke", "schemas/long-form-continuity-smoke-report.schema.json", "assets/output_deliverables/business-readiness/long-form-continuity-smoke-report.json"),
+  contract("long_form_agent_review_smoke", "schemas/long-form-agent-review-smoke-report.schema.json", "assets/output_deliverables/business-readiness/long-form-agent-review-smoke-report.json"),
   contract("long_form_manual_quality_review", "schemas/long-form-manual-quality-review.schema.json", "ops/long-form-manual-quality-review.json"),
   contract("long_form_manual_quality_review_draft", "schemas/long-form-manual-quality-review-draft-report.schema.json", "assets/output_deliverables/business-readiness/long-form-manual-quality-review-draft-report.json"),
   contract("long_form_manual_quality_review_readiness", "schemas/long-form-manual-quality-review-readiness-report.schema.json", "assets/output_deliverables/business-readiness/long-form-manual-quality-review-readiness-report.json"),

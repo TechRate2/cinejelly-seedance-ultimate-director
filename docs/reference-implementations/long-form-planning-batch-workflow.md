@@ -1,12 +1,13 @@
 # Reference Implementation: Long-Form Planning And Batch Workflow
 
-Implementation status as of 2026-06-19: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `story_arc -> sequence -> scene -> beat -> shot` evidence, Production Graph `material_sourcing` evidence, sequence-level `long-form-continuity.json` evidence, material source validation evidence, review-packet stage lifecycle, render-schedule evidence, and stage/material/schedule/continuity artifacts. Direct `tsc -p tsconfig.json`, `scripts/run-render-scheduler-smoke.mjs`, `scripts/run-production-graph-sequence-smoke.mjs`, and `scripts/run-long-form-continuity-smoke.mjs` passed; real long-form Atlas validation remains pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
+Implementation status as of 2026-06-19: CineJelly-owned production foundation implemented for stage lifecycle contracts, `ProductionStagePlanner`, DirectorAgent material planning, Production Graph `story_arc -> sequence -> scene -> beat -> shot` evidence, Production Graph `material_sourcing` evidence, sequence-level `long-form-continuity.json` evidence, multi-role `long-form-agent-review.json` evidence, material source validation evidence, review-packet stage lifecycle, render-schedule evidence, and stage/material/schedule/continuity/agent-review artifacts. Direct `tsc -p tsconfig.json`, `scripts/run-render-scheduler-smoke.mjs`, `scripts/run-production-graph-sequence-smoke.mjs`, `scripts/run-long-form-continuity-smoke.mjs`, and `scripts/run-long-form-agent-review-smoke.mjs` passed; real long-form Atlas validation remains pending. CineJelly production code must stay CineJelly-owned TypeScript and must not import runtime code from `external/upstream/`.
 
 ## Upstream Sources
 
 | Source | Snapshot path | License | Behavior used |
 | --- | --- | --- | --- |
 | `HKUDS/ViMax` | `external/upstream/vimax` | MIT | Long-form decomposition, reference-aware dependency thinking, candidate comparison, and continuity-sensitive sequencing. |
+| `HKUDS/VideoAgent` | `external/upstream/videoagent` | Mixed nested dependencies; top-level MIT | Role/tool-style video reasoning, source-video structure discipline, and agentic review-board patterns translated without runtime reuse. |
 | `vericontext/vibeframe` | `external/upstream/vibeframe` | MIT | Storyboard-driven project loop, deterministic artifact order, status refresh, build/review reports, narrow repair commands. |
 | `harry0703/MoneyPrinterTurbo` | `external/upstream/moneyprinterturbo` | MIT | One-input staged pipeline, task progress updates, material sourcing before composition, batch output lifecycle, terminal stage failure visibility. |
 
@@ -18,10 +19,11 @@ Implementation status as of 2026-06-19: CineJelly-owned production foundation im
 4. Long-form graph hierarchy must preserve sequence groupings between story arcs and scenes, with deterministic order and duration evidence.
 5. Material sourcing must happen as a governed planning stage: rights requirement, allowed sources, search terms, duration, aspect ratio, and candidate limits must be visible.
 6. Sequence-level continuity anchors must preserve identity, product, environment, style, source-video scene IDs, risk codes, and bridge intent before render.
-7. Continuity-sensitive shots render sequentially; independent shots may render concurrently within configured limits.
-8. Batch candidates must be traceable: selected candidate, rejected candidates, test-take candidate, repair candidates, and final deliverable evidence.
-9. Terminal failures must preserve the narrow failed stage and should not erase earlier stage evidence.
-10. Artifacts must be deterministic: stage lifecycle, render schedule, long-form continuity, story plan, storyboard, production graph, cost plan, prompts, rendered shots, and deliverable evidence keep stable names.
+7. Agentic long-form review must translate script, continuity, source-video, render orchestration, and commercial-risk review into deterministic findings before provider spend.
+8. Continuity-sensitive shots render sequentially; independent shots may render concurrently within configured limits.
+9. Batch candidates must be traceable: selected candidate, rejected candidates, test-take candidate, repair candidates, and final deliverable evidence.
+10. Terminal failures must preserve the narrow failed stage and should not erase earlier stage evidence.
+11. Artifacts must be deterministic: stage lifecycle, render schedule, long-form continuity, long-form agent review, story plan, storyboard, production graph, cost plan, prompts, rendered shots, and deliverable evidence keep stable names.
 
 ## Edge Cases
 
@@ -130,6 +132,7 @@ function createStagePlan(input: RuntimeEvidence): StagePlan {
 - Include stage lifecycle, material sourcing plan, and material source validation report in `DirectorRunResult`, review packet, and artifact payloads.
 - Include render schedule evidence in `DirectorRunResult`, run summary, and `render-schedule.json` artifact payloads.
 - Build `LongFormContinuityPlan` after reference selection and before Production Graph persistence so review packets and artifacts can inspect sequence anchors, bridge intent, source-video scene IDs, and high-risk sequential recommendations.
+- Build `LongFormAgentReviewPlan` after continuity planning and before prompt compilation so blocking sequence/story/source-video defects stop provider spend while warning findings remain manual-review directives.
 - Keep RenderScheduler's dependency ordering as the first implementation of source-video, transition, and continuity-sensitive sequential render behavior.
 - Preserve candidate evidence through existing `RenderedShot.candidates` and Production Graph run recorder.
 
@@ -144,9 +147,11 @@ function createStagePlan(input: RuntimeEvidence): StagePlan {
 - Review packet and run artifacts expose stage lifecycle without local paths or raw provider payloads.
 - Run artifacts expose `render-schedule.json` with batch IDs, source order, parallel/sequential mode, reference roles, risk codes, continuity fields, and sequential reasons.
 - Run artifacts expose `long-form-continuity.json` with deterministic sequence counts, bridge counts, global anchors, source-video scene IDs, high-risk sequence counts, and per-sequence render-mode recommendations.
+- Run artifacts expose `long-form-agent-review.json` with five role decisions, findings, blocker counts, no-spend boundaries, source-pattern lineage, and release gates that never approve customer traffic.
 - Sequential render behavior is still driven by first/last frame, previous/next continuity, source-video/timeline structure, transition intent, and continuity risk.
 - `scripts/run-production-graph-sequence-smoke.mjs` passes for one-scene, 120-second, and 480-second graph fixtures without provider calls.
 - `scripts/run-render-scheduler-smoke.mjs` passes for bounded parallel batches, endpoint references, source-video structure/timeline, continuity risk, transition intent, and stable source order.
 - `scripts/run-long-form-continuity-smoke.mjs` passes for a 120-second fixture with sequence bridges, global anchors, source-video scene anchors, risk-driven sequential recommendations, and raw provider URL leak checks.
+- `scripts/run-long-form-agent-review-smoke.mjs` passes for a 120-second review-required fixture and an under-sequenced blocked fixture without network or provider calls.
 - No production import path references `external/upstream`.
 - Source lineage is added to `DEFAULT_SOURCE_LOGIC_TRANSLATIONS` after implementation.
