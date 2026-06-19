@@ -739,6 +739,79 @@ function phaseDefinition(id, label, owner) {
   return { id, label, owner };
 }
 
+const localPreparationCommandsByInputId = new Map([
+  [
+    "commercial_offer_scope_decision",
+    [
+      localPreparationDefinition({
+        name: "commercial_launch_intake_draft",
+        command: "npm.cmd run validation:launch-intake -- --write-draft"
+      })
+    ]
+  ],
+  [
+    "billing_admin_attestation",
+    [
+      localPreparationDefinition({
+        name: "ops_config_attestation_drafts",
+        command: "npm.cmd run validation:ops-config -- --write-drafts"
+      })
+    ]
+  ],
+  [
+    "production_operations_attestation",
+    [
+      localPreparationDefinition({
+        name: "ops_config_attestation_drafts",
+        command: "npm.cmd run validation:ops-config -- --write-drafts"
+      })
+    ]
+  ],
+  [
+    "live_provider_action_evidence",
+    [
+      localPreparationDefinition({
+        name: "live_provider_action_evidence_template",
+        command: "npm.cmd run validation:provider-live-action-draft"
+      })
+    ]
+  ],
+  [
+    "graph_resume_enqueue_evidence",
+    [
+      localPreparationDefinition({
+        name: "graph_resume_enqueue_evidence_template",
+        command: "npm.cmd run validation:provider-graph-resume-draft"
+      })
+    ]
+  ],
+  [
+    "long_form_paid_media_review",
+    [
+      localPreparationDefinition({
+        name: "long_form_manual_quality_review_template",
+        command: "npm.cmd run validation:long-form-review-draft -- --force"
+      })
+    ]
+  ],
+  [
+    "generated_audio_paid_review",
+    [
+      localPreparationDefinition({
+        name: "generated_audio_manual_review_template",
+        command: "npm.cmd run validation:generated-audio-review-draft"
+      })
+    ]
+  ]
+]);
+
+function localPreparationDefinition(value) {
+  return {
+    name: value.name,
+    command: value.command
+  };
+}
+
 function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
   const blockersByPhase = groupBy(blockers, phaseForBlocker);
   const productGapsByPhase = groupBy(productCodeGaps, phaseForProductGap);
@@ -750,6 +823,7 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
       const operatorPacket = operatorPacketForPhase(phaseBlockers, operatorPacketIndex);
       const commands = [...new Set(phaseBlockers.map((item) => item.validationCommand).filter(Boolean))];
       const commandGuards = commandGuardsForCommands(commands, operatorPacketIndex.commandRunbook);
+      const localPreparationCommands = localPreparationCommandsForPhase(operatorPacket, operatorPacketIndex);
       const executionReadiness = buildPhaseExecutionReadiness({
         blockers: phaseBlockers,
         operatorPacket,
@@ -775,6 +849,7 @@ function buildEvidenceClosurePlan(blockers, productCodeGaps, commercialInputs) {
         reportArchiveFiles: operatorPacket.reportArchiveFiles,
         commands,
         commandGuards,
+        localPreparationCommands,
         executionReadiness,
         releaseImpact: releaseImpactForPhase(definition.id, phaseBlockers, phaseProductGaps)
       };
@@ -940,6 +1015,57 @@ function operatorPacketForPhase(blockers, index) {
     ),
     reportArchiveFiles: reportArchiveFileRecords.map((item) => item.path),
     reportArchiveFileRecords
+  };
+}
+
+function localPreparationCommandsForPhase(operatorPacket, index) {
+  const byCommand = new Map();
+  for (const inputId of operatorPacket.requiredInputIds) {
+    const definitions = localPreparationCommandsByInputId.get(inputId) ?? [];
+    for (const definition of definitions) {
+      const draftFiles = draftFilesForInput(index.draftFiles, inputId);
+      const existing = byCommand.get(definition.command);
+      byCommand.set(definition.command, {
+        name: existing?.name ?? definition.name,
+        command: definition.command,
+        sourceInputIds: uniqueSortedStrings([...(existing?.sourceInputIds ?? []), inputId]),
+        draftFiles: uniqueSortedStrings([...(existing?.draftFiles ?? []), ...draftFiles])
+      });
+    }
+  }
+  return [...byCommand.values()]
+    .map((item) => normalizeLocalPreparationCommand(item, index.commandRunbook))
+    .filter((item) => item.draftFiles.length > 0)
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function draftFilesForInput(draftFiles, inputId) {
+  return uniqueSortedStrings(
+    draftFiles
+      .filter((item) => String(item?.sourceInputId ?? "") === inputId)
+      .map((item) => item?.path)
+  );
+}
+
+function normalizeLocalPreparationCommand(value, commandRunbook) {
+  const command = String(value?.command ?? "");
+  const manifestItem = commandRunbook.find((item) => String(item?.command ?? "") === command);
+  const flags = commandGuardFlags(command);
+  return {
+    name: String(value?.name ?? "unknown"),
+    command,
+    source: manifestItem ? "operator_handoff_manifest" : "phase_input_mapping",
+    sourceInputIds: uniqueSortedStrings(value?.sourceInputIds ?? []),
+    runnable:
+      flags.requiresLiveNetwork !== true &&
+      flags.requiresProviderSpend !== true &&
+      flags.requiresOperatorConfirmation !== true &&
+      flags.requiresManualReview !== true &&
+      flags.containsPlaceholder !== true,
+    producesDrafts: true,
+    releaseEvidence: false,
+    draftFiles: uniqueSortedStrings(value?.draftFiles ?? []),
+    ...flags
   };
 }
 

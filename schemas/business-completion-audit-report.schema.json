@@ -558,6 +558,7 @@
         "reportArchiveFiles",
         "commands",
         "commandGuards",
+        "localPreparationCommands",
         "executionReadiness",
         "releaseImpact"
       ],
@@ -606,6 +607,10 @@
         "commandGuards": {
           "type": "array",
           "items": { "$ref": "#/$defs/evidenceClosureCommandGuard" }
+        },
+        "localPreparationCommands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceClosureLocalPreparationCommand" }
         },
         "executionReadiness": { "$ref": "#/$defs/evidenceClosureExecutionReadiness" },
         "releaseImpact": { "type": "string" }
@@ -700,6 +705,40 @@
         "command": { "type": "string" },
         "source": { "enum": ["operator_handoff_manifest", "derived_from_command_text"] },
         "runnable": { "type": "boolean" },
+        "requiresLiveNetwork": { "type": "boolean" },
+        "requiresProviderSpend": { "type": "boolean" },
+        "requiresOperatorConfirmation": { "type": "boolean" },
+        "requiresManualReview": { "type": "boolean" },
+        "containsPlaceholder": { "type": "boolean" }
+      }
+    },
+    "evidenceClosureLocalPreparationCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "command",
+        "source",
+        "sourceInputIds",
+        "runnable",
+        "producesDrafts",
+        "releaseEvidence",
+        "draftFiles",
+        "requiresLiveNetwork",
+        "requiresProviderSpend",
+        "requiresOperatorConfirmation",
+        "requiresManualReview",
+        "containsPlaceholder"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "command": { "type": "string" },
+        "source": { "enum": ["operator_handoff_manifest", "phase_input_mapping"] },
+        "sourceInputIds": { "type": "array", "items": { "type": "string" } },
+        "runnable": { "type": "boolean" },
+        "producesDrafts": { "type": "boolean" },
+        "releaseEvidence": { "const": false },
+        "draftFiles": { "type": "array", "items": { "type": "string" } },
         "requiresLiveNetwork": { "type": "boolean" },
         "requiresProviderSpend": { "type": "boolean" },
         "requiresOperatorConfirmation": { "type": "boolean" },

@@ -862,6 +862,7 @@ function validateEvidenceClosurePlan(plan, path, context = {}) {
     const envPlaceholders = Array.isArray(phase?.envPlaceholders) ? phase.envPlaceholders : [];
     const commands = Array.isArray(phase?.commands) ? phase.commands : [];
     const commandGuards = Array.isArray(phase?.commandGuards) ? phase.commandGuards : [];
+    const localPreparationCommands = Array.isArray(phase?.localPreparationCommands) ? phase.localPreparationCommands : [];
     if (Number(phase?.blockerCount ?? -1) !== blockerIds.length) {
       issues.push(`${path}.phases[id=${phase?.id}].blockerCount: expected to equal blockerIds length.`);
     }
@@ -906,9 +907,88 @@ function validateEvidenceClosurePlan(plan, path, context = {}) {
         }
       }
     }
+    issues.push(...validateEvidenceClosureLocalPreparationCommands(phase, `${path}.phases[id=${phase?.id}].localPreparationCommands`, localPreparationCommands));
     issues.push(...validateEvidenceClosureExecutionReadiness(phase, `${path}.phases[id=${phase?.id}].executionReadiness`, commandGuards));
     if (typeof phase?.releaseImpact !== "string" || phase.releaseImpact.trim().length === 0) {
       issues.push(`${path}.phases[id=${phase?.id}].releaseImpact: expected a non-empty release impact.`);
+    }
+  }
+  return issues;
+}
+
+function validateEvidenceClosureLocalPreparationCommands(phase, path, commands) {
+  const issues = [];
+  if (!Array.isArray(phase?.localPreparationCommands)) {
+    return [`${path}: expected an array.`];
+  }
+  const phaseDraftFiles = Array.isArray(phase?.draftFiles) ? phase.draftFiles : [];
+  const requiredInputIds = Array.isArray(phase?.requiredInputIds) ? phase.requiredInputIds : [];
+  if (phaseDraftFiles.length > 0 && commands.length === 0) {
+    issues.push(`${path}: expected at least one local prep command when phase has draft/template files.`);
+  }
+  const names = commands.map((item) => String(item?.name ?? "")).filter(Boolean);
+  const commandTexts = commands.map((item) => String(item?.command ?? "")).filter(Boolean);
+  if (duplicateStrings(names).length > 0) {
+    issues.push(`${path}: expected unique local prep command names.`);
+  }
+  if (duplicateStrings(commandTexts).length > 0) {
+    issues.push(`${path}: expected unique local prep commands.`);
+  }
+  for (const item of commands) {
+    const name = String(item?.name ?? "");
+    const command = String(item?.command ?? "");
+    const sourceInputIds = arrayOfStrings(item?.sourceInputIds);
+    const draftFiles = arrayOfStrings(item?.draftFiles);
+    if (!name) {
+      issues.push(`${path}: expected local prep command name.`);
+    }
+    if (!command) {
+      issues.push(`${path}[name=${name || "unknown"}].command: expected non-empty command.`);
+    }
+    if (sourceInputIds.length === 0) {
+      issues.push(`${path}[name=${name || "unknown"}].sourceInputIds: expected at least one source input id.`);
+    }
+    const orphanInputs = sourceInputIds.filter((id) => !requiredInputIds.includes(id));
+    if (orphanInputs.length > 0) {
+      issues.push(`${path}[name=${name || "unknown"}].sourceInputIds: expected ids to belong to phase required inputs (${orphanInputs.join(", ")}).`);
+    }
+    if (item?.producesDrafts !== true) {
+      issues.push(`${path}[name=${name || "unknown"}].producesDrafts: expected true.`);
+    }
+    if (item?.releaseEvidence !== false) {
+      issues.push(`${path}[name=${name || "unknown"}].releaseEvidence: expected false.`);
+    }
+    if (draftFiles.length === 0) {
+      issues.push(`${path}[name=${name || "unknown"}].draftFiles: expected at least one draft/template file.`);
+    }
+    issues.push(...validateEvidenceClosureFileList(draftFiles, `${path}[name=${name || "unknown"}].draftFiles`, ["assets/output_deliverables/"]));
+    const orphanDraftFiles = draftFiles.filter((filePath) => !phaseDraftFiles.includes(filePath));
+    if (orphanDraftFiles.length > 0) {
+      issues.push(`${path}[name=${name || "unknown"}].draftFiles: expected every draft file to belong to the phase (${orphanDraftFiles.join(", ")}).`);
+    }
+    const expectedFlags = commandGuardFlags(command);
+    for (const [key, expected] of Object.entries(expectedFlags)) {
+      if (item?.[key] !== expected) {
+        issues.push(`${path}[name=${name || "unknown"}].${key}: expected ${expected}.`);
+      }
+    }
+    if (
+      item?.requiresLiveNetwork === true ||
+      item?.requiresProviderSpend === true ||
+      item?.requiresOperatorConfirmation === true ||
+      item?.requiresManualReview === true ||
+      item?.containsPlaceholder === true
+    ) {
+      issues.push(`${path}[name=${name || "unknown"}]: local prep commands must stay no-spend, no-live-network, no-confirmation, no-manual-review, and placeholder-free.`);
+    }
+    const expectedRunnable =
+      item?.requiresLiveNetwork !== true &&
+      item?.requiresProviderSpend !== true &&
+      item?.requiresOperatorConfirmation !== true &&
+      item?.requiresManualReview !== true &&
+      item?.containsPlaceholder !== true;
+    if (item?.runnable !== expectedRunnable) {
+      issues.push(`${path}[name=${name || "unknown"}].runnable: expected ${expectedRunnable}.`);
     }
   }
   return issues;
@@ -1385,6 +1465,12 @@ function countBy(items, key) {
     counts[value] = (counts[value] ?? 0) + 1;
   }
   return counts;
+}
+
+function arrayOfStrings(value) {
+  return Array.isArray(value)
+    ? value.map((item) => String(item ?? "")).filter(Boolean)
+    : [];
 }
 
 function compareCountMap(path, actual, expected) {

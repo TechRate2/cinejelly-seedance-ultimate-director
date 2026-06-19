@@ -694,6 +694,7 @@ function buildEvidenceClosurePlan(completion) {
                   containsPlaceholder: item?.containsPlaceholder === true
                 })).filter((item) => item.command)
               : [],
+            localPreparationCommands: normalizeLocalPreparationCommands(phase?.localPreparationCommands),
             executionReadiness: normalizeExecutionReadiness(phase?.executionReadiness),
             releaseImpact: String(phase?.releaseImpact ?? "")
           })).filter((phase) => phase.id && phase.label)
@@ -710,6 +711,29 @@ function buildEvidenceClosurePlan(completion) {
     phaseCount: 0,
     phases: []
   };
+}
+
+function normalizeLocalPreparationCommands(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => ({
+      name: String(item?.name ?? ""),
+      command: String(item?.command ?? ""),
+      source: String(item?.source ?? "unknown"),
+      sourceInputIds: arrayOfStrings(item?.sourceInputIds),
+      runnable: item?.runnable === true,
+      producesDrafts: item?.producesDrafts === true,
+      releaseEvidence: item?.releaseEvidence === true,
+      draftFiles: arrayOfStrings(item?.draftFiles),
+      requiresLiveNetwork: item?.requiresLiveNetwork === true,
+      requiresProviderSpend: item?.requiresProviderSpend === true,
+      requiresOperatorConfirmation: item?.requiresOperatorConfirmation === true,
+      requiresManualReview: item?.requiresManualReview === true,
+      containsPlaceholder: item?.containsPlaceholder === true
+    }))
+    .filter((item) => item.name && item.command);
 }
 
 function normalizeExecutionReadiness(value) {
@@ -995,10 +1019,13 @@ function markdownEvidenceClosurePlan(plan) {
       const guards = phase.commandGuards.length === 0
         ? "no command guards"
         : phase.commandGuards.map((item) => guardSummary(item)).join(" | ");
+      const localPrep = phase.localPreparationCommands.length === 0
+        ? "no local prep command"
+        : phase.localPreparationCommands.map((item) => `${item.name}: ${item.command}`).join(" | ");
       const readiness = phase.executionReadiness
         ? `${phase.executionReadiness.status}/${phase.executionReadiness.canAttemptNow ? "can-attempt" : "cannot-attempt"} (${phase.executionReadiness.blockingReasonCount} blockers)`
         : "readiness unavailable";
-      return `- ${phase.order}. ${phase.label}: ${phase.status}; readiness: ${readiness}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; env: ${env}; files: ${packet}; guards: ${guards}; commands: ${commands}`;
+      return `- ${phase.order}. ${phase.label}: ${phase.status}; readiness: ${readiness}; blockers: ${blockers}; product gaps: ${gaps}; inputs: ${inputs}; env: ${env}; files: ${packet}; guards: ${guards}; local prep: ${localPrep}; commands: ${commands}`;
     })
   ];
 }

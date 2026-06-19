@@ -80,7 +80,8 @@ Because the doctor rewrites its own report before and after contract refreshes, 
 - The report includes `commercialOfferScopeSummary` plus matching readiness/release-gate scope flags sourced from the refreshed completion audit.
 - The report includes `operatorHandoffSummary` plus matching commercial-input status, safety flags, input counts, operator file counts, and command counts from the refreshed commercial-input packet.
 - The report includes `snapshotParityCoverageSummary` plus matching snapshot-parity status, per-upstream estimate counts, explicit main gaps, and `canClaimFullSnapshotParity=false`.
-- The report includes `evidenceClosurePlan` plus matching blocker counts, phase counts, paid-dependency counts, phase-level required input IDs, env placeholders, operator input/draft/report archive file paths, command guards, execution-readiness verdicts, and commands sourced from completion audit.
+- The report includes `evidenceClosurePlan` plus matching blocker counts, phase counts, paid-dependency counts, phase-level required input IDs, env placeholders, operator input/draft/report archive file paths, command guards, local no-spend preparation commands, execution-readiness verdicts, and commands sourced from completion audit.
+- The Markdown output surfaces each phase's local prep commands separately from the real evidence commands so draft/template helpers stay visibly non-release evidence.
 - The readiness snapshot includes the current Director-style quality benchmark status, review-evidence guard status, and accepted review-evidence readiness status.
 - The readiness snapshot includes current snapshot parity guardrail status.
 - The readiness snapshot includes the current provider reconciliation/handoff smoke statuses when those smokes are enabled.
