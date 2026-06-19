@@ -67,6 +67,7 @@ const defaultContracts = [
   contract("short_pipeline_smoke", "schemas/short-pipeline-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-smoke-report.json"),
   contract("short_pipeline_conversation_smoke", "schemas/short-pipeline-conversation-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-conversation-smoke-report.json"),
   contract("short_pipeline_session_store_smoke", "schemas/short-pipeline-session-store-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-session-store-smoke-report.json"),
+  contract("short_pipeline_session_render_handoff_smoke", "schemas/short-pipeline-session-render-handoff-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-session-render-handoff-smoke-report.json"),
   contract("product_url_extraction_smoke", "schemas/product-url-extraction-smoke-report.schema.json", "assets/output_deliverables/business-readiness/product-url-extraction-smoke-report.json"),
   contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
   contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),

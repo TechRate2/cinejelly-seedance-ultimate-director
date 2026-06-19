@@ -2895,6 +2895,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "ambiguous or commercially risky requests route to review or safe blocking before provider spend",
       "bounded Product URL-to-Video research can feed safe product facts and claim checkpoints into the planning loop",
       "durable no-spend conversation sessions can be persisted with atomic writes and client-scoped retrieval without storing raw transcript text",
+      "stored conversation sessions can enter the async render-job review lifecycle without accepting client-side replacement plans",
       "accepted short-plan review evidence can hand off into the async render-job lifecycle while preserving operator-visible status"
     ],
     behaviorChanged: [
@@ -2903,7 +2904,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "public conversation evidence stores message digests and redacted summaries instead of raw transcript text",
       "unbounded LLM tool routing is replaced by deterministic no-spend planning, admission control, approval gates, cost controls, and provider-safe handoff points",
       "product URL research is limited to clean HTTPS pages behind explicit live-network confirmation and publishes hashes/evidence instead of raw URLs",
-      "short-pipeline render handoff requires explicit confirmation before approved review evidence can queue provider spend",
+      "short-pipeline render handoff, including stored-session handoff, requires explicit confirmation before approved review evidence can queue provider spend",
       "full chat UI, hosted playback, VideoDB library controls, and complete 20+ agent parity remain future product work"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-agentic-media-reasoning.md",
@@ -2920,10 +2921,12 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/api/render-job-manager.ts",
       "scripts/run-short-pipeline-conversation-smoke.mjs",
       "scripts/run-short-pipeline-session-store-smoke.mjs",
+      "scripts/run-short-pipeline-session-render-handoff-smoke.mjs",
       "scripts/run-short-pipeline-smoke.mjs",
       "scripts/run-product-url-extraction-smoke.mjs",
       "schemas/short-pipeline-conversation-smoke-report.schema.json",
       "schemas/short-pipeline-session-store-smoke-report.schema.json",
+      "schemas/short-pipeline-session-render-handoff-smoke-report.schema.json",
       "schemas/short-pipeline-smoke-report.schema.json",
       "schemas/product-url-extraction-smoke-report.schema.json",
       "docs/SHORT_PIPELINE_AGENTIC_DESIGN.md",

@@ -21,6 +21,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] No-spend agentic short-pipeline planning foundation exists with product URL fingerprinting, optional template suggestions, brand-kit guardrails, and scene/audio/caption/claim review checkpoints.
 - [x] No-spend short-pipeline conversation backend exists for natural-language turns, revision tracking, optional-template rejection, approval-intent detection, and raw transcript redaction.
 - [x] No-spend durable short-pipeline conversation session store exists behind explicit `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH`, with atomic writes, client-scoped reads, and redaction checks for raw transcript, URLs, local paths, and secret-like values.
+- [x] No-spend short-pipeline session render handoff exists so a stored session can create a paused/blocked async render job only through server-side plan retrieval, rejection of client-side plan replacement, formal review evidence, client scope, and explicit spend confirmation.
 - [x] No-spend Product URL-to-Video backend extraction can parse bounded public HTML behind explicit live-network confirmation, feed safe product facts into short-pipeline planning, and emit schema-validated redaction evidence without provider spend.
 - [ ] Pre-export review, UI review screens, and artifact-bound manual media review are accepted for the first commercial launch scope.
 
@@ -55,6 +56,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Natural-language short pipeline can propose concept, script, scene plan, and review checkpoints.
 - [x] Natural-language conversation backend can accept multi-turn brief/revision/approval-intent messages without storing raw transcript in public evidence.
 - [x] Durable conversation sessions can be persisted and reloaded for future UI continuity without weakening client isolation or formal review gates.
+- [x] Durable conversation sessions can hand off into async render-job review lifecycle without accepting a client-side replacement plan or bypassing explicit render confirmation.
 - [x] `video-db/Director` snapshot and Director Agentic Media Reasoning baseline are captured for chat/workflow parity tracking.
 - [x] Human-in-the-loop review checkpoints are emitted before render.
 - [ ] Live product URL crawling/extraction, accepted product facts, and rights-reviewed product media are proven on real URLs.
@@ -74,6 +76,7 @@ npm.cmd run validation:render-job-review-lifecycle
 npm.cmd run validation:workspace-billing
 npm.cmd run validation:short-pipeline-conversation
 npm.cmd run validation:short-pipeline-session-store
+npm.cmd run validation:short-pipeline-session-render-handoff
 npm.cmd run validation:short-pipeline
 npm.cmd run validation:product-url-extraction
 npm.cmd run validation:release-audit

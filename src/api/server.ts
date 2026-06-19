@@ -49,6 +49,7 @@ import type {
   ShortPipelineConversationInput,
   ShortPipelineConversationMessageInput,
   ShortPipelineConversationRole,
+  ShortPipelinePlan,
   ShortPipelinePlanInput
 } from "../types/short-pipeline.js";
 import { redactUnknown } from "../utils/redaction.js";
@@ -161,8 +162,35 @@ interface ShortPipelineRenderJobRequestBody {
   readonly artifactDirectory?: string;
 }
 
+interface ShortPipelineConversationSessionRenderJobRequestBody {
+  readonly reviewApprovalGate?: ReviewApprovalGate;
+  readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
+  readonly confirmRenderSubmission?: boolean;
+  readonly includeGeneratedAudioIntents?: boolean;
+  readonly settings?: CineJellyProjectRequest["settings"];
+  readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
+  readonly references?: CineJellyProjectRequest["references"];
+  readonly metadata?: CineJellyProjectRequest["metadata"];
+  readonly outputPath?: string;
+  readonly workDirectory?: string;
+  readonly artifactDirectory?: string;
+}
+
 interface NormalizedShortPipelineRenderJobBody {
   readonly planInput: ShortPipelinePlanInput;
+  readonly reviewApproval?: ShortPipelineRenderHandoffReviewInput;
+  readonly confirmRenderSubmission: boolean;
+  readonly includeGeneratedAudioIntents?: boolean;
+  readonly settings?: CineJellyProjectRequest["settings"];
+  readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
+  readonly references?: CineJellyProjectRequest["references"];
+  readonly metadata?: CineJellyProjectRequest["metadata"];
+  readonly outputPath?: string;
+  readonly workDirectory?: string;
+  readonly artifactDirectory?: string;
+}
+
+interface NormalizedShortPipelineConversationSessionRenderJobBody {
   readonly reviewApproval?: ShortPipelineRenderHandoffReviewInput;
   readonly confirmRenderSubmission: boolean;
   readonly includeGeneratedAudioIntents?: boolean;
@@ -338,6 +366,106 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               storedSession: storedShortPipelineSessionResponse(store, record)
             }
           : { error: "Short-pipeline conversation session not found." }, requestContext);
+        return;
+      }
+      const shortPipelineConversationSessionRenderMatch =
+        requestUrl.pathname.match(/^\/v1\/short-pipeline\/conversation-sessions\/([^/]+)\/render-jobs$/);
+      if (request.method === "POST" && shortPipelineConversationSessionRenderMatch) {
+        assertJsonContentType(request);
+        const store = requireShortPipelineSessionStore(shortPipelineSessionStore);
+        const record = store.get(
+          decodeURIComponent(shortPipelineConversationSessionRenderMatch[1] ?? ""),
+          clientFilter(authDecision.principal)
+        );
+        if (!record) {
+          sendJson(response, 404, { error: "Short-pipeline conversation session not found." }, requestContext);
+          return;
+        }
+        const body = await readJsonBody<ShortPipelineConversationSessionRenderJobRequestBody>(request, maxBodyBytes);
+        const handoffBody = shortPipelineConversationSessionRenderJobBodyFromBody(body);
+        const plan = shortPipelinePlanFromStoredSession(record);
+        if (plan.status === "blocked") {
+          throw new ShortPipelineRenderHandoffError(
+            "Stored short-pipeline conversation session plan is blocked; correct product URL, brand-kit, or claim evidence before creating a render job."
+          );
+        }
+        if (
+          handoffBody.reviewApproval &&
+          reviewInputCanQueueRender(handoffBody.reviewApproval) &&
+          handoffBody.confirmRenderSubmission !== true
+        ) {
+          throw new ShortPipelineRenderHandoffError(
+            "confirmRenderSubmission=true is required before approved short-pipeline session review evidence can queue a render job."
+          );
+        }
+        const handoff = buildShortPipelineRenderHandoff({
+          plan,
+          ...(handoffBody.reviewApproval ? { reviewApproval: handoffBody.reviewApproval } : {}),
+          ...(handoffBody.settings ? { settings: handoffBody.settings } : {}),
+          ...(handoffBody.modelPreferences ? { modelPreferences: handoffBody.modelPreferences } : {}),
+          ...(handoffBody.references ? { references: handoffBody.references } : {}),
+          metadata: {
+            ...handoffBody.metadata,
+            shortPipelineSessionId: record.sessionId
+          },
+          ...(handoffBody.outputPath ? { outputPath: handoffBody.outputPath } : {}),
+          ...(handoffBody.workDirectory ? { workDirectory: handoffBody.workDirectory } : {}),
+          ...(handoffBody.artifactDirectory ? { artifactDirectory: handoffBody.artifactDirectory } : {}),
+          ...(handoffBody.includeGeneratedAudioIntents !== undefined
+            ? { includeGeneratedAudioIntents: handoffBody.includeGeneratedAudioIntents }
+            : {})
+        });
+        requestAdmission.assertAcceptable(handoff.request);
+        const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
+        const requestFingerprint = idempotencyKeyDigest
+          ? createRequestFingerprint({ sessionId: record.sessionId, body })
+          : undefined;
+        const normalizedRequest = normalizeRenderRequest(handoff.request, {
+          requestId: requestContext.requestId,
+          env: process.env
+        });
+        workspaceBillingGate.assertRenderAllowed({
+          principal: authDecision.principal,
+          request: normalizedRequest,
+          requestId: requestContext.requestId,
+          channel: "async"
+        });
+        const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
+        let commercialReservation: CommercialRenderReservation | undefined;
+        const submission = jobManager.submit({
+          request: normalizedRequest,
+          artifactDirectory,
+          ...clientFilter(authDecision.principal),
+          ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
+          ...(requestFingerprint ? { requestFingerprint } : {}),
+          reviewApproval: handoff.reviewApproval,
+          onAccepted: () => {
+            commercialReservation = reserveCommercialRender({
+              clientPolicyGate,
+              workspaceBillingGate,
+              principal: authDecision.principal,
+              request: normalizedRequest,
+              requestId: requestContext.requestId,
+              channel: "async"
+            });
+          }
+        });
+        sendJson(response, 202, {
+          shortPipelineSession: storedShortPipelineSessionResponse(store, record),
+          shortPipeline: {
+            ...handoff.summary,
+            sessionId: record.sessionId
+          },
+          ...submission.summary,
+          ...(submission.idempotentReplay ? { idempotentReplay: true } : {}),
+          ...(commercialReservation?.clientPolicyReservation
+            ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
+            : {}),
+          ...(commercialReservation?.workspaceBillingReservation
+            ? { workspaceBillingReservation: commercialReservation.workspaceBillingReservation }
+            : {}),
+          statusUrl: `/v1/render-jobs/${encodeURIComponent(submission.summary.jobId)}`
+        }, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/plan") {
@@ -1036,6 +1164,82 @@ function shortPipelineRenderJobBodyFromBody(
     ...(body.workDirectory ? { workDirectory: body.workDirectory } : {}),
     ...(body.artifactDirectory ? { artifactDirectory: body.artifactDirectory } : {})
   };
+}
+
+function shortPipelineConversationSessionRenderJobBodyFromBody(
+  body: ShortPipelineConversationSessionRenderJobRequestBody
+): NormalizedShortPipelineConversationSessionRenderJobBody {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new RenderRequestAdmissionError("Short pipeline conversation-session render-job request body must be a JSON object.");
+  }
+  if ("planInput" in body) {
+    throw new RenderRequestAdmissionError(
+      "Short pipeline conversation-session render-job body must not include planInput; the stored session plan is loaded server-side."
+    );
+  }
+  const confirmRenderSubmission = optionalBoolean(
+    body.confirmRenderSubmission,
+    "confirmRenderSubmission"
+  ) ?? false;
+  const includeGeneratedAudioIntents = optionalBoolean(
+    body.includeGeneratedAudioIntents,
+    "includeGeneratedAudioIntents"
+  );
+  const reviewApproval = body.reviewApprovalGate !== undefined || body.reviewApprovalCheckpoints !== undefined
+    ? normalizeReviewApprovalInput({
+        gate: body.reviewApprovalGate,
+        checkpoints: body.reviewApprovalCheckpoints
+      })
+    : undefined;
+  return {
+    ...(reviewApproval ? { reviewApproval } : {}),
+    confirmRenderSubmission,
+    ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
+    ...(body.settings ? { settings: body.settings } : {}),
+    ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
+    ...(body.references ? { references: body.references } : {}),
+    ...(body.metadata ? { metadata: body.metadata } : {}),
+    ...(body.outputPath ? { outputPath: body.outputPath } : {}),
+    ...(body.workDirectory ? { workDirectory: body.workDirectory } : {}),
+    ...(body.artifactDirectory ? { artifactDirectory: body.artifactDirectory } : {})
+  };
+}
+
+function shortPipelinePlanFromStoredSession(record: ShortPipelineStoredSessionRecord): ShortPipelinePlan {
+  const session = jsonObject(record.session, "Stored short-pipeline conversation session");
+  const plan = jsonObject(session.plan, "Stored short-pipeline conversation session plan");
+  const releaseGateSummary = jsonObject(
+    plan.releaseGateSummary,
+    "Stored short-pipeline conversation session plan releaseGateSummary"
+  );
+  if (session.schemaVersion !== "cinejelly.short-pipeline-conversation-session.v1") {
+    throw new RenderRequestAdmissionError("Stored short-pipeline conversation session has an invalid schemaVersion.");
+  }
+  if (plan.schemaVersion !== "cinejelly.short-pipeline-plan.v1") {
+    throw new RenderRequestAdmissionError("Stored short-pipeline conversation session plan has an invalid schemaVersion.");
+  }
+  if (plan.projectId !== record.projectId) {
+    throw new RenderRequestAdmissionError("Stored short-pipeline conversation session plan projectId does not match the session record.");
+  }
+  if (session.noSpend !== true || session.networkCallsMade !== false || session.providerCallsMade !== false) {
+    throw new RenderRequestAdmissionError("Stored short-pipeline conversation session must be no-spend/no-network before render handoff.");
+  }
+  if (plan.noSpend !== true || plan.networkCallsMade !== false || plan.providerCallsMade !== false) {
+    throw new RenderRequestAdmissionError("Stored short-pipeline plan must be no-spend/no-network before render handoff.");
+  }
+  if (plan.status !== "approval_required" && plan.status !== "changes_requested" && plan.status !== "blocked") {
+    throw new RenderRequestAdmissionError("Stored short-pipeline plan status is invalid.");
+  }
+  if (typeof releaseGateSummary.canUseAsNoSpendPlanningEvidence !== "boolean") {
+    throw new RenderRequestAdmissionError("Stored short-pipeline plan release gate is invalid.");
+  }
+  if (!Array.isArray(plan.scenes) || plan.scenes.length === 0) {
+    throw new RenderRequestAdmissionError("Stored short-pipeline plan must contain scene evidence before render handoff.");
+  }
+  if (!plan.reviewApproval || typeof plan.reviewApproval !== "object" || Array.isArray(plan.reviewApproval)) {
+    throw new RenderRequestAdmissionError("Stored short-pipeline plan must contain review approval evidence.");
+  }
+  return plan as unknown as ShortPipelinePlan;
 }
 
 function optionalBoolean(value: unknown, label: string): boolean | undefined {

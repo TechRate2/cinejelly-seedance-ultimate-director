@@ -317,6 +317,7 @@ This is stricter than `doctor`. It reads local smoke evidence, paid-render evide
 | `/v1/short-pipeline/conversation-sessions` | POST | Persist a redacted no-spend short-pipeline conversation session when `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH` is configured. |
 | `/v1/short-pipeline/conversation-sessions` | GET | Client-scoped list of persisted redacted conversation-session summaries. |
 | `/v1/short-pipeline/conversation-sessions/<sessionId>` | GET | Client-scoped detail for one persisted redacted conversation session. |
+| `/v1/short-pipeline/conversation-sessions/<sessionId>/render-jobs` | POST | Create a review-gated async render job from the stored server-side session plan; client-supplied `planInput` is rejected. Requires formal review evidence and explicit `confirmRenderSubmission=true` before approved evidence can queue provider spend. |
 | `/v1/admin/client-policy` | GET | Deployment-token-only client policy and quota diagnostics without raw keys or key digests. |
 
 Protected `/v1/*` routes require one of:
