@@ -102,6 +102,9 @@
       }
     },
     "costLedgerEntryCount": { "type": "integer", "minimum": 0 },
+    "renderStartedAt": { "type": "string", "format": "date-time" },
+    "renderFinishedAt": { "type": "string", "format": "date-time" },
+    "renderDurationMs": { "type": "integer", "minimum": 0 },
     "estimatedCostUsd": { "type": "number", "minimum": 0 },
     "actualCostUsd": { "type": "number", "minimum": 0 },
     "error": {

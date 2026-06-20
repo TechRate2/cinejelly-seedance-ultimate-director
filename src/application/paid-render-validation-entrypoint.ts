@@ -57,6 +57,9 @@ interface PaidRenderValidationReport {
   readonly artifactValidation?: ProjectArtifactValidationSummary;
   readonly atlasBillingGate?: AtlasBillingGateSummary;
   readonly costLedgerEntryCount?: number;
+  readonly renderStartedAt?: Date;
+  readonly renderFinishedAt?: Date;
+  readonly renderDurationMs?: number;
   readonly estimatedCostUsd?: number;
   readonly actualCostUsd?: number;
   readonly error?: {
@@ -188,9 +191,11 @@ async function runPaidRender(
   const artifactStore = new ProjectArtifactStore();
   const artifactValidator = new ProjectArtifactValidator();
   const runtime = createDirectorRuntime(env);
+  const renderStartedAt = new Date();
 
   try {
     const result = await runtime.director.run(request);
+    const renderFinishedAt = new Date();
     const costLedger = runtime.ledger.list();
     const artifacts = await artifactStore.writeRunArtifacts({
       result,
@@ -206,9 +211,15 @@ async function runPaidRender(
       artifactBundle: summarizeArtifacts(artifacts),
       artifactValidation: summarizeArtifactValidation(artifactValidation),
       costLedger,
+      renderStartedAt,
+      renderFinishedAt,
+      ...(result.costEstimate.estimatedTotalCostUsd !== undefined
+        ? { estimatedCostUsd: result.costEstimate.estimatedTotalCostUsd }
+        : {}),
       nextActions: nextActionsForArtifactValidation(artifactValidation)
     }), options);
   } catch (error) {
+    const renderFinishedAt = new Date();
     const costLedger = runtime.ledger.list();
     try {
       const artifacts = await artifactStore.writeFailureArtifacts({
@@ -227,6 +238,8 @@ async function runPaidRender(
         artifactBundle: summarizeArtifacts(artifacts),
         artifactValidation: summarizeArtifactValidation(artifactValidation),
         costLedger,
+        renderStartedAt,
+        renderFinishedAt,
         error: errorSummary(error),
         nextActions: [
           "Inspect failure-report.json, cost-ledger.json, and artifact validation output.",
@@ -240,6 +253,8 @@ async function runPaidRender(
         requestId: request.metadata?.requestId,
         atlasBillingGate,
         costLedger,
+        renderStartedAt,
+        renderFinishedAt,
         error: errorSummary(artifactError),
         nextActions: [
           "Artifact writing or validation failed after the render attempt.",
@@ -570,6 +585,9 @@ function report(input: {
   readonly artifactValidation?: ProjectArtifactValidationSummary;
   readonly atlasBillingGate?: AtlasBillingGateSummary;
   readonly costLedger?: readonly CostLedgerEntry[];
+  readonly renderStartedAt?: Date;
+  readonly renderFinishedAt?: Date;
+  readonly estimatedCostUsd?: number;
   readonly error?: {
     readonly name: string;
     readonly message: string;
@@ -588,7 +606,14 @@ function report(input: {
     ...(input.artifactValidation ? { artifactValidation: input.artifactValidation } : {}),
     ...(input.atlasBillingGate ? { atlasBillingGate: input.atlasBillingGate } : {}),
     ...(input.costLedger ? { costLedgerEntryCount: input.costLedger.length } : {}),
-    ...(costSummary.estimatedCostUsd !== undefined ? { estimatedCostUsd: costSummary.estimatedCostUsd } : {}),
+    ...(input.renderStartedAt ? { renderStartedAt: input.renderStartedAt } : {}),
+    ...(input.renderFinishedAt ? { renderFinishedAt: input.renderFinishedAt } : {}),
+    ...(input.renderStartedAt && input.renderFinishedAt
+      ? { renderDurationMs: Math.max(0, input.renderFinishedAt.getTime() - input.renderStartedAt.getTime()) }
+      : {}),
+    ...(costSummary.estimatedCostUsd !== undefined || input.estimatedCostUsd !== undefined
+      ? { estimatedCostUsd: costSummary.estimatedCostUsd ?? input.estimatedCostUsd }
+      : {}),
     ...(costSummary.actualCostUsd !== undefined ? { actualCostUsd: costSummary.actualCostUsd } : {}),
     ...(input.error ? { error: input.error } : {}),
     nextActions: input.nextActions

@@ -21,8 +21,9 @@ Implementation status as of 2026-06-14: implemented as CineJelly-owned TypeScrip
 7. Output, work, and artifact paths must remain inside `CINEJELLY_OUTPUT_DIR` or the default output root.
 8. Successful runs must write deterministic run artifacts and then run artifact validation immediately.
 9. Failed render pipelines after request normalization must still write failure artifacts, cost ledger evidence, and artifact validation results.
-10. Public CLI output must be redacted: no secrets, raw stack traces, inline media, unsafe URLs, or server-local absolute paths.
-11. The runner is a validation harness, not a release approval. Release still requires manual review of artifacts and paid output quality.
+10. Terminal reports must include render start/finish timing and expose the planned cost estimate when provider ledger entries do not return an actual cost.
+11. Public CLI output must be redacted: no secrets, raw stack traces, inline media, unsafe URLs, or server-local absolute paths.
+12. The runner is a validation harness, not a release approval. Release still requires manual review of artifacts and paid output quality.
 
 ## Edge Cases
 
