@@ -622,7 +622,9 @@ export class RuntimePreflight {
       warnings.push("ATLASCLOUD_LLM_API_KEY is not configured; LLM calls will share the media key instead of the documented Coding Plan key.");
     }
     if (mediaKey && llmKey && mediaKey === llmKey) {
-      issues.push("ATLASCLOUD_API_KEY and ATLASCLOUD_LLM_API_KEY must be separate Atlas key values.");
+      warnings.push(
+        "ATLASCLOUD_API_KEY and ATLASCLOUD_LLM_API_KEY currently share the same value; this is allowed only as an operator-approved fallback until a separate Coding Plan key is restored."
+      );
     }
 
     const llmEndpoint = this.resolveAtlasDocsEndpoint(
