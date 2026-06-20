@@ -30,6 +30,7 @@ Implementation status as of 2026-06-16: CineJelly-owned production foundation im
 - Prediction terminal `canceled`: record a canceled ledger entry with `providerStatus: "canceled"` and let orchestration decide whether to resubmit.
 - Polling exceeds timeout: record `status: "timeout"` and `errorCode: "POLLING_TIMEOUT"`.
 - Caller aborts the job: record `status: "canceled"` and `errorCode: "REQUEST_ABORTED"` when the provider call sees the abort.
+- Prediction succeeds with mixed media outputs, such as Atlas returning a generated `.mp4` plus a `returnLastFrame` `.png`: preserve every URL in provider evidence, but only video media URLs may become assembly timeline clips.
 - HTTP 408, 429, and 5xx: normalize to retryable provider errors and consume retry budget.
 - HTTP 400/422: normalize to non-retryable schema error so prompt/settings repair can happen before another paid call.
 - HTTP 404/405 from `/model/prediction/{id}`: try Atlas result compatibility routes, including `/model/result/{id}` and the documented `/model/getResult?predictionId=...`, before treating the poll as failed.
@@ -147,6 +148,7 @@ async function waitForPrediction(predictionId: string, context: PollingContext):
 - Keep retry policy centralized in `src/utils/retry.ts`; higher-level agents read normalized errors and ledger entries.
 - Preserve Atlas-specific mapping only inside `src/providers/atlascloud/*`.
 - Allow `RenderProducer` to pass through a clean temporary upload URL returned by Atlas `/model/uploadMedia` so a url-only response does not become a malformed `asset://https://...` reference or a false asset-registration failure.
+- Keep mixed provider outputs safe at the orchestration boundary: `DirectorAgent` must assemble only `.mp4`, `.mov`, `.m4v`, or `.webm` outputs, while still retaining non-video sidecars such as last-frame images in provider/artifact evidence.
 
 ## Validation Checklist
 
@@ -157,6 +159,7 @@ async function waitForPrediction(predictionId: string, context: PollingContext):
 - Provider-returned `usage` is preserved in the ledger when available.
 - Atlas result-route fallbacks are used only after earlier polling routes return 404/405, and mapped output URLs still flow through the same provider-neutral `Prediction` contract.
 - Atlas upload responses that provide a clean HTTPS URL but no separate asset ID can still feed the next generation request as a direct provider reference.
+- Mixed Atlas output URLs do not double the assembly clip count or shorten the final timeline through accidental still-image insertion.
 - Review packet cost summary counts failed, timeout, and canceled provider operations.
 - No production import path references `external/upstream`.
 - Source lineage is added to `DEFAULT_SOURCE_LOGIC_TRANSLATIONS` after implementation.

@@ -8,6 +8,8 @@ import type { DeliveryGateFinding, DeliveryGateReport } from "../types/delivery.
 import type { AspectRatio, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
 
 const ASPECT_RATIO_TOLERANCE = 0.02;
+const DURATION_WARN_TOLERANCE = 0.05;
+const DURATION_BLOCK_TOLERANCE = 0.15;
 
 export class DeliveryGate {
   public evaluate(input: {
@@ -17,6 +19,7 @@ export class DeliveryGate {
     const findings: DeliveryGateFinding[] = [
       ...this.inspectDeliveryStatus(input.deliverable),
       ...this.inspectVideoContract(input.deliverable, input.settings),
+      ...this.inspectDurationContract(input.deliverable, input.settings),
       ...this.inspectAudioContract(input.deliverable, input.settings)
     ];
 
@@ -89,6 +92,48 @@ export class DeliveryGate {
       }
     }
     return findings;
+  }
+
+  private inspectDurationContract(
+    deliverable: AssembledDeliverable,
+    settings: FlexibleSeedanceSettings
+  ): readonly DeliveryGateFinding[] {
+    const actualDurationSeconds = deliverable.inspection.metadata.durationSeconds;
+    const targetDurationSeconds = settings.durationTargetSeconds;
+    if (
+      actualDurationSeconds === undefined ||
+      !Number.isFinite(actualDurationSeconds) ||
+      !Number.isFinite(targetDurationSeconds) ||
+      targetDurationSeconds <= 0
+    ) {
+      return [];
+    }
+
+    const drift = Math.abs(actualDurationSeconds - targetDurationSeconds) / targetDurationSeconds;
+    if (drift <= DURATION_WARN_TOLERANCE) {
+      return [];
+    }
+
+    const driftPercent = Number((drift * 100).toFixed(2));
+    const evidence = `Expected approximately ${targetDurationSeconds}s but final deliverable is ${Number(actualDurationSeconds.toFixed(3))}s (${driftPercent}% drift).`;
+    if (drift > DURATION_BLOCK_TOLERANCE) {
+      return [
+        {
+          status: "block",
+          checkpoint: "target_duration",
+          evidence,
+          repair: "Replan shot durations or transition overlap before customer delivery."
+        }
+      ];
+    }
+    return [
+      {
+        status: "warn",
+        checkpoint: "target_duration",
+        evidence,
+        repair: "Review transition overlap and timing before approving the artifact."
+      }
+    ];
   }
 
   private inspectAudioContract(
