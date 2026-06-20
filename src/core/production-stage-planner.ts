@@ -8,6 +8,7 @@ import type { StoryPlan, RenderedShot } from "../types/agent.js";
 import type { DeliveryGateReport } from "../types/delivery.js";
 import type { ProductionGraphSnapshot } from "../types/graph.js";
 import type { GuardianReport, GuardianStatus } from "../types/guardian.js";
+import type { LongFormCreativeIntelligencePlan } from "../types/long-form-creative-intelligence.js";
 import type { MaterialSourceValidationReport, MaterialSourcingPlan } from "../types/material.js";
 import type { PostproductionAssetPlan } from "../types/postproduction-assets.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
@@ -35,6 +36,7 @@ export interface ProductionStagePlannerInput {
   readonly materialSourceValidation?: MaterialSourceValidationReport;
   readonly postproductionAssetPlan: PostproductionAssetPlan;
   readonly videoRenderStrategyPlan?: VideoRenderStrategyPlan;
+  readonly longFormCreativeIntelligencePlan?: LongFormCreativeIntelligencePlan;
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];
   readonly deliverablePresent: boolean;
@@ -56,7 +58,11 @@ export class ProductionStagePlanner {
           videoRenderContinuityMode: input.videoRenderStrategyPlan?.continuityMode ?? "not_planned",
           videoRenderRequiresSequential: input.videoRenderStrategyPlan?.requiresSequentialRender ?? false,
           videoRenderRequiresStoryboardApproval: input.videoRenderStrategyPlan?.requiresStoryboardApproval ?? false,
-          videoRenderStrategyIssueCount: input.videoRenderStrategyPlan?.issueCount ?? 0
+          videoRenderStrategyIssueCount: input.videoRenderStrategyPlan?.issueCount ?? 0,
+          longFormCreativeStatus: input.longFormCreativeIntelligencePlan?.status ?? "not_planned",
+          longFormCreativeQualityScore: input.longFormCreativeIntelligencePlan?.qualityScore ?? 0,
+          longFormCreativeFindingCount: input.longFormCreativeIntelligencePlan?.findingCount ?? 0,
+          longFormCreativeRepairDirectiveCount: input.longFormCreativeIntelligencePlan?.repairDirectiveCount ?? 0
         }),
         this.record(input, "storyboard", 1, this.guardianStageStatus(input.storyboardPreflight.status), {
           storyboardPanelCount: input.storyboard.panels.length,

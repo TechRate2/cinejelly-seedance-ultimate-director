@@ -24,6 +24,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] No-spend durable short-pipeline conversation session store exists behind explicit `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH`, with atomic writes, client-scoped reads, and redaction checks for raw transcript, URLs, local paths, and secret-like values.
 - [x] No-spend short-pipeline session render handoff exists so a stored session can create a paused/blocked async render job only through server-side plan retrieval, rejection of client-side plan replacement, formal review evidence, client scope, and explicit spend confirmation.
 - [x] No-spend Product URL-to-Video backend extraction can parse bounded public HTML behind explicit live-network confirmation, feed safe product facts into short-pipeline planning, and emit schema-validated redaction evidence without provider spend.
+- [x] No-spend Long Creative Intelligence backend exists with story bible, niche/viral strategy, shot-level quality directives, multi-candidate guidance, auto-repair directives, and audio/caption QA before provider spend.
 - [ ] First-party UI review screens and accepted artifact-bound manual media review are completed for the first commercial launch scope.
 
 ## Paid Provider Evidence
@@ -75,6 +76,7 @@ npm.cmd run validation:deployment-package
 npm.cmd run validation:report-contracts
 npm.cmd run validation:render-job-review-lifecycle
 npm.cmd run validation:workspace-billing
+npm.cmd run validation:long-form-creative-intelligence
 npm.cmd run validation:short-pipeline-conversation
 npm.cmd run validation:short-pipeline-session-store
 npm.cmd run validation:short-pipeline-session-render-handoff

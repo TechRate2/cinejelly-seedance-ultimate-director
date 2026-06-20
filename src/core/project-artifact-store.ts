@@ -135,6 +135,16 @@ export class ProjectArtifactStore {
       longFormTimelineIssueCount: result.longFormTimelinePlan.issueCount,
       longFormTimelineBlockingIssueCount: result.longFormTimelinePlan.blockingIssueCount,
       longFormTimelinePlannedDurationSeconds: result.longFormTimelinePlan.plannedDurationSeconds,
+      longFormCreativeStatus: result.longFormCreativeIntelligencePlan.status,
+      longFormCreativeQualityScore: result.longFormCreativeIntelligencePlan.qualityScore,
+      longFormCreativeFindingCount: result.longFormCreativeIntelligencePlan.findingCount,
+      longFormCreativeBlockingFindingCount: result.longFormCreativeIntelligencePlan.blockingFindingCount,
+      longFormCreativeReviewRequiredFindingCount: result.longFormCreativeIntelligencePlan.reviewRequiredFindingCount,
+      longFormCreativeShotDirectiveCount: result.longFormCreativeIntelligencePlan.shotDirectiveCount,
+      longFormCreativeCandidateDirectiveCount: result.longFormCreativeIntelligencePlan.candidateDirectiveCount,
+      longFormCreativeRepairDirectiveCount: result.longFormCreativeIntelligencePlan.repairDirectiveCount,
+      longFormCreativeNiche: result.longFormCreativeIntelligencePlan.nicheStrategy.niche,
+      longFormCreativePlatformIntent: result.longFormCreativeIntelligencePlan.nicheStrategy.platformIntent,
       stageStatuses: result.stagePlan.records.map((record) => ({
         stage: record.stage,
         status: record.status
@@ -189,6 +199,11 @@ export class ProjectArtifactStore {
       { kind: "long_form_agent_review", fileName: "long-form-agent-review.json", value: result.longFormAgentReview },
       { kind: "video_render_strategy", fileName: "video-render-strategy.json", value: result.videoRenderStrategyPlan },
       { kind: "long_form_timeline", fileName: "long-form-timeline.json", value: result.longFormTimelinePlan },
+      {
+        kind: "long_form_creative_intelligence",
+        fileName: "long-form-creative-intelligence.json",
+        value: result.longFormCreativeIntelligencePlan
+      },
       { kind: "material_sourcing_plan", fileName: "material-sourcing-plan.json", value: result.materialSourcingPlan },
       { kind: "material_source_validation", fileName: "material-source-validation.json", value: result.materialSourceValidation },
       { kind: "postproduction_asset_plan", fileName: "postproduction-assets.json", value: result.postproductionAssetPlan },

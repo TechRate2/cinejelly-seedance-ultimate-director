@@ -78,6 +78,16 @@ export class ReviewPacketBuilder {
         longFormTimelineManualReviewSegmentCount: input.result.longFormTimelinePlan.manualReviewSegmentCount,
         longFormTimelineIssueCount: input.result.longFormTimelinePlan.issueCount,
         longFormTimelineBlockingIssueCount: input.result.longFormTimelinePlan.blockingIssueCount,
+        longFormCreativeStatus: input.result.longFormCreativeIntelligencePlan.status,
+        longFormCreativeQualityScore: input.result.longFormCreativeIntelligencePlan.qualityScore,
+        longFormCreativeFindingCount: input.result.longFormCreativeIntelligencePlan.findingCount,
+        longFormCreativeBlockingFindingCount: input.result.longFormCreativeIntelligencePlan.blockingFindingCount,
+        longFormCreativeReviewRequiredFindingCount: input.result.longFormCreativeIntelligencePlan.reviewRequiredFindingCount,
+        longFormCreativeShotDirectiveCount: input.result.longFormCreativeIntelligencePlan.shotDirectiveCount,
+        longFormCreativeCandidateDirectiveCount: input.result.longFormCreativeIntelligencePlan.candidateDirectiveCount,
+        longFormCreativeRepairDirectiveCount: input.result.longFormCreativeIntelligencePlan.repairDirectiveCount,
+        longFormCreativeNiche: input.result.longFormCreativeIntelligencePlan.nicheStrategy.niche,
+        longFormCreativePlatformIntent: input.result.longFormCreativeIntelligencePlan.nicheStrategy.platformIntent,
         storyboardPanelCount: input.result.storyboard.panels.length,
         storyboardPreflightStatus: input.result.storyboardPreflight.status,
         hasStoryboardApprovalReport: Boolean(input.result.storyboardApprovalReport),
@@ -245,7 +255,8 @@ export class ReviewPacketBuilder {
       result.generatedAudioOutputBatchValidation?.status === "rejected" ||
       result.longFormAgentReview.status === "blocked" ||
       result.videoRenderStrategyPlan.blockingIssueCount > 0 ||
-      result.longFormTimelinePlan.blockingIssueCount > 0
+      result.longFormTimelinePlan.blockingIssueCount > 0 ||
+      result.longFormCreativeIntelligencePlan.status === "blocked"
     ) {
       return "blocked";
     }
@@ -264,6 +275,7 @@ export class ReviewPacketBuilder {
       result.videoRenderStrategyPlan.warningIssueCount > 0 ||
       result.longFormTimelinePlan.warningIssueCount > 0 ||
       result.longFormTimelinePlan.manualReviewSegmentCount > 0 ||
+      result.longFormCreativeIntelligencePlan.status === "review_required" ||
       result.generatedAudioOutputBatchValidation?.status === "review_required" ||
       result.generatedAudioOutputBatchValidation?.status === "partially_approved" ||
       cost.failedProviderOperationCount > 0 ||
@@ -311,6 +323,12 @@ export class ReviewPacketBuilder {
     }
     for (const issue of result.longFormTimelinePlan.issues) {
       recommendations.add(issue.repair);
+    }
+    for (const directive of result.longFormCreativeIntelligencePlan.repairDirectives) {
+      recommendations.add(directive.action);
+    }
+    for (const recommendation of result.longFormCreativeIntelligencePlan.audioCaptionQuality.recommendations) {
+      recommendations.add(recommendation);
     }
     for (const report of result.generatedAudioOutputBatchValidation?.reports ?? []) {
       for (const issue of report.issues) {

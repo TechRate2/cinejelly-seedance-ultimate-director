@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/long-form-creative-intelligence-smoke-report.schema.json",
+  "title": "CineJelly Long-Form Creative Intelligence Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.long-form-creative-intelligence-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 6,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "scenarioCount", "targetDurationSeconds", "rawUrlLeakCheckPassed"],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "scenarioCount": { "const": 2 },
+        "targetDurationSeconds": { "type": "number", "minimum": 1 },
+        "rawUrlLeakCheckPassed": { "type": "boolean" }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewRequired", "blocked"],
+      "properties": {
+        "reviewRequired": { "$ref": "#/$defs/scenario" },
+        "blocked": { "$ref": "#/$defs/scenario" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 10,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsNoSpendCreativeIntelligenceEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsNoSpendCreativeIntelligenceEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectId",
+        "status",
+        "qualityScore",
+        "niche",
+        "platformIntent",
+        "findingCount",
+        "blockingFindingCount",
+        "reviewRequiredFindingCount",
+        "shotDirectiveCount",
+        "candidateDirectiveCount",
+        "repairDirectiveCount",
+        "canProceedToRender"
+      ],
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["ready", "review_required", "blocked"] },
+        "qualityScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "niche": { "type": "string", "minLength": 1 },
+        "platformIntent": { "type": "string", "minLength": 1 },
+        "findingCount": { "type": "integer", "minimum": 0 },
+        "blockingFindingCount": { "type": "integer", "minimum": 0 },
+        "reviewRequiredFindingCount": { "type": "integer", "minimum": 0 },
+        "shotDirectiveCount": { "type": "integer", "minimum": 0 },
+        "candidateDirectiveCount": { "type": "integer", "minimum": 0 },
+        "repairDirectiveCount": { "type": "integer", "minimum": 0 },
+        "canProceedToRender": { "type": "boolean" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -90,6 +90,10 @@ const GENERATED_AUDIO_OUTPUT_ISSUE_SEVERITIES = new Set(["info", "warn", "block"
 const REVIEW_APPROVAL_STATUSES = new Set(["approved", "approval_required", "changes_requested", "rejected", "blocked"]);
 const REVIEW_APPROVAL_GATES = new Set(["pre_render", "pre_export"]);
 const LONG_FORM_AGENT_REVIEW_STATUSES = new Set(["ready", "review_required", "blocked"]);
+const LONG_FORM_CREATIVE_STATUSES = new Set(["ready", "review_required", "blocked"]);
+const LONG_FORM_CREATIVE_SEVERITIES = new Set(["info", "warn", "block"]);
+const LONG_FORM_CREATIVE_REPAIR_SCOPES = new Set(["story", "sequence", "shot", "prompt", "postproduction", "timeline"]);
+const LONG_FORM_CREATIVE_REPAIR_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 const LONG_FORM_AGENT_REVIEW_ROLES = new Set([
   "script_architect",
   "continuity_supervisor",
@@ -427,6 +431,7 @@ export class ProjectArtifactValidator {
     this.validateVideoRenderStrategy(manifest, artifacts.get("video_render_strategy"), checks);
     this.validateStoryboardApproval(manifest, artifacts.get("storyboard_approval"), checks);
     this.validateLongFormTimeline(manifest, artifacts.get("long_form_timeline"), checks);
+    this.validateLongFormCreativeIntelligence(manifest, artifacts.get("long_form_creative_intelligence"), checks);
     this.validateRenderSchedule(artifacts.get("render_schedule"), checks);
     this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
     this.validatePostproductionAssetConsistency(artifacts, checks);
@@ -506,6 +511,25 @@ export class ProjectArtifactValidator {
       typeof planning.longFormTimelineBlockingIssueCount !== "number"
     ) {
       checks.push({ name: "review_packet_long_form_timeline", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing long-form timeline evidence." });
+    }
+    if (
+      planning &&
+      planning.longFormCreativeStatus !== undefined &&
+      (
+        typeof planning.longFormCreativeStatus !== "string" ||
+        !LONG_FORM_CREATIVE_STATUSES.has(planning.longFormCreativeStatus) ||
+        typeof planning.longFormCreativeQualityScore !== "number" ||
+        typeof planning.longFormCreativeFindingCount !== "number" ||
+        typeof planning.longFormCreativeBlockingFindingCount !== "number" ||
+        typeof planning.longFormCreativeReviewRequiredFindingCount !== "number" ||
+        typeof planning.longFormCreativeShotDirectiveCount !== "number" ||
+        typeof planning.longFormCreativeCandidateDirectiveCount !== "number" ||
+        typeof planning.longFormCreativeRepairDirectiveCount !== "number" ||
+        typeof planning.longFormCreativeNiche !== "string" ||
+        typeof planning.longFormCreativePlatformIntent !== "string"
+      )
+    ) {
+      checks.push({ name: "review_packet_long_form_creative", status: "fail", fileName: artifact.entry.fileName, message: "review-packet long-form creative intelligence fields are invalid." });
     }
     if (
       !planning ||
@@ -1614,6 +1638,222 @@ export class ProjectArtifactValidator {
       checks.push({ name: "long_form_timeline_release_gate", status: "fail", fileName, message: "long-form-timeline release gate summary is invalid." });
     } else if (blockingIssueCount > 0 && releaseGateSummary.canProceedToRender !== false) {
       checks.push({ name: "long_form_timeline_release_gate", status: "fail", fileName, message: "Blocking long-form timeline issues must prevent render." });
+    }
+  }
+
+  private validateLongFormCreativeIntelligence(
+    manifest: ProjectArtifactBundle,
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    const fileName = artifact.entry.fileName;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "long_form_creative_shape", status: "fail", fileName, message: "long-form-creative-intelligence must be an object." });
+      return;
+    }
+    if (value.schemaVersion !== "cinejelly.long-form-creative-intelligence.v1") {
+      checks.push({ name: "long_form_creative_schema", status: "fail", fileName, message: "Unexpected long-form-creative-intelligence schema version." });
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "long_form_creative_project", status: "fail", fileName, message: "long-form-creative-intelligence projectId does not match manifest." });
+    }
+    if (value.noSpend !== true || value.networkCallsMade !== false || value.providerCallsMade !== false) {
+      checks.push({ name: "long_form_creative_spend_boundary", status: "fail", fileName, message: "long-form-creative-intelligence must be no-spend/no-network/no-provider evidence." });
+    }
+    if (typeof value.status !== "string" || !LONG_FORM_CREATIVE_STATUSES.has(value.status)) {
+      checks.push({ name: "long_form_creative_status", status: "fail", fileName, message: "long-form-creative-intelligence status is invalid." });
+    }
+    if (!Array.isArray(value.sourcePatternOrigins) || value.sourcePatternOrigins.some((origin) => typeof origin !== "string" || !origin)) {
+      checks.push({ name: "long_form_creative_origins", status: "fail", fileName, message: "long-form-creative-intelligence sourcePatternOrigins are invalid." });
+    }
+    for (const field of [
+      "targetDurationSeconds",
+      "qualityScore",
+      "findingCount",
+      "blockingFindingCount",
+      "reviewRequiredFindingCount",
+      "shotDirectiveCount",
+      "candidateDirectiveCount",
+      "repairDirectiveCount"
+    ] as const) {
+      if (typeof value[field] !== "number" || !Number.isFinite(value[field]) || value[field] < 0) {
+        checks.push({ name: "long_form_creative_count", status: "fail", fileName, message: `long-form-creative-intelligence ${field} is invalid.` });
+      }
+    }
+    if (typeof value.qualityScore === "number" && (value.qualityScore > 100 || value.qualityScore < 0)) {
+      checks.push({ name: "long_form_creative_quality_score", status: "fail", fileName, message: "long-form-creative-intelligence qualityScore must be between 0 and 100." });
+    }
+    const nicheStrategy = this.isRecord(value.nicheStrategy) ? value.nicheStrategy : undefined;
+    if (
+      !nicheStrategy ||
+      typeof nicheStrategy.niche !== "string" ||
+      typeof nicheStrategy.audience !== "string" ||
+      typeof nicheStrategy.platformIntent !== "string" ||
+      typeof nicheStrategy.desiredViewerAction !== "string" ||
+      typeof nicheStrategy.hookPattern !== "string" ||
+      !Array.isArray(nicheStrategy.retentionBeats) ||
+      !Array.isArray(nicheStrategy.viralLevers) ||
+      !Array.isArray(nicheStrategy.antiPatterns)
+    ) {
+      checks.push({ name: "long_form_creative_niche_strategy", status: "fail", fileName, message: "long-form-creative-intelligence nicheStrategy is invalid." });
+    }
+    const storyBible = this.isRecord(value.storyBible) ? value.storyBible : undefined;
+    if (
+      !storyBible ||
+      typeof storyBible.logline !== "string" ||
+      typeof storyBible.centralQuestion !== "string" ||
+      typeof storyBible.payoff !== "string" ||
+      !Array.isArray(storyBible.emotionalArc) ||
+      !Array.isArray(storyBible.characterAnchors) ||
+      !Array.isArray(storyBible.productAnchors) ||
+      !Array.isArray(storyBible.environmentAnchors) ||
+      !Array.isArray(storyBible.styleAnchors) ||
+      !Array.isArray(storyBible.continuityRules)
+    ) {
+      checks.push({ name: "long_form_creative_story_bible", status: "fail", fileName, message: "long-form-creative-intelligence storyBible is invalid." });
+    }
+    const findings = Array.isArray(value.findings) ? value.findings : undefined;
+    const shotDirectives = Array.isArray(value.shotDirectives) ? value.shotDirectives : undefined;
+    const candidateDirectives = Array.isArray(value.candidateDirectives) ? value.candidateDirectives : undefined;
+    const repairDirectives = Array.isArray(value.repairDirectives) ? value.repairDirectives : undefined;
+    if (!findings || !shotDirectives || !candidateDirectives || !repairDirectives) {
+      checks.push({ name: "long_form_creative_collections", status: "fail", fileName, message: "long-form-creative-intelligence collections are missing." });
+      return;
+    }
+    const blockingFindingCount = findings.filter((findingItem) => this.isRecord(findingItem) && findingItem.severity === "block").length;
+    const reviewRequiredFindingCount = findings.filter((findingItem) => this.isRecord(findingItem) && findingItem.severity === "warn").length;
+    if (value.findingCount !== findings.length) {
+      checks.push({ name: "long_form_creative_finding_count", status: "fail", fileName, message: "long-form-creative-intelligence findingCount must match findings length." });
+    }
+    if (value.blockingFindingCount !== blockingFindingCount) {
+      checks.push({ name: "long_form_creative_block_count", status: "fail", fileName, message: "long-form-creative-intelligence blockingFindingCount must match block findings." });
+    }
+    if (value.reviewRequiredFindingCount !== reviewRequiredFindingCount) {
+      checks.push({ name: "long_form_creative_warn_count", status: "fail", fileName, message: "long-form-creative-intelligence reviewRequiredFindingCount must match warn findings." });
+    }
+    if (value.shotDirectiveCount !== shotDirectives.length) {
+      checks.push({ name: "long_form_creative_shot_directive_count", status: "fail", fileName, message: "long-form-creative-intelligence shotDirectiveCount must match shotDirectives length." });
+    }
+    if (value.candidateDirectiveCount !== candidateDirectives.length) {
+      checks.push({ name: "long_form_creative_candidate_count", status: "fail", fileName, message: "long-form-creative-intelligence candidateDirectiveCount must match candidateDirectives length." });
+    }
+    if (value.repairDirectiveCount !== repairDirectives.length) {
+      checks.push({ name: "long_form_creative_repair_count", status: "fail", fileName, message: "long-form-creative-intelligence repairDirectiveCount must match repairDirectives length." });
+    }
+
+    for (const [index, findingItem] of findings.entries()) {
+      if (!this.isRecord(findingItem)) {
+        checks.push({ name: "long_form_creative_finding_shape", status: "fail", fileName, message: `Creative finding ${index} must be an object.` });
+        continue;
+      }
+      if (typeof findingItem.findingId !== "string" || !findingItem.findingId) {
+        checks.push({ name: "long_form_creative_finding_id", status: "fail", fileName, message: `Creative finding ${index} findingId is missing.` });
+      }
+      if (typeof findingItem.severity !== "string" || !LONG_FORM_CREATIVE_SEVERITIES.has(findingItem.severity)) {
+        checks.push({ name: "long_form_creative_finding_severity", status: "fail", fileName, message: `Creative finding ${index} severity is invalid.` });
+      }
+      if (typeof findingItem.code !== "string" || !findingItem.code) {
+        checks.push({ name: "long_form_creative_finding_code", status: "fail", fileName, message: `Creative finding ${index} code is invalid.` });
+      }
+      if (typeof findingItem.message !== "string" || !findingItem.message || typeof findingItem.repair !== "string" || !findingItem.repair) {
+        checks.push({ name: "long_form_creative_finding_text", status: "fail", fileName, message: `Creative finding ${index} text fields are missing.` });
+      }
+      if (!Array.isArray(findingItem.affectedSequenceIds) || !Array.isArray(findingItem.affectedShotIds) || !this.isRecord(findingItem.evidence)) {
+        checks.push({ name: "long_form_creative_finding_evidence", status: "fail", fileName, message: `Creative finding ${index} evidence fields are invalid.` });
+      }
+    }
+
+    for (const [index, directive] of shotDirectives.entries()) {
+      if (!this.isRecord(directive)) {
+        checks.push({ name: "long_form_creative_shot_directive_shape", status: "fail", fileName, message: `Creative shot directive ${index} must be an object.` });
+        continue;
+      }
+      if (
+        typeof directive.shotId !== "string" ||
+        typeof directive.sequenceId !== "string" ||
+        typeof directive.order !== "number" ||
+        typeof directive.viralRole !== "string" ||
+        typeof directive.targetEmotion !== "string" ||
+        typeof directive.recommendedCandidateCount !== "number" ||
+        typeof directive.shouldPrioritizeRepair !== "boolean" ||
+        !Array.isArray(directive.qualityChecks) ||
+        !Array.isArray(directive.continuityAnchors)
+      ) {
+        checks.push({ name: "long_form_creative_shot_directive_fields", status: "fail", fileName, message: `Creative shot directive ${index} fields are invalid.` });
+      }
+    }
+
+    for (const [index, directive] of candidateDirectives.entries()) {
+      if (!this.isRecord(directive)) {
+        checks.push({ name: "long_form_creative_candidate_shape", status: "fail", fileName, message: `Creative candidate directive ${index} must be an object.` });
+        continue;
+      }
+      if (
+        typeof directive.shotId !== "string" ||
+        typeof directive.sequenceId !== "string" ||
+        typeof directive.candidateCount !== "number" ||
+        directive.candidateCount < 1 ||
+        !Array.isArray(directive.reasonCodes)
+      ) {
+        checks.push({ name: "long_form_creative_candidate_fields", status: "fail", fileName, message: `Creative candidate directive ${index} fields are invalid.` });
+      }
+    }
+
+    for (const [index, directive] of repairDirectives.entries()) {
+      if (!this.isRecord(directive)) {
+        checks.push({ name: "long_form_creative_repair_shape", status: "fail", fileName, message: `Creative repair directive ${index} must be an object.` });
+        continue;
+      }
+      if (
+        typeof directive.repairId !== "string" ||
+        typeof directive.scope !== "string" ||
+        !LONG_FORM_CREATIVE_REPAIR_SCOPES.has(directive.scope) ||
+        typeof directive.priority !== "string" ||
+        !LONG_FORM_CREATIVE_REPAIR_PRIORITIES.has(directive.priority) ||
+        typeof directive.action !== "string" ||
+        !directive.action ||
+        typeof directive.canAutoRepairBeforeRender !== "boolean" ||
+        typeof directive.requiresManualReview !== "boolean" ||
+        !Array.isArray(directive.affectedSequenceIds) ||
+        !Array.isArray(directive.affectedShotIds) ||
+        !Array.isArray(directive.triggerCodes)
+      ) {
+        checks.push({ name: "long_form_creative_repair_fields", status: "fail", fileName, message: `Creative repair directive ${index} fields are invalid.` });
+      }
+    }
+
+    const audioCaptionQuality = this.isRecord(value.audioCaptionQuality) ? value.audioCaptionQuality : undefined;
+    if (
+      !audioCaptionQuality ||
+      typeof audioCaptionQuality.status !== "string" ||
+      !LONG_FORM_CREATIVE_STATUSES.has(audioCaptionQuality.status) ||
+      typeof audioCaptionQuality.captionCoverageRatio !== "number" ||
+      typeof audioCaptionQuality.captionCueCount !== "number" ||
+      typeof audioCaptionQuality.generatedAudioIntentCount !== "number" ||
+      typeof audioCaptionQuality.generatedAudioReadyIntentCount !== "number" ||
+      typeof audioCaptionQuality.generatedAudioBlockedIntentCount !== "number" ||
+      typeof audioCaptionQuality.timingIssueCount !== "number" ||
+      !Array.isArray(audioCaptionQuality.recommendations)
+    ) {
+      checks.push({ name: "long_form_creative_audio_caption", status: "fail", fileName, message: "long-form-creative-intelligence audioCaptionQuality is invalid." });
+    }
+
+    const releaseGateSummary = this.isRecord(value.releaseGateSummary) ? value.releaseGateSummary : undefined;
+    if (
+      !releaseGateSummary ||
+      typeof releaseGateSummary.canUseAsNoSpendCreativeIntelligenceEvidence !== "boolean" ||
+      typeof releaseGateSummary.canProceedToRender !== "boolean" ||
+      releaseGateSummary.canReleaseToCustomerTraffic !== false ||
+      typeof releaseGateSummary.releaseBlocker !== "string" ||
+      !releaseGateSummary.releaseBlocker
+    ) {
+      checks.push({ name: "long_form_creative_release_gate", status: "fail", fileName, message: "long-form-creative-intelligence release gate summary is invalid." });
+    } else if (blockingFindingCount > 0 && releaseGateSummary.canProceedToRender !== false) {
+      checks.push({ name: "long_form_creative_release_gate", status: "fail", fileName, message: "Blocking creative findings must prevent render." });
     }
   }
 

@@ -144,6 +144,28 @@ Validation:
 - `ProjectArtifactValidator` treats `video_render_strategy` as a required success artifact for new runs.
 - `ProjectArtifactValidator` requires `storyboard_approval` for successful storyboard-required runs and verifies it is approved before accepting render evidence.
 
+### Long-Form Creative Intelligence
+
+Long-form quality is not only "can render". CineJelly now emits a no-spend `long-form-creative-intelligence.json` artifact after timeline/postproduction planning and before provider spend.
+
+It combines:
+
+- Story Bible: logline, central question, emotional arc, anchor rules, payoff, character/product/environment/style anchors.
+- Niche and viral strategy: audience, platform intent, hook pattern, retention beats, desired viewer action, viral levers, and anti-patterns.
+- Director quality findings: weak hook, weak payoff, missing anchors, bridge gaps, repetitive shot language, long-shot retention risk, caption/audio timing gaps, source-video alignment gaps, and upstream planning blockers.
+- Shot directives: shot-level viral role, target emotion, quality checks, continuity anchors, recommended candidate count, and repair priority.
+- Multi-candidate directives: identifies high-impact/risky hook, payoff, reference-sensitive, transition, face, product-logo, or source-video shots that deserve more candidate coverage.
+- Auto-repair directives: records whether each repair can be handled before render by story/sequence/shot/prompt/postproduction/timeline regeneration, or requires manual review.
+- Audio/caption QA: caption coverage ratio, generated-audio readiness, timing issue count, and postproduction recommendations.
+
+The planner is deterministic TypeScript and makes no network, LLM, Atlas, or upstream runtime calls. It is a UI-facing director-quality artifact: the future Create/Review interface can explain why the backend chose a workflow, which shots need stronger candidates, what to repair before spend, and what must be manually reviewed before customer release.
+
+Validation:
+
+- `npm run validation:long-form-creative-intelligence`
+- New DirectorAgent runs write `long-form-creative-intelligence.json`, expose quality/status/directive counts in `run-summary.json`, and include creative evidence in `review-packet.json`.
+- `ProjectArtifactValidator` validates the creative artifact when present while keeping older paid evidence bundles backward compatible.
+
 ### MaterialLibrary
 
 Inspired by MoneyPrinterTurbo's local/remote material sourcing, CineJelly can maintain a governed material library for non-generated footage, reference plates, stock clips, product plates, audio beds, and subtitle/BGM assets.

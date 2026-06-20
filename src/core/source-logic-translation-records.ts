@@ -3132,6 +3132,46 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "current short no-audio paid smoke can only produce review_required benchmark evidence, not customer-release approval"
     ],
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
+    logicName: "Long-Form Creative Intelligence Gate",
+    sourceRepository: "HKUDS/ViMax",
+    snapshotPath: "external/upstream/vimax",
+    upstreamPaths: [
+      "external/upstream/vimax/README.md",
+      "external/upstream/vimax/agents/reference_image_selector.py",
+      "external/upstream/vimax/agent_runtime/session_index.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "long-form work should keep story, sequence, visual, and reference consistency evidence explicit before rendering",
+      "continuity-sensitive shots need stronger candidate/review treatment than generic shots",
+      "director reasoning should produce repairable shot-level guidance rather than one opaque global score"
+    ],
+    behaviorChanged: [
+      "ViMax agent behavior is rewritten as deterministic CineJelly story-bible, viral-strategy, quality-finding, candidate, and repair contracts",
+      "the planner makes no network, LLM, Atlas, or upstream runtime calls",
+      "quality recommendations feed artifacts and review packets without bypassing cost, approval, artifact, or provider gates"
+    ],
+    referenceImplementationPath: "docs/PRODUCTION_GRAPH_AND_LONG_FORM.md",
+    cineJellyDestinationPaths: [
+      "src/types/long-form-creative-intelligence.ts",
+      "src/core/long-form-creative-intelligence-planner.ts",
+      "src/agents/director-agent.ts",
+      "src/core/project-artifact-store.ts",
+      "src/core/project-artifact-validator.ts",
+      "src/core/review-packet-builder.ts",
+      "scripts/run-long-form-creative-intelligence-smoke.mjs",
+      "package.json",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "deterministic story/viral/quality findings do not replace full VLM/ASR/lip-sync media evaluation after render",
+      "viral/niche strategy is a structured planning aid and still needs market/operator review before customer claims",
+      "future VLM or LLM evaluators should attach accepted evidence to the same creative-intelligence artifact instead of bypassing it"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   }
 ];
 

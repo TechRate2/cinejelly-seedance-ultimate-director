@@ -25,6 +25,7 @@ import type { PostproductionAssetPlan } from "./postproduction-assets.js";
 import type { GeneratedAudioOutputValidationBatchReport } from "./generated-audio-output.js";
 import type { LongFormAgentReviewPlan } from "./long-form-agent-review.js";
 import type { LongFormContinuityPlan } from "./long-form-continuity.js";
+import type { LongFormCreativeIntelligencePlan } from "./long-form-creative-intelligence.js";
 import type { LongFormTimelinePlan } from "./long-form-timeline.js";
 import type { ReviewApprovalReport } from "./review-approval.js";
 import type { VideoRenderStrategyPlan } from "./video-render-strategy.js";
@@ -97,6 +98,7 @@ export interface DirectorRunResult {
   readonly longFormAgentReview: LongFormAgentReviewPlan;
   readonly videoRenderStrategyPlan: VideoRenderStrategyPlan;
   readonly longFormTimelinePlan: LongFormTimelinePlan;
+  readonly longFormCreativeIntelligencePlan: LongFormCreativeIntelligencePlan;
   readonly materialSourcingPlan: MaterialSourcingPlan;
   readonly materialSourceValidation: MaterialSourceValidationReport;
   readonly postproductionAssetPlan: PostproductionAssetPlan;

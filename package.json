@@ -52,6 +52,7 @@
     "validation:storyboard-approval-gate": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-storyboard-approval-gate-smoke.mjs",
     "validation:last-frame-chaining": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-last-frame-chaining-smoke.mjs",
     "validation:long-form-timeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-long-form-timeline-smoke.mjs",
+    "validation:long-form-creative-intelligence": "node scripts/run-long-form-creative-intelligence-validation.mjs",
     "validation:long-form-review-draft": "node scripts/create-long-form-manual-quality-review-draft.mjs",
     "validation:long-form-review-readiness": "node scripts/validate-long-form-manual-review-readiness.mjs",
     "validation:source-video-auto-analysis": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-source-video-auto-analysis-validation.mjs",
