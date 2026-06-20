@@ -11,6 +11,7 @@ import {
   usesTestTakesForQuality
 } from "../config/seedance-settings.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
+import { selectAssemblyClipsForRenderedShots } from "../core/assembly-output-selector.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
@@ -49,7 +50,6 @@ import type {
   MaterialSourceValidationReport
 } from "../types/material.js";
 import type { AudioMixOptions, AudioMixTrack, GeneratedAudioIntent } from "../types/audio.js";
-import type { AssemblyClip } from "../types/assembly.js";
 import type { PostproductionSettings } from "../types/media.js";
 import type { PostproductionAssetPlan } from "../types/postproduction-assets.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
@@ -481,7 +481,7 @@ export class DirectorAgent {
             ...(preparedRequest.frameSamplingOptions ? { frameSamplingOptions: preparedRequest.frameSamplingOptions } : {}),
             ...(preparedRequest.transitionSettings ? { transitionSettings: preparedRequest.transitionSettings } : {}),
             postproductionSettings: this.postproductionSettingsForDelivery(intake.settings),
-            clips: this.assemblyClipsForRenderedShots(renderedShots)
+            clips: selectAssemblyClipsForRenderedShots(renderedShots)
           },
           signal
         )
@@ -734,39 +734,6 @@ export class DirectorAgent {
         return "warn";
       case "block":
         return "blocked";
-    }
-  }
-
-  private assemblyClipsForRenderedShots(renderedShots: readonly RenderedShot[]): readonly AssemblyClip[] {
-    const clips: AssemblyClip[] = [];
-    for (const [shotIndex, renderedShot] of renderedShots.entries()) {
-      const videoOutputs = renderedShot.prediction.outputUrls.filter((url) => this.isVideoOutputUrl(url));
-      if (videoOutputs.length === 0) {
-        throw new Error(
-          `Rendered shot ${renderedShot.compiledPrompt.shotId} did not include a video output URL for assembly.`
-        );
-      }
-      for (const [outputIndex, url] of videoOutputs.entries()) {
-        clips.push({
-          clipId: `${renderedShot.compiledPrompt.shotId}_${outputIndex}`,
-          sourceUrlOrPath: url,
-          order: shotIndex + outputIndex / 100
-        });
-      }
-    }
-    return clips;
-  }
-
-  private isVideoOutputUrl(value: string): boolean {
-    const path = this.outputPathname(value).toLowerCase();
-    return [".mp4", ".mov", ".m4v", ".webm"].some((extension) => path.endsWith(extension));
-  }
-
-  private outputPathname(value: string): string {
-    try {
-      return new URL(value).pathname;
-    } catch {
-      return value.split(/[?#]/, 1)[0] ?? value;
     }
   }
 

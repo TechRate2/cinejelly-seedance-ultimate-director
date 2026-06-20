@@ -44,6 +44,7 @@ export * from "./config/runtime-config.js";
 export * from "./config/seedance-settings.js";
 export * from "./core/chunking.js";
 export * from "./core/assembly-engine.js";
+export * from "./core/assembly-output-selector.js";
 export * from "./core/audio-mix-engine.js";
 export * from "./core/caption-engine.js";
 export * from "./core/consistency-guardian.js";
