@@ -104,6 +104,7 @@ export interface ReviewPacketPlanning {
 export interface ReviewPacketRender {
   readonly renderedShotCount: number;
   readonly renderedTestTakeCount: number;
+  readonly lastFrameChainedPromptCount: number;
   readonly selectedCandidateIndexes: readonly ReviewPacketSelectedCandidate[];
   readonly totalCandidateCount: number;
   readonly totalRepairAttemptCount: number;

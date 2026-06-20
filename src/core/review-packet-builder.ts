@@ -120,6 +120,10 @@ export class ReviewPacketBuilder {
     return {
       renderedShotCount: result.renderedShots.length,
       renderedTestTakeCount: result.renderedShots.filter((shot) => shot.testTake).length,
+      lastFrameChainedPromptCount: result.compiledPrompts.filter((prompt) =>
+        prompt.videoRequest.references.some((reference) => reference.role === "first_frame") ||
+        typeof prompt.videoRequest.metadata?.chainedFromShotId === "string"
+      ).length,
       selectedCandidateIndexes: result.renderedShots.map((shot) => ({
         shotId: shot.compiledPrompt.shotId,
         selectedCandidateIndex: shot.selectedCandidateIndex,

@@ -15,6 +15,7 @@ import { selectAssemblyClipsForRenderedShots } from "../core/assembly-output-sel
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
+import { selectLastFrameReference } from "../core/endpoint-frame-chain.js";
 import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
 import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
 import { LongFormTimelinePlanner } from "../core/long-form-timeline-planner.js";
@@ -435,19 +436,32 @@ export class DirectorAgent {
       repairAttemptCount
     });
     let renderResults: readonly RenderScheduleResult<RenderedShot>[];
+    let previousRenderedShot: RenderedShot | undefined;
     try {
       renderResults = await this.renderScheduler.run(
         renderScheduleItems,
-        async (item) =>
-          this.renderShot({
-            shot: item.shot,
-            compiledPrompt: item.value.compiledPrompt,
-            preflight: item.value.preflight,
+        async (item) => {
+          const prepared = this.prepareChainedRenderItem({
+            item,
+            previousRenderedShot,
+            videoRenderStrategyPlan,
+            settings: intake.settings,
+            modelId,
+            ...(providerSupportedReferenceKinds ? { providerSupportedReferenceKinds } : {}),
+            continuityLedger
+          });
+          const renderedShot = await this.renderShot({
+            shot: prepared.shot,
+            compiledPrompt: prepared.compiledPrompt,
+            preflight: prepared.preflight,
             shouldRunTestTake: item.value.shouldRunTestTake,
             candidateCount,
             repairAttemptCount,
             signal
-          })
+          });
+          previousRenderedShot = renderedShot;
+          return renderedShot;
+        }
       );
     } catch (error) {
       this.reportStageProgress("render", "failed", "Render scheduler failed before producing completed shot evidence.");
@@ -643,6 +657,122 @@ export class DirectorAgent {
       .map((issue) => `${issue.code} - ${issue.repair}`)
       .join("; ");
     return details || "Video render strategy blocked provider spend.";
+  }
+
+  private prepareChainedRenderItem<TValue>(input: {
+    readonly item: RenderScheduleItem<TValue>;
+    readonly previousRenderedShot: RenderedShot | undefined;
+    readonly videoRenderStrategyPlan: VideoRenderStrategyPlan;
+    readonly settings: FlexibleSeedanceSettings;
+    readonly modelId: string;
+    readonly providerSupportedReferenceKinds?: readonly import("../types/provider.js").ReferenceKind[];
+    readonly continuityLedger: ReturnType<ContinuityLedgerBuilder["build"]>;
+  }): {
+    readonly shot: ShotContract;
+    readonly compiledPrompt: CompiledPrompt;
+    readonly preflight: GuardianReport;
+  } {
+    if (!this.shouldApplyLastFrameChaining(input.videoRenderStrategyPlan)) {
+      return {
+        shot: input.item.shot,
+        compiledPrompt: this.renderItemCompiledPrompt(input.item),
+        preflight: this.renderItemPreflight(input.item)
+      };
+    }
+    if (input.item.index === 0) {
+      return {
+        shot: input.item.shot,
+        compiledPrompt: this.renderItemCompiledPrompt(input.item),
+        preflight: this.renderItemPreflight(input.item)
+      };
+    }
+    if (!input.previousRenderedShot) {
+      throw new Error("Last-frame chaining expected a previous rendered shot before provider spend.");
+    }
+
+    const selection = selectLastFrameReference({
+      renderedShot: input.previousRenderedShot,
+      targetShotId: input.item.shot.shotId
+    });
+    if (!selection) {
+      if (input.videoRenderStrategyPlan.lastFrameChaining.status === "required") {
+        throw new Error(
+          `Last-frame chaining required for ${input.item.shot.shotId}, but previous shot ${input.previousRenderedShot.compiledPrompt.shotId} returned no image sidecar.`
+        );
+      }
+      return {
+        shot: input.item.shot,
+        compiledPrompt: this.renderItemCompiledPrompt(input.item),
+        preflight: this.renderItemPreflight(input.item)
+      };
+    }
+
+    const { referenceSelectionPlan: _referenceSelectionPlan, ...shotWithoutSelectionPlan } = input.item.shot;
+    const chainedShot: ShotContract = {
+      ...shotWithoutSelectionPlan,
+      references: [
+        selection.reference,
+        ...input.item.shot.references.filter((reference) => reference.role !== "first_frame")
+      ],
+      continuity: {
+        ...input.item.shot.continuity,
+        previousShotEndState: input.item.shot.continuity.previousShotEndState ??
+          `Start from endpoint continuity frame of ${selection.sourceShotId}.`
+      },
+      metadata: {
+        ...(input.item.shot.metadata ?? {}),
+        chainedFromShotId: selection.sourceShotId,
+        chainReferenceRole: "first_frame",
+        chainReferenceUrlSha256: selection.outputUrlSha256
+      }
+    };
+    const compiledPrompt = this.promptCompiler.compile({
+      shot: chainedShot,
+      settings: input.settings,
+      modelId: input.modelId,
+      provider: "atlascloud",
+      ...(input.providerSupportedReferenceKinds ? { providerSupportedReferenceKinds: input.providerSupportedReferenceKinds } : {})
+    });
+    const preflight = this.consistencyGuardian.preflight({
+      shot: chainedShot,
+      prompt: compiledPrompt.prompt,
+      negativePrompt: compiledPrompt.negativePrompt,
+      bindingPlan: compiledPrompt.bindingPlan,
+      ledger: input.continuityLedger
+    });
+    if (preflight.status === "block" || preflight.status === "repair") {
+      throw new Error(this.describePreflightBlock([preflight]));
+    }
+
+    return {
+      shot: chainedShot,
+      compiledPrompt,
+      preflight
+    };
+  }
+
+  private shouldApplyLastFrameChaining(plan: VideoRenderStrategyPlan): boolean {
+    return plan.lastFrameChaining.status === "required" || plan.lastFrameChaining.status === "recommended";
+  }
+
+  private renderItemCompiledPrompt<TValue>(item: RenderScheduleItem<TValue>): CompiledPrompt {
+    const value = item.value as {
+      readonly compiledPrompt?: CompiledPrompt;
+    };
+    if (!value.compiledPrompt) {
+      throw new Error("Render schedule item is missing a compiled prompt.");
+    }
+    return value.compiledPrompt;
+  }
+
+  private renderItemPreflight<TValue>(item: RenderScheduleItem<TValue>): GuardianReport {
+    const value = item.value as {
+      readonly preflight?: GuardianReport;
+    };
+    if (!value.preflight) {
+      throw new Error("Render schedule item is missing a preflight report.");
+    }
+    return value.preflight;
   }
 
   private describeLongFormAgentReviewBlock(review: LongFormAgentReviewPlan): string {

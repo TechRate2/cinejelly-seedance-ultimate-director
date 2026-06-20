@@ -121,6 +121,10 @@ export class ProjectArtifactStore {
       videoRenderRequiresStoryboardApproval: result.videoRenderStrategyPlan.requiresStoryboardApproval,
       videoRenderStrategyIssueCount: result.videoRenderStrategyPlan.issueCount,
       videoRenderStrategyBlockingIssueCount: result.videoRenderStrategyPlan.blockingIssueCount,
+      lastFrameChainedPromptCount: result.compiledPrompts.filter((prompt) =>
+        prompt.videoRequest.references.some((reference) => reference.role === "first_frame") ||
+        typeof prompt.videoRequest.metadata?.chainedFromShotId === "string"
+      ).length,
       longFormTimelineSegmentCount: result.longFormTimelinePlan.segmentCount,
       longFormTimelineSequentialSegmentCount: result.longFormTimelinePlan.sequentialSegmentCount,
       longFormTimelineManualReviewSegmentCount: result.longFormTimelinePlan.manualReviewSegmentCount,

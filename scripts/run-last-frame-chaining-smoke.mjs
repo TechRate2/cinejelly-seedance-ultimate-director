@@ -1,0 +1,280 @@
+#!/usr/bin/env node
+
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const outputPath = resolve(repoRoot, "assets/output_deliverables/business-readiness/last-frame-chaining-smoke-report.json");
+const sourcePatternOrigins = ["HKUDS/VideoAgent", "vericontext/vibeframe", "MoneyPrinterTurbo"];
+
+const { DirectorAgent } = await import("../dist/agents/director-agent.js");
+const { RenderProducer } = await import("../dist/agents/render-producer.js");
+
+async function main() {
+const provider = new FakeVideoProvider();
+const director = new DirectorAgent({
+  storyArchitect: new FixedStoryArchitect(),
+  renderProducer: new RenderProducer(provider),
+  atlasSettings: atlasSettings()
+});
+
+const result = await director.run({
+  userInput: "Create a coherent 30 second multi-shot product proof video with one continuous visual idea.",
+  settings: {
+    tier: "fast",
+    resolution: "480p",
+    qualityMode: "economy",
+    ratio: "16:9",
+    durationTargetSeconds: 30,
+    audioMode: "none",
+    watermark: false,
+    returnLastFrame: true
+  },
+  metadata: {
+    workflowMode: "auto"
+  }
+});
+
+const publicRequests = provider.requests.map((request, index) => ({
+  index,
+  mode: request.mode,
+  referenceRoles: request.references.map((reference) => reference.role ?? reference.kind).sort(),
+  referenceKinds: request.references.map((reference) => reference.kind).sort(),
+  hasFirstFrameReference: request.references.some((reference) => reference.role === "first_frame" || reference.kind === "first_frame"),
+  chainedFromShotId: request.metadata?.chainedFromShotId,
+  chainReferenceUrlSha256: request.metadata?.chainReferenceUrlSha256,
+  promptMentionsContinuityFrame: /Continuity frame from shot/i.test(request.prompt)
+}));
+const renderedPromptSummaries = result.compiledPrompts.map((prompt, index) => ({
+  index,
+  shotId: prompt.shotId,
+  mode: prompt.videoRequest.mode,
+  hasFirstFrameReference: prompt.videoRequest.references.some((reference) => reference.role === "first_frame" || reference.kind === "first_frame"),
+  chainedFromShotId: prompt.videoRequest.metadata?.chainedFromShotId,
+  chainReferenceUrlSha256: prompt.videoRequest.metadata?.chainReferenceUrlSha256
+}));
+const serializedPublicReport = JSON.stringify({ publicRequests, renderedPromptSummaries });
+const rawUrlLeakDetected = serializedPublicReport.includes("https://cdn.example.test") ||
+  serializedPublicReport.includes("token=secret") ||
+  serializedPublicReport.includes("api_key=");
+
+const checks = [
+  result.videoRenderStrategyPlan.workflowMode === "storyboard_multishot" &&
+    result.videoRenderStrategyPlan.lastFrameChaining.status === "required" &&
+    result.videoRenderStrategyPlan.requiresSequentialRender === true
+    ? pass("strategy_requires_chaining", "Auto multishot without references requires last-frame chaining and sequential render.")
+    : fail("strategy_requires_chaining", "Strategy did not require last-frame chaining for prompt-only multishot."),
+  provider.requests.length === 3
+    ? pass("provider_request_count", "Fake provider received one render request per planned shot.")
+    : fail("provider_request_count", `Expected 3 provider requests, saw ${provider.requests.length}.`),
+  publicRequests[0]?.hasFirstFrameReference === false &&
+    publicRequests.slice(1).every((request) => request.hasFirstFrameReference)
+    ? pass("first_frame_injected_after_first_shot", "Shot 2+ provider requests received first-frame references from previous shot sidecars.")
+    : fail("first_frame_injected_after_first_shot", "Shot 2+ did not receive first-frame references."),
+  publicRequests.slice(1).every((request) => request.mode === "image_to_video")
+    ? pass("provider_mode_switches_to_image_to_video", "Chained shot requests switch to image-to-video mode.")
+    : fail("provider_mode_switches_to_image_to_video", "Chained shot requests did not switch to image-to-video mode."),
+  renderedPromptSummaries.slice(1).every((prompt) => prompt.chainedFromShotId && prompt.chainReferenceUrlSha256)
+    ? pass("compiled_prompt_chain_metadata", "Rendered compiled prompts preserve chain source metadata and URL digest evidence.")
+    : fail("compiled_prompt_chain_metadata", "Compiled prompt chain metadata is missing."),
+  result.renderSchedulePlan.sequentialItemCount === 3 &&
+    result.renderSchedulePlan.items.every((item) => item.sequentialReasons.includes("strategy_last_frame_chaining"))
+    ? pass("schedule_forces_sequential_chaining", "Render schedule marks every shot sequential for last-frame chaining.")
+    : fail("schedule_forces_sequential_chaining", "Render schedule did not force sequential chaining."),
+  result.renderedShots.length === 3 &&
+    result.renderedShots.every((shot) => shot.prediction.status === "succeeded")
+    ? pass("rendered_shots_succeeded", "All fake provider shots succeeded.")
+    : fail("rendered_shots_succeeded", "At least one fake provider shot failed."),
+  !rawUrlLeakDetected
+    ? pass("public_report_redacts_raw_urls", "Smoke report stores only role/mode/hash evidence, not raw provider output URLs.")
+    : fail("public_report_redacts_raw_urls", "Smoke report leaked raw output URLs or secret-like query text.")
+];
+
+const status = checks.every((check) => check.status === "pass") ? "pass" : "fail";
+const report = {
+  schemaVersion: "cinejelly.last-frame-chaining-smoke.v1",
+  generatedAt: new Date().toISOString(),
+  status,
+  noSpend: true,
+  networkCallsMade: false,
+  providerCallsMade: false,
+  fakeProviderCallsMade: true,
+  sourcePatternOrigins,
+  checkedInputs: {
+    outputPath: "assets/output_deliverables/business-readiness/last-frame-chaining-smoke-report.json",
+    targetDurationSeconds: 30,
+    plannedShotCount: result.storyboard.panels.length,
+    rawUrlLeakCheckPassed: !rawUrlLeakDetected
+  },
+  strategy: {
+    requestedMode: result.videoRenderStrategyPlan.requestedMode,
+    workflowMode: result.videoRenderStrategyPlan.workflowMode,
+    continuityMode: result.videoRenderStrategyPlan.continuityMode,
+    lastFrameChainingStatus: result.videoRenderStrategyPlan.lastFrameChaining.status,
+    requiresSequentialRender: result.videoRenderStrategyPlan.requiresSequentialRender
+  },
+  publicRequests,
+  renderedPromptSummaries,
+  renderSchedule: {
+    batchCount: result.renderSchedulePlan.batchCount,
+    parallelBatchCount: result.renderSchedulePlan.parallelBatchCount,
+    sequentialItemCount: result.renderSchedulePlan.sequentialItemCount,
+    sequentialReasons: [...new Set(result.renderSchedulePlan.items.flatMap((item) => item.sequentialReasons))].sort()
+  },
+  checks,
+  releaseGateSummary: {
+    canUseAsNoSpendLastFrameChainingEvidence: status === "pass",
+    canReleaseToCustomerTraffic: false,
+    releaseBlocker: status === "pass"
+      ? "Last-frame chaining smoke proves no-spend director orchestration with a fake provider only; paid Atlas reference-locked validation and manual media review remain separate gates."
+      : "Last-frame chaining smoke failed; fix director orchestration before paid long-form reference validation."
+  },
+  nextActions: status === "pass"
+    ? [
+        "Run paid reference-locked validation with an approved product/person/source reference.",
+        "Inspect compiled-prompts.json from the next paid multishot run for first_frame chain metadata.",
+        "Keep this smoke passing before building UI scene retry controls."
+      ]
+    : ["Fix last-frame chaining orchestration before continuing long backend hardening."]
+};
+
+mkdirSync(dirname(outputPath), { recursive: true });
+writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+process.exitCode = status === "pass" ? 0 : 1;
+}
+
+class FixedStoryArchitect {
+  async plan(intake) {
+    return {
+      premise: "A coherent product proof built as three chained shots.",
+      targetDurationSeconds: intake.settings.durationTargetSeconds,
+      scenes: [1, 2, 3].map((number) => ({
+        sceneId: `scene_${number}`,
+        title: `Proof movement ${number}`,
+        beats: [
+          {
+            beatId: `beat_${number}`,
+            purpose: number === 1 ? "hook" : number === 3 ? "payoff" : "proof",
+            action: `Continue one product motion across movement ${number}.`,
+            subject: "smart product on a clean studio desk",
+            camera: "slow controlled dolly",
+            lighting: "soft premium studio lighting",
+            style: "clean premium commercial realism",
+            durationSeconds: 10,
+            risks: [],
+            references: [],
+            continuity: {
+              product: "same smart product",
+              environment: "same clean studio desk",
+              style: "clean premium commercial realism"
+            }
+          }
+        ]
+      }))
+    };
+  }
+}
+
+class FakeVideoProvider {
+  name = "atlascloud";
+  requests = [];
+
+  async generateTextToVideo(request) {
+    return this.complete(request);
+  }
+
+  async generateImageToVideo(request) {
+    return this.complete(request);
+  }
+
+  async generateReferenceToVideo(request) {
+    return this.complete(request);
+  }
+
+  async editVideo(request) {
+    return this.complete(request);
+  }
+
+  async extendVideo(request) {
+    return this.complete(request);
+  }
+
+  async getPrediction(predictionId) {
+    return this.prediction(predictionId, "seedance-fake", this.requests.length);
+  }
+
+  async waitForPrediction(predictionId, signal, context) {
+    return this.prediction(predictionId, context?.modelId ?? "seedance-fake", this.requests.length);
+  }
+
+  capabilities(modelId = "seedance-fake") {
+    return [
+      {
+        provider: "atlascloud",
+        modelId,
+        modes: ["text_to_video", "image_to_video", "reference_to_video", "video_to_video", "extend", "edit"],
+        durations: { min: 4, max: 15 },
+        resolutions: ["480p", "720p", "1080p"],
+        ratios: ["16:9", "9:16", "1:1"],
+        references: ["image", "first_frame", "last_frame", "identity", "product", "environment", "style"],
+        async: true
+      }
+    ];
+  }
+
+  complete(request) {
+    const index = this.requests.length;
+    this.requests.push(request);
+    return Promise.resolve(this.prediction(`fake_prediction_${index + 1}`, request.modelId, index));
+  }
+
+  prediction(predictionId, modelId, index) {
+    const submittedAt = new Date();
+    return {
+      provider: "atlascloud",
+      predictionId,
+      modelId,
+      status: "succeeded",
+      outputUrls: [
+        `https://cdn.example.test/chaining/shot-${index + 1}.mp4`,
+        `https://cdn.example.test/chaining/shot-${index + 1}-last-frame.png?token=secret_${index + 1}`
+      ],
+      raw: { fake: true },
+      submittedAt,
+      completedAt: submittedAt,
+      latencyMs: 0
+    };
+  }
+}
+
+function atlasSettings() {
+  return {
+    apiKey: "test-atlas-api-key",
+    llmApiKey: "test-atlas-llm-api-key",
+    apiBaseUrl: "https://api.atlascloud.ai/api/v1",
+    assetBaseUrl: "https://api.atlascloud.ai/api/v1",
+    models: {
+      llmModel: "deepseek-v3-0324",
+      seedanceStandardModel: "seedance-fake",
+      seedanceFastModel: "seedance-fake"
+    },
+    seedanceCapabilities: [],
+    generatedAudioCapabilities: [],
+    requestTimeoutMs: 30000,
+    maxJsonResponseBytes: 1000000,
+    pollingIntervalMs: 1000,
+    pollingTimeoutMs: 30000
+  };
+}
+
+await main();
+
+function pass(name, message) {
+  return { name, status: "pass", message };
+}
+
+function fail(name, message) {
+  return { name, status: "fail", message };
+}

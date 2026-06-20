@@ -130,10 +130,12 @@ Rules:
 - Prompt-only multishot is allowed for operator validation but is marked as continuity risk and requires last-frame chaining evidence.
 - Source-video guided workflows require source-video analysis or source-video structure references before paid render.
 - Strategy evidence is no-spend/no-network/no-provider and stores reference roles/counts/labels, not raw provider URLs.
+- When last-frame chaining is required or recommended, DirectorAgent renders sequentially, selects the previous shot's image sidecar, recompiles the next shot with a `first_frame` reference, and stores only chain metadata/digests in public smoke evidence.
 
 Validation:
 
 - `npm run validation:video-render-strategy`
+- `npm run validation:last-frame-chaining`
 - `ProjectArtifactValidator` treats `video_render_strategy` as a required success artifact for new runs.
 
 ### MaterialLibrary
