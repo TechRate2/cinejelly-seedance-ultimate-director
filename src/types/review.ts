@@ -13,6 +13,11 @@ import type { MaterialSourceValidationStatus } from "./material.js";
 import type { PostproductionAssetStatus, PostproductionGeneratedAudioStatus } from "./postproduction-assets.js";
 import type { GeneratedAudioOutputBatchValidationStatus } from "./generated-audio-output.js";
 import type { LongFormAgentReviewStatus } from "./long-form-agent-review.js";
+import type {
+  VideoRenderContinuityMode,
+  VideoRenderRequestedMode,
+  VideoRenderWorkflowMode
+} from "./video-render-strategy.js";
 
 export type ReviewPacketStatus = "ready" | "review_required" | "blocked";
 
@@ -60,6 +65,13 @@ export interface ReviewPacketPlanning {
   readonly longFormAgentReviewFindingCount: number;
   readonly longFormAgentReviewBlockingFindingCount: number;
   readonly longFormAgentReviewRequiredBeforeRenderCount: number;
+  readonly videoRenderRequestedMode: VideoRenderRequestedMode;
+  readonly videoRenderWorkflowMode: VideoRenderWorkflowMode;
+  readonly videoRenderContinuityMode: VideoRenderContinuityMode;
+  readonly videoRenderRequiresSequentialRender: boolean;
+  readonly videoRenderRequiresStoryboardApproval: boolean;
+  readonly videoRenderStrategyIssueCount: number;
+  readonly videoRenderStrategyBlockingIssueCount: number;
   readonly longFormTimelineSegmentCount: number;
   readonly longFormTimelineSequentialSegmentCount: number;
   readonly longFormTimelineManualReviewSegmentCount: number;

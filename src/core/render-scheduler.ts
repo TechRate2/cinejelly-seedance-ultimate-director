@@ -15,12 +15,17 @@ export type RenderScheduleSequentialReason =
   | "source_video_timeline"
   | "continuity_risk"
   | "transition_risk"
-  | "transition_intent";
+  | "transition_intent"
+  | "strategy_reference_lock"
+  | "strategy_last_frame_chaining"
+  | "strategy_source_video"
+  | "strategy_manual_storyboard";
 
 export interface RenderScheduleItem<TValue> {
   readonly index: number;
   readonly shot: ShotContract;
   readonly value: TValue;
+  readonly forceSequentialReasons?: readonly RenderScheduleSequentialReason[];
 }
 
 export interface RenderScheduleResult<TValue> {
@@ -111,8 +116,11 @@ export class RenderScheduler {
     };
   }
 
-  public explainSequentialReasons(shot: ShotContract): readonly RenderScheduleSequentialReason[] {
-    return this.sequentialReasons(shot);
+  public explainSequentialReasons(
+    shot: ShotContract,
+    forceSequentialReasons: readonly RenderScheduleSequentialReason[] = []
+  ): readonly RenderScheduleSequentialReason[] {
+    return this.sequentialReasons(shot, forceSequentialReasons);
   }
 
   public async run<TInput, TOutput>(
@@ -156,7 +164,7 @@ export class RenderScheduler {
     };
 
     for (const item of items) {
-      const sequentialReasons = this.sequentialReasons(item.shot);
+      const sequentialReasons = this.sequentialReasons(item.shot, item.forceSequentialReasons ?? []);
       const scheduled = { item, sequentialReasons };
       if (sequentialReasons.length > 0) {
         flushParallelBatch();
@@ -196,7 +204,10 @@ export class RenderScheduler {
     results.push(...batchResults);
   }
 
-  private sequentialReasons(shot: ShotContract): readonly RenderScheduleSequentialReason[] {
+  private sequentialReasons(
+    shot: ShotContract,
+    forceSequentialReasons: readonly RenderScheduleSequentialReason[] = []
+  ): readonly RenderScheduleSequentialReason[] {
     const reasons: RenderScheduleSequentialReason[] = [];
     const roles = new Set(shot.references.map((reference) => reference.role));
     if (roles.has("first_frame") || roles.has("last_frame")) {
@@ -228,6 +239,7 @@ export class RenderScheduler {
     if (/previous|next|anchor|continuous|match cut|bridge|seamless/.test(transitionIntent)) {
       reasons.push("transition_intent");
     }
+    reasons.push(...forceSequentialReasons);
     return this.uniqueReasons(reasons);
   }
 

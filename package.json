@@ -48,6 +48,7 @@
     "validation:long-form": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/run-long-form-validation.mjs",
     "validation:long-form-continuity": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-long-form-continuity-smoke.mjs",
     "validation:long-form-agent-review": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-long-form-agent-review-smoke.mjs",
+    "validation:video-render-strategy": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-video-render-strategy-smoke.mjs",
     "validation:long-form-timeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-long-form-timeline-smoke.mjs",
     "validation:long-form-review-draft": "node scripts/create-long-form-manual-quality-review-draft.mjs",
     "validation:long-form-review-readiness": "node scripts/validate-long-form-manual-review-readiness.mjs",

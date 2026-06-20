@@ -20,6 +20,7 @@ import type {
 } from "../types/stage.js";
 import { PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS } from "../types/stage.js";
 import type { Storyboard } from "../types/storyboard.js";
+import type { VideoRenderStrategyPlan } from "../types/video-render-strategy.js";
 import { createStableId } from "../utils/ids.js";
 
 export interface ProductionStagePlannerInput {
@@ -31,6 +32,7 @@ export interface ProductionStagePlannerInput {
   readonly materialSourcingPlan: MaterialSourcingPlan;
   readonly materialSourceValidation?: MaterialSourceValidationReport;
   readonly postproductionAssetPlan: PostproductionAssetPlan;
+  readonly videoRenderStrategyPlan?: VideoRenderStrategyPlan;
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];
   readonly deliverablePresent: boolean;
@@ -47,7 +49,12 @@ export class ProductionStagePlanner {
         this.record(input, "plan", 0, this.planStatus(input), {
           sceneCount: input.storyPlan.scenes.length,
           shotCount: input.shots.length,
-          targetDurationSeconds: input.storyPlan.targetDurationSeconds
+          targetDurationSeconds: input.storyPlan.targetDurationSeconds,
+          videoRenderWorkflowMode: input.videoRenderStrategyPlan?.workflowMode ?? "not_planned",
+          videoRenderContinuityMode: input.videoRenderStrategyPlan?.continuityMode ?? "not_planned",
+          videoRenderRequiresSequential: input.videoRenderStrategyPlan?.requiresSequentialRender ?? false,
+          videoRenderRequiresStoryboardApproval: input.videoRenderStrategyPlan?.requiresStoryboardApproval ?? false,
+          videoRenderStrategyIssueCount: input.videoRenderStrategyPlan?.issueCount ?? 0
         }),
         this.record(input, "storyboard", 1, this.guardianStageStatus(input.storyboardPreflight.status), {
           storyboardPanelCount: input.storyboard.panels.length,

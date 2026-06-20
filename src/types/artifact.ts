@@ -12,6 +12,7 @@ export type ProjectArtifactKind =
   | "production_graph"
   | "long_form_continuity"
   | "long_form_agent_review"
+  | "video_render_strategy"
   | "long_form_timeline"
   | "material_sourcing_plan"
   | "material_source_validation"

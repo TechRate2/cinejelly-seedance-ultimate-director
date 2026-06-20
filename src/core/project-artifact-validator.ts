@@ -25,6 +25,7 @@ const SUCCESS_REQUIRED_KINDS: readonly ProjectArtifactKind[] = [
   "production_graph",
   "long_form_continuity",
   "long_form_agent_review",
+  "video_render_strategy",
   "long_form_timeline",
   "material_sourcing_plan",
   "material_source_validation",
@@ -71,7 +72,11 @@ const RENDER_SCHEDULE_SEQUENTIAL_REASONS = new Set([
   "source_video_timeline",
   "continuity_risk",
   "transition_risk",
-  "transition_intent"
+  "transition_intent",
+  "strategy_reference_lock",
+  "strategy_last_frame_chaining",
+  "strategy_source_video",
+  "strategy_manual_storyboard"
 ]);
 const GENERATED_AUDIO_OUTPUT_BATCH_STATUSES = new Set([
   "not_requested",
@@ -92,6 +97,33 @@ const LONG_FORM_AGENT_REVIEW_ROLES = new Set([
 ]);
 const LONG_FORM_AGENT_REVIEW_SEVERITIES = new Set(["info", "warn", "block"]);
 const LONG_FORM_TIMELINE_ISSUE_SEVERITIES = new Set(["info", "warn", "block"]);
+const VIDEO_RENDER_REQUESTED_MODES = new Set([
+  "auto",
+  "single",
+  "storyboard",
+  "multishot",
+  "reference_locked",
+  "source_video",
+  "manual_storyboard"
+]);
+const VIDEO_RENDER_WORKFLOW_MODES = new Set([
+  "single_clip",
+  "reference_locked_single_clip",
+  "storyboard_multishot",
+  "reference_locked_multishot",
+  "source_video_guided",
+  "manual_storyboard"
+]);
+const VIDEO_RENDER_CONTINUITY_MODES = new Set([
+  "single_clip",
+  "prompt_only",
+  "reference_locked",
+  "last_frame_chaining",
+  "source_video_guided",
+  "manual_locked"
+]);
+const VIDEO_RENDER_LAST_FRAME_STATUSES = new Set(["not_needed", "recommended", "required", "blocked"]);
+const VIDEO_RENDER_ISSUE_SEVERITIES = new Set(["info", "warn", "block"]);
 const LONG_FORM_TIMELINE_ISSUE_CODES = new Set([
   "duration_drift",
   "sequence_duration_drift",
@@ -390,6 +422,7 @@ export class ProjectArtifactValidator {
     this.validatePostproductionAssetPlan(manifest, artifacts.get("postproduction_asset_plan"), checks);
     this.validateLongFormContinuity(manifest, artifacts.get("long_form_continuity"), checks);
     this.validateLongFormAgentReview(manifest, artifacts.get("long_form_agent_review"), checks);
+    this.validateVideoRenderStrategy(manifest, artifacts.get("video_render_strategy"), checks);
     this.validateLongFormTimeline(manifest, artifacts.get("long_form_timeline"), checks);
     this.validateRenderSchedule(artifacts.get("render_schedule"), checks);
     this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
@@ -469,6 +502,21 @@ export class ProjectArtifactValidator {
       typeof planning.longFormTimelineBlockingIssueCount !== "number"
     ) {
       checks.push({ name: "review_packet_long_form_timeline", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing long-form timeline evidence." });
+    }
+    if (
+      !planning ||
+      typeof planning.videoRenderRequestedMode !== "string" ||
+      !VIDEO_RENDER_REQUESTED_MODES.has(planning.videoRenderRequestedMode) ||
+      typeof planning.videoRenderWorkflowMode !== "string" ||
+      !VIDEO_RENDER_WORKFLOW_MODES.has(planning.videoRenderWorkflowMode) ||
+      typeof planning.videoRenderContinuityMode !== "string" ||
+      !VIDEO_RENDER_CONTINUITY_MODES.has(planning.videoRenderContinuityMode) ||
+      typeof planning.videoRenderRequiresSequentialRender !== "boolean" ||
+      typeof planning.videoRenderRequiresStoryboardApproval !== "boolean" ||
+      typeof planning.videoRenderStrategyIssueCount !== "number" ||
+      typeof planning.videoRenderStrategyBlockingIssueCount !== "number"
+    ) {
+      checks.push({ name: "review_packet_video_render_strategy", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing video render strategy evidence." });
     }
   }
 
@@ -1152,6 +1200,143 @@ export class ProjectArtifactValidator {
       checks.push({ name: "long_form_agent_review_release_gate", status: "fail", fileName, message: "long-form-agent-review release gate summary is invalid." });
     } else if (value.status === "blocked" && releaseGateSummary.canProceedToPromptCompilation !== false) {
       checks.push({ name: "long_form_agent_review_release_gate", status: "fail", fileName, message: "Blocked long-form review must not proceed to prompt compilation." });
+    }
+  }
+
+  private validateVideoRenderStrategy(
+    manifest: ProjectArtifactBundle,
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    const fileName = artifact.entry.fileName;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "video_render_strategy_shape", status: "fail", fileName, message: "video-render-strategy must be an object." });
+      return;
+    }
+    if (value.schemaVersion !== "cinejelly.video-render-strategy.v1") {
+      checks.push({ name: "video_render_strategy_schema", status: "fail", fileName, message: "Unexpected video-render-strategy schema version." });
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "video_render_strategy_project", status: "fail", fileName, message: "video-render-strategy projectId does not match manifest." });
+    }
+    if (value.noSpend !== true || value.networkCallsMade !== false || value.providerCallsMade !== false) {
+      checks.push({ name: "video_render_strategy_spend_boundary", status: "fail", fileName, message: "video-render-strategy must be no-spend/no-network/no-provider evidence." });
+    }
+    if (typeof value.requestedMode !== "string" || !VIDEO_RENDER_REQUESTED_MODES.has(value.requestedMode)) {
+      checks.push({ name: "video_render_strategy_requested_mode", status: "fail", fileName, message: "video-render-strategy requestedMode is invalid." });
+    }
+    if (typeof value.workflowMode !== "string" || !VIDEO_RENDER_WORKFLOW_MODES.has(value.workflowMode)) {
+      checks.push({ name: "video_render_strategy_workflow_mode", status: "fail", fileName, message: "video-render-strategy workflowMode is invalid." });
+    }
+    if (typeof value.continuityMode !== "string" || !VIDEO_RENDER_CONTINUITY_MODES.has(value.continuityMode)) {
+      checks.push({ name: "video_render_strategy_continuity_mode", status: "fail", fileName, message: "video-render-strategy continuityMode is invalid." });
+    }
+    for (const field of [
+      "targetDurationSeconds",
+      "plannedShotCount",
+      "issueCount",
+      "warningIssueCount",
+      "blockingIssueCount"
+    ] as const) {
+      if (typeof value[field] !== "number" || !Number.isFinite(value[field]) || value[field] < 0) {
+        checks.push({ name: "video_render_strategy_count", status: "fail", fileName, message: `video-render-strategy ${field} is invalid.` });
+      }
+    }
+    for (const field of [
+      "singleClipEligible",
+      "storyboardRequired",
+      "requiresStoryboardApproval",
+      "requiresReferenceLock",
+      "requiresSequentialRender",
+      "sourceVideoAnalysisPresent"
+    ] as const) {
+      if (typeof value[field] !== "boolean") {
+        checks.push({ name: "video_render_strategy_boolean", status: "fail", fileName, message: `video-render-strategy ${field} must be boolean.` });
+      }
+    }
+    if (!Array.isArray(value.sourcePatternOrigins) || value.sourcePatternOrigins.some((origin) => typeof origin !== "string" || !origin)) {
+      checks.push({ name: "video_render_strategy_origins", status: "fail", fileName, message: "video-render-strategy sourcePatternOrigins are invalid." });
+    }
+    const referenceSummary = this.isRecord(value.referenceSummary) ? value.referenceSummary : undefined;
+    if (
+      !referenceSummary ||
+      typeof referenceSummary.requestedReferenceCount !== "number" ||
+      typeof referenceSummary.selectedReferenceCount !== "number" ||
+      !Array.isArray(referenceSummary.requestedRoles) ||
+      !Array.isArray(referenceSummary.selectedRoles) ||
+      !Array.isArray(referenceSummary.primaryReferenceLabels)
+    ) {
+      checks.push({ name: "video_render_strategy_references", status: "fail", fileName, message: "video-render-strategy reference summary is invalid." });
+    }
+    const lastFrameChaining = this.isRecord(value.lastFrameChaining) ? value.lastFrameChaining : undefined;
+    if (
+      !lastFrameChaining ||
+      typeof lastFrameChaining.status !== "string" ||
+      !VIDEO_RENDER_LAST_FRAME_STATUSES.has(lastFrameChaining.status) ||
+      typeof lastFrameChaining.eligibleShotCount !== "number" ||
+      typeof lastFrameChaining.requiresReturnLastFrame !== "boolean" ||
+      typeof lastFrameChaining.reason !== "string" ||
+      !lastFrameChaining.reason
+    ) {
+      checks.push({ name: "video_render_strategy_last_frame_chaining", status: "fail", fileName, message: "video-render-strategy last-frame chaining evidence is invalid." });
+    }
+    const issues = Array.isArray(value.issues) ? value.issues : undefined;
+    const decisions = Array.isArray(value.decisions) ? value.decisions : undefined;
+    if (!issues || !decisions) {
+      checks.push({ name: "video_render_strategy_collections", status: "fail", fileName, message: "video-render-strategy issues and decisions must be arrays." });
+      return;
+    }
+    const warningIssueCount = issues.filter((issue) => this.isRecord(issue) && issue.severity === "warn").length;
+    const blockingIssueCount = issues.filter((issue) => this.isRecord(issue) && issue.severity === "block").length;
+    if (value.issueCount !== issues.length) {
+      checks.push({ name: "video_render_strategy_issue_count", status: "fail", fileName, message: "video-render-strategy issueCount must match issues length." });
+    }
+    if (value.warningIssueCount !== warningIssueCount) {
+      checks.push({ name: "video_render_strategy_warn_count", status: "fail", fileName, message: "video-render-strategy warningIssueCount must match warn issues." });
+    }
+    if (value.blockingIssueCount !== blockingIssueCount) {
+      checks.push({ name: "video_render_strategy_block_count", status: "fail", fileName, message: "video-render-strategy blockingIssueCount must match block issues." });
+    }
+    for (const [index, issue] of issues.entries()) {
+      if (!this.isRecord(issue)) {
+        checks.push({ name: "video_render_strategy_issue_shape", status: "fail", fileName, message: `Strategy issue ${index} must be an object.` });
+        continue;
+      }
+      if (typeof issue.severity !== "string" || !VIDEO_RENDER_ISSUE_SEVERITIES.has(issue.severity)) {
+        checks.push({ name: "video_render_strategy_issue_severity", status: "fail", fileName, message: `Strategy issue ${index} severity is invalid.` });
+      }
+      if (typeof issue.code !== "string" || !issue.code || typeof issue.message !== "string" || !issue.message || typeof issue.repair !== "string" || !issue.repair) {
+        checks.push({ name: "video_render_strategy_issue_text", status: "fail", fileName, message: `Strategy issue ${index} text fields are missing.` });
+      }
+    }
+    for (const [index, decision] of decisions.entries()) {
+      if (
+        !this.isRecord(decision) ||
+        typeof decision.code !== "string" ||
+        !decision.code ||
+        typeof decision.message !== "string" ||
+        !decision.message
+      ) {
+        checks.push({ name: "video_render_strategy_decision_shape", status: "fail", fileName, message: `Strategy decision ${index} is invalid.` });
+      }
+    }
+    const releaseGateSummary = this.isRecord(value.releaseGateSummary) ? value.releaseGateSummary : undefined;
+    if (
+      !releaseGateSummary ||
+      typeof releaseGateSummary.canProceedToPlanning !== "boolean" ||
+      typeof releaseGateSummary.canProceedToRender !== "boolean" ||
+      releaseGateSummary.canUseAsNoSpendStrategyEvidence !== true ||
+      releaseGateSummary.canReleaseToCustomerTraffic !== false ||
+      typeof releaseGateSummary.releaseBlocker !== "string" ||
+      !releaseGateSummary.releaseBlocker
+    ) {
+      checks.push({ name: "video_render_strategy_release_gate", status: "fail", fileName, message: "video-render-strategy release gate summary is invalid." });
+    } else if (blockingIssueCount > 0 && releaseGateSummary.canProceedToRender !== false) {
+      checks.push({ name: "video_render_strategy_release_gate", status: "fail", fileName, message: "Blocking strategy issues must prevent render." });
     }
   }
 

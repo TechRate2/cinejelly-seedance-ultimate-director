@@ -29,18 +29,24 @@ import { MaterialSourcingPlanner } from "../core/material-sourcing-planner.js";
 import { MaterialSourceValidator } from "../core/material-source-validator.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS } from "../core/postproduction-engine.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
-import { RenderScheduler, type RenderScheduleItem, type RenderScheduleResult } from "../core/render-scheduler.js";
+import {
+  RenderScheduler,
+  type RenderScheduleItem,
+  type RenderScheduleResult,
+  type RenderScheduleSequentialReason
+} from "../core/render-scheduler.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
 import { StoryboardPlanner } from "../core/storyboard-planner.js";
+import { VideoRenderStrategyPlanner } from "../core/video-render-strategy-planner.js";
 import type {
   AtlasCloudRuntimeSettings,
   FlexibleSeedanceSettings,
   Resolution,
   SourceVideoAutoAnalysisSettings
 } from "../types/settings.js";
-import type { CineJellyProjectRequest, DirectorRunResult, RenderCandidate, RenderedShot } from "../types/agent.js";
+import type { CineJellyProjectRequest, DirectorRunResult, IntakeResult, RenderCandidate, RenderedShot } from "../types/agent.js";
 import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
 import type { LongFormAgentReviewPlan } from "../types/long-form-agent-review.js";
 import type {
@@ -54,6 +60,7 @@ import type { PostproductionSettings } from "../types/media.js";
 import type { PostproductionAssetPlan } from "../types/postproduction-assets.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type { AudioGenerationCapability, Prediction } from "../types/provider.js";
+import type { VideoRenderStrategyPlan } from "../types/video-render-strategy.js";
 import type { AudioProvider } from "../providers/contracts.js";
 import type {
   ProductionStageEvidenceValue,
@@ -78,6 +85,7 @@ export class DirectorAgent {
   private readonly storyArchitect: StoryArchitect;
   private readonly shotPlanner: ShotPlanner;
   private readonly storyboardPlanner: StoryboardPlanner;
+  private readonly videoRenderStrategyPlanner: VideoRenderStrategyPlanner;
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly longFormContinuityPlanner: LongFormContinuityPlanner;
   private readonly longFormAgentReviewPlanner: LongFormAgentReviewPlanner;
@@ -116,6 +124,7 @@ export class DirectorAgent {
     readonly intakeDirector?: IntakeDirector;
     readonly shotPlanner?: ShotPlanner;
     readonly storyboardPlanner?: StoryboardPlanner;
+    readonly videoRenderStrategyPlanner?: VideoRenderStrategyPlanner;
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly longFormContinuityPlanner?: LongFormContinuityPlanner;
     readonly longFormAgentReviewPlanner?: LongFormAgentReviewPlanner;
@@ -148,6 +157,7 @@ export class DirectorAgent {
     this.storyArchitect = input.storyArchitect;
     this.shotPlanner = input.shotPlanner ?? new ShotPlanner();
     this.storyboardPlanner = input.storyboardPlanner ?? new StoryboardPlanner();
+    this.videoRenderStrategyPlanner = input.videoRenderStrategyPlanner ?? new VideoRenderStrategyPlanner();
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.longFormContinuityPlanner = input.longFormContinuityPlanner ?? new LongFormContinuityPlanner();
     this.longFormAgentReviewPlanner = input.longFormAgentReviewPlanner ?? new LongFormAgentReviewPlanner();
@@ -216,9 +226,27 @@ export class DirectorAgent {
       });
       throw new Error(this.describeLongFormAgentReviewBlock(longFormAgentReview));
     }
+    const videoRenderStrategyPlan = this.videoRenderStrategyPlanner.build({
+      projectId: intake.projectId,
+      request: this.videoRenderStrategyRequest(preparedRequest, intake),
+      storyPlan,
+      shots
+    });
+    if (!videoRenderStrategyPlan.releaseGateSummary.canProceedToRender) {
+      this.reportStageProgress("plan", "blocked", "Video render strategy blocked provider spend.", {
+        workflowMode: videoRenderStrategyPlan.workflowMode,
+        continuityMode: videoRenderStrategyPlan.continuityMode,
+        strategyBlockingIssueCount: videoRenderStrategyPlan.blockingIssueCount
+      });
+      throw new Error(this.describeVideoRenderStrategyBlock(videoRenderStrategyPlan));
+    }
     this.reportStageProgress("plan", "succeeded", "Planning completed.", {
       sceneCount: storyPlan.scenes.length,
       shotCount: shots.length,
+      workflowMode: videoRenderStrategyPlan.workflowMode,
+      continuityMode: videoRenderStrategyPlan.continuityMode,
+      strategyRequiresSequentialRender: videoRenderStrategyPlan.requiresSequentialRender,
+      strategyRequiresStoryboardApproval: videoRenderStrategyPlan.requiresStoryboardApproval,
       longFormSequenceCount: longFormContinuityPlan.sequenceCount,
       highRiskSequenceCount: longFormContinuityPlan.highRiskSequenceCount,
       longFormAgentReviewStatus: longFormAgentReview.status,
@@ -353,6 +381,7 @@ export class DirectorAgent {
 
     const candidateCount = candidateCountForQuality(intake.settings.qualityMode);
     const repairAttemptCount = repairAttemptCountForQuality(intake.settings.qualityMode);
+    const strategySequentialReasons = this.strategySequentialReasons(videoRenderStrategyPlan);
     const renderScheduleItems: readonly RenderScheduleItem<{
       readonly compiledPrompt: CompiledPrompt;
       readonly preflight: GuardianReport;
@@ -369,6 +398,7 @@ export class DirectorAgent {
       return {
         index: promptIndex,
         shot,
+        ...(strategySequentialReasons.length > 0 ? { forceSequentialReasons: strategySequentialReasons } : {}),
         value: {
           compiledPrompt,
           preflight,
@@ -545,6 +575,7 @@ export class DirectorAgent {
       compiledPrompts,
       renderedShots,
       deliverablePresent: Boolean(deliverable),
+      videoRenderStrategyPlan,
       ...(deliveryGate ? { deliveryGate } : {}),
       productionGraph: finalProductionGraph
     });
@@ -557,6 +588,7 @@ export class DirectorAgent {
       productionGraph: finalProductionGraph,
       longFormContinuityPlan,
       longFormAgentReview,
+      videoRenderStrategyPlan,
       longFormTimelinePlan,
       materialSourcingPlan,
       materialSourceValidation,
@@ -571,6 +603,46 @@ export class DirectorAgent {
       ...(deliveryGate ? { deliveryGate } : {}),
       ...(semanticVisualInspection ? { semanticVisualInspection } : {})
     };
+  }
+
+  private videoRenderStrategyRequest(request: CineJellyProjectRequest, intake: IntakeResult): CineJellyProjectRequest {
+    return {
+      userInput: request.userInput,
+      settings: intake.settings,
+      references: intake.references,
+      ...(intake.modelPreferences ? { modelPreferences: intake.modelPreferences } : {}),
+      ...(intake.metadata ? { metadata: intake.metadata } : {}),
+      ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: intake.sourceVideoAnalysis } : {})
+    };
+  }
+
+  private strategySequentialReasons(plan: VideoRenderStrategyPlan): readonly RenderScheduleSequentialReason[] {
+    if (!plan.requiresSequentialRender) {
+      return [];
+    }
+    const reasons: RenderScheduleSequentialReason[] = [];
+    if (plan.workflowMode === "reference_locked_multishot") {
+      reasons.push("strategy_reference_lock");
+    }
+    if (plan.workflowMode === "source_video_guided") {
+      reasons.push("strategy_source_video");
+    }
+    if (plan.workflowMode === "manual_storyboard") {
+      reasons.push("strategy_manual_storyboard");
+    }
+    if (plan.lastFrameChaining.status === "required" || plan.lastFrameChaining.status === "recommended") {
+      reasons.push("strategy_last_frame_chaining");
+    }
+    return [...new Set(reasons)].sort();
+  }
+
+  private describeVideoRenderStrategyBlock(plan: VideoRenderStrategyPlan): string {
+    const details = plan.issues
+      .filter((issue) => issue.severity === "block")
+      .slice(0, 5)
+      .map((issue) => `${issue.code} - ${issue.repair}`)
+      .join("; ");
+    return details || "Video render strategy blocked provider spend.";
   }
 
   private describeLongFormAgentReviewBlock(review: LongFormAgentReviewPlan): string {

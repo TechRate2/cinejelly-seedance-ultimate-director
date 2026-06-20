@@ -26,6 +26,7 @@ import type { GeneratedAudioOutputValidationBatchReport } from "./generated-audi
 import type { LongFormAgentReviewPlan } from "./long-form-agent-review.js";
 import type { LongFormContinuityPlan } from "./long-form-continuity.js";
 import type { LongFormTimelinePlan } from "./long-form-timeline.js";
+import type { VideoRenderStrategyPlan } from "./video-render-strategy.js";
 import type { RenderSchedulePlan } from "../core/render-scheduler.js";
 
 export interface CineJellyProjectRequest {
@@ -92,6 +93,7 @@ export interface DirectorRunResult {
   readonly productionGraph: ProductionGraphSnapshot;
   readonly longFormContinuityPlan: LongFormContinuityPlan;
   readonly longFormAgentReview: LongFormAgentReviewPlan;
+  readonly videoRenderStrategyPlan: VideoRenderStrategyPlan;
   readonly longFormTimelinePlan: LongFormTimelinePlan;
   readonly materialSourcingPlan: MaterialSourcingPlan;
   readonly materialSourceValidation: MaterialSourceValidationReport;
