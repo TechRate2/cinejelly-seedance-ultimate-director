@@ -9,6 +9,7 @@ export type ProjectArtifactKind =
   | "source_video_analysis"
   | "storyboard"
   | "storyboard_preflight"
+  | "storyboard_approval"
   | "production_graph"
   | "long_form_continuity"
   | "long_form_agent_review"

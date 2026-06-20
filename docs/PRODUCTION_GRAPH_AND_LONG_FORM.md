@@ -130,13 +130,19 @@ Rules:
 - Prompt-only multishot is allowed for operator validation but is marked as continuity risk and requires last-frame chaining evidence.
 - Source-video guided workflows require source-video analysis or source-video structure references before paid render.
 - Strategy evidence is no-spend/no-network/no-provider and stores reference roles/counts/labels, not raw provider URLs.
+- Storyboard-required workflows now pass through `StoryboardApprovalGate` after storyboard preflight and before model selection, cost estimation, prompt preflight, or provider calls.
+- Direct runtime callers may approve via metadata: `storyboardApproval=approved`, `storyboardReviewer`, and `storyboardReviewedAt`.
+- Async `/v1/render-jobs` callers may approve through formal `reviewApprovalCheckpoints`; approved pre-render review is bridged into internal storyboard approval metadata before DirectorAgent starts.
+- Approved multishot/source/manual runs emit `storyboard-approval.json`, run-summary fields, review-packet planning fields, and stage lifecycle evidence.
 - When last-frame chaining is required or recommended, DirectorAgent renders sequentially, selects the previous shot's image sidecar, recompiles the next shot with a `first_frame` reference, and stores only chain metadata/digests in public smoke evidence.
 
 Validation:
 
 - `npm run validation:video-render-strategy`
+- `npm run validation:storyboard-approval-gate`
 - `npm run validation:last-frame-chaining`
 - `ProjectArtifactValidator` treats `video_render_strategy` as a required success artifact for new runs.
+- `ProjectArtifactValidator` requires `storyboard_approval` for successful storyboard-required runs and verifies it is approved before accepting render evidence.
 
 ### MaterialLibrary
 

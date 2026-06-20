@@ -103,6 +103,10 @@ export class ProjectArtifactStore {
       sourceVideoTranscriptCueCount: sourceVideoAnalysis?.transcript?.length ?? 0,
       storyboardPanelCount: result.storyboard.panels.length,
       storyboardPreflightStatus: result.storyboardPreflight.status,
+      hasStoryboardApprovalReport: Boolean(result.storyboardApprovalReport),
+      storyboardApprovalStatus: result.storyboardApprovalReport?.status,
+      storyboardApprovalCheckpointCount: result.storyboardApprovalReport?.summary.checkpointCount,
+      storyboardApprovalCanRender: result.storyboardApprovalReport?.releaseGateSummary.canRenderAfterReview,
       longFormSequenceCount: result.longFormContinuityPlan.sequenceCount,
       longFormContinuityBridgeCount: result.longFormContinuityPlan.bridgeCount,
       longFormHighRiskSequenceCount: result.longFormContinuityPlan.highRiskSequenceCount,
@@ -198,6 +202,9 @@ export class ProjectArtifactStore {
 
     if (sourceVideoAnalysis) {
       payloads.push({ kind: "source_video_analysis", fileName: "source-video-analysis.json", value: sourceVideoAnalysis });
+    }
+    if (result.storyboardApprovalReport) {
+      payloads.push({ kind: "storyboard_approval", fileName: "storyboard-approval.json", value: result.storyboardApprovalReport });
     }
     if (result.generatedAudioOutputBatchValidation) {
       payloads.push({

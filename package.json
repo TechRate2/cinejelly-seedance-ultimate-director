@@ -49,6 +49,7 @@
     "validation:long-form-continuity": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-long-form-continuity-smoke.mjs",
     "validation:long-form-agent-review": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-long-form-agent-review-smoke.mjs",
     "validation:video-render-strategy": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-video-render-strategy-smoke.mjs",
+    "validation:storyboard-approval-gate": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-storyboard-approval-gate-smoke.mjs",
     "validation:last-frame-chaining": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-last-frame-chaining-smoke.mjs",
     "validation:long-form-timeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-long-form-timeline-smoke.mjs",
     "validation:long-form-review-draft": "node scripts/create-long-form-manual-quality-review-draft.mjs",

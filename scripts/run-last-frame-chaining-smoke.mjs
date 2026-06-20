@@ -32,7 +32,10 @@ const result = await director.run({
     returnLastFrame: true
   },
   metadata: {
-    workflowMode: "auto"
+    workflowMode: "auto",
+    storyboardApproval: "approved",
+    storyboardReviewer: "Long smoke reviewer",
+    storyboardReviewedAt: "2026-06-20T00:00:00.000Z"
   }
 });
 
@@ -65,6 +68,10 @@ const checks = [
     result.videoRenderStrategyPlan.requiresSequentialRender === true
     ? pass("strategy_requires_chaining", "Auto multishot without references requires last-frame chaining and sequential render.")
     : fail("strategy_requires_chaining", "Strategy did not require last-frame chaining for prompt-only multishot."),
+  result.storyboardApprovalReport?.status === "approved" &&
+    result.storyboardApprovalReport.releaseGateSummary.canRenderAfterReview === true
+    ? pass("storyboard_approval_allows_render", "Approved storyboard evidence allows fake provider spend.")
+    : fail("storyboard_approval_allows_render", "Storyboard approval evidence did not allow render."),
   provider.requests.length === 3
     ? pass("provider_request_count", "Fake provider received one render request per planned shot.")
     : fail("provider_request_count", `Expected 3 provider requests, saw ${provider.requests.length}.`),
@@ -105,6 +112,7 @@ const report = {
     outputPath: "assets/output_deliverables/business-readiness/last-frame-chaining-smoke-report.json",
     targetDurationSeconds: 30,
     plannedShotCount: result.storyboard.panels.length,
+    storyboardApprovalStatus: result.storyboardApprovalReport?.status,
     rawUrlLeakCheckPassed: !rawUrlLeakDetected
   },
   strategy: {

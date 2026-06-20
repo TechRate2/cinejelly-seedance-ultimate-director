@@ -13,6 +13,7 @@ import type { MaterialSourceValidationStatus } from "./material.js";
 import type { PostproductionAssetStatus, PostproductionGeneratedAudioStatus } from "./postproduction-assets.js";
 import type { GeneratedAudioOutputBatchValidationStatus } from "./generated-audio-output.js";
 import type { LongFormAgentReviewStatus } from "./long-form-agent-review.js";
+import type { ReviewApprovalStatus } from "./review-approval.js";
 import type {
   VideoRenderContinuityMode,
   VideoRenderRequestedMode,
@@ -79,6 +80,10 @@ export interface ReviewPacketPlanning {
   readonly longFormTimelineBlockingIssueCount: number;
   readonly storyboardPanelCount: number;
   readonly storyboardPreflightStatus: GuardianStatus;
+  readonly hasStoryboardApprovalReport: boolean;
+  readonly storyboardApprovalStatus?: ReviewApprovalStatus;
+  readonly storyboardApprovalCheckpointCount?: number;
+  readonly storyboardApprovalCanRender?: boolean;
   readonly productionGraphNodeCount: number;
   readonly productionGraphEdgeCount: number;
   readonly compiledPromptCount: number;

@@ -87,6 +87,8 @@ const GENERATED_AUDIO_OUTPUT_BATCH_STATUSES = new Set([
 ]);
 const GENERATED_AUDIO_OUTPUT_VALIDATION_STATUSES = new Set(["approved", "review_required", "rejected"]);
 const GENERATED_AUDIO_OUTPUT_ISSUE_SEVERITIES = new Set(["info", "warn", "block"]);
+const REVIEW_APPROVAL_STATUSES = new Set(["approved", "approval_required", "changes_requested", "rejected", "blocked"]);
+const REVIEW_APPROVAL_GATES = new Set(["pre_render", "pre_export"]);
 const LONG_FORM_AGENT_REVIEW_STATUSES = new Set(["ready", "review_required", "blocked"]);
 const LONG_FORM_AGENT_REVIEW_ROLES = new Set([
   "script_architect",
@@ -423,11 +425,13 @@ export class ProjectArtifactValidator {
     this.validateLongFormContinuity(manifest, artifacts.get("long_form_continuity"), checks);
     this.validateLongFormAgentReview(manifest, artifacts.get("long_form_agent_review"), checks);
     this.validateVideoRenderStrategy(manifest, artifacts.get("video_render_strategy"), checks);
+    this.validateStoryboardApproval(manifest, artifacts.get("storyboard_approval"), checks);
     this.validateLongFormTimeline(manifest, artifacts.get("long_form_timeline"), checks);
     this.validateRenderSchedule(artifacts.get("render_schedule"), checks);
     this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
     this.validatePostproductionAssetConsistency(artifacts, checks);
     this.validateGeneratedAudioOutputBatchConsistency(artifacts, checks);
+    this.validateStoryboardApprovalConsistency(artifacts, checks);
     this.validateCostLedger(artifacts.get("cost_ledger"), artifacts.has("failure_report"), checks);
     this.validateProductionGraph(artifacts.get("production_graph"), artifacts, checks);
     this.validateDeliverable(artifacts.get("deliverable"), checks);
@@ -517,6 +521,19 @@ export class ProjectArtifactValidator {
       typeof planning.videoRenderStrategyBlockingIssueCount !== "number"
     ) {
       checks.push({ name: "review_packet_video_render_strategy", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing video render strategy evidence." });
+    }
+    if (!planning || typeof planning.hasStoryboardApprovalReport !== "boolean") {
+      checks.push({ name: "review_packet_storyboard_approval", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning must declare storyboard approval evidence." });
+    } else if (
+      planning.hasStoryboardApprovalReport &&
+      (
+        typeof planning.storyboardApprovalStatus !== "string" ||
+        !REVIEW_APPROVAL_STATUSES.has(planning.storyboardApprovalStatus) ||
+        typeof planning.storyboardApprovalCheckpointCount !== "number" ||
+        typeof planning.storyboardApprovalCanRender !== "boolean"
+      )
+    ) {
+      checks.push({ name: "review_packet_storyboard_approval", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning storyboard approval fields are invalid." });
     }
   }
 
@@ -1340,6 +1357,64 @@ export class ProjectArtifactValidator {
     }
   }
 
+  private validateStoryboardApproval(
+    manifest: ProjectArtifactBundle,
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    const fileName = artifact.entry.fileName;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "storyboard_approval_shape", status: "fail", fileName, message: "storyboard-approval must be an object." });
+      return;
+    }
+    if (value.schemaVersion !== "cinejelly.review-approval.v1") {
+      checks.push({ name: "storyboard_approval_schema", status: "fail", fileName, message: "Unexpected storyboard approval schema version." });
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "storyboard_approval_project", status: "fail", fileName, message: "storyboard approval projectId does not match manifest." });
+    }
+    if (value.gate !== "pre_render" || !REVIEW_APPROVAL_GATES.has(String(value.gate))) {
+      checks.push({ name: "storyboard_approval_gate", status: "fail", fileName, message: "storyboard approval must be a pre_render gate." });
+    }
+    if (typeof value.status !== "string" || !REVIEW_APPROVAL_STATUSES.has(value.status)) {
+      checks.push({ name: "storyboard_approval_status", status: "fail", fileName, message: "storyboard approval status is invalid." });
+    }
+    if (!Array.isArray(value.checkpoints)) {
+      checks.push({ name: "storyboard_approval_checkpoints", status: "fail", fileName, message: "storyboard approval checkpoints must be an array." });
+      return;
+    }
+    const summary = this.isRecord(value.summary) ? value.summary : undefined;
+    if (
+      !summary ||
+      typeof summary.checkpointCount !== "number" ||
+      typeof summary.requiredCheckpointCount !== "number" ||
+      typeof summary.approvedRequiredCount !== "number" ||
+      typeof summary.issueCount !== "number"
+    ) {
+      checks.push({ name: "storyboard_approval_summary", status: "fail", fileName, message: "storyboard approval summary is invalid." });
+    } else if (summary.checkpointCount !== value.checkpoints.length) {
+      checks.push({ name: "storyboard_approval_summary_count", status: "fail", fileName, message: "storyboard approval checkpointCount must match checkpoints length." });
+    }
+    const releaseGateSummary = this.isRecord(value.releaseGateSummary) ? value.releaseGateSummary : undefined;
+    if (
+      !releaseGateSummary ||
+      typeof releaseGateSummary.canRenderAfterReview !== "boolean" ||
+      releaseGateSummary.canReleaseToCustomerTraffic !== false ||
+      typeof releaseGateSummary.releaseBlocker !== "string" ||
+      !releaseGateSummary.releaseBlocker
+    ) {
+      checks.push({ name: "storyboard_approval_release_gate", status: "fail", fileName, message: "storyboard approval release gate summary is invalid." });
+    } else if (value.status === "approved" && releaseGateSummary.canRenderAfterReview !== true) {
+      checks.push({ name: "storyboard_approval_release_gate", status: "fail", fileName, message: "Approved storyboard approval must allow pre-render continuation." });
+    } else if (value.status !== "approved" && releaseGateSummary.canRenderAfterReview !== false) {
+      checks.push({ name: "storyboard_approval_release_gate", status: "fail", fileName, message: "Unapproved storyboard approval must not allow render." });
+    }
+  }
+
   private validateLongFormTimeline(
     manifest: ProjectArtifactBundle,
     artifact: LoadedArtifact | undefined,
@@ -1997,6 +2072,127 @@ export class ProjectArtifactValidator {
         expected.issueCount,
         checks
       );
+    }
+  }
+
+  private validateStoryboardApprovalConsistency(
+    artifacts: ReadonlyMap<ProjectArtifactKind, LoadedArtifact>,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    const approvalArtifact = artifacts.get("storyboard_approval");
+    const strategyArtifact = artifacts.get("video_render_strategy");
+    const runSummaryArtifact = artifacts.get("run_summary");
+    const reviewPacketArtifact = artifacts.get("review_packet");
+    const strategy = strategyArtifact && this.isRecord(strategyArtifact.value) ? strategyArtifact.value : undefined;
+    const runSummary = runSummaryArtifact && this.isRecord(runSummaryArtifact.value) ? runSummaryArtifact.value : undefined;
+    const reviewPlanning = reviewPacketArtifact &&
+      this.isRecord(reviewPacketArtifact.value) &&
+      this.isRecord(reviewPacketArtifact.value.planning)
+        ? reviewPacketArtifact.value.planning
+        : undefined;
+
+    if (strategy?.storyboardRequired === true && !approvalArtifact) {
+      checks.push({
+        name: "storyboard_approval_consistency",
+        status: "fail",
+        fileName: strategyArtifact?.entry.fileName ?? "video-render-strategy.json",
+        message: "Storyboard-required workflow must include storyboard-approval.json before render evidence is accepted."
+      });
+      return;
+    }
+    if (runSummary?.hasStoryboardApprovalReport === true && !approvalArtifact) {
+      checks.push({
+        name: "storyboard_approval_consistency",
+        status: "fail",
+        fileName: runSummaryArtifact?.entry.fileName ?? "run-summary.json",
+        message: "run-summary says storyboard approval exists, but the artifact is missing."
+      });
+    }
+    if (reviewPlanning?.hasStoryboardApprovalReport === true && !approvalArtifact) {
+      checks.push({
+        name: "storyboard_approval_consistency",
+        status: "fail",
+        fileName: reviewPacketArtifact?.entry.fileName ?? "review-packet.json",
+        message: "review-packet says storyboard approval exists, but the artifact is missing."
+      });
+    }
+    if (!approvalArtifact || !this.isRecord(approvalArtifact.value)) {
+      return;
+    }
+    const approval = approvalArtifact.value;
+    if (strategy?.storyboardRequired === true && approval.status !== "approved") {
+      checks.push({
+        name: "storyboard_approval_consistency",
+        status: "fail",
+        fileName: approvalArtifact.entry.fileName,
+        message: "Rendered storyboard-required workflow must have approved storyboard approval evidence."
+      });
+    }
+    if (runSummary) {
+      if (runSummary.hasStoryboardApprovalReport !== true) {
+        checks.push({
+          name: "storyboard_approval_consistency",
+          status: "fail",
+          fileName: runSummaryArtifact?.entry.fileName ?? approvalArtifact.entry.fileName,
+          message: "run-summary must mark hasStoryboardApprovalReport true when the artifact exists."
+        });
+      }
+      this.compareStoryboardApprovalField(
+        runSummaryArtifact?.entry.fileName ?? approvalArtifact.entry.fileName,
+        "storyboardApprovalStatus",
+        runSummary.storyboardApprovalStatus,
+        approval.status,
+        approvalArtifact.entry.fileName,
+        checks
+      );
+      const summary = this.isRecord(approval.summary) ? approval.summary : undefined;
+      this.compareStoryboardApprovalField(
+        runSummaryArtifact?.entry.fileName ?? approvalArtifact.entry.fileName,
+        "storyboardApprovalCheckpointCount",
+        runSummary.storyboardApprovalCheckpointCount,
+        summary?.checkpointCount,
+        approvalArtifact.entry.fileName,
+        checks
+      );
+    }
+    if (reviewPlanning) {
+      if (reviewPlanning.hasStoryboardApprovalReport !== true) {
+        checks.push({
+          name: "storyboard_approval_consistency",
+          status: "fail",
+          fileName: reviewPacketArtifact?.entry.fileName ?? approvalArtifact.entry.fileName,
+          message: "review-packet must mark hasStoryboardApprovalReport true when the artifact exists."
+        });
+      }
+      this.compareStoryboardApprovalField(
+        reviewPacketArtifact?.entry.fileName ?? approvalArtifact.entry.fileName,
+        "planning.storyboardApprovalStatus",
+        reviewPlanning.storyboardApprovalStatus,
+        approval.status,
+        approvalArtifact.entry.fileName,
+        checks
+      );
+    }
+  }
+
+  private compareStoryboardApprovalField(
+    fileName: string,
+    fieldPath: string,
+    actual: unknown,
+    expected: unknown,
+    expectedSource: string,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (expected === undefined) {
+      return;
+    }
+    if (actual !== expected) {
+      checks.push({
+        name: "storyboard_approval_consistency",
+        status: "fail",
+        fileName,
+        message: `${fieldPath} does not match ${expectedSource}.`
+      });
     }
   }
 

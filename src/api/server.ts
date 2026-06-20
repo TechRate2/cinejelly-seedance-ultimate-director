@@ -23,6 +23,7 @@ import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
+import { ReviewApprovalSystem } from "../core/review-approval-system.js";
 import {
   mergeProductUrlSnapshots,
   ProductUrlResearcher,
@@ -43,6 +44,7 @@ import type {
   ReviewApprovalDecision,
   ReviewApprovalEvidenceValue,
   ReviewApprovalGate,
+  ReviewApprovalReport,
   ReviewApprovalSurface
 } from "../types/review-approval.js";
 import type {
@@ -255,6 +257,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const shortPipelinePlanner = new ShortPipelinePlanner();
   const shortPipelineConversationEngine = new ShortPipelineConversationEngine({ planner: shortPipelinePlanner });
   const productUrlResearcher = new ProductUrlResearcher();
+  const reviewApprovalSystem = new ReviewApprovalSystem();
   const shortPipelineSessionStore = shortPipelineSessionStoreConfig(process.env);
   const requestAdmission = renderRequestAdmissionFromEnv(process.env);
   const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
@@ -759,11 +762,27 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         assertJsonContentType(request);
         const body = await readJsonBody<RenderRequestBody>(request, maxBodyBytes);
         const renderBody = renderRequestBody(body);
+        const reviewApproval = renderJobReviewInputFromRenderBody(body);
         requestAdmission.assertAcceptable(renderBody);
-        const normalizedRequest = normalizeRenderRequest(renderBody, {
+        let normalizedRequest = normalizeRenderRequest(renderBody, {
           requestId: requestContext.requestId,
           env: process.env
         });
+        const preRenderReviewApproval = evaluatePreRenderReviewApproval(
+          reviewApprovalSystem,
+          requestContext.requestId,
+          normalizedRequest,
+          reviewApproval
+        );
+        if (preRenderReviewApproval && !preRenderReviewApproval.releaseGateSummary.canRenderAfterReview) {
+          sendJson(response, 409, {
+            status: statusForSyncPreRenderReview(preRenderReviewApproval),
+            reviewApproval: preRenderReviewApproval,
+            message: preRenderReviewApproval.lifecycle.message
+          }, requestContext);
+          return;
+        }
+        normalizedRequest = requestWithPreRenderApprovalMetadata(normalizedRequest, preRenderReviewApproval);
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         const commercialReservation = reserveCommercialRender({
           clientPolicyGate,
@@ -1374,6 +1393,79 @@ function renderJobReviewInputFromRenderBody(body: RenderRequestBody): RenderJobR
     gate: body.reviewApprovalGate,
     checkpoints: body.reviewApprovalCheckpoints
   });
+}
+
+function evaluatePreRenderReviewApproval(
+  system: ReviewApprovalSystem,
+  requestId: string,
+  request: CineJellyProjectRequest,
+  reviewApproval: RenderJobReviewInput | undefined
+): ReviewApprovalReport | undefined {
+  if (!reviewApproval || reviewApproval.gate === "pre_export") {
+    return undefined;
+  }
+  return system.evaluate({
+    projectId: request.metadata?.projectId ?? requestId,
+    ...(request.metadata?.requestId ? { requestId: request.metadata.requestId } : {}),
+    gate: reviewApproval.gate ?? "pre_render",
+    checkpoints: reviewApproval.checkpoints,
+    generatedAt: new Date()
+  });
+}
+
+function statusForSyncPreRenderReview(reviewApproval: ReviewApprovalReport): string {
+  switch (reviewApproval.status) {
+    case "approval_required":
+      return "paused_for_review";
+    case "changes_requested":
+      return "paused_for_revision";
+    case "rejected":
+      return "rejected";
+    case "blocked":
+      return "blocked";
+    case "approved":
+      return "approved_for_render";
+  }
+}
+
+function requestWithPreRenderApprovalMetadata(
+  request: CineJellyProjectRequest,
+  reviewApproval: ReviewApprovalReport | undefined
+): CineJellyProjectRequest {
+  if (!reviewApproval || reviewApproval.gate !== "pre_render" || reviewApproval.status !== "approved") {
+    return request;
+  }
+  return {
+    ...request,
+    metadata: {
+      ...(request.metadata ?? {}),
+      storyboardApproval: "approved",
+      storyboardReviewer: approvalReviewerSummary(reviewApproval),
+      storyboardReviewedAt: approvalReviewedAt(reviewApproval).toISOString(),
+      storyboardApprovalId: reviewApproval.approvalId,
+      storyboardApprovalSource: "sync_render_pre_render_review"
+    }
+  };
+}
+
+function approvalReviewerSummary(reviewApproval: ReviewApprovalReport): string {
+  const reviewers = [
+    ...new Set(
+      reviewApproval.checkpoints
+        .map((checkpoint) => checkpoint.reviewer)
+        .filter((reviewer): reviewer is string => Boolean(reviewer))
+    )
+  ].sort((left, right) => left.localeCompare(right));
+  return reviewers.slice(0, 3).join(", ") || "Commercial reviewer";
+}
+
+function approvalReviewedAt(reviewApproval: ReviewApprovalReport): Date {
+  return reviewApproval.checkpoints.reduce((latest, checkpoint) => {
+    if (!checkpoint.reviewedAt || checkpoint.reviewedAt.getTime() <= latest.getTime()) {
+      return latest;
+    }
+    return checkpoint.reviewedAt;
+  }, reviewApproval.generatedAt);
 }
 
 function preExportReviewInputFromRenderBody(body: RenderRequestBody): RenderJobReviewInput | undefined {

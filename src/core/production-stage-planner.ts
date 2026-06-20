@@ -11,6 +11,7 @@ import type { GuardianReport, GuardianStatus } from "../types/guardian.js";
 import type { MaterialSourceValidationReport, MaterialSourcingPlan } from "../types/material.js";
 import type { PostproductionAssetPlan } from "../types/postproduction-assets.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
+import type { ReviewApprovalReport } from "../types/review-approval.js";
 import type {
   ProductionStageEvidenceValue,
   ProductionStageName,
@@ -29,6 +30,7 @@ export interface ProductionStagePlannerInput {
   readonly shots: readonly ShotContract[];
   readonly storyboard: Storyboard;
   readonly storyboardPreflight: GuardianReport;
+  readonly storyboardApprovalReport?: ReviewApprovalReport;
   readonly materialSourcingPlan: MaterialSourcingPlan;
   readonly materialSourceValidation?: MaterialSourceValidationReport;
   readonly postproductionAssetPlan: PostproductionAssetPlan;
@@ -58,7 +60,11 @@ export class ProductionStagePlanner {
         }),
         this.record(input, "storyboard", 1, this.guardianStageStatus(input.storyboardPreflight.status), {
           storyboardPanelCount: input.storyboard.panels.length,
-          storyboardPreflightStatus: input.storyboardPreflight.status
+          storyboardPreflightStatus: input.storyboardPreflight.status,
+          storyboardApprovalStatus: input.storyboardApprovalReport?.status ?? "not_required",
+          storyboardApprovalCheckpointCount: input.storyboardApprovalReport?.summary.checkpointCount ?? 0,
+          storyboardApprovalCanRender: input.storyboardApprovalReport?.releaseGateSummary.canRenderAfterReview ??
+            !(input.videoRenderStrategyPlan?.storyboardRequired ?? false)
         }),
         this.record(input, "prompt", 2, input.compiledPrompts.length > 0 ? "succeeded" : "failed", {
           compiledPromptCount: input.compiledPrompts.length

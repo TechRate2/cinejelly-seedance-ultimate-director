@@ -26,6 +26,7 @@ import type { GeneratedAudioOutputValidationBatchReport } from "./generated-audi
 import type { LongFormAgentReviewPlan } from "./long-form-agent-review.js";
 import type { LongFormContinuityPlan } from "./long-form-continuity.js";
 import type { LongFormTimelinePlan } from "./long-form-timeline.js";
+import type { ReviewApprovalReport } from "./review-approval.js";
 import type { VideoRenderStrategyPlan } from "./video-render-strategy.js";
 import type { RenderSchedulePlan } from "../core/render-scheduler.js";
 
@@ -90,6 +91,7 @@ export interface DirectorRunResult {
   readonly storyPlan: StoryPlan;
   readonly storyboard: Storyboard;
   readonly storyboardPreflight: GuardianReport;
+  readonly storyboardApprovalReport?: ReviewApprovalReport;
   readonly productionGraph: ProductionGraphSnapshot;
   readonly longFormContinuityPlan: LongFormContinuityPlan;
   readonly longFormAgentReview: LongFormAgentReviewPlan;

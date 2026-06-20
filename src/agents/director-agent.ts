@@ -38,6 +38,7 @@ import {
 } from "../core/render-scheduler.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
 import { ShotPlanner } from "../core/shot-planner.js";
+import { StoryboardApprovalGate } from "../core/storyboard-approval-gate.js";
 import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
 import { StoryboardPlanner } from "../core/storyboard-planner.js";
 import { VideoRenderStrategyPlanner } from "../core/video-render-strategy-planner.js";
@@ -61,6 +62,7 @@ import type { PostproductionSettings } from "../types/media.js";
 import type { PostproductionAssetPlan } from "../types/postproduction-assets.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type { AudioGenerationCapability, Prediction } from "../types/provider.js";
+import type { ReviewApprovalReport } from "../types/review-approval.js";
 import type { VideoRenderStrategyPlan } from "../types/video-render-strategy.js";
 import type { AudioProvider } from "../providers/contracts.js";
 import type {
@@ -86,6 +88,7 @@ export class DirectorAgent {
   private readonly storyArchitect: StoryArchitect;
   private readonly shotPlanner: ShotPlanner;
   private readonly storyboardPlanner: StoryboardPlanner;
+  private readonly storyboardApprovalGate: StoryboardApprovalGate;
   private readonly videoRenderStrategyPlanner: VideoRenderStrategyPlanner;
   private readonly continuityLedgerBuilder: ContinuityLedgerBuilder;
   private readonly longFormContinuityPlanner: LongFormContinuityPlanner;
@@ -125,6 +128,7 @@ export class DirectorAgent {
     readonly intakeDirector?: IntakeDirector;
     readonly shotPlanner?: ShotPlanner;
     readonly storyboardPlanner?: StoryboardPlanner;
+    readonly storyboardApprovalGate?: StoryboardApprovalGate;
     readonly videoRenderStrategyPlanner?: VideoRenderStrategyPlanner;
     readonly continuityLedgerBuilder?: ContinuityLedgerBuilder;
     readonly longFormContinuityPlanner?: LongFormContinuityPlanner;
@@ -158,6 +162,7 @@ export class DirectorAgent {
     this.storyArchitect = input.storyArchitect;
     this.shotPlanner = input.shotPlanner ?? new ShotPlanner();
     this.storyboardPlanner = input.storyboardPlanner ?? new StoryboardPlanner();
+    this.storyboardApprovalGate = input.storyboardApprovalGate ?? new StoryboardApprovalGate();
     this.videoRenderStrategyPlanner = input.videoRenderStrategyPlanner ?? new VideoRenderStrategyPlanner();
     this.continuityLedgerBuilder = input.continuityLedgerBuilder ?? new ContinuityLedgerBuilder();
     this.longFormContinuityPlanner = input.longFormContinuityPlanner ?? new LongFormContinuityPlanner();
@@ -278,6 +283,30 @@ export class DirectorAgent {
     );
     if (storyboardPreflight.status === "block" || storyboardPreflight.status === "repair") {
       throw new Error(this.describeStoryboardBlock(storyboardPreflight));
+    }
+    const storyboardApprovalReport = this.storyboardApprovalGate.evaluate({
+      projectId: intake.projectId,
+      request: this.videoRenderStrategyRequest(preparedRequest, intake),
+      storyboard,
+      strategy: videoRenderStrategyPlan
+    });
+    if (storyboardApprovalReport) {
+      const approvalEvidence = this.storyboardApprovalEvidence(storyboardApprovalReport);
+      if (!storyboardApprovalReport.releaseGateSummary.canRenderAfterReview) {
+        this.reportStageProgress(
+          "storyboard",
+          "blocked",
+          "Storyboard approval gate blocked provider spend.",
+          approvalEvidence
+        );
+        throw new Error(this.describeStoryboardApprovalBlock(storyboardApprovalReport));
+      }
+      this.reportStageProgress(
+        "storyboard",
+        "succeeded",
+        "Storyboard approval gate passed before provider spend.",
+        approvalEvidence
+      );
     }
     const modelId = resolveSeedanceModelId(intake.settings, this.atlasSettings, intake.modelPreferences);
     const providerSupportedReferenceKinds = this.renderProducer.supportedReferenceKinds(modelId);
@@ -583,6 +612,7 @@ export class DirectorAgent {
       shots,
       storyboard,
       storyboardPreflight,
+      ...(storyboardApprovalReport ? { storyboardApprovalReport } : {}),
       materialSourcingPlan,
       materialSourceValidation,
       postproductionAssetPlan,
@@ -599,6 +629,7 @@ export class DirectorAgent {
       storyPlan,
       storyboard,
       storyboardPreflight,
+      ...(storyboardApprovalReport ? { storyboardApprovalReport } : {}),
       productionGraph: finalProductionGraph,
       longFormContinuityPlan,
       longFormAgentReview,
@@ -657,6 +688,26 @@ export class DirectorAgent {
       .map((issue) => `${issue.code} - ${issue.repair}`)
       .join("; ");
     return details || "Video render strategy blocked provider spend.";
+  }
+
+  private storyboardApprovalEvidence(report: ReviewApprovalReport): Record<string, ProductionStageEvidenceValue> {
+    return {
+      storyboardApprovalStatus: report.status,
+      storyboardApprovalCheckpointCount: report.summary.checkpointCount,
+      storyboardApprovalApprovedRequiredCount: report.summary.approvedRequiredCount,
+      storyboardApprovalPendingRequiredCount: report.summary.pendingRequiredCount,
+      storyboardApprovalIssueCount: report.summary.issueCount,
+      storyboardApprovalCanRender: report.releaseGateSummary.canRenderAfterReview
+    };
+  }
+
+  private describeStoryboardApprovalBlock(report: ReviewApprovalReport): string {
+    const unresolved = report.checkpoints
+      .filter((checkpoint) => checkpoint.required && checkpoint.decision !== "approved")
+      .slice(0, 5)
+      .map((checkpoint) => `${checkpoint.subjectId ?? checkpoint.checkpointId}: ${checkpoint.decision}`)
+      .join("; ");
+    return `Storyboard approval gate blocked provider spend. Status=${report.status}. ${unresolved}`;
   }
 
   private prepareChainedRenderItem<TValue>(input: {

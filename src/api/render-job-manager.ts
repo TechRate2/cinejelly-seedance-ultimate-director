@@ -280,22 +280,23 @@ export class RenderJobManager {
     );
     const preRenderReviewApproval = this.evaluateReviewApproval(jobId, input.request, preRenderReviewInput, now);
     const initialStatus = this.initialStatusForReviewApproval(preRenderReviewApproval);
+    const recordRequest = this.requestWithPreRenderApprovalMetadata(input.request, preRenderReviewApproval);
     if (initialStatus === "queued") {
       this.assertQueueCapacity();
     }
     const record: RenderJobRecord = {
       jobId,
       ...(input.clientId ? { clientId: input.clientId } : {}),
-      ...(input.request.metadata?.requestId ? { requestId: input.request.metadata.requestId } : {}),
+      ...(recordRequest.metadata?.requestId ? { requestId: recordRequest.metadata.requestId } : {}),
       status: initialStatus,
       retentionSource: "memory",
       detailRetention: "full",
       createdAt: now,
       updatedAt: now,
       ...(initialStatus === "rejected" ? { completedAt: now } : {}),
-      ...(input.request.metadata?.projectId ? { projectId: input.request.metadata.projectId } : {}),
-      userInputPreview: this.preview(input.request.userInput),
-      referenceCount: input.request.references?.length ?? 0,
+      ...(recordRequest.metadata?.projectId ? { projectId: recordRequest.metadata.projectId } : {}),
+      userInputPreview: this.preview(recordRequest.userInput),
+      referenceCount: recordRequest.references?.length ?? 0,
       artifactDirectory: input.artifactDirectory,
       stageProgressEvents: [],
       hasResult: false,
@@ -312,13 +313,13 @@ export class RenderJobManager {
       ...(initialStatus === "rejected"
         ? { error: this.errorPayload(new Error("Render job was rejected by required review approval checkpoint.")) }
         : {}),
-      request: input.request,
+      request: recordRequest,
       abortController: new AbortController(),
-      ...(input.request.settings?.durationTargetSeconds !== undefined
-        ? { requestedDurationSeconds: input.request.settings.durationTargetSeconds }
+      ...(recordRequest.settings?.durationTargetSeconds !== undefined
+        ? { requestedDurationSeconds: recordRequest.settings.durationTargetSeconds }
         : {}),
-      ...(input.request.settings?.qualityMode ? { requestedQualityMode: input.request.settings.qualityMode } : {}),
-      ...(input.request.settings?.resolution ? { requestedResolution: input.request.settings.resolution } : {})
+      ...(recordRequest.settings?.qualityMode ? { requestedQualityMode: recordRequest.settings.qualityMode } : {}),
+      ...(recordRequest.settings?.resolution ? { requestedResolution: recordRequest.settings.resolution } : {})
     };
 
     if (initialStatus === "queued") {
@@ -409,8 +410,9 @@ export class RenderJobManager {
 
     if (nextStatus === "queued") {
       this.assertQueueCapacity();
+      const approvedRequest = this.requestWithPreRenderApprovalMetadata(record.request, reviewApproval);
       options.onApprovedForRender?.({
-        request: record.request,
+        request: approvedRequest,
         summary: this.toSummary(record, { includeDetails: false }),
         reviewApproval
       });
@@ -419,6 +421,7 @@ export class RenderJobManager {
         updatedAt: now,
         reviewApproval,
         preRenderReviewApproval: reviewApproval,
+        request: approvedRequest,
         error: undefined
       });
       this.queue.push(jobId);
@@ -665,6 +668,46 @@ export class RenderJobManager {
       case "blocked":
         return "blocked";
     }
+  }
+
+  private requestWithPreRenderApprovalMetadata(
+    request: CineJellyProjectRequest,
+    reviewApproval: ReviewApprovalReport | undefined
+  ): CineJellyProjectRequest {
+    if (!reviewApproval || reviewApproval.gate !== "pre_render" || reviewApproval.status !== "approved") {
+      return request;
+    }
+    return {
+      ...request,
+      metadata: {
+        ...(request.metadata ?? {}),
+        storyboardApproval: "approved",
+        storyboardReviewer: this.approvalReviewerSummary(reviewApproval),
+        storyboardReviewedAt: this.approvalReviewedAt(reviewApproval).toISOString(),
+        storyboardApprovalId: reviewApproval.approvalId,
+        storyboardApprovalSource: "render_job_pre_render_review"
+      }
+    };
+  }
+
+  private approvalReviewerSummary(reviewApproval: ReviewApprovalReport): string {
+    const reviewers = [
+      ...new Set(
+        reviewApproval.checkpoints
+          .map((checkpoint) => checkpoint.reviewer)
+          .filter((reviewer): reviewer is string => Boolean(reviewer))
+      )
+    ].sort((left, right) => left.localeCompare(right));
+    return reviewers.slice(0, 3).join(", ") || "Commercial reviewer";
+  }
+
+  private approvalReviewedAt(reviewApproval: ReviewApprovalReport): Date {
+    return reviewApproval.checkpoints.reduce((latest, checkpoint) => {
+      if (!checkpoint.reviewedAt || checkpoint.reviewedAt.getTime() <= latest.getTime()) {
+        return latest;
+      }
+      return checkpoint.reviewedAt;
+    }, reviewApproval.generatedAt);
   }
 
   private pumpQueue(): void {

@@ -80,6 +80,14 @@ export class ReviewPacketBuilder {
         longFormTimelineBlockingIssueCount: input.result.longFormTimelinePlan.blockingIssueCount,
         storyboardPanelCount: input.result.storyboard.panels.length,
         storyboardPreflightStatus: input.result.storyboardPreflight.status,
+        hasStoryboardApprovalReport: Boolean(input.result.storyboardApprovalReport),
+        ...(input.result.storyboardApprovalReport
+          ? {
+              storyboardApprovalStatus: input.result.storyboardApprovalReport.status,
+              storyboardApprovalCheckpointCount: input.result.storyboardApprovalReport.summary.checkpointCount,
+              storyboardApprovalCanRender: input.result.storyboardApprovalReport.releaseGateSummary.canRenderAfterReview
+            }
+          : {}),
         productionGraphNodeCount: input.result.productionGraph.nodes.length,
         productionGraphEdgeCount: input.result.productionGraph.edges.length,
         compiledPromptCount: input.result.compiledPrompts.length,
@@ -228,6 +236,8 @@ export class ReviewPacketBuilder {
       result.costEstimate.status === "block" ||
       result.storyboardPreflight.status === "block" ||
       result.storyboardPreflight.status === "repair" ||
+      (result.videoRenderStrategyPlan.storyboardRequired &&
+        !result.storyboardApprovalReport?.releaseGateSummary.canRenderAfterReview) ||
       delivery.deliveryGateStatus === "block" ||
       delivery.semanticVisualInspectionStatus === "fail" ||
       delivery.mediaInspectionStatus === "fail" ||
@@ -243,6 +253,8 @@ export class ReviewPacketBuilder {
       !result.deliverable ||
       result.costEstimate.status === "warn" ||
       result.storyboardPreflight.status === "warn" ||
+      result.storyboardApprovalReport?.status === "approval_required" ||
+      result.storyboardApprovalReport?.status === "changes_requested" ||
       delivery.deliveryGateStatus === "warn" ||
       delivery.semanticVisualInspectionStatus === "warn" ||
       delivery.mediaInspectionStatus === "warn" ||
@@ -272,6 +284,9 @@ export class ReviewPacketBuilder {
     }
     for (const finding of result.storyboardPreflight.findings) {
       recommendations.add(finding.repair);
+    }
+    for (const action of result.storyboardApprovalReport?.nextActions ?? []) {
+      recommendations.add(action);
     }
     for (const provenance of this.repairProvenance(result)) {
       recommendations.add(provenance.recommendedNextStep);
