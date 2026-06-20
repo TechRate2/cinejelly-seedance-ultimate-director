@@ -31,7 +31,8 @@ Use this order:
    - upstream snapshots: `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`
    - faithful source translation: `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`
    - implementation roadmap: `docs/IMPLEMENTATION_ROADMAP.md`
-3. Original external sources under `external/upstream/` only when the change modifies source-derived claims, provider behavior, license-sensitive reuse, or model capability assumptions.
+3. `docs/UPSTREAM_CONTEXT_ROUTING.md` when upstream snapshot context is needed.
+4. Original external sources under `external/upstream/` only when the change modifies source-derived claims, provider behavior, license-sensitive reuse, or model capability assumptions. Read only the focused upstream files named by the context-routing guide or by `src/core/source-logic-translation-records.ts`; do not scan the whole snapshot tree during normal implementation.
 
 ## Source Snapshot And Reuse Policy
 
