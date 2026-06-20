@@ -70,6 +70,7 @@
     "validation:render-job-review-lifecycle": "node scripts/run-render-job-review-lifecycle-smoke.mjs",
     "validation:render-scheduler": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-render-scheduler-smoke.mjs",
     "validation:mixed-output-assembly": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-mixed-output-assembly-smoke.mjs",
+    "validation:long-backend-45s-closure": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/audit-long-backend-45s-closure.mjs",
     "validation:workspace-billing": "node scripts/run-workspace-billing-smoke.mjs",
     "validation:short-pipeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-smoke.mjs",
     "validation:short-pipeline-conversation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-conversation-smoke.mjs",

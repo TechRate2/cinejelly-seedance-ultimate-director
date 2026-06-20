@@ -339,6 +339,8 @@ Runtime implementation:
 
 Assembly uses the rendered provider evidence after timeline planning, but only video media outputs are eligible as timeline clips. Provider sidecars such as Atlas `returnLastFrame` images remain evidence/reference material and must not increase `clipCount`, transition count, or final timeline duration drift. `DeliveryGate` also checks the inspected final duration against `durationTargetSeconds`: drift above 5% becomes a review warning, and drift above 15% blocks customer handoff. `scripts/run-mixed-output-assembly-smoke.mjs` proves these media-selection and duration-gate contracts without network or provider spend.
 
+For the approved low-cost 45-60 second real long-backend closure scope, `scripts/audit-long-backend-45s-closure.mjs` gathers the paid Atlas render report, video-only reassembly media probe, mixed-output assembly smoke, long-form continuity smoke, agent-review smoke, timeline smoke, and render-scheduler smoke into one pass/fail report. This closure report is allowed to unblock short-pipeline hardening, but it deliberately does not claim 120-480 second commercial long-form validation or DirectorBench parity.
+
 ## Reference Reuse Policy
 
 Source basis:
