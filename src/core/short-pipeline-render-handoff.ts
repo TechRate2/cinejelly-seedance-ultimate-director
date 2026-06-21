@@ -51,6 +51,8 @@ export interface ShortPipelineRenderHandoff {
   };
 }
 
+const SHORT_SINGLE_CLIP_MAX_SECONDS = 15;
+
 export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandoffInput): ShortPipelineRenderHandoff {
   const plan = input.plan;
   const canUseAsRenderJobHandoff = plan.status !== "blocked" && plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence;
@@ -62,6 +64,7 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
     gate: "pre_render" as const,
     checkpoints: plan.reviewApproval.checkpoints.map(checkpointInputFromReport)
   };
+  const workflowMetadata = shortWorkflowMetadata(plan, input.metadata);
 
   return {
     request: {
@@ -76,6 +79,7 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
       ...(input.references ? { references: input.references } : {}),
       metadata: {
         ...safeMetadata(input.metadata),
+        ...workflowMetadata,
         projectId: plan.projectId,
         ...(plan.requestId ? { requestId: plan.requestId } : {}),
         shortPipelinePlanId: plan.planId,
@@ -123,6 +127,32 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         ? "Short-pipeline handoff can create an async render job, but customer traffic still requires render success, artifact validation, manual media review, deployment evidence, and business-readiness approval."
         : "Short-pipeline plan is blocked and cannot be handed to render until unsafe or conflicting evidence is corrected."
     }
+  };
+}
+
+function shortWorkflowMetadata(
+  plan: ShortPipelinePlan,
+  metadata: CineJellyProjectRequest["metadata"] | undefined
+): Record<string, string> {
+  const provided = safeMetadata(metadata);
+  const hasExplicitMode = Boolean(provided.workflowMode || provided.renderMode || provided.videoMode || provided.mode);
+  const singleClipRecommended = plan.intent.targetDurationSeconds <= SHORT_SINGLE_CLIP_MAX_SECONDS;
+  const recommendedMode = singleClipRecommended ? "single_clip" : "storyboard_multishot";
+  return {
+    shortPipelineRecommendedWorkflowMode: recommendedMode,
+    shortPipelineProviderClipMaxSeconds: String(SHORT_SINGLE_CLIP_MAX_SECONDS),
+    shortPipelineCommercialDurationPolicy: "15_to_60_seconds",
+    ...(hasExplicitMode
+      ? {}
+      : singleClipRecommended
+        ? {
+            workflowMode: "single",
+            renderMode: "single_clip"
+          }
+        : {
+            workflowMode: "storyboard",
+            renderMode: "storyboard_multishot"
+          })
   };
 }
 

@@ -43,6 +43,7 @@ const {
   buildShortPipelineRenderHandoff,
   reviewInputCanQueueRender
 } = await import("../dist/core/short-pipeline-render-handoff.js");
+const { StoryArchitect } = await import("../dist/agents/story-architect.js");
 const planner = new ShortPipelinePlanner();
 const generatedAt = new Date("2026-06-19T00:00:00.000Z");
 
@@ -119,6 +120,35 @@ const naturalOnlyPlan = planner.buildPlan({
   userPrompt: "Create a warm 20 second explainer for a founder-led B2B product launch. No template if the idea needs a custom workflow."
 });
 
+const douyinTestimonialPlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_douyin_testimonial",
+  generatedAt,
+  userPrompt: "Create a 8 second Douyin customer testimonial proof short for a skincare offer. Keep it native, trustworthy, and review-bound.",
+  targetPlatform: "douyin",
+  targetDurationSeconds: 8,
+  preferredTemplateId: "testimonial",
+  product: {
+    productUrl: "https://shop.example.com/products/glow-focus-serum",
+    snapshot: {
+      productTitle: "Glow Focus Serum",
+      category: "beauty",
+      benefits: ["Helps dull-looking morning skin look fresher"],
+      claims: ["Helps dull-looking morning skin look fresher"],
+      targetBuyer: "busy skincare buyers",
+      cta: "Shop now"
+    }
+  },
+  brandKit: {
+    brandId: "glow_lab",
+    brandName: "Glow Lab",
+    tone: "trustworthy native creator voice",
+    language: "en",
+    allowedClaims: ["helps dull-looking morning skin look fresher"],
+    ctaRules: ["Use one CTA only"]
+  }
+});
+
 const pendingRenderHandoff = buildShortPipelineRenderHandoff({
   plan: reviewRequiredPlan,
   includeGeneratedAudioIntents: true,
@@ -148,13 +178,58 @@ const approvedRenderHandoff = buildShortPipelineRenderHandoff({
     workspaceId: "short_pipeline_smoke_workspace"
   }
 });
+const singleClipRenderHandoff = buildShortPipelineRenderHandoff({
+  plan: douyinTestimonialPlan,
+  includeGeneratedAudioIntents: true,
+  metadata: {
+    workspaceId: "short_pipeline_smoke_workspace"
+  }
+});
+const storyArchitect = new StoryArchitect(createFakeShortLlmProvider(), "fake-short-llm");
+const singleClipStoryPlan = await storyArchitect.plan({
+  projectId: "short_pipeline_smoke_single_clip",
+  userInput: singleClipRenderHandoff.request.userInput,
+  settings: {
+    tier: "fast",
+    resolution: "480p",
+    qualityMode: "economy",
+    ratio: singleClipRenderHandoff.request.settings.ratio,
+    durationTargetSeconds: singleClipRenderHandoff.request.settings.durationTargetSeconds,
+    audioMode: "none",
+    watermark: false,
+    returnLastFrame: true
+  },
+  references: [],
+  metadata: singleClipRenderHandoff.request.metadata
+});
+const explicitStoryboardStoryPlan = await storyArchitect.plan({
+  projectId: "short_pipeline_smoke_explicit_storyboard",
+  userInput: singleClipRenderHandoff.request.userInput,
+  settings: {
+    tier: "fast",
+    resolution: "480p",
+    qualityMode: "economy",
+    ratio: singleClipRenderHandoff.request.settings.ratio,
+    durationTargetSeconds: singleClipRenderHandoff.request.settings.durationTargetSeconds,
+    audioMode: "none",
+    watermark: false,
+    returnLastFrame: true
+  },
+  references: [],
+  metadata: {
+    shortPipelineRecommendedWorkflowMode: "single_clip",
+    workflowMode: "storyboard"
+  }
+});
 
 const serialized = JSON.stringify({
   reviewRequiredPlan,
   blockedPlan,
   naturalOnlyPlan,
+  douyinTestimonialPlan,
   pendingRenderHandoff,
-  approvedRenderHandoff
+  approvedRenderHandoff,
+  singleClipRenderHandoff
 });
 const rawUrlLeaked = serialized.includes("https://shop.example.com") ||
   serialized.includes("signature=abc123") ||
@@ -205,7 +280,34 @@ const checks = [
     approvedRenderHandoff.request.settings?.ratio === reviewRequiredPlan.intent.aspectRatio &&
     approvedRenderHandoff.request.metadata?.shortPipelineSource === "agentic_short_pipeline"
     ? pass("approved_handoff_ready_for_confirmed_async_submission", "Approved short-pipeline review evidence is ready for the API render-job handoff path after explicit render confirmation.")
-    : fail("approved_handoff_ready_for_confirmed_async_submission", "Expected approved short-pipeline handoff to be ready for confirmed async render-job submission.")
+    : fail("approved_handoff_ready_for_confirmed_async_submission", "Expected approved short-pipeline handoff to be ready for confirmed async render-job submission."),
+  douyinTestimonialPlan.intent.platform === "douyin" &&
+    douyinTestimonialPlan.intent.targetDurationSeconds === 15 &&
+    douyinTestimonialPlan.selectedTemplate?.templateId === "testimonial" &&
+    douyinTestimonialPlan.viralIntelligence.nicheStrategy.platformFocus === "tiktok_douyin"
+    ? pass("douyin_testimonial_duration_policy", "Douyin testimonial requests are supported and sub-15s inputs clamp to the commercial-safe 15s render minimum.")
+    : fail("douyin_testimonial_duration_policy", "Expected Douyin testimonial support with 15s commercial-safe duration clamp."),
+  singleClipRenderHandoff.request.metadata?.workflowMode === "single" &&
+    singleClipRenderHandoff.request.metadata?.renderMode === "single_clip" &&
+    singleClipRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "single_clip"
+    ? pass("single_clip_handoff_mode_metadata", "15s short handoff declares single-clip workflow metadata for the Story Architect and strategy planner.")
+    : fail("single_clip_handoff_mode_metadata", "Expected 15s handoff to declare single-clip workflow metadata."),
+  singleClipStoryPlan.scenes.length === 1 &&
+    singleClipStoryPlan.scenes[0]?.beats.length === 1 &&
+    singleClipStoryPlan.scenes[0]?.beats[0]?.durationSeconds === 15
+    ? pass("story_architect_single_clip_collapse", "Story Architect collapses 15s single-clip short handoff into one provider clip plan.")
+    : fail("story_architect_single_clip_collapse", "Expected Story Architect to collapse single-clip short handoff into one scene/beat."),
+  explicitStoryboardStoryPlan.scenes.length > 1
+    ? pass("explicit_storyboard_mode_overrides_single_recommendation", "Explicit storyboard mode from UI/operator wins over the 15s single-clip recommendation.")
+    : fail("explicit_storyboard_mode_overrides_single_recommendation", "Expected explicit storyboard mode to preserve multi-scene planning."),
+  pendingRenderHandoff.request.metadata?.workflowMode === "storyboard" &&
+    pendingRenderHandoff.request.metadata?.renderMode === "storyboard_multishot" &&
+    pendingRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "storyboard_multishot"
+    ? pass("storyboard_handoff_mode_metadata", "Longer short handoff declares storyboard/multishot workflow metadata before provider spend.")
+    : fail("storyboard_handoff_mode_metadata", "Expected >15s handoff to declare storyboard/multishot workflow metadata."),
+  audioCheckpointTargetDuration(reviewRequiredPlan) === reviewRequiredPlan.intent.targetDurationSeconds
+    ? pass("audio_checkpoint_uses_intent_duration", "Audio review evidence now records the requested short duration instead of deriving a rough scene-count duration.")
+    : fail("audio_checkpoint_uses_intent_duration", "Expected audio checkpoint evidence to use the plan target duration.")
 ];
 
 const report = {
@@ -282,6 +384,11 @@ function hasEveryReviewSurface(plan) {
   return counts.scene > 0 && counts.audio > 0 && counts.caption > 0 && counts.claim > 0;
 }
 
+function audioCheckpointTargetDuration(plan) {
+  const checkpoint = plan.reviewApproval.checkpoints.find((item) => item.surface === "audio");
+  return checkpoint?.evidence?.targetDurationSeconds;
+}
+
 function summarizeHandoff(pending, approved) {
   return {
     planId: pending.summary.planId,
@@ -311,4 +418,52 @@ function writeJson(path, value) {
   const absolutePath = resolve(repoRoot, path);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function createFakeShortLlmProvider() {
+  return {
+    name: "fake-short-llm",
+    async chat() {
+      return {
+        provider: "atlascloud",
+        modelId: "fake-short-llm",
+        content: "{}",
+        raw: {},
+        latencyMs: 0
+      };
+    },
+    async structured() {
+      const scenes = [1, 2, 3].map((number) => ({
+        sceneId: `scene_${number}`,
+        title: `Short beat ${number}`,
+        beats: [
+          {
+            beatId: `beat_${number}`,
+            purpose: number === 1 ? "hook" : number === 2 ? "proof" : "cta",
+            action: `Show short proof beat ${number}.`,
+            subject: "approved short product subject",
+            camera: "vertical handheld commercial camera",
+            lighting: "clean soft studio lighting",
+            durationSeconds: 5,
+            risks: []
+          }
+        ]
+      }));
+      return {
+        provider: "atlascloud",
+        modelId: "fake-short-llm",
+        content: JSON.stringify({ premise: "Fake short plan", targetDurationSeconds: 15, scenes }),
+        raw: {},
+        latencyMs: 0,
+        value: {
+          premise: "Fake short plan",
+          targetDurationSeconds: 15,
+          scenes
+        }
+      };
+    },
+    capabilities() {
+      return [];
+    }
+  };
 }

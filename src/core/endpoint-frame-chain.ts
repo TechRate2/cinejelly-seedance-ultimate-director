@@ -40,7 +40,7 @@ export function selectLastFrameReference(input: {
       role: "first_frame",
       label: `Continuity frame from ${sourceShotId}`,
       providerReference: {
-        kind: "first_frame",
+        kind: "image",
         uri: selected.url,
         label: `Continuity frame from ${sourceShotId}`,
         role: "first_frame"

@@ -64,6 +64,8 @@ const HIGH_RISK_CLAIM_PATTERN =
 
 const MEDIUM_RISK_CLAIM_PATTERN =
   /improve|increase|reduce|boost|faster|stronger|premium|proven|safe|certified|limited time|save|discount/i;
+const SHORT_MIN_COMMERCIAL_RENDER_SECONDS = 15;
+const SHORT_MAX_COMMERCIAL_RENDER_SECONDS = 60;
 
 export class ProductUrlBriefExtractor {
   public build(input: ProductUrlBriefInput | undefined, userPrompt = ""): ProductUrlBrief | undefined {
@@ -371,12 +373,12 @@ export class BrandKitEvaluator {
 
 export class WorkflowTemplateRegistry {
   public readonly templates: readonly WorkflowTemplateDefinition[] = [
-    template("tiktok_product_ad", "TikTok Product Ad", "product_ad", ["tiktok"], [15, 35], [
+    template("tiktok_product_ad", "TikTok/Douyin Product Ad", "product_ad", ["tiktok", "douyin"], [15, 35], [
       ["hook", "Open with a concrete product problem or surprising use case."],
       ["proof", "Show one visible product proof point before the offer."],
       ["cta", "End with one short CTA."]
     ]),
-    template("ugc_ad", "UGC Ad", "ugc_ad", ["tiktok", "instagram_reels"], [20, 45], [
+    template("ugc_ad", "UGC Ad", "ugc_ad", ["tiktok", "douyin", "instagram_reels"], [20, 45], [
       ["hook", "Use a first-person problem statement."],
       ["scene", "Cut between face-to-camera, product handling, and proof inserts."],
       ["audio", "Keep narration conversational and believable."]
@@ -386,7 +388,7 @@ export class WorkflowTemplateRegistry {
       ["scene", "Use step-by-step visual proof."],
       ["caption", "Prioritize readable captions and chapter-like beats."]
     ]),
-    template("cinematic_product_reveal", "Cinematic Product Reveal", "cinematic_reveal", ["instagram_reels", "website"], [12, 30], [
+    template("cinematic_product_reveal", "Cinematic Product Reveal", "cinematic_reveal", ["tiktok", "douyin", "instagram_reels", "website"], [15, 30], [
       ["hook", "Lead with atmosphere and product silhouette."],
       ["scene", "Use macro, texture, light, and motion cues."],
       ["claim", "Keep claims minimal and visual."]
@@ -396,10 +398,15 @@ export class WorkflowTemplateRegistry {
       ["proof", "Bind the product to real user pain."],
       ["cta", "Invite a conversation rather than hard-selling."]
     ]),
-    template("comparison", "Comparison", "comparison", ["tiktok", "youtube_shorts", "website"], [20, 45], [
+    template("comparison", "Comparison", "comparison", ["tiktok", "douyin", "youtube_shorts", "website"], [20, 45], [
       ["hook", "Frame the before/after or old-way/new-way contrast."],
       ["claim", "Require proof for comparative claims."],
       ["caption", "Make comparison labels short and legible."]
+    ]),
+    template("testimonial", "Testimonial / Customer Proof", "testimonial", ["tiktok", "douyin", "instagram_reels", "youtube_shorts", "website"], [20, 45], [
+      ["hook", "Open with the buyer objection or before-state in plain language."],
+      ["proof", "Use reviewed customer proof, product evidence, or operator-approved testimonial facts only."],
+      ["claim", "Keep testimonial claims conservative and explicitly review-bound."]
     ])
   ];
 
@@ -429,6 +436,10 @@ export class WorkflowTemplateRegistry {
         if (templateItem.category === "ugc_ad" && /ugc|creator|testimonial|authentic|review/i.test(prompt)) {
           score += 0.2;
           reasons.push("brief asks for creator-style trust");
+        }
+        if (templateItem.category === "testimonial" && /testimonial|customer story|customer proof|review|trust/i.test(prompt)) {
+          score += 0.22;
+          reasons.push("brief asks for testimonial or customer-proof trust");
         }
         if (templateItem.category === "explainer" && /explain|how|why|educat|training|demo/i.test(prompt)) {
           score += 0.2;
@@ -557,7 +568,7 @@ export class ShortPipelinePlanner {
     });
     const agentGraph = agentGraphOutput.graphRun;
     const seedancePromptPack = agentGraphOutput.seedancePromptPack;
-    const checkpoints = this.checkpoints(scenes, productBrief, brandKitEvaluation);
+    const checkpoints = this.checkpoints(scenes, intent, productBrief, brandKitEvaluation);
     const reviewApproval = this.approvalSystem.evaluate({
       projectId: input.projectId,
       ...(input.requestId ? { requestId: input.requestId } : {}),
@@ -628,7 +639,11 @@ export class ShortPipelinePlanner {
     brandKitEvaluation: BrandKitEvaluation | undefined
   ): ShortPipelineIntent {
     const platform = input.targetPlatform ?? inferPlatform(prompt);
-    const targetDurationSeconds = clampDuration(input.targetDurationSeconds ?? inferDuration(prompt), 8, 60);
+    const targetDurationSeconds = clampDuration(
+      input.targetDurationSeconds ?? inferDuration(prompt),
+      SHORT_MIN_COMMERCIAL_RENDER_SECONDS,
+      SHORT_MAX_COMMERCIAL_RENDER_SECONDS
+    );
     const businessGoal = inferGoal(prompt, productBrief);
     const audience = cleanText(productBrief?.targetBuyer, 160) ?? inferAudience(prompt);
     const offer = inferOffer(prompt, productBrief);
@@ -776,6 +791,7 @@ export class ShortPipelinePlanner {
 
   private checkpoints(
     scenes: readonly ShortPipelineScenePlan[],
+    intent: ShortPipelineIntent,
     productBrief: ProductUrlBrief | undefined,
     brandKitEvaluation: BrandKitEvaluation | undefined
   ): readonly ReviewApprovalCheckpointInput[] {
@@ -796,7 +812,9 @@ export class ShortPipelinePlanner {
       required: true,
       issueCodes: brandKitEvaluation?.status === "review_required" ? ["brand_voice_review_required"] : [],
       evidence: {
-        targetDurationSeconds: scenes.length * 6
+        targetDurationSeconds: intent.targetDurationSeconds,
+        sceneCount: scenes.length,
+        audioMode: "guided_or_native_after_render_settings"
       }
     });
     checkpoints.push({
@@ -1215,6 +1233,7 @@ function isCleanHttps(value: string): boolean {
 
 function inferPlatform(prompt: string): ShortPipelinePlatform {
   const lower = prompt.toLowerCase();
+  if (/douyin|抖音/.test(lower)) return "douyin";
   if (/tiktok/.test(lower)) return "tiktok";
   if (/reels|instagram|ig\b/.test(lower)) return "instagram_reels";
   if (/shorts|youtube/.test(lower)) return "youtube_shorts";

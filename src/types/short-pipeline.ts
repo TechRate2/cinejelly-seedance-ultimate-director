@@ -8,6 +8,7 @@ import type {
 
 export type ShortPipelinePlatform =
   | "tiktok"
+  | "douyin"
   | "instagram_reels"
   | "youtube_shorts"
   | "facebook"

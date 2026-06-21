@@ -120,7 +120,10 @@ export class StoryArchitect {
     }
     const scenes = value.scenes.map((scene, sceneIndex) => this.coerceScene(scene, sceneIndex, intake));
     const usableScenes = scenes.length > 0 ? scenes : [this.fallbackScene(intake, 0)];
-    const boundedScenes = this.limitBeatsToDurationCapacity(usableScenes, intake);
+    const workflowScenes = this.singleClipRequested(intake)
+      ? [this.singleClipScene(usableScenes, intake)]
+      : usableScenes;
+    const boundedScenes = this.limitBeatsToDurationCapacity(workflowScenes, intake);
     const normalizedScenes = this.normalizeDurations(boundedScenes, intake.settings.durationTargetSeconds);
 
     return {
@@ -205,6 +208,54 @@ export class StoryArchitect {
         environment: `maintain the setting established in ${sceneTitle}`
       },
       ...(intake.settings.audioMode !== "none" ? { audioIntent: "support the visual pacing with coherent ambience or music" } : {})
+    };
+  }
+
+  private singleClipRequested(intake: IntakeResult): boolean {
+    const metadata = intake.metadata ?? {};
+    const rawMode = metadata.workflowMode ?? metadata.renderMode ?? metadata.videoMode ?? metadata.mode;
+    const normalized = rawMode?.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (normalized === "single" || normalized === "single_clip" || normalized === "one_clip") {
+      return true;
+    }
+    if (normalized && normalized !== "auto") {
+      return false;
+    }
+    return metadata.shortPipelineRecommendedWorkflowMode === "single_clip";
+  }
+
+  private singleClipScene(scenes: readonly ScenePlan[], intake: IntakeResult): ScenePlan {
+    const beats = scenes.flatMap((scene) => scene.beats);
+    const firstBeat = beats[0] ?? this.fallbackBeat("single_clip_scene", "Single Clip", 0, 0, intake);
+    const actionArc = beats
+      .map((beat) => beat.action)
+      .filter((action) => action.trim().length > 0)
+      .slice(0, 6)
+      .join(" Then ");
+    const risks = [...new Set(beats.flatMap((beat) => beat.risks))];
+    const continuity = beats.reduce<BeatPlan["continuity"]>((accumulator, beat) => ({
+      ...accumulator,
+      ...beat.continuity
+    }), {});
+    const sceneTitle = scenes.map((scene) => scene.title).filter(Boolean).slice(0, 3).join(" / ") || "Single Clip";
+    return {
+      sceneId: "single_clip_scene",
+      title: sceneTitle,
+      beats: [
+        {
+          ...firstBeat,
+          beatId: "single_clip_beat_1",
+          purpose: "render the approved short plan as one continuous provider clip",
+          action: actionArc || firstBeat.action,
+          durationSeconds: intake.settings.durationTargetSeconds,
+          risks,
+          references: intake.references,
+          continuity,
+          ...(intake.settings.audioMode !== "none"
+            ? { audioIntent: firstBeat.audioIntent ?? "support the single-clip short with coherent ambience or narration timing" }
+            : {})
+        }
+      ]
     };
   }
 

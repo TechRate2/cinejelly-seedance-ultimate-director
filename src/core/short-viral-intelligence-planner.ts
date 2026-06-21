@@ -406,7 +406,7 @@ export class ShortViralIntelligencePlanner {
 }
 
 function platformFocusFrom(platform: string, prompt: string): ShortViralPlatformFocus {
-  if (/douyin|tiktok|tik tok/i.test(prompt) || platform === "tiktok" || platform === "unknown") {
+  if (/douyin|tiktok|tik tok/i.test(prompt) || platform === "tiktok" || platform === "douyin" || platform === "unknown") {
     return "tiktok_douyin";
   }
   if (platform === "instagram_reels" || /reels|instagram/i.test(prompt)) {

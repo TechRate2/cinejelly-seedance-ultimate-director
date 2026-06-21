@@ -79,6 +79,9 @@ const checks = [
     publicRequests.slice(1).every((request) => request.hasFirstFrameReference)
     ? pass("first_frame_injected_after_first_shot", "Shot 2+ provider requests received first-frame references from previous shot sidecars.")
     : fail("first_frame_injected_after_first_shot", "Shot 2+ did not receive first-frame references."),
+  publicRequests.slice(1).every((request) => request.referenceKinds.includes("image") && !request.referenceKinds.includes("first_frame"))
+    ? pass("chained_reference_uses_provider_image_kind", "Chained first-frame references use provider-compatible image kind while retaining first_frame role semantics.")
+    : fail("chained_reference_uses_provider_image_kind", "Expected chained references to use image kind instead of provider-specific first_frame kind."),
   publicRequests.slice(1).every((request) => request.mode === "image_to_video")
     ? pass("provider_mode_switches_to_image_to_video", "Chained shot requests switch to image-to-video mode.")
     : fail("provider_mode_switches_to_image_to_video", "Chained shot requests did not switch to image-to-video mode."),
@@ -226,7 +229,7 @@ class FakeVideoProvider {
         durations: { min: 4, max: 15 },
         resolutions: ["480p", "720p", "1080p"],
         ratios: ["16:9", "9:16", "1:1"],
-        references: ["image", "first_frame", "last_frame", "identity", "product", "environment", "style"],
+        references: ["image", "last_frame", "identity", "product", "environment", "style"],
         async: true
       }
     ];
