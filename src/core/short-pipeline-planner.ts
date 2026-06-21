@@ -491,7 +491,43 @@ export class ShortPipelinePlanner {
       : undefined;
     const activeTemplate = selectedTemplate ?? templateSuggestions[0];
     const concepts = this.concepts(prompt, intent, productBrief, brandKitEvaluation, activeTemplate);
-    const scenes = this.scenes(prompt, intent, productBrief, concepts[0], activeTemplate);
+    const preliminaryScenes = this.scenes(prompt, intent, productBrief, concepts[0], activeTemplate);
+    const preliminaryViralIntelligence = this.viralIntelligencePlanner.build({
+      projectId: input.projectId,
+      ...(input.requestId ? { requestId: input.requestId } : {}),
+      prompt,
+      generatedAt,
+      intent,
+      ...(productBrief ? { productBrief } : {}),
+      ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      concepts,
+      scenes: preliminaryScenes,
+      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
+    });
+    const preliminaryAgentGraphOutput = this.agentGraphPlanner.build({
+      projectId: input.projectId,
+      ...(input.requestId ? { requestId: input.requestId } : {}),
+      generatedAt,
+      prompt,
+      intent,
+      ...(productBrief ? { productBrief } : {}),
+      ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
+      concepts,
+      scenes: preliminaryScenes,
+      viralIntelligence: preliminaryViralIntelligence
+    });
+    const scenes = this.candidateDrivenScenes({
+      prompt,
+      intent,
+      productBrief,
+      templateSuggestion: activeTemplate,
+      concepts,
+      preliminaryScenes,
+      preliminaryAgentGraph: preliminaryAgentGraphOutput.graphRun
+    });
     const viralIntelligence = this.viralIntelligencePlanner.build({
       projectId: input.projectId,
       ...(input.requestId ? { requestId: input.requestId } : {}),
@@ -693,6 +729,47 @@ export class ShortPipelinePlanner {
       sceneGoalFor(role, productName, benefit, templateCue),
       sceneNarrationFor(role, productName, benefit, cta, concept),
       sceneCaptionFor(role, productName, cta),
+      role === "hook" ? claimIds.slice(0, 1) : role === "proof" ? claimIds : []
+    ));
+  }
+
+  private candidateDrivenScenes(input: {
+    readonly prompt: string;
+    readonly intent: ShortPipelineIntent;
+    readonly productBrief: ProductUrlBrief | undefined;
+    readonly templateSuggestion: WorkflowTemplateSuggestion | undefined;
+    readonly concepts: readonly ShortPipelineConcept[];
+    readonly preliminaryScenes: readonly ShortPipelineScenePlan[];
+    readonly preliminaryAgentGraph: NonNullable<ShortPipelinePlan["agentGraph"]>;
+  }): readonly ShortPipelineScenePlan[] {
+    const selectedCandidate = input.preliminaryAgentGraph.candidates.find((candidate) =>
+      candidate.candidateId === input.preliminaryAgentGraph.selectedCandidateId
+    );
+    if (!selectedCandidate || selectedCandidate.sceneRoles.length === 0) {
+      return input.preliminaryScenes;
+    }
+    const productName = input.productBrief?.title ?? "the product";
+    const benefit = input.productBrief?.benefits[0] ?? input.intent.businessGoal;
+    const claimIds = input.productBrief?.claimInventory.slice(0, 2).map((claim) => claim.claimId) ?? [];
+    const cta = input.productBrief?.ctaCandidates[0] ?? "Learn more";
+    const templateCue = input.templateSuggestion ? ` Optional accelerator: ${input.templateSuggestion.label}.` : "";
+    const sourceConcept = selectedCandidate.sourceConceptId
+      ? input.concepts.find((concept) => concept.conceptId === selectedCandidate.sourceConceptId)
+      : undefined;
+    const concept: ShortPipelineConcept = sourceConcept ?? {
+      conceptId: selectedCandidate.candidateId,
+      label: selectedCandidate.label,
+      angle: selectedCandidate.storyArc,
+      hook: selectedCandidate.hook,
+      riskNotes: []
+    };
+    const roles = normalizeCandidateSceneRoles(selectedCandidate.sceneRoles, input.prompt, input.intent, input.templateSuggestion);
+    return roles.map((role, index) => scene(
+      role,
+      index + 1,
+      candidateSceneGoalFor(role, productName, benefit, selectedCandidate.storyArc, templateCue),
+      candidateSceneNarrationFor(role, productName, benefit, cta, concept, selectedCandidate.storyArc),
+      candidateSceneCaptionFor(role, productName, cta, selectedCandidate.label),
       role === "hook" ? claimIds.slice(0, 1) : role === "proof" ? claimIds : []
     ));
   }
@@ -934,6 +1011,89 @@ function sceneCaptionFor(
       return "How it works";
     case "offer":
       return "The simple next step";
+    case "cta":
+      return cta;
+  }
+}
+
+function normalizeCandidateSceneRoles(
+  candidateRoles: readonly ShortPipelineScenePlan["role"][],
+  prompt: string,
+  intent: ShortPipelineIntent,
+  templateSuggestion: WorkflowTemplateSuggestion | undefined
+): readonly ShortPipelineScenePlan["role"][] {
+  const fallback = sceneRolesFor(prompt, intent, templateSuggestion);
+  const roles = candidateRoles.filter((role, index) => index === 0 || role !== candidateRoles[index - 1]);
+  const withHook: ShortPipelineScenePlan["role"][] = roles[0] === "hook"
+    ? [...roles]
+    : ["hook", ...roles.filter((role) => role !== "hook")];
+  const withCta: ShortPipelineScenePlan["role"][] = withHook[withHook.length - 1] === "cta"
+    ? withHook
+    : [...withHook.filter((role) => role !== "cta"), "cta"];
+  const maxScenes = intent.targetDurationSeconds <= 15 ? 3 : intent.targetDurationSeconds <= 25 ? 4 : intent.targetDurationSeconds >= 46 ? 6 : 5;
+  const minScenes = intent.targetDurationSeconds <= 15 ? 3 : 4;
+  const trimmed: ShortPipelineScenePlan["role"][] = withCta.length > maxScenes
+    ? [...withCta.slice(0, Math.max(1, maxScenes - 1)).filter((role) => role !== "cta"), "cta"]
+    : withCta;
+  const finalRoles = trimmed.length >= minScenes ? trimmed : fallback;
+  if (!finalRoles.includes("demo") && !finalRoles.includes("proof") && finalRoles.length >= 3) {
+    return finalRoles.map((role, index) => index === Math.min(2, finalRoles.length - 2) ? "demo" : role);
+  }
+  return finalRoles;
+}
+
+function candidateSceneGoalFor(
+  role: ShortPipelineScenePlan["role"],
+  productName: string,
+  benefit: string,
+  storyArc: string,
+  templateCue: string
+): string {
+  const base = sceneGoalFor(role, productName, benefit, templateCue);
+  return `${base} Candidate arc: ${storyArc}`;
+}
+
+function candidateSceneNarrationFor(
+  role: ShortPipelineScenePlan["role"],
+  productName: string,
+  benefit: string,
+  cta: string,
+  concept: ShortPipelineConcept,
+  storyArc: string
+): string {
+  switch (role) {
+    case "hook":
+      return concept.hook;
+    case "problem":
+      return `Here is the friction: the buyer wants ${benefit}, but needs proof before trusting ${productName}.`;
+    case "proof":
+      return `Proof beat for ${productName}: ${benefit}. Keep the claim review-bound.`;
+    case "demo":
+      return `Show ${productName} in one visible step that supports the arc: ${storyArc}`;
+    case "offer":
+      return `If this proof fits the viewer's routine, make the next step feel simple.`;
+    case "cta":
+      return cta;
+  }
+}
+
+function candidateSceneCaptionFor(
+  role: ShortPipelineScenePlan["role"],
+  productName: string,
+  cta: string,
+  candidateLabel: string
+): string {
+  switch (role) {
+    case "hook":
+      return candidateLabel.length <= 28 ? candidateLabel : `Why ${productName}?`;
+    case "problem":
+      return "The objection";
+    case "proof":
+      return "Proof, not hype";
+    case "demo":
+      return "One clear step";
+    case "offer":
+      return "Simple next step";
     case "cta":
       return cta;
   }

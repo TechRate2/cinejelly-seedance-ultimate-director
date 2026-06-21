@@ -156,7 +156,7 @@ function researchPackFor(input: ShortAgentGraphPlannerInput): ShortAgentResearch
     ...(!input.productBrief ? ["product facts and approved product media are not provided"] : []),
     ...(input.productBrief?.missingFields ?? []).map((field) => `product field still missing: ${field}`),
     ...(input.brandKitEvaluation ? [] : ["brand kit tone, CTA, and claim policy are not provided"]),
-    ...(input.referenceVideoLearning ? [] : ["reference-video pattern is optional but not provided"])
+    ...(input.referenceVideoLearning ? referenceLearningGaps(input.referenceVideoLearning) : ["reference-video pattern is optional but not provided"])
   ];
   const packId = createStableId(
     "short_research_pack",
@@ -276,6 +276,15 @@ function critiqueCouncil(
   if (input.productBrief?.claimInventory.some((claim) => claim.substantiationRequired)) {
     critiques.push(critique("brand_claim", "warn", "Some product claims require substantiation before render.", "Keep claim-bound narration conservative and require human claim approval.", input.productBrief.briefId));
   }
+  if (missingCommercialEvidence(input, researchPack)) {
+    critiques.push(critique(
+      "platform_native",
+      "warn",
+      "Commercial or viral short planning is missing enough product, brand, audience, or reference evidence for a high-confidence customer-ready plan.",
+      "Collect product facts, brand/claim policy, target audience, and optional reference-video structure before paid render.",
+      researchPack.packId
+    ));
+  }
   if (input.brandKitEvaluation?.status === "blocked" || input.productBrief?.status === "blocked" || input.viralIntelligence.status === "blocked") {
     critiques.push(critique("brand_claim", "block", "Plan has blocked product, brand, or reference evidence.", "Correct blocked evidence before render handoff.", input.projectId));
   }
@@ -313,7 +322,7 @@ function seedancePromptPackFor(
 ): ShortSeedancePromptPack {
   const strategy = input.viralIntelligence.nicheStrategy;
   const reference = input.viralIntelligence.referenceVideoPattern;
-  const shots = shotPromptsFor(input, selectedCandidate);
+  const shots = shotPromptsFor(input, selectedCandidate, critiques);
   const promptPackId = createStableId(
     "short_seedance_pack",
     [
@@ -365,7 +374,8 @@ function seedancePromptPackFor(
 
 function shotPromptsFor(
   input: ShortAgentGraphPlannerInput,
-  selectedCandidate: ShortAgentCreativeCandidate | undefined
+  selectedCandidate: ShortAgentCreativeCandidate | undefined,
+  critiques: readonly ShortAgentCritique[]
 ): readonly ShortSeedanceShotPrompt[] {
   const durations = durationsFor(input.scenes, input.intent.targetDurationSeconds);
   let cursor = 0;
@@ -404,7 +414,10 @@ function shotPromptsFor(
       continuity,
       referencePolicy,
       negativeConstraints: negativeConstraintsFor(sceneItem, input),
-      qualityChecks: directive?.qualityChecks ?? qualityChecksFor(sceneItem)
+      qualityChecks: uniqueStrings([
+        ...(directive?.qualityChecks ?? qualityChecksFor(sceneItem)),
+        ...repairChecksFor(critiques, sceneItem)
+      ], 10)
     };
   });
 }
@@ -456,6 +469,15 @@ function evidenceFor(input: ShortAgentGraphPlannerInput): readonly ShortAgentEvi
   if (reference) {
     values.push(evidence("reference", reference.safetyStatus === "learned_pattern" ? 0.78 : 0.52, `Reference pattern ${reference.patternId} supplies hook, pacing, camera, caption, and CTA structure only.`, reference.safetyStatus !== "learned_pattern"));
   }
+  if (input.referenceVideoLearning) {
+    const gaps = referenceLearningGaps(input.referenceVideoLearning);
+    values.push(evidence(
+      "reference",
+      gaps.length === 0 ? 0.74 : 0.46,
+      `Operator reference summary completeness: ${gaps.length === 0 ? "complete enough for structure transfer" : `${gaps.length} missing fields`}.`,
+      gaps.length > 0
+    ));
+  }
   for (const claim of product?.claimInventory ?? []) {
     values.push(evidence("claim", claim.risk === "low" ? 0.76 : 0.48, `Claim ${claim.claimId} risk=${claim.risk}; substantiationRequired=${claim.substantiationRequired}.`, claim.substantiationRequired));
   }
@@ -474,6 +496,18 @@ function question(
     reason,
     toolPolicy: "live_research_optional_after_cost_gate"
   };
+}
+
+function referenceLearningGaps(input: ShortReferenceVideoLearningInput): readonly string[] {
+  const gaps: string[] = [];
+  if (!input.summary?.trim()) gaps.push("reference-video summary is missing");
+  if (!input.hook?.trim()) gaps.push("reference hook pattern is missing");
+  if (!input.pacing?.trim()) gaps.push("reference pacing pattern is missing");
+  if (!input.cameraStyle?.trim()) gaps.push("reference camera style is missing");
+  if (!input.captionStyle?.trim()) gaps.push("reference caption style is missing");
+  if (!input.audioStyle?.trim()) gaps.push("reference audio style is missing");
+  if (!input.retentionPattern?.trim()) gaps.push("reference retention pattern is missing");
+  return gaps;
 }
 
 function evidence(
@@ -642,6 +676,52 @@ function graphStatus(
     return "review_required";
   }
   return "ready";
+}
+
+function missingCommercialEvidence(
+  input: ShortAgentGraphPlannerInput,
+  researchPack: ShortAgentResearchPack
+): boolean {
+  const commercialOrViralIntent = /ad|ads|ugc|review|shop|buy|sell|conversion|cta|lead|product|offer|viral|trend|niche|tiktok|douyin|reels/i.test(input.prompt);
+  if (!commercialOrViralIntent) {
+    return false;
+  }
+  if (!input.productBrief || !input.brandKitEvaluation) {
+    return true;
+  }
+  if (input.productBrief.missingFields.length >= 2 || input.productBrief.claimInventory.some((claim) => claim.substantiationRequired)) {
+    return true;
+  }
+  if (input.brandKitEvaluation.status !== "ready") {
+    return true;
+  }
+  return researchPack.unresolvedQuestions.length >= 2;
+}
+
+function repairChecksFor(
+  critiques: readonly ShortAgentCritique[],
+  sceneItem: ShortPipelineScenePlan
+): readonly string[] {
+  const checks: string[] = [];
+  for (const critiqueItem of critiques) {
+    if (critiqueItem.severity === "info") continue;
+    if (critiqueItem.reviewer === "viral" && sceneItem.role === "hook") {
+      checks.push(`repair applied: ${critiqueItem.repair}`);
+    }
+    if (critiqueItem.reviewer === "brand_claim" && sceneItem.claimIds.length > 0) {
+      checks.push(`repair applied: ${critiqueItem.repair}`);
+    }
+    if (critiqueItem.reviewer === "seedance_feasibility") {
+      checks.push(`repair applied: ${critiqueItem.repair}`);
+    }
+    if (critiqueItem.reviewer === "platform_native" && (sceneItem.role === "hook" || sceneItem.role === "proof")) {
+      checks.push(`repair applied: ${critiqueItem.repair}`);
+    }
+    if (critiqueItem.reviewer === "continuity" && sceneItem.role !== "hook") {
+      checks.push(`repair applied: ${critiqueItem.repair}`);
+    }
+  }
+  return checks;
 }
 
 function durationsFor(scenes: readonly ShortPipelineScenePlan[], targetDurationSeconds: number): readonly number[] {
@@ -920,6 +1000,21 @@ function compactLines(lines: readonly string[]): string {
 
 function clampScore(value: number): number {
   return Number(Math.max(0, Math.min(1, value)).toFixed(2));
+}
+
+function uniqueStrings(values: readonly string[], limit: number): readonly string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const value of values) {
+    const normalized = value.replace(/\s+/g, " ").trim();
+    if (!normalized) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(normalized);
+    if (output.length >= limit) break;
+  }
+  return output;
 }
 
 function roundSeconds(value: number): number {
