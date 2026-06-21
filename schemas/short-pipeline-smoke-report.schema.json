@@ -105,6 +105,12 @@
         "productSourceUrlSha256Present",
         "productRawUrlSerialized",
         "brandIssueCodes",
+        "commercialReadinessStatus",
+        "commercialReadinessScore",
+        "crawlerPolicyStatus",
+        "referenceAnalysisStatus",
+        "outcomeMemoryStatus",
+        "readinessCheckCount",
         "canUseAsNoSpendPlanningEvidence",
         "canReleaseToCustomerTraffic"
       ],
@@ -127,6 +133,18 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "commercialReadinessStatus": { "enum": ["ready", "review_required", "blocked"] },
+        "commercialReadinessScore": { "type": "number", "minimum": 0, "maximum": 1 },
+        "crawlerPolicyStatus": {
+          "enum": ["not_needed", "snapshot_ready", "live_crawl_optional", "clean_url_required", "blocked_by_unsafe_url"]
+        },
+        "referenceAnalysisStatus": {
+          "enum": ["not_provided", "operator_summary_ready", "auto_analysis_recommended", "review_required", "blocked"]
+        },
+        "outcomeMemoryStatus": {
+          "enum": ["ready_to_write_after_review", "waiting_for_persistent_store", "blocked"]
+        },
+        "readinessCheckCount": { "type": "integer", "minimum": 9 },
         "canUseAsNoSpendPlanningEvidence": { "type": "boolean" },
         "canReleaseToCustomerTraffic": { "const": false }
       }
@@ -143,6 +161,10 @@
         "generatedAudioIntentCount",
         "requestHasPlanLineage",
         "requestHasWorkspaceLineage",
+        "requestHasCommercialReadinessLineage",
+        "commercialReadinessStatus",
+        "crawlerPolicyStatus",
+        "outcomeMemoryStatus",
         "requestDurationSeconds",
         "requestAspectRatio",
         "requestRawUrlSerialized",
@@ -157,6 +179,10 @@
         "generatedAudioIntentCount": { "type": "integer", "minimum": 1 },
         "requestHasPlanLineage": { "type": "boolean" },
         "requestHasWorkspaceLineage": { "type": "boolean" },
+        "requestHasCommercialReadinessLineage": { "type": "boolean" },
+        "commercialReadinessStatus": { "type": "string" },
+        "crawlerPolicyStatus": { "type": "string" },
+        "outcomeMemoryStatus": { "type": "string" },
         "requestDurationSeconds": { "type": "number", "minimum": 1 },
         "requestAspectRatio": { "type": "string" },
         "requestRawUrlSerialized": { "const": false },

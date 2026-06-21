@@ -256,6 +256,13 @@ const checks = [
     reviewRequiredPlan.templateSuggestions.every((item) => item.usePolicy === "optional_accelerator")
     ? pass("template_optional_dynamic_workflow", "Templates are optional accelerators and dynamic workflow remains required.")
     : fail("template_optional_dynamic_workflow", "Expected optional template suggestions with dynamic workflow still required."),
+  reviewRequiredPlan.commercialReadiness.schemaVersion === "cinejelly.short-commercial-readiness.v1" &&
+    reviewRequiredPlan.commercialReadiness.status === "review_required" &&
+    reviewRequiredPlan.commercialReadiness.crawlerPolicy.bypassPolicy === "never_bypass_access_controls" &&
+    reviewRequiredPlan.commercialReadiness.outcomeMemory.status === "ready_to_write_after_review" &&
+    reviewRequiredPlan.commercialReadiness.releaseGateSummary.canRenderNow === false
+    ? pass("commercial_readiness_contract", "Short plans include no-spend commercial readiness, crawler-safe policy, outcome-memory contract, and render-now block.")
+    : fail("commercial_readiness_contract", "Expected short commercial readiness contract with crawler/memory/review safeguards."),
   hasEveryReviewSurface(reviewRequiredPlan)
     ? pass("review_surfaces_present", "Scene, audio, caption, and claim checkpoints are present before render.")
     : fail("review_surfaces_present", "Expected scene, audio, caption, and claim checkpoints."),
@@ -388,6 +395,12 @@ function summarizePlan(plan) {
     productRawUrlSerialized: false,
     brandKitStatus: plan.brandKitEvaluation?.status,
     brandIssueCodes: plan.brandKitEvaluation?.issues.map((issue) => issue.code) ?? [],
+    commercialReadinessStatus: plan.commercialReadiness.status,
+    commercialReadinessScore: plan.commercialReadiness.qualityScore,
+    crawlerPolicyStatus: plan.commercialReadiness.crawlerPolicy.status,
+    referenceAnalysisStatus: plan.commercialReadiness.referenceAnalysis.status,
+    outcomeMemoryStatus: plan.commercialReadiness.outcomeMemory.status,
+    readinessCheckCount: plan.commercialReadiness.checks.length,
     canUseAsNoSpendPlanningEvidence: plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence,
     canReleaseToCustomerTraffic: plan.releaseGateSummary.canReleaseToCustomerTraffic
   };
@@ -413,6 +426,10 @@ function summarizeHandoff(pending, approved) {
     generatedAudioIntentCount: pending.summary.generatedAudioIntentCount,
     requestHasPlanLineage: pending.request.metadata?.shortPipelinePlanId === pending.summary.planId,
     requestHasWorkspaceLineage: pending.request.metadata?.workspaceId === "short_pipeline_smoke_workspace",
+    requestHasCommercialReadinessLineage: Boolean(pending.request.metadata?.shortCommercialReadinessId),
+    commercialReadinessStatus: pending.request.metadata?.shortCommercialReadinessStatus,
+    crawlerPolicyStatus: pending.request.metadata?.shortCrawlerPolicyStatus,
+    outcomeMemoryStatus: pending.request.metadata?.shortOutcomeMemoryStatus,
     requestDurationSeconds: pending.request.settings?.durationTargetSeconds,
     requestAspectRatio: pending.request.settings?.ratio,
     requestRawUrlSerialized: false,

@@ -7,6 +7,7 @@
 import { createHash } from "node:crypto";
 import { ReviewApprovalSystem } from "./review-approval-system.js";
 import { ShortAgentGraphPlanner } from "./short-agent-graph-planner.js";
+import { ShortCommercialReadinessPlanner } from "./short-commercial-readiness-planner.js";
 import { ShortViralIntelligencePlanner } from "./short-viral-intelligence-planner.js";
 import type {
   BrandKitEvaluation,
@@ -476,6 +477,7 @@ export class ShortPipelinePlanner {
   private readonly approvalSystem = new ReviewApprovalSystem();
   private readonly viralIntelligencePlanner = new ShortViralIntelligencePlanner();
   private readonly agentGraphPlanner = new ShortAgentGraphPlanner();
+  private readonly commercialReadinessPlanner = new ShortCommercialReadinessPlanner();
 
   public buildPlan(input: ShortPipelinePlanInput): ShortPipelinePlan {
     const generatedAt = input.generatedAt ?? new Date();
@@ -593,7 +595,7 @@ export class ShortPipelinePlanner {
       ].join(":")
     );
 
-    return {
+    const planWithoutReadiness: Omit<ShortPipelinePlan, "commercialReadiness"> = {
       schemaVersion: "cinejelly.short-pipeline-plan.v1",
       planId,
       projectId: input.projectId,
@@ -628,6 +630,22 @@ export class ShortPipelinePlanner {
       nextActions: [
         ...this.nextActions(status, productBrief, brandKitEvaluation, reviewApproval.status, viralIntelligence.status),
         ...agentGraph.nextActions.slice(0, 3)
+      ]
+    };
+    const originalInput = {
+      ...(input.product ? { product: input.product } : {}),
+      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
+    };
+    const commercialReadiness = this.commercialReadinessPlanner.build({
+      plan: planWithoutReadiness,
+      ...(Object.keys(originalInput).length > 0 ? { originalInput } : {})
+    });
+    return {
+      ...planWithoutReadiness,
+      commercialReadiness,
+      nextActions: [
+        ...planWithoutReadiness.nextActions,
+        ...commercialReadiness.nextActions.slice(0, 4)
       ]
     };
   }
