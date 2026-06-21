@@ -100,7 +100,7 @@ The future registry should store accelerators such as TikTok Product Ad, UGC Ad,
 - Bound to approval checkpoints before spend/export.
 - Compatible with product URL, brand kit, and workspace policies.
 
-The current registry ships deterministic planning hints for TikTok Product Ad, UGC Ad, Explainer, Founder Story, Comparison, and Cinematic Product Reveal. The planner always marks template use as optional and keeps `dynamicWorkflowRequired=true` so user natural-language edits can override or discard any suggestion.
+The current registry ships deterministic planning hints for TikTok Product Ad, UGC Ad, Explainer, Founder Story, Testimonial / Customer Proof, Comparison, and Cinematic Product Reveal. The planner always marks template use as optional and keeps `dynamicWorkflowRequired=true` so user natural-language edits can override or discard any suggestion.
 
 ## Product URL-To-Video Contract
 
