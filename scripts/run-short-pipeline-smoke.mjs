@@ -149,6 +149,14 @@ const douyinTestimonialPlan = planner.buildPlan({
   }
 });
 
+const douyinChinesePromptPlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_douyin_chinese_prompt",
+  generatedAt,
+  userPrompt: "Create a 18 second \u6296\u97f3 UGC review short for a skincare offer with a fast hook, proof beat, and native CTA.",
+  allowTemplateSuggestions: true
+});
+
 const pendingRenderHandoff = buildShortPipelineRenderHandoff({
   plan: reviewRequiredPlan,
   includeGeneratedAudioIntents: true,
@@ -227,6 +235,7 @@ const serialized = JSON.stringify({
   blockedPlan,
   naturalOnlyPlan,
   douyinTestimonialPlan,
+  douyinChinesePromptPlan,
   pendingRenderHandoff,
   approvedRenderHandoff,
   singleClipRenderHandoff
@@ -287,6 +296,11 @@ const checks = [
     douyinTestimonialPlan.viralIntelligence.nicheStrategy.platformFocus === "tiktok_douyin"
     ? pass("douyin_testimonial_duration_policy", "Douyin testimonial requests are supported and sub-15s inputs clamp to the commercial-safe 15s render minimum.")
     : fail("douyin_testimonial_duration_policy", "Expected Douyin testimonial support with 15s commercial-safe duration clamp."),
+  douyinChinesePromptPlan.intent.platform === "douyin" &&
+    douyinChinesePromptPlan.intent.targetDurationSeconds === 18 &&
+    douyinChinesePromptPlan.viralIntelligence.nicheStrategy.platformFocus === "tiktok_douyin"
+    ? pass("douyin_chinese_prompt_inference", "Chinese Douyin prompts are inferred as Douyin without requiring an explicit targetPlatform override.")
+    : fail("douyin_chinese_prompt_inference", "Expected Chinese Douyin prompt text to infer platform=douyin and TikTok/Douyin strategy."),
   singleClipRenderHandoff.request.metadata?.workflowMode === "single" &&
     singleClipRenderHandoff.request.metadata?.renderMode === "single_clip" &&
     singleClipRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "single_clip"

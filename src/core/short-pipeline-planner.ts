@@ -1233,7 +1233,7 @@ function isCleanHttps(value: string): boolean {
 
 function inferPlatform(prompt: string): ShortPipelinePlatform {
   const lower = prompt.toLowerCase();
-  if (/douyin|抖音/.test(lower)) return "douyin";
+  if (/douyin|\u6296\u97f3/.test(lower)) return "douyin";
   if (/tiktok/.test(lower)) return "tiktok";
   if (/reels|instagram|ig\b/.test(lower)) return "instagram_reels";
   if (/shorts|youtube/.test(lower)) return "youtube_shorts";
