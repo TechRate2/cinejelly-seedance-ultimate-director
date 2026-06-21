@@ -91,6 +91,8 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortViralCreativeMode: plan.viralIntelligence.nicheStrategy.creativeMode,
         ...(plan.viralIntelligence.winningConceptId ? { shortViralWinningConceptId: plan.viralIntelligence.winningConceptId } : {}),
         ...(plan.viralIntelligence.referenceVideoPattern ? { shortReferencePatternId: plan.viralIntelligence.referenceVideoPattern.patternId } : {}),
+        ...(plan.agentGraph ? { shortAgentGraphRunId: plan.agentGraph.graphRunId, shortAgentGraphStatus: plan.agentGraph.status } : {}),
+        ...(plan.seedancePromptPack ? { shortSeedancePromptPackId: plan.seedancePromptPack.promptPackId } : {}),
         ...(plan.selectedTemplate ? { shortPipelineSelectedTemplateId: plan.selectedTemplate.templateId } : {}),
         ...(plan.productBrief ? { productBriefId: plan.productBrief.briefId } : {}),
         ...(plan.brandKitEvaluation ? { brandKitId: plan.brandKitEvaluation.brandKitId } : {})
@@ -150,6 +152,7 @@ function renderPromptFromPlan(plan: ShortPipelinePlan): string {
       : "No template accelerator selected; build from natural-language intent.";
   const viralStrategy = viralStrategyFromPlan(plan);
   const viralDirectives = viralDirectivesFromPlan(plan);
+  const seedancePromptPack = seedancePromptPackFromPlan(plan);
 
   return compactLines([
     "Create a short commercial video from this approved agentic short-pipeline plan.",
@@ -169,6 +172,7 @@ function renderPromptFromPlan(plan: ShortPipelinePlan): string {
     scenes,
     "Viral scene directives:",
     viralDirectives,
+    seedancePromptPack,
     "Claim review inventory:",
     claims
   ]);
@@ -200,6 +204,29 @@ function viralDirectivesFromPlan(plan: ShortPipelinePlan): string {
       `${directive.order}. ${directive.role.toUpperCase()} ${directive.recommendedDurationSeconds}s - First frame: ${directive.firstFrameRule} Retention: ${directive.retentionJob} Camera: ${directive.cameraCue} Caption: ${directive.captionCue} Proof: ${directive.proofCue}${directive.ctaCue ? ` CTA: ${directive.ctaCue}` : ""} Checks: ${directive.qualityChecks.join("; ")}`
     )
     .join("\n");
+}
+
+function seedancePromptPackFromPlan(plan: ShortPipelinePlan): string {
+  const pack = plan.seedancePromptPack;
+  if (!pack) {
+    return "";
+  }
+  const shots = pack.shotPrompts
+    .map((shot) =>
+      `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | Caption: ${shot.caption} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`
+    )
+    .join("\n");
+  return compactLines([
+    "Seedance 2.0 prompt pack:",
+    `Prompt pack id: ${pack.promptPackId}`,
+    pack.masterPrompt,
+    `Audio plan: ${pack.audioPlan}`,
+    `Caption plan: ${pack.captionPlan}`,
+    `Reference policy: ${pack.referencePolicy}`,
+    `Global negative constraints: ${pack.globalNegativeConstraints.join("; ")}`,
+    "Time-coded Seedance shots:",
+    shots
+  ]);
 }
 
 function captionCuesFromPlan(plan: ShortPipelinePlan): readonly CaptionCue[] {

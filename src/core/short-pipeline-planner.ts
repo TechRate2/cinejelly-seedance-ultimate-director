@@ -6,6 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { ReviewApprovalSystem } from "./review-approval-system.js";
+import { ShortAgentGraphPlanner } from "./short-agent-graph-planner.js";
 import { ShortViralIntelligencePlanner } from "./short-viral-intelligence-planner.js";
 import type {
   BrandKitEvaluation,
@@ -463,6 +464,7 @@ export class ShortPipelinePlanner {
   private readonly templateRegistry = new WorkflowTemplateRegistry();
   private readonly approvalSystem = new ReviewApprovalSystem();
   private readonly viralIntelligencePlanner = new ShortViralIntelligencePlanner();
+  private readonly agentGraphPlanner = new ShortAgentGraphPlanner();
 
   public buildPlan(input: ShortPipelinePlanInput): ShortPipelinePlan {
     const generatedAt = input.generatedAt ?? new Date();
@@ -489,7 +491,7 @@ export class ShortPipelinePlanner {
       : undefined;
     const activeTemplate = selectedTemplate ?? templateSuggestions[0];
     const concepts = this.concepts(prompt, intent, productBrief, brandKitEvaluation, activeTemplate);
-    const scenes = this.scenes(intent, productBrief, concepts[0], activeTemplate);
+    const scenes = this.scenes(prompt, intent, productBrief, concepts[0], activeTemplate);
     const viralIntelligence = this.viralIntelligencePlanner.build({
       projectId: input.projectId,
       ...(input.requestId ? { requestId: input.requestId } : {}),
@@ -503,6 +505,22 @@ export class ShortPipelinePlanner {
       scenes,
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
     });
+    const agentGraphOutput = this.agentGraphPlanner.build({
+      projectId: input.projectId,
+      ...(input.requestId ? { requestId: input.requestId } : {}),
+      generatedAt,
+      prompt,
+      intent,
+      ...(productBrief ? { productBrief } : {}),
+      ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
+      concepts,
+      scenes,
+      viralIntelligence
+    });
+    const agentGraph = agentGraphOutput.graphRun;
+    const seedancePromptPack = agentGraphOutput.seedancePromptPack;
     const checkpoints = this.checkpoints(scenes, productBrief, brandKitEvaluation);
     const reviewApproval = this.approvalSystem.evaluate({
       projectId: input.projectId,
@@ -511,7 +529,7 @@ export class ShortPipelinePlanner {
       generatedAt,
       checkpoints
     });
-    const status = productBrief?.status === "blocked" || brandKitEvaluation?.status === "blocked" || viralIntelligence.status === "blocked" || reviewApproval.status === "blocked"
+    const status = productBrief?.status === "blocked" || brandKitEvaluation?.status === "blocked" || viralIntelligence.status === "blocked" || agentGraph.status === "blocked" || reviewApproval.status === "blocked"
       ? "blocked"
       : reviewApproval.status === "changes_requested" || reviewApproval.status === "rejected"
       ? "changes_requested"
@@ -549,16 +567,21 @@ export class ShortPipelinePlanner {
       concepts,
       scenes,
       viralIntelligence,
+      agentGraph,
+      seedancePromptPack,
       reviewApproval,
       releaseGateSummary: {
-        canRenderAfterApproval: reviewApproval.releaseGateSummary.canRenderAfterReview && status !== "blocked" && viralIntelligence.status !== "blocked",
-        canUseAsNoSpendPlanningEvidence: status !== "blocked" && viralIntelligence.status !== "blocked",
+        canRenderAfterApproval: reviewApproval.releaseGateSummary.canRenderAfterReview && status !== "blocked" && viralIntelligence.status !== "blocked" && agentGraph.status !== "blocked",
+        canUseAsNoSpendPlanningEvidence: status !== "blocked" && viralIntelligence.status !== "blocked" && agentGraph.status !== "blocked",
         canReleaseToCustomerTraffic: false,
-        releaseBlocker: status === "blocked" || viralIntelligence.status === "blocked"
-          ? "Short-pipeline plan is blocked by unsafe URL, product, or brand-kit evidence."
+        releaseBlocker: status === "blocked" || viralIntelligence.status === "blocked" || agentGraph.status === "blocked"
+          ? "Short-pipeline plan is blocked by unsafe URL, product, brand-kit, reference, or agent-graph evidence."
           : "Short-pipeline plan is planning evidence only; render requires accepted review checkpoints, quota/cost gates, artifact validation, and business-readiness evidence."
       },
-      nextActions: this.nextActions(status, productBrief, brandKitEvaluation, reviewApproval.status, viralIntelligence.status)
+      nextActions: [
+        ...this.nextActions(status, productBrief, brandKitEvaluation, reviewApproval.status, viralIntelligence.status),
+        ...agentGraph.nextActions.slice(0, 3)
+      ]
     };
   }
 
@@ -604,11 +627,11 @@ export class ShortPipelinePlanner {
     const productName = productBrief?.title ?? "the product";
     const primaryBenefit = productBrief?.benefits[0] ?? intent.businessGoal;
     const tone = brandKitEvaluation?.tone ?? intent.emotion.replace(/_/g, " ");
-    return [
+    const rawConcepts: readonly ShortPipelineConcept[] = [
       {
         conceptId: createStableId("concept", `${productName}:proof:${primaryBenefit}`),
-        label: "Proof-led product story",
-        angle: `Show ${productName} through one concrete buyer problem, one visible proof beat, and one clear CTA.`,
+        label: "Pattern-interrupt proof story",
+        angle: `Open with a specific buyer tension, then prove ${productName} through one visible state change and one clear CTA.`,
         hook: hookFor(intent, productName, primaryBenefit, templateSuggestion),
         riskNotes: riskNotes(productBrief, brandKitEvaluation)
       },
@@ -618,11 +641,41 @@ export class ShortPipelinePlanner {
         angle: `Make the ad feel ${tone} while keeping claims reviewable and captions simple.`,
         hook: `${productName} in ${intent.targetDurationSeconds} seconds: the buyer problem, the proof, and the next step.`,
         riskNotes: riskNotes(productBrief, brandKitEvaluation)
+      },
+      {
+        conceptId: createStableId("concept", `${productName}:ugc:${intent.audience}:${primaryBenefit}`),
+        label: "Native UGC objection breaker",
+        angle: `Let a believable creator voice name the viewer objection, show ${productName} in use, then make the payoff feel earned.`,
+        hook: `POV: you want ${primaryBenefit}, but you do not want another overhyped ad.`,
+        riskNotes: riskNotes(productBrief, brandKitEvaluation)
+      },
+      {
+        conceptId: createStableId("concept", `${productName}:demo:${intent.targetDurationSeconds}:${primaryBenefit}`),
+        label: "Demo-first conversion arc",
+        angle: `Start with the outcome, demonstrate one step, show proof, and make the CTA the natural next action.`,
+        hook: `Watch ${productName} make one benefit visible before the CTA.`,
+        riskNotes: riskNotes(productBrief, brandKitEvaluation)
+      },
+      {
+        conceptId: createStableId("concept", `${productName}:cinematic:${tone}:${primaryBenefit}`),
+        label: "Cinematic payoff reveal",
+        angle: `Use a premium visual payoff, macro detail, and restrained claim language so the short feels high-quality without losing clarity.`,
+        hook: `${productName}, revealed through the result first.`,
+        riskNotes: riskNotes(productBrief, brandKitEvaluation)
       }
     ];
+    const promptLower = prompt.toLowerCase();
+    const preferred = rawConcepts.filter((concept) => {
+      if (/ugc|review|creator|native|testimonial/i.test(promptLower)) return /UGC|native|proof/i.test(concept.label);
+      if (/demo|how|tutorial|show/i.test(promptLower)) return /Demo|proof/i.test(concept.label);
+      if (/cinematic|premium|luxury|reveal/i.test(promptLower)) return /Cinematic|proof|Brand-tone/i.test(concept.label);
+      return true;
+    });
+    return uniqueConcepts(preferred.length >= 3 ? preferred : rawConcepts, 5);
   }
 
   private scenes(
+    prompt: string,
     intent: ShortPipelineIntent,
     productBrief: ProductUrlBrief | undefined,
     concept: ShortPipelineConcept | undefined,
@@ -633,12 +686,15 @@ export class ShortPipelinePlanner {
     const claimIds = productBrief?.claimInventory.slice(0, 2).map((claim) => claim.claimId) ?? [];
     const cta = productBrief?.ctaCandidates[0] ?? "Learn more";
     const templateCue = templateSuggestion ? ` Optional accelerator: ${templateSuggestion.label}.` : "";
-    return [
-      scene("hook", 1, `Stop the scroll with the buyer problem for ${productName}.`, concept?.hook ?? benefit, `Why ${productName}?`, claimIds.slice(0, 1)),
-      scene("proof", 2, `Show one product fact or visual proof without overstating claims.${templateCue}`, benefit, "See the proof", claimIds),
-      scene("demo", 3, `Demonstrate how the product fits the buyer's workflow or routine.`, `Use ${productName} in one clear, visual step.`, "How it works", []),
-      scene("cta", 4, `Close with one CTA and no new unsupported claims.`, cta, cta, [])
-    ];
+    const roles = sceneRolesFor(prompt, intent, templateSuggestion);
+    return roles.map((role, index) => scene(
+      role,
+      index + 1,
+      sceneGoalFor(role, productName, benefit, templateCue),
+      sceneNarrationFor(role, productName, benefit, cta, concept),
+      sceneCaptionFor(role, productName, cta),
+      role === "hook" ? claimIds.slice(0, 1) : role === "proof" ? claimIds : []
+    ));
   }
 
   private checkpoints(
@@ -771,6 +827,116 @@ function scene(
     caption,
     claimIds
   };
+}
+
+function uniqueConcepts(values: readonly ShortPipelineConcept[], limit: number): readonly ShortPipelineConcept[] {
+  const seen = new Set<string>();
+  const output: ShortPipelineConcept[] = [];
+  for (const value of values) {
+    const key = value.label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(value);
+    if (output.length >= limit) break;
+  }
+  return output;
+}
+
+function sceneRolesFor(
+  prompt: string,
+  intent: ShortPipelineIntent,
+  templateSuggestion: WorkflowTemplateSuggestion | undefined
+): readonly ShortPipelineScenePlan["role"][] {
+  const lower = `${prompt} ${templateSuggestion?.category ?? ""}`.toLowerCase();
+  if (intent.targetDurationSeconds <= 15) {
+    return ["hook", "demo", "cta"];
+  }
+  if (intent.targetDurationSeconds <= 25) {
+    return /compare|versus|vs|before|after/.test(lower)
+      ? ["hook", "problem", "proof", "cta"]
+      : ["hook", "problem", "demo", "cta"];
+  }
+  if (intent.targetDurationSeconds >= 46) {
+    return /story|founder|education|explain|training/.test(lower)
+      ? ["hook", "problem", "demo", "proof", "offer", "cta"]
+      : ["hook", "problem", "proof", "demo", "offer", "cta"];
+  }
+  if (/ugc|review|creator|testimonial|native/.test(lower)) {
+    return ["hook", "problem", "demo", "proof", "cta"];
+  }
+  if (/cinematic|premium|luxury|reveal/.test(lower)) {
+    return ["hook", "proof", "demo", "cta"];
+  }
+  if (/demo|tutorial|how it works|show how/.test(lower)) {
+    return ["hook", "demo", "proof", "cta"];
+  }
+  return ["hook", "problem", "proof", "demo", "cta"];
+}
+
+function sceneGoalFor(
+  role: ShortPipelineScenePlan["role"],
+  productName: string,
+  benefit: string,
+  templateCue: string
+): string {
+  switch (role) {
+    case "hook":
+      return `Stop the scroll with a specific buyer tension for ${productName}.`;
+    case "problem":
+      return `Make the viewer recognize the problem before the product solution appears.`;
+    case "proof":
+      return `Show one product fact or visual proof for ${benefit} without overstating claims.${templateCue}`;
+    case "demo":
+      return `Demonstrate how ${productName} fits the buyer's workflow or routine.`;
+    case "offer":
+      return `Introduce the offer as a continuation of the proof, not a separate ad card.`;
+    case "cta":
+      return `Close with one CTA and no new unsupported claims.`;
+  }
+}
+
+function sceneNarrationFor(
+  role: ShortPipelineScenePlan["role"],
+  productName: string,
+  benefit: string,
+  cta: string,
+  concept: ShortPipelineConcept | undefined
+): string {
+  switch (role) {
+    case "hook":
+      return concept?.hook ?? `${productName} solves one clear buyer problem: ${benefit}.`;
+    case "problem":
+      return `The problem is not wanting another complicated fix; it is wanting ${benefit}.`;
+    case "proof":
+      return benefit;
+    case "demo":
+      return `Use ${productName} in one clear, visual step.`;
+    case "offer":
+      return `If this fits your routine, this is the simple next step.`;
+    case "cta":
+      return cta;
+  }
+}
+
+function sceneCaptionFor(
+  role: ShortPipelineScenePlan["role"],
+  productName: string,
+  cta: string
+): string {
+  switch (role) {
+    case "hook":
+      return `Why ${productName}?`;
+    case "problem":
+      return "The real problem";
+    case "proof":
+      return "See the proof";
+    case "demo":
+      return "How it works";
+    case "offer":
+      return "The simple next step";
+    case "cta":
+      return cta;
+  }
 }
 
 function visualDirectionFor(role: ShortPipelineScenePlan["role"]): string {

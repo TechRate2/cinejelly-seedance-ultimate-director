@@ -73,6 +73,7 @@ const defaultContracts = [
   contract("generated_audio_polling_resilience", "schemas/generated-audio-polling-resilience-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"),
   contract("short_pipeline_smoke", "schemas/short-pipeline-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-smoke-report.json"),
   contract("short_viral_intelligence_smoke", "schemas/short-viral-intelligence-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-viral-intelligence-smoke-report.json"),
+  contract("short_agent_graph_smoke", "schemas/short-agent-graph-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-agent-graph-smoke-report.json"),
   contract("short_pipeline_conversation_smoke", "schemas/short-pipeline-conversation-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-conversation-smoke-report.json"),
   contract("short_pipeline_session_store_smoke", "schemas/short-pipeline-session-store-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-session-store-smoke-report.json"),
   contract("short_pipeline_session_render_handoff_smoke", "schemas/short-pipeline-session-render-handoff-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-session-render-handoff-smoke-report.json"),

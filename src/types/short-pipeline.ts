@@ -1,5 +1,6 @@
 import type { ReviewApprovalReport } from "./review-approval.js";
 import type { AspectRatio } from "./settings.js";
+import type { ShortAgentGraphRun, ShortSeedancePromptPack } from "./short-agent.js";
 import type {
   ShortReferenceVideoLearningInput,
   ShortViralIntelligencePlan
@@ -282,6 +283,8 @@ export interface ShortPipelinePlan {
   readonly concepts: readonly ShortPipelineConcept[];
   readonly scenes: readonly ShortPipelineScenePlan[];
   readonly viralIntelligence: ShortViralIntelligencePlan;
+  readonly agentGraph?: ShortAgentGraphRun;
+  readonly seedancePromptPack?: ShortSeedancePromptPack;
   readonly reviewApproval: ReviewApprovalReport;
   readonly releaseGateSummary: ShortPipelineReleaseGateSummary;
   readonly nextActions: readonly string[];
