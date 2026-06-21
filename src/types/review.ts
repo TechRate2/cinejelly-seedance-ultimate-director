@@ -14,6 +14,7 @@ import type { PostproductionAssetStatus, PostproductionGeneratedAudioStatus } fr
 import type { GeneratedAudioOutputBatchValidationStatus } from "./generated-audio-output.js";
 import type { LongFormAgentReviewStatus } from "./long-form-agent-review.js";
 import type { LongFormCreativeIntelligenceStatus } from "./long-form-creative-intelligence.js";
+import type { LongFormIntentKind, LongFormReadinessStatus } from "./long-form-readiness.js";
 import type { ReviewApprovalStatus } from "./review-approval.js";
 import type {
   VideoRenderContinuityMode,
@@ -89,6 +90,14 @@ export interface ReviewPacketPlanning {
   readonly longFormCreativeRepairDirectiveCount: number;
   readonly longFormCreativeNiche: string;
   readonly longFormCreativePlatformIntent: string;
+  readonly longFormReadinessStatus: LongFormReadinessStatus;
+  readonly longFormReadinessIntentKind: LongFormIntentKind;
+  readonly longFormReadinessCoherenceScore: number;
+  readonly longFormReadinessRepairQueueCount: number;
+  readonly longFormReadinessBlockingRepairCount: number;
+  readonly longFormReadinessManualShotReviewCount: number;
+  readonly longFormReadinessApprovalSurfaceCount: number;
+  readonly longFormReadinessCanRenderAfterApproval: boolean;
   readonly storyboardPanelCount: number;
   readonly storyboardPreflightStatus: GuardianStatus;
   readonly hasStoryboardApprovalReport: boolean;

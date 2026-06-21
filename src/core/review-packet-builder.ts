@@ -88,6 +88,14 @@ export class ReviewPacketBuilder {
         longFormCreativeRepairDirectiveCount: input.result.longFormCreativeIntelligencePlan.repairDirectiveCount,
         longFormCreativeNiche: input.result.longFormCreativeIntelligencePlan.nicheStrategy.niche,
         longFormCreativePlatformIntent: input.result.longFormCreativeIntelligencePlan.nicheStrategy.platformIntent,
+        longFormReadinessStatus: input.result.longFormReadinessPlan.status,
+        longFormReadinessIntentKind: input.result.longFormReadinessPlan.intentRoute.intentKind,
+        longFormReadinessCoherenceScore: input.result.longFormReadinessPlan.coherence.overallScore,
+        longFormReadinessRepairQueueCount: input.result.longFormReadinessPlan.repairQueue.length,
+        longFormReadinessBlockingRepairCount: input.result.longFormReadinessPlan.repairQueue.filter((repair) => repair.blocksRender).length,
+        longFormReadinessManualShotReviewCount: input.result.longFormReadinessPlan.adaptiveShotDecisions.filter((decision) => decision.requiresManualReview).length,
+        longFormReadinessApprovalSurfaceCount: input.result.longFormReadinessPlan.uiReviewPacket.requiredApprovalSurfaces.length,
+        longFormReadinessCanRenderAfterApproval: input.result.longFormReadinessPlan.uiReviewPacket.canRenderAfterApproval,
         storyboardPanelCount: input.result.storyboard.panels.length,
         storyboardPreflightStatus: input.result.storyboardPreflight.status,
         hasStoryboardApprovalReport: Boolean(input.result.storyboardApprovalReport),
@@ -256,7 +264,8 @@ export class ReviewPacketBuilder {
       result.longFormAgentReview.status === "blocked" ||
       result.videoRenderStrategyPlan.blockingIssueCount > 0 ||
       result.longFormTimelinePlan.blockingIssueCount > 0 ||
-      result.longFormCreativeIntelligencePlan.status === "blocked"
+      result.longFormCreativeIntelligencePlan.status === "blocked" ||
+      result.longFormReadinessPlan.status === "blocked"
     ) {
       return "blocked";
     }
@@ -276,6 +285,7 @@ export class ReviewPacketBuilder {
       result.longFormTimelinePlan.warningIssueCount > 0 ||
       result.longFormTimelinePlan.manualReviewSegmentCount > 0 ||
       result.longFormCreativeIntelligencePlan.status === "review_required" ||
+      result.longFormReadinessPlan.status === "review_required" ||
       result.generatedAudioOutputBatchValidation?.status === "review_required" ||
       result.generatedAudioOutputBatchValidation?.status === "partially_approved" ||
       cost.failedProviderOperationCount > 0 ||
@@ -329,6 +339,12 @@ export class ReviewPacketBuilder {
     }
     for (const recommendation of result.longFormCreativeIntelligencePlan.audioCaptionQuality.recommendations) {
       recommendations.add(recommendation);
+    }
+    for (const repair of result.longFormReadinessPlan.repairQueue) {
+      recommendations.add(repair.action);
+    }
+    for (const action of result.longFormReadinessPlan.uiReviewPacket.nextActions) {
+      recommendations.add(action);
     }
     for (const report of result.generatedAudioOutputBatchValidation?.reports ?? []) {
       for (const issue of report.issues) {

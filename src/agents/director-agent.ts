@@ -19,6 +19,7 @@ import { selectLastFrameReference } from "../core/endpoint-frame-chain.js";
 import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
 import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
 import { LongFormCreativeIntelligencePlanner } from "../core/long-form-creative-intelligence-planner.js";
+import { LongFormReadinessPlanner } from "../core/long-form-readiness-planner.js";
 import { LongFormTimelinePlanner } from "../core/long-form-timeline-planner.js";
 import { ProductionGraphBuilder } from "../core/production-graph-builder.js";
 import { ProductionGraphRunRecorder } from "../core/production-graph-run-recorder.js";
@@ -53,6 +54,7 @@ import type { CineJellyProjectRequest, DirectorRunResult, IntakeResult, RenderCa
 import type { GuardianReport, GuardianSeverity, GuardianStatus } from "../types/guardian.js";
 import type { LongFormAgentReviewPlan } from "../types/long-form-agent-review.js";
 import type { LongFormCreativeIntelligencePlan } from "../types/long-form-creative-intelligence.js";
+import type { LongFormReadinessPlan } from "../types/long-form-readiness.js";
 import type {
   MaterialCandidate,
   MaterialSource,
@@ -97,6 +99,7 @@ export class DirectorAgent {
   private readonly longFormAgentReviewPlanner: LongFormAgentReviewPlanner;
   private readonly longFormTimelinePlanner: LongFormTimelinePlanner;
   private readonly longFormCreativeIntelligencePlanner: LongFormCreativeIntelligencePlanner;
+  private readonly longFormReadinessPlanner: LongFormReadinessPlanner;
   private readonly productionGraphBuilder: ProductionGraphBuilder;
   private readonly productionGraphRunRecorder: ProductionGraphRunRecorder;
   private readonly productionStagePlanner: ProductionStagePlanner;
@@ -138,6 +141,7 @@ export class DirectorAgent {
     readonly longFormAgentReviewPlanner?: LongFormAgentReviewPlanner;
     readonly longFormTimelinePlanner?: LongFormTimelinePlanner;
     readonly longFormCreativeIntelligencePlanner?: LongFormCreativeIntelligencePlanner;
+    readonly longFormReadinessPlanner?: LongFormReadinessPlanner;
     readonly productionGraphBuilder?: ProductionGraphBuilder;
     readonly productionGraphRunRecorder?: ProductionGraphRunRecorder;
     readonly productionStagePlanner?: ProductionStagePlanner;
@@ -173,6 +177,7 @@ export class DirectorAgent {
     this.longFormAgentReviewPlanner = input.longFormAgentReviewPlanner ?? new LongFormAgentReviewPlanner();
     this.longFormTimelinePlanner = input.longFormTimelinePlanner ?? new LongFormTimelinePlanner();
     this.longFormCreativeIntelligencePlanner = input.longFormCreativeIntelligencePlanner ?? new LongFormCreativeIntelligencePlanner();
+    this.longFormReadinessPlanner = input.longFormReadinessPlanner ?? new LongFormReadinessPlanner();
     this.productionGraphBuilder = input.productionGraphBuilder ?? new ProductionGraphBuilder();
     this.productionGraphRunRecorder = input.productionGraphRunRecorder ?? new ProductionGraphRunRecorder();
     this.productionStagePlanner = input.productionStagePlanner ?? new ProductionStagePlanner();
@@ -480,6 +485,30 @@ export class DirectorAgent {
       });
       throw new Error(this.describeLongFormCreativeIntelligenceBlock(longFormCreativeIntelligencePlan));
     }
+    const longFormReadinessPlan = this.longFormReadinessPlanner.build({
+      projectId: intake.projectId,
+      userInput: preparedRequest.userInput,
+      storyPlan,
+      shots,
+      continuityPlan: longFormContinuityPlan,
+      agentReview: longFormAgentReview,
+      videoRenderStrategyPlan,
+      timelinePlan: longFormTimelinePlan,
+      creativeIntelligencePlan: longFormCreativeIntelligencePlan,
+      renderSchedulePlan,
+      postproductionAssetPlan,
+      ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: intake.sourceVideoAnalysis } : {})
+    });
+    if (!longFormReadinessPlan.releaseGateSummary.canProceedToRender) {
+      this.reportStageProgress("render", "blocked", "Long-form readiness blocked render before provider spend.", {
+        longFormReadinessStatus: longFormReadinessPlan.status,
+        longFormReadinessIntentKind: longFormReadinessPlan.intentRoute.intentKind,
+        longFormReadinessCoherenceScore: longFormReadinessPlan.coherence.overallScore,
+        longFormReadinessRepairQueueCount: longFormReadinessPlan.repairQueue.length,
+        longFormReadinessBlockingRepairCount: longFormReadinessPlan.repairQueue.filter((repair) => repair.blocksRender).length
+      });
+      throw new Error(this.describeLongFormReadinessBlock(longFormReadinessPlan));
+    }
     this.reportStageProgress("render", "running", "Rendering scheduled shots and candidates.", {
       scheduledShotCount: compiledPrompts.length,
       renderScheduleBatchCount: renderSchedulePlan.batchCount,
@@ -492,6 +521,11 @@ export class DirectorAgent {
       longFormCreativeFindingCount: longFormCreativeIntelligencePlan.findingCount,
       longFormCreativeCandidateDirectiveCount: longFormCreativeIntelligencePlan.candidateDirectiveCount,
       longFormCreativeRepairDirectiveCount: longFormCreativeIntelligencePlan.repairDirectiveCount,
+      longFormReadinessStatus: longFormReadinessPlan.status,
+      longFormReadinessIntentKind: longFormReadinessPlan.intentRoute.intentKind,
+      longFormReadinessCoherenceScore: longFormReadinessPlan.coherence.overallScore,
+      longFormReadinessRepairQueueCount: longFormReadinessPlan.repairQueue.length,
+      longFormReadinessManualShotReviewCount: longFormReadinessPlan.adaptiveShotDecisions.filter((decision) => decision.requiresManualReview).length,
       candidateCount,
       repairAttemptCount
     });
@@ -652,6 +686,7 @@ export class DirectorAgent {
       deliverablePresent: Boolean(deliverable),
       videoRenderStrategyPlan,
       longFormCreativeIntelligencePlan,
+      longFormReadinessPlan,
       ...(deliveryGate ? { deliveryGate } : {}),
       productionGraph: finalProductionGraph
     });
@@ -668,6 +703,7 @@ export class DirectorAgent {
       videoRenderStrategyPlan,
       longFormTimelinePlan,
       longFormCreativeIntelligencePlan,
+      longFormReadinessPlan,
       materialSourcingPlan,
       materialSourceValidation,
       postproductionAssetPlan,
@@ -730,6 +766,15 @@ export class DirectorAgent {
       .map((finding) => `${finding.code} - ${finding.repair}`)
       .join("; ");
     return details || "Long-form creative intelligence blocked provider spend.";
+  }
+
+  private describeLongFormReadinessBlock(plan: LongFormReadinessPlan): string {
+    const details = plan.repairQueue
+      .filter((repair) => repair.blocksRender)
+      .slice(0, 5)
+      .map((repair) => `${repair.trigger} - ${repair.action}`)
+      .join("; ");
+    return details || plan.releaseGateSummary.releaseBlocker || "Long-form readiness blocked provider spend.";
   }
 
   private storyboardApprovalEvidence(report: ReviewApprovalReport): Record<string, ProductionStageEvidenceValue> {

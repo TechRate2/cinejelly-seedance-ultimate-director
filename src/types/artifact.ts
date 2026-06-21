@@ -16,6 +16,7 @@ export type ProjectArtifactKind =
   | "video_render_strategy"
   | "long_form_timeline"
   | "long_form_creative_intelligence"
+  | "long_form_readiness"
   | "material_sourcing_plan"
   | "material_source_validation"
   | "postproduction_asset_plan"

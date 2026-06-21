@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/long-form-readiness-smoke-report.schema.json",
+  "title": "CineJelly Long-Form Readiness Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.long-form-readiness-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 8,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "scenarioCount", "targetDurationSeconds", "rawUrlLeakCheckPassed"],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "scenarioCount": { "const": 2 },
+        "targetDurationSeconds": { "type": "number", "minimum": 1 },
+        "rawUrlLeakCheckPassed": { "type": "boolean" }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewRequired", "blocked"],
+      "properties": {
+        "reviewRequired": { "$ref": "#/$defs/scenario" },
+        "blocked": { "$ref": "#/$defs/scenario" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 10,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsNoSpendReadinessEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsNoSpendReadinessEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "projectId",
+        "status",
+        "intentKind",
+        "targetDurationClass",
+        "recommendedWorkflowMode",
+        "coherenceScore",
+        "adaptiveShotDecisionCount",
+        "repairQueueCount",
+        "blockingRepairCount",
+        "approvalSurfaceCount",
+        "canProceedToRender"
+      ],
+      "properties": {
+        "projectId": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["ready", "review_required", "blocked"] },
+        "intentKind": {
+          "enum": [
+            "commercial_ad",
+            "cinematic_story",
+            "documentary",
+            "education_training",
+            "long_explainer",
+            "reference_product_story",
+            "source_video_guided",
+            "short_story",
+            "general_long_form"
+          ]
+        },
+        "targetDurationClass": {
+          "enum": [
+            "under_45_seconds",
+            "short_45_90_seconds",
+            "medium_90_180_seconds",
+            "long_3_8_minutes",
+            "extended_over_8_minutes"
+          ]
+        },
+        "recommendedWorkflowMode": {
+          "enum": [
+            "single_clip",
+            "reference_locked_single_clip",
+            "storyboard_multishot",
+            "reference_locked_multishot",
+            "source_video_guided",
+            "manual_storyboard"
+          ]
+        },
+        "coherenceScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "adaptiveShotDecisionCount": { "type": "integer", "minimum": 1 },
+        "repairQueueCount": { "type": "integer", "minimum": 0 },
+        "blockingRepairCount": { "type": "integer", "minimum": 0 },
+        "approvalSurfaceCount": { "type": "integer", "minimum": 0 },
+        "canProceedToRender": { "type": "boolean" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -145,6 +145,16 @@ export class ProjectArtifactStore {
       longFormCreativeRepairDirectiveCount: result.longFormCreativeIntelligencePlan.repairDirectiveCount,
       longFormCreativeNiche: result.longFormCreativeIntelligencePlan.nicheStrategy.niche,
       longFormCreativePlatformIntent: result.longFormCreativeIntelligencePlan.nicheStrategy.platformIntent,
+      longFormReadinessStatus: result.longFormReadinessPlan.status,
+      longFormReadinessIntentKind: result.longFormReadinessPlan.intentRoute.intentKind,
+      longFormReadinessTargetDurationClass: result.longFormReadinessPlan.intentRoute.targetDurationClass,
+      longFormReadinessRecommendedWorkflowMode: result.longFormReadinessPlan.intentRoute.recommendedWorkflowMode,
+      longFormReadinessCoherenceScore: result.longFormReadinessPlan.coherence.overallScore,
+      longFormReadinessRepairQueueCount: result.longFormReadinessPlan.repairQueue.length,
+      longFormReadinessBlockingRepairCount: result.longFormReadinessPlan.repairQueue.filter((repair) => repair.blocksRender).length,
+      longFormReadinessManualShotReviewCount: result.longFormReadinessPlan.adaptiveShotDecisions.filter((decision) => decision.requiresManualReview).length,
+      longFormReadinessApprovalSurfaceCount: result.longFormReadinessPlan.uiReviewPacket.requiredApprovalSurfaces.length,
+      longFormReadinessCanRenderAfterApproval: result.longFormReadinessPlan.uiReviewPacket.canRenderAfterApproval,
       stageStatuses: result.stagePlan.records.map((record) => ({
         stage: record.stage,
         status: record.status
@@ -203,6 +213,11 @@ export class ProjectArtifactStore {
         kind: "long_form_creative_intelligence",
         fileName: "long-form-creative-intelligence.json",
         value: result.longFormCreativeIntelligencePlan
+      },
+      {
+        kind: "long_form_readiness",
+        fileName: "long-form-readiness.json",
+        value: result.longFormReadinessPlan
       },
       { kind: "material_sourcing_plan", fileName: "material-sourcing-plan.json", value: result.materialSourcingPlan },
       { kind: "material_source_validation", fileName: "material-source-validation.json", value: result.materialSourceValidation },

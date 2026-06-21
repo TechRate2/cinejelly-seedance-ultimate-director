@@ -9,6 +9,7 @@ import type { DeliveryGateReport } from "../types/delivery.js";
 import type { ProductionGraphSnapshot } from "../types/graph.js";
 import type { GuardianReport, GuardianStatus } from "../types/guardian.js";
 import type { LongFormCreativeIntelligencePlan } from "../types/long-form-creative-intelligence.js";
+import type { LongFormReadinessPlan } from "../types/long-form-readiness.js";
 import type { MaterialSourceValidationReport, MaterialSourcingPlan } from "../types/material.js";
 import type { PostproductionAssetPlan } from "../types/postproduction-assets.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
@@ -37,6 +38,7 @@ export interface ProductionStagePlannerInput {
   readonly postproductionAssetPlan: PostproductionAssetPlan;
   readonly videoRenderStrategyPlan?: VideoRenderStrategyPlan;
   readonly longFormCreativeIntelligencePlan?: LongFormCreativeIntelligencePlan;
+  readonly longFormReadinessPlan?: LongFormReadinessPlan;
   readonly compiledPrompts: readonly CompiledPrompt[];
   readonly renderedShots: readonly RenderedShot[];
   readonly deliverablePresent: boolean;
@@ -62,7 +64,12 @@ export class ProductionStagePlanner {
           longFormCreativeStatus: input.longFormCreativeIntelligencePlan?.status ?? "not_planned",
           longFormCreativeQualityScore: input.longFormCreativeIntelligencePlan?.qualityScore ?? 0,
           longFormCreativeFindingCount: input.longFormCreativeIntelligencePlan?.findingCount ?? 0,
-          longFormCreativeRepairDirectiveCount: input.longFormCreativeIntelligencePlan?.repairDirectiveCount ?? 0
+          longFormCreativeRepairDirectiveCount: input.longFormCreativeIntelligencePlan?.repairDirectiveCount ?? 0,
+          longFormReadinessStatus: input.longFormReadinessPlan?.status ?? "not_planned",
+          longFormReadinessIntentKind: input.longFormReadinessPlan?.intentRoute.intentKind ?? "not_planned",
+          longFormReadinessCoherenceScore: input.longFormReadinessPlan?.coherence.overallScore ?? 0,
+          longFormReadinessRepairQueueCount: input.longFormReadinessPlan?.repairQueue.length ?? 0,
+          longFormReadinessManualShotReviewCount: input.longFormReadinessPlan?.adaptiveShotDecisions.filter((decision) => decision.requiresManualReview).length ?? 0
         }),
         this.record(input, "storyboard", 1, this.guardianStageStatus(input.storyboardPreflight.status), {
           storyboardPanelCount: input.storyboard.panels.length,

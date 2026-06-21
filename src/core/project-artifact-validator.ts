@@ -27,6 +27,8 @@ const SUCCESS_REQUIRED_KINDS: readonly ProjectArtifactKind[] = [
   "long_form_agent_review",
   "video_render_strategy",
   "long_form_timeline",
+  "long_form_creative_intelligence",
+  "long_form_readiness",
   "material_sourcing_plan",
   "material_source_validation",
   "postproduction_asset_plan",
@@ -91,6 +93,52 @@ const REVIEW_APPROVAL_STATUSES = new Set(["approved", "approval_required", "chan
 const REVIEW_APPROVAL_GATES = new Set(["pre_render", "pre_export"]);
 const LONG_FORM_AGENT_REVIEW_STATUSES = new Set(["ready", "review_required", "blocked"]);
 const LONG_FORM_CREATIVE_STATUSES = new Set(["ready", "review_required", "blocked"]);
+const LONG_FORM_READINESS_STATUSES = new Set(["ready", "review_required", "blocked"]);
+const LONG_FORM_READINESS_INTENT_KINDS = new Set([
+  "commercial_ad",
+  "cinematic_story",
+  "documentary",
+  "education_training",
+  "long_explainer",
+  "reference_product_story",
+  "source_video_guided",
+  "short_story",
+  "general_long_form"
+]);
+const LONG_FORM_READINESS_DURATION_CLASSES = new Set([
+  "under_45_seconds",
+  "short_45_90_seconds",
+  "medium_90_180_seconds",
+  "long_3_8_minutes",
+  "extended_over_8_minutes"
+]);
+const LONG_FORM_READINESS_USER_CONTROL_MODES = new Set([
+  "auto",
+  "single",
+  "storyboard",
+  "multishot",
+  "reference_locked",
+  "source_video",
+  "manual_storyboard"
+]);
+const LONG_FORM_READINESS_RENDER_UNIT_MODES = new Set([
+  "single_clip",
+  "storyboard_multishot",
+  "reference_locked",
+  "source_video_guided",
+  "manual_review_required"
+]);
+const LONG_FORM_READINESS_REPAIR_CATEGORIES = new Set([
+  "intent",
+  "story",
+  "coherence",
+  "shot_strategy",
+  "timeline",
+  "audio_caption",
+  "source_video",
+  "review"
+]);
+const LONG_FORM_READINESS_REPAIR_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
 const LONG_FORM_CREATIVE_SEVERITIES = new Set(["info", "warn", "block"]);
 const LONG_FORM_CREATIVE_REPAIR_SCOPES = new Set(["story", "sequence", "shot", "prompt", "postproduction", "timeline"]);
 const LONG_FORM_CREATIVE_REPAIR_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
@@ -432,6 +480,7 @@ export class ProjectArtifactValidator {
     this.validateStoryboardApproval(manifest, artifacts.get("storyboard_approval"), checks);
     this.validateLongFormTimeline(manifest, artifacts.get("long_form_timeline"), checks);
     this.validateLongFormCreativeIntelligence(manifest, artifacts.get("long_form_creative_intelligence"), checks);
+    this.validateLongFormReadiness(manifest, artifacts.get("long_form_readiness"), checks);
     this.validateRenderSchedule(artifacts.get("render_schedule"), checks);
     this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
     this.validatePostproductionAssetConsistency(artifacts, checks);
@@ -530,6 +579,23 @@ export class ProjectArtifactValidator {
       )
     ) {
       checks.push({ name: "review_packet_long_form_creative", status: "fail", fileName: artifact.entry.fileName, message: "review-packet long-form creative intelligence fields are invalid." });
+    }
+    if (
+      !planning ||
+      typeof planning.longFormReadinessStatus !== "string" ||
+      !LONG_FORM_READINESS_STATUSES.has(planning.longFormReadinessStatus) ||
+      typeof planning.longFormReadinessIntentKind !== "string" ||
+      !LONG_FORM_READINESS_INTENT_KINDS.has(planning.longFormReadinessIntentKind) ||
+      typeof planning.longFormReadinessCoherenceScore !== "number" ||
+      planning.longFormReadinessCoherenceScore < 0 ||
+      planning.longFormReadinessCoherenceScore > 100 ||
+      typeof planning.longFormReadinessRepairQueueCount !== "number" ||
+      typeof planning.longFormReadinessBlockingRepairCount !== "number" ||
+      typeof planning.longFormReadinessManualShotReviewCount !== "number" ||
+      typeof planning.longFormReadinessApprovalSurfaceCount !== "number" ||
+      typeof planning.longFormReadinessCanRenderAfterApproval !== "boolean"
+    ) {
+      checks.push({ name: "review_packet_long_form_readiness", status: "fail", fileName: artifact.entry.fileName, message: "review-packet planning is missing long-form readiness evidence." });
     }
     if (
       !planning ||
@@ -1854,6 +1920,181 @@ export class ProjectArtifactValidator {
       checks.push({ name: "long_form_creative_release_gate", status: "fail", fileName, message: "long-form-creative-intelligence release gate summary is invalid." });
     } else if (blockingFindingCount > 0 && releaseGateSummary.canProceedToRender !== false) {
       checks.push({ name: "long_form_creative_release_gate", status: "fail", fileName, message: "Blocking creative findings must prevent render." });
+    }
+  }
+
+  private validateLongFormReadiness(
+    manifest: ProjectArtifactBundle,
+    artifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!artifact) {
+      return;
+    }
+    const value = artifact.value;
+    const fileName = artifact.entry.fileName;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "long_form_readiness_shape", status: "fail", fileName, message: "long-form-readiness must be an object." });
+      return;
+    }
+    if (value.schemaVersion !== "cinejelly.long-form-readiness.v1") {
+      checks.push({ name: "long_form_readiness_schema", status: "fail", fileName, message: "Unexpected long-form-readiness schema version." });
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "long_form_readiness_project", status: "fail", fileName, message: "long-form-readiness projectId does not match manifest." });
+    }
+    if (value.noSpend !== true || value.networkCallsMade !== false || value.providerCallsMade !== false) {
+      checks.push({ name: "long_form_readiness_spend_boundary", status: "fail", fileName, message: "long-form-readiness must be no-spend/no-network/no-provider evidence." });
+    }
+    if (typeof value.status !== "string" || !LONG_FORM_READINESS_STATUSES.has(value.status)) {
+      checks.push({ name: "long_form_readiness_status", status: "fail", fileName, message: "long-form-readiness status is invalid." });
+    }
+    if (!Array.isArray(value.sourcePatternOrigins) || value.sourcePatternOrigins.some((origin) => typeof origin !== "string" || !origin)) {
+      checks.push({ name: "long_form_readiness_origins", status: "fail", fileName, message: "long-form-readiness sourcePatternOrigins are invalid." });
+    }
+    if (typeof value.targetDurationSeconds !== "number" || !Number.isFinite(value.targetDurationSeconds) || value.targetDurationSeconds <= 0) {
+      checks.push({ name: "long_form_readiness_duration", status: "fail", fileName, message: "long-form-readiness targetDurationSeconds is invalid." });
+    }
+
+    const intentRoute = this.isRecord(value.intentRoute) ? value.intentRoute : undefined;
+    if (
+      !intentRoute ||
+      typeof intentRoute.intentKind !== "string" ||
+      !LONG_FORM_READINESS_INTENT_KINDS.has(intentRoute.intentKind) ||
+      typeof intentRoute.platformIntent !== "string" ||
+      typeof intentRoute.targetDurationClass !== "string" ||
+      !LONG_FORM_READINESS_DURATION_CLASSES.has(intentRoute.targetDurationClass) ||
+      typeof intentRoute.userControlMode !== "string" ||
+      !LONG_FORM_READINESS_USER_CONTROL_MODES.has(intentRoute.userControlMode) ||
+      typeof intentRoute.recommendedWorkflowMode !== "string" ||
+      !VIDEO_RENDER_WORKFLOW_MODES.has(intentRoute.recommendedWorkflowMode) ||
+      !Array.isArray(intentRoute.reasons) ||
+      !Array.isArray(intentRoute.missingInputs)
+    ) {
+      checks.push({ name: "long_form_readiness_intent_route", status: "fail", fileName, message: "long-form-readiness intentRoute is invalid." });
+    }
+
+    const coherence = this.isRecord(value.coherence) ? value.coherence : undefined;
+    const scoreFields = [
+      "overallScore",
+      "storyArcScore",
+      "sequenceBridgeScore",
+      "anchorConsistencyScore",
+      "hookPayoffScore",
+      "timelineFitScore",
+      "sourceVideoAlignmentScore"
+    ] as const;
+    if (
+      !coherence ||
+      scoreFields.some((field) =>
+        typeof coherence[field] !== "number" ||
+        !Number.isFinite(coherence[field]) ||
+        coherence[field] < 0 ||
+        coherence[field] > 100
+      ) ||
+      typeof coherence.issueCount !== "number" ||
+      typeof coherence.blockingIssueCount !== "number" ||
+      typeof coherence.reviewRequiredIssueCount !== "number"
+    ) {
+      checks.push({ name: "long_form_readiness_coherence", status: "fail", fileName, message: "long-form-readiness coherence scores are invalid." });
+    }
+
+    const adaptiveShotDecisions = Array.isArray(value.adaptiveShotDecisions) ? value.adaptiveShotDecisions : undefined;
+    const repairQueue = Array.isArray(value.repairQueue) ? value.repairQueue : undefined;
+    if (!adaptiveShotDecisions || adaptiveShotDecisions.length === 0 || !repairQueue) {
+      checks.push({ name: "long_form_readiness_collections", status: "fail", fileName, message: "long-form-readiness decisions/repairQueue are missing." });
+      return;
+    }
+    for (const [index, decision] of adaptiveShotDecisions.entries()) {
+      if (!this.isRecord(decision)) {
+        checks.push({ name: "long_form_readiness_decision_shape", status: "fail", fileName, message: `Readiness shot decision ${index} must be an object.` });
+        continue;
+      }
+      if (
+        typeof decision.shotId !== "string" ||
+        !decision.shotId ||
+        typeof decision.order !== "number" ||
+        typeof decision.mode !== "string" ||
+        !LONG_FORM_READINESS_RENDER_UNIT_MODES.has(decision.mode) ||
+        typeof decision.renderMode !== "string" ||
+        !RENDER_SCHEDULE_MODES.has(decision.renderMode) ||
+        typeof decision.shouldRunTestTake !== "boolean" ||
+        typeof decision.shouldChainFromPrevious !== "boolean" ||
+        typeof decision.requiresReferenceLock !== "boolean" ||
+        typeof decision.requiresManualReview !== "boolean" ||
+        !Array.isArray(decision.reasons) ||
+        !Array.isArray(decision.repairHints)
+      ) {
+        checks.push({ name: "long_form_readiness_decision_fields", status: "fail", fileName, message: `Readiness shot decision ${index} fields are invalid.` });
+      }
+    }
+
+    const blockingRepairCount = repairQueue.filter((repair) => this.isRecord(repair) && repair.blocksRender === true).length;
+    for (const [index, repair] of repairQueue.entries()) {
+      if (!this.isRecord(repair)) {
+        checks.push({ name: "long_form_readiness_repair_shape", status: "fail", fileName, message: `Readiness repair ${index} must be an object.` });
+        continue;
+      }
+      if (
+        typeof repair.repairId !== "string" ||
+        !repair.repairId ||
+        typeof repair.category !== "string" ||
+        !LONG_FORM_READINESS_REPAIR_CATEGORIES.has(repair.category) ||
+        typeof repair.priority !== "string" ||
+        !LONG_FORM_READINESS_REPAIR_PRIORITIES.has(repair.priority) ||
+        typeof repair.autoRepairable !== "boolean" ||
+        typeof repair.blocksRender !== "boolean" ||
+        !Array.isArray(repair.affectedSequenceIds) ||
+        !Array.isArray(repair.affectedShotIds) ||
+        typeof repair.trigger !== "string" ||
+        typeof repair.action !== "string" ||
+        !repair.action ||
+        typeof repair.uiLabel !== "string" ||
+        !repair.uiLabel
+      ) {
+        checks.push({ name: "long_form_readiness_repair_fields", status: "fail", fileName, message: `Readiness repair ${index} fields are invalid.` });
+      }
+    }
+
+    const uiReviewPacket = this.isRecord(value.uiReviewPacket) ? value.uiReviewPacket : undefined;
+    if (
+      !uiReviewPacket ||
+      typeof uiReviewPacket.canRenderAfterApproval !== "boolean" ||
+      !Array.isArray(uiReviewPacket.requiredApprovalSurfaces) ||
+      typeof uiReviewPacket.sceneReviewCount !== "number" ||
+      typeof uiReviewPacket.shotReviewCount !== "number" ||
+      typeof uiReviewPacket.audioReviewCount !== "number" ||
+      typeof uiReviewPacket.captionReviewCount !== "number" ||
+      typeof uiReviewPacket.claimReviewCount !== "number" ||
+      typeof uiReviewPacket.repairQueueCount !== "number" ||
+      typeof uiReviewPacket.operatorSummary !== "string" ||
+      !Array.isArray(uiReviewPacket.nextActions)
+    ) {
+      checks.push({ name: "long_form_readiness_ui_review_packet", status: "fail", fileName, message: "long-form-readiness uiReviewPacket is invalid." });
+    } else {
+      const manualShotReviewCount = adaptiveShotDecisions.filter((decision) =>
+        this.isRecord(decision) && decision.requiresManualReview === true
+      ).length;
+      if (uiReviewPacket.repairQueueCount !== repairQueue.length || uiReviewPacket.shotReviewCount !== manualShotReviewCount) {
+        checks.push({ name: "long_form_readiness_ui_counts", status: "fail", fileName, message: "long-form-readiness UI counts do not match decision/repair evidence." });
+      }
+      if (value.status === "blocked" && uiReviewPacket.canRenderAfterApproval !== false) {
+        checks.push({ name: "long_form_readiness_ui_gate", status: "fail", fileName, message: "Blocked long-form readiness must not allow render after approval." });
+      }
+    }
+
+    const releaseGateSummary = this.isRecord(value.releaseGateSummary) ? value.releaseGateSummary : undefined;
+    if (
+      !releaseGateSummary ||
+      typeof releaseGateSummary.canUseAsNoSpendReadinessEvidence !== "boolean" ||
+      typeof releaseGateSummary.canProceedToRender !== "boolean" ||
+      releaseGateSummary.canReleaseToCustomerTraffic !== false ||
+      typeof releaseGateSummary.releaseBlocker !== "string" ||
+      !releaseGateSummary.releaseBlocker
+    ) {
+      checks.push({ name: "long_form_readiness_release_gate", status: "fail", fileName, message: "long-form-readiness release gate summary is invalid." });
+    } else if ((value.status === "blocked" || blockingRepairCount > 0) && releaseGateSummary.canProceedToRender !== false) {
+      checks.push({ name: "long_form_readiness_release_gate", status: "fail", fileName, message: "Blocking readiness repairs must prevent render." });
     }
   }
 
