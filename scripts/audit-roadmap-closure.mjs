@@ -204,6 +204,7 @@ function anchor(source, text) {
 function parseArgs(args) {
   const options = {
     ...defaults,
+    writeReport: true,
     writeMarkdown: true,
     skipLaunchDoctorReport: false
   };
@@ -230,6 +231,11 @@ function parseArgs(args) {
       options.writeMarkdown = false;
       continue;
     }
+    if (arg === "--no-output") {
+      options.writeReport = false;
+      options.writeMarkdown = false;
+      continue;
+    }
     if (arg === "--skip-launch-doctor-report") {
       options.skipLaunchDoctorReport = true;
       continue;
@@ -249,7 +255,14 @@ function parseArgs(args) {
 }
 
 function printHelp() {
-  process.stdout.write(`Usage: node scripts/audit-roadmap-closure.mjs [options]\n\n`);
+  process.stdout.write(`Usage: node scripts/audit-roadmap-closure.mjs [options]\n
+Options:
+  --output <path>                 JSON report path.
+  --markdown-output <path>        Markdown report path.
+  --no-output                     Print only; do not write JSON or Markdown reports.
+  --no-markdown                   Do not write the Markdown report.
+  --skip-launch-doctor-report     Treat the launch-doctor report as skipped.
+\n`);
 }
 
 function main() {
@@ -327,8 +340,10 @@ function main() {
     nextActions: nextActionsFor(requirements, summary, releaseGateSummary)
   };
 
-  writeJson(options.outputPath, report);
-  if (options.writeMarkdown) {
+  if (options.writeReport) {
+    writeJson(options.outputPath, report);
+  }
+  if (options.writeReport && options.writeMarkdown) {
     writeText(options.markdownOutputPath, renderMarkdown(report));
   }
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
