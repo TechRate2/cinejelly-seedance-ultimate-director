@@ -1,5 +1,9 @@
 import type { ReviewApprovalReport } from "./review-approval.js";
 import type { AspectRatio } from "./settings.js";
+import type {
+  ShortReferenceVideoLearningInput,
+  ShortViralIntelligencePlan
+} from "./short-viral-intelligence.js";
 
 export type ShortPipelinePlatform =
   | "tiktok"
@@ -242,6 +246,7 @@ export interface ShortPipelinePlanInput {
   readonly userPrompt?: string;
   readonly product?: ProductUrlBriefInput;
   readonly brandKit?: BrandKitInput;
+  readonly referenceVideoLearning?: ShortReferenceVideoLearningInput;
   readonly preferredTemplateId?: string;
   readonly allowTemplateSuggestions?: boolean;
   readonly targetPlatform?: ShortPipelinePlatform;
@@ -276,6 +281,7 @@ export interface ShortPipelinePlan {
   readonly dynamicWorkflowRequired: boolean;
   readonly concepts: readonly ShortPipelineConcept[];
   readonly scenes: readonly ShortPipelineScenePlan[];
+  readonly viralIntelligence: ShortViralIntelligencePlan;
   readonly reviewApproval: ReviewApprovalReport;
   readonly releaseGateSummary: ShortPipelineReleaseGateSummary;
   readonly nextActions: readonly string[];
@@ -305,6 +311,7 @@ export interface ShortPipelineConversationInput {
   readonly messages: readonly ShortPipelineConversationMessageInput[];
   readonly product?: ProductUrlBriefInput;
   readonly brandKit?: BrandKitInput;
+  readonly referenceVideoLearning?: ShortReferenceVideoLearningInput;
   readonly preferredTemplateId?: string;
   readonly allowTemplateSuggestions?: boolean;
   readonly targetPlatform?: ShortPipelinePlatform;

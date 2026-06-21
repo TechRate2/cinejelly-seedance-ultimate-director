@@ -117,7 +117,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Represent outputs as typed text/video/image/search content rather than unstructured text only.
   - Use chat as a primary creative-control surface for video workflow operations.
 - CineJelly extension:
-  - Records a CineJelly-owned `director-agentic-media-reasoning` Reference Implementation that maps Director-style concepts into short-pipeline planning, review approval checkpoints, async job progress, source-video/material/generated-audio planning, and artifact evidence.
+  - Records a CineJelly-owned `director-agentic-media-reasoning` Reference Implementation that maps Director-style concepts into short-pipeline planning, viral/niche strategy, reference-video pattern learning, review approval checkpoints, async job progress, source-video/material/generated-audio planning, and artifact evidence.
   - Keeps runtime code in TypeScript and does not import or execute upstream Python/frontend code.
   - Does not yet claim parity with Director's hosted chat UI, VideoDB media library, frontend player controls, arbitrary LLM tool-routing loop, or full 20+ agent catalog.
 

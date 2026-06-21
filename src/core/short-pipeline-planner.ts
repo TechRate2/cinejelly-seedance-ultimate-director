@@ -6,6 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { ReviewApprovalSystem } from "./review-approval-system.js";
+import { ShortViralIntelligencePlanner } from "./short-viral-intelligence-planner.js";
 import type {
   BrandKitEvaluation,
   BrandKitInput,
@@ -461,6 +462,7 @@ export class ShortPipelinePlanner {
   private readonly brandKitEvaluator = new BrandKitEvaluator();
   private readonly templateRegistry = new WorkflowTemplateRegistry();
   private readonly approvalSystem = new ReviewApprovalSystem();
+  private readonly viralIntelligencePlanner = new ShortViralIntelligencePlanner();
 
   public buildPlan(input: ShortPipelinePlanInput): ShortPipelinePlan {
     const generatedAt = input.generatedAt ?? new Date();
@@ -485,8 +487,22 @@ export class ShortPipelinePlanner {
     const selectedTemplate = input.preferredTemplateId
       ? templateSuggestions.find((item) => item.templateId === input.preferredTemplateId)
       : undefined;
-    const concepts = this.concepts(prompt, intent, productBrief, brandKitEvaluation, selectedTemplate ?? templateSuggestions[0]);
-    const scenes = this.scenes(intent, productBrief, concepts[0], selectedTemplate ?? templateSuggestions[0]);
+    const activeTemplate = selectedTemplate ?? templateSuggestions[0];
+    const concepts = this.concepts(prompt, intent, productBrief, brandKitEvaluation, activeTemplate);
+    const scenes = this.scenes(intent, productBrief, concepts[0], activeTemplate);
+    const viralIntelligence = this.viralIntelligencePlanner.build({
+      projectId: input.projectId,
+      ...(input.requestId ? { requestId: input.requestId } : {}),
+      prompt,
+      generatedAt,
+      intent,
+      ...(productBrief ? { productBrief } : {}),
+      ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      concepts,
+      scenes,
+      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
+    });
     const checkpoints = this.checkpoints(scenes, productBrief, brandKitEvaluation);
     const reviewApproval = this.approvalSystem.evaluate({
       projectId: input.projectId,
@@ -495,7 +511,7 @@ export class ShortPipelinePlanner {
       generatedAt,
       checkpoints
     });
-    const status = productBrief?.status === "blocked" || brandKitEvaluation?.status === "blocked" || reviewApproval.status === "blocked"
+    const status = productBrief?.status === "blocked" || brandKitEvaluation?.status === "blocked" || viralIntelligence.status === "blocked" || reviewApproval.status === "blocked"
       ? "blocked"
       : reviewApproval.status === "changes_requested" || reviewApproval.status === "rejected"
       ? "changes_requested"
@@ -532,16 +548,17 @@ export class ShortPipelinePlanner {
       dynamicWorkflowRequired: true,
       concepts,
       scenes,
+      viralIntelligence,
       reviewApproval,
       releaseGateSummary: {
-        canRenderAfterApproval: reviewApproval.releaseGateSummary.canRenderAfterReview && status !== "blocked",
-        canUseAsNoSpendPlanningEvidence: status !== "blocked",
+        canRenderAfterApproval: reviewApproval.releaseGateSummary.canRenderAfterReview && status !== "blocked" && viralIntelligence.status !== "blocked",
+        canUseAsNoSpendPlanningEvidence: status !== "blocked" && viralIntelligence.status !== "blocked",
         canReleaseToCustomerTraffic: false,
-        releaseBlocker: status === "blocked"
+        releaseBlocker: status === "blocked" || viralIntelligence.status === "blocked"
           ? "Short-pipeline plan is blocked by unsafe URL, product, or brand-kit evidence."
           : "Short-pipeline plan is planning evidence only; render requires accepted review checkpoints, quota/cost gates, artifact validation, and business-readiness evidence."
       },
-      nextActions: this.nextActions(status, productBrief, brandKitEvaluation, reviewApproval.status)
+      nextActions: this.nextActions(status, productBrief, brandKitEvaluation, reviewApproval.status, viralIntelligence.status)
     };
   }
 
@@ -695,7 +712,8 @@ export class ShortPipelinePlanner {
     status: ShortPipelinePlan["status"],
     productBrief: ProductUrlBrief | undefined,
     brandKitEvaluation: BrandKitEvaluation | undefined,
-    reviewStatus: string
+    reviewStatus: string,
+    viralStatus: string
   ): readonly string[] {
     if (status === "blocked") {
       return [
@@ -706,6 +724,7 @@ export class ShortPipelinePlanner {
     return [
       ...(productBrief?.status === "review_required" ? ["Confirm product facts, image rights, and claim substantiation."] : []),
       ...(brandKitEvaluation?.status === "review_required" ? ["Complete brand-kit tone, CTA, claim policy, and asset approval review."] : []),
+      ...(viralStatus === "review_required" ? ["Review short viral strategy, reference-video guardrails, concept score, and scene directives before render."] : []),
       reviewStatus === "approval_required" || reviewStatus === "changes_requested"
         ? "Collect human scene, audio, caption, and claim approval before render."
         : "Proceed only through render cost/quota gates after approval.",

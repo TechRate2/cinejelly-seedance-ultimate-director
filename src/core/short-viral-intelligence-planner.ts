@@ -1,0 +1,803 @@
+/**
+ * Short viral/niche intelligence.
+ * Adds no-spend platform, niche, concept-score, and reference-video pattern guidance
+ * to the short pipeline before any provider call can happen.
+ */
+
+import { createHash } from "node:crypto";
+import type {
+  BrandKitEvaluation,
+  ProductUrlBrief,
+  ShortPipelineConcept,
+  ShortPipelineIntent,
+  ShortPipelineScenePlan,
+  WorkflowTemplateSuggestion
+} from "../types/short-pipeline.js";
+import type {
+  ShortReferenceVideoLearningInput,
+  ShortReferenceVideoPattern,
+  ShortReferenceVideoSafetyStatus,
+  ShortViralConceptScore,
+  ShortViralCreativeMode,
+  ShortViralFinding,
+  ShortViralFindingCode,
+  ShortViralIntelligencePlan,
+  ShortViralLever,
+  ShortViralNicheStrategy,
+  ShortViralPlatformFocus,
+  ShortViralSceneDirective
+} from "../types/short-viral-intelligence.js";
+import { createStableId } from "../utils/ids.js";
+
+const SOURCE_PATTERN_ORIGINS = [
+  "calesthio/OpenMontage",
+  "HKUDS/ViMax",
+  "HKUDS/VideoAgent",
+  "video-db/Director",
+  "vericontext/vibeframe"
+] as const;
+
+const COPY_RISK_PATTERN = /\b(copy|clone|replicate|exact|identical|same\s+video|99%|steal|reupload)\b/i;
+const UNSAFE_SOURCE_PATTERN =
+  /[A-Za-z]:\\|\\\\|(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|data:|bearer\s+|api[_-]?key|secret|token|password|authorization/i;
+const HIGH_RISK_CLAIM_PATTERN =
+  /cure|heal|medical|clinical|guarantee|guaranteed|100%|risk[-\s]?free|earn|income|profit|investment|weight loss|overnight|#1|best/i;
+const STRONG_HOOK_PATTERN = /\b(stop|wait|pov|why|before|after|mistake|secret|watch|proof|tested|real|review|problem)\b|[?!]/i;
+
+export interface ShortViralIntelligencePlannerInput {
+  readonly projectId: string;
+  readonly requestId?: string;
+  readonly prompt: string;
+  readonly generatedAt: Date;
+  readonly intent: ShortPipelineIntent;
+  readonly productBrief?: ProductUrlBrief;
+  readonly brandKitEvaluation?: BrandKitEvaluation;
+  readonly selectedTemplate?: WorkflowTemplateSuggestion;
+  readonly concepts: readonly ShortPipelineConcept[];
+  readonly scenes: readonly ShortPipelineScenePlan[];
+  readonly referenceVideoLearning?: ShortReferenceVideoLearningInput;
+}
+
+export class ShortViralIntelligencePlanner {
+  public build(input: ShortViralIntelligencePlannerInput): ShortViralIntelligencePlan {
+    if (!input.projectId.trim()) {
+      throw new Error("projectId is required for short viral intelligence.");
+    }
+    const prompt = cleanText(input.prompt, 3000) ?? "";
+    const findings: ShortViralFinding[] = [];
+    const reference = this.referencePattern(input.referenceVideoLearning, prompt, findings);
+    const strategy = this.nicheStrategy(input, prompt, reference);
+    findings.push(...this.strategyFindings(input, prompt, strategy, reference));
+    const conceptScores = this.conceptScores(input.concepts, input, prompt, strategy);
+    const winningConceptId = conceptScores[0]?.conceptId ?? input.concepts[0]?.conceptId;
+    const sceneDirectives = this.sceneDirectives(input.scenes, input, strategy, reference);
+    findings.push(...this.sceneFindings(input.scenes, sceneDirectives, strategy, reference));
+    const status = findings.some((finding) => finding.severity === "block")
+      ? "blocked"
+      : findings.some((finding) => finding.severity === "warn") ||
+          input.productBrief?.status === "review_required" ||
+          input.brandKitEvaluation?.status === "review_required"
+        ? "review_required"
+        : "ready";
+    const intelligenceId = createStableId(
+      "short_viral",
+      [
+        input.projectId,
+        input.requestId ?? "",
+        prompt,
+        strategy.niche,
+        strategy.platformFocus,
+        strategy.creativeMode,
+        reference?.patternId ?? "no_reference",
+        winningConceptId ?? "no_concept"
+      ].join(":")
+    );
+
+    return {
+      schemaVersion: "cinejelly.short-viral-intelligence.v1",
+      intelligenceId,
+      projectId: input.projectId,
+      ...(input.requestId ? { requestId: input.requestId } : {}),
+      generatedAt: input.generatedAt,
+      status,
+      noSpend: true,
+      networkCallsMade: false,
+      providerCallsMade: false,
+      sourcePatternOrigins: SOURCE_PATTERN_ORIGINS,
+      nicheStrategy: strategy,
+      ...(reference ? { referenceVideoPattern: reference } : {}),
+      ...(winningConceptId ? { winningConceptId } : {}),
+      conceptScores,
+      sceneDirectives,
+      findings,
+      releaseGateSummary: {
+        canUseAsNoSpendViralEvidence: status !== "blocked",
+        canRenderAfterApproval: status !== "blocked",
+        canReleaseToCustomerTraffic: false,
+        releaseBlocker: status === "blocked"
+          ? "Short viral intelligence is blocked by unsafe reference, local path, credential, or copy-risk evidence."
+          : "Short viral intelligence is no-spend planning evidence; render still requires formal review, cost gates, artifact validation, and manual media review."
+      }
+    };
+  }
+
+  private referencePattern(
+    input: ShortReferenceVideoLearningInput | undefined,
+    prompt: string,
+    findings: ShortViralFinding[]
+  ): ShortReferenceVideoPattern | undefined {
+    if (!input) {
+      if (COPY_RISK_PATTERN.test(prompt)) {
+        findings.push(finding(
+          "reference_video_copy_risk",
+          "warn",
+          "The brief asks to copy or clone a source. The pipeline will learn structure only and will not copy content, identity, assets, or claims.",
+          "Provide rights-cleared assets or describe the pattern to adapt rather than asking for an identical recreation.",
+          { promptCopyRisk: true }
+        ));
+      }
+      return undefined;
+    }
+    const sourceLabel = cleanText(input.sourceLabel, 120);
+    const summary = cleanText(input.summary, 600) ?? "reference short video pattern";
+    const hookPattern = cleanText(input.hook, 220) ?? inferHookPattern(summary, prompt);
+    const pacingPattern = cleanText(input.pacing, 220) ?? pacingFrom(input.durationSeconds, input.sceneCount);
+    const cameraPattern = cleanText(input.cameraStyle, 220) ?? "native handheld or product-close framing with clear first-frame readability";
+    const captionPattern = cleanText(input.captionStyle, 220) ?? "short high-contrast captions that reveal one idea at a time";
+    const audioPattern = cleanText(input.audioStyle, 180) ?? "clean narration or trend-compatible bed that does not overpower speech";
+    const retentionMechanics = uniqueClean([
+      cleanText(input.retentionPattern, 180),
+      "front-load the payoff promise",
+      "change visual information before attention drops",
+      "carry one unanswered question into the proof beat"
+    ], 5, 180);
+    const ctaPattern = cleanText(input.ctaStyle, 180) ?? "single direct CTA after proof, without adding new claims";
+    const visualMotifs = uniqueClean(input.visualMotifs ?? [], 6, 80);
+    const sourceEvidence = safeSourceUrl(input.sourceUrl);
+    if (sourceEvidence.status === "blocked") {
+      findings.push(finding(
+        "reference_video_unsafe_source",
+        "block",
+        "Reference video source is unsafe or could leak local paths, credentials, or non-HTTPS data.",
+        "Use a clean HTTPS reference URL or provide a redacted operator summary.",
+        { sourceUnsafe: true }
+      ));
+    }
+    const copyRisk = input.doNotCopy === false || COPY_RISK_PATTERN.test(`${prompt} ${summary} ${hookPattern}`);
+    if (copyRisk) {
+      findings.push(finding(
+        "reference_video_copy_risk",
+        "warn",
+        "Reference video learning is constrained to structure, pacing, and presentation pattern only.",
+        "Keep new assets, script wording, captions, claims, faces, brand marks, and product evidence original or rights-cleared.",
+        { doNotCopy: input.doNotCopy !== false }
+      ));
+    }
+    const safetyStatus: ShortReferenceVideoSafetyStatus = sourceEvidence.status === "blocked"
+      ? "blocked"
+      : copyRisk
+        ? "review_required"
+        : "learned_pattern";
+    const patternId = createStableId(
+      "short_ref_pattern",
+      [
+        sourceLabel ?? "",
+        sourceEvidence.sourceUrlSha256 ?? "",
+        summary,
+        hookPattern,
+        pacingPattern,
+        cameraPattern,
+        captionPattern
+      ].join(":")
+    );
+    return {
+      schemaVersion: "cinejelly.short-reference-video-pattern.v1",
+      patternId,
+      safetyStatus,
+      ...(sourceLabel ? { sourceLabel } : {}),
+      ...(sourceEvidence.sourceUrlSha256 ? { sourceUrlSha256: sourceEvidence.sourceUrlSha256 } : {}),
+      ...(sourceEvidence.sourceHost ? { sourceHost: sourceEvidence.sourceHost } : {}),
+      ...(finitePositive(input.durationSeconds) ? { durationSeconds: round(input.durationSeconds) } : {}),
+      ...(integerPositive(input.sceneCount) ? { sceneCount: Math.round(input.sceneCount) } : {}),
+      hookPattern,
+      pacingPattern,
+      cameraPattern,
+      captionPattern,
+      audioPattern,
+      retentionMechanics,
+      ctaPattern,
+      visualMotifs,
+      originalityGuardrails: [
+        "learn structure, timing, framing, caption rhythm, and CTA logic only",
+        "do not copy source script wording, faces, brand marks, copyrighted edits, music, or private assets",
+        "replace claims with reviewed product and brand-kit evidence",
+        "treat similarity above structural pattern as human-review risk"
+      ],
+      sourcePatternOrigins: SOURCE_PATTERN_ORIGINS
+    };
+  }
+
+  private nicheStrategy(
+    input: ShortViralIntelligencePlannerInput,
+    prompt: string,
+    reference: ShortReferenceVideoPattern | undefined
+  ): ShortViralNicheStrategy {
+    const platformFocus = platformFocusFrom(input.intent.platform, prompt);
+    const creativeMode = creativeModeFrom(prompt, input.productBrief, input.selectedTemplate);
+    const niche = nicheFrom(input.productBrief, prompt);
+    const viewerDesire = cleanText(input.productBrief?.benefits[0], 160) ??
+      cleanText(input.intent.businessGoal, 160) ??
+      "a faster, clearer, lower-friction result";
+    const viewerObjection = objectionFrom(prompt, input.productBrief, input.brandKitEvaluation);
+    return {
+      niche,
+      audience: input.intent.audience,
+      buyerIntent: buyerIntentFrom(prompt, input.productBrief),
+      platformFocus,
+      creativeMode,
+      viewerDesire,
+      viewerObjection,
+      viralLevers: viralLeversFor(platformFocus, creativeMode, reference),
+      antiPatterns: antiPatternsFor(creativeMode)
+    };
+  }
+
+  private strategyFindings(
+    input: ShortViralIntelligencePlannerInput,
+    prompt: string,
+    strategy: ShortViralNicheStrategy,
+    reference: ShortReferenceVideoPattern | undefined
+  ): readonly ShortViralFinding[] {
+    const findings: ShortViralFinding[] = [];
+    if (!input.productBrief && strategy.niche === "general business") {
+      findings.push(finding(
+        "generic_niche",
+        "warn",
+        "The brief does not include enough product or niche evidence for highly specific viral positioning.",
+        "Add product facts, a URL snapshot, sample audience, objections, or a reference pattern for sharper creative decisions.",
+        { productBriefPresent: false }
+      ));
+    }
+    const firstConcept = input.concepts[0];
+    if (!firstConcept || !STRONG_HOOK_PATTERN.test(firstConcept.hook)) {
+      findings.push(finding(
+        "weak_hook",
+        "warn",
+        "The first concept hook is usable but not yet strong enough for TikTok/Douyin-style retention.",
+        "Add a sharper contradiction, proof promise, mistake, or POV statement in the first second.",
+        { conceptCount: input.concepts.length }
+      ));
+    }
+    if (!input.productBrief && /ad|ugc|review|shop|buy|product/i.test(prompt)) {
+      findings.push(finding(
+        "missing_product_evidence",
+        "warn",
+        "Commercial short request has no product facts, claims, images, or CTA evidence yet.",
+        "Provide product URL/snapshot evidence before paid render so claims and visuals can be reviewed.",
+        { commercialIntent: true }
+      ));
+    }
+    if (input.productBrief?.claimInventory.some((claim) => claim.substantiationRequired)) {
+      findings.push(finding(
+        "claim_review_required",
+        "warn",
+        "Some product claims need substantiation before render.",
+        "Approve, rewrite, or remove claim-bound beats before provider spend.",
+        { claimCount: input.productBrief.claimInventory.length }
+      ));
+    }
+    if (reference?.safetyStatus === "review_required") {
+      findings.push(finding(
+        "scene_pacing_review",
+        "info",
+        "Reference pattern has copy-risk guardrails and should be reviewed as style guidance, not a clone target.",
+        "Confirm the reference is being used for structure and pacing only.",
+        { referencePatternPresent: true }
+      ));
+    }
+    return findings;
+  }
+
+  private conceptScores(
+    concepts: readonly ShortPipelineConcept[],
+    input: ShortViralIntelligencePlannerInput,
+    prompt: string,
+    strategy: ShortViralNicheStrategy
+  ): readonly ShortViralConceptScore[] {
+    return concepts
+      .map((concept) => {
+        const hookScore = scoreHook(concept.hook, strategy);
+        const retentionScore = scoreRetention(concept, strategy);
+        const nicheFitScore = scoreNicheFit(concept, strategy, input.productBrief);
+        const brandFitScore = scoreBrandFit(concept, input.brandKitEvaluation);
+        const claimSafetyScore = scoreClaimSafety(concept, input.productBrief, prompt);
+        const renderabilityScore = scoreRenderability(concept, input.scenes, strategy);
+        const totalScore = round(
+          hookScore * 0.24 +
+          retentionScore * 0.2 +
+          nicheFitScore * 0.18 +
+          brandFitScore * 0.14 +
+          claimSafetyScore * 0.14 +
+          renderabilityScore * 0.1
+        );
+        return {
+          conceptId: concept.conceptId,
+          label: concept.label,
+          hookScore,
+          retentionScore,
+          nicheFitScore,
+          brandFitScore,
+          claimSafetyScore,
+          renderabilityScore,
+          totalScore,
+          reasons: scoreReasons(concept, strategy, input.productBrief)
+        };
+      })
+      .sort((left, right) => right.totalScore - left.totalScore || left.conceptId.localeCompare(right.conceptId));
+  }
+
+  private sceneDirectives(
+    scenes: readonly ShortPipelineScenePlan[],
+    input: ShortViralIntelligencePlannerInput,
+    strategy: ShortViralNicheStrategy,
+    reference: ShortReferenceVideoPattern | undefined
+  ): readonly ShortViralSceneDirective[] {
+    const baseDuration = input.intent.targetDurationSeconds / Math.max(1, scenes.length);
+    return scenes.map((scene, index) => {
+      const roleLevers = leversForScene(scene.role, strategy.viralLevers);
+      const isFirst = index === 0;
+      const isLast = index === scenes.length - 1;
+      return {
+        sceneId: scene.sceneId,
+        order: scene.order,
+        role: scene.role,
+        recommendedDurationSeconds: round(isFirst ? Math.min(3, Math.max(1.5, baseDuration * 0.45)) : isLast ? Math.max(2, baseDuration * 0.65) : baseDuration),
+        firstFrameRule: isFirst
+          ? `Open with ${firstFrameSubject(input.productBrief, strategy)} and one readable promise before the first second ends.`
+          : "Continue with a visible state change, not a static talking-head hold.",
+        retentionJob: retentionJobFor(scene.role, strategy, reference),
+        cameraCue: cameraCueFor(scene.role, strategy, reference),
+        captionCue: captionCueFor(scene, strategy, reference),
+        proofCue: proofCueFor(scene, input.productBrief, strategy),
+        ...(isLast ? { ctaCue: ctaCueFor(input.productBrief, strategy) } : {}),
+        viralLevers: roleLevers,
+        qualityChecks: qualityChecksFor(scene, strategy),
+        ...(reference ? { referencePatternAlignment: referenceAlignmentFor(scene, reference) } : {})
+      };
+    });
+  }
+
+  private sceneFindings(
+    scenes: readonly ShortPipelineScenePlan[],
+    directives: readonly ShortViralSceneDirective[],
+    strategy: ShortViralNicheStrategy,
+    reference: ShortReferenceVideoPattern | undefined
+  ): readonly ShortViralFinding[] {
+    const findings: ShortViralFinding[] = [];
+    if (directives.some((directive) => directive.captionCue.length > 140)) {
+      findings.push(finding(
+        "caption_retention_gap",
+        "warn",
+        "At least one caption directive is too long for a fast short-video viewer.",
+        "Rewrite caption beats into one short idea per scene before render.",
+        { sceneCount: scenes.length }
+      ));
+    }
+    if (reference?.sceneCount && Math.abs(reference.sceneCount - scenes.length) >= 3) {
+      findings.push(finding(
+        "scene_pacing_review",
+        "warn",
+        "Reference pattern scene count differs materially from the generated short plan.",
+        "Review whether the plan should add/remove scene beats or intentionally adapt the reference more loosely.",
+        { referenceSceneCount: reference.sceneCount, planSceneCount: scenes.length }
+      ));
+    }
+    if (strategy.platformFocus === "tiktok_douyin" && scenes.length < 3) {
+      findings.push(finding(
+        "scene_pacing_review",
+        "warn",
+        "TikTok/Douyin-first shorts need enough visible beat changes to hold attention.",
+        "Use at least hook, proof/demo, and CTA beats.",
+        { sceneCount: scenes.length }
+      ));
+    }
+    return findings;
+  }
+}
+
+function platformFocusFrom(platform: string, prompt: string): ShortViralPlatformFocus {
+  if (/douyin|tiktok|tik tok/i.test(prompt) || platform === "tiktok" || platform === "unknown") {
+    return "tiktok_douyin";
+  }
+  if (platform === "instagram_reels" || /reels|instagram/i.test(prompt)) {
+    return "reels";
+  }
+  if (platform === "youtube_shorts" || /youtube shorts|shorts/i.test(prompt)) {
+    return "youtube_shorts";
+  }
+  if (/paid|ads?|campaign|cpa|roas|conversion/i.test(prompt)) {
+    return "paid_social";
+  }
+  return "cross_platform_social";
+}
+
+function creativeModeFrom(
+  prompt: string,
+  productBrief: ProductUrlBrief | undefined,
+  template: WorkflowTemplateSuggestion | undefined
+): ShortViralCreativeMode {
+  const combined = `${prompt} ${template?.category ?? ""}`.toLowerCase();
+  if (/\bugc|review|creator|influencer|native\b/.test(combined)) return "ugc_review";
+  if (/testimonial|customer story/.test(combined)) return "testimonial";
+  if (/compare|versus|vs|before after|before\/after/.test(combined)) return "comparison";
+  if (/demo|how it works|show how|tutorial/.test(combined)) return "demo";
+  if (/explain|educat|training|learn/.test(combined)) return "education";
+  if (/story|founder|journey/.test(combined)) return "story";
+  if (/cinematic|premium|luxury|reveal/.test(combined)) return "cinematic";
+  if (/problem|pain|solution/.test(combined)) return "problem_solution";
+  return productBrief ? "product_ad" : "problem_solution";
+}
+
+function nicheFrom(productBrief: ProductUrlBrief | undefined, prompt: string): string {
+  const category = cleanText(productBrief?.category, 80);
+  if (category) return category.toLowerCase();
+  const title = cleanText(productBrief?.title, 100);
+  if (title) return title.toLowerCase();
+  const phrase = matches(prompt.toLowerCase(), /\b(?:for|niche|ngach|ngách|industry|market)\s+([a-z0-9][a-z0-9\s-]{2,50})/gi)[0];
+  if (phrase) return cleanText(phrase, 60) ?? "general business";
+  const keywords = keywordCandidates(prompt, 3);
+  return keywords.length > 0 ? keywords.join(" ") : "general business";
+}
+
+function buyerIntentFrom(prompt: string, productBrief: ProductUrlBrief | undefined): ShortViralNicheStrategy["buyerIntent"] {
+  if (/buy|shop|order|cta|conversion|sale|discount|checkout|lead/i.test(prompt) || productBrief?.ctaCandidates.length) return "conversion";
+  if (/compare|review|proof|testimonial|demo|why/i.test(prompt)) return "consideration";
+  if (/repeat|loyal|retention|community/i.test(prompt)) return "retention";
+  return "awareness";
+}
+
+function objectionFrom(
+  prompt: string,
+  productBrief: ProductUrlBrief | undefined,
+  brandKitEvaluation: BrandKitEvaluation | undefined
+): string {
+  const promptObjection = matches(prompt, /\b(?:objection|hesitation|concern|worry|afraid|but)\s*[:\-]?\s*([^.!?]{4,120})/gi)[0];
+  if (promptObjection) return promptObjection;
+  if (productBrief?.claimInventory.some((claim) => claim.substantiationRequired)) {
+    return "viewer may not trust the claim without visible proof or substantiation";
+  }
+  if (brandKitEvaluation?.status === "review_required") {
+    return "viewer may feel the message is off-brand or unclear";
+  }
+  return "viewer may scroll if the first second does not show a specific payoff";
+}
+
+function viralLeversFor(
+  platform: ShortViralPlatformFocus,
+  mode: ShortViralCreativeMode,
+  reference: ShortReferenceVideoPattern | undefined
+): readonly ShortViralLever[] {
+  const levers: ShortViralLever[] = ["fast_hook", "caption_retention", "visual_payoff", "clear_cta"];
+  if (platform === "tiktok_douyin") levers.push("pattern_interrupt", "curiosity_gap");
+  if (mode === "ugc_review" || mode === "testimonial") levers.push("native_ugc", "social_proof");
+  if (mode === "product_ad" || mode === "demo" || mode === "comparison") levers.push("proof_stack", "product_demo");
+  if (reference) levers.push("trend_transfer");
+  return uniqueValues(levers);
+}
+
+function antiPatternsFor(mode: ShortViralCreativeMode): readonly string[] {
+  return [
+    "slow brand intro before the viewer understands the payoff",
+    "generic stock montage with no product or proof beat",
+    "unsupported superlatives or unreviewed before-after claims",
+    "caption walls that require pausing to read",
+    mode === "ugc_review" ? "overproduced creator delivery that no longer feels native" : "flat single-angle narration without visible state change"
+  ];
+}
+
+function scoreHook(hook: string, strategy: ShortViralNicheStrategy): number {
+  let score = STRONG_HOOK_PATTERN.test(hook) ? 0.78 : 0.58;
+  if (hook.toLowerCase().includes(strategy.niche.split(" ")[0] ?? "")) score += 0.08;
+  if (strategy.platformFocus === "tiktok_douyin") score += 0.05;
+  return clampScore(score);
+}
+
+function scoreRetention(concept: ShortPipelineConcept, strategy: ShortViralNicheStrategy): number {
+  let score = 0.62 + strategy.viralLevers.length * 0.025;
+  if (/proof|demo|problem|visible|show/i.test(`${concept.label} ${concept.angle}`)) score += 0.12;
+  if (strategy.creativeMode === "ugc_review" && /review|native|buyer|problem/i.test(concept.angle)) score += 0.08;
+  return clampScore(score);
+}
+
+function scoreNicheFit(
+  concept: ShortPipelineConcept,
+  strategy: ShortViralNicheStrategy,
+  productBrief: ProductUrlBrief | undefined
+): number {
+  let score = productBrief ? 0.74 : 0.52;
+  if (`${concept.label} ${concept.angle} ${concept.hook}`.toLowerCase().includes(strategy.niche.split(" ")[0] ?? "")) score += 0.1;
+  if (strategy.viewerDesire && concept.angle.toLowerCase().includes(strategy.viewerDesire.toLowerCase().split(" ")[0] ?? "")) score += 0.05;
+  return clampScore(score);
+}
+
+function scoreBrandFit(concept: ShortPipelineConcept, brandKitEvaluation: BrandKitEvaluation | undefined): number {
+  if (!brandKitEvaluation) return 0.58;
+  if (brandKitEvaluation.status === "blocked") return 0.18;
+  let score = brandKitEvaluation.status === "ready" ? 0.84 : 0.66;
+  if (brandKitEvaluation.tone && concept.angle.toLowerCase().includes(brandKitEvaluation.tone.toLowerCase().split(" ")[0] ?? "")) score += 0.06;
+  return clampScore(score);
+}
+
+function scoreClaimSafety(concept: ShortPipelineConcept, productBrief: ProductUrlBrief | undefined, prompt: string): number {
+  const combined = `${concept.hook} ${concept.angle} ${prompt}`;
+  let score = HIGH_RISK_CLAIM_PATTERN.test(combined) ? 0.42 : 0.86;
+  if (productBrief?.claimInventory.some((claim) => claim.substantiationRequired)) score -= 0.12;
+  if (concept.riskNotes.length > 0) score -= 0.04;
+  return clampScore(score);
+}
+
+function scoreRenderability(
+  concept: ShortPipelineConcept,
+  scenes: readonly ShortPipelineScenePlan[],
+  strategy: ShortViralNicheStrategy
+): number {
+  let score = scenes.length >= 3 ? 0.82 : 0.62;
+  if (/one clear|visible|simple|show/i.test(concept.angle)) score += 0.05;
+  if (strategy.creativeMode === "cinematic") score -= 0.03;
+  return clampScore(score);
+}
+
+function scoreReasons(
+  concept: ShortPipelineConcept,
+  strategy: ShortViralNicheStrategy,
+  productBrief: ProductUrlBrief | undefined
+): readonly string[] {
+  return uniqueClean([
+    `fits ${strategy.platformFocus} with ${strategy.viralLevers.slice(0, 3).join(", ")}`,
+    productBrief ? "uses reviewed product evidence as the proof base" : "needs product evidence before commercial render",
+    STRONG_HOOK_PATTERN.test(concept.hook) ? "hook contains a retention trigger" : "hook should be sharpened before paid render",
+    `matches ${strategy.creativeMode} creative mode`
+  ], 5, 160);
+}
+
+function leversForScene(role: ShortPipelineScenePlan["role"], globalLevers: readonly ShortViralLever[]): readonly ShortViralLever[] {
+  const preferred: Record<ShortPipelineScenePlan["role"], readonly ShortViralLever[]> = {
+    hook: ["fast_hook", "pattern_interrupt", "curiosity_gap", "caption_retention"],
+    problem: ["native_ugc", "curiosity_gap", "caption_retention"],
+    proof: ["proof_stack", "social_proof", "visual_payoff"],
+    demo: ["product_demo", "visual_payoff", "caption_retention"],
+    offer: ["proof_stack", "clear_cta"],
+    cta: ["clear_cta", "visual_payoff"]
+  };
+  return preferred[role].filter((lever) => globalLevers.includes(lever)).slice(0, 4);
+}
+
+function firstFrameSubject(productBrief: ProductUrlBrief | undefined, strategy: ShortViralNicheStrategy): string {
+  return productBrief?.title ? `${productBrief.title} or the buyer result` : `the ${strategy.niche} problem or desired result`;
+}
+
+function retentionJobFor(
+  role: ShortPipelineScenePlan["role"],
+  strategy: ShortViralNicheStrategy,
+  reference: ShortReferenceVideoPattern | undefined
+): string {
+  const referenceCue = reference ? ` Adapt the reference pacing pattern: ${reference.pacingPattern}.` : "";
+  switch (role) {
+    case "hook":
+      return `Create a curiosity gap tied to ${strategy.viewerDesire}; make the viewer understand the payoff immediately.${referenceCue}`;
+    case "problem":
+      return `Name the viewer objection visually: ${strategy.viewerObjection}.`;
+    case "proof":
+      return "Turn the claim into visible proof, product evidence, or a review-bound fact.";
+    case "demo":
+      return "Show one concrete usage step with a before-state and after-state in the same beat.";
+    case "offer":
+      return "Make the offer feel like the natural next step after proof, not a separate ad card.";
+    case "cta":
+      return "Close the loop from hook to proof and ask for one action only.";
+  }
+}
+
+function cameraCueFor(
+  role: ShortPipelineScenePlan["role"],
+  strategy: ShortViralNicheStrategy,
+  reference: ShortReferenceVideoPattern | undefined
+): string {
+  if (reference) {
+    return `${reference.cameraPattern}; adapt for ${role} without copying source assets.`;
+  }
+  if (strategy.creativeMode === "ugc_review") {
+    return role === "hook"
+      ? "native creator framing, product/result visible, slight motion in first frame"
+      : "handheld creator/product close-up with natural movement and readable proof";
+  }
+  if (strategy.creativeMode === "cinematic") {
+    return "premium product close-up, motivated camera move, clean negative space for captions";
+  }
+  return "clear product/result framing with one visible state change per beat";
+}
+
+function captionCueFor(
+  scene: ShortPipelineScenePlan,
+  strategy: ShortViralNicheStrategy,
+  reference: ShortReferenceVideoPattern | undefined
+): string {
+  const prefix = scene.role === "hook" ? "Use a 6-10 word stop-scroll caption" : "Use one short caption";
+  const referenceCue = reference ? ` in the reference rhythm (${reference.captionPattern})` : "";
+  return `${prefix}${referenceCue}: ${scene.caption}. Keep it specific to ${strategy.niche}.`;
+}
+
+function proofCueFor(
+  scene: ShortPipelineScenePlan,
+  productBrief: ProductUrlBrief | undefined,
+  strategy: ShortViralNicheStrategy
+): string {
+  if (scene.claimIds.length > 0) {
+    return `Use only review-bound claim IDs ${scene.claimIds.join(", ")} and show visible evidence.`;
+  }
+  if (productBrief?.benefits[0]) {
+    return `Ground the beat in this reviewed benefit: ${productBrief.benefits[0]}.`;
+  }
+  return `Use observable ${strategy.niche} evidence; avoid unsupported performance claims.`;
+}
+
+function ctaCueFor(productBrief: ProductUrlBrief | undefined, strategy: ShortViralNicheStrategy): string {
+  return productBrief?.ctaCandidates[0]
+    ? `Use CTA exactly once: ${productBrief.ctaCandidates[0]}.`
+    : `Use one ${strategy.buyerIntent === "conversion" ? "conversion" : "low-friction"} CTA and do not add new claims.`;
+}
+
+function qualityChecksFor(scene: ShortPipelineScenePlan, strategy: ShortViralNicheStrategy): readonly string[] {
+  return [
+    scene.role === "hook" ? "payoff is visible or spoken inside the first second" : "scene starts with changed visual information",
+    "caption is readable on mobile and does not cover product proof",
+    "no unsupported claim or new offer appears outside review evidence",
+    `beat supports ${strategy.creativeMode} mode and ${strategy.platformFocus} pacing`
+  ];
+}
+
+function referenceAlignmentFor(scene: ShortPipelineScenePlan, reference: ShortReferenceVideoPattern): string {
+  return `Use reference ${reference.patternId} for ${scene.role} pacing/caption/camera structure only; keep script, assets, claims, and brand identity original or approved.`;
+}
+
+function inferHookPattern(summary: string, prompt: string): string {
+  if (/mistake|avoid|wrong/i.test(`${summary} ${prompt}`)) return "mistake-first hook that promises a fix";
+  if (/review|ugc|creator/i.test(`${summary} ${prompt}`)) return "creator POV hook with a quick credibility cue";
+  if (/before|after|transform/i.test(`${summary} ${prompt}`)) return "before-state to payoff promise in the opening beat";
+  return "specific problem or payoff promise in the first second";
+}
+
+function pacingFrom(durationSeconds: number | undefined, sceneCount: number | undefined): string {
+  if (finitePositive(durationSeconds) && integerPositive(sceneCount)) {
+    const average = round(durationSeconds / Math.max(1, Math.round(sceneCount)));
+    return `${Math.round(sceneCount)} visible beats across ${round(durationSeconds)} seconds, about ${average}s per beat`;
+  }
+  if (finitePositive(durationSeconds)) return `fast short-form pacing across ${round(durationSeconds)} seconds`;
+  return "fast hook, proof shift, demo/payoff, then CTA";
+}
+
+function safeSourceUrl(value: string | undefined): { readonly status: "none" | "ok" | "blocked"; readonly sourceUrlSha256?: string; readonly sourceHost?: string } {
+  const cleaned = cleanText(value, 1000);
+  if (!cleaned) return { status: "none" };
+  if (UNSAFE_SOURCE_PATTERN.test(cleaned)) return { status: "blocked" };
+  try {
+    const parsed = new URL(cleaned);
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password || /(^localhost$|^127\.|^10\.|^172\.(1[6-9]|2\d|3[01])\.|^192\.168\.|^\[?::1\]?)/i.test(parsed.hostname)) {
+      return { status: "blocked" };
+    }
+    return {
+      status: "ok",
+      sourceUrlSha256: sha256(`${parsed.origin}${parsed.pathname}${parsed.search}`),
+      sourceHost: parsed.hostname
+    };
+  } catch {
+    return { status: "blocked" };
+  }
+}
+
+function keywordCandidates(value: string, limit: number): readonly string[] {
+  const stop = new Set([
+    "create",
+    "make",
+    "video",
+    "short",
+    "tiktok",
+    "douyin",
+    "reel",
+    "ad",
+    "ugc",
+    "review",
+    "with",
+    "that",
+    "this",
+    "from",
+    "user",
+    "want",
+    "need",
+    "seconds",
+    "second"
+  ]);
+  const tokens = value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stop.has(token));
+  return uniqueValues(tokens).slice(0, limit);
+}
+
+function finding(
+  code: ShortViralFindingCode,
+  severity: ShortViralFinding["severity"],
+  message: string,
+  repair: string,
+  evidence?: Readonly<Record<string, string | number | boolean>>
+): ShortViralFinding {
+  return {
+    code,
+    severity,
+    message,
+    repair,
+    ...(evidence ? { evidence } : {})
+  };
+}
+
+function matches(value: string, pattern: RegExp): readonly string[] {
+  const output: string[] = [];
+  for (const match of value.matchAll(pattern)) {
+    const candidate = cleanText(match[1], 120);
+    if (candidate) output.push(candidate);
+  }
+  return output;
+}
+
+function cleanText(value: string | undefined, maxLength = 240): string | undefined {
+  const normalized = value?.replace(/\s+/g, " ").trim();
+  return normalized ? normalized.slice(0, maxLength) : undefined;
+}
+
+function uniqueClean(values: readonly (string | undefined)[], limit: number, maxLength: number): readonly string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const value of values) {
+    const normalized = cleanText(value, maxLength);
+    if (!normalized) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(normalized);
+    if (output.length >= limit) break;
+  }
+  return output;
+}
+
+function uniqueValues<T extends string>(values: readonly T[]): readonly T[] {
+  const seen = new Set<T>();
+  const output: T[] = [];
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    output.push(value);
+  }
+  return output;
+}
+
+function finitePositive(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function integerPositive(value: number | undefined): value is number {
+  return finitePositive(value) && Number.isInteger(value);
+}
+
+function clampScore(value: number): number {
+  return round(Math.max(0, Math.min(1, value)));
+}
+
+function round(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}

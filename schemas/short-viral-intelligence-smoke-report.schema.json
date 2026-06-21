@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-viral-intelligence-smoke-report.schema.json",
+  "title": "CineJelly Short Viral Intelligence Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "scenarios",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-viral-intelligence-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "type": "string" }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputPath", "scenarioCount", "referenceRawLeakCheckPassed", "endpointsCovered"],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "scenarioCount": { "const": 5 },
+        "referenceRawLeakCheckPassed": { "type": "boolean" },
+        "endpointsCovered": {
+          "type": "array",
+          "minItems": 4,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "scenarios": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viralPlan", "copyRisk", "unsafeReference", "conversation", "renderHandoff"],
+      "properties": {
+        "viralPlan": { "$ref": "#/$defs/planScenario" },
+        "copyRisk": { "$ref": "#/$defs/planScenario" },
+        "unsafeReference": { "$ref": "#/$defs/planScenario" },
+        "conversation": { "$ref": "#/$defs/conversationScenario" },
+        "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shortViralIntelligenceSmokePass",
+        "canUseAsNoSpendBackendEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "shortViralIntelligenceSmokePass": { "type": "boolean" },
+        "canUseAsNoSpendBackendEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string" }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "planScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "status",
+        "viralStatus",
+        "platformFocus",
+        "creativeMode",
+        "niche",
+        "buyerIntent",
+        "viralLeverCount",
+        "conceptScoreCount",
+        "winningConceptIdPresent",
+        "sceneDirectiveCount",
+        "findingCodes",
+        "referencePatternIdPresent",
+        "referenceSafetyStatus",
+        "referenceSourceUrlSha256Present",
+        "rawReferenceSerialized",
+        "canUseAsNoSpendViralEvidence",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "status": { "enum": ["approval_required", "changes_requested", "blocked"] },
+        "viralStatus": { "enum": ["ready", "review_required", "blocked"] },
+        "platformFocus": { "type": "string" },
+        "creativeMode": { "type": "string" },
+        "niche": { "type": "string" },
+        "buyerIntent": { "type": "string" },
+        "viralLeverCount": { "type": "integer", "minimum": 0 },
+        "conceptScoreCount": { "type": "integer", "minimum": 0 },
+        "winningConceptIdPresent": { "type": "boolean" },
+        "sceneDirectiveCount": { "type": "integer", "minimum": 0 },
+        "findingCodes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "referencePatternIdPresent": { "type": "boolean" },
+        "referenceSafetyStatus": { "type": "string" },
+        "referenceSourceUrlSha256Present": { "type": "boolean" },
+        "rawReferenceSerialized": { "const": false },
+        "canUseAsNoSpendViralEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "conversationScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sessionId",
+        "rawTranscriptStored",
+        "planStatus",
+        "viralStatus",
+        "referencePatternIdPresent",
+        "sceneDirectiveCount",
+        "canUseAsNoSpendConversationEvidence"
+      ],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "rawTranscriptStored": { "const": false },
+        "planStatus": { "enum": ["approval_required", "changes_requested", "blocked"] },
+        "viralStatus": { "enum": ["ready", "review_required", "blocked"] },
+        "referencePatternIdPresent": { "type": "boolean" },
+        "sceneDirectiveCount": { "type": "integer", "minimum": 0 },
+        "canUseAsNoSpendConversationEvidence": { "type": "boolean" }
+      }
+    },
+    "renderHandoffScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "metadataHasViralLineage",
+        "promptHasViralStrategy",
+        "promptHasSceneDirectives",
+        "promptHasReferenceGuardrail",
+        "captionCueCount",
+        "generatedAudioIntentCount",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "metadataHasViralLineage": { "type": "boolean" },
+        "promptHasViralStrategy": { "type": "boolean" },
+        "promptHasSceneDirectives": { "type": "boolean" },
+        "promptHasReferenceGuardrail": { "type": "boolean" },
+        "captionCueCount": { "type": "integer", "minimum": 1 },
+        "generatedAudioIntentCount": { "type": "integer", "minimum": 1 },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    }
+  }
+}

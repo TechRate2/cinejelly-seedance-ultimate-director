@@ -84,6 +84,13 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortPipelineDynamicWorkflowRequired: String(plan.dynamicWorkflowRequired),
         shortPipelineReviewStatus: plan.reviewApproval.status,
         shortPipelineSource: "agentic_short_pipeline",
+        shortViralIntelligenceId: plan.viralIntelligence.intelligenceId,
+        shortViralStatus: plan.viralIntelligence.status,
+        shortViralNiche: plan.viralIntelligence.nicheStrategy.niche,
+        shortViralPlatformFocus: plan.viralIntelligence.nicheStrategy.platformFocus,
+        shortViralCreativeMode: plan.viralIntelligence.nicheStrategy.creativeMode,
+        ...(plan.viralIntelligence.winningConceptId ? { shortViralWinningConceptId: plan.viralIntelligence.winningConceptId } : {}),
+        ...(plan.viralIntelligence.referenceVideoPattern ? { shortReferencePatternId: plan.viralIntelligence.referenceVideoPattern.patternId } : {}),
         ...(plan.selectedTemplate ? { shortPipelineSelectedTemplateId: plan.selectedTemplate.templateId } : {}),
         ...(plan.productBrief ? { productBriefId: plan.productBrief.briefId } : {}),
         ...(plan.brandKitEvaluation ? { brandKitId: plan.brandKitEvaluation.brandKitId } : {})
@@ -141,6 +148,8 @@ function renderPromptFromPlan(plan: ShortPipelinePlan): string {
     : plan.templateSuggestions[0]
       ? `Suggested optional accelerator: ${plan.templateSuggestions[0].label}`
       : "No template accelerator selected; build from natural-language intent.";
+  const viralStrategy = viralStrategyFromPlan(plan);
+  const viralDirectives = viralDirectivesFromPlan(plan);
 
   return compactLines([
     "Create a short commercial video from this approved agentic short-pipeline plan.",
@@ -154,12 +163,43 @@ function renderPromptFromPlan(plan: ShortPipelinePlan): string {
     `Target duration: ${plan.intent.targetDurationSeconds} seconds`,
     `Aspect ratio: ${plan.intent.aspectRatio}`,
     template,
+    viralStrategy,
     concept ? `Primary concept: ${concept.label}. ${concept.angle} Hook: ${concept.hook}` : "",
     "Scene plan:",
     scenes,
+    "Viral scene directives:",
+    viralDirectives,
     "Claim review inventory:",
     claims
   ]);
+}
+
+function viralStrategyFromPlan(plan: ShortPipelinePlan): string {
+  const strategy = plan.viralIntelligence.nicheStrategy;
+  const score = plan.viralIntelligence.conceptScores.find((item) => item.conceptId === plan.viralIntelligence.winningConceptId);
+  const reference = plan.viralIntelligence.referenceVideoPattern;
+  const findings = plan.viralIntelligence.findings
+    .filter((finding) => finding.severity !== "info")
+    .map((finding) => `${finding.code}:${finding.severity}`)
+    .join(", ");
+  return compactLines([
+    `Short viral strategy: niche=${strategy.niche}; audience=${strategy.audience}; platformFocus=${strategy.platformFocus}; creativeMode=${strategy.creativeMode}; buyerIntent=${strategy.buyerIntent}.`,
+    `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
+    `Use viral levers: ${strategy.viralLevers.join(", ")}. Avoid: ${strategy.antiPatterns.join("; ")}.`,
+    score ? `Winning concept score: ${score.totalScore} (${score.reasons.join("; ")}).` : "",
+    reference
+      ? `Reference pattern ${reference.patternId}: use structure only: hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; captions=${reference.captionPattern}; CTA=${reference.ctaPattern}. Guardrails: ${reference.originalityGuardrails.join("; ")}.`
+      : "",
+    findings ? `Open viral findings for review: ${findings}.` : ""
+  ]);
+}
+
+function viralDirectivesFromPlan(plan: ShortPipelinePlan): string {
+  return plan.viralIntelligence.sceneDirectives
+    .map((directive) =>
+      `${directive.order}. ${directive.role.toUpperCase()} ${directive.recommendedDurationSeconds}s - First frame: ${directive.firstFrameRule} Retention: ${directive.retentionJob} Camera: ${directive.cameraCue} Caption: ${directive.captionCue} Proof: ${directive.proofCue}${directive.ctaCue ? ` CTA: ${directive.ctaCue}` : ""} Checks: ${directive.qualityChecks.join("; ")}`
+    )
+    .join("\n");
 }
 
 function captionCuesFromPlan(plan: ShortPipelinePlan): readonly CaptionCue[] {

@@ -58,6 +58,7 @@ export class ShortPipelineConversationEngine {
       userPrompt: prompt,
       ...(input.product ? { product: input.product } : {}),
       ...(input.brandKit ? { brandKit: input.brandKit } : {}),
+      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
       ...(input.preferredTemplateId ? { preferredTemplateId: input.preferredTemplateId } : {}),
       allowTemplateSuggestions,
       ...(input.targetPlatform ? { targetPlatform: input.targetPlatform } : {}),

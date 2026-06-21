@@ -24,6 +24,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] No-spend durable short-pipeline conversation session store exists behind explicit `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH`, with atomic writes, client-scoped reads, and redaction checks for raw transcript, URLs, local paths, and secret-like values.
 - [x] No-spend short-pipeline session render handoff exists so a stored session can create a paused/blocked async render job only through server-side plan retrieval, rejection of client-side plan replacement, formal review evidence, client scope, and explicit spend confirmation.
 - [x] No-spend Product URL-to-Video backend extraction can parse bounded public HTML behind explicit live-network confirmation, feed safe product facts into short-pipeline planning, and emit schema-validated redaction evidence without provider spend.
+- [x] No-spend Short Viral/Niche Intelligence backend exists with TikTok/Douyin-first strategy, concept scoring, scene directives, reference-video pattern learning, originality guardrails, and render-handoff prompt metadata before provider spend.
 - [x] No-spend Long Creative Intelligence backend exists with story bible, niche/viral strategy, shot-level quality directives, multi-candidate guidance, auto-repair directives, and audio/caption QA before provider spend.
 - [ ] First-party UI review screens and accepted artifact-bound manual media review are completed for the first commercial launch scope.
 
@@ -56,6 +57,8 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Optional workflow template registry exists without forcing templates.
 - [x] Brand kit backend exists and influences planning/validation.
 - [x] Natural-language short pipeline can propose concept, script, scene plan, and review checkpoints.
+- [x] Short Viral/Niche Intelligence can infer niche, buyer intent, platform focus, creative mode, viral levers, concept scores, and per-scene quality directives for TikTok/Douyin-first UGC, review, ad, demo, and product shorts.
+- [x] Reference-video learning can store redacted pattern fingerprints and adapt hook, pacing, caption, camera, audio, retention, and CTA structure without copying source script, assets, identities, claims, or brand marks.
 - [x] Natural-language conversation backend can accept multi-turn brief/revision/approval-intent messages without storing raw transcript in public evidence.
 - [x] Durable conversation sessions can be persisted and reloaded for future UI continuity without weakening client isolation or formal review gates.
 - [x] Durable conversation sessions can hand off into async render-job review lifecycle without accepting a client-side replacement plan or bypassing explicit render confirmation.
@@ -77,6 +80,7 @@ npm.cmd run validation:report-contracts
 npm.cmd run validation:render-job-review-lifecycle
 npm.cmd run validation:workspace-billing
 npm.cmd run validation:long-form-creative-intelligence
+npm.cmd run validation:short-viral-intelligence
 npm.cmd run validation:short-pipeline-conversation
 npm.cmd run validation:short-pipeline-session-store
 npm.cmd run validation:short-pipeline-session-render-handoff
