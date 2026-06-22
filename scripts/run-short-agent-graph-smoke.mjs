@@ -143,7 +143,7 @@ const checks = [
       shot.negativeConstraints.length >= 5 &&
       shot.qualityChecks.length >= 3
     )
-    ? pass("seedance_timecoded_prompt_pack", "Seedance prompt pack contains dynamic scene count, time-coded shots, camera/action/audio/caption/negative constraints.")
+    ? pass("seedance_timecoded_prompt_pack", "Seedance prompt pack contains dynamic scene count, time-coded shots, camera/action/audio/no-visible-text/negative constraints.")
     : fail("seedance_timecoded_prompt_pack", "Expected dynamic scene count and detailed Seedance shot prompts."),
   handoff.request.metadata?.shortAgentGraphRunId === graph?.graphRunId &&
     handoff.request.metadata?.shortSeedancePromptPackId === pack?.promptPackId &&

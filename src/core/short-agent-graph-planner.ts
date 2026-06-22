@@ -50,7 +50,7 @@ const SOURCE_PATTERN_ORIGINS = [
 const GLOBAL_NEGATIVE_CONSTRAINTS = [
   "no unsupported medical, financial, or absolute claims",
   "no copied source-video faces, marks, script wording, music, or private assets",
-  "no unreadable caption walls, tiny product labels, or cluttered UI overlays",
+  "no on-screen text, no captions, no subtitles, no CTA cards, no typography, no lower thirds, and no fake UI text",
   "no slow logo intro before the viewer understands the payoff",
   "no watermark, random text artifacts, deformed hands, broken product geometry, or inconsistent packaging"
 ] as const;
@@ -150,14 +150,14 @@ function researchPackFor(input: ShortAgentGraphPlannerInput): ShortAgentResearch
     question("audience", `What does ${input.intent.audience} want immediately before they would watch a ${input.intent.platform} short?`, "Anchor the first second in audience intent."),
     question("pain", `What concrete pain or hesitation makes ${product} relevant in the ${niche} niche?`, "Avoid generic hooks and make the scroll-stopper specific."),
     question("proof", `Which provided product facts can be shown visually without overstating claims?`, "Turn claims into reviewable proof beats."),
-    question("platform", `What pacing and caption rhythm fits ${input.viralIntelligence.nicheStrategy.platformFocus}?`, "Adapt the same idea to platform-native retention."),
+    question("platform", `What visual rhythm fits ${input.viralIntelligence.nicheStrategy.platformFocus} without on-screen text?`, "Adapt the same idea to platform-native retention."),
     question("claim", "Which claim-bound lines require human approval before provider spend?", "Keep commercial safety explicit.")
   ];
   const evidence = evidenceFor(input);
   const unresolvedQuestions = [
     ...(!input.productBrief ? ["product facts and approved product media are not provided"] : []),
     ...(input.productBrief?.missingFields ?? []).map((field) => `product field still missing: ${field}`),
-    ...(input.brandKitEvaluation ? [] : ["brand kit tone, CTA, and claim policy are not provided"]),
+    ...(input.brandKitEvaluation ? [] : ["brand kit tone and claim policy are not provided"]),
     ...(input.referenceVideoLearning ? referenceLearningGaps(input.referenceVideoLearning) : ["reference-video pattern is optional but not provided"])
   ];
   const packId = createStableId(
@@ -193,7 +193,7 @@ function memoryPackFor(input: ShortAgentGraphPlannerInput): ShortAgentMemoryPack
     memoryPattern(
       "seedance_prompt_playbook",
       "Seedance shot timeline prompt",
-      "Compile each beat with time range, camera move, subject action, micro-detail, audio, caption, continuity, and negative constraints.",
+      "Compile each beat with time range, camera move, subject action, micro-detail, audio, no-visible-text policy, continuity, and negative constraints.",
       ["seedance_2", "prompt_compiler", strategy.creativeMode]
     ),
     memoryPattern(
@@ -207,7 +207,7 @@ function memoryPackFor(input: ShortAgentGraphPlannerInput): ShortAgentMemoryPack
     patterns.push(memoryPattern(
       "brand_memory",
       "Brand voice continuity",
-      `Keep the voice ${input.brandKitEvaluation?.tone ?? "brand-consistent"} and keep CTA rules visible in the final approval packet.`,
+      `Keep the voice ${input.brandKitEvaluation?.tone ?? "brand-consistent"} and keep claim/no-visible-text rules visible in the final approval packet.`,
       ["brand", input.brandKitEvaluation?.brandName ?? "unnamed_brand"]
     ));
   }
@@ -225,13 +225,13 @@ function memoryPackFor(input: ShortAgentGraphPlannerInput): ShortAgentMemoryPack
     patterns.push(memoryPattern(
       "reference_pattern",
       "Reference-video pattern memory",
-      `Adapt hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; captions=${reference.captionPattern}.`,
+      `Adapt hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; text rhythm=${reference.captionPattern}; do not render text.`,
       ["reference_video", reference.patternId]
     ));
   }
   const writeIntents = [
     "store accepted candidate score, final prompt pack id, review decisions, and render outcome after manual review",
-    "update niche playbook with hooks, proof beats, and caption patterns that survived review",
+    "update niche playbook with hooks, proof beats, visual rhythm, and audio choices that survived review",
     ...(input.channelStyleProfile ? ["update channel style profile with approved recurring hooks, voice notes, character continuity, and setting continuity"] : []),
     "store rejected critiques so future plans avoid repeated weak hooks, risky claims, or pacing gaps"
   ];
@@ -259,9 +259,9 @@ function candidateFactory(
     return candidateFromConcept(input, concept, strategy.creativeMode, strategy.platformFocus, strategy.viralLevers, viralScore?.totalScore);
   });
   const adaptiveCandidates = [
-    adaptiveCandidate(input, "native proof remix", "UGC-style proof arc", "ugc_review", ["hook", "problem", "demo", "proof", "cta"]),
-    adaptiveCandidate(input, "high-clarity product demo", "Demo-first conversion arc", "demo", ["hook", "demo", "proof", "offer", "cta"]),
-    adaptiveCandidate(input, "cinematic payoff trailer", "Cinematic reveal arc", "cinematic", ["hook", "proof", "demo", "cta"])
+    adaptiveCandidate(input, "native proof remix", "UGC-style proof arc", "ugc_review", ["hook", "problem", "demo", "proof", "payoff"]),
+    adaptiveCandidate(input, "high-clarity product demo", "Demo-first conversion arc", "demo", ["hook", "demo", "proof", "offer", "payoff"]),
+    adaptiveCandidate(input, "cinematic payoff trailer", "Cinematic reveal arc", "cinematic", ["hook", "proof", "demo", "payoff"])
   ].filter((candidate) => candidate.sceneRoles.length <= Math.max(6, input.scenes.length + 1));
   return [...conceptCandidates, ...adaptiveCandidates]
     .map((candidate) => rescoreWithMemory(candidate, memoryPack))
@@ -284,7 +284,7 @@ function critiqueCouncil(
     critiques.push(critique("viral", "warn", "Selected hook is useful but not sharp enough for a TikTok/Douyin-first short.", "Add a contradiction, POV, mistake, or visible proof promise in the first second.", selectedCandidate.candidateId));
   }
   if (selectedCandidate.scores.seedanceFeasibility < 0.7 || input.scenes.length < 3) {
-    critiques.push(critique("seedance_feasibility", "warn", "Storyboard has too few visible beat changes for robust Seedance generation.", "Use at least hook, proof/demo, and CTA beats with clear visual state changes.", selectedCandidate.candidateId));
+    critiques.push(critique("seedance_feasibility", "warn", "Storyboard has too few visible beat changes for robust Seedance generation.", "Use at least hook, proof/demo, and payoff beats with clear visual state changes.", selectedCandidate.candidateId));
   }
   if (input.productBrief?.claimInventory.some((claim) => claim.substantiationRequired)) {
     critiques.push(critique("brand_claim", "warn", "Some product claims require substantiation before render.", "Keep claim-bound narration conservative and require human claim approval.", input.productBrief.briefId));
@@ -360,10 +360,10 @@ function seedancePromptPackFor(
     `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
     `Use viral levers: ${strategy.viralLevers.join(", ")}.`,
     reference
-      ? `Reference policy: adapt structure only from ${reference.patternId}; hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; captions=${reference.captionPattern}.`
+      ? `Reference policy: adapt structure only from ${reference.patternId}; hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; text-rhythm=${reference.captionPattern}; do not render visible text.`
       : "Reference policy: no external reference video pattern supplied; use original shots from product, brand, and user brief evidence.",
     critiqueLine,
-    "Render the shot list in order. Keep captions readable and do not introduce new claims."
+    "Render the shot list in order. Do not render any visible text, captions, subtitles, CTA cards, labels, or fake UI text; do not introduce new claims."
   ]);
   return {
     schemaVersion: "cinejelly.short-seedance-prompt-pack.v1",
@@ -379,7 +379,7 @@ function seedancePromptPackFor(
     shotPrompts: shots,
     globalNegativeConstraints: GLOBAL_NEGATIVE_CONSTRAINTS,
     audioPlan: audioPlanFor(strategy.creativeMode, channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone),
-    captionPlan: captionPlanFor(strategy.platformFocus, input.brandKitEvaluation?.language, input.channelStyleProfile?.captionStyle),
+    captionPlan: visibleTextPlanFor(strategy.platformFocus, input.brandKitEvaluation?.language, input.channelStyleProfile?.captionStyle),
     referencePolicy: reference
       ? `Use reference pattern ${reference.patternId} for timing and framing only; do not copy assets, words, identity, brand marks, music, or private material.`
       : "No source-video copying. Use only operator-provided or generated original assets.",
@@ -403,7 +403,7 @@ function shotPromptsFor(
     const firstFrame = directive?.firstFrameRule ?? firstFrameFor(sceneItem, input);
     const camera = directive?.cameraCue ?? cameraFor(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode);
     const action = actionFor(sceneItem, input, selectedCandidate);
-    const caption = directive?.captionCue ?? sceneItem.caption;
+    const caption = "NO_ON_SCREEN_TEXT";
     const audio = audioForScene(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode, channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone);
     const continuity = continuityFor(sceneItem, input, index);
     const referencePolicy = directive?.referencePatternAlignment ??
@@ -457,7 +457,7 @@ function stageRunsFor(input: {
     stage("candidate_factory", "Creative Candidate Factory", `Generated and ranked ${input.candidateCount} candidate arcs instead of binding to one hardcoded template.`, [], "critic_council"),
     stage("critic_council", "Critic Council", `Ran viral, brand/claim, Seedance feasibility, continuity, and platform-native reviews with ${input.critiqueCount} findings.`, [], "repair_loop"),
     stage("repair_loop", "Repair Agent", `Applied ${input.repairCount} repair instructions into prompt constraints and review evidence.`, [], "seedance_prompt_compiler"),
-    stage("seedance_prompt_compiler", "Seedance Prompt Engineer", `Compiled ${input.promptPack.shotPrompts.length} time-coded Seedance shots with camera, action, audio, captions, continuity, and negatives.`, [input.promptPack.promptPackId], "approval_gate"),
+    stage("seedance_prompt_compiler", "Seedance Prompt Engineer", `Compiled ${input.promptPack.shotPrompts.length} time-coded Seedance shots with camera, action, audio, no-visible-text policy, continuity, and negatives.`, [input.promptPack.promptPackId], "approval_gate"),
     stage("approval_gate", finalStatus === "blocked" ? "Safety Gate" : "Human Approval Gate", finalStatus === "blocked" ? "Blocked before render until unsafe evidence is corrected." : "Requires human approval before any provider spend or render queue.", [input.promptPack.promptPackId], "learning_writer"),
     stage("learning_writer", "Memory Curator", "Prepared post-review learning writes for accepted/rejected candidate, prompt pack, and render outcome.", [input.memoryPack.packId])
   ].map((item) => ({
@@ -491,7 +491,7 @@ function evidenceFor(input: ShortAgentGraphPlannerInput): readonly ShortAgentEvi
     ));
   }
   if (reference) {
-    values.push(evidence("reference", reference.safetyStatus === "learned_pattern" ? 0.78 : 0.52, `Reference pattern ${reference.patternId} supplies hook, pacing, camera, caption, and CTA structure only.`, reference.safetyStatus !== "learned_pattern"));
+    values.push(evidence("reference", reference.safetyStatus === "learned_pattern" ? 0.78 : 0.52, `Reference pattern ${reference.patternId} supplies hook, pacing, camera, visual rhythm, and payoff structure only; visible text is forbidden.`, reference.safetyStatus !== "learned_pattern"));
   }
   if (input.referenceVideoLearning) {
     const gaps = referenceLearningGaps(input.referenceVideoLearning);
@@ -759,7 +759,7 @@ function durationsFor(scenes: readonly ShortPipelineScenePlan[], targetDurationS
       case "proof": return 1.15;
       case "demo": return 1.18;
       case "offer": return 0.8;
-      case "cta": return 0.7;
+      case "payoff": return 0.7;
     }
   });
   const totalWeight = weights.reduce((sum, item) => sum + item, 0);
@@ -772,10 +772,10 @@ function durationsFor(scenes: readonly ShortPipelineScenePlan[], targetDurationS
 function firstFrameFor(sceneItem: ShortPipelineScenePlan, input: ShortAgentGraphPlannerInput): string {
   const product = input.productBrief?.title ?? input.viralIntelligence.nicheStrategy.niche;
   if (sceneItem.role === "hook") {
-    return `First frame shows ${product} or the viewer problem instantly with one readable payoff promise.`;
+    return `First frame shows ${product} or the viewer problem instantly with a clear visual payoff promise, no text.`;
   }
-  if (sceneItem.role === "cta") {
-    return `Final frame keeps ${product} and one CTA visible with clean negative space.`;
+  if (sceneItem.role === "payoff") {
+    return `Final frame keeps ${product} or the result visible with clean composition and no text overlay.`;
   }
   return "First frame continues the previous beat with visible movement and a clear subject.";
 }
@@ -789,7 +789,7 @@ function cameraFor(sceneItem: ShortPipelineScenePlan, mode: ShortViralCreativeMo
   if (mode === "cinematic") {
     return "premium motivated camera move, macro texture detail, clean product-safe framing";
   }
-  return "clear product/result framing, one deliberate camera move, readable caption-safe space";
+  return "clear product/result framing, one deliberate camera move, no text-safe composition";
 }
 
 function actionFor(
@@ -811,8 +811,8 @@ function actionFor(
       return `Demonstrate one simple use step for ${product}; show before-state, action, and after-state clearly.`;
     case "offer":
       return `Introduce the offer or reason to act as a natural continuation of the proof.`;
-    case "cta":
-      return `Close with one clear next step and no new claims.`;
+    case "payoff":
+      return `Close with one clear result or next-step implication and no new claims or CTA card.`;
   }
 }
 
@@ -834,7 +834,7 @@ function visualPromptFor(
     channelAnchors,
     `Visual style: ${style}.`,
     `Scene direction: ${sceneItem.visualDirection}.`,
-    `Keep composition ${input.intent.aspectRatio}, caption-safe, and product/subject consistent.`
+    `Keep composition ${input.intent.aspectRatio}, no-visible-text safe, and product/subject consistent.`
   ]);
 }
 
@@ -847,8 +847,8 @@ function audioForScene(
   if (sceneItem.role === "hook") {
     return `${voice}; immediate spoken hook, light bed, no loud intro sting.`;
   }
-  if (sceneItem.role === "cta") {
-    return `${voice}; music resolves under one CTA, keep words clean for TTS or native audio.`;
+  if (sceneItem.role === "payoff") {
+    return `${voice}; music resolves under the visual payoff, keep narration clean for TTS and avoid hard-sell CTA wording.`;
   }
   return `${voice}; narration supports the visual proof, with subtle SFX only when it clarifies action.`;
 }
@@ -860,12 +860,12 @@ function continuityFor(
 ): string {
   const product = input.productBrief?.title ?? "main subject";
   if (index === 0) {
-    return `Establish ${product}, caption style, lighting, and viewer problem for all following shots.`;
+    return `Establish ${product}, visual rhythm, lighting, and viewer problem for all following shots.`;
   }
-  if (sceneItem.role === "cta") {
-    return `Return to ${product}, same visual identity, same claim policy, one CTA only.`;
+  if (sceneItem.role === "payoff") {
+    return `Return to ${product}, same visual identity, same claim policy, no text overlay.`;
   }
-  return `Preserve ${product}, brand tone, color palette, caption rhythm, and claim wording from prior shots.`;
+  return `Preserve ${product}, brand tone, color palette, visual rhythm, and claim wording from prior shots.`;
 }
 
 function negativeConstraintsFor(
@@ -882,7 +882,7 @@ function negativeConstraintsFor(
 function qualityChecksFor(sceneItem: ShortPipelineScenePlan): readonly string[] {
   return [
     "first frame is understandable without sound",
-    "caption expresses one idea only",
+    "no visible text appears in the generated video",
     "visual action changes during the shot",
     sceneItem.claimIds.length > 0 ? "claim wording matches review inventory" : "no new claim introduced"
   ];
@@ -898,12 +898,12 @@ function audioPlanFor(mode: ShortViralCreativeMode, tone: string | undefined): s
   return `Use clear narration, light music bed, and SFX only where they clarify product action.`;
 }
 
-function captionPlanFor(platform: ShortViralPlatformFocus, language: string | undefined, channelCaptionStyle: string | undefined): string {
+function visibleTextPlanFor(platform: ShortViralPlatformFocus, language: string | undefined, channelCaptionStyle: string | undefined): string {
   const lang = language ?? "user-requested language";
-  const style = channelCaptionStyle ? ` Preserve channel caption style: ${channelCaptionStyle}.` : "";
+  const style = channelCaptionStyle ? ` Treat channel caption style as pacing reference only, never as visible text: ${channelCaptionStyle}.` : "";
   return platform === "tiktok_douyin"
-    ? `Use ${lang}, one punchy caption per beat, high contrast, short line breaks, and first-second payoff text.${style}`
-    : `Use ${lang}, readable captions with one idea per scene and no claim expansion.${style}`;
+    ? `Use ${lang} for narration/audio only. No on-screen captions, subtitles, CTA cards, labels, or typography; communicate beat changes through visuals and audio.${style}`
+    : `Use ${lang} for narration/audio only. Keep every scene free of visible text and claim-expanding overlays.${style}`;
 }
 
 function channelStylePromptLine(profile: ShortChannelStyleProfile | undefined): string {
@@ -960,7 +960,7 @@ function nextActionsFor(
   }
   return [
     ...(researchPack.unresolvedQuestions.length > 0 ? ["Add missing product, brand, audience, or reference evidence to improve niche adaptation."] : []),
-    ...(critiques.some((item) => item.severity === "warn") ? ["Review repair actions and approve claim, reference, caption, and Seedance prompt constraints."] : []),
+    ...(critiques.some((item) => item.severity === "warn") ? ["Review repair actions and approve claim, reference, no-visible-text, and Seedance prompt constraints."] : []),
     "After approval, pass the Seedance prompt pack through normal render cost/quota gates.",
     "Write accepted/rejected creative outcome back to memory after manual media review."
   ];
@@ -1008,7 +1008,7 @@ function seedanceFeasibilityFor(
 ): number {
   let score = roles.length >= 3 ? 0.76 : 0.56;
   if (roles.includes("demo") || roles.includes("proof")) score += 0.08;
-  if (roles[0] === "hook" && roles[roles.length - 1] === "cta") score += 0.06;
+  if (roles[0] === "hook" && roles[roles.length - 1] === "payoff") score += 0.06;
   if (mode === "cinematic" && roles.length > 5) score -= 0.08;
   return clampScore(score);
 }

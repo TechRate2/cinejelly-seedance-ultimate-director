@@ -12,7 +12,12 @@ import type {
   ReviewApprovalCheckpointInput,
   ReviewApprovalGate
 } from "../types/review-approval.js";
-import type { ShortPipelinePlan } from "../types/short-pipeline.js";
+import type {
+  ShortPipelineAudioPolicy,
+  ShortPipelineAudioPolicyInput,
+  ShortPipelinePlan,
+  ShortPipelineVisualTextPolicy
+} from "../types/short-pipeline.js";
 import { createStableId } from "../utils/ids.js";
 
 export interface ShortPipelineRenderHandoffReviewInput {
@@ -32,6 +37,7 @@ export interface ShortPipelineRenderHandoffInput {
   readonly artifactDirectory?: string;
   readonly captionOptions?: CaptionOptions;
   readonly includeGeneratedAudioIntents?: boolean;
+  readonly audio?: ShortPipelineAudioPolicyInput;
 }
 
 export interface ShortPipelineRenderHandoff {
@@ -56,10 +62,12 @@ const SHORT_SINGLE_CLIP_MAX_SECONDS = 15;
 export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandoffInput): ShortPipelineRenderHandoff {
   const plan = input.plan;
   const canUseAsRenderJobHandoff = plan.status !== "blocked" && plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence;
-  const captionCues = captionCuesFromPlan(plan);
-  const generatedAudioIntents = input.includeGeneratedAudioIntents === false
-    ? []
-    : generatedAudioIntentsFromPlan(plan);
+  const visualTextPolicy = plan.visualTextPolicy ?? defaultVisualTextPolicy();
+  const audioPolicy = resolveAudioPolicy(input.audio, plan.audioPolicy ?? defaultAudioPolicyForPlan(plan));
+  const captionCues: readonly CaptionCue[] = [];
+  const generatedAudioIntents = audioPolicy.generatedAudioIntentEnabled && input.includeGeneratedAudioIntents !== false
+    ? generatedAudioIntentsFromPlan(plan, audioPolicy)
+    : [];
   const reviewApproval = input.reviewApproval ?? {
     gate: "pre_render" as const,
     checkpoints: plan.reviewApproval.checkpoints.map(checkpointInputFromReport)
@@ -68,12 +76,12 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
 
   return {
     request: {
-      userInput: renderPromptFromPlan(plan),
+      userInput: renderPromptFromPlan(plan, audioPolicy, visualTextPolicy),
       settings: {
         durationTargetSeconds: plan.intent.targetDurationSeconds,
         ratio: plan.intent.aspectRatio,
-        audioMode: generatedAudioIntents.length > 0 ? "guided" : "native",
-        ...input.settings
+        ...input.settings,
+        audioMode: generatedAudioIntents.length > 0 ? "guided" : "none"
       },
       ...(input.modelPreferences ? { modelPreferences: input.modelPreferences } : {}),
       ...(input.references ? { references: input.references } : {}),
@@ -96,6 +104,14 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortCommercialReadinessId: plan.commercialReadiness.readinessId,
         shortCommercialReadinessStatus: plan.commercialReadiness.status,
         shortCommercialReadinessScore: String(plan.commercialReadiness.qualityScore),
+        shortAudioPolicyMode: audioPolicy.mode,
+        shortAudioRenderMode: generatedAudioIntents.length > 0 ? "guided" : "none",
+        shortGeneratedAudioIntentEnabled: String(generatedAudioIntents.length > 0),
+        ...(audioPolicy.language ? { shortAudioLanguage: audioPolicy.language } : {}),
+        shortVisualTextPolicy: visualTextPolicy.mode,
+        shortOnScreenTextAllowed: String(visualTextPolicy.allowOnScreenText),
+        shortCaptionBurnInAllowed: String(visualTextPolicy.allowCaptions),
+        shortCtaCardsAllowed: String(visualTextPolicy.allowCtaCards),
         shortCrawlerPolicyStatus: plan.commercialReadiness.crawlerPolicy.status,
         shortOutcomeMemoryStatus: plan.commercialReadiness.outcomeMemory.status,
         shortReferenceAnalysisStatus: plan.commercialReadiness.referenceAnalysis.status,
@@ -113,9 +129,10 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         ...(plan.brandKitEvaluation ? { brandKitId: plan.brandKitEvaluation.brandKitId } : {})
       },
       captionCues,
-      captionOptions: input.captionOptions ?? {
-        enabled: true,
-        burnIn: true,
+      captionOptions: {
+        ...(input.captionOptions ?? {}),
+        enabled: false,
+        burnIn: false,
         ...(plan.brandKitEvaluation?.language ? { language: plan.brandKitEvaluation.language } : {})
       },
       ...(generatedAudioIntents.length > 0 ? { generatedAudioIntents } : {}),
@@ -172,13 +189,17 @@ export function reviewInputCanQueueRender(input: ShortPipelineRenderHandoffRevie
     input.checkpoints.every((checkpoint) => checkpoint.required === false || checkpoint.decision === "approved");
 }
 
-function renderPromptFromPlan(plan: ShortPipelinePlan): string {
+function renderPromptFromPlan(
+  plan: ShortPipelinePlan,
+  audioPolicy: ShortPipelineAudioPolicy,
+  visualTextPolicy: ShortPipelineVisualTextPolicy
+): string {
   const concept = plan.concepts[0];
   const product = plan.productBrief?.title ? `Product: ${plan.productBrief.title}` : "Product: operator-provided brief";
   const brand = plan.brandKitEvaluation?.brandName ? `Brand: ${plan.brandKitEvaluation.brandName}` : "Brand: not specified";
   const scenes = plan.scenes
     .map((scene) =>
-      `${scene.order}. ${scene.role.toUpperCase()} - Goal: ${scene.goal} Visual: ${scene.visualDirection} Narration: ${scene.narration} Caption: ${scene.caption}`
+      `${scene.order}. ${scene.role.toUpperCase()} - Goal: ${scene.goal} Visual: ${scene.visualDirection} Narration: ${scene.narration}`
     )
     .join("\n");
   const claims = plan.productBrief?.claimInventory.length
@@ -198,7 +219,9 @@ function renderPromptFromPlan(plan: ShortPipelinePlan): string {
 
   return compactLines([
     "Create a short commercial video from this approved agentic short-pipeline plan.",
-    "Do not introduce unsupported claims. Preserve scene order and keep captions readable.",
+    "Do not introduce unsupported claims. Preserve scene order.",
+    visualTextPolicy.promptConstraint,
+    audioPolicyPromptLine(audioPolicy),
     product,
     brand,
     `Business goal: ${plan.intent.businessGoal}`,
@@ -252,7 +275,7 @@ function viralStrategyFromPlan(plan: ShortPipelinePlan): string {
     `Use viral levers: ${strategy.viralLevers.join(", ")}. Avoid: ${strategy.antiPatterns.join("; ")}.`,
     score ? `Winning concept score: ${score.totalScore} (${score.reasons.join("; ")}).` : "",
     reference
-      ? `Reference pattern ${reference.patternId}: use structure only: hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; captions=${reference.captionPattern}; CTA=${reference.ctaPattern}. Guardrails: ${reference.originalityGuardrails.join("; ")}.`
+      ? `Reference pattern ${reference.patternId}: use structure only: hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; text-rhythm=${reference.captionPattern}; payoff=${reference.ctaPattern}. Guardrails: ${reference.originalityGuardrails.join("; ")}.`
       : "",
     findings ? `Open viral findings for review: ${findings}.` : ""
   ]);
@@ -261,7 +284,7 @@ function viralStrategyFromPlan(plan: ShortPipelinePlan): string {
 function viralDirectivesFromPlan(plan: ShortPipelinePlan): string {
   return plan.viralIntelligence.sceneDirectives
     .map((directive) =>
-      `${directive.order}. ${directive.role.toUpperCase()} ${directive.recommendedDurationSeconds}s - First frame: ${directive.firstFrameRule} Retention: ${directive.retentionJob} Camera: ${directive.cameraCue} Caption: ${directive.captionCue} Proof: ${directive.proofCue}${directive.ctaCue ? ` CTA: ${directive.ctaCue}` : ""} Checks: ${directive.qualityChecks.join("; ")}`
+      `${directive.order}. ${directive.role.toUpperCase()} ${directive.recommendedDurationSeconds}s - First frame: ${directive.firstFrameRule} Retention: ${directive.retentionJob} Camera: ${directive.cameraCue} Visual text policy: ${directive.captionCue} Proof: ${directive.proofCue}${directive.ctaCue ? ` Payoff: ${directive.ctaCue}` : ""} Checks: ${directive.qualityChecks.join("; ")}`
     )
     .join("\n");
 }
@@ -273,7 +296,7 @@ function seedancePromptPackFromPlan(plan: ShortPipelinePlan): string {
   }
   const shots = pack.shotPrompts
     .map((shot) =>
-      `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | Caption: ${shot.caption} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`
+      `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | Visible text: ${shot.caption} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`
     )
     .join("\n");
   return compactLines([
@@ -281,7 +304,7 @@ function seedancePromptPackFromPlan(plan: ShortPipelinePlan): string {
     `Prompt pack id: ${pack.promptPackId}`,
     pack.masterPrompt,
     `Audio plan: ${pack.audioPlan}`,
-    `Caption plan: ${pack.captionPlan}`,
+    `Visible text plan: ${pack.captionPlan}`,
     `Reference policy: ${pack.referencePolicy}`,
     `Global negative constraints: ${pack.globalNegativeConstraints.join("; ")}`,
     "Time-coded Seedance shots:",
@@ -289,25 +312,13 @@ function seedancePromptPackFromPlan(plan: ShortPipelinePlan): string {
   ]);
 }
 
-function captionCuesFromPlan(plan: ShortPipelinePlan): readonly CaptionCue[] {
-  const sceneDuration = Math.max(1, plan.intent.targetDurationSeconds / Math.max(1, plan.scenes.length));
-  return plan.scenes.map((scene, index) => {
-    const startSecond = roundSeconds(index * sceneDuration);
-    const endSecond = roundSeconds(Math.min(plan.intent.targetDurationSeconds, (index + 1) * sceneDuration));
-    return {
-      startSecond,
-      endSecond: endSecond > startSecond ? endSecond : roundSeconds(startSecond + 1),
-      text: scene.caption
-    };
-  });
-}
-
-function generatedAudioIntentsFromPlan(plan: ShortPipelinePlan): readonly GeneratedAudioIntent[] {
+function generatedAudioIntentsFromPlan(plan: ShortPipelinePlan, audioPolicy: ShortPipelineAudioPolicy): readonly GeneratedAudioIntent[] {
   const sceneDuration = Math.max(1, plan.intent.targetDurationSeconds / Math.max(1, plan.scenes.length));
   return plan.scenes.map((scene, index) => {
     const startSecond = roundSeconds(index * sceneDuration);
     const endSecond = roundSeconds(Math.min(plan.intent.targetDurationSeconds, (index + 1) * sceneDuration));
     const voiceStyle = channelVoiceStyle(plan) ?? plan.brandKitEvaluation?.tone;
+    const selectedVoiceStyle = audioPolicy.voiceStyle ?? voiceStyle;
     return {
       intentId: createStableId("short_audio", `${plan.planId}:${scene.sceneId}:${scene.order}`),
       kind: "tts_narration",
@@ -315,11 +326,91 @@ function generatedAudioIntentsFromPlan(plan: ShortPipelinePlan): readonly Genera
       startSecond,
       endSecond: endSecond > startSecond ? endSecond : roundSeconds(startSecond + 1),
       durationSeconds: roundSeconds(Math.max(1, endSecond - startSecond)),
-      ...(plan.brandKitEvaluation?.language ? { language: plan.brandKitEvaluation.language } : {}),
-      ...(voiceStyle ? { voiceStyle } : {}),
+      ...(audioPolicy.language ? { language: audioPolicy.language } : {}),
+      ...(selectedVoiceStyle ? { voiceStyle: selectedVoiceStyle } : {}),
       volume: 0.9
     };
   });
+}
+
+function resolveAudioPolicy(
+  input: ShortPipelineAudioPolicyInput | undefined,
+  planPolicy: ShortPipelineAudioPolicy
+): ShortPipelineAudioPolicy {
+  if (!input) {
+    return planPolicy;
+  }
+  const mode = input.mode === "off" ? "off" : "voiceover";
+  const language = mode === "off" ? undefined : isShortAudioLanguage(input.language) ? input.language : planPolicy.language ?? "en";
+  const voiceStyle = input.voiceStyle ?? planPolicy.voiceStyle;
+  return {
+    schemaVersion: "cinejelly.short-audio-policy.v1",
+    mode,
+    ...(language ? { language } : {}),
+    ...(language ? { languageLabel: languageLabelFor(language) } : {}),
+    ...(voiceStyle && mode !== "off" ? { voiceStyle } : {}),
+    renderAudioMode: mode === "off" ? "none" : "guided",
+    generatedAudioIntentEnabled: mode !== "off",
+    nativeProviderAudioEnabled: false,
+    reviewRequired: true
+  };
+}
+
+function defaultAudioPolicyForPlan(plan: ShortPipelinePlan): ShortPipelineAudioPolicy {
+  const language = languageFromText(plan.brandKitEvaluation?.language);
+  return {
+    schemaVersion: "cinejelly.short-audio-policy.v1",
+    mode: "voiceover",
+    language,
+    languageLabel: languageLabelFor(language),
+    ...(plan.brandKitEvaluation?.tone ? { voiceStyle: plan.brandKitEvaluation.tone } : {}),
+    renderAudioMode: "guided",
+    generatedAudioIntentEnabled: true,
+    nativeProviderAudioEnabled: false,
+    reviewRequired: true
+  };
+}
+
+function defaultVisualTextPolicy(): ShortPipelineVisualTextPolicy {
+  return {
+    schemaVersion: "cinejelly.short-visual-text-policy.v1",
+    mode: "no_visible_text",
+    allowOnScreenText: false,
+    allowCaptions: false,
+    allowCtaCards: false,
+    allowTextOverlays: false,
+    allowLogoText: "reference_asset_only",
+    promptConstraint: "No visible text in the generated video: no captions, subtitles, CTA cards, typography, labels, lower thirds, or fake UI text. Logos may appear only as approved/reference product assets."
+  };
+}
+
+function languageFromText(value: string | undefined): NonNullable<ShortPipelineAudioPolicy["language"]> {
+  const normalized = value?.toLowerCase() ?? "";
+  if (/\bvi\b|vietnam|tieng viet/.test(normalized)) return "vi";
+  if (/\bzh\b|chinese|mandarin|tieng trung/.test(normalized)) return "zh";
+  return "en";
+}
+
+function languageLabelFor(language: NonNullable<ShortPipelineAudioPolicy["language"]>): NonNullable<ShortPipelineAudioPolicy["languageLabel"]> {
+  switch (language) {
+    case "vi":
+      return "Vietnamese";
+    case "zh":
+      return "Chinese";
+    case "en":
+      return "English";
+  }
+}
+
+function isShortAudioLanguage(value: unknown): value is NonNullable<ShortPipelineAudioPolicy["language"]> {
+  return value === "en" || value === "vi" || value === "zh";
+}
+
+function audioPolicyPromptLine(audioPolicy: ShortPipelineAudioPolicy): string {
+  if (audioPolicy.mode === "off") {
+    return "Audio policy: audio is off; do not rely on voiceover, music, captions, or visible text to explain the video.";
+  }
+  return `Audio policy: generate guided voiceover in ${audioPolicy.languageLabel ?? audioPolicy.language ?? "English"}; visuals must still be understandable without on-screen text.`;
 }
 
 function channelVoiceStyle(plan: ShortPipelinePlan): string | undefined {

@@ -11,6 +11,8 @@ export type ShortMvpUiWorkflowMode =
 
 export type ShortMvpUiActionStatus = "ready" | "needs_review" | "blocked" | "optional";
 
+export type ShortMvpUiAudioOptionId = "off" | "english" | "vietnamese" | "chinese";
+
 export interface ShortMvpUiWorkflowControl {
   readonly mode: ShortMvpUiWorkflowMode;
   readonly label: string;
@@ -35,6 +37,16 @@ export interface ShortMvpUiAction {
   readonly reason: string;
 }
 
+export interface ShortMvpUiAudioControl {
+  readonly optionId: ShortMvpUiAudioOptionId;
+  readonly label: string;
+  readonly recommended: boolean;
+  readonly enabled: boolean;
+  readonly handoffAudioMode: "none" | "guided";
+  readonly language?: "en" | "vi" | "zh";
+  readonly reason: string;
+}
+
 export interface ShortMvpUiContract {
   readonly schemaVersion: "cinejelly.short-mvp-ui-contract.v1";
   readonly generatedAt: Date;
@@ -54,6 +66,16 @@ export interface ShortMvpUiContract {
     readonly providerSingleClipMaxSeconds: 15;
   };
   readonly workflowControls: readonly ShortMvpUiWorkflowControl[];
+  readonly audioControls: {
+    readonly selectedOptionId: ShortMvpUiAudioOptionId;
+    readonly options: readonly ShortMvpUiAudioControl[];
+  };
+  readonly visualTextPolicy: {
+    readonly noOnScreenText: true;
+    readonly noCaptions: true;
+    readonly noCtaCards: true;
+    readonly captionsBurnIn: false;
+  };
   readonly review: {
     readonly status: ShortPipelinePlan["reviewApproval"]["status"];
     readonly checkpointCount: number;
@@ -80,6 +102,9 @@ export interface ShortMvpUiContract {
   readonly outputContract: {
     readonly finalMp4AssemblyManagedByBackend: true;
     readonly captionsCanBeBurnedIn: boolean;
+    readonly visibleTextAllowed: false;
+    readonly audioMode: "none" | "guided";
+    readonly audioLanguage?: "en" | "vi" | "zh";
     readonly generatedAudioIntentCount: number;
     readonly expectedSceneCount: number;
   };

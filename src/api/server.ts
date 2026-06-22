@@ -169,6 +169,7 @@ interface ShortPipelineRenderJobRequestBody {
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
   readonly confirmRenderSubmission?: boolean;
   readonly includeGeneratedAudioIntents?: boolean;
+  readonly audio?: ShortPipelinePlanInput["audio"];
   readonly settings?: CineJellyProjectRequest["settings"];
   readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
   readonly references?: CineJellyProjectRequest["references"];
@@ -183,6 +184,7 @@ interface ShortPipelineConversationSessionRenderJobRequestBody {
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
   readonly confirmRenderSubmission?: boolean;
   readonly includeGeneratedAudioIntents?: boolean;
+  readonly audio?: ShortPipelinePlanInput["audio"];
   readonly settings?: CineJellyProjectRequest["settings"];
   readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
   readonly references?: CineJellyProjectRequest["references"];
@@ -197,6 +199,7 @@ interface NormalizedShortPipelineRenderJobBody {
   readonly reviewApproval?: ShortPipelineRenderHandoffReviewInput;
   readonly confirmRenderSubmission: boolean;
   readonly includeGeneratedAudioIntents?: boolean;
+  readonly audio?: ShortPipelinePlanInput["audio"];
   readonly settings?: CineJellyProjectRequest["settings"];
   readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
   readonly references?: CineJellyProjectRequest["references"];
@@ -210,6 +213,7 @@ interface NormalizedShortPipelineConversationSessionRenderJobBody {
   readonly reviewApproval?: ShortPipelineRenderHandoffReviewInput;
   readonly confirmRenderSubmission: boolean;
   readonly includeGeneratedAudioIntents?: boolean;
+  readonly audio?: ShortPipelinePlanInput["audio"];
   readonly settings?: CineJellyProjectRequest["settings"];
   readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
   readonly references?: CineJellyProjectRequest["references"];
@@ -514,7 +518,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(handoffBody.artifactDirectory ? { artifactDirectory: handoffBody.artifactDirectory } : {}),
           ...(handoffBody.includeGeneratedAudioIntents !== undefined
             ? { includeGeneratedAudioIntents: handoffBody.includeGeneratedAudioIntents }
-            : {})
+            : {}),
+          ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
         requestAdmission.assertAcceptable(handoff.request);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
@@ -673,7 +678,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(handoffBody.artifactDirectory ? { artifactDirectory: handoffBody.artifactDirectory } : {}),
           ...(handoffBody.includeGeneratedAudioIntents !== undefined
             ? { includeGeneratedAudioIntents: handoffBody.includeGeneratedAudioIntents }
-            : {})
+            : {}),
+          ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
         requestAdmission.assertAcceptable(handoff.request);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
@@ -1197,6 +1203,7 @@ function shortPipelineConversationInputFromBody(
       : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+    ...(body.audio ? { audio: body.audio } : {}),
     ...(body.generatedAt ? { generatedAt: optionalDate(body.generatedAt, "generatedAt") } : {})
   };
 }
@@ -1260,6 +1267,7 @@ function shortPipelinePlanInputFromBody(
     ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+    ...(body.audio ? { audio: body.audio } : {}),
     ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
   };
 }
@@ -1363,6 +1371,7 @@ function shortPipelineRenderJobBodyFromBody(
     ...(reviewApproval ? { reviewApproval } : {}),
     confirmRenderSubmission,
     ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
+    ...(body.audio ? { audio: body.audio } : {}),
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
     ...(body.references ? { references: body.references } : {}),
@@ -1402,6 +1411,7 @@ function shortPipelineConversationSessionRenderJobBodyFromBody(
     ...(reviewApproval ? { reviewApproval } : {}),
     confirmRenderSubmission,
     ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
+    ...(body.audio ? { audio: body.audio } : {}),
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
     ...(body.references ? { references: body.references } : {}),

@@ -23,6 +23,8 @@ import type {
   ProductUrlSourceEvidence,
   ProductUrlEvidenceStatus,
   ProductUrlSnapshotInput,
+  ShortPipelineAudioPolicy,
+  ShortPipelineAudioPolicyInput,
   ShortPipelineConcept,
   ShortPipelineEmotion,
   ShortPipelineIntent,
@@ -30,6 +32,7 @@ import type {
   ShortPipelinePlanInput,
   ShortPipelinePlatform,
   ShortPipelineScenePlan,
+  ShortPipelineVisualTextPolicy,
   WorkflowTemplateDefinition,
   WorkflowTemplateSuggestion
 } from "../types/short-pipeline.js";
@@ -68,6 +71,7 @@ const MEDIUM_RISK_CLAIM_PATTERN =
   /improve|increase|reduce|boost|faster|stronger|premium|proven|safe|certified|limited time|save|discount/i;
 const SHORT_MIN_COMMERCIAL_RENDER_SECONDS = 15;
 const SHORT_MAX_COMMERCIAL_RENDER_SECONDS = 60;
+const NO_VISIBLE_TEXT_CAPTION = "NO_ON_SCREEN_TEXT";
 
 export class ProductUrlBriefExtractor {
   public build(input: ProductUrlBriefInput | undefined, userPrompt = ""): ProductUrlBrief | undefined {
@@ -217,15 +221,12 @@ export class ProductUrlBriefExtractor {
   }
 
   private ctas(snapshot: ProductUrlSnapshotInput, userPrompt: string): readonly string[] {
-    const raw = [
+    return uniqueClean([
       snapshot.cta,
-      /shop now/i.test(userPrompt) ? "Shop now" : undefined,
-      /book|demo|call/i.test(userPrompt) ? "Book a demo" : undefined,
-      /learn/i.test(userPrompt) ? "Learn more" : undefined,
-      "Learn more",
-      "Shop now"
-    ];
-    return uniqueClean(raw, 4, 80);
+      /shop now/i.test(userPrompt) ? "shop intent mentioned" : undefined,
+      /book|demo|call/i.test(userPrompt) ? "lead intent mentioned" : undefined,
+      /learn/i.test(userPrompt) ? "learning intent mentioned" : undefined
+    ], 4, 80);
   }
 
   private missingFields(
@@ -238,8 +239,7 @@ export class ProductUrlBriefExtractor {
       ...(title ? [] : ["product_title"]),
       ...(benefits.length > 0 ? [] : ["product_benefits"]),
       ...(images.length > 0 ? [] : ["product_images"]),
-      ...(snapshot.targetBuyer ? [] : ["target_buyer"]),
-      ...(snapshot.cta ? [] : ["preferred_cta"])
+      ...(snapshot.targetBuyer ? [] : ["target_buyer"])
     ];
   }
 
@@ -321,13 +321,10 @@ export class BrandKitEvaluator {
       issues.push(brandIssue("missing_brand_name", "warn", "Brand name is missing.", "Add the brand name to the brand kit."));
     }
     if (!tone) {
-      issues.push(brandIssue("missing_tone", "warn", "Brand tone is missing.", "Define tone before finalizing narration and captions."));
+      issues.push(brandIssue("missing_tone", "warn", "Brand tone is missing.", "Define tone before finalizing narration and audio."));
     }
     if (!input.allowedClaims?.length && !input.forbiddenClaims?.length) {
       issues.push(brandIssue("missing_claim_policy", "warn", "Brand claim policy is missing.", "Add allowed or forbidden claims so the claim reviewer has policy evidence."));
-    }
-    if (!input.ctaRules?.length) {
-      issues.push(brandIssue("missing_cta_rule", "warn", "CTA rules are missing.", "Add CTA rules before final ad export."));
     }
     for (const forbidden of input.forbiddenClaims ?? []) {
       const normalizedForbidden = cleanText(forbidden, 120);
@@ -378,7 +375,7 @@ export class WorkflowTemplateRegistry {
     template("tiktok_product_ad", "TikTok/Douyin Product Ad", "product_ad", ["tiktok", "douyin"], [15, 35], [
       ["hook", "Open with a concrete product problem or surprising use case."],
       ["proof", "Show one visible product proof point before the offer."],
-      ["cta", "End with one short CTA."]
+      ["payoff", "End on a visual payoff without text cards."]
     ]),
     template("ugc_ad", "UGC Ad", "ugc_ad", ["tiktok", "douyin", "instagram_reels"], [20, 45], [
       ["hook", "Use a first-person problem statement."],
@@ -388,7 +385,7 @@ export class WorkflowTemplateRegistry {
     template("explainer", "Explainer", "explainer", ["youtube_shorts", "linkedin", "website"], [30, 60], [
       ["hook", "Start with the outcome and why it matters."],
       ["scene", "Use step-by-step visual proof."],
-      ["caption", "Prioritize readable captions and chapter-like beats."]
+      ["visual", "Prioritize clear visual chapter beats without on-screen text."]
     ]),
     template("cinematic_product_reveal", "Cinematic Product Reveal", "cinematic_reveal", ["tiktok", "douyin", "instagram_reels", "website"], [15, 30], [
       ["hook", "Lead with atmosphere and product silhouette."],
@@ -398,12 +395,12 @@ export class WorkflowTemplateRegistry {
     template("founder_story", "Founder Story", "founder_story", ["linkedin", "youtube_shorts"], [35, 60], [
       ["hook", "Introduce the founder's tension or mission."],
       ["proof", "Bind the product to real user pain."],
-      ["cta", "Invite a conversation rather than hard-selling."]
+      ["payoff", "End with an earned emotional or product payoff, not a text CTA."]
     ]),
     template("comparison", "Comparison", "comparison", ["tiktok", "douyin", "youtube_shorts", "website"], [20, 45], [
       ["hook", "Frame the before/after or old-way/new-way contrast."],
       ["claim", "Require proof for comparative claims."],
-      ["caption", "Make comparison labels short and legible."]
+      ["visual", "Make comparison visible through staging, motion, and object placement without labels."]
     ]),
     template("testimonial", "Testimonial / Customer Proof", "testimonial", ["tiktok", "douyin", "instagram_reels", "youtube_shorts", "website"], [20, 45], [
       ["hook", "Open with the buyer objection or before-state in plain language."],
@@ -494,6 +491,8 @@ export class ShortPipelinePlanner {
     const brandKitEvaluation = this.brandKitEvaluator.evaluate(input.brandKit, productBrief?.claimInventory ?? []);
     const channelStyleProfile = this.channelStyleEvaluator.evaluate(input.channelStyle);
     const intent = this.intent(input, prompt, productBrief, brandKitEvaluation);
+    const audioPolicy = audioPolicyFor(input.audio, brandKitEvaluation);
+    const visualTextPolicy = noVisibleTextPolicy();
     const templateSuggestions = input.allowTemplateSuggestions === false
       ? []
       : this.templateRegistry.suggest({
@@ -577,7 +576,7 @@ export class ShortPipelinePlanner {
     });
     const agentGraph = agentGraphOutput.graphRun;
     const seedancePromptPack = agentGraphOutput.seedancePromptPack;
-    const checkpoints = this.checkpoints(scenes, intent, productBrief, brandKitEvaluation);
+    const checkpoints = this.checkpoints(scenes, intent, productBrief, brandKitEvaluation, audioPolicy, visualTextPolicy);
     const reviewApproval = this.approvalSystem.evaluate({
       projectId: input.projectId,
       ...(input.requestId ? { requestId: input.requestId } : {}),
@@ -621,6 +620,8 @@ export class ShortPipelinePlanner {
       ...(selectedTemplate ? { selectedTemplate } : {}),
       templatePolicy: selectedTemplate ? "operator_selected_optional" : templateSuggestions.length > 0 ? "suggested_optional" : "none",
       dynamicWorkflowRequired: true,
+      audioPolicy,
+      visualTextPolicy,
       concepts,
       scenes,
       viralIntelligence,
@@ -709,14 +710,14 @@ export class ShortPipelinePlanner {
       {
         conceptId: createStableId("concept", `${productName}:proof:${primaryBenefit}`),
         label: "Pattern-interrupt proof story",
-        angle: `Open with a specific buyer tension, then prove ${productName} through one visible state change and one clear CTA.`,
+        angle: `Open with a specific buyer tension, then prove ${productName} through one visible state change and one clean payoff.`,
         hook: hookFor(intent, productName, primaryBenefit, templateSuggestion),
         riskNotes: riskNotes(productBrief, brandKitEvaluation)
       },
       {
         conceptId: createStableId("concept", `${productName}:tone:${tone}:${prompt}`),
         label: "Brand-tone native short",
-        angle: `Make the ad feel ${tone} while keeping claims reviewable and captions simple.`,
+        angle: `Make the ad feel ${tone} while keeping claims reviewable and the visual story clear without on-screen text.`,
         hook: `${productName} in ${intent.targetDurationSeconds} seconds: the buyer problem, the proof, and the next step.`,
         riskNotes: riskNotes(productBrief, brandKitEvaluation)
       },
@@ -730,8 +731,8 @@ export class ShortPipelinePlanner {
       {
         conceptId: createStableId("concept", `${productName}:demo:${intent.targetDurationSeconds}:${primaryBenefit}`),
         label: "Demo-first conversion arc",
-        angle: `Start with the outcome, demonstrate one step, show proof, and make the CTA the natural next action.`,
-        hook: `Watch ${productName} make one benefit visible before the CTA.`,
+        angle: `Start with the outcome, demonstrate one step, show proof, and make the payoff feel like the natural next action.`,
+        hook: `Watch ${productName} make one benefit visible before the final payoff.`,
         riskNotes: riskNotes(productBrief, brandKitEvaluation)
       },
       {
@@ -762,15 +763,14 @@ export class ShortPipelinePlanner {
     const productName = productBrief?.title ?? "the product";
     const benefit = productBrief?.benefits[0] ?? intent.businessGoal;
     const claimIds = productBrief?.claimInventory.slice(0, 2).map((claim) => claim.claimId) ?? [];
-    const cta = productBrief?.ctaCandidates[0] ?? "Learn more";
     const templateCue = templateSuggestion ? ` Optional accelerator: ${templateSuggestion.label}.` : "";
     const roles = sceneRolesFor(prompt, intent, templateSuggestion);
     return roles.map((role, index) => scene(
       role,
       index + 1,
       sceneGoalFor(role, productName, benefit, templateCue),
-      sceneNarrationFor(role, productName, benefit, cta, concept),
-      sceneCaptionFor(role, productName, cta),
+      sceneNarrationFor(role, productName, benefit, concept),
+      sceneCaptionFor(role),
       role === "hook" ? claimIds.slice(0, 1) : role === "proof" ? claimIds : []
     ));
   }
@@ -793,7 +793,6 @@ export class ShortPipelinePlanner {
     const productName = input.productBrief?.title ?? "the product";
     const benefit = input.productBrief?.benefits[0] ?? input.intent.businessGoal;
     const claimIds = input.productBrief?.claimInventory.slice(0, 2).map((claim) => claim.claimId) ?? [];
-    const cta = input.productBrief?.ctaCandidates[0] ?? "Learn more";
     const templateCue = input.templateSuggestion ? ` Optional accelerator: ${input.templateSuggestion.label}.` : "";
     const sourceConcept = selectedCandidate.sourceConceptId
       ? input.concepts.find((concept) => concept.conceptId === selectedCandidate.sourceConceptId)
@@ -810,8 +809,8 @@ export class ShortPipelinePlanner {
       role,
       index + 1,
       candidateSceneGoalFor(role, productName, benefit, selectedCandidate.storyArc, templateCue),
-      candidateSceneNarrationFor(role, productName, benefit, cta, concept, selectedCandidate.storyArc),
-      candidateSceneCaptionFor(role, productName, cta, selectedCandidate.label),
+      candidateSceneNarrationFor(role, productName, benefit, concept, selectedCandidate.storyArc),
+      candidateSceneCaptionFor(role),
       role === "hook" ? claimIds.slice(0, 1) : role === "proof" ? claimIds : []
     ));
   }
@@ -820,7 +819,9 @@ export class ShortPipelinePlanner {
     scenes: readonly ShortPipelineScenePlan[],
     intent: ShortPipelineIntent,
     productBrief: ProductUrlBrief | undefined,
-    brandKitEvaluation: BrandKitEvaluation | undefined
+    brandKitEvaluation: BrandKitEvaluation | undefined,
+    audioPolicy: ShortPipelineAudioPolicy,
+    visualTextPolicy: ShortPipelineVisualTextPolicy
   ): readonly ReviewApprovalCheckpointInput[] {
     const checkpoints: ReviewApprovalCheckpointInput[] = scenes.map((sceneItem) => ({
       surface: "scene",
@@ -834,23 +835,31 @@ export class ShortPipelinePlanner {
     }));
     checkpoints.push({
       surface: "audio",
-      label: "Approve narration, voice tone, BGM, ambience, and SFX plan",
+      label: "Approve short audio mode, narration language, voice tone, BGM, ambience, and SFX plan",
       subjectId: "short_audio_plan",
       required: true,
       issueCodes: brandKitEvaluation?.status === "review_required" ? ["brand_voice_review_required"] : [],
       evidence: {
         targetDurationSeconds: intent.targetDurationSeconds,
         sceneCount: scenes.length,
-        audioMode: "guided_or_native_after_render_settings"
+        audioMode: audioPolicy.renderAudioMode,
+        requestedAudioPolicyMode: audioPolicy.mode,
+        generatedAudioIntentEnabled: audioPolicy.generatedAudioIntentEnabled,
+        ...(audioPolicy.language ? { language: audioPolicy.language } : {}),
+        ...(audioPolicy.languageLabel ? { languageLabel: audioPolicy.languageLabel } : {})
       }
     });
     checkpoints.push({
       surface: "caption",
-      label: "Approve caption readability, language, platform fit, and accessibility",
-      subjectId: "short_caption_plan",
+      label: "Approve no visible text, no captions, and no CTA-card policy",
+      subjectId: "short_visual_text_policy",
       required: true,
       evidence: {
-        sceneCount: scenes.length
+        sceneCount: scenes.length,
+        allowOnScreenText: visualTextPolicy.allowOnScreenText,
+        allowCaptions: visualTextPolicy.allowCaptions,
+        allowCtaCards: visualTextPolicy.allowCtaCards,
+        allowTextOverlays: visualTextPolicy.allowTextOverlays
       }
     });
     for (const claim of productBrief?.claimInventory ?? []) {
@@ -901,10 +910,10 @@ export class ShortPipelinePlanner {
     }
     return [
       ...(productBrief?.status === "review_required" ? ["Confirm product facts, image rights, and claim substantiation."] : []),
-      ...(brandKitEvaluation?.status === "review_required" ? ["Complete brand-kit tone, CTA, claim policy, and asset approval review."] : []),
+      ...(brandKitEvaluation?.status === "review_required" ? ["Complete brand-kit tone, claim policy, and asset approval review."] : []),
       ...(viralStatus === "review_required" ? ["Review short viral strategy, reference-video guardrails, concept score, and scene directives before render."] : []),
       reviewStatus === "approval_required" || reviewStatus === "changes_requested"
-        ? "Collect human scene, audio, caption, and claim approval before render."
+        ? "Collect human scene, audio, no-visible-text, and claim approval before render."
         : "Proceed only through render cost/quota gates after approval.",
       "Keep templates optional; user natural-language edits can replace or ignore every suggested accelerator."
     ];
@@ -971,28 +980,28 @@ function sceneRolesFor(
 ): readonly ShortPipelineScenePlan["role"][] {
   const lower = `${prompt} ${templateSuggestion?.category ?? ""}`.toLowerCase();
   if (intent.targetDurationSeconds <= 15) {
-    return ["hook", "demo", "cta"];
+    return ["hook", "demo", "payoff"];
   }
   if (intent.targetDurationSeconds <= 25) {
     return /compare|versus|vs|before|after/.test(lower)
-      ? ["hook", "problem", "proof", "cta"]
-      : ["hook", "problem", "demo", "cta"];
+      ? ["hook", "problem", "proof", "payoff"]
+      : ["hook", "problem", "demo", "payoff"];
   }
   if (intent.targetDurationSeconds >= 46) {
     return /story|founder|education|explain|training/.test(lower)
-      ? ["hook", "problem", "demo", "proof", "offer", "cta"]
-      : ["hook", "problem", "proof", "demo", "offer", "cta"];
+      ? ["hook", "problem", "demo", "proof", "offer", "payoff"]
+      : ["hook", "problem", "proof", "demo", "offer", "payoff"];
   }
   if (/ugc|review|creator|testimonial|native/.test(lower)) {
-    return ["hook", "problem", "demo", "proof", "cta"];
+    return ["hook", "problem", "demo", "proof", "payoff"];
   }
   if (/cinematic|premium|luxury|reveal/.test(lower)) {
-    return ["hook", "proof", "demo", "cta"];
+    return ["hook", "proof", "demo", "payoff"];
   }
   if (/demo|tutorial|how it works|show how/.test(lower)) {
-    return ["hook", "demo", "proof", "cta"];
+    return ["hook", "demo", "proof", "payoff"];
   }
-  return ["hook", "problem", "proof", "demo", "cta"];
+  return ["hook", "problem", "proof", "demo", "payoff"];
 }
 
 function sceneGoalFor(
@@ -1012,8 +1021,8 @@ function sceneGoalFor(
       return `Demonstrate how ${productName} fits the buyer's workflow or routine.`;
     case "offer":
       return `Introduce the offer as a continuation of the proof, not a separate ad card.`;
-    case "cta":
-      return `Close with one CTA and no new unsupported claims.`;
+    case "payoff":
+      return `Close the story with a clear visual payoff and no new unsupported claims.`;
   }
 }
 
@@ -1021,7 +1030,6 @@ function sceneNarrationFor(
   role: ShortPipelineScenePlan["role"],
   productName: string,
   benefit: string,
-  cta: string,
   concept: ShortPipelineConcept | undefined
 ): string {
   switch (role) {
@@ -1035,30 +1043,13 @@ function sceneNarrationFor(
       return `Use ${productName} in one clear, visual step.`;
     case "offer":
       return `If this fits your routine, this is the simple next step.`;
-    case "cta":
-      return cta;
+    case "payoff":
+      return `End with the visible result so the viewer understands the next step without any on-screen CTA.`;
   }
 }
 
-function sceneCaptionFor(
-  role: ShortPipelineScenePlan["role"],
-  productName: string,
-  cta: string
-): string {
-  switch (role) {
-    case "hook":
-      return `Why ${productName}?`;
-    case "problem":
-      return "The real problem";
-    case "proof":
-      return "See the proof";
-    case "demo":
-      return "How it works";
-    case "offer":
-      return "The simple next step";
-    case "cta":
-      return cta;
-  }
+function sceneCaptionFor(_role: ShortPipelineScenePlan["role"]): string {
+  return NO_VISIBLE_TEXT_CAPTION;
 }
 
 function normalizeCandidateSceneRoles(
@@ -1072,14 +1063,14 @@ function normalizeCandidateSceneRoles(
   const withHook: ShortPipelineScenePlan["role"][] = roles[0] === "hook"
     ? [...roles]
     : ["hook", ...roles.filter((role) => role !== "hook")];
-  const withCta: ShortPipelineScenePlan["role"][] = withHook[withHook.length - 1] === "cta"
+  const withPayoff: ShortPipelineScenePlan["role"][] = withHook[withHook.length - 1] === "payoff"
     ? withHook
-    : [...withHook.filter((role) => role !== "cta"), "cta"];
+    : [...withHook.filter((role) => role !== "payoff"), "payoff"];
   const maxScenes = intent.targetDurationSeconds <= 15 ? 3 : intent.targetDurationSeconds <= 25 ? 4 : intent.targetDurationSeconds >= 46 ? 6 : 5;
   const minScenes = intent.targetDurationSeconds <= 15 ? 3 : 4;
-  const trimmed: ShortPipelineScenePlan["role"][] = withCta.length > maxScenes
-    ? [...withCta.slice(0, Math.max(1, maxScenes - 1)).filter((role) => role !== "cta"), "cta"]
-    : withCta;
+  const trimmed: ShortPipelineScenePlan["role"][] = withPayoff.length > maxScenes
+    ? [...withPayoff.slice(0, Math.max(1, maxScenes - 1)).filter((role) => role !== "payoff"), "payoff"]
+    : withPayoff;
   const finalRoles = trimmed.length >= minScenes ? trimmed : fallback;
   if (!finalRoles.includes("demo") && !finalRoles.includes("proof") && finalRoles.length >= 3) {
     return finalRoles.map((role, index) => index === Math.min(2, finalRoles.length - 2) ? "demo" : role);
@@ -1102,7 +1093,6 @@ function candidateSceneNarrationFor(
   role: ShortPipelineScenePlan["role"],
   productName: string,
   benefit: string,
-  cta: string,
   concept: ShortPipelineConcept,
   storyArc: string
 ): string {
@@ -1117,37 +1107,19 @@ function candidateSceneNarrationFor(
       return `Show ${productName} in one visible step that supports the arc: ${storyArc}`;
     case "offer":
       return `If this proof fits the viewer's routine, make the next step feel simple.`;
-    case "cta":
-      return cta;
+    case "payoff":
+      return `Resolve the arc with the result in view; avoid any spoken or visual hard-sell CTA.`;
   }
 }
 
-function candidateSceneCaptionFor(
-  role: ShortPipelineScenePlan["role"],
-  productName: string,
-  cta: string,
-  candidateLabel: string
-): string {
-  switch (role) {
-    case "hook":
-      return candidateLabel.length <= 28 ? candidateLabel : `Why ${productName}?`;
-    case "problem":
-      return "The objection";
-    case "proof":
-      return "Proof, not hype";
-    case "demo":
-      return "One clear step";
-    case "offer":
-      return "Simple next step";
-    case "cta":
-      return cta;
-  }
+function candidateSceneCaptionFor(_role: ShortPipelineScenePlan["role"]): string {
+  return NO_VISIBLE_TEXT_CAPTION;
 }
 
 function visualDirectionFor(role: ShortPipelineScenePlan["role"]): string {
   switch (role) {
     case "hook":
-      return "Fast first frame, product visible early, clean negative space for captions.";
+      return "Fast first frame, product visible early, no text overlay or typography.";
     case "problem":
       return "Show the buyer pain point with one simple visual contrast.";
     case "proof":
@@ -1155,9 +1127,66 @@ function visualDirectionFor(role: ShortPipelineScenePlan["role"]): string {
     case "demo":
       return "Show hands-on use or workflow context without clutter.";
     case "offer":
-      return "Use product plus offer card with conservative claim language.";
-    case "cta":
-      return "End on product, logo-safe frame, and one readable CTA.";
+      return "Use product/result staging with conservative claim language, not an offer text card.";
+    case "payoff":
+      return "End on product/result, logo-safe reference asset only, no CTA card, no captions, no text overlays.";
+  }
+}
+
+function audioPolicyFor(
+  input: ShortPipelineAudioPolicyInput | undefined,
+  brandKitEvaluation: BrandKitEvaluation | undefined
+): ShortPipelineAudioPolicy {
+  const mode = input?.mode === "off" ? "off" : "voiceover";
+  const language = mode === "off"
+    ? undefined
+    : isShortAudioLanguage(input?.language) ? input.language : languageFromBrandKit(brandKitEvaluation?.language);
+  const voiceStyle = cleanText(input?.voiceStyle, 120) ?? brandKitEvaluation?.tone;
+  return {
+    schemaVersion: "cinejelly.short-audio-policy.v1",
+    mode,
+    ...(language ? { language } : {}),
+    ...(language ? { languageLabel: languageLabelFor(language) } : {}),
+    ...(voiceStyle && mode !== "off" ? { voiceStyle } : {}),
+    renderAudioMode: mode === "off" ? "none" : "guided",
+    generatedAudioIntentEnabled: mode !== "off",
+    nativeProviderAudioEnabled: false,
+    reviewRequired: true
+  };
+}
+
+function noVisibleTextPolicy(): ShortPipelineVisualTextPolicy {
+  return {
+    schemaVersion: "cinejelly.short-visual-text-policy.v1",
+    mode: "no_visible_text",
+    allowOnScreenText: false,
+    allowCaptions: false,
+    allowCtaCards: false,
+    allowTextOverlays: false,
+    allowLogoText: "reference_asset_only",
+    promptConstraint: "No visible text in the generated video: no captions, subtitles, CTA cards, typography, labels, lower thirds, or fake UI text. Logos may appear only as approved/reference product assets."
+  };
+}
+
+function languageFromBrandKit(value: string | undefined): NonNullable<ShortPipelineAudioPolicy["language"]> {
+  const normalized = value?.toLowerCase() ?? "";
+  if (/\bvi\b|vietnam|tieng viet/.test(normalized)) return "vi";
+  if (/\bzh\b|chinese|mandarin|tieng trung/.test(normalized)) return "zh";
+  return "en";
+}
+
+function isShortAudioLanguage(value: unknown): value is NonNullable<ShortPipelineAudioPolicy["language"]> {
+  return value === "en" || value === "vi" || value === "zh";
+}
+
+function languageLabelFor(language: NonNullable<ShortPipelineAudioPolicy["language"]>): NonNullable<ShortPipelineAudioPolicy["languageLabel"]> {
+  switch (language) {
+    case "vi":
+      return "Vietnamese";
+    case "zh":
+      return "Chinese";
+    case "en":
+      return "English";
   }
 }
 

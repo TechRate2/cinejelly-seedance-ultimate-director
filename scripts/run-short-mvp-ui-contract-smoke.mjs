@@ -145,6 +145,17 @@ try {
       ui?.backendManagedSteps?.some((step) => step.actionId === "final_mp4_assembly" && step.status === "ready")
       ? pass("ui_contract_hydrates_style_profile", "UI contract hydrates channelStyleProfileId, recommends storyboard for 28s, and keeps provider spend disabled.")
       : fail("ui_contract_hydrates_style_profile", "Expected UI contract to hydrate profileId and expose safe render controls."),
+    ui?.audioControls?.options?.map((option) => option.optionId).join("|") === "off|english|vietnamese|chinese" &&
+      ui?.audioControls?.selectedOptionId === "english" &&
+      ui?.outputContract?.audioMode === "guided" &&
+      ui?.outputContract?.audioLanguage === "en" &&
+      ui?.visualTextPolicy?.noOnScreenText === true &&
+      ui?.visualTextPolicy?.noCaptions === true &&
+      ui?.visualTextPolicy?.noCtaCards === true &&
+      ui?.outputContract?.captionsCanBeBurnedIn === false &&
+      ui?.outputContract?.visibleTextAllowed === false
+      ? pass("audio_and_no_visible_text_controls", "UI contract exposes off/en/vi/zh audio choices and locks no visible text/caption burn-in by default.")
+      : fail("audio_and_no_visible_text_controls", "Expected UI contract to expose audio options and no-visible-text output contract."),
     bothStyleSources.statusCode === 400 &&
       String(bothStyleSources.body.error ?? "").includes("either channelStyle or channelStyleProfileId")
       ? pass("ambiguous_style_source_blocked", "Backend rejects requests that send both inline channelStyle and channelStyleProfileId.")
@@ -207,6 +218,9 @@ try {
       uiContract: {
         recommendedWorkflowMode: ui?.duration?.recommendedWorkflowMode,
         workflowControlCount: ui?.workflowControls?.length ?? 0,
+        audioControlOptions: ui?.audioControls?.options?.map((option) => option.optionId) ?? [],
+        selectedAudioOptionId: ui?.audioControls?.selectedOptionId,
+        visibleTextAllowed: ui?.outputContract?.visibleTextAllowed,
         backendManagedStepCount: ui?.backendManagedSteps?.length ?? 0,
         userRequiredActionCount: ui?.userRequiredActions?.length ?? 0,
         canCreateRenderJob: ui?.render?.canCreateRenderJob,
@@ -230,7 +244,7 @@ try {
     },
     nextActions: [
       "Build Create Video UI against the UI contract instead of duplicating backend workflow rules in the frontend.",
-      "Use channelStyleProfileId for channel-building workflows with recurring characters, voice, setting, captions, and editing style.",
+      "Use channelStyleProfileId for channel-building workflows with recurring characters, voice, setting, visual rhythm, and editing style.",
       "Run one paid 30-45s Short multishot validation after UI review wiring is ready."
     ]
   };

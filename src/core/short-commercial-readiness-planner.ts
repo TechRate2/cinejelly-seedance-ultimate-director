@@ -161,8 +161,8 @@ function brandPolicyCheck(plan: ShortPipelinePlanDraft): ShortCommercialReadines
       "brand_policy",
       "review_required",
       0.56,
-      "Brand kit is missing, so tone, CTA, claim policy, and visual identity are not anchored.",
-      "Attach brand name, tone, CTA rules, claim policy, language, and approved brand assets.",
+      "Brand kit is missing, so tone, claim policy, audio language, and visual identity are not anchored.",
+      "Attach brand name, tone, claim policy, language/audio preference, and approved brand assets.",
       {
         brandPresent: false,
         issueCount: 0,
@@ -192,7 +192,7 @@ function brandPolicyCheck(plan: ShortPipelinePlanDraft): ShortCommercialReadines
     brand.status === "ready" ? 0.9 : 0.7,
     brand.status === "ready"
       ? "Brand kit is ready for short creative constraints."
-      : "Brand kit is usable but still needs tone, CTA, claim policy, or asset approval review.",
+      : "Brand kit is usable but still needs tone, claim policy, audio language, or asset approval review.",
     brand.status === "ready"
       ? "Keep brand constraints bound to the prompt pack."
       : "Complete missing brand fields before commercial render.",
@@ -233,7 +233,7 @@ function viralStrategyCheck(plan: ShortPipelinePlanDraft): ShortCommercialReadin
       : "Viral strategy is valid but needs hook, niche, claim, or pacing review before spend.",
     status === "ready"
       ? "Use this strategy as the creative spine for render handoff."
-      : "Review findings and strengthen hook/proof/caption rhythm before render.",
+      : "Review findings and strengthen hook, proof, visual rhythm, audio, and no-visible-text policy before render.",
     {
       conceptCount: viral.conceptScores.length,
       topConceptScore: topScore,
@@ -323,7 +323,7 @@ function humanReviewCheck(plan: ShortPipelinePlanDraft): ShortCommercialReadines
     ready ? 0.95 : 0.68,
     ready
       ? "All required short review checkpoints are approved."
-      : "Scene, audio, caption, and claim checkpoints still need formal approval before render.",
+      : "Scene, audio, no-visible-text, and claim checkpoints still need formal approval before render.",
     ready
       ? "Keep approval evidence bound to render-job handoff."
       : "Collect explicit approval for every required checkpoint.",
@@ -373,8 +373,8 @@ function referenceOriginalityCheck(plan: ShortPipelinePlanDraft, referenceStatus
     reviewRequired ? 0.68 : 0.88,
     reviewRequired
       ? "Reference pattern is usable only after originality review."
-      : "Reference pattern is safe for structure, pacing, camera, caption, and CTA learning.",
-    "Use reference for structure only; never copy script, faces, marks, audio, captions, or exact edits.",
+      : "Reference pattern is safe for structure, pacing, camera, visual rhythm, and payoff learning.",
+    "Use reference for structure only; never copy script, faces, marks, audio, captions, visible text, or exact edits.",
     {
       referencePresent: true,
       canUseForStyleTransfer: true,
@@ -393,7 +393,7 @@ function channelStyleMemoryCheck(plan: ShortPipelinePlanDraft): ShortCommercialR
       "review_required",
       0.62,
       "No reusable channel style profile is attached, so this short may not preserve a long-term channel identity.",
-      "Attach channelStyle with recurring character, voice, setting, visual, caption, and editing anchors for channel building.",
+      "Attach channelStyle with recurring character, voice, setting, visual rhythm, and editing anchors for channel building.",
       {
         channelStylePresent: false,
         anchorCount: 0,

@@ -104,7 +104,7 @@ const session = engine.buildSession({
     {
       role: "user",
       createdAt: generatedAt,
-      text: "Revise it to be more educational, avoid templates, and keep formal scene/audio/caption/claim approval before spend."
+      text: "Revise it to be more educational, avoid templates, and keep formal scene/audio/no-visible-text/claim approval before spend."
     }
   ],
   product,
@@ -169,7 +169,7 @@ const checks = [
     : fail("summary_contract_is_commercial_safe", "Expected summary fields to remain no-spend, no-network, and customer-traffic blocked."),
   saved.session.plan?.reviewApproval?.status === "approval_required" &&
     saved.session.releaseGateSummary?.canRenderAfterFormalApproval === false
-    ? pass("formal_review_gate_preserved", "Persisting a session does not weaken formal scene/audio/caption/claim approval gates.")
+    ? pass("formal_review_gate_preserved", "Persisting a session does not weaken formal scene/audio/no-visible-text/claim approval gates.")
     : fail("formal_review_gate_preserved", "Expected formal approval gates to remain required after persistence.")
 ];
 

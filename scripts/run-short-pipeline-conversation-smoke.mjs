@@ -167,7 +167,7 @@ const checks = [
     approvalIntent.plan.reviewApproval.status === "approval_required" &&
     approvalIntent.releaseGateSummary.canRenderAfterFormalApproval === false &&
     approvalIntent.releaseGateSummary.releaseBlocker.includes("formal")
-    ? pass("approval_intent_still_requires_formal_checkpoints", "A conversational approval phrase does not bypass formal scene/audio/caption/claim checkpoint evidence.")
+    ? pass("approval_intent_still_requires_formal_checkpoints", "A conversational approval phrase does not bypass formal scene/audio/no-visible-text/claim checkpoint evidence.")
     : fail("approval_intent_still_requires_formal_checkpoints", "Expected approval intent to remain blocked from render until formal checkpoints are accepted."),
   naturalChat.rawTranscriptStored === false &&
     revisionNoTemplate.rawTranscriptStored === false &&

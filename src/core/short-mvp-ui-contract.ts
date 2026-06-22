@@ -6,6 +6,8 @@
 
 import type {
   ShortMvpUiAction,
+  ShortMvpUiAudioControl,
+  ShortMvpUiAudioOptionId,
   ShortMvpUiContract,
   ShortMvpUiReviewSurfaceSummary,
   ShortMvpUiWorkflowControl
@@ -19,6 +21,16 @@ const SHORT_SINGLE_CLIP_MAX_SECONDS = 15;
 const REVIEW_SURFACES: readonly ReviewApprovalSurface[] = ["scene", "audio", "caption", "claim"];
 
 export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiContract {
+  const audioPolicy = plan.audioPolicy ?? {
+    schemaVersion: "cinejelly.short-audio-policy.v1" as const,
+    mode: "voiceover" as const,
+    language: "en" as const,
+    languageLabel: "English" as const,
+    renderAudioMode: "guided" as const,
+    generatedAudioIntentEnabled: true,
+    nativeProviderAudioEnabled: false as const,
+    reviewRequired: true as const
+  };
   const recommendedWorkflowMode = plan.intent.targetDurationSeconds <= SHORT_SINGLE_CLIP_MAX_SECONDS
     ? "single_clip"
     : "storyboard_multishot";
@@ -49,6 +61,16 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
       providerSingleClipMaxSeconds: SHORT_SINGLE_CLIP_MAX_SECONDS
     },
     workflowControls: workflowControls(recommendedWorkflowMode, plan),
+    audioControls: {
+      selectedOptionId: selectedAudioOptionId(audioPolicy),
+      options: audioControls(audioPolicy)
+    },
+    visualTextPolicy: {
+      noOnScreenText: true,
+      noCaptions: true,
+      noCtaCards: true,
+      captionsBurnIn: false
+    },
     review: {
       status: plan.reviewApproval.status,
       checkpointCount: plan.reviewApproval.summary.checkpointCount,
@@ -78,8 +100,11 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
     userRequiredActions,
     outputContract: {
       finalMp4AssemblyManagedByBackend: true,
-      captionsCanBeBurnedIn: true,
-      generatedAudioIntentCount: plan.scenes.length,
+      captionsCanBeBurnedIn: false,
+      visibleTextAllowed: false,
+      audioMode: audioPolicy.renderAudioMode,
+      ...(audioPolicy.language ? { audioLanguage: audioPolicy.language } : {}),
+      generatedAudioIntentCount: audioPolicy.generatedAudioIntentEnabled ? plan.scenes.length : 0,
       expectedSceneCount: plan.scenes.length
     },
     releaseGateSummary: {
@@ -87,6 +112,50 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
       canReleaseToCustomerTraffic: false,
       releaseBlocker: "UI MVP integration can use this contract, but customer traffic still requires paid Short validation, artifact validation, manual media review, billing/workspace controls, and release approval."
     }
+  };
+}
+
+function selectedAudioOptionId(audioPolicy: NonNullable<ShortPipelinePlan["audioPolicy"]>): ShortMvpUiAudioOptionId {
+  if (audioPolicy.mode === "off") {
+    return "off";
+  }
+  switch (audioPolicy.language) {
+    case "vi":
+      return "vietnamese";
+    case "zh":
+      return "chinese";
+    case "en":
+    default:
+      return "english";
+  }
+}
+
+function audioControls(audioPolicy: NonNullable<ShortPipelinePlan["audioPolicy"]>): readonly ShortMvpUiAudioControl[] {
+  const selected = selectedAudioOptionId(audioPolicy);
+  return [
+    audioControl("off", "Audio off", selected === "off", "none", undefined, "Use when the user wants a fully silent visual short."),
+    audioControl("english", "English VO", selected === "english", "guided", "en", "Generate guided narration/audio intents in English."),
+    audioControl("vietnamese", "Vietnamese VO", selected === "vietnamese", "guided", "vi", "Generate guided narration/audio intents in Vietnamese."),
+    audioControl("chinese", "Chinese VO", selected === "chinese", "guided", "zh", "Generate guided narration/audio intents in Chinese.")
+  ];
+}
+
+function audioControl(
+  optionId: ShortMvpUiAudioOptionId,
+  label: string,
+  recommended: boolean,
+  handoffAudioMode: ShortMvpUiAudioControl["handoffAudioMode"],
+  language: ShortMvpUiAudioControl["language"] | undefined,
+  reason: string
+): ShortMvpUiAudioControl {
+  return {
+    optionId,
+    label,
+    recommended,
+    enabled: true,
+    handoffAudioMode,
+    ...(language ? { language } : {}),
+    reason
   };
 }
 
@@ -169,10 +238,10 @@ function backendManagedActions(plan: ShortPipelinePlan): readonly ShortMvpUiActi
     backendAction("intent_inference", "Infer goal, audience, platform, emotion, duration, and aspect ratio", "ready", "Backend already normalized the user's natural-language brief."),
     backendAction("adaptive_short_agent", "Generate adaptive concept candidates without fixed templates", plan.agentGraph ? "ready" : "optional", "Short Agent graph supplies research, memory, critique, repair, and Seedance prompt-pack evidence when available."),
     backendAction("viral_strategy", "Build niche/platform viral strategy", plan.viralIntelligence.status === "blocked" ? "blocked" : "ready", "Backend scores concepts and scene directives from product, audience, reference, and platform evidence."),
-    backendAction("channel_style_memory", "Apply saved channel style memory", plan.channelStyleProfile?.status === "blocked" ? "blocked" : plan.channelStyleProfile ? "ready" : "optional", "Backend binds recurring channel, character, voice, setting, visual, caption, and editing anchors when supplied."),
+    backendAction("channel_style_memory", "Apply saved channel style memory", plan.channelStyleProfile?.status === "blocked" ? "blocked" : plan.channelStyleProfile ? "ready" : "optional", "Backend binds recurring channel, character, voice, setting, visual rhythm, and editing anchors when supplied."),
     backendAction("render_handoff", "Prepare render-job handoff", plan.status === "blocked" ? "blocked" : "ready", "Backend converts the short plan into the normal async render-job request with lineage metadata."),
-    backendAction("caption_audio_contracts", "Create caption and generated-audio timing contracts", "ready", "Backend derives per-scene caption cues and generated-audio intents from the plan."),
-    backendAction("final_mp4_assembly", "Assemble final MP4 after render", "ready", "DirectorAgent and AssemblyEngine select video outputs, stitch clips, apply captions/audio, and run delivery gate.")
+    backendAction("audio_visual_text_contracts", "Create audio and no-visible-text contracts", "ready", "Backend derives generated-audio intents only when audio is enabled and disables caption burn-in by default."),
+    backendAction("final_mp4_assembly", "Assemble final MP4 after render", "ready", "DirectorAgent and AssemblyEngine select video outputs, stitch clips, apply audio when requested, and run delivery gate.")
   ];
 }
 
@@ -182,14 +251,14 @@ function userActions(plan: ShortPipelinePlan, requiredPendingCount: number): rea
       ? [userAction("confirm_product_facts", "Confirm product facts, image rights, and claims", "needs_review", true, "Product URL/snapshot evidence needs operator review before spend.")]
       : []),
     ...(plan.brandKitEvaluation?.status === "review_required"
-      ? [userAction("complete_brand_kit", "Complete brand kit rules", "needs_review", true, "Tone, CTA, claim policy, or approved brand assets need review.")]
+      ? [userAction("complete_brand_kit", "Complete brand kit rules", "needs_review", true, "Tone, claim policy, audio language, or approved brand assets need review.")]
       : []),
     ...(plan.channelStyleProfile?.memoryPolicy.requiresRightsReview
       ? [userAction("approve_channel_assets", "Approve reusable channel assets", "needs_review", true, "Reusable channel assets are present but not fully rights-approved.")]
       : []),
     userAction(
       "approve_review_checkpoints",
-      "Approve scene, audio, caption, and claim checkpoints",
+      "Approve scene, audio, no-visible-text, and claim checkpoints",
       requiredPendingCount > 0 ? "needs_review" : "ready",
       requiredPendingCount > 0,
       requiredPendingCount > 0

@@ -143,7 +143,7 @@ export class ShortViralIntelligencePlanner {
     const hookPattern = cleanText(input.hook, 220) ?? inferHookPattern(summary, prompt);
     const pacingPattern = cleanText(input.pacing, 220) ?? pacingFrom(input.durationSeconds, input.sceneCount);
     const cameraPattern = cleanText(input.cameraStyle, 220) ?? "native handheld or product-close framing with clear first-frame readability";
-    const captionPattern = cleanText(input.captionStyle, 220) ?? "short high-contrast captions that reveal one idea at a time";
+    const captionPattern = cleanText(input.captionStyle, 220) ?? "visual beat rhythm that reveals one idea at a time without on-screen text";
     const audioPattern = cleanText(input.audioStyle, 180) ?? "clean narration or trend-compatible bed that does not overpower speech";
     const retentionMechanics = uniqueClean([
       cleanText(input.retentionPattern, 180),
@@ -151,7 +151,7 @@ export class ShortViralIntelligencePlanner {
       "change visual information before attention drops",
       "carry one unanswered question into the proof beat"
     ], 5, 180);
-    const ctaPattern = cleanText(input.ctaStyle, 180) ?? "single direct CTA after proof, without adding new claims";
+    const ctaPattern = cleanText(input.ctaStyle, 180) ?? "earned visual payoff after proof, without text cards or new claims";
     const visualMotifs = uniqueClean(input.visualMotifs ?? [], 6, 80);
     const sourceEvidence = safeSourceUrl(input.sourceUrl);
     if (sourceEvidence.status === "blocked") {
@@ -208,8 +208,9 @@ export class ShortViralIntelligencePlanner {
       ctaPattern,
       visualMotifs,
       originalityGuardrails: [
-        "learn structure, timing, framing, caption rhythm, and CTA logic only",
+        "learn structure, timing, framing, visual rhythm, and payoff logic only",
         "do not copy source script wording, faces, brand marks, copyrighted edits, music, or private assets",
+        "do not render visible captions, subtitles, labels, CTA cards, or typography",
         "replace claims with reviewed product and brand-kit evidence",
         "treat similarity above structural pattern as human-review risk"
       ],
@@ -272,7 +273,7 @@ export class ShortViralIntelligencePlanner {
       findings.push(finding(
         "missing_product_evidence",
         "warn",
-        "Commercial short request has no product facts, claims, images, or CTA evidence yet.",
+        "Commercial short request has no product facts, claims, images, or conversion intent evidence yet.",
         "Provide product URL/snapshot evidence before paid render so claims and visuals can be reviewed.",
         { commercialIntent: true }
       ));
@@ -353,7 +354,7 @@ export class ShortViralIntelligencePlanner {
         role: scene.role,
         recommendedDurationSeconds: round(isFirst ? Math.min(3, Math.max(1.5, baseDuration * 0.45)) : isLast ? Math.max(2, baseDuration * 0.65) : baseDuration),
         firstFrameRule: isFirst
-          ? `Open with ${firstFrameSubject(input.productBrief, strategy)} and one readable promise before the first second ends.`
+          ? `Open with ${firstFrameSubject(input.productBrief, strategy)} and one visible promise before the first second ends, with no on-screen text.`
           : "Continue with a visible state change, not a static talking-head hold.",
         retentionJob: retentionJobFor(scene.role, strategy, reference),
         cameraCue: cameraCueFor(scene.role, strategy, reference),
@@ -374,12 +375,12 @@ export class ShortViralIntelligencePlanner {
     reference: ShortReferenceVideoPattern | undefined
   ): readonly ShortViralFinding[] {
     const findings: ShortViralFinding[] = [];
-    if (directives.some((directive) => directive.captionCue.length > 140)) {
+    if (directives.some((directive) => directive.captionCue.length > 180)) {
       findings.push(finding(
-        "caption_retention_gap",
+        "visual_retention_gap",
         "warn",
-        "At least one caption directive is too long for a fast short-video viewer.",
-        "Rewrite caption beats into one short idea per scene before render.",
+        "At least one visual-text policy directive is too verbose for render review.",
+        "Keep no-visible-text instructions short and move detail into scene action or audio.",
         { sceneCount: scenes.length }
       ));
     }
@@ -397,7 +398,7 @@ export class ShortViralIntelligencePlanner {
         "scene_pacing_review",
         "warn",
         "TikTok/Douyin-first shorts need enough visible beat changes to hold attention.",
-        "Use at least hook, proof/demo, and CTA beats.",
+        "Use at least hook, proof/demo, and payoff beats.",
         { sceneCount: scenes.length }
       ));
     }
@@ -477,7 +478,7 @@ function viralLeversFor(
   mode: ShortViralCreativeMode,
   reference: ShortReferenceVideoPattern | undefined
 ): readonly ShortViralLever[] {
-  const levers: ShortViralLever[] = ["fast_hook", "caption_retention", "visual_payoff", "clear_cta"];
+  const levers: ShortViralLever[] = ["fast_hook", "visual_retention", "visual_payoff", "clear_payoff"];
   if (platform === "tiktok_douyin") levers.push("pattern_interrupt", "curiosity_gap");
   if (mode === "ugc_review" || mode === "testimonial") levers.push("native_ugc", "social_proof");
   if (mode === "product_ad" || mode === "demo" || mode === "comparison") levers.push("proof_stack", "product_demo");
@@ -490,7 +491,7 @@ function antiPatternsFor(mode: ShortViralCreativeMode): readonly string[] {
     "slow brand intro before the viewer understands the payoff",
     "generic stock montage with no product or proof beat",
     "unsupported superlatives or unreviewed before-after claims",
-    "caption walls that require pausing to read",
+    "visible captions, subtitles, labels, CTA cards, or text walls",
     mode === "ugc_review" ? "overproduced creator delivery that no longer feels native" : "flat single-angle narration without visible state change"
   ];
 }
@@ -562,12 +563,12 @@ function scoreReasons(
 
 function leversForScene(role: ShortPipelineScenePlan["role"], globalLevers: readonly ShortViralLever[]): readonly ShortViralLever[] {
   const preferred: Record<ShortPipelineScenePlan["role"], readonly ShortViralLever[]> = {
-    hook: ["fast_hook", "pattern_interrupt", "curiosity_gap", "caption_retention"],
-    problem: ["native_ugc", "curiosity_gap", "caption_retention"],
+    hook: ["fast_hook", "pattern_interrupt", "curiosity_gap", "visual_retention"],
+    problem: ["native_ugc", "curiosity_gap", "visual_retention"],
     proof: ["proof_stack", "social_proof", "visual_payoff"],
-    demo: ["product_demo", "visual_payoff", "caption_retention"],
-    offer: ["proof_stack", "clear_cta"],
-    cta: ["clear_cta", "visual_payoff"]
+    demo: ["product_demo", "visual_payoff", "visual_retention"],
+    offer: ["proof_stack", "clear_payoff"],
+    payoff: ["clear_payoff", "visual_payoff"]
   };
   return preferred[role].filter((lever) => globalLevers.includes(lever)).slice(0, 4);
 }
@@ -593,8 +594,8 @@ function retentionJobFor(
       return "Show one concrete usage step with a before-state and after-state in the same beat.";
     case "offer":
       return "Make the offer feel like the natural next step after proof, not a separate ad card.";
-    case "cta":
-      return "Close the loop from hook to proof and ask for one action only.";
+    case "payoff":
+      return "Close the loop from hook to proof through a visual payoff, without visible text or CTA card.";
   }
 }
 
@@ -612,7 +613,7 @@ function cameraCueFor(
       : "handheld creator/product close-up with natural movement and readable proof";
   }
   if (strategy.creativeMode === "cinematic") {
-    return "premium product close-up, motivated camera move, clean negative space for captions";
+    return "premium product close-up, motivated camera move, clean no-text composition";
   }
   return "clear product/result framing with one visible state change per beat";
 }
@@ -622,9 +623,8 @@ function captionCueFor(
   strategy: ShortViralNicheStrategy,
   reference: ShortReferenceVideoPattern | undefined
 ): string {
-  const prefix = scene.role === "hook" ? "Use a 6-10 word stop-scroll caption" : "Use one short caption";
-  const referenceCue = reference ? ` in the reference rhythm (${reference.captionPattern})` : "";
-  return `${prefix}${referenceCue}: ${scene.caption}. Keep it specific to ${strategy.niche}.`;
+  const referenceCue = reference ? ` Adapt the reference visual rhythm (${reference.captionPattern}) without rendering text.` : "";
+  return `No on-screen text for this ${scene.role} beat: no captions, subtitles, labels, typography, CTA cards, or fake UI text.${referenceCue} Keep the idea specific to ${strategy.niche} through action, framing, and audio.`;
 }
 
 function proofCueFor(
@@ -643,21 +643,21 @@ function proofCueFor(
 
 function ctaCueFor(productBrief: ProductUrlBrief | undefined, strategy: ShortViralNicheStrategy): string {
   return productBrief?.ctaCandidates[0]
-    ? `Use CTA exactly once: ${productBrief.ctaCandidates[0]}.`
-    : `Use one ${strategy.buyerIntent === "conversion" ? "conversion" : "low-friction"} CTA and do not add new claims.`;
+    ? `Imply the next step through the result and product presence only; do not render the provided action text.`
+    : `Use a ${strategy.buyerIntent === "conversion" ? "conversion" : "low-friction"} visual payoff and do not add text or new claims.`;
 }
 
 function qualityChecksFor(scene: ShortPipelineScenePlan, strategy: ShortViralNicheStrategy): readonly string[] {
   return [
     scene.role === "hook" ? "payoff is visible or spoken inside the first second" : "scene starts with changed visual information",
-    "caption is readable on mobile and does not cover product proof",
+    "no visible text, captions, subtitles, labels, or CTA cards cover product proof",
     "no unsupported claim or new offer appears outside review evidence",
     `beat supports ${strategy.creativeMode} mode and ${strategy.platformFocus} pacing`
   ];
 }
 
 function referenceAlignmentFor(scene: ShortPipelineScenePlan, reference: ShortReferenceVideoPattern): string {
-  return `Use reference ${reference.patternId} for ${scene.role} pacing/caption/camera structure only; keep script, assets, claims, and brand identity original or approved.`;
+  return `Use reference ${reference.patternId} for ${scene.role} pacing/visual-rhythm/camera structure only; keep script, assets, claims, and brand identity original or approved.`;
 }
 
 function inferHookPattern(summary: string, prompt: string): string {
@@ -673,7 +673,7 @@ function pacingFrom(durationSeconds: number | undefined, sceneCount: number | un
     return `${Math.round(sceneCount)} visible beats across ${round(durationSeconds)} seconds, about ${average}s per beat`;
   }
   if (finitePositive(durationSeconds)) return `fast short-form pacing across ${round(durationSeconds)} seconds`;
-  return "fast hook, proof shift, demo/payoff, then CTA";
+  return "fast hook, proof shift, demo, then visual payoff";
 }
 
 function safeSourceUrl(value: string | undefined): { readonly status: "none" | "ok" | "blocked"; readonly sourceUrlSha256?: string; readonly sourceHost?: string } {

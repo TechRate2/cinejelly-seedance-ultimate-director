@@ -26,9 +26,9 @@ export type ShortViralLever =
   | "proof_stack"
   | "product_demo"
   | "social_proof"
-  | "caption_retention"
+  | "visual_retention"
   | "visual_payoff"
-  | "clear_cta"
+  | "clear_payoff"
   | "trend_transfer";
 
 export type ShortReferenceVideoSafetyStatus =
@@ -103,7 +103,7 @@ export interface ShortViralConceptScore {
 export interface ShortViralSceneDirective {
   readonly sceneId: string;
   readonly order: number;
-  readonly role: "hook" | "problem" | "proof" | "demo" | "offer" | "cta";
+  readonly role: "hook" | "problem" | "proof" | "demo" | "offer" | "payoff";
   readonly recommendedDurationSeconds: number;
   readonly firstFrameRule: string;
   readonly retentionJob: string;
@@ -123,7 +123,7 @@ export type ShortViralFindingCode =
   | "claim_review_required"
   | "reference_video_copy_risk"
   | "reference_video_unsafe_source"
-  | "caption_retention_gap"
+  | "visual_retention_gap"
   | "scene_pacing_review";
 
 export interface ShortViralFinding {

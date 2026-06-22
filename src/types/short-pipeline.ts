@@ -31,6 +31,39 @@ export type ShortPipelineEmotion =
 
 export type ProductUrlBriefStatus = "ready" | "review_required" | "blocked";
 
+export type ShortPipelineAudioLanguage = "en" | "vi" | "zh";
+
+export type ShortPipelineAudioMode = "off" | "voiceover";
+
+export interface ShortPipelineAudioPolicyInput {
+  readonly mode?: ShortPipelineAudioMode;
+  readonly language?: ShortPipelineAudioLanguage;
+  readonly voiceStyle?: string;
+}
+
+export interface ShortPipelineAudioPolicy {
+  readonly schemaVersion: "cinejelly.short-audio-policy.v1";
+  readonly mode: ShortPipelineAudioMode;
+  readonly language?: ShortPipelineAudioLanguage;
+  readonly languageLabel?: "English" | "Vietnamese" | "Chinese";
+  readonly voiceStyle?: string;
+  readonly renderAudioMode: "none" | "guided";
+  readonly generatedAudioIntentEnabled: boolean;
+  readonly nativeProviderAudioEnabled: false;
+  readonly reviewRequired: true;
+}
+
+export interface ShortPipelineVisualTextPolicy {
+  readonly schemaVersion: "cinejelly.short-visual-text-policy.v1";
+  readonly mode: "no_visible_text";
+  readonly allowOnScreenText: false;
+  readonly allowCaptions: false;
+  readonly allowCtaCards: false;
+  readonly allowTextOverlays: false;
+  readonly allowLogoText: "reference_asset_only";
+  readonly promptConstraint: string;
+}
+
 export type ProductUrlEvidenceStatus =
   | "not_provided"
   | "clean_https"
@@ -132,7 +165,6 @@ export type BrandKitIssueCode =
   | "missing_tone"
   | "missing_claim_policy"
   | "forbidden_claim_present"
-  | "missing_cta_rule"
   | "unsafe_brand_asset_uri"
   | "unapproved_brand_asset";
 
@@ -188,7 +220,7 @@ export type WorkflowTemplateCategory =
   | "cinematic_reveal";
 
 export interface WorkflowTemplatePlanningHint {
-  readonly kind: "hook" | "proof" | "scene" | "audio" | "caption" | "claim" | "cta";
+  readonly kind: "hook" | "proof" | "scene" | "audio" | "visual" | "claim" | "payoff";
   readonly text: string;
 }
 
@@ -228,7 +260,7 @@ export interface ShortPipelineIntent {
 export interface ShortPipelineScenePlan {
   readonly sceneId: string;
   readonly order: number;
-  readonly role: "hook" | "problem" | "proof" | "demo" | "offer" | "cta";
+  readonly role: "hook" | "problem" | "proof" | "demo" | "offer" | "payoff";
   readonly goal: string;
   readonly visualDirection: string;
   readonly narration: string;
@@ -256,6 +288,7 @@ export interface ShortPipelinePlanInput {
   readonly allowTemplateSuggestions?: boolean;
   readonly targetPlatform?: ShortPipelinePlatform;
   readonly targetDurationSeconds?: number;
+  readonly audio?: ShortPipelineAudioPolicyInput;
   readonly generatedAt?: Date;
 }
 
@@ -285,6 +318,8 @@ export interface ShortPipelinePlan {
   readonly selectedTemplate?: WorkflowTemplateSuggestion;
   readonly templatePolicy: "none" | "suggested_optional" | "operator_selected_optional";
   readonly dynamicWorkflowRequired: boolean;
+  readonly audioPolicy: ShortPipelineAudioPolicy;
+  readonly visualTextPolicy: ShortPipelineVisualTextPolicy;
   readonly concepts: readonly ShortPipelineConcept[];
   readonly scenes: readonly ShortPipelineScenePlan[];
   readonly viralIntelligence: ShortViralIntelligencePlan;
@@ -326,6 +361,7 @@ export interface ShortPipelineConversationInput {
   readonly allowTemplateSuggestions?: boolean;
   readonly targetPlatform?: ShortPipelinePlatform;
   readonly targetDurationSeconds?: number;
+  readonly audio?: ShortPipelineAudioPolicyInput;
   readonly generatedAt?: Date;
 }
 

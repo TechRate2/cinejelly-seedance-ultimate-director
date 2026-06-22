@@ -242,6 +242,50 @@ const singleClipRenderHandoff = buildShortPipelineRenderHandoff({
     workspaceId: "short_pipeline_smoke_workspace"
   }
 });
+const vietnameseAudioPlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_vietnamese_audio",
+  generatedAt,
+  userPrompt: "Create a 18 second TikTok UGC product review for busy skincare buyers with Vietnamese voiceover and no text in the video.",
+  product: {
+    snapshot: {
+      productTitle: "Glow Focus Serum",
+      category: "beauty",
+      benefits: ["Helps dull-looking morning skin look fresher"],
+      targetBuyer: "busy skincare buyers"
+    }
+  },
+  brandKit: {
+    brandId: "glow_lab",
+    brandName: "Glow Lab",
+    tone: "warm calm creator",
+    language: "vi",
+    allowedClaims: ["helps dull-looking morning skin look fresher"]
+  },
+  audio: {
+    mode: "voiceover",
+    language: "vi"
+  }
+});
+const vietnameseAudioHandoff = buildShortPipelineRenderHandoff({
+  plan: vietnameseAudioPlan,
+  includeGeneratedAudioIntents: true
+});
+const audioOffHandoff = buildShortPipelineRenderHandoff({
+  plan: vietnameseAudioPlan,
+  includeGeneratedAudioIntents: true,
+  audio: {
+    mode: "off"
+  }
+});
+const chineseAudioHandoff = buildShortPipelineRenderHandoff({
+  plan: vietnameseAudioPlan,
+  includeGeneratedAudioIntents: true,
+  audio: {
+    mode: "voiceover",
+    language: "zh"
+  }
+});
 const storyArchitect = new StoryArchitect(createFakeShortLlmProvider(), "fake-short-llm");
 const singleClipStoryPlan = await storyArchitect.plan({
   projectId: "short_pipeline_smoke_single_clip",
@@ -319,8 +363,8 @@ const checks = [
     ? pass("channel_style_memory_profile", "Reusable channel style profile flows through plan, Short Agent memory, readiness, and render handoff lineage.")
     : fail("channel_style_memory_profile", "Expected reusable channel style profile evidence in plan, memory, readiness, and render handoff."),
   hasEveryReviewSurface(reviewRequiredPlan)
-    ? pass("review_surfaces_present", "Scene, audio, caption, and claim checkpoints are present before render.")
-    : fail("review_surfaces_present", "Expected scene, audio, caption, and claim checkpoints."),
+    ? pass("review_surfaces_present", "Scene, audio, no-visible-text, and claim checkpoints are present before render.")
+    : fail("review_surfaces_present", "Expected scene, audio, no-visible-text, and claim checkpoints."),
   reviewRequiredPlan.reviewApproval.status === "approval_required" &&
     reviewRequiredPlan.releaseGateSummary.canRenderAfterApproval === false &&
     reviewRequiredPlan.releaseGateSummary.canReleaseToCustomerTraffic === false
@@ -338,13 +382,21 @@ const checks = [
     ? pass("natural_language_only_plan", "Natural-language-only briefs can create a custom workflow with review checkpoints.")
     : fail("natural_language_only_plan", "Expected natural-language-only brief to plan without requiring a template or URL."),
   pendingRenderHandoff.request.metadata?.shortPipelinePlanId === reviewRequiredPlan.planId &&
-    pendingRenderHandoff.request.captionCues?.length === reviewRequiredPlan.scenes.length &&
+    pendingRenderHandoff.request.captionCues?.length === 0 &&
+    pendingRenderHandoff.request.captionOptions?.enabled === false &&
+    pendingRenderHandoff.request.captionOptions?.burnIn === false &&
+    pendingRenderHandoff.request.metadata?.shortOnScreenTextAllowed === "false" &&
+    pendingRenderHandoff.request.metadata?.shortCaptionBurnInAllowed === "false" &&
+    pendingRenderHandoff.request.metadata?.shortCtaCardsAllowed === "false" &&
     pendingRenderHandoff.request.generatedAudioIntents?.length === reviewRequiredPlan.scenes.length &&
+    pendingRenderHandoff.request.generatedAudioIntents?.every((intent) => intent.language === reviewRequiredPlan.audioPolicy.language) &&
+    pendingRenderHandoff.request.settings?.audioMode === "guided" &&
     pendingRenderHandoff.request.userInput.includes("Scene plan:") &&
+    pendingRenderHandoff.request.userInput.includes("No visible text") &&
     !reviewInputCanQueueRender(pendingRenderHandoff.reviewApproval) &&
     !rawUrlLeaked
-    ? pass("render_handoff_request_contract", "Short plan can become a redacted render request with captions, generated-audio intents, lineage metadata, and pending review still blocking queue.")
-    : fail("render_handoff_request_contract", "Expected short-plan render handoff to preserve lineage, captions, generated-audio intents, redaction, and pending review block."),
+    ? pass("render_handoff_request_contract", "Short plan can become a redacted render request with no caption burn-in, generated-audio intents, lineage metadata, and pending review still blocking queue.")
+    : fail("render_handoff_request_contract", "Expected short-plan render handoff to preserve lineage, no-visible-text policy, generated-audio intents, redaction, and pending review block."),
   approvedRenderHandoff.summary.canUseAsRenderJobHandoff &&
     reviewInputCanQueueRender(approvedRenderHandoff.reviewApproval) &&
     approvedRenderHandoff.request.settings?.durationTargetSeconds === reviewRequiredPlan.intent.targetDurationSeconds &&
@@ -383,7 +435,20 @@ const checks = [
     : fail("storyboard_handoff_mode_metadata", "Expected >15s handoff to declare storyboard/multishot workflow metadata."),
   audioCheckpointTargetDuration(reviewRequiredPlan) === reviewRequiredPlan.intent.targetDurationSeconds
     ? pass("audio_checkpoint_uses_intent_duration", "Audio review evidence now records the requested short duration instead of deriving a rough scene-count duration.")
-    : fail("audio_checkpoint_uses_intent_duration", "Expected audio checkpoint evidence to use the plan target duration.")
+    : fail("audio_checkpoint_uses_intent_duration", "Expected audio checkpoint evidence to use the plan target duration."),
+  vietnameseAudioPlan.audioPolicy.mode === "voiceover" &&
+    vietnameseAudioPlan.audioPolicy.language === "vi" &&
+    vietnameseAudioHandoff.request.settings?.audioMode === "guided" &&
+    vietnameseAudioHandoff.request.generatedAudioIntents?.length === vietnameseAudioPlan.scenes.length &&
+    vietnameseAudioHandoff.request.generatedAudioIntents?.every((intent) => intent.language === "vi") &&
+    chineseAudioHandoff.request.settings?.audioMode === "guided" &&
+    chineseAudioHandoff.request.generatedAudioIntents?.length === vietnameseAudioPlan.scenes.length &&
+    chineseAudioHandoff.request.generatedAudioIntents?.every((intent) => intent.language === "zh") &&
+    audioOffHandoff.request.settings?.audioMode === "none" &&
+    audioOffHandoff.summary.generatedAudioIntentCount === 0 &&
+    audioOffHandoff.request.generatedAudioIntents === undefined
+    ? pass("short_audio_language_and_off_policy", "Short handoff supports Vietnamese/Chinese guided voiceover and explicit audio-off mode without native-audio fallback.")
+    : fail("short_audio_language_and_off_policy", "Expected multilingual guided audio and explicit audio-off handoff policies.")
 ];
 
 const report = {
@@ -411,7 +476,16 @@ const report = {
     reviewRequired: summarizePlan(reviewRequiredPlan),
     blocked: summarizePlan(blockedPlan),
     naturalOnly: summarizePlan(naturalOnlyPlan),
-    renderHandoff: summarizeHandoff(pendingRenderHandoff, approvedRenderHandoff)
+    renderHandoff: summarizeHandoff(pendingRenderHandoff, approvedRenderHandoff),
+    audioPolicies: {
+      vietnamesePlanLanguage: vietnameseAudioPlan.audioPolicy.language,
+      vietnameseHandoffAudioMode: vietnameseAudioHandoff.request.settings?.audioMode,
+      vietnameseIntentCount: vietnameseAudioHandoff.summary.generatedAudioIntentCount,
+      chineseHandoffAudioMode: chineseAudioHandoff.request.settings?.audioMode,
+      chineseIntentLanguage: chineseAudioHandoff.request.generatedAudioIntents?.[0]?.language,
+      audioOffHandoffAudioMode: audioOffHandoff.request.settings?.audioMode,
+      audioOffIntentCount: audioOffHandoff.summary.generatedAudioIntentCount
+    }
   },
   checks,
   releaseGateSummary: {

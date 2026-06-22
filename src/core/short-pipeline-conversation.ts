@@ -64,6 +64,7 @@ export class ShortPipelineConversationEngine {
       allowTemplateSuggestions,
       ...(input.targetPlatform ? { targetPlatform: input.targetPlatform } : {}),
       ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
+      ...(input.audio ? { audio: input.audio } : {}),
       generatedAt
     });
     const turns = messages.map((message, index) => turnFrom(message, index));
@@ -262,7 +263,7 @@ function releaseBlockerFor(
     return "Conversation plan is blocked by unsafe URL, product, brand-kit, or review evidence.";
   }
   if (userReviewState === "approval_intent_detected" && reviewStatus !== "approved") {
-    return "User approval intent was detected, but formal scene/audio/caption/claim checkpoint evidence is still required before render.";
+    return "User approval intent was detected, but formal scene/audio/no-visible-text/claim checkpoint evidence is still required before render.";
   }
   return "Conversation session is no-spend planning evidence only; render requires formal checkpoint approval, quota/cost gates, artifact validation, and commercial-readiness evidence.";
 }
@@ -282,10 +283,10 @@ function nextActionsFor(
   return [
     requestedChangeCount > 0
       ? "Apply the requested conversational revisions and regenerate review checkpoints before render."
-      : "Present concept, script, scene plan, caption, audio, and claim checkpoints for human review.",
+      : "Present concept, script, scene plan, audio, no-visible-text, and claim checkpoints for human review.",
     userReviewState === "approval_intent_detected"
       ? "Convert approval intent into formal checkpoint decisions with reviewer and timestamp evidence."
-      : "Collect explicit scene/audio/caption/claim decisions before render spend.",
+      : "Collect explicit scene/audio/no-visible-text/claim decisions before render spend.",
     templatePreference === "user_rejected_templates"
       ? "Continue with dynamic custom workflow planning; do not force template selection."
       : "Keep template suggestions as optional accelerators that the user can ignore or replace."

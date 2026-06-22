@@ -205,8 +205,8 @@ const checks = [
   viralPlan.viralIntelligence.nicheStrategy.platformFocus === "tiktok_douyin" &&
     viralPlan.viralIntelligence.nicheStrategy.creativeMode === "ugc_review" &&
     viralPlan.viralIntelligence.nicheStrategy.viralLevers.includes("fast_hook") &&
-    viralPlan.viralIntelligence.nicheStrategy.viralLevers.includes("caption_retention")
-    ? pass("tiktok_douyin_ugc_strategy", "TikTok/Douyin UGC strategy, retention levers, and niche intent are inferred.")
+    viralPlan.viralIntelligence.nicheStrategy.viralLevers.includes("visual_retention")
+    ? pass("tiktok_douyin_ugc_strategy", "TikTok/Douyin UGC strategy, visual-retention levers, and niche intent are inferred.")
     : fail("tiktok_douyin_ugc_strategy", "Expected TikTok/Douyin-first UGC strategy with retention levers."),
   viralPlan.viralIntelligence.referenceVideoPattern?.sourceUrlSha256 &&
     viralPlan.viralIntelligence.referenceVideoPattern.safetyStatus === "learned_pattern" &&

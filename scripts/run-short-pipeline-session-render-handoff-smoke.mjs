@@ -297,7 +297,7 @@ function sessionRequestBody() {
       {
         role: "user",
         createdAt: generatedAt,
-        text: "Make it educational, keep custom workflow possible, and require formal scene/audio/caption/claim review before spend."
+        text: "Make it educational, keep custom workflow possible, and require formal scene/audio/no-visible-text/claim review before spend."
       }
     ],
     product: {
