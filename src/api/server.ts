@@ -30,6 +30,7 @@ import {
   safeProductUrlResearchSummary
 } from "../core/product-url-researcher.js";
 import { ShortPipelineConversationEngine } from "../core/short-pipeline-conversation.js";
+import { buildShortMvpUiContract } from "../core/short-mvp-ui-contract.js";
 import { ShortPipelinePlanner } from "../core/short-pipeline-planner.js";
 import {
   buildShortPipelineRenderHandoff,
@@ -54,6 +55,7 @@ import type {
   ShortPipelinePlan,
   ShortPipelinePlanInput
 } from "../types/short-pipeline.js";
+import type { ShortChannelStyleProfileInput } from "../types/short-channel-style.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
@@ -94,6 +96,11 @@ import {
   createApiRequestContext,
   type ApiRequestContext
 } from "./request-context.js";
+import {
+  readShortChannelStyleLibraryPath,
+  ShortChannelStyleLibraryStore,
+  type ShortChannelStyleLibraryRecord
+} from "./short-channel-style-library-store.js";
 import {
   readShortPipelineSessionStorePath,
   ShortPipelineSessionStore,
@@ -136,9 +143,14 @@ interface RenderJobReviewRequestBody {
 interface ShortPipelineConversationRequestBody extends Omit<ShortPipelineConversationInput, "messages"> {
   readonly messages?: readonly ShortPipelineConversationMessageInput[];
   readonly userPrompt?: string;
+  readonly channelStyleProfileId?: string;
 }
 
-interface ShortPipelineProductUrlPlanRequestBody extends ShortPipelinePlanInput {
+interface ShortPipelinePlanRequestBody extends ShortPipelinePlanInput {
+  readonly channelStyleProfileId?: string;
+}
+
+interface ShortPipelineProductUrlPlanRequestBody extends ShortPipelinePlanRequestBody {
   readonly confirmLiveNetwork?: boolean;
   readonly maxProductUrlBytes?: number;
   readonly productResearchTimeoutMs?: number;
@@ -152,7 +164,7 @@ interface NormalizedShortPipelineProductUrlPlanBody {
 }
 
 interface ShortPipelineRenderJobRequestBody {
-  readonly planInput?: ShortPipelinePlanInput;
+  readonly planInput?: ShortPipelinePlanRequestBody;
   readonly reviewApprovalGate?: ReviewApprovalGate;
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
   readonly confirmRenderSubmission?: boolean;
@@ -248,6 +260,24 @@ class ShortPipelineSessionStoreUnavailableError extends Error {
   }
 }
 
+class ShortChannelStyleLibraryUnavailableError extends Error {
+  public readonly statusCode = 503;
+
+  public constructor() {
+    super("CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH is required before durable short channel-style profiles can be used.");
+    this.name = "ShortChannelStyleLibraryUnavailableError";
+  }
+}
+
+class ShortChannelStyleProfileNotFoundError extends Error {
+  public readonly statusCode = 404;
+
+  public constructor() {
+    super("Short channel-style profile was not found for this client.");
+    this.name = "ShortChannelStyleProfileNotFoundError";
+  }
+}
+
 export function startServer(port = readPort(process.env.PORT)): Server {
   const maxBodyBytes = readPositiveInteger(process.env.CINEJELLY_API_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
   const preflight = new RuntimePreflight();
@@ -259,6 +289,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const productUrlResearcher = new ProductUrlResearcher();
   const reviewApprovalSystem = new ReviewApprovalSystem();
   const shortPipelineSessionStore = shortPipelineSessionStoreConfig(process.env);
+  const shortChannelStyleLibraryStore = shortChannelStyleLibraryStoreConfig(process.env);
   const requestAdmission = renderRequestAdmissionFromEnv(process.env);
   const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
   const workspaceBillingGate = ApiWorkspaceBillingGate.fromEnv(process.env);
@@ -325,11 +356,53 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(response, 200, buildRenderSettingsDescriptor(process.env), requestContext);
         return;
       }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/channel-styles") {
+        assertJsonContentType(request);
+        const store = requireShortChannelStyleLibraryStore(shortChannelStyleLibraryStore);
+        const body = await readJsonBody<ShortChannelStyleProfileInput>(request, maxBodyBytes);
+        const record = store.saveProfile(body, clientFilter(authDecision.principal));
+        sendJson(response, record.profile.status === "blocked" ? 422 : 201, {
+          persisted: true,
+          channelStyle: record.profile,
+          storedChannelStyle: storedShortChannelStyleResponse(store, record)
+        }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/short-pipeline/channel-styles") {
+        const store = requireShortChannelStyleLibraryStore(shortChannelStyleLibraryStore);
+        sendJson(response, 200, {
+          persisted: true,
+          channelStyles: store.list(clientFilter(authDecision.principal))
+        }, requestContext);
+        return;
+      }
+      const shortChannelStyleMatch = requestUrl.pathname.match(/^\/v1\/short-pipeline\/channel-styles\/([^/]+)$/);
+      if (request.method === "GET" && shortChannelStyleMatch) {
+        const store = requireShortChannelStyleLibraryStore(shortChannelStyleLibraryStore);
+        const record = store.get(
+          decodeURIComponent(shortChannelStyleMatch[1] ?? ""),
+          clientFilter(authDecision.principal)
+        );
+        sendJson(response, record ? 200 : 404, record
+          ? {
+              persisted: true,
+              channelStyle: record.profile,
+              channelStyleInput: record.input,
+              storedChannelStyle: storedShortChannelStyleResponse(store, record)
+            }
+          : { error: "Short channel-style profile not found." }, requestContext);
+        return;
+      }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/conversation") {
         assertJsonContentType(request);
         const body = await readJsonBody<ShortPipelineConversationRequestBody>(request, maxBodyBytes);
         const session = shortPipelineConversationEngine.buildSession(
-          shortPipelineConversationInputFromBody(body, requestContext.requestId)
+          shortPipelineConversationInputFromBody(
+            body,
+            requestContext.requestId,
+            shortChannelStyleLibraryStore,
+            clientFilter(authDecision.principal)
+          )
         );
         sendJson(response, session.plan.status === "blocked" ? 422 : 200, session, requestContext);
         return;
@@ -339,7 +412,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const store = requireShortPipelineSessionStore(shortPipelineSessionStore);
         const body = await readJsonBody<ShortPipelineConversationRequestBody>(request, maxBodyBytes);
         const session = shortPipelineConversationEngine.buildSession(
-          shortPipelineConversationInputFromBody(body, requestContext.requestId)
+          shortPipelineConversationInputFromBody(
+            body,
+            requestContext.requestId,
+            shortChannelStyleLibraryStore,
+            clientFilter(authDecision.principal)
+          )
         );
         const record = store.saveSession(session, clientFilter(authDecision.principal));
         sendJson(response, session.plan.status === "blocked" ? 422 : 201, {
@@ -369,6 +447,24 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               persisted: true,
               session: record.session,
               storedSession: storedShortPipelineSessionResponse(store, record)
+            }
+          : { error: "Short-pipeline conversation session not found." }, requestContext);
+        return;
+      }
+      const shortPipelineConversationSessionUiContractMatch =
+        requestUrl.pathname.match(/^\/v1\/short-pipeline\/conversation-sessions\/([^/]+)\/ui-contract$/);
+      if (request.method === "GET" && shortPipelineConversationSessionUiContractMatch) {
+        const store = requireShortPipelineSessionStore(shortPipelineSessionStore);
+        const record = store.get(
+          decodeURIComponent(shortPipelineConversationSessionUiContractMatch[1] ?? ""),
+          clientFilter(authDecision.principal)
+        );
+        const plan = record ? shortPipelinePlanFromStoredSession(record) : undefined;
+        sendJson(response, record && plan ? 200 : 404, record && plan
+          ? {
+              persisted: true,
+              sessionId: record.sessionId,
+              uiContract: buildShortMvpUiContract(plan)
             }
           : { error: "Short-pipeline conversation session not found." }, requestContext);
         return;
@@ -475,15 +571,40 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/plan") {
         assertJsonContentType(request);
-        const body = await readJsonBody<ShortPipelinePlanInput>(request, maxBodyBytes);
-        const plan = shortPipelinePlanner.buildPlan(shortPipelinePlanInputFromBody(body, requestContext.requestId));
+        const body = await readJsonBody<ShortPipelinePlanRequestBody>(request, maxBodyBytes);
+        const plan = shortPipelinePlanner.buildPlan(shortPipelinePlanInputFromBody(
+          body,
+          requestContext.requestId,
+          shortChannelStyleLibraryStore,
+          clientFilter(authDecision.principal)
+        ));
         sendJson(response, plan.status === "blocked" ? 422 : 200, plan, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/ui-contract") {
+        assertJsonContentType(request);
+        const body = await readJsonBody<ShortPipelinePlanRequestBody>(request, maxBodyBytes);
+        const plan = shortPipelinePlanner.buildPlan(shortPipelinePlanInputFromBody(
+          body,
+          requestContext.requestId,
+          shortChannelStyleLibraryStore,
+          clientFilter(authDecision.principal)
+        ));
+        sendJson(response, plan.status === "blocked" ? 422 : 200, {
+          plan,
+          uiContract: buildShortMvpUiContract(plan)
+        }, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/product-url-plan") {
         assertJsonContentType(request);
         const body = await readJsonBody<ShortPipelineProductUrlPlanRequestBody>(request, maxBodyBytes);
-        const productUrlBody = shortPipelineProductUrlPlanBodyFromBody(body, requestContext.requestId);
+        const productUrlBody = shortPipelineProductUrlPlanBodyFromBody(
+          body,
+          requestContext.requestId,
+          shortChannelStyleLibraryStore,
+          clientFilter(authDecision.principal)
+        );
         const productUrl = productUrlBody.planInput.product?.productUrl;
         if (!productUrl) {
           throw new RenderRequestAdmissionError("Short pipeline product URL plan requires product.productUrl.");
@@ -519,7 +640,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/render-jobs") {
         assertJsonContentType(request);
         const body = await readJsonBody<ShortPipelineRenderJobRequestBody>(request, maxBodyBytes);
-        const handoffBody = shortPipelineRenderJobBodyFromBody(body, requestContext.requestId);
+        const handoffBody = shortPipelineRenderJobBodyFromBody(
+          body,
+          requestContext.requestId,
+          shortChannelStyleLibraryStore,
+          clientFilter(authDecision.principal)
+        );
         const plan = shortPipelinePlanner.buildPlan(handoffBody.planInput);
         if (plan.status === "blocked") {
           throw new ShortPipelineRenderHandoffError(
@@ -986,6 +1112,8 @@ function errorStatusCode(error: unknown): number {
     error instanceof RequestBodyTooLargeError ||
     error instanceof ShortPipelineRenderHandoffError ||
     error instanceof ShortPipelineSessionStoreUnavailableError ||
+    error instanceof ShortChannelStyleLibraryUnavailableError ||
+    error instanceof ShortChannelStyleProfileNotFoundError ||
     error instanceof ApiClientPolicyError ||
     error instanceof ApiWorkspaceBillingError
     ? error.statusCode
@@ -1040,7 +1168,9 @@ function createRequestFingerprint(payload: unknown): string {
 
 function shortPipelineConversationInputFromBody(
   body: ShortPipelineConversationRequestBody,
-  requestId: string
+  requestId: string,
+  channelStyleStore: ShortChannelStyleLibraryStore | undefined,
+  clientScope: { readonly clientId?: string }
 ): ShortPipelineConversationInput {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new RenderRequestAdmissionError("Short pipeline conversation request body must be a JSON object.");
@@ -1052,13 +1182,14 @@ function shortPipelineConversationInputFromBody(
   if (messages.length === 0) {
     throw new RenderRequestAdmissionError("Short pipeline conversation requires messages or userPrompt.");
   }
+  const channelStyle = resolveShortChannelStyleInput(body, channelStyleStore, clientScope);
   return {
     projectId: body.projectId,
     requestId: body.requestId ?? requestId,
     messages,
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
-    ...(body.channelStyle ? { channelStyle: body.channelStyle } : {}),
+    ...(channelStyle ? { channelStyle } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
     ...(body.allowTemplateSuggestions !== undefined
@@ -1095,7 +1226,12 @@ function conversationMessagesFromBody(body: ShortPipelineConversationRequestBody
   });
 }
 
-function shortPipelinePlanInputFromBody(body: ShortPipelinePlanInput, requestId: string): ShortPipelinePlanInput {
+function shortPipelinePlanInputFromBody(
+  body: ShortPipelinePlanRequestBody,
+  requestId: string,
+  channelStyleStore: ShortChannelStyleLibraryStore | undefined,
+  clientScope: { readonly clientId?: string }
+): ShortPipelinePlanInput {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new RenderRequestAdmissionError("Short pipeline request body must be a JSON object.");
   }
@@ -1111,15 +1247,55 @@ function shortPipelinePlanInputFromBody(body: ShortPipelinePlanInput, requestId:
   if (!body.userPrompt?.trim() && !body.product?.productUrl && !body.product?.snapshot) {
     throw new RenderRequestAdmissionError("Short pipeline requires userPrompt, product.productUrl, or product.snapshot.");
   }
+  const channelStyle = resolveShortChannelStyleInput(body, channelStyleStore, clientScope);
   return {
-    ...body,
-    requestId: body.requestId ?? requestId
+    projectId: body.projectId,
+    requestId: body.requestId ?? requestId,
+    ...(body.userPrompt ? { userPrompt: body.userPrompt } : {}),
+    ...(body.product ? { product: body.product } : {}),
+    ...(body.brandKit ? { brandKit: body.brandKit } : {}),
+    ...(channelStyle ? { channelStyle } : {}),
+    ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
+    ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
+    ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),
+    ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
+    ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+    ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
   };
+}
+
+function resolveShortChannelStyleInput(
+  body: {
+    readonly channelStyle?: ShortChannelStyleProfileInput;
+    readonly channelStyleProfileId?: string;
+  },
+  store: ShortChannelStyleLibraryStore | undefined,
+  clientScope: { readonly clientId?: string }
+): ShortChannelStyleProfileInput | undefined {
+  if (body.channelStyle && body.channelStyleProfileId) {
+    throw new RenderRequestAdmissionError(
+      "Short pipeline request must use either channelStyle or channelStyleProfileId, not both."
+    );
+  }
+  if (body.channelStyle) {
+    return body.channelStyle;
+  }
+  if (!body.channelStyleProfileId) {
+    return undefined;
+  }
+  const library = requireShortChannelStyleLibraryStore(store);
+  const record = library.get(body.channelStyleProfileId, clientScope);
+  if (!record) {
+    throw new ShortChannelStyleProfileNotFoundError();
+  }
+  return record.input;
 }
 
 function shortPipelineProductUrlPlanBodyFromBody(
   body: ShortPipelineProductUrlPlanRequestBody,
-  requestId: string
+  requestId: string,
+  channelStyleStore: ShortChannelStyleLibraryStore | undefined,
+  clientScope: { readonly clientId?: string }
 ): NormalizedShortPipelineProductUrlPlanBody {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new RenderRequestAdmissionError("Short pipeline product URL plan request body must be a JSON object.");
@@ -1131,13 +1307,14 @@ function shortPipelineProductUrlPlanBodyFromBody(
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
     ...(body.channelStyle ? { channelStyle: body.channelStyle } : {}),
+    ...(body.channelStyleProfileId ? { channelStyleProfileId: body.channelStyleProfileId } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
     ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
     ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
-  }, requestId);
+  }, requestId, channelStyleStore, clientScope);
   if (!planInput.product || typeof planInput.product !== "object" || Array.isArray(planInput.product)) {
     throw new RenderRequestAdmissionError("Short pipeline product URL plan requires a product object.");
   }
@@ -1157,7 +1334,9 @@ function shortPipelineProductUrlPlanBodyFromBody(
 
 function shortPipelineRenderJobBodyFromBody(
   body: ShortPipelineRenderJobRequestBody,
-  requestId: string
+  requestId: string,
+  channelStyleStore: ShortChannelStyleLibraryStore | undefined,
+  clientScope: { readonly clientId?: string }
 ): NormalizedShortPipelineRenderJobBody {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new RenderRequestAdmissionError("Short pipeline render-job request body must be a JSON object.");
@@ -1180,7 +1359,7 @@ function shortPipelineRenderJobBodyFromBody(
       })
     : undefined;
   return {
-    planInput: shortPipelinePlanInputFromBody(body.planInput, requestId),
+    planInput: shortPipelinePlanInputFromBody(body.planInput, requestId, channelStyleStore, clientScope),
     ...(reviewApproval ? { reviewApproval } : {}),
     confirmRenderSubmission,
     ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
@@ -1707,6 +1886,16 @@ function shortPipelineSessionStoreConfig(env: NodeJS.ProcessEnv): ShortPipelineS
     : undefined;
 }
 
+function shortChannelStyleLibraryStoreConfig(env: NodeJS.ProcessEnv): ShortChannelStyleLibraryStore | undefined {
+  const storePath = readShortChannelStyleLibraryPath(env);
+  return storePath
+    ? new ShortChannelStyleLibraryStore({
+        storePath,
+        maxProfiles: readPositiveInteger(env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_LIMIT, 200)
+      })
+    : undefined;
+}
+
 function requireShortPipelineSessionStore(store: ShortPipelineSessionStore | undefined): ShortPipelineSessionStore {
   if (!store) {
     throw new ShortPipelineSessionStoreUnavailableError();
@@ -1714,9 +1903,28 @@ function requireShortPipelineSessionStore(store: ShortPipelineSessionStore | und
   return store;
 }
 
+function requireShortChannelStyleLibraryStore(
+  store: ShortChannelStyleLibraryStore | undefined
+): ShortChannelStyleLibraryStore {
+  if (!store) {
+    throw new ShortChannelStyleLibraryUnavailableError();
+  }
+  return store;
+}
+
 function storedShortPipelineSessionResponse(
   store: ShortPipelineSessionStore,
   record: ShortPipelineStoredSessionRecord
+): Record<string, unknown> {
+  return {
+    ...store.summaryFor(record),
+    schemaVersion: record.schemaVersion
+  };
+}
+
+function storedShortChannelStyleResponse(
+  store: ShortChannelStyleLibraryStore,
+  record: ShortChannelStyleLibraryRecord
 ): Record<string, unknown> {
   return {
     ...store.summaryFor(record),
