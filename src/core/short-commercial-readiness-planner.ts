@@ -26,7 +26,7 @@ const CRAWLER_DEFAULT_TIMEOUT_MS = 10_000;
 
 export interface ShortCommercialReadinessPlannerInput {
   readonly plan: ShortPipelinePlanDraft;
-  readonly originalInput?: Pick<ShortPipelinePlanInput, "product" | "referenceVideoLearning">;
+  readonly originalInput?: Pick<ShortPipelinePlanInput, "product" | "channelStyle" | "referenceVideoLearning">;
 }
 
 type ShortPipelinePlanDraft = Omit<ShortPipelinePlan, "commercialReadiness"> & Partial<Pick<ShortPipelinePlan, "commercialReadiness">>;
@@ -44,6 +44,7 @@ export class ShortCommercialReadinessPlanner {
       agentGraphCheck(plan),
       humanReviewCheck(plan),
       referenceOriginalityCheck(plan, referenceAnalysis.status),
+      channelStyleMemoryCheck(plan),
       outcomeMemoryCheck(outcomeMemory.status, plan),
       crawlerPolicyCheck(crawlerPolicy.status, plan),
       renderHandoffCheck(plan)
@@ -380,6 +381,66 @@ function referenceOriginalityCheck(plan: ShortPipelinePlanDraft, referenceStatus
       motifCount: pattern.visualMotifs.length,
       retentionMechanicCount: pattern.retentionMechanics.length,
       referenceStatus
+    }
+  );
+}
+
+function channelStyleMemoryCheck(plan: ShortPipelinePlanDraft): ShortCommercialReadinessCheck {
+  const profile = plan.channelStyleProfile;
+  if (!profile) {
+    return check(
+      "channel_style_memory",
+      "review_required",
+      0.62,
+      "No reusable channel style profile is attached, so this short may not preserve a long-term channel identity.",
+      "Attach channelStyle with recurring character, voice, setting, visual, caption, and editing anchors for channel building.",
+      {
+        channelStylePresent: false,
+        anchorCount: 0,
+        characterCount: 0,
+        voiceCount: 0,
+        settingCount: 0
+      }
+    );
+  }
+  if (profile.status === "blocked") {
+    return check(
+      "channel_style_memory",
+      "blocked",
+      0.2,
+      "Channel style profile has blocked reusable asset evidence.",
+      "Remove unsafe asset URIs or replace them with approved asset:// IDs or clean HTTPS references.",
+      {
+        channelStylePresent: true,
+        anchorCount: profile.styleAnchors.length,
+        characterCount: profile.characterCount,
+        voiceCount: profile.voiceCount,
+        settingCount: profile.settingCount,
+        issueCount: profile.issues.length
+      }
+    );
+  }
+  const strong = profile.status === "ready" &&
+    profile.styleAnchors.length >= 3 &&
+    (profile.characterCount > 0 || profile.voiceCount > 0 || profile.settingCount > 0);
+  return check(
+    "channel_style_memory",
+    strong ? "ready" : "review_required",
+    strong ? 0.9 : 0.72,
+    strong
+      ? "Channel style profile has reusable identity anchors for consistent series/channel output."
+      : "Channel style profile is usable but should add stronger character, voice, setting, or asset anchors.",
+    strong
+      ? "Reuse channel profile anchors in every script/render for this channel."
+      : "Add recurring character, voice, setting, style rules, and approved assets to strengthen channel consistency.",
+    {
+      channelStylePresent: true,
+      anchorCount: profile.styleAnchors.length,
+      characterCount: profile.characterCount,
+      voiceCount: profile.voiceCount,
+      settingCount: profile.settingCount,
+      approvedAssetCount: profile.approvedAssetCount,
+      issueCount: profile.issues.length
     }
   );
 }

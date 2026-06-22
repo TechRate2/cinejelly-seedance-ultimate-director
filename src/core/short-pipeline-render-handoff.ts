@@ -99,6 +99,11 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortCrawlerPolicyStatus: plan.commercialReadiness.crawlerPolicy.status,
         shortOutcomeMemoryStatus: plan.commercialReadiness.outcomeMemory.status,
         shortReferenceAnalysisStatus: plan.commercialReadiness.referenceAnalysis.status,
+        ...(plan.channelStyleProfile ? {
+          shortChannelStyleProfileId: plan.channelStyleProfile.profileId,
+          shortChannelStyleStatus: plan.channelStyleProfile.status,
+          shortChannelStyleAnchorCount: String(plan.channelStyleProfile.styleAnchors.length)
+        } : {}),
         ...(plan.viralIntelligence.winningConceptId ? { shortViralWinningConceptId: plan.viralIntelligence.winningConceptId } : {}),
         ...(plan.viralIntelligence.referenceVideoPattern ? { shortReferencePatternId: plan.viralIntelligence.referenceVideoPattern.patternId } : {}),
         ...(plan.agentGraph ? { shortAgentGraphRunId: plan.agentGraph.graphRunId, shortAgentGraphStatus: plan.agentGraph.status } : {}),
@@ -188,6 +193,7 @@ function renderPromptFromPlan(plan: ShortPipelinePlan): string {
       : "No template accelerator selected; build from natural-language intent.";
   const viralStrategy = viralStrategyFromPlan(plan);
   const viralDirectives = viralDirectivesFromPlan(plan);
+  const channelStyle = channelStyleFromPlan(plan);
   const seedancePromptPack = seedancePromptPackFromPlan(plan);
 
   return compactLines([
@@ -202,6 +208,7 @@ function renderPromptFromPlan(plan: ShortPipelinePlan): string {
     `Target duration: ${plan.intent.targetDurationSeconds} seconds`,
     `Aspect ratio: ${plan.intent.aspectRatio}`,
     template,
+    channelStyle,
     viralStrategy,
     concept ? `Primary concept: ${concept.label}. ${concept.angle} Hook: ${concept.hook}` : "",
     "Scene plan:",
@@ -211,6 +218,23 @@ function renderPromptFromPlan(plan: ShortPipelinePlan): string {
     seedancePromptPack,
     "Claim review inventory:",
     claims
+  ]);
+}
+
+function channelStyleFromPlan(plan: ShortPipelinePlan): string {
+  const profile = plan.channelStyleProfile;
+  if (!profile) {
+    return "";
+  }
+  return compactLines([
+    `Channel style profile: ${profile.channelName ?? profile.profileId}${profile.seriesName ? ` / ${profile.seriesName}` : ""}; status=${profile.status}; memory=${profile.memoryPolicy.mode}.`,
+    profile.contentPillars.length ? `Content pillars: ${profile.contentPillars.join(", ")}.` : "",
+    profile.styleRules.length ? `Style rules: ${profile.styleRules.join("; ")}.` : "",
+    profile.doNotChange.length ? `Do not change: ${profile.doNotChange.join("; ")}.` : "",
+    profile.avoidPatterns.length ? `Avoid channel drift: ${profile.avoidPatterns.join("; ")}.` : "",
+    profile.styleAnchors.length
+      ? `Reusable channel anchors: ${profile.styleAnchors.slice(0, 10).map((anchorItem) => `${anchorItem.kind}:${anchorItem.label}=${anchorItem.instruction}`).join(" | ")}.`
+      : ""
   ]);
 }
 
@@ -283,6 +307,7 @@ function generatedAudioIntentsFromPlan(plan: ShortPipelinePlan): readonly Genera
   return plan.scenes.map((scene, index) => {
     const startSecond = roundSeconds(index * sceneDuration);
     const endSecond = roundSeconds(Math.min(plan.intent.targetDurationSeconds, (index + 1) * sceneDuration));
+    const voiceStyle = channelVoiceStyle(plan) ?? plan.brandKitEvaluation?.tone;
     return {
       intentId: createStableId("short_audio", `${plan.planId}:${scene.sceneId}:${scene.order}`),
       kind: "tts_narration",
@@ -291,10 +316,14 @@ function generatedAudioIntentsFromPlan(plan: ShortPipelinePlan): readonly Genera
       endSecond: endSecond > startSecond ? endSecond : roundSeconds(startSecond + 1),
       durationSeconds: roundSeconds(Math.max(1, endSecond - startSecond)),
       ...(plan.brandKitEvaluation?.language ? { language: plan.brandKitEvaluation.language } : {}),
-      ...(plan.brandKitEvaluation?.tone ? { voiceStyle: plan.brandKitEvaluation.tone } : {}),
+      ...(voiceStyle ? { voiceStyle } : {}),
       volume: 0.9
     };
   });
+}
+
+function channelVoiceStyle(plan: ShortPipelinePlan): string | undefined {
+  return plan.channelStyleProfile?.styleAnchors.find((anchorItem) => anchorItem.kind === "voice")?.instruction;
 }
 
 function checkpointInputFromReport(checkpoint: ReviewApprovalCheckpoint): ReviewApprovalCheckpointInput {

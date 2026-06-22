@@ -13,6 +13,7 @@ import type {
   ShortPipelineScenePlan,
   WorkflowTemplateSuggestion
 } from "../types/short-pipeline.js";
+import type { ShortChannelStyleProfile } from "../types/short-channel-style.js";
 import type {
   ShortAgentCreativeCandidate,
   ShortAgentCritique,
@@ -62,6 +63,7 @@ export interface ShortAgentGraphPlannerInput {
   readonly intent: ShortPipelineIntent;
   readonly productBrief?: ProductUrlBrief;
   readonly brandKitEvaluation?: BrandKitEvaluation;
+  readonly channelStyleProfile?: ShortChannelStyleProfile;
   readonly selectedTemplate?: WorkflowTemplateSuggestion;
   readonly referenceVideoLearning?: ShortReferenceVideoLearningInput;
   readonly concepts: readonly ShortPipelineConcept[];
@@ -209,6 +211,16 @@ function memoryPackFor(input: ShortAgentGraphPlannerInput): ShortAgentMemoryPack
       ["brand", input.brandKitEvaluation?.brandName ?? "unnamed_brand"]
     ));
   }
+  if (input.channelStyleProfile) {
+    patterns.push(...input.channelStyleProfile.styleAnchors.slice(0, 8).map((anchorItem) =>
+      memoryPattern(
+        "channel_style_memory",
+        `${anchorItem.kind}: ${anchorItem.label}`,
+        anchorItem.instruction,
+        ["channel_style", anchorItem.kind, input.channelStyleProfile?.profileId ?? "unknown_profile"]
+      )
+    ));
+  }
   if (reference) {
     patterns.push(memoryPattern(
       "reference_pattern",
@@ -220,6 +232,7 @@ function memoryPackFor(input: ShortAgentGraphPlannerInput): ShortAgentMemoryPack
   const writeIntents = [
     "store accepted candidate score, final prompt pack id, review decisions, and render outcome after manual review",
     "update niche playbook with hooks, proof beats, and caption patterns that survived review",
+    ...(input.channelStyleProfile ? ["update channel style profile with approved recurring hooks, voice notes, character continuity, and setting continuity"] : []),
     "store rejected critiques so future plans avoid repeated weak hooks, risky claims, or pacing gaps"
   ];
   const packId = createStableId(
@@ -334,12 +347,14 @@ function seedancePromptPackFor(
   );
   const product = input.productBrief?.title ?? "operator-provided product or subject";
   const brand = input.brandKitEvaluation?.brandName ?? "operator-provided brand";
+  const channelStyleLine = channelStylePromptLine(input.channelStyleProfile);
   const critiqueLine = critiques.length
     ? `Repair-aware constraints: ${critiques.map((item) => `${item.reviewer}:${item.repair}`).join(" ")}`
     : "No repair constraints beyond standard claim, reference, and continuity guardrails.";
   const masterPrompt = compactLines([
     `Seedance 2.0 short video prompt pack for ${input.intent.platform}.`,
     `Product/subject: ${product}. Brand: ${brand}. Niche: ${strategy.niche}. Audience: ${input.intent.audience}.`,
+    channelStyleLine,
     `Creative mode: ${strategy.creativeMode}. Platform focus: ${strategy.platformFocus}. Target duration: ${input.intent.targetDurationSeconds}s. Aspect ratio: ${input.intent.aspectRatio}.`,
     selectedCandidate ? `Winning candidate: ${selectedCandidate.label}. Hook: ${selectedCandidate.hook}. Story arc: ${selectedCandidate.storyArc}.` : "",
     `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
@@ -363,8 +378,8 @@ function seedancePromptPackFor(
     masterPrompt,
     shotPrompts: shots,
     globalNegativeConstraints: GLOBAL_NEGATIVE_CONSTRAINTS,
-    audioPlan: audioPlanFor(strategy.creativeMode, input.brandKitEvaluation?.tone),
-    captionPlan: captionPlanFor(strategy.platformFocus, input.brandKitEvaluation?.language),
+    audioPlan: audioPlanFor(strategy.creativeMode, channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone),
+    captionPlan: captionPlanFor(strategy.platformFocus, input.brandKitEvaluation?.language, input.channelStyleProfile?.captionStyle),
     referencePolicy: reference
       ? `Use reference pattern ${reference.patternId} for timing and framing only; do not copy assets, words, identity, brand marks, music, or private material.`
       : "No source-video copying. Use only operator-provided or generated original assets.",
@@ -389,7 +404,7 @@ function shotPromptsFor(
     const camera = directive?.cameraCue ?? cameraFor(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode);
     const action = actionFor(sceneItem, input, selectedCandidate);
     const caption = directive?.captionCue ?? sceneItem.caption;
-    const audio = audioForScene(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode, input.brandKitEvaluation?.tone);
+    const audio = audioForScene(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode, channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone);
     const continuity = continuityFor(sceneItem, input, index);
     const referencePolicy = directive?.referencePatternAlignment ??
       (input.viralIntelligence.referenceVideoPattern
@@ -465,6 +480,15 @@ function evidenceFor(input: ShortAgentGraphPlannerInput): readonly ShortAgentEvi
   }
   if (brand) {
     values.push(evidence("brand", brand.status === "ready" ? 0.82 : 0.58, `Brand ${brand.brandName ?? "unnamed"} tone=${brand.tone ?? "missing"} claimPolicy=${brand.allowedClaimCount + brand.forbiddenClaimCount}.`, brand.status !== "ready"));
+  }
+  if (input.channelStyleProfile) {
+    const profile = input.channelStyleProfile;
+    values.push(evidence(
+      "channel_style",
+      profile.status === "ready" ? 0.86 : profile.status === "review_required" ? 0.64 : 0.28,
+      `Channel style ${profile.channelName ?? profile.profileId} has ${profile.styleAnchors.length} anchors, ${profile.characterCount} characters, ${profile.voiceCount} voices, and ${profile.settingCount} settings.`,
+      profile.status !== "ready"
+    ));
   }
   if (reference) {
     values.push(evidence("reference", reference.safetyStatus === "learned_pattern" ? 0.78 : 0.52, `Reference pattern ${reference.patternId} supplies hook, pacing, camera, caption, and CTA structure only.`, reference.safetyStatus !== "learned_pattern"));
@@ -798,12 +822,16 @@ function visualPromptFor(
   firstFrame: string,
   action: string
 ): string {
-  const style = input.brandKitEvaluation?.visualStyle ?? input.intent.emotion.replace(/_/g, " ");
+  const style = input.channelStyleProfile?.visualStyle ?? input.brandKitEvaluation?.visualStyle ?? input.intent.emotion.replace(/_/g, " ");
   const product = input.productBrief?.title ?? "operator-provided product or subject";
+  const channelAnchors = input.channelStyleProfile?.styleAnchors.length
+    ? `Channel anchors: ${input.channelStyleProfile.styleAnchors.slice(0, 4).map((anchorItem) => `${anchorItem.kind}=${anchorItem.instruction}`).join(" ")}`
+    : "";
   return compactLines([
     `${sceneItem.role.toUpperCase()} shot for ${product}.`,
     firstFrame,
     action,
+    channelAnchors,
     `Visual style: ${style}.`,
     `Scene direction: ${sceneItem.visualDirection}.`,
     `Keep composition ${input.intent.aspectRatio}, caption-safe, and product/subject consistent.`
@@ -870,11 +898,32 @@ function audioPlanFor(mode: ShortViralCreativeMode, tone: string | undefined): s
   return `Use clear narration, light music bed, and SFX only where they clarify product action.`;
 }
 
-function captionPlanFor(platform: ShortViralPlatformFocus, language: string | undefined): string {
+function captionPlanFor(platform: ShortViralPlatformFocus, language: string | undefined, channelCaptionStyle: string | undefined): string {
   const lang = language ?? "user-requested language";
+  const style = channelCaptionStyle ? ` Preserve channel caption style: ${channelCaptionStyle}.` : "";
   return platform === "tiktok_douyin"
-    ? `Use ${lang}, one punchy caption per beat, high contrast, short line breaks, and first-second payoff text.`
-    : `Use ${lang}, readable captions with one idea per scene and no claim expansion.`;
+    ? `Use ${lang}, one punchy caption per beat, high contrast, short line breaks, and first-second payoff text.${style}`
+    : `Use ${lang}, readable captions with one idea per scene and no claim expansion.${style}`;
+}
+
+function channelStylePromptLine(profile: ShortChannelStyleProfile | undefined): string {
+  if (!profile) {
+    return "";
+  }
+  const anchors = profile.styleAnchors
+    .slice(0, 8)
+    .map((anchorItem) => `${anchorItem.kind}:${anchorItem.label}=${anchorItem.instruction}`)
+    .join(" | ");
+  const rules = [
+    profile.styleRules.length ? `rules=${profile.styleRules.slice(0, 6).join("; ")}` : "",
+    profile.doNotChange.length ? `do_not_change=${profile.doNotChange.slice(0, 6).join("; ")}` : "",
+    profile.avoidPatterns.length ? `avoid=${profile.avoidPatterns.slice(0, 6).join("; ")}` : ""
+  ].filter(Boolean).join(" ");
+  return `Channel style profile ${profile.profileId}: ${profile.channelName ?? "unnamed channel"}${profile.seriesName ? ` / ${profile.seriesName}` : ""}. Reuse identity across scripts without cloning external media. Anchors: ${anchors || "none"}. ${rules}`;
+}
+
+function channelVoiceStyle(profile: ShortChannelStyleProfile | undefined): string | undefined {
+  return profile?.styleAnchors.find((anchorItem) => anchorItem.kind === "voice")?.instruction;
 }
 
 function stage(

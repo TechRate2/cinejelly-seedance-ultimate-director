@@ -5,6 +5,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { ShortChannelStyleProfileEvaluator } from "./short-channel-style-profile.js";
 import { ReviewApprovalSystem } from "./review-approval-system.js";
 import { ShortAgentGraphPlanner } from "./short-agent-graph-planner.js";
 import { ShortCommercialReadinessPlanner } from "./short-commercial-readiness-planner.js";
@@ -473,6 +474,7 @@ export class WorkflowTemplateRegistry {
 export class ShortPipelinePlanner {
   private readonly productExtractor = new ProductUrlBriefExtractor();
   private readonly brandKitEvaluator = new BrandKitEvaluator();
+  private readonly channelStyleEvaluator = new ShortChannelStyleProfileEvaluator();
   private readonly templateRegistry = new WorkflowTemplateRegistry();
   private readonly approvalSystem = new ReviewApprovalSystem();
   private readonly viralIntelligencePlanner = new ShortViralIntelligencePlanner();
@@ -490,6 +492,7 @@ export class ShortPipelinePlanner {
     }
     const productBrief = this.productExtractor.build(input.product, prompt);
     const brandKitEvaluation = this.brandKitEvaluator.evaluate(input.brandKit, productBrief?.claimInventory ?? []);
+    const channelStyleProfile = this.channelStyleEvaluator.evaluate(input.channelStyle);
     const intent = this.intent(input, prompt, productBrief, brandKitEvaluation);
     const templateSuggestions = input.allowTemplateSuggestions === false
       ? []
@@ -513,6 +516,7 @@ export class ShortPipelinePlanner {
       intent,
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(channelStyleProfile ? { channelStyleProfile } : {}),
       ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
       concepts,
       scenes: preliminaryScenes,
@@ -526,6 +530,7 @@ export class ShortPipelinePlanner {
       intent,
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(channelStyleProfile ? { channelStyleProfile } : {}),
       ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
       concepts,
@@ -549,6 +554,7 @@ export class ShortPipelinePlanner {
       intent,
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(channelStyleProfile ? { channelStyleProfile } : {}),
       ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
       concepts,
       scenes,
@@ -562,6 +568,7 @@ export class ShortPipelinePlanner {
       intent,
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(channelStyleProfile ? { channelStyleProfile } : {}),
       ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
       concepts,
@@ -609,6 +616,7 @@ export class ShortPipelinePlanner {
       intent,
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(channelStyleProfile ? { channelStyleProfile } : {}),
       templateSuggestions,
       ...(selectedTemplate ? { selectedTemplate } : {}),
       templatePolicy: selectedTemplate ? "operator_selected_optional" : templateSuggestions.length > 0 ? "suggested_optional" : "none",
@@ -634,6 +642,7 @@ export class ShortPipelinePlanner {
     };
     const originalInput = {
       ...(input.product ? { product: input.product } : {}),
+      ...(input.channelStyle ? { channelStyle: input.channelStyle } : {}),
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
     };
     const commercialReadiness = this.commercialReadinessPlanner.build({

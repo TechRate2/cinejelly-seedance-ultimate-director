@@ -1,4 +1,5 @@
 import type { ReviewApprovalReport } from "./review-approval.js";
+import type { ShortChannelStyleProfile, ShortChannelStyleProfileInput } from "./short-channel-style.js";
 import type { AspectRatio } from "./settings.js";
 import type { ShortAgentGraphRun, ShortSeedancePromptPack } from "./short-agent.js";
 import type { ShortCommercialReadinessPlan } from "./short-commercial-readiness.js";
@@ -249,6 +250,7 @@ export interface ShortPipelinePlanInput {
   readonly userPrompt?: string;
   readonly product?: ProductUrlBriefInput;
   readonly brandKit?: BrandKitInput;
+  readonly channelStyle?: ShortChannelStyleProfileInput;
   readonly referenceVideoLearning?: ShortReferenceVideoLearningInput;
   readonly preferredTemplateId?: string;
   readonly allowTemplateSuggestions?: boolean;
@@ -278,6 +280,7 @@ export interface ShortPipelinePlan {
   readonly intent: ShortPipelineIntent;
   readonly productBrief?: ProductUrlBrief;
   readonly brandKitEvaluation?: BrandKitEvaluation;
+  readonly channelStyleProfile?: ShortChannelStyleProfile;
   readonly templateSuggestions: readonly WorkflowTemplateSuggestion[];
   readonly selectedTemplate?: WorkflowTemplateSuggestion;
   readonly templatePolicy: "none" | "suggested_optional" | "operator_selected_optional";
@@ -317,6 +320,7 @@ export interface ShortPipelineConversationInput {
   readonly messages: readonly ShortPipelineConversationMessageInput[];
   readonly product?: ProductUrlBriefInput;
   readonly brandKit?: BrandKitInput;
+  readonly channelStyle?: ShortChannelStyleProfileInput;
   readonly referenceVideoLearning?: ShortReferenceVideoLearningInput;
   readonly preferredTemplateId?: string;
   readonly allowTemplateSuggestions?: boolean;

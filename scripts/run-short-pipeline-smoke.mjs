@@ -88,6 +88,55 @@ const reviewRequiredPlan = planner.buildPlan({
     forbiddenClaims: ["cures acne overnight"],
     ctaRules: ["Use one CTA only"],
     voicePreferences: ["calm confident narration"]
+  },
+  channelStyle: {
+    channelId: "glow_lab_daily",
+    channelName: "Glow Lab Daily",
+    seriesName: "Morning Proof Rituals",
+    audience: "busy skincare buyers",
+    niche: "beauty",
+    positioning: "premium skincare proof explained through warm creator-led routines",
+    contentPillars: ["morning routine proof", "ingredient clarity", "busy buyer confidence"],
+    visualStyle: "clean macro beauty, soft highlights, consistent cream background, product texture hero shots",
+    editingRhythm: "fast first-second hook, one proof shift every 3-5 seconds, calm CTA landing",
+    captionStyle: "short premium captions with one claim or proof idea per beat",
+    musicStyle: "soft confident bed under calm narration",
+    characters: [{
+      characterId: "host_mina",
+      name: "Mina",
+      role: "recurring skincare guide",
+      visualDescription: "warm creator host, neat neutral wardrobe, hands-on product routine framing",
+      personality: "credible, calm, specific",
+      mustPreserve: ["warm creator tone", "product visible early"],
+      referenceAssetIds: ["asset://channel/glow-lab/host-mina"]
+    }],
+    voices: [{
+      voiceId: "glow_lab_calm_voice",
+      label: "Glow Lab calm guide",
+      language: "en",
+      voiceStyle: "calm confident narration with warm expert clarity",
+      pacing: "medium-fast first line, relaxed proof explanation",
+      catchphrases: ["proof, not hype"],
+      referenceAssetIds: ["asset://channel/glow-lab/voice-calm-guide"]
+    }],
+    settings: [{
+      settingId: "cream_countertop",
+      label: "cream countertop routine set",
+      visualDescription: "cream countertop, soft daylight, clean towel, serum texture close-up",
+      lighting: "soft daylight with gentle specular highlights",
+      colorMood: "cream, white, soft rose",
+      recurringProps: ["clean towel", "serum dropper", "mirror edge"],
+      referenceAssetIds: ["asset://channel/glow-lab/cream-countertop"]
+    }],
+    reusableAssets: [
+      { assetId: "asset://channel/glow-lab/host-mina", kind: "character_reference", rightsStatus: "operator_approved" },
+      { assetId: "asset://channel/glow-lab/voice-calm-guide", kind: "voice_reference", rightsStatus: "operator_approved" },
+      { assetId: "asset://channel/glow-lab/cream-countertop", kind: "setting_reference", rightsStatus: "operator_approved" },
+      { assetId: "asset://channel/glow-lab/style-board", kind: "style_reference", rightsStatus: "operator_approved" }
+    ],
+    styleRules: ["product visible in the first second", "proof beats before offer", "no loud meme edits"],
+    doNotChange: ["Mina host identity", "cream countertop routine set", "calm proof-first voice"],
+    avoidPatterns: ["hard-sell coupon spam", "unsupported before-after claims"]
   }
 });
 
@@ -259,10 +308,16 @@ const checks = [
   reviewRequiredPlan.commercialReadiness.schemaVersion === "cinejelly.short-commercial-readiness.v1" &&
     reviewRequiredPlan.commercialReadiness.status === "review_required" &&
     reviewRequiredPlan.commercialReadiness.crawlerPolicy.bypassPolicy === "never_bypass_access_controls" &&
+    reviewRequiredPlan.commercialReadiness.checks.some((check) => check.code === "channel_style_memory" && check.status === "ready") &&
     reviewRequiredPlan.commercialReadiness.outcomeMemory.status === "ready_to_write_after_review" &&
     reviewRequiredPlan.commercialReadiness.releaseGateSummary.canRenderNow === false
-    ? pass("commercial_readiness_contract", "Short plans include no-spend commercial readiness, crawler-safe policy, outcome-memory contract, and render-now block.")
+    ? pass("commercial_readiness_contract", "Short plans include no-spend commercial readiness, channel-style memory, crawler-safe policy, outcome-memory contract, and render-now block.")
     : fail("commercial_readiness_contract", "Expected short commercial readiness contract with crawler/memory/review safeguards."),
+  reviewRequiredPlan.channelStyleProfile?.status === "ready" &&
+    reviewRequiredPlan.agentGraph?.memoryPack.retrievedPatterns.some((pattern) => pattern.source === "channel_style_memory") &&
+    pendingRenderHandoff.request.metadata?.shortChannelStyleProfileId === reviewRequiredPlan.channelStyleProfile.profileId
+    ? pass("channel_style_memory_profile", "Reusable channel style profile flows through plan, Short Agent memory, readiness, and render handoff lineage.")
+    : fail("channel_style_memory_profile", "Expected reusable channel style profile evidence in plan, memory, readiness, and render handoff."),
   hasEveryReviewSurface(reviewRequiredPlan)
     ? pass("review_surfaces_present", "Scene, audio, caption, and claim checkpoints are present before render.")
     : fail("review_surfaces_present", "Expected scene, audio, caption, and claim checkpoints."),
@@ -401,6 +456,9 @@ function summarizePlan(plan) {
     referenceAnalysisStatus: plan.commercialReadiness.referenceAnalysis.status,
     outcomeMemoryStatus: plan.commercialReadiness.outcomeMemory.status,
     readinessCheckCount: plan.commercialReadiness.checks.length,
+    channelStyleProfileStatus: plan.channelStyleProfile?.status,
+    channelStyleAnchorCount: plan.channelStyleProfile?.styleAnchors.length ?? 0,
+    channelStyleMemoryPatternCount: plan.agentGraph?.memoryPack.retrievedPatterns.filter((pattern) => pattern.source === "channel_style_memory").length ?? 0,
     canUseAsNoSpendPlanningEvidence: plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence,
     canReleaseToCustomerTraffic: plan.releaseGateSummary.canReleaseToCustomerTraffic
   };
@@ -430,6 +488,7 @@ function summarizeHandoff(pending, approved) {
     commercialReadinessStatus: pending.request.metadata?.shortCommercialReadinessStatus,
     crawlerPolicyStatus: pending.request.metadata?.shortCrawlerPolicyStatus,
     outcomeMemoryStatus: pending.request.metadata?.shortOutcomeMemoryStatus,
+    requestHasChannelStyleLineage: Boolean(pending.request.metadata?.shortChannelStyleProfileId),
     requestDurationSeconds: pending.request.settings?.durationTargetSeconds,
     requestAspectRatio: pending.request.settings?.ratio,
     requestRawUrlSerialized: false,

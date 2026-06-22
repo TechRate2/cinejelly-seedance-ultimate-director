@@ -1058,6 +1058,7 @@ function shortPipelineConversationInputFromBody(
     messages,
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
+    ...(body.channelStyle ? { channelStyle: body.channelStyle } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
     ...(body.allowTemplateSuggestions !== undefined
@@ -1129,6 +1130,7 @@ function shortPipelineProductUrlPlanBodyFromBody(
     ...(body.userPrompt ? { userPrompt: body.userPrompt } : {}),
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
+    ...(body.channelStyle ? { channelStyle: body.channelStyle } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
     ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),

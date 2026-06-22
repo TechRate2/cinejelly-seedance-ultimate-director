@@ -43,7 +43,7 @@ export interface ShortAgentResearchQuestion {
 
 export interface ShortAgentEvidenceItem {
   readonly evidenceId: string;
-  readonly kind: "prompt" | "product" | "brand" | "reference" | "memory" | "platform" | "claim";
+  readonly kind: "prompt" | "product" | "brand" | "channel_style" | "reference" | "memory" | "platform" | "claim";
   readonly confidence: number;
   readonly summary: string;
   readonly reviewRequired: boolean;
@@ -61,7 +61,7 @@ export interface ShortAgentResearchPack {
 
 export interface ShortAgentMemoryPattern {
   readonly patternId: string;
-  readonly source: "seedance_prompt_playbook" | "platform_playbook" | "brand_memory" | "outcome_memory" | "reference_pattern";
+  readonly source: "seedance_prompt_playbook" | "platform_playbook" | "brand_memory" | "channel_style_memory" | "outcome_memory" | "reference_pattern";
   readonly label: string;
   readonly instruction: string;
   readonly appliesTo: readonly string[];
