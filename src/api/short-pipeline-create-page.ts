@@ -393,6 +393,28 @@ export function buildShortPipelineCreatePage(): string {
         </section>
         <section>
           <div class="panel">
+            <h2>Review Checkpoints</h2>
+            <div class="list" id="review-checkpoints"><div class="empty">No contract loaded.</div></div>
+          </div>
+          <div class="panel">
+            <h2>Approval Packet</h2>
+            <div class="form-grid">
+              <label><span>Reviewer</span><input id="reviewer" autocomplete="off" placeholder="Reviewer name"></label>
+              <label><span>Decision</span>
+                <select id="review-decision">
+                  <option value="approved">Approve</option>
+                  <option value="changes_requested">Request changes</option>
+                  <option value="rejected">Reject</option>
+                </select>
+              </label>
+              <label class="span-2"><span>Notes</span><input id="review-notes" autocomplete="off" placeholder="Short review note"></label>
+              <label class="span-2"><span>Packet</span><textarea id="approval-packet" readonly></textarea></label>
+            </div>
+            <div class="actions-row">
+              <button type="button" class="secondary" id="prepare-approval" disabled>Prepare Packet</button>
+            </div>
+          </div>
+          <div class="panel">
             <h2>Review Actions</h2>
             <div class="list" id="user-actions"><div class="empty">No contract loaded.</div></div>
           </div>
@@ -416,6 +438,7 @@ export function buildShortPipelineCreatePage(): string {
       render: root.dataset.renderEndpoint
     };
     let activeSessionId = "";
+    let activeContract = undefined;
 
     document.getElementById("auth-form").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -427,6 +450,9 @@ export function buildShortPipelineCreatePage(): string {
     });
     document.getElementById("refresh-contract").addEventListener("click", async () => {
       if (activeSessionId) await loadContract(activeSessionId);
+    });
+    document.getElementById("prepare-approval").addEventListener("click", () => {
+      prepareApprovalPacket();
     });
 
     async function createSession() {
@@ -511,6 +537,7 @@ export function buildShortPipelineCreatePage(): string {
     }
 
     function renderContract(contract) {
+      activeContract = contract;
       document.getElementById("side-status").textContent = contract.status;
       document.getElementById("side-scenes").textContent = String(contract.outputContract.expectedSceneCount);
       document.getElementById("side-pending").textContent = String(contract.review.requiredPendingCount);
@@ -521,6 +548,9 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("metric-checkpoints").textContent = contract.review.checkpointCount + " checkpoint(s)";
       document.getElementById("metric-audio").textContent = contract.audioControls.selectedOptionId.replaceAll("_", " ");
       document.getElementById("metric-provider").textContent = contract.render.canSubmitToProviderNow ? "Ready" : "Locked";
+      document.getElementById("prepare-approval").disabled = false;
+      document.getElementById("approval-packet").value = "";
+      renderList("review-checkpoints", contract.review.checkpoints, checkpointTemplate);
       renderList("user-actions", contract.userRequiredActions, actionTemplate);
       renderList("backend-steps", contract.backendManagedSteps, actionTemplate);
       document.getElementById("director").textContent = [
@@ -529,6 +559,42 @@ export function buildShortPipelineCreatePage(): string {
         contract.director.targetBeatCount + " beats",
         contract.director.hookWindowSeconds + "s hook"
       ].join(" | ");
+    }
+
+    function prepareApprovalPacket() {
+      clearMessages();
+      if (!activeContract || !activeSessionId) {
+        showError("No session contract loaded.");
+        return;
+      }
+      const reviewer = document.getElementById("reviewer").value.trim();
+      if (!reviewer) {
+        showError("Reviewer is required.");
+        return;
+      }
+      const decision = document.getElementById("review-decision").value;
+      const notes = document.getElementById("review-notes").value.trim();
+      const reviewedAt = new Date().toISOString();
+      const packet = {
+        sessionId: activeSessionId,
+        endpointPath: activeContract.review.approvalPayloadContract.endpointPath.replace("{sessionId}", activeSessionId),
+        reviewApprovalGate: activeContract.review.approvalPayloadContract.gate,
+        confirmRenderSubmission: activeContract.review.approvalPayloadContract.confirmRenderSubmissionDefault,
+        reviewApprovalCheckpoints: activeContract.review.checkpoints
+          .filter((checkpoint) => checkpoint.canApproveInUi)
+          .map((checkpoint) => ({
+            surface: checkpoint.surface,
+            label: checkpoint.label,
+            ...(checkpoint.subjectId ? { subjectId: checkpoint.subjectId } : {}),
+            required: checkpoint.required,
+            decision,
+            reviewer,
+            reviewedAt,
+            ...(notes ? { notes } : {})
+          }))
+      };
+      document.getElementById("approval-packet").value = JSON.stringify(packet, null, 2);
+      showSuccess("Approval packet prepared.");
     }
 
     function renderList(id, items, template) {
@@ -556,6 +622,16 @@ export function buildShortPipelineCreatePage(): string {
         escapeHtml(action.reason) + '</div></div><span class="pill ' +
         pillClass(action.status) + '">' + escapeHtml(action.status.replaceAll("_", " ")) +
         '</span></div></article>';
+    }
+
+    function checkpointTemplate(checkpoint) {
+      return '<article class="item"><div class="row"><div><div class="title">' +
+        escapeHtml(checkpoint.label) + '</div><div class="detail">' +
+        escapeHtml(checkpoint.surface + (checkpoint.subjectId ? " | " + checkpoint.subjectId : "")) +
+        '</div><div class="detail">issues=' +
+        escapeHtml((checkpoint.issueCodes || []).join(", ") || "none") +
+        '</div></div><span class="pill ' + pillClass(checkpoint.decision) + '">' +
+        escapeHtml(checkpoint.decision.replaceAll("_", " ")) + '</span></div></article>';
     }
 
     function pillClass(status) {

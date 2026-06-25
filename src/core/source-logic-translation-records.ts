@@ -88,12 +88,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "short-form plans carry duration, hook, safe-zone, pacing, audio, and checkpoint guidance",
       "creative stages pause before provider spend when review is required",
       "source/reference learning is treated as structure guidance rather than content copying",
-      "material decisions separate realistic stock needs from generated/stylized needs"
+      "material decisions separate realistic stock needs from generated/stylized needs",
+      "UI-facing review controls expose checkpoint decisions without bypassing reviewer/timestamp evidence"
     ],
     behaviorChanged: [
       "rewritten as clean CineJelly-owned TypeScript without copying AGPL implementation code",
       "visible text/caption rules are adapted to CineJelly no-visible-text policy",
-      "Short Director is separate from Long Director so future UI can expose clear product modes"
+      "Short Director is separate from Long Director so future UI can expose clear product modes",
+      "approval packet drafts keep provider submission separate from review UI evidence"
     ],
     referenceImplementationPath: "docs/FAITHFUL_LOGIC_TRANSLATION_OpenMontage_2026-06-25.md",
     cineJellyDestinationPaths: [
@@ -3095,6 +3097,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "durable no-spend conversation sessions can be persisted with atomic writes and client-scoped retrieval without storing raw transcript text",
       "stored conversation sessions can enter the async render-job review lifecycle without accepting client-side replacement plans",
       "accepted short-plan review evidence can hand off into the async render-job lifecycle while preserving operator-visible status",
+      "session UI contracts can expose safe scene/audio/caption/claim checkpoint controls and a non-spending approval-packet shape",
       "async jobs can pause after artifact validation for pre-export artifact-bound review without rerendering or reserving provider spend again"
     ],
     behaviorChanged: [
@@ -3105,7 +3108,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "product URL research is limited to clean HTTPS pages behind explicit live-network confirmation and publishes hashes/evidence instead of raw URLs",
       "reference-video inputs are redacted into source fingerprints and pattern guidance; clone/99%-copy requests become review-required guardrails instead of reproduction instructions",
       "short-pipeline render handoff, including stored-session handoff, requires explicit confirmation before approved review evidence can queue provider spend",
-      "a first-party static Short create/review shell is provided without importing Director frontend code, while hosted playback, customer-grade review controls, VideoDB library controls, and complete 20+ agent parity remain future product work"
+      "a first-party static Short create/review shell with safe checkpoint controls is provided without importing Director frontend code, while hosted playback, accepted live review operation evidence, VideoDB library controls, and complete 20+ agent parity remain future product work"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-agentic-media-reasoning.md",
     cineJellyDestinationPaths: [
@@ -3145,8 +3148,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     ],
     validationStatus: "implemented",
     fidelityRisks: [
-      "current coverage is backend planning/render-handoff/progress/review evidence plus a static create/review shell, not hosted playback or VideoDB media-library parity",
-      "conversation/session routes and the static shell are no-spend backend evidence and do not yet prove managed multi-instance storage, production UI QA, or hosted review controls",
+      "current coverage is backend planning/render-handoff/progress/review evidence plus a static create/review shell with checkpoint controls, not hosted playback or VideoDB media-library parity",
+      "conversation/session routes and the static shell are no-spend backend evidence and do not yet prove managed multi-instance storage, production UI QA, or accepted live reviewer operation evidence",
       "viral/niche strategy is deterministic backend inference and reference-pattern adaptation; live trend intelligence or platform analytics still require a reviewed external data source",
       "reference-video learning must remain structure-only unless the operator supplies rights-cleared source assets and review evidence",
       "live paid short-pipeline media evidence is still required before claiming end-to-end Director-style workflow evidence",

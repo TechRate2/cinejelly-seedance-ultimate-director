@@ -10,16 +10,26 @@ import type {
   ShortMvpUiAudioOptionId,
   ShortMvpUiContract,
   ShortMvpUiDirectorGuidance,
+  ShortMvpUiReviewCheckpoint,
   ShortMvpUiReviewSurfaceSummary,
   ShortMvpUiWorkflowControl
 } from "../types/short-mvp-ui.js";
 import type { ShortPipelinePlan } from "../types/short-pipeline.js";
-import type { ReviewApprovalSurface } from "../types/review-approval.js";
+import type {
+  ReviewApprovalCheckpoint,
+  ReviewApprovalSurface
+} from "../types/review-approval.js";
 
 const SHORT_COMMERCIAL_MIN_SECONDS = 15;
 const SHORT_COMMERCIAL_MAX_SECONDS = 60;
 const SHORT_SINGLE_CLIP_MAX_SECONDS = 15;
 const REVIEW_SURFACES: readonly ReviewApprovalSurface[] = ["scene", "audio", "caption", "claim"];
+const RAW_HTTP_URL_PATTERN = /\bhttps?:\/\/[^\s"',;)]*/gi;
+const EMBEDDED_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s"',;)]*/g;
+const EMBEDDED_UNC_PATH_PATTERN = /\\\\[^\s"',;)]+/g;
+const EMBEDDED_POSIX_PATH_PATTERN = /(^|\s)(\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/[^\s"',;)]+)/g;
+const SECRET_TEXT_PATTERN =
+  /\b(?:bearer\s+|api[_-]?key\s*[:=]|access[_-]?key\s*[:=]|token\s*[:=]|secret\s*[:=]|password\s*[:=]|authorization\s*[:=])[^"',\s&]+/gi;
 
 export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiContract {
   const audioPolicy = plan.audioPolicy ?? {
@@ -72,9 +82,19 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
     },
     review: {
       status: plan.reviewApproval.status,
+      gate: plan.reviewApproval.gate,
       checkpointCount: plan.reviewApproval.summary.checkpointCount,
       requiredPendingCount,
-      surfaces: reviewSurfaces(plan)
+      surfaces: reviewSurfaces(plan),
+      checkpoints: reviewCheckpoints(plan),
+      approvalPayloadContract: {
+        gate: "pre_render",
+        endpointPath: "/v1/short-pipeline/conversation-sessions/{sessionId}/render-jobs",
+        requiresReviewer: true,
+        requiresReviewedAt: true,
+        confirmRenderSubmissionDefault: false,
+        canQueueProviderSpendFromContractAlone: false
+      }
     },
     director: directorGuidance(plan),
     render: {
@@ -251,6 +271,42 @@ function reviewSurfaces(plan: ShortPipelinePlan): readonly ShortMvpUiReviewSurfa
       blockedCount: checkpoints.filter((checkpoint) => checkpoint.decision === "blocked").length
     };
   });
+}
+
+function reviewCheckpoints(plan: ShortPipelinePlan): readonly ShortMvpUiReviewCheckpoint[] {
+  return plan.reviewApproval.checkpoints.map((checkpoint) => {
+    const subjectId = checkpoint.subjectId ? safeUiReviewText(checkpoint.subjectId) : undefined;
+    return {
+      checkpointId: checkpoint.checkpointId,
+      surface: checkpoint.surface,
+      label: safeUiReviewText(checkpoint.label),
+      ...(subjectId ? { subjectId } : {}),
+      required: checkpoint.required,
+      decision: checkpoint.decision,
+      issueCodes: checkpoint.issueCodes.map((issueCode) => safeUiReviewText(issueCode)),
+      evidenceKeyCount: Object.keys(checkpoint.evidence).length,
+      reviewerRequiredForApproval: true,
+      reviewedAtRequiredForApproval: true,
+      canApproveInUi: canApproveCheckpointInUi(checkpoint)
+    };
+  });
+}
+
+function canApproveCheckpointInUi(checkpoint: ReviewApprovalCheckpoint): boolean {
+  return checkpoint.decision !== "blocked" &&
+    !checkpoint.issueCodes.includes("unsafe_public_review_text") &&
+    !checkpoint.issueCodes.includes("approved_without_reviewer_or_timestamp");
+}
+
+function safeUiReviewText(value: string): string {
+  return value
+    .replace(RAW_HTTP_URL_PATTERN, "[REDACTED_URL]")
+    .replace(SECRET_TEXT_PATTERN, "[REDACTED_SECRET]")
+    .replace(EMBEDDED_WINDOWS_PATH_PATTERN, "[REDACTED_LOCAL_PATH]")
+    .replace(EMBEDDED_UNC_PATH_PATTERN, "[REDACTED_LOCAL_PATH]")
+    .replace(EMBEDDED_POSIX_PATH_PATTERN, "$1[REDACTED_LOCAL_PATH]")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function backendManagedActions(plan: ShortPipelinePlan): readonly ShortMvpUiAction[] {

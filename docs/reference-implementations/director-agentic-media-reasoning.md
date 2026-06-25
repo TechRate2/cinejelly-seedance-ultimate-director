@@ -44,7 +44,7 @@ Primary source files reviewed:
 8. Durable conversation sessions persist only redacted no-spend public evidence, are enabled explicitly through `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH`, and are scoped by API client for list/detail/render-handoff reads.
 9. Stored sessions can create async render jobs only by reading the server-side saved plan, applying formal review checkpoints, preserving client scope, and requiring explicit render confirmation before approved evidence queues provider spend.
 10. Accepted short-pipeline plans now hand off into CineJelly's normal async render-job lifecycle with confirmation, quota, review, idempotency, and artifact gates still active.
-11. The static Short create/review shell is implemented, but customer-grade hosted review controls, media library, VideoDB collection controls, and 20+ agent parity are not yet implemented.
+11. The static Short create/review shell with safe checkpoint controls is implemented, but accepted live reviewer operation evidence, media library, VideoDB collection controls, and 20+ agent parity are not yet implemented.
 
 ## Destination Paths
 
@@ -98,4 +98,4 @@ node scripts\audit-snapshot-parity.mjs --no-output
 - Async render jobs can be paused by review approval status before provider spend.
 - Accepted short-pipeline review checkpoints can be converted into a normal async render-job submission only after explicit render confirmation, while pending review evidence remains paused before provider spend.
 - Snapshot parity reports include a non-release-evidence Director parity estimate below 100% with explicit gaps.
-- CineJelly does not claim hosted Director UI, VideoDB media-library, 20+ agent catalog, or fully dynamic LLM tool-routing parity until those product surfaces are implemented and validated.
+- CineJelly does not claim hosted Director UI, VideoDB media-library, 20+ agent catalog, accepted live reviewer operation parity, or fully dynamic LLM tool-routing parity until those product surfaces are implemented and validated.

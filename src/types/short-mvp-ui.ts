@@ -1,4 +1,8 @@
-import type { ReviewApprovalSurface } from "./review-approval.js";
+import type {
+  ReviewApprovalDecision,
+  ReviewApprovalGate,
+  ReviewApprovalSurface
+} from "./review-approval.js";
 import type { ShortPipelinePlan } from "./short-pipeline.js";
 
 export type ShortMvpUiWorkflowMode =
@@ -26,6 +30,20 @@ export interface ShortMvpUiReviewSurfaceSummary {
   readonly checkpointCount: number;
   readonly requiredPendingCount: number;
   readonly blockedCount: number;
+}
+
+export interface ShortMvpUiReviewCheckpoint {
+  readonly checkpointId: string;
+  readonly surface: ReviewApprovalSurface;
+  readonly label: string;
+  readonly subjectId?: string;
+  readonly required: boolean;
+  readonly decision: ReviewApprovalDecision;
+  readonly issueCodes: readonly string[];
+  readonly evidenceKeyCount: number;
+  readonly reviewerRequiredForApproval: true;
+  readonly reviewedAtRequiredForApproval: true;
+  readonly canApproveInUi: boolean;
 }
 
 export interface ShortMvpUiDirectorGuidance {
@@ -95,9 +113,19 @@ export interface ShortMvpUiContract {
   };
   readonly review: {
     readonly status: ShortPipelinePlan["reviewApproval"]["status"];
+    readonly gate: ReviewApprovalGate;
     readonly checkpointCount: number;
     readonly requiredPendingCount: number;
     readonly surfaces: readonly ShortMvpUiReviewSurfaceSummary[];
+    readonly checkpoints: readonly ShortMvpUiReviewCheckpoint[];
+    readonly approvalPayloadContract: {
+      readonly gate: "pre_render";
+      readonly endpointPath: "/v1/short-pipeline/conversation-sessions/{sessionId}/render-jobs";
+      readonly requiresReviewer: true;
+      readonly requiresReviewedAt: true;
+      readonly confirmRenderSubmissionDefault: false;
+      readonly canQueueProviderSpendFromContractAlone: false;
+    };
   };
   readonly director: ShortMvpUiDirectorGuidance;
   readonly render: {

@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, extname, resolve } from "node:path";
+import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -51,12 +51,24 @@ function readRequiredValue(args, index, flag) {
   return value;
 }
 
-const options = parseArgs(process.argv.slice(2));
-for (const path of [options.outputPath, options.styleStorePath, options.sessionStorePath]) {
+function assertRepoRelativeJsonPath(path, flag) {
   if (extname(path).toLowerCase() !== ".json") {
-    throw new Error("All output/store paths must point to JSON files.");
+    throw new Error(`${flag} must point to a JSON file.`);
+  }
+  if (isAbsolute(path)) {
+    throw new Error(`${flag} must be repo-relative so smoke setup cannot remove or write outside the workspace.`);
+  }
+  const absolutePath = resolve(repoRoot, path);
+  const relativePath = relative(repoRoot, absolutePath);
+  if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+    throw new Error(`${flag} must stay inside the repository workspace.`);
   }
 }
+
+const options = parseArgs(process.argv.slice(2));
+assertRepoRelativeJsonPath(options.outputPath, "--output");
+assertRepoRelativeJsonPath(options.styleStorePath, "--style-store");
+assertRepoRelativeJsonPath(options.sessionStorePath, "--session-store");
 
 const styleStorePath = resolve(repoRoot, options.styleStorePath);
 const sessionStorePath = resolve(repoRoot, options.sessionStorePath);
@@ -142,6 +154,8 @@ try {
       createPageHtml.includes('data-session-ui-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/ui-contract"') &&
       createPageHtml.includes('data-render-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/render-jobs"') &&
       createPageHtml.includes("Create Short") &&
+      createPageHtml.includes("Review Checkpoints") &&
+      createPageHtml.includes("approval-packet") &&
       !createPageLeakDetected
       ? pass("short_create_page_available", "First-party Short create/review page shell is served without embedded credentials, local paths, or launch evidence.")
       : fail("short_create_page_available", "Expected Short create page to expose safe endpoint wiring and no credential residue."),
@@ -187,6 +201,22 @@ try {
       ui?.outputContract?.visibleTextAllowed === false
       ? pass("audio_and_no_visible_text_controls", "UI contract exposes off/en/vi/zh audio choices and locks no visible text/caption burn-in by default.")
       : fail("audio_and_no_visible_text_controls", "Expected UI contract to expose audio options and no-visible-text output contract."),
+    Array.isArray(ui?.review?.checkpoints) &&
+      ui.review.checkpoints.length === ui.review.checkpointCount &&
+      ui.review.checkpoints.length > 0 &&
+      new Set(ui.review.checkpoints.map((checkpoint) => checkpoint.surface)).size >= 4 &&
+      ui.review.checkpoints.every((checkpoint) =>
+        checkpoint.reviewerRequiredForApproval === true &&
+        checkpoint.reviewedAtRequiredForApproval === true &&
+        typeof checkpoint.canApproveInUi === "boolean" &&
+        Number.isInteger(checkpoint.evidenceKeyCount) &&
+        !containsAny(JSON.stringify(checkpoint), ["https://shop.example.com", "C:\\Users\\Admin", "api_key=secret"])
+      ) &&
+      ui.review.approvalPayloadContract?.gate === "pre_render" &&
+      ui.review.approvalPayloadContract?.confirmRenderSubmissionDefault === false &&
+      ui.review.approvalPayloadContract?.canQueueProviderSpendFromContractAlone === false
+      ? pass("review_checkpoint_controls_available", "UI contract exposes safe scene/audio/caption/claim checkpoints plus a no-spend approval payload contract.")
+      : fail("review_checkpoint_controls_available", "Expected UI contract to expose safe approval checkpoint controls without provider-spend authority."),
     bothStyleSources.statusCode === 400 &&
       String(bothStyleSources.body.error ?? "").includes("either channelStyle or channelStyleProfileId")
       ? pass("ambiguous_style_source_blocked", "Backend rejects requests that send both inline channelStyle and channelStyleProfileId.")
@@ -264,6 +294,10 @@ try {
         audioControlOptions: ui?.audioControls?.options?.map((option) => option.optionId) ?? [],
         selectedAudioOptionId: ui?.audioControls?.selectedOptionId,
         visibleTextAllowed: ui?.outputContract?.visibleTextAllowed,
+        reviewCheckpointCount: ui?.review?.checkpoints?.length ?? 0,
+        reviewCheckpointSurfaceCount: new Set((ui?.review?.checkpoints ?? []).map((checkpoint) => checkpoint.surface)).size,
+        approvalPayloadContractGate: ui?.review?.approvalPayloadContract?.gate,
+        approvalPayloadCanQueueProviderSpend: ui?.review?.approvalPayloadContract?.canQueueProviderSpendFromContractAlone,
         backendManagedStepCount: ui?.backendManagedSteps?.length ?? 0,
         userRequiredActionCount: ui?.userRequiredActions?.length ?? 0,
         canCreateRenderJob: ui?.render?.canCreateRenderJob,
@@ -286,7 +320,7 @@ try {
       releaseBlocker: "Short MVP UI contract is backend integration evidence only; paid Short render validation, artifact validation, manual media review, billing/workspace controls, and release approval remain separate gates."
     },
     nextActions: [
-      "Harden the first-party Short create/review shell into hosted review controls without duplicating backend workflow rules in the frontend.",
+      "Capture accepted live reviewer operation evidence and production UI QA for the first-party Short create/review shell.",
       "Use channelStyleProfileId for channel-building workflows with recurring characters, voice, setting, visual rhythm, and editing style.",
       "Run one paid 30-45s Short multishot validation after UI review wiring is ready."
     ]
