@@ -15,6 +15,7 @@ import type { GeneratedAudioOutputBatchValidationStatus } from "./generated-audi
 import type { LongFormAgentReviewStatus } from "./long-form-agent-review.js";
 import type { LongFormCreativeIntelligenceStatus } from "./long-form-creative-intelligence.js";
 import type { LongFormIntentKind, LongFormReadinessStatus } from "./long-form-readiness.js";
+import type { LongDirectorUiContract } from "./long-director-ui.js";
 import type { ReviewApprovalStatus } from "./review-approval.js";
 import type {
   VideoRenderContinuityMode,
@@ -90,6 +91,14 @@ export interface ReviewPacketPlanning {
   readonly longFormCreativeRepairDirectiveCount: number;
   readonly longFormCreativeNiche: string;
   readonly longFormCreativePlatformIntent: string;
+  readonly longDirectorUiContractReady: boolean;
+  readonly longDirectorNarrativeMode: LongDirectorUiContract["director"]["narrativeMode"];
+  readonly longDirectorCheckpointStageCount: number;
+  readonly longDirectorManualQualityReviewRequired: boolean;
+  readonly longDirectorBenchEvidenceRequired: boolean;
+  readonly longDirectorCanSubmitToProviderNow: boolean;
+  readonly longDirectorCanProceedToRenderAfterApproval: boolean;
+  readonly longDirectorRepairQueueCount: number;
   readonly longFormReadinessStatus: LongFormReadinessStatus;
   readonly longFormReadinessIntentKind: LongFormIntentKind;
   readonly longFormReadinessCoherenceScore: number;

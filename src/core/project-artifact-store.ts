@@ -14,6 +14,7 @@ import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import { writeFileEnsuringDirectory } from "../utils/files.js";
 import { createStableId } from "../utils/ids.js";
 import { redactText } from "../utils/redaction.js";
+import { buildLongDirectorUiContract } from "./long-director-ui-contract.js";
 import { ReviewPacketBuilder } from "./review-packet-builder.js";
 
 interface ProjectArtifactPayload {
@@ -92,6 +93,7 @@ export class ProjectArtifactStore {
   private payloads(result: DirectorRunResult, costLedger: readonly CostLedgerEntry[]): readonly ProjectArtifactPayload[] {
     const requestId = this.requestIdFromGraph(result);
     const sourceVideoAnalysis = this.sourceVideoAnalysisFromGraph(result);
+    const longDirectorUiContract = buildLongDirectorUiContract(result.longFormCreativeIntelligencePlan);
     const runSummary = {
       artifactSchemaVersion: "cinejelly.artifacts.v1",
       projectId: result.projectId,
@@ -145,6 +147,14 @@ export class ProjectArtifactStore {
       longFormCreativeRepairDirectiveCount: result.longFormCreativeIntelligencePlan.repairDirectiveCount,
       longFormCreativeNiche: result.longFormCreativeIntelligencePlan.nicheStrategy.niche,
       longFormCreativePlatformIntent: result.longFormCreativeIntelligencePlan.nicheStrategy.platformIntent,
+      longDirectorUiContractReady: longDirectorUiContract.releaseGateSummary.readyForLongReviewUiIntegration,
+      longDirectorNarrativeMode: longDirectorUiContract.director.narrativeMode,
+      longDirectorCheckpointStageCount: longDirectorUiContract.director.checkpointStages.length,
+      longDirectorManualQualityReviewRequired: longDirectorUiContract.outputContract.longFormManualQualityReviewRequired,
+      longDirectorBenchEvidenceRequired: longDirectorUiContract.outputContract.directorBenchEvidenceRequired,
+      longDirectorCanSubmitToProviderNow: longDirectorUiContract.outputContract.canSubmitToProviderNow,
+      longDirectorCanProceedToRenderAfterApproval: longDirectorUiContract.outputContract.canProceedToRenderAfterApproval,
+      longDirectorRepairQueueCount: longDirectorUiContract.outputContract.repairQueueCount,
       longFormReadinessStatus: result.longFormReadinessPlan.status,
       longFormReadinessIntentKind: result.longFormReadinessPlan.intentRoute.intentKind,
       longFormReadinessTargetDurationClass: result.longFormReadinessPlan.intentRoute.targetDurationClass,
@@ -213,6 +223,11 @@ export class ProjectArtifactStore {
         kind: "long_form_creative_intelligence",
         fileName: "long-form-creative-intelligence.json",
         value: result.longFormCreativeIntelligencePlan
+      },
+      {
+        kind: "long_director_ui_contract",
+        fileName: "long-director-ui-contract.json",
+        value: longDirectorUiContract
       },
       {
         kind: "long_form_readiness",

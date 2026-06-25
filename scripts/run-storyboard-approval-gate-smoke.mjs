@@ -112,7 +112,11 @@ async function main() {
     artifacts.entries.some((entry) => entry.kind === "storyboard_approval" && entry.fileName === "storyboard-approval.json") &&
       artifactValidation.status !== "fail"
       ? pass("artifact_bundle_validates_approval", "Artifact bundle includes storyboard approval and passes validator without failures.")
-      : fail("artifact_bundle_validates_approval", "Artifact bundle did not include valid storyboard approval evidence.")
+      : fail("artifact_bundle_validates_approval", "Artifact bundle did not include valid storyboard approval evidence."),
+    artifacts.entries.some((entry) => entry.kind === "long_director_ui_contract" && entry.fileName === "long-director-ui-contract.json") &&
+      artifactValidation.status !== "fail"
+      ? pass("artifact_bundle_validates_long_director_ui", "Artifact bundle includes the Long Director UI contract and passes validator without failures.")
+      : fail("artifact_bundle_validates_long_director_ui", "Artifact bundle did not include valid Long Director UI contract evidence.")
   ];
 
   const status = checks.every((check) => check.status === "pass") ? "pass" : "fail";

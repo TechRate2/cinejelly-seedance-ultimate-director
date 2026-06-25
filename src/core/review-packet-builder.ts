@@ -18,6 +18,7 @@ import type {
 import type { GuardianReport } from "../types/guardian.js";
 import type { SourceLogicTranslationRecord } from "../types/source-translation.js";
 import type { SourceVideoDeconstruction } from "../types/source-video.js";
+import { buildLongDirectorUiContract } from "./long-director-ui-contract.js";
 import { DEFAULT_SOURCE_LOGIC_TRANSLATION_RECORDS } from "./source-logic-translation-records.js";
 
 export class ReviewPacketBuilder {
@@ -32,6 +33,7 @@ export class ReviewPacketBuilder {
     const status = this.status(input.result, cost, delivery);
     const settings = this.settingsFromGraph(input.result);
     const sourceVideoAnalysis = this.sourceVideoAnalysisFromGraph(input.result);
+    const longDirectorUiContract = buildLongDirectorUiContract(input.result.longFormCreativeIntelligencePlan);
 
     return {
       artifactSchemaVersion: "cinejelly.review_packet.v1",
@@ -88,6 +90,14 @@ export class ReviewPacketBuilder {
         longFormCreativeRepairDirectiveCount: input.result.longFormCreativeIntelligencePlan.repairDirectiveCount,
         longFormCreativeNiche: input.result.longFormCreativeIntelligencePlan.nicheStrategy.niche,
         longFormCreativePlatformIntent: input.result.longFormCreativeIntelligencePlan.nicheStrategy.platformIntent,
+        longDirectorUiContractReady: longDirectorUiContract.releaseGateSummary.readyForLongReviewUiIntegration,
+        longDirectorNarrativeMode: longDirectorUiContract.director.narrativeMode,
+        longDirectorCheckpointStageCount: longDirectorUiContract.director.checkpointStages.length,
+        longDirectorManualQualityReviewRequired: longDirectorUiContract.outputContract.longFormManualQualityReviewRequired,
+        longDirectorBenchEvidenceRequired: longDirectorUiContract.outputContract.directorBenchEvidenceRequired,
+        longDirectorCanSubmitToProviderNow: longDirectorUiContract.outputContract.canSubmitToProviderNow,
+        longDirectorCanProceedToRenderAfterApproval: longDirectorUiContract.outputContract.canProceedToRenderAfterApproval,
+        longDirectorRepairQueueCount: longDirectorUiContract.outputContract.repairQueueCount,
         longFormReadinessStatus: input.result.longFormReadinessPlan.status,
         longFormReadinessIntentKind: input.result.longFormReadinessPlan.intentRoute.intentKind,
         longFormReadinessCoherenceScore: input.result.longFormReadinessPlan.coherence.overallScore,

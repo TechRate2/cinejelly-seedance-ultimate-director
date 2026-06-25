@@ -162,10 +162,12 @@ The planner is deterministic TypeScript and makes no network, LLM, Atlas, or ups
 
 `LongDirectorUiContract` compresses that rich artifact into a stable review-console contract. It exposes Long Director narrative/continuity modes, checkpoint stages, candidate and repair counts, provider-spend disabled state, manual quality/redaction review requirements, and DirectorBench-style evidence requirements so UI clients can render the workflow without duplicating backend decision logic.
 
+New run artifact bundles persist this surface as `long-director-ui-contract.json`. `run-summary.json` and `review-packet.json` expose the compact ready/narrative/checkpoint/review/spend/repair fields, while `ProjectArtifactValidator` checks the contract against `long-form-creative-intelligence.json` to catch drift before UI/API integration.
+
 Validation:
 
 - `npm run validation:long-form-creative-intelligence`
-- New DirectorAgent runs write `long-form-creative-intelligence.json`, expose quality/status/directive counts in `run-summary.json`, and include creative evidence in `review-packet.json`.
+- New DirectorAgent runs write `long-form-creative-intelligence.json` and `long-director-ui-contract.json`, expose quality/status/directive plus Long Director review-console counts in `run-summary.json`, and include creative/Long Director evidence in `review-packet.json`.
 - `ProjectArtifactValidator` validates the creative artifact when present while keeping older paid evidence bundles backward compatible.
 
 ### MaterialLibrary

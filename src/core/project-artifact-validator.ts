@@ -93,6 +93,25 @@ const REVIEW_APPROVAL_STATUSES = new Set(["approved", "approval_required", "chan
 const REVIEW_APPROVAL_GATES = new Set(["pre_render", "pre_export"]);
 const LONG_FORM_AGENT_REVIEW_STATUSES = new Set(["ready", "review_required", "blocked"]);
 const LONG_FORM_CREATIVE_STATUSES = new Set(["ready", "review_required", "blocked"]);
+const LONG_DIRECTOR_UI_WORKFLOW_MODES = new Set([
+  "story_bible",
+  "sequence_board",
+  "continuity_review",
+  "candidate_review",
+  "repair_queue",
+  "manual_quality_review"
+]);
+const LONG_DIRECTOR_UI_ACTION_STATUSES = new Set(["ready", "needs_review", "blocked", "optional"]);
+const LONG_DIRECTOR_UI_ACTION_HANDLERS = new Set(["backend", "user", "operator"]);
+const LONG_DIRECTOR_NARRATIVE_MODES = new Set([
+  "single_long_story",
+  "documentary_explainer",
+  "training_or_education",
+  "brand_film",
+  "series_episode"
+]);
+const LONG_DIRECTOR_CONTINUITY_MODES = new Set(["project_bible", "series_bible_required"]);
+const LONG_DIRECTOR_CHECKPOINT_STAGES = new Set(["story", "scene_plan", "references", "sample", "render", "publish"]);
 const LONG_FORM_READINESS_STATUSES = new Set(["ready", "review_required", "blocked"]);
 const LONG_FORM_READINESS_INTENT_KINDS = new Set([
   "commercial_ad",
@@ -480,6 +499,7 @@ export class ProjectArtifactValidator {
     this.validateStoryboardApproval(manifest, artifacts.get("storyboard_approval"), checks);
     this.validateLongFormTimeline(manifest, artifacts.get("long_form_timeline"), checks);
     this.validateLongFormCreativeIntelligence(manifest, artifacts.get("long_form_creative_intelligence"), checks);
+    this.validateLongDirectorUiContract(manifest, artifacts, checks);
     this.validateLongFormReadiness(manifest, artifacts.get("long_form_readiness"), checks);
     this.validateRenderSchedule(artifacts.get("render_schedule"), checks);
     this.validateGeneratedAudioOutputBatchValidation(artifacts.get("generated_audio_output_batch_validation"), checks);
@@ -579,6 +599,25 @@ export class ProjectArtifactValidator {
       )
     ) {
       checks.push({ name: "review_packet_long_form_creative", status: "fail", fileName: artifact.entry.fileName, message: "review-packet long-form creative intelligence fields are invalid." });
+    }
+    if (
+      planning &&
+      planning.longDirectorUiContractReady !== undefined &&
+      (
+        typeof planning.longDirectorUiContractReady !== "boolean" ||
+        typeof planning.longDirectorNarrativeMode !== "string" ||
+        !LONG_DIRECTOR_NARRATIVE_MODES.has(planning.longDirectorNarrativeMode) ||
+        typeof planning.longDirectorCheckpointStageCount !== "number" ||
+        planning.longDirectorCheckpointStageCount < 1 ||
+        typeof planning.longDirectorManualQualityReviewRequired !== "boolean" ||
+        typeof planning.longDirectorBenchEvidenceRequired !== "boolean" ||
+        typeof planning.longDirectorCanSubmitToProviderNow !== "boolean" ||
+        typeof planning.longDirectorCanProceedToRenderAfterApproval !== "boolean" ||
+        typeof planning.longDirectorRepairQueueCount !== "number" ||
+        planning.longDirectorRepairQueueCount < 0
+      )
+    ) {
+      checks.push({ name: "review_packet_long_director_ui", status: "fail", fileName: artifact.entry.fileName, message: "review-packet Long Director UI contract fields are invalid." });
     }
     if (
       !planning ||
@@ -1920,6 +1959,414 @@ export class ProjectArtifactValidator {
       checks.push({ name: "long_form_creative_release_gate", status: "fail", fileName, message: "long-form-creative-intelligence release gate summary is invalid." });
     } else if (blockingFindingCount > 0 && releaseGateSummary.canProceedToRender !== false) {
       checks.push({ name: "long_form_creative_release_gate", status: "fail", fileName, message: "Blocking creative findings must prevent render." });
+    }
+  }
+
+  private validateLongDirectorUiContract(
+    manifest: ProjectArtifactBundle,
+    artifacts: ReadonlyMap<ProjectArtifactKind, LoadedArtifact>,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    const artifact = artifacts.get("long_director_ui_contract");
+    const runSummaryArtifact = artifacts.get("run_summary");
+    const runSummary = runSummaryArtifact && this.isRecord(runSummaryArtifact.value)
+      ? runSummaryArtifact.value
+      : undefined;
+    const reviewPacketArtifact = artifacts.get("review_packet");
+    const reviewPlanning = reviewPacketArtifact &&
+      this.isRecord(reviewPacketArtifact.value) &&
+      this.isRecord(reviewPacketArtifact.value.planning)
+        ? reviewPacketArtifact.value.planning
+        : undefined;
+
+    if (!artifact) {
+      if (runSummary?.longDirectorUiContractReady !== undefined) {
+        checks.push({
+          name: "long_director_ui_consistency",
+          status: "fail",
+          fileName: runSummaryArtifact?.entry.fileName ?? "run-summary.json",
+          message: "run-summary says Long Director UI contract exists, but long-director-ui-contract.json is missing."
+        });
+      }
+      if (reviewPlanning?.longDirectorUiContractReady !== undefined) {
+        checks.push({
+          name: "long_director_ui_consistency",
+          status: "fail",
+          fileName: reviewPacketArtifact?.entry.fileName ?? "review-packet.json",
+          message: "review-packet says Long Director UI contract exists, but long-director-ui-contract.json is missing."
+        });
+      }
+      return;
+    }
+
+    const value = artifact.value;
+    const fileName = artifact.entry.fileName;
+    if (!this.isRecord(value)) {
+      checks.push({ name: "long_director_ui_shape", status: "fail", fileName, message: "long-director-ui-contract must be an object." });
+      return;
+    }
+    if (value.schemaVersion !== "cinejelly.long-director-ui-contract.v1") {
+      checks.push({ name: "long_director_ui_schema", status: "fail", fileName, message: "Unexpected Long Director UI contract schema version." });
+    }
+    if (value.projectId !== manifest.projectId) {
+      checks.push({ name: "long_director_ui_project", status: "fail", fileName, message: "Long Director UI contract projectId does not match manifest." });
+    }
+    if (value.noSpend !== true || value.networkCallsMade !== false || value.providerCallsMade !== false) {
+      checks.push({ name: "long_director_ui_spend_boundary", status: "fail", fileName, message: "Long Director UI contract must be no-spend/no-network/no-provider evidence." });
+    }
+    if (typeof value.status !== "string" || !LONG_FORM_CREATIVE_STATUSES.has(value.status)) {
+      checks.push({ name: "long_director_ui_status", status: "fail", fileName, message: "Long Director UI contract status is invalid." });
+    }
+
+    const duration = this.isRecord(value.duration) ? value.duration : undefined;
+    if (
+      !duration ||
+      typeof duration.targetSeconds !== "number" ||
+      !Number.isFinite(duration.targetSeconds) ||
+      duration.targetSeconds <= 0 ||
+      duration.commercialMinSeconds !== 120 ||
+      duration.commercialMaxSeconds !== 480 ||
+      typeof duration.sequenceCount !== "number" ||
+      !Number.isInteger(duration.sequenceCount) ||
+      duration.sequenceCount < 0 ||
+      typeof duration.shotDirectiveCount !== "number" ||
+      !Number.isInteger(duration.shotDirectiveCount) ||
+      duration.shotDirectiveCount < 0
+    ) {
+      checks.push({ name: "long_director_ui_duration", status: "fail", fileName, message: "Long Director UI duration summary is invalid." });
+    }
+
+    const director = this.isRecord(value.director) ? value.director : undefined;
+    const checkpointStages = Array.isArray(director?.checkpointStages) ? director.checkpointStages : undefined;
+    const directives = Array.isArray(director?.directives) ? director.directives : undefined;
+    if (
+      !director ||
+      typeof director.directorId !== "string" ||
+      !director.directorId ||
+      typeof director.status !== "string" ||
+      !LONG_FORM_CREATIVE_STATUSES.has(director.status) ||
+      typeof director.narrativeMode !== "string" ||
+      !LONG_DIRECTOR_NARRATIVE_MODES.has(director.narrativeMode) ||
+      typeof director.continuityMode !== "string" ||
+      !LONG_DIRECTOR_CONTINUITY_MODES.has(director.continuityMode) ||
+      !checkpointStages ||
+      checkpointStages.length === 0 ||
+      checkpointStages.some((stage) => typeof stage !== "string" || !LONG_DIRECTOR_CHECKPOINT_STAGES.has(stage)) ||
+      director.pauseBeforeProviderSpend !== true ||
+      director.pauseBeforeCustomerRelease !== true ||
+      typeof director.findingCount !== "number" ||
+      director.findingCount < 0 ||
+      typeof director.blockerCount !== "number" ||
+      director.blockerCount < 0 ||
+      typeof director.warningCount !== "number" ||
+      director.warningCount < 0 ||
+      !directives ||
+      directives.some((directive) => typeof directive !== "string" || !directive)
+    ) {
+      checks.push({ name: "long_director_ui_director", status: "fail", fileName, message: "Long Director UI director summary is invalid." });
+    }
+
+    const creative = this.isRecord(value.creative) ? value.creative : undefined;
+    if (
+      !creative ||
+      typeof creative.qualityScore !== "number" ||
+      creative.qualityScore < 0 ||
+      creative.qualityScore > 100 ||
+      typeof creative.niche !== "string" ||
+      !creative.niche ||
+      typeof creative.platformIntent !== "string" ||
+      !creative.platformIntent ||
+      typeof creative.desiredViewerAction !== "string" ||
+      !creative.desiredViewerAction ||
+      typeof creative.viralLeverCount !== "number" ||
+      creative.viralLeverCount < 0 ||
+      typeof creative.findingCount !== "number" ||
+      creative.findingCount < 0 ||
+      typeof creative.blockingFindingCount !== "number" ||
+      creative.blockingFindingCount < 0 ||
+      typeof creative.reviewRequiredFindingCount !== "number" ||
+      creative.reviewRequiredFindingCount < 0 ||
+      typeof creative.candidateDirectiveCount !== "number" ||
+      creative.candidateDirectiveCount < 0 ||
+      typeof creative.repairDirectiveCount !== "number" ||
+      creative.repairDirectiveCount < 0 ||
+      typeof creative.highPriorityRepairCount !== "number" ||
+      creative.highPriorityRepairCount < 0
+    ) {
+      checks.push({ name: "long_director_ui_creative", status: "fail", fileName, message: "Long Director UI creative summary is invalid." });
+    }
+
+    const workflowControls = Array.isArray(value.workflowControls) ? value.workflowControls : undefined;
+    if (!workflowControls || workflowControls.length === 0) {
+      checks.push({ name: "long_director_ui_workflow_controls", status: "fail", fileName, message: "Long Director UI workflow controls are missing." });
+    } else {
+      const workflowModes = new Set<string>();
+      for (const [index, control] of workflowControls.entries()) {
+        if (!this.isRecord(control)) {
+          checks.push({ name: "long_director_ui_workflow_control", status: "fail", fileName, message: `Workflow control ${index} must be an object.` });
+          continue;
+        }
+        if (
+          typeof control.mode !== "string" ||
+          !LONG_DIRECTOR_UI_WORKFLOW_MODES.has(control.mode) ||
+          typeof control.label !== "string" ||
+          !control.label ||
+          typeof control.recommended !== "boolean" ||
+          typeof control.enabled !== "boolean" ||
+          typeof control.reason !== "string" ||
+          !control.reason
+        ) {
+          checks.push({ name: "long_director_ui_workflow_control", status: "fail", fileName, message: `Workflow control ${index} fields are invalid.` });
+        } else {
+          workflowModes.add(control.mode);
+        }
+      }
+      for (const mode of LONG_DIRECTOR_UI_WORKFLOW_MODES) {
+        if (!workflowModes.has(mode)) {
+          checks.push({ name: "long_director_ui_workflow_modes", status: "fail", fileName, message: `Long Director UI workflow controls are missing ${mode}.` });
+        }
+      }
+    }
+
+    const backendManagedSteps = Array.isArray(value.backendManagedSteps) ? value.backendManagedSteps : undefined;
+    const userRequiredActions = Array.isArray(value.userRequiredActions) ? value.userRequiredActions : undefined;
+    this.validateLongDirectorUiActions(backendManagedSteps, "backendManagedSteps", fileName, checks);
+    this.validateLongDirectorUiActions(userRequiredActions, "userRequiredActions", fileName, checks);
+
+    const outputContract = this.isRecord(value.outputContract) ? value.outputContract : undefined;
+    if (
+      !outputContract ||
+      outputContract.finalMp4AssemblyManagedByBackend !== true ||
+      outputContract.longFormManualQualityReviewRequired !== true ||
+      outputContract.directorBenchEvidenceRequired !== true ||
+      outputContract.canSubmitToProviderNow !== false ||
+      typeof outputContract.canProceedToRenderAfterApproval !== "boolean" ||
+      typeof outputContract.captionCoverageRatio !== "number" ||
+      outputContract.captionCoverageRatio < 0 ||
+      outputContract.captionCoverageRatio > 1 ||
+      typeof outputContract.generatedAudioIntentCount !== "number" ||
+      outputContract.generatedAudioIntentCount < 0 ||
+      typeof outputContract.expectedShotDirectiveCount !== "number" ||
+      outputContract.expectedShotDirectiveCount < 0 ||
+      typeof outputContract.repairQueueCount !== "number" ||
+      outputContract.repairQueueCount < 0
+    ) {
+      checks.push({ name: "long_director_ui_output_contract", status: "fail", fileName, message: "Long Director UI output contract is invalid." });
+    }
+
+    const releaseGateSummary = this.isRecord(value.releaseGateSummary) ? value.releaseGateSummary : undefined;
+    if (
+      !releaseGateSummary ||
+      typeof releaseGateSummary.readyForLongReviewUiIntegration !== "boolean" ||
+      releaseGateSummary.canReleaseToCustomerTraffic !== false ||
+      typeof releaseGateSummary.releaseBlocker !== "string" ||
+      !releaseGateSummary.releaseBlocker
+    ) {
+      checks.push({ name: "long_director_ui_release_gate", status: "fail", fileName, message: "Long Director UI release gate summary is invalid." });
+    } else if (
+      backendManagedSteps &&
+      releaseGateSummary.readyForLongReviewUiIntegration !== backendManagedSteps.every((step) => this.isRecord(step) && step.status !== "blocked")
+    ) {
+      checks.push({ name: "long_director_ui_release_gate", status: "fail", fileName, message: "Long Director UI ready flag must match backend managed step status." });
+    }
+
+    this.validateLongDirectorUiCreativeConsistency(artifact, artifacts.get("long_form_creative_intelligence"), checks);
+    this.validateLongDirectorUiSummaryConsistency(artifact, runSummaryArtifact, reviewPacketArtifact, checks);
+  }
+
+  private validateLongDirectorUiActions(
+    actions: unknown[] | undefined,
+    fieldName: string,
+    fileName: string,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!actions || actions.length === 0) {
+      checks.push({ name: "long_director_ui_actions", status: "fail", fileName, message: `Long Director UI ${fieldName} are missing.` });
+      return;
+    }
+    for (const [index, action] of actions.entries()) {
+      if (!this.isRecord(action)) {
+        checks.push({ name: "long_director_ui_action", status: "fail", fileName, message: `${fieldName} action ${index} must be an object.` });
+        continue;
+      }
+      if (
+        typeof action.actionId !== "string" ||
+        !action.actionId ||
+        typeof action.label !== "string" ||
+        !action.label ||
+        typeof action.status !== "string" ||
+        !LONG_DIRECTOR_UI_ACTION_STATUSES.has(action.status) ||
+        typeof action.required !== "boolean" ||
+        typeof action.handledBy !== "string" ||
+        !LONG_DIRECTOR_UI_ACTION_HANDLERS.has(action.handledBy) ||
+        typeof action.reason !== "string" ||
+        !action.reason
+      ) {
+        checks.push({ name: "long_director_ui_action", status: "fail", fileName, message: `${fieldName} action ${index} fields are invalid.` });
+      }
+    }
+  }
+
+  private validateLongDirectorUiCreativeConsistency(
+    artifact: LoadedArtifact,
+    creativeArtifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!this.isRecord(artifact.value) || !creativeArtifact || !this.isRecord(creativeArtifact.value)) {
+      return;
+    }
+    const value = artifact.value;
+    const creativePlan = creativeArtifact.value;
+    const fileName = artifact.entry.fileName;
+    const duration = this.isRecord(value.duration) ? value.duration : undefined;
+    const director = this.isRecord(value.director) ? value.director : undefined;
+    const creative = this.isRecord(value.creative) ? value.creative : undefined;
+    const outputContract = this.isRecord(value.outputContract) ? value.outputContract : undefined;
+    const releaseGateSummary = this.isRecord(creativePlan.releaseGateSummary) ? creativePlan.releaseGateSummary : undefined;
+    const directorPlan = this.isRecord(creativePlan.directorPlan) ? creativePlan.directorPlan : undefined;
+    const directorStory = directorPlan && this.isRecord(directorPlan.storyPlan) ? directorPlan.storyPlan : undefined;
+    const directorContinuity = directorPlan && this.isRecord(directorPlan.continuityPlan) ? directorPlan.continuityPlan : undefined;
+    const checkpointPolicy = directorPlan && this.isRecord(directorPlan.checkpointPolicy) ? directorPlan.checkpointPolicy : undefined;
+    const nicheStrategy = this.isRecord(creativePlan.nicheStrategy) ? creativePlan.nicheStrategy : undefined;
+    const audioCaptionQuality = this.isRecord(creativePlan.audioCaptionQuality) ? creativePlan.audioCaptionQuality : undefined;
+
+    this.compareLongDirectorUiField(fileName, "status", value.status, creativePlan.status, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "duration.targetSeconds", duration?.targetSeconds, creativePlan.targetDurationSeconds, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "duration.sequenceCount", duration?.sequenceCount, this.longDirectorUiSequenceCountFromCreative(creativePlan), creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "duration.shotDirectiveCount", duration?.shotDirectiveCount, creativePlan.shotDirectiveCount, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "director.directorId", director?.directorId, directorPlan?.directorId, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "director.status", director?.status, directorPlan?.status, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "director.narrativeMode", director?.narrativeMode, directorStory?.narrativeMode, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "director.continuityMode", director?.continuityMode, directorContinuity?.mode, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "director.pauseBeforeProviderSpend", director?.pauseBeforeProviderSpend, checkpointPolicy?.pauseBeforeProviderSpend, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "director.pauseBeforeCustomerRelease", director?.pauseBeforeCustomerRelease, checkpointPolicy?.pauseBeforeCustomerRelease, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.qualityScore", creative?.qualityScore, creativePlan.qualityScore, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.niche", creative?.niche, nicheStrategy?.niche, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.platformIntent", creative?.platformIntent, nicheStrategy?.platformIntent, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.desiredViewerAction", creative?.desiredViewerAction, nicheStrategy?.desiredViewerAction, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.findingCount", creative?.findingCount, creativePlan.findingCount, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.blockingFindingCount", creative?.blockingFindingCount, creativePlan.blockingFindingCount, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.reviewRequiredFindingCount", creative?.reviewRequiredFindingCount, creativePlan.reviewRequiredFindingCount, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.candidateDirectiveCount", creative?.candidateDirectiveCount, creativePlan.candidateDirectiveCount, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.repairDirectiveCount", creative?.repairDirectiveCount, creativePlan.repairDirectiveCount, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.highPriorityRepairCount", creative?.highPriorityRepairCount, this.longDirectorUiHighPriorityRepairCount(creativePlan), creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "outputContract.canProceedToRenderAfterApproval", outputContract?.canProceedToRenderAfterApproval, releaseGateSummary?.canProceedToRender, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "outputContract.captionCoverageRatio", outputContract?.captionCoverageRatio, audioCaptionQuality?.captionCoverageRatio, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "outputContract.generatedAudioIntentCount", outputContract?.generatedAudioIntentCount, audioCaptionQuality?.generatedAudioIntentCount, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "outputContract.expectedShotDirectiveCount", outputContract?.expectedShotDirectiveCount, creativePlan.shotDirectiveCount, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "outputContract.repairQueueCount", outputContract?.repairQueueCount, creativePlan.repairDirectiveCount, creativeArtifact.entry.fileName, checks);
+  }
+
+  private validateLongDirectorUiSummaryConsistency(
+    artifact: LoadedArtifact,
+    runSummaryArtifact: LoadedArtifact | undefined,
+    reviewPacketArtifact: LoadedArtifact | undefined,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (!this.isRecord(artifact.value)) {
+      return;
+    }
+    const value = artifact.value;
+    const director = this.isRecord(value.director) ? value.director : undefined;
+    const outputContract = this.isRecord(value.outputContract) ? value.outputContract : undefined;
+    const releaseGateSummary = this.isRecord(value.releaseGateSummary) ? value.releaseGateSummary : undefined;
+    const expected = {
+      longDirectorUiContractReady: releaseGateSummary?.readyForLongReviewUiIntegration,
+      longDirectorNarrativeMode: director?.narrativeMode,
+      longDirectorCheckpointStageCount: Array.isArray(director?.checkpointStages) ? director.checkpointStages.length : undefined,
+      longDirectorManualQualityReviewRequired: outputContract?.longFormManualQualityReviewRequired,
+      longDirectorBenchEvidenceRequired: outputContract?.directorBenchEvidenceRequired,
+      longDirectorCanSubmitToProviderNow: outputContract?.canSubmitToProviderNow,
+      longDirectorCanProceedToRenderAfterApproval: outputContract?.canProceedToRenderAfterApproval,
+      longDirectorRepairQueueCount: outputContract?.repairQueueCount
+    };
+
+    if (runSummaryArtifact && this.isRecord(runSummaryArtifact.value)) {
+      for (const [field, expectedValue] of Object.entries(expected)) {
+        this.compareLongDirectorUiField(
+          runSummaryArtifact.entry.fileName,
+          field,
+          runSummaryArtifact.value[field],
+          expectedValue,
+          artifact.entry.fileName,
+          checks
+        );
+      }
+    }
+
+    const reviewPlanning = reviewPacketArtifact &&
+      this.isRecord(reviewPacketArtifact.value) &&
+      this.isRecord(reviewPacketArtifact.value.planning)
+        ? reviewPacketArtifact.value.planning
+        : undefined;
+    if (reviewPacketArtifact && !reviewPlanning) {
+      checks.push({
+        name: "long_director_ui_consistency",
+        status: "fail",
+        fileName: reviewPacketArtifact.entry.fileName,
+        message: "review-packet planning evidence is missing."
+      });
+    } else if (reviewPacketArtifact && reviewPlanning) {
+      for (const [field, expectedValue] of Object.entries(expected)) {
+        this.compareLongDirectorUiField(
+          reviewPacketArtifact.entry.fileName,
+          `planning.${field}`,
+          reviewPlanning[field],
+          expectedValue,
+          artifact.entry.fileName,
+          checks
+        );
+      }
+    }
+  }
+
+  private longDirectorUiSequenceCountFromCreative(value: Record<string, unknown>): number | undefined {
+    const shotDirectives = Array.isArray(value.shotDirectives) ? value.shotDirectives : undefined;
+    if (shotDirectives && shotDirectives.length > 0) {
+      const sequenceIds = new Set<string>();
+      for (const directive of shotDirectives) {
+        if (this.isRecord(directive) && typeof directive.sequenceId === "string" && directive.sequenceId) {
+          sequenceIds.add(directive.sequenceId);
+        }
+      }
+      if (sequenceIds.size > 0) {
+        return sequenceIds.size;
+      }
+    }
+    const storyBible = this.isRecord(value.storyBible) ? value.storyBible : undefined;
+    return Array.isArray(storyBible?.emotionalArc) ? storyBible.emotionalArc.length : undefined;
+  }
+
+  private longDirectorUiHighPriorityRepairCount(value: Record<string, unknown>): number | undefined {
+    const repairDirectives = Array.isArray(value.repairDirectives) ? value.repairDirectives : undefined;
+    if (!repairDirectives) {
+      return undefined;
+    }
+    return repairDirectives.filter(
+      (directive) =>
+        this.isRecord(directive) &&
+        (directive.priority === "high" || directive.priority === "critical")
+    ).length;
+  }
+
+  private compareLongDirectorUiField(
+    fileName: string,
+    fieldPath: string,
+    actual: unknown,
+    expected: unknown,
+    expectedSource: string,
+    checks: ProjectArtifactValidationCheck[]
+  ): void {
+    if (expected === undefined) {
+      return;
+    }
+    if (actual !== expected) {
+      checks.push({
+        name: "long_director_ui_consistency",
+        status: "fail",
+        fileName,
+        message: `${fieldPath} does not match ${expectedSource}.`
+      });
     }
   }
 

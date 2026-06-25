@@ -474,6 +474,9 @@ Inspect the generated artifact manifest and at least these files:
 - `run-summary.json`
 - `review-packet.json`
 - `production-graph.json`
+- `long-form-creative-intelligence.json`
+- `long-director-ui-contract.json`
+- `long-form-readiness.json`
 - `material-sourcing-plan.json`
 - `material-source-validation.json`
 - `postproduction-assets.json`
@@ -502,6 +505,7 @@ Required evidence:
 - If a generated-audio asset resolution catalog is configured, preflight reports it as valid and does not expose server-local catalog paths, signed URLs, or credential-bearing URLs.
 - If remote stock is enabled, selected candidates in `material-source-validation.json` use credential-free HTTPS media URIs, preserve provider asset IDs/source page/preview metadata when safe, and include attribution/license labels.
 - If source-video auto-analysis is enabled and the request has a clean HTTPS `source_video_structure` reference without caller-supplied analysis, `source-video-analysis.json` should contain normalized scene/keyframe/pacing/style/safety structure without local frame paths, inline `data:` URLs, or signed source URLs.
+- `long-director-ui-contract.json` should match `long-form-creative-intelligence.json`, keep provider submission disabled, require manual quality/redaction review and DirectorBench-style evidence, and agree with the compact Long Director fields in `run-summary.json` and `review-packet.json`.
 - `cost-ledger.json` contains provider operations with model, graph node, prediction ID when available, latency, retry count, status, and provider usage/cost when returned.
 - `production-graph.json` includes `reference_asset`, `reference_selection`, `material_sourcing`, `clip_render`, `inspection_report`, repair, and deliverable evidence as applicable.
 - `deliverable.json` includes output byte size and SHA-256 hash.

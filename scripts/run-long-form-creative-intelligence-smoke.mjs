@@ -282,7 +282,7 @@ const report = {
   nextActions: status === "pass"
     ? [
         "Keep creative intelligence smoke passing before paid long-form validation.",
-        "Use long-form-creative-intelligence.json as the UI-facing director-quality artifact for story, niche, viral, repair, and candidate explanation."
+        "Use long-form-creative-intelligence.json for rich director-quality evidence and long-director-ui-contract.json as the stable review-console contract."
       ]
     : ["Fix LongFormCreativeIntelligencePlanner before using it as Long director-quality evidence."]
 };
