@@ -40,8 +40,11 @@
         "styleStorePath",
         "sessionStorePath",
         "endpointPaths",
+        "createPageStatusCode",
+        "unauthorizedSessionsStatusCode",
         "profileId",
         "sessionId",
+        "createPageEndpointCheckPassed",
         "clientIsolationCheckPassed",
         "secretLeakCheckPassed"
       ],
@@ -51,11 +54,14 @@
         "sessionStorePath": { "type": "string" },
         "endpointPaths": {
           "type": "array",
-          "minItems": 5,
+          "minItems": 6,
           "items": { "type": "string" }
         },
+        "createPageStatusCode": { "const": 200 },
+        "unauthorizedSessionsStatusCode": { "const": 401 },
         "profileId": { "type": "string", "pattern": "^short_channel_style_[a-f0-9]{16}$" },
         "sessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
+        "createPageEndpointCheckPassed": { "const": true },
         "clientIsolationCheckPassed": { "const": true },
         "secretLeakCheckPassed": { "const": true }
       }

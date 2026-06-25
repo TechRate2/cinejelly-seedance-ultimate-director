@@ -114,6 +114,7 @@ import {
   ShortPipelineSessionStore,
   type ShortPipelineStoredSessionRecord
 } from "./short-pipeline-session-store.js";
+import { buildShortPipelineCreatePage } from "./short-pipeline-create-page.js";
 import {
   ApiWorkspaceBillingError,
   ApiWorkspaceBillingGate,
@@ -435,6 +436,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         (requestUrl.pathname === "/operator/launch" || requestUrl.pathname === "/operator/launch-dashboard")
       ) {
         sendHtml(response, 200, buildOperatorLaunchDashboardPage());
+        return;
+      }
+      if (
+        request.method === "GET" &&
+        (requestUrl.pathname === "/short/create" || requestUrl.pathname === "/short/create-video")
+      ) {
+        sendHtml(response, 200, buildShortPipelineCreatePage());
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/channel-styles") {

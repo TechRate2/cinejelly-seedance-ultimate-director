@@ -44,7 +44,7 @@ Primary source files reviewed:
 8. Durable conversation sessions persist only redacted no-spend public evidence, are enabled explicitly through `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH`, and are scoped by API client for list/detail/render-handoff reads.
 9. Stored sessions can create async render jobs only by reading the server-side saved plan, applying formal review checkpoints, preserving client scope, and requiring explicit render confirmation before approved evidence queues provider spend.
 10. Accepted short-pipeline plans now hand off into CineJelly's normal async render-job lifecycle with confirmation, quota, review, idempotency, and artifact gates still active.
-11. Full Director-style chat UI, media library, VideoDB collection controls, and 20+ agent parity are not yet implemented.
+11. The static Short create/review shell is implemented, but customer-grade hosted review controls, media library, VideoDB collection controls, and 20+ agent parity are not yet implemented.
 
 ## Destination Paths
 
@@ -53,6 +53,7 @@ Primary source files reviewed:
 - `src/core/short-pipeline-conversation.ts`
 - `src/core/review-approval-system.ts`
 - `src/api/short-pipeline-session-store.ts`
+- `src/api/short-pipeline-create-page.ts`
 - `src/api/server.ts`
 - `src/api/render-job-manager.ts`
 - `src/types/short-pipeline.ts`
@@ -61,12 +62,14 @@ Primary source files reviewed:
 - `scripts/run-short-pipeline-conversation-smoke.mjs`
 - `scripts/run-short-pipeline-session-store-smoke.mjs`
 - `scripts/run-short-pipeline-session-render-handoff-smoke.mjs`
+- `scripts/run-short-mvp-ui-contract-smoke.mjs`
 - `scripts/run-short-pipeline-smoke.mjs`
 - `scripts/run-short-viral-intelligence-smoke.mjs`
 - `src/core/short-pipeline-render-handoff.ts`
 - `schemas/short-pipeline-conversation-smoke-report.schema.json`
 - `schemas/short-pipeline-session-store-smoke-report.schema.json`
 - `schemas/short-pipeline-session-render-handoff-smoke-report.schema.json`
+- `schemas/short-mvp-ui-contract-smoke-report.schema.json`
 - `schemas/short-pipeline-smoke-report.schema.json`
 - `schemas/short-viral-intelligence-smoke-report.schema.json`
 - `docs/SHORT_PIPELINE_AGENTIC_DESIGN.md`
@@ -95,4 +98,4 @@ node scripts\audit-snapshot-parity.mjs --no-output
 - Async render jobs can be paused by review approval status before provider spend.
 - Accepted short-pipeline review checkpoints can be converted into a normal async render-job submission only after explicit render confirmation, while pending review evidence remains paused before provider spend.
 - Snapshot parity reports include a non-release-evidence Director parity estimate below 100% with explicit gaps.
-- CineJelly does not claim Director UI, VideoDB media-library, 20+ agent catalog, or fully dynamic LLM tool-routing parity until those product surfaces are implemented and validated.
+- CineJelly does not claim hosted Director UI, VideoDB media-library, 20+ agent catalog, or fully dynamic LLM tool-routing parity until those product surfaces are implemented and validated.

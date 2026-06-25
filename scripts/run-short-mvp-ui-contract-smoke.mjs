@@ -92,6 +92,9 @@ let report;
 try {
   await waitForHealth(baseUrl);
 
+  const createPage = await fetch(`${baseUrl}/short/create`);
+  const createPageHtml = await createPage.text();
+  const unauthorizedSessions = await fetch(`${baseUrl}/v1/short-pipeline/conversation-sessions`);
   const savedStyle = await postJson(`${baseUrl}/v1/short-pipeline/channel-styles`, clientAHeaders, channelStyleBody());
   const profileId = savedStyle.body.channelStyle?.profileId;
   const listA = await getJson(`${baseUrl}/v1/short-pipeline/channel-styles`, clientAHeaders);
@@ -115,6 +118,14 @@ try {
   );
   const rawStyleStore = readFileSync(styleStorePath, "utf8");
   const rawSessionStore = readFileSync(sessionStorePath, "utf8");
+  const createPageLeakDetected = containsAny(createPageHtml, [
+    clientAKey,
+    clientBKey,
+    "C:\\Users\\Admin",
+    "ATLASCLOUD_API_KEY",
+    "sk-secret",
+    "Bearer secret"
+  ]);
   const rawLeakDetected = containsAny(`${rawStyleStore}\n${rawSessionStore}`, [
     "C:\\Users\\Admin",
     "api_key=secret",
@@ -125,6 +136,18 @@ try {
   const ui = uiContract.body.uiContract;
   const sessionUiContract = sessionUi.body.uiContract;
   const checks = [
+    createPage.status === 200 &&
+      String(createPage.headers.get("content-type") ?? "").includes("text/html") &&
+      createPageHtml.includes('data-session-endpoint="/v1/short-pipeline/conversation-sessions"') &&
+      createPageHtml.includes('data-session-ui-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/ui-contract"') &&
+      createPageHtml.includes('data-render-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/render-jobs"') &&
+      createPageHtml.includes("Create Short") &&
+      !createPageLeakDetected
+      ? pass("short_create_page_available", "First-party Short create/review page shell is served without embedded credentials, local paths, or launch evidence.")
+      : fail("short_create_page_available", "Expected Short create page to expose safe endpoint wiring and no credential residue."),
+    unauthorizedSessions.status === 401
+      ? pass("short_create_data_requires_client_auth", "Short create shell is public, but protected session data still requires a client API key.")
+      : fail("short_create_data_requires_client_auth", "Expected unauthenticated short-pipeline session list to return 401."),
     savedStyle.statusCode === 201 &&
       savedStyle.body.persisted === true &&
       savedStyle.body.channelStyle?.status === "ready" &&
@@ -204,14 +227,18 @@ try {
       styleStorePath: options.styleStorePath,
       sessionStorePath: options.sessionStorePath,
       endpointPaths: [
+        "GET /short/create",
         "POST /v1/short-pipeline/channel-styles",
         "GET /v1/short-pipeline/channel-styles",
         "GET /v1/short-pipeline/channel-styles/{profileId}",
         "POST /v1/short-pipeline/ui-contract",
         "GET /v1/short-pipeline/conversation-sessions/{sessionId}/ui-contract"
       ],
+      createPageStatusCode: createPage.status,
+      unauthorizedSessionsStatusCode: unauthorizedSessions.status,
       profileId,
       sessionId,
+      createPageEndpointCheckPassed: !createPageLeakDetected && createPageHtml.includes("/v1/short-pipeline/conversation-sessions"),
       clientIsolationCheckPassed: detailB.statusCode === 404 && clientBPlan.statusCode === 404,
       secretLeakCheckPassed: !rawLeakDetected
     },
@@ -259,7 +286,7 @@ try {
       releaseBlocker: "Short MVP UI contract is backend integration evidence only; paid Short render validation, artifact validation, manual media review, billing/workspace controls, and release approval remain separate gates."
     },
     nextActions: [
-      "Build Create Video UI against the UI contract instead of duplicating backend workflow rules in the frontend.",
+      "Harden the first-party Short create/review shell into hosted review controls without duplicating backend workflow rules in the frontend.",
       "Use channelStyleProfileId for channel-building workflows with recurring characters, voice, setting, visual rhythm, and editing style.",
       "Run one paid 30-45s Short multishot validation after UI review wiring is ready."
     ]

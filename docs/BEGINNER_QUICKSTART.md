@@ -129,7 +129,7 @@ These settings are accepted in render request JSON and can be exposed by a futur
 | `returnLastFrame` | `true`, `false` |
 | `maxCostUsd` | non-negative number |
 
-There is no first-party web UI in this repo yet. Current usage is through CLI validation commands and the HTTP API.
+The repo now includes first-party static shells for focused operator workflows: `/operator/launch-dashboard` for launch readiness and `/short/create` for Short session planning/review. They embed no credentials; protected `/v1` data calls still require a deployment token or client API key. Full hosted customer UI, media playback/library controls, and production UI QA remain separate release work.
 
 ## Safe First API Run
 
