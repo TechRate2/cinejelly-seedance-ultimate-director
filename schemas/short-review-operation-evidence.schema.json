@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-review-operation-evidence.schema.json",
+  "title": "CineJelly Short Review Operation Evidence Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "environmentKind",
+    "deploymentBaseUrl",
+    "sessionId",
+    "reviewer",
+    "operation",
+    "checkpoints",
+    "evidenceBinding"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-review-operation-evidence.v1" },
+    "environmentKind": { "const": "deployment" },
+    "deploymentBaseUrl": {
+      "type": "string",
+      "minLength": 12,
+      "maxLength": 300,
+      "pattern": "^https:\\/\\/[^?#\\s]+$",
+      "not": {
+        "anyOf": [
+          { "pattern": "localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|::1" },
+          { "pattern": "(^|\\.)example\\." },
+          { "pattern": "(^|\\.)invalid$" },
+          { "pattern": "placeholder|replace|token|secret|password|credential" }
+        ]
+      }
+    },
+    "sessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewerId", "reviewerRole", "reviewedAt", "redactionReviewed"],
+      "properties": {
+        "reviewerId": { "$ref": "#/$defs/safeIdentifier" },
+        "reviewerRole": { "enum": ["operator", "producer", "product", "legal", "qa", "hybrid"] },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "redactionReviewed": { "const": true }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "endpointPath",
+        "reviewApprovalGate",
+        "confirmRenderSubmission",
+        "canQueueProviderSpendFromEvidence",
+        "renderJobQueued",
+        "spendReservationCreated",
+        "providerCallsMade",
+        "networkCallsMade",
+        "noSpend",
+        "rawTranscriptStored",
+        "rawUrlsStored",
+        "localPathsStored",
+        "secretsStored"
+      ],
+      "properties": {
+        "endpointPath": {
+          "type": "string",
+          "pattern": "^\\/v1\\/short-pipeline\\/conversation-sessions\\/short_session_[a-f0-9]{16}\\/render-jobs$"
+        },
+        "reviewApprovalGate": { "const": "pre_render" },
+        "confirmRenderSubmission": { "const": false },
+        "canQueueProviderSpendFromEvidence": { "const": false },
+        "renderJobQueued": { "const": false },
+        "spendReservationCreated": { "const": false },
+        "providerCallsMade": { "const": false },
+        "networkCallsMade": { "const": false },
+        "noSpend": { "const": true },
+        "rawTranscriptStored": { "const": false },
+        "rawUrlsStored": { "const": false },
+        "localPathsStored": { "const": false },
+        "secretsStored": { "const": false }
+      }
+    },
+    "checkpoints": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "$ref": "#/$defs/checkpoint" }
+    },
+    "evidenceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approvalPacketSha256",
+        "sessionUiContractSha256",
+        "storedSessionPlanSha256",
+        "clientScoped",
+        "serverSidePlanUsed",
+        "redactionReviewed",
+        "acceptedProductUrlEvidenceIncluded",
+        "mediaRightsApprovalIncluded"
+      ],
+      "properties": {
+        "approvalPacketSha256": { "$ref": "#/$defs/sha256" },
+        "sessionUiContractSha256": { "$ref": "#/$defs/sha256" },
+        "storedSessionPlanSha256": { "$ref": "#/$defs/sha256" },
+        "clientScoped": { "const": true },
+        "serverSidePlanUsed": { "const": true },
+        "redactionReviewed": { "const": true },
+        "acceptedProductUrlEvidenceIncluded": { "const": false },
+        "mediaRightsApprovalIncluded": { "const": false }
+      }
+    }
+  },
+  "$defs": {
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface",
+        "checkpointId",
+        "label",
+        "required",
+        "decision",
+        "reviewerRequiredForApproval",
+        "reviewedAtRequiredForApproval",
+        "evidenceKeyCount"
+      ],
+      "properties": {
+        "surface": { "enum": ["scene", "audio", "caption", "claim"] },
+        "checkpointId": { "$ref": "#/$defs/safeIdentifier" },
+        "label": { "$ref": "#/$defs/safeEvidenceText" },
+        "required": { "const": true },
+        "decision": { "const": "approved" },
+        "reviewerRequiredForApproval": { "const": true },
+        "reviewedAtRequiredForApproval": { "const": true },
+        "evidenceKeyCount": { "type": "integer", "minimum": 0 },
+        "notes": { "$ref": "#/$defs/safeEvidenceText" }
+      }
+    },
+    "safeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "not": { "$ref": "#/$defs/unsafeTextPatterns" }
+    },
+    "safeEvidenceText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "not": { "$ref": "#/$defs/unsafeTextPatterns" }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "unsafeTextPatterns": {
+      "anyOf": [
+        { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" },
+        { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+        { "pattern": "sk-[A-Za-z0-9_-]+" },
+        { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\\s*[:=]\\s*[\\\"']?[^\\\"',\\s&]+" },
+        { "pattern": "([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\\s]+" },
+        { "pattern": "[A-Za-z]:\\\\[^\\s\\\"'<>]+" },
+        { "pattern": "\\/(?:home|Users|var|tmp)\\/[^\\s\\\"'<>]+" },
+        { "pattern": "https?:\\/\\/[^\\s\\\"'<>]+" },
+        { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
+        { "pattern": "data:[^\\s\\\"'<>]+" }
+      ]
+    }
+  }
+}

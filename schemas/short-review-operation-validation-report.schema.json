@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-review-operation-validation-report.schema.json",
+  "title": "CineJelly Short Review Operation Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "summary",
+    "evidence",
+    "checkpoints",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-review-operation-validation.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "blocked_by_missing_inputs", "blocked_by_confirmation", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidencePath",
+        "outputPath",
+        "evidenceConfigured",
+        "confirmAcceptedReviewOperation"
+      ],
+      "properties": {
+        "evidencePath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "evidenceConfigured": { "type": "boolean" },
+        "confirmAcceptedReviewOperation": { "type": "boolean" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requiredSurfaceCount",
+        "presentSurfaceCount",
+        "checkpointCount",
+        "approvedCheckpointCount",
+        "redactionReviewed",
+        "noSpendOperation",
+        "providerSubmissionBlocked",
+        "canUseAsAcceptedShortReviewOperationEvidence",
+        "canSubmitToProviderNow",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "requiredSurfaceCount": { "const": 4 },
+        "presentSurfaceCount": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "checkpointCount": { "type": "integer", "minimum": 0 },
+        "approvedCheckpointCount": { "type": "integer", "minimum": 0 },
+        "redactionReviewed": { "type": "boolean" },
+        "noSpendOperation": { "type": "boolean" },
+        "providerSubmissionBlocked": { "type": "boolean" },
+        "canUseAsAcceptedShortReviewOperationEvidence": { "type": "boolean" },
+        "canSubmitToProviderNow": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configured"],
+      "properties": {
+        "configured": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "environmentKind": { "type": "string" },
+        "deploymentBaseUrlSha256": { "$ref": "#/$defs/sha256" },
+        "sessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
+        "endpointPathTemplate": { "const": "/v1/short-pipeline/conversation-sessions/{sessionId}/render-jobs" },
+        "reviewerId": { "$ref": "#/$defs/safeIdentifier" },
+        "reviewerRole": { "enum": ["operator", "producer", "product", "legal", "qa", "hybrid"] },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "approvalPacketSha256": { "$ref": "#/$defs/sha256" },
+        "sessionUiContractSha256": { "$ref": "#/$defs/sha256" },
+        "storedSessionPlanSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "checkpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "surface",
+          "checkpointId",
+          "decision",
+          "required",
+          "reviewerRequiredForApproval",
+          "reviewedAtRequiredForApproval",
+          "evidenceKeyCount"
+        ],
+        "properties": {
+          "surface": { "enum": ["scene", "audio", "caption", "claim", "unknown"] },
+          "checkpointId": { "type": "string", "minLength": 1, "maxLength": 180 },
+          "decision": { "enum": ["approved", "not_accepted"] },
+          "required": { "type": "boolean" },
+          "reviewerRequiredForApproval": { "type": "boolean" },
+          "reviewedAtRequiredForApproval": { "type": "boolean" },
+          "evidenceKeyCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptedShortReviewOperationEvidencePass",
+        "canUseAsAcceptedShortReviewOperationEvidence",
+        "canSubmitToProviderNow",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "acceptedShortReviewOperationEvidencePass": { "type": "boolean" },
+        "canUseAsAcceptedShortReviewOperationEvidence": { "type": "boolean" },
+        "canSubmitToProviderNow": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1, "maxLength": 900 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 900 }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1, "maxLength": 900 }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "safeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "not": {
+        "anyOf": [
+          { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" },
+          { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+          { "pattern": "sk-[A-Za-z0-9_-]+" },
+          { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "[A-Za-z]:\\\\" }
+        ]
+      }
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 360,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "^\\[outside-repo\\]$" },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    }
+  }
+}

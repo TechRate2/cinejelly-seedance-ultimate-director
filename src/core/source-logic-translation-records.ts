@@ -3098,6 +3098,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "stored conversation sessions can enter the async render-job review lifecycle without accepting client-side replacement plans",
       "accepted short-plan review evidence can hand off into the async render-job lifecycle while preserving operator-visible status",
       "session UI contracts can expose safe scene/audio/caption/claim checkpoint controls and a non-spending approval-packet shape",
+      "archived short create/review operation evidence can be validated as no-spend reviewer evidence only when it is deployment-scoped, redaction-reviewed, session-bound, and explicitly confirmed by the operator",
       "async jobs can pause after artifact validation for pre-export artifact-bound review without rerendering or reserving provider spend again"
     ],
     behaviorChanged: [
@@ -3108,6 +3109,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "product URL research is limited to clean HTTPS pages behind explicit live-network confirmation and publishes hashes/evidence instead of raw URLs",
       "reference-video inputs are redacted into source fingerprints and pattern guidance; clone/99%-copy requests become review-required guardrails instead of reproduction instructions",
       "short-pipeline render handoff, including stored-session handoff, requires explicit confirmation before approved review evidence can queue provider spend",
+      "short review operation evidence validation rejects unsafe accepted-looking notes and keeps product URL acceptance, media-rights approval, and provider submission as separate gates",
       "a first-party static Short create/review shell with safe checkpoint controls is provided without importing Director frontend code, while hosted playback, accepted live review operation evidence, VideoDB library controls, and complete 20+ agent parity remain future product work"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-agentic-media-reasoning.md",
@@ -3131,6 +3133,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-short-pipeline-session-store-smoke.mjs",
       "scripts/run-short-pipeline-session-render-handoff-smoke.mjs",
       "scripts/run-short-mvp-ui-contract-smoke.mjs",
+      "scripts/validate-short-review-operation-evidence.mjs",
+      "scripts/run-short-review-operation-evidence-guard-smoke.mjs",
       "scripts/run-short-pipeline-smoke.mjs",
       "scripts/run-short-viral-intelligence-smoke.mjs",
       "scripts/run-product-url-extraction-smoke.mjs",
@@ -3138,6 +3142,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "schemas/short-pipeline-session-store-smoke-report.schema.json",
       "schemas/short-pipeline-session-render-handoff-smoke-report.schema.json",
       "schemas/short-mvp-ui-contract-smoke-report.schema.json",
+      "schemas/short-review-operation-evidence.schema.json",
+      "schemas/short-review-operation-validation-report.schema.json",
+      "schemas/short-review-operation-evidence-guard-smoke-report.schema.json",
       "schemas/short-pipeline-smoke-report.schema.json",
       "schemas/short-viral-intelligence-smoke-report.schema.json",
       "schemas/product-url-extraction-smoke-report.schema.json",
@@ -3149,7 +3156,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     validationStatus: "implemented",
     fidelityRisks: [
       "current coverage is backend planning/render-handoff/progress/review evidence plus a static create/review shell with checkpoint controls, not hosted playback or VideoDB media-library parity",
-      "conversation/session routes and the static shell are no-spend backend evidence and do not yet prove managed multi-instance storage, production UI QA, or accepted live reviewer operation evidence",
+      "conversation/session routes, the static shell, and the review-operation evidence validator are no-spend backend evidence and do not yet prove managed multi-instance storage, production UI QA, or accepted live reviewer operation evidence without an operator-supplied packet",
       "viral/niche strategy is deterministic backend inference and reference-pattern adaptation; live trend intelligence or platform analytics still require a reviewed external data source",
       "reference-video learning must remain structure-only unless the operator supplies rights-cleared source assets and review evidence",
       "live paid short-pipeline media evidence is still required before claiming end-to-end Director-style workflow evidence",
