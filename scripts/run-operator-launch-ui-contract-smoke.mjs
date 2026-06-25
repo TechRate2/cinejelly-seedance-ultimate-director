@@ -51,6 +51,7 @@ let report;
 
 try {
   await waitForHealth(baseUrl);
+  const dashboardPage = await getText(`${baseUrl}/operator/launch-dashboard`);
   const unauthorized = await getJson(`${baseUrl}/v1/admin/operator-launch-ui-contract`, {});
   const contractResponse = await getJson(`${baseUrl}/v1/admin/operator-launch-ui-contract`, {
     Authorization: `Bearer ${deploymentCredential}`
@@ -66,6 +67,16 @@ try {
   const productGaps = Array.isArray(ui?.productGaps) ? ui.productGaps : [];
   const nextActions = Array.isArray(ui?.nextActions) ? ui.nextActions : [];
   const checks = [
+    dashboardPage.statusCode === 200 &&
+      String(dashboardPage.headers.get("content-type") ?? "").includes("text/html") &&
+      dashboardPage.body.includes('data-contract-endpoint="/v1/admin/operator-launch-ui-contract"') &&
+      dashboardPage.body.includes("Launch Readiness") &&
+      dashboardPage.body.includes("Next Actions") &&
+      !dashboardPage.body.includes("operator-launch-ui-credential-2026") &&
+      !dashboardPage.body.includes("C:\\Users\\Admin") &&
+      !dashboardPage.body.includes("ATLASCLOUD_API_KEY")
+      ? pass("operator_dashboard_page_available", "First-party operator dashboard HTML is served without embedding credentials or local paths.")
+      : fail("operator_dashboard_page_available", "Expected operator dashboard HTML route to be safe and available."),
     unauthorized.statusCode === 401
       ? pass("deployment_token_required", "Operator launch UI contract is protected by the deployment token.")
       : fail("deployment_token_required", "Expected missing deployment token to be rejected."),
@@ -132,7 +143,11 @@ try {
     ],
     checkedInputs: {
       outputPath: options.outputPath,
-      endpointPath: "GET /v1/admin/operator-launch-ui-contract",
+      endpointPaths: [
+        "GET /operator/launch-dashboard",
+        "GET /v1/admin/operator-launch-ui-contract"
+      ],
+      dashboardStatusCode: dashboardPage.statusCode,
       unauthorizedStatusCode: unauthorized.statusCode,
       authorizedStatusCode: contractResponse.statusCode,
       sourceReportCount: sourceReports.length,
@@ -194,6 +209,15 @@ async function getJson(url, headers) {
   return {
     statusCode: response.status,
     body: await response.json()
+  };
+}
+
+async function getText(url) {
+  const response = await fetch(url);
+  return {
+    statusCode: response.status,
+    headers: response.headers,
+    body: await response.text()
   };
 }
 

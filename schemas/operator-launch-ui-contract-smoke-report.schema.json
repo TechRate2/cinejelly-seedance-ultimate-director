@@ -37,7 +37,8 @@
       "additionalProperties": false,
       "required": [
         "outputPath",
-        "endpointPath",
+        "endpointPaths",
+        "dashboardStatusCode",
         "unauthorizedStatusCode",
         "authorizedStatusCode",
         "sourceReportCount",
@@ -47,7 +48,17 @@
       ],
       "properties": {
         "outputPath": { "type": "string" },
-        "endpointPath": { "const": "GET /v1/admin/operator-launch-ui-contract" },
+        "endpointPaths": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "enum": [
+              "GET /operator/launch-dashboard",
+              "GET /v1/admin/operator-launch-ui-contract"
+            ]
+          }
+        },
+        "dashboardStatusCode": { "const": 200 },
         "unauthorizedStatusCode": { "const": 401 },
         "authorizedStatusCode": { "const": 200 },
         "sourceReportCount": { "type": "integer", "minimum": 8 },

@@ -3243,7 +3243,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "blocked, budget-bound, and manual-review work remains explicit before spend or release"
     ],
     behaviorChanged: [
-      "CineJelly exposes a deployment-token admin JSON contract instead of copying MoneyPrinterTurbo WebUI code",
+      "CineJelly exposes a deployment-token admin JSON contract and first-party operator dashboard shell instead of copying MoneyPrinterTurbo WebUI code",
       "the contract reads fixed no-spend launch reports and never accepts client-supplied report paths",
       "customer traffic remains blocked by business-readiness gates even when the dashboard contract is available"
     ],
@@ -3251,6 +3251,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     cineJellyDestinationPaths: [
       "src/types/operator-launch-ui.ts",
       "src/core/operator-launch-ui-contract.ts",
+      "src/api/operator-launch-dashboard-page.ts",
       "src/api/server.ts",
       "scripts/run-operator-launch-ui-contract-smoke.mjs",
       "schemas/operator-launch-ui-contract-smoke-report.schema.json",

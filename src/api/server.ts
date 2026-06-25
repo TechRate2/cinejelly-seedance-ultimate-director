@@ -76,6 +76,7 @@ import { ApiConcurrencyGate } from "./api-concurrency-gate.js";
 import { ApiRateLimiter, readRateLimitDisabled, readTrustProxyHeaders } from "./api-rate-limit.js";
 import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
 import { isApplicationJsonMediaType } from "./media-type.js";
+import { buildOperatorLaunchDashboardPage } from "./operator-launch-dashboard-page.js";
 import {
   createProductionGraphResumeQueueService,
   PRODUCTION_GRAPH_RESUME_QUEUE_SERVICE_PATH,
@@ -427,6 +428,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-settings") {
         sendJson(response, 200, buildRenderSettingsDescriptor(process.env), requestContext);
+        return;
+      }
+      if (
+        request.method === "GET" &&
+        (requestUrl.pathname === "/operator/launch" || requestUrl.pathname === "/operator/launch-dashboard")
+      ) {
+        sendHtml(response, 200, buildOperatorLaunchDashboardPage());
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/channel-styles") {
@@ -1189,6 +1197,18 @@ function sendJson(
     "X-Content-Type-Options": "nosniff"
   });
   response.end(JSON.stringify(redactApiLocalPaths(redactUnknown(withRequestContext(payload, requestContext)))));
+}
+
+function sendHtml(response: ServerResponse, statusCode: number, html: string): void {
+  if (response.destroyed) {
+    return;
+  }
+  response.writeHead(statusCode, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff"
+  });
+  response.end(html);
 }
 
 function readPort(value: string | undefined): number {
