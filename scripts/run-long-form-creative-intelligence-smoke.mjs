@@ -50,6 +50,7 @@ const { LongFormContinuityPlanner } = await import("../dist/core/long-form-conti
 const { LongFormAgentReviewPlanner } = await import("../dist/core/long-form-agent-review-planner.js");
 const { LongFormTimelinePlanner } = await import("../dist/core/long-form-timeline-planner.js");
 const { LongFormCreativeIntelligencePlanner } = await import("../dist/core/long-form-creative-intelligence-planner.js");
+const { buildLongDirectorUiContract } = await import("../dist/core/long-director-ui-contract.js");
 const { PostproductionAssetPlanner } = await import("../dist/core/postproduction-asset-planner.js");
 const { RenderScheduler } = await import("../dist/core/render-scheduler.js");
 const { VideoRenderStrategyPlanner } = await import("../dist/core/video-render-strategy-planner.js");
@@ -134,6 +135,7 @@ const creative = creativePlanner.build({
   postproductionAssetPlan,
   sourceVideoAnalysis
 });
+const longDirectorUiContract = buildLongDirectorUiContract(creative);
 
 const blockedTimelinePlan = timelinePlanner.build({
   projectId: `${projectId}_blocked`,
@@ -161,8 +163,9 @@ const blockedCreative = creativePlanner.build({
   postproductionAssetPlan: { ...postproductionAssetPlan, projectId: `${projectId}_blocked` },
   sourceVideoAnalysis
 });
+const blockedLongDirectorUiContract = buildLongDirectorUiContract(blockedCreative);
 
-const serialized = JSON.stringify({ creative, blockedCreative });
+const serialized = JSON.stringify({ creative, blockedCreative, longDirectorUiContract, blockedLongDirectorUiContract });
 const rawLeakDetected = serialized.includes("https://private.example") ||
   serialized.includes("token=secret") ||
   serialized.includes("api_key=");
@@ -198,6 +201,24 @@ const checks = [
     creative.storyBible.emotionalArc.length === continuityPlan.sequenceCount
     ? pass("story_bible_anchor_coverage", "Story bible carries character/product/environment/style anchors and sequence emotional arc.")
     : fail("story_bible_anchor_coverage", "Story bible anchors or emotional arc are incomplete."),
+  creative.directorPlan?.schemaVersion === "cinejelly.long-director.v1" &&
+    creative.directorPlan.storyPlan.sequencePurposeRequired === true &&
+    creative.directorPlan.continuityPlan.bridgeEverySequence === true &&
+    creative.directorPlan.repairPlan.rerenderOnlyAffectedShots === true &&
+    creative.directorPlan.checkpointPolicy.pauseBeforeProviderSpend === true
+    ? pass("long_director_plan_integrated", "Long Director V2 emits story/continuity/checkpoint/narrow-repair policy inside creative intelligence.")
+    : fail("long_director_plan_integrated", "Expected Long Director V2 plan evidence inside creative intelligence."),
+  longDirectorUiContract.schemaVersion === "cinejelly.long-director-ui-contract.v1" &&
+    longDirectorUiContract.noSpend === true &&
+    longDirectorUiContract.director.directorId === creative.directorPlan.directorId &&
+    longDirectorUiContract.director.pauseBeforeProviderSpend === true &&
+    longDirectorUiContract.director.pauseBeforeCustomerRelease === true &&
+    longDirectorUiContract.duration.sequenceCount === continuityPlan.sequenceCount &&
+    longDirectorUiContract.outputContract.canSubmitToProviderNow === false &&
+    longDirectorUiContract.outputContract.longFormManualQualityReviewRequired === true &&
+    longDirectorUiContract.outputContract.directorBenchEvidenceRequired === true
+    ? pass("long_director_ui_contract_available", "Long Director UI contract exposes story, continuity, candidate, repair, and manual-review gates.")
+    : fail("long_director_ui_contract_available", "Expected Long Director UI contract to expose no-spend review-console gates."),
   creative.status === "review_required" &&
     creative.releaseGateSummary.canProceedToRender === true &&
     creative.qualityScore > 0 &&
@@ -215,7 +236,8 @@ const checks = [
     : fail("audio_caption_quality", "Expected caption/audio quality coverage."),
   blockedCreative.status === "blocked" &&
     blockedCreative.releaseGateSummary.canProceedToRender === false &&
-    blockedCreative.findings.some((finding) => finding.code === "timeline_blocked")
+    blockedCreative.findings.some((finding) => finding.code === "timeline_blocked") &&
+    blockedLongDirectorUiContract.outputContract.canProceedToRenderAfterApproval === false
     ? pass("blocked_timeline_stops_render", "Timeline blocking evidence is promoted into creative intelligence before provider spend.")
     : fail("blocked_timeline_stops_render", "Expected blocked creative intelligence when timeline is blocked."),
   directiveCountsConsistent && blockedCountsConsistent
@@ -246,8 +268,8 @@ const report = {
     rawUrlLeakCheckPassed: !rawLeakDetected
   },
   scenarios: {
-    reviewRequired: summarizeCreative(creative),
-    blocked: summarizeCreative(blockedCreative)
+    reviewRequired: summarizeCreative(creative, longDirectorUiContract),
+    blocked: summarizeCreative(blockedCreative, blockedLongDirectorUiContract)
   },
   checks,
   releaseGateSummary: {
@@ -417,11 +439,18 @@ function generatedAudioIntent(intentId, kind, startSecond, durationSeconds) {
   };
 }
 
-function summarizeCreative(value) {
+function summarizeCreative(value, uiContract) {
   return {
     projectId: value.projectId,
     status: value.status,
     qualityScore: value.qualityScore,
+    longDirectorUiContractReady: uiContract.releaseGateSummary.readyForLongReviewUiIntegration,
+    directorNarrativeMode: uiContract.director.narrativeMode,
+    directorCheckpointStageCount: uiContract.director.checkpointStages.length,
+    manualQualityReviewRequired: uiContract.outputContract.longFormManualQualityReviewRequired,
+    directorBenchEvidenceRequired: uiContract.outputContract.directorBenchEvidenceRequired,
+    canSubmitToProviderNow: uiContract.outputContract.canSubmitToProviderNow,
+    repairQueueCount: uiContract.outputContract.repairQueueCount,
     niche: value.nicheStrategy.niche,
     platformIntent: value.nicheStrategy.platformIntent,
     findingCount: value.findingCount,

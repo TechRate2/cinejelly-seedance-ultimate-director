@@ -4,6 +4,8 @@
  * into explicit backend evidence before provider spend.
  */
 
+import type { LongDirectorPlan } from "./long-director.js";
+
 export type LongFormCreativeIntelligenceStatus = "ready" | "review_required" | "blocked";
 
 export type LongFormCreativeQualitySeverity = "info" | "warn" | "block";
@@ -128,6 +130,7 @@ export interface LongFormCreativeIntelligencePlan {
   readonly qualityScore: number;
   readonly nicheStrategy: LongFormCreativeNicheStrategy;
   readonly storyBible: LongFormCreativeStoryBible;
+  readonly directorPlan: LongDirectorPlan;
   readonly findingCount: number;
   readonly blockingFindingCount: number;
   readonly reviewRequiredFindingCount: number;

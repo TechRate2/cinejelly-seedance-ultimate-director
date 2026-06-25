@@ -75,6 +75,85 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Separate Short Director Planning",
+    sourceRepository: "calesthio/OpenMontage",
+    snapshotPath: "external/upstream/openmontage",
+    upstreamPaths: [
+      "external/upstream/openmontage/skills/creative/short-form.md",
+      "external/upstream/openmontage/skills/meta/checkpoint-protocol.md",
+      "external/upstream/openmontage/skills/creative/broll-planning.md"
+    ],
+    license: "AGPL-3.0",
+    behaviorPreserved: [
+      "short-form plans carry duration, hook, safe-zone, pacing, audio, and checkpoint guidance",
+      "creative stages pause before provider spend when review is required",
+      "source/reference learning is treated as structure guidance rather than content copying",
+      "material decisions separate realistic stock needs from generated/stylized needs"
+    ],
+    behaviorChanged: [
+      "rewritten as clean CineJelly-owned TypeScript without copying AGPL implementation code",
+      "visible text/caption rules are adapted to CineJelly no-visible-text policy",
+      "Short Director is separate from Long Director so future UI can expose clear product modes"
+    ],
+    referenceImplementationPath: "docs/FAITHFUL_LOGIC_TRANSLATION_OpenMontage_2026-06-25.md",
+    cineJellyDestinationPaths: [
+      "src/types/short-director.ts",
+      "src/core/short-director-planner.ts",
+      "src/types/short-pipeline.ts",
+      "src/types/short-mvp-ui.ts",
+      "src/core/short-pipeline-planner.ts",
+      "src/core/short-pipeline-render-handoff.ts",
+      "src/core/short-mvp-ui-contract.ts",
+      "scripts/run-short-mvp-ui-contract-smoke.mjs",
+      "schemas/short-mvp-ui-contract-smoke-report.schema.json"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "OpenMontage is AGPL, so behavior is a clean-room planning translation only",
+      "caption advice is not copied directly into rendered-video text because current product policy forbids visible text"
+    ],
+    attributionPath: "docs/FAITHFUL_LOGIC_TRANSLATION_OpenMontage_2026-06-25.md"
+  },
+  {
+    logicName: "Separate Long Director Planning",
+    sourceRepository: "Emily2040/seedance-2.0",
+    snapshotPath: "external/upstream/seedance-2.0",
+    upstreamPaths: [
+      "external/upstream/seedance-2.0/references/reference-workflow.md",
+      "external/upstream/seedance-2.0/references/shot-list-continuity.md",
+      "external/upstream/seedance-2.0/references/multishot-grammar.md"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "shot list and continuity ledger are stabilized before prompt prose",
+      "reference roles are scoped before provider-bound generation",
+      "multi-shot generation is bounded by duration budget and explicit Shot N labeling",
+      "continuity-sensitive long-form work needs sequence bridges and narrow repair scopes"
+    ],
+    behaviorChanged: [
+      "rewritten into a Long Director artifact that remains separate from Short Director logic",
+      "series-bible and checkpoint policies are expressed as no-spend planning evidence",
+      "long-form repair order is integrated with CineJelly Production Graph and Guardian concepts"
+    ],
+    referenceImplementationPath: "docs/FAITHFUL_LOGIC_TRANSLATION_Seedance2_2026-06-25.md",
+    cineJellyDestinationPaths: [
+      "src/types/long-director.ts",
+      "src/types/long-director-ui.ts",
+      "src/core/long-director-planner.ts",
+      "src/core/long-director-ui-contract.ts",
+      "src/types/long-form-creative-intelligence.ts",
+      "src/core/long-form-creative-intelligence-planner.ts",
+      "scripts/run-long-form-creative-intelligence-smoke.mjs",
+      "schemas/long-form-creative-intelligence-smoke-report.schema.json"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "persistent cross-project series memory remains a later implementation phase",
+      "future provider-router work must keep Seedance duration and mode constraints current"
+    ],
+    attributionPath: "docs/FAITHFUL_LOGIC_TRANSLATION_Seedance2_2026-06-25.md"
+  },
+  {
     logicName: "Guardian Repair Decision Provenance",
     sourceRepository: "HKUDS/ViMax",
     snapshotPath: "external/upstream/vimax",

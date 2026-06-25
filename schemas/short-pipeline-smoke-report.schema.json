@@ -45,12 +45,13 @@
     "scenarios": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reviewRequired", "blocked", "naturalOnly", "renderHandoff"],
+      "required": ["reviewRequired", "blocked", "naturalOnly", "renderHandoff", "audioPolicies"],
       "properties": {
         "reviewRequired": { "$ref": "#/$defs/scenario" },
         "blocked": { "$ref": "#/$defs/scenario" },
         "naturalOnly": { "$ref": "#/$defs/scenario" },
-        "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" }
+        "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" },
+        "audioPolicies": { "$ref": "#/$defs/audioPoliciesScenario" }
       }
     },
     "checks": {
@@ -181,7 +182,7 @@
         "pendingReviewCanQueueRender": { "const": false },
         "approvedReviewCanQueueRender": { "const": true },
         "canUseAsRenderJobHandoff": { "type": "boolean" },
-        "captionCueCount": { "type": "integer", "minimum": 1 },
+        "captionCueCount": { "type": "integer", "minimum": 0 },
         "generatedAudioIntentCount": { "type": "integer", "minimum": 1 },
         "requestHasPlanLineage": { "type": "boolean" },
         "requestHasWorkspaceLineage": { "type": "boolean" },
@@ -194,6 +195,28 @@
         "requestAspectRatio": { "type": "string" },
         "requestRawUrlSerialized": { "const": false },
         "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "audioPoliciesScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vietnamesePlanLanguage",
+        "vietnameseHandoffAudioMode",
+        "vietnameseIntentCount",
+        "chineseHandoffAudioMode",
+        "chineseIntentLanguage",
+        "audioOffHandoffAudioMode",
+        "audioOffIntentCount"
+      ],
+      "properties": {
+        "vietnamesePlanLanguage": { "const": "vi" },
+        "vietnameseHandoffAudioMode": { "const": "guided" },
+        "vietnameseIntentCount": { "type": "integer", "minimum": 1 },
+        "chineseHandoffAudioMode": { "const": "guided" },
+        "chineseIntentLanguage": { "const": "zh" },
+        "audioOffHandoffAudioMode": { "const": "none" },
+        "audioOffIntentCount": { "const": 0 }
       }
     }
   }

@@ -89,6 +89,17 @@
           "required": [
             "recommendedWorkflowMode",
             "workflowControlCount",
+            "directorPlanIdPresent",
+            "directorStatus",
+            "directorCreativeMode",
+            "hookWindowSeconds",
+            "targetBeatCount",
+            "directorFindingCount",
+            "sourceVideoControlsStructureOnly",
+            "reviewPauseBeforeProviderSpend",
+            "audioControlOptions",
+            "selectedAudioOptionId",
+            "visibleTextAllowed",
             "backendManagedStepCount",
             "userRequiredActionCount",
             "canCreateRenderJob",
@@ -98,6 +109,31 @@
           "properties": {
             "recommendedWorkflowMode": { "enum": ["single_clip", "storyboard_multishot"] },
             "workflowControlCount": { "type": "integer", "minimum": 5 },
+            "directorPlanIdPresent": { "const": true },
+            "directorStatus": { "enum": ["ready", "review_required", "blocked"] },
+            "directorCreativeMode": {
+              "enum": [
+                "ugc_ad",
+                "product_review",
+                "product_demo",
+                "explainer",
+                "cinematic_reveal",
+                "native_social_story"
+              ]
+            },
+            "hookWindowSeconds": { "type": "number", "exclusiveMinimum": 0 },
+            "targetBeatCount": { "type": "integer", "minimum": 1 },
+            "directorFindingCount": { "type": "integer", "minimum": 0 },
+            "sourceVideoControlsStructureOnly": { "const": true },
+            "reviewPauseBeforeProviderSpend": { "const": true },
+            "audioControlOptions": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": { "enum": ["off", "english", "vietnamese", "chinese"] }
+            },
+            "selectedAudioOptionId": { "enum": ["off", "english", "vietnamese", "chinese"] },
+            "visibleTextAllowed": { "const": false },
             "backendManagedStepCount": { "type": "integer", "minimum": 5 },
             "userRequiredActionCount": { "type": "integer", "minimum": 2 },
             "canCreateRenderJob": { "type": "boolean" },

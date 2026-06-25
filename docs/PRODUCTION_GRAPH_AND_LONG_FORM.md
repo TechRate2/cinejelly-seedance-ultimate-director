@@ -160,6 +160,8 @@ It combines:
 
 The planner is deterministic TypeScript and makes no network, LLM, Atlas, or upstream runtime calls. It is a UI-facing director-quality artifact: the future Create/Review interface can explain why the backend chose a workflow, which shots need stronger candidates, what to repair before spend, and what must be manually reviewed before customer release.
 
+`LongDirectorUiContract` compresses that rich artifact into a stable review-console contract. It exposes Long Director narrative/continuity modes, checkpoint stages, candidate and repair counts, provider-spend disabled state, manual quality/redaction review requirements, and DirectorBench-style evidence requirements so UI clients can render the workflow without duplicating backend decision logic.
+
 Validation:
 
 - `npm run validation:long-form-creative-intelligence`

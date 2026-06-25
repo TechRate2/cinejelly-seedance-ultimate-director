@@ -145,6 +145,14 @@ try {
       ui?.backendManagedSteps?.some((step) => step.actionId === "final_mp4_assembly" && step.status === "ready")
       ? pass("ui_contract_hydrates_style_profile", "UI contract hydrates channelStyleProfileId, recommends storyboard for 28s, and keeps provider spend disabled.")
       : fail("ui_contract_hydrates_style_profile", "Expected UI contract to hydrate profileId and expose safe render controls."),
+    ui?.director?.directorId?.startsWith("short_director_") &&
+      ui?.director?.recommendedWorkflowMode === ui?.duration?.recommendedWorkflowMode &&
+      ui?.director?.reviewPauseBeforeProviderSpend === true &&
+      ui?.director?.sourceVideoControlsStructureOnly === true &&
+      Number(ui?.director?.hookWindowSeconds ?? 0) > 0 &&
+      Number(ui?.director?.targetBeatCount ?? 0) > 0
+      ? pass("short_director_guidance_available", "UI contract exposes Short Director workflow, hook, pacing, reference, and review gate guidance.")
+      : fail("short_director_guidance_available", "Expected UI contract to expose Short Director guidance without frontend reimplementation."),
     ui?.audioControls?.options?.map((option) => option.optionId).join("|") === "off|english|vietnamese|chinese" &&
       ui?.audioControls?.selectedOptionId === "english" &&
       ui?.outputContract?.audioMode === "guided" &&
@@ -218,6 +226,14 @@ try {
       uiContract: {
         recommendedWorkflowMode: ui?.duration?.recommendedWorkflowMode,
         workflowControlCount: ui?.workflowControls?.length ?? 0,
+        directorPlanIdPresent: Boolean(ui?.director?.directorId),
+        directorStatus: ui?.director?.status,
+        directorCreativeMode: ui?.director?.creativeMode,
+        hookWindowSeconds: ui?.director?.hookWindowSeconds,
+        targetBeatCount: ui?.director?.targetBeatCount,
+        directorFindingCount: ui?.director?.findingCount,
+        sourceVideoControlsStructureOnly: ui?.director?.sourceVideoControlsStructureOnly,
+        reviewPauseBeforeProviderSpend: ui?.director?.reviewPauseBeforeProviderSpend,
         audioControlOptions: ui?.audioControls?.options?.map((option) => option.optionId) ?? [],
         selectedAudioOptionId: ui?.audioControls?.selectedOptionId,
         visibleTextAllowed: ui?.outputContract?.visibleTextAllowed,

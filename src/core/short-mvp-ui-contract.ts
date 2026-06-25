@@ -9,6 +9,7 @@ import type {
   ShortMvpUiAudioControl,
   ShortMvpUiAudioOptionId,
   ShortMvpUiContract,
+  ShortMvpUiDirectorGuidance,
   ShortMvpUiReviewSurfaceSummary,
   ShortMvpUiWorkflowControl
 } from "../types/short-mvp-ui.js";
@@ -31,9 +32,7 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
     nativeProviderAudioEnabled: false as const,
     reviewRequired: true as const
   };
-  const recommendedWorkflowMode = plan.intent.targetDurationSeconds <= SHORT_SINGLE_CLIP_MAX_SECONDS
-    ? "single_clip"
-    : "storyboard_multishot";
+  const recommendedWorkflowMode = plan.directorPlan.recommendedWorkflowMode;
   const canCreateRenderJob = plan.status !== "blocked" && plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence;
   const requiredPendingCount = plan.reviewApproval.summary.pendingRequiredCount +
     plan.reviewApproval.summary.changesRequestedRequiredCount +
@@ -77,6 +76,7 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
       requiredPendingCount,
       surfaces: reviewSurfaces(plan)
     },
+    director: directorGuidance(plan),
     render: {
       canCreateRenderJob,
       canSubmitToProviderNow: false,
@@ -170,7 +170,7 @@ function workflowControls(
   plan: ShortPipelinePlan
 ): readonly ShortMvpUiWorkflowControl[] {
   return [
-    control("auto", "Auto", true, true, "Backend chooses single or storyboard from duration, references, source-video evidence, and explicit operator mode."),
+    control("auto", "Auto", true, true, "Short Director chooses single or storyboard from duration, beat count, references, source-video evidence, and review gates."),
     control(
       "single_clip",
       "Single clip",
@@ -217,6 +217,26 @@ function control(
   reason: string
 ): ShortMvpUiWorkflowControl {
   return { mode, label, recommended, enabled, reason };
+}
+
+function directorGuidance(plan: ShortPipelinePlan): ShortMvpUiDirectorGuidance {
+  const director = plan.directorPlan;
+  return {
+    directorId: director.directorId,
+    status: director.status,
+    creativeMode: director.creativeMode,
+    durationStrategy: director.platformPlan.durationStrategy,
+    recommendedWorkflowMode: director.recommendedWorkflowMode,
+    hookWindowSeconds: director.hookPlan.hookWindowSeconds,
+    targetBeatCount: director.pacingPlan.targetBeatCount,
+    captionStrategy: director.reviewPolicy.captionStrategy,
+    sourceVideoControlsStructureOnly: director.referencePolicy.sourceVideoControlsStructureOnly,
+    reviewPauseBeforeProviderSpend: director.reviewPolicy.checkpointPolicy === "pause_before_provider_spend",
+    findingCount: director.findings.length,
+    blockerCount: director.findings.filter((finding) => finding.severity === "block").length,
+    warningCount: director.findings.filter((finding) => finding.severity === "warn").length,
+    directives: director.directorDirectives
+  };
 }
 
 function reviewSurfaces(plan: ShortPipelinePlan): readonly ShortMvpUiReviewSurfaceSummary[] {

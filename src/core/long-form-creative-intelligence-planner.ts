@@ -5,6 +5,7 @@
  */
 
 import type { StoryPlan } from "../types/agent.js";
+import { LongDirectorPlanner } from "./long-director-planner.js";
 import type { LongFormAgentReviewPlan } from "../types/long-form-agent-review.js";
 import type { LongFormContinuityPlan, LongFormContinuitySequence } from "../types/long-form-continuity.js";
 import type {
@@ -45,6 +46,8 @@ const HOOK_PATTERN = /hook|problem|pain|curious|secret|why|before|after|mistake|
 const PAYOFF_PATTERN = /cta|payoff|result|resolution|transform|proof|final|offer|buy|try|learn|subscribe|share/i;
 
 export class LongFormCreativeIntelligencePlanner {
+  private readonly longDirectorPlanner = new LongDirectorPlanner();
+
   public build(input: {
     readonly projectId: string;
     readonly userInput: string;
@@ -70,6 +73,14 @@ export class LongFormCreativeIntelligencePlanner {
     const shotDirectives = this.shotDirectives(input, nicheStrategy);
     const candidateDirectives = this.candidateDirectives(input, shotDirectives, findings);
     const repairDirectives = this.repairDirectives(input.projectId, findings);
+    const directorPlan = this.longDirectorPlanner.build({
+      projectId: input.projectId,
+      storyPlan: input.storyPlan,
+      continuityPlan: input.continuityPlan,
+      storyBible,
+      shots: input.shots,
+      findings
+    });
     const blockingFindingCount = findings.filter((finding) => finding.severity === "block").length;
     const reviewRequiredFindingCount = findings.filter((finding) => finding.severity === "warn").length;
     const status = statusFor(findings);
@@ -87,6 +98,7 @@ export class LongFormCreativeIntelligencePlanner {
       qualityScore,
       nicheStrategy,
       storyBible,
+      directorPlan,
       findingCount: findings.length,
       blockingFindingCount,
       reviewRequiredFindingCount,

@@ -164,10 +164,15 @@ function shortWorkflowMetadata(
 ): Record<string, string> {
   const provided = safeMetadata(metadata);
   const hasExplicitMode = Boolean(provided.workflowMode || provided.renderMode || provided.videoMode || provided.mode);
-  const singleClipRecommended = plan.intent.targetDurationSeconds <= SHORT_SINGLE_CLIP_MAX_SECONDS;
-  const recommendedMode = singleClipRecommended ? "single_clip" : "storyboard_multishot";
+  const recommendedMode = plan.directorPlan.recommendedWorkflowMode;
+  const singleClipRecommended = recommendedMode === "single_clip";
   return {
     shortPipelineRecommendedWorkflowMode: recommendedMode,
+    shortDirectorPlanId: plan.directorPlan.directorId,
+    shortDirectorStatus: plan.directorPlan.status,
+    shortDirectorCreativeMode: plan.directorPlan.creativeMode,
+    shortDirectorHookWindowSeconds: String(plan.directorPlan.hookPlan.hookWindowSeconds),
+    shortDirectorTargetBeatCount: String(plan.directorPlan.pacingPlan.targetBeatCount),
     shortPipelineProviderClipMaxSeconds: String(SHORT_SINGLE_CLIP_MAX_SECONDS),
     shortPipelineCommercialDurationPolicy: "15_to_60_seconds",
     ...(hasExplicitMode
@@ -296,7 +301,7 @@ function seedancePromptPackFromPlan(plan: ShortPipelinePlan): string {
   }
   const shots = pack.shotPrompts
     .map((shot) =>
-      `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | Visible text: ${shot.caption} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`
+      `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`
     )
     .join("\n");
   return compactLines([
@@ -304,12 +309,18 @@ function seedancePromptPackFromPlan(plan: ShortPipelinePlan): string {
     `Prompt pack id: ${pack.promptPackId}`,
     pack.masterPrompt,
     `Audio plan: ${pack.audioPlan}`,
-    `Visible text plan: ${pack.captionPlan}`,
+    `No-visible-text plan: ${pack.captionPlan}`,
     `Reference policy: ${pack.referencePolicy}`,
     `Global negative constraints: ${pack.globalNegativeConstraints.join("; ")}`,
     "Time-coded Seedance shots:",
     shots
   ]);
+}
+
+function onScreenTextInstructionFor(caption: string): string {
+  return caption === "NO_ON_SCREEN_TEXT"
+    ? "none; do not render captions, subtitles, CTA cards, labels, typography, lower thirds, or fake UI text"
+    : caption;
 }
 
 function generatedAudioIntentsFromPlan(plan: ShortPipelinePlan, audioPolicy: ShortPipelineAudioPolicy): readonly GeneratedAudioIntent[] {

@@ -181,7 +181,7 @@
         "promptHasViralStrategy": { "type": "boolean" },
         "promptHasSceneDirectives": { "type": "boolean" },
         "promptHasReferenceGuardrail": { "type": "boolean" },
-        "captionCueCount": { "type": "integer", "minimum": 1 },
+        "captionCueCount": { "type": "integer", "minimum": 0 },
         "generatedAudioIntentCount": { "type": "integer", "minimum": 1 },
         "canReleaseToCustomerTraffic": { "const": false }
       }

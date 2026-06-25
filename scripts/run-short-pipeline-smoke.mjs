@@ -341,6 +341,13 @@ const checks = [
   reviewRequiredPlan.noSpend && !reviewRequiredPlan.networkCallsMade && !reviewRequiredPlan.providerCallsMade
     ? pass("no_spend_no_network", "Short-pipeline planning does not call network, Atlas, render, or provider paths.")
     : fail("no_spend_no_network", "Expected no-spend, no-network, no-provider planning."),
+  reviewRequiredPlan.directorPlan?.schemaVersion === "cinejelly.short-director.v1" &&
+    reviewRequiredPlan.directorPlan.recommendedWorkflowMode === "storyboard_multishot" &&
+    reviewRequiredPlan.directorPlan.reviewPolicy.checkpointPolicy === "pause_before_provider_spend" &&
+    reviewRequiredPlan.directorPlan.referencePolicy.sourceVideoControlsStructureOnly === true &&
+    pendingRenderHandoff.request.metadata?.shortDirectorPlanId === reviewRequiredPlan.directorPlan.directorId
+    ? pass("short_director_plan_integrated", "Short Director V2 emits hook/pacing/reference/review policy and flows into render handoff metadata.")
+    : fail("short_director_plan_integrated", "Expected Short Director V2 plan evidence and handoff lineage metadata."),
   reviewRequiredPlan.productBrief?.source.sourceUrlSha256 && reviewRequiredPlan.productBrief.source.status === "unsafe_query_redacted" && !rawUrlLeaked
     ? pass("product_url_fingerprint_no_raw_url", "Product URL evidence is fingerprinted and raw signed/query URLs are not serialized.")
     : fail("product_url_fingerprint_no_raw_url", "Expected product URL fingerprint evidence without raw URL leakage."),

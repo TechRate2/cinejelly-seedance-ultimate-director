@@ -28,6 +28,23 @@ export interface ShortMvpUiReviewSurfaceSummary {
   readonly blockedCount: number;
 }
 
+export interface ShortMvpUiDirectorGuidance {
+  readonly directorId: string;
+  readonly status: ShortPipelinePlan["directorPlan"]["status"];
+  readonly creativeMode: ShortPipelinePlan["directorPlan"]["creativeMode"];
+  readonly durationStrategy: ShortPipelinePlan["directorPlan"]["platformPlan"]["durationStrategy"];
+  readonly recommendedWorkflowMode: "single_clip" | "storyboard_multishot";
+  readonly hookWindowSeconds: number;
+  readonly targetBeatCount: number;
+  readonly captionStrategy: ShortPipelinePlan["directorPlan"]["reviewPolicy"]["captionStrategy"];
+  readonly sourceVideoControlsStructureOnly: boolean;
+  readonly reviewPauseBeforeProviderSpend: boolean;
+  readonly findingCount: number;
+  readonly blockerCount: number;
+  readonly warningCount: number;
+  readonly directives: readonly string[];
+}
+
 export interface ShortMvpUiAction {
   readonly actionId: string;
   readonly label: string;
@@ -82,6 +99,7 @@ export interface ShortMvpUiContract {
     readonly requiredPendingCount: number;
     readonly surfaces: readonly ShortMvpUiReviewSurfaceSummary[];
   };
+  readonly director: ShortMvpUiDirectorGuidance;
   readonly render: {
     readonly canCreateRenderJob: boolean;
     readonly canSubmitToProviderNow: false;

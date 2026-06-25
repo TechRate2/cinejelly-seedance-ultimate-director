@@ -1,5 +1,6 @@
 import type { ReviewApprovalReport } from "./review-approval.js";
 import type { ShortChannelStyleProfile, ShortChannelStyleProfileInput } from "./short-channel-style.js";
+import type { ShortDirectorPlan } from "./short-director.js";
 import type { AspectRatio } from "./settings.js";
 import type { ShortAgentGraphRun, ShortSeedancePromptPack } from "./short-agent.js";
 import type { ShortCommercialReadinessPlan } from "./short-commercial-readiness.js";
@@ -320,6 +321,7 @@ export interface ShortPipelinePlan {
   readonly dynamicWorkflowRequired: boolean;
   readonly audioPolicy: ShortPipelineAudioPolicy;
   readonly visualTextPolicy: ShortPipelineVisualTextPolicy;
+  readonly directorPlan: ShortDirectorPlan;
   readonly concepts: readonly ShortPipelineConcept[];
   readonly scenes: readonly ShortPipelineScenePlan[];
   readonly viralIntelligence: ShortViralIntelligencePlan;

@@ -7,6 +7,7 @@
 import { createHash } from "node:crypto";
 import { ShortChannelStyleProfileEvaluator } from "./short-channel-style-profile.js";
 import { ReviewApprovalSystem } from "./review-approval-system.js";
+import { ShortDirectorPlanner } from "./short-director-planner.js";
 import { ShortAgentGraphPlanner } from "./short-agent-graph-planner.js";
 import { ShortCommercialReadinessPlanner } from "./short-commercial-readiness-planner.js";
 import { ShortViralIntelligencePlanner } from "./short-viral-intelligence-planner.js";
@@ -474,6 +475,7 @@ export class ShortPipelinePlanner {
   private readonly channelStyleEvaluator = new ShortChannelStyleProfileEvaluator();
   private readonly templateRegistry = new WorkflowTemplateRegistry();
   private readonly approvalSystem = new ReviewApprovalSystem();
+  private readonly shortDirectorPlanner = new ShortDirectorPlanner();
   private readonly viralIntelligencePlanner = new ShortViralIntelligencePlanner();
   private readonly agentGraphPlanner = new ShortAgentGraphPlanner();
   private readonly commercialReadinessPlanner = new ShortCommercialReadinessPlanner();
@@ -576,6 +578,21 @@ export class ShortPipelinePlanner {
     });
     const agentGraph = agentGraphOutput.graphRun;
     const seedancePromptPack = agentGraphOutput.seedancePromptPack;
+    const directorPlan = this.shortDirectorPlanner.build({
+      projectId: input.projectId,
+      ...(input.requestId ? { requestId: input.requestId } : {}),
+      userPrompt: prompt,
+      intent,
+      ...(productBrief ? { productBrief } : {}),
+      ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
+      ...(channelStyleProfile ? { channelStyleProfile } : {}),
+      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      concepts,
+      scenes,
+      viralIntelligence,
+      audioPolicy,
+      visualTextPolicy
+    });
     const checkpoints = this.checkpoints(scenes, intent, productBrief, brandKitEvaluation, audioPolicy, visualTextPolicy);
     const reviewApproval = this.approvalSystem.evaluate({
       projectId: input.projectId,
@@ -622,6 +639,7 @@ export class ShortPipelinePlanner {
       dynamicWorkflowRequired: true,
       audioPolicy,
       visualTextPolicy,
+      directorPlan,
       concepts,
       scenes,
       viralIntelligence,
