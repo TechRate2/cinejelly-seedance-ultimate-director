@@ -3228,6 +3228,49 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
   },
   {
+    logicName: "Operator Launch UI Contract",
+    sourceRepository: "harry0703/MoneyPrinterTurbo",
+    snapshotPath: "external/upstream/moneyprinterturbo",
+    upstreamPaths: [
+      "external/upstream/moneyprinterturbo/webui",
+      "external/upstream/moneyprinterturbo/app/services/task.py",
+      "external/upstream/moneyprinterturbo/app/services/state.py"
+    ],
+    license: "MIT",
+    behaviorPreserved: [
+      "operator-facing task/readiness state is compressed into dashboard-friendly status cards",
+      "staged launch tasks stay visible instead of hiding behind raw logs",
+      "blocked, budget-bound, and manual-review work remains explicit before spend or release"
+    ],
+    behaviorChanged: [
+      "CineJelly exposes a deployment-token admin JSON contract instead of copying MoneyPrinterTurbo WebUI code",
+      "the contract reads fixed no-spend launch reports and never accepts client-supplied report paths",
+      "customer traffic remains blocked by business-readiness gates even when the dashboard contract is available"
+    ],
+    referenceImplementationPath: "docs/IMPLEMENTATION_ROADMAP.md",
+    cineJellyDestinationPaths: [
+      "src/types/operator-launch-ui.ts",
+      "src/core/operator-launch-ui-contract.ts",
+      "src/api/server.ts",
+      "scripts/run-operator-launch-ui-contract-smoke.mjs",
+      "schemas/operator-launch-ui-contract-smoke-report.schema.json",
+      "scripts/validate-report-contracts.mjs",
+      "docs/ARCHITECTURE_SPEC.md",
+      "docs/IMPLEMENTATION_ROADMAP.md",
+      "docs/PROJECT_CONTEXT.md",
+      "package.json",
+      "src/index.ts",
+      "src/core/source-logic-translation-records.ts"
+    ],
+    validationStatus: "implemented",
+    fidelityRisks: [
+      "this is a backend dashboard contract, not a browser-rendered first-party UI",
+      "dashboard readiness cannot replace real deployment, paid/live provider, operator attestation, manual review, or business-readiness evidence",
+      "full WebUI parity still requires a separate frontend implementation and product-scope decision"
+    ],
+    attributionPath: "docs/EXTERNAL_SOURCE_SNAPSHOTS.md"
+  },
+  {
     logicName: "Long-Form Creative Intelligence Gate",
     sourceRepository: "HKUDS/ViMax",
     snapshotPath: "external/upstream/vimax",

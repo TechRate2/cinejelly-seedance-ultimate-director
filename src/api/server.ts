@@ -4,6 +4,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import {
   createServer,
   type IncomingMessage,
@@ -21,6 +22,10 @@ import {
 import { buildRenderSettingsDescriptor } from "../application/render-settings-descriptor.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
+import {
+  buildOperatorLaunchUiContract,
+  type OperatorLaunchUiReportInput
+} from "../core/operator-launch-ui-contract.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import { ReviewApprovalSystem } from "../core/review-approval-system.js";
@@ -135,6 +140,53 @@ const LONG_DIRECTOR_NARRATIVE_MODES = new Set([
 ]);
 const LONG_DIRECTOR_CONTINUITY_MODES = new Set(["project_bible", "series_bible_required"]);
 const LONG_DIRECTOR_CHECKPOINT_STAGES = new Set(["story", "scene_plan", "references", "sample", "render", "publish"]);
+const OPERATOR_LAUNCH_UI_REPORTS = [
+  {
+    reportId: "business_completion_audit",
+    label: "Business Completion Audit",
+    reportPath: "assets/output_deliverables/business-readiness/business-completion-audit-report.json"
+  },
+  {
+    reportId: "roadmap_closure_audit",
+    label: "Roadmap Closure Audit",
+    reportPath: "assets/output_deliverables/business-readiness/roadmap-closure-audit-report.json"
+  },
+  {
+    reportId: "business_readiness_audit",
+    label: "Business Readiness Audit",
+    reportPath: "assets/output_deliverables/phase6-validation/business-readiness-report.json"
+  },
+  {
+    reportId: "commercial_launch_doctor",
+    label: "Commercial Launch Doctor",
+    reportPath: "assets/output_deliverables/business-readiness/commercial-launch-doctor-report.json"
+  },
+  {
+    reportId: "commercial_launch_inputs",
+    label: "Commercial Launch Inputs",
+    reportPath: "assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json"
+  },
+  {
+    reportId: "commercial_launch_intake",
+    label: "Commercial Launch Intake",
+    reportPath: "assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json"
+  },
+  {
+    reportId: "snapshot_parity_audit",
+    label: "Snapshot Parity Audit",
+    reportPath: "assets/output_deliverables/business-readiness/snapshot-parity-audit-report.json"
+  },
+  {
+    reportId: "report_contract_validation",
+    label: "Report Contract Validation",
+    reportPath: "assets/output_deliverables/business-readiness/report-contract-validation-report.json"
+  },
+  {
+    reportId: "ops_config_validation",
+    label: "Ops Config Validation",
+    reportPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json"
+  }
+] as const;
 
 interface RenderRequestBody extends CineJellyProjectRequest {
   readonly outputPath?: string;
@@ -823,6 +875,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(response, 200, clientPolicyGate.summary(), requestContext);
         return;
       }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/operator-launch-ui-contract") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for operator launch UI diagnostics.");
+        sendJson(response, 200, {
+          uiContract: buildOperatorLaunchUiContract(readOperatorLaunchUiReports())
+        }, requestContext);
+        return;
+      }
       if (request.method === "GET" && requestUrl.pathname === "/v1/admin/workspace-billing") {
         assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for workspace billing diagnostics.");
         sendJson(response, 200, workspaceBillingGate.summary(), requestContext);
@@ -1062,6 +1121,26 @@ async function validateArtifactsForApi(
       ]
     };
   }
+}
+
+function readOperatorLaunchUiReports(): readonly OperatorLaunchUiReportInput[] {
+  return OPERATOR_LAUNCH_UI_REPORTS.map((report): OperatorLaunchUiReportInput => {
+    const absolutePath = resolve(process.cwd(), report.reportPath);
+    if (!existsSync(absolutePath)) {
+      return report;
+    }
+    try {
+      return {
+        ...report,
+        payload: JSON.parse(readFileSync(absolutePath, "utf8")) as unknown
+      };
+    } catch {
+      return {
+        ...report,
+        parseError: "Report is present but is not valid JSON."
+      };
+    }
+  });
 }
 
 async function readJsonBody<TValue>(request: IncomingMessage, maxBodyBytes: number): Promise<TValue> {
