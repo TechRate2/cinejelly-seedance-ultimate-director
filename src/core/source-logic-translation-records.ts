@@ -146,6 +146,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",
       "src/core/review-packet-builder.ts",
+      "src/api/server.ts",
       "src/types/long-form-creative-intelligence.ts",
       "src/core/long-form-creative-intelligence-planner.ts",
       "scripts/run-long-form-creative-intelligence-smoke.mjs",

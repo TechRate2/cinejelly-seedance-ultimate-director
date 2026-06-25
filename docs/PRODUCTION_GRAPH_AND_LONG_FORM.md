@@ -164,10 +164,12 @@ The planner is deterministic TypeScript and makes no network, LLM, Atlas, or ups
 
 New run artifact bundles persist this surface as `long-director-ui-contract.json`. `run-summary.json` and `review-packet.json` expose the compact ready/narrative/checkpoint/review/spend/repair fields, while `ProjectArtifactValidator` checks the contract against `long-form-creative-intelligence.json` to catch drift before UI/API integration.
 
+The API also exposes `POST /v1/long-form/director-ui-contract` for UI clients that already have `long-form-creative-intelligence.json` evidence. The route validates the plan as no-spend/no-network/no-provider evidence, rejects spend-boundary drift, returns 200 for ready/review-required contracts, and returns 422 with a blocked contract when the creative evidence itself is blocked.
+
 Validation:
 
 - `npm run validation:long-form-creative-intelligence`
-- New DirectorAgent runs write `long-form-creative-intelligence.json` and `long-director-ui-contract.json`, expose quality/status/directive plus Long Director review-console counts in `run-summary.json`, and include creative/Long Director evidence in `review-packet.json`.
+- New DirectorAgent runs write `long-form-creative-intelligence.json` and `long-director-ui-contract.json`, expose quality/status/directive plus Long Director review-console counts in `run-summary.json`, include creative/Long Director evidence in `review-packet.json`, and keep the API route covered by the long-form creative intelligence smoke.
 - `ProjectArtifactValidator` validates the creative artifact when present while keeping older paid evidence bundles backward compatible.
 
 ### MaterialLibrary

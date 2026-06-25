@@ -24,6 +24,7 @@ import { Phase6ValidationReadinessReporter } from "../application/validation-rea
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import { ReviewApprovalSystem } from "../core/review-approval-system.js";
+import { buildLongDirectorUiContract } from "../core/long-director-ui-contract.js";
 import {
   mergeProductUrlSnapshots,
   ProductUrlResearcher,
@@ -39,6 +40,7 @@ import {
 } from "../core/short-pipeline-render-handoff.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { ProjectArtifactBundle, ProjectArtifactValidationReport } from "../types/artifact.js";
+import type { LongFormCreativeIntelligencePlan } from "../types/long-form-creative-intelligence.js";
 import type { CostLedgerEntry } from "../types/provider.js";
 import type {
   ReviewApprovalCheckpointInput,
@@ -122,6 +124,17 @@ const REVIEW_TEXT_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const MAX_REVIEW_APPROVAL_CHECKPOINTS = 120;
 const MAX_REVIEW_APPROVAL_EVIDENCE_ENTRIES = 60;
 const MAX_REVIEW_APPROVAL_ARRAY_ITEMS = 80;
+const LONG_FORM_CREATIVE_STATUSES = new Set(["ready", "review_required", "blocked"]);
+const LONG_FORM_CREATIVE_REPAIR_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
+const LONG_DIRECTOR_NARRATIVE_MODES = new Set([
+  "single_long_story",
+  "documentary_explainer",
+  "training_or_education",
+  "brand_film",
+  "series_episode"
+]);
+const LONG_DIRECTOR_CONTINUITY_MODES = new Set(["project_bible", "series_bible_required"]);
+const LONG_DIRECTOR_CHECKPOINT_STAGES = new Set(["story", "scene_plan", "references", "sample", "render", "publish"]);
 
 interface RenderRequestBody extends CineJellyProjectRequest {
   readonly outputPath?: string;
@@ -154,6 +167,10 @@ interface ShortPipelineProductUrlPlanRequestBody extends ShortPipelinePlanReques
   readonly confirmLiveNetwork?: boolean;
   readonly maxProductUrlBytes?: number;
   readonly productResearchTimeoutMs?: number;
+}
+
+interface LongDirectorUiContractRequestBody {
+  readonly longFormCreativeIntelligencePlan?: LongFormCreativeIntelligencePlan;
 }
 
 interface NormalizedShortPipelineProductUrlPlanBody {
@@ -598,6 +615,23 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(response, plan.status === "blocked" ? 422 : 200, {
           plan,
           uiContract: buildShortMvpUiContract(plan)
+        }, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/long-form/director-ui-contract") {
+        assertJsonContentType(request);
+        const body = await readJsonBody<LongDirectorUiContractRequestBody>(request, maxBodyBytes);
+        const longFormCreativeIntelligencePlan = longFormCreativeIntelligencePlanFromBody(body);
+        const uiContract = buildLongDirectorUiContract(longFormCreativeIntelligencePlan);
+        sendJson(response, longFormCreativeIntelligencePlan.status === "blocked" ? 422 : 200, {
+          longFormCreativeIntelligencePlan,
+          uiContract,
+          releaseGateSummary: {
+            canUseAsNoSpendLongDirectorUiContractEvidence: true,
+            canSubmitToProviderNow: uiContract.outputContract.canSubmitToProviderNow,
+            canReleaseToCustomerTraffic: false,
+            releaseBlocker: "Long Director UI contract API is no-spend review-console evidence only; provider submission, paid long-form validation, artifact-bound manual review, and release approval remain separate gates."
+          }
         }, requestContext);
         return;
       }
@@ -1272,6 +1306,100 @@ function shortPipelinePlanInputFromBody(
   };
 }
 
+function longFormCreativeIntelligencePlanFromBody(body: LongDirectorUiContractRequestBody): LongFormCreativeIntelligencePlan {
+  if (!isJsonRecord(body)) {
+    throw new RenderRequestAdmissionError("Long Director UI contract request body must be a JSON object.");
+  }
+  const plan = body.longFormCreativeIntelligencePlan;
+  if (!isJsonRecord(plan)) {
+    throw new RenderRequestAdmissionError("Long Director UI contract request requires longFormCreativeIntelligencePlan.");
+  }
+  if (plan.schemaVersion !== "cinejelly.long-form-creative-intelligence.v1") {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.schemaVersion is invalid.");
+  }
+  if (typeof plan.projectId !== "string" || !plan.projectId.trim()) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.projectId is required.");
+  }
+  if (plan.noSpend !== true || plan.networkCallsMade !== false || plan.providerCallsMade !== false) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan must be no-spend/no-network/no-provider evidence.");
+  }
+  if (typeof plan.status !== "string" || !LONG_FORM_CREATIVE_STATUSES.has(plan.status)) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.status is invalid.");
+  }
+  requirePositiveNumber(plan.targetDurationSeconds, "longFormCreativeIntelligencePlan.targetDurationSeconds");
+  requireBoundedNumber(plan.qualityScore, "longFormCreativeIntelligencePlan.qualityScore", 0, 100);
+  const nicheStrategy = requireRecord(plan.nicheStrategy, "longFormCreativeIntelligencePlan.nicheStrategy");
+  requireString(nicheStrategy.niche, "longFormCreativeIntelligencePlan.nicheStrategy.niche");
+  requireString(nicheStrategy.platformIntent, "longFormCreativeIntelligencePlan.nicheStrategy.platformIntent");
+  requireString(nicheStrategy.desiredViewerAction, "longFormCreativeIntelligencePlan.nicheStrategy.desiredViewerAction");
+  requireArray(nicheStrategy.viralLevers, "longFormCreativeIntelligencePlan.nicheStrategy.viralLevers");
+  const storyBible = requireRecord(plan.storyBible, "longFormCreativeIntelligencePlan.storyBible");
+  requireArray(storyBible.emotionalArc, "longFormCreativeIntelligencePlan.storyBible.emotionalArc");
+  const directorPlan = requireRecord(plan.directorPlan, "longFormCreativeIntelligencePlan.directorPlan");
+  if (directorPlan.schemaVersion !== "cinejelly.long-director.v1") {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.directorPlan.schemaVersion is invalid.");
+  }
+  requireString(directorPlan.directorId, "longFormCreativeIntelligencePlan.directorPlan.directorId");
+  if (typeof directorPlan.status !== "string" || !LONG_FORM_CREATIVE_STATUSES.has(directorPlan.status)) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.directorPlan.status is invalid.");
+  }
+  const directorStory = requireRecord(directorPlan.storyPlan, "longFormCreativeIntelligencePlan.directorPlan.storyPlan");
+  if (typeof directorStory.narrativeMode !== "string" || !LONG_DIRECTOR_NARRATIVE_MODES.has(directorStory.narrativeMode)) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.directorPlan.storyPlan.narrativeMode is invalid.");
+  }
+  const directorContinuity = requireRecord(directorPlan.continuityPlan, "longFormCreativeIntelligencePlan.directorPlan.continuityPlan");
+  if (typeof directorContinuity.mode !== "string" || !LONG_DIRECTOR_CONTINUITY_MODES.has(directorContinuity.mode)) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.directorPlan.continuityPlan.mode is invalid.");
+  }
+  const checkpointPolicy = requireRecord(directorPlan.checkpointPolicy, "longFormCreativeIntelligencePlan.directorPlan.checkpointPolicy");
+  const checkpointStages = requireArray(
+    checkpointPolicy.requiredStages,
+    "longFormCreativeIntelligencePlan.directorPlan.checkpointPolicy.requiredStages"
+  );
+  if (checkpointStages.length === 0 || checkpointStages.some((stage) => typeof stage !== "string" || !LONG_DIRECTOR_CHECKPOINT_STAGES.has(stage))) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.directorPlan.checkpointPolicy.requiredStages is invalid.");
+  }
+  if (checkpointPolicy.pauseBeforeProviderSpend !== true || checkpointPolicy.pauseBeforeCustomerRelease !== true) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.directorPlan checkpoint policy must pause before provider spend and customer release.");
+  }
+  requireArray(directorPlan.findings, "longFormCreativeIntelligencePlan.directorPlan.findings");
+  requireStringArray(directorPlan.directorDirectives, "longFormCreativeIntelligencePlan.directorPlan.directorDirectives");
+  const shotDirectives = requireArray(plan.shotDirectives, "longFormCreativeIntelligencePlan.shotDirectives");
+  const candidateDirectives = requireArray(plan.candidateDirectives, "longFormCreativeIntelligencePlan.candidateDirectives");
+  const repairDirectives = requireArray(plan.repairDirectives, "longFormCreativeIntelligencePlan.repairDirectives");
+  const findings = requireArray(plan.findings, "longFormCreativeIntelligencePlan.findings");
+  requireIntegerCount(plan.findingCount, findings.length, "longFormCreativeIntelligencePlan.findingCount");
+  requireIntegerCount(plan.shotDirectiveCount, shotDirectives.length, "longFormCreativeIntelligencePlan.shotDirectiveCount");
+  requireIntegerCount(plan.candidateDirectiveCount, candidateDirectives.length, "longFormCreativeIntelligencePlan.candidateDirectiveCount");
+  requireIntegerCount(plan.repairDirectiveCount, repairDirectives.length, "longFormCreativeIntelligencePlan.repairDirectiveCount");
+  for (const [index, directive] of shotDirectives.entries()) {
+    const item = requireRecord(directive, `longFormCreativeIntelligencePlan.shotDirectives[${index}]`);
+    requireString(item.sequenceId, `longFormCreativeIntelligencePlan.shotDirectives[${index}].sequenceId`);
+  }
+  for (const [index, directive] of repairDirectives.entries()) {
+    const item = requireRecord(directive, `longFormCreativeIntelligencePlan.repairDirectives[${index}]`);
+    if (typeof item.priority !== "string" || !LONG_FORM_CREATIVE_REPAIR_PRIORITIES.has(item.priority)) {
+      throw new RenderRequestAdmissionError(`longFormCreativeIntelligencePlan.repairDirectives[${index}].priority is invalid.`);
+    }
+  }
+  const audioCaptionQuality = requireRecord(plan.audioCaptionQuality, "longFormCreativeIntelligencePlan.audioCaptionQuality");
+  if (typeof audioCaptionQuality.status !== "string" || !LONG_FORM_CREATIVE_STATUSES.has(audioCaptionQuality.status)) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.audioCaptionQuality.status is invalid.");
+  }
+  requireBoundedNumber(audioCaptionQuality.captionCoverageRatio, "longFormCreativeIntelligencePlan.audioCaptionQuality.captionCoverageRatio", 0, 1);
+  requireNonNegativeNumber(audioCaptionQuality.generatedAudioIntentCount, "longFormCreativeIntelligencePlan.audioCaptionQuality.generatedAudioIntentCount");
+  const releaseGateSummary = requireRecord(plan.releaseGateSummary, "longFormCreativeIntelligencePlan.releaseGateSummary");
+  if (
+    typeof releaseGateSummary.canProceedToRender !== "boolean" ||
+    releaseGateSummary.canReleaseToCustomerTraffic !== false ||
+    typeof releaseGateSummary.releaseBlocker !== "string" ||
+    !releaseGateSummary.releaseBlocker
+  ) {
+    throw new RenderRequestAdmissionError("longFormCreativeIntelligencePlan.releaseGateSummary is invalid.");
+  }
+  return plan as unknown as LongFormCreativeIntelligencePlan;
+}
+
 function resolveShortChannelStyleInput(
   body: {
     readonly channelStyle?: ShortChannelStyleProfileInput;
@@ -1457,6 +1585,63 @@ function shortPipelinePlanFromStoredSession(record: ShortPipelineStoredSessionRe
     throw new RenderRequestAdmissionError("Stored short-pipeline plan must contain review approval evidence.");
   }
   return plan as unknown as ShortPipelinePlan;
+}
+
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function requireRecord(value: unknown, label: string): Record<string, unknown> {
+  if (!isJsonRecord(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an object.`);
+  }
+  return value;
+}
+
+function requireArray(value: unknown, label: string): readonly unknown[] {
+  if (!Array.isArray(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an array.`);
+  }
+  return value;
+}
+
+function requireString(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new RenderRequestAdmissionError(`${label} must be a non-empty string.`);
+  }
+  return value;
+}
+
+function requireStringArray(value: unknown, label: string): readonly string[] {
+  const array = requireArray(value, label);
+  if (array.some((item) => typeof item !== "string" || !item.trim())) {
+    throw new RenderRequestAdmissionError(`${label} must contain only non-empty strings.`);
+  }
+  return array as readonly string[];
+}
+
+function requirePositiveNumber(value: unknown, label: string): void {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw new RenderRequestAdmissionError(`${label} must be a positive number.`);
+  }
+}
+
+function requireNonNegativeNumber(value: unknown, label: string): void {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new RenderRequestAdmissionError(`${label} must be a non-negative number.`);
+  }
+}
+
+function requireBoundedNumber(value: unknown, label: string, minimum: number, maximum: number): void {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new RenderRequestAdmissionError(`${label} must be between ${minimum} and ${maximum}.`);
+  }
+}
+
+function requireIntegerCount(value: unknown, expected: number, label: string): void {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value !== expected) {
+    throw new RenderRequestAdmissionError(`${label} must match its collection length.`);
+  }
 }
 
 function optionalBoolean(value: unknown, label: string): boolean | undefined {

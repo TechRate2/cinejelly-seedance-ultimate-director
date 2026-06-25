@@ -164,8 +164,35 @@ const blockedCreative = creativePlanner.build({
   sourceVideoAnalysis
 });
 const blockedLongDirectorUiContract = buildLongDirectorUiContract(blockedCreative);
+const apiPort = 26_000 + Math.floor(Math.random() * 4_000);
+process.env.PORT = String(apiPort);
+process.env.CINEJELLY_DISABLE_API_AUTH = "true";
+process.env.CINEJELLY_DISABLE_API_RATE_LIMIT = "true";
+const { startServer } = await import("../dist/api/server.js");
+const apiServer = startServer(apiPort);
+const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
+let apiContract;
+let blockedApiContract;
+let invalidApiContract;
+try {
+  await waitForHealth(apiBaseUrl);
+  apiContract = await postJson(`${apiBaseUrl}/v1/long-form/director-ui-contract`, {
+    longFormCreativeIntelligencePlan: creative
+  });
+  blockedApiContract = await postJson(`${apiBaseUrl}/v1/long-form/director-ui-contract`, {
+    longFormCreativeIntelligencePlan: blockedCreative
+  });
+  invalidApiContract = await postJson(`${apiBaseUrl}/v1/long-form/director-ui-contract`, {
+    longFormCreativeIntelligencePlan: {
+      ...creative,
+      noSpend: false
+    }
+  });
+} finally {
+  await new Promise((resolveClose) => apiServer.close(resolveClose));
+}
 
-const serialized = JSON.stringify({ creative, blockedCreative, longDirectorUiContract, blockedLongDirectorUiContract });
+const serialized = JSON.stringify({ creative, blockedCreative, longDirectorUiContract, blockedLongDirectorUiContract, apiContract, blockedApiContract });
 const rawLeakDetected = serialized.includes("https://private.example") ||
   serialized.includes("token=secret") ||
   serialized.includes("api_key=");
@@ -240,6 +267,24 @@ const checks = [
     blockedLongDirectorUiContract.outputContract.canProceedToRenderAfterApproval === false
     ? pass("blocked_timeline_stops_render", "Timeline blocking evidence is promoted into creative intelligence before provider spend.")
     : fail("blocked_timeline_stops_render", "Expected blocked creative intelligence when timeline is blocked."),
+  apiContract.statusCode === 200 &&
+    apiContract.body.uiContract?.schemaVersion === "cinejelly.long-director-ui-contract.v1" &&
+    apiContract.body.uiContract?.projectId === creative.projectId &&
+    apiContract.body.uiContract?.director?.directorId === creative.directorPlan.directorId &&
+    apiContract.body.uiContract?.outputContract?.canSubmitToProviderNow === false &&
+    apiContract.body.releaseGateSummary?.canUseAsNoSpendLongDirectorUiContractEvidence === true
+    ? pass("long_director_ui_contract_api_ready", "API returns a no-spend Long Director UI contract from creative intelligence evidence.")
+    : fail("long_director_ui_contract_api_ready", "Expected API to return a Long Director UI contract for review-required creative evidence."),
+  blockedApiContract.statusCode === 422 &&
+    blockedApiContract.body.uiContract?.status === "blocked" &&
+    blockedApiContract.body.uiContract?.outputContract?.canProceedToRenderAfterApproval === false &&
+    blockedApiContract.body.uiContract?.releaseGateSummary?.readyForLongReviewUiIntegration === false
+    ? pass("long_director_ui_contract_api_blocks_blocked_plan", "API preserves blocked Long Director evidence and returns 422 without provider spend.")
+    : fail("long_director_ui_contract_api_blocks_blocked_plan", "Expected API to return 422 with blocked UI evidence."),
+  invalidApiContract.statusCode === 400 &&
+    String(invalidApiContract.body.error ?? "").includes("no-spend/no-network/no-provider")
+    ? pass("long_director_ui_contract_api_rejects_spend_boundary_drift", "API rejects creative evidence that violates no-spend/no-network/no-provider boundaries.")
+    : fail("long_director_ui_contract_api_rejects_spend_boundary_drift", "Expected API to reject spend-boundary drift before building a UI contract."),
   directiveCountsConsistent && blockedCountsConsistent
     ? pass("count_consistency", "Finding/directive counts match collection evidence.")
     : fail("count_consistency", "Finding/directive counts do not match collection evidence."),
@@ -467,6 +512,34 @@ function writeJson(outputPath, value) {
   const absolutePath = resolve(repoRoot, outputPath);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function waitForHealth(baseUrl) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${baseUrl}/health`);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // Server may still be binding the random local port.
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  throw new Error("Timed out waiting for local API health endpoint.");
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  return {
+    statusCode: response.status,
+    body: await response.json()
+  };
 }
 
 function pass(name, message) {
