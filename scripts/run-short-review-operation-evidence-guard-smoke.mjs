@@ -70,7 +70,7 @@ if (options.help) {
   process.exit(0);
 }
 assertRepoRelativeJsonPath(options.outputPath, "--output");
-assertRepoRelativePath(options.workDir, "--work-dir");
+assertGuardWorkDirPath(options.workDir, "--work-dir");
 
 const workDir = resolve(repoRoot, options.workDir);
 const safeEvidencePath = resolve(workDir, "safe-short-review-operation-evidence.json");
@@ -285,6 +285,16 @@ function assertRepoRelativeJsonPath(path, flag) {
     throw new Error(`${flag} must point to a JSON file.`);
   }
   assertRepoRelativePath(path, flag);
+}
+
+function assertGuardWorkDirPath(path, flag) {
+  assertRepoRelativePath(path, flag);
+  const allowedRoot = resolve(repoRoot, defaultWorkDir);
+  const absolutePath = resolve(repoRoot, path);
+  const relativePath = relative(allowedRoot, absolutePath);
+  if (relativePath && (relativePath.startsWith("..") || isAbsolute(relativePath))) {
+    throw new Error(`${flag} must stay inside ${defaultWorkDir} so smoke cleanup cannot remove unrelated files.`);
+  }
 }
 
 function assertRepoRelativePath(path, flag) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, extname, resolve } from "node:path";
+import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -46,10 +46,28 @@ if (extname(options.outputPath).toLowerCase() !== ".json") {
 if (extname(options.storePath).toLowerCase() !== ".json") {
   throw new Error("--store must point to a JSON file.");
 }
+assertSmokeStorePath(options.storePath, "--store", dirname(defaultStorePath));
 
 const storePath = resolve(repoRoot, options.storePath);
 rmSync(dirname(storePath), { recursive: true, force: true });
 mkdirSync(dirname(storePath), { recursive: true });
+
+function assertSmokeStorePath(path, flag, allowedDir) {
+  if (isAbsolute(path)) {
+    throw new Error(`${flag} must be repo-relative so smoke cleanup cannot remove files outside the workspace.`);
+  }
+  const absolutePath = resolve(repoRoot, path);
+  const relativeToRepo = relative(repoRoot, absolutePath);
+  if (relativeToRepo.startsWith("..") || isAbsolute(relativeToRepo)) {
+    throw new Error(`${flag} must stay inside the repository workspace.`);
+  }
+  const absoluteAllowedDir = resolve(repoRoot, allowedDir);
+  const parentDir = dirname(absolutePath);
+  const relativeToAllowedDir = relative(absoluteAllowedDir, parentDir);
+  if (relativeToAllowedDir && (relativeToAllowedDir.startsWith("..") || isAbsolute(relativeToAllowedDir))) {
+    throw new Error(`${flag} parent directory must stay inside ${allowedDir} so smoke cleanup cannot remove unrelated files.`);
+  }
+}
 
 const { ShortPipelineConversationEngine } = await import("../dist/core/short-pipeline-conversation.js");
 const { ShortPipelineSessionStore } = await import("../dist/api/short-pipeline-session-store.js");

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, extname, relative, resolve } from "node:path";
+import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -176,12 +176,29 @@ function validateOptions(options) {
   if (extname(options.outputPath).toLowerCase() !== ".json") {
     throw new Error("--output must point to a JSON file.");
   }
+  assertSmokeWorkDirectory(options.workDirectory, "--work-directory");
   if (!String(options.defaultModelId ?? "").trim()) {
     throw new Error("--model-id must be a non-empty string.");
   }
   const distPath = resolve(repoRoot, "dist/core/source-video-auto-analyzer.js");
   if (!existsSync(distPath)) {
     throw new Error("dist/core/source-video-auto-analyzer.js is missing. Run npm.cmd run build first.");
+  }
+}
+
+function assertSmokeWorkDirectory(path, flag) {
+  if (isAbsolute(path)) {
+    throw new Error(`${flag} must be repo-relative so smoke cleanup cannot remove files outside the workspace.`);
+  }
+  const absolutePath = resolve(repoRoot, path);
+  const relativeToRepo = relative(repoRoot, absolutePath);
+  if (relativeToRepo.startsWith("..") || isAbsolute(relativeToRepo)) {
+    throw new Error(`${flag} must stay inside the repository workspace.`);
+  }
+  const allowedRoot = resolve(repoRoot, defaults.workDirectory);
+  const relativeToAllowedRoot = relative(allowedRoot, absolutePath);
+  if (relativeToAllowedRoot && (relativeToAllowedRoot.startsWith("..") || isAbsolute(relativeToAllowedRoot))) {
+    throw new Error(`${flag} must stay inside ${defaults.workDirectory} so smoke cleanup cannot remove unrelated files.`);
   }
 }
 

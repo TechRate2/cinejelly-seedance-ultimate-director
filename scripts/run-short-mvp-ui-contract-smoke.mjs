@@ -69,11 +69,23 @@ const options = parseArgs(process.argv.slice(2));
 assertRepoRelativeJsonPath(options.outputPath, "--output");
 assertRepoRelativeJsonPath(options.styleStorePath, "--style-store");
 assertRepoRelativeJsonPath(options.sessionStorePath, "--session-store");
+assertSmokeStorePath(options.styleStorePath, "--style-store", dirname(defaultStyleStorePath));
+assertSmokeStorePath(options.sessionStorePath, "--session-store", dirname(defaultSessionStorePath));
 
 const styleStorePath = resolve(repoRoot, options.styleStorePath);
 const sessionStorePath = resolve(repoRoot, options.sessionStorePath);
 rmSync(dirname(styleStorePath), { recursive: true, force: true });
 mkdirSync(dirname(styleStorePath), { recursive: true });
+
+function assertSmokeStorePath(path, flag, allowedDir) {
+  const absolutePath = resolve(repoRoot, path);
+  const parentDir = dirname(absolutePath);
+  const absoluteAllowedDir = resolve(repoRoot, allowedDir);
+  const relativeToAllowedDir = relative(absoluteAllowedDir, parentDir);
+  if (relativeToAllowedDir && (relativeToAllowedDir.startsWith("..") || isAbsolute(relativeToAllowedDir))) {
+    throw new Error(`${flag} parent directory must stay inside ${allowedDir} so smoke cleanup cannot remove unrelated files.`);
+  }
+}
 
 const clientAKey = "client-a-short-mvp-ui-key-2026";
 const clientBKey = "client-b-short-mvp-ui-key-2026";
