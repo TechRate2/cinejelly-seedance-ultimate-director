@@ -506,9 +506,10 @@ export class ShortPipelinePlanner {
     const selectedTemplate = input.preferredTemplateId
       ? templateSuggestions.find((item) => item.templateId === input.preferredTemplateId)
       : undefined;
-    const activeTemplate = selectedTemplate ?? templateSuggestions[0];
-    const concepts = this.concepts(prompt, intent, productBrief, brandKitEvaluation, activeTemplate);
-    const preliminaryScenes = this.scenes(prompt, intent, productBrief, concepts[0], activeTemplate);
+    const suggestedTemplate = templateSuggestions[0];
+    const planningTemplate = selectedTemplate ?? suggestedTemplate;
+    const concepts = this.concepts(prompt, intent, productBrief, brandKitEvaluation, planningTemplate);
+    const preliminaryScenes = this.scenes(prompt, intent, productBrief, concepts[0], planningTemplate);
     const preliminaryViralIntelligence = this.viralIntelligencePlanner.build({
       projectId: input.projectId,
       ...(input.requestId ? { requestId: input.requestId } : {}),
@@ -518,7 +519,7 @@ export class ShortPipelinePlanner {
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
       ...(channelStyleProfile ? { channelStyleProfile } : {}),
-      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      ...(selectedTemplate ? { selectedTemplate } : {}),
       concepts,
       scenes: preliminaryScenes,
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
@@ -532,7 +533,7 @@ export class ShortPipelinePlanner {
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
       ...(channelStyleProfile ? { channelStyleProfile } : {}),
-      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      ...(selectedTemplate ? { selectedTemplate } : {}),
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
       concepts,
       scenes: preliminaryScenes,
@@ -542,7 +543,7 @@ export class ShortPipelinePlanner {
       prompt,
       intent,
       productBrief,
-      templateSuggestion: activeTemplate,
+      templateSuggestion: planningTemplate,
       concepts,
       preliminaryScenes,
       preliminaryAgentGraph: preliminaryAgentGraphOutput.graphRun
@@ -556,7 +557,7 @@ export class ShortPipelinePlanner {
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
       ...(channelStyleProfile ? { channelStyleProfile } : {}),
-      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      ...(selectedTemplate ? { selectedTemplate } : {}),
       concepts,
       scenes,
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
@@ -570,7 +571,7 @@ export class ShortPipelinePlanner {
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
       ...(channelStyleProfile ? { channelStyleProfile } : {}),
-      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      ...(selectedTemplate ? { selectedTemplate } : {}),
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
       concepts,
       scenes,
@@ -586,7 +587,7 @@ export class ShortPipelinePlanner {
       ...(productBrief ? { productBrief } : {}),
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
       ...(channelStyleProfile ? { channelStyleProfile } : {}),
-      ...(activeTemplate ? { selectedTemplate: activeTemplate } : {}),
+      ...(selectedTemplate ? { selectedTemplate } : {}),
       concepts,
       scenes,
       viralIntelligence,
