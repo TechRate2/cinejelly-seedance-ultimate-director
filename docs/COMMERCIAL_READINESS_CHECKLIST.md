@@ -4,7 +4,7 @@ This checklist defines the commercial-core bar before CineJelly can accept custo
 
 ## Current Gate
 
-Status on 2026-06-19: backend hygiene and report contracts pass, but full commercial readiness remains blocked by external evidence, paid validation, manual review, deployment operations, and product-scope decisions.
+Status on 2026-06-26: backend hygiene, Short evidence draft handoffs, and report contracts pass when the local validation suite is green, but full commercial readiness remains blocked by external evidence, paid validation, manual review, deployment operations, and product-scope decisions.
 
 ## Core Backend
 
@@ -24,6 +24,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] No-spend durable short-pipeline conversation session store exists behind explicit `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH`, with atomic writes, client-scoped reads, and redaction checks for raw transcript, URLs, local paths, and secret-like values.
 - [x] No-spend short-pipeline session render handoff exists so a stored session can create a paused/blocked async render job only through server-side plan retrieval, rejection of client-side plan replacement, formal review evidence, client scope, and explicit spend confirmation.
 - [x] No-spend Product URL-to-Video backend extraction can parse bounded public HTML behind explicit live-network confirmation, feed safe product facts into short-pipeline planning, and emit schema-validated redaction evidence without provider spend.
+- [x] No-spend Short review-operation and product-rights operator draft/checklist handoffs exist, and direct template use is rejected by the accepted-packet validators.
 - [x] No-spend Short Viral/Niche Intelligence backend exists with TikTok/Douyin-first strategy, concept scoring, scene directives, reference-video pattern learning, originality guardrails, and render-handoff prompt metadata before provider spend.
 - [x] No-spend Long Creative Intelligence backend exists with story bible, niche/viral strategy, shot-level quality directives, multi-candidate guidance, auto-repair directives, and audio/caption QA before provider spend.
 - [ ] First-party UI review screens and accepted artifact-bound manual media review are completed for the first commercial launch scope.
@@ -64,7 +65,9 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Durable conversation sessions can hand off into async render-job review lifecycle without accepting a client-side replacement plan or bypassing explicit render confirmation.
 - [x] `video-db/Director` snapshot and Director Agentic Media Reasoning baseline are captured for chat/workflow parity tracking.
 - [x] Human-in-the-loop review checkpoints are emitted before render.
-- [ ] Live product URL crawling/extraction, accepted product facts, and rights-reviewed product media are proven on real URLs. The no-spend accepted product-facts/media-rights validator and unsafe-note guard are implemented; an operator-supplied accepted live packet is still required.
+- [x] No-spend operator draft/checklist helpers exist for accepted Short review-operation evidence and accepted product-facts/media-rights evidence.
+- [ ] Accepted live Short create/review operation evidence is archived from a real deployment. The no-spend draft, validator, unsafe-note guard, and launch-doctor status are implemented; an operator-supplied accepted live packet is still required.
+- [ ] Live product URL crawling/extraction, accepted product facts, and rights-reviewed product media are proven on real URLs. The no-spend accepted product-facts/media-rights draft, validator, unsafe-note guard, and launch-doctor status are implemented; an operator-supplied accepted live packet is still required.
 - [x] Short-pipeline accepted review handoff is wired into async render-job submission.
 - [ ] Live short-pipeline render validation is proven with approved review evidence, explicit spend confirmation, artifact validation, and manual media review.
 - [ ] First-party chat/review UI and media-library evidence are implemented before claiming Director-style product parity.
@@ -86,6 +89,10 @@ npm.cmd run validation:short-pipeline-session-store
 npm.cmd run validation:short-pipeline-session-render-handoff
 npm.cmd run validation:short-pipeline
 npm.cmd run validation:product-url-extraction
+npm.cmd run validation:short-review-operation-draft -- --force
+npm.cmd run validation:short-review-operation-guard
+npm.cmd run validation:short-product-rights-draft -- --force
+npm.cmd run validation:short-product-rights-guard
 npm.cmd run validation:release-audit
 npm.cmd run validation:business-readiness
 npm.cmd run validation:completion-audit
@@ -99,6 +106,8 @@ npm.cmd run validation:billing-admin-ops -- --base-url https://<your-cinejelly-h
 npm.cmd run validation:production-ops -- --base-url https://<your-cinejelly-host> --attestation ops/production-operations-attestation.json
 npm.cmd run validation:provider-live-actions -- --evidence ops/render-provider-live-actions.json --confirm-live-provider-actions
 npm.cmd run validation:provider-graph-resume -- --evidence ops/render-provider-graph-resume-enqueues.json --confirm-graph-resume-enqueues
+npm.cmd run validation:short-review-operation -- --evidence ops/short-review-operation-evidence.json --confirm-accepted-review-operation
+npm.cmd run validation:short-product-rights -- --evidence ops/short-product-rights-evidence.json --confirm-accepted-product-rights
 ```
 
 ## Release Rule

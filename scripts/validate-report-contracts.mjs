@@ -80,9 +80,11 @@ const defaultContracts = [
   contract("short_pipeline_session_render_handoff_smoke", "schemas/short-pipeline-session-render-handoff-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-session-render-handoff-smoke-report.json"),
   contract("short_mvp_ui_contract_smoke", "schemas/short-mvp-ui-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-mvp-ui-contract-smoke-report.json"),
   contract("short_review_operation_evidence", "schemas/short-review-operation-evidence.schema.json", "ops/short-review-operation-evidence.json"),
+  contract("short_review_operation_draft", "schemas/short-review-operation-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/short-review-operation-evidence-draft-report.json"),
   contract("short_review_operation_validation", "schemas/short-review-operation-validation-report.schema.json", "assets/output_deliverables/business-readiness/short-review-operation-validation-report.json"),
   contract("short_review_operation_guard", "schemas/short-review-operation-evidence-guard-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-review-operation-evidence-guard-smoke-report.json"),
   contract("short_product_rights_evidence", "schemas/short-product-rights-evidence.schema.json", "ops/short-product-rights-evidence.json"),
+  contract("short_product_rights_draft", "schemas/short-product-rights-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/short-product-rights-evidence-draft-report.json"),
   contract("short_product_rights_validation", "schemas/short-product-rights-validation-report.schema.json", "assets/output_deliverables/business-readiness/short-product-rights-validation-report.json"),
   contract("short_product_rights_guard", "schemas/short-product-rights-evidence-guard-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-product-rights-evidence-guard-smoke-report.json"),
   contract("operator_launch_ui_contract_smoke", "schemas/operator-launch-ui-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/operator-launch-ui-contract-smoke-report.json"),
@@ -450,8 +452,14 @@ const LAUNCH_DOCTOR_BASE_COMMANDS = [
   "source_video_auto_analysis_smoke",
   "remote_stock_adapter_smoke",
   "generated_audio_mapping_smoke",
+  "short_review_operation_guard",
+  "short_product_rights_guard",
   "provider_live_actions",
   "provider_graph_resume",
+  "short_review_operation_draft",
+  "short_review_operation_validation",
+  "short_product_rights_draft",
+  "short_product_rights_validation",
   "release_audit",
   "quality_benchmark",
   "quality_review_guard",
@@ -576,6 +584,38 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
   }
   if (report?.readinessSnapshot?.generatedAudioMappingSmokeStatus !== "pass") {
     issues.push("$.readinessSnapshot.generatedAudioMappingSmokeStatus: expected pass after refreshing generated-audio mapping smoke.");
+  }
+
+  const shortReviewOperationGuardRun = commandByName.get("short_review_operation_guard");
+  if (shortReviewOperationGuardRun?.status !== "pass") {
+    issues.push("$.commandRuns[short_review_operation_guard].status: expected pass for Short review operation evidence guard smoke.");
+  }
+  if (report?.readinessSnapshot?.shortReviewOperationGuardStatus !== "pass") {
+    issues.push("$.readinessSnapshot.shortReviewOperationGuardStatus: expected pass after refreshing Short review operation guard smoke.");
+  }
+  const shortProductRightsGuardRun = commandByName.get("short_product_rights_guard");
+  if (shortProductRightsGuardRun?.status !== "pass") {
+    issues.push("$.commandRuns[short_product_rights_guard].status: expected pass for Short product/rights evidence guard smoke.");
+  }
+  if (report?.readinessSnapshot?.shortProductRightsGuardStatus !== "pass") {
+    issues.push("$.readinessSnapshot.shortProductRightsGuardStatus: expected pass after refreshing Short product/rights guard smoke.");
+  }
+  for (const [commandName, summaryKey, statusKey] of [
+    ["short_review_operation_draft", "shortReviewOperationDraft", "shortReviewOperationDraftStatus"],
+    ["short_review_operation_validation", "shortReviewOperationValidation", "shortReviewOperationValidationStatus"],
+    ["short_product_rights_draft", "shortProductRightsDraft", "shortProductRightsDraftStatus"],
+    ["short_product_rights_validation", "shortProductRightsValidation", "shortProductRightsValidationStatus"]
+  ]) {
+    const run = commandByName.get(commandName);
+    if (run?.status !== "pass") {
+      issues.push(`$.commandRuns[${commandName}].status: expected pass for refreshed Short evidence command.`);
+    }
+    if (["missing", "skipped", undefined].includes(report?.readinessSnapshot?.[statusKey])) {
+      issues.push(`$.readinessSnapshot.${statusKey}: expected a refreshed Short evidence status, not missing/skipped.`);
+    }
+    if (report?.readinessSnapshot?.[statusKey] !== report?.reportSummaries?.[summaryKey]?.status) {
+      issues.push(`$.readinessSnapshot.${statusKey}: expected to match reportSummaries.${summaryKey}.status.`);
+    }
   }
 
   const scopeSummary = report?.commercialOfferScopeSummary;
@@ -4256,6 +4296,30 @@ function validateCommercialLaunchInputsSemantics(report) {
       issues.push("$.requiredInputs[graph_resume_enqueue_evidence].validationCommand: expected provider-graph-resume confirmation command.");
     }
   }
+  const shortReviewInput = requiredInputs.find((item) => item?.id === "short_review_operation_evidence");
+  if (!shortReviewInput) {
+    issues.push("$.requiredInputs: expected short_review_operation_evidence checklist item.");
+  } else {
+    if (!Array.isArray(shortReviewInput.filePaths) || !shortReviewInput.filePaths.includes("ops/short-review-operation-evidence.json")) {
+      issues.push("$.requiredInputs[short_review_operation_evidence].filePaths: expected ops/short-review-operation-evidence.json.");
+    }
+    if (!String(shortReviewInput.validationCommand ?? "").includes("validation:short-review-operation-draft") ||
+        !String(shortReviewInput.validationCommand ?? "").includes("validation:short-review-operation -- --evidence ops/short-review-operation-evidence.json --confirm-accepted-review-operation")) {
+      issues.push("$.requiredInputs[short_review_operation_evidence].validationCommand: expected draft plus accepted review-operation confirmation command.");
+    }
+  }
+  const shortProductRightsInput = requiredInputs.find((item) => item?.id === "short_product_rights_evidence");
+  if (!shortProductRightsInput) {
+    issues.push("$.requiredInputs: expected short_product_rights_evidence checklist item.");
+  } else {
+    if (!Array.isArray(shortProductRightsInput.filePaths) || !shortProductRightsInput.filePaths.includes("ops/short-product-rights-evidence.json")) {
+      issues.push("$.requiredInputs[short_product_rights_evidence].filePaths: expected ops/short-product-rights-evidence.json.");
+    }
+    if (!String(shortProductRightsInput.validationCommand ?? "").includes("validation:short-product-rights-draft") ||
+        !String(shortProductRightsInput.validationCommand ?? "").includes("validation:short-product-rights -- --evidence ops/short-product-rights-evidence.json --confirm-accepted-product-rights")) {
+      issues.push("$.requiredInputs[short_product_rights_evidence].validationCommand: expected draft plus accepted product-rights confirmation command.");
+    }
+  }
   const finalAuditCommands = Array.isArray(report?.evidenceCommandPlan?.finalAudit) ? report.evidenceCommandPlan.finalAudit : [];
   const liveActionCommand = finalAuditCommands.find((item) => item?.name === "live_provider_action_evidence");
   if (!liveActionCommand) {
@@ -4268,6 +4332,18 @@ function validateCommercialLaunchInputsSemantics(report) {
     issues.push("$.evidenceCommandPlan.finalAudit: expected graph_resume_enqueue_evidence command.");
   } else if (graphResumeCommand.command !== "npm.cmd run validation:provider-graph-resume -- --evidence ops/render-provider-graph-resume-enqueues.json --confirm-graph-resume-enqueues") {
     issues.push("$.evidenceCommandPlan.finalAudit[graph_resume_enqueue_evidence].command: expected provider-graph-resume confirmation command.");
+  }
+  const shortReviewCommand = finalAuditCommands.find((item) => item?.name === "short_review_operation_evidence");
+  if (!shortReviewCommand) {
+    issues.push("$.evidenceCommandPlan.finalAudit: expected short_review_operation_evidence command.");
+  } else if (shortReviewCommand.command !== "npm.cmd run validation:short-review-operation -- --evidence ops/short-review-operation-evidence.json --confirm-accepted-review-operation") {
+    issues.push("$.evidenceCommandPlan.finalAudit[short_review_operation_evidence].command: expected Short review-operation confirmation command.");
+  }
+  const shortProductRightsCommand = finalAuditCommands.find((item) => item?.name === "short_product_rights_evidence");
+  if (!shortProductRightsCommand) {
+    issues.push("$.evidenceCommandPlan.finalAudit: expected short_product_rights_evidence command.");
+  } else if (shortProductRightsCommand.command !== "npm.cmd run validation:short-product-rights -- --evidence ops/short-product-rights-evidence.json --confirm-accepted-product-rights") {
+    issues.push("$.evidenceCommandPlan.finalAudit[short_product_rights_evidence].command: expected Short product-rights confirmation command.");
   }
   return issues;
 }

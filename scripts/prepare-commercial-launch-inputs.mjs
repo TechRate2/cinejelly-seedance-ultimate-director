@@ -14,7 +14,9 @@ const defaults = {
   atlasBillingPath: "assets/output_deliverables/business-readiness/atlas-billing-readiness-report.json",
   opsConfigPath: "assets/output_deliverables/business-readiness/ops-config-validation-report.json",
   providerLiveActionsPath: "assets/output_deliverables/business-readiness/render-provider-live-actions-report.json",
-  providerGraphResumePath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json"
+  providerGraphResumePath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json",
+  shortReviewOperationPath: "assets/output_deliverables/business-readiness/short-review-operation-validation-report.json",
+  shortProductRightsPath: "assets/output_deliverables/business-readiness/short-product-rights-validation-report.json"
 };
 
 function parseArgs(args) {
@@ -33,7 +35,9 @@ function parseArgs(args) {
     ["--atlas-billing-report", "atlasBillingPath"],
     ["--ops-config-report", "opsConfigPath"],
     ["--provider-live-actions-report", "providerLiveActionsPath"],
-    ["--provider-graph-resume-report", "providerGraphResumePath"]
+    ["--provider-graph-resume-report", "providerGraphResumePath"],
+    ["--short-review-operation-report", "shortReviewOperationPath"],
+    ["--short-product-rights-report", "shortProductRightsPath"]
   ]);
 
   for (let index = 0; index < args.length; index += 1) {
@@ -89,6 +93,10 @@ Options:
                                       Default: ${defaults.providerLiveActionsPath}
   --provider-graph-resume-report <path>
                                       Default: ${defaults.providerGraphResumePath}
+  --short-review-operation-report <path>
+                                      Default: ${defaults.shortReviewOperationPath}
+  --short-product-rights-report <path>
+                                      Default: ${defaults.shortProductRightsPath}
   --output <path>                     JSON report path. Default: ${defaults.outputPath}
   --markdown-output <path>            Markdown checklist path. Default: ${defaults.markdownOutputPath}
   --no-markdown                       Do not write the Markdown checklist.
@@ -113,7 +121,9 @@ function main() {
     atlasBilling: summarizeReport(options.atlasBillingPath),
     opsConfig: summarizeReport(options.opsConfigPath),
     providerLiveActions: summarizeReport(options.providerLiveActionsPath),
-    providerGraphResume: summarizeReport(options.providerGraphResumePath)
+    providerGraphResume: summarizeReport(options.providerGraphResumePath),
+    shortReviewOperation: summarizeReport(options.shortReviewOperationPath),
+    shortProductRights: summarizeReport(options.shortProductRightsPath)
   };
   const requiredInputs = buildRequiredInputs(reports);
   const envPlaceholders = buildEnvPlaceholders(reports, requiredInputs);
@@ -122,7 +132,9 @@ function main() {
     reports.businessPlan.value,
     reports.liveInputs.value,
     reports.providerLiveActions.value,
-    reports.providerGraphResume.value
+    reports.providerGraphResume.value,
+    reports.shortReviewOperation.value,
+    reports.shortProductRights.value
   );
   const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
   const commandPlanAudit = buildCommandPlanAudit({ requiredInputs, evidenceCommandPlan, budgetConstrainedPaidPlan });
@@ -155,6 +167,8 @@ function main() {
       opsConfigPath: toRepoRelative(options.opsConfigPath),
       providerLiveActionsPath: toRepoRelative(options.providerLiveActionsPath),
       providerGraphResumePath: toRepoRelative(options.providerGraphResumePath),
+      shortReviewOperationPath: toRepoRelative(options.shortReviewOperationPath),
+      shortProductRightsPath: toRepoRelative(options.shortProductRightsPath),
       markdownOutputPath: options.writeMarkdown ? toRepoRelative(options.markdownOutputPath) : undefined
     },
     sourceReports,
@@ -226,6 +240,8 @@ function buildRequiredInputs(reports) {
   const opsConfig = reports.opsConfig.value;
   const providerLiveActions = reports.providerLiveActions.value;
   const providerGraphResume = reports.providerGraphResume.value;
+  const shortReviewOperation = reports.shortReviewOperation.value;
+  const shortProductRights = reports.shortProductRights.value;
   const liveGate = gateFinder(live?.gates);
   const opsEnvironment = live?.environment?.operations;
   const deployment = live?.environment?.deployment;
@@ -345,6 +361,38 @@ function buildRequiredInputs(reports) {
       acceptance: "After a real deployment worker enqueues graph resume, archive digest-only payload evidence bound to the passing live action report; do not store raw graph state, provider payloads, output URLs, local paths, or secrets.",
       validationCommand: "npm.cmd run validation:provider-graph-resume -- --evidence ops/render-provider-graph-resume-enqueues.json --confirm-graph-resume-enqueues",
       blockerMessage: providerGraphResume?.releaseGateSummary?.releaseBlocker ?? "Graph-resume enqueue payload evidence is missing, unconfirmed, unsafe, or not bound to usable live action graph-resume evidence."
+    }),
+    input({
+      id: "short_review_operation_evidence",
+      label: "Accepted Short create/review operation evidence",
+      category: "manual_review",
+      status: shortReviewOperation?.status === "pass" ? "configured" : "missing",
+      sensitivity: "manual_review",
+      requiredFor: ["short_paid_render_and_artifacts", "manual_short_media_redaction_review"],
+      envVars: [],
+      filePaths: [
+        "ops/short-review-operation-evidence.json",
+        "assets/output_deliverables/business-readiness/short-review-operation-validation-report.json"
+      ],
+      acceptance: "After a real deployment reviewer accepts scene, audio, caption, and claim checkpoints, archive the ignored digest-only review operation packet and validate it with explicit confirmation.",
+      validationCommand: "Step 1: npm.cmd run validation:short-review-operation-draft -- --force. Step 2: npm.cmd run validation:short-review-operation -- --evidence ops/short-review-operation-evidence.json --confirm-accepted-review-operation",
+      blockerMessage: shortReviewOperation?.releaseGateSummary?.releaseBlocker ?? "Accepted Short create/review operation evidence is missing, unconfirmed, unsafe, or incomplete."
+    }),
+    input({
+      id: "short_product_rights_evidence",
+      label: "Accepted Short product facts and media-rights evidence",
+      category: "manual_review",
+      status: shortProductRights?.status === "pass" ? "configured" : "missing",
+      sensitivity: "manual_review",
+      requiredFor: ["short_paid_render_and_artifacts", "manual_short_media_redaction_review"],
+      envVars: [],
+      filePaths: [
+        "ops/short-product-rights-evidence.json",
+        "assets/output_deliverables/business-readiness/short-product-rights-validation-report.json"
+      ],
+      acceptance: "After live product extraction and product/legal review, archive accepted product facts, claim substantiation, media rights, commercial-use, attribution, redaction, and hash binding evidence with explicit confirmation.",
+      validationCommand: "Step 1: npm.cmd run validation:short-product-rights-draft -- --force. Step 2: npm.cmd run validation:short-product-rights -- --evidence ops/short-product-rights-evidence.json --confirm-accepted-product-rights",
+      blockerMessage: shortProductRights?.releaseGateSummary?.releaseBlocker ?? "Accepted Short product-facts and media-rights evidence is missing, unconfirmed, unsafe, or incomplete."
     }),
     input({
       id: "atlas_validation_budget",
@@ -581,7 +629,7 @@ function buildAtlasConfigurationSummary(reports) {
   };
 }
 
-function buildEvidenceCommandPlan(plan, live, providerLiveActions, providerGraphResume) {
+function buildEvidenceCommandPlan(plan, live, providerLiveActions, providerGraphResume, shortReviewOperation, shortProductRights) {
   const sequence = Array.isArray(plan?.validationSequence) ? plan.validationSequence : [];
   return {
     noSpendLocal: commandsFor(sequence, (step) => step.kind === "no_spend"),
@@ -601,6 +649,16 @@ function buildEvidenceCommandPlan(plan, live, providerLiveActions, providerGraph
         name: "graph_resume_enqueue_evidence",
         status: providerGraphResume?.status === "pass" ? "ready" : "blocked",
         command: "npm.cmd run validation:provider-graph-resume -- --evidence ops/render-provider-graph-resume-enqueues.json --confirm-graph-resume-enqueues"
+      },
+      {
+        name: "short_review_operation_evidence",
+        status: shortReviewOperation?.status === "pass" ? "ready" : "blocked",
+        command: "npm.cmd run validation:short-review-operation -- --evidence ops/short-review-operation-evidence.json --confirm-accepted-review-operation"
+      },
+      {
+        name: "short_product_rights_evidence",
+        status: shortProductRights?.status === "pass" ? "ready" : "blocked",
+        command: "npm.cmd run validation:short-product-rights -- --evidence ops/short-product-rights-evidence.json --confirm-accepted-product-rights"
       },
       {
         name: "final_business_readiness_audit",
@@ -880,6 +938,30 @@ function draftFilesForInput(inputId) {
         path: `${operatorDraftRoot}/render-provider-graph-resume-enqueues-fillout-checklist.md`,
         kind: "markdown_checklist",
         copyTo: "ops/render-provider-graph-resume-enqueues.json"
+      }
+    ],
+    short_review_operation_evidence: [
+      {
+        path: `${operatorDraftRoot}/short-review-operation-evidence.template.json`,
+        kind: "json_template",
+        copyTo: "ops/short-review-operation-evidence.json"
+      },
+      {
+        path: `${operatorDraftRoot}/short-review-operation-evidence-fillout-checklist.md`,
+        kind: "markdown_checklist",
+        copyTo: "ops/short-review-operation-evidence.json"
+      }
+    ],
+    short_product_rights_evidence: [
+      {
+        path: `${operatorDraftRoot}/short-product-rights-evidence.template.json`,
+        kind: "json_template",
+        copyTo: "ops/short-product-rights-evidence.json"
+      },
+      {
+        path: `${operatorDraftRoot}/short-product-rights-evidence-fillout-checklist.md`,
+        kind: "markdown_checklist",
+        copyTo: "ops/short-product-rights-evidence.json"
       }
     ],
     long_form_paid_media_review: [

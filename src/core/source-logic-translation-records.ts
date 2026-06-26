@@ -3100,6 +3100,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "session UI contracts can expose safe scene/audio/caption/claim checkpoint controls and a non-spending approval-packet shape",
       "archived short create/review operation evidence can be validated as no-spend reviewer evidence only when it is deployment-scoped, redaction-reviewed, session-bound, and explicitly confirmed by the operator",
       "archived short product-facts and media-rights evidence can be validated as no-spend operator evidence only when product facts, claim substantiation, ownership, commercial-use, attribution, redaction, and hash bindings are accepted and explicitly confirmed by the operator",
+      "operator-facing draft/checklist handoffs can prepare short review-operation and product-rights evidence packets while remaining rejected as direct evidence until real review fields are filled",
       "async jobs can pause after artifact validation for pre-export artifact-bound review without rerendering or reserving provider spend again"
     ],
     behaviorChanged: [
@@ -3112,6 +3113,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "short-pipeline render handoff, including stored-session handoff, requires explicit confirmation before approved review evidence can queue provider spend",
       "short review operation evidence validation rejects unsafe accepted-looking notes and keeps product URL acceptance, media-rights approval, and provider submission as separate gates",
       "short product-facts/media-rights validation rejects unsafe accepted-looking notes and keeps review-operation evidence, paid render evidence, artifact validation, manual media review, and customer release as separate gates",
+      "commercial launch doctor refreshes short evidence guards, non-evidence drafts, and accepted-packet validation status so missing operator packets stay explicit evidence blockers",
       "a first-party static Short create/review shell with safe checkpoint controls is provided without importing Director frontend code, while hosted playback, accepted live review operation evidence, VideoDB library controls, and complete 20+ agent parity remain future product work"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-agentic-media-reasoning.md",
@@ -3135,8 +3137,10 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "scripts/run-short-pipeline-session-store-smoke.mjs",
       "scripts/run-short-pipeline-session-render-handoff-smoke.mjs",
       "scripts/run-short-mvp-ui-contract-smoke.mjs",
+      "scripts/create-short-review-operation-evidence-draft.mjs",
       "scripts/validate-short-review-operation-evidence.mjs",
       "scripts/run-short-review-operation-evidence-guard-smoke.mjs",
+      "scripts/create-short-product-rights-evidence-draft.mjs",
       "scripts/validate-short-product-rights-evidence.mjs",
       "scripts/run-short-product-rights-evidence-guard-smoke.mjs",
       "scripts/run-short-pipeline-smoke.mjs",
@@ -3146,9 +3150,11 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "schemas/short-pipeline-session-store-smoke-report.schema.json",
       "schemas/short-pipeline-session-render-handoff-smoke-report.schema.json",
       "schemas/short-mvp-ui-contract-smoke-report.schema.json",
+      "schemas/short-review-operation-evidence-draft-report.schema.json",
       "schemas/short-review-operation-evidence.schema.json",
       "schemas/short-review-operation-validation-report.schema.json",
       "schemas/short-review-operation-evidence-guard-smoke-report.schema.json",
+      "schemas/short-product-rights-evidence-draft-report.schema.json",
       "schemas/short-product-rights-evidence.schema.json",
       "schemas/short-product-rights-validation-report.schema.json",
       "schemas/short-product-rights-evidence-guard-smoke-report.schema.json",

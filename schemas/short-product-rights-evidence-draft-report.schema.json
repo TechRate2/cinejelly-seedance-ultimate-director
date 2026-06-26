@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-product-rights-evidence-draft-report.schema.json",
+  "title": "CineJelly Short Product Rights Evidence Draft Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "template",
+    "checklist",
+    "finalEvidence",
+    "issues",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-product-rights-evidence-draft.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "blocked"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 180 }
+    },
+    "checkedInputs": { "$ref": "#/$defs/checkedInputs" },
+    "template": { "$ref": "#/$defs/templateSummary" },
+    "checklist": { "$ref": "#/$defs/checklistSummary" },
+    "finalEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "validatorCommand", "confirmationFlag", "requiresOperatorReview"],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "validatorCommand": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 360,
+          "pattern": "validation:short-product-rights"
+        },
+        "confirmationFlag": { "const": "--confirm-accepted-product-rights" },
+        "requiresOperatorReview": { "const": true }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 900 }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseTemplateAsAcceptedProductRightsEvidence",
+        "canUseAsShortBackendReleaseEvidence",
+        "canSubmitToProviderNow",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseTemplateAsAcceptedProductRightsEvidence": { "const": false },
+        "canUseAsShortBackendReleaseEvidence": { "const": false },
+        "canSubmitToProviderNow": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1, "maxLength": 900 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 900 }
+    }
+  },
+  "$defs": {
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidencePath", "outputPath", "templatePath", "checklistPath", "writeDrafts", "force"],
+      "properties": {
+        "evidencePath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "templatePath": { "$ref": "#/$defs/repoPath" },
+        "checklistPath": { "$ref": "#/$defs/repoPath" },
+        "writeDrafts": { "type": "boolean" },
+        "force": { "type": "boolean" }
+      }
+    },
+    "templateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "written",
+        "available",
+        "templateOnly",
+        "directUseRejectedByValidation",
+        "safeForEvidenceUse"
+      ],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "written": { "type": "boolean" },
+        "available": { "type": "boolean" },
+        "templateOnly": { "const": true },
+        "directUseRejectedByValidation": { "const": true },
+        "safeForEvidenceUse": { "const": false }
+      }
+    },
+    "checklistSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "written", "available"],
+      "properties": {
+        "path": { "$ref": "#/$defs/repoPath" },
+        "written": { "type": "boolean" },
+        "available": { "type": "boolean" }
+      }
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 360,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "^\\[outside-repo\\]$" },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    }
+  }
+}

@@ -194,6 +194,11 @@ function buildCommands(options) {
       expectedExitCodes: [0],
       blocksCodeReadiness: true
     }),
+    command("short_review_operation_guard", ["scripts/run-short-review-operation-evidence-guard-smoke.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/short-review-operation-evidence-guard-smoke-report.json",
+      expectedExitCodes: [0],
+      blocksCodeReadiness: true
+    }),
     command("short_product_rights_guard", ["scripts/run-short-product-rights-evidence-guard-smoke.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/short-product-rights-evidence-guard-smoke-report.json",
       expectedExitCodes: [0],
@@ -277,6 +282,21 @@ function buildCommands(options) {
     command("provider_graph_resume", ["scripts/validate-render-provider-graph-resume-enqueues.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json",
       expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
+    command("short_review_operation_draft", ["scripts/create-short-review-operation-evidence-draft.mjs", "--force"], {
+      reportPath: "assets/output_deliverables/business-readiness/short-review-operation-evidence-draft-report.json",
+      expectedExitCodes: [0],
+      blocksCodeReadiness: false
+    }),
+    command("short_review_operation_validation", ["scripts/validate-short-review-operation-evidence.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/short-review-operation-validation-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
+    command("short_product_rights_draft", ["scripts/create-short-product-rights-evidence-draft.mjs", "--force"], {
+      reportPath: "assets/output_deliverables/business-readiness/short-product-rights-evidence-draft-report.json",
+      expectedExitCodes: [0],
       blocksCodeReadiness: false
     }),
     command("short_product_rights_validation", ["scripts/validate-short-product-rights-evidence.mjs"], {
@@ -453,7 +473,11 @@ function buildReport(options, commandRuns) {
     sourceVideoAutoAnalysisSmoke: summarizeReport("assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"),
     remoteStockAdapterSmoke: summarizeReport("assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json"),
     generatedAudioMappingSmoke: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json"),
+    shortReviewOperationGuard: summarizeReport("assets/output_deliverables/business-readiness/short-review-operation-evidence-guard-smoke-report.json"),
+    shortReviewOperationDraft: summarizeReport("assets/output_deliverables/business-readiness/short-review-operation-evidence-draft-report.json"),
+    shortReviewOperationValidation: summarizeReport("assets/output_deliverables/business-readiness/short-review-operation-validation-report.json"),
     shortProductRightsGuard: summarizeReport("assets/output_deliverables/business-readiness/short-product-rights-evidence-guard-smoke-report.json"),
+    shortProductRightsDraft: summarizeReport("assets/output_deliverables/business-readiness/short-product-rights-evidence-draft-report.json"),
     shortProductRightsValidation: summarizeReport("assets/output_deliverables/business-readiness/short-product-rights-validation-report.json"),
     providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
     providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
@@ -523,7 +547,11 @@ function buildReport(options, commandRuns) {
       sourceVideoAutoAnalysisSmokeStatus: reportSummaries.sourceVideoAutoAnalysisSmoke.status,
       remoteStockAdapterSmokeStatus: reportSummaries.remoteStockAdapterSmoke.status,
       generatedAudioMappingSmokeStatus: reportSummaries.generatedAudioMappingSmoke.status,
+      shortReviewOperationGuardStatus: reportSummaries.shortReviewOperationGuard.status,
+      shortReviewOperationDraftStatus: reportSummaries.shortReviewOperationDraft.status,
+      shortReviewOperationValidationStatus: reportSummaries.shortReviewOperationValidation.status,
       shortProductRightsGuardStatus: reportSummaries.shortProductRightsGuard.status,
+      shortProductRightsDraftStatus: reportSummaries.shortProductRightsDraft.status,
       shortProductRightsValidationStatus: reportSummaries.shortProductRightsValidation.status,
       qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
       qualityReviewDraftsStatus: reportSummaries.qualityReviewDrafts.status,
@@ -935,8 +963,11 @@ function buildNextActions({ completion, business, reportSummaries, codeBlockingR
   if (reportSummaries.providerGraphResume.status !== "pass") {
     actions.push("After live graph-resume enqueue executes, archive digest-only enqueue payload evidence in ops/render-provider-graph-resume-enqueues.json and rerun validation:provider-graph-resume with --confirm-graph-resume-enqueues.");
   }
+  if (reportSummaries.shortReviewOperationValidation.status !== "pass") {
+    actions.push("Run validation:short-review-operation-draft -- --force, archive accepted Short create/review operation evidence in ops/short-review-operation-evidence.json, then run validation:short-review-operation with --confirm-accepted-review-operation before paid Short render evidence can count.");
+  }
   if (reportSummaries.shortProductRightsValidation.status !== "pass") {
-    actions.push("Archive accepted Short product-facts/media-rights evidence in ops/short-product-rights-evidence.json, then run validation:short-product-rights with --confirm-accepted-product-rights before paid Short render evidence can count.");
+    actions.push("Run validation:short-product-rights-draft -- --force, archive accepted Short product-facts/media-rights evidence in ops/short-product-rights-evidence.json, then run validation:short-product-rights with --confirm-accepted-product-rights before paid Short render evidence can count.");
   }
   for (const action of arrayOfStrings(completion?.nextActions ?? business?.nextActions)) {
     actions.push(action);
@@ -964,7 +995,11 @@ function renderMarkdown(report) {
     `- Source-video auto-analysis smoke: ${report.readinessSnapshot.sourceVideoAutoAnalysisSmokeStatus}`,
     `- Remote-stock adapter smoke: ${report.readinessSnapshot.remoteStockAdapterSmokeStatus}`,
     `- Generated-audio mapping smoke: ${report.readinessSnapshot.generatedAudioMappingSmokeStatus}`,
+    `- Short review operation guard: ${report.readinessSnapshot.shortReviewOperationGuardStatus}`,
+    `- Short review operation draft: ${report.readinessSnapshot.shortReviewOperationDraftStatus}`,
+    `- Short review operation validation: ${report.readinessSnapshot.shortReviewOperationValidationStatus}`,
     `- Short product/rights guard: ${report.readinessSnapshot.shortProductRightsGuardStatus}`,
+    `- Short product/rights draft: ${report.readinessSnapshot.shortProductRightsDraftStatus}`,
     `- Short product/rights validation: ${report.readinessSnapshot.shortProductRightsValidationStatus}`,
     `- Quality benchmark: ${report.readinessSnapshot.qualityBenchmarkStatus}`,
     `- Quality review drafts: ${report.readinessSnapshot.qualityReviewDraftsStatus}`,
