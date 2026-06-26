@@ -58,6 +58,7 @@ flowchart LR
 - `Production Graph`: system of record for project, references, story, sequences, scenes, beats, shots, renders, inspection reports, repairs, and deliverables.
 - `Reference Librarian` / `Reference Binder`: validates assets, classifies them as identity, product, environment, motion, camera, audio tempo, style, first frame, last frame, or source-video structure, and preserves graph lineage.
 - `Source Video Analyst`: normalizes optional VideoAgent/OpenMontage-style transcript, scene, keyframe, pacing, style, structural beat, and safety deconstruction into bounded guidance for original story planning.
+- `Audience Niche Intelligence`: shared no-spend Short/Long planner that classifies messy user presentation style, niche, format, funnel stage, trend posture, viewer desire/objection, proof strategy, share trigger, CTA strategy, localization/risk/missing signals, and idea seeds without hardcoding fixed niche templates.
 - `Source Video Auto Analyzer`: optional adapter that samples bounded frames from a clean HTTPS source-video reference and asks the configured Atlas LLM for original structural deconstruction before intake normalization.
 - `Prompt Compiler`: turns shot contracts into Seedance-ready prompts and provider-neutral render requests.
 - `Storyboard Planner`: turns shot contracts into deterministic reviewable storyboard panels before render spend; Guardian validates panel coverage/alignment before provider calls.

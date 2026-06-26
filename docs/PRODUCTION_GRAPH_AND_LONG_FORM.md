@@ -151,14 +151,14 @@ Long-form quality is not only "can render". CineJelly now emits a no-spend `long
 It combines:
 
 - Story Bible: logline, central question, emotional arc, anchor rules, payoff, character/product/environment/style anchors.
-- Niche and viral strategy: audience, platform intent, hook pattern, retention beats, desired viewer action, viral levers, and anti-patterns.
+- Niche and viral strategy: shared audience/niche intelligence, user presentation style, audience, platform intent, trend posture, viewer objection, proof strategy, share trigger, idea seeds, hook pattern, retention beats, desired viewer action, viral levers, and anti-patterns.
 - Director quality findings: weak hook, weak payoff, missing anchors, bridge gaps, repetitive shot language, long-shot retention risk, caption/audio timing gaps, source-video alignment gaps, and upstream planning blockers.
 - Shot directives: shot-level viral role, target emotion, quality checks, continuity anchors, recommended candidate count, and repair priority.
 - Multi-candidate directives: identifies high-impact/risky hook, payoff, reference-sensitive, transition, face, product-logo, or source-video shots that deserve more candidate coverage.
 - Auto-repair directives: records whether each repair can be handled before render by story/sequence/shot/prompt/postproduction/timeline regeneration, or requires manual review.
 - Audio/caption QA: caption coverage ratio, generated-audio readiness, timing issue count, and postproduction recommendations.
 
-The planner is deterministic TypeScript and makes no network, LLM, Atlas, or upstream runtime calls. It is a UI-facing director-quality artifact: the future Create/Review interface can explain why the backend chose a workflow, which shots need stronger candidates, what to repair before spend, and what must be manually reviewed before customer release.
+The planner is deterministic TypeScript and makes no network, LLM, Atlas, or upstream runtime calls. It consumes the same `AudienceNicheIntelligencePlanner` used by Short, so messy briefs, product facts, creative-direction notes, revisions, or launch-style input map into the same niche, format, funnel, trend, proof, objection, share, CTA, and idea-seed evidence before either Short or Long spends provider budget. It is a UI-facing director-quality artifact: the future Create/Review interface can explain why the backend chose a workflow, which shots need stronger candidates, what to repair before spend, and what must be manually reviewed before customer release.
 
 `LongDirectorUiContract` compresses that rich artifact into a stable review-console contract. It exposes Long Director narrative/continuity modes, checkpoint stages, candidate and repair counts, provider-spend disabled state, manual quality/redaction review requirements, and DirectorBench-style evidence requirements so UI clients can render the workflow without duplicating backend decision logic.
 

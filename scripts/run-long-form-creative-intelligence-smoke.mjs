@@ -12,7 +12,8 @@ const sourcePatternOrigins = [
   "vericontext/vibeframe",
   "calesthio/OpenMontage",
   "jiaminchen-1031/DirectorBench",
-  "harry0703/MoneyPrinterTurbo"
+  "harry0703/MoneyPrinterTurbo",
+  "YouMind-OpenLab/awesome-seedance-2-prompts"
 ];
 
 function parseArgs(args) {
@@ -205,6 +206,7 @@ const blockedCountsConsistent =
   blockedCreative.findingCount === blockedCreative.findings.length &&
   blockedCreative.blockingFindingCount === blockedCreative.findings.filter((finding) => finding.severity === "block").length &&
   blockedCreative.reviewRequiredFindingCount === blockedCreative.findings.filter((finding) => finding.severity === "warn").length;
+const audienceNiche = creative.nicheStrategy.audienceNicheIntelligence;
 
 const checks = [
   creative.noSpend === true &&
@@ -221,6 +223,17 @@ const checks = [
     creative.nicheStrategy.viralLevers.includes("source_style_match")
     ? pass("niche_and_viral_strategy", "Creative intelligence derives niche, platform, retention, viral, and source-style strategy.")
     : fail("niche_and_viral_strategy", "Expected ecommerce/TikTok/source-style creative strategy."),
+  audienceNiche?.schemaVersion === "cinejelly.audience-niche-intelligence.v1" &&
+    audienceNiche.noSpend === true &&
+    audienceNiche.networkCallsMade === false &&
+    audienceNiche.providerCallsMade === false &&
+    audienceNiche.trendPosture === "trend_native" &&
+    audienceNiche.ideaSeeds.length >= 4 &&
+    creative.nicheStrategy.trendPosture === audienceNiche.trendPosture &&
+    longDirectorUiContract.creative.trendPosture === creative.nicheStrategy.trendPosture &&
+    longDirectorUiContract.creative.ideaSeedCount === audienceNiche.ideaSeeds.length
+    ? pass("shared_audience_niche_intelligence", "Long creative intelligence and UI contract carry shared user-intent, niche, trend, proof, objection, and idea-seed strategy.")
+    : fail("shared_audience_niche_intelligence", "Expected shared audience/niche intelligence to be present in Long creative and UI contract evidence."),
   creative.storyBible.characterAnchors.length > 0 &&
     creative.storyBible.productAnchors.length > 0 &&
     creative.storyBible.environmentAnchors.length > 0 &&
@@ -293,7 +306,7 @@ const checks = [
     : fail("no_raw_provider_url_leak", "Creative intelligence evidence leaked a raw provider URL or secret-like query text."),
   creative.sourcePatternOrigins.every((origin) => sourcePatternOrigins.includes(origin)) &&
     blockedCreative.sourcePatternOrigins.every((origin) => sourcePatternOrigins.includes(origin))
-    ? pass("source_pattern_lineage", "Creative intelligence carries ViMax, VideoAgent, VibeFrame, OpenMontage, DirectorBench, and MoneyPrinterTurbo lineage.")
+    ? pass("source_pattern_lineage", "Creative intelligence carries ViMax, VideoAgent, VibeFrame, OpenMontage, DirectorBench, MoneyPrinterTurbo, and Seedance prompt-pattern lineage.")
     : fail("source_pattern_lineage", "Creative intelligence source pattern origins are incomplete.")
 ];
 
@@ -498,6 +511,9 @@ function summarizeCreative(value, uiContract) {
     repairQueueCount: uiContract.outputContract.repairQueueCount,
     niche: value.nicheStrategy.niche,
     platformIntent: value.nicheStrategy.platformIntent,
+    trendPosture: value.nicheStrategy.trendPosture,
+    viewerObjection: value.nicheStrategy.viewerObjection,
+    ideaSeedCount: value.nicheStrategy.audienceNicheIntelligence.ideaSeeds.length,
     findingCount: value.findingCount,
     blockingFindingCount: value.blockingFindingCount,
     reviewRequiredFindingCount: value.reviewRequiredFindingCount,

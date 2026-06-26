@@ -1,3 +1,5 @@
+import type { AudienceNicheIntelligence } from "./audience-niche-intelligence.js";
+
 export type ShortViralIntelligenceStatus = "ready" | "review_required" | "blocked";
 
 export type ShortViralPlatformFocus =
@@ -76,6 +78,7 @@ export interface ShortReferenceVideoPattern {
 }
 
 export interface ShortViralNicheStrategy {
+  readonly audienceNicheIntelligence: AudienceNicheIntelligence;
   readonly niche: string;
   readonly audience: string;
   readonly buyerIntent: "awareness" | "consideration" | "conversion" | "retention";

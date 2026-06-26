@@ -61,6 +61,11 @@ export interface LongDirectorUiContract {
     readonly niche: string;
     readonly platformIntent: string;
     readonly desiredViewerAction: string;
+    readonly trendPosture: string;
+    readonly viewerObjection: string;
+    readonly proofStrategy: string;
+    readonly shareTrigger: string;
+    readonly ideaSeedCount: number;
     readonly viralLeverCount: number;
     readonly findingCount: number;
     readonly blockingFindingCount: number;

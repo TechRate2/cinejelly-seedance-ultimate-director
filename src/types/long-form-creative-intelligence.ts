@@ -4,6 +4,7 @@
  * into explicit backend evidence before provider spend.
  */
 
+import type { AudienceNicheIntelligence, AudienceNicheTrendPosture } from "./audience-niche-intelligence.js";
 import type { LongDirectorPlan } from "./long-director.js";
 
 export type LongFormCreativeIntelligenceStatus = "ready" | "review_required" | "blocked";
@@ -43,10 +44,15 @@ export type LongFormCreativeViralLever =
   | "source_style_match";
 
 export interface LongFormCreativeNicheStrategy {
+  readonly audienceNicheIntelligence: AudienceNicheIntelligence;
   readonly niche: string;
   readonly audience: string;
   readonly platformIntent: string;
   readonly desiredViewerAction: string;
+  readonly trendPosture: AudienceNicheTrendPosture;
+  readonly viewerObjection: string;
+  readonly proofStrategy: string;
+  readonly shareTrigger: string;
   readonly hookPattern: string;
   readonly retentionBeats: readonly string[];
   readonly viralLevers: readonly LongFormCreativeViralLever[];

@@ -5,6 +5,7 @@
  */
 
 import { createHash } from "node:crypto";
+import type { AudienceNicheFormat, AudienceNicheIntelligence } from "../types/audience-niche-intelligence.js";
 import type {
   BrandKitEvaluation,
   ProductUrlBrief,
@@ -28,13 +29,15 @@ import type {
   ShortViralSceneDirective
 } from "../types/short-viral-intelligence.js";
 import { createStableId } from "../utils/ids.js";
+import { AudienceNicheIntelligencePlanner } from "./audience-niche-intelligence.js";
 
 const SOURCE_PATTERN_ORIGINS = [
   "calesthio/OpenMontage",
   "HKUDS/ViMax",
   "HKUDS/VideoAgent",
   "video-db/Director",
-  "vericontext/vibeframe"
+  "vericontext/vibeframe",
+  "YouMind-OpenLab/awesome-seedance-2-prompts"
 ] as const;
 
 const COPY_RISK_PATTERN = /\b(copy|clone|replicate|exact|identical|same\s+video|99%|steal|reupload)\b/i;
@@ -59,6 +62,8 @@ export interface ShortViralIntelligencePlannerInput {
 }
 
 export class ShortViralIntelligencePlanner {
+  private readonly audienceNichePlanner = new AudienceNicheIntelligencePlanner();
+
   public build(input: ShortViralIntelligencePlannerInput): ShortViralIntelligencePlan {
     if (!input.projectId.trim()) {
       throw new Error("projectId is required for short viral intelligence.");
@@ -223,23 +228,34 @@ export class ShortViralIntelligencePlanner {
     prompt: string,
     reference: ShortReferenceVideoPattern | undefined
   ): ShortViralNicheStrategy {
+    const audienceNicheIntelligence = this.audienceNichePlanner.build({
+      projectId: input.projectId,
+      prompt,
+      explicitAudience: input.intent.audience,
+      platform: input.intent.platform,
+      durationSeconds: input.intent.targetDurationSeconds,
+      referenceProvided: Boolean(reference),
+      ...(input.productBrief?.title ? { productTitle: input.productBrief.title } : {}),
+      ...(input.productBrief?.category ? { productCategory: input.productBrief.category } : {}),
+      ...(input.productBrief ? { productBenefits: input.productBrief.benefits } : {}),
+      ...(input.productBrief ? { productClaims: input.productBrief.claimInventory.map((claim) => claim.text) } : {}),
+      ...(input.productBrief ? { ctaCandidates: input.productBrief.ctaCandidates } : {}),
+      ...(input.brandKitEvaluation?.tone ? { brandTone: input.brandKitEvaluation.tone } : {})
+    });
     const platformFocus = platformFocusFrom(input.intent.platform, prompt);
-    const creativeMode = creativeModeFrom(prompt, input.productBrief, input.selectedTemplate);
-    const niche = nicheFrom(input.productBrief, prompt);
-    const viewerDesire = cleanText(input.productBrief?.benefits[0], 160) ??
-      cleanText(input.intent.businessGoal, 160) ??
-      "a faster, clearer, lower-friction result";
-    const viewerObjection = objectionFrom(prompt, input.productBrief, input.brandKitEvaluation);
+    const creativeMode = creativeModeFrom(prompt, input.productBrief, input.selectedTemplate, audienceNicheIntelligence.format);
+    const viewerDesire = cleanText(input.intent.businessGoal, 160) ?? audienceNicheIntelligence.viewerDesire;
     return {
-      niche,
-      audience: input.intent.audience,
-      buyerIntent: buyerIntentFrom(prompt, input.productBrief),
+      audienceNicheIntelligence,
+      niche: audienceNicheIntelligence.niche,
+      audience: audienceNicheIntelligence.audience,
+      buyerIntent: buyerIntentFrom(prompt, input.productBrief, audienceNicheIntelligence),
       platformFocus,
       creativeMode,
       viewerDesire,
-      viewerObjection,
-      viralLevers: viralLeversFor(platformFocus, creativeMode, reference),
-      antiPatterns: antiPatternsFor(creativeMode)
+      viewerObjection: objectionFrom(prompt, input.productBrief, input.brandKitEvaluation, audienceNicheIntelligence),
+      viralLevers: viralLeversFor(platformFocus, creativeMode, reference, audienceNicheIntelligence),
+      antiPatterns: antiPatternsFor(creativeMode, audienceNicheIntelligence)
     };
   }
 
@@ -250,7 +266,7 @@ export class ShortViralIntelligencePlanner {
     reference: ShortReferenceVideoPattern | undefined
   ): readonly ShortViralFinding[] {
     const findings: ShortViralFinding[] = [];
-    if (!input.productBrief && strategy.niche === "general business") {
+    if (!input.productBrief && (strategy.niche === "general_video" || strategy.audienceNicheIntelligence.missingSignals.includes("specific_niche"))) {
       findings.push(finding(
         "generic_niche",
         "warn",
@@ -425,7 +441,8 @@ function platformFocusFrom(platform: string, prompt: string): ShortViralPlatform
 function creativeModeFrom(
   prompt: string,
   productBrief: ProductUrlBrief | undefined,
-  template: WorkflowTemplateSuggestion | undefined
+  template: WorkflowTemplateSuggestion | undefined,
+  format: AudienceNicheFormat
 ): ShortViralCreativeMode {
   const combined = `${prompt} ${template?.category ?? ""}`.toLowerCase();
   if (/\bugc|review|creator|influencer|native\b/.test(combined)) return "ugc_review";
@@ -436,31 +453,54 @@ function creativeModeFrom(
   if (/story|founder|journey/.test(combined)) return "story";
   if (/cinematic|premium|luxury|reveal/.test(combined)) return "cinematic";
   if (/problem|pain|solution/.test(combined)) return "problem_solution";
+  const mapped = creativeModeFromAudienceNiche(format);
+  if (mapped) return mapped;
   return productBrief ? "product_ad" : "problem_solution";
 }
 
-function nicheFrom(productBrief: ProductUrlBrief | undefined, prompt: string): string {
-  const category = cleanText(productBrief?.category, 80);
-  if (category) return category.toLowerCase();
-  const title = cleanText(productBrief?.title, 100);
-  if (title) return title.toLowerCase();
-  const phrase = matches(prompt.toLowerCase(), /\b(?:for|niche|ngach|ngách|industry|market)\s+([a-z0-9][a-z0-9\s-]{2,50})/gi)[0];
-  if (phrase) return cleanText(phrase, 60) ?? "general business";
-  const keywords = keywordCandidates(prompt, 3);
-  return keywords.length > 0 ? keywords.join(" ") : "general business";
+function creativeModeFromAudienceNiche(format: AudienceNicheFormat): ShortViralCreativeMode | undefined {
+  switch (format) {
+    case "ugc_review":
+      return "ugc_review";
+    case "product_ad":
+      return "product_ad";
+    case "product_demo":
+      return "demo";
+    case "testimonial":
+      return "testimonial";
+    case "comparison":
+      return "comparison";
+    case "education":
+      return "education";
+    case "brand_story":
+      return "story";
+    case "cinematic_story":
+      return "cinematic";
+    case "problem_solution":
+      return "problem_solution";
+    case "case_study":
+    case "community":
+    case "unknown":
+      return undefined;
+  }
 }
 
-function buyerIntentFrom(prompt: string, productBrief: ProductUrlBrief | undefined): ShortViralNicheStrategy["buyerIntent"] {
+function buyerIntentFrom(
+  prompt: string,
+  productBrief: ProductUrlBrief | undefined,
+  audienceNiche: AudienceNicheIntelligence
+): ShortViralNicheStrategy["buyerIntent"] {
   if (/buy|shop|order|cta|conversion|sale|discount|checkout|lead/i.test(prompt) || productBrief?.ctaCandidates.length) return "conversion";
   if (/compare|review|proof|testimonial|demo|why/i.test(prompt)) return "consideration";
   if (/repeat|loyal|retention|community/i.test(prompt)) return "retention";
-  return "awareness";
+  return audienceNiche.funnelStage;
 }
 
 function objectionFrom(
   prompt: string,
   productBrief: ProductUrlBrief | undefined,
-  brandKitEvaluation: BrandKitEvaluation | undefined
+  brandKitEvaluation: BrandKitEvaluation | undefined,
+  audienceNiche: AudienceNicheIntelligence
 ): string {
   const promptObjection = matches(prompt, /\b(?:objection|hesitation|concern|worry|afraid|but)\s*[:\-]?\s*([^.!?]{4,120})/gi)[0];
   if (promptObjection) return promptObjection;
@@ -470,29 +510,34 @@ function objectionFrom(
   if (brandKitEvaluation?.status === "review_required") {
     return "viewer may feel the message is off-brand or unclear";
   }
-  return "viewer may scroll if the first second does not show a specific payoff";
+  return audienceNiche.viewerObjection;
 }
 
 function viralLeversFor(
   platform: ShortViralPlatformFocus,
   mode: ShortViralCreativeMode,
-  reference: ShortReferenceVideoPattern | undefined
+  reference: ShortReferenceVideoPattern | undefined,
+  audienceNiche: AudienceNicheIntelligence
 ): readonly ShortViralLever[] {
   const levers: ShortViralLever[] = ["fast_hook", "visual_retention", "visual_payoff", "clear_payoff"];
   if (platform === "tiktok_douyin") levers.push("pattern_interrupt", "curiosity_gap");
   if (mode === "ugc_review" || mode === "testimonial") levers.push("native_ugc", "social_proof");
   if (mode === "product_ad" || mode === "demo" || mode === "comparison") levers.push("proof_stack", "product_demo");
+  if (audienceNiche.trendPosture === "trend_native") levers.push("trend_transfer", "native_ugc");
+  if (audienceNiche.trendPosture === "proof_led" || audienceNiche.proofStrategy) levers.push("proof_stack");
+  if (audienceNiche.trendPosture === "community_social") levers.push("social_proof");
   if (reference) levers.push("trend_transfer");
   return uniqueValues(levers);
 }
 
-function antiPatternsFor(mode: ShortViralCreativeMode): readonly string[] {
+function antiPatternsFor(mode: ShortViralCreativeMode, audienceNiche: AudienceNicheIntelligence): readonly string[] {
   return [
     "slow brand intro before the viewer understands the payoff",
     "generic stock montage with no product or proof beat",
     "unsupported superlatives or unreviewed before-after claims",
     "visible captions, subtitles, labels, CTA cards, or text walls",
-    mode === "ugc_review" ? "overproduced creator delivery that no longer feels native" : "flat single-angle narration without visible state change"
+    mode === "ugc_review" ? "overproduced creator delivery that no longer feels native" : "flat single-angle narration without visible state change",
+    `template-first execution that ignores ${audienceNiche.audience} and the ${audienceNiche.trendPosture} posture`
   ];
 }
 
@@ -693,37 +738,6 @@ function safeSourceUrl(value: string | undefined): { readonly status: "none" | "
   } catch {
     return { status: "blocked" };
   }
-}
-
-function keywordCandidates(value: string, limit: number): readonly string[] {
-  const stop = new Set([
-    "create",
-    "make",
-    "video",
-    "short",
-    "tiktok",
-    "douyin",
-    "reel",
-    "ad",
-    "ugc",
-    "review",
-    "with",
-    "that",
-    "this",
-    "from",
-    "user",
-    "want",
-    "need",
-    "seconds",
-    "second"
-  ]);
-  const tokens = value
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, " ")
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 3 && !stop.has(token));
-  return uniqueValues(tokens).slice(0, limit);
 }
 
 function finding(

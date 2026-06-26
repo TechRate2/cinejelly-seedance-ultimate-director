@@ -58,6 +58,7 @@ export interface ShortPipelineRenderHandoff {
 }
 
 const SHORT_SINGLE_CLIP_MAX_SECONDS = 15;
+const RENDER_PROMPT_MAX_CHARS = 23_500;
 
 export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandoffInput): ShortPipelineRenderHandoff {
   const plan = input.plan;
@@ -101,6 +102,11 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortViralNiche: plan.viralIntelligence.nicheStrategy.niche,
         shortViralPlatformFocus: plan.viralIntelligence.nicheStrategy.platformFocus,
         shortViralCreativeMode: plan.viralIntelligence.nicheStrategy.creativeMode,
+        shortAudienceNicheIntelligenceId: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.intelligenceId,
+        shortAudienceNichePresentationStyle: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.userPresentationStyle,
+        shortAudienceNicheTrendPosture: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.trendPosture,
+        shortAudienceNicheFormat: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.format,
+        shortAudienceNicheFunnelStage: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.funnelStage,
         shortCommercialReadinessId: plan.commercialReadiness.readinessId,
         shortCommercialReadinessStatus: plan.commercialReadiness.status,
         shortCommercialReadinessScore: String(plan.commercialReadiness.qualityScore),
@@ -217,12 +223,7 @@ function renderPromptFromPlan(
     : plan.templateSuggestions[0]
       ? `Suggested optional accelerator: ${plan.templateSuggestions[0].label}`
       : "No template accelerator selected; build from natural-language intent.";
-  const viralStrategy = viralStrategyFromPlan(plan);
-  const viralDirectives = viralDirectivesFromPlan(plan);
-  const channelStyle = channelStyleFromPlan(plan);
-  const seedancePromptPack = seedancePromptPackFromPlan(plan);
-
-  return compactLines([
+  const renderPrompt = (compact: boolean): string => compactLines([
     "Create a short commercial video from this approved agentic short-pipeline plan.",
     "Do not introduce unsupported claims. Preserve scene order.",
     visualTextPolicy.promptConstraint,
@@ -236,20 +237,24 @@ function renderPromptFromPlan(
     `Target duration: ${plan.intent.targetDurationSeconds} seconds`,
     `Aspect ratio: ${plan.intent.aspectRatio}`,
     template,
-    channelStyle,
-    viralStrategy,
+    channelStyleFromPlan(plan, compact),
+    viralStrategyFromPlan(plan, compact),
     concept ? `Primary concept: ${concept.label}. ${concept.angle} Hook: ${concept.hook}` : "",
     "Scene plan:",
     scenes,
     "Viral scene directives:",
-    viralDirectives,
-    seedancePromptPack,
+    viralDirectivesFromPlan(plan, compact),
+    seedancePromptPackFromPlan(plan, compact),
     "Claim review inventory:",
     claims
   ]);
+  const fullPrompt = renderPrompt(false);
+  return fullPrompt.length <= RENDER_PROMPT_MAX_CHARS
+    ? fullPrompt
+    : capRenderPrompt(renderPrompt(true), RENDER_PROMPT_MAX_CHARS);
 }
 
-function channelStyleFromPlan(plan: ShortPipelinePlan): string {
+function channelStyleFromPlan(plan: ShortPipelinePlan, compact = false): string {
   const profile = plan.channelStyleProfile;
   if (!profile) {
     return "";
@@ -260,13 +265,13 @@ function channelStyleFromPlan(plan: ShortPipelinePlan): string {
     profile.styleRules.length ? `Style rules: ${profile.styleRules.join("; ")}.` : "",
     profile.doNotChange.length ? `Do not change: ${profile.doNotChange.join("; ")}.` : "",
     profile.avoidPatterns.length ? `Avoid channel drift: ${profile.avoidPatterns.join("; ")}.` : "",
-    profile.styleAnchors.length
+    profile.styleAnchors.length && !compact
       ? `Reusable channel anchors: ${profile.styleAnchors.slice(0, 10).map((anchorItem) => `${anchorItem.kind}:${anchorItem.label}=${anchorItem.instruction}`).join(" | ")}.`
       : ""
   ]);
 }
 
-function viralStrategyFromPlan(plan: ShortPipelinePlan): string {
+function viralStrategyFromPlan(plan: ShortPipelinePlan, compact = false): string {
   const strategy = plan.viralIntelligence.nicheStrategy;
   const score = plan.viralIntelligence.conceptScores.find((item) => item.conceptId === plan.viralIntelligence.winningConceptId);
   const reference = plan.viralIntelligence.referenceVideoPattern;
@@ -274,44 +279,60 @@ function viralStrategyFromPlan(plan: ShortPipelinePlan): string {
     .filter((finding) => finding.severity !== "info")
     .map((finding) => `${finding.code}:${finding.severity}`)
     .join(", ");
+  const ideaSeeds = compact
+    ? strategy.audienceNicheIntelligence.ideaSeeds.slice(0, 4).map((seed) => boundedText(seed, 180))
+    : strategy.audienceNicheIntelligence.ideaSeeds;
+  const viralLevers = compact ? strategy.viralLevers.slice(0, 8) : strategy.viralLevers;
+  const antiPatterns = compact ? strategy.antiPatterns.slice(0, 5) : strategy.antiPatterns;
+  const scoreReasons = compact ? score?.reasons.slice(0, 3) : score?.reasons;
+  const referenceGuardrails = compact ? reference?.originalityGuardrails.slice(0, 3) : reference?.originalityGuardrails;
   return compactLines([
     `Short viral strategy: niche=${strategy.niche}; audience=${strategy.audience}; platformFocus=${strategy.platformFocus}; creativeMode=${strategy.creativeMode}; buyerIntent=${strategy.buyerIntent}.`,
+    `Audience intelligence: presentation=${strategy.audienceNicheIntelligence.userPresentationStyle}; format=${strategy.audienceNicheIntelligence.format}; trendPosture=${strategy.audienceNicheIntelligence.trendPosture}; funnelStage=${strategy.audienceNicheIntelligence.funnelStage}.`,
+    `Hook/proof/retention: ${strategy.audienceNicheIntelligence.hookAngle}. Proof: ${strategy.audienceNicheIntelligence.proofStrategy}. Retention: ${strategy.audienceNicheIntelligence.retentionPattern}.`,
+    `Idea seeds: ${ideaSeeds.join(" | ")}.`,
     `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
-    `Use viral levers: ${strategy.viralLevers.join(", ")}. Avoid: ${strategy.antiPatterns.join("; ")}.`,
-    score ? `Winning concept score: ${score.totalScore} (${score.reasons.join("; ")}).` : "",
+    `Use viral levers: ${viralLevers.join(", ")}. Avoid: ${antiPatterns.join("; ")}.`,
+    score && scoreReasons ? `Winning concept score: ${score.totalScore} (${scoreReasons.join("; ")}).` : "",
     reference
-      ? `Reference pattern ${reference.patternId}: use structure only: hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; text-rhythm=${reference.captionPattern}; payoff=${reference.ctaPattern}. Guardrails: ${reference.originalityGuardrails.join("; ")}.`
+      ? `Reference pattern ${reference.patternId}: use structure only: hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; text-rhythm=${reference.captionPattern}; payoff=${reference.ctaPattern}. Guardrails: ${(referenceGuardrails ?? []).join("; ")}.`
       : "",
     findings ? `Open viral findings for review: ${findings}.` : ""
   ]);
 }
 
-function viralDirectivesFromPlan(plan: ShortPipelinePlan): string {
+function viralDirectivesFromPlan(plan: ShortPipelinePlan, compact = false): string {
   return plan.viralIntelligence.sceneDirectives
-    .map((directive) =>
-      `${directive.order}. ${directive.role.toUpperCase()} ${directive.recommendedDurationSeconds}s - First frame: ${directive.firstFrameRule} Retention: ${directive.retentionJob} Camera: ${directive.cameraCue} Visual text policy: ${directive.captionCue} Proof: ${directive.proofCue}${directive.ctaCue ? ` Payoff: ${directive.ctaCue}` : ""} Checks: ${directive.qualityChecks.join("; ")}`
-    )
+    .map((directive) => {
+      if (compact) {
+        return `${directive.order}. ${directive.role.toUpperCase()} ${directive.recommendedDurationSeconds}s - First frame: ${boundedText(directive.firstFrameRule, 160)} Retention: ${boundedText(directive.retentionJob, 140)} Camera: ${boundedText(directive.cameraCue, 120)} Proof: ${boundedText(directive.proofCue, 140)}${directive.ctaCue ? ` Payoff: ${boundedText(directive.ctaCue, 120)}` : ""}`;
+      }
+      return `${directive.order}. ${directive.role.toUpperCase()} ${directive.recommendedDurationSeconds}s - First frame: ${directive.firstFrameRule} Retention: ${directive.retentionJob} Camera: ${directive.cameraCue} Visual text policy: ${directive.captionCue} Proof: ${directive.proofCue}${directive.ctaCue ? ` Payoff: ${directive.ctaCue}` : ""} Checks: ${directive.qualityChecks.join("; ")}`;
+    })
     .join("\n");
 }
 
-function seedancePromptPackFromPlan(plan: ShortPipelinePlan): string {
+function seedancePromptPackFromPlan(plan: ShortPipelinePlan, compact = false): string {
   const pack = plan.seedancePromptPack;
   if (!pack) {
     return "";
   }
   const shots = pack.shotPrompts
-    .map((shot) =>
-      `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`
-    )
+    .map((shot) => {
+      if (compact) {
+        return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${boundedText(shot.firstFrame, 160)} | Visual: ${boundedText(shot.visualPrompt, 240)} | Camera: ${boundedText(shot.camera, 120)} | Action: ${boundedText(shot.action, 160)} | Narration: ${boundedText(shot.dialogueOrNarration, 200)} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${boundedText(shot.audio, 120)} | Continuity: ${boundedText(shot.continuity, 140)}`;
+      }
+      return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`;
+    })
     .join("\n");
   return compactLines([
     "Seedance 2.0 prompt pack:",
     `Prompt pack id: ${pack.promptPackId}`,
-    pack.masterPrompt,
-    `Audio plan: ${pack.audioPlan}`,
-    `No-visible-text plan: ${pack.captionPlan}`,
-    `Reference policy: ${pack.referencePolicy}`,
-    `Global negative constraints: ${pack.globalNegativeConstraints.join("; ")}`,
+    compact ? boundedText(pack.masterPrompt, 800) : pack.masterPrompt,
+    `Audio plan: ${compact ? boundedText(pack.audioPlan, 300) : pack.audioPlan}`,
+    `No-visible-text plan: ${compact ? boundedText(pack.captionPlan, 300) : pack.captionPlan}`,
+    `Reference policy: ${compact ? boundedText(pack.referencePolicy, 300) : pack.referencePolicy}`,
+    `Global negative constraints: ${(compact ? pack.globalNegativeConstraints.slice(0, 8).map((item) => boundedText(item, 120)) : pack.globalNegativeConstraints).join("; ")}`,
     "Time-coded Seedance shots:",
     shots
   ]);
@@ -452,6 +473,32 @@ function safeMetadata(metadata: CineJellyProjectRequest["metadata"] | undefined)
     }
   }
   return safe;
+}
+
+function boundedText(value: string, maxLength: number): string {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (text.length <= maxLength) {
+    return text;
+  }
+  const suffix = "...";
+  return `${text.slice(0, Math.max(0, maxLength - suffix.length)).trimEnd()}${suffix}`;
+}
+
+function capRenderPrompt(prompt: string, maxLength: number): string {
+  if (prompt.length <= maxLength) {
+    return prompt;
+  }
+  const claimMarker = "\nClaim review inventory:\n";
+  const compactNotice = "\nRender handoff prompt compacted to stay within backend admission; keep structured review artifacts as source of truth.\n";
+  const claimIndex = prompt.lastIndexOf(claimMarker);
+  if (claimIndex > 0) {
+    const tail = prompt.slice(claimIndex);
+    const headLength = maxLength - tail.length - compactNotice.length;
+    if (headLength > 1000) {
+      return `${prompt.slice(0, headLength).trimEnd()}${compactNotice}${tail.trimStart()}`;
+    }
+  }
+  return boundedText(prompt, maxLength);
 }
 
 function compactLines(lines: readonly string[]): string {

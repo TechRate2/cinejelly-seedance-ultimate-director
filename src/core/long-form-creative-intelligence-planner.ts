@@ -6,6 +6,7 @@
 
 import type { StoryPlan } from "../types/agent.js";
 import { LongDirectorPlanner } from "./long-director-planner.js";
+import type { AudienceNicheIntelligence } from "../types/audience-niche-intelligence.js";
 import type { LongFormAgentReviewPlan } from "../types/long-form-agent-review.js";
 import type { LongFormContinuityPlan, LongFormContinuitySequence } from "../types/long-form-continuity.js";
 import type {
@@ -30,6 +31,7 @@ import type { ShotContract } from "../types/prompt.js";
 import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import type { VideoRenderStrategyPlan } from "../types/video-render-strategy.js";
 import { createStableId } from "../utils/ids.js";
+import { AudienceNicheIntelligencePlanner } from "./audience-niche-intelligence.js";
 
 const SOURCE_PATTERN_ORIGINS = [
   "HKUDS/ViMax",
@@ -37,7 +39,8 @@ const SOURCE_PATTERN_ORIGINS = [
   "vericontext/vibeframe",
   "calesthio/OpenMontage",
   "jiaminchen-1031/DirectorBench",
-  "harry0703/MoneyPrinterTurbo"
+  "harry0703/MoneyPrinterTurbo",
+  "YouMind-OpenLab/awesome-seedance-2-prompts"
 ] as const;
 
 const CLAIM_RISK_PATTERN =
@@ -47,6 +50,7 @@ const PAYOFF_PATTERN = /cta|payoff|result|resolution|transform|proof|final|offer
 
 export class LongFormCreativeIntelligencePlanner {
   private readonly longDirectorPlanner = new LongDirectorPlanner();
+  private readonly audienceNichePlanner = new AudienceNicheIntelligencePlanner();
 
   public build(input: {
     readonly projectId: string;
@@ -60,7 +64,7 @@ export class LongFormCreativeIntelligencePlanner {
     readonly postproductionAssetPlan: PostproductionAssetPlan;
     readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
   }): LongFormCreativeIntelligencePlan {
-    const nicheStrategy = this.nicheStrategy(input.userInput, input.storyPlan, input.sourceVideoAnalysis);
+    const nicheStrategy = this.nicheStrategy(input.projectId, input.userInput, input.storyPlan, input.sourceVideoAnalysis);
     const storyBible = this.storyBible(input.storyPlan, input.continuityPlan, nicheStrategy);
     const audioCaptionQuality = this.audioCaptionQuality(input.timelinePlan, input.postproductionAssetPlan);
     const findings = [
@@ -124,17 +128,23 @@ export class LongFormCreativeIntelligencePlanner {
   }
 
   private nicheStrategy(
+    projectId: string,
     userInput: string,
     storyPlan: StoryPlan,
     sourceVideoAnalysis: SourceVideoDeconstruction | undefined
   ): LongFormCreativeNicheStrategy {
     const text = `${userInput} ${storyPlan.premise}`.toLowerCase();
-    const niche = this.inferNiche(text);
-    const platformIntent = this.inferPlatformIntent(text, storyPlan.targetDurationSeconds);
-    const audience = this.inferAudience(text, niche);
+    const audienceNicheIntelligence = this.audienceNichePlanner.build({
+      projectId,
+      prompt: `${userInput} ${storyPlan.premise}`,
+      durationSeconds: storyPlan.targetDurationSeconds,
+      sourceVideoProvided: Boolean(sourceVideoAnalysis?.scenes?.length)
+    });
+    const niche = longFormNicheFrom(text, audienceNicheIntelligence);
+    const platformIntent = platformIntentFrom(text, storyPlan.targetDurationSeconds, audienceNicheIntelligence);
     const viralLevers = uniqueValues<LongFormCreativeViralLever>([
       "specific_niche_promise",
-      platformIntent.includes("social") || platformIntent.includes("vertical") || storyPlan.targetDurationSeconds <= 90
+      platformIntent.includes("social") || platformIntent.includes("vertical") || audienceNicheIntelligence.trendPosture === "trend_native" || storyPlan.targetDurationSeconds <= 90
         ? "fast_hook"
         : "curiosity_gap",
       storyPlan.targetDurationSeconds > 90 ? "curiosity_gap" : undefined,
@@ -146,20 +156,24 @@ export class LongFormCreativeIntelligencePlanner {
       sourceVideoAnalysis?.scenes?.length ? "source_style_match" : undefined
     ]);
     return {
+      audienceNicheIntelligence,
       niche,
-      audience,
+      audience: audienceNicheIntelligence.audience,
       platformIntent,
-      desiredViewerAction: this.inferViewerAction(text),
-      hookPattern: storyPlan.targetDurationSeconds <= 90
-        ? "Open with the sharpest problem, product state, or visual contradiction in the first shot."
-        : "Open a curiosity gap, then resolve it through escalating proof and a clear payoff.",
+      desiredViewerAction: viewerActionFrom(text, audienceNicheIntelligence),
+      trendPosture: audienceNicheIntelligence.trendPosture,
+      viewerObjection: audienceNicheIntelligence.viewerObjection,
+      proofStrategy: audienceNicheIntelligence.proofStrategy,
+      shareTrigger: audienceNicheIntelligence.shareTrigger,
+      hookPattern: hookPatternFrom(storyPlan.targetDurationSeconds, audienceNicheIntelligence),
       retentionBeats: this.retentionBeats(storyPlan),
       viralLevers,
       antiPatterns: [
         "Do not let scenes become interchangeable proof shots.",
         "Do not add unsupported product or medical claims.",
         "Do not let style, identity, product, or environment anchors drift between shots.",
-        "Do not bury the payoff after the viewer has already understood the premise."
+        "Do not bury the payoff after the viewer has already understood the premise.",
+        "Do not use a generic template arc when the audience, objection, or trend posture points to a sharper idea."
       ]
     };
   }
@@ -628,73 +642,6 @@ export class LongFormCreativeIntelligencePlanner {
       .map((sequence) => sequence.sequenceId);
   }
 
-  private inferNiche(text: string): string {
-    if (/shop|ecommerce|product|sku|price|sale|discount|ad|ads|tiktok shop|amazon|landing/i.test(text)) {
-      return "ecommerce_product_video";
-    }
-    if (/course|training|education|lesson|explain|tutorial|teach|learn/i.test(text)) {
-      return "educational_explainer";
-    }
-    if (/documentary|story|founder|brand story|case study|journey/i.test(text)) {
-      return "brand_story_documentary";
-    }
-    if (/cinematic|film|trailer|short film|scene|movie/i.test(text)) {
-      return "cinematic_story";
-    }
-    if (/agency|client|campaign|b2b|saas|lead/i.test(text)) {
-      return "agency_b2b_campaign";
-    }
-    return "general_video";
-  }
-
-  private inferPlatformIntent(text: string, durationSeconds: number): string {
-    if (/tiktok|reels|shorts|vertical/i.test(text)) {
-      return "vertical_social";
-    }
-    if (/youtube|webinar|training|course/i.test(text) || durationSeconds >= 120) {
-      return "long_form_web";
-    }
-    if (/ad|ads|landing|product/i.test(text)) {
-      return "paid_social_ad";
-    }
-    return durationSeconds <= 90 ? "social_video" : "long_form_web";
-  }
-
-  private inferAudience(text: string, niche: string): string {
-    const explicitAudience = /(?:for|cho|danh cho|target audience)\s+([^.,;]{4,80})/i.exec(text)?.[1]?.trim();
-    if (explicitAudience) {
-      return explicitAudience;
-    }
-    switch (niche) {
-      case "ecommerce_product_video":
-        return "buyers who need fast proof before purchase";
-      case "educational_explainer":
-        return "learners who need a clear step-by-step explanation";
-      case "brand_story_documentary":
-        return "viewers who need trust, context, and emotional proof";
-      case "cinematic_story":
-        return "viewers who expect strong mood, continuity, and payoff";
-      case "agency_b2b_campaign":
-        return "business decision makers comparing value and credibility";
-      case "general_video":
-        return "general audience";
-    }
-    return "general audience";
-  }
-
-  private inferViewerAction(text: string): string {
-    if (/buy|purchase|order|shop|lead|book|demo|signup|sign up/i.test(text)) {
-      return "purchase_or_lead";
-    }
-    if (/learn|education|course|training|subscribe/i.test(text)) {
-      return "learn_or_subscribe";
-    }
-    if (/share|viral|awareness|brand/i.test(text)) {
-      return "share_or_remember";
-    }
-    return "understand_and_continue";
-  }
-
   private retentionBeats(storyPlan: StoryPlan): readonly string[] {
     const beats = storyPlan.scenes.flatMap((scene) => scene.beats);
     if (beats.length === 0) {
@@ -702,6 +649,58 @@ export class LongFormCreativeIntelligencePlanner {
     }
     return beats.slice(0, 8).map((beat, index) => `${index + 1}. ${clean(`${beat.purpose}: ${beat.action}`, 160)}`);
   }
+}
+
+function longFormNicheFrom(text: string, audienceNiche: AudienceNicheIntelligence): string {
+  if (/shop|ecommerce|product|sku|price|sale|discount|ad|ads|tiktok shop|amazon|landing/i.test(text)) {
+    return "ecommerce_product_video";
+  }
+  if (audienceNiche.niche === "education_course" || /course|training|education|lesson|explain|tutorial|teach|learn/i.test(text)) {
+    return "educational_explainer";
+  }
+  if (audienceNiche.niche === "brand_story_documentary" || /documentary|story|founder|brand story|case study|journey/i.test(text)) {
+    return "brand_story_documentary";
+  }
+  if (audienceNiche.niche === "cinematic_story" || /cinematic|film|trailer|short film|scene|movie/i.test(text)) {
+    return "cinematic_story";
+  }
+  if (audienceNiche.niche === "saas_b2b" || /agency|client|campaign|b2b|saas|lead/i.test(text)) {
+    return "agency_b2b_campaign";
+  }
+  return audienceNiche.niche === "general_video" ? "general_video" : audienceNiche.niche;
+}
+
+function platformIntentFrom(text: string, durationSeconds: number, audienceNiche: AudienceNicheIntelligence): string {
+  if (/tiktok|reels|shorts|vertical/i.test(text) || audienceNiche.trendPosture === "trend_native") {
+    return "vertical_social";
+  }
+  if (/youtube|webinar|training|course/i.test(text) || durationSeconds >= 120 || audienceNiche.trendPosture === "educational_search") {
+    return "long_form_web";
+  }
+  if (/ad|ads|landing|product/i.test(text) || audienceNiche.funnelStage === "conversion") {
+    return "paid_social_ad";
+  }
+  return durationSeconds <= 90 ? "social_video" : "long_form_web";
+}
+
+function viewerActionFrom(text: string, audienceNiche: AudienceNicheIntelligence): string {
+  if (/buy|purchase|order|shop|lead|book|demo|signup|sign up/i.test(text) || audienceNiche.funnelStage === "conversion") {
+    return "purchase_or_lead";
+  }
+  if (/learn|education|course|training|subscribe/i.test(text) || audienceNiche.trendPosture === "educational_search") {
+    return "learn_or_subscribe";
+  }
+  if (/share|viral|awareness|brand/i.test(text) || audienceNiche.trendPosture === "trend_native") {
+    return "share_or_remember";
+  }
+  return "understand_and_continue";
+}
+
+function hookPatternFrom(durationSeconds: number, audienceNiche: AudienceNicheIntelligence): string {
+  if (durationSeconds <= 90) {
+    return `Open with ${audienceNiche.hookAngle}.`;
+  }
+  return `Open a curiosity gap around ${audienceNiche.viewerObjection}, then resolve it through ${audienceNiche.proofStrategy}.`;
 }
 
 function finding(

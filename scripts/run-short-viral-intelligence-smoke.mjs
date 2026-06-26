@@ -196,6 +196,7 @@ const rawReferenceLeak = serialized.includes("https://media.example.com/referenc
   serialized.includes("https://media.example.com/reference/conversation-pattern") ||
   serialized.includes("C:\\Users\\Admin\\Videos\\secret-reference.mp4") ||
   serialized.includes("signature=abc123");
+const audienceNiche = viralPlan.viralIntelligence.nicheStrategy.audienceNicheIntelligence;
 
 const checks = [
   viralPlan.noSpend && !viralPlan.networkCallsMade && !viralPlan.providerCallsMade &&
@@ -208,6 +209,18 @@ const checks = [
     viralPlan.viralIntelligence.nicheStrategy.viralLevers.includes("visual_retention")
     ? pass("tiktok_douyin_ugc_strategy", "TikTok/Douyin UGC strategy, visual-retention levers, and niche intent are inferred.")
     : fail("tiktok_douyin_ugc_strategy", "Expected TikTok/Douyin-first UGC strategy with retention levers."),
+  audienceNiche?.schemaVersion === "cinejelly.audience-niche-intelligence.v1" &&
+    audienceNiche.noSpend === true &&
+    audienceNiche.networkCallsMade === false &&
+    audienceNiche.providerCallsMade === false &&
+    audienceNiche.userPresentationStyle === "product_url_or_facts" &&
+    audienceNiche.trendPosture === "trend_native" &&
+    audienceNiche.ideaSeeds.length >= 4 &&
+    renderHandoff.request.metadata?.shortAudienceNicheTrendPosture === audienceNiche.trendPosture &&
+    renderHandoff.request.userInput.includes("Audience intelligence:") &&
+    renderHandoff.request.userInput.includes("Idea seeds:")
+    ? pass("shared_audience_niche_intelligence", "Short planning and render handoff receive shared user-intent, niche, trend, hook, proof, and idea-seed intelligence.")
+    : fail("shared_audience_niche_intelligence", "Expected shared audience/niche intelligence to be present in plan metadata and render prompt."),
   viralPlan.viralIntelligence.referenceVideoPattern?.sourceUrlSha256 &&
     viralPlan.viralIntelligence.referenceVideoPattern.safetyStatus === "learned_pattern" &&
     viralPlan.viralIntelligence.referenceVideoPattern.originalityGuardrails.length >= 3 &&
@@ -258,7 +271,8 @@ const report = {
     "HKUDS/ViMax",
     "HKUDS/VideoAgent",
     "video-db/Director",
-    "vericontext/vibeframe"
+    "vericontext/vibeframe",
+    "YouMind-OpenLab/awesome-seedance-2-prompts"
   ],
   checkedInputs: {
     outputPath: options.outputPath,
@@ -324,6 +338,9 @@ function summarizePlan(plan) {
     creativeMode: plan.viralIntelligence.nicheStrategy.creativeMode,
     niche: plan.viralIntelligence.nicheStrategy.niche,
     buyerIntent: plan.viralIntelligence.nicheStrategy.buyerIntent,
+    presentationStyle: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.userPresentationStyle,
+    trendPosture: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.trendPosture,
+    ideaSeedCount: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.ideaSeeds.length,
     viralLeverCount: plan.viralIntelligence.nicheStrategy.viralLevers.length,
     conceptScoreCount: plan.viralIntelligence.conceptScores.length,
     winningConceptIdPresent: Boolean(plan.viralIntelligence.winningConceptId),

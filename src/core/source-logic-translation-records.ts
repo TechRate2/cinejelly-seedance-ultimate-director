@@ -65,7 +65,9 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     cineJellyDestinationPaths: [
       "src/types/prompt.ts",
       "src/prompt_compiler/reference-binding.ts",
-      "src/prompt_compiler/prompt-compiler.ts"
+      "src/prompt_compiler/prompt-compiler.ts",
+      "src/types/audience-niche-intelligence.ts",
+      "src/core/audience-niche-intelligence.ts"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -3093,6 +3095,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "ambiguous or commercially risky requests route to review or safe blocking before provider spend",
       "bounded Product URL-to-Video research can feed safe product facts and claim checkpoints into the planning loop",
       "short viral/niche intelligence can infer platform focus, creative mode, buyer intent, concept quality, and scene-level retention directives before spend",
+      "shared audience/niche intelligence can classify messy user presentation style, niche, funnel stage, trend posture, proof strategy, share trigger, CTA strategy, and idea seeds for both Short and Long",
       "reference-video learning preserves reusable structure such as hook, pacing, caption rhythm, camera style, audio feel, retention mechanics, and CTA logic without copying source content",
       "durable no-spend conversation sessions can be persisted with atomic writes and client-scoped retrieval without storing raw transcript text",
       "stored conversation sessions can enter the async render-job review lifecycle without accepting client-side replacement plans",
@@ -3114,13 +3117,16 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "short review operation evidence validation rejects unsafe accepted-looking notes and keeps product URL acceptance, media-rights approval, and provider submission as separate gates",
       "short product-facts/media-rights validation rejects unsafe accepted-looking notes and keeps review-operation evidence, paid render evidence, artifact validation, manual media review, and customer release as separate gates",
       "commercial launch doctor refreshes short evidence guards, non-evidence drafts, and accepted-packet validation status so missing operator packets stay explicit evidence blockers",
-      "a first-party static Short create/review shell with safe checkpoint controls is provided without importing Director frontend code, while hosted playback, accepted live review operation evidence, VideoDB library controls, and complete 20+ agent parity remain future product work"
+      "a first-party static Short create/review shell with safe checkpoint controls is provided without importing Director frontend code, while hosted playback, accepted live review operation evidence, VideoDB library controls, and complete 20+ agent parity remain future product work",
+      "Short and Long now call the same deterministic audience/niche intelligence layer instead of maintaining disconnected template-like niche heuristics"
     ],
     referenceImplementationPath: "docs/reference-implementations/director-agentic-media-reasoning.md",
     cineJellyDestinationPaths: [
       "src/types/short-pipeline.ts",
+      "src/types/audience-niche-intelligence.ts",
       "src/types/short-viral-intelligence.ts",
       "src/types/review-approval.ts",
+      "src/core/audience-niche-intelligence.ts",
       "src/core/short-pipeline-conversation.ts",
       "src/core/short-pipeline-planner.ts",
       "src/core/short-viral-intelligence-planner.ts",
@@ -3313,17 +3319,23 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "long-form work should keep story, sequence, visual, and reference consistency evidence explicit before rendering",
       "continuity-sensitive shots need stronger candidate/review treatment than generic shots",
-      "director reasoning should produce repairable shot-level guidance rather than one opaque global score"
+      "director reasoning should produce repairable shot-level guidance rather than one opaque global score",
+      "audience, niche, trend posture, proof strategy, objection, share trigger, and idea seeds should be explicit no-spend evidence before long-form provider spend"
     ],
     behaviorChanged: [
       "ViMax agent behavior is rewritten as deterministic CineJelly story-bible, viral-strategy, quality-finding, candidate, and repair contracts",
       "the planner makes no network, LLM, Atlas, or upstream runtime calls",
-      "quality recommendations feed artifacts and review packets without bypassing cost, approval, artifact, or provider gates"
+      "quality recommendations feed artifacts and review packets without bypassing cost, approval, artifact, or provider gates",
+      "long-form niche strategy now consumes the shared Short/Long audience-niche planner while preserving the stable long-form UI/artifact fields"
     ],
     referenceImplementationPath: "docs/PRODUCTION_GRAPH_AND_LONG_FORM.md",
     cineJellyDestinationPaths: [
       "src/types/long-form-creative-intelligence.ts",
+      "src/types/audience-niche-intelligence.ts",
+      "src/types/long-director-ui.ts",
+      "src/core/audience-niche-intelligence.ts",
       "src/core/long-form-creative-intelligence-planner.ts",
+      "src/core/long-director-ui-contract.ts",
       "src/agents/director-agent.ts",
       "src/core/project-artifact-store.ts",
       "src/core/project-artifact-validator.ts",

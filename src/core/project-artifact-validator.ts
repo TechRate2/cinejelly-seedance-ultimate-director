@@ -1795,10 +1795,15 @@ export class ProjectArtifactValidator {
     const nicheStrategy = this.isRecord(value.nicheStrategy) ? value.nicheStrategy : undefined;
     if (
       !nicheStrategy ||
+      !this.isValidAudienceNicheIntelligence(nicheStrategy.audienceNicheIntelligence) ||
       typeof nicheStrategy.niche !== "string" ||
       typeof nicheStrategy.audience !== "string" ||
       typeof nicheStrategy.platformIntent !== "string" ||
       typeof nicheStrategy.desiredViewerAction !== "string" ||
+      typeof nicheStrategy.trendPosture !== "string" ||
+      typeof nicheStrategy.viewerObjection !== "string" ||
+      typeof nicheStrategy.proofStrategy !== "string" ||
+      typeof nicheStrategy.shareTrigger !== "string" ||
       typeof nicheStrategy.hookPattern !== "string" ||
       !Array.isArray(nicheStrategy.retentionBeats) ||
       !Array.isArray(nicheStrategy.viralLevers) ||
@@ -2078,6 +2083,16 @@ export class ProjectArtifactValidator {
       !creative.platformIntent ||
       typeof creative.desiredViewerAction !== "string" ||
       !creative.desiredViewerAction ||
+      typeof creative.trendPosture !== "string" ||
+      !creative.trendPosture ||
+      typeof creative.viewerObjection !== "string" ||
+      !creative.viewerObjection ||
+      typeof creative.proofStrategy !== "string" ||
+      !creative.proofStrategy ||
+      typeof creative.shareTrigger !== "string" ||
+      !creative.shareTrigger ||
+      typeof creative.ideaSeedCount !== "number" ||
+      creative.ideaSeedCount < 0 ||
       typeof creative.viralLeverCount !== "number" ||
       creative.viralLeverCount < 0 ||
       typeof creative.findingCount !== "number" ||
@@ -2244,6 +2259,18 @@ export class ProjectArtifactValidator {
     this.compareLongDirectorUiField(fileName, "creative.niche", creative?.niche, nicheStrategy?.niche, creativeArtifact.entry.fileName, checks);
     this.compareLongDirectorUiField(fileName, "creative.platformIntent", creative?.platformIntent, nicheStrategy?.platformIntent, creativeArtifact.entry.fileName, checks);
     this.compareLongDirectorUiField(fileName, "creative.desiredViewerAction", creative?.desiredViewerAction, nicheStrategy?.desiredViewerAction, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.trendPosture", creative?.trendPosture, nicheStrategy?.trendPosture, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.viewerObjection", creative?.viewerObjection, nicheStrategy?.viewerObjection, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.proofStrategy", creative?.proofStrategy, nicheStrategy?.proofStrategy, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(fileName, "creative.shareTrigger", creative?.shareTrigger, nicheStrategy?.shareTrigger, creativeArtifact.entry.fileName, checks);
+    this.compareLongDirectorUiField(
+      fileName,
+      "creative.ideaSeedCount",
+      creative?.ideaSeedCount,
+      this.longDirectorUiIdeaSeedCount(nicheStrategy),
+      creativeArtifact.entry.fileName,
+      checks
+    );
     this.compareLongDirectorUiField(fileName, "creative.findingCount", creative?.findingCount, creativePlan.findingCount, creativeArtifact.entry.fileName, checks);
     this.compareLongDirectorUiField(fileName, "creative.blockingFindingCount", creative?.blockingFindingCount, creativePlan.blockingFindingCount, creativeArtifact.entry.fileName, checks);
     this.compareLongDirectorUiField(fileName, "creative.reviewRequiredFindingCount", creative?.reviewRequiredFindingCount, creativePlan.reviewRequiredFindingCount, creativeArtifact.entry.fileName, checks);
@@ -2347,6 +2374,13 @@ export class ProjectArtifactValidator {
         this.isRecord(directive) &&
         (directive.priority === "high" || directive.priority === "critical")
     ).length;
+  }
+
+  private longDirectorUiIdeaSeedCount(nicheStrategy: Record<string, unknown> | undefined): number | undefined {
+    const audienceNiche = nicheStrategy && this.isRecord(nicheStrategy.audienceNicheIntelligence)
+      ? nicheStrategy.audienceNicheIntelligence
+      : undefined;
+    return Array.isArray(audienceNiche?.ideaSeeds) ? audienceNiche.ideaSeeds.length : undefined;
   }
 
   private compareLongDirectorUiField(
@@ -3504,6 +3538,35 @@ export class ProjectArtifactValidator {
     if (!Array.isArray(value)) {
       checks.push({ name, status: "fail", fileName, message: `${name} must be an array.` });
     }
+  }
+
+  private isValidAudienceNicheIntelligence(value: unknown): boolean {
+    if (!this.isRecord(value)) {
+      return false;
+    }
+    return value.schemaVersion === "cinejelly.audience-niche-intelligence.v1" &&
+      typeof value.intelligenceId === "string" &&
+      value.noSpend === true &&
+      value.networkCallsMade === false &&
+      value.providerCallsMade === false &&
+      typeof value.userPresentationStyle === "string" &&
+      typeof value.niche === "string" &&
+      typeof value.audience === "string" &&
+      typeof value.funnelStage === "string" &&
+      typeof value.format === "string" &&
+      typeof value.trendPosture === "string" &&
+      typeof value.viewerDesire === "string" &&
+      typeof value.viewerObjection === "string" &&
+      typeof value.hookAngle === "string" &&
+      typeof value.retentionPattern === "string" &&
+      typeof value.proofStrategy === "string" &&
+      typeof value.shareTrigger === "string" &&
+      typeof value.ctaStrategy === "string" &&
+      Array.isArray(value.localizationSignals) &&
+      Array.isArray(value.riskSignals) &&
+      Array.isArray(value.missingSignals) &&
+      Array.isArray(value.ideaSeeds) &&
+      Array.isArray(value.sourcePatternOrigins);
   }
 
   private isCredentialFreeHttps(value: string): boolean {
