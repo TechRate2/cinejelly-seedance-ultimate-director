@@ -15,6 +15,8 @@ import type {
   WorkflowTemplateSuggestion
 } from "../types/short-pipeline.js";
 import type {
+  ShortCreativeIdeaCandidate,
+  ShortCreativePatternLearningPlan,
   ShortReferenceVideoLearningInput,
   ShortReferenceVideoPattern,
   ShortReferenceVideoSafetyStatus,
@@ -30,6 +32,7 @@ import type {
 } from "../types/short-viral-intelligence.js";
 import { createStableId } from "../utils/ids.js";
 import { AudienceNicheIntelligencePlanner } from "./audience-niche-intelligence.js";
+import { ShortCreativePatternLearningEngine } from "./short-creative-pattern-learning.js";
 
 const SOURCE_PATTERN_ORIGINS = [
   "calesthio/OpenMontage",
@@ -63,6 +66,7 @@ export interface ShortViralIntelligencePlannerInput {
 
 export class ShortViralIntelligencePlanner {
   private readonly audienceNichePlanner = new AudienceNicheIntelligencePlanner();
+  private readonly creativePatternLearningEngine = new ShortCreativePatternLearningEngine();
 
   public build(input: ShortViralIntelligencePlannerInput): ShortViralIntelligencePlan {
     if (!input.projectId.trim()) {
@@ -72,10 +76,21 @@ export class ShortViralIntelligencePlanner {
     const findings: ShortViralFinding[] = [];
     const reference = this.referencePattern(input.referenceVideoLearning, prompt, findings);
     const strategy = this.nicheStrategy(input, prompt, reference);
+    const creativePatternLearning = this.creativePatternLearningEngine.build({
+      projectId: input.projectId,
+      prompt,
+      strategy,
+      ...(reference ? { referenceVideoPattern: reference } : {}),
+      ...(input.productBrief ? { productBrief: input.productBrief } : {}),
+      ...(input.brandKitEvaluation ? { brandKitEvaluation: input.brandKitEvaluation } : {}),
+      concepts: input.concepts,
+      scenes: input.scenes,
+      durationSeconds: input.intent.targetDurationSeconds
+    });
     findings.push(...this.strategyFindings(input, prompt, strategy, reference));
     const conceptScores = this.conceptScores(input.concepts, input, prompt, strategy);
     const winningConceptId = conceptScores[0]?.conceptId ?? input.concepts[0]?.conceptId;
-    const sceneDirectives = this.sceneDirectives(input.scenes, input, strategy, reference);
+    const sceneDirectives = this.sceneDirectives(input.scenes, input, strategy, reference, creativePatternLearning);
     findings.push(...this.sceneFindings(input.scenes, sceneDirectives, strategy, reference));
     const status = findings.some((finding) => finding.severity === "block")
       ? "blocked"
@@ -94,7 +109,8 @@ export class ShortViralIntelligencePlanner {
         strategy.platformFocus,
         strategy.creativeMode,
         reference?.patternId ?? "no_reference",
-        winningConceptId ?? "no_concept"
+        winningConceptId ?? "no_concept",
+        creativePatternLearning.selectedIdeaId ?? "no_idea"
       ].join(":")
     );
 
@@ -111,7 +127,9 @@ export class ShortViralIntelligencePlanner {
       sourcePatternOrigins: SOURCE_PATTERN_ORIGINS,
       nicheStrategy: strategy,
       ...(reference ? { referenceVideoPattern: reference } : {}),
+      creativePatternLearning,
       ...(winningConceptId ? { winningConceptId } : {}),
+      ...(creativePatternLearning.selectedIdeaId ? { winningIdeaId: creativePatternLearning.selectedIdeaId } : {}),
       conceptScores,
       sceneDirectives,
       findings,
@@ -357,9 +375,11 @@ export class ShortViralIntelligencePlanner {
     scenes: readonly ShortPipelineScenePlan[],
     input: ShortViralIntelligencePlannerInput,
     strategy: ShortViralNicheStrategy,
-    reference: ShortReferenceVideoPattern | undefined
+    reference: ShortReferenceVideoPattern | undefined,
+    creativePatternLearning: ShortCreativePatternLearningPlan
   ): readonly ShortViralSceneDirective[] {
     const baseDuration = input.intent.targetDurationSeconds / Math.max(1, scenes.length);
+    const selectedIdea = selectedCreativeIdea(creativePatternLearning);
     return scenes.map((scene, index) => {
       const roleLevers = leversForScene(scene.role, strategy.viralLevers);
       const isFirst = index === 0;
@@ -370,15 +390,15 @@ export class ShortViralIntelligencePlanner {
         role: scene.role,
         recommendedDurationSeconds: round(isFirst ? Math.min(3, Math.max(1.5, baseDuration * 0.45)) : isLast ? Math.max(2, baseDuration * 0.65) : baseDuration),
         firstFrameRule: isFirst
-          ? `Open with ${firstFrameSubject(input.productBrief, strategy)} and one visible promise before the first second ends, with no on-screen text.`
+          ? `Open with ${firstFrameSubject(input.productBrief, strategy)} and one visible promise before the first second ends, with no on-screen text.${selectedIdea ? ` Selected idea hook: ${selectedIdea.hook}` : ""}`
           : "Continue with a visible state change, not a static talking-head hold.",
-        retentionJob: retentionJobFor(scene.role, strategy, reference),
+        retentionJob: retentionJobFor(scene.role, strategy, reference, selectedIdea),
         cameraCue: cameraCueFor(scene.role, strategy, reference),
         captionCue: captionCueFor(scene, strategy, reference),
-        proofCue: proofCueFor(scene, input.productBrief, strategy),
+        proofCue: proofCueFor(scene, input.productBrief, strategy, selectedIdea),
         ...(isLast ? { ctaCue: ctaCueFor(input.productBrief, strategy) } : {}),
         viralLevers: roleLevers,
-        qualityChecks: qualityChecksFor(scene, strategy),
+        qualityChecks: qualityChecksFor(scene, strategy, selectedIdea),
         ...(reference ? { referencePatternAlignment: referenceAlignmentFor(scene, reference) } : {})
       };
     });
@@ -625,22 +645,24 @@ function firstFrameSubject(productBrief: ProductUrlBrief | undefined, strategy: 
 function retentionJobFor(
   role: ShortPipelineScenePlan["role"],
   strategy: ShortViralNicheStrategy,
-  reference: ShortReferenceVideoPattern | undefined
+  reference: ShortReferenceVideoPattern | undefined,
+  selectedIdea: ShortCreativeIdeaCandidate | undefined
 ): string {
   const referenceCue = reference ? ` Adapt the reference pacing pattern: ${reference.pacingPattern}.` : "";
+  const ideaCue = selectedIdea ? ` Follow selected idea "${selectedIdea.label}" arc: ${selectedIdea.sceneArc.slice(0, 4).join(" > ")}.` : "";
   switch (role) {
     case "hook":
-      return `Create a curiosity gap tied to ${strategy.viewerDesire}; make the viewer understand the payoff immediately.${referenceCue}`;
+      return `Create a curiosity gap tied to ${strategy.viewerDesire}; make the viewer understand the payoff immediately.${referenceCue}${ideaCue}`;
     case "problem":
-      return `Name the viewer objection visually: ${strategy.viewerObjection}.`;
+      return `Name the viewer objection visually: ${strategy.viewerObjection}.${ideaCue}`;
     case "proof":
-      return "Turn the claim into visible proof, product evidence, or a review-bound fact.";
+      return `Turn the claim into visible proof, product evidence, or a review-bound fact.${ideaCue}`;
     case "demo":
-      return "Show one concrete usage step with a before-state and after-state in the same beat.";
+      return `Show one concrete usage step with a before-state and after-state in the same beat.${ideaCue}`;
     case "offer":
-      return "Make the offer feel like the natural next step after proof, not a separate ad card.";
+      return `Make the offer feel like the natural next step after proof, not a separate ad card.${ideaCue}`;
     case "payoff":
-      return "Close the loop from hook to proof through a visual payoff, without visible text or CTA card.";
+      return `Close the loop from hook to proof through a visual payoff, without visible text or CTA card.${ideaCue}`;
   }
 }
 
@@ -675,15 +697,17 @@ function captionCueFor(
 function proofCueFor(
   scene: ShortPipelineScenePlan,
   productBrief: ProductUrlBrief | undefined,
-  strategy: ShortViralNicheStrategy
+  strategy: ShortViralNicheStrategy,
+  selectedIdea: ShortCreativeIdeaCandidate | undefined
 ): string {
+  const ideaProof = selectedIdea ? ` Selected idea proof plan: ${selectedIdea.proofPlan}` : "";
   if (scene.claimIds.length > 0) {
-    return `Use only review-bound claim IDs ${scene.claimIds.join(", ")} and show visible evidence.`;
+    return `Use only review-bound claim IDs ${scene.claimIds.join(", ")} and show visible evidence.${ideaProof}`;
   }
   if (productBrief?.benefits[0]) {
-    return `Ground the beat in this reviewed benefit: ${productBrief.benefits[0]}.`;
+    return `Ground the beat in this reviewed benefit: ${productBrief.benefits[0]}.${ideaProof}`;
   }
-  return `Use observable ${strategy.niche} evidence; avoid unsupported performance claims.`;
+  return `Use observable ${strategy.niche} evidence; avoid unsupported performance claims.${ideaProof}`;
 }
 
 function ctaCueFor(productBrief: ProductUrlBrief | undefined, strategy: ShortViralNicheStrategy): string {
@@ -692,13 +716,22 @@ function ctaCueFor(productBrief: ProductUrlBrief | undefined, strategy: ShortVir
     : `Use a ${strategy.buyerIntent === "conversion" ? "conversion" : "low-friction"} visual payoff and do not add text or new claims.`;
 }
 
-function qualityChecksFor(scene: ShortPipelineScenePlan, strategy: ShortViralNicheStrategy): readonly string[] {
+function qualityChecksFor(
+  scene: ShortPipelineScenePlan,
+  strategy: ShortViralNicheStrategy,
+  selectedIdea: ShortCreativeIdeaCandidate | undefined
+): readonly string[] {
   return [
     scene.role === "hook" ? "payoff is visible or spoken inside the first second" : "scene starts with changed visual information",
     "no visible text, captions, subtitles, labels, or CTA cards cover product proof",
     "no unsupported claim or new offer appears outside review evidence",
-    `beat supports ${strategy.creativeMode} mode and ${strategy.platformFocus} pacing`
-  ];
+    `beat supports ${strategy.creativeMode} mode and ${strategy.platformFocus} pacing`,
+    selectedIdea ? `beat follows selected idea ${selectedIdea.ideaId} without copying reference expression` : undefined
+  ].filter((item): item is string => Boolean(item));
+}
+
+function selectedCreativeIdea(plan: ShortCreativePatternLearningPlan): ShortCreativeIdeaCandidate | undefined {
+  return plan.candidates.find((candidate) => candidate.ideaId === plan.selectedIdeaId) ?? plan.candidates[0];
 }
 
 function referenceAlignmentFor(scene: ShortPipelineScenePlan, reference: ShortReferenceVideoPattern): string {

@@ -54,12 +54,14 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
     behaviorPreserved: [
       "prompt anatomy keeps references and continuity before scene prose",
       "camera, lighting, timing, audio, transition, and constraints remain ordered",
-      "negative and anti-slop guidance stays distinct from positive prompt prose"
+      "negative and anti-slop guidance stays distinct from positive prompt prose",
+      "prompt timing, camera, proof, and retention primitives can feed ranked short idea candidates without bundling exact prompt examples"
     ],
     behaviorChanged: [
       "generalized prompt structure into CineJelly shot contracts",
       "exact community prompt text is not bundled in production code",
-      "compression notes are emitted as metadata for operator review"
+      "compression notes are emitted as metadata for operator review",
+      "short creative pattern learning rewrites prompt-pattern inspiration into scored structural candidates rather than fixed prompt templates"
     ],
     referenceImplementationPath: "docs/reference-implementations/prompt-reference-binding-plan.md",
     cineJellyDestinationPaths: [
@@ -67,7 +69,8 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/prompt_compiler/reference-binding.ts",
       "src/prompt_compiler/prompt-compiler.ts",
       "src/types/audience-niche-intelligence.ts",
-      "src/core/audience-niche-intelligence.ts"
+      "src/core/audience-niche-intelligence.ts",
+      "src/core/short-creative-pattern-learning.ts"
     ],
     validationStatus: "implemented",
     fidelityRisks: [
@@ -3096,6 +3099,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "bounded Product URL-to-Video research can feed safe product facts and claim checkpoints into the planning loop",
       "short viral/niche intelligence can infer platform focus, creative mode, buyer intent, concept quality, and scene-level retention directives before spend",
       "shared audience/niche intelligence can classify messy user presentation style, niche, funnel stage, trend posture, proof strategy, share trigger, CTA strategy, and idea seeds for both Short and Long",
+      "short creative-pattern learning can generate many niche, prompt, and reference-derived idea candidates, score them for hook, retention, proof, novelty, renderability, brand safety, and non-clone safety, then hand a selected idea into scene directives",
       "reference-video learning preserves reusable structure such as hook, pacing, caption rhythm, camera style, audio feel, retention mechanics, and CTA logic without copying source content",
       "durable no-spend conversation sessions can be persisted with atomic writes and client-scoped retrieval without storing raw transcript text",
       "stored conversation sessions can enter the async render-job review lifecycle without accepting client-side replacement plans",
@@ -3113,6 +3117,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "unbounded LLM tool routing is replaced by deterministic no-spend planning, admission control, approval gates, cost controls, and provider-safe handoff points",
       "product URL research is limited to clean HTTPS pages behind explicit live-network confirmation and publishes hashes/evidence instead of raw URLs",
       "reference-video inputs are redacted into source fingerprints and pattern guidance; clone/99%-copy requests become review-required guardrails instead of reproduction instructions",
+      "video-pattern learning is represented as scored structural idea candidates rather than hardcoded scripts, exact clone templates, copied edits, copied creator identity, or raw trend URLs",
       "short-pipeline render handoff, including stored-session handoff, requires explicit confirmation before approved review evidence can queue provider spend",
       "short review operation evidence validation rejects unsafe accepted-looking notes and keeps product URL acceptance, media-rights approval, and provider submission as separate gates",
       "short product-facts/media-rights validation rejects unsafe accepted-looking notes and keeps review-operation evidence, paid render evidence, artifact validation, manual media review, and customer release as separate gates",
@@ -3127,6 +3132,7 @@ export const DEFAULT_SOURCE_LOGIC_TRANSLATIONS: readonly SourceLogicTranslationI
       "src/types/short-viral-intelligence.ts",
       "src/types/review-approval.ts",
       "src/core/audience-niche-intelligence.ts",
+      "src/core/short-creative-pattern-learning.ts",
       "src/core/short-pipeline-conversation.ts",
       "src/core/short-pipeline-planner.ts",
       "src/core/short-viral-intelligence-planner.ts",

@@ -36,7 +36,7 @@
       "required": ["outputPath", "scenarioCount", "referenceRawLeakCheckPassed", "endpointsCovered"],
       "properties": {
         "outputPath": { "type": "string" },
-        "scenarioCount": { "const": 5 },
+        "scenarioCount": { "const": 6 },
         "referenceRawLeakCheckPassed": { "type": "boolean" },
         "endpointsCovered": {
           "type": "array",
@@ -48,11 +48,12 @@
     "scenarios": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["viralPlan", "copyRisk", "unsafeReference", "conversation", "renderHandoff"],
+      "required": ["viralPlan", "copyRisk", "unsafeReference", "genericNiche", "conversation", "renderHandoff"],
       "properties": {
         "viralPlan": { "$ref": "#/$defs/planScenario" },
         "copyRisk": { "$ref": "#/$defs/planScenario" },
         "unsafeReference": { "$ref": "#/$defs/planScenario" },
+        "genericNiche": { "$ref": "#/$defs/planScenario" },
         "conversation": { "$ref": "#/$defs/conversationScenario" },
         "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" }
       }
@@ -107,6 +108,10 @@
         "presentationStyle",
         "trendPosture",
         "ideaSeedCount",
+        "creativePatternCount",
+        "ideaCandidateCount",
+        "winningIdeaIdPresent",
+        "selectedIdeaScore",
         "viralLeverCount",
         "conceptScoreCount",
         "winningConceptIdPresent",
@@ -130,6 +135,10 @@
         "presentationStyle": { "type": "string" },
         "trendPosture": { "type": "string" },
         "ideaSeedCount": { "type": "integer", "minimum": 0 },
+        "creativePatternCount": { "type": "integer", "minimum": 0 },
+        "ideaCandidateCount": { "type": "integer", "minimum": 0 },
+        "winningIdeaIdPresent": { "type": "boolean" },
+        "selectedIdeaScore": { "type": "number", "minimum": 0, "maximum": 1 },
         "viralLeverCount": { "type": "integer", "minimum": 0 },
         "conceptScoreCount": { "type": "integer", "minimum": 0 },
         "winningConceptIdPresent": { "type": "boolean" },
@@ -174,7 +183,10 @@
       "required": [
         "planId",
         "metadataHasViralLineage",
+        "metadataHasCreativePatternLineage",
         "promptHasViralStrategy",
+        "promptHasCreativePatternLearning",
+        "promptHasSelectedIdea",
         "promptHasSceneDirectives",
         "promptHasReferenceGuardrail",
         "captionCueCount",
@@ -184,7 +196,10 @@
       "properties": {
         "planId": { "type": "string" },
         "metadataHasViralLineage": { "type": "boolean" },
+        "metadataHasCreativePatternLineage": { "type": "boolean" },
         "promptHasViralStrategy": { "type": "boolean" },
+        "promptHasCreativePatternLearning": { "type": "boolean" },
+        "promptHasSelectedIdea": { "type": "boolean" },
         "promptHasSceneDirectives": { "type": "boolean" },
         "promptHasReferenceGuardrail": { "type": "boolean" },
         "captionCueCount": { "type": "integer", "minimum": 0 },

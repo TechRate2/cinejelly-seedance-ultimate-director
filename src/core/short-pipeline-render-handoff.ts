@@ -102,11 +102,8 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortViralNiche: plan.viralIntelligence.nicheStrategy.niche,
         shortViralPlatformFocus: plan.viralIntelligence.nicheStrategy.platformFocus,
         shortViralCreativeMode: plan.viralIntelligence.nicheStrategy.creativeMode,
-        shortAudienceNicheIntelligenceId: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.intelligenceId,
-        shortAudienceNichePresentationStyle: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.userPresentationStyle,
+        shortCreativePatternLearningId: plan.viralIntelligence.creativePatternLearning.learningId,
         shortAudienceNicheTrendPosture: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.trendPosture,
-        shortAudienceNicheFormat: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.format,
-        shortAudienceNicheFunnelStage: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.funnelStage,
         shortCommercialReadinessId: plan.commercialReadiness.readinessId,
         shortCommercialReadinessStatus: plan.commercialReadiness.status,
         shortCommercialReadinessScore: String(plan.commercialReadiness.qualityScore),
@@ -275,6 +272,11 @@ function viralStrategyFromPlan(plan: ShortPipelinePlan, compact = false): string
   const strategy = plan.viralIntelligence.nicheStrategy;
   const score = plan.viralIntelligence.conceptScores.find((item) => item.conceptId === plan.viralIntelligence.winningConceptId);
   const reference = plan.viralIntelligence.referenceVideoPattern;
+  const selectedIdea = selectedShortCreativeIdea(plan);
+  const topIdeas = plan.viralIntelligence.creativePatternLearning.candidates
+    .slice(0, compact ? 3 : 5)
+    .map((candidate) => `${candidate.label} score=${candidate.score.totalScore}`)
+    .join(" | ");
   const findings = plan.viralIntelligence.findings
     .filter((finding) => finding.severity !== "info")
     .map((finding) => `${finding.code}:${finding.severity}`)
@@ -291,6 +293,11 @@ function viralStrategyFromPlan(plan: ShortPipelinePlan, compact = false): string
     `Audience intelligence: presentation=${strategy.audienceNicheIntelligence.userPresentationStyle}; format=${strategy.audienceNicheIntelligence.format}; trendPosture=${strategy.audienceNicheIntelligence.trendPosture}; funnelStage=${strategy.audienceNicheIntelligence.funnelStage}.`,
     `Hook/proof/retention: ${strategy.audienceNicheIntelligence.hookAngle}. Proof: ${strategy.audienceNicheIntelligence.proofStrategy}. Retention: ${strategy.audienceNicheIntelligence.retentionPattern}.`,
     `Idea seeds: ${ideaSeeds.join(" | ")}.`,
+    `Creative pattern learning: patterns=${plan.viralIntelligence.creativePatternLearning.patternCount}; candidates=${plan.viralIntelligence.creativePatternLearning.candidateCount}; selectedIdea=${selectedIdea?.ideaId ?? "none"}; selectedPattern=${selectedIdea?.patternId ?? "none"}.`,
+    selectedIdea
+      ? `Selected idea: ${selectedIdea.label}. Hook: ${boundedText(selectedIdea.hook, compact ? 220 : 360)} Proof: ${boundedText(selectedIdea.proofPlan, compact ? 220 : 360)} KOL/creator: ${boundedText(selectedIdea.creatorOrKolDirection, compact ? 180 : 300)}.`
+      : "",
+    topIdeas ? `Top idea candidates: ${topIdeas}.` : "",
     `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
     `Use viral levers: ${viralLevers.join(", ")}. Avoid: ${antiPatterns.join("; ")}.`,
     score && scoreReasons ? `Winning concept score: ${score.totalScore} (${scoreReasons.join("; ")}).` : "",
@@ -299,6 +306,12 @@ function viralStrategyFromPlan(plan: ShortPipelinePlan, compact = false): string
       : "",
     findings ? `Open viral findings for review: ${findings}.` : ""
   ]);
+}
+
+function selectedShortCreativeIdea(plan: ShortPipelinePlan) {
+  return plan.viralIntelligence.creativePatternLearning.candidates.find(
+    (candidate) => candidate.ideaId === plan.viralIntelligence.creativePatternLearning.selectedIdeaId
+  ) ?? plan.viralIntelligence.creativePatternLearning.candidates[0];
 }
 
 function viralDirectivesFromPlan(plan: ShortPipelinePlan, compact = false): string {

@@ -33,6 +33,32 @@ export type ShortViralLever =
   | "clear_payoff"
   | "trend_transfer";
 
+export type ShortCreativePatternSource =
+  | "audience_niche"
+  | "niche_playbook"
+  | "reference_video"
+  | "prompt_signal"
+  | "outcome_memory_placeholder";
+
+export type ShortCreativePatternKind =
+  | "proof_diary"
+  | "skeptical_review"
+  | "routine_rescue"
+  | "myth_bust"
+  | "challenge_progress"
+  | "comparison_test"
+  | "problem_demo_payoff"
+  | "creator_confession"
+  | "sensory_closeup"
+  | "before_after_guarded"
+  | "community_reaction"
+  | "micro_story_twist"
+  | "workflow_before_after"
+  | "hidden_detail_reveal"
+  | "first_try_reaction"
+  | "mistake_fix"
+  | "cinematic_reveal";
+
 export type ShortReferenceVideoSafetyStatus =
   | "not_provided"
   | "learned_pattern"
@@ -88,6 +114,65 @@ export interface ShortViralNicheStrategy {
   readonly viewerObjection: string;
   readonly viralLevers: readonly ShortViralLever[];
   readonly antiPatterns: readonly string[];
+}
+
+export interface ShortCreativePattern {
+  readonly patternId: string;
+  readonly kind: ShortCreativePatternKind;
+  readonly label: string;
+  readonly source: ShortCreativePatternSource;
+  readonly nicheTags: readonly string[];
+  readonly hookMechanic: string;
+  readonly retentionMechanic: string;
+  readonly proofDevice: string;
+  readonly payoffMechanic: string;
+  readonly creatorOrKolRole: string;
+  readonly adaptationRule: string;
+  readonly originalityGuardrails: readonly string[];
+  readonly riskControls: readonly string[];
+  readonly fitReasons: readonly string[];
+}
+
+export interface ShortCreativeIdeaScore {
+  readonly hookPotential: number;
+  readonly retentionPotential: number;
+  readonly nicheFit: number;
+  readonly proofFeasibility: number;
+  readonly brandSafety: number;
+  readonly novelty: number;
+  readonly renderability: number;
+  readonly nonCloneSafety: number;
+  readonly totalScore: number;
+}
+
+export interface ShortCreativeIdeaCandidate {
+  readonly ideaId: string;
+  readonly patternId: string;
+  readonly label: string;
+  readonly logline: string;
+  readonly hook: string;
+  readonly sceneArc: readonly string[];
+  readonly proofPlan: string;
+  readonly creatorOrKolDirection: string;
+  readonly productionNotes: readonly string[];
+  readonly riskControls: readonly string[];
+  readonly score: ShortCreativeIdeaScore;
+  readonly reasons: readonly string[];
+}
+
+export interface ShortCreativePatternLearningPlan {
+  readonly schemaVersion: "cinejelly.short-creative-pattern-learning.v1";
+  readonly learningId: string;
+  readonly noSpend: true;
+  readonly networkCallsMade: false;
+  readonly providerCallsMade: false;
+  readonly selectedIdeaId?: string;
+  readonly selectedPatternId?: string;
+  readonly patternCount: number;
+  readonly candidateCount: number;
+  readonly patterns: readonly ShortCreativePattern[];
+  readonly candidates: readonly ShortCreativeIdeaCandidate[];
+  readonly sourcePatternOrigins: readonly string[];
 }
 
 export interface ShortViralConceptScore {
@@ -150,7 +235,9 @@ export interface ShortViralIntelligencePlan {
   readonly sourcePatternOrigins: readonly string[];
   readonly nicheStrategy: ShortViralNicheStrategy;
   readonly referenceVideoPattern?: ShortReferenceVideoPattern;
+  readonly creativePatternLearning: ShortCreativePatternLearningPlan;
   readonly winningConceptId?: string;
+  readonly winningIdeaId?: string;
   readonly conceptScores: readonly ShortViralConceptScore[];
   readonly sceneDirectives: readonly ShortViralSceneDirective[];
   readonly findings: readonly ShortViralFinding[];

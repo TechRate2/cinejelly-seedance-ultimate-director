@@ -59,6 +59,7 @@ flowchart LR
 - `Reference Librarian` / `Reference Binder`: validates assets, classifies them as identity, product, environment, motion, camera, audio tempo, style, first frame, last frame, or source-video structure, and preserves graph lineage.
 - `Source Video Analyst`: normalizes optional VideoAgent/OpenMontage-style transcript, scene, keyframe, pacing, style, structural beat, and safety deconstruction into bounded guidance for original story planning.
 - `Audience Niche Intelligence`: shared no-spend Short/Long planner that classifies messy user presentation style, niche, format, funnel stage, trend posture, viewer desire/objection, proof strategy, share trigger, CTA strategy, localization/risk/missing signals, and idea seeds without hardcoding fixed niche templates.
+- `Short Creative Pattern Learning`: no-spend Short planner that turns audience/niche intelligence, prompt signals, and redacted reference-video structure into many scored idea candidates, selecting a winning non-clone concept for scene directives and render handoff.
 - `Source Video Auto Analyzer`: optional adapter that samples bounded frames from a clean HTTPS source-video reference and asks the configured Atlas LLM for original structural deconstruction before intake normalization.
 - `Prompt Compiler`: turns shot contracts into Seedance-ready prompts and provider-neutral render requests.
 - `Storyboard Planner`: turns shot contracts into deterministic reviewable storyboard panels before render spend; Guardian validates panel coverage/alignment before provider calls.

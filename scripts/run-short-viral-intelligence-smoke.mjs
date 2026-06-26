@@ -144,6 +144,15 @@ const unsafeReferencePlan = planner.buildPlan({
   }
 });
 
+const genericNichePlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_viral_generic_niche_depth",
+  generatedAt,
+  userPrompt: "Make a trend-native TikTok short for a niche magnetic cable organizer for remote workers. Let a KOL adapt the structure of a viral office-life video, but replace the product, setting, proof, and story with my product. Make it oddly satisfying and a little funny.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 24
+});
+
 const conversation = conversationEngine.buildSession({
   projectId: "short_viral_smoke",
   requestId: "req_short_viral_conversation",
@@ -188,6 +197,7 @@ const serialized = JSON.stringify({
   viralPlan,
   copyRiskPlan,
   unsafeReferencePlan,
+  genericNichePlan,
   conversation,
   renderHandoff
 });
@@ -197,6 +207,10 @@ const rawReferenceLeak = serialized.includes("https://media.example.com/referenc
   serialized.includes("C:\\Users\\Admin\\Videos\\secret-reference.mp4") ||
   serialized.includes("signature=abc123");
 const audienceNiche = viralPlan.viralIntelligence.nicheStrategy.audienceNicheIntelligence;
+const creativeLearning = viralPlan.viralIntelligence.creativePatternLearning;
+const selectedIdea = creativeLearning.candidates.find((candidate) => candidate.ideaId === creativeLearning.selectedIdeaId);
+const genericCreativeLearning = genericNichePlan.viralIntelligence.creativePatternLearning;
+const genericSelectedIdea = genericCreativeLearning.candidates.find((candidate) => candidate.ideaId === genericCreativeLearning.selectedIdeaId);
 
 const checks = [
   viralPlan.noSpend && !viralPlan.networkCallsMade && !viralPlan.providerCallsMade &&
@@ -221,6 +235,21 @@ const checks = [
     renderHandoff.request.userInput.includes("Idea seeds:")
     ? pass("shared_audience_niche_intelligence", "Short planning and render handoff receive shared user-intent, niche, trend, hook, proof, and idea-seed intelligence.")
     : fail("shared_audience_niche_intelligence", "Expected shared audience/niche intelligence to be present in plan metadata and render prompt."),
+  creativeLearning?.schemaVersion === "cinejelly.short-creative-pattern-learning.v1" &&
+    creativeLearning.noSpend === true &&
+    creativeLearning.networkCallsMade === false &&
+    creativeLearning.providerCallsMade === false &&
+    creativeLearning.patternCount >= 8 &&
+    creativeLearning.candidateCount >= 8 &&
+    Boolean(selectedIdea) &&
+    selectedIdea.score.totalScore >= 0.65 &&
+    selectedIdea.score.nonCloneSafety >= 0.7 &&
+    selectedIdea.riskControls.some((item) => item.includes("no visible captions")) &&
+    renderHandoff.request.metadata?.shortCreativePatternLearningId === creativeLearning.learningId &&
+    renderHandoff.request.userInput.includes("Creative pattern learning:") &&
+    renderHandoff.request.userInput.includes("Selected idea:")
+    ? pass("creative_pattern_learning_candidates", "Short viral planning generates many niche/reference-aware idea candidates, scores them, selects a non-clone idea, and hands it to render.")
+    : fail("creative_pattern_learning_candidates", "Expected creative pattern learning with scored candidates, selected idea, guardrails, and render handoff lineage."),
   viralPlan.viralIntelligence.referenceVideoPattern?.sourceUrlSha256 &&
     viralPlan.viralIntelligence.referenceVideoPattern.safetyStatus === "learned_pattern" &&
     viralPlan.viralIntelligence.referenceVideoPattern.originalityGuardrails.length >= 3 &&
@@ -244,6 +273,15 @@ const checks = [
     !rawReferenceLeak
     ? pass("unsafe_reference_blocks_plan", "Unsafe local/private reference sources block the plan without serializing raw paths.")
     : fail("unsafe_reference_blocks_plan", "Expected unsafe reference source to block planning and stay redacted."),
+  genericCreativeLearning.patternCount >= 8 &&
+    genericCreativeLearning.candidateCount >= 8 &&
+    Boolean(genericSelectedIdea) &&
+    genericSelectedIdea.score.totalScore >= 0.65 &&
+    genericSelectedIdea.score.nonCloneSafety >= 0.7 &&
+    genericCreativeLearning.patterns.some((pattern) => pattern.source === "audience_niche") &&
+    genericCreativeLearning.patterns.some((pattern) => pattern.source === "prompt_signal")
+    ? pass("generic_niche_pattern_depth", "Obscure or under-specified niches still receive many scored creative candidates from audience seeds, prompt signals, and universal short-form patterns.")
+    : fail("generic_niche_pattern_depth", "Expected generic/obscure niche planning to produce many safe, scored creative pattern candidates."),
   conversation.plan.viralIntelligence.referenceVideoPattern?.sourceUrlSha256 &&
     conversation.plan.viralIntelligence.sceneDirectives.length === conversation.plan.scenes.length &&
     conversation.rawTranscriptStored === false
@@ -276,7 +314,7 @@ const report = {
   ],
   checkedInputs: {
     outputPath: options.outputPath,
-    scenarioCount: 5,
+    scenarioCount: 6,
     referenceRawLeakCheckPassed: !rawReferenceLeak,
     endpointsCovered: [
       "/v1/short-pipeline/plan",
@@ -289,6 +327,7 @@ const report = {
     viralPlan: summarizePlan(viralPlan),
     copyRisk: summarizePlan(copyRiskPlan),
     unsafeReference: summarizePlan(unsafeReferencePlan),
+    genericNiche: summarizePlan(genericNichePlan),
     conversation: {
       sessionId: conversation.sessionId,
       rawTranscriptStored: conversation.rawTranscriptStored,
@@ -301,7 +340,10 @@ const report = {
     renderHandoff: {
       planId: renderHandoff.summary.planId,
       metadataHasViralLineage: renderHandoff.request.metadata?.shortViralIntelligenceId === viralPlan.viralIntelligence.intelligenceId,
+      metadataHasCreativePatternLineage: renderHandoff.request.metadata?.shortCreativePatternLearningId === viralPlan.viralIntelligence.creativePatternLearning.learningId,
       promptHasViralStrategy: renderHandoff.request.userInput.includes("Short viral strategy:"),
+      promptHasCreativePatternLearning: renderHandoff.request.userInput.includes("Creative pattern learning:"),
+      promptHasSelectedIdea: renderHandoff.request.userInput.includes("Selected idea:"),
       promptHasSceneDirectives: renderHandoff.request.userInput.includes("Viral scene directives:"),
       promptHasReferenceGuardrail: renderHandoff.request.userInput.includes("do not copy source script wording"),
       captionCueCount: renderHandoff.summary.captionCueCount,
@@ -341,6 +383,10 @@ function summarizePlan(plan) {
     presentationStyle: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.userPresentationStyle,
     trendPosture: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.trendPosture,
     ideaSeedCount: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.ideaSeeds.length,
+    creativePatternCount: plan.viralIntelligence.creativePatternLearning.patternCount,
+    ideaCandidateCount: plan.viralIntelligence.creativePatternLearning.candidateCount,
+    winningIdeaIdPresent: Boolean(plan.viralIntelligence.winningIdeaId),
+    selectedIdeaScore: plan.viralIntelligence.creativePatternLearning.candidates.find((candidate) => candidate.ideaId === plan.viralIntelligence.winningIdeaId)?.score.totalScore ?? 0,
     viralLeverCount: plan.viralIntelligence.nicheStrategy.viralLevers.length,
     conceptScoreCount: plan.viralIntelligence.conceptScores.length,
     winningConceptIdPresent: Boolean(plan.viralIntelligence.winningConceptId),
