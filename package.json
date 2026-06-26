@@ -86,6 +86,8 @@
     "validation:short-mvp-ui-contract": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-mvp-ui-contract-smoke.mjs",
     "validation:short-review-operation": "node scripts/validate-short-review-operation-evidence.mjs",
     "validation:short-review-operation-guard": "node scripts/run-short-review-operation-evidence-guard-smoke.mjs",
+    "validation:short-product-rights": "node scripts/validate-short-product-rights-evidence.mjs",
+    "validation:short-product-rights-guard": "node scripts/run-short-product-rights-evidence-guard-smoke.mjs",
     "validation:operator-launch-ui-contract": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-operator-launch-ui-contract-smoke.mjs",
     "validation:product-url-extraction": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-product-url-extraction-smoke.mjs",
     "validation:billing-admin-ops": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/capture-billing-admin-ops.mjs",

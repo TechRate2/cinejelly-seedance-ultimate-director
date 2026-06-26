@@ -64,7 +64,7 @@ Status on 2026-06-19: backend hygiene and report contracts pass, but full commer
 - [x] Durable conversation sessions can hand off into async render-job review lifecycle without accepting a client-side replacement plan or bypassing explicit render confirmation.
 - [x] `video-db/Director` snapshot and Director Agentic Media Reasoning baseline are captured for chat/workflow parity tracking.
 - [x] Human-in-the-loop review checkpoints are emitted before render.
-- [ ] Live product URL crawling/extraction, accepted product facts, and rights-reviewed product media are proven on real URLs.
+- [ ] Live product URL crawling/extraction, accepted product facts, and rights-reviewed product media are proven on real URLs. The no-spend accepted product-facts/media-rights validator and unsafe-note guard are implemented; an operator-supplied accepted live packet is still required.
 - [x] Short-pipeline accepted review handoff is wired into async render-job submission.
 - [ ] Live short-pipeline render validation is proven with approved review evidence, explicit spend confirmation, artifact validation, and manual media review.
 - [ ] First-party chat/review UI and media-library evidence are implemented before claiming Director-style product parity.

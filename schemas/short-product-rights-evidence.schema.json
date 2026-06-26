@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-product-rights-evidence.schema.json",
+  "title": "CineJelly Short Product Rights Evidence Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "environmentKind",
+    "deploymentBaseUrl",
+    "sessionId",
+    "reviewer",
+    "productFacts",
+    "mediaRights",
+    "operationBoundary",
+    "evidenceBinding"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-product-rights-evidence.v1" },
+    "environmentKind": { "const": "deployment" },
+    "deploymentBaseUrl": {
+      "type": "string",
+      "minLength": 12,
+      "maxLength": 300,
+      "pattern": "^https:\\/\\/[^?#\\s]+$",
+      "not": {
+        "anyOf": [
+          { "pattern": "localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|::1" },
+          { "pattern": "(^|\\.)example\\." },
+          { "pattern": "(^|\\.)invalid$" },
+          { "pattern": "placeholder|replace|token|secret|password|credential" }
+        ]
+      }
+    },
+    "sessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewerId", "reviewerRole", "reviewedAt", "redactionReviewed"],
+      "properties": {
+        "reviewerId": { "$ref": "#/$defs/safeIdentifier" },
+        "reviewerRole": { "$ref": "#/$defs/reviewerRole" },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "redactionReviewed": { "const": true }
+      }
+    },
+    "productFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productUrlSha256",
+        "productHostSha256",
+        "productPathSha256",
+        "liveExtractionReportSha256",
+        "productTitleAccepted",
+        "productCategoryAccepted",
+        "productBenefitsAccepted",
+        "productCtaAccepted",
+        "claimSubstantiationAccepted",
+        "productSnapshotMatchesPlan",
+        "missingRequiredFactCount",
+        "unsupportedClaimCount",
+        "rawProductUrlStored",
+        "rawMediaUrlsStored",
+        "secretsStored"
+      ],
+      "properties": {
+        "productUrlSha256": { "$ref": "#/$defs/sha256" },
+        "productHostSha256": { "$ref": "#/$defs/sha256" },
+        "productPathSha256": { "$ref": "#/$defs/sha256" },
+        "liveExtractionReportSha256": { "$ref": "#/$defs/sha256" },
+        "productTitleAccepted": { "const": true },
+        "productCategoryAccepted": { "const": true },
+        "productBenefitsAccepted": { "const": true },
+        "productCtaAccepted": { "const": true },
+        "claimSubstantiationAccepted": { "const": true },
+        "productSnapshotMatchesPlan": { "const": true },
+        "missingRequiredFactCount": { "const": 0 },
+        "unsupportedClaimCount": { "const": 0 },
+        "rawProductUrlStored": { "const": false },
+        "rawMediaUrlsStored": { "const": false },
+        "secretsStored": { "const": false },
+        "notes": { "$ref": "#/$defs/safeEvidenceText" }
+      }
+    },
+    "mediaRights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productMediaApprovedForUse",
+        "commercialUseApproved",
+        "usageScopeReviewed",
+        "ownershipDecision",
+        "modelReleaseStatus",
+        "trademarkUsageApproved",
+        "restrictedThirdPartyMarksAbsent",
+        "attributionStatus",
+        "attributionSummarySha256",
+        "rightsReviewerRole",
+        "rightsReviewedAt",
+        "redactionReviewed"
+      ],
+      "properties": {
+        "productMediaApprovedForUse": { "const": true },
+        "commercialUseApproved": { "const": true },
+        "usageScopeReviewed": { "const": true },
+        "ownershipDecision": {
+          "enum": ["brand_owned", "licensed", "merchant_authorized", "public_listing_with_operator_approval"]
+        },
+        "modelReleaseStatus": { "enum": ["not_required", "accepted"] },
+        "trademarkUsageApproved": { "const": true },
+        "restrictedThirdPartyMarksAbsent": { "const": true },
+        "attributionStatus": { "enum": ["not_required", "required_and_recorded"] },
+        "attributionSummarySha256": { "$ref": "#/$defs/sha256" },
+        "rightsReviewerRole": { "$ref": "#/$defs/reviewerRole" },
+        "rightsReviewedAt": { "type": "string", "format": "date-time" },
+        "redactionReviewed": { "const": true },
+        "notes": { "$ref": "#/$defs/safeEvidenceText" }
+      }
+    },
+    "operationBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "noSpend",
+        "networkCallsMade",
+        "providerCallsMade",
+        "canQueueProviderSpendFromEvidence",
+        "renderJobQueued",
+        "spendReservationCreated",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "noSpend": { "const": true },
+        "networkCallsMade": { "const": false },
+        "providerCallsMade": { "const": false },
+        "canQueueProviderSpendFromEvidence": { "const": false },
+        "renderJobQueued": { "const": false },
+        "spendReservationCreated": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "evidenceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productFactsReviewSha256",
+        "mediaRightsReviewSha256",
+        "productUrlExtractionReportSha256",
+        "sessionUiContractSha256",
+        "storedSessionPlanSha256",
+        "clientScoped",
+        "serverSidePlanUsed",
+        "redactionReviewed",
+        "shortReviewOperationEvidenceIncluded",
+        "paidRenderEvidenceIncluded"
+      ],
+      "properties": {
+        "productFactsReviewSha256": { "$ref": "#/$defs/sha256" },
+        "mediaRightsReviewSha256": { "$ref": "#/$defs/sha256" },
+        "productUrlExtractionReportSha256": { "$ref": "#/$defs/sha256" },
+        "sessionUiContractSha256": { "$ref": "#/$defs/sha256" },
+        "storedSessionPlanSha256": { "$ref": "#/$defs/sha256" },
+        "clientScoped": { "const": true },
+        "serverSidePlanUsed": { "const": true },
+        "redactionReviewed": { "const": true },
+        "shortReviewOperationEvidenceIncluded": { "const": false },
+        "paidRenderEvidenceIncluded": { "const": false }
+      }
+    }
+  },
+  "$defs": {
+    "reviewerRole": { "enum": ["operator", "producer", "product", "legal", "qa", "hybrid"] },
+    "safeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "not": { "$ref": "#/$defs/unsafeTextPatterns" }
+    },
+    "safeEvidenceText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 700,
+      "not": { "$ref": "#/$defs/unsafeTextPatterns" }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "unsafeTextPatterns": {
+      "anyOf": [
+        { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" },
+        { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+        { "pattern": "sk-[A-Za-z0-9_-]+" },
+        { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\\s*[:=]\\s*[\\\"']?[^\\\"',\\s&]+" },
+        { "pattern": "([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\\s]+" },
+        { "pattern": "[A-Za-z]:\\\\[^\\s\\\"'<>]+" },
+        { "pattern": "\\/(?:home|Users|var|tmp)\\/[^\\s\\\"'<>]+" },
+        { "pattern": "https?:\\/\\/[^\\s\\\"'<>]+" },
+        { "pattern": "(?:file|s3|gs|ftp):\\/\\/[^\\s\\\"'<>]+" },
+        { "pattern": "data:[^\\s\\\"'<>]+" }
+      ]
+    }
+  }
+}

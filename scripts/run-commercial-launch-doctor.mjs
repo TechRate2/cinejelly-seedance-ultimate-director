@@ -193,6 +193,11 @@ function buildCommands(options) {
       reportPath: "assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
+    }),
+    command("short_product_rights_guard", ["scripts/run-short-product-rights-evidence-guard-smoke.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/short-product-rights-evidence-guard-smoke-report.json",
+      expectedExitCodes: [0],
+      blocksCodeReadiness: true
     })
   ];
   if (!options.skipLocalSmoke) {
@@ -271,6 +276,11 @@ function buildCommands(options) {
     }),
     command("provider_graph_resume", ["scripts/validate-render-provider-graph-resume-enqueues.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-enqueues-report.json",
+      expectedExitCodes: [0, 1],
+      blocksCodeReadiness: false
+    }),
+    command("short_product_rights_validation", ["scripts/validate-short-product-rights-evidence.mjs"], {
+      reportPath: "assets/output_deliverables/business-readiness/short-product-rights-validation-report.json",
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
@@ -443,6 +453,8 @@ function buildReport(options, commandRuns) {
     sourceVideoAutoAnalysisSmoke: summarizeReport("assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"),
     remoteStockAdapterSmoke: summarizeReport("assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json"),
     generatedAudioMappingSmoke: summarizeReport("assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json"),
+    shortProductRightsGuard: summarizeReport("assets/output_deliverables/business-readiness/short-product-rights-evidence-guard-smoke-report.json"),
+    shortProductRightsValidation: summarizeReport("assets/output_deliverables/business-readiness/short-product-rights-validation-report.json"),
     providerReconciliation: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
     providerHandoff: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
     providerExternalLease: summarizeProviderReport(options, "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
@@ -511,6 +523,8 @@ function buildReport(options, commandRuns) {
       sourceVideoAutoAnalysisSmokeStatus: reportSummaries.sourceVideoAutoAnalysisSmoke.status,
       remoteStockAdapterSmokeStatus: reportSummaries.remoteStockAdapterSmoke.status,
       generatedAudioMappingSmokeStatus: reportSummaries.generatedAudioMappingSmoke.status,
+      shortProductRightsGuardStatus: reportSummaries.shortProductRightsGuard.status,
+      shortProductRightsValidationStatus: reportSummaries.shortProductRightsValidation.status,
       qualityBenchmarkStatus: reportSummaries.qualityBenchmark.status,
       qualityReviewDraftsStatus: reportSummaries.qualityReviewDrafts.status,
       qualityReviewGuardStatus: reportSummaries.qualityReviewGuard.status,
@@ -921,6 +935,9 @@ function buildNextActions({ completion, business, reportSummaries, codeBlockingR
   if (reportSummaries.providerGraphResume.status !== "pass") {
     actions.push("After live graph-resume enqueue executes, archive digest-only enqueue payload evidence in ops/render-provider-graph-resume-enqueues.json and rerun validation:provider-graph-resume with --confirm-graph-resume-enqueues.");
   }
+  if (reportSummaries.shortProductRightsValidation.status !== "pass") {
+    actions.push("Archive accepted Short product-facts/media-rights evidence in ops/short-product-rights-evidence.json, then run validation:short-product-rights with --confirm-accepted-product-rights before paid Short render evidence can count.");
+  }
   for (const action of arrayOfStrings(completion?.nextActions ?? business?.nextActions)) {
     actions.push(action);
   }
@@ -947,6 +964,8 @@ function renderMarkdown(report) {
     `- Source-video auto-analysis smoke: ${report.readinessSnapshot.sourceVideoAutoAnalysisSmokeStatus}`,
     `- Remote-stock adapter smoke: ${report.readinessSnapshot.remoteStockAdapterSmokeStatus}`,
     `- Generated-audio mapping smoke: ${report.readinessSnapshot.generatedAudioMappingSmokeStatus}`,
+    `- Short product/rights guard: ${report.readinessSnapshot.shortProductRightsGuardStatus}`,
+    `- Short product/rights validation: ${report.readinessSnapshot.shortProductRightsValidationStatus}`,
     `- Quality benchmark: ${report.readinessSnapshot.qualityBenchmarkStatus}`,
     `- Quality review drafts: ${report.readinessSnapshot.qualityReviewDraftsStatus}`,
     `- Quality review guard: ${report.readinessSnapshot.qualityReviewGuardStatus}`,

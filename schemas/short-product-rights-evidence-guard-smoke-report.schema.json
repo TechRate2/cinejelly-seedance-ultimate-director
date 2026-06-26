@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-product-rights-evidence-guard-smoke-report.schema.json",
+  "title": "CineJelly Short Product Rights Evidence Guard Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "summary",
+    "safeReadiness",
+    "unsafeReadiness",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-product-rights-evidence-guard-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "const": "pass" },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workDir",
+        "safeEvidencePath",
+        "unsafeEvidencePath",
+        "safeReportPath",
+        "unsafeReportPath",
+        "outputPath"
+      ],
+      "properties": {
+        "workDir": { "$ref": "#/$defs/repoPath" },
+        "safeEvidencePath": { "$ref": "#/$defs/repoPath" },
+        "unsafeEvidencePath": { "$ref": "#/$defs/repoPath" },
+        "safeReportPath": { "$ref": "#/$defs/repoPath" },
+        "unsafeReportPath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "safeExitCode",
+        "safeStatus",
+        "unsafeExitCode",
+        "unsafeStatus",
+        "safeCanUseAsAcceptedShortProductRightsEvidence",
+        "unsafeCanUseAsAcceptedShortProductRightsEvidence",
+        "unsafeCanSubmitToProviderNow"
+      ],
+      "properties": {
+        "safeExitCode": { "const": 0 },
+        "safeStatus": { "const": "pass" },
+        "unsafeExitCode": { "const": 0 },
+        "unsafeStatus": { "const": "fail" },
+        "safeCanUseAsAcceptedShortProductRightsEvidence": { "const": true },
+        "unsafeCanUseAsAcceptedShortProductRightsEvidence": { "const": false },
+        "unsafeCanSubmitToProviderNow": { "const": false }
+      }
+    },
+    "safeReadiness": { "$ref": "#/$defs/readiness" },
+    "unsafeReadiness": { "$ref": "#/$defs/readiness" },
+    "checks": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shortProductRightsEvidenceGuardPass",
+        "canUseAsAcceptedShortProductRightsEvidence",
+        "canSubmitToProviderNow",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "shortProductRightsEvidenceGuardPass": { "const": true },
+        "canUseAsAcceptedShortProductRightsEvidence": { "const": false },
+        "canSubmitToProviderNow": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 900 }
+    }
+  },
+  "$defs": {
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "evidence", "failedCheckCount", "releaseGateSummary"],
+      "properties": {
+        "status": { "enum": ["pass", "blocked_by_missing_inputs", "blocked_by_confirmation", "fail"] },
+        "summary": { "type": "object", "additionalProperties": true },
+        "evidence": { "type": "object", "additionalProperties": true },
+        "failedCheckCount": { "type": "integer", "minimum": 0 },
+        "releaseGateSummary": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "status": { "const": "pass" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 900 }
+      }
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 420,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "^\\[outside-repo\\]$" },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    }
+  }
+}

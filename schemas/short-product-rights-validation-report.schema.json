@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-product-rights-validation-report.schema.json",
+  "title": "CineJelly Short Product Rights Validation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "summary",
+    "evidence",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-product-rights-validation.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "blocked_by_missing_inputs", "blocked_by_confirmation", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidencePath", "outputPath", "evidenceConfigured", "confirmAcceptedProductRights"],
+      "properties": {
+        "evidencePath": { "$ref": "#/$defs/repoPath" },
+        "outputPath": { "$ref": "#/$defs/repoPath" },
+        "evidenceConfigured": { "type": "boolean" },
+        "confirmAcceptedProductRights": { "type": "boolean" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productFactsAccepted",
+        "mediaRightsApproved",
+        "redactionReviewed",
+        "rawUrlStorageBlocked",
+        "noSpendOperation",
+        "providerSubmissionBlocked",
+        "canUseAsAcceptedShortProductRightsEvidence",
+        "canSubmitToProviderNow",
+        "canReleaseToCustomerTraffic"
+      ],
+      "properties": {
+        "productFactsAccepted": { "type": "boolean" },
+        "mediaRightsApproved": { "type": "boolean" },
+        "redactionReviewed": { "type": "boolean" },
+        "rawUrlStorageBlocked": { "type": "boolean" },
+        "noSpendOperation": { "type": "boolean" },
+        "providerSubmissionBlocked": { "type": "boolean" },
+        "canUseAsAcceptedShortProductRightsEvidence": { "type": "boolean" },
+        "canSubmitToProviderNow": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configured"],
+      "properties": {
+        "configured": { "type": "boolean" },
+        "schemaVersion": { "type": "string" },
+        "environmentKind": { "type": "string" },
+        "deploymentBaseUrlSha256": { "$ref": "#/$defs/sha256" },
+        "sessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
+        "reviewerId": { "$ref": "#/$defs/safeIdentifier" },
+        "reviewerRole": { "$ref": "#/$defs/reviewerRole" },
+        "reviewedAt": { "type": "string", "format": "date-time" },
+        "productUrlSha256": { "$ref": "#/$defs/sha256" },
+        "productHostSha256": { "$ref": "#/$defs/sha256" },
+        "productPathSha256": { "$ref": "#/$defs/sha256" },
+        "liveExtractionReportSha256": { "$ref": "#/$defs/sha256" },
+        "missingRequiredFactCount": { "type": "integer", "minimum": 0 },
+        "unsupportedClaimCount": { "type": "integer", "minimum": 0 },
+        "ownershipDecision": {
+          "enum": ["brand_owned", "licensed", "merchant_authorized", "public_listing_with_operator_approval"]
+        },
+        "modelReleaseStatus": { "enum": ["not_required", "accepted"] },
+        "attributionStatus": { "enum": ["not_required", "required_and_recorded"] },
+        "attributionSummarySha256": { "$ref": "#/$defs/sha256" },
+        "rightsReviewerRole": { "$ref": "#/$defs/reviewerRole" },
+        "rightsReviewedAt": { "type": "string", "format": "date-time" },
+        "productFactsReviewSha256": { "$ref": "#/$defs/sha256" },
+        "mediaRightsReviewSha256": { "$ref": "#/$defs/sha256" },
+        "productUrlExtractionReportSha256": { "$ref": "#/$defs/sha256" },
+        "sessionUiContractSha256": { "$ref": "#/$defs/sha256" },
+        "storedSessionPlanSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptedShortProductRightsEvidencePass",
+        "canUseAsAcceptedShortProductRightsEvidence",
+        "canSubmitToProviderNow",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "acceptedShortProductRightsEvidencePass": { "type": "boolean" },
+        "canUseAsAcceptedShortProductRightsEvidence": { "type": "boolean" },
+        "canSubmitToProviderNow": { "const": false },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 900 }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1, "maxLength": 900 }
+      }
+    },
+    "reviewerRole": { "enum": ["operator", "producer", "product", "legal", "qa", "hybrid"] },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "safeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "not": {
+        "anyOf": [
+          { "pattern": "replace[-_\\s]?with|placeholder|\\btodo\\b|\\btbd\\b" },
+          { "pattern": "Bearer\\s+[A-Za-z0-9._-]+" },
+          { "pattern": "sk-[A-Za-z0-9_-]+" },
+          { "pattern": "(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "[A-Za-z]:\\\\" }
+        ]
+      }
+    },
+    "repoPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 420,
+      "not": {
+        "anyOf": [
+          { "pattern": "^[A-Za-z]:\\\\" },
+          { "pattern": "^/" },
+          { "pattern": "https?:\\/\\/" },
+          { "pattern": "\\.\\." },
+          { "pattern": "^\\[outside-repo\\]$" },
+          { "pattern": "(?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)" }
+        ]
+      }
+    }
+  }
+}
