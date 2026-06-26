@@ -39,6 +39,7 @@
         "sceneCount",
         "candidateCount",
         "promptShotCount",
+        "selectedCreativeIdeaCandidatePresent",
         "rawSourceLeakCheckPassed"
       ],
       "properties": {
@@ -47,6 +48,7 @@
         "sceneCount": { "type": "integer", "minimum": 3 },
         "candidateCount": { "type": "integer", "minimum": 4 },
         "promptShotCount": { "type": "integer", "minimum": 3 },
+        "selectedCreativeIdeaCandidatePresent": { "const": true },
         "rawSourceLeakCheckPassed": { "const": true }
       }
     },
@@ -62,6 +64,8 @@
         "memoryPatternCount",
         "critiqueCount",
         "repairCount",
+        "selectedCreativeIdeaId",
+        "selectedCandidateLabel",
         "promptPackId",
         "handoffHasPromptPack"
       ],
@@ -74,6 +78,8 @@
         "memoryPatternCount": { "type": "integer", "minimum": 3 },
         "critiqueCount": { "type": "integer", "minimum": 0 },
         "repairCount": { "type": "integer", "minimum": 0 },
+        "selectedCreativeIdeaId": { "type": "string" },
+        "selectedCandidateLabel": { "type": "string" },
         "promptPackId": { "type": "string" },
         "handoffHasPromptPack": { "const": true }
       }

@@ -11,6 +11,7 @@ import type {
   AudienceNichePresentationStyle,
   AudienceNicheTrendPosture
 } from "../types/audience-niche-intelligence.js";
+import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 
 const SOURCE_PATTERN_ORIGINS = [
@@ -24,12 +25,13 @@ const SOURCE_PATTERN_ORIGINS = [
 
 const HIGH_RISK_CLAIM_PATTERN =
   /100%|guarantee|guaranteed|cure|heal|doctor|clinical|medical|overnight|income|profit|#1|best\b|weight loss/i;
-const COPY_RISK_PATTERN = /\b(copy|clone|replicate|identical|same\s+video|99%|steal|reupload)\b/i;
 const PRODUCT_SIGNAL_PATTERN = /\b(product|shop|store|ecommerce|sku|buy|order|checkout|sale|ad|ads?|landing|offer|cta)\b/i;
 const TREND_SIGNAL_PATTERN = /\b(tiktok|tik\s*tok|douyin|reels?|shorts?|viral|trend|xu huong|native|creator|ugc)\b/i;
 const CONVERSION_SIGNAL_PATTERN = /\b(buy|shop|order|checkout|sale|discount|coupon|lead|book|demo|signup|sign up|cta|try|purchase)\b/i;
 const CONSIDERATION_SIGNAL_PATTERN = /\b(proof|review|demo|compare|comparison|versus|vs|testimonial|case study|why|objection|before|after)\b/i;
 const RETENTION_SIGNAL_PATTERN = /\b(retention|loyal|repeat|community|membership|post-purchase|returning|upsell)\b/i;
+const EDUCATION_INTENT_PATTERN =
+  /\b(course|training|education|lesson|tutorial|teacher|teach|school|bootcamp|curriculum|cohort|how to|learn\s+(?:how|to|about|the\s+(?:skill|method|framework)))\b/i;
 
 export class AudienceNicheIntelligencePlanner {
   public build(input: AudienceNicheIntelligenceInput): AudienceNicheIntelligence {
@@ -166,7 +168,7 @@ function formatFrom(lower: string, input: AudienceNicheIntelligenceInput): Audie
   if (/testimonial|customer story|customer proof/.test(lower)) return "testimonial";
   if (/compare|comparison|versus|vs|before after|before\/after/.test(lower)) return "comparison";
   if (/demo|how it works|show how|tutorial|walkthrough/.test(lower)) return "product_demo";
-  if (/course|training|education|lesson|explain|tutorial|teach|learn|how to/.test(lower)) return "education";
+  if (EDUCATION_INTENT_PATTERN.test(lower) || /\b(explain|explainer)\b/.test(lower)) return "education";
   if (/case study|case-study|results breakdown/.test(lower)) return "case_study";
   if (/founder|brand story|documentary|journey|origin/.test(lower)) return "brand_story";
   if (/cinematic|film|trailer|short film|scene|movie|premium reveal|luxury/.test(lower)) return "cinematic_story";
@@ -177,22 +179,23 @@ function formatFrom(lower: string, input: AudienceNicheIntelligenceInput): Audie
 }
 
 function nicheFrom(input: AudienceNicheIntelligenceInput, lower: string): string {
-  const categoryTitle = `${input.productCategory ?? ""} ${input.productTitle ?? ""}`.toLowerCase();
-  const productWeighted = `${categoryTitle} ${lower}`;
-  if (/beauty|skincare|skin care|cosmetic|serum|makeup|spa|haircare/.test(productWeighted)) return "beauty_skincare";
-  if (/fitness|gym|workout|yoga|wellness|supplement|nutrition/.test(productWeighted)) return "fitness_wellness";
-  if (/fashion|apparel|clothing|shoe|jewelry|watch|accessory/.test(productWeighted)) return "fashion_apparel";
-  if (/food|restaurant|drink|beverage|coffee|meal|recipe/.test(productWeighted)) return "food_beverage";
-  if (/real estate|property|home buyer|apartment|villa|condo/.test(productWeighted)) return "real_estate";
-  if (/finance|invest|trading|crypto|insurance|loan|tax|accounting/.test(productWeighted)) return "finance_investing";
-  if (/health|clinic|dentist|doctor|therapy|medical/.test(productWeighted)) return "healthcare_services";
-  if (/game|gaming|esport|streamer/.test(productWeighted)) return "gaming_entertainment";
-  if (/travel|hotel|resort|tour|destination|airbnb|hospitality/.test(productWeighted)) return "travel_hospitality";
-  if (/saas|software|b2b|crm|automation|agency|client|dashboard|workflow/.test(productWeighted)) return "saas_b2b";
-  if (/course|training|education|lesson|tutorial|teach|learn|school/.test(productWeighted)) return "education_course";
-  if (/local service|salon|repair|cleaning|lawyer|plumber|clinic/.test(productWeighted)) return "local_service";
-  if (/founder|brand story|documentary|journey|case study/.test(productWeighted)) return "brand_story_documentary";
-  if (/cinematic|film|trailer|short film|movie/.test(productWeighted)) return "cinematic_story";
+  const categoryTitle = `${input.productCategory ?? ""} ${input.productTitle ?? ""}`;
+  const productWeighted = normalizedSearchText(`${categoryTitle} ${lower}`);
+  if (hasAnyTerm(productWeighted, ["beauty", "skincare", "skin care", "cosmetic", "serum", "makeup", "spa", "haircare"])) return "beauty_skincare";
+  if (hasAnyTerm(productWeighted, ["fitness", "gym", "workout", "yoga", "wellness", "supplement", "nutrition"])) return "fitness_wellness";
+  if (hasAnyTerm(productWeighted, ["desk", "workspace", "office", "remote worker", "remote workers", "desk setup", "cable organizer", "magnetic cable", "productivity accessory", "office accessory", "organizer"])) return "workspace_accessory";
+  if (hasAnyTerm(productWeighted, ["fashion", "apparel", "clothing", "shoe", "sneaker", "jewelry", "watch", "handbag", "fashion accessory"])) return "fashion_apparel";
+  if (hasAnyTerm(productWeighted, ["food", "restaurant", "drink", "beverage", "coffee", "meal", "recipe", "snack", "tea", "soda", "sparkling coffee"])) return "food_beverage";
+  if (hasAnyTerm(productWeighted, ["real estate", "property", "home buyer", "apartment", "villa", "condo"])) return "real_estate";
+  if (hasAnyTerm(productWeighted, ["finance", "investing", "investment", "trading", "crypto", "insurance", "loan", "tax", "accounting"])) return "finance_investing";
+  if (hasAnyTerm(productWeighted, ["health", "clinic", "dentist", "doctor", "therapy", "medical"])) return "healthcare_services";
+  if (hasAnyTerm(productWeighted, ["game", "gaming", "esport", "streamer"])) return "gaming_entertainment";
+  if (hasAnyTerm(productWeighted, ["travel", "hotel", "resort", "tour", "destination", "airbnb", "hospitality"])) return "travel_hospitality";
+  if (hasAnyTerm(productWeighted, ["saas", "software", "b2b", "crm", "automation", "agency", "client dashboard", "workflow"])) return "saas_b2b";
+  if (EDUCATION_INTENT_PATTERN.test(productWeighted)) return "education_course";
+  if (hasAnyTerm(productWeighted, ["local service", "salon", "repair", "cleaning", "lawyer", "plumber"])) return "local_service";
+  if (hasAnyTerm(productWeighted, ["founder", "brand story", "documentary", "journey", "case study"])) return "brand_story_documentary";
+  if (hasAnyTerm(productWeighted, ["cinematic", "film", "trailer", "short film", "movie"])) return "cinematic_story";
   if (input.productCategory) return safeSlug(input.productCategory, "product_category");
   if (PRODUCT_SIGNAL_PATTERN.test(lower) || input.productTitle) return "ecommerce_product_video";
   const explicitNiche = extractExplicitNiche(lower);
@@ -228,6 +231,8 @@ function audienceFrom(input: AudienceNicheIntelligenceInput, lower: string, nich
       return "business decision makers comparing value, time savings, and proof";
     case "education_course":
       return "learners who need a clear promise, steps, and progress proof";
+    case "workspace_accessory":
+      return "remote workers and desk-setup viewers who want a cleaner workspace";
     case "brand_story_documentary":
       return "viewers who need trust, context, and emotional proof";
     case "cinematic_story":
@@ -290,6 +295,8 @@ function viewerDesireFrom(
       return "a faster workflow with less manual effort";
     case "education_course":
       return "a clear path from confusion to useful skill";
+    case "workspace_accessory":
+      return "a cleaner desk setup with less cable friction";
     case "fitness_wellness":
       return "a practical improvement that feels achievable";
     default:
@@ -408,7 +415,7 @@ function localizationSignalsFrom(lower: string): readonly string[] {
 
 function riskSignalsFrom(lower: string, productClaims: readonly string[]): readonly string[] {
   return uniqueClean([
-    COPY_RISK_PATTERN.test(lower) ? "copy_or_clone_request" : undefined,
+    hasCopyRiskIntent(lower) ? "copy_or_clone_request" : undefined,
     HIGH_RISK_CLAIM_PATTERN.test(lower) || productClaims.some((claim) => HIGH_RISK_CLAIM_PATTERN.test(claim))
       ? "claim_substantiation_required"
       : undefined,
@@ -455,6 +462,29 @@ function ideaSeedsFrom(input: {
     `Proof: ${input.proofStrategy}`,
     `Share/CTA: ${input.shareTrigger}; ${input.ctaStrategy}`
   ], 6, 240);
+}
+
+function normalizedSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasAnyTerm(value: string, terms: readonly string[]): boolean {
+  return terms.some((term) => termBoundaryPattern(term).test(value));
+}
+
+function termBoundaryPattern(term: string): RegExp {
+  const escaped = term
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\s+/g, "\\s+");
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i");
 }
 
 function extractExplicitNiche(lower: string): string | undefined {

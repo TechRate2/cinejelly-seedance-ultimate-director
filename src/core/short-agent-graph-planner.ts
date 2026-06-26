@@ -30,12 +30,14 @@ import type {
   ShortSeedanceShotPrompt
 } from "../types/short-agent.js";
 import type {
+  ShortCreativeIdeaCandidate,
   ShortReferenceVideoLearningInput,
   ShortViralCreativeMode,
   ShortViralIntelligencePlan,
   ShortViralLever,
   ShortViralPlatformFocus
 } from "../types/short-viral-intelligence.js";
+import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 
 const SOURCE_PATTERN_ORIGINS = [
@@ -183,6 +185,7 @@ function researchPackFor(input: ShortAgentGraphPlannerInput): ShortAgentResearch
 function memoryPackFor(input: ShortAgentGraphPlannerInput): ShortAgentMemoryPack {
   const strategy = input.viralIntelligence.nicheStrategy;
   const reference = input.viralIntelligence.referenceVideoPattern;
+  const selectedIdea = selectedCreativeIdea(input);
   const patterns: ShortAgentMemoryPattern[] = [
     memoryPattern(
       "platform_playbook",
@@ -229,6 +232,14 @@ function memoryPackFor(input: ShortAgentGraphPlannerInput): ShortAgentMemoryPack
       ["reference_video", reference.patternId]
     ));
   }
+  if (selectedIdea) {
+    patterns.push(memoryPattern(
+      "creative_pattern_learning",
+      "Selected creative-pattern idea",
+      `Use idea=${selectedIdea.label}; hook=${selectedIdea.hook}; proof=${selectedIdea.proofPlan}; arc=${selectedIdea.sceneArc.slice(0, 5).join(" > ")}. Keep expression original and rights-cleared.`,
+      ["creative_pattern_learning", selectedIdea.ideaId, selectedIdea.patternId, strategy.niche]
+    ));
+  }
   const writeIntents = [
     "store accepted candidate score, final prompt pack id, review decisions, and render outcome after manual review",
     "update niche playbook with hooks, proof beats, visual rhythm, and audio choices that survived review",
@@ -248,12 +259,19 @@ function memoryPackFor(input: ShortAgentGraphPlannerInput): ShortAgentMemoryPack
   };
 }
 
+function selectedCreativeIdea(input: ShortAgentGraphPlannerInput): ShortCreativeIdeaCandidate | undefined {
+  const learning = input.viralIntelligence.creativePatternLearning;
+  return learning.candidates.find((candidate) => candidate.ideaId === learning.selectedIdeaId) ?? learning.candidates[0];
+}
+
 function candidateFactory(
   input: ShortAgentGraphPlannerInput,
   memoryPack: ShortAgentMemoryPack
 ): readonly ShortAgentCreativeCandidate[] {
   const strategy = input.viralIntelligence.nicheStrategy;
+  const selectedIdea = selectedCreativeIdea(input);
   const baseline = input.viralIntelligence.conceptScores;
+  const creativeIdeaCandidate = selectedIdea ? candidateFromCreativeIdea(input, selectedIdea) : undefined;
   const conceptCandidates = input.concepts.map((concept) => {
     const viralScore = baseline.find((item) => item.conceptId === concept.conceptId);
     return candidateFromConcept(input, concept, strategy.creativeMode, strategy.platformFocus, strategy.viralLevers, viralScore?.totalScore);
@@ -263,7 +281,11 @@ function candidateFactory(
     adaptiveCandidate(input, "high-clarity product demo", "Demo-first conversion arc", "demo", ["hook", "demo", "proof", "offer", "payoff"]),
     adaptiveCandidate(input, "cinematic payoff trailer", "Cinematic reveal arc", "cinematic", ["hook", "proof", "demo", "payoff"])
   ].filter((candidate) => candidate.sceneRoles.length <= Math.max(6, input.scenes.length + 1));
-  return [...conceptCandidates, ...adaptiveCandidates]
+  return [
+    ...(creativeIdeaCandidate ? [creativeIdeaCandidate] : []),
+    ...conceptCandidates,
+    ...adaptiveCandidates
+  ]
     .map((candidate) => rescoreWithMemory(candidate, memoryPack))
     .sort((left, right) => right.scores.total - left.scores.total || left.candidateId.localeCompare(right.candidateId))
     .slice(0, 6);
@@ -304,7 +326,7 @@ function critiqueCouncil(
   if (researchPack.unresolvedQuestions.length >= 4) {
     critiques.push(critique("platform_native", "warn", "The agent has limited niche/product evidence and may produce a generic short.", "Provide product facts, target audience, or reference-video summary for sharper adaptation.", researchPack.packId));
   }
-  if (!memoryPack.retrievedPatterns.some((pattern) => pattern.source === "reference_pattern") && /copy|clone|99%|same video/i.test(input.prompt)) {
+  if (!memoryPack.retrievedPatterns.some((pattern) => pattern.source === "reference_pattern") && hasCopyRiskIntent(input.prompt)) {
     critiques.push(critique("continuity", "warn", "The brief asks for source imitation without a safe reference pattern.", "Use reference-video learning for structure only and forbid copying source assets.", selectedCandidate.candidateId));
   }
   return critiques;
@@ -335,6 +357,7 @@ function seedancePromptPackFor(
 ): ShortSeedancePromptPack {
   const strategy = input.viralIntelligence.nicheStrategy;
   const reference = input.viralIntelligence.referenceVideoPattern;
+  const selectedIdea = selectedCreativeIdea(input);
   const shots = shotPromptsFor(input, selectedCandidate, critiques);
   const promptPackId = createStableId(
     "short_seedance_pack",
@@ -357,6 +380,7 @@ function seedancePromptPackFor(
     channelStyleLine,
     `Creative mode: ${strategy.creativeMode}. Platform focus: ${strategy.platformFocus}. Target duration: ${input.intent.targetDurationSeconds}s. Aspect ratio: ${input.intent.aspectRatio}.`,
     selectedCandidate ? `Winning candidate: ${selectedCandidate.label}. Hook: ${selectedCandidate.hook}. Story arc: ${selectedCandidate.storyArc}.` : "",
+    selectedIdea ? `Selected creative-pattern idea: ${selectedIdea.label}. Hook: ${selectedIdea.hook}. Proof: ${selectedIdea.proofPlan}. KOL direction: ${selectedIdea.creatorOrKolDirection}.` : "",
     `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
     `Use viral levers: ${strategy.viralLevers.join(", ")}.`,
     reference
@@ -564,6 +588,42 @@ function memoryPattern(
   };
 }
 
+function candidateFromCreativeIdea(
+  input: ShortAgentGraphPlannerInput,
+  idea: ShortCreativeIdeaCandidate
+): ShortAgentCreativeCandidate {
+  const strategy = input.viralIntelligence.nicheStrategy;
+  const sceneRoles = input.scenes.map((sceneItem) => sceneItem.role);
+  const storyArc = `${idea.logline} Scene arc: ${idea.sceneArc.slice(0, 6).join(" > ")}.`;
+  const seedanceFeasibility = clampScore((idea.score.renderability + seedanceFeasibilityFor(sceneRoles, strategy.creativeMode)) / 2);
+  const total = clampScore(idea.score.totalScore + 0.07);
+  return {
+    candidateId: createStableId("short_candidate", `${idea.ideaId}:${storyArc}:${sceneRoles.join("|")}`),
+    label: idea.label,
+    hook: idea.hook,
+    storyArc,
+    creativeMode: strategy.creativeMode,
+    platformFit: strategy.platformFocus,
+    sceneRoles,
+    viralLevers: strategy.viralLevers,
+    scores: {
+      hook: idea.score.hookPotential,
+      nicheFit: idea.score.nicheFit,
+      retention: idea.score.retentionPotential,
+      brandSafety: idea.score.brandSafety,
+      seedanceFeasibility,
+      total
+    },
+    reasons: uniqueStrings([
+      `selected creative-pattern idea ${idea.ideaId}`,
+      `proof plan: ${idea.proofPlan}`,
+      `creator/KOL: ${idea.creatorOrKolDirection}`,
+      `nonClone=${idea.score.nonCloneSafety}; renderability=${idea.score.renderability}`,
+      ...idea.reasons
+    ], 8)
+  };
+}
+
 function candidateFromConcept(
   input: ShortAgentGraphPlannerInput,
   concept: ShortPipelineConcept,
@@ -657,7 +717,12 @@ function rescoreWithMemory(
 ): ShortAgentCreativeCandidate {
   const hasReferencePattern = memoryPack.retrievedPatterns.some((item) => item.source === "reference_pattern");
   const hasSeedancePattern = memoryPack.retrievedPatterns.some((item) => item.source === "seedance_prompt_playbook");
-  const total = clampScore(candidate.scores.total + (hasReferencePattern ? 0.02 : 0) + (hasSeedancePattern ? 0.02 : 0));
+  const hasCreativePattern = memoryPack.retrievedPatterns.some((item) => item.source === "creative_pattern_learning");
+  const candidateUsesSelectedIdea = candidate.reasons.some((reason) => reason.startsWith("selected creative-pattern idea "));
+  const total = clampScore(candidate.scores.total +
+    (hasReferencePattern ? 0.02 : 0) +
+    (hasSeedancePattern ? 0.02 : 0) +
+    (hasCreativePattern && candidateUsesSelectedIdea ? 0.03 : 0));
   return {
     ...candidate,
     scores: {
@@ -667,7 +732,8 @@ function rescoreWithMemory(
     reasons: [
       ...candidate.reasons,
       ...(hasReferencePattern ? ["uses safe reference-pattern memory"] : []),
-      ...(hasSeedancePattern ? ["aligned to Seedance prompt playbook"] : [])
+      ...(hasSeedancePattern ? ["aligned to Seedance prompt playbook"] : []),
+      ...(hasCreativePattern && candidateUsesSelectedIdea ? ["uses selected creative-pattern memory"] : [])
     ]
   };
 }

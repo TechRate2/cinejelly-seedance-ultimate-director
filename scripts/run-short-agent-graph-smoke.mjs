@@ -114,6 +114,10 @@ const rawSourceLeak = serialized.includes("https://shop.example.com") ||
 
 const graph = plan.agentGraph;
 const pack = plan.seedancePromptPack;
+const selectedIdea = plan.viralIntelligence.creativePatternLearning.candidates.find(
+  (candidate) => candidate.ideaId === plan.viralIntelligence.creativePatternLearning.selectedIdeaId
+);
+const selectedGraphCandidate = graph?.candidates.find((candidate) => candidate.candidateId === graph.selectedCandidateId);
 const checks = [
   graph?.noSpend && graph.networkCallsMade === false && graph.providerCallsMade === false &&
     pack?.schemaVersion === "cinejelly.short-seedance-prompt-pack.v1"
@@ -125,15 +129,22 @@ const checks = [
   graph?.researchPack.questions.length >= 5 &&
     graph.researchPack.evidence.length >= 5 &&
     graph.memoryPack.retrievedPatterns.some((pattern) => pattern.source === "seedance_prompt_playbook") &&
+    graph.memoryPack.retrievedPatterns.some((pattern) => pattern.source === "creative_pattern_learning") &&
     graph.memoryPack.writeIntents.length >= 3
-    ? pass("research_memory_pack", "Research questions, curated evidence, Seedance playbook memory, and learning writes are present.")
-    : fail("research_memory_pack", "Expected research pack, evidence, memory playbooks, and learning write intents."),
+    ? pass("research_memory_pack", "Research questions, curated evidence, Seedance playbook memory, selected idea memory, and learning writes are present.")
+    : fail("research_memory_pack", "Expected research pack, evidence, memory playbooks, selected creative idea memory, and learning write intents."),
   graph?.candidates.length >= 4 &&
     Boolean(graph.selectedCandidateId) &&
     graph.candidates[0].scores.total >= graph.candidates[graph.candidates.length - 1].scores.total &&
     graph.candidates.every((candidate) => candidate.reasons.length > 0)
     ? pass("candidate_factory_ranking", "Agent generates and ranks multiple adaptive candidate arcs instead of binding to one hardcoded template.")
     : fail("candidate_factory_ranking", "Expected ranked adaptive candidate arcs."),
+  Boolean(selectedIdea) &&
+    selectedGraphCandidate?.label === selectedIdea.label &&
+    pack?.masterPrompt.includes("Selected creative-pattern idea:") &&
+    pack.masterPrompt.includes(selectedIdea.label)
+    ? pass("selected_creative_idea_reaches_agent_graph", "Winning creative-pattern idea becomes graph memory, selected candidate, and Seedance master prompt guidance.")
+    : fail("selected_creative_idea_reaches_agent_graph", "Expected winning creative-pattern idea to reach graph ranking and master prompt."),
   plan.scenes.length >= 5 &&
     pack?.shotPrompts.length === plan.scenes.length &&
     pack.shotPrompts.every((shot) =>
@@ -170,6 +181,7 @@ const report = {
     sceneCount: plan.scenes.length,
     candidateCount: graph?.candidates.length ?? 0,
     promptShotCount: pack?.shotPrompts.length ?? 0,
+    selectedCreativeIdeaCandidatePresent: selectedGraphCandidate?.label === selectedIdea?.label,
     rawSourceLeakCheckPassed: !rawSourceLeak
   },
   graphSummary: {
@@ -181,6 +193,8 @@ const report = {
     memoryPatternCount: graph?.memoryPack.retrievedPatterns.length ?? 0,
     critiqueCount: graph?.critiques.length ?? 0,
     repairCount: graph?.repairs.length ?? 0,
+    selectedCreativeIdeaId: selectedIdea?.ideaId ?? "missing",
+    selectedCandidateLabel: selectedGraphCandidate?.label ?? "missing",
     promptPackId: pack?.promptPackId,
     handoffHasPromptPack: handoff.request.userInput.includes("Seedance 2.0 prompt pack:")
   },

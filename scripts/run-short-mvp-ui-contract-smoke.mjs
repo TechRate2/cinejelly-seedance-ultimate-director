@@ -167,6 +167,8 @@ try {
       createPageHtml.includes('data-render-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/render-jobs"') &&
       createPageHtml.includes("Create Short") &&
       createPageHtml.includes("Review Checkpoints") &&
+      createPageHtml.includes("Creative Ideas") &&
+      createPageHtml.includes("creative-ideas") &&
       createPageHtml.includes("approval-packet") &&
       !createPageLeakDetected
       ? pass("short_create_page_available", "First-party Short create/review page shell is served without embedded credentials, local paths, or launch evidence.")
@@ -194,6 +196,14 @@ try {
       ui?.backendManagedSteps?.some((step) => step.actionId === "final_mp4_assembly" && step.status === "ready")
       ? pass("ui_contract_hydrates_style_profile", "UI contract hydrates channelStyleProfileId, recommends storyboard for 28s, and keeps provider spend disabled.")
       : fail("ui_contract_hydrates_style_profile", "Expected UI contract to hydrate profileId and expose safe render controls."),
+    ui?.creativePatternLearning?.learningId?.startsWith("short_pattern_learning_") &&
+      ui.creativePatternLearning.patternCount >= 8 &&
+      ui.creativePatternLearning.candidateCount >= 8 &&
+      ui.creativePatternLearning.topCandidates?.length >= 3 &&
+      Boolean(ui.creativePatternLearning.selectedIdeaLabel) &&
+      Number(ui.creativePatternLearning.selectedIdeaScore ?? 0) >= 0.65
+      ? pass("creative_pattern_learning_controls_available", "UI contract exposes selected creative-pattern idea and top candidates for operator review.")
+      : fail("creative_pattern_learning_controls_available", "Expected UI contract to expose creative pattern learning summary and top ideas."),
     ui?.director?.directorId?.startsWith("short_director_") &&
       ui?.director?.recommendedWorkflowMode === ui?.duration?.recommendedWorkflowMode &&
       ui?.director?.reviewPauseBeforeProviderSpend === true &&
@@ -306,6 +316,10 @@ try {
         audioControlOptions: ui?.audioControls?.options?.map((option) => option.optionId) ?? [],
         selectedAudioOptionId: ui?.audioControls?.selectedOptionId,
         visibleTextAllowed: ui?.outputContract?.visibleTextAllowed,
+        creativePatternLearningIdPresent: Boolean(ui?.creativePatternLearning?.learningId),
+        creativePatternCandidateCount: ui?.creativePatternLearning?.candidateCount ?? 0,
+        creativePatternTopCandidateCount: ui?.creativePatternLearning?.topCandidates?.length ?? 0,
+        selectedCreativeIdeaPresent: Boolean(ui?.creativePatternLearning?.selectedIdeaLabel),
         reviewCheckpointCount: ui?.review?.checkpoints?.length ?? 0,
         reviewCheckpointSurfaceCount: new Set((ui?.review?.checkpoints ?? []).map((checkpoint) => checkpoint.surface)).size,
         approvalPayloadContractGate: ui?.review?.approvalPayloadContract?.gate,

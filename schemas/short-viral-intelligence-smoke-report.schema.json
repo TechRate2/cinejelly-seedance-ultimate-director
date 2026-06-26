@@ -36,7 +36,7 @@
       "required": ["outputPath", "scenarioCount", "referenceRawLeakCheckPassed", "endpointsCovered"],
       "properties": {
         "outputPath": { "type": "string" },
-        "scenarioCount": { "const": 6 },
+        "scenarioCount": { "const": 8 },
         "referenceRawLeakCheckPassed": { "type": "boolean" },
         "endpointsCovered": {
           "type": "array",
@@ -48,12 +48,14 @@
     "scenarios": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["viralPlan", "copyRisk", "unsafeReference", "genericNiche", "conversation", "renderHandoff"],
+      "required": ["viralPlan", "copyRisk", "vietnameseCopyRisk", "unsafeReference", "genericNiche", "beverageNiche", "conversation", "renderHandoff"],
       "properties": {
         "viralPlan": { "$ref": "#/$defs/planScenario" },
         "copyRisk": { "$ref": "#/$defs/planScenario" },
+        "vietnameseCopyRisk": { "$ref": "#/$defs/planScenario" },
         "unsafeReference": { "$ref": "#/$defs/planScenario" },
         "genericNiche": { "$ref": "#/$defs/planScenario" },
+        "beverageNiche": { "$ref": "#/$defs/planScenario" },
         "conversation": { "$ref": "#/$defs/conversationScenario" },
         "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" }
       }

@@ -397,6 +397,10 @@ export function buildShortPipelineCreatePage(): string {
             <div class="list" id="review-checkpoints"><div class="empty">No contract loaded.</div></div>
           </div>
           <div class="panel">
+            <h2>Creative Ideas</h2>
+            <div class="list" id="creative-ideas"><div class="empty">No contract loaded.</div></div>
+          </div>
+          <div class="panel">
             <h2>Approval Packet</h2>
             <div class="form-grid">
               <label><span>Reviewer</span><input id="reviewer" autocomplete="off" placeholder="Reviewer name"></label>
@@ -551,6 +555,7 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("prepare-approval").disabled = false;
       document.getElementById("approval-packet").value = "";
       renderList("review-checkpoints", contract.review.checkpoints, checkpointTemplate);
+      renderCreativeIdeas(contract.creativePatternLearning);
       renderList("user-actions", contract.userRequiredActions, actionTemplate);
       renderList("backend-steps", contract.backendManagedSteps, actionTemplate);
       document.getElementById("director").textContent = [
@@ -597,6 +602,22 @@ export function buildShortPipelineCreatePage(): string {
       showSuccess("Approval packet prepared.");
     }
 
+    function renderCreativeIdeas(learning) {
+      const node = document.getElementById("creative-ideas");
+      if (!learning || !Array.isArray(learning.topCandidates) || learning.topCandidates.length === 0) {
+        node.innerHTML = '<div class="empty">None.</div>';
+        return;
+      }
+      const selected = learning.selectedIdeaLabel
+        ? '<article class="item"><div class="row"><div><div class="title">' +
+          escapeHtml(learning.selectedIdeaLabel) + '</div><div class="detail">' +
+          escapeHtml(learning.selectedIdeaHook || "") + '</div><div class="detail">' +
+          escapeHtml(learning.selectedIdeaProofPlan || "") + '</div></div><span class="pill ready">selected</span></div></article>'
+        : "";
+      const candidates = learning.topCandidates.map(creativeIdeaTemplate).join("");
+      node.innerHTML = selected + candidates;
+    }
+
     function renderList(id, items, template) {
       const node = document.getElementById(id);
       if (!items || !items.length) {
@@ -622,6 +643,15 @@ export function buildShortPipelineCreatePage(): string {
         escapeHtml(action.reason) + '</div></div><span class="pill ' +
         pillClass(action.status) + '">' + escapeHtml(action.status.replaceAll("_", " ")) +
         '</span></div></article>';
+    }
+
+    function creativeIdeaTemplate(candidate) {
+      return '<article class="item"><div class="row"><div><div class="title">' +
+        escapeHtml(candidate.label) + '</div><div class="detail">' +
+        escapeHtml(candidate.hook) + '</div><div class="detail">score=' +
+        escapeHtml(candidate.score) + ' | nonClone=' +
+        escapeHtml(candidate.nonCloneSafety) + '</div></div><span class="pill teal">' +
+        escapeHtml(candidate.patternId.slice(0, 18)) + '</span></div></article>';
     }
 
     function checkpointTemplate(checkpoint) {

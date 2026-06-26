@@ -61,7 +61,7 @@ export interface ShortAgentResearchPack {
 
 export interface ShortAgentMemoryPattern {
   readonly patternId: string;
-  readonly source: "seedance_prompt_playbook" | "platform_playbook" | "brand_memory" | "channel_style_memory" | "outcome_memory" | "reference_pattern";
+  readonly source: "seedance_prompt_playbook" | "platform_playbook" | "brand_memory" | "channel_style_memory" | "outcome_memory" | "reference_pattern" | "creative_pattern_learning";
   readonly label: string;
   readonly instruction: string;
   readonly appliesTo: readonly string[];

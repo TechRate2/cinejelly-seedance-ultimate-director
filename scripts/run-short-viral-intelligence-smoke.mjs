@@ -124,6 +124,31 @@ const copyRiskPlan = planner.buildPlan({
   }
 });
 
+const vietnameseCopyRiskPlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_viral_vietnamese_copy_guard",
+  generatedAt,
+  userPrompt: "Hoc video viral do 100% lam y het cho serum cua toi, thay bang KOL va san pham cua toi.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 26,
+  product: {
+    productUrl: "https://shop.example.com/products/glow-focus-serum",
+    snapshot: {
+      productTitle: "Glow Focus Serum",
+      category: "beauty",
+      benefits: ["Lightweight texture layers cleanly under makeup"],
+      cta: "Shop now"
+    }
+  },
+  referenceVideoLearning: {
+    sourceLabel: "operator Vietnamese reference summary",
+    sourceUrl: "https://media.example.com/reference/vietnamese-copy-risk",
+    summary: "Nguoi dung yeu cau lam giong video viral va giu gan nhu toan bo cau truc cu.",
+    hook: "Lam y het hook nay nhung thay bang san pham moi.",
+    doNotCopy: true
+  }
+});
+
 const unsafeReferencePlan = planner.buildPlan({
   projectId: "short_viral_smoke",
   requestId: "req_short_viral_unsafe_reference",
@@ -151,6 +176,26 @@ const genericNichePlan = planner.buildPlan({
   userPrompt: "Make a trend-native TikTok short for a niche magnetic cable organizer for remote workers. Let a KOL adapt the structure of a viral office-life video, but replace the product, setting, proof, and story with my product. Make it oddly satisfying and a little funny.",
   targetPlatform: "tiktok",
   targetDurationSeconds: 24
+});
+
+const beveragePlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_viral_beverage_niche",
+  generatedAt,
+  userPrompt: "Create a 22 second TikTok launch short for sparkling coffee. Make the first sip oddly satisfying, social, and trend-native.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 22,
+  product: {
+    productUrl: "https://shop.example.com/products/spark-pop-coffee",
+    snapshot: {
+      productTitle: "Spark Pop Coffee",
+      category: "beverage",
+      benefits: ["Refreshing sparkling coffee moment for afternoon breaks"],
+      claims: ["Refreshing sparkling coffee moment"],
+      targetBuyer: "coffee drinkers who like novelty drinks",
+      cta: "Try the flavor"
+    }
+  }
 });
 
 const conversation = conversationEngine.buildSession({
@@ -196,13 +241,16 @@ const renderHandoff = buildShortPipelineRenderHandoff({
 const serialized = JSON.stringify({
   viralPlan,
   copyRiskPlan,
+  vietnameseCopyRiskPlan,
   unsafeReferencePlan,
   genericNichePlan,
+  beveragePlan,
   conversation,
   renderHandoff
 });
 const rawReferenceLeak = serialized.includes("https://media.example.com/reference/glow-review") ||
   serialized.includes("https://media.example.com/reference/copy-risk") ||
+  serialized.includes("https://media.example.com/reference/vietnamese-copy-risk") ||
   serialized.includes("https://media.example.com/reference/conversation-pattern") ||
   serialized.includes("C:\\Users\\Admin\\Videos\\secret-reference.mp4") ||
   serialized.includes("signature=abc123");
@@ -211,6 +259,10 @@ const creativeLearning = viralPlan.viralIntelligence.creativePatternLearning;
 const selectedIdea = creativeLearning.candidates.find((candidate) => candidate.ideaId === creativeLearning.selectedIdeaId);
 const genericCreativeLearning = genericNichePlan.viralIntelligence.creativePatternLearning;
 const genericSelectedIdea = genericCreativeLearning.candidates.find((candidate) => candidate.ideaId === genericCreativeLearning.selectedIdeaId);
+const beverageCreativeLearning = beveragePlan.viralIntelligence.creativePatternLearning;
+const beverageSelectedIdea = beverageCreativeLearning.candidates.find((candidate) => candidate.ideaId === beverageCreativeLearning.selectedIdeaId);
+const vietnameseCreativeLearning = vietnameseCopyRiskPlan.viralIntelligence.creativePatternLearning;
+const vietnameseSelectedIdea = vietnameseCreativeLearning.candidates.find((candidate) => candidate.ideaId === vietnameseCreativeLearning.selectedIdeaId);
 
 const checks = [
   viralPlan.noSpend && !viralPlan.networkCallsMade && !viralPlan.providerCallsMade &&
@@ -267,21 +319,38 @@ const checks = [
     copyRiskPlan.viralIntelligence.referenceVideoPattern?.originalityGuardrails.some((guardrail) => guardrail.includes("do not copy"))
     ? pass("copy_risk_guardrail", "Copy/99% requests are converted into review-required structure learning instead of clone instructions.")
     : fail("copy_risk_guardrail", "Expected copy-risk requests to produce guardrails and review-required status."),
+  vietnameseCopyRiskPlan.viralIntelligence.status === "review_required" &&
+    vietnameseCopyRiskPlan.viralIntelligence.findings.some((finding) => finding.code === "reference_video_copy_risk") &&
+    vietnameseCopyRiskPlan.viralIntelligence.referenceVideoPattern?.safetyStatus === "review_required" &&
+    Boolean(vietnameseSelectedIdea) &&
+    vietnameseSelectedIdea.score.nonCloneSafety <= 0.6 &&
+    vietnameseSelectedIdea.riskControls.some((item) => item.includes("copy-risk review"))
+    ? pass("vietnamese_copy_risk_guardrail", "Vietnamese/no-accent 100% y-het clone intent is detected and downgraded to structure-only review.")
+    : fail("vietnamese_copy_risk_guardrail", "Expected Vietnamese 100% clone intent to trigger copy-risk review and lower non-clone safety."),
   unsafeReferencePlan.status === "blocked" &&
     unsafeReferencePlan.viralIntelligence.status === "blocked" &&
     unsafeReferencePlan.viralIntelligence.findings.some((finding) => finding.code === "reference_video_unsafe_source") &&
     !rawReferenceLeak
     ? pass("unsafe_reference_blocks_plan", "Unsafe local/private reference sources block the plan without serializing raw paths.")
     : fail("unsafe_reference_blocks_plan", "Expected unsafe reference source to block planning and stay redacted."),
-  genericCreativeLearning.patternCount >= 8 &&
+  beveragePlan.viralIntelligence.nicheStrategy.niche === "food_beverage" &&
+    beverageCreativeLearning.patterns.some((pattern) => pattern.nicheTags.includes("food_beverage")) &&
+    Boolean(beverageSelectedIdea) &&
+    !beveragePlan.viralIntelligence.nicheStrategy.niche.includes("beauty") &&
+    beverageSelectedIdea.score.totalScore >= 0.65
+    ? pass("beverage_niche_boundary_classifier", "Sparkling coffee is classified as food/beverage and no longer trips beauty spa substring logic.")
+    : fail("beverage_niche_boundary_classifier", "Expected sparkling coffee to classify as food_beverage, not beauty/skincare."),
+  genericNichePlan.viralIntelligence.nicheStrategy.niche === "workspace_accessory" &&
+    genericCreativeLearning.patterns.some((pattern) => pattern.nicheTags.includes("workspace_accessory")) &&
+    genericCreativeLearning.patternCount >= 8 &&
     genericCreativeLearning.candidateCount >= 8 &&
     Boolean(genericSelectedIdea) &&
     genericSelectedIdea.score.totalScore >= 0.65 &&
     genericSelectedIdea.score.nonCloneSafety >= 0.7 &&
     genericCreativeLearning.patterns.some((pattern) => pattern.source === "audience_niche") &&
     genericCreativeLearning.patterns.some((pattern) => pattern.source === "prompt_signal")
-    ? pass("generic_niche_pattern_depth", "Obscure or under-specified niches still receive many scored creative candidates from audience seeds, prompt signals, and universal short-form patterns.")
-    : fail("generic_niche_pattern_depth", "Expected generic/obscure niche planning to produce many safe, scored creative pattern candidates."),
+    ? pass("workspace_niche_pattern_depth", "Workspace/cable organizer niches receive specialist desk-setup patterns plus audience seeds and prompt signals.")
+    : fail("workspace_niche_pattern_depth", "Expected workspace/cable organizer planning to produce specialist safe, scored creative pattern candidates."),
   conversation.plan.viralIntelligence.referenceVideoPattern?.sourceUrlSha256 &&
     conversation.plan.viralIntelligence.sceneDirectives.length === conversation.plan.scenes.length &&
     conversation.rawTranscriptStored === false
@@ -314,7 +383,7 @@ const report = {
   ],
   checkedInputs: {
     outputPath: options.outputPath,
-    scenarioCount: 6,
+    scenarioCount: 8,
     referenceRawLeakCheckPassed: !rawReferenceLeak,
     endpointsCovered: [
       "/v1/short-pipeline/plan",
@@ -326,8 +395,10 @@ const report = {
   scenarios: {
     viralPlan: summarizePlan(viralPlan),
     copyRisk: summarizePlan(copyRiskPlan),
+    vietnameseCopyRisk: summarizePlan(vietnameseCopyRiskPlan),
     unsafeReference: summarizePlan(unsafeReferencePlan),
     genericNiche: summarizePlan(genericNichePlan),
+    beverageNiche: summarizePlan(beveragePlan),
     conversation: {
       sessionId: conversation.sessionId,
       rawTranscriptStored: conversation.rawTranscriptStored,

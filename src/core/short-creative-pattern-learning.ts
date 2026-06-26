@@ -14,6 +14,7 @@ import type {
   ShortReferenceVideoPattern,
   ShortViralNicheStrategy
 } from "../types/short-viral-intelligence.js";
+import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 
 const SOURCE_PATTERN_ORIGINS = [
@@ -25,7 +26,6 @@ const SOURCE_PATTERN_ORIGINS = [
   "YouMind-OpenLab/awesome-seedance-2-prompts"
 ] as const;
 
-const COPY_RISK_PATTERN = /\b(copy|clone|replicate|exact|identical|same\s+video|99%|steal|reupload)\b/i;
 const HIGH_RISK_CLAIM_PATTERN =
   /cure|heal|medical|clinical|guarantee|guaranteed|100%|risk[-\s]?free|earn|income|profit|investment|weight loss|overnight|#1|best/i;
 
@@ -222,6 +222,13 @@ function nicheSpecs(niche: string, mode: string): readonly PatternSpec[] {
       spec("hidden_detail_reveal", "Hidden cost reveal", "niche_playbook", [niche, "saas_b2b"], "reveal the invisible time or money leak first", "show the leak, the fix, and one concrete proof point", "time saved or task removed proof", "viewer recognizes the cost and wants the fix", "operator/KOL plays the expert who noticed the pattern", "avoid fake metrics unless supplied and reviewed")
     );
   }
+  if (/workspace|desk|office|remote|productivity|organizer|cable/.test(niche)) {
+    base.push(
+      spec("hidden_detail_reveal", "Desk chaos hidden detail reveal", "niche_playbook", [niche, "workspace_accessory"], "open on the tiny workspace irritation viewers ignore until it looks obvious", "show clutter, reveal the hidden friction, fix one detail, then land a clean-desk payoff", "before/after desk state and one visible cable or accessory action", "the workspace looks calmer and easier to use", "creator/KOL behaves like a desk-setup insider, not a scripted salesperson", "replace any source setup with the user's desk, product, KOL, and reviewed proof"),
+      spec("sensory_closeup", "Satisfying desk reset close-up", "niche_playbook", [niche, "workspace_accessory"], "start with a satisfying snap, slide, coil, click, or clean alignment", "alternate close-up action, wider desk context, and human reaction", "observable organizer movement, cable control, or workspace before/after proof", "viewer wants to save or copy the setup idea, not the source video", "KOL lets the product movement and desk state carry the proof", "adapt the reset to real product geometry and avoid fake impossible desk transformations"),
+      spec("micro_story_twist", "Workday cable rescue twist", "niche_playbook", [niche, "workspace_accessory"], "open with a small funny workday failure caused by clutter", "relatable setup, product rescue, tiny twist, payoff", "one practical rescue beat with visible desk evidence", "viewer tags someone with the same desk problem", "KOL plays the problem naturally and keeps humor brand-safe", "make the story original to the user's product and workspace")
+    );
+  }
   if (/food|beverage|restaurant|coffee|drink/.test(niche)) {
     base.push(
       spec("first_try_reaction", "First sip or first bite reaction", "niche_playbook", [niche, "food_beverage"], "open with the reaction before explaining the product", "sensory close-up, pause, reaction, share trigger", "texture, sound, steam, or taste context", "friends want to try it too", "creator reacts naturally rather than acting like an ad", "adapt reaction and setting to actual product"),
@@ -378,7 +385,7 @@ function kindForCreativeSeed(value: string): ShortCreativePatternKind {
   if (/challenge|test|try|experiment/.test(lower)) return "challenge_progress";
   if (/workflow|dashboard|process|handoff|automation/.test(lower)) return "workflow_before_after";
   if (/community|comment|friend|reaction|social|tag|share/.test(lower)) return "community_reaction";
-  if (/texture|asmr|close|macro|sound|taste|feel|interface/.test(lower)) return "sensory_closeup";
+  if (/texture|asmr|close|macro|sound|taste|feel|interface|snap|slide|click|cable|desk|organizer/.test(lower)) return "sensory_closeup";
   if (/story|funny|weird|twist|meme|bua|relatable/.test(lower)) return "micro_story_twist";
   if (/premium|cinematic|reveal|luxury/.test(lower)) return "cinematic_reveal";
   if (/creator|kol|ugc|review|honest|skeptic/.test(lower)) return "creator_confession";
@@ -407,6 +414,7 @@ function patternFitScore(pattern: ShortCreativePattern, input: ShortCreativePatt
   if (input.strategy.audienceNicheIntelligence.trendPosture === "trend_native") score += 0.08;
   if (pattern.kind === "proof_diary" && /beauty|fitness|education|wellness/.test(input.strategy.niche)) score += 0.08;
   if (pattern.kind === "workflow_before_after" && /saas|b2b|agency|workflow/.test(input.strategy.niche)) score += 0.08;
+  if ((pattern.kind === "hidden_detail_reveal" || pattern.kind === "sensory_closeup") && /workspace|desk|office|organizer|cable/.test(input.strategy.niche)) score += 0.08;
   return score;
 }
 
@@ -482,7 +490,7 @@ function scoreCandidate(
   prompt: string,
   sceneArc: readonly string[]
 ): ShortCreativeIdeaScore {
-  const copyRisk = COPY_RISK_PATTERN.test(prompt) || input.referenceVideoPattern?.safetyStatus === "review_required";
+  const copyRisk = hasCopyRiskIntent(prompt) || input.referenceVideoPattern?.safetyStatus === "review_required";
   const highRiskClaim = HIGH_RISK_CLAIM_PATTERN.test(prompt) ||
     Boolean(input.productBrief?.claimInventory.some((claim) => HIGH_RISK_CLAIM_PATTERN.test(claim.text) || claim.substantiationRequired));
   const hookPotential = clampScore(0.62 +
@@ -585,7 +593,7 @@ function originalityGuardrails(
 
 function riskControlsFor(input: ShortCreativePatternLearningInput, prompt: string): readonly string[] {
   return uniqueClean([
-    COPY_RISK_PATTERN.test(prompt) || input.referenceVideoPattern?.safetyStatus === "review_required"
+    hasCopyRiskIntent(prompt) || input.referenceVideoPattern?.safetyStatus === "review_required"
       ? "copy-risk review: structure-only adaptation required"
       : undefined,
     input.productBrief?.claimInventory.some((claim) => claim.substantiationRequired)

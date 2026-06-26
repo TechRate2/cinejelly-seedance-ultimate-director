@@ -9,6 +9,7 @@ import type {
   ShortMvpUiAudioControl,
   ShortMvpUiAudioOptionId,
   ShortMvpUiContract,
+  ShortMvpUiCreativePatternLearning,
   ShortMvpUiDirectorGuidance,
   ShortMvpUiReviewCheckpoint,
   ShortMvpUiReviewSurfaceSummary,
@@ -97,6 +98,7 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
       }
     },
     director: directorGuidance(plan),
+    creativePatternLearning: creativePatternLearningFor(plan),
     render: {
       canCreateRenderJob,
       canSubmitToProviderNow: false,
@@ -132,6 +134,32 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
       canReleaseToCustomerTraffic: false,
       releaseBlocker: "UI MVP integration can use this contract, but customer traffic still requires paid Short validation, artifact validation, manual media review, billing/workspace controls, and release approval."
     }
+  };
+}
+
+function creativePatternLearningFor(plan: ShortPipelinePlan): ShortMvpUiCreativePatternLearning {
+  const learning = plan.viralIntelligence.creativePatternLearning;
+  const selectedIdea = learning.candidates.find((candidate) => candidate.ideaId === learning.selectedIdeaId) ?? learning.candidates[0];
+  return {
+    learningId: learning.learningId,
+    patternCount: learning.patternCount,
+    candidateCount: learning.candidateCount,
+    ...(selectedIdea ? {
+      selectedIdeaId: selectedIdea.ideaId,
+      selectedIdeaLabel: selectedIdea.label,
+      selectedIdeaScore: selectedIdea.score.totalScore,
+      selectedIdeaHook: selectedIdea.hook,
+      selectedIdeaProofPlan: selectedIdea.proofPlan
+    } : {}),
+    topCandidates: learning.candidates.slice(0, 5).map((candidate) => ({
+      ideaId: candidate.ideaId,
+      patternId: candidate.patternId,
+      label: candidate.label,
+      score: candidate.score.totalScore,
+      nonCloneSafety: candidate.score.nonCloneSafety,
+      hook: candidate.hook,
+      proofPlan: candidate.proofPlan
+    }))
   };
 }
 

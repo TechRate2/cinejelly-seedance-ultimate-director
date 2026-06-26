@@ -30,6 +30,7 @@ import type {
   ShortViralPlatformFocus,
   ShortViralSceneDirective
 } from "../types/short-viral-intelligence.js";
+import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 import { AudienceNicheIntelligencePlanner } from "./audience-niche-intelligence.js";
 import { ShortCreativePatternLearningEngine } from "./short-creative-pattern-learning.js";
@@ -43,12 +44,13 @@ const SOURCE_PATTERN_ORIGINS = [
   "YouMind-OpenLab/awesome-seedance-2-prompts"
 ] as const;
 
-const COPY_RISK_PATTERN = /\b(copy|clone|replicate|exact|identical|same\s+video|99%|steal|reupload)\b/i;
 const UNSAFE_SOURCE_PATTERN =
   /[A-Za-z]:\\|\\\\|(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|data:|bearer\s+|api[_-]?key|secret|token|password|authorization/i;
 const HIGH_RISK_CLAIM_PATTERN =
   /cure|heal|medical|clinical|guarantee|guaranteed|100%|risk[-\s]?free|earn|income|profit|investment|weight loss|overnight|#1|best/i;
 const STRONG_HOOK_PATTERN = /\b(stop|wait|pov|why|before|after|mistake|secret|watch|proof|tested|real|review|problem)\b|[?!]/i;
+const EDUCATION_MODE_PATTERN =
+  /\b(explain|explainer|education|educational|course|training|lesson|tutorial|teach|school|bootcamp|curriculum|learn\s+(?:how|to|about|the\s+(?:skill|method|framework)))\b/i;
 
 export interface ShortViralIntelligencePlannerInput {
   readonly projectId: string;
@@ -150,7 +152,7 @@ export class ShortViralIntelligencePlanner {
     findings: ShortViralFinding[]
   ): ShortReferenceVideoPattern | undefined {
     if (!input) {
-      if (COPY_RISK_PATTERN.test(prompt)) {
+      if (hasCopyRiskIntent(prompt)) {
         findings.push(finding(
           "reference_video_copy_risk",
           "warn",
@@ -186,7 +188,7 @@ export class ShortViralIntelligencePlanner {
         { sourceUnsafe: true }
       ));
     }
-    const copyRisk = input.doNotCopy === false || COPY_RISK_PATTERN.test(`${prompt} ${summary} ${hookPattern}`);
+    const copyRisk = input.doNotCopy === false || hasCopyRiskIntent(`${prompt} ${summary} ${hookPattern}`);
     if (copyRisk) {
       findings.push(finding(
         "reference_video_copy_risk",
@@ -469,7 +471,7 @@ function creativeModeFrom(
   if (/testimonial|customer story/.test(combined)) return "testimonial";
   if (/compare|versus|vs|before after|before\/after/.test(combined)) return "comparison";
   if (/demo|how it works|show how|tutorial/.test(combined)) return "demo";
-  if (/explain|educat|training|learn/.test(combined)) return "education";
+  if (EDUCATION_MODE_PATTERN.test(combined)) return "education";
   if (/story|founder|journey/.test(combined)) return "story";
   if (/cinematic|premium|luxury|reveal/.test(combined)) return "cinematic";
   if (/problem|pain|solution/.test(combined)) return "problem_solution";

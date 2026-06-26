@@ -82,6 +82,28 @@ export interface ShortMvpUiAudioControl {
   readonly reason: string;
 }
 
+export interface ShortMvpUiCreativeIdeaSummary {
+  readonly ideaId: string;
+  readonly patternId: string;
+  readonly label: string;
+  readonly score: number;
+  readonly nonCloneSafety: number;
+  readonly hook: string;
+  readonly proofPlan: string;
+}
+
+export interface ShortMvpUiCreativePatternLearning {
+  readonly learningId: string;
+  readonly patternCount: number;
+  readonly candidateCount: number;
+  readonly selectedIdeaId?: string;
+  readonly selectedIdeaLabel?: string;
+  readonly selectedIdeaScore?: number;
+  readonly selectedIdeaHook?: string;
+  readonly selectedIdeaProofPlan?: string;
+  readonly topCandidates: readonly ShortMvpUiCreativeIdeaSummary[];
+}
+
 export interface ShortMvpUiContract {
   readonly schemaVersion: "cinejelly.short-mvp-ui-contract.v1";
   readonly generatedAt: Date;
@@ -128,6 +150,7 @@ export interface ShortMvpUiContract {
     };
   };
   readonly director: ShortMvpUiDirectorGuidance;
+  readonly creativePatternLearning: ShortMvpUiCreativePatternLearning;
   readonly render: {
     readonly canCreateRenderJob: boolean;
     readonly canSubmitToProviderNow: false;
