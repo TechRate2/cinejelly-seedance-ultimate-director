@@ -15,7 +15,9 @@ import type {
   StoryboardInspectionInput
 } from "../types/guardian.js";
 import type { PromptBindingConflict, PromptBindingPlan, ShotContract } from "../types/prompt.js";
+import type { SourceRepositoryId } from "../types/source-translation.js";
 import type { StoryboardPanel } from "../types/storyboard.js";
+import { internalSourcePatternOrigin } from "./private-source-pattern-registry.js";
 
 export class ConsistencyGuardian {
   public inspectStoryboard(input: StoryboardInspectionInput): GuardianReport {
@@ -580,7 +582,7 @@ export class ConsistencyGuardian {
     if (finding.checkpoint.startsWith("binding_")) {
       return [
         {
-          sourceRepository: "Emily2040/seedance-2.0",
+          sourceRepository: internalSourcePatternOrigin("emily_seedance_2") as SourceRepositoryId,
           sourcePath: "external/upstream/seedance-2.0/references/reference-workflow.md",
           behavior: "repair prompt/reference binding before provider spend",
           cineJellyDestination: "src/core/consistency-guardian.ts"
@@ -639,7 +641,7 @@ export class ConsistencyGuardian {
 
   private vibeframeCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
     return {
-      sourceRepository: "vericontext/vibeframe",
+      sourceRepository: internalSourcePatternOrigin("vericontext_vibeframe") as SourceRepositoryId,
       sourcePath: "external/upstream/vibeframe/README.md",
       behavior,
       cineJellyDestination
@@ -648,7 +650,7 @@ export class ConsistencyGuardian {
 
   private vimaxCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
     return {
-      sourceRepository: "HKUDS/ViMax",
+      sourceRepository: internalSourcePatternOrigin("hkuds_vimax") as SourceRepositoryId,
       sourcePath: "external/upstream/vimax/agent_runtime/session_index.py",
       behavior,
       cineJellyDestination

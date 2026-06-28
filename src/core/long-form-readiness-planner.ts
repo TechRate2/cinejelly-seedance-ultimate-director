@@ -28,20 +28,12 @@ import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import type { VideoRenderStrategyPlan, VideoRenderWorkflowMode } from "../types/video-render-strategy.js";
 import type { RenderSchedulePlan, RenderScheduleSequentialReason } from "./render-scheduler.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  LONG_FORM_READINESS_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "hereandnowai/master-langgraph-workflows-in-python-20-real-world-agent-projects",
-  "nirdiamant/genai_agents:ContentIntelligence",
-  "gswithjeff/autogen-multi-agent-workflow",
-  "Shubhamsaboo/awesome-llm-apps",
-  "YouMind-OpenLab/awesome-seedance-2-prompts",
-  "ZeroLu/awesome-seedance",
-  "HKUDS/ViMax",
-  "HKUDS/VideoAgent",
-  "vericontext/vibeframe",
-  "calesthio/OpenMontage",
-  "jiaminchen-1031/DirectorBench"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(LONG_FORM_READINESS_SOURCE_PATTERN_IDS);
 
 const HOOK_PATTERN = /hook|problem|pain|curious|secret|why|before|after|mistake|stop|watch|attention|opening/i;
 const PAYOFF_PATTERN = /cta|payoff|result|resolution|transform|proof|final|offer|buy|try|learn|subscribe|share/i;

@@ -12,6 +12,10 @@ import type { CineJellyProjectRequest } from "../types/agent.js";
 import { writeFileEnsuringDirectory } from "../utils/files.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { normalizeRenderRequest } from "./render-request-normalizer.js";
+import {
+  internalSourcePatternOrigins,
+  PHASE6_RENDER_VALIDATION_SOURCE_PATTERN_IDS
+} from "../core/private-source-pattern-registry.js";
 
 type RenderRequestValidationStatus = "pass" | "fail";
 
@@ -49,11 +53,7 @@ interface RenderRequestNormalizedSummary {
   readonly semanticVisualInspectionEnabled: boolean;
 }
 
-const SOURCE_PATTERN_ORIGINS = [
-  "vericontext/vibeframe",
-  "harry0703/MoneyPrinterTurbo",
-  "calesthio/OpenMontage"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(PHASE6_RENDER_VALIDATION_SOURCE_PATTERN_IDS);
 
 export async function runRenderRequestValidationCli(
   args: readonly string[] = process.argv.slice(2),

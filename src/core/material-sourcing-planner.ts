@@ -17,6 +17,12 @@ import type {
 import type { ShotContract } from "../types/prompt.js";
 import type { FlexibleSeedanceSettings } from "../types/settings.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  MATERIAL_SOURCING_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
+
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(MATERIAL_SOURCING_SOURCE_PATTERN_IDS);
 
 export interface MaterialSourcingPlannerInput {
   readonly projectId: string;
@@ -47,7 +53,7 @@ export class MaterialSourcingPlanner {
     return {
       planId: createStableId("material_plan", `${input.projectId}:${briefs.map((brief) => brief.briefId).join("|")}`),
       projectId: input.projectId,
-      sourcePatternOrigins: ["harry0703/MoneyPrinterTurbo"],
+      sourcePatternOrigins: SOURCE_PATTERN_ORIGINS,
       briefs
     };
   }

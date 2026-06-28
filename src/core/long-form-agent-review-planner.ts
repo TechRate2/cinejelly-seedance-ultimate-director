@@ -16,8 +16,12 @@ import type { LongFormContinuityPlan, LongFormContinuitySequence } from "../type
 import type { ShotContract } from "../types/prompt.js";
 import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  LONG_FORM_REVIEW_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = ["HKUDS/ViMax", "HKUDS/VideoAgent", "vericontext/vibeframe"] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(LONG_FORM_REVIEW_SOURCE_PATTERN_IDS);
 
 const REVIEW_ROLES: readonly LongFormAgentReviewRole[] = [
   "script_architect",

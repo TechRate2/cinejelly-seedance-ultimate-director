@@ -6,6 +6,9 @@
  * source names, repo names, URLs, or upstream workflow labels to customers.
  */
 
+import type { ReviewApprovalSurface } from "../types/review-approval.js";
+import type { ProductionStageName } from "../types/stage.js";
+
 export type PrivateSourcePatternCategory =
   | "agent_workflow"
   | "director_workflow"
@@ -32,6 +35,7 @@ export type PrivateSourcePatternId =
   | "gswithjeff_autogen"
   | "harry_moneyprinterturbo"
   | "hereandnow_langgraph_workflows"
+  | "hereandnow_langgraph_workflows_short_label"
   | "higgsfield_cinematic_prompt_guide"
   | "higgsfield_product_to_video_guide"
   | "higgsfield_public_product_reference_observation"
@@ -101,6 +105,7 @@ const RECORDS = [
   record("harry_moneyprinterturbo", "harry0703/MoneyPrinterTurbo", "video_planning", "public_docs_observation"),
   record("jiaminchen_directorbench", "jiaminchen-1031/DirectorBench", "director_workflow", "public_docs_observation"),
   record("hereandnow_langgraph_workflows", "hereandnowai/master-langgraph-workflows-in-python-20-real-world-agent-projects-by-hereandnow-ai", "agent_workflow", "public_docs_observation"),
+  record("hereandnow_langgraph_workflows_short_label", "hereandnowai/master-langgraph-workflows-in-python-20-real-world-agent-projects", "agent_workflow", "public_docs_observation"),
   record("nirdiamant_genai_agents_content", "nirdiamant/genai_agents:ContentIntelligence", "agent_workflow", "public_docs_observation"),
   record("gswithjeff_autogen", "gswithjeff/autogen-multi-agent-workflow", "agent_workflow", "public_docs_observation"),
   record("shubhamsaboo_awesome_llm_apps", "Shubhamsaboo/awesome-llm-apps", "agent_workflow", "public_docs_observation"),
@@ -192,8 +197,116 @@ export const SHORT_CHANNEL_STYLE_SOURCE_PATTERN_IDS = [
   "vericontext_vibeframe"
 ] as const;
 
+export const LONG_FORM_REVIEW_SOURCE_PATTERN_IDS = [
+  "hkuds_vimax",
+  "hkuds_videoagent",
+  "vericontext_vibeframe"
+] as const;
+
+export const LONG_FORM_TIMELINE_SOURCE_PATTERN_IDS = [
+  "hkuds_vimax",
+  "hkuds_videoagent",
+  "vericontext_vibeframe",
+  "harry_moneyprinterturbo"
+] as const;
+
+export const LONG_FORM_CREATIVE_INTELLIGENCE_SOURCE_PATTERN_IDS = [
+  "hkuds_vimax",
+  "hkuds_videoagent",
+  "vericontext_vibeframe",
+  "calesthio_openmontage",
+  "jiaminchen_directorbench",
+  "harry_moneyprinterturbo",
+  "youmind_awesome_seedance_2_prompts"
+] as const;
+
+export const LONG_FORM_READINESS_SOURCE_PATTERN_IDS = [
+  "hereandnow_langgraph_workflows_short_label",
+  "nirdiamant_genai_agents_content",
+  "gswithjeff_autogen",
+  "shubhamsaboo_awesome_llm_apps",
+  "youmind_awesome_seedance_2_prompts",
+  "zerolu_awesome_seedance",
+  "hkuds_vimax",
+  "hkuds_videoagent",
+  "vericontext_vibeframe",
+  "calesthio_openmontage",
+  "jiaminchen_directorbench"
+] as const;
+
+export const LONG_DIRECTOR_SOURCE_PATTERN_IDS = [
+  "emily_seedance_2",
+  "calesthio_openmontage",
+  "hkuds_vimax",
+  "vericontext_vibeframe"
+] as const;
+
+export const VIDEO_RENDER_STRATEGY_SOURCE_PATTERN_IDS = [
+  "hkuds_videoagent",
+  "vericontext_vibeframe",
+  "harry_moneyprinterturbo"
+] as const;
+
+export const RENDER_SCHEDULER_SOURCE_PATTERN_IDS = LONG_FORM_REVIEW_SOURCE_PATTERN_IDS;
+
+export const POSTPRODUCTION_ASSET_SOURCE_PATTERN_IDS = [
+  "harry_moneyprinterturbo",
+  "vericontext_vibeframe"
+] as const;
+
+export const MATERIAL_SOURCING_SOURCE_PATTERN_IDS = [
+  "harry_moneyprinterturbo"
+] as const;
+
+export const PHASE6_VALIDATION_READINESS_SOURCE_PATTERN_IDS = [
+  "vericontext_vibeframe",
+  "harry_moneyprinterturbo"
+] as const;
+
+export const PHASE6_RENDER_VALIDATION_SOURCE_PATTERN_IDS = [
+  "vericontext_vibeframe",
+  "harry_moneyprinterturbo",
+  "calesthio_openmontage"
+] as const;
+
+export const DIRECTOR_STYLE_BENCHMARK_SOURCE_PATTERN_IDS = [
+  "jiaminchen_directorbench",
+  "vericontext_vibeframe"
+] as const;
+
+export const REVIEW_APPROVAL_SOURCE_PATTERN_IDS: Readonly<Record<ReviewApprovalSurface, readonly PrivateSourcePatternId[]>> = {
+  scene: ["calesthio_openmontage", "hkuds_vimax", "hkuds_videoagent"],
+  audio: ["harry_moneyprinterturbo", "jiaminchen_directorbench"],
+  caption: ["harry_moneyprinterturbo", "vericontext_vibeframe"],
+  claim: ["calesthio_openmontage", "vericontext_vibeframe"]
+};
+
+export const PRODUCTION_STAGE_SOURCE_PATTERN_IDS: Readonly<Record<ProductionStageName, readonly PrivateSourcePatternId[]>> = {
+  plan: ["hkuds_vimax", "vericontext_vibeframe"],
+  storyboard: ["hkuds_vimax", "vericontext_vibeframe"],
+  prompt: ["emily_seedance_2", "youmind_awesome_seedance_2_prompts"],
+  source_material: ["harry_moneyprinterturbo"],
+  render: ["hkuds_vimax", "vericontext_vibeframe"],
+  inspect: ["vericontext_vibeframe"],
+  repair: ["hkuds_vimax", "vericontext_vibeframe"],
+  assemble: ["harry_moneyprinterturbo", "vericontext_vibeframe"],
+  deliver: ["vericontext_vibeframe"]
+};
+
 export function internalSourcePatternOrigins(ids: readonly PrivateSourcePatternId[]): readonly string[] {
   return ids.map((id) => PRIVATE_SOURCE_PATTERN_REGISTRY[id].label);
+}
+
+export function internalSourcePatternOrigin(id: PrivateSourcePatternId): string {
+  return PRIVATE_SOURCE_PATTERN_REGISTRY[id].label;
+}
+
+export function reviewApprovalSourcePatternOrigins(surface: ReviewApprovalSurface): readonly string[] {
+  return internalSourcePatternOrigins(REVIEW_APPROVAL_SOURCE_PATTERN_IDS[surface]);
+}
+
+export function productionStageSourcePatternOrigins(stage: ProductionStageName): readonly string[] {
+  return internalSourcePatternOrigins(PRODUCTION_STAGE_SOURCE_PATTERN_IDS[stage]);
 }
 
 export function privateSourcePatternLabels(): readonly string[] {

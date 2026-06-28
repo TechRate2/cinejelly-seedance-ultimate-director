@@ -19,6 +19,7 @@ const reportCatalog = [
   report("business_readiness_plan", "release", "planning", "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json", "blocked_by_missing_inputs"),
   report("live_readiness_inputs", "release", "operator_evidence", "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json", "blocked_by_missing_inputs"),
   report("deployment_package_validation", "deployment", "backend_contract", "assets/output_deliverables/business-readiness/deployment-package-validation-report.json", "pass"),
+  report("api_response_redaction_smoke", "api", "backend_guard", "assets/output_deliverables/business-readiness/api-response-redaction-smoke-report.json", "pass"),
   report("render_request_contract_smoke", "render", "backend_contract", "assets/output_deliverables/business-readiness/render-request-contract-smoke-report.json", "pass"),
   report("deployment_readiness_capture", "deployment", "operator_evidence", "assets/output_deliverables/business-readiness/deployment-preflight-report.json", "pass", { externalEvidence: true }),
   report("local_deployment_capture_smoke", "deployment", "backend_code", "assets/output_deliverables/business-readiness/local-deployment-capture-smoke.json", "warn"),
@@ -134,6 +135,7 @@ const criticalModulePaths = [
 
 const auditedValidationCommandNames = [
   "validation:atlas-billing",
+  "validation:api-response-redaction",
   "validation:backend-system-readiness",
   "validation:backend-system-suite",
   "validation:billing-admin-ops",

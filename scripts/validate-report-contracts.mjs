@@ -17,6 +17,7 @@ const defaultContracts = [
   contract("business_readiness_plan", "schemas/business-readiness-validation-plan.schema.json", "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json"),
   contract("live_readiness_inputs", "schemas/live-readiness-inputs-report.schema.json", "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json"),
   contract("deployment_package_validation", "schemas/deployment-package-validation-report.schema.json", "assets/output_deliverables/business-readiness/deployment-package-validation-report.json"),
+  contract("api_response_redaction_smoke", "schemas/api-response-redaction-smoke-report.schema.json", "assets/output_deliverables/business-readiness/api-response-redaction-smoke-report.json"),
   contract("render_request_contract_smoke", "schemas/render-request-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-request-contract-smoke-report.json"),
   contract("deployment_readiness_capture", "schemas/deployment-readiness-capture-report.schema.json", "assets/output_deliverables/business-readiness/deployment-preflight-report.json"),
   contract("local_deployment_capture_smoke", "schemas/deployment-readiness-capture-report.schema.json", "assets/output_deliverables/business-readiness/local-deployment-capture-smoke.json"),

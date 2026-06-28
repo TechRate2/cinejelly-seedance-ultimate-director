@@ -20,13 +20,12 @@ import type { PostproductionAssetPlan } from "../types/postproduction-assets.js"
 import type { ContinuityRisk, ShotContract } from "../types/prompt.js";
 import type { RenderSchedulePlan, RenderSchedulePlanItem } from "./render-scheduler.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  LONG_FORM_TIMELINE_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "HKUDS/ViMax",
-  "HKUDS/VideoAgent",
-  "vericontext/vibeframe",
-  "harry0703/MoneyPrinterTurbo"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(LONG_FORM_TIMELINE_SOURCE_PATTERN_IDS);
 
 export class LongFormTimelinePlanner {
   public build(input: {

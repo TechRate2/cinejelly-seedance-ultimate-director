@@ -45,6 +45,7 @@ import { StoryboardApprovalGate } from "../core/storyboard-approval-gate.js";
 import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
 import { StoryboardPlanner } from "../core/storyboard-planner.js";
 import { VideoRenderStrategyPlanner } from "../core/video-render-strategy-planner.js";
+import { productionStageSourcePatternOrigins } from "../core/private-source-pattern-registry.js";
 import type {
   AtlasCloudRuntimeSettings,
   FlexibleSeedanceSettings,
@@ -76,10 +77,7 @@ import type {
   ProductionStageProgressReporter,
   ProductionStageStatus
 } from "../types/stage.js";
-import {
-  PRODUCTION_STAGE_ORDER,
-  PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS
-} from "../types/stage.js";
+import { PRODUCTION_STAGE_ORDER } from "../types/stage.js";
 import { asProviderError } from "../utils/errors.js";
 import { createStableId } from "../utils/ids.js";
 import { redactUnknown } from "../utils/redaction.js";
@@ -1018,7 +1016,7 @@ export class DirectorAgent {
         status,
         recordedAt: new Date(),
         message,
-        sourcePatternOrigins: PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS[stage],
+        sourcePatternOrigins: productionStageSourcePatternOrigins(stage),
         ...(evidence ? { evidence } : {})
       });
     } catch {

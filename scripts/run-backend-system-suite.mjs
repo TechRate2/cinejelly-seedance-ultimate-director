@@ -15,6 +15,9 @@ const defaults = {
 
 const suiteCommands = [
   command("build", ["./node_modules/typescript/bin/tsc", "-p", "tsconfig.json"], { reportPath: undefined }),
+  command("api_response_redaction", ["scripts/run-api-response-redaction-smoke.mjs"], {
+    reportPath: "assets/output_deliverables/business-readiness/api-response-redaction-smoke-report.json"
+  }),
   command("deployment_package", ["scripts/validate-deployment-package.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/deployment-package-validation-report.json"
   }),

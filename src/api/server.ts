@@ -71,7 +71,7 @@ import type {
 import type { BitrateMode, Resolution } from "../types/settings.js";
 import type { ShortChannelStyleProfileInput } from "../types/short-channel-style.js";
 import { redactUnknown } from "../utils/redaction.js";
-import { redactApiLocalPaths } from "./api-response-redaction.js";
+import { redactApiResponse } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import {
@@ -1245,7 +1245,7 @@ function sendJson(
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff"
   });
-  response.end(JSON.stringify(redactApiLocalPaths(redactUnknown(withRequestContext(payload, requestContext)))));
+  response.end(JSON.stringify(redactApiResponse(redactUnknown(withRequestContext(payload, requestContext)))));
 }
 
 function sendHtml(response: ServerResponse, statusCode: number, html: string): void {

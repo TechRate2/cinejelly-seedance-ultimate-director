@@ -22,7 +22,6 @@ import { DEFAULT_SEEDANCE_SETTINGS, type QualityMode } from "../types/settings.j
 
 export interface RenderSettingsDescriptor {
   readonly schemaVersion: "cinejelly.render-settings.v1";
-  readonly sourcePatternOrigins: readonly string[];
   readonly defaults: typeof DEFAULT_SEEDANCE_SETTINGS;
   readonly options: {
     readonly tier: typeof SPEED_TIERS;
@@ -97,17 +96,9 @@ export interface SeedanceSelectableModelDescriptor {
   readonly source: "configured_tier" | "capability_json" | "configured_tier_and_capability_json";
 }
 
-const SOURCE_PATTERN_ORIGINS = [
-  "Emily2040/seedance-2.0",
-  "YouMind-OpenLab/awesome-seedance-2-prompts",
-  "vericontext/vibeframe",
-  "HKUDS/ViMax"
-] as const;
-
 export function buildRenderSettingsDescriptor(env: NodeJS.ProcessEnv = process.env): RenderSettingsDescriptor {
   return {
     schemaVersion: "cinejelly.render-settings.v1",
-    sourcePatternOrigins: SOURCE_PATTERN_ORIGINS,
     defaults: DEFAULT_SEEDANCE_SETTINGS,
     options: {
       tier: SPEED_TIERS,

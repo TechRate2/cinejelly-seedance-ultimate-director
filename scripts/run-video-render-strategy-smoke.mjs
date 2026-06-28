@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = resolve(repoRoot, "assets/output_deliverables/business-readiness/video-render-strategy-smoke-report.json");
-const sourcePatternOrigins = ["HKUDS/VideoAgent", "vericontext/vibeframe", "MoneyPrinterTurbo"];
+const sourcePatternOrigins = ["HKUDS/VideoAgent", "vericontext/vibeframe", "harry0703/MoneyPrinterTurbo"];
 
 const { VideoRenderStrategyPlanner } = await import("../dist/core/video-render-strategy-planner.js");
 const { RenderScheduler } = await import("../dist/core/render-scheduler.js");

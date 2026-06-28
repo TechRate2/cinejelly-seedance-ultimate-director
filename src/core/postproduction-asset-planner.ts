@@ -23,8 +23,12 @@ import type {
   PostproductionGeneratedAudioKindCount
 } from "../types/postproduction-assets.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  POSTPRODUCTION_ASSET_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(POSTPRODUCTION_ASSET_SOURCE_PATTERN_IDS);
 
 const DEFAULT_AUDIO_MIX_OPTIONS: AudioMixOptions = {
   enabled: false,

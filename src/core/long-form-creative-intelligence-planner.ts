@@ -32,16 +32,12 @@ import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import type { VideoRenderStrategyPlan } from "../types/video-render-strategy.js";
 import { createStableId } from "../utils/ids.js";
 import { AudienceNicheIntelligencePlanner } from "./audience-niche-intelligence.js";
+import {
+  internalSourcePatternOrigins,
+  LONG_FORM_CREATIVE_INTELLIGENCE_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "HKUDS/ViMax",
-  "HKUDS/VideoAgent",
-  "vericontext/vibeframe",
-  "calesthio/OpenMontage",
-  "jiaminchen-1031/DirectorBench",
-  "harry0703/MoneyPrinterTurbo",
-  "YouMind-OpenLab/awesome-seedance-2-prompts"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(LONG_FORM_CREATIVE_INTELLIGENCE_SOURCE_PATTERN_IDS);
 
 const CLAIM_RISK_PATTERN =
   /100%|guarantee|guaranteed|cure|heal|doctor|clinical|risk[-\s]?free|overnight|income|profit|#1|best\b/i;

@@ -14,11 +14,13 @@ import type {
   ShortViralPlatformFocus
 } from "../types/short-viral-intelligence.js";
 import {
+  internalSourcePatternOrigin,
   internalSourcePatternOrigins,
   SHORT_PROMPT_CORPUS_SOURCE_PATTERN_IDS
 } from "./private-source-pattern-registry.js";
 
 export const SHORT_PROMPT_CORPUS_ORIGINS = internalSourcePatternOrigins(SHORT_PROMPT_CORPUS_SOURCE_PATTERN_IDS);
+const PRIMARY_PROMPT_CORPUS_SOURCE_REPOSITORY = internalSourcePatternOrigin("youmind_awesome_seedance_2_prompts");
 
 type CorpusSource = Extract<ShortCreativePatternSource, "seedance_prompt_corpus">;
 
@@ -59,7 +61,7 @@ export interface ShortPromptCorpusPatternSpec {
 
 export interface ShortPromptCorpusCoverage {
   readonly schemaVersion: "cinejelly.short-prompt-pattern-corpus-coverage.v1";
-  readonly sourceRepository: "YouMind-OpenLab/awesome-seedance-2-prompts";
+  readonly sourceRepository: string;
   readonly declaredPromptCount: 3817;
   readonly localVideoUrlIndexCount: 1000;
   readonly readmePromptSectionCount: 106;
@@ -192,7 +194,7 @@ const CORPUS: readonly CorpusEntry[] = [...CORE_CORPUS, ...TAXONOMY_EXPANSION] a
 
 export const SHORT_PROMPT_CORPUS_COVERAGE: ShortPromptCorpusCoverage = {
   schemaVersion: "cinejelly.short-prompt-pattern-corpus-coverage.v1",
-  sourceRepository: "YouMind-OpenLab/awesome-seedance-2-prompts",
+  sourceRepository: PRIMARY_PROMPT_CORPUS_SOURCE_REPOSITORY,
   declaredPromptCount: 3817,
   localVideoUrlIndexCount: 1000,
   readmePromptSectionCount: 106,
@@ -229,7 +231,7 @@ export function retrieveShortPromptCorpusPatterns(input: ShortPromptCorpusRetrie
 }
 
 function toSpec(entryItem: CorpusEntry, score: number): ShortPromptCorpusPatternSpec {
-  const sourceRepository = entryItem.sourceRepository ?? "YouMind-OpenLab/awesome-seedance-2-prompts";
+  const sourceRepository = entryItem.sourceRepository ?? PRIMARY_PROMPT_CORPUS_SOURCE_REPOSITORY;
   const license = entryItem.license ?? "CC-BY-4.0";
   return {
     kind: entryItem.kind,

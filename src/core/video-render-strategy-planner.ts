@@ -9,9 +9,13 @@ import type {
   VideoRenderStrategyPlan,
   VideoRenderWorkflowMode
 } from "../types/video-render-strategy.js";
+import {
+  internalSourcePatternOrigins,
+  VIDEO_RENDER_STRATEGY_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
 const SINGLE_CLIP_MAX_SECONDS = 20;
-const SOURCE_PATTERN_ORIGINS = ["HKUDS/VideoAgent", "vericontext/vibeframe", "MoneyPrinterTurbo"];
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(VIDEO_RENDER_STRATEGY_SOURCE_PATTERN_IDS);
 const REFERENCE_LOCK_ROLES = new Set<ReferenceRole>([
   "identity",
   "product",
