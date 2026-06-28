@@ -19,6 +19,7 @@
     "areaSummaries",
     "blockerSummary",
     "externalEvidenceActionMatrix",
+    "externalEvidencePhasePlan",
     "releaseGateSummary",
     "nextActions"
   ],
@@ -237,6 +238,27 @@
         }
       }
     },
+    "externalEvidencePhasePlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "phasePolicy",
+        "phaseCount",
+        "blockerCount",
+        "phases"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "blocked"] },
+        "phasePolicy": { "const": "external_evidence_is_grouped_by_operator_execution_order" },
+        "phaseCount": { "type": "integer", "minimum": 0 },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "phases": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/externalEvidencePhase" }
+        }
+      }
+    },
     "releaseGateSummary": {
       "type": "object",
       "additionalProperties": false,
@@ -432,6 +454,53 @@
         "requiresPaidProviderOrNetwork": { "type": "boolean" },
         "requiresManualReview": { "type": "boolean" },
         "recommendedOrder": { "type": "number", "minimum": 0 }
+      }
+    },
+    "externalEvidencePhase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "label",
+        "purpose",
+        "status",
+        "requiredEvidenceKinds",
+        "blockerCount",
+        "actionIds",
+        "validationCommands",
+        "reportPaths",
+        "requiresOperatorInput",
+        "requiresPaidProviderOrNetwork",
+        "requiresManualReview",
+        "readyWhen"
+      ],
+      "properties": {
+        "phase": { "type": "integer", "minimum": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "blocked"] },
+        "requiredEvidenceKinds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "blockerCount": { "type": "integer", "minimum": 0 },
+        "actionIds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "validationCommands": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "reportPaths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "requiresOperatorInput": { "type": "boolean" },
+        "requiresPaidProviderOrNetwork": { "type": "boolean" },
+        "requiresManualReview": { "type": "boolean" },
+        "readyWhen": { "type": "string", "minLength": 1 }
       }
     },
     "blocker": {

@@ -270,6 +270,62 @@ const externalEvidenceCommandByReportId = {
   production_operations: "validation:production-ops"
 };
 
+const externalEvidencePhaseDefinitions = [
+  {
+    phase: 1,
+    label: "Budget and operator authority",
+    purpose: "Confirm spend caps, client policy, billing owner, production owner, and operational procedures before live or paid validation.",
+    evidenceKinds: ["billing_and_budget_approval", "operator_attestation_or_ops_config"]
+  },
+  {
+    phase: 2,
+    label: "Commercial launch scope",
+    purpose: "Record the commercial offer scope, launch intake, launch doctor result, and business completion evidence.",
+    evidenceKinds: ["commercial_launch_evidence"]
+  },
+  {
+    phase: 3,
+    label: "Short rights and operator review",
+    purpose: "Prove short-product rights, user-supplied asset authority, and accepted short review operation before customer delivery.",
+    evidenceKinds: ["short_product_rights_evidence", "short_review_operation_evidence"]
+  },
+  {
+    phase: 4,
+    label: "Provider handoff and resume",
+    purpose: "Prove live provider handoff, polling, lease, resume, and worker-operation evidence for real render lifecycle recovery.",
+    evidenceKinds: ["provider_handoff_or_resume_evidence"]
+  },
+  {
+    phase: 5,
+    label: "Paid or live media providers",
+    purpose: "Run approved source-video analysis, remote-stock, generated-audio, and long-form paid media validations with provider evidence.",
+    evidenceKinds: [
+      "paid_source_video_analysis_evidence",
+      "live_material_provider_evidence",
+      "paid_generated_audio_evidence",
+      "paid_long_form_media_evidence"
+    ]
+  },
+  {
+    phase: 6,
+    label: "Manual quality review",
+    purpose: "Attach human review evidence for generated audio, long-form media, director-style semantic/audio/runtime/governance quality, and review readiness.",
+    evidenceKinds: ["manual_quality_review_evidence"]
+  },
+  {
+    phase: 7,
+    label: "Live deployment capture",
+    purpose: "Capture a real HTTPS deployment preflight after the operational evidence and release scope are in place.",
+    evidenceKinds: ["live_deployment_capture"]
+  },
+  {
+    phase: 8,
+    label: "Other external evidence",
+    purpose: "Catch any future external blocker that is not yet mapped to a more specific commercial-readiness phase.",
+    evidenceKinds: ["operator_external_evidence"]
+  }
+];
+
 function report(id, area, gateKind, path, expectedStatus, options = {}) {
   return {
     id,
@@ -356,6 +412,7 @@ function main() {
   const areaSummaries = summarizeAreas(reportEvidence);
   const blockerSummary = summarizeBlockers(reportEvidence, sourceConnectivity, validationCommandCoverage, reportContractCoverage);
   const externalEvidenceActionMatrix = buildExternalEvidenceActionMatrix(blockerSummary, reportEvidence);
+  const externalEvidencePhasePlan = buildExternalEvidencePhasePlan(externalEvidenceActionMatrix);
   const status = statusFor({ reportEvidence, sourceConnectivity, validationCommandCoverage, reportContractCoverage });
   const output = {
     schemaVersion: "cinejelly.backend-system-readiness-audit.v1",
@@ -380,6 +437,7 @@ function main() {
     areaSummaries,
     blockerSummary,
     externalEvidenceActionMatrix,
+    externalEvidencePhasePlan,
     releaseGateSummary: buildReleaseGateSummary(status, blockerSummary, sourceConnectivity, validationCommandCoverage, reportContractCoverage),
     nextActions: buildNextActions(blockerSummary, sourceConnectivity, validationCommandCoverage, reportContractCoverage)
   };
@@ -844,6 +902,47 @@ function buildExternalEvidenceActionMatrix(blockerSummary, reportEvidence) {
   };
 }
 
+function buildExternalEvidencePhasePlan(externalEvidenceActionMatrix) {
+  const actions = Array.isArray(externalEvidenceActionMatrix.actions)
+    ? externalEvidenceActionMatrix.actions
+    : [];
+  const phases = externalEvidencePhaseDefinitions
+    .map((definition) => {
+      const phaseActions = actions
+        .filter((action) => definition.evidenceKinds.includes(action.requiredEvidenceKind))
+        .sort((left, right) =>
+          left.recommendedOrder - right.recommendedOrder ||
+          left.area.localeCompare(right.area) ||
+          left.id.localeCompare(right.id)
+        );
+      return {
+        phase: definition.phase,
+        label: definition.label,
+        purpose: definition.purpose,
+        status: phaseActions.length === 0 ? "pass" : "blocked",
+        requiredEvidenceKinds: definition.evidenceKinds,
+        blockerCount: phaseActions.length,
+        actionIds: phaseActions.map((item) => item.id),
+        validationCommands: uniqueSortedStrings(phaseActions.map((item) => item.validationCommand)),
+        reportPaths: uniqueSortedStrings(phaseActions.map((item) => item.reportPath)),
+        requiresOperatorInput: phaseActions.some((item) => item.requiresOperatorInput),
+        requiresPaidProviderOrNetwork: phaseActions.some((item) => item.requiresPaidProviderOrNetwork),
+        requiresManualReview: phaseActions.some((item) => item.requiresManualReview),
+        readyWhen: phaseActions.length === 0
+          ? "No external evidence blockers remain for this phase."
+          : "All listed validation commands complete with accepted operator evidence and the listed reports reach their expected commercial-readiness status."
+      };
+    })
+    .filter((phase) => phase.blockerCount > 0 || phase.status === "blocked");
+  return {
+    status: phases.some((phase) => phase.status === "blocked") ? "blocked" : "pass",
+    phasePolicy: "external_evidence_is_grouped_by_operator_execution_order",
+    phaseCount: phases.length,
+    blockerCount: phases.reduce((sum, phase) => sum + phase.blockerCount, 0),
+    phases
+  };
+}
+
 function validationCommandForExternalEvidence(item) {
   switch (item.area) {
     case "audio":
@@ -963,6 +1062,10 @@ function summarizeCounts(items, key) {
     counts.set(value, (counts.get(value) ?? 0) + 1);
   }
   return [...counts.entries()].sort(([left], [right]) => String(left).localeCompare(String(right)));
+}
+
+function uniqueSortedStrings(values) {
+  return [...new Set(values.filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()))].sort();
 }
 
 function blockerFor(item, owner) {
