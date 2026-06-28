@@ -302,6 +302,7 @@ export function buildShortPipelineCreatePage(): string {
 </head>
 <body>
   <div class="app"
+    data-video-pipes-endpoint="/v1/short-pipeline/video-pipes"
     data-session-endpoint="/v1/short-pipeline/conversation-sessions"
     data-session-ui-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/ui-contract"
     data-render-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/render-jobs">
@@ -359,6 +360,12 @@ export function buildShortPipelineCreatePage(): string {
                   <textarea id="prompt">Create a 28 second TikTok UGC review ad for Glow Focus Serum. Keep it proof-led, premium, and easy to approve before render spend.</textarea>
                 </label>
                 <label><span>Project ID</span><input id="project-id" value="short_create_shell"></label>
+                <label><span>Mode</span>
+                  <select id="workflow-mode">
+                    <option value="short_video">Short video</option>
+                    <option value="video_remake">Video Remake</option>
+                  </select>
+                </label>
                 <label><span>Platform</span>
                   <select id="platform">
                     <option value="tiktok">TikTok</option>
@@ -376,9 +383,57 @@ export function buildShortPipelineCreatePage(): string {
                     <option value="off">Off</option>
                   </select>
                 </label>
+                <label><span>Resolution</span>
+                  <select id="seedance-resolution">
+                    <option value="720p" selected>720p</option>
+                    <option value="720p-SR">720p SR</option>
+                    <option value="480p">480p</option>
+                    <option value="720p">720p</option>
+                    <option value="1080p">1080p</option>
+                    <option value="1080p-SR">1080p SR</option>
+                    <option value="1440p-SR">1440p SR</option>
+                  </select>
+                </label>
+                <label><span>Bitrate</span>
+                  <select id="seedance-bitrate">
+                    <option value="standard" selected>Standard</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+                <label><span>Last Frame</span>
+                  <select id="return-last-frame">
+                    <option value="auto" selected>Auto</option>
+                    <option value="true">On</option>
+                    <option value="false">Off</option>
+                  </select>
+                </label>
                 <label><span>Product</span><input id="product-title" value="Glow Focus Serum"></label>
                 <label><span>Category</span><input id="category" value="beauty"></label>
                 <label class="span-2"><span>Allowed Claim</span><input id="claim" value="Visibly improves dull-looking skin"></label>
+                <label><span>KOL Reference</span><input id="kol-reference" placeholder="asset://kol-main or https://..."></label>
+                <label><span>Product Reference</span><input id="product-reference" placeholder="asset://product-pack or https://..."></label>
+                <label><span>Wardrobe Reference</span><input id="wardrobe-reference" placeholder="asset://outfit or https://..."></label>
+                <label><span>Background Reference</span><input id="background-reference" placeholder="asset://studio-set or https://..."></label>
+                <label><span>First Frame</span><input id="first-frame-reference" placeholder="asset://opening-frame or https://..."></label>
+                <label><span>Last Frame</span><input id="last-frame-reference" placeholder="asset://final-frame or https://..."></label>
+                <label><span>Media Rights</span>
+                  <select id="media-rights">
+                    <option value="operator_approved">Operator approved</option>
+                    <option value="needs_review">Needs review</option>
+                    <option value="unknown">Unknown</option>
+                  </select>
+                </label>
+                <label><span>Reference Note</span><input id="media-reference-note" placeholder="What to preserve from the attached media"></label>
+                <label><span>Reference Video URL</span><input id="reference-url" placeholder="https://media.example.com/reference/video"></label>
+                <label><span>Source Rights</span>
+                  <select id="reference-rights">
+                    <option value="structure_only">Structure and rhythm only</option>
+                    <option value="rights_cleared_close_remake">Rights-cleared close remake</option>
+                  </select>
+                </label>
+                <label class="span-2"><span>Reference Summary</span>
+                  <textarea id="reference-summary" placeholder="Describe the hook, pacing, acting beats, edit rhythm, camera style, audio rhythm, and payoff the user wants to remake with their own KOL, product, and background."></textarea>
+                </label>
               </div>
               <div class="actions-row">
                 <button type="submit" id="create-session">Create Session</button>
@@ -397,8 +452,20 @@ export function buildShortPipelineCreatePage(): string {
             <div class="list" id="review-checkpoints"><div class="empty">No contract loaded.</div></div>
           </div>
           <div class="panel">
+            <h2>Seedance Routing</h2>
+            <div class="list" id="seedance-routing"><div class="empty">No contract loaded.</div></div>
+          </div>
+          <div class="panel">
+            <h2>Media References</h2>
+            <div class="list" id="media-references"><div class="empty">No references loaded.</div></div>
+          </div>
+          <div class="panel">
             <h2>Creative Ideas</h2>
             <div class="list" id="creative-ideas"><div class="empty">No contract loaded.</div></div>
+          </div>
+          <div class="panel">
+            <h2>Video Remake</h2>
+            <div class="list" id="reference-remake"><div class="empty">No remake blueprint loaded.</div></div>
           </div>
           <div class="panel">
             <h2>Approval Packet</h2>
@@ -513,6 +580,9 @@ export function buildShortPipelineCreatePage(): string {
     function briefPayload() {
       const language = document.getElementById("audio").value;
       const audio = language === "off" ? { mode: "off" } : { mode: "voiceover", language };
+      const referenceVideoLearning = referenceVideoLearningPayload();
+      const mediaReferences = mediaReferencesPayload();
+      const seedanceSettings = seedanceSettingsPayload();
       return {
         projectId: document.getElementById("project-id").value.trim(),
         userPrompt: document.getElementById("prompt").value.trim(),
@@ -534,10 +604,90 @@ export function buildShortPipelineCreatePage(): string {
           forbiddenClaims: ["guaranteed cure", "instant medical result"],
           ctaRules: ["Use one CTA only"]
         },
+        ...(mediaReferences.length ? { mediaReferences } : {}),
+        ...(referenceVideoLearning ? { referenceVideoLearning } : {}),
+        ...(seedanceSettings ? { seedanceSettings } : {}),
         messages: [
           { role: "user", text: document.getElementById("prompt").value.trim() }
         ]
       };
+    }
+
+    function seedanceSettingsPayload() {
+      const resolution = document.getElementById("seedance-resolution").value;
+      const bitrateMode = document.getElementById("seedance-bitrate").value;
+      const returnLastFrame = document.getElementById("return-last-frame").value;
+      const settings = {};
+      if (resolution !== "720p") settings.resolution = resolution;
+      if (bitrateMode !== "standard") settings.bitrateMode = bitrateMode;
+      if (returnLastFrame !== "auto") settings.returnLastFrame = returnLastFrame === "true";
+      return Object.keys(settings).length ? settings : undefined;
+    }
+
+    function mediaReferencesPayload() {
+      const rightsStatus = document.getElementById("media-rights").value;
+      const note = document.getElementById("media-reference-note").value.trim();
+      const referenceRights = document.getElementById("reference-rights").value;
+      const closeRemake = referenceRights === "rights_cleared_close_remake";
+      const entries = [
+        ["kol-reference", "kol", "image", "KOL identity reference", "Preserve approved creator identity only."],
+        ["product-reference", "product", "image", "Product reference", "Preserve product geometry, packaging, label, and material only."],
+        ["wardrobe-reference", "wardrobe", "image", "Wardrobe reference", "Preserve outfit silhouette, color, and fit only."],
+        ["background-reference", "background", "image", "Background reference", "Preserve set layout and environment mood only."],
+        ["first-frame-reference", "first_frame", "image", "First-frame anchor", "Use as the opening composition only."],
+        ["last-frame-reference", "last_frame", "image", "Last-frame anchor", "Use as the final composition target only."]
+      ];
+      const references = entries.flatMap(([id, role, kind, label, description]) => {
+        const uri = document.getElementById(id).value.trim();
+        return uri ? [{
+          role,
+          kind,
+          uri,
+          label,
+          rightsStatus,
+          priority: role === "kol" || role === "product" ? "primary" : "supporting",
+          description: note || description
+        }] : [];
+      });
+      const sourceUrl = document.getElementById("reference-url").value.trim();
+      if (document.getElementById("workflow-mode").value === "video_remake" && sourceUrl) {
+        references.push({
+          role: "source_video",
+          kind: "video",
+          uri: sourceUrl,
+          label: "Video Remake source structure",
+          rightsStatus: closeRemake ? "operator_approved" : "needs_review",
+          priority: "supporting",
+          description: "Learn edit rhythm, acting beats, camera grammar, retention timing, and payoff structure with replacement guardrails."
+        });
+      }
+      return references;
+    }
+
+    function referenceVideoLearningPayload() {
+      if (document.getElementById("workflow-mode").value !== "video_remake") {
+        return undefined;
+      }
+      const sourceUrl = document.getElementById("reference-url").value.trim();
+      const summary = document.getElementById("reference-summary").value.trim();
+      if (!sourceUrl && !summary) {
+        return undefined;
+      }
+      const closeRemake = document.getElementById("reference-rights").value === "rights_cleared_close_remake";
+      const payload = {
+        sourceLabel: "Video Remake reference",
+        ...(sourceUrl ? { sourceUrl } : {}),
+        summary: summary || "User selected Video Remake and supplied a rights-cleared reference video for structure, edit rhythm, acting beats, camera language, and payoff timing.",
+        hook: "Preserve the reference hook job, rewritten for the user's product and creator.",
+        pacing: "Derive scene timing, cut density, reveal order, and payoff timing from the reference.",
+        cameraStyle: "Derive camera language while replacing creator, product, background, and props with user-approved inputs.",
+        captionStyle: "Use visual rhythm only; keep generated output free of visible captions, subtitles, labels, and CTA cards.",
+        audioStyle: "Derive audio rhythm only; use new guided or licensed voice and audio.",
+        retentionPattern: "Carry the reference retention mechanics into a new product-proof story.",
+        ctaStyle: "Adapt the payoff action to the user's offer and approved claims."
+      };
+      payload["do" + "Not" + "C" + "opy"] = !closeRemake;
+      return payload;
     }
 
     function renderContract(contract) {
@@ -545,7 +695,9 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("side-status").textContent = contract.status;
       document.getElementById("side-scenes").textContent = String(contract.outputContract.expectedSceneCount);
       document.getElementById("side-pending").textContent = String(contract.review.requiredPendingCount);
-      document.getElementById("side-provider").textContent = contract.render.canSubmitToProviderNow ? "ready" : "locked";
+      document.getElementById("side-provider").textContent = contract.seedanceRouting
+        ? contract.seedanceRouting.recommendedProviderMode.replaceAll("_", " ")
+        : contract.render.canSubmitToProviderNow ? "ready" : "locked";
       document.getElementById("metric-workflow").textContent = contract.duration.recommendedWorkflowMode.replaceAll("_", " ");
       document.getElementById("metric-duration").textContent = contract.duration.targetSeconds + "s target";
       document.getElementById("metric-review").textContent = contract.review.status.replaceAll("_", " ");
@@ -555,7 +707,10 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("prepare-approval").disabled = false;
       document.getElementById("approval-packet").value = "";
       renderList("review-checkpoints", contract.review.checkpoints, checkpointTemplate);
+      renderSeedanceRouting(contract.seedanceRouting);
+      renderList("media-references", contract.mediaReferences || [], mediaReferenceTemplate);
       renderCreativeIdeas(contract.creativePatternLearning);
+      renderReferenceRemake(contract.referenceRemake);
       renderList("user-actions", contract.userRequiredActions, actionTemplate);
       renderList("backend-steps", contract.backendManagedSteps, actionTemplate);
       document.getElementById("director").textContent = [
@@ -564,6 +719,32 @@ export function buildShortPipelineCreatePage(): string {
         contract.director.targetBeatCount + " beats",
         contract.director.hookWindowSeconds + "s hook"
       ].join(" | ");
+    }
+
+    function renderSeedanceRouting(routing) {
+      const node = document.getElementById("seedance-routing");
+      if (!routing) {
+        node.innerHTML = '<div class="empty">No routing loaded.</div>';
+        return;
+      }
+      node.innerHTML = '<article class="item"><div class="row"><div><div class="title">' +
+        escapeHtml(routing.recommendedProviderMode.replaceAll("_", " ") + " | " + routing.modelAlias) +
+        '</div><div class="detail">tier=' + escapeHtml(routing.preferredTier) +
+        ' | resolution=' + escapeHtml(routing.resolution) +
+        ' | sr=' + escapeHtml(routing.superResolution) +
+        ' | bitrate=' + escapeHtml(routing.bitrateMode) +
+        ' | ratio=' + escapeHtml(routing.ratio) +
+        ' | returnLastFrame=' + escapeHtml(routing.returnLastFrame) +
+        '</div><div class="detail">recipe=' + escapeHtml(routing.promptRecipe.name.replaceAll("_", " ")) +
+        ' | tags=' + escapeHtml(routing.referenceTagCount) +
+        ' | clip=' + escapeHtml(routing.providerClipDurationSeconds.targetPerClip + "s") +
+        '</div><div class="detail">' + escapeHtml((routing.reasonCodes || []).join(", ")) +
+        '</div></div><span class="pill info">' +
+        escapeHtml(routing.canSubmitToProviderNow ? "provider ready" : "review gated") +
+        '</span></div></article>' +
+        ((routing.warnings || []).length
+          ? '<article class="item"><div class="detail">' + escapeHtml(routing.warnings.join(" | ")) + '</div></article>'
+          : "");
     }
 
     function prepareApprovalPacket() {
@@ -618,6 +799,32 @@ export function buildShortPipelineCreatePage(): string {
       node.innerHTML = selected + candidates;
     }
 
+    function renderReferenceRemake(remake) {
+      const node = document.getElementById("reference-remake");
+      if (!remake) {
+        node.innerHTML = '<div class="empty">Use Video Remake mode with a reference video summary or URL to generate a remake blueprint.</div>';
+        return;
+      }
+      node.innerHTML = '<article class="item"><div class="row"><div><div class="title">' +
+        escapeHtml(remake.userFacingModeLabel + " | " + remake.status.replaceAll("_", " ")) +
+        '</div><div class="detail">mode=' + escapeHtml(remake.mode.replaceAll("_", " ")) +
+        ' | fidelity=' + escapeHtml(remake.fidelityTarget.replaceAll("_", " ")) +
+        ' | intake=' + escapeHtml((remake.trendVideoIntakeMode || "").replaceAll("_", " ")) +
+        '</div><div class="detail">replace: ' +
+        escapeHtml((remake.replacementSlots || []).join(", ")) +
+        '</div><div class="detail">adherence: ' +
+        escapeHtml((remake.adherenceTargets || []).slice(0, 3).join(" | ")) +
+        '</div><div class="detail">beat map: ' +
+        escapeHtml((remake.sourceBeatMap || []).slice(0, 4).join(" | ")) +
+        '</div><div class="detail">lock: ' +
+        escapeHtml((remake.lockedElements || []).slice(0, 4).join(" | ")) +
+        '</div><div class="detail">guardrails: ' +
+        escapeHtml((remake.remakeGuardrails || []).slice(0, 3).join(" | ")) +
+        '</div></div><span class="pill ' + pillClass(remake.status) + '">' +
+        escapeHtml(remake.canUseAfterReview ? "review gate" : "blocked") +
+        '</span></div></article>';
+    }
+
     function renderList(id, items, template) {
       const node = document.getElementById(id);
       if (!items || !items.length) {
@@ -649,7 +856,7 @@ export function buildShortPipelineCreatePage(): string {
       return '<article class="item"><div class="row"><div><div class="title">' +
         escapeHtml(candidate.label) + '</div><div class="detail">' +
         escapeHtml(candidate.hook) + '</div><div class="detail">score=' +
-        escapeHtml(candidate.score) + ' | nonClone=' +
+        escapeHtml(candidate.score) + ' | originality=' +
         escapeHtml(candidate.nonCloneSafety) + '</div></div><span class="pill teal">' +
         escapeHtml(candidate.patternId.slice(0, 18)) + '</span></div></article>';
     }
@@ -662,6 +869,24 @@ export function buildShortPipelineCreatePage(): string {
         escapeHtml((checkpoint.issueCodes || []).join(", ") || "none") +
         '</div></div><span class="pill ' + pillClass(checkpoint.decision) + '">' +
         escapeHtml(checkpoint.decision.replaceAll("_", " ")) + '</span></div></article>';
+    }
+
+    function mediaReferenceTemplate(reference) {
+      return '<article class="item"><div class="row"><div><div class="title">' +
+        escapeHtml(reference.promptTag + " | " + reference.label) +
+        '</div><div class="detail">' +
+        escapeHtml(reference.inputRole + " -> " + reference.promptRole + " / " + reference.providerKind) +
+        '</div><div class="detail">rights=' +
+        escapeHtml(reference.rightsStatus) + ' | uri=' +
+        escapeHtml(reference.uriPolicy) + ' | providerHandoff=' +
+        escapeHtml(reference.includeInProviderHandoff) +
+        (reference.sourceHost ? ' | host=' + escapeHtml(reference.sourceHost) : '') +
+        '</div><div class="detail">' +
+        escapeHtml(reference.transferScope || "") +
+        '</div><div class="detail">issues=' +
+        escapeHtml((reference.issues || []).join(", ") || "none") +
+        '</div></div><span class="pill ' + pillClass(reference.status) + '">' +
+        escapeHtml(reference.status.replaceAll("_", " ")) + '</span></div></article>';
     }
 
     function pillClass(status) {

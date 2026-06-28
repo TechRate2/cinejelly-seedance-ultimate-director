@@ -8,6 +8,7 @@ import {
   repairAttemptCountForQuality,
   SEEDANCE_TEST_TAKE_DURATION_SECONDS,
   resolveSeedanceModelId,
+  seedanceResolutionHeight,
   usesTestTakesForQuality
 } from "../config/seedance-settings.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
@@ -741,6 +742,9 @@ export class DirectorAgent {
     if (plan.workflowMode === "source_video_guided") {
       reasons.push("strategy_source_video");
     }
+    if (plan.workflowMode === "sequence_bible") {
+      reasons.push("strategy_sequence_bible");
+    }
     if (plan.workflowMode === "manual_storyboard") {
       reasons.push("strategy_manual_storyboard");
     }
@@ -1113,15 +1117,8 @@ export class DirectorAgent {
     };
   }
 
-  private targetHeight(resolution: Resolution): 480 | 720 | 1080 {
-    switch (resolution) {
-      case "480p":
-        return 480;
-      case "720p":
-        return 720;
-      case "1080p":
-        return 1080;
-    }
+  private targetHeight(resolution: Resolution): 480 | 720 | 1080 | 1440 {
+    return seedanceResolutionHeight(resolution);
   }
 
   private shouldRunTestTake(shot: ShotContract, settings: FlexibleSeedanceSettings): boolean {

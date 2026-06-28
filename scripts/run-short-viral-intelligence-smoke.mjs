@@ -41,6 +41,8 @@ if (extname(options.outputPath).toLowerCase() !== ".json") {
 const { ShortPipelinePlanner } = await import("../dist/core/short-pipeline-planner.js");
 const { ShortPipelineConversationEngine } = await import("../dist/core/short-pipeline-conversation.js");
 const { buildShortPipelineRenderHandoff } = await import("../dist/core/short-pipeline-render-handoff.js");
+const { SHORT_PROMPT_CORPUS_COVERAGE } = await import("../dist/core/short-prompt-pattern-corpus.js");
+const { SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE } = await import("../dist/core/short-platform-template-corpus.js");
 
 const planner = new ShortPipelinePlanner();
 const conversationEngine = new ShortPipelineConversationEngine({ planner });
@@ -97,7 +99,27 @@ const viralPlan = planner.buildPlan({
     ctaStyle: "soft shop-now CTA after visible payoff",
     visualMotifs: ["morning mirror", "texture close-up", "makeup-ready finish"],
     doNotCopy: true
-  }
+  },
+  mediaReferences: [
+    {
+      role: "kol",
+      kind: "image",
+      uri: "asset://short-viral/glow-creator",
+      label: "Glow creator KOL",
+      rightsStatus: "operator_approved",
+      priority: "primary",
+      description: "Preserve approved KOL identity only."
+    },
+    {
+      role: "product",
+      kind: "image",
+      uri: "asset://short-viral/glow-focus-serum-pack",
+      label: "Glow Focus Serum pack",
+      rightsStatus: "operator_approved",
+      priority: "primary",
+      description: "Preserve product packaging geometry, label, and hero-object continuity only."
+    }
+  ]
 });
 
 const copyRiskPlan = planner.buildPlan({
@@ -198,6 +220,223 @@ const beveragePlan = planner.buildPlan({
   }
 });
 
+const miniTextPlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_viral_mini_text_only",
+  generatedAt,
+  userPrompt: "Create a 15 second TikTok short for a compact ceramic travel mug. Make it cozy, useful, and trend-native without any uploaded media.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 15
+});
+
+const qualityOverridePlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_quality_override",
+  generatedAt,
+  userPrompt: "Create a 24 second TikTok short for a premium travel hoodie. Make it tactile, cinematic, and conversion-ready.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 24,
+  seedanceSettings: {
+    resolution: "1080p-SR",
+    bitrateMode: "high",
+    returnLastFrame: false
+  }
+});
+
+const videoRemakePlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_viral_video_remake_blueprint",
+  generatedAt,
+  userPrompt: "Create a TikTok Video Remake for a niche magnetic cable organizer. Use the reference as edit rhythm, acting beats, camera language, and payoff timing, then replace with my KOL, product, desk background, original voice, and approved claims.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 28,
+  product: {
+    productUrl: "https://shop.example.com/products/magnetic-cable-organizer",
+    snapshot: {
+      productTitle: "MagSnap Cable Kit",
+      category: "workspace accessory",
+      benefits: ["Turns a messy remote-work desk into a cleaner cable routine"],
+      claims: ["Helps keep daily desk cables organized"],
+      targetBuyer: "remote workers with messy desk setups",
+      cta: "Try the kit"
+    }
+  },
+  referenceVideoLearning: {
+    sourceLabel: "rights-cleared office-life remake reference",
+    sourceUrl: "https://media.example.com/reference/office-life-remake",
+    summary: "Creator opens on a chaotic desk, shows a tiny frustration, snaps into a satisfying magnetic cable motion, reacts, and lands on a clean before-after payoff.",
+    hook: "POV: your desk looks fine until every cable starts fighting you.",
+    durationSeconds: 27,
+    sceneCount: 5,
+    pacing: "0-2s chaos hook, 2-8s frustration, 8-16s magnetic mechanism, 16-23s satisfying cleanup, 23-27s payoff",
+    cameraStyle: "desk POV, fast handheld push-in, macro magnetic snap, creator reaction, locked clean final frame",
+    captionStyle: "visual beat rhythm only; no generated visible text",
+    audioStyle: "quick original beat accents with new guided creator narration",
+    retentionPattern: "hold the clean final desk until after the macro magnetic proof beat",
+    ctaStyle: "soft desk routine payoff without hard-sell text",
+    visualMotifs: ["desk chaos", "magnetic snap", "clean final frame"],
+    doNotCopy: true
+  },
+  mediaReferences: [
+    {
+      role: "kol",
+      kind: "image",
+      uri: "asset://short-viral/desk-kol",
+      label: "Desk KOL reference",
+      rightsStatus: "operator_approved",
+      priority: "primary",
+      description: "Preserve approved KOL identity only."
+    },
+    {
+      role: "product",
+      kind: "image",
+      uri: "asset://short-viral/magsnap-product",
+      label: "MagSnap product reference",
+      rightsStatus: "operator_approved",
+      priority: "primary",
+      description: "Preserve product geometry and magnetic mechanism only."
+    },
+    {
+      role: "background",
+      kind: "image",
+      uri: "asset://short-viral/desk-background",
+      label: "Desk background",
+      rightsStatus: "operator_approved",
+      priority: "supporting",
+      description: "Preserve desk layout and broad environment only."
+    },
+    {
+      role: "source_video",
+      kind: "video",
+      uri: "https://media.example.com/reference/office-life-remake",
+      label: "Office-life remake structure",
+      rightsStatus: "operator_approved",
+      priority: "supporting",
+      description: "Learn rhythm, acting beats, camera grammar, retention timing, and payoff structure only."
+    }
+  ]
+});
+
+const trendUploadOnlyPlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_trend_upload_only",
+  generatedAt,
+  userPrompt: "Create a Video Remake from my uploaded viral trend video for a serum launch. Match the beat order, acting rhythm, camera grammar, and payoff timing, but replace the creator with my KOL, product with my serum, background with my bathroom set, and use original voice/audio.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 24,
+  product: {
+    snapshot: {
+      productTitle: "Glow Focus Serum",
+      category: "beauty",
+      benefits: ["Lightweight texture layers cleanly under makeup"],
+      claims: ["Lightweight texture layers cleanly under makeup"],
+      targetBuyer: "busy skincare buyers",
+      cta: "Shop now"
+    }
+  },
+  mediaReferences: [
+    {
+      role: "kol",
+      kind: "image",
+      uri: "asset://short-viral/trend-upload-kol",
+      label: "Trend Upload KOL",
+      rightsStatus: "operator_approved",
+      priority: "primary"
+    },
+    {
+      role: "product",
+      kind: "image",
+      uri: "asset://short-viral/trend-upload-serum",
+      label: "Trend Upload Serum",
+      rightsStatus: "operator_approved",
+      priority: "primary"
+    },
+    {
+      role: "background",
+      kind: "image",
+      uri: "asset://short-viral/trend-upload-bathroom",
+      label: "Bathroom background",
+      rightsStatus: "operator_approved",
+      priority: "supporting"
+    },
+    {
+      role: "source_video",
+      kind: "video",
+      uri: "asset://short-viral/uploaded-trend-reference",
+      label: "Uploaded trend structure",
+      rightsStatus: "operator_approved",
+      priority: "supporting",
+      description: "5 beat source: hook reaction, product reveal, macro proof, mirror reaction, payoff."
+    }
+  ]
+});
+
+const newsExplainerPlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_news_explainer",
+  generatedAt,
+  userPrompt: "Create a 30 second TikTok news commentary short explaining a breaking AI policy update. Make it fast, accurate, saveable, and not a product ad.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 30
+});
+
+const podcastClipPlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_podcast_clip",
+  generatedAt,
+  userPrompt: "Turn a founder podcast hot take into a 32 second short with B-roll for a SaaS workflow app. Visualize the quote, show the workflow pain, then land a clear proof payoff.",
+  targetPlatform: "youtube_shorts",
+  targetDurationSeconds: 32,
+  product: {
+    snapshot: {
+      productTitle: "FlowDesk App",
+      category: "SaaS workflow app",
+      benefits: ["Turns messy approvals into a clearer handoff workflow"],
+      claims: ["Cleaner approval handoff workflow"],
+      targetBuyer: "agency operators",
+      cta: "Book a demo"
+    }
+  }
+});
+
+const fashionTryOnPlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_fashion_tryon",
+  generatedAt,
+  userPrompt: "Create a TikTok try-on transition stack for a travel hoodie. Make it GRWM, tactile, fit-check oriented, native, and conversion-ready.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 22,
+  product: {
+    snapshot: {
+      productTitle: "CloudTrail Travel Hoodie",
+      category: "fashion apparel",
+      benefits: ["Soft structured fit for airport and city travel"],
+      claims: ["Soft structured fit"],
+      targetBuyer: "style-conscious travelers",
+      cta: "Try the hoodie"
+    }
+  }
+});
+
+const mobileAppPlan = planner.buildPlan({
+  projectId: "short_viral_smoke",
+  requestId: "req_short_mobile_app_demo",
+  generatedAt,
+  userPrompt: "Create a 25 second app demo short for a mobile habit tracker. Do not show fake text-heavy screens; tell the app value through a real morning routine and one aha workflow.",
+  targetPlatform: "instagram_reels",
+  targetDurationSeconds: 25,
+  product: {
+    snapshot: {
+      productTitle: "HabitPulse",
+      category: "mobile app",
+      benefits: ["Turns a scattered morning routine into one small repeatable habit loop"],
+      claims: ["Helps users track small daily habits"],
+      targetBuyer: "busy app users building habits",
+      cta: "Try the app"
+    }
+  }
+});
+
 const conversation = conversationEngine.buildSession({
   projectId: "short_viral_smoke",
   requestId: "req_short_viral_conversation",
@@ -238,6 +477,22 @@ const renderHandoff = buildShortPipelineRenderHandoff({
   }
 });
 
+const videoRemakeHandoff = buildShortPipelineRenderHandoff({
+  plan: videoRemakePlan,
+  includeGeneratedAudioIntents: true,
+  metadata: {
+    workspaceId: "short_viral_remake_workspace"
+  }
+});
+
+const trendUploadHandoff = buildShortPipelineRenderHandoff({
+  plan: trendUploadOnlyPlan,
+  includeGeneratedAudioIntents: true,
+  metadata: {
+    workspaceId: "short_trend_upload_workspace"
+  }
+});
+
 const serialized = JSON.stringify({
   viralPlan,
   copyRiskPlan,
@@ -245,24 +500,40 @@ const serialized = JSON.stringify({
   unsafeReferencePlan,
   genericNichePlan,
   beveragePlan,
+  miniTextPlan,
+  videoRemakePlan,
+  trendUploadOnlyPlan,
+  newsExplainerPlan,
+  podcastClipPlan,
+  fashionTryOnPlan,
+  mobileAppPlan,
   conversation,
-  renderHandoff
+  renderHandoff,
+  videoRemakeHandoff,
+  trendUploadHandoff
 });
 const rawReferenceLeak = serialized.includes("https://media.example.com/reference/glow-review") ||
   serialized.includes("https://media.example.com/reference/copy-risk") ||
   serialized.includes("https://media.example.com/reference/vietnamese-copy-risk") ||
+  serialized.includes("https://media.example.com/reference/office-life-remake") ||
   serialized.includes("https://media.example.com/reference/conversation-pattern") ||
   serialized.includes("C:\\Users\\Admin\\Videos\\secret-reference.mp4") ||
   serialized.includes("signature=abc123");
 const audienceNiche = viralPlan.viralIntelligence.nicheStrategy.audienceNicheIntelligence;
 const creativeLearning = viralPlan.viralIntelligence.creativePatternLearning;
 const selectedIdea = creativeLearning.candidates.find((candidate) => candidate.ideaId === creativeLearning.selectedIdeaId);
+const promptCorpusPatternCount = creativeLearning.patterns.filter((pattern) => pattern.source === "seedance_prompt_corpus").length;
+const platformTemplatePatternCount = creativeLearning.patterns.filter((pattern) => pattern.source === "platform_template_corpus").length;
 const genericCreativeLearning = genericNichePlan.viralIntelligence.creativePatternLearning;
 const genericSelectedIdea = genericCreativeLearning.candidates.find((candidate) => candidate.ideaId === genericCreativeLearning.selectedIdeaId);
 const beverageCreativeLearning = beveragePlan.viralIntelligence.creativePatternLearning;
 const beverageSelectedIdea = beverageCreativeLearning.candidates.find((candidate) => candidate.ideaId === beverageCreativeLearning.selectedIdeaId);
+const miniCreativeLearning = miniTextPlan.viralIntelligence.creativePatternLearning;
+const videoRemakeBlueprint = videoRemakePlan.referenceRemakeBlueprint;
+const trendUploadBlueprint = trendUploadOnlyPlan.referenceRemakeBlueprint;
 const vietnameseCreativeLearning = vietnameseCopyRiskPlan.viralIntelligence.creativePatternLearning;
 const vietnameseSelectedIdea = vietnameseCreativeLearning.candidates.find((candidate) => candidate.ideaId === vietnameseCreativeLearning.selectedIdeaId);
+const newTaxonomyPlans = [newsExplainerPlan, podcastClipPlan, fashionTryOnPlan, mobileAppPlan];
 
 const checks = [
   viralPlan.noSpend && !viralPlan.networkCallsMade && !viralPlan.providerCallsMade &&
@@ -291,8 +562,8 @@ const checks = [
     creativeLearning.noSpend === true &&
     creativeLearning.networkCallsMade === false &&
     creativeLearning.providerCallsMade === false &&
-    creativeLearning.patternCount >= 8 &&
-    creativeLearning.candidateCount >= 8 &&
+    creativeLearning.patternCount >= 14 &&
+    creativeLearning.candidateCount >= 14 &&
     Boolean(selectedIdea) &&
     selectedIdea.score.totalScore >= 0.65 &&
     selectedIdea.score.nonCloneSafety >= 0.7 &&
@@ -302,6 +573,39 @@ const checks = [
     renderHandoff.request.userInput.includes("Selected idea:")
     ? pass("creative_pattern_learning_candidates", "Short viral planning generates many niche/reference-aware idea candidates, scores them, selects a non-clone idea, and hands it to render.")
     : fail("creative_pattern_learning_candidates", "Expected creative pattern learning with scored candidates, selected idea, guardrails, and render handoff lineage."),
+  promptCorpusPatternCount >= 4 &&
+    SHORT_PROMPT_CORPUS_COVERAGE.declaredPromptCount === 3817 &&
+    SHORT_PROMPT_CORPUS_COVERAGE.runtimePatternCount >= 80 &&
+    SHORT_PROMPT_CORPUS_COVERAGE.taxonomyFamilyCount >= 40 &&
+    creativeLearning.patterns.some((pattern) => pattern.source === "seedance_prompt_corpus" && pattern.fitReasons.some((reason) => reason.includes("license=CC-BY-4.0"))) &&
+    creativeLearning.patterns.some((pattern) => pattern.source === "seedance_prompt_corpus" && pattern.fitReasons.some((reason) => reason.includes("corpus_declared_prompts=3817"))) &&
+    creativeLearning.patterns.some((pattern) => pattern.source === "seedance_prompt_corpus" && pattern.riskControls.some((risk) => risk.includes("do not reproduce upstream prompt wording"))) &&
+    genericCreativeLearning.patterns.some((pattern) => pattern.source === "seedance_prompt_corpus") &&
+    beverageCreativeLearning.patterns.some((pattern) => pattern.source === "seedance_prompt_corpus") &&
+    renderHandoff.request.userInput.includes("Prompt corpus guidance:")
+    ? pass("seedance_prompt_corpus_rag", "Prompt corpus RAG retrieves rights-aware Seedance/ad/UGC pattern DNA across niches, carries 3817-prompt lineage, and hands distilled guidance to render without verbatim prompt copying.")
+    : fail("seedance_prompt_corpus_rag", "Expected Seedance prompt corpus coverage, license lineage, no-copy guardrails, cross-niche retrieval, and render prompt guidance."),
+  platformTemplatePatternCount >= 4 &&
+    SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.templateArchetypeCount >= 20 &&
+    SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.nicheFamilyCount >= 40 &&
+    SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.declaredPatternMatrixCount >= 900 &&
+    creativeLearning.patterns.some((pattern) => pattern.source === "platform_template_corpus" && pattern.fitReasons.some((reason) => reason.includes("pattern_matrix="))) &&
+    creativeLearning.patterns.some((pattern) => pattern.source === "platform_template_corpus" && pattern.riskControls.some((risk) => risk.includes("do not reproduce third-party template wording"))) &&
+    newTaxonomyPlans.every((plan) => plan.viralIntelligence.creativePatternLearning.patterns.some((pattern) => pattern.source === "platform_template_corpus")) &&
+    renderHandoff.request.userInput.includes("Platform template guidance:")
+    ? pass("platform_template_training_corpus", "Platform template corpus retrieves public/licensed workflow structure across niches and hands no-copy template guidance to render.")
+    : fail("platform_template_training_corpus", "Expected platform template matrix coverage, cross-niche retrieval, no-copy guardrails, and render prompt guidance."),
+  newTaxonomyPlans.every((plan) =>
+    plan.viralIntelligence.creativePatternLearning.patterns.some((pattern) => pattern.source === "seedance_prompt_corpus") &&
+    plan.viralIntelligence.creativePatternLearning.patternCount >= 24 &&
+    plan.viralIntelligence.creativePatternLearning.candidateCount >= 24
+  ) &&
+    newsExplainerPlan.viralIntelligence.nicheStrategy.niche === "news_commentary" &&
+    podcastClipPlan.viralIntelligence.nicheStrategy.niche === "podcast_clip" &&
+    fashionTryOnPlan.viralIntelligence.nicheStrategy.niche === "fashion_apparel" &&
+    mobileAppPlan.viralIntelligence.nicheStrategy.niche === "mobile_app"
+    ? pass("expanded_taxonomy_multi_niche", "Expanded taxonomy retrieves corpus patterns for news, podcast, fashion try-on, and mobile-app short formats.")
+    : fail("expanded_taxonomy_multi_niche", "Expected expanded taxonomy plans to classify correctly and retrieve many corpus-backed candidates."),
   viralPlan.viralIntelligence.referenceVideoPattern?.sourceUrlSha256 &&
     viralPlan.viralIntelligence.referenceVideoPattern.safetyStatus === "learned_pattern" &&
     viralPlan.viralIntelligence.referenceVideoPattern.originalityGuardrails.length >= 3 &&
@@ -351,6 +655,92 @@ const checks = [
     genericCreativeLearning.patterns.some((pattern) => pattern.source === "prompt_signal")
     ? pass("workspace_niche_pattern_depth", "Workspace/cable organizer niches receive specialist desk-setup patterns plus audience seeds and prompt signals.")
     : fail("workspace_niche_pattern_depth", "Expected workspace/cable organizer planning to produce specialist safe, scored creative pattern candidates."),
+  videoRemakeBlueprint?.userFacingModeLabel === "Video Remake" &&
+    videoRemakeBlueprint.mode === "structure_remake" &&
+    videoRemakeBlueprint.status === "ready" &&
+    videoRemakeBlueprint.fidelityTarget === "structure_locked" &&
+    videoRemakeBlueprint.trendVideoIntakeMode === "uploaded_or_clean_https_reference" &&
+    videoRemakeBlueprint.replacementSlots.includes("KOL/creator") &&
+    videoRemakeBlueprint.adherenceTargets.length >= 5 &&
+    videoRemakeBlueprint.sourceBeatMap.length >= 4 &&
+    videoRemakeBlueprint.providerExecutionPlan.length >= 4 &&
+    videoRemakeBlueprint.lockedElements.length >= 4 &&
+    videoRemakeBlueprint.remakeGuardrails.some((guardrail) => guardrail.includes("replace KOL")) &&
+    videoRemakePlan.viralIntelligence.referenceVideoPattern?.safetyStatus === "learned_pattern" &&
+    videoRemakePlan.viralIntelligence.nicheStrategy.viralLevers.includes("trend_transfer") &&
+    videoRemakePlan.agentGraph?.memoryPack.retrievedPatterns.some((pattern) => pattern.source === "reference_pattern") &&
+    videoRemakeHandoff.request.metadata?.workflowMode === "source_video" &&
+    videoRemakeHandoff.request.metadata?.renderMode === "video_remake" &&
+    videoRemakeHandoff.request.metadata?.shortReferenceRemakeBlueprintId === videoRemakeBlueprint.blueprintId &&
+    videoRemakeHandoff.request.metadata?.shortReferenceRemakeTrendIntakeMode === videoRemakeBlueprint.trendVideoIntakeMode &&
+    videoRemakeHandoff.request.userInput.includes("Video Remake blueprint:") &&
+    videoRemakeHandoff.request.userInput.includes("Video Remake adherence targets:") &&
+    videoRemakeHandoff.request.userInput.includes("Video Remake source beat map:") &&
+    videoRemakeHandoff.request.userInput.includes("Video Remake replacement slots:") &&
+    !rawReferenceLeak
+    ? pass("video_remake_blueprint_handoff", "Video Remake builds a reviewable beat-map blueprint, keeps source redacted, and hands adherence/remake mode to render metadata/prompt.")
+    : fail("video_remake_blueprint_handoff", "Expected Video Remake blueprint, adherence targets, beat map, replacement slots, trend transfer, graph memory, and render handoff metadata."),
+  trendUploadBlueprint?.trendVideoIntakeMode === "uploaded_or_clean_https_reference" &&
+    trendUploadBlueprint.status === "ready" &&
+    trendUploadBlueprint.sourceBeatMap.length >= 4 &&
+    trendUploadBlueprint.adherenceTargets.some((target) => target.includes("camera grammar")) &&
+    trendUploadOnlyPlan.mediaReferencePlan.some((reference) => reference.promptRole === "source_video_structure" && reference.includeInProviderHandoff === true) &&
+    trendUploadOnlyPlan.seedanceRouting.referenceTags.some((reference) => reference.role === "source_video_structure" && reference.providerKind === "video") &&
+    trendUploadHandoff.request.references?.some((reference) => reference.role === "source_video_structure") &&
+    trendUploadHandoff.request.userInput.includes("Video Remake source beat map:")
+    ? pass("trend_video_upload_intake", "A raw uploaded source-video media reference now creates a Video Remake beat-map blueprint and provider-scoped source-video handoff without manual summary input.")
+    : fail("trend_video_upload_intake", "Expected upload-only source_video intake to synthesize learning, blueprint, @video handoff, and render prompt beat map."),
+  viralPlan.seedanceRouting.recommendedProviderMode === "reference_to_video" &&
+    viralPlan.seedanceRouting.preferredTier === "standard" &&
+    viralPlan.seedanceRouting.resolution === "720p" &&
+    viralPlan.seedanceRouting.superResolution === false &&
+    viralPlan.seedanceRouting.bitrateMode === "standard" &&
+    viralPlan.seedanceRouting.promptRecipe.name === "reference_to_video_remake_blueprint" &&
+    viralPlan.visualBiblePlan.status === "recommended" &&
+    viralPlan.visualBiblePlan.recommendedPipe === "video_remake_pipe" &&
+    viralPlan.seedanceRouting.referenceTags.length >= 2 &&
+    viralPlan.mediaReferencePlan.some((reference) => reference.promptTag === "@image1" && reference.promptRole === "identity") &&
+    viralPlan.mediaReferencePlan.some((reference) => reference.promptRole === "product" && reference.includeInProviderHandoff === true) &&
+    renderHandoff.request.references?.length >= 2 &&
+    renderHandoff.request.metadata?.shortSeedanceProviderMode === "reference_to_video" &&
+    renderHandoff.request.metadata?.shortSeedancePreferredTier === "standard" &&
+    renderHandoff.request.settings?.resolution === "720p" &&
+    renderHandoff.request.settings?.bitrateMode === "standard" &&
+    renderHandoff.request.userInput.includes("Seedance routing:") &&
+    renderHandoff.request.userInput.includes("Media reference binding:")
+    ? pass("seedance_reference_routing_handoff", "KOL/product assets route to Seedance reference-to-video with visual-bible evidence, @image tags, standard tier, 720p default bitrate, metadata, prompt, and provider references.")
+    : fail("seedance_reference_routing_handoff", "Expected KOL/product media references to drive reference-to-video routing and render handoff references."),
+  viralPlan.videoPipePlan?.schemaVersion === "cinejelly.short-video-pipe-plan.v1" &&
+    viralPlan.videoPipePlan.selectedMode === "video_remake" &&
+    viralPlan.videoPipePlan.selectedBackendPipe === "video_remake_pipe" &&
+    viralPlan.videoPipePlan.pipeOptions.length === 5 &&
+    miniTextPlan.videoPipePlan.selectedMode === "smart_short" &&
+    genericNichePlan.videoPipePlan.selectedMode === "storyboard_multishot" &&
+    genericNichePlan.videoPipePlan.selectionReasonCodes.length > 0 &&
+    renderHandoff.request.metadata?.shortVideoPipePlanId === viralPlan.videoPipePlan.pipePlanId &&
+    renderHandoff.request.metadata?.shortVideoPipeSelectedMode === "video_remake" &&
+    renderHandoff.request.metadata?.shortVideoPipeVisualBibleAlignment === "aligned" &&
+    renderHandoff.request.userInput.includes("Video pipe plan:") &&
+    renderHandoff.request.userInput.includes("Video pipe alignment:") &&
+    renderHandoff.request.userInput.includes("Available video pipes:")
+    ? pass("core_video_pipe_plan_handoff", "Five product-level video pipes, selection reason codes, and Visual Bible alignment now flow into render metadata/prompt.")
+    : fail("core_video_pipe_plan_handoff", "Expected core videoPipePlan with five options, selected modes per scenario, and render handoff metadata/prompt."),
+  miniTextPlan.seedanceRouting.recommendedProviderMode === "text_to_video" &&
+    miniTextPlan.seedanceRouting.preferredTier === "mini" &&
+    miniTextPlan.seedanceRouting.resolution === "720p" &&
+    miniTextPlan.seedanceRouting.promptRecipe.name === "text_to_video_niche_short" &&
+    miniTextPlan.mediaReferencePlan.length === 0 &&
+    miniCreativeLearning.candidateCount >= 8
+    ? pass("seedance_mini_text_only_routing", "Text-only compact shorts route to Seedance Mini with the 720p default without asking the user to choose a model.")
+    : fail("seedance_mini_text_only_routing", "Expected compact text-only short to route to mini text-to-video with no media references."),
+  qualityOverridePlan.seedanceRouting.resolution === "1080p-SR" &&
+    qualityOverridePlan.seedanceRouting.bitrateMode === "high" &&
+    qualityOverridePlan.seedanceRouting.returnLastFrame === false &&
+    qualityOverridePlan.seedanceRouting.reasonCodes.includes("user_resolution_1080p-SR") &&
+    qualityOverridePlan.seedanceRouting.reasonCodes.includes("user_bitrate_high") &&
+    qualityOverridePlan.seedanceRouting.reasonCodes.includes("user_return_last_frame_false")
+    ? pass("seedance_quality_override", "Short plan accepts user quality overrides for resolution, bitrate, and last-frame continuity.")
+    : fail("seedance_quality_override", "Expected user quality overrides to survive planner routing."),
   conversation.plan.viralIntelligence.referenceVideoPattern?.sourceUrlSha256 &&
     conversation.plan.viralIntelligence.sceneDirectives.length === conversation.plan.scenes.length &&
     conversation.rawTranscriptStored === false
@@ -379,11 +769,17 @@ const report = {
     "HKUDS/VideoAgent",
     "video-db/Director",
     "vericontext/vibeframe",
-    "YouMind-OpenLab/awesome-seedance-2-prompts"
+    "YouMind-OpenLab/awesome-seedance-2-prompts:distilled-3817-cc-by-4.0",
+    "Emily2040/seedance-2.0:seedance-skill-os-mit",
+    "ZeroLu/awesome-seedance:prompt-pattern-attribution",
+    "Topview AI public API/docs:workflow-structure-observation",
+    "Higgsfield official product-to-video guide:public-structure-observation",
+    "Higgsfield official cinematic prompt guide:public-structure-observation",
+    "OSideMedia/higgsfield-ai-prompt-skill:mit-licensed-structure"
   ],
   checkedInputs: {
     outputPath: options.outputPath,
-    scenarioCount: 8,
+    scenarioCount: 16,
     referenceRawLeakCheckPassed: !rawReferenceLeak,
     endpointsCovered: [
       "/v1/short-pipeline/plan",
@@ -399,6 +795,14 @@ const report = {
     unsafeReference: summarizePlan(unsafeReferencePlan),
     genericNiche: summarizePlan(genericNichePlan),
     beverageNiche: summarizePlan(beveragePlan),
+    miniTextOnly: summarizePlan(miniTextPlan),
+    qualityOverride: summarizePlan(qualityOverridePlan),
+    videoRemake: summarizePlan(videoRemakePlan),
+    trendUploadOnly: summarizePlan(trendUploadOnlyPlan),
+    newsExplainer: summarizePlan(newsExplainerPlan),
+    podcastClip: summarizePlan(podcastClipPlan),
+    fashionTryOn: summarizePlan(fashionTryOnPlan),
+    mobileAppDemo: summarizePlan(mobileAppPlan),
     conversation: {
       sessionId: conversation.sessionId,
       rawTranscriptStored: conversation.rawTranscriptStored,
@@ -412,11 +816,30 @@ const report = {
       planId: renderHandoff.summary.planId,
       metadataHasViralLineage: renderHandoff.request.metadata?.shortViralIntelligenceId === viralPlan.viralIntelligence.intelligenceId,
       metadataHasCreativePatternLineage: renderHandoff.request.metadata?.shortCreativePatternLearningId === viralPlan.viralIntelligence.creativePatternLearning.learningId,
+      metadataHasSeedanceRouting: Boolean(renderHandoff.request.metadata?.shortSeedanceRoutingId),
+      seedanceProviderMode: renderHandoff.request.metadata?.shortSeedanceProviderMode,
+      seedancePreferredTier: renderHandoff.request.metadata?.shortSeedancePreferredTier,
+      seedanceResolution: renderHandoff.request.metadata?.shortSeedanceResolution,
+      requestReferenceCount: renderHandoff.request.references?.length ?? 0,
+      requestSettingsTier: renderHandoff.request.settings?.tier,
+      requestSettingsResolution: renderHandoff.request.settings?.resolution,
+      requestSettingsReturnLastFrame: renderHandoff.request.settings?.returnLastFrame,
       promptHasViralStrategy: renderHandoff.request.userInput.includes("Short viral strategy:"),
       promptHasCreativePatternLearning: renderHandoff.request.userInput.includes("Creative pattern learning:"),
+      promptHasSeedanceRouting: renderHandoff.request.userInput.includes("Seedance routing:"),
+      metadataHasVideoPipePlan: renderHandoff.request.metadata?.shortVideoPipePlanId === viralPlan.videoPipePlan.pipePlanId,
+      videoPipeSelectedMode: renderHandoff.request.metadata?.shortVideoPipeSelectedMode,
+      promptHasVideoPipePlan: renderHandoff.request.userInput.includes("Video pipe plan:"),
+      promptHasMediaReferenceBinding: renderHandoff.request.userInput.includes("Media reference binding:"),
       promptHasSelectedIdea: renderHandoff.request.userInput.includes("Selected idea:"),
       promptHasSceneDirectives: renderHandoff.request.userInput.includes("Viral scene directives:"),
       promptHasReferenceGuardrail: renderHandoff.request.userInput.includes("do not copy source script wording"),
+      remakeMetadataHasSourceVideoMode: videoRemakeHandoff.request.metadata?.workflowMode === "source_video",
+      remakeMetadataHasVideoRemakeMode: videoRemakeHandoff.request.metadata?.renderMode === "video_remake",
+      promptHasVideoRemakeBlueprint: videoRemakeHandoff.request.userInput.includes("Video Remake blueprint:"),
+      promptHasVideoRemakeBeatMap: videoRemakeHandoff.request.userInput.includes("Video Remake source beat map:"),
+      trendUploadRequestReferenceCount: trendUploadHandoff.request.references?.length ?? 0,
+      trendUploadHasSourceVideoReference: trendUploadHandoff.request.references?.some((reference) => reference.role === "source_video_structure") ?? false,
       captionCueCount: renderHandoff.summary.captionCueCount,
       generatedAudioIntentCount: renderHandoff.summary.generatedAudioIntentCount,
       canReleaseToCustomerTraffic: renderHandoff.summary.canReleaseToCustomerTraffic
@@ -456,6 +879,7 @@ function summarizePlan(plan) {
     ideaSeedCount: plan.viralIntelligence.nicheStrategy.audienceNicheIntelligence.ideaSeeds.length,
     creativePatternCount: plan.viralIntelligence.creativePatternLearning.patternCount,
     ideaCandidateCount: plan.viralIntelligence.creativePatternLearning.candidateCount,
+    platformTemplatePatternCount: plan.viralIntelligence.creativePatternLearning.patterns.filter((pattern) => pattern.source === "platform_template_corpus").length,
     winningIdeaIdPresent: Boolean(plan.viralIntelligence.winningIdeaId),
     selectedIdeaScore: plan.viralIntelligence.creativePatternLearning.candidates.find((candidate) => candidate.ideaId === plan.viralIntelligence.winningIdeaId)?.score.totalScore ?? 0,
     viralLeverCount: plan.viralIntelligence.nicheStrategy.viralLevers.length,
@@ -466,6 +890,36 @@ function summarizePlan(plan) {
     referencePatternIdPresent: Boolean(plan.viralIntelligence.referenceVideoPattern?.patternId),
     referenceSafetyStatus: plan.viralIntelligence.referenceVideoPattern?.safetyStatus ?? "not_provided",
     referenceSourceUrlSha256Present: Boolean(plan.viralIntelligence.referenceVideoPattern?.sourceUrlSha256),
+    referenceRemakeBlueprintPresent: Boolean(plan.referenceRemakeBlueprint?.blueprintId),
+    referenceRemakeStatus: plan.referenceRemakeBlueprint?.status ?? "not_provided",
+    referenceRemakeTrendVideoIntakeMode: plan.referenceRemakeBlueprint?.trendVideoIntakeMode ?? "not_provided",
+    referenceRemakeReplacementSlotCount: plan.referenceRemakeBlueprint?.replacementSlots?.length ?? 0,
+    referenceRemakeAdherenceTargetCount: plan.referenceRemakeBlueprint?.adherenceTargets?.length ?? 0,
+    referenceRemakeSourceBeatMapCount: plan.referenceRemakeBlueprint?.sourceBeatMap?.length ?? 0,
+    referenceRemakeLockedElementCount: plan.referenceRemakeBlueprint?.lockedElements?.length ?? 0,
+    referenceRemakeGuardrailCount: plan.referenceRemakeBlueprint?.remakeGuardrails?.length ?? 0,
+    visualBibleStatus: plan.visualBiblePlan.status,
+    visualBibleMode: plan.visualBiblePlan.requestedMode,
+    visualBibleRecommendedPipe: plan.visualBiblePlan.recommendedPipe,
+    visualBibleDurationBand: plan.visualBiblePlan.durationBand,
+    visualBibleAssetPlanCount: plan.visualBiblePlan.assetPlans.length,
+    visualBibleBoardCount: plan.visualBiblePlan.sequencePlan.boardCount,
+    visualBibleTargetClipCount: plan.visualBiblePlan.sequencePlan.targetClipCount,
+    visualBibleBlocksRender: plan.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved,
+    videoPipePlanIdPresent: Boolean(plan.videoPipePlan?.pipePlanId),
+    videoPipeSelectedMode: plan.videoPipePlan?.selectedMode,
+    videoPipeSelectedBackendPipe: plan.videoPipePlan?.selectedBackendPipe,
+    videoPipeSelectionReasonCodeCount: plan.videoPipePlan?.selectionReasonCodes?.length ?? 0,
+    videoPipeVisualBibleAlignmentStatus: plan.videoPipePlan?.visualBibleAlignment?.status,
+    videoPipeOptionCount: plan.videoPipePlan?.pipeOptions?.length ?? 0,
+    mediaReferenceCount: plan.mediaReferencePlan.length,
+    mediaProviderHandoffCount: plan.mediaReferencePlan.filter((reference) => reference.includeInProviderHandoff).length,
+    seedanceRecommendedProviderMode: plan.seedanceRouting.recommendedProviderMode,
+    seedancePreferredTier: plan.seedanceRouting.preferredTier,
+    seedanceResolution: plan.seedanceRouting.resolution,
+    seedanceReturnLastFrame: plan.seedanceRouting.returnLastFrame,
+    seedanceReferenceTagCount: plan.seedanceRouting.referenceTags.length,
+    seedancePromptRecipeName: plan.seedanceRouting.promptRecipe.name,
     rawReferenceSerialized: false,
     canUseAsNoSpendViralEvidence: plan.viralIntelligence.releaseGateSummary.canUseAsNoSpendViralEvidence,
     canReleaseToCustomerTraffic: plan.viralIntelligence.releaseGateSummary.canReleaseToCustomerTraffic

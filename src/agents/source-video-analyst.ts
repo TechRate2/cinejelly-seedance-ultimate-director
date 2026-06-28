@@ -33,7 +33,7 @@ export class SourceVideoAnalyst {
     const structuralBeats = this.normalizeNotes(value.structuralBeats, "structuralBeats");
     const safetyNotes = this.normalizeNotes(value.safetyNotes, "safetyNotes");
 
-    return {
+    const normalized = {
       ...(sourceReferenceLabel ? { sourceReferenceLabel } : {}),
       ...(transformationIntent ? { transformationIntent } : {}),
       ...(transcript.length > 0 ? { transcript } : {}),
@@ -43,6 +43,24 @@ export class SourceVideoAnalyst {
       ...(structuralBeats.length > 0 ? { structuralBeats } : {}),
       ...(safetyNotes.length > 0 ? { safetyNotes } : {})
     };
+    if (!this.hasUsableAnalysis(normalized)) {
+      throw new Error(
+        "sourceVideoAnalysis must include at least one transformationIntent, transcript cue, scene, pacing/style note, structural beat, or safety note."
+      );
+    }
+    return normalized;
+  }
+
+  private hasUsableAnalysis(value: SourceVideoDeconstruction): boolean {
+    return Boolean(
+      value.transformationIntent ||
+        value.transcript?.length ||
+        value.scenes?.length ||
+        value.pacingNotes?.length ||
+        value.styleNotes?.length ||
+        value.structuralBeats?.length ||
+        value.safetyNotes?.length
+    );
   }
 
   private sourceReferenceLabel(value: string | undefined, references: readonly PromptReference[]): string | undefined {

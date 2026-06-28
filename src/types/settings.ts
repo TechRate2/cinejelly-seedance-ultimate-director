@@ -7,11 +7,11 @@ import type { RemoteStockProviderSettings } from "./material.js";
  * The unions mirror docs/FLEXIBLE_SEEDANCE_SETTINGS.md and stay provider-neutral.
  */
 
-export type SpeedTier = "fast" | "standard";
+export type SpeedTier = "mini" | "fast" | "standard";
 
 export type QualityMode = "economy" | "standard" | "high" | "ultimate";
 
-export type Resolution = "480p" | "720p" | "1080p";
+export type Resolution = "480p" | "720p" | "1080p" | "720p-SR" | "1080p-SR" | "1440p-SR";
 
 export type AspectRatio =
   | "adaptive"
@@ -24,6 +24,8 @@ export type AspectRatio =
 
 export type AudioMode = "none" | "native" | "guided" | "post" | "hybrid";
 
+export type BitrateMode = "standard" | "high";
+
 export interface FlexibleSeedanceSettings {
   readonly tier: SpeedTier;
   readonly resolution: Resolution;
@@ -31,6 +33,7 @@ export interface FlexibleSeedanceSettings {
   readonly ratio: AspectRatio;
   readonly durationTargetSeconds: number;
   readonly audioMode: AudioMode;
+  readonly bitrateMode: BitrateMode;
   readonly watermark: boolean;
   readonly returnLastFrame: boolean;
   readonly maxCostUsd?: number;
@@ -42,6 +45,7 @@ export interface ModelPreferences {
 
 export interface ProviderModelSettings {
   readonly llmModel: string;
+  readonly seedanceMiniModel?: string;
   readonly seedanceStandardModel: string;
   readonly seedanceFastModel: string;
 }
@@ -106,6 +110,7 @@ export const DEFAULT_SEEDANCE_SETTINGS: FlexibleSeedanceSettings = {
   ratio: "16:9",
   durationTargetSeconds: 120,
   audioMode: "hybrid",
+  bitrateMode: "standard",
   watermark: false,
   returnLastFrame: true
 };

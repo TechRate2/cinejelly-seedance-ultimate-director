@@ -26,6 +26,7 @@ import {
   buildOperatorLaunchUiContract,
   type OperatorLaunchUiReportInput
 } from "../core/operator-launch-ui-contract.js";
+import { BITRATE_MODES, RESOLUTIONS } from "../config/seedance-settings.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import { ReviewApprovalSystem } from "../core/review-approval-system.js";
@@ -41,8 +42,10 @@ import { ShortPipelinePlanner } from "../core/short-pipeline-planner.js";
 import {
   buildShortPipelineRenderHandoff,
   reviewInputCanQueueRender,
+  type ShortPipelineRenderHandoff,
   type ShortPipelineRenderHandoffReviewInput
 } from "../core/short-pipeline-render-handoff.js";
+import { buildShortVideoPipeCatalog } from "../core/short-video-pipe-planner.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { ProjectArtifactBundle, ProjectArtifactValidationReport } from "../types/artifact.js";
 import type { LongFormCreativeIntelligencePlan } from "../types/long-form-creative-intelligence.js";
@@ -59,9 +62,13 @@ import type {
   ShortPipelineConversationInput,
   ShortPipelineConversationMessageInput,
   ShortPipelineConversationRole,
+  ShortMediaReferenceInput,
   ShortPipelinePlan,
-  ShortPipelinePlanInput
+  ShortPipelinePlanInput,
+  ShortSeedanceSettingsInput,
+  ShortVisualBibleInput
 } from "../types/short-pipeline.js";
+import type { BitrateMode, Resolution } from "../types/settings.js";
 import type { ShortChannelStyleProfileInput } from "../types/short-channel-style.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
@@ -142,6 +149,26 @@ const LONG_DIRECTOR_NARRATIVE_MODES = new Set([
 ]);
 const LONG_DIRECTOR_CONTINUITY_MODES = new Set(["project_bible", "series_bible_required"]);
 const LONG_DIRECTOR_CHECKPOINT_STAGES = new Set(["story", "scene_plan", "references", "sample", "render", "publish"]);
+const SHORT_MEDIA_REFERENCE_ROLES = new Set([
+  "kol",
+  "creator",
+  "product",
+  "wardrobe",
+  "clothing",
+  "background",
+  "environment",
+  "first_frame",
+  "last_frame",
+  "style",
+  "motion",
+  "camera",
+  "audio",
+  "source_video"
+]);
+const SHORT_MEDIA_REFERENCE_KINDS = new Set(["image", "video", "audio"]);
+const SHORT_MEDIA_REFERENCE_RIGHTS = new Set(["operator_approved", "needs_review", "unknown"]);
+const SHORT_MEDIA_REFERENCE_PRIORITIES = new Set(["primary", "supporting"]);
+const MAX_SHORT_MEDIA_REFERENCES = 12;
 const OPERATOR_LAUNCH_UI_REPORTS = [
   {
     reportId: "business_completion_audit",
@@ -211,10 +238,12 @@ interface ShortPipelineConversationRequestBody extends Omit<ShortPipelineConvers
   readonly messages?: readonly ShortPipelineConversationMessageInput[];
   readonly userPrompt?: string;
   readonly channelStyleProfileId?: string;
+  readonly settings?: CineJellyProjectRequest["settings"];
 }
 
 interface ShortPipelinePlanRequestBody extends ShortPipelinePlanInput {
   readonly channelStyleProfileId?: string;
+  readonly settings?: CineJellyProjectRequest["settings"];
 }
 
 interface ShortPipelineProductUrlPlanRequestBody extends ShortPipelinePlanRequestBody {
@@ -323,6 +352,12 @@ class ShortPipelineRenderHandoffError extends Error {
   public constructor(message: string) {
     super(message);
     this.name = "ShortPipelineRenderHandoffError";
+  }
+}
+
+function assertShortPipelineRenderHandoffAllowed(handoff: ShortPipelineRenderHandoff): void {
+  if (!handoff.summary.canUseAsRenderJobHandoff) {
+    throw new ShortPipelineRenderHandoffError(handoff.summary.releaseBlocker);
   }
 }
 
@@ -443,6 +478,10 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         (requestUrl.pathname === "/short/create" || requestUrl.pathname === "/short/create-video")
       ) {
         sendHtml(response, 200, buildShortPipelineCreatePage());
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/short-pipeline/video-pipes") {
+        sendJson(response, 200, buildShortVideoPipeCatalog(), requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/channel-styles") {
@@ -606,6 +645,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             : {}),
           ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
+        assertShortPipelineRenderHandoffAllowed(handoff);
         requestAdmission.assertAcceptable(handoff.request);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest
@@ -783,6 +823,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             : {}),
           ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
+        assertShortPipelineRenderHandoffAllowed(handoff);
         requestAdmission.assertAcceptable(handoff.request);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
@@ -1330,6 +1371,9 @@ function shortPipelineConversationInputFromBody(
     throw new RenderRequestAdmissionError("Short pipeline conversation requires messages or userPrompt.");
   }
   const channelStyle = resolveShortChannelStyleInput(body, channelStyleStore, clientScope);
+  const mediaReferences = mediaReferencesFromBody(body.mediaReferences, "mediaReferences");
+  const seedanceSettings = shortSeedanceSettingsFromBody(body.seedanceSettings ?? body.settings, "seedanceSettings");
+  const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
     projectId: body.projectId,
     requestId: body.requestId ?? requestId,
@@ -1337,6 +1381,7 @@ function shortPipelineConversationInputFromBody(
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
     ...(channelStyle ? { channelStyle } : {}),
+    ...(mediaReferences ? { mediaReferences } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
     ...(body.allowTemplateSuggestions !== undefined
@@ -1345,6 +1390,8 @@ function shortPipelineConversationInputFromBody(
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
     ...(body.audio ? { audio: body.audio } : {}),
+    ...(seedanceSettings ? { seedanceSettings } : {}),
+    ...(visualBible ? { visualBible } : {}),
     ...(body.generatedAt ? { generatedAt: optionalDate(body.generatedAt, "generatedAt") } : {})
   };
 }
@@ -1374,6 +1421,145 @@ function conversationMessagesFromBody(body: ShortPipelineConversationRequestBody
   });
 }
 
+function mediaReferencesFromBody(
+  value: unknown,
+  label: string
+): readonly ShortMediaReferenceInput[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an array when provided.`);
+  }
+  if (value.length > MAX_SHORT_MEDIA_REFERENCES) {
+    throw new RenderRequestAdmissionError(`${label} cannot contain more than ${MAX_SHORT_MEDIA_REFERENCES} items.`);
+  }
+  const references = value.map((item, index): ShortMediaReferenceInput => {
+    const itemLabel = `${label}[${index}]`;
+    if (!isJsonRecord(item)) {
+      throw new RenderRequestAdmissionError(`${itemLabel} must be an object.`);
+    }
+    const role = boundedMediaEnum(item.role, `${itemLabel}.role`, SHORT_MEDIA_REFERENCE_ROLES);
+    const uri = boundedMediaString(item.uri, `${itemLabel}.uri`, 600, true);
+    const kind = item.kind === undefined
+      ? undefined
+      : boundedMediaEnum(item.kind, `${itemLabel}.kind`, SHORT_MEDIA_REFERENCE_KINDS);
+    const rightsStatus = item.rightsStatus === undefined
+      ? undefined
+      : boundedMediaEnum(item.rightsStatus, `${itemLabel}.rightsStatus`, SHORT_MEDIA_REFERENCE_RIGHTS);
+    const priority = item.priority === undefined
+      ? undefined
+      : boundedMediaEnum(item.priority, `${itemLabel}.priority`, SHORT_MEDIA_REFERENCE_PRIORITIES);
+    const displayLabel = item.label === undefined
+      ? undefined
+      : boundedMediaString(item.label, `${itemLabel}.label`, 120, false);
+    const description = item.description === undefined
+      ? undefined
+      : boundedMediaString(item.description, `${itemLabel}.description`, 300, false);
+    const reference: Record<string, unknown> = {
+      role: role as ShortMediaReferenceInput["role"],
+      uri
+    };
+    if (displayLabel) reference.label = displayLabel;
+    if (kind !== undefined) reference.kind = kind as ShortMediaReferenceInput["kind"];
+    if (rightsStatus !== undefined) reference.rightsStatus = rightsStatus as ShortMediaReferenceInput["rightsStatus"];
+    if (priority !== undefined) reference.priority = priority as ShortMediaReferenceInput["priority"];
+    if (description) reference.description = description;
+    return reference as unknown as ShortMediaReferenceInput;
+  });
+  return references.length > 0 ? references : undefined;
+}
+
+function shortSeedanceSettingsFromBody(value: unknown, label: string): ShortSeedanceSettingsInput | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isJsonRecord(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an object when provided.`);
+  }
+  const settings: {
+    resolution?: Resolution;
+    bitrateMode?: BitrateMode;
+    returnLastFrame?: boolean;
+  } = {};
+  if (value.resolution !== undefined) {
+    if (typeof value.resolution !== "string" || !RESOLUTIONS.includes(value.resolution as Resolution)) {
+      throw new RenderRequestAdmissionError(`${label}.resolution is invalid.`);
+    }
+    settings.resolution = value.resolution as Resolution;
+  }
+  if (value.bitrateMode !== undefined) {
+    if (typeof value.bitrateMode !== "string" || !BITRATE_MODES.includes(value.bitrateMode as BitrateMode)) {
+      throw new RenderRequestAdmissionError(`${label}.bitrateMode is invalid.`);
+    }
+    settings.bitrateMode = value.bitrateMode as BitrateMode;
+  }
+  const returnLastFrame = optionalBoolean(value.returnLastFrame, `${label}.returnLastFrame`);
+  if (returnLastFrame !== undefined) {
+    settings.returnLastFrame = returnLastFrame;
+  }
+  return Object.keys(settings).length > 0 ? settings : undefined;
+}
+
+function shortVisualBibleFromBody(value: unknown, label: string): ShortVisualBibleInput | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isJsonRecord(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an object when provided.`);
+  }
+  const visualBible: ShortVisualBibleInput = {};
+  if (value.mode !== undefined) {
+    const allowedModes = new Set(["auto", "off", "reference_board", "storyboard_board", "production_bible"]);
+    if (typeof value.mode !== "string" || !allowedModes.has(value.mode)) {
+      throw new RenderRequestAdmissionError(`${label}.mode is invalid.`);
+    }
+    (visualBible as { mode?: ShortVisualBibleInput["mode"] }).mode = value.mode as ShortVisualBibleInput["mode"];
+  }
+  if (value.imageProviderPolicy !== undefined) {
+    const allowedPolicies = new Set(["provider_neutral", "openai_compatible", "atlascloud", "operator_supplied"]);
+    if (typeof value.imageProviderPolicy !== "string" || !allowedPolicies.has(value.imageProviderPolicy)) {
+      throw new RenderRequestAdmissionError(`${label}.imageProviderPolicy is invalid.`);
+    }
+    (visualBible as { imageProviderPolicy?: ShortVisualBibleInput["imageProviderPolicy"] }).imageProviderPolicy = value.imageProviderPolicy as ShortVisualBibleInput["imageProviderPolicy"];
+  }
+  if (value.maxBoardCount !== undefined) {
+    if (typeof value.maxBoardCount !== "number" || !Number.isFinite(value.maxBoardCount) || value.maxBoardCount < 1 || value.maxBoardCount > 12) {
+      throw new RenderRequestAdmissionError(`${label}.maxBoardCount must be between 1 and 12.`);
+    }
+    (visualBible as { maxBoardCount?: number }).maxBoardCount = Math.floor(value.maxBoardCount);
+  }
+  const requireBeforeRender = optionalBoolean(value.requireBeforeRender, `${label}.requireBeforeRender`);
+  if (requireBeforeRender !== undefined) {
+    (visualBible as { requireBeforeRender?: boolean }).requireBeforeRender = requireBeforeRender;
+  }
+  return Object.keys(visualBible).length > 0 ? visualBible : undefined;
+}
+
+function boundedMediaEnum(value: unknown, label: string, allowed: ReadonlySet<string>): string {
+  if (typeof value !== "string" || !allowed.has(value)) {
+    throw new RenderRequestAdmissionError(`${label} is invalid.`);
+  }
+  return value;
+}
+
+function boundedMediaString(value: unknown, label: string, maxLength: number, required: boolean): string {
+  if (typeof value !== "string") {
+    throw new RenderRequestAdmissionError(`${label} must be a string.`);
+  }
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (required && !normalized) {
+    throw new RenderRequestAdmissionError(`${label} cannot be empty.`);
+  }
+  if (normalized.length > maxLength) {
+    throw new RenderRequestAdmissionError(`${label} cannot exceed ${maxLength} characters.`);
+  }
+  if (REVIEW_TEXT_CONTROL_CHARACTER_PATTERN.test(normalized)) {
+    throw new RenderRequestAdmissionError(`${label} must not contain control characters.`);
+  }
+  return normalized;
+}
+
 function shortPipelinePlanInputFromBody(
   body: ShortPipelinePlanRequestBody,
   requestId: string,
@@ -1396,6 +1582,9 @@ function shortPipelinePlanInputFromBody(
     throw new RenderRequestAdmissionError("Short pipeline requires userPrompt, product.productUrl, or product.snapshot.");
   }
   const channelStyle = resolveShortChannelStyleInput(body, channelStyleStore, clientScope);
+  const mediaReferences = mediaReferencesFromBody(body.mediaReferences, "mediaReferences");
+  const seedanceSettings = shortSeedanceSettingsFromBody(body.seedanceSettings ?? body.settings, "seedanceSettings");
+  const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
     projectId: body.projectId,
     requestId: body.requestId ?? requestId,
@@ -1403,12 +1592,17 @@ function shortPipelinePlanInputFromBody(
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
     ...(channelStyle ? { channelStyle } : {}),
+    ...(mediaReferences ? { mediaReferences } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
-    ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),
+    ...(body.allowTemplateSuggestions !== undefined
+      ? { allowTemplateSuggestions: optionalBoolean(body.allowTemplateSuggestions, "allowTemplateSuggestions") ?? true }
+      : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
     ...(body.audio ? { audio: body.audio } : {}),
+    ...(seedanceSettings ? { seedanceSettings } : {}),
+    ...(visualBible ? { visualBible } : {}),
     ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
   };
 }
@@ -1551,11 +1745,13 @@ function shortPipelineProductUrlPlanBodyFromBody(
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
     ...(body.channelStyle ? { channelStyle: body.channelStyle } : {}),
     ...(body.channelStyleProfileId ? { channelStyleProfileId: body.channelStyleProfileId } : {}),
+    ...(body.mediaReferences ? { mediaReferences: body.mediaReferences } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
     ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+    ...(body.visualBible ? { visualBible: body.visualBible } : {}),
     ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
   }, requestId, channelStyleStore, clientScope);
   if (!planInput.product || typeof planInput.product !== "object" || Array.isArray(planInput.product)) {

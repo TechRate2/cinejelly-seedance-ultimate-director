@@ -3,6 +3,8 @@
  * FFmpeg xfade/acrossfade is used to reduce hard cuts between Seedance clips.
  */
 
+import type { AspectRatio } from "./settings.js";
+
 export type TransitionKind = "fade" | "wipeleft" | "wiperight" | "slideleft" | "slideright";
 
 export interface TransitionSettings {
@@ -10,7 +12,8 @@ export interface TransitionSettings {
   readonly kind: TransitionKind;
   readonly durationSeconds: number;
   readonly fps: number;
-  readonly targetHeight?: 480 | 720 | 1080;
+  readonly targetHeight?: 480 | 720 | 1080 | 1440;
+  readonly targetRatio?: AspectRatio;
   readonly preserveAudio: boolean;
 }
 

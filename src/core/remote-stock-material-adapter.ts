@@ -14,6 +14,7 @@ import type {
   RemoteStockProviderSettings
 } from "../types/material.js";
 import type { AspectRatio, Resolution } from "../types/settings.js";
+import { seedanceResolutionHeight } from "../config/seedance-settings.js";
 import { createStableId } from "../utils/ids.js";
 
 const SECRET_QUERY_KEY_PATTERN =
@@ -497,14 +498,7 @@ export class RemoteStockMaterialAdapter implements MaterialSourceAdapter {
   }
 
   private resolutionHeight(resolution: Resolution): number {
-    switch (resolution) {
-      case "480p":
-        return 480;
-      case "720p":
-        return 720;
-      case "1080p":
-        return 1080;
-    }
+    return seedanceResolutionHeight(resolution);
   }
 
   private isSafeCandidateUri(uri: string): boolean {

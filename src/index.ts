@@ -103,6 +103,8 @@ export * from "./core/short-agent-graph-planner.js";
 export * from "./core/short-commercial-readiness-planner.js";
 export * from "./core/short-pipeline-planner.js";
 export * from "./core/short-pipeline-render-handoff.js";
+export * from "./core/short-visual-bible-planner.js";
+export * from "./core/short-video-pipe-planner.js";
 export * from "./core/short-viral-intelligence-planner.js";
 export * from "./core/source-video-auto-analyzer.js";
 export * from "./core/source-logic-translation-ledger.js";

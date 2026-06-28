@@ -3,7 +3,7 @@
  * Application services depend on these shapes, never on Atlas-specific payloads.
  */
 
-import type { AspectRatio, Resolution } from "./settings.js";
+import type { AspectRatio, BitrateMode, Resolution } from "./settings.js";
 import type { GeneratedAudioIntentKind } from "./audio.js";
 import type { ProviderErrorCode } from "../utils/errors.js";
 
@@ -78,6 +78,7 @@ export interface VideoGenerationSettings {
   readonly resolution: Resolution;
   readonly ratio: AspectRatio;
   readonly generateAudio: boolean;
+  readonly bitrateMode: BitrateMode;
   readonly watermark: boolean;
   readonly returnLastFrame: boolean;
 }

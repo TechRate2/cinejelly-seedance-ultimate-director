@@ -7,6 +7,7 @@ export type VideoRenderRequestedMode =
   | "multishot"
   | "reference_locked"
   | "source_video"
+  | "sequence_bible"
   | "manual_storyboard";
 
 export type VideoRenderWorkflowMode =
@@ -15,6 +16,7 @@ export type VideoRenderWorkflowMode =
   | "storyboard_multishot"
   | "reference_locked_multishot"
   | "source_video_guided"
+  | "sequence_bible"
   | "manual_storyboard";
 
 export type VideoRenderContinuityMode =
@@ -23,6 +25,7 @@ export type VideoRenderContinuityMode =
   | "reference_locked"
   | "last_frame_chaining"
   | "source_video_guided"
+  | "sequence_bible"
   | "manual_locked";
 
 export type LastFrameChainingStatus = "not_needed" | "recommended" | "required" | "blocked";
@@ -35,6 +38,7 @@ export type VideoRenderStrategyDecisionCode =
   | "auto_storyboard_multishot_selected"
   | "reference_lock_selected"
   | "source_video_guided_selected"
+  | "sequence_bible_selected"
   | "manual_storyboard_selected"
   | "last_frame_chaining_required"
   | "last_frame_chaining_recommended"

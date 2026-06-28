@@ -44,6 +44,8 @@ const {
   reviewInputCanQueueRender
 } = await import("../dist/core/short-pipeline-render-handoff.js");
 const { StoryArchitect } = await import("../dist/agents/story-architect.js");
+const { ShotPlanner } = await import("../dist/core/shot-planner.js");
+const { SeedancePromptCompiler } = await import("../dist/prompt_compiler/prompt-compiler.js");
 const planner = new ShortPipelinePlanner();
 const generatedAt = new Date("2026-06-19T00:00:00.000Z");
 
@@ -205,6 +207,130 @@ const douyinChinesePromptPlan = planner.buildPlan({
   userPrompt: "Create a 18 second \u6296\u97f3 UGC review short for a skincare offer with a fast hook, proof beat, and native CTA.",
   allowTemplateSuggestions: true
 });
+const smartShortPipePlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_pipe_smart_short",
+  generatedAt,
+  userPrompt: "Create a 12 second TikTok idea for a funny productivity micro-story with a sharp hook, one visual twist, and an original ending.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 12
+});
+const productKolPipePlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_pipe_product_kol",
+  generatedAt,
+  userPrompt: "Create a 28 second TikTok UGC serum proof video using my KOL image, product pack, and bathroom background. Keep it natural and proof-led.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 28,
+  seedanceSettings: {
+    resolution: "1080p-SR",
+    bitrateMode: "high",
+    returnLastFrame: true
+  },
+  product: {
+    snapshot: {
+      productTitle: "Glow Focus Serum",
+      category: "beauty",
+      benefits: ["Lightweight texture layers cleanly under makeup"],
+      claims: ["Lightweight texture layers cleanly under makeup"],
+      targetBuyer: "busy skincare buyers",
+      cta: "Shop now"
+    }
+  },
+  mediaReferences: [
+    mediaReference("kol", "image", "asset://short-pipeline/kol-mina", "Mina KOL reference", "operator_approved", "primary"),
+    mediaReference("product", "image", "asset://short-pipeline/glow-serum-pack", "Glow serum product pack", "operator_approved", "primary"),
+    mediaReference("background", "image", "asset://short-pipeline/bathroom-set", "Bathroom vanity background", "operator_approved", "supporting")
+  ]
+});
+const videoRemakePipePlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_pipe_video_remake",
+  generatedAt,
+  userPrompt: "Create a Video Remake from my approved trend reference for a serum launch. Keep the beat order, acting rhythm, camera grammar, and payoff timing, but replace KOL, product, setting, voice, audio, and claims.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 24,
+  product: {
+    snapshot: {
+      productTitle: "Glow Focus Serum",
+      category: "beauty",
+      benefits: ["Lightweight texture layers cleanly under makeup"],
+      claims: ["Lightweight texture layers cleanly under makeup"],
+      targetBuyer: "busy skincare buyers",
+      cta: "Shop now"
+    }
+  },
+  referenceVideoLearning: {
+    sourceLabel: "approved serum trend structure",
+    sourceUrl: "https://media.example.com/reference/serum-trend-remake",
+    summary: "Creator opens with a mirror routine interruption, moves into a product reveal, shows macro texture proof, reacts naturally, and ends on a clean routine payoff.",
+    hook: "The routine looks normal until the mirror close-up reveals the real problem.",
+    durationSeconds: 24,
+    sceneCount: 5,
+    pacing: "0-2s mirror hook, 2-7s routine problem, 7-14s serum texture proof, 14-20s KOL reaction, 20-24s payoff",
+    cameraStyle: "mirror handheld, macro product push-in, reaction cut, clean final frame",
+    captionStyle: "visual rhythm only; no generated visible text",
+    audioStyle: "original guided narration with new beat accents",
+    retentionPattern: "delay the product payoff until after the texture proof",
+    ctaStyle: "soft routine payoff using approved claim language",
+    visualMotifs: ["mirror routine", "macro serum texture", "clean payoff"],
+    doNotCopy: true
+  },
+  mediaReferences: [
+    mediaReference("kol", "image", "asset://short-pipeline/remake-kol", "Remake KOL reference", "operator_approved", "primary"),
+    mediaReference("product", "image", "asset://short-pipeline/remake-serum-pack", "Remake serum pack", "operator_approved", "primary"),
+    mediaReference("background", "image", "asset://short-pipeline/remake-bathroom-set", "Remake bathroom set", "operator_approved", "supporting"),
+    mediaReference("source_video", "video", "asset://short-pipeline/approved-serum-trend", "Approved serum trend structure", "operator_approved", "supporting")
+  ]
+});
+const productionBiblePipePlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_pipe_production_bible",
+  generatedAt,
+  userPrompt: "Create a 90 second branded mini sequence for a recurring KOL and product world. Keep identity, product, lighting, sound rhythm, and ending continuity locked across clips.",
+  targetPlatform: "youtube_shorts",
+  targetDurationSeconds: 90,
+  visualBible: {
+    mode: "production_bible",
+    requireBeforeRender: true
+  },
+  mediaReferences: [
+    mediaReference("kol", "image", "asset://short-pipeline/series-kol-sheet", "Series KOL sheet", "operator_approved", "primary"),
+    mediaReference("product", "image", "asset://short-pipeline/series-product-sheet", "Series product sheet", "operator_approved", "primary"),
+    mediaReference("style", "image", "asset://short-pipeline/series-style-board", "Series style board", "operator_approved", "supporting")
+  ]
+});
+const productionBibleRenderHandoff = buildShortPipelineRenderHandoff({
+  plan: productionBiblePipePlan,
+  includeGeneratedAudioIntents: true,
+  metadata: {
+    workspaceId: "short_pipeline_smoke_workspace"
+  }
+});
+const productionBibleMaxDurationPipePlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_pipe_production_bible_480",
+  generatedAt,
+  userPrompt: "Create an eight minute vertical branded sequence with a recurring KOL, product world, chaptered proof beats, consistent character sheet, and resolved ending continuity.",
+  targetPlatform: "youtube_shorts",
+  targetDurationSeconds: 480,
+  visualBible: {
+    mode: "production_bible",
+    requireBeforeRender: true
+  },
+  mediaReferences: [
+    mediaReference("kol", "image", "asset://short-pipeline/series-kol-sheet-480", "Series KOL sheet 480", "operator_approved", "primary"),
+    mediaReference("product", "image", "asset://short-pipeline/series-product-sheet-480", "Series product sheet 480", "operator_approved", "primary"),
+    mediaReference("style", "image", "asset://short-pipeline/series-style-board-480", "Series style board 480", "operator_approved", "supporting")
+  ]
+});
+const productionBibleMaxDurationRenderHandoff = buildShortPipelineRenderHandoff({
+  plan: productionBibleMaxDurationPipePlan,
+  includeGeneratedAudioIntents: true,
+  metadata: {
+    workspaceId: "short_pipeline_smoke_workspace"
+  }
+});
 
 const pendingRenderHandoff = buildShortPipelineRenderHandoff({
   plan: reviewRequiredPlan,
@@ -287,6 +413,17 @@ const chineseAudioHandoff = buildShortPipelineRenderHandoff({
   }
 });
 const storyArchitect = new StoryArchitect(createFakeShortLlmProvider(), "fake-short-llm");
+const audioEnabledStoryboardSettings = {
+  tier: "fast",
+  resolution: "720p-SR",
+  qualityMode: "economy",
+  ratio: singleClipRenderHandoff.request.settings.ratio,
+  durationTargetSeconds: singleClipRenderHandoff.request.settings.durationTargetSeconds,
+  audioMode: singleClipRenderHandoff.request.settings.audioMode,
+  bitrateMode: "standard",
+  watermark: false,
+  returnLastFrame: true
+};
 const singleClipStoryPlan = await storyArchitect.plan({
   projectId: "short_pipeline_smoke_single_clip",
   userInput: singleClipRenderHandoff.request.userInput,
@@ -322,6 +459,34 @@ const explicitStoryboardStoryPlan = await storyArchitect.plan({
     workflowMode: "storyboard"
   }
 });
+const audioEnabledStoryboardStoryPlan = await storyArchitect.plan({
+  projectId: "short_pipeline_smoke_audio_storyboard",
+  userInput: singleClipRenderHandoff.request.userInput,
+  settings: audioEnabledStoryboardSettings,
+  references: [],
+  metadata: {
+    ...singleClipRenderHandoff.request.metadata,
+    shortPipelineSource: "agentic_short_pipeline",
+    workflowMode: "storyboard"
+  }
+});
+const shortStoryboardShots = new ShotPlanner().plan({
+  projectId: "short_pipeline_smoke_audio_storyboard",
+  scenes: audioEnabledStoryboardStoryPlan.scenes,
+  settings: audioEnabledStoryboardSettings,
+  metadata: {
+    shortPipelineSource: "agentic_short_pipeline",
+    workflowMode: "storyboard"
+  }
+});
+const compiledShortStoryboardPrompts = shortStoryboardShots.map((shot) =>
+  new SeedancePromptCompiler().compile({
+    shot,
+    settings: audioEnabledStoryboardSettings,
+    modelId: "bytedance/seedance-2.0-fast/reference-to-video",
+    provider: "atlascloud"
+  })
+);
 
 const serialized = JSON.stringify({
   reviewRequiredPlan,
@@ -336,6 +501,46 @@ const serialized = JSON.stringify({
 const rawUrlLeaked = serialized.includes("https://shop.example.com") ||
   serialized.includes("signature=abc123") ||
   serialized.includes("token=secret");
+const pipeMatrixPlans = {
+  smartShort: smartShortPipePlan,
+  productKol: productKolPipePlan,
+  storyboard: reviewRequiredPlan,
+  videoRemake: videoRemakePipePlan,
+  productionBible: productionBiblePipePlan
+};
+const storyboardPipePlan = pipeMatrixPlans.storyboard;
+const pipeMatrixExpected = [
+  ["smartShort", "smart_short", "normal_short_pipe"],
+  ["productKol", "product_kol_ugc", "product_kol_reference_pipe"],
+  ["storyboard", "storyboard_multishot", "storyboard_board_pipe"],
+  ["videoRemake", "video_remake", "video_remake_pipe"],
+  ["productionBible", "production_bible", "long_sequence_bible_pipe"]
+];
+const canonicalPipeOptions = productKolPipePlan.videoPipePlan.pipeOptions;
+const expectedPipeDurations = new Map([
+  ["smart_short", [5, 20, 8, 15, false]],
+  ["product_kol_ugc", [15, 60, 20, 45, false]],
+  ["storyboard_multishot", [15, 60, 25, 60, false]],
+  ["video_remake", [5, 60, 15, 45, false]],
+  ["production_bible", [60, 480, 60, 180, true]]
+]);
+const expectedVisualBibleExecutionModes = new Map([
+  ["smartShort", ["text_only_no_board", "text_to_video", "single_clip"]],
+  ["productKol", ["reference_board_to_seedance", "reference_to_video", "multi_clip_last_frame_chaining"]],
+  ["storyboard", ["reference_board_to_seedance", "reference_to_video", "multi_clip_last_frame_chaining"]],
+  ["videoRemake", ["video_remake_to_seedance", "reference_to_video", "multi_clip_last_frame_chaining"]],
+  ["productionBible", ["production_bible_to_seedance", "reference_to_video", "sequence_bible_last_frame_chaining"]]
+]);
+const requiredPipeSettingIds = [
+  "duration_seconds",
+  "aspect_ratio",
+  "resolution",
+  "seedance_tier",
+  "provider_mode",
+  "return_last_frame",
+  "audio_mode",
+  "visual_bible_mode"
+];
 
 const checks = [
   reviewRequiredPlan.noSpend && !reviewRequiredPlan.networkCallsMade && !reviewRequiredPlan.providerCallsMade
@@ -422,6 +627,99 @@ const checks = [
     douyinChinesePromptPlan.viralIntelligence.nicheStrategy.platformFocus === "tiktok_douyin"
     ? pass("douyin_chinese_prompt_inference", "Chinese Douyin prompts are inferred as Douyin without requiring an explicit targetPlatform override.")
     : fail("douyin_chinese_prompt_inference", "Expected Chinese Douyin prompt text to infer platform=douyin and TikTok/Douyin strategy."),
+  pipeMatrixExpected.every(([key, expectedMode, expectedBackendPipe]) => {
+    const plan = pipeMatrixPlans[key];
+    const recommendedOptions = plan.videoPipePlan.pipeOptions.filter((option) => option.recommended);
+    return plan.videoPipePlan.selectedMode === expectedMode &&
+      plan.videoPipePlan.selectedBackendPipe === expectedBackendPipe &&
+      recommendedOptions.length === 1 &&
+      recommendedOptions[0]?.mode === expectedMode &&
+      recommendedOptions[0]?.backendPipe === expectedBackendPipe;
+  })
+    ? pass("video_pipe_routing_matrix", "Short backend selects the correct product-level pipe for smart short, Product/KOL UGC, storyboard multishot, Video Remake, and Production Bible scenarios.")
+    : fail("video_pipe_routing_matrix", "Expected each product-level pipe scenario to select exactly one matching backend pipe."),
+  productKolPipePlan.videoPipePlan.visualBibleAlignment.status === "aligned" &&
+    storyboardPipePlan.videoPipePlan.visualBibleAlignment.status === "storyboard_until_references" &&
+    storyboardPipePlan.videoPipePlan.selectionReasonCodes.includes("visual_bible_product_reference_needs_assets") &&
+    productionBiblePipePlan.videoPipePlan.visualBibleAlignment.status === "aligned" &&
+    Object.values(pipeMatrixPlans).every((plan) => plan.videoPipePlan.selectionReasonCodes.length > 0)
+    ? pass("video_pipe_visual_bible_alignment_contract", "Video pipe plans explain when Visual Bible matches the canonical pipe and when storyboard is used until product/KOL references are supplied.")
+    : fail("video_pipe_visual_bible_alignment_contract", "Expected video pipe plans to expose visual-bible alignment and selection reason codes."),
+  canonicalPipeOptions.length === 5 &&
+    canonicalPipeOptions.every((option) => {
+      const expected = expectedPipeDurations.get(option.mode);
+      return Boolean(expected) &&
+        option.durationSupport.minSeconds === expected[0] &&
+        option.durationSupport.maxSeconds === expected[1] &&
+        option.durationSupport.idealRangeSeconds[0] === expected[2] &&
+        option.durationSupport.idealRangeSeconds[1] === expected[3] &&
+        option.durationSupport.supportsLongSequence === expected[4];
+    })
+    ? pass("video_pipe_duration_support_matrix", "Every short video pipe publishes its exact supported duration band and long-sequence capability.")
+    : fail("video_pipe_duration_support_matrix", "Expected all five video pipes to expose stable min/max/ideal duration support."),
+  Object.values(pipeMatrixPlans).every((plan) =>
+    plan.videoPipePlan.pipeOptions.every((option) => {
+      const selected = option.mode === plan.videoPipePlan.selectedMode;
+      return requiredPipeSettingIds.every((settingId) => option.settings.some((setting) => setting.settingId === settingId)) &&
+        option.defaultResolution === "720p" &&
+        option.audioDefault === (plan.seedanceRouting.generatedAudioMode === "none" ? "none" : "guided") &&
+        option.returnLastFrameDefault === plan.seedanceRouting.returnLastFrame &&
+        (!selected || (
+          option.effectiveSettings?.resolvedForCurrentPlan === true &&
+          option.effectiveSettings.providerMode === plan.seedanceRouting.recommendedProviderMode &&
+          option.effectiveSettings.tier === plan.seedanceRouting.preferredTier &&
+          option.effectiveSettings.resolution === plan.seedanceRouting.resolution &&
+          option.effectiveSettings.bitrateMode === plan.seedanceRouting.bitrateMode &&
+          option.effectiveSettings.superResolution === plan.seedanceRouting.superResolution &&
+          option.effectiveSettings.audioMode === (plan.seedanceRouting.generatedAudioMode === "none" ? "none" : "guided") &&
+          option.effectiveSettings.returnLastFrame === plan.seedanceRouting.returnLastFrame &&
+          option.effectiveSettings.promptRecipeName === plan.seedanceRouting.promptRecipe.name
+        )) &&
+        (selected || option.effectiveSettings === undefined) &&
+        option.settings.some((setting) => setting.settingId === "resolution" && setting.userAdjustable === true && setting.backendManaged === false) &&
+        option.settings.some((setting) => setting.settingId === "provider_mode" && setting.userAdjustable === false && setting.backendManaged === true) &&
+        option.settings.some((setting) => setting.settingId === "audio_mode" && setting.userAdjustable === true && setting.backendManaged === true);
+    })
+  )
+    ? pass("video_pipe_settings_contract", "Each pipe carries default navigation settings plus selected-pipe effective model, resolution, audio, and return-last-frame settings.")
+    : fail("video_pipe_settings_contract", "Expected every pipe option to expose complete settings and the selected pipe to match effective Seedance routing."),
+  Object.entries(pipeMatrixPlans).every(([key, plan]) => {
+    const expected = expectedVisualBibleExecutionModes.get(key);
+    const blueprint = plan.visualBiblePlan.executionBlueprint;
+    return Boolean(expected) &&
+      blueprint.schemaVersion === "cinejelly.short-visual-bible-execution-blueprint.v1" &&
+      blueprint.mode === expected[0] &&
+      blueprint.seedanceSubmissionMode === expected[1] &&
+      blueprint.clipExecutionStrategy === expected[2] &&
+      blueprint.durationCoverage.targetDurationSeconds === plan.intent.targetDurationSeconds &&
+      blueprint.durationCoverage.targetClipCount === plan.visualBiblePlan.sequencePlan.targetClipCount &&
+      blueprint.steps.length >= 3 &&
+      (blueprint.mode === "text_only_no_board" || blueprint.referenceTagBindingOrder.length > 0) &&
+      blueprint.steps.some((step) => step.stage === "seedance_clip_rendering") &&
+      blueprint.steps.some((step) => step.stage === "continuity_review" && step.requiresHumanApproval === true);
+  })
+    ? pass("visual_bible_execution_blueprint_contract", "Every pipe emits a structured reference-board/Seedance execution blueprint with mode, clip strategy, binding order, duration coverage, render step, and review step.")
+    : fail("visual_bible_execution_blueprint_contract", "Expected all five pipe scenarios to expose a complete visual-bible execution blueprint."),
+  smartShortPipePlan.seedanceRouting.recommendedProviderMode === "text_to_video" &&
+    smartShortPipePlan.visualBiblePlan.status === "not_needed" &&
+    smartShortPipePlan.visualBiblePlan.recommendedPipe === "normal_short_pipe" &&
+    productKolPipePlan.seedanceRouting.recommendedProviderMode === "reference_to_video" &&
+    productKolPipePlan.seedanceRouting.resolution === "1080p-SR" &&
+    productKolPipePlan.seedanceRouting.superResolution === true &&
+    productKolPipePlan.seedanceRouting.bitrateMode === "high" &&
+    productKolPipePlan.videoPipePlan.pipeOptions.find((option) => option.mode === "product_kol_ugc")?.defaultResolution === "720p" &&
+    productKolPipePlan.videoPipePlan.pipeOptions.find((option) => option.mode === "product_kol_ugc")?.effectiveSettings?.resolution === "1080p-SR" &&
+    productKolPipePlan.seedanceRouting.generatedAudioMode === "guided" &&
+    productKolPipePlan.seedanceRouting.referenceTags.some((tag) => tag.role === "identity" && tag.tag === "@image1") &&
+    productKolPipePlan.seedanceRouting.referenceTags.some((tag) => tag.role === "product") &&
+    videoRemakePipePlan.seedanceRouting.promptRecipe.name === "reference_to_video_remake_blueprint" &&
+    videoRemakePipePlan.referenceRemakeBlueprint?.reviewRequiredBeforeRender === true &&
+    videoRemakePipePlan.mediaReferencePlan.some((reference) => reference.promptRole === "source_video_structure") &&
+    productionBiblePipePlan.videoPipePlan.pipeOptions.some((option) => option.mode === "production_bible" && option.durationSupport.supportsLongSequence === true) &&
+    productionBiblePipePlan.visualBiblePlan.recommendedPipe === "long_sequence_bible_pipe" &&
+    productionBiblePipePlan.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved === true
+    ? pass("video_pipe_model_reference_contract", "Smart short stays text-to-video without references, while reference-heavy pipes select reference-to-video routing with 720p default, guided audio, @image bindings, Video Remake blueprint review, and Production Bible asset gating.")
+    : fail("video_pipe_model_reference_contract", "Expected Smart Short text-to-video routing plus Product/KOL, Video Remake, and Production Bible model/reference/gating contracts."),
   singleClipRenderHandoff.request.metadata?.workflowMode === "single" &&
     singleClipRenderHandoff.request.metadata?.renderMode === "single_clip" &&
     singleClipRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "single_clip"
@@ -435,11 +733,45 @@ const checks = [
   explicitStoryboardStoryPlan.scenes.length > 1
     ? pass("explicit_storyboard_mode_overrides_single_recommendation", "Explicit storyboard mode from UI/operator wins over the 15s single-clip recommendation.")
     : fail("explicit_storyboard_mode_overrides_single_recommendation", "Expected explicit storyboard mode to preserve multi-scene planning."),
+  shortStoryboardShots.length === 3 &&
+    shortStoryboardShots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
+    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Pacing contract:") && prompt.prompt.includes("Timeline:")) &&
+    compiledShortStoryboardPrompts.every((prompt) => prompt.videoRequest.settings.generateAudio === true) &&
+    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Audio:") && !prompt.prompt.includes("Audio: Silent"))
+    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include duration-aware timeline beats, pacing contract, and audio-on provider settings by default.")
+    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include timeline, pacing contract, and enabled audio."),
   pendingRenderHandoff.request.metadata?.workflowMode === "storyboard" &&
     pendingRenderHandoff.request.metadata?.renderMode === "storyboard_multishot" &&
     pendingRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "storyboard_multishot"
     ? pass("storyboard_handoff_mode_metadata", "Longer short handoff declares storyboard/multishot workflow metadata before provider spend.")
     : fail("storyboard_handoff_mode_metadata", "Expected >15s handoff to declare storyboard/multishot workflow metadata."),
+  productionBibleRenderHandoff.request.settings?.durationTargetSeconds === 90 &&
+    productionBibleRenderHandoff.request.metadata?.workflowMode === "sequence" &&
+    productionBibleRenderHandoff.request.metadata?.renderMode === "production_bible" &&
+    productionBibleRenderHandoff.request.metadata?.shortVideoPipeSelectedMode === "production_bible" &&
+    productionBibleRenderHandoff.request.metadata?.shortVideoPipeSelectedBackendPipe === "long_sequence_bible_pipe" &&
+    productionBibleRenderHandoff.request.metadata?.shortVideoPipeDurationMaxSeconds === "480" &&
+    productionBibleRenderHandoff.request.metadata?.shortVideoPipeSupportsLongSequence === "true" &&
+    productionBibleRenderHandoff.request.metadata?.shortVideoPipeTargetWithinDurationRange === "true" &&
+    productionBibleRenderHandoff.request.metadata?.shortVisualBibleBlocksRender === "true" &&
+  productionBibleRenderHandoff.summary.canUseAsRenderJobHandoff === false
+    ? pass("production_bible_handoff_duration_and_asset_gate", "90s Production Bible handoff carries selected-pipe duration metadata and remains blocked until Visual Bible assets are approved.")
+    : fail("production_bible_handoff_duration_and_asset_gate", "Expected Production Bible handoff to expose sequence metadata, selected-pipe duration range, and Visual Bible render block."),
+  productionBibleMaxDurationPipePlan.intent.targetDurationSeconds === 480 &&
+    productionBibleMaxDurationPipePlan.videoPipePlan.selectedMode === "production_bible" &&
+    productionBibleMaxDurationPipePlan.videoPipePlan.selectedBackendPipe === "long_sequence_bible_pipe" &&
+    productionBibleMaxDurationPipePlan.visualBiblePlan.sequencePlan.targetClipCount >= 32 &&
+    productionBibleMaxDurationPipePlan.visualBiblePlan.executionBlueprint.durationCoverage.targetDurationSeconds === 480 &&
+    productionBibleMaxDurationPipePlan.visualBiblePlan.executionBlueprint.durationCoverage.targetClipCount === productionBibleMaxDurationPipePlan.visualBiblePlan.sequencePlan.targetClipCount &&
+    productionBibleMaxDurationRenderHandoff.request.settings?.durationTargetSeconds === 480 &&
+    productionBibleMaxDurationRenderHandoff.request.metadata?.workflowMode === "sequence" &&
+    productionBibleMaxDurationRenderHandoff.request.metadata?.renderMode === "production_bible" &&
+    productionBibleMaxDurationRenderHandoff.request.metadata?.shortVideoPipeDurationMaxSeconds === "480" &&
+    productionBibleMaxDurationRenderHandoff.request.metadata?.shortVideoPipeTargetWithinDurationRange === "true" &&
+    productionBibleMaxDurationRenderHandoff.request.metadata?.shortVideoPipeSupportsLongSequence === "true" &&
+    productionBibleMaxDurationRenderHandoff.summary.canUseAsRenderJobHandoff === false
+    ? pass("production_bible_max_duration_boundary", "480s Production Bible stays in the long-sequence pipe, exposes full duration coverage, and remains asset-gated before spend.")
+    : fail("production_bible_max_duration_boundary", "Expected 480s Production Bible to preserve long-sequence pipe routing, coverage, and asset-gated handoff."),
   audioCheckpointTargetDuration(reviewRequiredPlan) === reviewRequiredPlan.intent.targetDurationSeconds
     ? pass("audio_checkpoint_uses_intent_duration", "Audio review evidence now records the requested short duration instead of deriving a rough scene-count duration.")
     : fail("audio_checkpoint_uses_intent_duration", "Expected audio checkpoint evidence to use the plan target duration."),
@@ -474,7 +806,8 @@ const report = {
   ],
   checkedInputs: {
     outputPath: options.outputPath,
-    scenarioCount: 3,
+    scenarioCount: 10,
+    pipeScenarioCount: pipeMatrixExpected.length,
     endpointPath: "/v1/short-pipeline/plan",
     renderHandoffEndpointPath: "/v1/short-pipeline/render-jobs",
     rawUrlLeakCheckPassed: !rawUrlLeaked
@@ -483,7 +816,10 @@ const report = {
     reviewRequired: summarizePlan(reviewRequiredPlan),
     blocked: summarizePlan(blockedPlan),
     naturalOnly: summarizePlan(naturalOnlyPlan),
+    pipeMatrix: summarizePipeMatrix(pipeMatrixPlans),
     renderHandoff: summarizeHandoff(pendingRenderHandoff, approvedRenderHandoff),
+    productionBibleRenderHandoff: summarizeProductionBibleHandoff(productionBibleRenderHandoff),
+    productionBibleMaxDuration: summarizeProductionBibleBoundary(productionBibleMaxDurationPipePlan, productionBibleMaxDurationRenderHandoff),
     audioPolicies: {
       vietnamesePlanLanguage: vietnameseAudioPlan.audioPolicy.language,
       vietnameseHandoffAudioMode: vietnameseAudioHandoff.request.settings?.audioMode,
@@ -545,6 +881,48 @@ function summarizePlan(plan) {
   };
 }
 
+function summarizePipeMatrix(plans) {
+  return Object.fromEntries(
+    Object.entries(plans).map(([name, plan]) => {
+      const selectedPipe = plan.videoPipePlan.pipeOptions.find((option) => option.mode === plan.videoPipePlan.selectedMode);
+      return [
+        name,
+        {
+        planId: plan.planId,
+        selectedMode: plan.videoPipePlan.selectedMode,
+        selectedBackendPipe: plan.videoPipePlan.selectedBackendPipe,
+        selectionReasonCodeCount: plan.videoPipePlan.selectionReasonCodes.length,
+        visualBibleAlignmentStatus: plan.videoPipePlan.visualBibleAlignment.status,
+        visualBibleAlignmentExplanation: plan.videoPipePlan.visualBibleAlignment.explanation,
+        recommendedPipeCount: plan.videoPipePlan.pipeOptions.filter((option) => option.recommended).length,
+        seedanceMode: plan.seedanceRouting.recommendedProviderMode,
+        resolution: plan.seedanceRouting.resolution,
+        bitrateMode: plan.seedanceRouting.bitrateMode,
+        superResolution: plan.seedanceRouting.superResolution,
+        generatedAudioMode: plan.seedanceRouting.generatedAudioMode,
+        selectedPipeDefaultResolution: selectedPipe?.defaultResolution,
+        selectedPipeEffectiveResolution: selectedPipe?.effectiveSettings?.resolution,
+        selectedPipeEffectiveBitrateMode: selectedPipe?.effectiveSettings?.bitrateMode,
+        selectedPipeEffectiveSuperResolution: selectedPipe?.effectiveSettings?.superResolution,
+        selectedPipeEffectiveProviderMode: selectedPipe?.effectiveSettings?.providerMode,
+        selectedPipeEffectivePromptRecipeName: selectedPipe?.effectiveSettings?.promptRecipeName,
+        visualBibleRecommendedPipe: plan.visualBiblePlan.recommendedPipe,
+        visualBibleExecutionMode: plan.visualBiblePlan.executionBlueprint.mode,
+        visualBibleSeedanceSubmissionMode: plan.visualBiblePlan.executionBlueprint.seedanceSubmissionMode,
+        visualBibleClipStrategy: plan.visualBiblePlan.executionBlueprint.clipExecutionStrategy,
+        visualBibleReferenceBindingOrderCount: plan.visualBiblePlan.executionBlueprint.referenceTagBindingOrder.length,
+        visualBibleExecutionStepCount: plan.visualBiblePlan.executionBlueprint.steps.length,
+        visualBibleDurationCoverageRule: plan.visualBiblePlan.executionBlueprint.durationCoverage.coverageRule,
+        visualBibleBlocksRenderUntilAssetsApproved: plan.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved,
+        referenceTagRoles: plan.seedanceRouting.referenceTags.map((tag) => tag.role),
+        sourceVideoReferencePresent: plan.mediaReferencePlan.some((reference) => reference.promptRole === "source_video_structure"),
+        pipeOptionCount: plan.videoPipePlan.pipeOptions.length
+      }
+      ];
+    })
+  );
+}
+
 function hasEveryReviewSurface(plan) {
   const counts = plan.reviewApproval.summary.surfaceCounts;
   return counts.scene > 0 && counts.audio > 0 && counts.caption > 0 && counts.claim > 0;
@@ -577,12 +955,53 @@ function summarizeHandoff(pending, approved) {
   };
 }
 
+function summarizeProductionBibleHandoff(handoff) {
+  return {
+    planId: handoff.summary.planId,
+    canUseAsRenderJobHandoff: handoff.summary.canUseAsRenderJobHandoff,
+    requestDurationSeconds: handoff.request.settings?.durationTargetSeconds,
+    workflowMode: handoff.request.metadata?.workflowMode,
+    renderMode: handoff.request.metadata?.renderMode,
+    selectedMode: handoff.request.metadata?.shortVideoPipeSelectedMode,
+    selectedBackendPipe: handoff.request.metadata?.shortVideoPipeSelectedBackendPipe,
+    selectedPipeDurationMaxSeconds: Number(handoff.request.metadata?.shortVideoPipeDurationMaxSeconds ?? 0),
+    selectedPipeSupportsLongSequence: handoff.request.metadata?.shortVideoPipeSupportsLongSequence === "true",
+    targetWithinSelectedPipeDurationRange: handoff.request.metadata?.shortVideoPipeTargetWithinDurationRange === "true",
+    visualBibleBlocksRender: handoff.request.metadata?.shortVisualBibleBlocksRender === "true",
+    releaseBlocker: handoff.summary.releaseBlocker
+  };
+}
+
+function summarizeProductionBibleBoundary(plan, handoff) {
+  return {
+    planId: plan.planId,
+    targetDurationSeconds: plan.intent.targetDurationSeconds,
+    selectedMode: plan.videoPipePlan.selectedMode,
+    selectedBackendPipe: plan.videoPipePlan.selectedBackendPipe,
+    sequenceTargetClipCount: plan.visualBiblePlan.sequencePlan.targetClipCount,
+    executionTargetClipCount: plan.visualBiblePlan.executionBlueprint.durationCoverage.targetClipCount,
+    executionCoverageSeconds: plan.visualBiblePlan.executionBlueprint.durationCoverage.targetDurationSeconds,
+    workflowMode: handoff.request.metadata?.workflowMode,
+    renderMode: handoff.request.metadata?.renderMode,
+    requestDurationSeconds: handoff.request.settings?.durationTargetSeconds,
+    selectedPipeDurationMaxSeconds: Number(handoff.request.metadata?.shortVideoPipeDurationMaxSeconds ?? 0),
+    selectedPipeSupportsLongSequence: handoff.request.metadata?.shortVideoPipeSupportsLongSequence === "true",
+    targetWithinSelectedPipeDurationRange: handoff.request.metadata?.shortVideoPipeTargetWithinDurationRange === "true",
+    visualBibleBlocksRender: handoff.request.metadata?.shortVisualBibleBlocksRender === "true",
+    canUseAsRenderJobHandoff: handoff.summary.canUseAsRenderJobHandoff
+  };
+}
+
 function pass(name, message) {
   return { name, status: "pass", message };
 }
 
 function fail(name, message) {
   return { name, status: "fail", message };
+}
+
+function mediaReference(role, kind, uri, label, rightsStatus, priority) {
+  return { role, kind, uri, label, rightsStatus, priority };
 }
 
 function writeJson(path, value) {

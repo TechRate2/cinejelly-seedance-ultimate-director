@@ -111,6 +111,7 @@ const clientBHeaders = {
   "Content-Type": "application/json",
   "X-CineJelly-Api-Key": clientBKey
 };
+const requestSafeVisualBibleModes = new Set(["auto", "off", "reference_board", "storyboard_board", "production_bible"]);
 
 let report;
 try {
@@ -119,12 +120,34 @@ try {
   const createPage = await fetch(`${baseUrl}/short/create`);
   const createPageHtml = await createPage.text();
   const unauthorizedSessions = await fetch(`${baseUrl}/v1/short-pipeline/conversation-sessions`);
+  const videoPipeCatalog = await getJson(`${baseUrl}/v1/short-pipeline/video-pipes`, clientAHeaders);
   const savedStyle = await postJson(`${baseUrl}/v1/short-pipeline/channel-styles`, clientAHeaders, channelStyleBody());
   const profileId = savedStyle.body.channelStyle?.profileId;
   const listA = await getJson(`${baseUrl}/v1/short-pipeline/channel-styles`, clientAHeaders);
   const detailA = await getJson(`${baseUrl}/v1/short-pipeline/channel-styles/${encodeURIComponent(profileId)}`, clientAHeaders);
   const detailB = await getJson(`${baseUrl}/v1/short-pipeline/channel-styles/${encodeURIComponent(profileId)}`, clientBHeaders);
   const uiContract = await postJson(`${baseUrl}/v1/short-pipeline/ui-contract`, clientAHeaders, planBody(profileId));
+  const remakeUiContract = await postJson(`${baseUrl}/v1/short-pipeline/ui-contract`, clientAHeaders, remakePlanBody(profileId));
+  const visualBibleUiContract = await postJson(`${baseUrl}/v1/short-pipeline/ui-contract`, clientAHeaders, {
+    ...planBody(profileId),
+    mediaReferences: [],
+    visualBible: {
+      mode: "reference_board",
+      imageProviderPolicy: "provider_neutral",
+      requireBeforeRender: true
+    }
+  });
+  const productionBibleUiContract = await postJson(`${baseUrl}/v1/short-pipeline/ui-contract`, clientAHeaders, {
+    ...planBody(profileId),
+    requestId: "req_short_mvp_ui_production_bible_001",
+    userPrompt: "Create a 90 second branded mini sequence for Glow Focus Serum with recurring Mina host identity, product proof beats, stable audio rhythm, and a clear ending payoff.",
+    targetDurationSeconds: 90,
+    visualBible: {
+      mode: "production_bible",
+      imageProviderPolicy: "provider_neutral",
+      requireBeforeRender: true
+    }
+  });
   const bothStyleSources = await postJson(`${baseUrl}/v1/short-pipeline/ui-contract`, clientAHeaders, {
     ...planBody(profileId),
     channelStyle: channelStyleBody()
@@ -158,16 +181,83 @@ try {
     "Bearer secret"
   ]);
   const ui = uiContract.body.uiContract;
+  const remakeUi = remakeUiContract.body.uiContract;
+  const visualBibleUi = visualBibleUiContract.body.uiContract;
+  const productionBibleUi = productionBibleUiContract.body.uiContract;
   const sessionUiContract = sessionUi.body.uiContract;
+  const catalogPipes = Array.isArray(videoPipeCatalog.body?.pipes) ? videoPipeCatalog.body.pipes : [];
+  const catalogProductionPipe = catalogPipes.find((pipe) => pipe.mode === "production_bible");
+  const catalogVideoRemakePipe = catalogPipes.find((pipe) => pipe.mode === "video_remake");
+  const catalogHasPipeCapabilityPolicy = catalogPipes.length === 5 &&
+    catalogPipes.every((pipe, index) =>
+      pipe.uiLayout?.displayStyle === "navigation_tab" &&
+      pipe.uiLayout?.navigationOrder === index + 1 &&
+      Array.isArray(pipe.uiLayout?.primarySettingIds) &&
+      pipe.uiLayout.primarySettingIds.includes("duration_seconds") &&
+      pipe.uiLayout.primarySettingIds.includes("resolution") &&
+      pipe.uiLayout.primarySettingIds.includes("review_before_spend") &&
+      pipe.capabilityPolicy?.providerClipMaxSeconds === 15 &&
+      pipe.capabilityPolicy?.autoRouteProviderMode === true &&
+      pipe.capabilityPolicy?.userCannotPickRawProviderModel === true &&
+      pipe.capabilityPolicy?.requiresReviewBeforeSpend === true &&
+      Array.isArray(pipe.capabilityPolicy?.providerModes) &&
+      pipe.capabilityPolicy.providerModes.includes(pipe.defaultSeedanceMode) &&
+      Array.isArray(pipe.capabilityPolicy?.modelTierOptions) &&
+      pipe.capabilityPolicy.modelTierOptions.includes(pipe.preferredTier) &&
+      Array.isArray(pipe.capabilityPolicy?.resolutionOptions) &&
+      pipe.capabilityPolicy.resolutionOptions.includes("720p")
+    );
+  const catalogHasPipeSettingMetadata = catalogPipes.length === 5 &&
+    catalogPipes.every((pipe) =>
+      pipe.settings.some((setting) =>
+        setting.settingId === "resolution" &&
+        setting.group === "render" &&
+        setting.control === "select" &&
+        setting.scope === "primary" &&
+        Array.isArray(setting.options) &&
+        setting.options.some((option) => option.value === "720p" && option.recommended === true)
+      ) &&
+      pipe.settings.some((setting) =>
+        setting.settingId === "provider_mode" &&
+        setting.group === "model" &&
+        setting.control === "backend_auto" &&
+        setting.scope === "backend_only" &&
+        setting.backendManaged === true
+      ) &&
+      pipe.settings.some((setting) =>
+        setting.settingId === "review_before_spend" &&
+        setting.group === "review" &&
+        setting.control === "review_gate" &&
+        setting.value === true
+      )
+    );
+  const catalogNavigationGroups = catalogPipes.map((pipe) => pipe.uiLayout?.navigationGroup ?? "missing");
+  const uiPipeCapabilityPolicyPresent = ui?.pipeNavigation?.length === 5 &&
+    ui.pipeNavigation.every((pipe) =>
+      pipe.uiLayout?.displayStyle === "navigation_tab" &&
+      pipe.capabilityPolicy?.autoRouteProviderMode === true &&
+      pipe.capabilityPolicy?.userCannotPickRawProviderModel === true &&
+      pipe.capabilityPolicy?.providerClipMaxSeconds === 15
+    );
   const checks = [
     createPage.status === 200 &&
       String(createPage.headers.get("content-type") ?? "").includes("text/html") &&
+      createPageHtml.includes('data-video-pipes-endpoint="/v1/short-pipeline/video-pipes"') &&
       createPageHtml.includes('data-session-endpoint="/v1/short-pipeline/conversation-sessions"') &&
       createPageHtml.includes('data-session-ui-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/ui-contract"') &&
       createPageHtml.includes('data-render-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/render-jobs"') &&
       createPageHtml.includes("Create Short") &&
       createPageHtml.includes("Review Checkpoints") &&
+      createPageHtml.includes("Seedance Routing") &&
+      createPageHtml.includes("Media References") &&
       createPageHtml.includes("Creative Ideas") &&
+      createPageHtml.includes("Video Remake") &&
+      createPageHtml.includes("workflow-mode") &&
+      createPageHtml.includes("reference-remake") &&
+      createPageHtml.includes("seedance-routing") &&
+      createPageHtml.includes("media-references") &&
+      createPageHtml.includes("kol-reference") &&
+      createPageHtml.includes("product-reference") &&
       createPageHtml.includes("creative-ideas") &&
       createPageHtml.includes("approval-packet") &&
       !createPageLeakDetected
@@ -176,6 +266,39 @@ try {
     unauthorizedSessions.status === 401
       ? pass("short_create_data_requires_client_auth", "Short create shell is public, but protected session data still requires a client API key.")
       : fail("short_create_data_requires_client_auth", "Expected unauthenticated short-pipeline session list to return 401."),
+    videoPipeCatalog.statusCode === 200 &&
+      videoPipeCatalog.body?.schemaVersion === "cinejelly.short-video-pipe-catalog.v1" &&
+      videoPipeCatalog.body?.noSpend === true &&
+      videoPipeCatalog.body?.providerCallsMade === false &&
+      videoPipeCatalog.body?.pipeCount === 5 &&
+      videoPipeCatalog.body?.defaultResolution === "720p" &&
+      videoPipeCatalog.body?.defaultAudioMode === "guided" &&
+      videoPipeCatalog.body?.defaultReturnLastFrame === true &&
+      videoPipeCatalog.body?.releaseGateSummary?.canSubmitToProviderNow === false &&
+      videoPipeCatalog.body?.pipes?.map((pipe) => pipe.mode).join("|") === "smart_short|product_kol_ugc|storyboard_multishot|video_remake|production_bible" &&
+      catalogHasPipeCapabilityPolicy &&
+      catalogHasPipeSettingMetadata &&
+      catalogNavigationGroups.join("|") === "short|short|short|remake|production" &&
+      videoPipeCatalog.body.pipes.every((pipe) =>
+        pipe.backendPipe !== "reference_board_pipe" &&
+        pipe.settings.some((setting) => setting.settingId === "resolution" && setting.value === "720p") &&
+        pipe.settings.some((setting) => setting.settingId === "audio_mode" && setting.value === "guided") &&
+        pipe.settings.some((setting) => setting.settingId === "provider_mode" && setting.backendManaged === true) &&
+        pipe.settings.some((setting) =>
+          setting.settingId === "visual_bible_mode" &&
+          requestSafeVisualBibleModes.has(String(setting.value))
+        )
+      ) &&
+      catalogProductionPipe?.backendPipe === "long_sequence_bible_pipe" &&
+      catalogProductionPipe?.durationSupport?.maxSeconds === 480 &&
+      catalogProductionPipe?.durationSupport?.supportsLongSequence === true &&
+      catalogProductionPipe?.capabilityPolicy?.durationClass === "production_sequence" &&
+      catalogProductionPipe?.capabilityPolicy?.supportsProductionSequence === true &&
+      catalogVideoRemakePipe?.defaultSeedanceMode === "reference_to_video" &&
+      catalogVideoRemakePipe?.requiredInputs?.includes("rights_cleared_source_video") &&
+      catalogVideoRemakePipe?.capabilityPolicy?.supportsSourceVideoLearning === true
+      ? pass("video_pipe_catalog_endpoint_available", "Backend exposes a no-spend five-pipe catalog endpoint for future UI navigation without frontend hardcoding.")
+      : fail("video_pipe_catalog_endpoint_available", "Expected video pipe catalog endpoint to publish five canonical pipes, settings, duration bands, and no-spend release gates."),
     savedStyle.statusCode === 201 &&
       savedStyle.body.persisted === true &&
       savedStyle.body.channelStyle?.status === "ready" &&
@@ -193,9 +316,49 @@ try {
       ui?.duration?.recommendedWorkflowMode === "storyboard_multishot" &&
       ui?.render?.canCreateRenderJob === true &&
       ui?.render?.canSubmitToProviderNow === false &&
-      ui?.backendManagedSteps?.some((step) => step.actionId === "final_mp4_assembly" && step.status === "ready")
+      ui?.backendManagedSteps?.some((step) => step.actionId === "final_mp4_assembly" && step.status === "ready") &&
+      ui?.backendManagedSteps?.some((step) => step.actionId === "media_reference_binding" && step.status === "ready") &&
+      ui?.backendManagedSteps?.some((step) => step.actionId === "seedance_model_routing" && step.status === "ready")
       ? pass("ui_contract_hydrates_style_profile", "UI contract hydrates channelStyleProfileId, recommends storyboard for 28s, and keeps provider spend disabled.")
       : fail("ui_contract_hydrates_style_profile", "Expected UI contract to hydrate profileId and expose safe render controls."),
+    ui?.pipeNavigation?.length === 5 &&
+      ui.pipeSelection?.selectedMode === "product_kol_ugc" &&
+      ui.pipeSelection?.selectedBackendPipe === "product_kol_reference_pipe" &&
+      Number(ui.pipeSelection?.selectionReasonCodes?.length ?? 0) > 0 &&
+      ui.pipeNavigation.map((pipe) => pipe.mode).join("|") === "smart_short|product_kol_ugc|storyboard_multishot|video_remake|production_bible" &&
+      ui.pipeNavigation.some((pipe) => pipe.mode === "product_kol_ugc" && pipe.recommended === true && pipe.backendPipe === "product_kol_reference_pipe") &&
+      ui.pipeNavigation.some((pipe) => pipe.mode === "video_remake" && pipe.backendPipe === "video_remake_pipe" && pipe.requiredInputs.includes("rights_cleared_source_video")) &&
+      ui.pipeNavigation.some((pipe) => pipe.mode === "production_bible" && pipe.durationSupport.supportsLongSequence === true && pipe.durationSupport.maxSeconds >= 180) &&
+      uiPipeCapabilityPolicyPresent &&
+      ui.pipeNavigation.every((pipe) =>
+        pipe.settings.some((setting) => setting.settingId === "resolution" && setting.value === "720p") &&
+        pipe.settings.some((setting) => setting.settingId === "audio_mode" && setting.value === "guided") &&
+        pipe.settings.some((setting) => setting.settingId === "provider_mode" && setting.control === "backend_auto") &&
+        pipe.settings.some((setting) => setting.settingId === "review_before_spend" && setting.control === "review_gate")
+      )
+      ? pass("five_pipe_navigation_contract_available", "UI contract exposes five product-level video pipes with per-pipe settings and backend-owned routing.")
+      : fail("five_pipe_navigation_contract_available", "Expected five product-level pipe navigation items with settings, recommendations, and long-sequence support."),
+      ui?.seedanceRouting?.routingId?.startsWith("short_seedance_routing_") &&
+      ui.seedanceRouting.recommendedProviderMode === "reference_to_video" &&
+      ui.seedanceRouting.preferredTier === "standard" &&
+      ui.seedanceRouting.resolution === "720p" &&
+      ui.seedanceRouting.superResolution === false &&
+      ui.seedanceRouting.bitrateMode === "standard" &&
+      ui.seedanceRouting.returnLastFrame === true &&
+      ui.seedanceRouting.referenceTagCount >= 3 &&
+      ui.seedanceRouting.promptRecipe?.name === "reference_board_to_video_sequence" &&
+      ui.visualBible?.status === "recommended" &&
+      ui.visualBible?.recommendedPipe === "product_kol_reference_pipe" &&
+      ui.visualBible?.boardCount >= 1 &&
+      ui.visualBible?.targetClipCount >= 2 &&
+      ui.visualBible?.blocksRenderUntilAssetsApproved === false &&
+      ui.mediaReferences?.length >= 3 &&
+      ui.mediaReferences.every((reference) => !JSON.stringify(reference).includes("https://cdn.example.com")) &&
+      ui.mediaReferences.some((reference) => reference.promptTag === "@image1" && reference.promptRole === "identity") &&
+      ui.mediaReferences.some((reference) => reference.promptRole === "product" && reference.includeInProviderHandoff === true) &&
+      ui.review.checkpoints.some((checkpoint) => checkpoint.label.includes("Approve media reference") && checkpoint.canApproveInUi === true)
+      ? pass("seedance_routing_media_references_available", "UI contract exposes auto Seedance reference routing, visual-bible planning, and role-scoped media references without raw URL leakage.")
+      : fail("seedance_routing_media_references_available", "Expected Seedance routing, visual-bible planning, and media reference summaries with @image tags and provider handoff evidence."),
     ui?.creativePatternLearning?.learningId?.startsWith("short_pattern_learning_") &&
       ui.creativePatternLearning.patternCount >= 8 &&
       ui.creativePatternLearning.candidateCount >= 8 &&
@@ -204,6 +367,50 @@ try {
       Number(ui.creativePatternLearning.selectedIdeaScore ?? 0) >= 0.65
       ? pass("creative_pattern_learning_controls_available", "UI contract exposes selected creative-pattern idea and top candidates for operator review.")
       : fail("creative_pattern_learning_controls_available", "Expected UI contract to expose creative pattern learning summary and top ideas."),
+    visualBibleUiContract.statusCode === 200 &&
+      visualBibleUi?.visualBible?.status === "required" &&
+      visualBibleUi.visualBible.requestedMode === "reference_board" &&
+      visualBibleUi.visualBible.recommendedPipe === "reference_board_pipe" &&
+      visualBibleUi.pipeSelection?.visualBibleAlignmentStatus === "reference_board_asset_workflow" &&
+      Number(visualBibleUi.pipeSelection?.selectionReasonCodes?.length ?? 0) > 0 &&
+      visualBibleUi.pipeNavigation?.length === 5 &&
+      ["product_kol_ugc", "storyboard_multishot"].includes(visualBibleUi.pipeNavigation.find((pipe) => pipe.recommended)?.mode ?? "") &&
+      ["product_kol_reference_pipe", "storyboard_board_pipe"].includes(visualBibleUi.pipeNavigation.find((pipe) => pipe.recommended)?.backendPipe ?? "") &&
+      visualBibleUi.pipeNavigation.every((pipe) => pipe.backendPipe !== "reference_board_pipe") &&
+      visualBibleUi.visualBible.blocksRenderUntilAssetsApproved === true &&
+      visualBibleUi.render?.canCreateRenderJob === false &&
+      visualBibleUi.userRequiredActions?.some((action) => action.actionId === "approve_visual_bible_assets") &&
+      visualBibleUi.seedanceRouting?.promptRecipe?.name === "reference_board_to_video_sequence"
+      ? pass("visual_bible_reference_board_contract_available", "Explicit reference-board workflow blocks render until required board assets are generated or approved while keeping navigation on canonical product/storyboard pipes.")
+      : fail("visual_bible_reference_board_contract_available", "Expected explicit reference-board mode to produce required visual-bible evidence and block render until assets are approved."),
+    productionBibleUiContract.statusCode === 200 &&
+      productionBibleUi?.duration?.targetSeconds === 90 &&
+      productionBibleUi.duration.commercialMaxSeconds === 60 &&
+      productionBibleUi.duration.selectedPipeMaxSeconds === 480 &&
+      productionBibleUi.duration.selectedPipeSupportsLongSequence === true &&
+      productionBibleUi.duration.withinSelectedPipeDurationRange === true &&
+      productionBibleUi.pipeSelection?.selectedMode === "production_bible" &&
+      productionBibleUi.pipeSelection?.selectedBackendPipe === "long_sequence_bible_pipe" &&
+      productionBibleUi.pipeNavigation?.find((pipe) => pipe.recommended)?.mode === "production_bible" &&
+      productionBibleUi.visualBible?.recommendedPipe === "long_sequence_bible_pipe" &&
+      productionBibleUi.visualBible?.durationBand === "midform_sequence_60_180"
+      ? pass("production_bible_duration_contract_available", "90s production-bible UI contract keeps commercial short guidance separate from selected pipe duration support up to 480s.")
+      : fail("production_bible_duration_contract_available", "Expected production-bible contract to expose selected-pipe duration support, long-sequence capability, and 90s validity."),
+    ui?.workflowControls?.some((control) => control.mode === "video_remake" && control.enabled === true) &&
+      ui.workflowControls.map((control) => control.mode).includes("source_video_guided") &&
+      remakeUiContract.statusCode === 200 &&
+      remakeUi?.referenceRemake?.userFacingModeLabel === "Video Remake" &&
+      remakeUi.referenceRemake.mode === "structure_remake" &&
+      remakeUi.referenceRemake.status === "ready" &&
+      remakeUi.referenceRemake.replacementSlots?.includes("KOL/creator") &&
+      Number(remakeUi.referenceRemake.lockedElements?.length ?? 0) >= 4 &&
+      Number(remakeUi.referenceRemake.remakeGuardrails?.length ?? 0) >= 4 &&
+      remakeUi.seedanceRouting?.recommendedProviderMode === "reference_to_video" &&
+      remakeUi.seedanceRouting?.promptRecipe?.name === "reference_to_video_remake_blueprint" &&
+      remakeUi.mediaReferences?.some((reference) => reference.inputRole === "source_video") &&
+      remakeUi.userRequiredActions?.some((action) => action.actionId === "approve_video_remake_blueprint" && action.required === true)
+      ? pass("video_remake_contract_available", "UI contract exposes Video Remake workflow control and a reviewable remake blueprint with replacement slots and guardrails.")
+      : fail("video_remake_contract_available", "Expected Video Remake control, referenceRemake summary, replacement slots, guardrails, and user review action."),
     ui?.director?.directorId?.startsWith("short_director_") &&
       ui?.director?.recommendedWorkflowMode === ui?.duration?.recommendedWorkflowMode &&
       ui?.director?.reviewPauseBeforeProviderSpend === true &&
@@ -280,6 +487,7 @@ try {
       sessionStorePath: options.sessionStorePath,
       endpointPaths: [
         "GET /short/create",
+        "GET /v1/short-pipeline/video-pipes",
         "POST /v1/short-pipeline/channel-styles",
         "GET /v1/short-pipeline/channel-styles",
         "GET /v1/short-pipeline/channel-styles/{profileId}",
@@ -287,6 +495,7 @@ try {
         "GET /v1/short-pipeline/conversation-sessions/{sessionId}/ui-contract"
       ],
       createPageStatusCode: createPage.status,
+      videoPipeCatalogStatusCode: videoPipeCatalog.statusCode,
       unauthorizedSessionsStatusCode: unauthorizedSessions.status,
       profileId,
       sessionId,
@@ -295,6 +504,34 @@ try {
       secretLeakCheckPassed: !rawLeakDetected
     },
     scenarios: {
+      videoPipeCatalog: {
+        pipeCount: videoPipeCatalog.body?.pipeCount ?? 0,
+        pipeModes: videoPipeCatalog.body?.pipes?.map((pipe) => pipe.mode) ?? [],
+        defaultResolution: videoPipeCatalog.body?.defaultResolution,
+        defaultAudioMode: videoPipeCatalog.body?.defaultAudioMode,
+        defaultReturnLastFrame: videoPipeCatalog.body?.defaultReturnLastFrame,
+        pipeNavigationGroups: catalogNavigationGroups,
+        pipeNavigationOrders: catalogPipes.map((pipe) => pipe.uiLayout?.navigationOrder),
+        pipeCapabilityPolicyPresent: catalogHasPipeCapabilityPolicy,
+        pipeSettingMetadataPresent: catalogHasPipeSettingMetadata,
+        backendAutoRouteProviderMode: catalogPipes.every((pipe) => pipe.capabilityPolicy?.autoRouteProviderMode === true),
+        userCannotPickRawProviderModel: catalogPipes.every((pipe) => pipe.capabilityPolicy?.userCannotPickRawProviderModel === true),
+        productionBibleMaxSeconds: catalogProductionPipe?.durationSupport?.maxSeconds,
+        productionBibleSupportsLongSequence: catalogProductionPipe?.durationSupport?.supportsLongSequence,
+        productionBibleDurationClass: catalogProductionPipe?.capabilityPolicy?.durationClass,
+        productionBibleResolutionOptions: catalogProductionPipe?.capabilityPolicy?.resolutionOptions ?? [],
+        videoRemakeDefaultMode: catalogVideoRemakePipe?.defaultSeedanceMode,
+        videoRemakeSupportsSourceVideoLearning: catalogVideoRemakePipe?.capabilityPolicy?.supportsSourceVideoLearning,
+        videoRemakeVisualBibleMode: catalogVideoRemakePipe
+          ?.settings?.find((setting) => setting.settingId === "visual_bible_mode")?.value,
+        requestSafeVisualBibleModeSettings: videoPipeCatalog.body?.pipes?.every((pipe) =>
+          pipe.settings?.some((setting) =>
+            setting.settingId === "visual_bible_mode" &&
+            requestSafeVisualBibleModes.has(String(setting.value))
+          )
+        ) ?? false,
+        canSubmitToProviderNow: videoPipeCatalog.body?.releaseGateSummary?.canSubmitToProviderNow
+      },
       savedStyle: {
         profileId,
         status: savedStyle.body.channelStyle?.status,
@@ -303,8 +540,29 @@ try {
         requiresRightsReview: savedStyle.body.channelStyle?.memoryPolicy?.requiresRightsReview
       },
       uiContract: {
+        targetSeconds: ui?.duration?.targetSeconds,
+        commercialMaxSeconds: ui?.duration?.commercialMaxSeconds,
+        selectedPipeMaxSeconds: ui?.duration?.selectedPipeMaxSeconds,
+        selectedPipeSupportsLongSequence: ui?.duration?.selectedPipeSupportsLongSequence,
+        withinSelectedPipeDurationRange: ui?.duration?.withinSelectedPipeDurationRange,
         recommendedWorkflowMode: ui?.duration?.recommendedWorkflowMode,
         workflowControlCount: ui?.workflowControls?.length ?? 0,
+        workflowControlModes: ui?.workflowControls?.map((control) => control.mode) ?? [],
+        pipeSelectionMode: ui?.pipeSelection?.selectedMode,
+        pipeSelectionBackendPipe: ui?.pipeSelection?.selectedBackendPipe,
+        pipeSelectionReasonCodeCount: ui?.pipeSelection?.selectionReasonCodes?.length ?? 0,
+        pipeSelectionVisualBibleAlignmentStatus: ui?.pipeSelection?.visualBibleAlignmentStatus,
+        pipeNavigationCount: ui?.pipeNavigation?.length ?? 0,
+        pipeNavigationModes: ui?.pipeNavigation?.map((pipe) => pipe.mode) ?? [],
+        pipeNavigationGroups: ui?.pipeNavigation?.map((pipe) => pipe.uiLayout?.navigationGroup) ?? [],
+        pipeCapabilityPolicyPresent: uiPipeCapabilityPolicyPresent,
+        pipeBackendAutoRouteProviderMode: ui?.pipeNavigation?.every((pipe) => pipe.capabilityPolicy?.autoRouteProviderMode === true) ?? false,
+        pipeUserCannotPickRawProviderModel: ui?.pipeNavigation?.every((pipe) => pipe.capabilityPolicy?.userCannotPickRawProviderModel === true) ?? false,
+        recommendedPipeNavigationMode: ui?.pipeNavigation?.find((pipe) => pipe.recommended)?.mode,
+        productionBibleSupportsLongSequence: ui?.pipeNavigation?.some((pipe) =>
+          pipe.mode === "production_bible" && pipe.durationSupport?.supportsLongSequence === true
+        ) ?? false,
+        videoRemakeWorkflowControlPresent: ui?.workflowControls?.some((control) => control.mode === "video_remake") ?? false,
         directorPlanIdPresent: Boolean(ui?.director?.directorId),
         directorStatus: ui?.director?.status,
         directorCreativeMode: ui?.director?.creativeMode,
@@ -320,6 +578,24 @@ try {
         creativePatternCandidateCount: ui?.creativePatternLearning?.candidateCount ?? 0,
         creativePatternTopCandidateCount: ui?.creativePatternLearning?.topCandidates?.length ?? 0,
         selectedCreativeIdeaPresent: Boolean(ui?.creativePatternLearning?.selectedIdeaLabel),
+        mediaReferenceCount: ui?.mediaReferences?.length ?? 0,
+        mediaReferenceProviderHandoffCount: (ui?.mediaReferences ?? []).filter((reference) => reference.includeInProviderHandoff).length,
+        mediaReferencePromptTags: ui?.mediaReferences?.map((reference) => reference.promptTag) ?? [],
+        seedanceRecommendedProviderMode: ui?.seedanceRouting?.recommendedProviderMode,
+        seedancePreferredTier: ui?.seedanceRouting?.preferredTier,
+        seedanceResolution: ui?.seedanceRouting?.resolution,
+        seedanceReturnLastFrame: ui?.seedanceRouting?.returnLastFrame,
+        seedancePromptRecipeName: ui?.seedanceRouting?.promptRecipe?.name,
+        seedanceReferenceTagCount: ui?.seedanceRouting?.referenceTagCount ?? 0,
+        visualBibleStatus: ui?.visualBible?.status,
+        visualBibleMode: ui?.visualBible?.requestedMode,
+        visualBibleRecommendedPipe: ui?.visualBible?.recommendedPipe,
+        visualBibleDurationBand: ui?.visualBible?.durationBand,
+        visualBibleAssetPlanCount: ui?.visualBible?.assetPlanCount ?? 0,
+        visualBibleRequiredAssetPlanCount: ui?.visualBible?.requiredAssetPlanCount ?? 0,
+        visualBibleBoardCount: ui?.visualBible?.boardCount ?? 0,
+        visualBibleTargetClipCount: ui?.visualBible?.targetClipCount ?? 0,
+        visualBibleBlocksRender: ui?.visualBible?.blocksRenderUntilAssetsApproved,
         reviewCheckpointCount: ui?.review?.checkpoints?.length ?? 0,
         reviewCheckpointSurfaceCount: new Set((ui?.review?.checkpoints ?? []).map((checkpoint) => checkpoint.surface)).size,
         approvalPayloadContractGate: ui?.review?.approvalPayloadContract?.gate,
@@ -329,6 +605,63 @@ try {
         canCreateRenderJob: ui?.render?.canCreateRenderJob,
         canSubmitToProviderNow: ui?.render?.canSubmitToProviderNow,
         finalMp4AssemblyManagedByBackend: ui?.outputContract?.finalMp4AssemblyManagedByBackend
+      },
+      remakeUiContract: {
+        statusCode: remakeUiContract.statusCode,
+        referenceRemakePresent: Boolean(remakeUi?.referenceRemake?.blueprintId),
+        referenceRemakeMode: remakeUi?.referenceRemake?.mode,
+        referenceRemakeStatus: remakeUi?.referenceRemake?.status,
+        replacementSlotCount: remakeUi?.referenceRemake?.replacementSlots?.length ?? 0,
+        lockedElementCount: remakeUi?.referenceRemake?.lockedElements?.length ?? 0,
+        guardrailCount: remakeUi?.referenceRemake?.remakeGuardrails?.length ?? 0,
+        canUseAfterReview: remakeUi?.referenceRemake?.canUseAfterReview,
+        visualBibleRecommendedPipe: remakeUi?.visualBible?.recommendedPipe,
+        visualBibleStatus: remakeUi?.visualBible?.status,
+        seedanceRecommendedProviderMode: remakeUi?.seedanceRouting?.recommendedProviderMode,
+        seedancePromptRecipeName: remakeUi?.seedanceRouting?.promptRecipe?.name,
+        mediaReferenceCount: remakeUi?.mediaReferences?.length ?? 0,
+        sourceVideoReferencePresent: remakeUi?.mediaReferences?.some((reference) => reference.inputRole === "source_video") ?? false,
+        userActionPresent: remakeUi?.userRequiredActions?.some((action) => action.actionId === "approve_video_remake_blueprint") ?? false
+      },
+      visualBibleUiContract: {
+        statusCode: visualBibleUiContract.statusCode,
+        visualBibleStatus: visualBibleUi?.visualBible?.status,
+        visualBibleMode: visualBibleUi?.visualBible?.requestedMode,
+        visualBibleRecommendedPipe: visualBibleUi?.visualBible?.recommendedPipe,
+        visualBibleDurationBand: visualBibleUi?.visualBible?.durationBand,
+        assetPlanCount: visualBibleUi?.visualBible?.assetPlanCount ?? 0,
+        requiredAssetPlanCount: visualBibleUi?.visualBible?.requiredAssetPlanCount ?? 0,
+        boardCount: visualBibleUi?.visualBible?.boardCount ?? 0,
+        targetClipCount: visualBibleUi?.visualBible?.targetClipCount ?? 0,
+        blocksRenderUntilAssetsApproved: visualBibleUi?.visualBible?.blocksRenderUntilAssetsApproved,
+        pipeSelectionMode: visualBibleUi?.pipeSelection?.selectedMode,
+        pipeSelectionBackendPipe: visualBibleUi?.pipeSelection?.selectedBackendPipe,
+        pipeSelectionReasonCodeCount: visualBibleUi?.pipeSelection?.selectionReasonCodes?.length ?? 0,
+        pipeSelectionVisualBibleAlignmentStatus: visualBibleUi?.pipeSelection?.visualBibleAlignmentStatus,
+        pipeNavigationCount: visualBibleUi?.pipeNavigation?.length ?? 0,
+        recommendedPipeNavigationMode: visualBibleUi?.pipeNavigation?.find((pipe) => pipe.recommended)?.mode,
+        recommendedPipeNavigationBackendPipe: visualBibleUi?.pipeNavigation?.find((pipe) => pipe.recommended)?.backendPipe,
+        pipeNavigationBackendPipes: visualBibleUi?.pipeNavigation?.map((pipe) => pipe.backendPipe) ?? [],
+        canCreateRenderJob: visualBibleUi?.render?.canCreateRenderJob,
+        userActionPresent: visualBibleUi?.userRequiredActions?.some((action) => action.actionId === "approve_visual_bible_assets") ?? false,
+        promptRecipeName: visualBibleUi?.seedanceRouting?.promptRecipe?.name
+      },
+      productionBibleUiContract: {
+        statusCode: productionBibleUiContract.statusCode,
+        targetSeconds: productionBibleUi?.duration?.targetSeconds,
+        commercialMaxSeconds: productionBibleUi?.duration?.commercialMaxSeconds,
+        selectedPipeMinSeconds: productionBibleUi?.duration?.selectedPipeMinSeconds,
+        selectedPipeMaxSeconds: productionBibleUi?.duration?.selectedPipeMaxSeconds,
+        selectedPipeIdealRangeSeconds: productionBibleUi?.duration?.selectedPipeIdealRangeSeconds,
+        selectedPipeSupportsLongSequence: productionBibleUi?.duration?.selectedPipeSupportsLongSequence,
+        withinSelectedPipeDurationRange: productionBibleUi?.duration?.withinSelectedPipeDurationRange,
+        pipeSelectionMode: productionBibleUi?.pipeSelection?.selectedMode,
+        pipeSelectionBackendPipe: productionBibleUi?.pipeSelection?.selectedBackendPipe,
+        recommendedPipeNavigationMode: productionBibleUi?.pipeNavigation?.find((pipe) => pipe.recommended)?.mode,
+        visualBibleRecommendedPipe: productionBibleUi?.visualBible?.recommendedPipe,
+        visualBibleDurationBand: productionBibleUi?.visualBible?.durationBand,
+        targetClipCount: productionBibleUi?.visualBible?.targetClipCount ?? 0,
+        canCreateRenderJob: productionBibleUi?.render?.canCreateRenderJob
       },
       sessionUiContract: {
         sessionId,
@@ -462,8 +795,73 @@ function planBody(profileId) {
       ctaRules: ["Use one CTA only"]
     },
     channelStyleProfileId: profileId,
+    mediaReferences: [
+      {
+        role: "kol",
+        kind: "image",
+        uri: "asset://short-smoke/mina-kol",
+        label: "Mina KOL reference",
+        rightsStatus: "operator_approved",
+        priority: "primary",
+        description: "Preserve approved creator identity, hair, expression energy, and face continuity only."
+      },
+      {
+        role: "product",
+        kind: "image",
+        uri: "asset://short-smoke/glow-focus-serum-pack",
+        label: "Glow Focus Serum product pack",
+        rightsStatus: "operator_approved",
+        priority: "primary",
+        description: "Preserve packaging geometry, label placement, material, and hero-object continuity only."
+      },
+      {
+        role: "background",
+        kind: "image",
+        uri: "asset://short-smoke/morning-vanity-set",
+        label: "Morning vanity background",
+        rightsStatus: "operator_approved",
+        priority: "supporting",
+        description: "Preserve bright vanity layout and soft morning light only."
+      }
+    ],
     targetPlatform: "tiktok",
     targetDurationSeconds: 28
+  };
+}
+
+function remakePlanBody(profileId) {
+  return {
+    ...planBody(profileId),
+    requestId: "req_short_mvp_ui_video_remake_001",
+    userPrompt: "Create a TikTok Video Remake for Glow Focus Serum using the reference as edit rhythm, acting beats, camera language, and payoff timing while replacing creator, product, background, voice, audio, and claims.",
+    referenceVideoLearning: {
+      sourceLabel: "rights-cleared desk proof reference",
+      sourceUrl: "https://media.example.com/reference/desk-proof-remake",
+      summary: "Creator opens on a chaotic desk, snaps to a clean product moment, shows a satisfying close-up proof beat, then ends with a calm payoff.",
+      hook: "The desk feels messy until one small routine step changes the whole scene.",
+      durationSeconds: 28,
+      sceneCount: 5,
+      pacing: "fast problem hook, snap-clean transition, macro proof, creator reaction, soft payoff",
+      cameraStyle: "handheld desk POV, macro product close-up, quick reaction angle, calm final frame",
+      captionStyle: "visual rhythm only; no visible captions or labels",
+      audioStyle: "quick beat accents with guided original narration",
+      retentionPattern: "delay the clean payoff until the macro proof beat lands",
+      ctaStyle: "quiet routine payoff using approved claim language",
+      visualMotifs: ["messy desk", "macro texture", "clean payoff"],
+      doNotCopy: true
+    },
+    mediaReferences: [
+      ...planBody(profileId).mediaReferences,
+      {
+        role: "source_video",
+        kind: "video",
+        uri: "https://media.example.com/reference/desk-proof-remake",
+        label: "Desk proof remake structure",
+        rightsStatus: "operator_approved",
+        priority: "supporting",
+        description: "Learn pacing, acting beats, camera grammar, and payoff structure only."
+      }
+    ]
   };
 }
 

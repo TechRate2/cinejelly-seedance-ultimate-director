@@ -13,6 +13,7 @@ const DEFAULTS = {
   ATLASCLOUD_API_KEY: "",
   ATLASCLOUD_LLM_API_KEY: "",
   ATLASCLOUD_LLM_MODEL: "qwen/qwen3-vl-30b-a3b-thinking",
+  ATLASCLOUD_SEEDANCE_MINI_MODEL: "bytedance/seedance-2.0-mini/reference-to-video",
   ATLASCLOUD_SEEDANCE_STANDARD_MODEL: "bytedance/seedance-2.0/reference-to-video",
   ATLASCLOUD_SEEDANCE_FAST_MODEL: "bytedance/seedance-2.0-fast/reference-to-video",
   CINEJELLY_API_AUTH_TOKEN: () => randomBytes(32).toString("hex"),
@@ -22,6 +23,7 @@ const DEFAULTS = {
 const REQUIRED_AFTER_SETUP = [
   "ATLASCLOUD_API_KEY",
   "ATLASCLOUD_LLM_MODEL",
+  "ATLASCLOUD_SEEDANCE_MINI_MODEL",
   "ATLASCLOUD_SEEDANCE_STANDARD_MODEL",
   "ATLASCLOUD_SEEDANCE_FAST_MODEL",
   "CINEJELLY_API_AUTH_TOKEN"
@@ -31,7 +33,7 @@ const DEFAULT_SEEDANCE_CAPABILITY_BASE = {
   provider: "atlascloud",
   modes: ["text_to_video", "image_to_video", "reference_to_video", "video_to_video", "extend", "edit"],
   durations: { min: 4, max: 15 },
-  resolutions: ["480p", "720p", "1080p"],
+  resolutions: ["480p", "720p", "1080p", "720p-SR", "1080p-SR", "1440p-SR"],
   ratios: ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
   references: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"],
   async: true
@@ -77,7 +79,8 @@ function fillSeedanceCapabilities(values) {
   }
   const standardModel = values.get("ATLASCLOUD_SEEDANCE_STANDARD_MODEL");
   const fastModel = values.get("ATLASCLOUD_SEEDANCE_FAST_MODEL");
-  const modelIds = [standardModel, fastModel].filter((value) => value && value.trim());
+  const miniModel = values.get("ATLASCLOUD_SEEDANCE_MINI_MODEL");
+  const modelIds = [miniModel, standardModel, fastModel].filter((value) => value && value.trim());
   if (modelIds.length === 0) {
     return "missing_models";
   }

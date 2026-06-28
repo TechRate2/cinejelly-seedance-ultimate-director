@@ -70,9 +70,12 @@ export class AssemblyEngine {
       ...DEFAULT_AUDIO_MIX_OPTIONS,
       enabled: Boolean(input.audioTracks && input.audioTracks.length > 0)
     };
-    const transitionSettings = input.transitionSettings ?? {
+    const transitionSettings = {
       ...DEFAULT_TRANSITION_SETTINGS,
-      enabled: localClipPaths.length > 1
+      enabled: localClipPaths.length > 1,
+      ...(postproductionSettings.targetHeight ? { targetHeight: postproductionSettings.targetHeight } : {}),
+      ...(postproductionSettings.targetRatio ? { targetRatio: postproductionSettings.targetRatio } : {}),
+      ...(input.transitionSettings ?? {})
     };
     const captionOptions = input.captionOptions ?? { enabled: false, burnIn: false };
     const needsTransitions = localClipPaths.length > 1 && transitionSettings.enabled;

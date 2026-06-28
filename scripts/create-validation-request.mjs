@@ -10,11 +10,12 @@ const SAFE_DEFAULT_INPUT =
   "Create a 15-second premium commercial video for a fictional smart desk lamp, with calm workspace lighting, clean motion, and no customer data.";
 
 const enumValues = {
-  tier: ["fast", "standard"],
-  resolution: ["480p", "720p", "1080p"],
+  tier: ["mini", "fast", "standard"],
+  resolution: ["480p", "720p", "1080p", "720p-SR", "1080p-SR", "1440p-SR"],
   qualityMode: ["economy", "standard", "high", "ultimate"],
   ratio: ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
-  audioMode: ["none", "native", "guided", "post", "hybrid"]
+  audioMode: ["none", "native", "guided", "post", "hybrid"],
+  bitrateMode: ["standard", "high"]
 };
 
 function parseArgs(args) {
@@ -25,6 +26,7 @@ function parseArgs(args) {
     ratio: "16:9",
     durationTargetSeconds: 15,
     audioMode: "none",
+    bitrateMode: "standard",
     watermark: false,
     returnLastFrame: true,
     maxCostUsd: 5,
@@ -121,6 +123,15 @@ function parseArgs(args) {
       options.audioMode = arg.slice("--audio-mode=".length);
       continue;
     }
+    if (arg === "--bitrate-mode") {
+      options.bitrateMode = readRequiredValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--bitrate-mode=")) {
+      options.bitrateMode = arg.slice("--bitrate-mode=".length);
+      continue;
+    }
     if (arg === "--max-cost") {
       options.maxCostUsd = Number(readRequiredValue(args, index, arg));
       index += 1;
@@ -205,6 +216,7 @@ function buildRequest(options) {
   validateEnum("qualityMode", options.qualityMode);
   validateEnum("ratio", options.ratio);
   validateEnum("audioMode", options.audioMode);
+  validateEnum("bitrateMode", options.bitrateMode);
   validateNumber("duration", options.durationTargetSeconds, 15, 480);
   validateNumber("maxCost", options.maxCostUsd, 0, Number.MAX_SAFE_INTEGER);
   assertOutputInsideRepo(options.outputPath);
@@ -218,6 +230,7 @@ function buildRequest(options) {
       ratio: options.ratio,
       durationTargetSeconds: options.durationTargetSeconds,
       audioMode: options.audioMode,
+      bitrateMode: options.bitrateMode,
       watermark: options.watermark,
       returnLastFrame: options.returnLastFrame,
       maxCostUsd: options.maxCostUsd
@@ -238,12 +251,13 @@ Usage:
 
 Options:
   --output <path>          Request file path. Default: assets/output_deliverables/phase6-validation/request.json
-  --tier <fast|standard>   Default: fast
-  --resolution <value>     480p, 720p, or 1080p. Default: 480p
+  --tier <mini|fast|standard> Default: fast
+  --resolution <value>     480p, 720p, 1080p, 720p-SR, 1080p-SR, or 1440p-SR. Default: 480p
   --quality <value>        economy, standard, high, or ultimate. Default: economy
   --ratio <value>          Default: 16:9
   --duration <seconds>     15 to 480. Default: 15
   --audio-mode <value>     none, native, guided, post, or hybrid. Default: none
+  --bitrate-mode <value>   standard or high. Default: standard
   --max-cost <usd>         Default: 5
   --watermark              Enable watermark
   --no-return-last-frame   Disable last-frame return

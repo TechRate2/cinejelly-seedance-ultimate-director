@@ -105,6 +105,7 @@ export class LongFormTimelinePlanner {
   private segments(
     input: {
       readonly projectId: string;
+      readonly targetDurationSeconds: number;
       readonly shots: readonly ShotContract[];
       readonly continuityPlan: LongFormContinuityPlan;
       readonly postproductionAssetPlan: PostproductionAssetPlan;
@@ -120,6 +121,8 @@ export class LongFormTimelinePlanner {
       const durationSeconds = roundSeconds(Math.max(0, shot.durationSeconds));
       const endSecond = roundSeconds(startSecond + durationSeconds);
       cursor = endSecond;
+      const storyArcRole = this.storyArcRoleForSegment(shot, startSecond, endSecond, input.targetDurationSeconds);
+      const storyArcPosition = this.storyArcPositionForSegment(shot, startSecond, endSecond, input.targetDurationSeconds);
       const schedule = scheduleByShotId.get(shot.shotId);
       const captionCoverage = this.captionCoverage(input.captionCues ?? [], startSecond, endSecond);
       const audioCoverage = this.audioCoverage(input.postproductionAssetPlan, input.generatedAudioIntents ?? [], startSecond, endSecond);
@@ -142,6 +145,9 @@ export class LongFormTimelinePlanner {
         startSecond,
         endSecond,
         durationSeconds,
+        storyArcRole,
+        storyArcPosition,
+        storyArcContract: this.storyArcContract(storyArcRole, storyArcPosition, startSecond, endSecond, input.targetDurationSeconds),
         intent: shot.intent,
         subject: shot.subject,
         action: shot.action,
@@ -423,6 +429,61 @@ export class LongFormTimelinePlanner {
       .filter(([, value]) => Boolean(value))
       .map(([key]) => key)
       .sort();
+  }
+
+  private storyArcRoleForSegment(
+    shot: ShotContract,
+    startSecond: number,
+    endSecond: number,
+    targetDurationSeconds: number
+  ): string {
+    if (typeof shot.metadata?.storyArcRole === "string" && shot.metadata.storyArcRole.trim()) {
+      return shot.metadata.storyArcRole.trim();
+    }
+    const text = `${shot.intent} ${shot.action}`.toLowerCase();
+    if (/hook|opening|first frame|stop|attention|curious|why/.test(text)) return "hook";
+    if (/problem|pain|before|friction|objection/.test(text)) return "problem";
+    if (/payoff|result|resolution|cta|final|close|offer/.test(text)) return "payoff";
+    if (/turn|bridge|transition|reveal|twist|escalat/.test(text)) return "turning_point";
+    if (/proof|evidence|test|claim|demo|demonstrat/.test(text)) return "proof";
+    const midpoint = targetDurationSeconds > 0 ? ((startSecond + endSecond) / 2) / targetDurationSeconds : 0.5;
+    if (midpoint < 0.2) return "setup";
+    if (midpoint > 0.8) return "payoff";
+    if (midpoint > 0.58) return "turning_point";
+    return "development";
+  }
+
+  private storyArcPositionForSegment(
+    shot: ShotContract,
+    startSecond: number,
+    endSecond: number,
+    targetDurationSeconds: number
+  ): string {
+    if (typeof shot.metadata?.storyArcPosition === "string" && shot.metadata.storyArcPosition.trim()) {
+      return shot.metadata.storyArcPosition.trim();
+    }
+    if (!Number.isFinite(targetDurationSeconds) || targetDurationSeconds <= 0) {
+      return "unknown";
+    }
+    const midpoint = ((startSecond + endSecond) / 2) / targetDurationSeconds;
+    if (midpoint <= 0.2) return "opening";
+    if (midpoint < 0.35) return "early_development";
+    if (midpoint < 0.65) return "middle_development";
+    if (midpoint < 0.8) return "late_development";
+    return "ending";
+  }
+
+  private storyArcContract(
+    role: string,
+    position: string,
+    startSecond: number,
+    endSecond: number,
+    targetDurationSeconds: number
+  ): string {
+    return [
+      `Segment ${startSecond}-${endSecond}s of ${targetDurationSeconds}s is ${position}.`,
+      `It must advance the ${role} function of the full video, preserve continuity anchors, and leave an edit-ready endpoint.`
+    ].join(" ");
   }
 }
 

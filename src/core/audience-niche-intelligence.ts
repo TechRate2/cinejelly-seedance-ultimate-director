@@ -181,6 +181,10 @@ function formatFrom(lower: string, input: AudienceNicheIntelligenceInput): Audie
 function nicheFrom(input: AudienceNicheIntelligenceInput, lower: string): string {
   const categoryTitle = `${input.productCategory ?? ""} ${input.productTitle ?? ""}`;
   const productWeighted = normalizedSearchText(`${categoryTitle} ${lower}`);
+  if (hasAnyTerm(productWeighted, ["news", "breaking news", "current event", "latest update", "commentary", "reaction commentary"])) return "news_commentary";
+  if (hasAnyTerm(productWeighted, ["podcast", "interview clip", "guest clip", "host clip", "talk show"])) return "podcast_clip";
+  if (hasAnyTerm(productWeighted, ["livestream", "live shop", "live shopping", "live commerce", "stream sale"])) return "livestream_commerce";
+  if (hasAnyTerm(productWeighted, ["affiliate", "koc", "kol review", "creator review", "commission", "haul"])) return "affiliate_review";
   if (hasAnyTerm(productWeighted, ["beauty", "skincare", "skin care", "cosmetic", "serum", "makeup", "spa", "haircare"])) return "beauty_skincare";
   if (hasAnyTerm(productWeighted, ["fitness", "gym", "workout", "yoga", "wellness", "supplement", "nutrition"])) return "fitness_wellness";
   if (hasAnyTerm(productWeighted, ["desk", "workspace", "office", "remote worker", "remote workers", "desk setup", "cable organizer", "magnetic cable", "productivity accessory", "office accessory", "organizer"])) return "workspace_accessory";
@@ -191,9 +195,16 @@ function nicheFrom(input: AudienceNicheIntelligenceInput, lower: string): string
   if (hasAnyTerm(productWeighted, ["health", "clinic", "dentist", "doctor", "therapy", "medical"])) return "healthcare_services";
   if (hasAnyTerm(productWeighted, ["game", "gaming", "esport", "streamer"])) return "gaming_entertainment";
   if (hasAnyTerm(productWeighted, ["travel", "hotel", "resort", "tour", "destination", "airbnb", "hospitality"])) return "travel_hospitality";
-  if (hasAnyTerm(productWeighted, ["saas", "software", "b2b", "crm", "automation", "agency", "client dashboard", "workflow"])) return "saas_b2b";
+  if (hasAnyTerm(productWeighted, ["mobile app", "app demo", "ios app", "android app", "consumer app"])) return "mobile_app";
+  if (hasAnyTerm(productWeighted, ["saas", "software", "b2b", "crm", "automation", "agency", "client dashboard", "workflow", "dashboard"])) return "saas_b2b";
   if (EDUCATION_INTENT_PATTERN.test(productWeighted)) return "education_course";
+  if (hasAnyTerm(productWeighted, ["event", "venue", "wedding", "concert", "party booking"])) return "event_venue";
+  if (hasAnyTerm(productWeighted, ["auto service", "car repair", "mechanic", "detailing"])) return "auto_service";
+  if (hasAnyTerm(productWeighted, ["home repair", "plumber", "cleaning", "electrician", "pest control"])) return "home_repair";
   if (hasAnyTerm(productWeighted, ["local service", "salon", "repair", "cleaning", "lawyer", "plumber"])) return "local_service";
+  if (hasAnyTerm(productWeighted, ["pet", "dog", "cat", "pet care", "family lifestyle", "baby"])) return "family_lifestyle";
+  if (hasAnyTerm(productWeighted, ["sports", "basketball", "football", "soccer", "tennis", "running"])) return "sports";
+  if (hasAnyTerm(productWeighted, ["creator tool", "content tool", "editing tool", "content calendar"])) return "creator_tools";
   if (hasAnyTerm(productWeighted, ["founder", "brand story", "documentary", "journey", "case study"])) return "brand_story_documentary";
   if (hasAnyTerm(productWeighted, ["cinematic", "film", "trailer", "short film", "movie"])) return "cinematic_story";
   if (input.productCategory) return safeSlug(input.productCategory, "product_category");
@@ -213,6 +224,14 @@ function audienceFrom(input: AudienceNicheIntelligenceInput, lower: string, nich
       return "beauty buyers who need visible proof before trying a product";
     case "fitness_wellness":
       return "wellness buyers who want a practical result without hype";
+    case "affiliate_review":
+      return "buyers who trust creator recommendations only when the proof and limits are clear";
+    case "news_commentary":
+      return "viewers who want a fast, accurate explanation of why the update matters";
+    case "podcast_clip":
+      return "viewers who want one strong idea visualized quickly";
+    case "livestream_commerce":
+      return "live-shopping viewers who need product proof before acting";
     case "fashion_apparel":
       return "style-conscious buyers comparing fit, use case, and identity";
     case "food_beverage":
@@ -229,6 +248,8 @@ function audienceFrom(input: AudienceNicheIntelligenceInput, lower: string, nich
       return "travelers comparing experience, trust, and a reason to book";
     case "saas_b2b":
       return "business decision makers comparing value, time savings, and proof";
+    case "mobile_app":
+      return "app users who need to understand the job-to-be-done before installing";
     case "education_course":
       return "learners who need a clear promise, steps, and progress proof";
     case "workspace_accessory":
@@ -239,6 +260,18 @@ function audienceFrom(input: AudienceNicheIntelligenceInput, lower: string, nich
       return "viewers who expect strong mood, continuity, and payoff";
     case "ecommerce_product_video":
       return "buyers who need fast proof before purchase";
+    case "event_venue":
+      return "people planning an event who need atmosphere, trust, and logistics confidence";
+    case "auto_service":
+    case "home_repair":
+    case "local_service":
+      return "local buyers who need fast trust, process proof, and low-friction booking";
+    case "family_lifestyle":
+      return "family and lifestyle viewers who respond to safe, relatable everyday moments";
+    case "sports":
+      return "sports viewers who want practical improvement, identity, and replayable moments";
+    case "creator_tools":
+      return "creators who need a faster content workflow with proof";
     default:
       return "general audience";
   }

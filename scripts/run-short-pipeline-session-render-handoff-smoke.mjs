@@ -99,6 +99,12 @@ try {
   await waitForHealth(baseUrl);
   const created = await postJson(`${baseUrl}/v1/short-pipeline/conversation-sessions`, clientAHeaders, sessionRequestBody());
   const sessionId = created.body.session.sessionId;
+  const visualBibleSession = await postJson(
+    `${baseUrl}/v1/short-pipeline/conversation-sessions`,
+    clientAHeaders,
+    visualBibleBlockedSessionRequestBody()
+  );
+  const visualBibleSessionId = visualBibleSession.body.session?.sessionId;
   const pending = await postJson(
     `${baseUrl}/v1/short-pipeline/conversation-sessions/${encodeURIComponent(sessionId)}/render-jobs`,
     clientAHeaders,
@@ -160,6 +166,35 @@ try {
       }
     }
   );
+  const visualBibleSessionRender = await postJson(
+    `${baseUrl}/v1/short-pipeline/conversation-sessions/${encodeURIComponent(visualBibleSessionId)}/render-jobs`,
+    clientAHeaders,
+    {
+      includeGeneratedAudioIntents: false,
+      settings: {
+        qualityMode: "economy",
+        resolution: "480p"
+      },
+      metadata: {
+        smoke: "session_render_handoff_visual_bible_block"
+      }
+    }
+  );
+  const visualBibleDirectRender = await postJson(
+    `${baseUrl}/v1/short-pipeline/render-jobs`,
+    clientAHeaders,
+    {
+      planInput: productionBibleBlockedPlanInput(),
+      includeGeneratedAudioIntents: false,
+      settings: {
+        qualityMode: "economy",
+        resolution: "480p"
+      },
+      metadata: {
+        smoke: "direct_render_handoff_visual_bible_block"
+      }
+    }
+  );
   const clientBSubmit = await postJson(
     `${baseUrl}/v1/short-pipeline/conversation-sessions/${encodeURIComponent(sessionId)}/render-jobs`,
     clientBHeaders,
@@ -204,6 +239,15 @@ try {
       !unsafeApproved.body.workspaceBillingReservation
       ? pass("unsafe_review_blocks_session_handoff", "Unsafe approved-looking review evidence is blocked and does not reserve spend.")
       : fail("unsafe_review_blocks_session_handoff", "Expected unsafe review evidence to create a blocked job without spend reservation."),
+    visualBibleSession.statusCode === 201 &&
+      visualBibleSessionRender.statusCode === 422 &&
+      String(visualBibleSessionRender.body.error ?? "").includes("Visual Bible/reference assets")
+      ? pass("session_visual_bible_asset_gate_blocks_job_creation", "Stored sessions that require Visual Bible/reference assets cannot create render jobs before those assets are approved.")
+      : fail("session_visual_bible_asset_gate_blocks_job_creation", "Expected Visual Bible-gated stored session render handoff to return 422 before job creation."),
+    visualBibleDirectRender.statusCode === 422 &&
+      String(visualBibleDirectRender.body.error ?? "").includes("Visual Bible/reference assets")
+      ? pass("direct_visual_bible_asset_gate_blocks_job_creation", "Direct short render-job API also enforces the Visual Bible asset gate before creating a render job.")
+      : fail("direct_visual_bible_asset_gate_blocks_job_creation", "Expected direct Visual Bible-gated render handoff to return 422 before job creation."),
     clientBSubmit.statusCode === 404
       ? pass("client_scope_prevents_cross_session_render", "A different client key cannot render from another client's stored session.")
       : fail("client_scope_prevents_cross_session_render", "Expected client B render-from-session to return 404."),
@@ -241,10 +285,13 @@ try {
         "GET /v1/render-jobs"
       ],
       sessionId,
+      visualBibleSessionId,
       pendingJobId: pending.body.jobId,
       unsafeReviewJobId: unsafeApproved.body.jobId,
       approvedWithoutConfirmStatusCode: approvedWithoutConfirm.statusCode,
       planInputOverrideStatusCode: planInputOverride.statusCode,
+      visualBibleSessionRenderStatusCode: visualBibleSessionRender.statusCode,
+      visualBibleDirectRenderStatusCode: visualBibleDirectRender.statusCode,
       clientIsolationCheckPassed: clientBSubmit.statusCode === 404,
       rawUrlLeakCheckPassed: !rawLeakDetected,
       localPathLeakCheckPassed: !rawLeakDetected,
@@ -271,6 +318,13 @@ try {
         jobStatus: unsafeApproved.body.status,
         reviewApprovalStatus: unsafeApproved.body.reviewApprovalStatus,
         hasReservation: Boolean(unsafeApproved.body.clientPolicyReservation || unsafeApproved.body.workspaceBillingReservation)
+      },
+      visualBibleAssetGate: {
+        sessionCreateStatusCode: visualBibleSession.statusCode,
+        sessionRenderStatusCode: visualBibleSessionRender.statusCode,
+        directRenderStatusCode: visualBibleDirectRender.statusCode,
+        sessionBlockedBeforeJobCreation: visualBibleSessionRender.statusCode === 422,
+        directBlockedBeforeJobCreation: visualBibleDirectRender.statusCode === 422
       },
       clientIsolation: {
         clientBStatusCode: clientBSubmit.statusCode,
@@ -344,6 +398,34 @@ function sessionRequestBody() {
     },
     targetPlatform: "tiktok",
     targetDurationSeconds: 28
+  };
+}
+
+function visualBibleBlockedSessionRequestBody() {
+  return {
+    ...sessionRequestBody(),
+    requestId: "req_short_pipeline_session_render_handoff_visual_bible_001",
+    userPrompt: "Create a premium UGC short, but require a reference board before render spend so KOL identity and product anchors are approved first.",
+    visualBible: {
+      mode: "reference_board",
+      imageProviderPolicy: "provider_neutral",
+      requireBeforeRender: true
+    }
+  };
+}
+
+function productionBibleBlockedPlanInput() {
+  return {
+    ...sessionRequestBody(),
+    projectId: "short_pipeline_direct_visual_bible_gate_smoke",
+    requestId: "req_short_pipeline_direct_production_bible_gate_001",
+    userPrompt: "Create a 90 second branded mini sequence with recurring KOL identity, stable product proof beats, and approved sequence boards before render.",
+    targetDurationSeconds: 90,
+    visualBible: {
+      mode: "production_bible",
+      imageProviderPolicy: "provider_neutral",
+      requireBeforeRender: true
+    }
   };
 }
 

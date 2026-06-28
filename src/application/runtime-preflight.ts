@@ -49,6 +49,7 @@ export class RuntimePreflight {
       this.present("ATLASCLOUD_LLM_MODEL", this.env.ATLASCLOUD_LLM_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
+      this.optionalModelId("ATLASCLOUD_SEEDANCE_MINI_MODEL", this.env.ATLASCLOUD_SEEDANCE_MINI_MODEL),
       this.apiAuthCheck(),
       this.optionalPort("PORT", this.env.PORT),
       this.optionalAtlasEndpointUrl("ATLASCLOUD_LLM_BASE_URL", this.env.ATLASCLOUD_LLM_BASE_URL, ATLAS_LLM_PATH),
@@ -534,6 +535,16 @@ export class RuntimePreflight {
       : { name, status: "pass", message: `${name} is not set; shared Atlas API key will be used.` };
   }
 
+  private optionalModelId(name: string, value: string | undefined): PreflightCheck {
+    if (!value?.trim()) {
+      return { name, status: "pass", message: `${name} is not set; capability fallback will be used when needed.` };
+    }
+    const issues = this.modelIdIssues(name, [value.trim()]);
+    return issues.length > 0
+      ? { name, status: "fail", message: issues.join(" ") }
+      : { name, status: "pass", message: `${name} is configured.` };
+  }
+
   private apiAuthCheck(): PreflightCheck {
     const disabledAuth = this.env.CINEJELLY_DISABLE_API_AUTH?.trim().toLowerCase();
     if (disabledAuth && disabledAuth !== "true" && disabledAuth !== "false") {
@@ -739,6 +750,7 @@ export class RuntimePreflight {
 
   private configuredSeedanceModelIds(): readonly string[] {
     return [
+      this.env.ATLASCLOUD_SEEDANCE_MINI_MODEL?.trim(),
       this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL?.trim(),
       this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL?.trim()
     ].filter((value): value is string => Boolean(value));
@@ -783,7 +795,7 @@ export class RuntimePreflight {
       }
       const missingModels = configuredSeedanceModels.filter((modelId) => !capabilityModels.has(modelId));
       if (missingModels.length > 0) {
-        issues.push("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must include the configured fast and standard Seedance model IDs.");
+        issues.push("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must include every configured Seedance model ID.");
       }
       return issues;
     } catch {

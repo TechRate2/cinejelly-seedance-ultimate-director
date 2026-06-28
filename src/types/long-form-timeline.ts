@@ -43,6 +43,9 @@ export interface LongFormTimelineSegment {
   readonly startSecond: number;
   readonly endSecond: number;
   readonly durationSeconds: number;
+  readonly storyArcRole: string;
+  readonly storyArcPosition: string;
+  readonly storyArcContract: string;
   readonly intent: string;
   readonly subject: string;
   readonly action: string;

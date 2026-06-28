@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-platform-template-corpus-report.schema.json",
+  "title": "CineJelly Short Platform Template Corpus Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourcePatternOrigins",
+    "crawlPolicy",
+    "runtimeCoverage",
+    "sourceResults",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-platform-template-corpus-report.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": true },
+    "providerCallsMade": { "const": false },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "type": "string" }
+    },
+    "crawlPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedSourceTypes", "forbiddenSourceTypes", "transformationPolicy"],
+      "properties": {
+        "allowedSourceTypes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "forbiddenSourceTypes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "transformationPolicy": { "type": "string", "minLength": 1 }
+      }
+    },
+    "runtimeCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "sourceCount",
+        "templateArchetypeCount",
+        "nicheFamilyCount",
+        "declaredPatternMatrixCount",
+        "retrievalTopK",
+        "promptTextBundlingPolicy",
+        "trendVideoIntakeSupported",
+        "commercialGuardrail"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.short-platform-template-corpus-coverage.v1" },
+        "sourceCount": { "type": "integer", "minimum": 7 },
+        "templateArchetypeCount": { "type": "integer", "minimum": 20 },
+        "nicheFamilyCount": { "type": "integer", "minimum": 40 },
+        "declaredPatternMatrixCount": { "type": "integer", "minimum": 900 },
+        "retrievalTopK": { "type": "integer", "minimum": 24 },
+        "promptTextBundlingPolicy": { "const": "no_raw_third_party_template_text_runtime_uses_distilled_structure" },
+        "trendVideoIntakeSupported": { "const": true },
+        "commercialGuardrail": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sourceResults": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "url",
+          "status",
+          "httpStatus",
+          "licensePolicy",
+          "contentBytes",
+          "contentSha256",
+          "keywordCheckPassed",
+          "matchedKeywords",
+          "rawContentPersisted"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 },
+          "url": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "fail"] },
+          "httpStatus": { "type": "integer", "minimum": 100, "maximum": 599 },
+          "licensePolicy": { "type": "string", "minLength": 1 },
+          "contentBytes": { "type": "integer", "minimum": 0 },
+          "contentSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "keywordCheckPassed": { "type": "boolean" },
+          "matchedKeywords": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "rawContentPersisted": { "const": false }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string" },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canUseAsNoSpendTemplateTrainingEvidence", "canReleaseToCustomerTraffic", "releaseBlocker"],
+      "properties": {
+        "canUseAsNoSpendTemplateTrainingEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

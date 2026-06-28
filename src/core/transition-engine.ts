@@ -4,6 +4,7 @@
  */
 
 import type { MediaMetadata } from "../types/media.js";
+import type { AspectRatio } from "../types/settings.js";
 import type { TransitionArtifact, TransitionAssemblyInput, TransitionSettings } from "../types/transition.js";
 import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
@@ -32,8 +33,10 @@ export class TransitionEngine {
 
     const metadata = await Promise.all(input.inputPaths.map((path) => this.mediaInspector.probe(path, signal)));
     const targetHeight = input.settings.targetHeight ?? this.firstVideoHeight(metadata) ?? 720;
+    const targetWidth = this.targetWidth(targetHeight, input.settings.targetRatio, metadata);
+    const usesFixedCanvas = Boolean(input.settings.targetRatio && input.settings.targetRatio !== "adaptive");
     const allHaveAudio = input.settings.preserveAudio && metadata.every((item) => item.streams.some((stream) => stream.type === "audio"));
-    const args = this.buildFfmpegArgs(input, metadata, targetHeight, allHaveAudio);
+    const args = this.buildFfmpegArgs(input, metadata, targetHeight, targetWidth, usesFixedCanvas, allHaveAudio);
     await runProcess(readMediaToolCommand("ffmpeg"), args, signal);
 
     return {
@@ -42,7 +45,8 @@ export class TransitionEngine {
       usedAudioCrossfade: allHaveAudio,
       settings: {
         ...input.settings,
-        targetHeight
+        targetHeight,
+        ...(input.settings.targetRatio ? { targetRatio: input.settings.targetRatio } : {})
       },
       assembledAt: new Date()
     };
@@ -52,6 +56,8 @@ export class TransitionEngine {
     input: TransitionAssemblyInput,
     metadata: readonly MediaMetadata[],
     targetHeight: number,
+    targetWidth: number,
+    usesFixedCanvas: boolean,
     includeAudio: boolean
   ): readonly string[] {
     const args: string[] = ["-y"];
@@ -62,7 +68,7 @@ export class TransitionEngine {
     const filters: string[] = [];
     for (let index = 0; index < input.inputPaths.length; index += 1) {
       filters.push(
-        `[${index}:v]setpts=PTS-STARTPTS,scale=-2:${targetHeight},fps=${input.settings.fps},format=yuv420p[v${index}]`
+        `[${index}:v]setpts=PTS-STARTPTS,${this.canvasFilter(targetWidth, targetHeight, usesFixedCanvas)},setsar=1,fps=${input.settings.fps},format=yuv420p[v${index}]`
       );
       if (includeAudio) {
         filters.push(`[${index}:a]asetpts=PTS-STARTPTS,aresample=async=1[a${index}]`);
@@ -121,12 +127,59 @@ export class TransitionEngine {
     return metadata.durationSeconds;
   }
 
-  private firstVideoHeight(metadata: readonly MediaMetadata[]): 480 | 720 | 1080 | undefined {
+  private firstVideoHeight(metadata: readonly MediaMetadata[]): 480 | 720 | 1080 | 1440 | undefined {
     const height = metadata[0]?.streams.find((stream) => stream.type === "video")?.height;
-    if (height === 480 || height === 720 || height === 1080) {
+    if (height === 480 || height === 720 || height === 1080 || height === 1440) {
       return height;
     }
     return undefined;
+  }
+
+  private targetWidth(
+    targetHeight: 480 | 720 | 1080 | 1440,
+    targetRatio: AspectRatio | undefined,
+    metadata: readonly MediaMetadata[]
+  ): number {
+    if (targetRatio && targetRatio !== "adaptive") {
+      return this.evenWidthForRatio(targetHeight, targetRatio);
+    }
+    const firstVideo = metadata[0]?.streams.find((stream) => stream.type === "video");
+    if (firstVideo?.width && firstVideo.height && firstVideo.width > 0 && firstVideo.height > 0) {
+      return this.nearestEven((targetHeight * firstVideo.width) / firstVideo.height);
+    }
+    return this.evenWidthForRatio(targetHeight, "16:9");
+  }
+
+  private evenWidthForRatio(targetHeight: 480 | 720 | 1080 | 1440, ratio: Exclude<AspectRatio, "adaptive">): number {
+    return this.nearestEven(targetHeight * this.ratioValue(ratio));
+  }
+
+  private nearestEven(value: number): number {
+    const rounded = Math.max(2, Math.round(value));
+    return rounded % 2 === 0 ? rounded : rounded + 1;
+  }
+
+  private ratioValue(ratio: Exclude<AspectRatio, "adaptive">): number {
+    switch (ratio) {
+      case "21:9":
+        return 21 / 9;
+      case "16:9":
+        return 16 / 9;
+      case "4:3":
+        return 4 / 3;
+      case "1:1":
+        return 1;
+      case "3:4":
+        return 3 / 4;
+      case "9:16":
+        return 9 / 16;
+    }
+  }
+
+  private canvasFilter(targetWidth: number, targetHeight: number, usesFixedCanvas: boolean): string {
+    return usesFixedCanvas
+      ? `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${targetHeight}`
+      : `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2`;
   }
 
   private validateSettings(settings: TransitionSettings): void {

@@ -173,6 +173,11 @@ export class VideoRenderStrategyPlanner {
       case "source_video":
       case "source_video_guided":
         return "source_video";
+      case "sequence":
+      case "sequence_bible":
+      case "production_bible":
+      case "long_sequence_bible":
+        return "sequence_bible";
       case "manual":
       case "manual_storyboard":
         return "manual_storyboard";
@@ -202,6 +207,8 @@ export class VideoRenderStrategyPlanner {
         return input.singleClipEligible ? "reference_locked_single_clip" : "reference_locked_multishot";
       case "source_video":
         return "source_video_guided";
+      case "sequence_bible":
+        return "sequence_bible";
       case "manual_storyboard":
         return "manual_storyboard";
       case "auto":
@@ -224,6 +231,8 @@ export class VideoRenderStrategyPlanner {
         return "reference_locked";
       case "source_video_guided":
         return "source_video_guided";
+      case "sequence_bible":
+        return "sequence_bible";
       case "manual_storyboard":
         return "manual_locked";
       case "storyboard_multishot":
@@ -236,6 +245,7 @@ export class VideoRenderStrategyPlanner {
       workflowMode === "storyboard_multishot" ||
       workflowMode === "reference_locked_multishot" ||
       workflowMode === "source_video_guided" ||
+      workflowMode === "sequence_bible" ||
       workflowMode === "manual_storyboard";
   }
 
@@ -267,7 +277,8 @@ export class VideoRenderStrategyPlanner {
     }
     const eligibleShotCount = Math.max(0, input.shotCount - 1);
     const requiresReturnLastFrame = input.continuityMode === "last_frame_chaining" ||
-      input.workflowMode === "source_video_guided";
+      input.workflowMode === "source_video_guided" ||
+      input.workflowMode === "sequence_bible";
     if (requiresReturnLastFrame && input.returnLastFrame === false) {
       return {
         status: "blocked",
@@ -276,12 +287,14 @@ export class VideoRenderStrategyPlanner {
         reason: "The selected workflow needs provider last-frame output, but returnLastFrame is disabled."
       };
     }
-    if (input.continuityMode === "last_frame_chaining") {
+    if (input.continuityMode === "last_frame_chaining" || input.workflowMode === "sequence_bible") {
       return {
         status: "required",
         eligibleShotCount,
         requiresReturnLastFrame,
-        reason: "Prompt-only multishot workflows need last-frame chaining to preserve continuity between generated clips."
+        reason: input.workflowMode === "sequence_bible"
+          ? "Production-bible sequences need last-frame chaining to preserve recurring anchors across Seedance clips."
+          : "Prompt-only multishot workflows need last-frame chaining to preserve continuity between generated clips."
       };
     }
     if (input.workflowMode === "reference_locked_multishot" || input.workflowMode === "source_video_guided") {
@@ -310,6 +323,7 @@ export class VideoRenderStrategyPlanner {
     }
     return input.workflowMode === "reference_locked_multishot" ||
       input.workflowMode === "source_video_guided" ||
+      input.workflowMode === "sequence_bible" ||
       input.workflowMode === "manual_storyboard" ||
       input.lastFrameChainingStatus === "required" ||
       input.lastFrameChainingStatus === "recommended";
@@ -354,6 +368,12 @@ export class VideoRenderStrategyPlanner {
         decisions.push({
           code: "source_video_guided_selected",
           message: "Source-video guided workflow is selected because source structure evidence is present or explicitly requested."
+        });
+        break;
+      case "sequence_bible":
+        decisions.push({
+          code: "sequence_bible_selected",
+          message: "Production-bible sequence workflow is selected for multi-clip continuity, recurring anchors, and boundary review."
         });
         break;
       case "manual_storyboard":

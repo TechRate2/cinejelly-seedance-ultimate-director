@@ -62,7 +62,7 @@ export interface PostproductionSettings {
   readonly audioCodec: "aac";
   readonly audioBitrate: string;
   readonly fastStart: boolean;
-  readonly targetHeight?: 480 | 720 | 1080;
+  readonly targetHeight?: 480 | 720 | 1080 | 1440;
   readonly targetRatio?: AspectRatio;
 }
 

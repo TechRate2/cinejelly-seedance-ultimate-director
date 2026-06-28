@@ -19,6 +19,7 @@ export type RenderScheduleSequentialReason =
   | "strategy_reference_lock"
   | "strategy_last_frame_chaining"
   | "strategy_source_video"
+  | "strategy_sequence_bible"
   | "strategy_manual_storyboard";
 
 export interface RenderScheduleItem<TValue> {

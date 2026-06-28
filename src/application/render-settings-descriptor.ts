@@ -4,6 +4,7 @@
 
 import {
   AUDIO_MODES,
+  BITRATE_MODES,
   MAX_CLIP_DURATION_SECONDS,
   MAX_TOTAL_DURATION_SECONDS,
   MIN_CLIP_DURATION_SECONDS,
@@ -29,6 +30,7 @@ export interface RenderSettingsDescriptor {
     readonly qualityMode: typeof QUALITY_MODES;
     readonly ratio: typeof RATIOS;
     readonly audioMode: typeof AUDIO_MODES;
+    readonly bitrateMode: typeof BITRATE_MODES;
   };
   readonly constraints: {
     readonly durationTargetSeconds: {
@@ -49,6 +51,7 @@ export interface RenderSettingsDescriptor {
   readonly selectedModels: {
     readonly llmModelConfigured: boolean;
     readonly llmModel?: string;
+    readonly seedanceMiniModel?: string;
     readonly seedanceStandardModel?: string;
     readonly seedanceFastModel?: string;
   };
@@ -89,7 +92,7 @@ export interface QualityModeDescriptor {
 
 export interface SeedanceSelectableModelDescriptor {
   readonly modelId: string;
-  readonly configuredTier?: "fast" | "standard";
+  readonly configuredTier?: "mini" | "fast" | "standard";
   readonly capabilityConfigured: boolean;
   readonly source: "configured_tier" | "capability_json" | "configured_tier_and_capability_json";
 }
@@ -111,7 +114,8 @@ export function buildRenderSettingsDescriptor(env: NodeJS.ProcessEnv = process.e
       resolution: RESOLUTIONS,
       qualityMode: QUALITY_MODES,
       ratio: RATIOS,
-      audioMode: AUDIO_MODES
+      audioMode: AUDIO_MODES,
+      bitrateMode: BITRATE_MODES
     },
     constraints: {
       durationTargetSeconds: {
@@ -138,6 +142,9 @@ export function buildRenderSettingsDescriptor(env: NodeJS.ProcessEnv = process.e
     selectedModels: {
       llmModelConfigured: Boolean(env.ATLASCLOUD_LLM_MODEL?.trim()),
       ...(env.ATLASCLOUD_LLM_MODEL?.trim() ? { llmModel: env.ATLASCLOUD_LLM_MODEL.trim() } : {}),
+      ...(env.ATLASCLOUD_SEEDANCE_MINI_MODEL?.trim()
+        ? { seedanceMiniModel: env.ATLASCLOUD_SEEDANCE_MINI_MODEL.trim() }
+        : {}),
       ...(env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL?.trim()
         ? { seedanceStandardModel: env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL.trim() }
         : {}),
@@ -158,12 +165,16 @@ export function buildRenderSettingsDescriptor(env: NodeJS.ProcessEnv = process.e
 
 function buildModelSelectionDescriptor(env: NodeJS.ProcessEnv): RenderSettingsDescriptor["modelSelection"] {
   const fastModel = env.ATLASCLOUD_SEEDANCE_FAST_MODEL?.trim();
+  const miniModel = env.ATLASCLOUD_SEEDANCE_MINI_MODEL?.trim();
   const standardModel = env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL?.trim();
   const capabilityModelIds = seedanceCapabilityModelIds(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
   const entries = new Map<string, {
-    configuredTier?: "fast" | "standard";
+    configuredTier?: "mini" | "fast" | "standard";
     capabilityConfigured: boolean;
   }>();
+  if (miniModel) {
+    entries.set(miniModel, { configuredTier: "mini", capabilityConfigured: false });
+  }
   if (fastModel) {
     entries.set(fastModel, { configuredTier: "fast", capabilityConfigured: false });
   }
@@ -185,7 +196,11 @@ function buildModelSelectionDescriptor(env: NodeJS.ProcessEnv): RenderSettingsDe
       source: sourceForSelectableModel(entry)
     }))
     .sort((left, right) => left.modelId.localeCompare(right.modelId));
-  const defaultModelId = DEFAULT_SEEDANCE_SETTINGS.tier === "fast" ? fastModel : standardModel;
+  const defaultModelId = DEFAULT_SEEDANCE_SETTINGS.tier === "mini"
+    ? miniModel
+    : DEFAULT_SEEDANCE_SETTINGS.tier === "fast"
+      ? fastModel
+      : standardModel;
   return {
     seedance: {
       requestField: "modelPreferences.seedanceModelId",
@@ -203,7 +218,7 @@ function buildModelSelectionDescriptor(env: NodeJS.ProcessEnv): RenderSettingsDe
 }
 
 function sourceForSelectableModel(entry: {
-  readonly configuredTier?: "fast" | "standard";
+  readonly configuredTier?: "mini" | "fast" | "standard";
   readonly capabilityConfigured: boolean;
 }): SeedanceSelectableModelDescriptor["source"] {
   if (entry.configuredTier && entry.capabilityConfigured) {

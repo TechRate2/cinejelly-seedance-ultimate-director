@@ -43,6 +43,8 @@ const { LongFormContinuityPlanner } = await import("../dist/core/long-form-conti
 const { LongFormTimelinePlanner } = await import("../dist/core/long-form-timeline-planner.js");
 const { PostproductionAssetPlanner } = await import("../dist/core/postproduction-asset-planner.js");
 const { RenderScheduler } = await import("../dist/core/render-scheduler.js");
+const { ShotPlanner } = await import("../dist/core/shot-planner.js");
+const { SeedancePromptCompiler } = await import("../dist/prompt_compiler/prompt-compiler.js");
 
 const continuityPlanner = new LongFormContinuityPlanner();
 const timelinePlanner = new LongFormTimelinePlanner();
@@ -51,7 +53,33 @@ const renderScheduler = new RenderScheduler(2);
 
 const projectId = "long_form_timeline_smoke";
 const storyPlan = buildStoryPlan(projectId);
-const shots = shotsFor(storyPlan);
+const seedanceSettings = {
+  tier: "standard",
+  resolution: "720p",
+  qualityMode: "standard",
+  ratio: "16:9",
+  durationTargetSeconds: storyPlan.targetDurationSeconds,
+  audioMode: "hybrid",
+  bitrateMode: "standard",
+  watermark: false,
+  returnLastFrame: true
+};
+const shots = new ShotPlanner().plan({
+  projectId,
+  scenes: storyPlan.scenes,
+  settings: seedanceSettings,
+  metadata: {
+    longFormSource: "long_form_timeline_smoke"
+  }
+});
+const compiledLongPrompts = shots.map((shot) =>
+  new SeedancePromptCompiler().compile({
+    shot,
+    settings: seedanceSettings,
+    modelId: "bytedance/seedance-2.0-standard/reference-to-video",
+    provider: "atlascloud"
+  })
+);
 const continuityPlan = continuityPlanner.build({
   projectId,
   storyPlan,
@@ -141,6 +169,13 @@ const generatedIntentMapped = timeline.segments.some((segment) => segment.audioC
   timeline.segments.some((segment) => segment.audioCoverage.generatedIntentIds.includes("narration_02")) &&
   timeline.segments.some((segment) => segment.audioCoverage.generatedIntentIds.includes("ambience_01"));
 const sequentialSegments = timeline.segments.filter((segment) => segment.renderMode === "sequential");
+const storyArcRoles = new Set(timeline.segments.map((segment) => segment.storyArcRole));
+const storyArcPositions = new Set(timeline.segments.map((segment) => segment.storyArcPosition));
+const compiledPromptStoryArcReady = compiledLongPrompts.every((prompt) =>
+  prompt.prompt.includes("Pacing contract:") &&
+  prompt.prompt.includes("Whole-video arc:") &&
+  prompt.prompt.includes("Timeline:")
+);
 
 const checks = [
   timeline.noSpend === true &&
@@ -157,6 +192,17 @@ const checks = [
     timeline.plannedDurationSeconds === storyPlan.targetDurationSeconds
     ? pass("segment_and_duration_coverage", "Timeline covers every shot and matches the requested 120 second duration.")
     : fail("segment_and_duration_coverage", "Timeline segment or duration coverage is incomplete."),
+  storyArcRoles.has("hook") &&
+    storyArcRoles.has("payoff") &&
+    [...storyArcRoles].some((role) => role === "proof" || role === "development" || role === "turning_point") &&
+    storyArcPositions.has("opening") &&
+    storyArcPositions.has("middle_development") &&
+    storyArcPositions.has("ending") &&
+    timeline.segments.every((segment) => segment.storyArcContract.includes("full video")) &&
+    shots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
+    compiledPromptStoryArcReady
+    ? pass("whole_video_story_arc_prompt_contract", "Long-form prompts and timeline segments carry opening, development/proof, and payoff contracts across the full duration.")
+    : fail("whole_video_story_arc_prompt_contract", "Expected long-form ShotPlanner and PromptCompiler to preserve whole-video story arc contracts."),
   timeline.sequenceCount === continuityPlan.sequenceCount &&
     timeline.sequences.every((sequence, index) => sequence.order === index && sequence.startSecond < sequence.endSecond)
     ? pass("sequence_timing_boundaries", "Timeline exposes deterministic sequence timing boundaries.")
@@ -251,8 +297,14 @@ function buildStoryPlan(prefix) {
             beatId: `${prefix}_beat_${String(order).padStart(2, "0")}`,
             purpose: order === 1 ? "hook and setup" : order === 6 ? "payoff and CTA" : "proof development",
             action: `Advance proof movement ${order} while keeping product, host, and macro style consistent.`,
+            subject: "Glow Focus Serum with founder host",
+            camera: sceneIndex < 2 ? "slow push-in" : "controlled macro cutaway",
+            lighting: "warm natural window light",
             durationSeconds: 20,
             style: "warm premium macro commercial",
+            audioIntent: `Narration and soft music support proof beat ${sceneIndex + 1}.`,
+            references: referencesFor(sceneIndex),
+            risks: risksFor(sceneIndex),
             continuity: {
               identity: "founder host identity",
               product: "Glow Focus Serum",
@@ -264,32 +316,6 @@ function buildStoryPlan(prefix) {
       };
     })
   };
-}
-
-function shotsFor(storyPlan) {
-  return storyPlan.scenes.flatMap((scene, sceneIndex) =>
-    scene.beats.map((beat) => ({
-      shotId: `${beat.beatId}_shot`,
-      sceneId: scene.sceneId,
-      beatId: beat.beatId,
-      durationSeconds: beat.durationSeconds,
-      intent: beat.purpose,
-      subject: "Glow Focus Serum with founder host",
-      action: beat.action,
-      camera: sceneIndex < 2 ? "slow push-in" : "controlled macro cutaway",
-      lighting: "warm natural window light",
-      style: beat.style,
-      audioIntent: `Narration and soft music support proof beat ${sceneIndex + 1}.`,
-      transitionIntent: sceneIndex === 2 ? "match cut bridge to the next macro proof" : undefined,
-      references: referencesFor(sceneIndex),
-      continuity: {
-        ...beat.continuity,
-        ...(sceneIndex === 2 ? { previousShotEndState: "serum bottle centered on vanity" } : {}),
-        ...(sceneIndex === 3 ? { nextShotStartState: "macro texture frame starts from same bottle angle" } : {})
-      },
-      risks: risksFor(sceneIndex)
-    }))
-  );
 }
 
 function referencesFor(sceneIndex) {

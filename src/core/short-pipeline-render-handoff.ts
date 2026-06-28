@@ -7,6 +7,7 @@
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { CaptionCue, CaptionOptions } from "../types/caption.js";
 import type { GeneratedAudioIntent } from "../types/audio.js";
+import type { PromptReference } from "../types/prompt.js";
 import type {
   ReviewApprovalCheckpoint,
   ReviewApprovalCheckpointInput,
@@ -18,6 +19,8 @@ import type {
   ShortPipelinePlan,
   ShortPipelineVisualTextPolicy
 } from "../types/short-pipeline.js";
+import { SHORT_PROMPT_CORPUS_COVERAGE } from "./short-prompt-pattern-corpus.js";
+import { SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE } from "./short-platform-template-corpus.js";
 import { createStableId } from "../utils/ids.js";
 
 export interface ShortPipelineRenderHandoffReviewInput {
@@ -57,12 +60,67 @@ export interface ShortPipelineRenderHandoff {
   };
 }
 
-const SHORT_SINGLE_CLIP_MAX_SECONDS = 15;
 const RENDER_PROMPT_MAX_CHARS = 23_500;
+const SHORT_RENDER_METADATA_MAX_ENTRIES = 50;
+const SHORT_RENDER_METADATA_PRIORITY_KEYS = [
+  "workspaceId",
+  "smoke",
+  "graphNodeId",
+  "projectId",
+  "requestId",
+  "workflowMode",
+  "renderMode",
+  "videoMode",
+  "mode",
+  "shortPipelineRecommendedWorkflowMode",
+  "shortVideoPipeSelectedMode",
+  "shortDirectorPlanId",
+  "shortPipelinePlanId",
+  "shortPipelineStatus",
+  "shortPipelineReviewStatus",
+  "shortPipelineSource",
+  "shortViralIntelligenceId",
+  "shortViralPlatformFocus",
+  "shortCreativePatternLearningId",
+  "shortAudienceNicheTrendPosture",
+  "shortCommercialReadinessId",
+  "shortCommercialReadinessStatus",
+  "shortCrawlerPolicyStatus",
+  "shortOutcomeMemoryStatus",
+  "shortOnScreenTextAllowed",
+  "shortCaptionBurnInAllowed",
+  "shortCtaCardsAllowed",
+  "shortSeedanceRoutingId",
+  "shortSeedanceProviderMode",
+  "shortSeedancePreferredTier",
+  "shortSeedanceResolution",
+  "shortReferenceRemakeBlueprintId",
+  "shortReferenceRemakeTrendIntakeMode",
+  "shortVisualBiblePlanId",
+  "shortVisualBiblePipe",
+  "shortVisualBibleBlocksRender",
+  "shortVideoPipePlanId",
+  "shortVideoPipeSelectedBackendPipe",
+  "shortVideoPipeVisualBibleAlignment",
+  "shortVideoPipeDurationMaxSeconds",
+  "shortVideoPipeSupportsLongSequence",
+  "shortVideoPipeTargetWithinDurationRange",
+  "shortAgentGraphRunId",
+  "shortAgentGraphStatus",
+  "shortSeedancePromptPackId",
+  "shortChannelStyleProfileId",
+  "productBriefId",
+  "brandKitId",
+  "shortSeedanceBitrateMode",
+  "shortSeedanceSuperResolution"
+] as const;
 
 export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandoffInput): ShortPipelineRenderHandoff {
   const plan = input.plan;
-  const canUseAsRenderJobHandoff = plan.status !== "blocked" && plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence;
+  const visualBibleBlocksRender = plan.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved;
+  const canUseAsRenderJobHandoff = plan.status !== "blocked" &&
+    plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence &&
+    !visualBibleBlocksRender;
   const visualTextPolicy = plan.visualTextPolicy ?? defaultVisualTextPolicy();
   const audioPolicy = resolveAudioPolicy(input.audio, plan.audioPolicy ?? defaultAudioPolicyForPlan(plan));
   const captionCues: readonly CaptionCue[] = [];
@@ -74,6 +132,14 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
     checkpoints: plan.reviewApproval.checkpoints.map(checkpointInputFromReport)
   };
   const workflowMetadata = shortWorkflowMetadata(plan, input.metadata);
+  const references = mergeShortHandoffReferences(plan, input.references);
+  const requestedAudioMode = input.settings?.audioMode ?? audioPolicy.renderAudioMode ?? plan.seedanceRouting.generatedAudioMode;
+  const shortAudioMode = requestedAudioMode === "none" ? "none" : "guided";
+  const selectedPipe = selectedVideoPipeOption(plan);
+  const withinSelectedPipeDurationRange = selectedPipe
+    ? plan.intent.targetDurationSeconds >= selectedPipe.durationSupport.minSeconds &&
+      plan.intent.targetDurationSeconds <= selectedPipe.durationSupport.maxSeconds
+    : false;
 
   return {
     request: {
@@ -81,12 +147,16 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
       settings: {
         durationTargetSeconds: plan.intent.targetDurationSeconds,
         ratio: plan.intent.aspectRatio,
+        tier: plan.seedanceRouting.preferredTier,
+        resolution: plan.seedanceRouting.resolution,
+        bitrateMode: plan.seedanceRouting.bitrateMode,
+        returnLastFrame: plan.seedanceRouting.returnLastFrame,
         ...input.settings,
-        audioMode: generatedAudioIntents.length > 0 ? "guided" : "none"
+        audioMode: shortAudioMode
       },
       ...(input.modelPreferences ? { modelPreferences: input.modelPreferences } : {}),
-      ...(input.references ? { references: input.references } : {}),
-      metadata: {
+      ...(references.length > 0 ? { references } : {}),
+      metadata: compactShortRenderMetadata({
         ...safeMetadata(input.metadata),
         ...workflowMetadata,
         projectId: plan.projectId,
@@ -94,7 +164,6 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortPipelinePlanId: plan.planId,
         shortPipelineStatus: plan.status,
         shortPipelineTemplatePolicy: plan.templatePolicy,
-        shortPipelineDynamicWorkflowRequired: String(plan.dynamicWorkflowRequired),
         shortPipelineReviewStatus: plan.reviewApproval.status,
         shortPipelineSource: "agentic_short_pipeline",
         shortViralIntelligenceId: plan.viralIntelligence.intelligenceId,
@@ -107,9 +176,7 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortCommercialReadinessId: plan.commercialReadiness.readinessId,
         shortCommercialReadinessStatus: plan.commercialReadiness.status,
         shortCommercialReadinessScore: String(plan.commercialReadiness.qualityScore),
-        shortAudioPolicyMode: audioPolicy.mode,
-        shortAudioRenderMode: generatedAudioIntents.length > 0 ? "guided" : "none",
-        shortGeneratedAudioIntentEnabled: String(generatedAudioIntents.length > 0),
+        shortAudioRenderMode: shortAudioMode,
         ...(audioPolicy.language ? { shortAudioLanguage: audioPolicy.language } : {}),
         shortVisualTextPolicy: visualTextPolicy.mode,
         shortOnScreenTextAllowed: String(visualTextPolicy.allowOnScreenText),
@@ -118,6 +185,22 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortCrawlerPolicyStatus: plan.commercialReadiness.crawlerPolicy.status,
         shortOutcomeMemoryStatus: plan.commercialReadiness.outcomeMemory.status,
         shortReferenceAnalysisStatus: plan.commercialReadiness.referenceAnalysis.status,
+        shortSeedanceRoutingId: plan.seedanceRouting.routingId,
+        shortSeedanceProviderMode: plan.seedanceRouting.recommendedProviderMode,
+        shortSeedancePreferredTier: plan.seedanceRouting.preferredTier,
+        shortSeedanceResolution: plan.seedanceRouting.resolution,
+        shortSeedanceBitrateMode: plan.seedanceRouting.bitrateMode,
+        shortSeedanceSuperResolution: String(plan.seedanceRouting.superResolution),
+        shortSeedanceRoutingSummary: [
+          plan.seedanceRouting.modelAlias,
+          plan.seedanceRouting.promptRecipe.name,
+          `lastFrame=${plan.seedanceRouting.returnLastFrame}`,
+          `bitrate=${plan.seedanceRouting.bitrateMode}`,
+          `sr=${plan.seedanceRouting.superResolution}`,
+          `tags=${plan.seedanceRouting.referenceTags.length}`,
+          `media=${plan.mediaReferencePlan.length}`,
+          `handoff=${plan.mediaReferencePlan.filter((reference) => reference.includeInProviderHandoff).length}`
+        ].join("|"),
         ...(plan.channelStyleProfile ? {
           shortChannelStyleProfileId: plan.channelStyleProfile.profileId,
           shortChannelStyleStatus: plan.channelStyleProfile.status,
@@ -125,12 +208,48 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         } : {}),
         ...(plan.viralIntelligence.winningConceptId ? { shortViralWinningConceptId: plan.viralIntelligence.winningConceptId } : {}),
         ...(plan.viralIntelligence.referenceVideoPattern ? { shortReferencePatternId: plan.viralIntelligence.referenceVideoPattern.patternId } : {}),
+        ...(plan.referenceRemakeBlueprint ? {
+          shortReferenceRemakeBlueprintId: plan.referenceRemakeBlueprint.blueprintId,
+          shortReferenceRemakeMode: plan.referenceRemakeBlueprint.mode,
+          shortReferenceRemakeStatus: plan.referenceRemakeBlueprint.status,
+          shortReferenceRemakeFidelityTarget: plan.referenceRemakeBlueprint.fidelityTarget,
+          shortReferenceRemakeTrendIntakeMode: plan.referenceRemakeBlueprint.trendVideoIntakeMode,
+          shortReferenceRemakeAdherenceTargetCount: String(plan.referenceRemakeBlueprint.adherenceTargets.length),
+          shortReferenceRemakeBeatMapCount: String(plan.referenceRemakeBlueprint.sourceBeatMap.length)
+        } : {}),
+        shortVisualBiblePlanId: plan.visualBiblePlan.planId,
+        shortVisualBibleStatus: plan.visualBiblePlan.status,
+        shortVisualBibleMode: plan.visualBiblePlan.requestedMode,
+        shortVisualBiblePipe: plan.visualBiblePlan.recommendedPipe,
+        shortVisualBibleDurationBand: plan.visualBiblePlan.durationBand,
+        shortVisualBibleAssetPlanCount: String(plan.visualBiblePlan.assetPlans.length),
+        shortVisualBibleBoardCount: String(plan.visualBiblePlan.sequencePlan.boardCount),
+        shortVisualBibleTargetClipCount: String(plan.visualBiblePlan.sequencePlan.targetClipCount),
+        shortVisualBibleExecutionMode: plan.visualBiblePlan.executionBlueprint.mode,
+        shortVisualBibleClipStrategy: plan.visualBiblePlan.executionBlueprint.clipExecutionStrategy,
+        shortVisualBibleSeedanceMode: plan.visualBiblePlan.executionBlueprint.seedanceSubmissionMode,
+        shortVisualBibleCoverageRule: plan.visualBiblePlan.executionBlueprint.durationCoverage.coverageRule,
+        shortVisualBibleBindingOrder: plan.visualBiblePlan.executionBlueprint.referenceTagBindingOrder.join("|").slice(0, 500),
+        shortVisualBibleBlocksRender: String(plan.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved),
+        shortVideoPipePlanId: plan.videoPipePlan.pipePlanId,
+        shortVideoPipeSelectedMode: plan.videoPipePlan.selectedMode,
+        shortVideoPipeSelectedBackendPipe: plan.videoPipePlan.selectedBackendPipe,
+        shortVideoPipeSelectionReasons: plan.videoPipePlan.selectionReasonCodes.join("|").slice(0, 500),
+        shortVideoPipeVisualBibleAlignment: plan.videoPipePlan.visualBibleAlignment.status,
+        shortVideoPipeOptionCount: String(plan.videoPipePlan.pipeOptions.length),
+        ...(selectedPipe ? {
+          shortVideoPipeDurationMinSeconds: String(selectedPipe.durationSupport.minSeconds),
+          shortVideoPipeDurationMaxSeconds: String(selectedPipe.durationSupport.maxSeconds),
+          shortVideoPipeIdealDurationRange: selectedPipe.durationSupport.idealRangeSeconds.join("-"),
+          shortVideoPipeSupportsLongSequence: String(selectedPipe.durationSupport.supportsLongSequence),
+          shortVideoPipeTargetWithinDurationRange: String(withinSelectedPipeDurationRange)
+        } : {}),
         ...(plan.agentGraph ? { shortAgentGraphRunId: plan.agentGraph.graphRunId, shortAgentGraphStatus: plan.agentGraph.status } : {}),
         ...(plan.seedancePromptPack ? { shortSeedancePromptPackId: plan.seedancePromptPack.promptPackId } : {}),
         ...(plan.selectedTemplate ? { shortPipelineSelectedTemplateId: plan.selectedTemplate.templateId } : {}),
         ...(plan.productBrief ? { productBriefId: plan.productBrief.briefId } : {}),
         ...(plan.brandKitEvaluation ? { brandKitId: plan.brandKitEvaluation.brandKitId } : {})
-      },
+      }),
       captionCues,
       captionOptions: {
         ...(input.captionOptions ?? {}),
@@ -156,9 +275,15 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
       canReleaseToCustomerTraffic: false,
       releaseBlocker: canUseAsRenderJobHandoff
         ? "Short-pipeline handoff can create an async render job, but customer traffic still requires render success, artifact validation, manual media review, deployment evidence, and business-readiness approval."
-        : "Short-pipeline plan is blocked and cannot be handed to render until unsafe or conflicting evidence is corrected."
+        : visualBibleBlocksRender
+          ? "Short-pipeline plan requires Visual Bible/reference assets to be generated or approved before render handoff can be used for provider spend."
+          : "Short-pipeline plan is blocked and cannot be handed to render until unsafe or conflicting evidence is corrected."
     }
   };
+}
+
+function selectedVideoPipeOption(plan: ShortPipelinePlan): ShortPipelinePlan["videoPipePlan"]["pipeOptions"][number] | undefined {
+  return plan.videoPipePlan.pipeOptions.find((pipe) => pipe.mode === plan.videoPipePlan.selectedMode);
 }
 
 function shortWorkflowMetadata(
@@ -169,27 +294,94 @@ function shortWorkflowMetadata(
   const hasExplicitMode = Boolean(provided.workflowMode || provided.renderMode || provided.videoMode || provided.mode);
   const recommendedMode = plan.directorPlan.recommendedWorkflowMode;
   const singleClipRecommended = recommendedMode === "single_clip";
+  const selectedPipe = plan.videoPipePlan.selectedMode;
   return {
     shortPipelineRecommendedWorkflowMode: recommendedMode,
+    shortVideoPipeSelectedMode: selectedPipe,
     shortDirectorPlanId: plan.directorPlan.directorId,
     shortDirectorStatus: plan.directorPlan.status,
     shortDirectorCreativeMode: plan.directorPlan.creativeMode,
     shortDirectorHookWindowSeconds: String(plan.directorPlan.hookPlan.hookWindowSeconds),
     shortDirectorTargetBeatCount: String(plan.directorPlan.pacingPlan.targetBeatCount),
-    shortPipelineProviderClipMaxSeconds: String(SHORT_SINGLE_CLIP_MAX_SECONDS),
-    shortPipelineCommercialDurationPolicy: "15_to_60_seconds",
     ...(hasExplicitMode
       ? {}
-      : singleClipRecommended
-        ? {
-            workflowMode: "single",
-            renderMode: "single_clip"
-          }
+        : plan.referenceRemakeBlueprint
+          ? {
+              workflowMode: "source_video",
+              renderMode: "video_remake"
+            }
+          : selectedPipe === "production_bible"
+            ? {
+                workflowMode: "sequence",
+                renderMode: "production_bible"
+              }
+          : selectedPipe === "product_kol_ugc"
+            ? {
+                workflowMode: "reference_locked",
+                renderMode: "product_kol_ugc"
+              }
+          : singleClipRecommended && selectedPipe === "smart_short"
+            ? {
+                workflowMode: "single",
+                renderMode: "single_clip"
+              }
+          : selectedPipe === "storyboard_multishot"
+            ? {
+                workflowMode: "storyboard",
+                renderMode: "storyboard_multishot"
+              }
+          : plan.visualBiblePlan.recommendedPipe === "reference_board_pipe" || plan.visualBiblePlan.recommendedPipe === "storyboard_board_pipe"
+            ? {
+                workflowMode: "reference_locked",
+                renderMode: "visual_bible"
+              }
         : {
             workflowMode: "storyboard",
             renderMode: "storyboard_multishot"
           })
   };
+}
+
+function mergeShortHandoffReferences(
+  plan: ShortPipelinePlan,
+  providedReferences: CineJellyProjectRequest["references"] | undefined
+): readonly PromptReference[] {
+  const plannedReferences = plan.mediaReferencePlan
+    .flatMap((reference): readonly PromptReference[] => {
+      const providerAssetId = reference.providerAssetId;
+      if (!reference.includeInProviderHandoff || !providerAssetId) {
+        return [];
+      }
+      return [{
+        role: reference.promptRole,
+        label: reference.label,
+        priority: reference.priority,
+        providerReference: {
+          kind: reference.providerKind,
+          uri: `asset://${providerAssetId}`,
+          role: reference.promptRole,
+          providerAssetId,
+          label: reference.label
+        },
+        selection: {
+          authorized: true
+        }
+      }];
+    });
+  const deduped = new Map<string, PromptReference>();
+  for (const reference of [...plannedReferences, ...(providedReferences ?? [])]) {
+    const providerReference = reference.providerReference;
+    const key = [
+      reference.role,
+      reference.label,
+      providerReference.kind,
+      providerReference.providerAssetId ?? providerReference.uri
+    ].join(":");
+    if (!deduped.has(key)) {
+      deduped.set(key, reference);
+    }
+  }
+  return [...deduped.values()];
 }
 
 export function reviewInputCanQueueRender(input: ShortPipelineRenderHandoffReviewInput): boolean {
@@ -233,22 +425,158 @@ function renderPromptFromPlan(
     `Emotion: ${plan.intent.emotion}`,
     `Target duration: ${plan.intent.targetDurationSeconds} seconds`,
     `Aspect ratio: ${plan.intent.aspectRatio}`,
+    durationArcFromPlan(plan, compact),
     template,
-    channelStyleFromPlan(plan, compact),
-    viralStrategyFromPlan(plan, compact),
     concept ? `Primary concept: ${concept.label}. ${concept.angle} Hook: ${concept.hook}` : "",
     "Scene plan:",
     scenes,
+    "Claim review inventory:",
+    claims,
+    mediaReferencesFromPlan(plan, compact),
+    videoPipePlanFromPlan(plan, compact),
+    seedanceRoutingFromPlan(plan, compact),
+    viralStrategyFromPlan(plan, compact),
+    referenceRemakeBlueprintFromPlan(plan, compact),
     "Viral scene directives:",
     viralDirectivesFromPlan(plan, compact),
     seedancePromptPackFromPlan(plan, compact),
-    "Claim review inventory:",
-    claims
+    visualBibleFromPlan(plan, compact),
+    channelStyleFromPlan(plan, compact)
   ]);
   const fullPrompt = renderPrompt(false);
   return fullPrompt.length <= RENDER_PROMPT_MAX_CHARS
     ? fullPrompt
     : capRenderPrompt(renderPrompt(true), RENDER_PROMPT_MAX_CHARS);
+}
+
+function videoPipePlanFromPlan(plan: ShortPipelinePlan, compact = false): string {
+  const pipePlan = plan.videoPipePlan;
+  const selected = pipePlan.pipeOptions.find((option) => option.mode === pipePlan.selectedMode);
+  const options = pipePlan.pipeOptions
+    .slice(0, compact ? 3 : pipePlan.pipeOptions.length)
+    .map((option) =>
+      `${option.mode}: recommended=${option.recommended}; backendPipe=${option.backendPipe}; duration=${option.durationSupport.minSeconds}-${option.durationSupport.maxSeconds}s; tier=${option.preferredTier}; mode=${option.seedanceMode}; inputs=${option.requiredInputs.join(", ")}`
+    )
+    .join("\n");
+  return compactLines([
+    `Video pipe plan: id=${pipePlan.pipePlanId}; selected=${pipePlan.selectedMode}; backendPipe=${pipePlan.selectedBackendPipe}; reason=${boundedText(pipePlan.selectedReason, compact ? 180 : 320)}.`,
+    `Video pipe alignment: visualBiblePipe=${pipePlan.visualBibleAlignment.visualBibleRecommendedPipe}; status=${pipePlan.visualBibleAlignment.status}; reasons=${pipePlan.selectionReasonCodes.join(", ") || "none"}; explanation=${boundedText(pipePlan.visualBibleAlignment.explanation, compact ? 160 : 280)}.`,
+    selected ? `Selected pipe output strategy: ${boundedText(selected.outputStrategy, compact ? 180 : 320)}.` : "",
+    selected?.effectiveSettings ? `Selected pipe effective settings: mode=${selected.effectiveSettings.providerMode}; tier=${selected.effectiveSettings.tier}; resolution=${selected.effectiveSettings.resolution}; bitrate=${selected.effectiveSettings.bitrateMode}; superResolution=${selected.effectiveSettings.superResolution}; audio=${selected.effectiveSettings.audioMode}; returnLastFrame=${selected.effectiveSettings.returnLastFrame}; recipe=${selected.effectiveSettings.promptRecipeName}.` : "",
+    options ? `Available video pipes:\n${options}` : "",
+    "Use the selected video pipe as the production workflow. Do not switch modes unless the render request metadata explicitly overrides workflowMode/renderMode."
+  ]);
+}
+
+function durationArcFromPlan(plan: ShortPipelinePlan, compact = false): string {
+  const seconds = plan.intent.targetDurationSeconds;
+  const roles = plan.scenes.map((scene) => scene.role).join(" > ");
+  const base = seconds <= 15
+    ? [
+        "Duration/story arc contract: fill the full 15 second short with a complete beginning, middle, and ending.",
+        "0-1s must show the viewer problem, result promise, or pattern interrupt; do not start with a slow logo/product hold.",
+        "1-5s establishes context and why the product/result matters.",
+        "5-11s shows the actual demo/proof/use action with visible state change.",
+        "11-15s resolves with result, reaction, product-in-result frame, or soft next-step implication.",
+        "Do not spend all shots on the same macro/object angle; every scene must change the viewer's information."
+      ]
+    : seconds <= 30
+      ? [
+          `Duration/story arc contract: fill all ${seconds}s with hook, problem/context, demo/proof, payoff, and soft next-step.`,
+          "Change visible information every 1-3 seconds; never let a scene become a static product hold.",
+          "Keep the final beat tied to the hook so the video feels complete."
+        ]
+      : [
+          `Duration/story arc contract: fill all ${seconds}s with a complete short-form commercial arc, not a loose list of shots.`,
+          "Use visible state changes, proof escalation, and a resolved ending; keep every scene useful to retention."
+        ];
+  return compactLines([
+    ...base,
+    `Planned scene roles: ${roles || "hook > demo/proof > payoff"}.`,
+    compact ? "If compacting, preserve the duration arc over secondary style detail." : ""
+  ]);
+}
+
+function seedanceRoutingFromPlan(plan: ShortPipelinePlan, compact = false): string {
+  const routing = plan.seedanceRouting;
+  return compactLines([
+    `Seedance routing: provider=${routing.provider}; family=${routing.modelFamily}; mode=${routing.recommendedProviderMode}; tier=${routing.preferredTier}; model=${routing.modelAlias}; modelPolicy=${routing.modelSelectionPolicy}; modelEnv=${routing.preferredConfiguredModelEnv}.`,
+    `Seedance settings: resolution=${routing.resolution}; superResolution=${routing.superResolution}; ratio=${routing.ratio}; bitrate=${routing.bitrateMode}; returnLastFrame=${routing.returnLastFrame}; clipSeconds=${routing.providerClipDurationSeconds.min}-${routing.providerClipDurationSeconds.max}; targetPerClip=${routing.providerClipDurationSeconds.targetPerClip}; storyboard=${routing.storyboardRequired}; sequential=${routing.sequentialRenderRecommended}; audio=${routing.generatedAudioMode}.`,
+    `Seedance prompt recipe: ${routing.promptRecipe.name}. ${routing.promptRecipe.modeInstruction}`,
+    `Seedance reference instruction: ${compact ? boundedText(routing.promptRecipe.referenceInstruction, 500) : routing.promptRecipe.referenceInstruction}`,
+    `Seedance shot rules: ${(compact ? routing.promptRecipe.shotPromptRules.slice(0, 3) : routing.promptRecipe.shotPromptRules).join(" | ")}.`,
+    `Seedance negative rules: ${(compact ? routing.promptRecipe.negativeRules.slice(0, 4) : routing.promptRecipe.negativeRules).join(" | ")}.`,
+    routing.warnings.length ? `Seedance routing warnings: ${(compact ? routing.warnings.slice(0, 4) : routing.warnings).join(" | ")}.` : ""
+  ]);
+}
+
+function mediaReferencesFromPlan(plan: ShortPipelinePlan, compact = false): string {
+  if (!plan.mediaReferencePlan.length) {
+    return "Media references: none attached. Generate original visual details from user brief, product facts, and niche strategy; do not invent a specific KOL likeness or product packaging.";
+  }
+  const references = plan.mediaReferencePlan
+    .slice(0, compact ? 8 : plan.mediaReferencePlan.length)
+    .map((reference) =>
+      `${reference.promptTag} ${reference.promptRole}/${reference.providerKind} "${boundedText(reference.label, 80)}" status=${reference.status}; rights=${reference.rightsStatus}; uriPolicy=${reference.uriPolicy}; providerHandoff=${reference.includeInProviderHandoff}; scope=${boundedText(reference.transferScope, compact ? 180 : 320)}; doNotTransfer=${reference.doNotTransfer.join(", ")}`
+    )
+    .join("\n");
+  return compactLines([
+    "Media reference binding:",
+    references,
+    "Reference priority: KOL identity and product geometry override style, motion, environment, camera, and source-video structure references.",
+    "Never expose raw media URLs, local paths, credentials, source captions, source music, source creator identity, or unapproved brand marks in generated content."
+  ]);
+}
+
+function visualBibleFromPlan(plan: ShortPipelinePlan, compact = false): string {
+  const visualBible = plan.visualBiblePlan;
+  if (visualBible.status === "not_needed") {
+    return "Visual Bible workflow: not required for this short; use standard prompt, media-reference, and continuity contracts.";
+  }
+  const assetLines = visualBible.assetPlans
+    .slice(0, compact ? 6 : visualBible.assetPlans.length)
+    .map((asset) =>
+      `${asset.role}: ${asset.sourcePolicy}; required=${asset.requiredBeforeRender}; role=${asset.promptRole ?? "none"}; kind=${asset.providerKind ?? "none"}; views=${asset.minimumViewCount}-${asset.maximumImageCount}; brief=${boundedText(asset.promptBrief, compact ? 180 : 320)}`
+    )
+    .join("\n");
+  const blueprint = visualBible.executionBlueprint;
+  const executionSteps = blueprint.steps
+    .slice(0, compact ? 4 : blueprint.steps.length)
+    .map((step) =>
+      `${step.order}. ${step.stage}/${step.provider}${step.providerMode ? `/${step.providerMode}` : ""}: ${boundedText(step.title, 100)}; approve=${step.requiresHumanApproval}; inputs=${step.inputAssetRoles.join(", ") || "none"}; output=${step.outputAssetRole ?? "none"}; ${boundedText(step.instruction, compact ? 160 : 280)}`
+    )
+    .join("\n");
+  return compactLines([
+    `Visual Bible workflow: id=${visualBible.planId}; status=${visualBible.status}; mode=${visualBible.requestedMode}; pipe=${visualBible.recommendedPipe}; durationBand=${visualBible.durationBand}; imageProviderPolicy=${visualBible.imageProviderPolicy}.`,
+    `Visual Bible sequence: boards=${visualBible.sequencePlan.boardCount}; targetClips=${visualBible.sequencePlan.targetClipCount}; maxSecondsPerBoard=${visualBible.sequencePlan.maxSecondsPerBoard}; continuity=${visualBible.sequencePlan.continuityStrategy}; blocksRender=${visualBible.releaseGateSummary.blocksRenderUntilAssetsApproved}.`,
+    `Visual Bible execution blueprint: mode=${blueprint.mode}; imageProvider=${blueprint.imageProviderRole}; seedanceMode=${blueprint.seedanceSubmissionMode}; clipStrategy=${blueprint.clipExecutionStrategy}; bindingOrder=${blueprint.referenceTagBindingOrder.join(" > ") || "none"}.`,
+    `Visual Bible duration coverage: target=${blueprint.durationCoverage.targetDurationSeconds}s; targetClips=${blueprint.durationCoverage.targetClipCount}; targetSecondsPerClip=${blueprint.durationCoverage.targetSecondsPerClip}; startMiddleEnd=${blueprint.durationCoverage.requiresStartMiddleEnd}; rule=${blueprint.durationCoverage.coverageRule}.`,
+    executionSteps ? `Visual Bible execution steps:\n${executionSteps}` : "",
+    assetLines ? `Visual Bible asset plan:\n${assetLines}` : "",
+    `Visual Bible Seedance binding: ${(compact ? visualBible.seedanceBindingPlan.slice(0, 3) : visualBible.seedanceBindingPlan).join(" | ")}.`,
+    `Visual Bible prompt contracts: ${(compact ? visualBible.promptContracts.slice(0, 3) : visualBible.promptContracts).join(" | ")}.`,
+    `Visual Bible quality gates: ${(compact ? visualBible.qualityGates.slice(0, 4) : visualBible.qualityGates).join(" | ")}.`,
+    visualBible.warnings.length ? `Visual Bible warnings: ${(compact ? visualBible.warnings.slice(0, 4) : visualBible.warnings).join(" | ")}.` : ""
+  ]);
+}
+
+function referenceRemakeBlueprintFromPlan(plan: ShortPipelinePlan, compact = false): string {
+  const blueprint = plan.referenceRemakeBlueprint;
+  if (!blueprint) {
+    return "";
+  }
+  return compactLines([
+    `Video Remake blueprint: id=${blueprint.blueprintId}; mode=${blueprint.mode}; status=${blueprint.status}; fidelity=${blueprint.fidelityTarget}; sourceSafety=${blueprint.sourceSafetyStatus}.`,
+    blueprint.sourcePatternId ? `Video Remake source pattern: ${blueprint.sourcePatternId}.` : "",
+    `Video Remake trend intake: ${blueprint.trendVideoIntakeMode}.`,
+    `Video Remake replacement slots: ${(compact ? blueprint.replacementSlots.slice(0, 4) : blueprint.replacementSlots).join(", ")}.`,
+    `Video Remake adherence targets: ${(compact ? blueprint.adherenceTargets.slice(0, 4).map((item) => boundedText(item, 160)) : blueprint.adherenceTargets).join(" | ")}.`,
+    `Video Remake source beat map: ${(compact ? blueprint.sourceBeatMap.slice(0, 5).map((item) => boundedText(item, 160)) : blueprint.sourceBeatMap).join(" | ")}.`,
+    `Video Remake provider execution: ${(compact ? blueprint.providerExecutionPlan.slice(0, 4).map((item) => boundedText(item, 160)) : blueprint.providerExecutionPlan).join(" | ")}.`,
+    `Video Remake locked elements: ${(compact ? blueprint.lockedElements.slice(0, 4).map((item) => boundedText(item, 160)) : blueprint.lockedElements).join(" | ")}.`,
+    `Video Remake guardrails: ${(compact ? blueprint.remakeGuardrails.slice(0, 4).map((item) => boundedText(item, 160)) : blueprint.remakeGuardrails).join(" | ")}.`,
+    "Use the blueprint to recreate rhythm, performance beats, and camera grammar with the user's approved KOL, product, setting, voice, and evidence; keep expression and assets original unless rights review explicitly clears a closer remake."
+  ]);
 }
 
 function channelStyleFromPlan(plan: ShortPipelinePlan, compact = false): string {
@@ -273,6 +601,16 @@ function viralStrategyFromPlan(plan: ShortPipelinePlan, compact = false): string
   const score = plan.viralIntelligence.conceptScores.find((item) => item.conceptId === plan.viralIntelligence.winningConceptId);
   const reference = plan.viralIntelligence.referenceVideoPattern;
   const selectedIdea = selectedShortCreativeIdea(plan);
+  const corpusPatterns = plan.viralIntelligence.creativePatternLearning.patterns
+    .filter((pattern) => pattern.source === "seedance_prompt_corpus")
+    .slice(0, compact ? 4 : 8)
+    .map((pattern) => `${pattern.label} -> ${pattern.kind}`)
+    .join(" | ");
+  const platformTemplatePatterns = plan.viralIntelligence.creativePatternLearning.patterns
+    .filter((pattern) => pattern.source === "platform_template_corpus")
+    .slice(0, compact ? 4 : 8)
+    .map((pattern) => `${pattern.label} -> ${pattern.kind}`)
+    .join(" | ");
   const topIdeas = plan.viralIntelligence.creativePatternLearning.candidates
     .slice(0, compact ? 3 : 5)
     .map((candidate) => `${candidate.label} score=${candidate.score.totalScore}`)
@@ -294,6 +632,8 @@ function viralStrategyFromPlan(plan: ShortPipelinePlan, compact = false): string
     `Hook/proof/retention: ${strategy.audienceNicheIntelligence.hookAngle}. Proof: ${strategy.audienceNicheIntelligence.proofStrategy}. Retention: ${strategy.audienceNicheIntelligence.retentionPattern}.`,
     `Idea seeds: ${ideaSeeds.join(" | ")}.`,
     `Creative pattern learning: patterns=${plan.viralIntelligence.creativePatternLearning.patternCount}; candidates=${plan.viralIntelligence.creativePatternLearning.candidateCount}; selectedIdea=${selectedIdea?.ideaId ?? "none"}; selectedPattern=${selectedIdea?.patternId ?? "none"}.`,
+    corpusPatterns ? `Prompt corpus guidance: use distilled Seedance/ad/UGC pattern DNA only (${corpusPatterns}); coverage=declaredPrompts:${SHORT_PROMPT_CORPUS_COVERAGE.declaredPromptCount}, localVideoIndex:${SHORT_PROMPT_CORPUS_COVERAGE.localVideoUrlIndexCount}, runtimePatterns:${SHORT_PROMPT_CORPUS_COVERAGE.runtimePatternCount}, taxonomyFamilies:${SHORT_PROMPT_CORPUS_COVERAGE.taxonomyFamilyCount}; do not reproduce upstream prompt wording.` : "",
+    platformTemplatePatterns ? `Platform template guidance: use distilled public/licensed workflow structure only (${platformTemplatePatterns}); coverage=archetypes:${SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.templateArchetypeCount}, nicheFamilies:${SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.nicheFamilyCount}, patternMatrix:${SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.declaredPatternMatrixCount}; do not reproduce third-party template wording or scrape proprietary UI.` : "",
     selectedIdea
       ? `Selected idea: ${selectedIdea.label}. Hook: ${boundedText(selectedIdea.hook, compact ? 220 : 360)} Proof: ${boundedText(selectedIdea.proofPlan, compact ? 220 : 360)} KOL/creator: ${boundedText(selectedIdea.creatorOrKolDirection, compact ? 180 : 300)}.`
       : "",
@@ -341,12 +681,13 @@ function seedancePromptPackFromPlan(plan: ShortPipelinePlan, compact = false): s
   return compactLines([
     "Seedance 2.0 prompt pack:",
     `Prompt pack id: ${pack.promptPackId}`,
+    `Time-coded Seedance shots: ${pack.shotPrompts.length} shot(s), ${pack.shotPrompts.map((shot) => `${shot.order}:${shot.startSecond}-${shot.endSecond}s:${shot.role}`).join(" | ")}`,
     compact ? boundedText(pack.masterPrompt, 800) : pack.masterPrompt,
     `Audio plan: ${compact ? boundedText(pack.audioPlan, 300) : pack.audioPlan}`,
     `No-visible-text plan: ${compact ? boundedText(pack.captionPlan, 300) : pack.captionPlan}`,
     `Reference policy: ${compact ? boundedText(pack.referencePolicy, 300) : pack.referencePolicy}`,
     `Global negative constraints: ${(compact ? pack.globalNegativeConstraints.slice(0, 8).map((item) => boundedText(item, 120)) : pack.globalNegativeConstraints).join("; ")}`,
-    "Time-coded Seedance shots:",
+    "Time-coded Seedance shot details:",
     shots
   ]);
 }
@@ -486,6 +827,29 @@ function safeMetadata(metadata: CineJellyProjectRequest["metadata"] | undefined)
     }
   }
   return safe;
+}
+
+function compactShortRenderMetadata(metadata: Record<string, string>): Record<string, string> {
+  const output: Record<string, string> = {};
+  let outputCount = 0;
+  for (const key of SHORT_RENDER_METADATA_PRIORITY_KEYS) {
+    const value = metadata[key];
+    if (value !== undefined && outputCount < SHORT_RENDER_METADATA_MAX_ENTRIES) {
+      output[key] = value;
+      outputCount += 1;
+    }
+  }
+  for (const key of Object.keys(metadata).sort()) {
+    if (outputCount >= SHORT_RENDER_METADATA_MAX_ENTRIES) {
+      break;
+    }
+    const value = metadata[key];
+    if (output[key] === undefined && value !== undefined) {
+      output[key] = value;
+      outputCount += 1;
+    }
+  }
+  return output;
 }
 
 function boundedText(value: string, maxLength: number): string {

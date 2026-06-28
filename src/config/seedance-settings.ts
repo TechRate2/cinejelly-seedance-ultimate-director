@@ -3,7 +3,7 @@
  * This module turns user-facing controls into provider-neutral generation settings.
  */
 
-import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, ModelPreferences, QualityMode } from "../types/settings.js";
+import type { AtlasCloudRuntimeSettings, FlexibleSeedanceSettings, ModelPreferences, QualityMode, Resolution } from "../types/settings.js";
 import type { VideoGenerationSettings } from "../types/provider.js";
 import { DEFAULT_SEEDANCE_SETTINGS } from "../types/settings.js";
 
@@ -13,11 +13,12 @@ export const MIN_CLIP_DURATION_SECONDS = 4;
 export const MAX_CLIP_DURATION_SECONDS = 15;
 export const SEEDANCE_TEST_TAKE_DURATION_SECONDS = MIN_CLIP_DURATION_SECONDS;
 
-export const SPEED_TIERS = ["fast", "standard"] as const;
+export const SPEED_TIERS = ["mini", "fast", "standard"] as const;
 export const QUALITY_MODES = ["economy", "standard", "high", "ultimate"] as const;
-export const RESOLUTIONS = ["480p", "720p", "1080p"] as const;
+export const RESOLUTIONS = ["480p", "720p", "1080p", "720p-SR", "1080p-SR", "1440p-SR"] as const;
 export const RATIOS = ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"] as const;
 export const AUDIO_MODES = ["none", "native", "guided", "post", "hybrid"] as const;
+export const BITRATE_MODES = ["standard", "high"] as const;
 
 export interface NormalizedSeedanceSettings extends FlexibleSeedanceSettings {
   readonly candidateCount: number;
@@ -54,6 +55,15 @@ export function resolveSeedanceModelId(
     assertAllowedSeedanceModelId(modelPreferences.seedanceModelId, atlasCloud);
     return modelPreferences.seedanceModelId;
   }
+  if (settings.tier === "mini") {
+    return (
+      atlasCloud.models.seedanceMiniModel?.trim() ||
+      atlasCloud.seedanceCapabilities?.find((capability) =>
+        /(^|[-_/])mini([-_/]|$)/i.test(capability.modelId)
+      )?.modelId ||
+      atlasCloud.models.seedanceFastModel
+    );
+  }
   return settings.tier === "fast"
     ? atlasCloud.models.seedanceFastModel
     : atlasCloud.models.seedanceStandardModel;
@@ -63,6 +73,9 @@ export function selectableSeedanceModelIds(atlasCloud: Pick<AtlasCloudRuntimeSet
   const ids = new Set<string>();
   if (atlasCloud.models.seedanceFastModel.trim()) {
     ids.add(atlasCloud.models.seedanceFastModel.trim());
+  }
+  if (atlasCloud.models.seedanceMiniModel?.trim()) {
+    ids.add(atlasCloud.models.seedanceMiniModel.trim());
   }
   if (atlasCloud.models.seedanceStandardModel.trim()) {
     ids.add(atlasCloud.models.seedanceStandardModel.trim());
@@ -93,6 +106,7 @@ export function toVideoGenerationSettings(
     resolution: settings.resolution,
     ratio: settings.ratio,
     generateAudio: settings.audioMode === "native" || settings.audioMode === "guided" || settings.audioMode === "hybrid",
+    bitrateMode: settings.bitrateMode,
     watermark: settings.watermark,
     returnLastFrame: settings.returnLastFrame
   };
@@ -104,6 +118,7 @@ function validateFlexibleSettings(settings: FlexibleSeedanceSettings): void {
   validateOption("qualityMode", settings.qualityMode, QUALITY_MODES);
   validateOption("ratio", settings.ratio, RATIOS);
   validateOption("audioMode", settings.audioMode, AUDIO_MODES);
+  validateOption("bitrateMode", settings.bitrateMode, BITRATE_MODES);
   validateBoolean("watermark", settings.watermark);
   validateBoolean("returnLastFrame", settings.returnLastFrame);
   validateTotalDuration(settings.durationTargetSeconds);
@@ -159,6 +174,38 @@ export function repairAttemptCountForQuality(qualityMode: QualityMode): number {
 
 export function usesTestTakesForQuality(qualityMode: QualityMode): boolean {
   return qualityMode !== "economy";
+}
+
+export function seedanceBaseResolution(resolution: Resolution): "480p" | "720p" | "1080p" | "1440p" {
+  switch (resolution) {
+    case "480p":
+      return "480p";
+    case "720p":
+    case "720p-SR":
+      return "720p";
+    case "1080p":
+    case "1080p-SR":
+      return "1080p";
+    case "1440p-SR":
+      return "1440p";
+  }
+}
+
+export function seedanceResolutionHeight(resolution: Resolution): 480 | 720 | 1080 | 1440 {
+  switch (seedanceBaseResolution(resolution)) {
+    case "480p":
+      return 480;
+    case "720p":
+      return 720;
+    case "1080p":
+      return 1080;
+    case "1440p":
+      return 1440;
+  }
+}
+
+export function seedanceUsesSuperResolution(resolution: Resolution): boolean {
+  return resolution.endsWith("-SR");
 }
 
 function validateTotalDuration(durationSeconds: number): void {

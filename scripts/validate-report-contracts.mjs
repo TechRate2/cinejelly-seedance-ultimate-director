@@ -17,11 +17,13 @@ const defaultContracts = [
   contract("business_readiness_plan", "schemas/business-readiness-validation-plan.schema.json", "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json"),
   contract("live_readiness_inputs", "schemas/live-readiness-inputs-report.schema.json", "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json"),
   contract("deployment_package_validation", "schemas/deployment-package-validation-report.schema.json", "assets/output_deliverables/business-readiness/deployment-package-validation-report.json"),
+  contract("render_request_contract_smoke", "schemas/render-request-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-request-contract-smoke-report.json"),
   contract("deployment_readiness_capture", "schemas/deployment-readiness-capture-report.schema.json", "assets/output_deliverables/business-readiness/deployment-preflight-report.json"),
   contract("local_deployment_capture_smoke", "schemas/deployment-readiness-capture-report.schema.json", "assets/output_deliverables/business-readiness/local-deployment-capture-smoke.json"),
   contract("render_job_history_smoke", "schemas/render-job-history-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-job-history-smoke-report.json"),
   contract("render_job_review_lifecycle_smoke", "schemas/render-job-review-lifecycle-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-job-review-lifecycle-smoke-report.json"),
   contract("render_scheduler_smoke", "schemas/render-scheduler-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-scheduler-smoke-report.json"),
+  contract("video_render_strategy_smoke", "schemas/video-render-strategy-smoke-report.schema.json", "assets/output_deliverables/business-readiness/video-render-strategy-smoke-report.json"),
   contract("render_provider_reconciliation", "schemas/render-provider-reconciliation-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
   contract("render_provider_handoff", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
   contract("render_provider_external_lease", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),
@@ -79,6 +81,11 @@ const defaultContracts = [
   contract("short_pipeline_session_store_smoke", "schemas/short-pipeline-session-store-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-session-store-smoke-report.json"),
   contract("short_pipeline_session_render_handoff_smoke", "schemas/short-pipeline-session-render-handoff-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-session-render-handoff-smoke-report.json"),
   contract("short_mvp_ui_contract_smoke", "schemas/short-mvp-ui-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-mvp-ui-contract-smoke-report.json"),
+  contract("short_prompt_pattern_corpus", "schemas/short-prompt-pattern-corpus-report.schema.json", "assets/output_deliverables/business-readiness/short-prompt-pattern-corpus-report.json"),
+  contract("short_platform_template_corpus", "schemas/short-platform-template-corpus-report.schema.json", "assets/output_deliverables/business-readiness/short-platform-template-corpus-report.json"),
+  contract("short_backend_integration_audit", "schemas/short-backend-integration-audit-report.schema.json", "assets/output_deliverables/business-readiness/short-backend-integration-audit-report.json"),
+  contract("backend_system_readiness_audit", "schemas/backend-system-readiness-audit-report.schema.json", "assets/output_deliverables/business-readiness/backend-system-readiness-audit-report.json"),
+  contract("backend_system_suite", "schemas/backend-system-suite-report.schema.json", "assets/output_deliverables/business-readiness/backend-system-suite-report.json"),
   contract("short_review_operation_evidence", "schemas/short-review-operation-evidence.schema.json", "ops/short-review-operation-evidence.json"),
   contract("short_review_operation_draft", "schemas/short-review-operation-evidence-draft-report.schema.json", "assets/output_deliverables/business-readiness/short-review-operation-evidence-draft-report.json"),
   contract("short_review_operation_validation", "schemas/short-review-operation-validation-report.schema.json", "assets/output_deliverables/business-readiness/short-review-operation-validation-report.json"),
@@ -1305,7 +1312,11 @@ function validateSourceVideoAutoAnalysisSmokeSemantics(report) {
     issues.push("$.scenarioSummaries[leaking_output_rejected_non_strict]: expected leaking output to be rejected without attaching analysis.");
   }
   const strictEmpty = scenarioByName.get("strict_empty_analysis_throws");
-  if (!String(strictEmpty?.thrownErrorRedacted ?? "").includes("no usable deconstruction content")) {
+  const strictEmptyError = String(strictEmpty?.thrownErrorRedacted ?? "");
+  if (
+    !strictEmptyError.includes("no usable deconstruction content") &&
+    !strictEmptyError.includes("sourceVideoAnalysis must include at least one transformationIntent")
+  ) {
     issues.push("$.scenarioSummaries[strict_empty_analysis_throws].thrownErrorRedacted: expected strict unusable-output error.");
   }
   if (/data:image\/[a-z0-9.+-]+;base64,/i.test(JSON.stringify(report))) {

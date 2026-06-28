@@ -370,7 +370,7 @@ async function runStrictEmptyScenario(SourceVideoAutoAnalyzer, context) {
   return scenarioSummary({
     name: "strict_empty_analysis_throws",
     intent: "Strict mode must surface unusable LLM structure instead of silently claiming analysis.",
-    status: thrownError?.includes("no usable deconstruction content") &&
+    status: unusableAnalysisError(thrownError) &&
       runtime.sampler.calls.length === 1 &&
       runtime.llm.calls.length === 1 ? "pass" : "fail",
     prepared: request,
@@ -664,7 +664,7 @@ function buildChecks(scenarios, context) {
       leakGuardScenario.syntheticLlmCallCount === 1
       ? pass("leak_guard_rejects_local_frame_paths", "Output that includes local frame paths is rejected and does not attach sourceVideoAnalysis.")
       : fail("leak_guard_rejects_local_frame_paths", "Frame-path leakage was not rejected."),
-    strictEmptyScenario?.thrownErrorRedacted?.includes("no usable deconstruction content") === true
+    unusableAnalysisError(strictEmptyScenario?.thrownErrorRedacted)
       ? pass("strict_mode_surfaces_empty_analysis", "Strict mode throws when LLM output has no usable deconstruction content.")
       : fail("strict_mode_surfaces_empty_analysis", "Strict mode did not surface unusable LLM output."),
     context.createdFrameCount > 0
@@ -678,6 +678,12 @@ function skippedScenarioPass(scenario) {
     scenario.frameSamplerCallCount === 0 &&
     scenario.syntheticLlmCallCount === 0 &&
     scenario.analysisPresent === false;
+}
+
+function unusableAnalysisError(value) {
+  const text = String(value ?? "");
+  return text.includes("no usable deconstruction content") ||
+    text.includes("sourceVideoAnalysis must include at least one transformationIntent");
 }
 
 function reportContainsNoFrameData(report, context) {

@@ -11,6 +11,8 @@ import { ShortDirectorPlanner } from "./short-director-planner.js";
 import { ShortAgentGraphPlanner } from "./short-agent-graph-planner.js";
 import { ShortCommercialReadinessPlanner } from "./short-commercial-readiness-planner.js";
 import { ShortViralIntelligencePlanner } from "./short-viral-intelligence-planner.js";
+import { ShortVisualBiblePlanner } from "./short-visual-bible-planner.js";
+import { ShortVideoPipePlanner } from "./short-video-pipe-planner.js";
 import type {
   BrandKitEvaluation,
   BrandKitInput,
@@ -32,13 +34,21 @@ import type {
   ShortPipelinePlan,
   ShortPipelinePlanInput,
   ShortPipelinePlatform,
+  ShortMediaReferenceInput,
+  ShortMediaReferencePlan,
+  ShortMediaReferencePlanStatus,
+  ShortSeedanceRoutingPlan,
+  ShortReferenceRemakeBlueprint,
   ShortPipelineScenePlan,
   ShortPipelineVisualTextPolicy,
+  ShortVisualBiblePlan,
   WorkflowTemplateDefinition,
   WorkflowTemplateSuggestion
 } from "../types/short-pipeline.js";
 import type { ReviewApprovalCheckpointInput } from "../types/review-approval.js";
-import type { AspectRatio } from "../types/settings.js";
+import type { ShortReferenceVideoLearningInput } from "../types/short-viral-intelligence.js";
+import type { AspectRatio, BitrateMode, Resolution } from "../types/settings.js";
+import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 
 const SOURCE_PATTERN_ORIGINS = [
@@ -63,6 +73,9 @@ const BRAND_SOURCE_PATTERN_ORIGINS = [
 const UNSAFE_TEXT_PATTERN =
   /[A-Za-z]:\\|\\\\|(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|https?:\/\/|data:|bearer\s+|api[_-]?key|secret|token|password|authorization/i;
 
+const UNSAFE_MEDIA_REFERENCE_PATTERN =
+  /[A-Za-z]:\\|\\\\|(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|data:|bearer\s+|api[_-]?key|secret|token|password|authorization/i;
+
 const UNSAFE_QUERY_PATTERN = /token|signature|sig|key|apikey|api_key|secret|password|auth|credential|expires|policy/i;
 
 const HIGH_RISK_CLAIM_PATTERN =
@@ -72,7 +85,10 @@ const MEDIUM_RISK_CLAIM_PATTERN =
   /improve|increase|reduce|boost|faster|stronger|premium|proven|safe|certified|limited time|save|discount/i;
 const SHORT_MIN_COMMERCIAL_RENDER_SECONDS = 15;
 const SHORT_MAX_COMMERCIAL_RENDER_SECONDS = 60;
+const SHORT_MAX_SEQUENCE_RENDER_SECONDS = 480;
 const NO_VISIBLE_TEXT_CAPTION = "NO_ON_SCREEN_TEXT";
+const DEFAULT_SHORT_SEEDANCE_RESOLUTION: Resolution = "720p";
+const DEFAULT_SHORT_SEEDANCE_BITRATE_MODE: BitrateMode = "standard";
 
 export class ProductUrlBriefExtractor {
   public build(input: ProductUrlBriefInput | undefined, userPrompt = ""): ProductUrlBrief | undefined {
@@ -479,6 +495,8 @@ export class ShortPipelinePlanner {
   private readonly viralIntelligencePlanner = new ShortViralIntelligencePlanner();
   private readonly agentGraphPlanner = new ShortAgentGraphPlanner();
   private readonly commercialReadinessPlanner = new ShortCommercialReadinessPlanner();
+  private readonly visualBiblePlanner = new ShortVisualBiblePlanner();
+  private readonly videoPipePlanner = new ShortVideoPipePlanner();
 
   public buildPlan(input: ShortPipelinePlanInput): ShortPipelinePlan {
     const generatedAt = input.generatedAt ?? new Date();
@@ -495,6 +513,9 @@ export class ShortPipelinePlanner {
     const intent = this.intent(input, prompt, productBrief, brandKitEvaluation);
     const audioPolicy = audioPolicyFor(input.audio, brandKitEvaluation);
     const visualTextPolicy = noVisibleTextPolicy();
+    const mediaReferencePlan = mediaReferencePlanFor(input.mediaReferences ?? [], input.projectId, input.requestId);
+    const referenceVideoLearning = input.referenceVideoLearning ??
+      referenceVideoLearningFromSourceMedia(input.mediaReferences ?? [], mediaReferencePlan, prompt);
     const templateSuggestions = input.allowTemplateSuggestions === false
       ? []
       : this.templateRegistry.suggest({
@@ -522,7 +543,7 @@ export class ShortPipelinePlanner {
       ...(selectedTemplate ? { selectedTemplate } : {}),
       concepts,
       scenes: preliminaryScenes,
-      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
+      ...(referenceVideoLearning ? { referenceVideoLearning } : {})
     });
     const preliminaryAgentGraphOutput = this.agentGraphPlanner.build({
       projectId: input.projectId,
@@ -534,7 +555,7 @@ export class ShortPipelinePlanner {
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
       ...(channelStyleProfile ? { channelStyleProfile } : {}),
       ...(selectedTemplate ? { selectedTemplate } : {}),
-      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
+      ...(referenceVideoLearning ? { referenceVideoLearning } : {}),
       concepts,
       scenes: preliminaryScenes,
       viralIntelligence: preliminaryViralIntelligence
@@ -560,7 +581,19 @@ export class ShortPipelinePlanner {
       ...(selectedTemplate ? { selectedTemplate } : {}),
       concepts,
       scenes,
-      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
+      ...(referenceVideoLearning ? { referenceVideoLearning } : {})
+    });
+    const referenceRemakeBlueprint = referenceRemakeBlueprintFor(input, prompt, viralIntelligence, referenceVideoLearning, mediaReferencePlan);
+    const visualBiblePlan = this.visualBiblePlanner.build({
+      projectId: input.projectId,
+      ...(input.requestId ? { requestId: input.requestId } : {}),
+      prompt,
+      intent,
+      ...(productBrief ? { productBrief } : {}),
+      scenes,
+      mediaReferencePlan,
+      ...(referenceRemakeBlueprint ? { referenceRemakeBlueprint } : {}),
+      ...(input.visualBible ? { visualBible: input.visualBible } : {})
     });
     const agentGraphOutput = this.agentGraphPlanner.build({
       projectId: input.projectId,
@@ -572,13 +605,23 @@ export class ShortPipelinePlanner {
       ...(brandKitEvaluation ? { brandKitEvaluation } : {}),
       ...(channelStyleProfile ? { channelStyleProfile } : {}),
       ...(selectedTemplate ? { selectedTemplate } : {}),
-      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
+      ...(referenceVideoLearning ? { referenceVideoLearning } : {}),
       concepts,
       scenes,
       viralIntelligence
     });
     const agentGraph = agentGraphOutput.graphRun;
     const seedancePromptPack = agentGraphOutput.seedancePromptPack;
+    const seedanceRouting = seedanceRoutingFor({
+      input,
+      intent,
+      mediaReferencePlan,
+      scenes,
+      audioPolicy,
+      viralIntelligence,
+      referenceRemakeBlueprint,
+      visualBiblePlan
+    });
     const directorPlan = this.shortDirectorPlanner.build({
       projectId: input.projectId,
       ...(input.requestId ? { requestId: input.requestId } : {}),
@@ -594,7 +637,17 @@ export class ShortPipelinePlanner {
       audioPolicy,
       visualTextPolicy
     });
-    const checkpoints = this.checkpoints(scenes, intent, productBrief, brandKitEvaluation, audioPolicy, visualTextPolicy);
+    const videoPipePlan = this.videoPipePlanner.build({
+      projectId: input.projectId,
+      ...(input.requestId ? { requestId: input.requestId } : {}),
+      intent,
+      mediaReferencePlan,
+      visualBiblePlan,
+      seedanceRouting,
+      directorPlan,
+      ...(referenceRemakeBlueprint ? { referenceRemakeBlueprint } : {})
+    });
+    const checkpoints = this.checkpoints(scenes, intent, productBrief, brandKitEvaluation, audioPolicy, visualTextPolicy, mediaReferencePlan, visualBiblePlan);
     const reviewApproval = this.approvalSystem.evaluate({
       projectId: input.projectId,
       ...(input.requestId ? { requestId: input.requestId } : {}),
@@ -643,12 +696,17 @@ export class ShortPipelinePlanner {
       directorPlan,
       concepts,
       scenes,
+      mediaReferencePlan,
+      visualBiblePlan,
+      videoPipePlan,
+      seedanceRouting,
       viralIntelligence,
+      ...(referenceRemakeBlueprint ? { referenceRemakeBlueprint } : {}),
       agentGraph,
       seedancePromptPack,
       reviewApproval,
       releaseGateSummary: {
-        canRenderAfterApproval: reviewApproval.releaseGateSummary.canRenderAfterReview && status !== "blocked" && viralIntelligence.status !== "blocked" && agentGraph.status !== "blocked",
+        canRenderAfterApproval: reviewApproval.releaseGateSummary.canRenderAfterReview && status !== "blocked" && viralIntelligence.status !== "blocked" && agentGraph.status !== "blocked" && !visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved,
         canUseAsNoSpendPlanningEvidence: status !== "blocked" && viralIntelligence.status !== "blocked" && agentGraph.status !== "blocked",
         canReleaseToCustomerTraffic: false,
         releaseBlocker: status === "blocked" || viralIntelligence.status === "blocked" || agentGraph.status === "blocked"
@@ -663,7 +721,9 @@ export class ShortPipelinePlanner {
     const originalInput = {
       ...(input.product ? { product: input.product } : {}),
       ...(input.channelStyle ? { channelStyle: input.channelStyle } : {}),
-      ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {})
+      ...(input.mediaReferences ? { mediaReferences: input.mediaReferences } : {}),
+      ...(input.visualBible ? { visualBible: input.visualBible } : {}),
+      ...(referenceVideoLearning ? { referenceVideoLearning } : {})
     };
     const commercialReadiness = this.commercialReadinessPlanner.build({
       plan: planWithoutReadiness,
@@ -686,10 +746,14 @@ export class ShortPipelinePlanner {
     brandKitEvaluation: BrandKitEvaluation | undefined
   ): ShortPipelineIntent {
     const platform = input.targetPlatform ?? inferPlatform(prompt);
+    const requestedDurationSeconds = input.targetDurationSeconds ?? inferDuration(prompt);
+    const maxDurationSeconds = input.visualBible?.mode === "production_bible" || requestedDurationSeconds > SHORT_MAX_COMMERCIAL_RENDER_SECONDS
+      ? SHORT_MAX_SEQUENCE_RENDER_SECONDS
+      : SHORT_MAX_COMMERCIAL_RENDER_SECONDS;
     const targetDurationSeconds = clampDuration(
-      input.targetDurationSeconds ?? inferDuration(prompt),
+      requestedDurationSeconds,
       SHORT_MIN_COMMERCIAL_RENDER_SECONDS,
-      SHORT_MAX_COMMERCIAL_RENDER_SECONDS
+      maxDurationSeconds
     );
     const businessGoal = inferGoal(prompt, productBrief);
     const audience = cleanText(productBrief?.targetBuyer, 160) ?? inferAudience(prompt);
@@ -840,7 +904,9 @@ export class ShortPipelinePlanner {
     productBrief: ProductUrlBrief | undefined,
     brandKitEvaluation: BrandKitEvaluation | undefined,
     audioPolicy: ShortPipelineAudioPolicy,
-    visualTextPolicy: ShortPipelineVisualTextPolicy
+    visualTextPolicy: ShortPipelineVisualTextPolicy,
+    mediaReferencePlan: readonly ShortMediaReferencePlan[],
+    visualBiblePlan: ShortVisualBiblePlan
   ): readonly ReviewApprovalCheckpointInput[] {
     const checkpoints: ReviewApprovalCheckpointInput[] = scenes.map((sceneItem) => ({
       surface: "scene",
@@ -881,6 +947,52 @@ export class ShortPipelinePlanner {
         allowTextOverlays: visualTextPolicy.allowTextOverlays
       }
     });
+    for (const reference of mediaReferencePlan) {
+      checkpoints.push({
+        surface: "scene",
+        label: `Approve media reference: ${reference.label}`,
+        subjectId: reference.referenceId,
+        required: true,
+        decision: reference.status === "blocked" ? "blocked" : "pending",
+        issueCodes: [
+          ...(reference.status === "blocked" ? ["media_reference_blocked"] : []),
+          ...(reference.rightsStatus !== "operator_approved" ? ["media_rights_review_required"] : []),
+          ...(reference.includeInProviderHandoff ? [] : ["provider_reference_not_ready"])
+        ],
+        evidence: {
+          inputRole: reference.inputRole,
+          promptRole: reference.promptRole,
+          providerKind: reference.providerKind,
+          uriPolicy: reference.uriPolicy,
+          rightsStatus: reference.rightsStatus,
+          promptTag: reference.promptTag,
+          includeInProviderHandoff: reference.includeInProviderHandoff
+        }
+      });
+    }
+    if (visualBiblePlan.status !== "not_needed") {
+      checkpoints.push({
+        surface: "scene",
+        label: `Approve visual bible workflow: ${visualBiblePlan.recommendedPipe}`,
+        subjectId: visualBiblePlan.planId,
+        required: visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved,
+        decision: "pending",
+        issueCodes: [
+          ...(visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved ? ["visual_bible_assets_required_before_render"] : []),
+          ...visualBiblePlan.warnings.slice(0, 4)
+        ],
+        evidence: {
+          status: visualBiblePlan.status,
+          requestedMode: visualBiblePlan.requestedMode,
+          recommendedPipe: visualBiblePlan.recommendedPipe,
+          durationBand: visualBiblePlan.durationBand,
+          assetPlanCount: visualBiblePlan.assetPlans.length,
+          boardCount: visualBiblePlan.sequencePlan.boardCount,
+          targetClipCount: visualBiblePlan.sequencePlan.targetClipCount,
+          blocksRenderUntilAssetsApproved: visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved
+        }
+      });
+    }
     for (const claim of productBrief?.claimInventory ?? []) {
       checkpoints.push({
         surface: "claim",
@@ -936,6 +1048,717 @@ export class ShortPipelinePlanner {
         : "Proceed only through render cost/quota gates after approval.",
       "Keep templates optional; user natural-language edits can replace or ignore every suggested accelerator."
     ];
+  }
+}
+
+function referenceVideoLearningFromSourceMedia(
+  references: readonly ShortMediaReferenceInput[],
+  mediaReferencePlan: readonly ShortMediaReferencePlan[],
+  prompt: string
+): ShortReferenceVideoLearningInput | undefined {
+  const inputReference = references.find((reference) => reference.role === "source_video");
+  const plannedReference = mediaReferencePlan.find((reference) => reference.promptRole === "source_video_structure");
+  if (!inputReference && !plannedReference) {
+    return undefined;
+  }
+  const note = cleanText(inputReference?.description, 240);
+  const label = cleanText(inputReference?.label ?? plannedReference?.label, 120) ?? "Uploaded trend/reference video";
+  const sourceUrl = cleanSourceVideoLearningUrl(inputReference?.uri);
+  const sceneCount = inferSourceSceneCount(`${prompt} ${note ?? ""}`);
+  return {
+    sourceLabel: label,
+    ...(sourceUrl ? { sourceUrl } : {}),
+    summary: uniqueClean([
+      "User supplied a source video for Video Remake trend intake.",
+      note,
+      "Learn edit rhythm, acting beats, camera grammar, retention timing, audio energy, and payoff shape while replacing KOL, product, background, script, claims, and CTA."
+    ], 3, 220).join(" "),
+    hook: "Preserve the source video's first-second viewer job, rewritten around the user's product, KOL, and proof.",
+    durationSeconds: inferDuration(prompt),
+    ...(sceneCount ? { sceneCount } : {}),
+    pacing: "Derive scene timing, cut density, reveal order, and payoff timing from the uploaded/source video.",
+    cameraStyle: "Derive camera path, framing, lens distance, and endpoint composition while replacing creator, product, background, and props.",
+    captionStyle: "Derive visual rhythm only; keep generated output free of visible captions, subtitles, labels, watermarks, and CTA cards.",
+    audioStyle: "Derive tempo and energy only; use new guided/licensed voice, music, and sound design.",
+    retentionPattern: "Carry source retention mechanics into a new product-proof story with user-owned assets.",
+    ctaStyle: "Adapt the payoff action to the user's offer and approved claims.",
+    visualMotifs: uniqueClean([
+      plannedReference?.label,
+      note,
+      "source-video beat map"
+    ], 4, 80),
+    doNotCopy: true
+  };
+}
+
+function cleanSourceVideoLearningUrl(value: string | undefined): string | undefined {
+  const uri = cleanText(value, 600);
+  if (!uri?.startsWith("https://")) {
+    return undefined;
+  }
+  return uri;
+}
+
+function inferSourceSceneCount(value: string): number | undefined {
+  const match = /(?:scene|beat|shot)s?\s*[:=-]?\s*(\d{1,2})|(\d{1,2})\s*(?:scene|beat|shot)s?/i.exec(value);
+  const raw = match?.[1] ?? match?.[2];
+  if (!raw) {
+    return undefined;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(12, Math.max(1, Math.round(parsed))) : undefined;
+}
+
+function referenceRemakeBlueprintFor(
+  input: ShortPipelinePlanInput,
+  prompt: string,
+  viralIntelligence: ShortPipelinePlan["viralIntelligence"],
+  referenceVideoLearning: ShortReferenceVideoLearningInput | undefined,
+  mediaReferencePlan: readonly ShortMediaReferencePlan[]
+): ShortReferenceRemakeBlueprint | undefined {
+  const reference = viralIntelligence.referenceVideoPattern;
+  const learning = referenceVideoLearning;
+  const sourceVideoReference = mediaReferencePlan.find((referenceItem) => referenceItem.promptRole === "source_video_structure");
+  if (!reference && !learning && !sourceVideoReference) {
+    return undefined;
+  }
+  const copyRiskOrCloseRemake = learning?.doNotCopy === false || hasCopyRiskIntent([
+    prompt,
+    learning?.summary ?? "",
+    learning?.hook ?? "",
+    learning?.pacing ?? ""
+  ].join(" "));
+  const mode = copyRiskOrCloseRemake ? "rights_cleared_close_remake" : "structure_remake";
+  const sourceVideoBlocked = sourceVideoReference?.status === "blocked";
+  const sourceVideoReviewRequired = Boolean(sourceVideoReference && sourceVideoReference.status !== "ready");
+  const status = reference?.safetyStatus === "blocked" || sourceVideoBlocked
+    ? "blocked"
+    : reference?.safetyStatus === "review_required" || copyRiskOrCloseRemake || sourceVideoReviewRequired
+      ? "review_required"
+      : "ready";
+  const sourceSafetyStatus = reference?.safetyStatus ??
+    (sourceVideoReference
+      ? sourceVideoReference.status === "blocked"
+        ? "blocked"
+        : sourceVideoReference.status === "ready"
+          ? "learned_pattern"
+          : "review_required"
+      : "not_provided");
+  const fidelityTarget = mode === "rights_cleared_close_remake"
+    ? "rights_cleared_close"
+    : "structure_locked";
+  const trendVideoIntakeMode = sourceVideoReference
+    ? "uploaded_or_clean_https_reference"
+    : "operator_summary_only";
+  const lockedElements = uniqueClean([
+    "first-second hook job and viewer tension",
+    reference ? `pacing map: ${reference.pacingPattern}` : cleanText(learning?.pacing, 180),
+    reference ? `camera grammar: ${reference.cameraPattern}` : cleanText(learning?.cameraStyle, 180),
+    reference ? `retention mechanics: ${reference.retentionMechanics.join(" | ")}` : cleanText(learning?.retentionPattern, 180),
+    reference ? `payoff shape: ${reference.ctaPattern}` : cleanText(learning?.ctaStyle, 180),
+    sourceVideoReference ? `source-video reference scope: ${sourceVideoReference.transferScope}` : undefined,
+    "scene rhythm and acting beats, not source-owned expression"
+  ], 8, 220);
+  const adherenceTargets = uniqueClean([
+    "source beat order and approximate timeline pacing",
+    "cut density and visual-information cadence",
+    "camera grammar, lens distance, movement direction, and endpoint framing",
+    "KOL performance rhythm, gesture timing, eye-line, and reaction shape",
+    "audio energy envelope and narration rhythm with new licensed/generated audio",
+    "final payoff timing and before/after state logic",
+    mode === "rights_cleared_close_remake"
+      ? "rights-cleared close remake may stay closer after human similarity review"
+      : "structure-locked remake must preserve originality beyond reusable format"
+  ], 8, 220);
+  const sourceBeatMap = sourceBeatMapFor(reference, learning, input.targetDurationSeconds);
+  const providerExecutionPlan = uniqueClean([
+    trendVideoIntakeMode === "uploaded_or_clean_https_reference"
+      ? "Use the source-video reference as scoped motion/camera/structure guidance after rights review."
+      : "Use the operator summary as the source beat map when no video asset is attached.",
+    "Bind KOL identity and product geometry before any source-video, motion, camera, style, or audio reference.",
+    "Map every generated scene to the source beat map while replacing script, props, claims, background, product, and CTA.",
+    "Use @image identity/product/background references as higher priority than @video structure references.",
+    "Use new guided/licensed voice and audio; never transfer source music, source voice identity, or source captions.",
+    "Keep no-visible-text policy unless an operator-approved UI policy changes it."
+  ], 8, 240);
+  const remakeGuardrails = uniqueClean([
+    ...(reference?.originalityGuardrails ?? []),
+    "replace KOL, product, offer, setting, background, voice, audio, and claims with user-approved inputs",
+    "derive edit rhythm and performance beats without reusing source transcript, captions, music, watermarks, logos, face identity, or private assets",
+    "rights-cleared close remake requests stay review-required until an operator confirms source rights and similarity risk",
+    "video output must feel native to the user's niche, product proof, and platform instead of repeating a fixed template"
+  ], 10, 240);
+  const sourceLabel = cleanText(learning?.sourceLabel ?? reference?.sourceLabel ?? sourceVideoReference?.label, 120);
+  const sourceHost = reference?.sourceHost ?? sourceVideoReference?.sourceHost;
+  const blueprintId = createStableId(
+    "short_remake_blueprint",
+    [
+      input.projectId,
+      input.requestId ?? "",
+      reference?.patternId ?? "reference_summary_only",
+      mode,
+      status,
+      trendVideoIntakeMode,
+      lockedElements.join("|"),
+      sourceBeatMap.join("|"),
+      remakeGuardrails.join("|")
+    ].join(":")
+  );
+  return {
+    schemaVersion: "cinejelly.short-reference-remake-blueprint.v1",
+    blueprintId,
+    userFacingModeLabel: "Video Remake",
+    mode,
+    status,
+    ...(reference?.patternId ? { sourcePatternId: reference.patternId } : {}),
+    sourceSafetyStatus,
+    ...(sourceLabel ? { sourceLabel } : {}),
+    ...(sourceHost ? { sourceHost } : {}),
+    fidelityTarget,
+    trendVideoIntakeMode,
+    replacementSlots: [
+      "KOL/creator",
+      "product or offer",
+      "background or setting",
+      "voiceover and audio bed",
+      "proof props and product evidence",
+      "CTA or payoff"
+    ],
+    lockedElements,
+    adherenceTargets,
+    sourceBeatMap,
+    providerExecutionPlan,
+    remakeGuardrails,
+    reviewRequiredBeforeRender: true,
+    canUseAfterReview: status !== "blocked"
+  };
+}
+
+function sourceBeatMapFor(
+  reference: ShortPipelinePlan["viralIntelligence"]["referenceVideoPattern"] | undefined,
+  learning: ShortReferenceVideoLearningInput | undefined,
+  targetDurationSeconds: number | undefined
+): readonly string[] {
+  const timing = cleanText(reference?.pacingPattern ?? learning?.pacing, 420);
+  const retention = cleanText(
+    reference?.retentionMechanics.join(" | ") ?? learning?.retentionPattern,
+    320
+  );
+  const hook = cleanText(reference?.hookPattern ?? learning?.hook, 220);
+  const camera = cleanText(reference?.cameraPattern ?? learning?.cameraStyle, 220);
+  const payoff = cleanText(reference?.ctaPattern ?? learning?.ctaStyle, 180);
+  const rawBeats = timing
+    ? timing
+        .split(/\s*(?:,|;|\||>|\bthen\b|\band then\b)\s*/i)
+        .map((item) => cleanText(item, 140))
+    : [];
+  return uniqueClean([
+    hook ? `hook: ${hook}` : "hook: match the source viewer job in the first beat",
+    ...rawBeats,
+    camera ? `camera: ${camera}` : undefined,
+    retention ? `retention: ${retention}` : undefined,
+    payoff ? `payoff: ${payoff}` : undefined,
+    typeof targetDurationSeconds === "number" && Number.isFinite(targetDurationSeconds) && targetDurationSeconds > 0
+      ? `target timeline: ${Number(targetDurationSeconds.toFixed(2))}s total`
+      : undefined
+  ], 10, 180);
+}
+
+function mediaReferencePlanFor(
+  references: readonly ShortMediaReferenceInput[],
+  projectId: string,
+  requestId: string | undefined
+): readonly ShortMediaReferencePlan[] {
+  const tagCounts: Partial<Record<"image" | "video" | "audio", number>> = {};
+  return references.slice(0, 12).map((reference, index) => {
+    const role = normalizedMediaRole(reference.role);
+    const providerKind = mediaProviderKindFor(reference, role);
+    const promptTagKind = promptReferenceTagKind(providerKind);
+    tagCounts[promptTagKind] = (tagCounts[promptTagKind] ?? 0) + 1;
+    const promptTag = `@${promptTagKind}${tagCounts[promptTagKind]}`;
+    const uri = cleanText(reference.uri, 600) ?? "";
+    const uriEvidence = mediaUriEvidence(uri);
+    const rightsStatus = reference.rightsStatus ?? "unknown";
+    const sourceVideoProviderEligible = role.promptRole === "source_video_structure" &&
+      rightsStatus === "operator_approved" &&
+      uriEvidence.status === "ready" &&
+      Boolean(uriEvidence.providerAssetId);
+    const issues = uniqueClean([
+      ...(uriEvidence.status === "blocked" ? ["unsafe_or_private_media_reference"] : []),
+      ...(rightsStatus !== "operator_approved" ? ["media_rights_review_required"] : []),
+      ...(role.promptRole === "source_video_structure" && !sourceVideoProviderEligible
+        ? ["source_video_structure_is_planning_only_until_live_analysis_or_rights_review"]
+        : []),
+      ...(sourceVideoProviderEligible ? ["source_video_provider_handoff_requires_similarity_review"] : [])
+    ], 6, 120);
+    const status: ShortMediaReferencePlanStatus = uriEvidence.status === "blocked"
+      ? "blocked"
+      : rightsStatus === "operator_approved"
+        ? "ready"
+        : "review_required";
+    const label = cleanText(reference.label, 120) ?? mediaRoleLabel(role.inputRole, index);
+    const referenceId = createStableId(
+      "short_media_ref",
+      [
+        projectId,
+        requestId ?? "",
+        role.inputRole,
+        role.promptRole,
+        providerKind,
+        uriEvidence.uriSha256 ?? uriEvidence.providerAssetId ?? "",
+        label
+      ].join(":")
+    );
+
+    return {
+      schemaVersion: "cinejelly.short-media-reference-plan.v1",
+      referenceId,
+      inputRole: role.inputRole,
+      promptRole: role.promptRole,
+      providerKind,
+      label,
+      promptTag,
+      status,
+      rightsStatus,
+      priority: reference.priority ?? (role.promptRole === "identity" || role.promptRole === "product" ? "primary" : "supporting"),
+      uriPolicy: uriEvidence.uriPolicy,
+      ...(uriEvidence.uriSha256 ? { uriSha256: uriEvidence.uriSha256 } : {}),
+      ...(uriEvidence.sourceHost ? { sourceHost: uriEvidence.sourceHost } : {}),
+      ...(uriEvidence.providerAssetId ? { providerAssetId: uriEvidence.providerAssetId } : {}),
+      includeInProviderHandoff: status === "ready" &&
+        uriEvidence.status === "ready" &&
+        Boolean(uriEvidence.providerAssetId) &&
+        (role.promptRole !== "source_video_structure" || sourceVideoProviderEligible),
+      transferScope: mediaTransferScope(role.promptRole, promptTag, cleanText(reference.description, 160)),
+      doNotTransfer: mediaDoNotTransfer(role.promptRole),
+      issues
+    };
+  });
+}
+
+function seedanceRoutingFor(input: {
+  readonly input: ShortPipelinePlanInput;
+  readonly intent: ShortPipelineIntent;
+  readonly mediaReferencePlan: readonly ShortMediaReferencePlan[];
+  readonly scenes: readonly ShortPipelineScenePlan[];
+  readonly audioPolicy: ShortPipelineAudioPolicy;
+  readonly viralIntelligence: ShortPipelinePlan["viralIntelligence"];
+  readonly referenceRemakeBlueprint: ShortReferenceRemakeBlueprint | undefined;
+  readonly visualBiblePlan: ShortVisualBiblePlan;
+}): ShortSeedanceRoutingPlan {
+  const readyReferences = input.mediaReferencePlan.filter((reference) => reference.status !== "blocked");
+  const providerReadyReferences = readyReferences.filter((reference) => reference.includeInProviderHandoff);
+  const hasSourceOrMotion = Boolean(input.referenceRemakeBlueprint) ||
+    readyReferences.some((reference) =>
+      reference.promptRole === "source_video_structure" ||
+      reference.promptRole === "motion" ||
+      reference.promptRole === "camera" ||
+      reference.providerKind === "video"
+    ) ||
+    Boolean(input.viralIntelligence.referenceVideoPattern);
+  const hasVisualBibleSequence = input.visualBiblePlan.status !== "not_needed";
+  const routableReferenceCount = readyReferences.filter((reference) => reference.promptRole !== "source_video_structure").length;
+  const imageReferenceCount = readyReferences.filter((reference) => isImageLikeProviderKind(reference.providerKind)).length;
+  const recommendedProviderMode: ShortSeedanceRoutingPlan["recommendedProviderMode"] = hasSourceOrMotion || hasVisualBibleSequence || imageReferenceCount >= 2
+    ? "reference_to_video"
+    : imageReferenceCount === 1
+      ? "image_to_video"
+      : "text_to_video";
+  const storyboardRequired = input.scenes.length > 1 || input.intent.targetDurationSeconds > 15;
+  const preferredTier = preferredSeedanceTier(input.intent.targetDurationSeconds, recommendedProviderMode, routableReferenceCount, input.referenceRemakeBlueprint, input.visualBiblePlan);
+  const requestedSettings = input.input.seedanceSettings;
+  const resolution = requestedSettings?.resolution ?? DEFAULT_SHORT_SEEDANCE_RESOLUTION;
+  const bitrateMode = requestedSettings?.bitrateMode ?? DEFAULT_SHORT_SEEDANCE_BITRATE_MODE;
+  const returnLastFrame = requestedSettings?.returnLastFrame ?? (storyboardRequired || hasSourceOrMotion || hasVisualBibleSequence);
+  const targetPerClip = Math.min(15, Math.max(4, Math.ceil(input.intent.targetDurationSeconds / Math.max(1, input.scenes.length))));
+  const referenceTags = readyReferences.map((reference) => ({
+    tag: reference.promptTag,
+    role: reference.promptRole,
+    providerKind: reference.providerKind,
+    label: reference.label,
+    transferScope: reference.transferScope,
+    priority: reference.priority
+  }));
+  const recipeName: ShortSeedanceRoutingPlan["promptRecipe"]["name"] = input.referenceRemakeBlueprint
+    ? "reference_to_video_remake_blueprint"
+    : hasVisualBibleSequence
+      ? "reference_board_to_video_sequence"
+    : recommendedProviderMode === "reference_to_video"
+      ? "reference_to_video_multi_reference"
+      : recommendedProviderMode === "image_to_video"
+        ? "image_to_video_product_or_kol"
+        : "text_to_video_niche_short";
+  const reasonCodes = uniqueClean([
+    recommendedProviderMode,
+    preferredTier,
+    requestedSettings?.resolution ? `user_resolution_${resolution}` : `default_resolution_${resolution}`,
+    requestedSettings?.bitrateMode ? `user_bitrate_${bitrateMode}` : `default_bitrate_${bitrateMode}`,
+    requestedSettings?.returnLastFrame !== undefined ? `user_return_last_frame_${returnLastFrame}` : undefined,
+    storyboardRequired ? "storyboard_multishot" : "single_clip",
+    input.referenceRemakeBlueprint ? "video_remake_blueprint_present" : undefined,
+    hasVisualBibleSequence ? "visual_bible_sequence_present" : undefined,
+    input.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved ? "visual_bible_assets_required_before_render" : undefined,
+    input.visualBiblePlan.recommendedPipe !== "normal_short_pipe" ? `visual_pipe_${input.visualBiblePlan.recommendedPipe}` : undefined,
+    readyReferences.some((reference) => reference.promptRole === "source_video_structure") ? "source_video_structure_reference_ready" : undefined,
+    readyReferences.some((reference) => reference.promptRole === "identity") ? "kol_identity_reference_ready" : undefined,
+    readyReferences.some((reference) => reference.promptRole === "product") ? "product_reference_ready" : undefined,
+    readyReferences.some((reference) => reference.promptRole === "first_frame" || reference.promptRole === "last_frame") ? "first_last_frame_anchor_ready" : undefined
+  ], 10, 100);
+  const warnings = uniqueClean([
+    ...input.mediaReferencePlan.flatMap((reference) => reference.issues),
+    ...input.visualBiblePlan.warnings,
+    providerReadyReferences.length === 0 && readyReferences.length > 0 ? "media_references_need_rights_or_asset_review_before_provider_handoff" : undefined,
+    preferredTier === "mini" ? "mini_tier_requires_operator_configured_capability_or_runtime_fallback_to_fast" : undefined
+  ], 10, 180);
+  const routingId = createStableId(
+    "short_seedance_routing",
+    [
+      input.input.projectId,
+      input.input.requestId ?? "",
+      recommendedProviderMode,
+      preferredTier,
+      resolution,
+      input.intent.aspectRatio,
+      referenceTags.map((reference) => `${reference.tag}:${reference.role}`).join("|")
+    ].join(":")
+  );
+
+  return {
+    schemaVersion: "cinejelly.short-seedance-routing.v1",
+    routingId,
+    provider: "atlascloud",
+    modelFamily: "seedance_2_0",
+    recommendedProviderMode,
+    preferredTier,
+    modelSelectionPolicy: "admin_allowlist_capability_first",
+    preferredConfiguredModelEnv: preferredTier === "standard"
+      ? "ATLASCLOUD_SEEDANCE_STANDARD_MODEL"
+      : preferredTier === "fast"
+        ? "ATLASCLOUD_SEEDANCE_FAST_MODEL"
+        : "ATLASCLOUD_SEEDANCE_MINI_MODEL",
+    modelAlias: preferredTier === "standard"
+      ? "Seedance 2.0"
+      : preferredTier === "fast"
+        ? "Seedance 2.0 Fast"
+        : "Seedance 2.0 Mini",
+    resolution,
+    ratio: input.intent.aspectRatio,
+    bitrateMode,
+    superResolution: resolution.endsWith("-SR"),
+    returnLastFrame,
+    providerClipDurationSeconds: {
+      min: 4,
+      max: 15,
+      targetPerClip
+    },
+    storyboardRequired,
+    sequentialRenderRecommended: storyboardRequired && (hasSourceOrMotion || hasVisualBibleSequence || providerReadyReferences.length === 0),
+    generatedAudioMode: input.audioPolicy.renderAudioMode,
+    referenceTags,
+    promptRecipe: seedancePromptRecipe(recipeName, referenceTags, input.referenceRemakeBlueprint, input.visualBiblePlan),
+    reasonCodes,
+    warnings,
+    releaseGateSummary: {
+      canUseAsNoSpendModelRoutingEvidence: true,
+      canSubmitToProviderNow: false,
+      releaseBlocker: "Short Seedance routing is planning evidence only; provider submission still requires review approval, model allowlist/capability checks, quota/cost gates, artifact validation, and manual media review."
+    }
+  };
+}
+
+function promptReferenceTagKind(providerKind: ShortMediaReferencePlan["providerKind"]): "image" | "video" | "audio" {
+  if (providerKind === "audio") {
+    return "audio";
+  }
+  return providerKind === "video" || providerKind === "motion" || providerKind === "camera" ? "video" : "image";
+}
+
+function isImageLikeProviderKind(providerKind: ShortMediaReferencePlan["providerKind"]): boolean {
+  return providerKind === "image" ||
+    providerKind === "first_frame" ||
+    providerKind === "last_frame" ||
+    providerKind === "identity" ||
+    providerKind === "product" ||
+    providerKind === "environment" ||
+    providerKind === "style";
+}
+
+function normalizedMediaRole(role: ShortMediaReferenceInput["role"]): {
+  readonly inputRole: ShortMediaReferenceInput["role"];
+  readonly promptRole: ShortMediaReferencePlan["promptRole"];
+} {
+  switch (role) {
+    case "kol":
+    case "creator":
+      return { inputRole: role, promptRole: "identity" };
+    case "product":
+      return { inputRole: role, promptRole: "product" };
+    case "wardrobe":
+    case "clothing":
+      return { inputRole: role, promptRole: "wardrobe" };
+    case "background":
+    case "environment":
+      return { inputRole: role, promptRole: "environment" };
+    case "first_frame":
+      return { inputRole: role, promptRole: "first_frame" };
+    case "last_frame":
+      return { inputRole: role, promptRole: "last_frame" };
+    case "style":
+      return { inputRole: role, promptRole: "style" };
+    case "motion":
+      return { inputRole: role, promptRole: "motion" };
+    case "camera":
+      return { inputRole: role, promptRole: "camera" };
+    case "audio":
+      return { inputRole: role, promptRole: "audio_tempo" };
+    case "source_video":
+      return { inputRole: role, promptRole: "source_video_structure" };
+  }
+}
+
+function mediaProviderKindFor(
+  reference: ShortMediaReferenceInput,
+  role: ReturnType<typeof normalizedMediaRole>
+): ShortMediaReferencePlan["providerKind"] {
+  if (reference.kind === "audio" || role.promptRole === "audio_tempo") {
+    return "audio";
+  }
+  if (
+    reference.kind === "video" ||
+    role.promptRole === "motion" ||
+    role.promptRole === "camera" ||
+    role.promptRole === "source_video_structure" ||
+    /\.(?:mp4|mov|webm|m4v)(?:$|[?#])/i.test(reference.uri)
+  ) {
+    return "video";
+  }
+  if (role.promptRole === "first_frame" || role.promptRole === "last_frame") {
+    return role.promptRole;
+  }
+  if (role.promptRole === "identity" || role.promptRole === "product" || role.promptRole === "environment" || role.promptRole === "style") {
+    return role.promptRole;
+  }
+  return "image";
+}
+
+function mediaUriEvidence(uri: string): {
+  readonly status: "ready" | "blocked";
+  readonly uriPolicy: ShortMediaReferencePlan["uriPolicy"];
+  readonly uriSha256?: string;
+  readonly sourceHost?: string;
+  readonly providerAssetId?: string;
+} {
+  if (!uri || UNSAFE_MEDIA_REFERENCE_PATTERN.test(uri)) {
+    return {
+      status: "blocked",
+      uriPolicy: "blocked_unsafe_or_private"
+    };
+  }
+  if (uri.startsWith("asset://")) {
+    const providerAssetId = uri.slice("asset://".length).trim();
+    return providerAssetId
+      ? {
+          status: "ready",
+          uriPolicy: "asset_id_retained",
+          uriSha256: sha256(uri),
+          providerAssetId
+        }
+      : {
+          status: "blocked",
+          uriPolicy: "blocked_unsafe_or_private"
+        };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(uri);
+  } catch {
+    return {
+      status: "blocked",
+      uriPolicy: "blocked_unsafe_or_private"
+    };
+  }
+  if (parsed.protocol !== "https:" || isLocalHost(parsed.hostname) || parsed.username || parsed.password || parsed.hash) {
+    return {
+      status: "blocked",
+      uriPolicy: "blocked_unsafe_or_private"
+    };
+  }
+  if ([...parsed.searchParams.entries()].some(([key, value]) => UNSAFE_QUERY_PATTERN.test(key) || UNSAFE_QUERY_PATTERN.test(value))) {
+    return {
+      status: "blocked",
+      uriPolicy: "blocked_unsafe_or_private"
+    };
+  }
+  return {
+    status: "ready",
+    uriPolicy: "clean_https_hashed",
+    uriSha256: sha256(uri),
+    sourceHost: parsed.hostname.toLowerCase()
+  };
+}
+
+function mediaRoleLabel(role: ShortMediaReferenceInput["role"], index: number): string {
+  switch (role) {
+    case "kol":
+    case "creator":
+      return `KOL reference ${index + 1}`;
+    case "product":
+      return `Product reference ${index + 1}`;
+    case "wardrobe":
+    case "clothing":
+      return `Wardrobe reference ${index + 1}`;
+    case "background":
+    case "environment":
+      return `Background reference ${index + 1}`;
+    case "first_frame":
+      return `First-frame reference ${index + 1}`;
+    case "last_frame":
+      return `Last-frame reference ${index + 1}`;
+    case "style":
+      return `Style reference ${index + 1}`;
+    case "motion":
+      return `Motion reference ${index + 1}`;
+    case "camera":
+      return `Camera reference ${index + 1}`;
+    case "audio":
+      return `Audio reference ${index + 1}`;
+    case "source_video":
+      return `Source-video reference ${index + 1}`;
+  }
+}
+
+function mediaTransferScope(
+  role: ShortMediaReferencePlan["promptRole"],
+  promptTag: string,
+  description: string | undefined
+): string {
+  const suffix = description ? ` Operator note: ${description}.` : "";
+  switch (role) {
+    case "identity":
+      return `${promptTag} controls approved KOL identity, face continuity, hair, and creator presence only.${suffix}`;
+    case "product":
+      return `${promptTag} controls product shape, packaging, logo placement, label, material, and hero-object continuity only.${suffix}`;
+    case "wardrobe":
+      return `${promptTag} controls clothing silhouette, fabric, fit, color, and outfit continuity only.${suffix}`;
+    case "environment":
+      return `${promptTag} controls background/set atmosphere and layout only; product and KOL stay anchored separately.${suffix}`;
+    case "first_frame":
+      return `${promptTag} is the first-frame composition anchor; generate motion from this opening state only.${suffix}`;
+    case "last_frame":
+      return `${promptTag} is the final-frame target; transition toward it without deforming KOL/product identity.${suffix}`;
+    case "motion":
+      return `${promptTag} controls motion rhythm and gesture timing only.${suffix}`;
+    case "camera":
+      return `${promptTag} controls camera path, framing, lens language, and cut rhythm only.${suffix}`;
+    case "audio_tempo":
+      return `${promptTag} controls tempo/energy only; use new licensed/generated audio and voice.${suffix}`;
+    case "style":
+      return `${promptTag} controls visual mood after identity/product anchors are preserved.${suffix}`;
+    case "voice":
+      return `${promptTag} controls approved voice character only.${suffix}`;
+    case "source_video_structure":
+      return `${promptTag} controls source structure, pacing, acting beats, camera grammar, and retention timing only after rights review.${suffix}`;
+  }
+}
+
+function mediaDoNotTransfer(role: ShortMediaReferencePlan["promptRole"]): readonly string[] {
+  const common = ["watermarks", "private metadata", "unapproved logos", "visible captions or text overlays"];
+  switch (role) {
+    case "identity":
+      return [...common, "source-video performer identity", "unapproved voice likeness"];
+    case "product":
+      return [...common, "unsupported product claims", "wrong packaging geometry"];
+    case "wardrobe":
+      return [...common, "unapproved brand marks", "source-video costume if not provided by user"];
+    case "environment":
+      return [...common, "recognizable private location ownership"];
+    case "first_frame":
+    case "last_frame":
+      return [...common, "new identity not present in approved anchors", "product deformation"];
+    case "motion":
+    case "camera":
+    case "source_video_structure":
+      return [...common, "source transcript wording", "source music", "source creator identity", "source brand marks", "exact protected edit expression"];
+    case "audio_tempo":
+    case "voice":
+      return [...common, "protected song", "protected voice identity", "unlicensed melody"];
+    case "style":
+      return [...common, "protected style imitation beyond broad production mood"];
+  }
+}
+
+function preferredSeedanceTier(
+  targetDurationSeconds: number,
+  providerMode: ShortSeedanceRoutingPlan["recommendedProviderMode"],
+  providerReadyReferenceCount: number,
+  referenceRemakeBlueprint: ShortReferenceRemakeBlueprint | undefined,
+  visualBiblePlan: ShortVisualBiblePlan
+): ShortSeedanceRoutingPlan["preferredTier"] {
+  if (referenceRemakeBlueprint || visualBiblePlan.status !== "not_needed" || providerMode === "reference_to_video" || providerReadyReferenceCount >= 2 || targetDurationSeconds >= 28) {
+    return "standard";
+  }
+  if (targetDurationSeconds <= 15 && providerReadyReferenceCount === 0) {
+    return "mini";
+  }
+  return "fast";
+}
+
+function seedancePromptRecipe(
+  name: ShortSeedanceRoutingPlan["promptRecipe"]["name"],
+  referenceTags: readonly ShortSeedanceRoutingPlan["referenceTags"][number][],
+  referenceRemakeBlueprint: ShortReferenceRemakeBlueprint | undefined,
+  visualBiblePlan: ShortVisualBiblePlan
+): ShortSeedanceRoutingPlan["promptRecipe"] {
+  const referenceInstruction = referenceTags.length
+    ? referenceTags.map((reference) =>
+        `${reference.tag} (${reference.role}) => ${reference.transferScope}`
+      ).join(" ")
+    : "No provider media references are attached; write a concrete text-to-video prompt with subject, action, camera, lighting, motion, audio intent, and constraints.";
+  const remakeInstruction = referenceRemakeBlueprint
+    ? ` Use Video Remake blueprint ${referenceRemakeBlueprint.blueprintId}: lock edit rhythm, source beat map, acting beats, camera grammar, retention mechanics, and payoff shape while replacing KOL, product, setting, audio, claims, and CTA with user-approved inputs. Follow adherence targets: ${referenceRemakeBlueprint.adherenceTargets.slice(0, 4).join(" | ")}.`
+    : "";
+  const visualBibleInstruction = visualBiblePlan.status !== "not_needed"
+    ? ` Use Visual Bible ${visualBiblePlan.planId}: pipe=${visualBiblePlan.recommendedPipe}; execution=${visualBiblePlan.executionBlueprint.mode}; clipStrategy=${visualBiblePlan.executionBlueprint.clipExecutionStrategy}; durationBand=${visualBiblePlan.durationBand}; boards=${visualBiblePlan.sequencePlan.boardCount}; clips=${visualBiblePlan.sequencePlan.targetClipCount}; continuity=${visualBiblePlan.sequencePlan.continuityStrategy}. Required assets: ${visualBiblePlan.assetPlans.filter((asset) => asset.requiredBeforeRender).map((asset) => asset.role).join(", ") || "none"}. Bind order: ${visualBiblePlan.executionBlueprint.referenceTagBindingOrder.join(" > ") || "identity/product/storyboard before style/motion"}. Coverage rule: ${visualBiblePlan.executionBlueprint.durationCoverage.coverageRule}`
+    : "";
+  return {
+    name,
+    modeInstruction: modeInstructionForRecipe(name),
+    referenceInstruction: `${referenceInstruction}${remakeInstruction}${visualBibleInstruction}`.trim(),
+    shotPromptRules: [
+      "Use one visible beat per shot: subject, action, camera move, lighting, timeline, audio intent, continuity, and physical endpoint.",
+      "Bind references before prose; never let style or motion references override KOL identity or product geometry.",
+      "For product/KOL shorts, show the asset early, then show proof/demo/payoff without unsupported claims.",
+      ...(visualBiblePlan.status !== "not_needed"
+        ? [
+            "When a reference board or storyboard board exists, use it as a scoped production bible: preserve identity/product/style anchors while still writing concrete motion for each Seedance clip.",
+            "For board-driven sequences, map each board/panel to exact seconds and ensure every clip has a readable first frame, action/proof middle, and controlled endpoint."
+          ]
+        : []),
+      "Make humans feel observed, not posed: natural blink timing, imperfect hand speed, real micro-pauses, believable eye-line, skin texture, and physical contact with product.",
+      "Prompt Seedance with dense cinematic specifics: subject continuity, lens distance, camera motion, light source, gesture, material texture, background depth, ending frame, and audio bed.",
+      "For multishot shorts, keep each provider clip within 4-15 seconds and request last-frame continuity when scenes chain."
+    ],
+    negativeRules: [
+      "No visible captions, subtitles, CTA cards, fake UI text, random letters, watermark, or typography.",
+      "No copied source-video faces, script wording, brand marks, music, or protected edit expression.",
+      "No unsupported medical, financial, weight-loss, before/after, or absolute claims.",
+      "No product deformation, logo drift, inconsistent packaging, face drift, broken hands, or mismatched wardrobe continuity."
+    ]
+  };
+}
+
+function modeInstructionForRecipe(name: ShortSeedanceRoutingPlan["promptRecipe"]["name"]): string {
+  switch (name) {
+    case "text_to_video_niche_short":
+      return "Use Seedance text-to-video: write concrete original shots from niche, product, audience, camera, light, and audio evidence.";
+    case "image_to_video_product_or_kol":
+      return "Use Seedance image-to-video: preserve the single product/KOL/first-frame reference while adding controlled motion, light, and camera.";
+    case "reference_to_video_multi_reference":
+      return "Use Seedance reference-to-video: separate each reference role, preserve identity/product anchors, and transfer only the scoped motion/style/camera/audio signals.";
+    case "reference_to_video_remake_blueprint":
+      return "Use Seedance reference-to-video with Video Remake blueprint: match source beat-map structure, camera/performance rhythm, and payoff timing with user-approved replacements and originality guardrails.";
+    case "reference_board_to_video_sequence":
+      return "Use Seedance reference-to-video from a visual bible: bind character/product/storyboard-board references, then animate each timed board as a concrete clip with continuity and drift checks.";
   }
 }
 

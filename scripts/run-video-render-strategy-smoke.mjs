@@ -45,6 +45,17 @@ const scenarios = {
     shotCount: 6,
     metadata: { workflowMode: "manual_storyboard", storyboardApproval: "approved" }
   }),
+  sequenceBible: buildScenario({
+    projectId: "strategy_sequence_bible",
+    durationSeconds: 90,
+    shotCount: 6,
+    metadata: { workflowMode: "sequence", renderMode: "production_bible", storyboardApproval: "approved" },
+    references: [
+      reference("identity", "Series KOL identity sheet", "series-kol.png?token=secret"),
+      reference("product", "Series product packshot sheet", "series-product.png?token=secret"),
+      reference("style", "Series style and lighting board", "series-style.png?token=secret")
+    ]
+  }),
   singleModeConflict: buildScenario({
     projectId: "strategy_single_conflict",
     durationSeconds: 30,
@@ -63,7 +74,8 @@ const schedulePlans = {
   autoMultishotNoRefs: scheduleFor(scenarios.autoMultishotNoRefs),
   referenceLockedProduct: scheduleFor(scenarios.referenceLockedProduct),
   sourceVideoGuided: scheduleFor(scenarios.sourceVideoGuided),
-  manualStoryboardApproved: scheduleFor(scenarios.manualStoryboardApproved)
+  manualStoryboardApproved: scheduleFor(scenarios.manualStoryboardApproved),
+  sequenceBible: scheduleFor(scenarios.sequenceBible)
 };
 
 const serializedPlans = JSON.stringify(Object.values(scenarios).map((scenario) => scenario.plan));
@@ -101,6 +113,17 @@ const checks = [
     hasScheduleReason(schedulePlans.manualStoryboardApproved, "strategy_manual_storyboard")
     ? pass("manual_storyboard_approval", "Manual storyboard mode respects explicit approval metadata.")
     : fail("manual_storyboard_approval", "Manual storyboard approval handling is wrong."),
+  scenarios.sequenceBible.plan.requestedMode === "sequence_bible" &&
+    scenarios.sequenceBible.plan.workflowMode === "sequence_bible" &&
+    scenarios.sequenceBible.plan.continuityMode === "sequence_bible" &&
+    scenarios.sequenceBible.plan.storyboardApprovalStatus === "approved" &&
+    scenarios.sequenceBible.plan.requiresStoryboardApproval === false &&
+    scenarios.sequenceBible.plan.lastFrameChaining.status === "required" &&
+    scenarios.sequenceBible.plan.requiresSequentialRender === true &&
+    hasScheduleReason(schedulePlans.sequenceBible, "strategy_sequence_bible") &&
+    hasScheduleReason(schedulePlans.sequenceBible, "strategy_last_frame_chaining")
+    ? pass("sequence_bible_production_mode", "Production-bible sequence metadata selects sequence_bible with last-frame chaining and sequential scheduling.")
+    : fail("sequence_bible_production_mode", "Production-bible sequence metadata did not select the sequence_bible render strategy."),
   scenarios.singleModeConflict.plan.blockingIssueCount === 1 &&
     scenarios.singleModeConflict.plan.releaseGateSummary.canProceedToRender === false &&
     hasIssue(scenarios.singleModeConflict.plan, "requested_single_conflicts_with_multishot_plan")
@@ -225,6 +248,9 @@ function strategySequentialReasons(plan) {
   }
   if (plan.workflowMode === "source_video_guided") {
     reasons.push("strategy_source_video");
+  }
+  if (plan.workflowMode === "sequence_bible") {
+    reasons.push("strategy_sequence_bible");
   }
   if (plan.workflowMode === "manual_storyboard") {
     reasons.push("strategy_manual_storyboard");

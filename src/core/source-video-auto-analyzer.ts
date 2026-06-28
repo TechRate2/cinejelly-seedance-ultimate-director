@@ -173,13 +173,13 @@ export class SourceVideoAutoAnalyzer {
       {
         modelId: this.defaultModelId,
         instruction:
-          "Return bounded source-video deconstruction JSON only. Do not include local frame paths, data URLs, signed URLs, or copied transcript wording.",
+          "Return bounded source-video deconstruction JSON only. Build a beat-map style analysis: timeline beats, cut rhythm, camera grammar, performance beats, audio energy, retention mechanics, and replacement/safety constraints. Do not include local frame paths, data URLs, signed URLs, or copied transcript wording.",
         schema: SOURCE_VIDEO_ANALYSIS_SCHEMA,
         messages: [
           {
             role: "system",
             content:
-              "You are CineJelly's source video analyst. Extract reusable structure only: pacing, camera grammar, scene rhythm, style notes, and safety constraints. Do not copy exact shots, transcript wording, likenesses, logos, brand marks, or protected expression."
+              "You are CineJelly's source video analyst. Extract reusable structure only: pacing, camera grammar, scene rhythm, edit cadence, performance timing, audio energy, style notes, and safety constraints. The output should help a Video Remake replace the source creator, product, background, audio, claims, and CTA with user-approved inputs. Do not copy exact shots, transcript wording, likenesses, logos, brand marks, music, captions, or protected expression."
           },
           {
             role: "user",
@@ -191,7 +191,7 @@ export class SourceVideoAutoAnalyzer {
                   sourceReferenceLabel: input.sourceReference.label,
                   frameCount: input.frames.length,
                   requiredOutput:
-                    "Set sourceReferenceLabel to the provided label. Produce concise scenes, keyframe descriptions without uri, pacing notes, style notes, structural beats, and safety notes."
+                    "Set sourceReferenceLabel to the provided label. Produce concise scenes, keyframe descriptions without uri, pacing notes, style notes, structural beats, performance/camera/audio beat-map cues, and safety notes."
                 })
               },
               ...frameParts

@@ -33,10 +33,11 @@
     "checkedInputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["outputPath", "scenarioCount", "endpointPath", "renderHandoffEndpointPath", "rawUrlLeakCheckPassed"],
+      "required": ["outputPath", "scenarioCount", "pipeScenarioCount", "endpointPath", "renderHandoffEndpointPath", "rawUrlLeakCheckPassed"],
       "properties": {
         "outputPath": { "type": "string" },
-        "scenarioCount": { "const": 3 },
+        "scenarioCount": { "const": 10 },
+        "pipeScenarioCount": { "const": 5 },
         "endpointPath": { "const": "/v1/short-pipeline/plan" },
         "renderHandoffEndpointPath": { "const": "/v1/short-pipeline/render-jobs" },
         "rawUrlLeakCheckPassed": { "type": "boolean" }
@@ -45,12 +46,15 @@
     "scenarios": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reviewRequired", "blocked", "naturalOnly", "renderHandoff", "audioPolicies"],
+      "required": ["reviewRequired", "blocked", "naturalOnly", "pipeMatrix", "renderHandoff", "productionBibleRenderHandoff", "productionBibleMaxDuration", "audioPolicies"],
       "properties": {
         "reviewRequired": { "$ref": "#/$defs/scenario" },
         "blocked": { "$ref": "#/$defs/scenario" },
         "naturalOnly": { "$ref": "#/$defs/scenario" },
+        "pipeMatrix": { "$ref": "#/$defs/pipeMatrix" },
         "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" },
+        "productionBibleRenderHandoff": { "$ref": "#/$defs/productionBibleRenderHandoffScenario" },
+        "productionBibleMaxDuration": { "$ref": "#/$defs/productionBibleMaxDurationScenario" },
         "audioPolicies": { "$ref": "#/$defs/audioPoliciesScenario" }
       }
     },
@@ -195,6 +199,206 @@
         "requestAspectRatio": { "type": "string" },
         "requestRawUrlSerialized": { "const": false },
         "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "pipeMatrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["smartShort", "productKol", "storyboard", "videoRemake", "productionBible"],
+      "properties": {
+        "smartShort": { "$ref": "#/$defs/pipeMatrixScenario" },
+        "productKol": { "$ref": "#/$defs/pipeMatrixScenario" },
+        "storyboard": { "$ref": "#/$defs/pipeMatrixScenario" },
+        "videoRemake": { "$ref": "#/$defs/pipeMatrixScenario" },
+        "productionBible": { "$ref": "#/$defs/pipeMatrixScenario" }
+      }
+    },
+    "pipeMatrixScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "selectedMode",
+        "selectedBackendPipe",
+        "selectionReasonCodeCount",
+        "visualBibleAlignmentStatus",
+        "visualBibleAlignmentExplanation",
+        "recommendedPipeCount",
+        "seedanceMode",
+        "resolution",
+        "bitrateMode",
+        "superResolution",
+        "generatedAudioMode",
+        "selectedPipeDefaultResolution",
+        "selectedPipeEffectiveResolution",
+        "selectedPipeEffectiveBitrateMode",
+        "selectedPipeEffectiveSuperResolution",
+        "selectedPipeEffectiveProviderMode",
+        "selectedPipeEffectivePromptRecipeName",
+        "visualBibleRecommendedPipe",
+        "visualBibleExecutionMode",
+        "visualBibleSeedanceSubmissionMode",
+        "visualBibleClipStrategy",
+        "visualBibleReferenceBindingOrderCount",
+        "visualBibleExecutionStepCount",
+        "visualBibleDurationCoverageRule",
+        "visualBibleBlocksRenderUntilAssetsApproved",
+        "referenceTagRoles",
+        "sourceVideoReferencePresent",
+        "pipeOptionCount"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "selectedMode": {
+          "enum": ["smart_short", "product_kol_ugc", "storyboard_multishot", "video_remake", "production_bible"]
+        },
+        "selectedBackendPipe": {
+          "enum": [
+            "normal_short_pipe",
+            "product_kol_reference_pipe",
+            "storyboard_board_pipe",
+            "video_remake_pipe",
+            "long_sequence_bible_pipe"
+          ]
+        },
+        "selectionReasonCodeCount": { "type": "integer", "minimum": 1 },
+        "visualBibleAlignmentStatus": {
+          "enum": [
+            "aligned",
+            "reference_board_asset_workflow",
+            "storyboard_until_references",
+            "duration_override",
+            "canonical_backend_override"
+          ]
+        },
+        "visualBibleAlignmentExplanation": { "type": "string", "minLength": 10 },
+        "recommendedPipeCount": { "const": 1 },
+        "seedanceMode": { "enum": ["text_to_video", "image_to_video", "reference_to_video"] },
+        "resolution": { "type": "string" },
+        "bitrateMode": { "enum": ["standard", "high"] },
+        "superResolution": { "type": "boolean" },
+        "generatedAudioMode": { "enum": ["none", "guided", "native"] },
+        "selectedPipeDefaultResolution": { "const": "720p" },
+        "selectedPipeEffectiveResolution": { "type": "string" },
+        "selectedPipeEffectiveBitrateMode": { "enum": ["standard", "high"] },
+        "selectedPipeEffectiveSuperResolution": { "type": "boolean" },
+        "selectedPipeEffectiveProviderMode": { "enum": ["text_to_video", "image_to_video", "reference_to_video"] },
+        "selectedPipeEffectivePromptRecipeName": {
+          "enum": [
+            "text_to_video_niche_short",
+            "image_to_video_product_or_kol",
+            "reference_to_video_multi_reference",
+            "reference_to_video_remake_blueprint",
+            "reference_board_to_video_sequence"
+          ]
+        },
+        "visualBibleRecommendedPipe": {
+          "enum": [
+            "normal_short_pipe",
+            "product_kol_reference_pipe",
+            "reference_board_pipe",
+            "storyboard_board_pipe",
+            "video_remake_pipe",
+            "long_sequence_bible_pipe"
+          ]
+        },
+        "visualBibleExecutionMode": {
+          "enum": [
+            "text_only_no_board",
+            "reference_board_to_seedance",
+            "storyboard_board_to_seedance",
+            "video_remake_to_seedance",
+            "production_bible_to_seedance"
+          ]
+        },
+        "visualBibleSeedanceSubmissionMode": { "enum": ["text_to_video", "reference_to_video"] },
+        "visualBibleClipStrategy": {
+          "enum": [
+            "single_clip",
+            "multi_clip_last_frame_chaining",
+            "sequence_bible_last_frame_chaining"
+          ]
+        },
+        "visualBibleReferenceBindingOrderCount": { "type": "integer", "minimum": 0 },
+        "visualBibleExecutionStepCount": { "type": "integer", "minimum": 3 },
+        "visualBibleDurationCoverageRule": { "type": "string", "minLength": 10 },
+        "visualBibleBlocksRenderUntilAssetsApproved": { "type": "boolean" },
+        "referenceTagRoles": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "sourceVideoReferencePresent": { "type": "boolean" },
+        "pipeOptionCount": { "const": 5 }
+      }
+    },
+    "productionBibleRenderHandoffScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "canUseAsRenderJobHandoff",
+        "requestDurationSeconds",
+        "workflowMode",
+        "renderMode",
+        "selectedMode",
+        "selectedBackendPipe",
+        "selectedPipeDurationMaxSeconds",
+        "selectedPipeSupportsLongSequence",
+        "targetWithinSelectedPipeDurationRange",
+        "visualBibleBlocksRender",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "canUseAsRenderJobHandoff": { "const": false },
+        "requestDurationSeconds": { "const": 90 },
+        "workflowMode": { "const": "sequence" },
+        "renderMode": { "const": "production_bible" },
+        "selectedMode": { "const": "production_bible" },
+        "selectedBackendPipe": { "const": "long_sequence_bible_pipe" },
+        "selectedPipeDurationMaxSeconds": { "const": 480 },
+        "selectedPipeSupportsLongSequence": { "const": true },
+        "targetWithinSelectedPipeDurationRange": { "const": true },
+        "visualBibleBlocksRender": { "const": true },
+        "releaseBlocker": { "type": "string", "minLength": 20 }
+      }
+    },
+    "productionBibleMaxDurationScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "targetDurationSeconds",
+        "selectedMode",
+        "selectedBackendPipe",
+        "sequenceTargetClipCount",
+        "executionTargetClipCount",
+        "executionCoverageSeconds",
+        "workflowMode",
+        "renderMode",
+        "requestDurationSeconds",
+        "selectedPipeDurationMaxSeconds",
+        "selectedPipeSupportsLongSequence",
+        "targetWithinSelectedPipeDurationRange",
+        "visualBibleBlocksRender",
+        "canUseAsRenderJobHandoff"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "targetDurationSeconds": { "const": 480 },
+        "selectedMode": { "const": "production_bible" },
+        "selectedBackendPipe": { "const": "long_sequence_bible_pipe" },
+        "sequenceTargetClipCount": { "type": "integer", "minimum": 32 },
+        "executionTargetClipCount": { "type": "integer", "minimum": 32 },
+        "executionCoverageSeconds": { "const": 480 },
+        "workflowMode": { "const": "sequence" },
+        "renderMode": { "const": "production_bible" },
+        "requestDurationSeconds": { "const": 480 },
+        "selectedPipeDurationMaxSeconds": { "const": 480 },
+        "selectedPipeSupportsLongSequence": { "const": true },
+        "targetWithinSelectedPipeDurationRange": { "const": true },
+        "visualBibleBlocksRender": { "const": true },
+        "canUseAsRenderJobHandoff": { "const": false }
       }
     },
     "audioPoliciesScenario": {

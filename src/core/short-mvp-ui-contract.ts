@@ -11,8 +11,14 @@ import type {
   ShortMvpUiContract,
   ShortMvpUiCreativePatternLearning,
   ShortMvpUiDirectorGuidance,
+  ShortMvpUiMediaReferenceSummary,
+  ShortMvpUiPipeNavigationItem,
+  ShortMvpUiPipeSelectionSummary,
+  ShortMvpUiReferenceRemakeSummary,
   ShortMvpUiReviewCheckpoint,
   ShortMvpUiReviewSurfaceSummary,
+  ShortMvpUiSeedanceRoutingSummary,
+  ShortMvpUiVisualBibleSummary,
   ShortMvpUiWorkflowControl
 } from "../types/short-mvp-ui.js";
 import type { ShortPipelinePlan } from "../types/short-pipeline.js";
@@ -44,13 +50,16 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
     reviewRequired: true as const
   };
   const recommendedWorkflowMode = plan.directorPlan.recommendedWorkflowMode;
-  const canCreateRenderJob = plan.status !== "blocked" && plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence;
+  const canCreateRenderJob = plan.status !== "blocked" &&
+    plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence &&
+    !plan.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved;
   const requiredPendingCount = plan.reviewApproval.summary.pendingRequiredCount +
     plan.reviewApproval.summary.changesRequestedRequiredCount +
     plan.reviewApproval.summary.rejectedRequiredCount +
     plan.reviewApproval.summary.blockedCheckpointCount;
   const backendManagedSteps = backendManagedActions(plan);
   const userRequiredActions = userActions(plan, requiredPendingCount);
+  const selectedPipeDuration = selectedPipeDurationSupportFor(plan);
 
   return {
     schemaVersion: "cinejelly.short-mvp-ui-contract.v1",
@@ -67,10 +76,18 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
       targetSeconds: plan.intent.targetDurationSeconds,
       commercialMinSeconds: SHORT_COMMERCIAL_MIN_SECONDS,
       commercialMaxSeconds: SHORT_COMMERCIAL_MAX_SECONDS,
+      selectedPipeMinSeconds: selectedPipeDuration.minSeconds,
+      selectedPipeMaxSeconds: selectedPipeDuration.maxSeconds,
+      selectedPipeIdealRangeSeconds: selectedPipeDuration.idealRangeSeconds,
+      selectedPipeSupportsLongSequence: selectedPipeDuration.supportsLongSequence,
+      withinSelectedPipeDurationRange: plan.intent.targetDurationSeconds >= selectedPipeDuration.minSeconds &&
+        plan.intent.targetDurationSeconds <= selectedPipeDuration.maxSeconds,
       recommendedWorkflowMode,
       providerSingleClipMaxSeconds: SHORT_SINGLE_CLIP_MAX_SECONDS
     },
     workflowControls: workflowControls(recommendedWorkflowMode, plan),
+    pipeSelection: pipeSelectionFor(plan),
+    pipeNavigation: pipeNavigationFor(plan),
     audioControls: {
       selectedOptionId: selectedAudioOptionId(audioPolicy),
       options: audioControls(audioPolicy)
@@ -99,6 +116,10 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
     },
     director: directorGuidance(plan),
     creativePatternLearning: creativePatternLearningFor(plan),
+    mediaReferences: mediaReferencesFor(plan),
+    seedanceRouting: seedanceRoutingFor(plan),
+    visualBible: visualBibleFor(plan),
+    ...(plan.referenceRemakeBlueprint ? { referenceRemake: referenceRemakeFor(plan) } : {}),
     render: {
       canCreateRenderJob,
       canSubmitToProviderNow: false,
@@ -137,6 +158,20 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
   };
 }
 
+function selectedPipeDurationSupportFor(plan: ShortPipelinePlan): ShortPipelinePlan["videoPipePlan"]["pipeOptions"][number]["durationSupport"] {
+  const selectedPipe = plan.videoPipePlan.pipeOptions.find((pipe) => pipe.mode === plan.videoPipePlan.selectedMode) ??
+    plan.videoPipePlan.pipeOptions[0];
+  if (selectedPipe) {
+    return selectedPipe.durationSupport;
+  }
+  return {
+    minSeconds: plan.intent.targetDurationSeconds,
+    maxSeconds: plan.intent.targetDurationSeconds,
+    idealRangeSeconds: [plan.intent.targetDurationSeconds, plan.intent.targetDurationSeconds],
+    supportsLongSequence: false
+  };
+}
+
 function creativePatternLearningFor(plan: ShortPipelinePlan): ShortMvpUiCreativePatternLearning {
   const learning = plan.viralIntelligence.creativePatternLearning;
   const selectedIdea = learning.candidates.find((candidate) => candidate.ideaId === learning.selectedIdeaId) ?? learning.candidates[0];
@@ -160,6 +195,77 @@ function creativePatternLearningFor(plan: ShortPipelinePlan): ShortMvpUiCreative
       hook: candidate.hook,
       proofPlan: candidate.proofPlan
     }))
+  };
+}
+
+function mediaReferencesFor(plan: ShortPipelinePlan): readonly ShortMvpUiMediaReferenceSummary[] {
+  return plan.mediaReferencePlan.map((reference) => ({
+    referenceId: reference.referenceId,
+    inputRole: reference.inputRole,
+    promptRole: reference.promptRole,
+    providerKind: reference.providerKind,
+    label: safeUiReviewText(reference.label),
+    promptTag: reference.promptTag,
+    status: reference.status,
+    rightsStatus: reference.rightsStatus,
+    priority: reference.priority,
+    uriPolicy: reference.uriPolicy,
+    ...(reference.sourceHost ? { sourceHost: safeUiReviewText(reference.sourceHost) } : {}),
+    includeInProviderHandoff: reference.includeInProviderHandoff,
+    transferScope: safeUiReviewText(reference.transferScope),
+    doNotTransfer: reference.doNotTransfer.map((item) => safeUiReviewText(item)),
+    issues: reference.issues.map((item) => safeUiReviewText(item))
+  }));
+}
+
+function seedanceRoutingFor(plan: ShortPipelinePlan): ShortMvpUiSeedanceRoutingSummary {
+  const routing = plan.seedanceRouting;
+  return {
+    routingId: routing.routingId,
+    provider: routing.provider,
+    modelFamily: routing.modelFamily,
+    recommendedProviderMode: routing.recommendedProviderMode,
+    preferredTier: routing.preferredTier,
+    modelSelectionPolicy: routing.modelSelectionPolicy,
+    preferredConfiguredModelEnv: routing.preferredConfiguredModelEnv,
+    modelAlias: routing.modelAlias,
+    resolution: routing.resolution,
+    ratio: routing.ratio,
+    bitrateMode: routing.bitrateMode,
+    superResolution: routing.superResolution,
+    returnLastFrame: routing.returnLastFrame,
+    storyboardRequired: routing.storyboardRequired,
+    sequentialRenderRecommended: routing.sequentialRenderRecommended,
+    generatedAudioMode: routing.generatedAudioMode,
+    providerClipDurationSeconds: routing.providerClipDurationSeconds,
+    referenceTagCount: routing.referenceTags.length,
+    referenceTags: routing.referenceTags,
+    promptRecipe: routing.promptRecipe,
+    reasonCodes: routing.reasonCodes,
+    warnings: routing.warnings,
+    canSubmitToProviderNow: routing.releaseGateSummary.canSubmitToProviderNow
+  };
+}
+
+function visualBibleFor(plan: ShortPipelinePlan): ShortMvpUiVisualBibleSummary {
+  const visualBible = plan.visualBiblePlan;
+  return {
+    planId: visualBible.planId,
+    status: visualBible.status,
+    requestedMode: visualBible.requestedMode,
+    recommendedPipe: visualBible.recommendedPipe,
+    durationBand: visualBible.durationBand,
+    imageProviderPolicy: visualBible.imageProviderPolicy,
+    assetPlanCount: visualBible.assetPlans.length,
+    requiredAssetPlanCount: visualBible.assetPlans.filter((asset) => asset.requiredBeforeRender).length,
+    boardCount: visualBible.sequencePlan.boardCount,
+    targetClipCount: visualBible.sequencePlan.targetClipCount,
+    continuityStrategy: visualBible.sequencePlan.continuityStrategy,
+    blocksRenderUntilAssetsApproved: visualBible.releaseGateSummary.blocksRenderUntilAssetsApproved,
+    seedanceBindingPlan: visualBible.seedanceBindingPlan.map((item) => safeUiReviewText(item)),
+    promptContracts: visualBible.promptContracts.map((item) => safeUiReviewText(item)),
+    qualityGates: visualBible.qualityGates.map((item) => safeUiReviewText(item)),
+    warnings: visualBible.warnings.map((item) => safeUiReviewText(item))
   };
 }
 
@@ -241,11 +347,39 @@ function workflowControls(
       "Use when UI attaches approved product, character, style, first-frame, or last-frame references."
     ),
     control(
+      "reference_board",
+      "Reference board",
+      plan.visualBiblePlan.recommendedPipe === "reference_board_pipe" || plan.visualBiblePlan.recommendedPipe === "product_kol_reference_pipe",
+      true,
+      "Use a generated or approved character/product/style board before Seedance so KOL and product identity stay consistent across clips."
+    ),
+    control(
+      "storyboard_board",
+      "Storyboard board",
+      plan.visualBiblePlan.recommendedPipe === "storyboard_board_pipe",
+      true,
+      "Use a storyboard panel board with second-by-second camera, action, SFX, and endpoint guidance for 5-60s board-driven shorts."
+    ),
+    control(
+      "production_bible",
+      "Production bible",
+      plan.visualBiblePlan.recommendedPipe === "long_sequence_bible_pipe",
+      plan.intent.targetDurationSeconds > 30,
+      "Use multiple sequence boards, recurring identity/product anchors, and last-frame chaining for 60s+ or series-style output."
+    ),
+    control(
       "source_video_guided",
       "Learn reference",
       false,
       true,
-      "Use a rights-cleared source video for pacing and structure only, without copying script, faces, marks, or audio."
+      "Use a rights-cleared source video for pacing and structure only while replacing script, faces, marks, and audio."
+    ),
+    control(
+      "video_remake",
+      "Video Remake",
+      Boolean(plan.referenceRemakeBlueprint),
+      true,
+      "Use an uploaded or rights-cleared video as a remake blueprint for edit rhythm, acting beats, camera language, and pacing while replacing the creator, product, background, voice, audio, and claims."
     ),
     control(
       "manual_storyboard",
@@ -257,6 +391,41 @@ function workflowControls(
   ];
 }
 
+function pipeNavigationFor(plan: ShortPipelinePlan): readonly ShortMvpUiPipeNavigationItem[] {
+  return plan.videoPipePlan.pipeOptions.map((pipe): ShortMvpUiPipeNavigationItem => ({
+    mode: pipe.mode,
+    label: pipe.label,
+    recommended: pipe.recommended,
+    enabled: pipe.enabled,
+    backendPipe: pipe.backendPipe,
+    uiLayout: pipe.uiLayout,
+    capabilityPolicy: pipe.capabilityPolicy,
+    ...(pipe.effectiveSettings ? { effectiveSettings: pipe.effectiveSettings } : {}),
+    durationSupport: pipe.durationSupport,
+    seedanceMode: pipe.seedanceMode,
+    preferredTier: pipe.preferredTier,
+    defaultResolution: pipe.defaultResolution,
+    audioDefault: pipe.audioDefault,
+    returnLastFrameDefault: pipe.returnLastFrameDefault,
+    requiredInputs: pipe.requiredInputs,
+    optionalInputs: pipe.optionalInputs,
+    settings: pipe.settings,
+    outputStrategy: pipe.outputStrategy,
+    reason: pipe.reason
+  }));
+}
+
+function pipeSelectionFor(plan: ShortPipelinePlan): ShortMvpUiPipeSelectionSummary {
+  return {
+    selectedMode: plan.videoPipePlan.selectedMode,
+    selectedBackendPipe: plan.videoPipePlan.selectedBackendPipe,
+    selectedReason: safeUiReviewText(plan.videoPipePlan.selectedReason),
+    selectionReasonCodes: plan.videoPipePlan.selectionReasonCodes,
+    visualBibleAlignmentStatus: plan.videoPipePlan.visualBibleAlignment.status,
+    visualBibleAlignmentExplanation: safeUiReviewText(plan.videoPipePlan.visualBibleAlignment.explanation)
+  };
+}
+
 function control(
   mode: ShortMvpUiWorkflowControl["mode"],
   label: string,
@@ -265,6 +434,32 @@ function control(
   reason: string
 ): ShortMvpUiWorkflowControl {
   return { mode, label, recommended, enabled, reason };
+}
+
+function referenceRemakeFor(plan: ShortPipelinePlan): ShortMvpUiReferenceRemakeSummary {
+  const blueprint = plan.referenceRemakeBlueprint;
+  if (!blueprint) {
+    throw new Error("referenceRemakeFor requires a referenceRemakeBlueprint.");
+  }
+  return {
+    blueprintId: blueprint.blueprintId,
+    userFacingModeLabel: blueprint.userFacingModeLabel,
+    mode: blueprint.mode,
+    status: blueprint.status,
+    fidelityTarget: blueprint.fidelityTarget,
+    ...(blueprint.sourcePatternId ? { sourcePatternId: blueprint.sourcePatternId } : {}),
+    sourceSafetyStatus: blueprint.sourceSafetyStatus,
+    ...(blueprint.sourceLabel ? { sourceLabel: blueprint.sourceLabel } : {}),
+    trendVideoIntakeMode: blueprint.trendVideoIntakeMode,
+    replacementSlots: blueprint.replacementSlots,
+    lockedElements: blueprint.lockedElements,
+    adherenceTargets: blueprint.adherenceTargets,
+    sourceBeatMap: blueprint.sourceBeatMap,
+    providerExecutionPlan: blueprint.providerExecutionPlan,
+    remakeGuardrails: blueprint.remakeGuardrails,
+    reviewRequiredBeforeRender: blueprint.reviewRequiredBeforeRender,
+    canUseAfterReview: blueprint.canUseAfterReview
+  };
 }
 
 function directorGuidance(plan: ShortPipelinePlan): ShortMvpUiDirectorGuidance {
@@ -342,6 +537,10 @@ function backendManagedActions(plan: ShortPipelinePlan): readonly ShortMvpUiActi
     backendAction("intent_inference", "Infer goal, audience, platform, emotion, duration, and aspect ratio", "ready", "Backend already normalized the user's natural-language brief."),
     backendAction("adaptive_short_agent", "Generate adaptive concept candidates without fixed templates", plan.agentGraph ? "ready" : "optional", "Short Agent graph supplies research, memory, critique, repair, and Seedance prompt-pack evidence when available."),
     backendAction("viral_strategy", "Build niche/platform viral strategy", plan.viralIntelligence.status === "blocked" ? "blocked" : "ready", "Backend scores concepts and scene directives from product, audience, reference, and platform evidence."),
+    backendAction("media_reference_binding", "Bind KOL, product, background, frame, motion, and audio references", plan.mediaReferencePlan.some((reference) => reference.status === "blocked") ? "blocked" : plan.mediaReferencePlan.length ? "ready" : "optional", "Backend maps approved media to scoped Seedance reference tags without exposing raw local paths or private URLs."),
+    backendAction("visual_bible_planning", "Plan reference boards, storyboard boards, and production bible assets", plan.visualBiblePlan.status === "required" ? "needs_review" : plan.visualBiblePlan.status === "recommended" ? "ready" : "optional", "Backend decides when character sheets, product boards, first-frame boards, or sequence boards improve Seedance consistency without making paid image-generation calls."),
+    backendAction("seedance_model_routing", "Auto-select Seedance mode/tier and apply quality settings", "ready", `Backend selected ${plan.seedanceRouting.recommendedProviderMode}, ${plan.seedanceRouting.preferredTier}, ${plan.seedanceRouting.resolution}.`),
+    backendAction("video_remake_blueprint", "Build Video Remake blueprint", plan.referenceRemakeBlueprint?.status === "blocked" ? "blocked" : plan.referenceRemakeBlueprint ? "ready" : "optional", "Backend turns reference-video learning into locked edit rhythm, acting beats, camera language, replacement slots, and originality guardrails."),
     backendAction("channel_style_memory", "Apply saved channel style memory", plan.channelStyleProfile?.status === "blocked" ? "blocked" : plan.channelStyleProfile ? "ready" : "optional", "Backend binds recurring channel, character, voice, setting, visual rhythm, and editing anchors when supplied."),
     backendAction("render_handoff", "Prepare render-job handoff", plan.status === "blocked" ? "blocked" : "ready", "Backend converts the short plan into the normal async render-job request with lineage metadata."),
     backendAction("audio_visual_text_contracts", "Create audio and no-visible-text contracts", "ready", "Backend derives generated-audio intents only when audio is enabled and disables caption burn-in by default."),
@@ -359,6 +558,35 @@ function userActions(plan: ShortPipelinePlan, requiredPendingCount: number): rea
       : []),
     ...(plan.channelStyleProfile?.memoryPolicy.requiresRightsReview
       ? [userAction("approve_channel_assets", "Approve reusable channel assets", "needs_review", true, "Reusable channel assets are present but not fully rights-approved.")]
+      : []),
+    ...(plan.mediaReferencePlan.some((reference) => reference.status !== "ready")
+      ? [userAction(
+          "approve_media_references",
+          "Approve media references",
+          plan.mediaReferencePlan.some((reference) => reference.status === "blocked") ? "blocked" : "needs_review",
+          true,
+          "KOL/product/background/source-video references need rights approval, safe asset IDs, or replacement before provider spend."
+        )]
+      : []),
+    ...(plan.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved
+      ? [userAction(
+          "approve_visual_bible_assets",
+          "Approve Visual Bible assets",
+          "needs_review",
+          true,
+          "Reference-board/storyboard-board mode was explicitly requested, so required board assets must be generated or approved before provider spend."
+        )]
+      : []),
+    ...(plan.referenceRemakeBlueprint
+      ? [userAction(
+          "approve_video_remake_blueprint",
+          "Approve Video Remake blueprint",
+          plan.referenceRemakeBlueprint.status === "ready" ? "needs_review" : plan.referenceRemakeBlueprint.status === "blocked" ? "blocked" : "needs_review",
+          true,
+          plan.referenceRemakeBlueprint.status === "blocked"
+            ? "Reference video remake is blocked until unsafe or private source evidence is replaced."
+            : "Review source rights, similarity risk, locked edit rhythm, acting beats, replacement slots, and guardrails before spend."
+        )]
       : []),
     userAction(
       "approve_review_checkpoints",

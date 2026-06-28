@@ -3,7 +3,7 @@
  * It rejects oversized or malformed production requests before LLM planning, provider calls, or job queue occupancy.
  */
 
-import { normalizeSeedanceSettings } from "../config/seedance-settings.js";
+import { RATIOS, normalizeSeedanceSettings } from "../config/seedance-settings.js";
 import { SOURCE_VIDEO_ANALYSIS_LIMITS } from "../types/source-video.js";
 
 const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
@@ -11,7 +11,7 @@ const AUDIO_TRACK_ROLES = ["music", "narration", "ambience", "sfx"] as const;
 const GENERATED_AUDIO_INTENT_KINDS = ["tts_narration", "bgm", "ambience", "sfx"] as const;
 const AUDIO_MIX_MODES = ["mix", "replace"] as const;
 const TRANSITION_KINDS = ["fade", "wipeleft", "wiperight", "slideleft", "slideright"] as const;
-const TRANSITION_TARGET_HEIGHTS = [480, 720, 1080] as const;
+const TRANSITION_TARGET_HEIGHTS = [480, 720, 1080, 1440] as const;
 const REFERENCE_VIEWS = ["front", "side", "back", "three_quarter", "over_the_shoulder", "unknown"] as const;
 const AUDIO_BITRATE_PATTERN = /^([1-9]\d{1,3})k$/;
 const MAX_FRAME_SAMPLES = 240;
@@ -391,6 +391,7 @@ export class RenderRequestAdmission {
     this.assertBoundedNumber(settings.durationSeconds, "transitionSettings.durationSeconds", 0.001, 3);
     this.assertBoundedNumber(settings.fps, "transitionSettings.fps", 12, 60);
     this.assertOptionalNumberOption(settings.targetHeight, "transitionSettings.targetHeight", TRANSITION_TARGET_HEIGHTS);
+    this.assertOptionalOption(settings.targetRatio, "transitionSettings.targetRatio", RATIOS);
     this.assertBoolean(settings.preserveAudio, "transitionSettings.preserveAudio");
   }
 
@@ -438,6 +439,22 @@ export class RenderRequestAdmission {
     this.assertStringArray(analysis.styleNotes, "sourceVideoAnalysis.styleNotes", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
     this.assertStringArray(analysis.structuralBeats, "sourceVideoAnalysis.structuralBeats", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
     this.assertStringArray(analysis.safetyNotes, "sourceVideoAnalysis.safetyNotes", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
+    this.assertSourceVideoAnalysisHasContent(analysis);
+  }
+
+  private assertSourceVideoAnalysisHasContent(analysis: Record<string, unknown>): void {
+    const hasContent = typeof analysis.transformationIntent === "string" && analysis.transformationIntent.trim().length > 0 ||
+      Array.isArray(analysis.transcript) && analysis.transcript.length > 0 ||
+      Array.isArray(analysis.scenes) && analysis.scenes.length > 0 ||
+      Array.isArray(analysis.pacingNotes) && analysis.pacingNotes.length > 0 ||
+      Array.isArray(analysis.styleNotes) && analysis.styleNotes.length > 0 ||
+      Array.isArray(analysis.structuralBeats) && analysis.structuralBeats.length > 0 ||
+      Array.isArray(analysis.safetyNotes) && analysis.safetyNotes.length > 0;
+    if (!hasContent) {
+      throw new RenderRequestAdmissionError(
+        "sourceVideoAnalysis must include at least one transformationIntent, transcript cue, scene, pacing/style note, structural beat, or safety note."
+      );
+    }
   }
 
   private assertSourceReferenceLabelMatches(value: unknown, references: unknown): void {
@@ -661,6 +678,13 @@ export class RenderRequestAdmission {
     }
   }
 
+  private assertOptionalOption(value: unknown, fieldName: string, allowedValues: readonly string[]): void {
+    if (value === undefined) {
+      return;
+    }
+    this.assertOption(value, fieldName, allowedValues);
+  }
+
   private assertOptionalNumberOption(value: unknown, fieldName: string, allowedValues: readonly number[]): void {
     if (value === undefined) {
       return;
@@ -740,6 +764,7 @@ function seedanceModelIdsFromEnv(env: NodeJS.ProcessEnv): readonly string[] {
   const modelIds = [
     env.ATLASCLOUD_SEEDANCE_FAST_MODEL,
     env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL,
+    env.ATLASCLOUD_SEEDANCE_MINI_MODEL,
     ...seedanceCapabilityModelIds(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON)
   ];
   return uniqueNonEmptyStrings(modelIds);

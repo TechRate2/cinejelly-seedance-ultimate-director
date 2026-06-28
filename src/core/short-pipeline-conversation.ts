@@ -59,12 +59,15 @@ export class ShortPipelineConversationEngine {
       ...(input.product ? { product: input.product } : {}),
       ...(input.brandKit ? { brandKit: input.brandKit } : {}),
       ...(input.channelStyle ? { channelStyle: input.channelStyle } : {}),
+      ...(input.mediaReferences ? { mediaReferences: input.mediaReferences } : {}),
       ...(input.referenceVideoLearning ? { referenceVideoLearning: input.referenceVideoLearning } : {}),
       ...(input.preferredTemplateId ? { preferredTemplateId: input.preferredTemplateId } : {}),
       allowTemplateSuggestions,
       ...(input.targetPlatform ? { targetPlatform: input.targetPlatform } : {}),
       ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
       ...(input.audio ? { audio: input.audio } : {}),
+      ...(input.seedanceSettings ? { seedanceSettings: input.seedanceSettings } : {}),
+      ...(input.visualBible ? { visualBible: input.visualBible } : {}),
       generatedAt
     });
     const turns = messages.map((message, index) => turnFrom(message, index));

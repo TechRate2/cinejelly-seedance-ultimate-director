@@ -3,19 +3,30 @@ import type {
   ReviewApprovalGate,
   ReviewApprovalSurface
 } from "./review-approval.js";
-import type { ShortPipelinePlan } from "./short-pipeline.js";
+import type { ShortPipelinePlan, ShortReferenceRemakeBlueprint } from "./short-pipeline.js";
 
 export type ShortMvpUiWorkflowMode =
   | "auto"
   | "single_clip"
   | "storyboard_multishot"
   | "reference_locked"
+  | "reference_board"
+  | "storyboard_board"
+  | "production_bible"
   | "source_video_guided"
+  | "video_remake"
   | "manual_storyboard";
 
 export type ShortMvpUiActionStatus = "ready" | "needs_review" | "blocked" | "optional";
 
 export type ShortMvpUiAudioOptionId = "off" | "english" | "vietnamese" | "chinese";
+
+export type ShortMvpUiPipeNavigationMode =
+  | "smart_short"
+  | "product_kol_ugc"
+  | "storyboard_multishot"
+  | "video_remake"
+  | "production_bible";
 
 export interface ShortMvpUiWorkflowControl {
   readonly mode: ShortMvpUiWorkflowMode;
@@ -23,6 +34,55 @@ export interface ShortMvpUiWorkflowControl {
   readonly recommended: boolean;
   readonly enabled: boolean;
   readonly reason: string;
+}
+
+export interface ShortMvpUiPipeSetting {
+  readonly settingId: string;
+  readonly label: string;
+  readonly value: string | number | boolean;
+  readonly userAdjustable: boolean;
+  readonly backendManaged: boolean;
+  readonly group?: ShortPipelinePlan["videoPipePlan"]["pipeOptions"][number]["settings"][number]["group"];
+  readonly control?: ShortPipelinePlan["videoPipePlan"]["pipeOptions"][number]["settings"][number]["control"];
+  readonly scope?: ShortPipelinePlan["videoPipePlan"]["pipeOptions"][number]["settings"][number]["scope"];
+  readonly options?: ShortPipelinePlan["videoPipePlan"]["pipeOptions"][number]["settings"][number]["options"];
+  readonly helperText?: string;
+}
+
+export interface ShortMvpUiPipeNavigationItem {
+  readonly mode: ShortMvpUiPipeNavigationMode;
+  readonly label: string;
+  readonly recommended: boolean;
+  readonly enabled: boolean;
+  readonly backendPipe: ShortPipelinePlan["videoPipePlan"]["selectedBackendPipe"];
+  readonly uiLayout: ShortPipelinePlan["videoPipePlan"]["pipeOptions"][number]["uiLayout"];
+  readonly capabilityPolicy: ShortPipelinePlan["videoPipePlan"]["pipeOptions"][number]["capabilityPolicy"];
+  readonly effectiveSettings?: ShortPipelinePlan["videoPipePlan"]["pipeOptions"][number]["effectiveSettings"];
+  readonly durationSupport: {
+    readonly minSeconds: number;
+    readonly maxSeconds: number;
+    readonly idealRangeSeconds: readonly [number, number];
+    readonly supportsLongSequence: boolean;
+  };
+  readonly seedanceMode: ShortPipelinePlan["seedanceRouting"]["recommendedProviderMode"];
+  readonly preferredTier: ShortPipelinePlan["seedanceRouting"]["preferredTier"];
+  readonly defaultResolution: ShortPipelinePlan["seedanceRouting"]["resolution"];
+  readonly audioDefault: "none" | "guided";
+  readonly returnLastFrameDefault: boolean;
+  readonly requiredInputs: readonly string[];
+  readonly optionalInputs: readonly string[];
+  readonly settings: readonly ShortMvpUiPipeSetting[];
+  readonly outputStrategy: string;
+  readonly reason: string;
+}
+
+export interface ShortMvpUiPipeSelectionSummary {
+  readonly selectedMode: ShortPipelinePlan["videoPipePlan"]["selectedMode"];
+  readonly selectedBackendPipe: ShortPipelinePlan["videoPipePlan"]["selectedBackendPipe"];
+  readonly selectedReason: string;
+  readonly selectionReasonCodes: ShortPipelinePlan["videoPipePlan"]["selectionReasonCodes"];
+  readonly visualBibleAlignmentStatus: ShortPipelinePlan["videoPipePlan"]["visualBibleAlignment"]["status"];
+  readonly visualBibleAlignmentExplanation: string;
 }
 
 export interface ShortMvpUiReviewSurfaceSummary {
@@ -104,6 +164,89 @@ export interface ShortMvpUiCreativePatternLearning {
   readonly topCandidates: readonly ShortMvpUiCreativeIdeaSummary[];
 }
 
+export interface ShortMvpUiMediaReferenceSummary {
+  readonly referenceId: string;
+  readonly inputRole: ShortPipelinePlan["mediaReferencePlan"][number]["inputRole"];
+  readonly promptRole: ShortPipelinePlan["mediaReferencePlan"][number]["promptRole"];
+  readonly providerKind: ShortPipelinePlan["mediaReferencePlan"][number]["providerKind"];
+  readonly label: string;
+  readonly promptTag: string;
+  readonly status: ShortPipelinePlan["mediaReferencePlan"][number]["status"];
+  readonly rightsStatus: ShortPipelinePlan["mediaReferencePlan"][number]["rightsStatus"];
+  readonly priority: ShortPipelinePlan["mediaReferencePlan"][number]["priority"];
+  readonly uriPolicy: ShortPipelinePlan["mediaReferencePlan"][number]["uriPolicy"];
+  readonly sourceHost?: string;
+  readonly includeInProviderHandoff: boolean;
+  readonly transferScope: string;
+  readonly doNotTransfer: readonly string[];
+  readonly issues: readonly string[];
+}
+
+export interface ShortMvpUiSeedanceRoutingSummary {
+  readonly routingId: string;
+  readonly provider: "atlascloud";
+  readonly modelFamily: "seedance_2_0";
+  readonly recommendedProviderMode: ShortPipelinePlan["seedanceRouting"]["recommendedProviderMode"];
+  readonly preferredTier: ShortPipelinePlan["seedanceRouting"]["preferredTier"];
+  readonly modelSelectionPolicy: ShortPipelinePlan["seedanceRouting"]["modelSelectionPolicy"];
+  readonly preferredConfiguredModelEnv: ShortPipelinePlan["seedanceRouting"]["preferredConfiguredModelEnv"];
+  readonly modelAlias: ShortPipelinePlan["seedanceRouting"]["modelAlias"];
+  readonly resolution: ShortPipelinePlan["seedanceRouting"]["resolution"];
+  readonly ratio: ShortPipelinePlan["seedanceRouting"]["ratio"];
+  readonly bitrateMode: ShortPipelinePlan["seedanceRouting"]["bitrateMode"];
+  readonly superResolution: boolean;
+  readonly returnLastFrame: boolean;
+  readonly storyboardRequired: boolean;
+  readonly sequentialRenderRecommended: boolean;
+  readonly generatedAudioMode: ShortPipelinePlan["seedanceRouting"]["generatedAudioMode"];
+  readonly providerClipDurationSeconds: ShortPipelinePlan["seedanceRouting"]["providerClipDurationSeconds"];
+  readonly referenceTagCount: number;
+  readonly referenceTags: ShortPipelinePlan["seedanceRouting"]["referenceTags"];
+  readonly promptRecipe: ShortPipelinePlan["seedanceRouting"]["promptRecipe"];
+  readonly reasonCodes: readonly string[];
+  readonly warnings: readonly string[];
+  readonly canSubmitToProviderNow: false;
+}
+
+export interface ShortMvpUiReferenceRemakeSummary {
+  readonly blueprintId: string;
+  readonly userFacingModeLabel: "Video Remake";
+  readonly mode: ShortReferenceRemakeBlueprint["mode"];
+  readonly status: ShortReferenceRemakeBlueprint["status"];
+  readonly fidelityTarget: ShortReferenceRemakeBlueprint["fidelityTarget"];
+  readonly sourcePatternId?: string;
+  readonly sourceSafetyStatus: ShortReferenceRemakeBlueprint["sourceSafetyStatus"];
+  readonly sourceLabel?: string;
+  readonly trendVideoIntakeMode: ShortReferenceRemakeBlueprint["trendVideoIntakeMode"];
+  readonly replacementSlots: readonly string[];
+  readonly lockedElements: readonly string[];
+  readonly adherenceTargets: readonly string[];
+  readonly sourceBeatMap: readonly string[];
+  readonly providerExecutionPlan: readonly string[];
+  readonly remakeGuardrails: readonly string[];
+  readonly reviewRequiredBeforeRender: true;
+  readonly canUseAfterReview: boolean;
+}
+
+export interface ShortMvpUiVisualBibleSummary {
+  readonly planId: string;
+  readonly status: ShortPipelinePlan["visualBiblePlan"]["status"];
+  readonly requestedMode: ShortPipelinePlan["visualBiblePlan"]["requestedMode"];
+  readonly recommendedPipe: ShortPipelinePlan["visualBiblePlan"]["recommendedPipe"];
+  readonly durationBand: ShortPipelinePlan["visualBiblePlan"]["durationBand"];
+  readonly imageProviderPolicy: ShortPipelinePlan["visualBiblePlan"]["imageProviderPolicy"];
+  readonly assetPlanCount: number;
+  readonly requiredAssetPlanCount: number;
+  readonly boardCount: number;
+  readonly targetClipCount: number;
+  readonly continuityStrategy: ShortPipelinePlan["visualBiblePlan"]["sequencePlan"]["continuityStrategy"];
+  readonly blocksRenderUntilAssetsApproved: boolean;
+  readonly seedanceBindingPlan: readonly string[];
+  readonly promptContracts: readonly string[];
+  readonly qualityGates: readonly string[];
+  readonly warnings: readonly string[];
+}
+
 export interface ShortMvpUiContract {
   readonly schemaVersion: "cinejelly.short-mvp-ui-contract.v1";
   readonly generatedAt: Date;
@@ -119,10 +262,17 @@ export interface ShortMvpUiContract {
     readonly targetSeconds: number;
     readonly commercialMinSeconds: 15;
     readonly commercialMaxSeconds: 60;
+    readonly selectedPipeMinSeconds: number;
+    readonly selectedPipeMaxSeconds: number;
+    readonly selectedPipeIdealRangeSeconds: readonly [number, number];
+    readonly selectedPipeSupportsLongSequence: boolean;
+    readonly withinSelectedPipeDurationRange: boolean;
     readonly recommendedWorkflowMode: "single_clip" | "storyboard_multishot";
     readonly providerSingleClipMaxSeconds: 15;
   };
   readonly workflowControls: readonly ShortMvpUiWorkflowControl[];
+  readonly pipeSelection: ShortMvpUiPipeSelectionSummary;
+  readonly pipeNavigation: readonly ShortMvpUiPipeNavigationItem[];
   readonly audioControls: {
     readonly selectedOptionId: ShortMvpUiAudioOptionId;
     readonly options: readonly ShortMvpUiAudioControl[];
@@ -151,6 +301,10 @@ export interface ShortMvpUiContract {
   };
   readonly director: ShortMvpUiDirectorGuidance;
   readonly creativePatternLearning: ShortMvpUiCreativePatternLearning;
+  readonly mediaReferences: readonly ShortMvpUiMediaReferenceSummary[];
+  readonly seedanceRouting: ShortMvpUiSeedanceRoutingSummary;
+  readonly visualBible: ShortMvpUiVisualBibleSummary;
+  readonly referenceRemake?: ShortMvpUiReferenceRemakeSummary;
   readonly render: {
     readonly canCreateRenderJob: boolean;
     readonly canSubmitToProviderNow: false;

@@ -40,10 +40,13 @@
         "storePath",
         "endpointPaths",
         "sessionId",
+        "visualBibleSessionId",
         "pendingJobId",
         "unsafeReviewJobId",
         "approvedWithoutConfirmStatusCode",
         "planInputOverrideStatusCode",
+        "visualBibleSessionRenderStatusCode",
+        "visualBibleDirectRenderStatusCode",
         "clientIsolationCheckPassed",
         "rawUrlLeakCheckPassed",
         "localPathLeakCheckPassed",
@@ -58,10 +61,13 @@
           "items": { "type": "string" }
         },
         "sessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
+        "visualBibleSessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
         "pendingJobId": { "type": "string", "pattern": "^render_job_[0-9a-fA-F-]{36}$" },
         "unsafeReviewJobId": { "type": "string", "pattern": "^render_job_[0-9a-fA-F-]{36}$" },
         "approvedWithoutConfirmStatusCode": { "const": 422 },
         "planInputOverrideStatusCode": { "const": 400 },
+        "visualBibleSessionRenderStatusCode": { "const": 422 },
+        "visualBibleDirectRenderStatusCode": { "const": 422 },
         "clientIsolationCheckPassed": { "const": true },
         "rawUrlLeakCheckPassed": { "const": true },
         "localPathLeakCheckPassed": { "const": true },
@@ -76,6 +82,7 @@
         "approvedWithoutConfirmation",
         "planInputOverride",
         "unsafeApprovedReview",
+        "visualBibleAssetGate",
         "clientIsolation"
       ],
       "properties": {
@@ -126,6 +133,24 @@
             "hasReservation": { "const": false }
           }
         },
+        "visualBibleAssetGate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sessionCreateStatusCode",
+            "sessionRenderStatusCode",
+            "directRenderStatusCode",
+            "sessionBlockedBeforeJobCreation",
+            "directBlockedBeforeJobCreation"
+          ],
+          "properties": {
+            "sessionCreateStatusCode": { "const": 201 },
+            "sessionRenderStatusCode": { "const": 422 },
+            "directRenderStatusCode": { "const": 422 },
+            "sessionBlockedBeforeJobCreation": { "const": true },
+            "directBlockedBeforeJobCreation": { "const": true }
+          }
+        },
         "clientIsolation": {
           "type": "object",
           "additionalProperties": false,
@@ -139,7 +164,7 @@
     },
     "checks": {
       "type": "array",
-      "minItems": 8,
+      "minItems": 10,
       "items": {
         "type": "object",
         "additionalProperties": false,

@@ -60,6 +60,7 @@ export class SeedancePromptCompiler {
       `Intent: ${shot.intent}.`,
       this.buildReferenceSection(bindingPlan),
       this.buildContinuitySection(shot),
+      this.buildPacingSection(shot),
       `Scene subject: ${shot.subject}.`,
       `Action: ${shot.action}.`,
       `Camera: ${shot.camera}.`,
@@ -72,6 +73,43 @@ export class SeedancePromptCompiler {
     ];
 
     return sections.filter((section): section is string => Boolean(section && section.trim())).join("\n");
+  }
+
+  private buildPacingSection(shot: ShotContract): string {
+    const role = this.storyArcRole(shot);
+    const hasTimeline = Boolean(shot.timeline?.length);
+    return [
+      `Pacing contract: use the full ${shot.durationSeconds}s for a complete ${role} beat with a clear opening, middle action, and ending state.`,
+      this.wholeVideoArcLine(shot, role),
+      "Do not collapse the shot into one static product macro, one hand pose, or an unfinished setup.",
+      hasTimeline
+        ? "Follow the time-coded timeline exactly; each segment must add new visual information."
+        : "Create at least three visible state changes: first-frame hook, action/proof, and settled endpoint."
+    ].filter((line): line is string => Boolean(line)).join(" ");
+  }
+
+  private storyArcRole(shot: ShotContract): string {
+    if (typeof shot.metadata?.storyArcRole === "string" && shot.metadata.storyArcRole.trim()) {
+      return shot.metadata.storyArcRole.trim();
+    }
+    if (typeof shot.metadata?.shortStoryRole === "string" && shot.metadata.shortStoryRole.trim()) {
+      return shot.metadata.shortStoryRole.trim();
+    }
+    return "story";
+  }
+
+  private wholeVideoArcLine(shot: ShotContract, role: string): string | undefined {
+    const startSecond = numberMetadata(shot.metadata?.storyArcStartSecond);
+    const endSecond = numberMetadata(shot.metadata?.storyArcEndSecond);
+    const targetDurationSeconds = numberMetadata(shot.metadata?.storyArcTargetDurationSeconds);
+    const position = typeof shot.metadata?.storyArcPosition === "string" && shot.metadata.storyArcPosition.trim()
+      ? shot.metadata.storyArcPosition.trim()
+      : undefined;
+    if (startSecond === undefined || endSecond === undefined || targetDurationSeconds === undefined) {
+      return undefined;
+    }
+    const positionLine = position ? `, ${position}` : "";
+    return `Whole-video arc: this shot covers ${startSecond}-${endSecond}s of ${targetDurationSeconds}s${positionLine}; it must advance the ${role} movement and hand off cleanly to the next beat.`;
   }
 
   private buildReferenceSection(bindingPlan: PromptBindingPlan): string {
@@ -150,4 +188,11 @@ export class SeedancePromptCompiler {
     }
     return "text_to_video";
   }
+}
+
+function numberMetadata(value: string | number | boolean | undefined): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  return undefined;
 }

@@ -92,13 +92,14 @@ export class AtlasCloudProvider implements ModelProvider {
     }
     const standardModel = this.settings.models.seedanceStandardModel;
     const fastModel = this.settings.models.seedanceFastModel;
-    const models = modelId ? [modelId] : [standardModel, fastModel];
+    const miniModel = this.settings.models.seedanceMiniModel;
+    const models = modelId ? [modelId] : [standardModel, fastModel, miniModel].filter((value): value is string => Boolean(value));
     return models.map((selectedModelId) => ({
       provider: ATLAS_PROVIDER_NAME,
       modelId: selectedModelId,
       modes: ["text_to_video", "image_to_video", "reference_to_video", "video_to_video", "extend", "edit"],
       durations: { min: 4, max: 15 },
-      resolutions: ["480p", "720p", "1080p"],
+      resolutions: ["480p", "720p", "1080p", "720p-SR", "1080p-SR", "1440p-SR"],
       ratios: ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
       references: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"],
       async: true
@@ -837,7 +838,9 @@ export class AtlasCloudProvider implements ModelProvider {
       ...(request.negativePrompt ? { negative_prompt: request.negativePrompt } : {}),
       duration: request.settings.durationSeconds,
       fps: DEFAULT_VIDEO_FPS,
-      ...(dimensions ? dimensions : { resolution: request.settings.resolution, ratio: request.settings.ratio }),
+      resolution: request.settings.resolution,
+      bitrate_mode: request.settings.bitrateMode,
+      ...(dimensions ? dimensions : { ratio: request.settings.ratio }),
       ...(request.mode !== "text_to_video" ? { mode: request.mode } : {}),
       ...(firstImageUrl ? { image_url: firstImageUrl } : {}),
       ...(lastImageUrl ? { last_image_url: lastImageUrl, end_image_url: lastImageUrl } : {}),

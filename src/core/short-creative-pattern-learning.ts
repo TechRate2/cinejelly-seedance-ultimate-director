@@ -14,6 +14,18 @@ import type {
   ShortReferenceVideoPattern,
   ShortViralNicheStrategy
 } from "../types/short-viral-intelligence.js";
+import {
+  retrieveShortPromptCorpusPatterns,
+  SHORT_PROMPT_CORPUS_COVERAGE,
+  SHORT_PROMPT_CORPUS_ORIGINS,
+  type ShortPromptCorpusPatternSpec
+} from "./short-prompt-pattern-corpus.js";
+import {
+  retrieveShortPlatformTemplatePatterns,
+  SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE,
+  SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS,
+  type ShortPlatformTemplatePatternSpec
+} from "./short-platform-template-corpus.js";
 import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 
@@ -23,7 +35,8 @@ const SOURCE_PATTERN_ORIGINS = [
   "HKUDS/VideoAgent",
   "video-db/Director",
   "vericontext/vibeframe",
-  "YouMind-OpenLab/awesome-seedance-2-prompts"
+  ...SHORT_PROMPT_CORPUS_ORIGINS,
+  ...SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS
 ] as const;
 
 const HIGH_RISK_CLAIM_PATTERN =
@@ -41,7 +54,7 @@ export interface ShortCreativePatternLearningInput {
   readonly durationSeconds: number;
 }
 
-interface PatternSpec {
+interface LocalPatternSpec {
   readonly kind: ShortCreativePatternKind;
   readonly label: string;
   readonly source: ShortCreativePatternSource;
@@ -55,6 +68,8 @@ interface PatternSpec {
   readonly riskControls?: readonly string[];
   readonly fitReasons?: readonly string[];
 }
+
+type PatternSpec = LocalPatternSpec | ShortPromptCorpusPatternSpec | ShortPlatformTemplatePatternSpec;
 
 export class ShortCreativePatternLearningEngine {
   public build(input: ShortCreativePatternLearningInput): ShortCreativePatternLearningPlan {
@@ -96,6 +111,30 @@ export class ShortCreativePatternLearningEngine {
 
   private patterns(input: ShortCreativePatternLearningInput, prompt: string): readonly ShortCreativePattern[] {
     const specs = [
+      ...retrieveShortPromptCorpusPatterns({
+        prompt,
+        niche: input.strategy.niche,
+        creativeMode: input.strategy.creativeMode,
+        platformFocus: input.strategy.platformFocus,
+        audience: input.strategy.audience,
+        buyerIntent: input.strategy.buyerIntent,
+        targetDurationSeconds: input.durationSeconds,
+        ideaSeeds: input.strategy.audienceNicheIntelligence.ideaSeeds,
+        hasReferenceVideo: Boolean(input.referenceVideoPattern),
+        hasProductEvidence: Boolean(input.productBrief)
+      }),
+      ...retrieveShortPlatformTemplatePatterns({
+        prompt,
+        niche: input.strategy.niche,
+        creativeMode: input.strategy.creativeMode,
+        platformFocus: input.strategy.platformFocus,
+        audience: input.strategy.audience,
+        buyerIntent: input.strategy.buyerIntent,
+        targetDurationSeconds: input.durationSeconds,
+        ideaSeeds: input.strategy.audienceNicheIntelligence.ideaSeeds,
+        hasReferenceVideo: Boolean(input.referenceVideoPattern),
+        hasProductEvidence: Boolean(input.productBrief)
+      }),
       ...nicheSpecs(input.strategy.niche, input.strategy.creativeMode),
       ...promptSignalSpecs(prompt, input.strategy.niche),
       ...referenceSpecs(input.referenceVideoPattern, input.strategy.niche),
@@ -114,9 +153,12 @@ export class ShortCreativePatternLearningEngine {
       const pattern = this.patternFromSpec(spec, input, prompt);
       patterns.push(pattern);
     }
-    return patterns
+    const sortedPatterns = patterns
       .sort((left, right) => patternFitScore(right, input) - patternFitScore(left, input))
-      .slice(0, 14);
+    return diversifyPatternSources(
+      sortedPatterns,
+      Math.max(SHORT_PROMPT_CORPUS_COVERAGE.retrievalTopKWithReference, SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.retrievalTopK)
+    );
   }
 
   private patternFromSpec(
@@ -200,8 +242,39 @@ export class ShortCreativePatternLearningEngine {
   }
 }
 
-function nicheSpecs(niche: string, mode: string): readonly PatternSpec[] {
-  const base: PatternSpec[] = [];
+function diversifyPatternSources(patterns: readonly ShortCreativePattern[], limit: number): readonly ShortCreativePattern[] {
+  const requiredSources: readonly ShortCreativePatternSource[] = [
+    "seedance_prompt_corpus",
+    "platform_template_corpus",
+    "audience_niche",
+    "prompt_signal",
+    "niche_playbook",
+    "reference_video"
+  ];
+  const output: ShortCreativePattern[] = [];
+  const seen = new Set<string>();
+  for (const source of requiredSources) {
+    const pattern = patterns.find((item) => item.source === source);
+    if (pattern && !seen.has(pattern.patternId)) {
+      output.push(pattern);
+      seen.add(pattern.patternId);
+    }
+  }
+  for (const pattern of patterns) {
+    if (seen.has(pattern.patternId)) {
+      continue;
+    }
+    output.push(pattern);
+    seen.add(pattern.patternId);
+    if (output.length >= limit) {
+      break;
+    }
+  }
+  return output.slice(0, limit);
+}
+
+function nicheSpecs(niche: string, mode: string): readonly LocalPatternSpec[] {
+  const base: LocalPatternSpec[] = [];
   if (/beauty|skincare|cosmetic|hair/.test(niche)) {
     base.push(
       spec("proof_diary", "KOL proof diary across repeated moments", "niche_playbook", [niche, "beauty_skincare"], "open with a skeptical day-one or first-use tension", "repeat the same creator/product setup with micro-progress beats", "routine diary proof with review-bound before/after framing", "visible confidence or routine payoff after proof", "KOL or creator documents the product honestly across moments", "replace the source person/product/timing with the user's KOL, product, and reviewed claim evidence", ["avoid unsubstantiated medical or overnight transformation claims"]),
@@ -253,8 +326,8 @@ function nicheSpecs(niche: string, mode: string): readonly PatternSpec[] {
   return base;
 }
 
-function promptSignalSpecs(prompt: string, niche: string): readonly PatternSpec[] {
-  const specs: PatternSpec[] = [];
+function promptSignalSpecs(prompt: string, niche: string): readonly LocalPatternSpec[] {
+  const specs: LocalPatternSpec[] = [];
   if (/\b(kol|creator|influencer|reviewer|ugc)\b/i.test(prompt)) {
     specs.push(spec("creator_confession", "Creator confession hook", "prompt_signal", [niche], "open with a personal admission or skeptical line", "confession, product proof, changed mind, payoff", "creator experience plus reviewed product proof", "viewer trusts the turn because it feels lived-in", "KOL starts honest, not polished", "adapt to the selected KOL voice and original script"));
   }
@@ -270,7 +343,7 @@ function promptSignalSpecs(prompt: string, niche: string): readonly PatternSpec[
   return specs;
 }
 
-function ideaSeedSpecs(ideaSeeds: readonly string[], niche: string): readonly PatternSpec[] {
+function ideaSeedSpecs(ideaSeeds: readonly string[], niche: string): readonly LocalPatternSpec[] {
   return ideaSeeds.slice(0, 4).map((seed, index) => {
     const kind = kindForCreativeSeed(seed);
     const seedLabel = cleanText(seed.replace(/^(Hook|Retention|Proof|Share\/CTA|Format\/posture|Desire\/objecting tension):\s*/i, ""), 80) ??
@@ -290,7 +363,7 @@ function ideaSeedSpecs(ideaSeeds: readonly string[], niche: string): readonly Pa
   });
 }
 
-function conceptSignalSpecs(concepts: readonly ShortPipelineConcept[], niche: string): readonly PatternSpec[] {
+function conceptSignalSpecs(concepts: readonly ShortPipelineConcept[], niche: string): readonly LocalPatternSpec[] {
   return concepts.slice(0, 3).map((concept, index) => {
     const combined = `${concept.label} ${concept.angle} ${concept.hook}`;
     const kind = kindForCreativeSeed(combined);
@@ -310,7 +383,7 @@ function conceptSignalSpecs(concepts: readonly ShortPipelineConcept[], niche: st
   });
 }
 
-function referenceSpecs(reference: ShortReferenceVideoPattern | undefined, niche: string): readonly PatternSpec[] {
+function referenceSpecs(reference: ShortReferenceVideoPattern | undefined, niche: string): readonly LocalPatternSpec[] {
   if (!reference) {
     return [];
   }
@@ -331,7 +404,7 @@ function referenceSpecs(reference: ShortReferenceVideoPattern | undefined, niche
   ];
 }
 
-function generalPlatformSpecs(niche: string): readonly PatternSpec[] {
+function generalPlatformSpecs(niche: string): readonly LocalPatternSpec[] {
   return [
     spec("problem_demo_payoff", "Problem-demo-payoff sprint", "audience_niche", [niche, "all"], "start with one concrete viewer problem", "problem, product action, proof, payoff", "visible use-case proof", "viewer sees the next step as natural", "creator shows instead of explains", "adapt every beat to the user's product facts"),
     spec("skeptical_review", "Skeptical review turn", "audience_niche", [niche, "all"], "begin skeptical or surprised before proof", "skepticism, proof, changed mind, CTA", "proof that changes the creator's mind", "viewer feels the proof earned trust", "KOL starts with restraint and earns enthusiasm", "keep the review original and evidence-bound"),
@@ -359,7 +432,7 @@ function spec(
   adaptationRule: string,
   riskControls: readonly string[] = [],
   fitReasons: readonly string[] = []
-): PatternSpec {
+): LocalPatternSpec {
   return {
     kind,
     label: cleanText(label, 140) ?? "Creative structural pattern",
@@ -410,6 +483,8 @@ function patternFitScore(pattern: ShortCreativePattern, input: ShortCreativePatt
   if (tags.includes(input.strategy.niche.toLowerCase())) score += 0.18;
   if (tags.includes("all")) score += 0.04;
   if (pattern.source === "reference_video") score += 0.14;
+  if (pattern.source === "seedance_prompt_corpus") score += 0.13;
+  if (pattern.source === "platform_template_corpus") score += 0.12;
   if (pattern.source === "prompt_signal") score += 0.12;
   if (input.strategy.audienceNicheIntelligence.trendPosture === "trend_native") score += 0.08;
   if (pattern.kind === "proof_diary" && /beauty|fitness|education|wellness/.test(input.strategy.niche)) score += 0.08;
@@ -495,7 +570,8 @@ function scoreCandidate(
     Boolean(input.productBrief?.claimInventory.some((claim) => HIGH_RISK_CLAIM_PATTERN.test(claim.text) || claim.substantiationRequired));
   const hookPotential = clampScore(0.62 +
     (input.strategy.platformFocus === "tiktok_douyin" ? 0.1 : 0.04) +
-    (pattern.source === "reference_video" || pattern.source === "prompt_signal" ? 0.08 : 0) +
+    (pattern.source === "reference_video" || pattern.source === "prompt_signal" || pattern.source === "seedance_prompt_corpus" ? 0.08 : 0) +
+    (pattern.source === "platform_template_corpus" ? 0.07 : 0) +
     (pattern.kind === "proof_diary" || pattern.kind === "micro_story_twist" ? 0.06 : 0));
   const retentionPotential = clampScore(0.6 +
     Math.min(0.14, sceneArc.length * 0.02) +
@@ -503,6 +579,8 @@ function scoreCandidate(
     (pattern.kind === "challenge_progress" || pattern.kind === "skeptical_review" ? 0.05 : 0));
   const nicheFit = clampScore(0.52 +
     (pattern.nicheTags.join(" ").includes(input.strategy.niche) ? 0.24 : 0.08) +
+    (pattern.source === "seedance_prompt_corpus" ? 0.1 : 0) +
+    (pattern.source === "platform_template_corpus" ? 0.09 : 0) +
     (pattern.source === "prompt_signal" ? 0.08 : 0) +
     (input.productBrief ? 0.08 : 0));
   const proofFeasibility = clampScore(0.54 +
@@ -517,6 +595,8 @@ function scoreCandidate(
       : 0.78 - (highRiskClaim ? 0.08 : 0));
   const novelty = clampScore(0.58 +
     (pattern.source === "prompt_signal" ? 0.12 : 0) +
+    (pattern.source === "seedance_prompt_corpus" ? 0.1 : 0) +
+    (pattern.source === "platform_template_corpus" ? 0.09 : 0) +
     (pattern.kind === "micro_story_twist" || pattern.kind === "hidden_detail_reveal" ? 0.1 : 0) +
     (input.concepts.length >= 3 ? 0.04 : 0));
   const renderability = clampScore(0.7 +
