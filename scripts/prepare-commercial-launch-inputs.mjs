@@ -7,6 +7,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaults = {
   outputPath: "assets/output_deliverables/business-readiness/commercial-launch-inputs-report.json",
   markdownOutputPath: "assets/output_deliverables/business-readiness/commercial-launch-inputs-checklist.md",
+  backendReadinessPath: "assets/output_deliverables/business-readiness/backend-system-readiness-audit-report.json",
   businessReadinessPath: "assets/output_deliverables/phase6-validation/business-readiness-report.json",
   businessPlanPath: "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json",
   liveInputsPath: "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json",
@@ -28,6 +29,7 @@ function parseArgs(args) {
   const flagMap = new Map([
     ["--output", "outputPath"],
     ["--markdown-output", "markdownOutputPath"],
+    ["--backend-readiness-report", "backendReadinessPath"],
     ["--business-readiness-report", "businessReadinessPath"],
     ["--business-plan-report", "businessPlanPath"],
     ["--live-inputs-report", "liveInputsPath"],
@@ -83,6 +85,7 @@ Usage:
   npm.cmd run validation:commercial-inputs
 
 Options:
+  --backend-readiness-report <path>   Default: ${defaults.backendReadinessPath}
   --business-readiness-report <path>  Default: ${defaults.businessReadinessPath}
   --business-plan-report <path>       Default: ${defaults.businessPlanPath}
   --live-inputs-report <path>         Default: ${defaults.liveInputsPath}
@@ -114,6 +117,7 @@ function main() {
   validateOptions(options);
 
   const reports = {
+    backendReadiness: summarizeReport(options.backendReadinessPath),
     businessReadiness: summarizeReport(options.businessReadinessPath),
     businessPlan: summarizeReport(options.businessPlanPath),
     liveInputs: summarizeReport(options.liveInputsPath),
@@ -137,6 +141,7 @@ function main() {
     reports.shortProductRights.value
   );
   const budgetConstrainedPaidPlan = buildBudgetConstrainedPaidPlan(reports.businessPlan.value);
+  const backendReadinessPhasePlan = buildBackendReadinessPhasePlan(reports.backendReadiness.value);
   const commandPlanAudit = buildCommandPlanAudit({ requiredInputs, evidenceCommandPlan, budgetConstrainedPaidPlan });
   const status = statusFor(requiredInputs);
   const sourceReports = summarizeSourceReports(reports);
@@ -149,6 +154,7 @@ function main() {
     envPlaceholders,
     evidenceCommandPlan,
     budgetConstrainedPaidPlan,
+    backendReadinessPhasePlan,
     commandPlanAudit
   });
   const report = {
@@ -159,6 +165,7 @@ function main() {
     networkCallsMade: false,
     providerCallsMade: false,
     checkedInputs: {
+      backendReadinessPath: toRepoRelative(options.backendReadinessPath),
       businessReadinessPath: toRepoRelative(options.businessReadinessPath),
       businessPlanPath: toRepoRelative(options.businessPlanPath),
       liveInputsPath: toRepoRelative(options.liveInputsPath),
@@ -727,6 +734,34 @@ function buildBudgetConstrainedPaidPlan(plan) {
   };
 }
 
+function buildBackendReadinessPhasePlan(backendReadiness) {
+  const source = backendReadiness?.externalEvidencePhasePlan;
+  const phases = Array.isArray(source?.phases)
+    ? source.phases.map((phase) => ({
+        phase: Number(phase.phase ?? 0),
+        label: String(phase.label ?? "Unknown phase"),
+        status: String(phase.status ?? "unknown"),
+        blockerCount: Number(phase.blockerCount ?? 0),
+        requiredEvidenceKinds: arrayOfStrings(phase.requiredEvidenceKinds),
+        actionIds: arrayOfStrings(phase.actionIds),
+        validationCommands: arrayOfStrings(phase.validationCommands),
+        reportPaths: arrayOfStrings(phase.reportPaths),
+        requiresOperatorInput: phase.requiresOperatorInput === true,
+        requiresPaidProviderOrNetwork: phase.requiresPaidProviderOrNetwork === true,
+        requiresManualReview: phase.requiresManualReview === true,
+        readyWhen: String(phase.readyWhen ?? "Complete the listed evidence for this phase.")
+      }))
+    : [];
+  return {
+    source: source ? "backend_system_readiness_audit" : "missing_backend_system_readiness_audit",
+    status: String(source?.status ?? "missing"),
+    phasePolicy: String(source?.phasePolicy ?? "unavailable"),
+    phaseCount: phases.length,
+    blockerCount: phases.reduce((sum, phase) => sum + phase.blockerCount, 0),
+    phases
+  };
+}
+
 function commandsFor(sequence, predicate) {
   return sequence
     .filter(predicate)
@@ -737,6 +772,10 @@ function commandsFor(sequence, predicate) {
       command: String(step.command ?? ""),
       requiredInputs: Array.isArray(step.requiredInputs) ? step.requiredInputs.map(String) : []
     }));
+}
+
+function arrayOfStrings(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()) : [];
 }
 
 function buildCommandPlanAudit({ requiredInputs, evidenceCommandPlan, budgetConstrainedPaidPlan }) {
@@ -768,6 +807,7 @@ function buildOperatorHandoffManifest({
   envPlaceholders,
   evidenceCommandPlan,
   budgetConstrainedPaidPlan,
+  backendReadinessPhasePlan,
   commandPlanAudit
 }) {
   const operatorInputFiles = buildOperatorInputFiles(requiredInputs);
@@ -811,6 +851,9 @@ function buildOperatorHandoffManifest({
       inputValidationCommandCount: inputValidationRunbook.length,
       manualReviewInputValidationCommandCount: manualReviewInputCommands.length,
       commandPlanAuditStatus: String(commandPlanAudit?.status ?? "unknown"),
+      backendReadinessPhaseStatus: backendReadinessPhasePlan.status,
+      backendReadinessPhaseCount: backendReadinessPhasePlan.phaseCount,
+      backendReadinessPhaseBlockerCount: backendReadinessPhasePlan.blockerCount,
       secretEnvPlaceholderCount: envPlaceholders.filter((item) => item.sensitivity === "secret").length
     },
     blockedInputIds: requiredInputs
@@ -826,6 +869,7 @@ function buildOperatorHandoffManifest({
       configured: item.configured,
       purpose: item.purpose
     })),
+    externalEvidencePhasePlan: backendReadinessPhasePlan,
     commandRunbook,
     inputValidationRunbook,
     refreshCommands: [
@@ -1487,9 +1531,21 @@ function markdownOperatorHandoffManifest(manifest) {
     `- Operator files: ${summary.operatorInputFileCount}; draft/template files: ${summary.draftFileCount}; archive reports: ${summary.reportArchiveFileCount}`,
     `- Commands: ${summary.commandCount}; ready: ${summary.readyCommandCount}; paid-spend commands: ${summary.paidCommandCount}`,
     `- Required-input validation commands: ${summary.inputValidationCommandCount}; manual-review guarded: ${summary.manualReviewInputValidationCommandCount}`,
+    `- Backend evidence phases: ${summary.backendReadinessPhaseCount}; phase blockers: ${summary.backendReadinessPhaseBlockerCount}; phase status: ${summary.backendReadinessPhaseStatus}`,
     `- Safe to share: ${manifest.safety.shareableWithOperators}; release evidence: ${manifest.safety.releaseEvidence}`,
+    ...markdownBackendEvidencePhases(manifest.externalEvidencePhasePlan),
     ...operatorFiles
   ];
+}
+
+function markdownBackendEvidencePhases(phasePlan) {
+  if (!phasePlan || !Array.isArray(phasePlan.phases) || phasePlan.phases.length === 0) {
+    return ["- Backend evidence phases: unavailable. Rerun `npm.cmd run validation:backend-system-readiness`."];
+  }
+  return phasePlan.phases.map((phase) => {
+    const commands = phase.validationCommands.length === 0 ? "none" : phase.validationCommands.join(", ");
+    return `- Phase ${phase.phase} ${phase.label}: ${phase.blockerCount} blocker(s); commands=${commands}; manualReview=${phase.requiresManualReview}; paidOrLive=${phase.requiresPaidProviderOrNetwork}`;
+  });
 }
 
 function markdownCommandPlanAudit(audit) {
