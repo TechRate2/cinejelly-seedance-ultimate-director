@@ -13,6 +13,12 @@ import { ShortCommercialReadinessPlanner } from "./short-commercial-readiness-pl
 import { ShortViralIntelligencePlanner } from "./short-viral-intelligence-planner.js";
 import { ShortVisualBiblePlanner } from "./short-visual-bible-planner.js";
 import { ShortVideoPipePlanner } from "./short-video-pipe-planner.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_BRAND_SOURCE_PATTERN_IDS,
+  SHORT_CORE_SOURCE_PATTERN_IDS,
+  SHORT_PRODUCT_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 import type {
   BrandKitEvaluation,
   BrandKitInput,
@@ -51,24 +57,9 @@ import type { AspectRatio, BitrateMode, Resolution } from "../types/settings.js"
 import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "calesthio/OpenMontage",
-  "HKUDS/ViMax",
-  "HKUDS/VideoAgent",
-  "video-db/Director",
-  "vericontext/vibeframe"
-] as const;
-
-const PRODUCT_SOURCE_PATTERN_ORIGINS = [
-  "calesthio/OpenMontage",
-  "HKUDS/VideoAgent",
-  "vericontext/vibeframe"
-] as const;
-
-const BRAND_SOURCE_PATTERN_ORIGINS = [
-  "calesthio/OpenMontage",
-  "vericontext/vibeframe"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_CORE_SOURCE_PATTERN_IDS);
+const PRODUCT_SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_PRODUCT_SOURCE_PATTERN_IDS);
+const BRAND_SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_BRAND_SOURCE_PATTERN_IDS);
 
 const UNSAFE_TEXT_PATTERN =
   /[A-Za-z]:\\|\\\\|(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|https?:\/\/|data:|bearer\s+|api[_-]?key|secret|token|password|authorization/i;
@@ -1778,7 +1769,11 @@ function template(
     durationRangeSeconds,
     planningHints: hints.map(([kind, text]) => ({ kind, text })),
     approvalSurfaces: ["scene", "audio", "caption", "claim"],
-    sourcePatternOrigins: ["calesthio/OpenMontage", "HKUDS/ViMax", "HKUDS/VideoAgent"]
+    sourcePatternOrigins: internalSourcePatternOrigins([
+      "calesthio_openmontage",
+      "hkuds_vimax",
+      "hkuds_videoagent"
+    ])
   };
 }
 

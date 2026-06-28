@@ -28,12 +28,12 @@ import type {
 } from "../types/short-pipeline.js";
 import type { ShortDirectorPlan } from "../types/short-director.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_VIDEO_PIPE_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "Topview AI workflow-mode observation",
-  "Higgsfield public product/reference workflow observation",
-  "CineJelly Short Director pipe contract"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_VIDEO_PIPE_SOURCE_PATTERN_IDS);
 
 type PipeDefinition = Omit<
   ShortVideoPipeCatalogItem,

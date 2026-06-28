@@ -16,14 +16,12 @@ import type {
   ShortVisualBibleStatus
 } from "../types/short-pipeline.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_VISUAL_BIBLE_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "OpenAI image-generation reference-board workflow",
-  "Anil-matcha/seedance2-comfyui consistent-character workflow",
-  "HKUDS/ViMax reference-selection and consistency patterns",
-  "vericontext/vibeframe storyboard-to-video workflow",
-  "CineJelly short prompt corpus"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_VISUAL_BIBLE_SOURCE_PATTERN_IDS);
 
 export interface ShortVisualBiblePlannerInput {
   readonly projectId: string;

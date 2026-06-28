@@ -239,6 +239,15 @@ try {
       pipe.capabilityPolicy?.userCannotPickRawProviderModel === true &&
       pipe.capabilityPolicy?.providerClipMaxSeconds === 15
     );
+  const uiFacingSurfaceJson = JSON.stringify({
+    videoPipeCatalog: videoPipeCatalog.body,
+    ui,
+    remakeUi,
+    visualBibleUi,
+    productionBibleUi,
+    sessionUiContract
+  });
+  const privateSourcePatternLineageLeakDetected = await containsPrivateSourcePatternTextForSmoke(uiFacingSurfaceJson);
   const checks = [
     createPage.status === 200 &&
       String(createPage.headers.get("content-type") ?? "").includes("text/html") &&
@@ -461,7 +470,10 @@ try {
       : fail("session_ui_contract_available", "Expected stored session UI contract to be available."),
     !rawLeakDetected
       ? pass("library_and_session_store_no_secret_leak", "Style/session stores do not contain local paths or secret-like values.")
-      : fail("library_and_session_store_no_secret_leak", "Expected stores to remain free of local paths and secret-like values.")
+      : fail("library_and_session_store_no_secret_leak", "Expected stores to remain free of local paths and secret-like values."),
+    !privateSourcePatternLineageLeakDetected
+      ? pass("ui_contract_hides_private_source_pattern_lineage", "UI-facing short catalog and contracts do not expose private source-pattern repo, platform, or upstream workflow labels.")
+      : fail("ui_contract_hides_private_source_pattern_lineage", "Expected UI-facing short catalog and contracts to hide private source-pattern lineage.")
   ];
 
   report = {
@@ -910,6 +922,44 @@ async function getJson(url, headers) {
     statusCode: response.status,
     body: await response.json()
   };
+}
+
+const PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS = [
+  "Topview",
+  "Higgsfield",
+  "OpenMontage",
+  "VideoAgent",
+  "ViMax",
+  "vibeframe",
+  "YouMind-OpenLab",
+  "ZeroLu",
+  "Emily2040",
+  "higgsfield-ai",
+  "OSideMedia",
+  "calesthio/",
+  "HKUDS/",
+  "video-db/",
+  "vericontext/",
+  "nirdiamant/",
+  "gswithjeff/",
+  "Shubhamsaboo/",
+  "hereandnowai/",
+  "Anil-matcha/"
+];
+
+async function containsPrivateSourcePatternTextForSmoke(value) {
+  try {
+    const registry = await import("../dist/core/private-source-pattern-registry.js");
+    if (typeof registry.containsPrivateSourcePatternText === "function") {
+      return registry.containsPrivateSourcePatternText(value);
+    }
+  } catch {
+    // A clean checkout may run this script before build output exists.
+  }
+  const lowered = value.toLowerCase();
+  return PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS.some((fragment) =>
+    lowered.includes(fragment.toLowerCase())
+  );
 }
 
 function containsAny(value, needles) {

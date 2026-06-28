@@ -26,15 +26,15 @@ import {
   SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS,
   type ShortPlatformTemplatePatternSpec
 } from "./short-platform-template-corpus.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_CORE_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 
 const SOURCE_PATTERN_ORIGINS = [
-  "calesthio/OpenMontage",
-  "HKUDS/ViMax",
-  "HKUDS/VideoAgent",
-  "video-db/Director",
-  "vericontext/vibeframe",
+  ...internalSourcePatternOrigins(SHORT_CORE_SOURCE_PATTERN_IDS),
   ...SHORT_PROMPT_CORPUS_ORIGINS,
   ...SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS
 ] as const;

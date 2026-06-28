@@ -12,16 +12,14 @@ import type {
   ShortViralCreativeMode,
   ShortViralPlatformFocus
 } from "../types/short-viral-intelligence.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_PLATFORM_TEMPLATE_CORPUS_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-export const SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS = [
-  "Topview AI public API/docs:workflow-structure-observation",
-  "Higgsfield official product-to-video guide:public-structure-observation",
-  "Higgsfield official cinematic prompt guide:public-structure-observation",
-  "higgsfield-ai/skills:mit-licensed-marketing-studio-and-virality-structure",
-  "OSideMedia/higgsfield-ai-prompt-skill:mit-licensed-structure",
-  "YouMind-OpenLab/awesome-seedance-2-prompts:cc-by-distilled-structure",
-  "CineJelly operator-approved source-video remake patterns"
-] as const;
+export const SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS = internalSourcePatternOrigins(
+  SHORT_PLATFORM_TEMPLATE_CORPUS_SOURCE_PATTERN_IDS
+);
 
 type PlatformTemplateSource = Extract<ShortCreativePatternSource, "platform_template_corpus">;
 

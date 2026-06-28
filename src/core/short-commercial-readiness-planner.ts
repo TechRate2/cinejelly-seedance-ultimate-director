@@ -9,17 +9,12 @@ import type { ShortCommercialReadinessPlan, ShortCommercialReadinessCheck, Short
 import type { ShortPipelinePlan, ShortPipelinePlanInput, ProductUrlEvidenceStatus } from "../types/short-pipeline.js";
 import type { ShortReferenceVideoLearningInput } from "../types/short-viral-intelligence.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_COMMERCIAL_READINESS_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "hereandnowai/master-langgraph-workflows-in-python-20-real-world-agent-projects-by-hereandnow-ai",
-  "nirdiamant/genai_agents:ContentIntelligence",
-  "gswithjeff/autogen-multi-agent-workflow",
-  "Shubhamsaboo/awesome-llm-apps",
-  "YouMind-OpenLab/awesome-seedance-2-prompts",
-  "ZeroLu/awesome-seedance",
-  "calesthio/OpenMontage",
-  "vericontext/vibeframe"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_COMMERCIAL_READINESS_SOURCE_PATTERN_IDS);
 
 const CRAWLER_DEFAULT_MAX_BYTES = 512_000;
 const CRAWLER_DEFAULT_TIMEOUT_MS = 10_000;

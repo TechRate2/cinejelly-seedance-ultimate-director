@@ -26,6 +26,7 @@ import type {
   ReviewApprovalCheckpoint,
   ReviewApprovalSurface
 } from "../types/review-approval.js";
+import { redactPrivateSourcePatternText } from "./private-source-pattern-registry.js";
 
 const SHORT_COMMERCIAL_MIN_SECONDS = 15;
 const SHORT_COMMERCIAL_MAX_SECONDS = 60;
@@ -181,19 +182,19 @@ function creativePatternLearningFor(plan: ShortPipelinePlan): ShortMvpUiCreative
     candidateCount: learning.candidateCount,
     ...(selectedIdea ? {
       selectedIdeaId: selectedIdea.ideaId,
-      selectedIdeaLabel: selectedIdea.label,
+      selectedIdeaLabel: safeUiReviewText(selectedIdea.label),
       selectedIdeaScore: selectedIdea.score.totalScore,
-      selectedIdeaHook: selectedIdea.hook,
-      selectedIdeaProofPlan: selectedIdea.proofPlan
+      selectedIdeaHook: safeUiReviewText(selectedIdea.hook),
+      selectedIdeaProofPlan: safeUiReviewText(selectedIdea.proofPlan)
     } : {}),
     topCandidates: learning.candidates.slice(0, 5).map((candidate) => ({
       ideaId: candidate.ideaId,
       patternId: candidate.patternId,
-      label: candidate.label,
+      label: safeUiReviewText(candidate.label),
       score: candidate.score.totalScore,
       nonCloneSafety: candidate.score.nonCloneSafety,
-      hook: candidate.hook,
-      proofPlan: candidate.proofPlan
+      hook: safeUiReviewText(candidate.hook),
+      proofPlan: safeUiReviewText(candidate.proofPlan)
     }))
   };
 }
@@ -447,16 +448,15 @@ function referenceRemakeFor(plan: ShortPipelinePlan): ShortMvpUiReferenceRemakeS
     mode: blueprint.mode,
     status: blueprint.status,
     fidelityTarget: blueprint.fidelityTarget,
-    ...(blueprint.sourcePatternId ? { sourcePatternId: blueprint.sourcePatternId } : {}),
     sourceSafetyStatus: blueprint.sourceSafetyStatus,
-    ...(blueprint.sourceLabel ? { sourceLabel: blueprint.sourceLabel } : {}),
+    ...(blueprint.sourceLabel ? { sourceLabel: safeUiReviewText(blueprint.sourceLabel) } : {}),
     trendVideoIntakeMode: blueprint.trendVideoIntakeMode,
-    replacementSlots: blueprint.replacementSlots,
-    lockedElements: blueprint.lockedElements,
-    adherenceTargets: blueprint.adherenceTargets,
-    sourceBeatMap: blueprint.sourceBeatMap,
-    providerExecutionPlan: blueprint.providerExecutionPlan,
-    remakeGuardrails: blueprint.remakeGuardrails,
+    replacementSlots: blueprint.replacementSlots.map((item) => safeUiReviewText(item)),
+    lockedElements: blueprint.lockedElements.map((item) => safeUiReviewText(item)),
+    adherenceTargets: blueprint.adherenceTargets.map((item) => safeUiReviewText(item)),
+    sourceBeatMap: blueprint.sourceBeatMap.map((item) => safeUiReviewText(item)),
+    providerExecutionPlan: blueprint.providerExecutionPlan.map((item) => safeUiReviewText(item)),
+    remakeGuardrails: blueprint.remakeGuardrails.map((item) => safeUiReviewText(item)),
     reviewRequiredBeforeRender: blueprint.reviewRequiredBeforeRender,
     canUseAfterReview: blueprint.canUseAfterReview
   };
@@ -522,7 +522,7 @@ function canApproveCheckpointInUi(checkpoint: ReviewApprovalCheckpoint): boolean
 }
 
 function safeUiReviewText(value: string): string {
-  return value
+  return redactPrivateSourcePatternText(value)
     .replace(RAW_HTTP_URL_PATTERN, "[REDACTED_URL]")
     .replace(SECRET_TEXT_PATTERN, "[REDACTED_SECRET]")
     .replace(EMBEDDED_WINDOWS_PATH_PATTERN, "[REDACTED_LOCAL_PATH]")

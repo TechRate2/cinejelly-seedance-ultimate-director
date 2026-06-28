@@ -214,7 +214,6 @@ export interface ShortMvpUiReferenceRemakeSummary {
   readonly mode: ShortReferenceRemakeBlueprint["mode"];
   readonly status: ShortReferenceRemakeBlueprint["status"];
   readonly fidelityTarget: ShortReferenceRemakeBlueprint["fidelityTarget"];
-  readonly sourcePatternId?: string;
   readonly sourceSafetyStatus: ShortReferenceRemakeBlueprint["sourceSafetyStatus"];
   readonly sourceLabel?: string;
   readonly trendVideoIntakeMode: ShortReferenceRemakeBlueprint["trendVideoIntakeMode"];

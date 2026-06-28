@@ -13,12 +13,12 @@ import type {
   ShortViralCreativeMode,
   ShortViralPlatformFocus
 } from "../types/short-viral-intelligence.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_PROMPT_CORPUS_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-export const SHORT_PROMPT_CORPUS_ORIGINS = [
-  "YouMind-OpenLab/awesome-seedance-2-prompts:distilled-3817-cc-by-4.0",
-  "Emily2040/seedance-2.0:seedance-skill-os-mit",
-  "ZeroLu/awesome-seedance:prompt-pattern-attribution"
-] as const;
+export const SHORT_PROMPT_CORPUS_ORIGINS = internalSourcePatternOrigins(SHORT_PROMPT_CORPUS_SOURCE_PATTERN_IDS);
 
 type CorpusSource = Extract<ShortCreativePatternSource, "seedance_prompt_corpus">;
 

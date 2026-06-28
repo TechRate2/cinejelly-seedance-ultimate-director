@@ -36,13 +36,13 @@ import { AudienceNicheIntelligencePlanner } from "./audience-niche-intelligence.
 import { ShortCreativePatternLearningEngine } from "./short-creative-pattern-learning.js";
 import { SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS } from "./short-platform-template-corpus.js";
 import { SHORT_PROMPT_CORPUS_ORIGINS } from "./short-prompt-pattern-corpus.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_CORE_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
 const SOURCE_PATTERN_ORIGINS = [
-  "calesthio/OpenMontage",
-  "HKUDS/ViMax",
-  "HKUDS/VideoAgent",
-  "video-db/Director",
-  "vericontext/vibeframe",
+  ...internalSourcePatternOrigins(SHORT_CORE_SOURCE_PATTERN_IDS),
   ...SHORT_PROMPT_CORPUS_ORIGINS,
   ...SHORT_PLATFORM_TEMPLATE_CORPUS_ORIGINS
 ] as const;

@@ -13,15 +13,16 @@ import type {
 } from "../types/audience-niche-intelligence.js";
 import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
+import { internalSourcePatternOrigins } from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "video-db/Director",
-  "HKUDS/VideoAgent",
-  "HKUDS/ViMax",
-  "calesthio/OpenMontage",
-  "vericontext/vibeframe",
-  "YouMind-OpenLab/awesome-seedance-2-prompts"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins([
+  "video_db_director",
+  "hkuds_videoagent",
+  "hkuds_vimax",
+  "calesthio_openmontage",
+  "vericontext_vibeframe",
+  "youmind_awesome_seedance_2_prompts"
+]);
 
 const HIGH_RISK_CLAIM_PATTERN =
   /100%|guarantee|guaranteed|cure|heal|doctor|clinical|medical|overnight|income|profit|#1|best\b|weight loss/i;
