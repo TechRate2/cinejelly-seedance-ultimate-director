@@ -197,6 +197,12 @@ const serialized = JSON.stringify({ creative, blockedCreative, longDirectorUiCon
 const rawLeakDetected = serialized.includes("https://private.example") ||
   serialized.includes("token=secret") ||
   serialized.includes("api_key=");
+const privateSourcePatternLineageLeakDetected = await containsPrivateSourcePatternTextForSmoke(JSON.stringify({
+  longDirectorUiContract,
+  blockedLongDirectorUiContract,
+  apiUiContract: apiContract.body.uiContract,
+  blockedApiUiContract: blockedApiContract.body.uiContract
+}));
 const directiveCountsConsistent =
   creative.findingCount === creative.findings.length &&
   creative.shotDirectiveCount === creative.shotDirectives.length &&
@@ -256,7 +262,7 @@ const checks = [
     longDirectorUiContract.duration.sequenceCount === continuityPlan.sequenceCount &&
     longDirectorUiContract.outputContract.canSubmitToProviderNow === false &&
     longDirectorUiContract.outputContract.longFormManualQualityReviewRequired === true &&
-    longDirectorUiContract.outputContract.directorBenchEvidenceRequired === true
+    longDirectorUiContract.outputContract.benchmarkEvidenceRequired === true
     ? pass("long_director_ui_contract_available", "Long Director UI contract exposes story, continuity, candidate, repair, and manual-review gates.")
     : fail("long_director_ui_contract_available", "Expected Long Director UI contract to expose no-spend review-console gates."),
   creative.status === "review_required" &&
@@ -304,6 +310,9 @@ const checks = [
   !rawLeakDetected
     ? pass("no_raw_provider_url_leak", "Creative intelligence evidence stores labels and strategy without raw provider URLs or query secrets.")
     : fail("no_raw_provider_url_leak", "Creative intelligence evidence leaked a raw provider URL or secret-like query text."),
+  !privateSourcePatternLineageLeakDetected
+    ? pass("long_director_ui_hides_private_source_pattern_lineage", "Long Director UI contracts do not expose private source-pattern repo, platform, or upstream workflow labels.")
+    : fail("long_director_ui_hides_private_source_pattern_lineage", "Expected Long Director UI contracts to hide private source-pattern lineage."),
   creative.sourcePatternOrigins.every((origin) => sourcePatternOrigins.includes(origin)) &&
     blockedCreative.sourcePatternOrigins.every((origin) => sourcePatternOrigins.includes(origin))
     ? pass("source_pattern_lineage", "Creative intelligence carries ViMax, VideoAgent, VibeFrame, OpenMontage, DirectorBench, MoneyPrinterTurbo, and Seedance prompt-pattern lineage.")
@@ -506,7 +515,7 @@ function summarizeCreative(value, uiContract) {
     directorNarrativeMode: uiContract.director.narrativeMode,
     directorCheckpointStageCount: uiContract.director.checkpointStages.length,
     manualQualityReviewRequired: uiContract.outputContract.longFormManualQualityReviewRequired,
-    directorBenchEvidenceRequired: uiContract.outputContract.directorBenchEvidenceRequired,
+    directorBenchEvidenceRequired: uiContract.outputContract.benchmarkEvidenceRequired,
     canSubmitToProviderNow: uiContract.outputContract.canSubmitToProviderNow,
     repairQueueCount: uiContract.outputContract.repairQueueCount,
     niche: value.nicheStrategy.niche,
@@ -556,6 +565,50 @@ async function postJson(url, body) {
     statusCode: response.status,
     body: await response.json()
   };
+}
+
+const PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS = [
+  "Topview",
+  "Higgsfield",
+  "OpenMontage",
+  "VideoAgent",
+  "ViMax",
+  "vibeframe",
+  "YouMind-OpenLab",
+  "ZeroLu",
+  "Emily2040",
+  "higgsfield-ai",
+  "OSideMedia",
+  "calesthio/",
+  "HKUDS/",
+  "video-db/",
+  "vericontext/",
+  "harry0703/",
+  "MoneyPrinterTurbo",
+  "moneyprinterturbo",
+  "jiaminchen-1031/",
+  "DirectorBench",
+  "directorbench",
+  "nirdiamant/",
+  "gswithjeff/",
+  "Shubhamsaboo/",
+  "hereandnowai/",
+  "Anil-matcha/"
+];
+
+async function containsPrivateSourcePatternTextForSmoke(value) {
+  try {
+    const registry = await import("../dist/core/private-source-pattern-registry.js");
+    if (typeof registry.containsPrivateSourcePatternText === "function") {
+      return registry.containsPrivateSourcePatternText(value);
+    }
+  } catch {
+    // A clean checkout may run this script before build output exists.
+  }
+  const lowered = value.toLowerCase();
+  return PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS.some((fragment) =>
+    lowered.includes(fragment.toLowerCase())
+  );
 }
 
 function pass(name, message) {

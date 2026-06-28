@@ -2158,7 +2158,7 @@ export class ProjectArtifactValidator {
       !outputContract ||
       outputContract.finalMp4AssemblyManagedByBackend !== true ||
       outputContract.longFormManualQualityReviewRequired !== true ||
-      outputContract.directorBenchEvidenceRequired !== true ||
+      outputContract.benchmarkEvidenceRequired !== true ||
       outputContract.canSubmitToProviderNow !== false ||
       typeof outputContract.canProceedToRenderAfterApproval !== "boolean" ||
       typeof outputContract.captionCoverageRatio !== "number" ||
@@ -2307,7 +2307,7 @@ export class ProjectArtifactValidator {
       longDirectorNarrativeMode: director?.narrativeMode,
       longDirectorCheckpointStageCount: Array.isArray(director?.checkpointStages) ? director.checkpointStages.length : undefined,
       longDirectorManualQualityReviewRequired: outputContract?.longFormManualQualityReviewRequired,
-      longDirectorBenchEvidenceRequired: outputContract?.directorBenchEvidenceRequired,
+      longDirectorBenchEvidenceRequired: outputContract?.benchmarkEvidenceRequired,
       longDirectorCanSubmitToProviderNow: outputContract?.canSubmitToProviderNow,
       longDirectorCanProceedToRenderAfterApproval: outputContract?.canProceedToRenderAfterApproval,
       longDirectorRepairQueueCount: outputContract?.repairQueueCount

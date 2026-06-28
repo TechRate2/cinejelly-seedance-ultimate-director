@@ -63,6 +63,10 @@ try {
     serialized.includes("operator-launch-ui-credential-2026") ||
     serialized.includes("sk-secret") ||
     serialized.includes("api_key=");
+  const privateSourcePatternLineageLeakDetected = await containsPrivateSourcePatternTextForSmoke(JSON.stringify({
+    dashboardPage: dashboardPage.body,
+    ui
+  }));
   const sourceReports = Array.isArray(ui?.sourceReports) ? ui.sourceReports : [];
   const productGaps = Array.isArray(ui?.productGaps) ? ui.productGaps : [];
   const nextActions = Array.isArray(ui?.nextActions) ? ui.nextActions : [];
@@ -108,7 +112,7 @@ try {
       : fail("source_report_cards_present", "Expected completion and report-contract source cards."),
     productGaps.some((gap) => gap.gapId === "first_party_web_ui" && gap.scopeDecisionRequired === true) &&
       productGaps.some((gap) => gap.gapId === "distributed_active_provider_work_resume") &&
-      productGaps.some((gap) => gap.gapId === "directorbench_style_benchmark_harness")
+      productGaps.some((gap) => gap.gapId === "director_benchmarking_style_benchmark_harness")
       ? pass("product_gaps_visible", "Contract surfaces the known product-code gaps without claiming launch completeness.")
       : fail("product_gaps_visible", "Expected known product-code gaps in UI contract."),
     nextActions.length >= 8 &&
@@ -124,7 +128,10 @@ try {
       : fail("release_gate_stays_blocked", "Expected UI contract release gate to remain non-release evidence."),
     !leakDetected
       ? pass("admin_contract_redacted", "Response does not expose deployment token, local absolute paths, or secret-like values.")
-      : fail("admin_contract_redacted", "Expected response to stay redacted.")
+      : fail("admin_contract_redacted", "Expected response to stay redacted."),
+    !privateSourcePatternLineageLeakDetected
+      ? pass("operator_ui_hides_private_source_pattern_lineage", "Operator dashboard HTML and UI contract do not expose private source-pattern repo, platform, or upstream workflow labels.")
+      : fail("operator_ui_hides_private_source_pattern_lineage", "Expected operator dashboard HTML and UI contract to hide private source-pattern lineage.")
   ];
 
   report = {
@@ -225,6 +232,50 @@ function writeJson(outputPath, value) {
   const absolutePath = resolve(repoRoot, outputPath);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+const PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS = [
+  "Topview",
+  "Higgsfield",
+  "OpenMontage",
+  "VideoAgent",
+  "ViMax",
+  "vibeframe",
+  "YouMind-OpenLab",
+  "ZeroLu",
+  "Emily2040",
+  "higgsfield-ai",
+  "OSideMedia",
+  "calesthio/",
+  "HKUDS/",
+  "video-db/",
+  "vericontext/",
+  "harry0703/",
+  "MoneyPrinterTurbo",
+  "moneyprinterturbo",
+  "jiaminchen-1031/",
+  "DirectorBench",
+  "directorbench",
+  "nirdiamant/",
+  "gswithjeff/",
+  "Shubhamsaboo/",
+  "hereandnowai/",
+  "Anil-matcha/"
+];
+
+async function containsPrivateSourcePatternTextForSmoke(value) {
+  try {
+    const registry = await import("../dist/core/private-source-pattern-registry.js");
+    if (typeof registry.containsPrivateSourcePatternText === "function") {
+      return registry.containsPrivateSourcePatternText(value);
+    }
+  } catch {
+    // A clean checkout may run this script before build output exists.
+  }
+  const lowered = value.toLowerCase();
+  return PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS.some((fragment) =>
+    lowered.includes(fragment.toLowerCase())
+  );
 }
 
 function pass(name, message) {

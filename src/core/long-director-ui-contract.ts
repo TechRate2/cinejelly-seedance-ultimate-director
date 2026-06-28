@@ -6,6 +6,7 @@ import type {
   LongDirectorUiWorkflowMode
 } from "../types/long-director-ui.js";
 import type { LongFormCreativeIntelligencePlan } from "../types/long-form-creative-intelligence.js";
+import { redactPrivateSourcePatternText } from "./private-source-pattern-registry.js";
 
 const LONG_COMMERCIAL_MIN_SECONDS = 120;
 const LONG_COMMERCIAL_MAX_SECONDS = 480;
@@ -45,17 +46,17 @@ export function buildLongDirectorUiContract(plan: LongFormCreativeIntelligencePl
       findingCount: plan.directorPlan.findings.length,
       blockerCount: plan.directorPlan.findings.filter((finding) => finding.severity === "block").length,
       warningCount: plan.directorPlan.findings.filter((finding) => finding.severity === "warn").length,
-      directives: plan.directorPlan.directorDirectives
+      directives: plan.directorPlan.directorDirectives.map(safeUiString)
     },
     creative: {
       qualityScore: plan.qualityScore,
-      niche: plan.nicheStrategy.niche,
-      platformIntent: plan.nicheStrategy.platformIntent,
-      desiredViewerAction: plan.nicheStrategy.desiredViewerAction,
-      trendPosture: plan.nicheStrategy.trendPosture,
-      viewerObjection: plan.nicheStrategy.viewerObjection,
-      proofStrategy: plan.nicheStrategy.proofStrategy,
-      shareTrigger: plan.nicheStrategy.shareTrigger,
+      niche: safeUiString(plan.nicheStrategy.niche),
+      platformIntent: safeUiString(plan.nicheStrategy.platformIntent),
+      desiredViewerAction: safeUiString(plan.nicheStrategy.desiredViewerAction),
+      trendPosture: safeUiString(plan.nicheStrategy.trendPosture),
+      viewerObjection: safeUiString(plan.nicheStrategy.viewerObjection),
+      proofStrategy: safeUiString(plan.nicheStrategy.proofStrategy),
+      shareTrigger: safeUiString(plan.nicheStrategy.shareTrigger),
       ideaSeedCount: plan.nicheStrategy.audienceNicheIntelligence.ideaSeeds.length,
       viralLeverCount: plan.nicheStrategy.viralLevers.length,
       findingCount: plan.findingCount,
@@ -71,7 +72,7 @@ export function buildLongDirectorUiContract(plan: LongFormCreativeIntelligencePl
     outputContract: {
       finalMp4AssemblyManagedByBackend: true,
       longFormManualQualityReviewRequired: true,
-      directorBenchEvidenceRequired: true,
+      benchmarkEvidenceRequired: true,
       canSubmitToProviderNow: false,
       canProceedToRenderAfterApproval,
       captionCoverageRatio: plan.audioCaptionQuality.captionCoverageRatio,
@@ -82,7 +83,7 @@ export function buildLongDirectorUiContract(plan: LongFormCreativeIntelligencePl
     releaseGateSummary: {
       readyForLongReviewUiIntegration: backendManagedSteps.every((step) => step.status !== "blocked"),
       canReleaseToCustomerTraffic: false,
-      releaseBlocker: "Long Director UI contract is no-spend review-console evidence only; customer release still requires paid 2-8 minute validation, artifact validation, accepted manual quality/redaction review, and DirectorBench-style evidence."
+      releaseBlocker: "Long Director UI contract is no-spend review-console evidence only; customer release still requires paid 2-8 minute validation, artifact validation, accepted manual quality/redaction review, and benchmark-grade evidence."
     }
   };
 }
@@ -105,7 +106,7 @@ function workflowControls(
     control("continuity_review", "Continuity", true, true, "Inspect identity, product, environment, style, and source-video structure anchors across sequences."),
     control("candidate_review", "Candidates", plan.candidateDirectiveCount > 0, true, "Prioritize multi-candidate coverage for hook, payoff, transition, face, product, and source-video-sensitive shots."),
     control("repair_queue", "Repair queue", highPriorityRepairCount > 0 || plan.repairDirectiveCount > 0, plan.repairDirectiveCount > 0, "Resolve story, sequence, shot, prompt, timeline, or postproduction repair directives before paid validation."),
-    control("manual_quality_review", "Manual review", true, true, "Bind paid artifacts to quality/redaction review and DirectorBench-style evidence before customer release.")
+    control("manual_quality_review", "Manual review", true, true, "Bind paid artifacts to quality/redaction review and benchmark-grade evidence before customer release.")
   ];
 }
 
@@ -154,8 +155,8 @@ function userActions(plan: LongFormCreativeIntelligencePlan, highPriorityRepairC
       "Customer release requires artifact-bound manual review after paid render output exists."
     ),
     userAction(
-      "accept_directorbench_evidence",
-      "Accept DirectorBench-style semantic, audio, runtime, and governance evidence",
+      "accept_benchmark_evidence",
+      "Accept benchmark-grade semantic, audio, runtime, and governance evidence",
       "needs_review",
       true,
       "Full parity claims need accepted quality evidence, not only local planner scores."
@@ -170,7 +171,7 @@ function control(
   enabled: boolean,
   reason: string
 ): LongDirectorUiWorkflowControl {
-  return { mode, label, recommended, enabled, reason };
+  return { mode, label: safeUiString(label), recommended, enabled, reason: safeUiString(reason) };
 }
 
 function backendAction(
@@ -179,7 +180,7 @@ function backendAction(
   status: LongDirectorUiActionStatus,
   reason: string
 ): LongDirectorUiAction {
-  return { actionId, label, status, required: true, handledBy: "backend", reason };
+  return { actionId, label: safeUiString(label), status, required: true, handledBy: "backend", reason: safeUiString(reason) };
 }
 
 function userAction(
@@ -189,5 +190,11 @@ function userAction(
   required: boolean,
   reason: string
 ): LongDirectorUiAction {
-  return { actionId, label, status, required, handledBy: "user", reason };
+  return { actionId, label: safeUiString(label), status, required, handledBy: "user", reason: safeUiString(reason) };
+}
+
+function safeUiString(value: string): string {
+  return redactPrivateSourcePatternText(value)
+    .replace(/\s+/g, " ")
+    .trim();
 }

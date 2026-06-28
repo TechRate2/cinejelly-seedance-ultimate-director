@@ -30,6 +30,7 @@ export type PrivateSourcePatternId =
   | "emily_seedance_2"
   | "emily_seedance_skill_os_mit"
   | "gswithjeff_autogen"
+  | "harry_moneyprinterturbo"
   | "hereandnow_langgraph_workflows"
   | "higgsfield_cinematic_prompt_guide"
   | "higgsfield_product_to_video_guide"
@@ -38,6 +39,7 @@ export type PrivateSourcePatternId =
   | "hkuds_videoagent"
   | "hkuds_vimax"
   | "hkuds_vimax_reference_consistency_patterns"
+  | "jiaminchen_directorbench"
   | "nirdiamant_genai_agents_content"
   | "openai_image_reference_board_workflow"
   | "osidemedia_higgsfield_prompt_skill_mit"
@@ -96,6 +98,8 @@ const RECORDS = [
   record("hkuds_videoagent", "HKUDS/VideoAgent", "video_planning", "public_docs_observation"),
   record("video_db_director", "video-db/Director", "director_workflow", "public_docs_observation"),
   record("vericontext_vibeframe", "vericontext/vibeframe", "video_planning", "public_docs_observation"),
+  record("harry_moneyprinterturbo", "harry0703/MoneyPrinterTurbo", "video_planning", "public_docs_observation"),
+  record("jiaminchen_directorbench", "jiaminchen-1031/DirectorBench", "director_workflow", "public_docs_observation"),
   record("hereandnow_langgraph_workflows", "hereandnowai/master-langgraph-workflows-in-python-20-real-world-agent-projects-by-hereandnow-ai", "agent_workflow", "public_docs_observation"),
   record("nirdiamant_genai_agents_content", "nirdiamant/genai_agents:ContentIntelligence", "agent_workflow", "public_docs_observation"),
   record("gswithjeff_autogen", "gswithjeff/autogen-multi-agent-workflow", "agent_workflow", "public_docs_observation"),
@@ -214,6 +218,10 @@ export function privateSourcePatternUiForbiddenFragments(): readonly string[] {
     "HKUDS/",
     "video-db/",
     "vericontext/",
+    "harry0703/",
+    "MoneyPrinterTurbo",
+    "jiaminchen-1031/",
+    "DirectorBench",
     "nirdiamant/",
     "gswithjeff/",
     "Shubhamsaboo/",
@@ -244,6 +252,12 @@ const UI_REDACTION_REPLACEMENTS: readonly (readonly [RegExp, string])[] = [
   [/\bHKUDS\/ViMax\b/gi, "reference-consistency-planning"],
   [/\bvideo-db\/Director\b/gi, "director-planning"],
   [/\bvericontext\/vibeframe\b/gi, "storyboard-video-planning"],
+  [/\bharry0703\/MoneyPrinterTurbo\b/gi, "postproduction-planning"],
+  [/\bjiaminchen-1031\/DirectorBench\b/gi, "director-benchmarking"],
+  [/\bMoneyPrinterTurbo\b/gi, "postproduction-planning"],
+  [/\bDirectorBench\b/gi, "director-benchmarking"],
+  [/moneyprinterturbo/gi, "postproduction-planning"],
+  [/directorbench/gi, "director-benchmarking"],
   [/\bnirdiamant\/genai_agents(?::ContentIntelligence)?\b/gi, "content-intelligence"],
   [/\bgswithjeff\/autogen-multi-agent-workflow\b/gi, "multi-agent-workflow"],
   [/\bShubhamsaboo\/awesome-llm-apps\b/gi, "agent-app-patterns"],

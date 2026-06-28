@@ -12,6 +12,7 @@ import type {
   OperatorLaunchUiProductGap,
   OperatorLaunchUiSourceReport
 } from "../types/operator-launch-ui.js";
+import { redactPrivateSourcePatternText } from "./private-source-pattern-registry.js";
 
 export interface OperatorLaunchUiReportInput {
   readonly reportId: string;
@@ -20,13 +21,6 @@ export interface OperatorLaunchUiReportInput {
   readonly payload?: unknown;
   readonly parseError?: string;
 }
-
-const SOURCE_PATTERN_ORIGINS = [
-  "harry0703/MoneyPrinterTurbo",
-  "vericontext/vibeframe",
-  "HKUDS/VideoAgent",
-  "jiaminchen-1031/DirectorBench"
-] as const;
 
 export function buildOperatorLaunchUiContract(
   reports: readonly OperatorLaunchUiReportInput[]
@@ -50,7 +44,6 @@ export function buildOperatorLaunchUiContract(
     networkCallsMade: false,
     providerCallsMade: false,
     dashboardStatus,
-    sourcePatternOrigins: SOURCE_PATTERN_ORIGINS,
     sourceReports,
     readiness: {
       evidenceCompletionPercent: numberValue(readinessSnapshot?.evidenceCompletionPercent),
@@ -67,7 +60,7 @@ export function buildOperatorLaunchUiContract(
       budgetFit: stringValue(budget?.budgetFit, "unknown"),
       approvedBudgetUsd: numberValue(budget?.approvedBudgetUsd),
       knownPaidEstimateUsd: numberValue(budget?.knownPaidEstimateUsd),
-      readyPaidGates: stringArrayValue(readinessSnapshot?.readyPaidGates),
+      readyPaidGates: stringArrayValue(readinessSnapshot?.readyPaidGates).map(safeUiString),
       readyPaidGateCount: numberValue(readinessSnapshot?.readyPaidGateCount),
       canRunGeneratedAudioPaidSlice: booleanValue(readinessSnapshot?.canRunGeneratedAudioPaidSlice, false),
       canRunFullKnownPaidSequence: booleanValue(readinessSnapshot?.canRunFullKnownPaidSequence, false),
@@ -77,7 +70,7 @@ export function buildOperatorLaunchUiContract(
       requiredInputCount: numberValue(operatorHandoff?.requiredInputCount),
       configuredInputCount: numberValue(operatorHandoff?.configuredInputCount),
       missingOrBlockedInputCount: numberValue(operatorHandoff?.missingOrBlockedInputCount),
-      blockedInputIds: stringArrayValue(operatorHandoff?.blockedInputIds),
+      blockedInputIds: stringArrayValue(operatorHandoff?.blockedInputIds).map(safeUiId),
       safeToShareWithOperators: booleanValue(operatorHandoff?.safeToShareWithOperators, false),
       commandPlanAuditStatus: stringValue(operatorHandoff?.commandPlanAuditStatus, "missing")
     },
@@ -99,7 +92,7 @@ function sourceReportFor(input: OperatorLaunchUiReportInput): OperatorLaunchUiSo
   const payload = objectValue(input.payload);
   return {
     reportId: input.reportId,
-    label: input.label,
+    label: safeUiString(input.label),
     reportPath: input.reportPath,
     present: Boolean(payload) && !input.parseError,
     status: input.parseError ? "invalid_json" : stringValue(payload?.status, payload ? "unknown" : "missing"),
@@ -130,15 +123,15 @@ function dashboardStatusFor(
 function productGapFor(value: unknown): OperatorLaunchUiProductGap {
   const gap = objectValue(value);
   return {
-    gapId: stringValue(gap?.id, "unknown_gap"),
-    label: stringValue(gap?.label, "Unknown product gap"),
-    category: stringValue(gap?.category, "product_gap"),
-    status: stringValue(gap?.status, "unknown"),
+    gapId: safeUiId(stringValue(gap?.id, "unknown_gap")),
+    label: safeUiString(stringValue(gap?.label, "Unknown product gap")),
+    category: safeUiId(stringValue(gap?.category, "product_gap")),
+    status: safeUiId(stringValue(gap?.status, "unknown")),
     currentCoveragePercent: numberValue(gap?.currentCoveragePercent),
     scopeDecisionRequired: booleanValue(gap?.scopeDecisionRequired, false),
     blocksApiCliCommercialLaunch: booleanValue(gap?.blocksApiCliCommercialLaunch, false),
     blocksFullSnapshotParity: booleanValue(gap?.blocksFullSnapshotParity, false),
-    requiredAction: stringValue(gap?.requiredAction, "Review product gap evidence.")
+    requiredAction: safeUiString(stringValue(gap?.requiredAction, "Review product gap evidence."))
   };
 }
 
@@ -151,13 +144,13 @@ function actionsFromRoadmap(roadmap: Record<string, unknown> | undefined): reado
       const commandGuards = arrayValue(requirement?.directCommandGuards).map(objectValue);
       const firstGuard = commandGuards.find(Boolean);
       return {
-        actionId: stringValue(requirement?.id, `action_${index + 1}`),
-        label: stringValue(requirement?.label, "Launch readiness action"),
+        actionId: safeUiId(stringValue(requirement?.id, `action_${index + 1}`)),
+        label: safeUiString(stringValue(requirement?.label, "Launch readiness action")),
         status: actionStatusFor(stringValue(requirement?.status, "needs_operator_input")),
-        owner: stringValue(requirement?.owner, "operator"),
-        category: stringValue(requirement?.category, "launch_readiness"),
+        owner: safeUiId(stringValue(requirement?.owner, "operator")),
+        category: safeUiId(stringValue(requirement?.category, "launch_readiness")),
         priority: numberValue(requirement?.order) || index + 1,
-        requiredAction: stringValue(requirement?.requiredAction, "Review the launch-readiness requirement."),
+        requiredAction: safeUiString(stringValue(requirement?.requiredAction, "Review the launch-readiness requirement.")),
         ...(directCommands[0] ? { command: directCommands[0] } : {}),
         requiresLiveNetwork: booleanValue(firstGuard?.requiresLiveNetwork, false),
         requiresProviderSpend: booleanValue(firstGuard?.requiresProviderSpend, false),
@@ -217,6 +210,20 @@ function numberValue(value: unknown): number {
 
 function booleanValue(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function safeUiString(value: string): string {
+  return redactPrivateSourcePatternText(value)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function safeUiId(value: string): string {
+  const safe = safeUiString(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return safe || "unknown";
 }
 
 function isDashboardStatus(value: string): value is OperatorLaunchUiDashboardStatus {

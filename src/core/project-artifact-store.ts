@@ -151,7 +151,7 @@ export class ProjectArtifactStore {
       longDirectorNarrativeMode: longDirectorUiContract.director.narrativeMode,
       longDirectorCheckpointStageCount: longDirectorUiContract.director.checkpointStages.length,
       longDirectorManualQualityReviewRequired: longDirectorUiContract.outputContract.longFormManualQualityReviewRequired,
-      longDirectorBenchEvidenceRequired: longDirectorUiContract.outputContract.directorBenchEvidenceRequired,
+      longDirectorBenchEvidenceRequired: longDirectorUiContract.outputContract.benchmarkEvidenceRequired,
       longDirectorCanSubmitToProviderNow: longDirectorUiContract.outputContract.canSubmitToProviderNow,
       longDirectorCanProceedToRenderAfterApproval: longDirectorUiContract.outputContract.canProceedToRenderAfterApproval,
       longDirectorRepairQueueCount: longDirectorUiContract.outputContract.repairQueueCount,

@@ -80,7 +80,7 @@ export interface LongDirectorUiContract {
   readonly outputContract: {
     readonly finalMp4AssemblyManagedByBackend: true;
     readonly longFormManualQualityReviewRequired: true;
-    readonly directorBenchEvidenceRequired: true;
+    readonly benchmarkEvidenceRequired: true;
     readonly canSubmitToProviderNow: false;
     readonly canProceedToRenderAfterApproval: boolean;
     readonly captionCoverageRatio: number;
