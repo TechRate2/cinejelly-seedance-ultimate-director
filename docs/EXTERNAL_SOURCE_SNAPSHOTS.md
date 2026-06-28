@@ -2,20 +2,21 @@
 
 ## Purpose
 
-This document provides the authoritative inventory of Git Subtree snapshots under `external/upstream/` and the explicit policy for snapshotting, reviewing, and integrating patterns, structures, logic, and workflows from the original upstream repositories into CineJelly Seedance Ultimate Director.
+This document provides the authoritative inventory of curated upstream source snapshots under `external/upstream/` and the explicit policy for snapshotting, reviewing, and integrating patterns, structures, logic, and workflows from the original upstream repositories into CineJelly Seedance Ultimate Director.
 
 We are explicitly permitted and encouraged to snapshot the upstream repositories using Git Subtree with `--squash`, review their content, and integrate, adapt, and improve the useful patterns, structures, and logic into our own autonomous CineJelly-owned implementation.
 
 ## Core Integration Policy
 
 1. **Subtree**: Bring the original repo into `external/upstream/<name>` using `git subtree add --prefix=external/upstream/<name> <url> <branch> --squash`, or `git subtree pull` with `--squash` to refresh.
-2. **Snapshot**: Preserve the upstream repository as read-only source material with a clean squashed history boundary.
-3. **Review**: Examine license, structure, prompt patterns, agent workflows, graph designs, provider logic, quality gates, long-form strategies, error handling, and cost handling.
-4. **Adapt + Improve**: Extract the useful essence, not whole files. Redesign it to fit CineJelly contracts such as Production Graph, Provider Abstraction, Prompt Compiler rules, Guardian checkpoints, flexible settings, and 2-8 minute long-form control.
-5. **Faithful Logic Translation**: For behavior-critical logic, create a non-production Reference Implementation before production work. See `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`.
-6. **Write New Code**: Implement as clean, production-grade TypeScript in `src/`. This must be original CineJelly work: new or substantially adapted implementation that combines and improves upon snapshotted ideas.
-7. **Attribute**: Record origin, local snapshot path, license, preserved behavior, changed behavior, and CineJelly extension in `docs/CREDITS.md`, this file, focused design docs, or source comments.
-8. **Enforce**: Production code must never import directly from `external/upstream/`. All runtime behavior lives in owned `src/` modules.
+2. **Prune**: Remove upstream tests, mocks, demos, examples, generated build folders, temporary files, notebooks, and sample media from the tracked product repo. Keep raw full clones outside this repo when deeper legal/source review needs them.
+3. **Snapshot**: Preserve the curated upstream repository as read-only source material with a clean squashed history boundary.
+4. **Review**: Examine license, structure, prompt patterns, agent workflows, graph designs, provider logic, quality gates, long-form strategies, error handling, and cost handling.
+5. **Adapt + Improve**: Extract the useful essence, not whole files. Redesign it to fit CineJelly contracts such as Production Graph, Provider Abstraction, Prompt Compiler rules, Guardian checkpoints, flexible settings, and 2-8 minute long-form control.
+6. **Faithful Logic Translation**: For behavior-critical logic, create a non-production Reference Implementation before production work. See `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`.
+7. **Write New Code**: Implement as clean, production-grade TypeScript in `src/`. This must be original CineJelly work: new or substantially adapted implementation that combines and improves upon snapshotted ideas.
+8. **Attribute**: Record origin, local snapshot path, license, preserved behavior, changed behavior, and CineJelly extension in `docs/CREDITS.md`, this file, focused design docs, or source comments.
+9. **Enforce**: Production code must never import directly from `external/upstream/`. All runtime behavior lives in owned `src/` modules, and `npm.cmd run validation:snapshot-parity` must keep source hygiene passing.
 
 Result: the final product is a self-reliant commercial system that is stronger than any single upstream repository, with Atlas Cloud as default, full support for flexible settings, long videos, and professional delivery artifacts.
 
@@ -145,6 +146,6 @@ Implementation sequencing and milestone checks are tracked in `docs/IMPLEMENTATI
 
 ## Security Handling
 
-Upstream snapshots may contain their own sample configuration files, tests, demos, and development assets. Keep those files inside the snapshot/audit layer until they are explicitly reviewed and copied/adapted into CineJelly-owned product paths. Before every push, run a redacted secret audit that reports file paths and counts only, never raw secret-like values.
+Upstream source snapshots in this product repo are curated: tests, mocks, demos, examples, generated build folders, temporary files, notebooks, and sample media should be pruned before push. Keep raw upstream clones outside the product repository when full-source forensic comparison is needed. Before every push, run `npm.cmd run validation:snapshot-parity` so the source hygiene guard reports file paths and counts only, never raw secret-like values.
 
 Last updated: June 2026

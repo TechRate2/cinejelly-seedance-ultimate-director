@@ -8,7 +8,7 @@ This document is a production architecture specification for the first commercia
 
 Current repository:
 
-- `TechRate2/cinejelly-seedance-ultimate-director`: inspected as the current commercial product repository. Documentation now assumes upstream repositories are brought in with Git Subtree snapshots under `external/upstream/`.
+- `TechRate2/cinejelly-seedance-ultimate-director`: inspected as the current commercial product repository. Documentation now assumes upstream repositories are brought in as curated source snapshots under `external/upstream/`.
 
 Public sources:
 

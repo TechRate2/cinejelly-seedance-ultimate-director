@@ -23,14 +23,14 @@ The target long-form range is 2 to 8 minutes with high consistency.
 ## Non-Negotiable Rules
 
 - Production-grade only.
-- No CineJelly-owned test/mock/demo/sample/example files in the production runtime. Upstream snapshots may contain original upstream development files under `external/upstream/`; those files become product material only after an intentional copy/adapt step.
+- No CineJelly-owned test/mock/demo/sample/example files in the production runtime. Upstream snapshot tests, mocks, demos, examples, generated build folders, temporary files, notebooks, and sample media are pruned from `external/upstream/`; upstream material becomes product material only after an intentional copy/adapt step.
 - Never commit `.env`, API keys, tokens, private keys, credentials, or generated customer media.
 - Atlas Cloud is the default provider.
 - Use a Model Provider Abstraction so future providers such as Kie.ai, fal.ai, Runway, Replicate, or direct Volcengine can be added later.
 - Do not hardcode niche templates.
 - Copy/adapt public prompt examples into product content only when license, attribution, and product review are satisfied.
 - Reuse AGPL code from OpenMontage only when the product accepts AGPL obligations or legal review approves the reuse path.
-- Keep `external/upstream/` as Git Subtree source snapshots; productized behavior must move into CineJelly-owned `src/`, `data/`, or `docs/` with attribution.
+- Keep `external/upstream/` as curated upstream source snapshots; productized behavior must move into CineJelly-owned `src/`, `data/`, or `docs/` with attribution.
 - Production code must not import directly from `external/upstream/`.
 - Code under `src/` must be new or substantially adapted CineJelly implementation, not unchanged large upstream files.
 - For behavior-critical source-derived logic, use Faithful Logic Translation before production code: Deep Analysis, Reference Implementation, Fidelity Review, CineJelly Rewriting, Integration, and Validation.
@@ -113,15 +113,15 @@ flowchart LR
 - Emily2040/seedance-2.0: intent-first Seedance workflow, reference roles, professional shot/QC handoff.
 - YouMind-OpenLab/awesome-seedance-2-prompts: prompt structure patterns, reusable prompt anatomy, and attribution-reviewed prompt-pattern snapshots.
 - HKUDS/ViMax: multi-agent long-form planning, storyboard, reference selection, consistency validation.
-- VibeFrame: deterministic artifacts, dry runs, cost gates, build/review reports, repair loop.
-- DirectorBench: checkpoint-level long-form diagnosis across script, visual, audio, cross-modal, stability.
+- vericontext/vibeframe: deterministic artifacts, dry runs, cost gates, build/review reports, repair loop.
+- jiaminchen-1031/DirectorBench: checkpoint-level long-form diagnosis across script, visual, audio, cross-modal, stability.
 - video-db/Director: chat-style media reasoning, dynamic agent/tool orchestration, media content payloads, WebSocket-style progress, and frontend chat/playback workflow patterns.
 - HKUDS/VideoAgent: video understanding, intent decomposition, graph-powered tool planning.
-- OpenMontage: reference-video analysis, approval gates, provider scoring, real-footage path, self-review.
-- MoneyPrinterTurbo: staged one-input video generation, material sourcing, batch outputs, subtitles/TTS/BGM, task progress, API/CLI/WebUI operations.
+- calesthio/OpenMontage: reference-video analysis, approval gates, provider scoring, real-footage path, self-review.
+- harry0703/MoneyPrinterTurbo: staged one-input video generation, material sourcing, batch outputs, subtitles/TTS/BGM, task progress, API/CLI/WebUI operations.
 - Atlas Cloud: default API gateway, OpenAI-compatible LLM endpoint, async media generation, prediction/result polling compatibility, Seedance 2.0, direct clean references, and media upload.
 
-Local upstream snapshots are stored under `external/upstream/` and governed by `docs/SUBTREE_POLICY.md` plus `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`.
+Local curated upstream source snapshots are stored under `external/upstream/` and governed by `docs/SUBTREE_POLICY.md` plus `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`.
 
 Faithful Logic Translation is the required path for high-fidelity implementation of important upstream behavior. The goal is to preserve useful logic details such as ordering, weighting, edge cases, fallback decisions, and repair strategy while rewriting the production module as CineJelly-owned TypeScript. The Reference Implementation step is a non-production bridge under `docs/`; it must not be imported by runtime code.
 
@@ -146,7 +146,7 @@ Faithful Logic Translation is the required path for high-fidelity implementation
 
 ## Current Repo State
 
-The repo contains architecture/design documentation, upstream Git Subtree snapshots, and a substantial production TypeScript foundation for the first commercial pipeline. The implementation is CineJelly-owned product code adapted from credited source snapshots where useful; external snapshots are not live dependencies, direct production imports from `external/upstream/` are disallowed, and bundled prompt corpora or upstream implementation logic require the license review path described in `docs/SUBTREE_POLICY.md`.
+The repo contains architecture/design documentation, curated upstream source snapshots, and a substantial production TypeScript foundation for the first commercial pipeline. The implementation is CineJelly-owned product code adapted from credited source snapshots where useful; external snapshots are not live dependencies, direct production imports from `external/upstream/` are disallowed, and bundled prompt corpora or upstream implementation logic require the license review path described in `docs/SUBTREE_POLICY.md`.
 
 The current foundation is ready for the next wave of high-fidelity source translation, but it should not be read as full upstream parity. Before changing behavior-critical modules, create or update a Reference Implementation using `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`, then rewrite the behavior into the appropriate CineJelly layer under `src/`.
 
@@ -218,7 +218,7 @@ For accurate work:
 
 ## Source Snapshot And Reuse Boundary
 
-CineJelly should be source-traceable and product-owned. Git Subtree snapshots are raw material for copying, adapting, and integrating the best upstream parts into CineJelly's own Production Graph, Prompt Compiler, Consistency Guardian, provider layer, and long-form workflow.
+CineJelly should be source-traceable and product-owned. Curated upstream source snapshots are raw material for copying, adapting, and integrating the best upstream parts into CineJelly's own Production Graph, Prompt Compiler, Consistency Guardian, provider layer, and long-form workflow.
 
 Source-traceable means:
 

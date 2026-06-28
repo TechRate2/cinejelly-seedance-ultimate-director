@@ -54,6 +54,41 @@ build/
 .vite/
 coverage/
 
+# Curated upstream snapshot hygiene
+external/upstream/**/test/
+external/upstream/**/tests/
+external/upstream/**/__tests__/
+external/upstream/**/mock/
+external/upstream/**/mocks/
+external/upstream/**/fixture/
+external/upstream/**/fixtures/
+external/upstream/**/sample/
+external/upstream/**/samples/
+external/upstream/**/demo/
+external/upstream/**/demos/
+external/upstream/**/example/
+external/upstream/**/examples/
+external/upstream/**/build/
+external/upstream/**/temp/
+external/upstream/**/tmp/
+external/upstream/**/*.test.*
+external/upstream/**/*.spec.*
+external/upstream/**/*.mp4
+external/upstream/**/*.mov
+external/upstream/**/*.mkv
+external/upstream/**/*.avi
+external/upstream/**/*.webm
+external/upstream/**/*.mp3
+external/upstream/**/*.wav
+external/upstream/**/*.flac
+external/upstream/**/*.aac
+external/upstream/**/*.jpg
+external/upstream/**/*.jpeg
+external/upstream/**/*.png
+external/upstream/**/*.ipynb
+external/upstream/**/*.npy
+external/upstream/**/*.gz
+
 # CineJelly generated media and transient production artifacts
 assets/reference_inputs/*
 assets/output_deliverables/*

@@ -17,6 +17,7 @@
     "functionalParityEstimates",
     "referenceImplementations",
     "directExternalImports",
+    "sourceHygiene",
     "checks",
     "releaseGateSummary",
     "nextActions"
@@ -36,6 +37,7 @@
         "requiredDocumentCount",
         "requiredReferenceImplementationCount",
         "scannedSourceRoots",
+        "sourceHygieneRoots",
         "outputPath"
       ],
       "properties": {
@@ -43,6 +45,7 @@
         "requiredDocumentCount": { "type": "integer", "minimum": 0 },
         "requiredReferenceImplementationCount": { "type": "integer", "minimum": 0 },
         "scannedSourceRoots": { "type": "array", "items": { "type": "string" } },
+        "sourceHygieneRoots": { "type": "array", "items": { "type": "string" } },
         "outputPath": { "type": "string" }
       }
     },
@@ -61,6 +64,8 @@
         "averageSnapshotParityEstimateMaxPercent",
         "referenceImplementationCount",
         "directExternalImportFindingCount",
+        "productOwnedTestMockFindingCount",
+        "externalSnapshotPrunableFileCount",
         "passedChecks",
         "warningChecks",
         "failedChecks"
@@ -77,6 +82,8 @@
         "averageSnapshotParityEstimateMaxPercent": { "type": "integer", "minimum": 0, "maximum": 100 },
         "referenceImplementationCount": { "type": "integer", "minimum": 0 },
         "directExternalImportFindingCount": { "type": "integer", "minimum": 0 },
+        "productOwnedTestMockFindingCount": { "type": "integer", "minimum": 0 },
+        "externalSnapshotPrunableFileCount": { "type": "integer", "minimum": 0 },
         "passedChecks": { "type": "integer", "minimum": 0 },
         "warningChecks": { "type": "integer", "minimum": 0 },
         "failedChecks": { "type": "integer", "minimum": 0 }
@@ -107,6 +114,7 @@
         }
       }
     },
+    "sourceHygiene": { "$ref": "#/$defs/sourceHygiene" },
     "checks": {
       "type": "array",
       "items": { "$ref": "#/$defs/check" }
@@ -131,6 +139,32 @@
     "error": { "type": "string" }
   },
   "$defs": {
+    "sourceHygiene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "hygienePolicy",
+        "productOwnedScannedRoots",
+        "productOwnedFileCount",
+        "productOwnedTestMockFindingCount",
+        "productOwnedTestMockFindingsSample",
+        "externalSnapshotFileCount",
+        "externalSnapshotPrunableFileCount",
+        "externalSnapshotPrunableFilesSample"
+      ],
+      "properties": {
+        "status": { "enum": ["pass", "fail"] },
+        "hygienePolicy": { "type": "string" },
+        "productOwnedScannedRoots": { "type": "array", "items": { "type": "string" } },
+        "productOwnedFileCount": { "type": "integer", "minimum": 0 },
+        "productOwnedTestMockFindingCount": { "type": "integer", "minimum": 0 },
+        "productOwnedTestMockFindingsSample": { "type": "array", "items": { "type": "string" } },
+        "externalSnapshotFileCount": { "type": "integer", "minimum": 0 },
+        "externalSnapshotPrunableFileCount": { "type": "integer", "minimum": 0 },
+        "externalSnapshotPrunableFilesSample": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "snapshotInventoryItem": {
       "type": "object",
       "additionalProperties": false,
