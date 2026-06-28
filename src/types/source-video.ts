@@ -1,6 +1,6 @@
 /**
  * Source-video deconstruction contracts.
- * Inspired by VideoAgent/OpenMontage patterns: external video-understanding work can feed transcript, pacing,
+ * Inspired by source-video understanding patterns: external video-understanding work can feed transcript, pacing,
  * keyframe, style, and safety structure into CineJelly without making upstream repos a runtime dependency.
  */
 

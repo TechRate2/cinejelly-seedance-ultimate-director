@@ -117,6 +117,12 @@ const RECORDS = [
 export const PRIVATE_SOURCE_PATTERN_REGISTRY: Readonly<Record<PrivateSourcePatternId, PrivateSourcePatternRecord>> =
   Object.fromEntries(RECORDS.map((item) => [item.id, item])) as Readonly<Record<PrivateSourcePatternId, PrivateSourcePatternRecord>>;
 
+const SNAPSHOT_PATHS: Partial<Record<PrivateSourcePatternId, string>> = {
+  emily_seedance_2: "external/upstream/seedance-2.0/references/reference-workflow.md",
+  hkuds_vimax: "external/upstream/vimax/agent_runtime/session_index.py",
+  vericontext_vibeframe: "external/upstream/vibeframe/README.md"
+};
+
 export const SHORT_CORE_SOURCE_PATTERN_IDS = [
   "calesthio_openmontage",
   "hkuds_vimax",
@@ -299,6 +305,10 @@ export function internalSourcePatternOrigins(ids: readonly PrivateSourcePatternI
 
 export function internalSourcePatternOrigin(id: PrivateSourcePatternId): string {
   return PRIVATE_SOURCE_PATTERN_REGISTRY[id].label;
+}
+
+export function internalSourcePatternSnapshotPath(id: PrivateSourcePatternId): string {
+  return SNAPSHOT_PATHS[id] ?? "external/upstream/source-pattern-registry";
 }
 
 export function reviewApprovalSourcePatternOrigins(surface: ReviewApprovalSurface): readonly string[] {

@@ -1,6 +1,6 @@
 /**
  * Short Director planner.
- * Translates Seedance 2.0 short/multishot grammar and OpenMontage short-form/checkpoint behavior
+ * Translates Seedance 2.0 short/multishot grammar and short-form checkpoint behavior
  * into a no-spend CineJelly-owned planning artifact.
  */
 
@@ -179,7 +179,7 @@ export class ShortDirectorPlanner {
       findings.push({
         code: "no_visible_text_caption_adaptation",
         severity: "info",
-        message: "OpenMontage-style short-form captions are adapted into review/export metadata because this product policy forbids visible text in video.",
+        message: "Storyboard-style short-form captions are adapted into review/export metadata because this product policy forbids visible text in video.",
         repair: "Keep captions disabled for burn-in; expose transcript/caption review outside the rendered frame."
       });
     }

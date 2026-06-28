@@ -1,6 +1,6 @@
 /**
  * Long-form creative intelligence planner.
- * It translates ViMax/VideoAgent/DirectorBench/OpenMontage-style director reasoning into deterministic
+ * It translates reference-consistency, agentic-video, benchmark, and storyboard director reasoning into deterministic
  * CineJelly-owned story bible, viral strategy, quality, repair, and candidate-selection evidence.
  */
 

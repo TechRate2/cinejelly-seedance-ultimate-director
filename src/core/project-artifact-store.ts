@@ -1,6 +1,6 @@
 /**
  * Durable project artifact writer.
- * Extension based on VibeFrame and OpenMontage artifact discipline: every production run emits deterministic,
+ * Extension based on storyboard-video artifact discipline: every production run emits deterministic,
  * redacted JSON artifacts for review, repair, cost audit, and customer handoff.
  */
 

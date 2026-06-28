@@ -1,6 +1,6 @@
 /**
  * Source Video Analyst normalizes caller-supplied video deconstruction metadata.
- * It supports OpenMontage/VideoAgent-style source-video structure without copying their code or requiring live repos.
+ * It supports source-video structure analysis without copying upstream code or requiring live repos.
  */
 
 import type { PromptReference } from "../types/prompt.js";

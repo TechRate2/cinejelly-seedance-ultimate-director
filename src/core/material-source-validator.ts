@@ -1,6 +1,6 @@
 /**
  * Material source validation gate.
- * CineJelly-owned rewrite of MoneyPrinterTurbo/VibeFrame-style source-material checks:
+ * CineJelly-owned rewrite of staged source-material checks:
  * keep adapter output tied to approved briefs, rights, URI safety, and operator-visible evidence.
  */
 

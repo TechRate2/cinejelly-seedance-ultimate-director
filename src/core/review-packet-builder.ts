@@ -1,6 +1,6 @@
 /**
  * Review Packet Builder.
- * Extension based on VibeFrame/OpenMontage review-report discipline:
+ * Extension based on storyboard-video review-report discipline:
  * emit one commercial handoff summary that ties planning, render, cost, and delivery evidence together.
  */
 

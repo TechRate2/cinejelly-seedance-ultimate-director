@@ -1,6 +1,6 @@
 /**
  * Deterministic long-form agentic review board.
- * It translates ViMax/VideoAgent-style multi-agent review into CineJelly-owned no-spend evidence.
+ * It translates reference-consistency and agentic-video review into CineJelly-owned no-spend evidence.
  */
 
 import type { StoryPlan } from "../types/agent.js";

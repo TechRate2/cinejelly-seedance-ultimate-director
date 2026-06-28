@@ -1,6 +1,6 @@
 /**
  * Validates provider-generated audio results before they can become mix tracks.
- * Inspired by MoneyPrinterTurbo audio-stage artifacts and VibeFrame validation-before-release discipline.
+ * Inspired by audio-stage artifacts and validation-before-release discipline.
  */
 
 import type { AudioMixTrack, AudioTrackRole, GeneratedAudioIntent, GeneratedAudioIntentKind } from "../types/audio.js";

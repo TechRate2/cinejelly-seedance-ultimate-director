@@ -1,6 +1,6 @@
 /**
  * Deterministic long-form timeline planner.
- * It translates ViMax/VideoAgent/MoneyPrinterTurbo timing and batch-output ideas into CineJelly-owned evidence.
+ * It translates continuity, agentic-video timing, and batch-output ideas into CineJelly-owned evidence.
  */
 
 import type { GeneratedAudioIntent } from "../types/audio.js";

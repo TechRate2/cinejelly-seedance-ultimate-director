@@ -1,6 +1,6 @@
 /**
  * Long Director planner.
- * Translates Seedance shot-list/continuity behavior and OpenMontage checkpoint discipline into a
+ * Translates Seedance shot-list/continuity behavior and checkpoint discipline into a
  * long-form-only planning artifact.
  */
 

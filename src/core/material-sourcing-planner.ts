@@ -1,5 +1,5 @@
 /**
- * Material sourcing planner inspired by MoneyPrinterTurbo's staged material flow,
+ * Material sourcing planner inspired by staged material flow,
  * implemented as CineJelly-owned planning contracts.
  *
  * This module does not call stock APIs and does not import upstream code. It turns

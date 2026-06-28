@@ -1,6 +1,6 @@
 /**
  * Builds deterministic stage lifecycle evidence for long-form and batch-aware runs.
- * Inspired by VibeFrame status/report discipline and MoneyPrinterTurbo stage progress,
+ * Inspired by status/report discipline and staged progress tracking,
  * rewritten as CineJelly-owned TypeScript.
  */
 

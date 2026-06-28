@@ -1,6 +1,6 @@
 /**
  * Render Cost Gate.
- * Extension based on VibeFrame/OpenMontage cost gates: estimate render spend before provider calls.
+ * Extension based on storyboard cost gates: estimate render spend before provider calls.
  * Provider prices come from runtime configuration, never from hardcoded assumptions.
  */
 

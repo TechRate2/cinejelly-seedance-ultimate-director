@@ -1,6 +1,6 @@
 /**
  * Maps generated-audio intents to verified provider capabilities without calling providers.
- * Inspired by MoneyPrinterTurbo audio-stage visibility and VibeFrame validation-before-spend discipline.
+ * Inspired by audio-stage visibility and validation-before-spend discipline.
  */
 
 import type { GeneratedAudioIntent } from "../types/audio.js";

@@ -1,6 +1,6 @@
 /**
  * Postproduction asset planner.
- * Inspired by MoneyPrinterTurbo subtitle/audio/BGM stage planning and VibeFrame review artifacts,
+ * Inspired by subtitle/audio/BGM stage planning and storyboard-video review artifacts,
  * rewritten as CineJelly-owned deterministic planning evidence.
  */
 

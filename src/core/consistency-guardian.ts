@@ -17,7 +17,10 @@ import type {
 import type { PromptBindingConflict, PromptBindingPlan, ShotContract } from "../types/prompt.js";
 import type { SourceRepositoryId } from "../types/source-translation.js";
 import type { StoryboardPanel } from "../types/storyboard.js";
-import { internalSourcePatternOrigin } from "./private-source-pattern-registry.js";
+import {
+  internalSourcePatternOrigin,
+  internalSourcePatternSnapshotPath
+} from "./private-source-pattern-registry.js";
 
 export class ConsistencyGuardian {
   public inspectStoryboard(input: StoryboardInspectionInput): GuardianReport {
@@ -575,15 +578,15 @@ export class ConsistencyGuardian {
   ): readonly GuardianSourceCheckpoint[] {
     if (finding.checkpoint.startsWith("storyboard_")) {
       return [
-        this.vibeframeCheckpoint("validate storyboard artifacts before build/render", "src/core/consistency-guardian.ts"),
-        this.vimaxCheckpoint("track stale planning artifacts and regenerate only affected storyboard outputs", "src/core/consistency-guardian.ts")
+        this.storyboardVideoCheckpoint("validate storyboard artifacts before build/render", "src/core/consistency-guardian.ts"),
+        this.referenceConsistencyCheckpoint("track stale planning artifacts and regenerate only affected storyboard outputs", "src/core/consistency-guardian.ts")
       ];
     }
     if (finding.checkpoint.startsWith("binding_")) {
       return [
         {
           sourceRepository: internalSourcePatternOrigin("emily_seedance_2") as SourceRepositoryId,
-          sourcePath: "external/upstream/seedance-2.0/references/reference-workflow.md",
+          sourcePath: internalSourcePatternSnapshotPath("emily_seedance_2"),
           behavior: "repair prompt/reference binding before provider spend",
           cineJellyDestination: "src/core/consistency-guardian.ts"
         }
@@ -591,17 +594,17 @@ export class ConsistencyGuardian {
     }
     if (repairScope === "render" || repairScope === "delivery") {
       return [
-        this.vibeframeCheckpoint("inspect render output and repair only the affected scene or shot", "src/core/consistency-guardian.ts")
+        this.storyboardVideoCheckpoint("inspect render output and repair only the affected scene or shot", "src/core/consistency-guardian.ts")
       ];
     }
     if (repairScope === "reference_binding") {
       return [
-        this.vimaxCheckpoint("preserve consistency through bounded reference selection and repair", "src/core/consistency-guardian.ts")
+        this.referenceConsistencyCheckpoint("preserve consistency through bounded reference selection and repair", "src/core/consistency-guardian.ts")
       ];
     }
     if (repairScope === "prompt") {
       return [
-        this.vibeframeCheckpoint("repair prompt/build artifact before rerendering", "src/core/consistency-guardian.ts")
+        this.storyboardVideoCheckpoint("repair prompt/build artifact before rerendering", "src/core/consistency-guardian.ts")
       ];
     }
     return [
@@ -639,19 +642,19 @@ export class ConsistencyGuardian {
     }
   }
 
-  private vibeframeCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
+  private storyboardVideoCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
     return {
       sourceRepository: internalSourcePatternOrigin("vericontext_vibeframe") as SourceRepositoryId,
-      sourcePath: "external/upstream/vibeframe/README.md",
+      sourcePath: internalSourcePatternSnapshotPath("vericontext_vibeframe"),
       behavior,
       cineJellyDestination
     };
   }
 
-  private vimaxCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
+  private referenceConsistencyCheckpoint(behavior: string, cineJellyDestination: string): GuardianSourceCheckpoint {
     return {
       sourceRepository: internalSourcePatternOrigin("hkuds_vimax") as SourceRepositoryId,
-      sourcePath: "external/upstream/vimax/agent_runtime/session_index.py",
+      sourcePath: internalSourcePatternSnapshotPath("hkuds_vimax"),
       behavior,
       cineJellyDestination
     };
