@@ -507,6 +507,20 @@ const fallbackMiniCapabilities = seedanceCapabilityProvider.capabilities("byteda
 const fallbackStandardCapabilities = seedanceCapabilityProvider.capabilities("bytedance/seedance-2.0/reference-to-video");
 const fallbackMiniCapability = fallbackMiniCapabilities[0];
 const fallbackStandardCapability = fallbackStandardCapabilities[0];
+const authorizedSourceVideoPrompt = new SeedancePromptCompiler().compile({
+  shot: sourceVideoBindingShot("authorized"),
+  settings: audioEnabledStoryboardSettings,
+  modelId: "bytedance/seedance-2.0/reference-to-video",
+  provider: "atlascloud",
+  providerSupportedReferenceKinds: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"]
+});
+const planningOnlySourceVideoPrompt = new SeedancePromptCompiler().compile({
+  shot: sourceVideoBindingShot("planning_only"),
+  settings: audioEnabledStoryboardSettings,
+  modelId: "bytedance/seedance-2.0/reference-to-video",
+  provider: "atlascloud",
+  providerSupportedReferenceKinds: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"]
+});
 
 const serialized = JSON.stringify({
   reviewRequiredPlan,
@@ -602,6 +616,12 @@ const checks = [
     fallbackStandardCapability?.resolutions.includes("1080p-SR")
     ? pass("seedance_mini_fallback_capability_guard", "Atlas fallback capabilities keep Seedance Mini on 480p/720p only while broader tiers retain higher/SR options.")
     : fail("seedance_mini_fallback_capability_guard", "Expected fallback capability mapping to prevent Mini from advertising unsupported high/SR resolutions."),
+  authorizedSourceVideoPrompt.videoRequest.references.some((reference) => reference.role === "source_video_structure" && reference.kind === "video") &&
+    authorizedSourceVideoPrompt.prompt.includes("use source/reference video only for rhythm") &&
+    planningOnlySourceVideoPrompt.videoRequest.references.every((reference) => reference.role !== "source_video_structure") &&
+    planningOnlySourceVideoPrompt.bindingPlan.conflicts.some((conflict) => conflict.code === "source_video_structure_planning_only")
+    ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references can reach provider video references, while unapproved source-video references stay planning-only.")
+    : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization and provider video capability."),
   hasEveryReviewSurface(reviewRequiredPlan)
     ? pass("review_surfaces_present", "Scene, audio, no-visible-text, and claim checkpoints are present before render.")
     : fail("review_surfaces_present", "Expected scene, audio, no-visible-text, and claim checkpoints."),
@@ -883,6 +903,59 @@ if (options.writeReport) {
 }
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 process.exit(report.status === "pass" ? 0 : 1);
+
+function sourceVideoBindingShot(mode) {
+  const authorized = mode === "authorized";
+  return {
+    shotId: `source_video_binding_${mode}`,
+    durationSeconds: 8,
+    intent: "prove source-video remake binding without provider spend",
+    subject: "approved KOL demonstrates the replacement serum using source-video rhythm only",
+    action: "match the uploaded trend rhythm, camera push, hand timing, and payoff endpoint while replacing performer, product, background, voice, music, captions, and claims",
+    camera: "handheld mirror-to-macro push with a clean final product-in-hand frame",
+    lighting: "soft bathroom vanity light with stable skin tone and product highlights",
+    audioIntent: "guided original voiceover with new licensed audio energy",
+    transitionIntent: "start from the source rhythm and end on a stable transition handle",
+    timeline: [
+      { startSecond: 0, endSecond: 2, action: "KOL enters the same rhythm with new product context" },
+      { startSecond: 2, endSecond: 6, action: "serum texture proof and hand motion replace the source product" },
+      { startSecond: 6, endSecond: 8, action: "settle on original payoff frame with replacement product visible" }
+    ],
+    references: [
+      promptReference("identity", "Remake KOL", "image", "asset://short-pipeline/remake-kol", "primary", true),
+      promptReference("product", "Remake serum pack", "image", "asset://short-pipeline/remake-serum-pack", "primary", true),
+      promptReference("source_video_structure", "Approved trend source video", "video", "asset://short-pipeline/approved-serum-trend", "supporting", authorized)
+    ],
+    continuity: {
+      identity: "Remake KOL",
+      product: "Glow Focus Serum",
+      environment: "approved bathroom vanity"
+    },
+    risks: ["face", "product_logo", "transition"],
+    metadata: {
+      storyArcRole: "video remake proof"
+    }
+  };
+}
+
+function promptReference(role, label, kind, uri, priority, authorized) {
+  const providerAssetId = uri.startsWith("asset://") ? uri.slice("asset://".length) : undefined;
+  return {
+    role,
+    label,
+    priority,
+    providerReference: {
+      kind,
+      uri,
+      role,
+      ...(providerAssetId ? { providerAssetId } : {}),
+      label
+    },
+    selection: {
+      authorized
+    }
+  };
+}
 
 function summarizePlan(plan) {
   return {

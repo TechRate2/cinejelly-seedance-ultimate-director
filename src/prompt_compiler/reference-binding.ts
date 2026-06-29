@@ -41,7 +41,7 @@ const ROLE_SCOPE: Record<ReferenceRole, string> = {
   audio_tempo: "guide audio rhythm only",
   voice: "guide voice character only",
   style: "guide visual style after continuity-critical references",
-  source_video_structure: "guide planning and shot structure, not default provider input"
+  source_video_structure: "guide planning and shot structure; provider input only when explicitly authorized and capability-supported"
 };
 
 const DEFAULT_MAX_PROVIDER_REFERENCES = 8;
@@ -173,19 +173,23 @@ function providerDecision(input: {
     };
   }
 
-  if (input.reference.role === "source_video_structure") {
+  if (input.reference.role === "source_video_structure" && (input.reference.selection?.authorized !== true || !input.supportedKinds)) {
     conflicts.push(
       conflict({
         status: "info",
         code: "source_video_structure_planning_only",
         reference: input.reference,
-        message: "Source-video structure is retained for planning/prose but not sent as provider input by default.",
-        repair: "Only enable provider submission when the selected provider explicitly supports this role."
+        message: input.reference.selection?.authorized === true
+          ? "Source-video structure is retained for planning/prose because selected-provider reference capabilities were not supplied."
+          : "Source-video structure is retained for planning/prose but not sent as provider input until source rights are explicitly authorized.",
+        repair: "Enable provider submission only after source rights review and selected-provider video reference capability are both present."
       })
     );
     return {
       include: false,
-      providerFilterReason: "planning-only reference role",
+      providerFilterReason: input.reference.selection?.authorized === true
+        ? "provider capability evidence missing for source-video reference"
+        : "source-video reference is not explicitly authorized for provider handoff",
       conflicts
     };
   }

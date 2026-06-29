@@ -139,7 +139,7 @@ Rules:
 - Audio references are attached to rhythm, lip-sync, cuts, or ambience.
 - First and last frames are treated as endpoint constraints.
 - If source limits conflict across articles, runtime provider schema wins.
-- `source_video_structure` remains planning/prose guidance by default and is not sent as a provider reference unless supported by the selected provider capability.
+- `source_video_structure` remains planning/prose guidance by default and is sent as a provider video reference only when source rights are explicitly authorized and the selected provider capability supports that reference kind.
 - Binding conflicts are emitted to Consistency Guardian preflight before provider spend.
 
 ## Identity vs Motion Weighting
