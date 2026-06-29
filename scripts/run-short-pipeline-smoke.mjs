@@ -751,10 +751,15 @@ const checks = [
     pendingRenderHandoff.request.settings?.audioMode === "guided" &&
     pendingRenderHandoff.request.userInput.includes("Scene plan:") &&
     pendingRenderHandoff.request.userInput.includes("No visible text") &&
+    pendingRenderHandoff.request.userInput.includes("Visual Bible image prompt packs:") &&
+    pendingRenderHandoff.request.userInput.includes("single_image_reference_sheet") &&
+    pendingRenderHandoff.request.userInput.includes("Image prompt:") &&
+    pendingRenderHandoff.request.userInput.includes("Negative prompt:") &&
+    pendingRenderHandoff.request.userInput.includes("Seedance binding:") &&
     !reviewInputCanQueueRender(pendingRenderHandoff.reviewApproval) &&
     !rawUrlLeaked
-    ? pass("render_handoff_request_contract", "Short plan can become a redacted render request with no caption burn-in, generated-audio intents, lineage metadata, and pending review still blocking queue.")
-    : fail("render_handoff_request_contract", "Expected short-plan render handoff to preserve lineage, no-visible-text policy, generated-audio intents, redaction, and pending review block."),
+    ? pass("render_handoff_request_contract", "Short plan can become a redacted render request with no caption burn-in, generated-audio intents, Visual Bible image prompt packs, lineage metadata, and pending review still blocking queue.")
+    : fail("render_handoff_request_contract", "Expected short-plan render handoff to preserve lineage, no-visible-text policy, generated-audio intents, Visual Bible image prompt packs, redaction, and pending review block."),
   approvedRenderHandoff.summary.canUseAsRenderJobHandoff &&
     reviewInputCanQueueRender(approvedRenderHandoff.reviewApproval) &&
     approvedRenderHandoff.request.settings?.durationTargetSeconds === reviewRequiredPlan.intent.targetDurationSeconds &&

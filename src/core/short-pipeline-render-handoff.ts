@@ -524,6 +524,7 @@ function renderPromptFromPlan(
     "Do not introduce unsupported claims. Preserve scene order.",
     visualTextPolicy.promptConstraint,
     audioPolicyPromptLine(audioPolicy),
+    priorityRenderHandoffSummaryFromPlan(plan, compact),
     product,
     brand,
     `Business goal: ${plan.intent.businessGoal}`,
@@ -534,12 +535,11 @@ function renderPromptFromPlan(
     `Aspect ratio: ${plan.intent.aspectRatio}`,
     durationArcFromPlan(plan, compact),
     seamlessEditContractFromPlan(plan, compact),
+    visualBibleFromPlan(plan, compact),
     template,
     concept ? `Primary concept: ${concept.label}. ${concept.angle} Hook: ${concept.hook}` : "",
     "Scene plan:",
     scenes,
-    "Claim review inventory:",
-    claims,
     mediaReferencesFromPlan(plan, compact),
     videoPipePlanFromPlan(plan, compact),
     seedanceRoutingFromPlan(plan, compact),
@@ -548,13 +548,90 @@ function renderPromptFromPlan(
     "Viral scene directives:",
     viralDirectivesFromPlan(plan, compact),
     seedancePromptPackFromPlan(plan, compact),
-    visualBibleFromPlan(plan, compact),
-    channelStyleFromPlan(plan, compact)
+    channelStyleFromPlan(plan, compact),
+    "Claim review inventory:",
+    claims
   ]);
   const fullPrompt = renderPrompt(false);
   return fullPrompt.length <= RENDER_PROMPT_MAX_CHARS
     ? fullPrompt
     : capRenderPrompt(renderPrompt(true), RENDER_PROMPT_MAX_CHARS);
+}
+
+function priorityRenderHandoffSummaryFromPlan(plan: ShortPipelinePlan, compact = false): string {
+  if (!compact) {
+    return "";
+  }
+  const strategy = plan.viralIntelligence.nicheStrategy;
+  const selectedIdea = selectedShortCreativeIdea(plan);
+  const visualBible = plan.visualBiblePlan;
+  const promptPack = plan.seedancePromptPack;
+  const firstTransitionBridge = promptPack?.shotPrompts.find((shot) => Boolean(shot.transitionBridge))?.transitionBridge;
+  const visualBibleImagePacks = visualBible.status === "not_needed"
+    ? ""
+    : visualBible.assetPlans
+        .slice(0, 2)
+        .map((asset) => {
+          const pack = asset.imagePromptPack;
+          return `${asset.role}: layout=${pack.layout}; output=${pack.outputPolicy}; Image prompt: ${boundedText(pack.prompt, 180)}; Negative prompt: ${boundedText(pack.negativePrompt, 120)}; Seedance binding: ${boundedText(pack.seedanceBindingInstruction, 120)}`;
+        })
+        .join(" | ");
+  const scenes = plan.scenes
+    .slice(0, 6)
+    .map((scene) => `${scene.order}:${scene.role}:${boundedText(scene.goal, 90)}`)
+    .join(" | ");
+  const sceneDirectives = plan.viralIntelligence.sceneDirectives
+    .slice(0, 6)
+    .map((directive) =>
+      `${directive.order}:${directive.role}:${directive.recommendedDurationSeconds}s first=${boundedText(directive.firstFrameRule, 90)} proof=${boundedText(directive.proofCue, 90)}`
+    )
+    .join(" | ");
+  const pipeOptions = plan.videoPipePlan.pipeOptions
+    .slice(0, 5)
+    .map((option) => `${option.mode}/${option.backendPipe}/${option.seedanceMode}/${option.preferredTier}`)
+    .join(" | ");
+  const promptCorpusPatterns = plan.viralIntelligence.creativePatternLearning.patterns
+    .filter((pattern) => pattern.source === "seedance_prompt_corpus")
+    .slice(0, 3)
+    .map((pattern) => pattern.label)
+    .join(" | ");
+  const platformPatterns = plan.viralIntelligence.creativePatternLearning.patterns
+    .filter((pattern) => pattern.source === "platform_template_corpus")
+    .slice(0, 3)
+    .map((pattern) => pattern.label)
+    .join(" | ");
+  const reference = plan.viralIntelligence.referenceVideoPattern;
+  const blueprint = plan.referenceRemakeBlueprint;
+  return compactLines([
+    "Priority render handoff summary: preserve these contracts if later detail is compacted.",
+    `Scene plan: ${scenes}.`,
+    `Video pipe plan: id=${plan.videoPipePlan.pipePlanId}; selected=${plan.videoPipePlan.selectedMode}; backendPipe=${plan.videoPipePlan.selectedBackendPipe}.`,
+    `Video pipe alignment: visualBiblePipe=${plan.videoPipePlan.visualBibleAlignment.visualBibleRecommendedPipe}; status=${plan.videoPipePlan.visualBibleAlignment.status}; reasons=${plan.videoPipePlan.selectionReasonCodes.join(", ") || "none"}.`,
+    `Available video pipes: ${pipeOptions}.`,
+    `Seedance routing: provider=${plan.seedanceRouting.provider}; mode=${plan.seedanceRouting.recommendedProviderMode}; tier=${plan.seedanceRouting.preferredTier}; model=${plan.seedanceRouting.modelAlias}; resolution=${plan.seedanceRouting.resolution}; returnLastFrame=${plan.seedanceRouting.returnLastFrame}.`,
+    visualBibleImagePacks ? `Visual Bible image prompt packs: ${visualBibleImagePacks}.` : "",
+    `Short viral strategy: niche=${strategy.niche}; audience=${strategy.audience}; platformFocus=${strategy.platformFocus}; creativeMode=${strategy.creativeMode}; buyerIntent=${strategy.buyerIntent}.`,
+    `Audience intelligence: presentation=${strategy.audienceNicheIntelligence.userPresentationStyle}; trendPosture=${strategy.audienceNicheIntelligence.trendPosture}; funnelStage=${strategy.audienceNicheIntelligence.funnelStage}.`,
+    `Idea seeds: ${strategy.audienceNicheIntelligence.ideaSeeds.slice(0, 3).map((seed) => boundedText(seed, 120)).join(" | ")}.`,
+    `Creative pattern learning: patterns=${plan.viralIntelligence.creativePatternLearning.patternCount}; candidates=${plan.viralIntelligence.creativePatternLearning.candidateCount}; selectedIdea=${selectedIdea?.ideaId ?? "none"}; selectedPattern=${selectedIdea?.patternId ?? "none"}.`,
+    promptCorpusPatterns ? `Prompt corpus guidance: distilled Seedance/ad/UGC pattern DNA (${promptCorpusPatterns}); coverage=declaredPrompts:${SHORT_PROMPT_CORPUS_COVERAGE.declaredPromptCount}, runtimePatterns:${SHORT_PROMPT_CORPUS_COVERAGE.runtimePatternCount}, taxonomyFamilies:${SHORT_PROMPT_CORPUS_COVERAGE.taxonomyFamilyCount}; do not reproduce upstream prompt wording.` : "",
+    platformPatterns ? `Platform template guidance: distilled public/licensed workflow structure (${platformPatterns}); coverage=archetypes:${SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.templateArchetypeCount}, nicheFamilies:${SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.nicheFamilyCount}, patternMatrix:${SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE.declaredPatternMatrixCount}; do not reproduce third-party template wording or scrape proprietary UI.` : "",
+    selectedIdea
+      ? `Selected idea: ${selectedIdea.label}. Hook: ${boundedText(selectedIdea.hook, 180)} Proof: ${boundedText(selectedIdea.proofPlan, 180)} KOL/creator: ${boundedText(selectedIdea.creatorOrKolDirection, 150)}.`
+      : "",
+    reference
+      ? `Reference pattern ${reference.patternId}: use structure only: hook=${boundedText(reference.hookPattern, 90)}; pacing=${boundedText(reference.pacingPattern, 90)}; camera=${boundedText(reference.cameraPattern, 90)}; payoff=${boundedText(reference.ctaPattern, 90)}; Guardrails: ${reference.originalityGuardrails.slice(0, 2).join("; ")}.`
+      : "",
+    blueprint ? `Video Remake blueprint: id=${blueprint.blueprintId}; mode=${blueprint.mode}; status=${blueprint.status}; fidelity=${blueprint.fidelityTarget}; sourceSafety=${blueprint.sourceSafetyStatus}.` : "",
+    blueprint ? `Video Remake replacement slots: ${blueprint.replacementSlots.slice(0, 5).join(", ")}.` : "",
+    blueprint ? `Video Remake adherence targets: ${blueprint.adherenceTargets.slice(0, 4).map((item) => boundedText(item, 120)).join(" | ")}.` : "",
+    blueprint ? `Video Remake source beat map: ${blueprint.sourceBeatMap.slice(0, 4).map((item) => boundedText(item, 120)).join(" | ")}.` : "",
+    `Viral scene directives: ${sceneDirectives}.`,
+    promptPack ? "Seedance 2.0 prompt pack:" : "",
+    promptPack ? `Prompt pack id: ${promptPack.promptPackId}` : "",
+    promptPack ? `Time-coded Seedance shots: ${promptPack.shotPrompts.length} shot(s), ${promptPack.shotPrompts.map((shot) => `${shot.order}:${shot.startSecond}-${shot.endSecond}s:${shot.role}`).join(" | ")}` : "",
+    firstTransitionBridge ? `Transition bridge: ${boundedText(firstTransitionBridge, 180)}` : ""
+  ]);
 }
 
 function seamlessEditContractFromPlan(plan: ShortPipelinePlan, compact = false): string {
@@ -670,6 +747,19 @@ function visualBibleFromPlan(plan: ShortPipelinePlan, compact = false): string {
       `${asset.role}: ${asset.sourcePolicy}; required=${asset.requiredBeforeRender}; role=${asset.promptRole ?? "none"}; kind=${asset.providerKind ?? "none"}; views=${asset.minimumViewCount}-${asset.maximumImageCount}; brief=${boundedText(asset.promptBrief, compact ? 180 : 320)}`
     )
     .join("\n");
+  const imagePromptLines = visualBible.assetPlans
+    .slice(0, compact ? 4 : visualBible.assetPlans.length)
+    .map((asset) => {
+      const pack = asset.imagePromptPack;
+      return [
+        `${asset.role}: layout=${pack.layout}; output=${pack.outputPolicy}; views=${pack.minPanelOrViewCount}-${pack.maxPanelOrViewCount}`,
+        `Image prompt: ${boundedText(pack.prompt, compact ? 280 : 520)}`,
+        `Negative prompt: ${boundedText(pack.negativePrompt, compact ? 180 : 320)}`,
+        `Seedance binding: ${boundedText(pack.seedanceBindingInstruction, compact ? 180 : 320)}`,
+        `Approval checklist: ${boundedText(pack.approvalChecklist.join(" | "), compact ? 180 : 320)}`
+      ].join(" | ");
+    })
+    .join("\n");
   const blueprint = visualBible.executionBlueprint;
   const executionSteps = blueprint.steps
     .slice(0, compact ? 4 : blueprint.steps.length)
@@ -682,6 +772,7 @@ function visualBibleFromPlan(plan: ShortPipelinePlan, compact = false): string {
     `Visual Bible sequence: boards=${visualBible.sequencePlan.boardCount}; targetClips=${visualBible.sequencePlan.targetClipCount}; maxSecondsPerBoard=${visualBible.sequencePlan.maxSecondsPerBoard}; continuity=${visualBible.sequencePlan.continuityStrategy}; blocksRender=${visualBible.releaseGateSummary.blocksRenderUntilAssetsApproved}.`,
     `Visual Bible execution blueprint: mode=${blueprint.mode}; imageProvider=${blueprint.imageProviderRole}; seedanceMode=${blueprint.seedanceSubmissionMode}; clipStrategy=${blueprint.clipExecutionStrategy}; bindingOrder=${blueprint.referenceTagBindingOrder.join(" > ") || "none"}.`,
     `Visual Bible duration coverage: target=${blueprint.durationCoverage.targetDurationSeconds}s; targetClips=${blueprint.durationCoverage.targetClipCount}; targetSecondsPerClip=${blueprint.durationCoverage.targetSecondsPerClip}; startMiddleEnd=${blueprint.durationCoverage.requiresStartMiddleEnd}; rule=${blueprint.durationCoverage.coverageRule}.`,
+    imagePromptLines ? `Visual Bible image prompt packs:\n${imagePromptLines}` : "",
     executionSteps ? `Visual Bible execution steps:\n${executionSteps}` : "",
     assetLines ? `Visual Bible asset plan:\n${assetLines}` : "",
     `Visual Bible Seedance binding: ${(compact ? visualBible.seedanceBindingPlan.slice(0, 3) : visualBible.seedanceBindingPlan).join(" | ")}.`,
