@@ -6,6 +6,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { AtlasCloudRuntimeSettings } from "../../types/settings.js";
+import { defaultSeedanceProviderCapability } from "../../config/seedance-capabilities.js";
 import type {
   AudioGenerationCapability,
   AudioGenerationRequest,
@@ -49,8 +50,6 @@ const DIMENSION_RATIOS: Partial<Record<string, readonly [number, number]>> = {
   "3:4": [3, 4],
   "9:16": [9, 16]
 };
-const DEFAULT_SEEDANCE_RESOLUTIONS = ["480p", "720p", "1080p", "720p-SR", "1080p-SR", "1440p-SR"] as const;
-const DEFAULT_SEEDANCE_MINI_RESOLUTIONS = ["480p", "720p"] as const;
 
 interface LedgerMetadata {
   readonly predictionId?: string;
@@ -96,24 +95,7 @@ export class AtlasCloudProvider implements ModelProvider {
     const fastModel = this.settings.models.seedanceFastModel;
     const miniModel = this.settings.models.seedanceMiniModel;
     const models = modelId ? [modelId] : [standardModel, fastModel, miniModel].filter((value): value is string => Boolean(value));
-    return models.map((selectedModelId) => ({
-      provider: ATLAS_PROVIDER_NAME,
-      modelId: selectedModelId,
-      modes: ["text_to_video", "image_to_video", "reference_to_video", "video_to_video", "extend", "edit"],
-      durations: { min: 4, max: 15 },
-      resolutions: this.isMiniSeedanceModel(selectedModelId)
-        ? DEFAULT_SEEDANCE_MINI_RESOLUTIONS
-        : DEFAULT_SEEDANCE_RESOLUTIONS,
-      ratios: ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
-      references: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"],
-      settings: {
-        generateAudio: true,
-        returnLastFrame: true,
-        bitrateModes: ["standard", "high"],
-        watermark: true
-      },
-      async: true
-    }));
+    return models.map((selectedModelId) => defaultSeedanceProviderCapability(selectedModelId));
   }
 
   public audioCapabilities(modelId?: string): readonly AudioGenerationCapability[] {
@@ -1005,10 +987,6 @@ export class AtlasCloudProvider implements ModelProvider {
   private nearestEven(value: number): number {
     const rounded = Math.max(2, Math.round(value));
     return rounded % 2 === 0 ? rounded : rounded + 1;
-  }
-
-  private isMiniSeedanceModel(modelId: string): boolean {
-    return /(^|[-_/])mini([-_/]|$)/i.test(modelId);
   }
 
   private async trackProviderCall<TValue>(

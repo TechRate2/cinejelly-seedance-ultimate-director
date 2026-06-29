@@ -18,32 +18,16 @@ import {
   repairAttemptCountForQuality,
   usesTestTakesForQuality
 } from "../config/seedance-settings.js";
+import {
+  DEFAULT_SEEDANCE_PROVIDER_DURATION,
+  DEFAULT_SEEDANCE_PROVIDER_MODES,
+  DEFAULT_SEEDANCE_PROVIDER_NAME,
+  DEFAULT_SEEDANCE_PROVIDER_REFERENCES,
+  DEFAULT_SEEDANCE_PROVIDER_SETTINGS,
+  defaultSeedanceResolutionsForModel
+} from "../config/seedance-capabilities.js";
 import { DEFAULT_SEEDANCE_SETTINGS, type AspectRatio, type BitrateMode, type QualityMode, type Resolution } from "../types/settings.js";
 import type { DurationRange, ProviderMode, ReferenceKind } from "../types/provider.js";
-
-const ATLAS_PROVIDER_NAME = "atlascloud";
-const DEFAULT_SEEDANCE_MODES: readonly ProviderMode[] = [
-  "text_to_video",
-  "image_to_video",
-  "reference_to_video",
-  "video_to_video",
-  "extend",
-  "edit"
-];
-const DEFAULT_SEEDANCE_REFERENCES: readonly ReferenceKind[] = [
-  "image",
-  "video",
-  "audio",
-  "first_frame",
-  "last_frame",
-  "identity",
-  "product",
-  "environment",
-  "motion",
-  "camera",
-  "style"
-];
-const DEFAULT_PROVIDER_DURATION: DurationRange = { min: MIN_CLIP_DURATION_SECONDS, max: MAX_CLIP_DURATION_SECONDS };
 
 export interface RenderSettingsDescriptor {
   readonly schemaVersion: "cinejelly.render-settings.v1";
@@ -308,21 +292,19 @@ function seedanceCapabilitySupportForModel(
 ): SeedanceCapabilitySupportDescriptor {
   const defaultResolutions = defaultResolutionsForModel(modelId, tier);
   return {
-    provider: cleanString(record?.provider) ?? ATLAS_PROVIDER_NAME,
+    provider: cleanString(record?.provider) ?? DEFAULT_SEEDANCE_PROVIDER_NAME,
     capabilitySource: record ? "capability_json" : "documented_default",
-    modes: cleanAllowedArray(record?.modes, DEFAULT_SEEDANCE_MODES) ?? DEFAULT_SEEDANCE_MODES,
-    durations: cleanDurationRange(record?.durations) ?? DEFAULT_PROVIDER_DURATION,
+    modes: cleanAllowedArray(record?.modes, DEFAULT_SEEDANCE_PROVIDER_MODES) ?? DEFAULT_SEEDANCE_PROVIDER_MODES,
+    durations: cleanDurationRange(record?.durations) ?? DEFAULT_SEEDANCE_PROVIDER_DURATION,
     resolutions: cleanAllowedArray(record?.resolutions, RESOLUTIONS) ?? defaultResolutions,
     ratios: cleanAllowedArray(record?.ratios, RATIOS) ?? RATIOS,
-    references: cleanAllowedArray(record?.references, DEFAULT_SEEDANCE_REFERENCES) ?? DEFAULT_SEEDANCE_REFERENCES,
+    references: cleanAllowedArray(record?.references, DEFAULT_SEEDANCE_PROVIDER_REFERENCES) ?? DEFAULT_SEEDANCE_PROVIDER_REFERENCES,
     effectiveSettings: effectiveSeedanceSettings(record)
   };
 }
 
 function defaultResolutionsForModel(modelId: string, tier: "mini" | "fast" | "standard" | undefined): readonly Resolution[] {
-  return tier === "mini" || /(^|[-_/])mini([-_/]|$)/i.test(modelId)
-    ? ["480p", "720p"]
-    : RESOLUTIONS;
+  return defaultSeedanceResolutionsForModel(modelId, tier);
 }
 
 function effectiveSeedanceSettings(record: SeedanceCapabilityRecord | undefined): SeedanceEffectiveSettingsDescriptor {
@@ -331,10 +313,10 @@ function effectiveSeedanceSettings(record: SeedanceCapabilityRecord | undefined)
     : undefined;
   return {
     source: settings ? "explicit_capability" : record ? "capability_json_defaults" : "documented_default",
-    generateAudio: typeof settings?.generateAudio === "boolean" ? settings.generateAudio : true,
-    returnLastFrame: typeof settings?.returnLastFrame === "boolean" ? settings.returnLastFrame : true,
-    bitrateModes: cleanAllowedArray(settings?.bitrateModes, BITRATE_MODES) ?? BITRATE_MODES,
-    watermark: typeof settings?.watermark === "boolean" ? settings.watermark : true
+    generateAudio: typeof settings?.generateAudio === "boolean" ? settings.generateAudio : DEFAULT_SEEDANCE_PROVIDER_SETTINGS.generateAudio ?? true,
+    returnLastFrame: typeof settings?.returnLastFrame === "boolean" ? settings.returnLastFrame : DEFAULT_SEEDANCE_PROVIDER_SETTINGS.returnLastFrame ?? true,
+    bitrateModes: cleanAllowedArray(settings?.bitrateModes, BITRATE_MODES) ?? DEFAULT_SEEDANCE_PROVIDER_SETTINGS.bitrateModes ?? BITRATE_MODES,
+    watermark: typeof settings?.watermark === "boolean" ? settings.watermark : DEFAULT_SEEDANCE_PROVIDER_SETTINGS.watermark ?? true
   };
 }
 
