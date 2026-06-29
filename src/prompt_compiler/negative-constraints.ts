@@ -32,5 +32,15 @@ export function buildNegativePrompt(shot: ShotContract): string {
       constraints.add(constraint);
     }
   }
+  if (shot.references.some((reference) => reference.role === "source_video_structure")) {
+    constraints.add("no copied source-video face identity");
+    constraints.add("no copied source-video transcript");
+    constraints.add("no copied source-video music or melody");
+    constraints.add("no source-video watermark, caption style, logo, or brand marks");
+  }
+  if (shot.references.some((reference) => reference.role === "audio_tempo" || reference.role === "voice")) {
+    constraints.add("no unapproved voice likeness");
+    constraints.add("no protected song imitation");
+  }
   return [...constraints].join(", ");
 }

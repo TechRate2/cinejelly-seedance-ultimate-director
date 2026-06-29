@@ -178,6 +178,16 @@ const compiledPromptStoryArcReady = compiledLongPrompts.every((prompt) =>
   prompt.prompt.includes("Boundary choreography:") &&
   prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints")
 );
+const sourceVideoCompiledPrompts = compiledLongPrompts.filter((prompt) =>
+  prompt.bindingPlan.sortedReferences.some((reference) => reference.role === "source_video_structure")
+);
+const sourceVideoNegativePromptReady = sourceVideoCompiledPrompts.length > 0 &&
+  sourceVideoCompiledPrompts.every((prompt) =>
+    prompt.negativePrompt.includes("no copied source-video face identity") &&
+    prompt.negativePrompt.includes("no copied source-video transcript") &&
+    prompt.negativePrompt.includes("no copied source-video music or melody") &&
+    prompt.negativePrompt.includes("no source-video watermark, caption style, logo, or brand marks")
+  );
 
 const checks = [
   timeline.noSpend === true &&
@@ -209,6 +219,9 @@ const checks = [
     timeline.sequences.every((sequence, index) => sequence.order === index && sequence.startSecond < sequence.endSecond)
     ? pass("sequence_timing_boundaries", "Timeline exposes deterministic sequence timing boundaries.")
     : fail("sequence_timing_boundaries", "Timeline sequence timing boundaries are invalid."),
+  sourceVideoNegativePromptReady
+    ? pass("source_video_negative_prompt_contract", "Long-form source-video guided prompts include negative constraints against copied identity, transcript, music, watermark, captions, logos, and brand marks.")
+    : fail("source_video_negative_prompt_contract", "Expected long-form source-video guided prompts to include copy-prevention negative constraints."),
   timeline.segments.every((segment) => segment.renderBatchId && segment.renderMode) &&
     sequentialSegments.length > 0 &&
     sequentialSegments.every((segment) => segment.sequentialReasons.length > 0)

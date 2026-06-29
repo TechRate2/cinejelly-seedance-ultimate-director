@@ -675,14 +675,19 @@ const checks = [
     authorizedSourceVideoPrompt.prompt.includes("Primary anchor order: @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack must be preserved before style, motion, camera, audio, or source-video structure.") &&
     authorizedSourceVideoPrompt.prompt.includes("Supporting reference order: @video1 -> source_video_structure/video=Approved trend source video guides rhythm, camera, style, and audio only after primary anchors are locked.") &&
     authorizedSourceVideoPrompt.prompt.includes("use source/reference video only for rhythm") &&
+    authorizedSourceVideoPrompt.negativePrompt.includes("no copied source-video face identity") &&
+    authorizedSourceVideoPrompt.negativePrompt.includes("no copied source-video transcript") &&
+    authorizedSourceVideoPrompt.negativePrompt.includes("no copied source-video music or melody") &&
+    authorizedSourceVideoPrompt.negativePrompt.includes("no source-video watermark, caption style, logo, or brand marks") &&
     planningOnlySourceVideoPrompt.videoRequest.references.every((reference) => reference.role !== "source_video_structure") &&
     planningOnlySourceVideoPrompt.prompt.startsWith("Provider reference handles (bind before prose): @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack.") &&
     !planningOnlySourceVideoPrompt.prompt.includes("@video1 -> source_video_structure/video") &&
     planningOnlySourceVideoPrompt.bindingPlan.conflicts.some((conflict) => conflict.code === "source_video_structure_planning_only") &&
     planningOnlySourceVideoPrompt.prompt.includes("Planning-only references:") &&
-    planningOnlySourceVideoPrompt.prompt.includes("Source/reference-video boundary:")
-    ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references compile as reference-to-video provider inputs with front-loaded @image/@video handle bindings, primary-anchor priority, and source-boundary prompt contracts, while unapproved source-video references stay planning-only without a provider @video handle.")
-    : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization, provider video capability, reference-to-video mode, front-loaded @image/@video handle bindings, primary-anchor priority, source-boundary prompt contract, and planning-only source-video prompt constraints."),
+    planningOnlySourceVideoPrompt.prompt.includes("Source/reference-video boundary:") &&
+    planningOnlySourceVideoPrompt.negativePrompt.includes("no copied source-video transcript")
+    ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references compile as reference-to-video provider inputs with front-loaded @image/@video handle bindings, primary-anchor priority, source-boundary prompt/negative-prompt contracts, while unapproved source-video references stay planning-only without a provider @video handle.")
+    : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization, provider video capability, reference-to-video mode, front-loaded @image/@video handle bindings, primary-anchor priority, source-boundary prompt/negative-prompt contract, and planning-only source-video prompt constraints."),
   cleanHttpsReferencePlan.mediaReferencePlan.filter((reference) =>
     ["identity", "product", "source_video_structure"].includes(reference.promptRole)
   ).every((reference) =>
