@@ -54,7 +54,15 @@ export interface ProviderCapability {
   readonly resolutions: readonly Resolution[];
   readonly ratios: readonly AspectRatio[];
   readonly references: readonly ReferenceKind[];
+  readonly settings?: ProviderCapabilitySettings;
   readonly async: boolean;
+}
+
+export interface ProviderCapabilitySettings {
+  readonly generateAudio?: boolean;
+  readonly returnLastFrame?: boolean;
+  readonly bitrateModes?: readonly BitrateMode[];
+  readonly watermark?: boolean;
 }
 
 export interface ProviderReference {

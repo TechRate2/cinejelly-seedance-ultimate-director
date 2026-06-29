@@ -76,12 +76,14 @@ const secretQueryRequestPath = resolve(fixtureDir, "invalid-secret-query-referen
 const malformedSourceVideoRequestPath = resolve(fixtureDir, "invalid-source-video-shape.json");
 const mismatchedSourceLabelRequestPath = resolve(fixtureDir, "invalid-source-video-label.json");
 const emptySourceVideoRequestPath = resolve(fixtureDir, "invalid-empty-source-video-analysis.json");
+const invalidSourceVideoMediaMetricsRequestPath = resolve(fixtureDir, "invalid-source-video-media-metrics.json");
 const validSchemaReportPath = resolve(fixtureDir, "valid-provider-reference-schema-report.json");
 const flatSchemaReportPath = resolve(fixtureDir, "invalid-flat-reference-schema-report.json");
 const secretSchemaReportPath = resolve(fixtureDir, "secret-query-reference-schema-report.json");
 const malformedSourceSchemaReportPath = resolve(fixtureDir, "invalid-source-video-shape-schema-report.json");
 const mismatchedSourceSchemaReportPath = resolve(fixtureDir, "invalid-source-video-label-schema-report.json");
 const emptySourceSchemaReportPath = resolve(fixtureDir, "invalid-empty-source-video-analysis-schema-report.json");
+const invalidSourceVideoMediaMetricsSchemaReportPath = resolve(fixtureDir, "invalid-source-video-media-metrics-schema-report.json");
 
 writeJson(validRequestPath, buildValidRequest());
 writeJson(flatReferenceRequestPath, buildFlatReferenceRequest());
@@ -89,6 +91,7 @@ writeJson(secretQueryRequestPath, buildSecretQueryRequest());
 writeJson(malformedSourceVideoRequestPath, buildMalformedSourceVideoRequest());
 writeJson(mismatchedSourceLabelRequestPath, buildMismatchedSourceLabelRequest());
 writeJson(emptySourceVideoRequestPath, buildEmptySourceVideoRequest());
+writeJson(invalidSourceVideoMediaMetricsRequestPath, buildInvalidSourceVideoMediaMetricsRequest());
 
 const { validateRenderRequestFile } = await import("../dist/application/render-request-validation-entrypoint.js");
 const { AtlasCloudProvider } = await import("../dist/providers/atlascloud/atlas-cloud-provider.js");
@@ -99,6 +102,7 @@ const secretSchema = validateRequestSchema("secret_query_reference", secretQuery
 const malformedSourceSchema = validateRequestSchema("invalid_source_video_shape", malformedSourceVideoRequestPath, malformedSourceSchemaReportPath);
 const mismatchedSourceSchema = validateRequestSchema("invalid_source_video_label", mismatchedSourceLabelRequestPath, mismatchedSourceSchemaReportPath);
 const emptySourceSchema = validateRequestSchema("invalid_empty_source_video_analysis", emptySourceVideoRequestPath, emptySourceSchemaReportPath);
+const invalidSourceVideoMediaMetricsSchema = validateRequestSchema("invalid_source_video_media_metrics", invalidSourceVideoMediaMetricsRequestPath, invalidSourceVideoMediaMetricsSchemaReportPath);
 
 const validAdmission = await validateRenderRequestFile(validRequestPath, process.env);
 const flatAdmission = await validateRenderRequestFile(flatReferenceRequestPath, process.env);
@@ -106,7 +110,9 @@ const secretAdmission = await validateRenderRequestFile(secretQueryRequestPath, 
 const malformedSourceAdmission = await validateRenderRequestFile(malformedSourceVideoRequestPath, process.env);
 const mismatchedSourceAdmission = await validateRenderRequestFile(mismatchedSourceLabelRequestPath, process.env);
 const emptySourceAdmission = await validateRenderRequestFile(emptySourceVideoRequestPath, process.env);
+const invalidSourceVideoMediaMetricsAdmission = await validateRenderRequestFile(invalidSourceVideoMediaMetricsRequestPath, process.env);
 const atlasPayload = await captureAtlasVideoPayload();
+const atlasCapabilityGuard = await validateAtlasCapabilitySettingsGuard();
 
 const checks = [
   validSchema.exitCode === 0
@@ -145,6 +151,9 @@ const checks = [
   emptySourceSchema.exitCode !== 0 && emptySourceAdmission.status === "fail"
     ? pass("empty_source_video_analysis_rejected", "Schema and admission reject empty sourceVideoAnalysis so source-video workflows require actual structure evidence.")
     : fail("empty_source_video_analysis_rejected", "Expected empty sourceVideoAnalysis to be rejected by schema and admission."),
+  invalidSourceVideoMediaMetricsSchema.exitCode !== 0 && invalidSourceVideoMediaMetricsAdmission.status === "fail"
+    ? pass("invalid_source_video_media_metrics_rejected", "Schema and admission reject invalid source-video media metrics before remake/story planning.")
+    : fail("invalid_source_video_media_metrics_rejected", "Expected invalid source-video media metrics to be rejected by schema and admission."),
   Array.isArray(atlasPayload.reference_images) &&
     atlasPayload.reference_images.length === 2 &&
     atlasPayload.reference_images[0] === "asset://render-contract/approved-kol" &&
@@ -159,9 +168,14 @@ const checks = [
     atlasPayload.video_url === "asset://render-contract/source-video" &&
     atlasPayload.audio === "asset://render-contract/voice-tempo" &&
     atlasPayload.audio_url === "asset://render-contract/voice-tempo" &&
+    atlasPayload.generate_audio === true &&
+    atlasPayload.bitrate_mode === "high" &&
     atlasPayload.return_last_frame === true
-    ? pass("atlas_reference_payload_aliases", "Atlas video payload includes official reference_images/reference_videos/reference_audios arrays plus legacy single-reference aliases and return_last_frame.")
-    : fail("atlas_reference_payload_aliases", "Expected Atlas video payload to preserve all reference array aliases and single-reference aliases before live provider spend.")
+    ? pass("atlas_reference_payload_aliases", "Atlas video payload includes reference arrays, single-reference aliases, native audio, high bitrate, and return_last_frame.")
+    : fail("atlas_reference_payload_aliases", "Expected Atlas video payload to preserve reference aliases plus audio/high-bitrate/last-frame settings before live provider spend."),
+  atlasCapabilityGuard.status === "pass"
+    ? pass("atlas_capability_settings_guard", "Atlas provider blocks unsupported native audio, last-frame, and high-bitrate settings before any network call.")
+    : fail("atlas_capability_settings_guard", atlasCapabilityGuard.message)
 ];
 
 const failed = checks.filter((check) => check.status !== "pass");
@@ -181,7 +195,8 @@ const report = {
     secretQueryRequestPath: toRepoRelative(secretQueryRequestPath),
     malformedSourceVideoRequestPath: toRepoRelative(malformedSourceVideoRequestPath),
     mismatchedSourceLabelRequestPath: toRepoRelative(mismatchedSourceLabelRequestPath),
-    emptySourceVideoRequestPath: toRepoRelative(emptySourceVideoRequestPath)
+    emptySourceVideoRequestPath: toRepoRelative(emptySourceVideoRequestPath),
+    invalidSourceVideoMediaMetricsRequestPath: toRepoRelative(invalidSourceVideoMediaMetricsRequestPath)
   },
   scenarios: {
     validProviderReference1440: {
@@ -192,7 +207,8 @@ const report = {
     invalidSecretQueryReference: summarizeScenario(secretSchema, secretAdmission),
     invalidSourceVideoShape: summarizeScenario(malformedSourceSchema, malformedSourceAdmission),
     invalidSourceVideoLabel: summarizeScenario(mismatchedSourceSchema, mismatchedSourceAdmission),
-    invalidEmptySourceVideoAnalysis: summarizeScenario(emptySourceSchema, emptySourceAdmission)
+    invalidEmptySourceVideoAnalysis: summarizeScenario(emptySourceSchema, emptySourceAdmission),
+    invalidSourceVideoMediaMetrics: summarizeScenario(invalidSourceVideoMediaMetricsSchema, invalidSourceVideoMediaMetricsAdmission)
   },
   checks,
   releaseGateSummary: {
@@ -505,6 +521,30 @@ function buildEmptySourceVideoRequest() {
   };
 }
 
+function buildInvalidSourceVideoMediaMetricsRequest() {
+  const request = buildValidRequest();
+  return {
+    ...request,
+    metadata: {
+      requestId: "render_request_contract_invalid_source_video_media_metrics_smoke"
+    },
+    sourceVideoAnalysis: {
+      ...request.sourceVideoAnalysis,
+      mediaMetrics: {
+        ...request.sourceVideoAnalysis.mediaMetrics,
+        editRhythm: {
+          ...request.sourceVideoAnalysis.mediaMetrics.editRhythm,
+          rhythmLabel: "too_fast_to_validate"
+        },
+        evidence: {
+          ...request.sourceVideoAnalysis.mediaMetrics.evidence,
+          sourceUriSha256: "https://source.example.com/video.mp4"
+        }
+      }
+    }
+  };
+}
+
 function validateRequestSchema(name, requestPath, outputPath) {
   const result = spawnSync(
     process.execPath,
@@ -585,7 +625,7 @@ async function captureAtlasVideoPayload() {
         resolution: "720p",
         ratio: "9:16",
         generateAudio: true,
-        bitrateMode: "standard",
+        bitrateMode: "high",
         watermark: false,
         returnLastFrame: true
       },
@@ -601,6 +641,114 @@ async function captureAtlasVideoPayload() {
     throw new Error("Atlas payload smoke did not capture a video payload.");
   }
   return payload;
+}
+
+async function validateAtlasCapabilitySettingsGuard() {
+  const cases = [
+    {
+      name: "native_audio",
+      capabilitySettings: { generateAudio: false, returnLastFrame: true, bitrateModes: ["standard", "high"], watermark: true },
+      requestSettings: { generateAudio: true, returnLastFrame: false, bitrateMode: "standard", watermark: false }
+    },
+    {
+      name: "return_last_frame",
+      capabilitySettings: { generateAudio: true, returnLastFrame: false, bitrateModes: ["standard", "high"], watermark: true },
+      requestSettings: { generateAudio: false, returnLastFrame: true, bitrateMode: "standard", watermark: false }
+    },
+    {
+      name: "high_bitrate",
+      capabilitySettings: { generateAudio: true, returnLastFrame: true, bitrateModes: ["standard"], watermark: true },
+      requestSettings: { generateAudio: false, returnLastFrame: false, bitrateMode: "high", watermark: false }
+    }
+  ];
+  const failures = [];
+  for (const item of cases) {
+    const result = await validateAtlasCapabilitySettingsCase(item);
+    if (result.status !== "pass") {
+      failures.push(result.message);
+    }
+  }
+  return failures.length === 0
+    ? { status: "pass", message: "All Atlas capability setting guards passed." }
+    : { status: "fail", message: failures.join("; ") };
+}
+
+async function validateAtlasCapabilitySettingsCase(item) {
+  let fetchCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    return new Response(
+      JSON.stringify({
+        id: "pred_unexpected_capability_guard_call",
+        status: "succeeded",
+        output: ["https://cdn.example.com/unexpected.mp4"]
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      }
+    );
+  };
+  try {
+    const provider = new AtlasCloudProvider({
+      apiKey: "test_api_key",
+      apiBaseUrl: "https://api.atlascloud.ai/v1",
+      assetBaseUrl: "https://api.atlascloud.ai/api/v1",
+      models: {
+        llmModel: "atlas-llm-smoke",
+        seedanceStandardModel: "capability-guard-model",
+        seedanceFastModel: "capability-guard-model"
+      },
+      seedanceCapabilities: [
+        {
+          provider: "atlascloud",
+          modelId: "capability-guard-model",
+          modes: ["reference_to_video"],
+          durations: { min: 4, max: 15 },
+          resolutions: ["720p"],
+          ratios: ["9:16"],
+          references: ["image", "product"],
+          settings: item.capabilitySettings,
+          async: true
+        }
+      ],
+      requestTimeoutMs: 5_000,
+      maxJsonResponseBytes: 1024 * 1024,
+      pollingIntervalMs: 1,
+      pollingTimeoutMs: 10_000
+    });
+    await provider.generateReferenceToVideo({
+      provider: "atlascloud",
+      modelId: "capability-guard-model",
+      mode: "reference_to_video",
+      prompt: "Capability guard should reject this request before network.",
+      references: [
+        { kind: "image", uri: "asset://capability-guard/product", role: "product", label: "Product" }
+      ],
+      settings: {
+        durationSeconds: 8,
+        resolution: "720p",
+        ratio: "9:16",
+        ...item.requestSettings
+      }
+    });
+    return {
+      status: "fail",
+      message: `${item.name} was accepted unexpectedly.`
+    };
+  } catch (error) {
+    const code = error && typeof error === "object" ? error.code : undefined;
+    if (code === "UNSUPPORTED_SETTING" && fetchCalls === 0) {
+      return { status: "pass", message: `${item.name} rejected before network.` };
+    }
+    return {
+      status: "fail",
+      message: `${item.name} expected UNSUPPORTED_SETTING before network, got ${code || String(error)} with ${fetchCalls} fetch call(s).`
+    };
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 }
 
 function readIssueCount(outputPath) {

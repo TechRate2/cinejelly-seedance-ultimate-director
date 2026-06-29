@@ -988,11 +988,39 @@ export class RuntimePreflight {
         ) {
           return { valid: false, message: "Each provider capability must include provider, modelId, modes, durations, resolutions, ratios, and references." };
         }
+        const settingsIssue = this.providerCapabilitySettingsIssue(payload.settings);
+        if (settingsIssue) {
+          return { valid: false, message: settingsIssue };
+        }
       }
       return { valid: true, count: parsed.length };
     } catch {
       return { valid: false, message: "ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must be valid JSON." };
     }
+  }
+
+  private providerCapabilitySettingsIssue(value: unknown): string | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    const settings = value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+    if (!settings) {
+      return "Provider capability settings must be an object when provided.";
+    }
+    for (const name of ["generateAudio", "returnLastFrame", "watermark"] as const) {
+      if (settings[name] !== undefined && typeof settings[name] !== "boolean") {
+        return `Provider capability settings.${name} must be boolean when provided.`;
+      }
+    }
+    if (
+      settings.bitrateModes !== undefined &&
+      (!Array.isArray(settings.bitrateModes) || !settings.bitrateModes.every((item) => item === "standard" || item === "high"))
+    ) {
+      return "Provider capability settings.bitrateModes must contain standard and/or high when provided.";
+    }
+    return undefined;
   }
 
   private parseGeneratedAudioCapabilityJson(value: string): { readonly valid: true; readonly count: number } | { readonly valid: false; readonly message: string } {

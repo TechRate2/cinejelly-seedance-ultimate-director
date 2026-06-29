@@ -106,6 +106,12 @@ export class AtlasCloudProvider implements ModelProvider {
         : DEFAULT_SEEDANCE_RESOLUTIONS,
       ratios: ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
       references: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"],
+      settings: {
+        generateAudio: true,
+        returnLastFrame: true,
+        bitrateModes: ["standard", "high"],
+        watermark: true
+      },
       async: true
     }));
   }
@@ -592,6 +598,7 @@ export class AtlasCloudProvider implements ModelProvider {
         message: `Aspect ratio ${request.settings.ratio} is not supported by configured capability.`
       });
     }
+    this.validateCapabilitySettings(request, capability);
     for (const reference of request.references) {
       this.validateReferenceCapability(reference, capability);
     }
@@ -816,6 +823,41 @@ export class AtlasCloudProvider implements ModelProvider {
         code: "ASSET_NOT_ACTIVE",
         provider: ATLAS_PROVIDER_NAME,
         message: `Reference ${reference.label || reference.role || reference.kind} must be an Atlas asset:// reference or clean HTTPS media URL before generation.`
+      });
+    }
+  }
+
+  private validateCapabilitySettings(request: VideoGenerationRequest, capability: ProviderCapability): void {
+    const supportedSettings = capability.settings;
+    if (!supportedSettings) {
+      return;
+    }
+    if (supportedSettings.generateAudio === false && request.settings.generateAudio) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Native audio generation is not supported by configured capability for model ${capability.modelId}.`
+      });
+    }
+    if (supportedSettings.returnLastFrame === false && request.settings.returnLastFrame) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Last-frame return is not supported by configured capability for model ${capability.modelId}.`
+      });
+    }
+    if (supportedSettings.bitrateModes && !supportedSettings.bitrateModes.includes(request.settings.bitrateMode)) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Bitrate mode ${request.settings.bitrateMode} is not supported by configured capability for model ${capability.modelId}.`
+      });
+    }
+    if (supportedSettings.watermark === false && request.settings.watermark) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Watermark output is not supported by configured capability for model ${capability.modelId}.`
       });
     }
   }

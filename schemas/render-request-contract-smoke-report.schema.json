@@ -36,7 +36,8 @@
         "secretQueryRequestPath",
         "malformedSourceVideoRequestPath",
         "mismatchedSourceLabelRequestPath",
-        "emptySourceVideoRequestPath"
+        "emptySourceVideoRequestPath",
+        "invalidSourceVideoMediaMetricsRequestPath"
       ],
       "properties": {
         "schemaPath": { "const": "schemas/render-request.schema.json" },
@@ -47,7 +48,8 @@
         "secretQueryRequestPath": { "type": "string", "minLength": 1 },
         "malformedSourceVideoRequestPath": { "type": "string", "minLength": 1 },
         "mismatchedSourceLabelRequestPath": { "type": "string", "minLength": 1 },
-        "emptySourceVideoRequestPath": { "type": "string", "minLength": 1 }
+        "emptySourceVideoRequestPath": { "type": "string", "minLength": 1 },
+        "invalidSourceVideoMediaMetricsRequestPath": { "type": "string", "minLength": 1 }
       }
     },
     "scenarios": {
@@ -59,7 +61,8 @@
         "invalidSecretQueryReference",
         "invalidSourceVideoShape",
         "invalidSourceVideoLabel",
-        "invalidEmptySourceVideoAnalysis"
+        "invalidEmptySourceVideoAnalysis",
+        "invalidSourceVideoMediaMetrics"
       ],
       "properties": {
         "validProviderReference1440": { "$ref": "#/$defs/scenario" },
@@ -67,7 +70,8 @@
         "invalidSecretQueryReference": { "$ref": "#/$defs/scenario" },
         "invalidSourceVideoShape": { "$ref": "#/$defs/scenario" },
         "invalidSourceVideoLabel": { "$ref": "#/$defs/scenario" },
-        "invalidEmptySourceVideoAnalysis": { "$ref": "#/$defs/scenario" }
+        "invalidEmptySourceVideoAnalysis": { "$ref": "#/$defs/scenario" },
+        "invalidSourceVideoMediaMetrics": { "$ref": "#/$defs/scenario" }
       }
     },
     "checks": {
