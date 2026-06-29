@@ -20,6 +20,15 @@ import { runProcess } from "../utils/process.js";
 
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
 const NON_NEGATIVE_INTEGER_PATTERN = /^(?:0|[1-9]\d*)$/;
+const MAX_TRANSITION_INTENT_CHARS = 360;
+
+export function transitionIntentsForAssemblyClips(clips: readonly AssemblyClip[]): readonly string[] {
+  const intents: string[] = [];
+  for (let index = 0; index < clips.length - 1; index += 1) {
+    intents.push(mergedBoundaryTransitionIntent(clips[index], clips[index + 1]) ?? "");
+  }
+  return intents;
+}
 
 export class AssemblyEngine {
   private readonly postproductionEngine: PostproductionEngine;
@@ -92,7 +101,7 @@ export class AssemblyEngine {
             inputPaths: localClipPaths,
             outputPath: concatOutputPath,
             settings: transitionSettings,
-            transitionIntents: this.transitionIntentsForClips(orderedClips)
+            transitionIntents: transitionIntentsForAssemblyClips(orderedClips)
           },
           signal
         )
@@ -282,15 +291,6 @@ export class AssemblyEngine {
     return paths.map((path) => `file '${path.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`).join("\n");
   }
 
-  private transitionIntentsForClips(clips: readonly AssemblyClip[]): readonly string[] {
-    const intents: string[] = [];
-    for (let index = 0; index < clips.length - 1; index += 1) {
-      const intent = clips[index]?.transitionOutIntent ?? clips[index + 1]?.transitionInIntent;
-      intents.push(intent ?? "");
-    }
-    return intents;
-  }
-
   private async assertFfmpegAvailable(signal?: AbortSignal): Promise<void> {
     await runProcess(readMediaToolCommand("ffmpeg"), ["-version"], signal);
   }
@@ -366,4 +366,29 @@ export class AssemblyEngine {
       });
     });
   }
+}
+
+function mergedBoundaryTransitionIntent(
+  outgoingClip: AssemblyClip | undefined,
+  incomingClip: AssemblyClip | undefined
+): string | undefined {
+  const outgoing = cleanTransitionIntent(outgoingClip?.transitionOutIntent);
+  const incoming = cleanTransitionIntent(incomingClip?.transitionInIntent);
+  if (!outgoing && !incoming) {
+    return undefined;
+  }
+  if (outgoing && incoming && outgoing.toLowerCase() !== incoming.toLowerCase()) {
+    return `outgoing: ${outgoing} | incoming: ${incoming}`;
+  }
+  return outgoing ?? incoming;
+}
+
+function cleanTransitionIntent(value: string | undefined): string | undefined {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.length > MAX_TRANSITION_INTENT_CHARS
+    ? `${trimmed.slice(0, MAX_TRANSITION_INTENT_CHARS - 1).trimEnd()}...`
+    : trimmed;
 }

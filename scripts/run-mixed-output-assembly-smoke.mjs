@@ -43,6 +43,7 @@ if (extname(options.outputPath).toLowerCase() !== ".json") {
   throw new Error("--output must point to a JSON file.");
 }
 
+const { transitionIntentsForAssemblyClips } = await import("../dist/core/assembly-engine.js");
 const { selectAssemblyClipsForRenderedShots, isVideoOutputUrl } = await import("../dist/core/assembly-output-selector.js");
 const { DeliveryGate } = await import("../dist/core/delivery-gate.js");
 
@@ -59,6 +60,27 @@ const mixedRenderedShots = [
   ], "Transition: wipe reveal into final result. Keep product scale stable.")
 ];
 const selectedClips = selectAssemblyClipsForRenderedShots(mixedRenderedShots);
+const boundaryTransitionIntents = transitionIntentsForAssemblyClips([
+  {
+    clipId: "clip_a",
+    sourceUrlOrPath: "clip-a.mp4",
+    order: 0,
+    transitionOutIntent: "seamless xfade from mirror hook to serum proof"
+  },
+  {
+    clipId: "clip_b",
+    sourceUrlOrPath: "clip-b.mp4",
+    order: 1,
+    transitionInIntent: "continue exact hand motion and product scale from prior endpoint",
+    transitionOutIntent: "wipe reveal into final packshot"
+  },
+  {
+    clipId: "clip_c",
+    sourceUrlOrPath: "clip-c.mp4",
+    order: 2,
+    transitionInIntent: "wipe reveal into final packshot"
+  }
+]);
 let missingVideoError = "";
 try {
   selectAssemblyClipsForRenderedShots([
@@ -92,6 +114,11 @@ const checks = [
     selectedClips.slice(1).every((clip) => clip.transitionOutIntent === "wipe reveal into final result")
     ? pass("transition_intent_extraction", "Assembly clips inherit transition intent from both paragraph bridge prompts and explicit Transition lines.")
     : fail("transition_intent_extraction", "Assembly clips did not inherit transition intent from compiled prompt text."),
+  boundaryTransitionIntents.length === 2 &&
+    boundaryTransitionIntents[0] === "outgoing: seamless xfade from mirror hook to serum proof | incoming: continue exact hand motion and product scale from prior endpoint" &&
+    boundaryTransitionIntents[1] === "wipe reveal into final packshot"
+    ? pass("boundary_transition_intent_merge", "Assembly boundaries merge outgoing and incoming transition intent without duplicating identical adjacent intent.")
+    : fail("boundary_transition_intent_merge", "Expected assembly boundary transition intent to preserve both sides and collapse duplicates."),
   !isVideoOutputUrl("https://cdn.example.test/project/last-frame.png?Expires=redacted") &&
     isVideoOutputUrl("https://cdn.example.test/project/clip.MP4?Expires=redacted") &&
     isVideoOutputUrl("C:\\media\\clip.webm?token=redacted") &&
@@ -140,6 +167,7 @@ const report = {
       selectedClipIds: selectedClips.map((clip) => clip.clipId),
       selectedClipOrders: selectedClips.map((clip) => clip.order),
       selectedClipTransitionIntentCount: selectedClips.filter((clip) => clip.transitionOutIntent).length,
+      boundaryTransitionIntents,
       rejectedSidecarCount: 3
     },
     missingVideoOutput: {
