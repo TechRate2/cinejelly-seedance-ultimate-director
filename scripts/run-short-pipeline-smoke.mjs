@@ -827,7 +827,11 @@ const checks = [
   shortStoryboardShots.length === 3 &&
     shortStoryboardShots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Pacing contract:") && prompt.prompt.includes("Timeline:")) &&
-    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Motion continuity:") && prompt.prompt.includes("Final-frame contract:")) &&
+  compiledShortStoryboardPrompts.every((prompt) =>
+    prompt.prompt.includes("Motion continuity:") &&
+    prompt.prompt.includes("Inter-shot bridge:") &&
+    prompt.prompt.includes("Final-frame contract:")
+  ) &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.negativePrompt.includes("no visible captions") && prompt.negativePrompt.includes("no frozen static product pose")) &&
     shortStoryboardShots[0]?.continuity.nextShotStartState &&
     shortStoryboardShots[1]?.continuity.previousShotEndState &&
@@ -835,8 +839,8 @@ const checks = [
     shortStoryboardShots[2]?.continuity.previousShotEndState &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.videoRequest.settings.generateAudio === true) &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Audio:") && !prompt.prompt.includes("Audio: Silent"))
-    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include duration-aware timeline beats, pacing contract, motion-continuity/final-frame contracts, adjacent shot state, and audio-on provider settings by default.")
-    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include timeline, pacing contract, motion-continuity/final-frame contracts, adjacent shot state, and enabled audio."),
+    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include duration-aware timeline beats, pacing contract, motion-continuity/inter-shot-bridge/final-frame contracts, adjacent shot state, and audio-on provider settings by default.")
+    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include timeline, pacing contract, motion-continuity/inter-shot-bridge/final-frame contracts, adjacent shot state, and enabled audio."),
   pendingRenderHandoff.request.metadata?.workflowMode === "storyboard" &&
     pendingRenderHandoff.request.metadata?.renderMode === "storyboard_multishot" &&
     pendingRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "storyboard_multishot"

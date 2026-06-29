@@ -151,17 +151,20 @@ const checks = [
       shot.visualPrompt.includes("Visual style:") &&
       shot.camera.length > 20 &&
       shot.action.length > 20 &&
+      shot.transitionBridge?.includes("Transition bridge") &&
+      shot.transitionBridge.includes("Avoid boundary artifacts") &&
       shot.negativeConstraints.length >= 5 &&
       shot.qualityChecks.length >= 3
     )
-    ? pass("seedance_timecoded_prompt_pack", "Seedance prompt pack contains dynamic scene count, time-coded shots, camera/action/audio/no-visible-text/negative constraints.")
-    : fail("seedance_timecoded_prompt_pack", "Expected dynamic scene count and detailed Seedance shot prompts."),
+    ? pass("seedance_timecoded_prompt_pack", "Seedance prompt pack contains dynamic scene count, time-coded shots, camera/action/audio/no-visible-text/transition-bridge/negative constraints.")
+    : fail("seedance_timecoded_prompt_pack", "Expected dynamic scene count and detailed Seedance shot prompts with transition bridges."),
   handoff.request.metadata?.shortAgentGraphRunId === graph?.graphRunId &&
     handoff.request.metadata?.shortSeedancePromptPackId === pack?.promptPackId &&
     handoff.request.userInput.includes("Seedance 2.0 prompt pack:") &&
-    handoff.request.userInput.includes("Time-coded Seedance shots:")
-    ? pass("render_handoff_receives_prompt_pack", "Render handoff receives Short Agent graph metadata and the Seedance prompt pack.")
-    : fail("render_handoff_receives_prompt_pack", "Expected render handoff to include agent graph and Seedance prompt pack."),
+    handoff.request.userInput.includes("Time-coded Seedance shots:") &&
+    handoff.request.userInput.includes("Transition bridge:")
+    ? pass("render_handoff_receives_prompt_pack", "Render handoff receives Short Agent graph metadata and the Seedance prompt pack with transition bridge contracts.")
+    : fail("render_handoff_receives_prompt_pack", "Expected render handoff to include agent graph, Seedance prompt pack, and transition bridge contracts."),
   !rawSourceLeak
     ? pass("raw_source_redaction", "Raw product/reference URLs and signed query tokens are not serialized in agent evidence or handoff.")
     : fail("raw_source_redaction", "Expected raw source URLs and secret-like query values to stay redacted.")

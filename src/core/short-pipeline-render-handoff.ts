@@ -780,9 +780,9 @@ function seedancePromptPackFromPlan(plan: ShortPipelinePlan, compact = false): s
   const shots = pack.shotPrompts
     .map((shot) => {
       if (compact) {
-        return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${boundedText(shot.firstFrame, 160)} | Visual: ${boundedText(shot.visualPrompt, 240)} | Camera: ${boundedText(shot.camera, 120)} | Action: ${boundedText(shot.action, 160)} | Narration: ${boundedText(shot.dialogueOrNarration, 200)} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${boundedText(shot.audio, 120)} | Continuity: ${boundedText(shot.continuity, 140)}`;
+        return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${boundedText(shot.firstFrame, 160)} | Visual: ${boundedText(shot.visualPrompt, 240)} | Camera: ${boundedText(shot.camera, 120)} | Action: ${boundedText(shot.action, 160)} | Narration: ${boundedText(shot.dialogueOrNarration, 200)} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${boundedText(shot.audio, 120)} | Continuity: ${boundedText(shot.continuity, 140)} | Transition bridge: ${boundedText(shot.transitionBridge, 180)}`;
       }
-      return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`;
+      return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Transition bridge: ${shot.transitionBridge} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`;
     })
     .join("\n");
   return compactLines([

@@ -445,6 +445,7 @@ function shotPromptsFor(
     const caption = "NO_ON_SCREEN_TEXT";
     const audio = audioForScene(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode, channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone);
     const continuity = continuityFor(sceneItem, input, index);
+    const transitionBridge = transitionBridgeFor(sceneItem, input, index);
     const referencePolicy = directive?.referencePatternAlignment ??
       (input.viralIntelligence.referenceVideoPattern
         ? "Adapt reference timing and framing only; all assets and claims must be original or approved."
@@ -466,6 +467,7 @@ function shotPromptsFor(
       caption,
       audio,
       continuity,
+      transitionBridge,
       referencePolicy,
       negativeConstraints: negativeConstraintsFor(sceneItem, input),
       qualityChecks: uniqueStrings([
@@ -990,6 +992,36 @@ function continuityFor(
     return `Return to ${product}, same visual identity, same claim policy, coherent hand/face/wardrobe continuity, no text overlay.`;
   }
   return `Preserve ${product}, creator identity, brand tone, color palette, visual rhythm, and claim wording from prior shots.`;
+}
+
+function transitionBridgeFor(
+  sceneItem: ShortPipelineScenePlan,
+  input: ShortAgentGraphPlannerInput,
+  index: number
+): string {
+  const scenes = input.scenes;
+  const product = input.productBrief?.title ?? "main subject";
+  const previous = scenes[index - 1];
+  const next = scenes[index + 1];
+  const currentWindow = `${sceneItem.role} ${sceneItem.order}`;
+  const previousLine = previous
+    ? `Start as if cutting from ${previous.role}: keep ${product}, KOL face, hand position, lighting color, room tone, and screen direction continuous.`
+    : `Start with a clean handle: ${product} or viewer problem is readable immediately, with no dead air or slow logo lead-in.`;
+  const nextLine = next
+    ? `End by setting up ${next.role}: hold a stable product/KOL/result frame that can become the next clip first frame.`
+    : `End with a resolved last frame: ${product} or result remains visible, audio resolves, and no new claim appears.`;
+  const actionLine = sceneItem.role === "hook"
+    ? "The edit must feel like an intentional cold open, then hand off to proof without a jump."
+    : sceneItem.role === "payoff"
+      ? "The edit must close the arc and make the ending feel earned by earlier proof."
+      : "The edit must preserve motion direction and continue the viewer's information path without resetting the scene.";
+  return compactLines([
+    `Transition bridge for ${currentWindow}.`,
+    previousLine,
+    nextLine,
+    actionLine,
+    "Avoid boundary artifacts: sudden face/product drift, new background, color-temperature jump, mismatched hand pose, audio bed drop, or unrelated camera angle."
+  ]);
 }
 
 function negativeConstraintsFor(

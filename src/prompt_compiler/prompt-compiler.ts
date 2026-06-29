@@ -62,6 +62,7 @@ export class SeedancePromptCompiler {
       this.buildContinuitySection(shot),
       this.buildPacingSection(shot),
       this.buildMotionContinuitySection(shot, bindingPlan),
+      this.buildInterShotBridgeSection(shot),
       `Scene subject: ${shot.subject}.`,
       `Action: ${shot.action}.`,
       `Camera: ${shot.camera}.`,
@@ -121,6 +122,20 @@ export class SeedancePromptCompiler {
       "Do not end on a blur, mid-blink, hidden product, cropped face, empty frame, or unresolved camera whip unless explicitly requested."
     ].filter((line): line is string => Boolean(line));
     return clauses.join(" ");
+  }
+
+  private buildInterShotBridgeSection(shot: ShotContract): string {
+    const previousState = shot.continuity.previousShotEndState;
+    const nextState = shot.continuity.nextShotStartState;
+    const bridgeLines = [
+      "Inter-shot bridge: this clip must cut together with adjacent clips as one continuous film, not as a disconnected standalone generation.",
+      previousState ? `Start by matching the prior clip endpoint: ${previousState}.` : "Start with a clean readable handle that can accept a prior xfade or first-frame chain.",
+      nextState ? `End by preparing the next clip start: ${nextState}.` : "End with a clean readable handle that can accept xfade, cut, or last-frame chaining.",
+      shot.transitionIntent ? `Bridge transition intent: ${shot.transitionIntent}.` : undefined,
+      "Keep screen direction, camera momentum, subject scale, lighting color, room tone, and action state consistent across the edit boundary.",
+      "Do not create a new location, different product scale, different KOL face, sudden color shift, silent audio gap, or unrelated camera angle at the boundary."
+    ].filter((line): line is string => Boolean(line));
+    return bridgeLines.join(" ");
   }
 
   private storyArcRole(shot: ShotContract): string {

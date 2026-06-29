@@ -129,6 +129,7 @@ export interface ShortSeedanceShotPrompt {
   readonly caption: string;
   readonly audio: string;
   readonly continuity: string;
+  readonly transitionBridge: string;
   readonly referencePolicy: string;
   readonly negativeConstraints: readonly string[];
   readonly qualityChecks: readonly string[];
