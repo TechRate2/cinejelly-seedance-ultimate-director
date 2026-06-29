@@ -672,6 +672,15 @@ const checks = [
     cleanHttpsReferenceHandoff.request.references?.some((reference) => reference.role === "source_video_structure" && reference.providerReference.kind === "video" && reference.providerReference.uri.startsWith("https://"))
     ? pass("clean_https_media_provider_handoff", "Operator-approved clean HTTPS KOL, product, and source-video references stay hashed in the plan and reach provider handoff only from the raw render input.")
     : fail("clean_https_media_provider_handoff", "Expected clean HTTPS media references to remain redacted in the plan and reach render handoff after operator approval."),
+  [pendingRenderHandoff, cleanHttpsReferenceHandoff, productionBibleRenderHandoff].every((handoff) =>
+    handoff.request.userInput.includes("Seamless multishot edit contract:") &&
+      handoff.request.userInput.includes("start from the prior endpoint") &&
+      handoff.request.userInput.includes("room tone") &&
+      handoff.request.userInput.includes("stable product/KOL/result handle")
+  ) &&
+    cleanHttpsReferenceHandoff.request.userInput.includes("For Video Remake, inherit source rhythm and performance timing only")
+    ? pass("short_handoff_seamless_edit_contract", "Short render handoff carries a multishot continuity contract for normal short, Video Remake, and Production Bible workflows before StoryArchitect/ShotPlanner.")
+    : fail("short_handoff_seamless_edit_contract", "Expected short render handoff prompts to preserve seamless multishot edit contracts and Video Remake boundary rules."),
   hasEveryReviewSurface(reviewRequiredPlan)
     ? pass("review_surfaces_present", "Scene, audio, no-visible-text, and claim checkpoints are present before render.")
     : fail("review_surfaces_present", "Expected scene, audio, no-visible-text, and claim checkpoints."),

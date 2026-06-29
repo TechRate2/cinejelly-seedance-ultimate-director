@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { isIP } from "node:net";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,7 +29,7 @@ const secretPatterns = [
   /(api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)\s*[:=]\s*["']?[^"',\s&]+/gi,
   /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/gi
 ];
-const secretQueryKeyPattern = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
+const secretQueryTextPattern = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|authorization|auth)/i;
 const secretKeyPattern = /api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization/i;
 
 function parseArgs(args) {
@@ -754,8 +755,11 @@ function cleanHttpsUrl(value, fieldName) {
   if (parsed.username || parsed.password) {
     throw new Error(`${fieldName} must not include embedded credentials.`);
   }
-  for (const key of parsed.searchParams.keys()) {
-    if (secretQueryKeyPattern.test(key)) {
+  if (isBlockedHostname(parsed.hostname)) {
+    throw new Error(`${fieldName} must not point to localhost, private IPs, or internal hostnames.`);
+  }
+  for (const [key, item] of parsed.searchParams.entries()) {
+    if (secretQueryTextPattern.test(key) || secretQueryTextPattern.test(item)) {
       throw new Error(`${fieldName} query contains credential-like parameter ${key}.`);
     }
   }
@@ -774,6 +778,36 @@ function safeUrlPreview(value) {
 
 function isPositiveInteger(value) {
   return Number.isSafeInteger(value) && value > 0;
+}
+
+function isBlockedHostname(hostname) {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    normalized === "localhost" ||
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized === "0.0.0.0" ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal")
+  ) {
+    return true;
+  }
+  const ipVersion = isIP(normalized);
+  if (ipVersion === 4) {
+    const [first = 0, second = 0] = normalized.split(".").map((part) => Number(part));
+    return first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168);
+  }
+  if (ipVersion === 6) {
+    return normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:");
+  }
+  return false;
 }
 
 function countBy(values) {

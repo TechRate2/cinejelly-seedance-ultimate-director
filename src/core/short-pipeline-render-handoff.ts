@@ -533,6 +533,7 @@ function renderPromptFromPlan(
     `Target duration: ${plan.intent.targetDurationSeconds} seconds`,
     `Aspect ratio: ${plan.intent.aspectRatio}`,
     durationArcFromPlan(plan, compact),
+    seamlessEditContractFromPlan(plan, compact),
     template,
     concept ? `Primary concept: ${concept.label}. ${concept.angle} Hook: ${concept.hook}` : "",
     "Scene plan:",
@@ -554,6 +555,29 @@ function renderPromptFromPlan(
   return fullPrompt.length <= RENDER_PROMPT_MAX_CHARS
     ? fullPrompt
     : capRenderPrompt(renderPrompt(true), RENDER_PROMPT_MAX_CHARS);
+}
+
+function seamlessEditContractFromPlan(plan: ShortPipelinePlan, compact = false): string {
+  const sceneCount = plan.scenes.length;
+  const selectedPipe = plan.videoPipePlan.selectedMode;
+  const multishot = plan.seedanceRouting.storyboardRequired || sceneCount > 1 || selectedPipe !== "smart_short";
+  if (!multishot) {
+    return "Single-clip continuity contract: still create a readable first frame, motivated middle action, and stable final frame for review or future extension.";
+  }
+  const bridgeMode = plan.seedanceRouting.returnLastFrame
+    ? "Use last-frame chaining plus transition bridges whenever provider output exposes a usable final frame."
+    : "Use transition bridges and xfade-safe endpoints even when last-frame return is off.";
+  const remakeLine = plan.referenceRemakeBlueprint
+    ? "For Video Remake, inherit source rhythm and performance timing only; every boundary must preserve replacement KOL/product/background/audio, not source assets."
+    : "";
+  return compactLines([
+    `Seamless multishot edit contract: ${sceneCount} planned scene(s) must feel like one continuous filmed piece, not separate generated clips.`,
+    bridgeMode,
+    "Each clip must start from the prior endpoint, continue screen direction/camera momentum/room tone/lighting color, and end on a stable product/KOL/result handle for the next clip.",
+    "Use invisible continuity dissolves, match cuts, or motivated motion transitions; avoid dead air, audio bed drops, sudden color shifts, new product scale, face drift, or unrelated camera resets.",
+    remakeLine,
+    compact ? "If compacting, preserve this seamless edit contract before secondary style detail." : ""
+  ]);
 }
 
 function videoPipePlanFromPlan(plan: ShortPipelinePlan, compact = false): string {

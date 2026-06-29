@@ -22,6 +22,8 @@ const requiredScenarioNames = [
   "existing_analysis_not_overwritten",
   "asset_reference_skipped",
   "secret_query_reference_skipped",
+  "secret_query_value_reference_skipped",
+  "localhost_reference_skipped",
   "clean_https_generates_bounded_analysis",
   "leaking_output_rejected_non_strict",
   "strict_empty_analysis_throws"
@@ -107,6 +109,16 @@ async function main() {
     name: "secret_query_reference_skipped",
     uri: "https://media.example.test/source-video.mp4?token=redacted",
     skippedReason: "credential_like_query_is_rejected"
+  }));
+  scenarioSummaries.push(await runSkippedReferenceScenario(SourceVideoAutoAnalyzer, context, {
+    name: "secret_query_value_reference_skipped",
+    uri: "https://media.example.test/source-video.mp4?utm=secret-token",
+    skippedReason: "credential_like_query_value_is_rejected"
+  }));
+  scenarioSummaries.push(await runSkippedReferenceScenario(SourceVideoAutoAnalyzer, context, {
+    name: "localhost_reference_skipped",
+    uri: "https://localhost/source-video.mp4",
+    skippedReason: "localhost_or_private_source_is_rejected"
   }));
   scenarioSummaries.push(await runCleanHttpsScenario(SourceVideoAutoAnalyzer, context));
   scenarioSummaries.push(await runLeakGuardScenario(SourceVideoAutoAnalyzer, context));
@@ -643,8 +655,13 @@ function buildChecks(scenarios, context) {
     byName.get("existing_analysis_not_overwritten")?.preservedExistingAnalysis === true
       ? pass("existing_analysis_preserved", "Caller-provided sourceVideoAnalysis remains authoritative.")
       : fail("existing_analysis_preserved", "Caller-provided sourceVideoAnalysis was not preserved."),
-    skippedScenarioPass(byName.get("asset_reference_skipped")) && skippedScenarioPass(byName.get("secret_query_reference_skipped"))
-      ? pass("unsafe_sources_skipped_before_sampling", "asset:// and credential-like HTTPS query references are skipped before frame sampling.")
+    [
+      "asset_reference_skipped",
+      "secret_query_reference_skipped",
+      "secret_query_value_reference_skipped",
+      "localhost_reference_skipped"
+    ].every((name) => skippedScenarioPass(byName.get(name)))
+      ? pass("unsafe_sources_skipped_before_sampling", "asset://, credential-like HTTPS query, and localhost/private references are skipped before frame sampling.")
       : fail("unsafe_sources_skipped_before_sampling", "Unsafe references were not skipped before frame sampling."),
     cleanHttpsScenario?.analysisPresent === true &&
       cleanHttpsScenario.sceneCount === 2 &&

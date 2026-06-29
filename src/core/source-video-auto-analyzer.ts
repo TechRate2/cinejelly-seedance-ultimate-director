@@ -4,6 +4,7 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { isIP } from "node:net";
 import { extname } from "node:path";
 import { SourceVideoAnalyst } from "../agents/source-video-analyst.js";
 import type { LlmProvider } from "../providers/contracts.js";
@@ -27,7 +28,7 @@ export interface SourceVideoAutoAnalyzerInput {
 
 type SourceVideoAnalysisJson = SourceVideoDeconstruction;
 
-const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
+const SECRET_QUERY_TEXT_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|authorization|auth)/i;
 
 const SOURCE_VIDEO_ANALYSIS_SCHEMA = {
   type: "object",
@@ -265,14 +266,15 @@ export class SourceVideoAutoAnalyzer {
     } catch {
       return undefined;
     }
-    if (parsed.protocol !== "https:" || parsed.username || parsed.password) {
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password || isBlockedHostname(parsed.hostname)) {
       return undefined;
     }
-    for (const key of parsed.searchParams.keys()) {
-      if (SECRET_QUERY_KEY_PATTERN.test(key)) {
+    for (const [key, value] of parsed.searchParams.entries()) {
+      if (SECRET_QUERY_TEXT_PATTERN.test(key) || SECRET_QUERY_TEXT_PATTERN.test(value)) {
         return undefined;
       }
     }
+    parsed.hash = "";
     return parsed.toString();
   }
 
@@ -291,4 +293,34 @@ export class SourceVideoAutoAnalyzer {
     }
     return "image/jpeg";
   }
+}
+
+function isBlockedHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    normalized === "localhost" ||
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized === "0.0.0.0" ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal")
+  ) {
+    return true;
+  }
+  const ipVersion = isIP(normalized);
+  if (ipVersion === 4) {
+    const [first = 0, second = 0] = normalized.split(".").map((part) => Number(part));
+    return first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168);
+  }
+  if (ipVersion === 6) {
+    return normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:");
+  }
+  return false;
 }

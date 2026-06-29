@@ -162,7 +162,10 @@ export class LongFormContinuityPlanner {
         ]).slice(0, 4);
     return {
       nextSequenceId: next.sequenceId,
-      bridgeIntent: `${current.closingBeat} -> ${next.openingBeat}`.slice(0, 320),
+      bridgeIntent: [
+        `${current.closingBeat} -> ${next.openingBeat}`,
+        "Preserve shared anchors, screen direction, camera momentum, lighting color, room tone, product/KOL scale, and endpoint action state so the sequence cut feels continuous."
+      ].join(". ").slice(0, 420),
       requiredAnchors
     };
   }

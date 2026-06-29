@@ -3,6 +3,7 @@
  * It supports source-video structure analysis without copying upstream code or requiring live repos.
  */
 
+import { isIP } from "node:net";
 import type { PromptReference } from "../types/prompt.js";
 import {
   SOURCE_VIDEO_ANALYSIS_LIMITS,
@@ -12,7 +13,7 @@ import {
   type SourceVideoTranscriptCue
 } from "../types/source-video.js";
 
-const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
+const SECRET_QUERY_TEXT_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|authorization|auth)/i;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 
 export class SourceVideoAnalyst {
@@ -231,13 +232,46 @@ export class SourceVideoAnalyst {
     if (parsed.username || parsed.password) {
       throw new Error(`${fieldName} must not include embedded credentials.`);
     }
+    if (parsed.protocol === "https:" && isBlockedHostname(parsed.hostname)) {
+      throw new Error(`${fieldName} must not point to localhost, private IPs, or internal hostnames.`);
+    }
     if (parsed.protocol === "asset:" && (parsed.search || parsed.hash)) {
       throw new Error(`${fieldName} asset:// references must not include query strings or fragments.`);
     }
-    for (const key of parsed.searchParams.keys()) {
-      if (SECRET_QUERY_KEY_PATTERN.test(key)) {
+    for (const [key, value] of parsed.searchParams.entries()) {
+      if (SECRET_QUERY_TEXT_PATTERN.test(key) || SECRET_QUERY_TEXT_PATTERN.test(value)) {
         throw new Error(`${fieldName} query contains credential-like parameter ${key}.`);
       }
     }
   }
+}
+
+function isBlockedHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    normalized === "localhost" ||
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized === "0.0.0.0" ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal")
+  ) {
+    return true;
+  }
+  const ipVersion = isIP(normalized);
+  if (ipVersion === 4) {
+    const [first = 0, second = 0] = normalized.split(".").map((part) => Number(part));
+    return first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168);
+  }
+  if (ipVersion === 6) {
+    return normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:");
+  }
+  return false;
 }

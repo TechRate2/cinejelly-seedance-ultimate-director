@@ -1253,6 +1253,8 @@ function validateSourceVideoAutoAnalysisSmokeSemantics(report) {
     "existing_analysis_not_overwritten",
     "asset_reference_skipped",
     "secret_query_reference_skipped",
+    "secret_query_value_reference_skipped",
+    "localhost_reference_skipped",
     "clean_https_generates_bounded_analysis",
     "leaking_output_rejected_non_strict",
     "strict_empty_analysis_throws"
@@ -1286,7 +1288,12 @@ function validateSourceVideoAutoAnalysisSmokeSemantics(report) {
   if (existing?.preservedExistingAnalysis !== true || existing?.frameSamplerCallCount !== 0 || existing?.syntheticLlmCallCount !== 0) {
     issues.push("$.scenarioSummaries[existing_analysis_not_overwritten]: expected caller analysis to be preserved with no side effects.");
   }
-  for (const scenarioName of ["asset_reference_skipped", "secret_query_reference_skipped"]) {
+  for (const scenarioName of [
+    "asset_reference_skipped",
+    "secret_query_reference_skipped",
+    "secret_query_value_reference_skipped",
+    "localhost_reference_skipped"
+  ]) {
     const scenario = scenarioByName.get(scenarioName);
     if (scenario?.frameSamplerCallCount !== 0 || scenario?.syntheticLlmCallCount !== 0 || scenario?.analysisPresent !== false) {
       issues.push(`$.scenarioSummaries[${scenarioName}]: expected unsafe reference to be skipped before frame sampling.`);
