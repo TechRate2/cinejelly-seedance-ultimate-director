@@ -91,6 +91,7 @@ writeJson(mismatchedSourceLabelRequestPath, buildMismatchedSourceLabelRequest())
 writeJson(emptySourceVideoRequestPath, buildEmptySourceVideoRequest());
 
 const { validateRenderRequestFile } = await import("../dist/application/render-request-validation-entrypoint.js");
+const { AtlasCloudProvider } = await import("../dist/providers/atlascloud/atlas-cloud-provider.js");
 
 const validSchema = validateRequestSchema("valid_provider_reference", validRequestPath, validSchemaReportPath);
 const flatSchema = validateRequestSchema("invalid_flat_reference", flatReferenceRequestPath, flatSchemaReportPath);
@@ -105,6 +106,7 @@ const secretAdmission = await validateRenderRequestFile(secretQueryRequestPath, 
 const malformedSourceAdmission = await validateRenderRequestFile(malformedSourceVideoRequestPath, process.env);
 const mismatchedSourceAdmission = await validateRenderRequestFile(mismatchedSourceLabelRequestPath, process.env);
 const emptySourceAdmission = await validateRenderRequestFile(emptySourceVideoRequestPath, process.env);
+const atlasPayload = await captureAtlasVideoPayload();
 
 const checks = [
   validSchema.exitCode === 0
@@ -141,7 +143,24 @@ const checks = [
     : fail("source_video_label_runtime_guard", "Expected runtime admission to reject mismatched sourceVideoAnalysis.sourceReferenceLabel."),
   emptySourceSchema.exitCode !== 0 && emptySourceAdmission.status === "fail"
     ? pass("empty_source_video_analysis_rejected", "Schema and admission reject empty sourceVideoAnalysis so source-video workflows require actual structure evidence.")
-    : fail("empty_source_video_analysis_rejected", "Expected empty sourceVideoAnalysis to be rejected by schema and admission.")
+    : fail("empty_source_video_analysis_rejected", "Expected empty sourceVideoAnalysis to be rejected by schema and admission."),
+  Array.isArray(atlasPayload.reference_images) &&
+    atlasPayload.reference_images.length === 2 &&
+    atlasPayload.reference_images[0] === "asset://render-contract/approved-kol" &&
+    atlasPayload.reference_images[1] === "asset://render-contract/approved-product" &&
+    Array.isArray(atlasPayload.reference_videos) &&
+    atlasPayload.reference_videos[0] === "asset://render-contract/source-video" &&
+    Array.isArray(atlasPayload.reference_audios) &&
+    atlasPayload.reference_audios[0] === "asset://render-contract/voice-tempo" &&
+    atlasPayload.image === "asset://render-contract/approved-kol" &&
+    atlasPayload.image_url === "asset://render-contract/approved-kol" &&
+    atlasPayload.video === "asset://render-contract/source-video" &&
+    atlasPayload.video_url === "asset://render-contract/source-video" &&
+    atlasPayload.audio === "asset://render-contract/voice-tempo" &&
+    atlasPayload.audio_url === "asset://render-contract/voice-tempo" &&
+    atlasPayload.return_last_frame === true
+    ? pass("atlas_reference_payload_aliases", "Atlas video payload includes official reference_images/reference_videos/reference_audios arrays plus legacy single-reference aliases and return_last_frame.")
+    : fail("atlas_reference_payload_aliases", "Expected Atlas video payload to preserve all reference array aliases and single-reference aliases before live provider spend.")
 ];
 
 const failed = checks.filter((check) => check.status !== "pass");
@@ -476,6 +495,76 @@ function validateRequestSchema(name, requestPath, outputPath) {
     stderrTail: tail(result.stderr, 1200),
     issueCount: readIssueCount(outputPath)
   };
+}
+
+async function captureAtlasVideoPayload() {
+  const captured = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) => {
+    if (typeof init?.body === "string") {
+      captured.push(JSON.parse(init.body));
+    }
+    return new Response(
+      JSON.stringify({
+        id: "pred_render_contract_payload_smoke",
+        status: "succeeded",
+        output: ["https://cdn.example.com/render-contract-payload.mp4"]
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      }
+    );
+  };
+  try {
+    const provider = new AtlasCloudProvider({
+      apiKey: "test_api_key",
+      apiBaseUrl: "https://api.atlascloud.ai/v1",
+      assetBaseUrl: "https://api.atlascloud.ai/api/v1",
+      models: {
+        llmModel: "atlas-llm-smoke",
+        seedanceStandardModel: "bytedance/seedance-2.0/reference-to-video",
+        seedanceFastModel: "bytedance/seedance-2.0-fast/reference-to-video",
+        seedanceMiniModel: "bytedance/seedance-2.0-mini/text-to-video"
+      },
+      requestTimeoutMs: 5_000,
+      maxJsonResponseBytes: 1024 * 1024,
+      pollingIntervalMs: 1,
+      pollingTimeoutMs: 10_000
+    });
+    await provider.generateReferenceToVideo({
+      provider: "atlascloud",
+      modelId: "bytedance/seedance-2.0/reference-to-video",
+      mode: "reference_to_video",
+      prompt: "Use @image1/image 1 as KOL, @image2/image 2 as product, @video1/video 1 as structure, and @audio1/audio 1 as tempo only.",
+      negativePrompt: "no copied source face, no copied source music",
+      references: [
+        { kind: "image", uri: "asset://render-contract/approved-kol", role: "identity", label: "Approved KOL" },
+        { kind: "product", uri: "asset://render-contract/approved-product", role: "product", label: "Approved product" },
+        { kind: "video", uri: "asset://render-contract/source-video", role: "source_video_structure", label: "Source structure" },
+        { kind: "audio", uri: "asset://render-contract/voice-tempo", role: "audio_tempo", label: "Voice tempo" }
+      ],
+      settings: {
+        durationSeconds: 8,
+        resolution: "720p",
+        ratio: "9:16",
+        generateAudio: true,
+        bitrateMode: "standard",
+        watermark: false,
+        returnLastFrame: true
+      },
+      metadata: {
+        graphNodeId: "render-contract-payload-smoke"
+      }
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const payload = captured[0];
+  if (!payload) {
+    throw new Error("Atlas payload smoke did not capture a video payload.");
+  }
+  return payload;
 }
 
 function readIssueCount(outputPath) {

@@ -93,6 +93,7 @@ export class SeedancePromptCompiler {
     const supportingHandles = providerReferenceHandleBindings.filter((binding) => !primaryHandles.includes(binding));
     return [
       `Provider reference handles (bind before prose): ${providerReferenceHandleBindings.join("; ")}.`,
+      `Atlas reference aliases: ${this.providerReferenceAliasBindings(bindingPlan).join("; ")}. Treat each @image/@video/@audio handle as the matching ordered Atlas reference input.`,
       primaryHandles.length > 0
         ? `Primary anchor order: ${primaryHandles.join("; ")} must be preserved before style, motion, camera, audio, or source-video structure.`
         : "Primary anchor order: no primary identity/product/endpoint media handles are available; do not invent one.",
@@ -142,6 +143,20 @@ export class SeedancePromptCompiler {
   }
 
   private providerReferenceHandleBindings(bindingPlan: PromptBindingPlan): readonly string[] {
+    return this.providerReferenceHandleDescriptors(bindingPlan).map((descriptor) => descriptor.handleBinding);
+  }
+
+  private providerReferenceAliasBindings(bindingPlan: PromptBindingPlan): readonly string[] {
+    return this.providerReferenceHandleDescriptors(bindingPlan).map((descriptor) =>
+      `${descriptor.handle}=${descriptor.atlasAlias}`
+    );
+  }
+
+  private providerReferenceHandleDescriptors(bindingPlan: PromptBindingPlan): readonly {
+    readonly handle: string;
+    readonly atlasAlias: string;
+    readonly handleBinding: string;
+  }[] {
     const handleCounts: Record<"image" | "video" | "audio", number> = {
       image: 0,
       video: 0,
@@ -151,9 +166,14 @@ export class SeedancePromptCompiler {
       const handleKind = this.providerHandleKind(reference.kind);
       handleCounts[handleKind] += 1;
       const handle = `@${handleKind}${handleCounts[handleKind]}`;
+      const atlasAlias = `${handleKind} ${handleCounts[handleKind]}`;
       const role = reference.role ?? reference.kind;
       const label = reference.label ? `=${reference.label}` : "";
-      return `${handle} -> ${role}/${reference.kind}${label}`;
+      return {
+        handle,
+        atlasAlias,
+        handleBinding: `${handle} -> ${role}/${reference.kind}${label}`
+      };
     });
   }
 

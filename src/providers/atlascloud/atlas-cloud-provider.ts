@@ -835,6 +835,9 @@ export class AtlasCloudProvider implements ModelProvider {
     const lastImageUrl = this.firstReferenceUrl(references, ["last_frame"]);
     const firstVideoUrl = this.firstReferenceUrl(references, ["video", "motion", "camera"]);
     const firstAudioUrl = this.firstReferenceUrl(references, ["audio"]);
+    const referenceImages = this.referenceUrlsByFamily(references, "image");
+    const referenceVideos = this.referenceUrlsByFamily(references, "video");
+    const referenceAudios = this.referenceUrlsByFamily(references, "audio");
 
     return {
       model: request.modelId,
@@ -846,10 +849,13 @@ export class AtlasCloudProvider implements ModelProvider {
       bitrate_mode: request.settings.bitrateMode,
       ...(dimensions ? dimensions : { ratio: request.settings.ratio }),
       ...(request.mode !== "text_to_video" ? { mode: request.mode } : {}),
-      ...(firstImageUrl ? { image_url: firstImageUrl } : {}),
-      ...(lastImageUrl ? { last_image_url: lastImageUrl, end_image_url: lastImageUrl } : {}),
-      ...(firstVideoUrl ? { video_url: firstVideoUrl } : {}),
-      ...(firstAudioUrl ? { audio_url: firstAudioUrl } : {}),
+      ...(firstImageUrl ? { image: firstImageUrl, image_url: firstImageUrl } : {}),
+      ...(lastImageUrl ? { last_image: lastImageUrl, image_end: lastImageUrl, last_image_url: lastImageUrl, end_image_url: lastImageUrl } : {}),
+      ...(firstVideoUrl ? { video: firstVideoUrl, video_url: firstVideoUrl } : {}),
+      ...(firstAudioUrl ? { audio: firstAudioUrl, audio_url: firstAudioUrl } : {}),
+      ...(referenceImages.length > 0 ? { reference_images: referenceImages.slice(0, 9) } : {}),
+      ...(referenceVideos.length > 0 ? { reference_videos: referenceVideos.slice(0, 3) } : {}),
+      ...(referenceAudios.length > 0 ? { reference_audios: referenceAudios.slice(0, 3) } : {}),
       ...(references.length > 0 ? { references } : {}),
       generate_audio: request.settings.generateAudio,
       watermark: request.settings.watermark,
@@ -900,6 +906,36 @@ export class AtlasCloudProvider implements ModelProvider {
       preferredKindsOrRoles.includes(reference.type) ||
       (reference.role ? preferredKindsOrRoles.includes(reference.role) : false)
     )?.url;
+  }
+
+  private referenceUrlsByFamily(
+    references: readonly { readonly type: ReferenceKind; readonly url: string; readonly role?: string }[],
+    family: "image" | "video" | "audio"
+  ): readonly string[] {
+    const urls = new Set<string>();
+    for (const reference of references) {
+      if (this.referenceFamily(reference) === family) {
+        urls.add(reference.url);
+      }
+    }
+    return [...urls];
+  }
+
+  private referenceFamily(reference: { readonly type: ReferenceKind; readonly role?: string }): "image" | "video" | "audio" {
+    if (reference.type === "audio" || reference.role === "audio_tempo" || reference.role === "voice") {
+      return "audio";
+    }
+    if (
+      reference.type === "video" ||
+      reference.type === "motion" ||
+      reference.type === "camera" ||
+      reference.role === "source_video_structure" ||
+      reference.role === "motion" ||
+      reference.role === "camera"
+    ) {
+      return "video";
+    }
+    return "image";
   }
 
   private dimensionsFor(
