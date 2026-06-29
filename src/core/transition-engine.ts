@@ -34,9 +34,10 @@ export class TransitionEngine {
     const metadata = await Promise.all(input.inputPaths.map((path) => this.mediaInspector.probe(path, signal)));
     const targetHeight = input.settings.targetHeight ?? this.firstVideoHeight(metadata) ?? 720;
     const targetWidth = this.targetWidth(targetHeight, input.settings.targetRatio, metadata);
+    const transitionDurationSeconds = this.effectiveTransitionDurationSeconds(input.settings.durationSeconds, metadata);
     const usesFixedCanvas = Boolean(input.settings.targetRatio && input.settings.targetRatio !== "adaptive");
     const allHaveAudio = input.settings.preserveAudio && metadata.every((item) => item.streams.some((stream) => stream.type === "audio"));
-    const args = this.buildFfmpegArgs(input, metadata, targetHeight, targetWidth, usesFixedCanvas, allHaveAudio);
+    const args = this.buildFfmpegArgs(input, metadata, targetHeight, targetWidth, transitionDurationSeconds, usesFixedCanvas, allHaveAudio);
     await runProcess(readMediaToolCommand("ffmpeg"), args, signal);
 
     return {
@@ -45,6 +46,7 @@ export class TransitionEngine {
       usedAudioCrossfade: allHaveAudio,
       settings: {
         ...input.settings,
+        durationSeconds: transitionDurationSeconds,
         targetHeight,
         ...(input.settings.targetRatio ? { targetRatio: input.settings.targetRatio } : {})
       },
@@ -57,6 +59,7 @@ export class TransitionEngine {
     metadata: readonly MediaMetadata[],
     targetHeight: number,
     targetWidth: number,
+    transitionDurationSeconds: number,
     usesFixedCanvas: boolean,
     includeAudio: boolean
   ): readonly string[] {
@@ -79,11 +82,11 @@ export class TransitionEngine {
     let cumulativeDuration = this.durationFor(metadata[0]);
     for (let index = 1; index < input.inputPaths.length; index += 1) {
       const nextVideoLabel = `vx${index}`;
-      const offset = Math.max(0, cumulativeDuration - input.settings.durationSeconds);
+      const offset = Math.max(0, cumulativeDuration - transitionDurationSeconds);
       filters.push(
-        `[${currentVideoLabel}][v${index}]xfade=transition=${input.settings.kind}:duration=${input.settings.durationSeconds}:offset=${offset.toFixed(3)}[${nextVideoLabel}]`
+        `[${currentVideoLabel}][v${index}]xfade=transition=${input.settings.kind}:duration=${transitionDurationSeconds}:offset=${offset.toFixed(3)}[${nextVideoLabel}]`
       );
-      cumulativeDuration = cumulativeDuration + this.durationFor(metadata[index]) - input.settings.durationSeconds;
+      cumulativeDuration = cumulativeDuration + this.durationFor(metadata[index]) - transitionDurationSeconds;
       currentVideoLabel = nextVideoLabel;
     }
 
@@ -93,7 +96,7 @@ export class TransitionEngine {
       for (let index = 1; index < input.inputPaths.length; index += 1) {
         const nextAudioLabel = `ax${index}`;
         filters.push(
-          `[${currentAudioLabel}][a${index}]acrossfade=d=${input.settings.durationSeconds}:c1=tri:c2=tri[${nextAudioLabel}]`
+          `[${currentAudioLabel}][a${index}]acrossfade=d=${transitionDurationSeconds}:c1=tri:c2=tri[${nextAudioLabel}]`
         );
         currentAudioLabel = nextAudioLabel;
       }
@@ -125,6 +128,12 @@ export class TransitionEngine {
       throw new Error("Transition assembly requires valid clip durations from ffprobe.");
     }
     return metadata.durationSeconds;
+  }
+
+  private effectiveTransitionDurationSeconds(requestedDurationSeconds: number, metadata: readonly MediaMetadata[]): number {
+    const shortestClipDuration = Math.min(...metadata.map((item) => this.durationFor(item)));
+    const safeMaximum = Math.max(0.08, shortestClipDuration / 3);
+    return Number(Math.min(requestedDurationSeconds, safeMaximum).toFixed(3));
   }
 
   private firstVideoHeight(metadata: readonly MediaMetadata[]): 480 | 720 | 1080 | 1440 | undefined {

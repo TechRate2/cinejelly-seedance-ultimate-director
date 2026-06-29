@@ -39,6 +39,8 @@ const DEFAULT_SEEDANCE_CAPABILITY_BASE = {
   async: true
 };
 
+const DEFAULT_SEEDANCE_MINI_RESOLUTIONS = ["480p", "720p"];
+
 function readEnvFile() {
   if (!existsSync(envPath)) {
     return new Map();
@@ -88,10 +90,15 @@ function fillSeedanceCapabilities(values) {
     "ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON",
     JSON.stringify(modelIds.map((modelId) => ({
       ...DEFAULT_SEEDANCE_CAPABILITY_BASE,
-      modelId
+      modelId,
+      ...(isMiniSeedanceModel(modelId) ? { resolutions: DEFAULT_SEEDANCE_MINI_RESOLUTIONS } : {})
     })))
   );
   return "generated";
+}
+
+function isMiniSeedanceModel(modelId) {
+  return /(^|[-_/])mini([-_/]|$)/i.test(modelId);
 }
 
 async function canExecute(path) {

@@ -46,6 +46,7 @@ const {
 const { StoryArchitect } = await import("../dist/agents/story-architect.js");
 const { ShotPlanner } = await import("../dist/core/shot-planner.js");
 const { SeedancePromptCompiler } = await import("../dist/prompt_compiler/prompt-compiler.js");
+const { AtlasCloudProvider } = await import("../dist/providers/atlascloud/atlas-cloud-provider.js");
 const planner = new ShortPipelinePlanner();
 const generatedAt = new Date("2026-06-19T00:00:00.000Z");
 
@@ -487,6 +488,25 @@ const compiledShortStoryboardPrompts = shortStoryboardShots.map((shot) =>
     provider: "atlascloud"
   })
 );
+const seedanceCapabilityProvider = new AtlasCloudProvider({
+  apiKey: "test-key",
+  apiBaseUrl: "https://api.atlascloud.ai/v1",
+  assetBaseUrl: "https://api.atlascloud.ai",
+  models: {
+    llmModel: "fake-short-llm",
+    seedanceMiniModel: "bytedance/seedance-2.0-mini/reference-to-video",
+    seedanceStandardModel: "bytedance/seedance-2.0/reference-to-video",
+    seedanceFastModel: "bytedance/seedance-2.0-fast/reference-to-video"
+  },
+  requestTimeoutMs: 1000,
+  maxJsonResponseBytes: 100000,
+  pollingIntervalMs: 100,
+  pollingTimeoutMs: 1000
+});
+const fallbackMiniCapabilities = seedanceCapabilityProvider.capabilities("bytedance/seedance-2.0-mini/reference-to-video");
+const fallbackStandardCapabilities = seedanceCapabilityProvider.capabilities("bytedance/seedance-2.0/reference-to-video");
+const fallbackMiniCapability = fallbackMiniCapabilities[0];
+const fallbackStandardCapability = fallbackStandardCapabilities[0];
 
 const serialized = JSON.stringify({
   reviewRequiredPlan,
@@ -574,6 +594,14 @@ const checks = [
     pendingRenderHandoff.request.metadata?.shortChannelStyleProfileId === reviewRequiredPlan.channelStyleProfile.profileId
     ? pass("channel_style_memory_profile", "Reusable channel style profile flows through plan, Short Agent memory, readiness, and render handoff lineage.")
     : fail("channel_style_memory_profile", "Expected reusable channel style profile evidence in plan, memory, readiness, and render handoff."),
+  fallbackMiniCapability?.resolutions.length === 2 &&
+    fallbackMiniCapability.resolutions.includes("480p") &&
+    fallbackMiniCapability.resolutions.includes("720p") &&
+    !fallbackMiniCapability.resolutions.includes("1080p") &&
+    !fallbackMiniCapability.resolutions.some((resolution) => resolution.endsWith("-SR")) &&
+    fallbackStandardCapability?.resolutions.includes("1080p-SR")
+    ? pass("seedance_mini_fallback_capability_guard", "Atlas fallback capabilities keep Seedance Mini on 480p/720p only while broader tiers retain higher/SR options.")
+    : fail("seedance_mini_fallback_capability_guard", "Expected fallback capability mapping to prevent Mini from advertising unsupported high/SR resolutions."),
   hasEveryReviewSurface(reviewRequiredPlan)
     ? pass("review_surfaces_present", "Scene, audio, no-visible-text, and claim checkpoints are present before render.")
     : fail("review_surfaces_present", "Expected scene, audio, no-visible-text, and claim checkpoints."),
@@ -736,10 +764,16 @@ const checks = [
   shortStoryboardShots.length === 3 &&
     shortStoryboardShots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Pacing contract:") && prompt.prompt.includes("Timeline:")) &&
+    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Motion continuity:") && prompt.prompt.includes("Final-frame contract:")) &&
+    compiledShortStoryboardPrompts.every((prompt) => prompt.negativePrompt.includes("no visible captions") && prompt.negativePrompt.includes("no frozen static product pose")) &&
+    shortStoryboardShots[0]?.continuity.nextShotStartState &&
+    shortStoryboardShots[1]?.continuity.previousShotEndState &&
+    shortStoryboardShots[1]?.continuity.nextShotStartState &&
+    shortStoryboardShots[2]?.continuity.previousShotEndState &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.videoRequest.settings.generateAudio === true) &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Audio:") && !prompt.prompt.includes("Audio: Silent"))
-    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include duration-aware timeline beats, pacing contract, and audio-on provider settings by default.")
-    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include timeline, pacing contract, and enabled audio."),
+    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include duration-aware timeline beats, pacing contract, motion-continuity/final-frame contracts, adjacent shot state, and audio-on provider settings by default.")
+    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include timeline, pacing contract, motion-continuity/final-frame contracts, adjacent shot state, and enabled audio."),
   pendingRenderHandoff.request.metadata?.workflowMode === "storyboard" &&
     pendingRenderHandoff.request.metadata?.renderMode === "storyboard_multishot" &&
     pendingRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "storyboard_multishot"

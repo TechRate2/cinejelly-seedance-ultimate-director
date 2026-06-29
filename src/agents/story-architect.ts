@@ -84,13 +84,13 @@ export class StoryArchitect {
       {
         modelId: this.modelId,
         instruction:
-          "Create a production-ready video scene plan. Use reusable production primitives, not hardcoded niche templates. For short commercial inputs, allocate the full requested duration into a complete hook/problem, proof/demo, and payoff arc.",
+          "Create a production-ready video scene plan. Use reusable production primitives, not hardcoded niche templates. For short commercial inputs, allocate the full requested duration into a complete hook/problem, proof/demo, and payoff arc. For every multi-clip or storyboard plan, make each beat end on a clear visual state that the next beat can continue without a visible jump cut.",
         schema: STORY_PLAN_SCHEMA,
         messages: [
           {
             role: "system",
             content:
-              "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, and continuity. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
+              "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, and continuity. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. Make every action concrete enough to film: visible subject state, physical product contact or proof action, camera movement, and an endpoint that can cut or crossfade into the next beat. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
           },
           {
             role: "user",
@@ -346,7 +346,8 @@ export class StoryArchitect {
       "Use the full short duration as one continuous arc:",
       "0-1s hook/problem or payoff promise;",
       "middle seconds show context plus demo/proof action;",
-      "final seconds show the result, reaction, or soft next-step implication.",
+      "final seconds show the result, reaction, or soft next-step implication;",
+      "end on a stable frame that can be exported directly or chained into the next clip.",
       `Planned action: ${action}`
     ].join(" ");
   }

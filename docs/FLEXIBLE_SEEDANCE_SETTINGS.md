@@ -42,12 +42,12 @@ Internal controls should remain flexible:
 
 | Tier | User Meaning | Default Provider Path |
 |---|---|---|
+| Mini | Cheapest/fastest draft path for compact text-first shorts | Atlas Cloud Seedance 2.0 Mini where operator capability config supports requested mode |
 | Fast | Lower latency and lower cost | Atlas Cloud Seedance 2.0 Fast where schema supports requested mode |
 | Standard | Balanced quality and cost | Atlas Cloud Seedance 2.0 default family |
 
 Future optional tiers:
 
-- `Premium`: more candidates, more inspection, more repair budget.
 - `Ultimate`: maximum consistency workflow with test takes, multi-candidate render, endpoint anchors, and postproduction polish.
 
 ### Resolution
@@ -57,12 +57,16 @@ User options:
 - `480p`
 - `720p`
 - `1080p`
+- `720p-SR`
+- `1080p-SR`
+- `1440p-SR`
 
 Policy:
 
 - Validate selected resolution against current provider schema.
 - If 1080p is unsupported for the selected Seedance mode, either select a compatible provider/model or ask for downgrade approval according to product policy.
 - Never silently downgrade.
+- When `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` is absent, runtime fallback treats Seedance Mini conservatively as `480p`/`720p` only. Operator-reviewed capability JSON remains the authority if Atlas publishes different support.
 
 Source notes:
 

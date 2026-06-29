@@ -97,7 +97,42 @@ export class ShotPlanner {
         globalBeatIndex += 1;
       });
     });
-    return shots;
+    return this.withAdjacentContinuityStates(shots);
+  }
+
+  private withAdjacentContinuityStates(shots: readonly ShotContract[]): readonly ShotContract[] {
+    return shots.map((shot, index) => {
+      const previous = shots[index - 1];
+      const next = shots[index + 1];
+      if (!previous && !next) {
+        return shot;
+      }
+      return {
+        ...shot,
+        continuity: {
+          ...shot.continuity,
+          ...(previous && !shot.continuity.previousShotEndState
+            ? { previousShotEndState: this.endpointState(previous, "end") }
+            : {}),
+          ...(next && !shot.continuity.nextShotStartState
+            ? { nextShotStartState: this.endpointState(next, "start") }
+            : {})
+        }
+      };
+    });
+  }
+
+  private endpointState(shot: ShotContract, phase: "start" | "end"): string {
+    const anchors = [
+      shot.continuity.identity ? `identity=${shot.continuity.identity}` : undefined,
+      shot.continuity.product ? `product=${shot.continuity.product}` : undefined,
+      shot.continuity.environment ? `environment=${shot.continuity.environment}` : undefined,
+      shot.continuity.style ? `style=${shot.continuity.style}` : undefined
+    ].filter((anchor): anchor is string => Boolean(anchor));
+    const anchorLine = anchors.length > 0 ? anchors.join("; ") : `subject=${shot.subject}`;
+    return phase === "start"
+      ? `start from ${anchorLine}; continue the prior motion with matching camera direction, lighting, and product/KOL scale`
+      : `end on ${anchorLine}; hold a stable edit handle with product/KOL/result legible`;
   }
 
   private planBeat(
@@ -374,14 +409,14 @@ export class ShotPlanner {
 
   private transitionIntentForChunk(chunkIndex: number, totalChunks: number): string {
     if (totalChunks === 1) {
-      return "Preserve clean start and end handles for editing.";
+      return "Preserve clean start and end handles for seamless editing, xfade, and last-frame chaining.";
     }
     if (chunkIndex === 0) {
-      return "End with a stable state that can anchor the next chunk.";
+      return "End with a stable visible anchor that can drive the next chunk without a jump cut.";
     }
     if (chunkIndex === totalChunks - 1) {
-      return "Start from the previous chunk state and end with an edit-safe handle.";
+      return "Start from the previous chunk state and end with an edit-safe stable handle.";
     }
-    return "Maintain continuous motion from the previous chunk into the next chunk.";
+    return "Maintain continuous motion, camera direction, lighting, and anchor scale from the previous chunk into the next chunk.";
   }
 }

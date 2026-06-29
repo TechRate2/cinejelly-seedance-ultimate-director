@@ -14,13 +14,15 @@ const RISK_CONSTRAINTS: Record<ContinuityRisk, readonly string[]> = {
   text: ["no unintended text"],
   multi_character_blocking: ["no character merging", "no blocking confusion"],
   audio_sync: ["no mismatched lip-sync"],
-  transition: ["no camera jump unless specified"]
+  transition: ["no camera jump unless specified", "no mismatched start/end handles"]
 };
 
 const BASE_CONSTRAINTS: readonly string[] = [
   "no watermark unless requested",
   "no subtitles unless requested",
-  "no temporal flicker"
+  "no visible captions, lower thirds, CTA cards, or fake UI text",
+  "no temporal flicker",
+  "no frozen static product pose for the full clip"
 ];
 
 export function buildNegativePrompt(shot: ShotContract): string {

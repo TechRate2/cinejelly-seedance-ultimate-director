@@ -61,6 +61,7 @@ export class SeedancePromptCompiler {
       this.buildReferenceSection(bindingPlan),
       this.buildContinuitySection(shot),
       this.buildPacingSection(shot),
+      this.buildMotionContinuitySection(shot, bindingPlan),
       `Scene subject: ${shot.subject}.`,
       `Action: ${shot.action}.`,
       `Camera: ${shot.camera}.`,
@@ -69,6 +70,7 @@ export class SeedancePromptCompiler {
       shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline) : undefined,
       shot.audioIntent ? `Audio: ${shot.audioIntent}.` : undefined,
       shot.transitionIntent ? `Transition: ${shot.transitionIntent}.` : undefined,
+      this.buildFinalFrameSection(shot, bindingPlan),
       "Keep the result cinematic, coherent, and physically plausible."
     ];
 
@@ -86,6 +88,39 @@ export class SeedancePromptCompiler {
         ? "Follow the time-coded timeline exactly; each segment must add new visual information."
         : "Create at least three visible state changes: first-frame hook, action/proof, and settled endpoint."
     ].filter((line): line is string => Boolean(line)).join(" ");
+  }
+
+  private buildMotionContinuitySection(shot: ShotContract, bindingPlan: PromptBindingPlan): string {
+    const role = this.storyArcRole(shot);
+    const referenceRoles = new Set(bindingPlan.providerReferences.map((reference) => reference.role ?? reference.kind));
+    const continuityPriority = [
+      referenceRoles.has("identity") ? "preserve KOL/character identity before changing pose or expression" : undefined,
+      referenceRoles.has("product") ? "preserve product geometry, packaging, logo placement, and scale before style or camera motion" : undefined,
+      referenceRoles.has("environment") ? "keep the set/background spatially stable unless the action moves through it" : undefined,
+      referenceRoles.has("source_video_structure") || referenceRoles.has("motion") || referenceRoles.has("camera")
+        ? "use source/reference video only for rhythm, camera grammar, motion timing, and endpoint framing; replace script, faces, product, background, music, and claims with approved inputs"
+        : undefined
+    ].filter((line): line is string => Boolean(line));
+    return [
+      `Motion continuity: make the ${role} beat feel like one filmed moment, with cause-and-effect motion instead of disconnected poses.`,
+      "First half-second must be readable immediately; final half-second must settle into an edit-ready handle for xfade, last-frame chaining, or the next shot.",
+      "Avoid teleporting hands, products, faces, props, camera direction, or lighting between timeline segments.",
+      ...continuityPriority
+    ].join(" ");
+  }
+
+  private buildFinalFrameSection(shot: ShotContract, bindingPlan: PromptBindingPlan): string {
+    const hasNextState = Boolean(shot.continuity.nextShotStartState);
+    const hasLastFrameReference = bindingPlan.providerReferences.some((reference) =>
+      reference.role === "last_frame" || reference.kind === "last_frame"
+    );
+    const clauses = [
+      "Final-frame contract: end on a stable, usable frame with the main subject, product, and action result still legible.",
+      hasNextState ? `The next shot expects: ${shot.continuity.nextShotStartState}.` : undefined,
+      hasLastFrameReference ? "If a last-frame reference is present, move toward it without deforming identity or product details." : undefined,
+      "Do not end on a blur, mid-blink, hidden product, cropped face, empty frame, or unresolved camera whip unless explicitly requested."
+    ].filter((line): line is string => Boolean(line));
+    return clauses.join(" ");
   }
 
   private storyArcRole(shot: ShotContract): string {

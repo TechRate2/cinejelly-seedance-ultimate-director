@@ -206,6 +206,7 @@ Important:
 - This is a desired normalized capability structure.
 - Actual values must be loaded from provider docs, schema inspection, or configuration.
 - If Atlas docs and articles differ, the current model schema wins.
+- When no reviewed Seedance capability JSON is configured, the Atlas fallback capability map is intentionally conservative for Mini models: `480p`/`720p` only. Operator-reviewed capability JSON can broaden or narrow any model after schema verification.
 
 ## Atlas Cloud Default Configuration
 
