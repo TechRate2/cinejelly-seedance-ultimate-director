@@ -57,6 +57,7 @@ export class SeedancePromptCompiler {
 
   private buildPrompt(shot: ShotContract, bindingPlan: PromptBindingPlan, providerMode: ProviderMode): string {
     const sections = [
+      this.buildReferenceHandlePrelude(bindingPlan, providerMode),
       `Shot ${shot.shotId}, ${shot.durationSeconds}s.`,
       `Intent: ${shot.intent}.`,
       this.buildReferenceSection(bindingPlan),
@@ -78,6 +79,26 @@ export class SeedancePromptCompiler {
     ];
 
     return sections.filter((section): section is string => Boolean(section && section.trim())).join("\n");
+  }
+
+  private buildReferenceHandlePrelude(bindingPlan: PromptBindingPlan, providerMode: ProviderMode): string | undefined {
+    if (providerMode === "text_to_video" || bindingPlan.providerReferences.length === 0) {
+      return undefined;
+    }
+    const providerReferenceHandleBindings = this.providerReferenceHandleBindings(bindingPlan);
+    const primaryHandles = providerReferenceHandleBindings.filter((binding) =>
+      /-> (identity|product|first_frame|last_frame)\//.test(binding)
+    );
+    const supportingHandles = providerReferenceHandleBindings.filter((binding) => !primaryHandles.includes(binding));
+    return [
+      `Provider reference handles (bind before prose): ${providerReferenceHandleBindings.join("; ")}.`,
+      primaryHandles.length > 0
+        ? `Primary anchor order: ${primaryHandles.join("; ")} must be preserved before style, motion, camera, audio, or source-video structure.`
+        : "Primary anchor order: no primary identity/product/endpoint media handles are available; do not invent one.",
+      supportingHandles.length > 0
+        ? `Supporting reference order: ${supportingHandles.join("; ")} guides rhythm, camera, style, and audio only after primary anchors are locked.`
+        : undefined
+    ].filter((line): line is string => Boolean(line)).join(" ");
   }
 
   private buildProviderModeContractSection(mode: ProviderMode, bindingPlan: PromptBindingPlan): string {
