@@ -51,12 +51,12 @@ const mixedRenderedShots = [
     "https://cdn.example.test/project/download/shot-a?format=mp4&Expires=redacted",
     "https://cdn.example.test/project/shot-a-last-frame.png?Expires=redacted",
     "https://cdn.example.test/project/shot-a-preview.jpg"
-  ]),
+  ], "Inter-shot bridge: this clip must cut into the proof scene. Bridge transition intent: seamless match cut from serum closeup to proof demo. Keep screen direction."),
   renderedShot("shot_b", [
     "https://cdn.example.test/project/shot-b-last-frame.PNG",
     "C:\\media\\shot-b.MOV?token=redacted",
     "https://cdn.example.test/project/shot-b-alt.WEBM#fragment"
-  ])
+  ], "Transition: wipe reveal into final result. Keep product scale stable.")
 ];
 const selectedClips = selectAssemblyClipsForRenderedShots(mixedRenderedShots);
 let missingVideoError = "";
@@ -88,6 +88,10 @@ const checks = [
   selectedClips.map((clip) => clip.order).join(",") === "0,1,1.01"
     ? pass("stable_clip_order", "Selected clip order preserves shot order and multiple video outputs.")
     : fail("stable_clip_order", "Selected clip order drifted from expected timeline order."),
+  selectedClips[0]?.transitionOutIntent === "seamless match cut from serum closeup to proof demo" &&
+    selectedClips.slice(1).every((clip) => clip.transitionOutIntent === "wipe reveal into final result")
+    ? pass("transition_intent_extraction", "Assembly clips inherit transition intent from both paragraph bridge prompts and explicit Transition lines.")
+    : fail("transition_intent_extraction", "Assembly clips did not inherit transition intent from compiled prompt text."),
   !isVideoOutputUrl("https://cdn.example.test/project/last-frame.png?Expires=redacted") &&
     isVideoOutputUrl("https://cdn.example.test/project/clip.MP4?Expires=redacted") &&
     isVideoOutputUrl("C:\\media\\clip.webm?token=redacted") &&
@@ -135,6 +139,7 @@ const report = {
       selectedAssemblyClipCount: selectedClips.length,
       selectedClipIds: selectedClips.map((clip) => clip.clipId),
       selectedClipOrders: selectedClips.map((clip) => clip.order),
+      selectedClipTransitionIntentCount: selectedClips.filter((clip) => clip.transitionOutIntent).length,
       rejectedSidecarCount: 3
     },
     missingVideoOutput: {
@@ -167,9 +172,9 @@ if (options.writeReport) {
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 process.exitCode = status === "pass" ? 0 : 1;
 
-function renderedShot(shotId, outputUrls) {
+function renderedShot(shotId, outputUrls, prompt = "") {
   return {
-    compiledPrompt: { shotId },
+    compiledPrompt: { shotId, prompt },
     prediction: { outputUrls }
   };
 }
