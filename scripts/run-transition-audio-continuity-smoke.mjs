@@ -52,12 +52,14 @@ mkdirSync(workDirectory, { recursive: true });
 
 const { TransitionEngine } = await import("../dist/core/transition-engine.js");
 const { MediaInspector } = await import("../dist/core/media-inspector.js");
+const { ShotPlanner } = await import("../dist/core/shot-planner.js");
 const { readMediaToolCommand } = await import("../dist/utils/media-tools.js");
 const { runProcess } = await import("../dist/utils/process.js");
 
 const ffmpeg = readMediaToolCommand("ffmpeg");
-const clipWithAudio = resolve(workDirectory, "clip-with-audio.mp4");
+const clipWithAudio = resolve(workDirectory, "clip-with-audio-1.mp4");
 const clipWithoutAudio = resolve(workDirectory, "clip-without-audio.mp4");
+const secondClipWithAudio = resolve(workDirectory, "clip-with-audio-2.mp4");
 const outputVideo = resolve(workDirectory, "transition-output.mp4");
 
 await runProcess(ffmpeg, [
@@ -96,9 +98,31 @@ await runProcess(ffmpeg, [
   clipWithoutAudio
 ]);
 
+await runProcess(ffmpeg, [
+  "-y",
+  "-f",
+  "lavfi",
+  "-i",
+  "testsrc2=size=320x180:rate=30:duration=2",
+  "-f",
+  "lavfi",
+  "-i",
+  "sine=frequency=880:sample_rate=48000:duration=2",
+  "-shortest",
+  "-c:v",
+  "libx264",
+  "-pix_fmt",
+  "yuv420p",
+  "-c:a",
+  "aac",
+  "-b:a",
+  "128k",
+  secondClipWithAudio
+]);
+
 const inspector = new MediaInspector();
 const transition = await new TransitionEngine(inspector).assemble({
-  inputPaths: [clipWithAudio, clipWithoutAudio],
+  inputPaths: [clipWithAudio, clipWithoutAudio, secondClipWithAudio],
   outputPath: outputVideo,
   settings: {
     enabled: true,
@@ -109,11 +133,48 @@ const transition = await new TransitionEngine(inspector).assemble({
     targetRatio: "16:9",
     preserveAudio: true
   },
-  transitionIntents: ["seamless stable transition handle from source rhythm to product proof"]
+  transitionIntents: [
+    "seamless stable transition handle from source rhythm to product proof",
+    "whip pan with motion blur into the final product proof"
+  ]
 });
 const outputMetadata = await inspector.probe(outputVideo);
 const audioReport = inspector.inspectAudio(outputMetadata);
 const videoStream = outputMetadata.streams.find((stream) => stream.type === "video");
+const motionAwareShot = new ShotPlanner().plan({
+  projectId: "transition_smoke",
+  settings: {
+    tier: "fast",
+    resolution: "480p",
+    qualityMode: "standard",
+    ratio: "16:9",
+    durationTargetSeconds: 15,
+    audioMode: "guided",
+    bitrateMode: "standard",
+    watermark: false,
+    returnLastFrame: true
+  },
+  scenes: [
+    {
+      sceneId: "scene_motion",
+      title: "Motion bridge",
+      beats: [
+        {
+          beatId: "beat_whip",
+          purpose: "proof",
+          action: "Creator performs a whip pan into the product proof",
+          subject: "KOL and product",
+          camera: "fast pan with motion blur",
+          lighting: "soft studio lighting",
+          durationSeconds: 6,
+          risks: ["transition"],
+          references: [],
+          continuity: {}
+        }
+      ]
+    }
+  ]
+})[0];
 
 const checks = [
   transition.usedAudioCrossfade
@@ -131,11 +192,21 @@ const checks = [
   videoStream?.height === 480
     ? pass("output_canvas_normalized", "The transition output normalized the canvas height.")
     : fail("output_canvas_normalized", `Expected output height 480 but got ${videoStream?.height ?? "missing"}.`),
-  transition.boundaryPlans.length === 1 &&
-    transition.boundaryPlans[0]?.kind === "fade" &&
+  transition.transitionCount === 2 &&
+    transition.boundaryPlans.length === 2
+    ? pass("multi_boundary_transition_plan", "Transition engine planned both multishot boundaries.")
+    : fail("multi_boundary_transition_plan", `Expected two planned boundaries but got ${transition.boundaryPlans.length}.`),
+  transition.boundaryPlans[0]?.kind === "dissolve" &&
     transition.boundaryPlans[0]?.reasonCodes.includes("continuity_dissolve")
     ? pass("auto_boundary_plan_continuity_dissolve", "Auto transition planning selected a continuity dissolve for a seamless bridge intent.")
-    : fail("auto_boundary_plan_continuity_dissolve", "Expected auto transition boundary planning to select a continuity dissolve.")
+    : fail("auto_boundary_plan_continuity_dissolve", `Expected continuity dissolve but got ${transition.boundaryPlans[0]?.kind ?? "missing"}.`),
+  transition.boundaryPlans[1]?.kind === "hblur" &&
+    transition.boundaryPlans[1]?.reasonCodes.includes("intent_whip_or_motion_blur")
+    ? pass("auto_boundary_plan_whip_blur", "Auto transition planning selected motion blur for a whip-pan bridge intent.")
+    : fail("auto_boundary_plan_whip_blur", `Expected hblur for whip-pan intent but got ${transition.boundaryPlans[1]?.kind ?? "missing"}.`),
+  motionAwareShot?.transitionIntent?.includes("whip-pan motion-blur bridge")
+    ? pass("shot_planner_motion_transition_intent", "Shot Planner emits a motion-aware transition intent that can reach assembly.")
+    : fail("shot_planner_motion_transition_intent", "Expected Shot Planner to emit a whip-pan motion-blur transition intent.")
 ];
 
 const status = checks.every((check) => check.status === "pass") ? "pass" : "fail";
@@ -149,8 +220,8 @@ const report = {
   sourcePatternOrigins,
   checkedInputs: {
     outputPath: toRepoRelative(options.outputPath),
-    syntheticClipCount: 2,
-    sourceAudioClipCount: 1,
+    syntheticClipCount: 3,
+    sourceAudioClipCount: 2,
     silentSourceClipCount: 1,
     transitionKind: transition.settings.kind,
     transitionDurationSeconds: transition.settings.durationSeconds,

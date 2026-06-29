@@ -6,7 +6,25 @@
 
 import type { AspectRatio } from "./settings.js";
 
-export type ResolvedTransitionKind = "fade" | "wipeleft" | "wiperight" | "slideleft" | "slideright";
+export type ResolvedTransitionKind =
+  | "fade"
+  | "dissolve"
+  | "fadeblack"
+  | "fadewhite"
+  | "hblur"
+  | "zoomin"
+  | "wipeleft"
+  | "wiperight"
+  | "wipeup"
+  | "wipedown"
+  | "slideleft"
+  | "slideright"
+  | "slideup"
+  | "slidedown"
+  | "smoothleft"
+  | "smoothright"
+  | "circleopen"
+  | "circleclose";
 export type TransitionKind = "auto" | ResolvedTransitionKind;
 
 export interface TransitionSettings {

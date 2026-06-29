@@ -247,7 +247,29 @@
       "required": ["enabled", "kind", "durationSeconds", "fps", "preserveAudio"],
       "properties": {
         "enabled": { "type": "boolean" },
-        "kind": { "enum": ["auto", "fade", "wipeleft", "wiperight", "slideleft", "slideright"] },
+        "kind": {
+          "enum": [
+            "auto",
+            "fade",
+            "dissolve",
+            "fadeblack",
+            "fadewhite",
+            "hblur",
+            "zoomin",
+            "wipeleft",
+            "wiperight",
+            "wipeup",
+            "wipedown",
+            "slideleft",
+            "slideright",
+            "slideup",
+            "slidedown",
+            "smoothleft",
+            "smoothright",
+            "circleopen",
+            "circleclose"
+          ]
+        },
         "durationSeconds": { "type": "number", "minimum": 0.001, "maximum": 3 },
         "fps": { "type": "number", "minimum": 12, "maximum": 60 },
         "targetHeight": { "enum": [480, 720, 1080, 1440] },

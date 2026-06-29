@@ -168,7 +168,7 @@ export class ShotPlanner {
         ...(beat.style ? { style: beat.style } : {}),
         ...(beat.audioIntent ? { audioIntent: beat.audioIntent } : {}),
         timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none"),
-        transitionIntent: this.transitionIntentForChunk(chunk.index, chunks.length),
+        transitionIntent: this.transitionIntentForChunk(beat, storyRole, chunk.index, chunks.length),
         references: beat.references,
         continuity: beat.continuity,
         risks: beat.risks,
@@ -407,16 +407,59 @@ export class ShotPlanner {
     return `${action}; continue the beat without changing identity, product, or environment anchors`;
   }
 
-  private transitionIntentForChunk(chunkIndex: number, totalChunks: number): string {
+  private transitionIntentForChunk(
+    beat: BeatPlan,
+    storyRole: StoryArcRole,
+    chunkIndex: number,
+    totalChunks: number
+  ): string {
+    const motionIntent = this.transitionMotionIntent(beat);
+    const roleIntent = storyRole === "hook"
+      ? "protect the cold-open energy while handing off to the next proof beat"
+      : storyRole === "payoff"
+        ? "land on a resolved product/result frame with no visual reset"
+        : "preserve viewer information flow across the edit boundary";
     if (totalChunks === 1) {
-      return "Preserve clean start and end handles for seamless editing, xfade, and last-frame chaining.";
+      return [
+        motionIntent,
+        `Preserve clean start and end handles for seamless match cut, xfade, and last-frame chaining; ${roleIntent}.`
+      ].filter(Boolean).join(" ");
     }
     if (chunkIndex === 0) {
-      return "End with a stable visible anchor that can drive the next chunk without a jump cut.";
+      return [
+        motionIntent,
+        "End with a stable visible anchor that can drive the next chunk without a jump cut."
+      ].filter(Boolean).join(" ");
     }
     if (chunkIndex === totalChunks - 1) {
-      return "Start from the previous chunk state and end with an edit-safe stable handle.";
+      return [
+        motionIntent,
+        "Start from the previous chunk state and end with an edit-safe stable handle."
+      ].filter(Boolean).join(" ");
     }
-    return "Maintain continuous motion, camera direction, lighting, and anchor scale from the previous chunk into the next chunk.";
+    return [
+      motionIntent,
+      "Maintain continuous motion, camera direction, lighting, and anchor scale from the previous chunk into the next chunk."
+    ].filter(Boolean).join(" ");
+  }
+
+  private transitionMotionIntent(beat: BeatPlan): string | undefined {
+    const text = `${beat.action} ${beat.camera} ${beat.lighting} ${beat.style ?? ""}`.toLowerCase();
+    if (/whip|snap pan|fast pan|speed ramp|motion blur|rush/.test(text)) {
+      return "Use a whip-pan motion-blur bridge only if it preserves subject scale, screen direction, and product/KOL anchors.";
+    }
+    if (/flash|flare|strobe|light burst|bright burst|white out/.test(text)) {
+      return "Use a brief light-flash bridge only as motivated lighting, never to hide identity or product drift.";
+    }
+    if (/zoom|push in|push-in|macro|punch in|rush in/.test(text)) {
+      return "Use a zoom or macro-push bridge that keeps the product/result anchored through the boundary.";
+    }
+    if (/wipe|swipe|cover|hand pass|hand-pass|product pass|object pass|reveal/.test(text)) {
+      return "Use an object-wipe reveal bridge motivated by hand/product movement, with the next frame already readable.";
+    }
+    if (/slide|tracking|truck|dolly|pan|camera move|move through/.test(text)) {
+      return "Use a smooth camera-motion bridge that continues lens distance, direction, and lighting across the boundary.";
+    }
+    return undefined;
   }
 }

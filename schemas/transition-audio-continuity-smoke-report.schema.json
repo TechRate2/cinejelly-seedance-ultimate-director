@@ -44,12 +44,34 @@
       ],
       "properties": {
         "outputPath": { "$ref": "#/$defs/repoPath" },
-        "syntheticClipCount": { "const": 2 },
-        "sourceAudioClipCount": { "const": 1 },
+        "syntheticClipCount": { "const": 3 },
+        "sourceAudioClipCount": { "const": 2 },
         "silentSourceClipCount": { "const": 1 },
-        "transitionKind": { "enum": ["auto", "fade", "wipeleft", "wiperight", "slideleft", "slideright"] },
+        "transitionKind": {
+          "enum": [
+            "auto",
+            "fade",
+            "dissolve",
+            "fadeblack",
+            "fadewhite",
+            "hblur",
+            "zoomin",
+            "wipeleft",
+            "wiperight",
+            "wipeup",
+            "wipedown",
+            "slideleft",
+            "slideright",
+            "slideup",
+            "slidedown",
+            "smoothleft",
+            "smoothright",
+            "circleopen",
+            "circleclose"
+          ]
+        },
         "transitionDurationSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 3 },
-        "boundaryPlanCount": { "const": 1 }
+        "boundaryPlanCount": { "const": 2 }
       }
     },
     "transition": {
@@ -65,11 +87,11 @@
         "targetRatio"
       ],
       "properties": {
-        "transitionCount": { "const": 1 },
+        "transitionCount": { "const": 2 },
         "boundaryPlans": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 1,
+          "minItems": 2,
+          "maxItems": 2,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -82,8 +104,29 @@
               "reasonCodes"
             ],
             "properties": {
-              "boundaryIndex": { "const": 0 },
-              "kind": { "enum": ["fade", "wipeleft", "wiperight", "slideleft", "slideright"] },
+              "boundaryIndex": { "type": "integer", "minimum": 0, "maximum": 1 },
+              "kind": {
+                "enum": [
+                  "fade",
+                  "dissolve",
+                  "fadeblack",
+                  "fadewhite",
+                  "hblur",
+                  "zoomin",
+                  "wipeleft",
+                  "wiperight",
+                  "wipeup",
+                  "wipedown",
+                  "slideleft",
+                  "slideright",
+                  "slideup",
+                  "slidedown",
+                  "smoothleft",
+                  "smoothright",
+                  "circleopen",
+                  "circleclose"
+                ]
+              },
               "durationSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 3 },
               "offsetSeconds": { "type": "number", "minimum": 0 },
               "hasIntent": { "const": true },
@@ -130,7 +173,7 @@
     },
     "checks": {
       "type": "array",
-      "minItems": 6,
+      "minItems": 7,
       "items": { "$ref": "#/$defs/check" }
     },
     "releaseGateSummary": {

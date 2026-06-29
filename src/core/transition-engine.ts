@@ -25,6 +25,28 @@ export const DEFAULT_TRANSITION_SETTINGS: TransitionSettings = {
   preserveAudio: true
 };
 
+const TRANSITION_KINDS: readonly (TransitionSettings["kind"])[] = [
+  "auto",
+  "fade",
+  "dissolve",
+  "fadeblack",
+  "fadewhite",
+  "hblur",
+  "zoomin",
+  "wipeleft",
+  "wiperight",
+  "wipeup",
+  "wipedown",
+  "slideleft",
+  "slideright",
+  "slideup",
+  "slidedown",
+  "smoothleft",
+  "smoothright",
+  "circleopen",
+  "circleclose"
+];
+
 export class TransitionEngine {
   private readonly mediaInspector: MediaInspector;
 
@@ -148,18 +170,19 @@ export class TransitionEngine {
     for (let index = 1; index < input.inputPaths.length; index += 1) {
       const intent = cleanIntent(input.transitionIntents?.[index - 1]);
       const selection = this.selectBoundaryTransition(input.settings.kind, intent);
-      const offsetSeconds = Math.max(0, cumulativeDuration - transitionDurationSeconds);
+      const durationSeconds = this.boundaryDurationSeconds(transitionDurationSeconds, selection.durationScale);
+      const offsetSeconds = Math.max(0, cumulativeDuration - durationSeconds);
       plans.push({
         boundaryIndex: index - 1,
         fromInputIndex: index - 1,
         toInputIndex: index,
         kind: selection.kind,
-        durationSeconds: transitionDurationSeconds,
+        durationSeconds,
         offsetSeconds,
         ...(intent ? { intent } : {}),
         reasonCodes: selection.reasonCodes
       });
-      cumulativeDuration = cumulativeDuration + this.durationFor(metadata[index]) - transitionDurationSeconds;
+      cumulativeDuration = cumulativeDuration + this.durationFor(metadata[index]) - durationSeconds;
     }
     return plans;
   }
@@ -169,37 +192,85 @@ export class TransitionEngine {
     intent: string | undefined
   ): {
     readonly kind: ResolvedTransitionKind;
+    readonly durationScale: number;
     readonly reasonCodes: readonly string[];
   } {
     if (requestedKind !== "auto") {
       return {
         kind: requestedKind,
+        durationScale: 1,
         reasonCodes: ["operator_fixed_transition_kind"]
       };
     }
     const normalizedIntent = intent?.toLowerCase() ?? "";
-    if (/wipe|swipe|reveal|cover/.test(normalizedIntent)) {
+    if (/whip|blur|rush|fast pan|snap pan|speed ramp|motion smear|camera whip/.test(normalizedIntent)) {
       return {
-        kind: /right|rtl|back/.test(normalizedIntent) ? "wiperight" : "wipeleft",
+        kind: "hblur",
+        durationScale: 0.58,
+        reasonCodes: ["auto_transition", "intent_whip_or_motion_blur"]
+      };
+    }
+    if (/flash|flare|strobe|light burst|white out|bright/.test(normalizedIntent)) {
+      return {
+        kind: "fadewhite",
+        durationScale: 0.5,
+        reasonCodes: ["auto_transition", "intent_light_flash"]
+      };
+    }
+    if (/black|dark|night|fade to black|lights? off/.test(normalizedIntent)) {
+      return {
+        kind: "fadeblack",
+        durationScale: 0.75,
+        reasonCodes: ["auto_transition", "intent_dark_transition"]
+      };
+    }
+    if (/zoom|push in|push-in|macro|rush in|punch in/.test(normalizedIntent)) {
+      return {
+        kind: "zoomin",
+        durationScale: 0.7,
+        reasonCodes: ["auto_transition", "intent_zoom_or_macro_push"]
+      };
+    }
+    if (/iris|circle|spotlight|portal/.test(normalizedIntent)) {
+      return {
+        kind: /close|out|away/.test(normalizedIntent) ? "circleclose" : "circleopen",
+        durationScale: 0.85,
+        reasonCodes: ["auto_transition", "intent_iris_or_spotlight"]
+      };
+    }
+    if (/wipe|swipe|reveal|cover|object pass|hand cover|product pass/.test(normalizedIntent)) {
+      return {
+        kind: verticalDirectionKind(normalizedIntent, "wipe") ??
+          (/right|rtl|back/.test(normalizedIntent) ? "wiperight" : "wipeleft"),
+        durationScale: 0.85,
         reasonCodes: ["auto_transition", "intent_wipe_reveal"]
       };
     }
-    if (/slide|push|pan|tracking|move/.test(normalizedIntent)) {
+    if (/slide|push|pan|tracking|truck|dolly|move|camera drift/.test(normalizedIntent)) {
       return {
-        kind: /right|rtl|back/.test(normalizedIntent) ? "slideright" : "slideleft",
+        kind: verticalDirectionKind(normalizedIntent, "slide") ??
+          (/right|rtl|back/.test(normalizedIntent) ? "smoothright" : "smoothleft"),
+        durationScale: 0.9,
         reasonCodes: ["auto_transition", "intent_camera_motion"]
       };
     }
     if (/match cut|seamless|continuous|continuity|last-frame|first-frame|xfade|bridge|clean start|clean end|same frame|stable transition/.test(normalizedIntent)) {
       return {
-        kind: "fade",
+        kind: "dissolve",
+        durationScale: 0.62,
         reasonCodes: ["auto_transition", "continuity_dissolve"]
       };
     }
     return {
       kind: "fade",
+      durationScale: 1,
       reasonCodes: ["auto_transition", "default_invisible_dissolve"]
     };
+  }
+
+  private boundaryDurationSeconds(baseDurationSeconds: number, scale: number): number {
+    const scaled = Math.max(0.08, Math.min(baseDurationSeconds, baseDurationSeconds * scale));
+    return Number(scaled.toFixed(3));
   }
 
   private durationFor(metadata: MediaMetadata | undefined): number {
@@ -287,8 +358,8 @@ export class TransitionEngine {
     if (!settings.enabled) {
       throw new Error("Transition settings must be enabled before transition assembly.");
     }
-    if (!["auto", "fade", "wipeleft", "wiperight", "slideleft", "slideright"].includes(settings.kind)) {
-      throw new Error("Transition kind must be auto, fade, wipeleft, wiperight, slideleft, or slideright.");
+    if (!TRANSITION_KINDS.includes(settings.kind)) {
+      throw new Error(`Transition kind must be one of: ${TRANSITION_KINDS.join(", ")}.`);
     }
     if (!Number.isFinite(settings.durationSeconds) || settings.durationSeconds <= 0 || settings.durationSeconds > 3) {
       throw new Error("Transition duration must be between 0 and 3 seconds.");
@@ -302,4 +373,17 @@ export class TransitionEngine {
 function cleanIntent(value: string | undefined): string | undefined {
   const trimmed = value?.replace(/\s+/g, " ").trim();
   return trimmed || undefined;
+}
+
+function verticalDirectionKind(
+  normalizedIntent: string,
+  family: "wipe" | "slide"
+): ResolvedTransitionKind | undefined {
+  if (/up|rise|lift/.test(normalizedIntent)) {
+    return family === "wipe" ? "wipeup" : "slideup";
+  }
+  if (/down|drop|fall/.test(normalizedIntent)) {
+    return family === "wipe" ? "wipedown" : "slidedown";
+  }
+  return undefined;
 }
