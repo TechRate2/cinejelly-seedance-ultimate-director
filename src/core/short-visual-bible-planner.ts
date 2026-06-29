@@ -8,6 +8,7 @@ import type {
   ShortVisualBibleDurationBand,
   ShortVisualBibleExecutionBlueprint,
   ShortVisualBibleExecutionMode,
+  ShortVisualBibleImagePromptPack,
   ShortVisualBibleInput,
   ShortVisualBibleMode,
   ShortVisualBiblePlan,
@@ -282,8 +283,8 @@ function assetPlan(
   label: string,
   sourcePolicy: ShortVisualBibleAssetPlan["sourcePolicy"],
   requiredBeforeRender: boolean,
-  promptRole: ShortVisualBibleAssetPlan["promptRole"],
-  providerKind: ShortVisualBibleAssetPlan["providerKind"],
+  promptRole: NonNullable<ShortVisualBibleAssetPlan["promptRole"]>,
+  providerKind: NonNullable<ShortVisualBibleAssetPlan["providerKind"]>,
   preferredPromptTag: string | undefined,
   minimumViewCount: number,
   maximumImageCount: number,
@@ -302,6 +303,17 @@ function assetPlan(
     minimumViewCount,
     maximumImageCount,
     promptBrief: promptLines.join(" "),
+    imagePromptPack: imagePromptPackFor(input, {
+      role,
+      label,
+      sourcePolicy,
+      promptRole,
+      providerKind,
+      preferredPromptTag,
+      minimumViewCount,
+      maximumImageCount,
+      promptLines
+    }),
     seedanceBindingPriority: promptRole === "identity" || promptRole === "product" || promptRole === "first_frame" ? "primary" : "supporting",
     sourceEvidence: unique([
       input.productBrief?.title ? `product=${input.productBrief.title}` : undefined,
@@ -310,6 +322,163 @@ function assetPlan(
       `sceneCount=${input.scenes.length}`
     ])
   };
+}
+
+function imagePromptPackFor(
+  input: ShortVisualBiblePlannerInput,
+  asset: {
+    readonly role: ShortVisualBibleAssetPlan["role"];
+    readonly label: string;
+    readonly sourcePolicy: ShortVisualBibleAssetPlan["sourcePolicy"];
+    readonly promptRole: NonNullable<ShortVisualBibleAssetPlan["promptRole"]>;
+    readonly providerKind: NonNullable<ShortVisualBibleAssetPlan["providerKind"]>;
+    readonly preferredPromptTag: string | undefined;
+    readonly minimumViewCount: number;
+    readonly maximumImageCount: number;
+    readonly promptLines: readonly string[];
+  }
+): ShortVisualBibleImagePromptPack {
+  const sceneArc = input.scenes
+    .slice(0, 6)
+    .map((scene) => `${scene.order}:${scene.role}:${scene.goal}`)
+    .join(" | ");
+  const contextLines = unique([
+    input.productBrief?.title ? `Product anchor: ${input.productBrief.title}.` : undefined,
+    input.productBrief?.category ? `Product category: ${input.productBrief.category}.` : undefined,
+    `Platform: ${input.intent.platform}; aspect ratio: ${input.intent.aspectRatio}; target duration: ${input.intent.targetDurationSeconds}s.`,
+    `Story arc: ${sceneArc || "hook, setup, proof/demo, payoff"}.`,
+    input.referenceRemakeBlueprint
+      ? `Source-video remake context: preserve beat structure only; replace people, product, background, audio, claims, captions, and marks with approved user assets.`
+      : undefined
+  ]);
+  const layout = imagePromptLayoutFor(asset.role);
+  const referenceTag = asset.preferredPromptTag ?? `${asset.role}`;
+  const prompt = [
+    `Create one original ${asset.label.toLowerCase()} as a single image reference sheet for a Seedance reference-to-video workflow.`,
+    `Layout: ${layout}; include ${asset.minimumViewCount}-${asset.maximumImageCount} clear view(s) or panel(s) in one image.`,
+    `Source policy: ${asset.sourcePolicy}. If approved user reference assets exist, preserve their identity/product facts; if they do not exist, create only an original generic production guide and do not invent real brand claims or a real person's likeness.`,
+    ...contextLines,
+    `Production requirements: ${asset.promptLines.join(" ")}`,
+    roleSpecificImagePrompt(asset.role),
+    "No written labels are needed; communicate timing, motion, scale, lighting, and panel order through composition only.",
+    "The image must be useful as a Seedance reference, with clean framing, stable identity/product geometry, readable action states, and no distracting design decoration."
+  ].join(" ");
+  return {
+    schemaVersion: "cinejelly.short-visual-bible-image-prompt.v1",
+    provider: "provider_neutral_image_model",
+    layout,
+    outputPolicy: "single_image_reference_sheet",
+    minPanelOrViewCount: asset.minimumViewCount,
+    maxPanelOrViewCount: asset.maximumImageCount,
+    prompt,
+    negativePrompt: imagePromptNegativePromptFor(asset.role),
+    seedanceBindingInstruction: seedanceBindingInstructionFor(asset, referenceTag),
+    approvalChecklist: imagePromptApprovalChecklistFor(asset.role, referenceTag)
+  };
+}
+
+function imagePromptLayoutFor(role: ShortVisualBibleAssetPlan["role"]): ShortVisualBibleImagePromptPack["layout"] {
+  switch (role) {
+    case "identity_sheet":
+      return "identity_multi_view_sheet";
+    case "product_sheet":
+      return "product_geometry_sheet";
+    case "environment_board":
+      return "environment_set_board";
+    case "style_board":
+      return "style_light_camera_board";
+    case "first_frame_board":
+      return "first_frame_lock";
+    case "storyboard_board":
+      return "storyboard_panel_grid";
+    case "sequence_board":
+      return "sequence_panel_grid";
+    case "audio_timing_board":
+      return "audio_timing_board";
+  }
+}
+
+function roleSpecificImagePrompt(role: ShortVisualBibleAssetPlan["role"]): string {
+  switch (role) {
+    case "identity_sheet":
+      return "Show the same creator/KOL identity across front, side, and three-quarter views with consistent face, hair, wardrobe, skin texture, lens distance, and lighting; include one natural UGC reaction pose for motion.";
+    case "product_sheet":
+      return "Show product hero front, angled view, hand-scale view, texture/material close-up, packaging geometry, and logo/label placement only when supplied by the user or product evidence.";
+    case "environment_board":
+      return "Show stable set geometry, background depth, prop placement, lens distance, and movement lanes so the product and KOL can move without spatial jumps.";
+    case "style_board":
+      return "Show lighting source, contrast, palette, lens language, material mood, and camera energy as broad production guidance after identity and product anchors are locked.";
+    case "first_frame_board":
+      return "Show the exact opening composition: subject/product visible immediately, hook readable without captions, and enough space for camera or hand motion to begin.";
+    case "storyboard_board":
+      return "Show a compact hook-to-payoff panel grid: opening hook, setup/problem, proof/demo, transition, and payoff, with clear action changes and no text labels.";
+    case "sequence_board":
+      return "Show a sequence board grid with recurring anchors, escalating action, boundary handoff frames, and final payoff so long sequences can render in chained Seedance clips.";
+    case "audio_timing_board":
+      return "Show visual rhythm cues for beats, pauses, product contact SFX, voiceover emphasis, and final resolve without using waveform text or written labels.";
+  }
+}
+
+function imagePromptNegativePromptFor(role: ShortVisualBibleAssetPlan["role"]): string {
+  const common = [
+    "visible text",
+    "captions",
+    "subtitles",
+    "CTA cards",
+    "fake UI labels",
+    "watermarks",
+    "random letters",
+    "private marks",
+    "copied public creator likeness",
+    "unapproved celebrity identity",
+    "unsupported product claims",
+    "unapproved logos",
+    "distorted hands",
+    "extra fingers",
+    "face inconsistency",
+    "product deformation",
+    "packaging drift",
+    "cropped product",
+    "dark unreadable panels"
+  ];
+  const roleSpecific = role === "storyboard_board" || role === "sequence_board"
+    ? ["repeated identical panels", "missing beginning middle ending", "unclear panel order", "static product macro only"]
+    : role === "identity_sheet"
+      ? ["different faces across views", "different hair or wardrobe across views"]
+      : role === "product_sheet"
+        ? ["invented label text", "wrong scale", "melted packaging"]
+        : [];
+  return [...common, ...roleSpecific].join(", ");
+}
+
+function seedanceBindingInstructionFor(
+  asset: {
+    readonly role: ShortVisualBibleAssetPlan["role"];
+    readonly promptRole: NonNullable<ShortVisualBibleAssetPlan["promptRole"]>;
+    readonly providerKind: NonNullable<ShortVisualBibleAssetPlan["providerKind"]>;
+    readonly preferredPromptTag: string | undefined;
+  },
+  referenceTag: string
+): string {
+  const priority = asset.promptRole === "identity" || asset.promptRole === "product" || asset.promptRole === "first_frame"
+    ? "Bind before style, source-video rhythm, camera, and audio references."
+    : "Bind after identity/product anchors and use as supporting guidance.";
+  return `${referenceTag} should be uploaded as a ${asset.providerKind}/${asset.promptRole} reference for ${asset.role}. ${priority} Seedance should preserve concrete visual anchors while animating motion from the shot prompt; do not treat this board as visible text or final edit graphics.`;
+}
+
+function imagePromptApprovalChecklistFor(
+  role: ShortVisualBibleAssetPlan["role"],
+  referenceTag: string
+): readonly string[] {
+  return [
+    `${referenceTag} has no visible captions, labels, CTA cards, watermark, random text, or private marks.`,
+    "Identity/product/style anchors match approved user evidence or remain clearly original when no reference exists.",
+    "Panels or views cover the requested count and the full hook/setup/proof/demo/payoff job for the asset role.",
+    role === "storyboard_board" || role === "sequence_board"
+      ? "Panel order and action progression are visually clear enough to map into Seedance clip prompts."
+      : "The board is clean enough to act as a stable Seedance reference, not just mood decoration.",
+    "No unsupported product claim, copied source-video expression, unapproved logo, music cue, caption, or public creator likeness is present."
+  ];
 }
 
 function sequencePlanFor(
@@ -481,7 +650,7 @@ function executionStepsFor(
         outputAssetRole: asset.role,
         ...(asset.preferredPromptTag ? { outputReferenceTag: asset.preferredPromptTag } : {}),
         requiresHumanApproval: true,
-        instruction: asset.promptBrief
+        instruction: imageAssetStepInstructionFor(asset)
       });
     }
   }
@@ -517,6 +686,16 @@ function executionStepsFor(
     instruction: "Approve only if face/product geometry, product claims, shot order, audio timing, no-visible-text policy, and final-frame continuity match the plan."
   });
   return steps;
+}
+
+function imageAssetStepInstructionFor(asset: ShortVisualBibleAssetPlan): string {
+  const pack = asset.imagePromptPack;
+  return [
+    `Image prompt: ${pack.prompt}`,
+    `Negative prompt: ${pack.negativePrompt}`,
+    `Seedance binding: ${pack.seedanceBindingInstruction}`,
+    `Approval checklist: ${pack.approvalChecklist.join(" | ")}`
+  ].join(" ");
 }
 
 function durationCoverageRuleFor(

@@ -458,6 +458,29 @@ export type ShortVisualBibleAssetSourcePolicy =
   | "derive_from_existing_reference"
   | "optional_quality_upgrade";
 
+export type ShortVisualBibleImagePromptLayout =
+  | "identity_multi_view_sheet"
+  | "product_geometry_sheet"
+  | "environment_set_board"
+  | "style_light_camera_board"
+  | "first_frame_lock"
+  | "storyboard_panel_grid"
+  | "sequence_panel_grid"
+  | "audio_timing_board";
+
+export interface ShortVisualBibleImagePromptPack {
+  readonly schemaVersion: "cinejelly.short-visual-bible-image-prompt.v1";
+  readonly provider: "provider_neutral_image_model";
+  readonly layout: ShortVisualBibleImagePromptLayout;
+  readonly outputPolicy: "single_image_reference_sheet";
+  readonly minPanelOrViewCount: number;
+  readonly maxPanelOrViewCount: number;
+  readonly prompt: string;
+  readonly negativePrompt: string;
+  readonly seedanceBindingInstruction: string;
+  readonly approvalChecklist: readonly string[];
+}
+
 export interface ShortVisualBibleInput {
   readonly mode?: ShortVisualBibleMode;
   readonly imageProviderPolicy?: "provider_neutral" | "openai_compatible" | "atlascloud" | "operator_supplied";
@@ -478,6 +501,7 @@ export interface ShortVisualBibleAssetPlan {
   readonly minimumViewCount: number;
   readonly maximumImageCount: number;
   readonly promptBrief: string;
+  readonly imagePromptPack: ShortVisualBibleImagePromptPack;
   readonly seedanceBindingPriority: "primary" | "supporting";
   readonly sourceEvidence: readonly string[];
 }

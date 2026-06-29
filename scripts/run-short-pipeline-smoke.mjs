@@ -846,6 +846,9 @@ const checks = [
   })
     ? pass("visual_bible_execution_blueprint_contract", "Every pipe emits a structured reference-board/Seedance execution blueprint with mode, clip strategy, binding order, duration coverage, render step, and review step.")
     : fail("visual_bible_execution_blueprint_contract", "Expected all five pipe scenarios to expose a complete visual-bible execution blueprint."),
+  Object.values(pipeMatrixPlans).every((plan) => visualBibleImagePromptPacksReady(plan))
+    ? pass("visual_bible_image_prompt_pack_contract", "Visual Bible assets carry provider-neutral image prompt packs with layout, negative prompt, Seedance binding instruction, and approval checklist.")
+    : fail("visual_bible_image_prompt_pack_contract", "Expected every Visual Bible asset to expose a complete image prompt pack before Seedance handoff."),
   smartShortPipePlan.seedanceRouting.recommendedProviderMode === "text_to_video" &&
     smartShortPipePlan.visualBiblePlan.status === "not_needed" &&
     smartShortPipePlan.visualBiblePlan.recommendedPipe === "normal_short_pipe" &&
@@ -1170,6 +1173,41 @@ function summarizePipeMatrix(plans) {
       ];
     })
   );
+}
+
+function visualBibleImagePromptPacksReady(plan) {
+  const assets = plan.visualBiblePlan.assetPlans ?? [];
+  if (plan.visualBiblePlan.status === "not_needed") {
+    return assets.length === 0;
+  }
+  const assetPacksReady = assets.length > 0 && assets.every((asset) => {
+    const pack = asset.imagePromptPack;
+    return pack?.schemaVersion === "cinejelly.short-visual-bible-image-prompt.v1" &&
+      pack.provider === "provider_neutral_image_model" &&
+      pack.outputPolicy === "single_image_reference_sheet" &&
+      pack.minPanelOrViewCount === asset.minimumViewCount &&
+      pack.maxPanelOrViewCount === asset.maximumImageCount &&
+      typeof pack.prompt === "string" &&
+      pack.prompt.includes("Seedance") &&
+      pack.prompt.includes("single image reference sheet") &&
+      typeof pack.negativePrompt === "string" &&
+      pack.negativePrompt.includes("visible text") &&
+      pack.negativePrompt.includes("watermarks") &&
+      typeof pack.seedanceBindingInstruction === "string" &&
+      pack.seedanceBindingInstruction.includes("Seedance") &&
+      Array.isArray(pack.approvalChecklist) &&
+      pack.approvalChecklist.length >= 4 &&
+      pack.approvalChecklist.some((item) => item.includes("visible captions"));
+  });
+  const imageModelStepsReady = plan.visualBiblePlan.executionBlueprint.steps
+    .filter((step) => step.stage === "reference_asset_planning")
+    .every((step) =>
+      step.instruction.includes("Image prompt:") &&
+      step.instruction.includes("Negative prompt:") &&
+      step.instruction.includes("Seedance binding:") &&
+      step.instruction.includes("Approval checklist:")
+    );
+  return assetPacksReady && imageModelStepsReady;
 }
 
 function hasEveryReviewSurface(plan) {
