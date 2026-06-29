@@ -145,6 +145,14 @@ const checks = [
     pack.masterPrompt.includes(selectedIdea.label)
     ? pass("selected_creative_idea_reaches_agent_graph", "Winning creative-pattern idea becomes graph memory, selected candidate, and Seedance master prompt guidance.")
     : fail("selected_creative_idea_reaches_agent_graph", "Expected winning creative-pattern idea to reach graph ranking and master prompt."),
+  pack?.masterPrompt.includes("Reference handle discipline:") &&
+    pack.masterPrompt.includes("KOL/identity @image anchors and product @image anchors outrank @video") &&
+    pack.shotPrompts.every((shot) =>
+      shot.referencePolicy.includes("Reference handle discipline:") &&
+      shot.referencePolicy.includes("Never let @video overwrite user KOL face")
+    )
+    ? pass("seedance_reference_handle_discipline", "Short Agent prompt pack locks @image KOL/product anchors ahead of @video source/trend handles before render compilation.")
+    : fail("seedance_reference_handle_discipline", "Expected Short Agent prompt pack and every shot reference policy to include @image/@video handle priority discipline."),
   plan.scenes.length >= 5 &&
     pack?.shotPrompts.length === plan.scenes.length &&
     pack.shotPrompts.every((shot) =>

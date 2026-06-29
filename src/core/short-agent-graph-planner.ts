@@ -394,6 +394,7 @@ function seedancePromptPackFor(
     `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
     `Use viral levers: ${strategy.viralLevers.join(", ")}.`,
     "Seedance quality contract: write prompt details as physical direction, not abstract marketing. Specify reference binding, subject identity, product geometry, lens distance, camera motion, lighting source, hand/action timing, material texture, background depth, audio bed, and exact final frame.",
+    seedanceReferenceHandleDiscipline(input),
     "Human realism contract: natural blink timing, tiny pauses before/after product contact, believable eye-line, slight handheld correction, real skin/hand texture, and unpolished creator timing. Avoid stiff posing, plastic skin, warped fingers, floating products, overacting, and studio-commercial fakery unless user asks for cinematic mode.",
     reference
       ? `Reference policy: adapt structure only from ${reference.patternId}; hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; text-rhythm=${reference.captionPattern}; do not render visible text.`
@@ -450,6 +451,10 @@ function shotPromptsFor(
       (input.viralIntelligence.referenceVideoPattern
         ? "Adapt reference timing and framing only; all assets and claims must be original or approved."
         : "Original shot based on user brief, product evidence, and brand kit.");
+    const scopedReferencePolicy = compactLines([
+      referencePolicy,
+      seedanceReferenceHandleDiscipline(input)
+    ]);
     const shotId = createStableId("short_seedance_shot", `${input.projectId}:${sceneItem.sceneId}:${startSecond}:${endSecond}:${action}`);
     return {
       shotId,
@@ -468,7 +473,7 @@ function shotPromptsFor(
       audio,
       continuity,
       transitionBridge,
-      referencePolicy,
+      referencePolicy: scopedReferencePolicy,
       negativeConstraints: negativeConstraintsFor(sceneItem, input),
       qualityChecks: uniqueStrings([
         ...(directive?.qualityChecks ?? qualityChecksFor(sceneItem)),
@@ -476,6 +481,19 @@ function shotPromptsFor(
       ], 10)
     };
   });
+}
+
+function seedanceReferenceHandleDiscipline(input: ShortAgentGraphPlannerInput): string {
+  const hasReferencePattern = Boolean(input.viralIntelligence.referenceVideoPattern || input.referenceVideoLearning);
+  const sourceVideoClause = hasReferencePattern
+    ? "Source-video @video handles may guide structure, pacing, camera grammar, acting energy, and payoff timing only."
+    : "If no @video source pattern exists, do not invent one.";
+  return [
+    "Reference handle discipline: when render routing exposes @image/@video/@audio handles, bind each handle by role before visual prose.",
+    "KOL/identity @image anchors and product @image anchors outrank @video trend/source handles, style references, camera references, and audio references.",
+    sourceVideoClause,
+    "Never let @video overwrite user KOL face, product geometry, background replacement, claim wording, audio, or CTA."
+  ].join(" ");
 }
 
 function stageRunsFor(input: {
