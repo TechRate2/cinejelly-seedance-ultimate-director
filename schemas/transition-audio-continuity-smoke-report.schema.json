@@ -39,15 +39,17 @@
         "sourceAudioClipCount",
         "silentSourceClipCount",
         "transitionKind",
-        "transitionDurationSeconds"
+        "transitionDurationSeconds",
+        "boundaryPlanCount"
       ],
       "properties": {
         "outputPath": { "$ref": "#/$defs/repoPath" },
         "syntheticClipCount": { "const": 2 },
         "sourceAudioClipCount": { "const": 1 },
         "silentSourceClipCount": { "const": 1 },
-        "transitionKind": { "enum": ["fade", "wipeleft", "wiperight", "slideleft", "slideright"] },
-        "transitionDurationSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 3 }
+        "transitionKind": { "enum": ["auto", "fade", "wipeleft", "wiperight", "slideleft", "slideright"] },
+        "transitionDurationSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 3 },
+        "boundaryPlanCount": { "const": 1 }
       }
     },
     "transition": {
@@ -55,6 +57,7 @@
       "additionalProperties": false,
       "required": [
         "transitionCount",
+        "boundaryPlans",
         "usedAudioCrossfade",
         "audioPreservationMode",
         "silentAudioFillCount",
@@ -63,6 +66,35 @@
       ],
       "properties": {
         "transitionCount": { "const": 1 },
+        "boundaryPlans": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "boundaryIndex",
+              "kind",
+              "durationSeconds",
+              "offsetSeconds",
+              "hasIntent",
+              "reasonCodes"
+            ],
+            "properties": {
+              "boundaryIndex": { "const": 0 },
+              "kind": { "enum": ["fade", "wipeleft", "wiperight", "slideleft", "slideright"] },
+              "durationSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 3 },
+              "offsetSeconds": { "type": "number", "minimum": 0 },
+              "hasIntent": { "const": true },
+              "reasonCodes": {
+                "type": "array",
+                "minItems": 2,
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
         "usedAudioCrossfade": { "const": true },
         "audioPreservationMode": { "const": "crossfade_with_silence_fill" },
         "silentAudioFillCount": { "const": 1 },
@@ -98,7 +130,7 @@
     },
     "checks": {
       "type": "array",
-      "minItems": 5,
+      "minItems": 6,
       "items": { "$ref": "#/$defs/check" }
     },
     "releaseGateSummary": {

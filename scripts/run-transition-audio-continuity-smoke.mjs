@@ -102,13 +102,14 @@ const transition = await new TransitionEngine(inspector).assemble({
   outputPath: outputVideo,
   settings: {
     enabled: true,
-    kind: "fade",
+    kind: "auto",
     durationSeconds: 0.3,
     fps: 30,
     targetHeight: 480,
     targetRatio: "16:9",
     preserveAudio: true
-  }
+  },
+  transitionIntents: ["seamless stable transition handle from source rhythm to product proof"]
 });
 const outputMetadata = await inspector.probe(outputVideo);
 const audioReport = inspector.inspectAudio(outputMetadata);
@@ -129,7 +130,12 @@ const checks = [
     : fail("output_audio_stream_present", "The assembled transition output has no audio stream."),
   videoStream?.height === 480
     ? pass("output_canvas_normalized", "The transition output normalized the canvas height.")
-    : fail("output_canvas_normalized", `Expected output height 480 but got ${videoStream?.height ?? "missing"}.`)
+    : fail("output_canvas_normalized", `Expected output height 480 but got ${videoStream?.height ?? "missing"}.`),
+  transition.boundaryPlans.length === 1 &&
+    transition.boundaryPlans[0]?.kind === "fade" &&
+    transition.boundaryPlans[0]?.reasonCodes.includes("continuity_dissolve")
+    ? pass("auto_boundary_plan_continuity_dissolve", "Auto transition planning selected a continuity dissolve for a seamless bridge intent.")
+    : fail("auto_boundary_plan_continuity_dissolve", "Expected auto transition boundary planning to select a continuity dissolve.")
 ];
 
 const status = checks.every((check) => check.status === "pass") ? "pass" : "fail";
@@ -147,10 +153,19 @@ const report = {
     sourceAudioClipCount: 1,
     silentSourceClipCount: 1,
     transitionKind: transition.settings.kind,
-    transitionDurationSeconds: transition.settings.durationSeconds
+    transitionDurationSeconds: transition.settings.durationSeconds,
+    boundaryPlanCount: transition.boundaryPlans.length
   },
   transition: {
     transitionCount: transition.transitionCount,
+    boundaryPlans: transition.boundaryPlans.map((plan) => ({
+      boundaryIndex: plan.boundaryIndex,
+      kind: plan.kind,
+      durationSeconds: plan.durationSeconds,
+      offsetSeconds: plan.offsetSeconds,
+      hasIntent: Boolean(plan.intent),
+      reasonCodes: plan.reasonCodes
+    })),
     usedAudioCrossfade: transition.usedAudioCrossfade,
     audioPreservationMode: transition.audioPreservationMode,
     silentAudioFillCount: transition.silentAudioFillCount,

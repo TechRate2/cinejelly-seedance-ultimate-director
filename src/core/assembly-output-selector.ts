@@ -16,11 +16,13 @@ export function selectAssemblyClipsForRenderedShots(renderedShots: readonly Rend
         `Rendered shot ${renderedShot.compiledPrompt.shotId} did not include a video output URL for assembly.`
       );
     }
+    const transitionIntent = transitionIntentFromPrompt(renderedShot.compiledPrompt.prompt);
     for (const [outputIndex, url] of videoOutputs.entries()) {
       clips.push({
         clipId: `${renderedShot.compiledPrompt.shotId}_${outputIndex}`,
         sourceUrlOrPath: url,
-        order: shotIndex + outputIndex / 100
+        order: shotIndex + outputIndex / 100,
+        ...(transitionIntent ? { transitionOutIntent: transitionIntent } : {})
       });
     }
   }
@@ -38,4 +40,13 @@ function outputPathname(value: string): string {
   } catch {
     return value.split(/[?#]/, 1)[0] ?? value;
   }
+}
+
+function transitionIntentFromPrompt(prompt: string): string | undefined {
+  const transitionLine = prompt.match(/^Transition:\s*(.+)\.$/m)?.[1]?.trim();
+  if (transitionLine) {
+    return transitionLine;
+  }
+  const bridgeLine = prompt.match(/^Bridge transition intent:\s*(.+)\.$/m)?.[1]?.trim();
+  return bridgeLine || undefined;
 }

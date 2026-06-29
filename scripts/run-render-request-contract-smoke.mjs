@@ -124,9 +124,10 @@ const checks = [
     : fail("secret_query_runtime_guard", "Expected runtime admission to reject credential-like HTTPS query keys."),
   validAdmission.status === "pass" &&
     validSchema.exitCode === 0 &&
-    buildValidRequest().transitionSettings.targetHeight === 1440
-    ? pass("render_contract_supports_1440_transition", "Schema and admission support 1440 transition settings aligned with 1440p-SR render settings.")
-    : fail("render_contract_supports_1440_transition", "Expected 1440 transition settings to be contract-valid."),
+    buildValidRequest().transitionSettings.targetHeight === 1440 &&
+    buildValidRequest().transitionSettings.kind === "auto"
+    ? pass("render_contract_supports_auto_1440_transition", "Schema and admission support auto 1440 transition settings aligned with 1440p-SR render settings.")
+    : fail("render_contract_supports_auto_1440_transition", "Expected auto 1440 transition settings to be contract-valid."),
   validSchema.exitCode === 0 &&
     validAdmission.status === "pass" &&
     validAdmission.normalizedSummary?.sourceVideoAnalysisPresent === true
@@ -295,7 +296,7 @@ function buildValidRequest() {
     },
     transitionSettings: {
       enabled: true,
-      kind: "fade",
+      kind: "auto",
       durationSeconds: 0.25,
       fps: 24,
       targetHeight: 1440,

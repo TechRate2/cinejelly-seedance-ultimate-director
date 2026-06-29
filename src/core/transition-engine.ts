@@ -6,14 +6,20 @@
 
 import type { MediaMetadata } from "../types/media.js";
 import type { AspectRatio } from "../types/settings.js";
-import type { TransitionArtifact, TransitionAssemblyInput, TransitionSettings } from "../types/transition.js";
+import type {
+  ResolvedTransitionKind,
+  TransitionArtifact,
+  TransitionAssemblyInput,
+  TransitionBoundaryPlan,
+  TransitionSettings
+} from "../types/transition.js";
 import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
 import { MediaInspector } from "./media-inspector.js";
 
 export const DEFAULT_TRANSITION_SETTINGS: TransitionSettings = {
   enabled: true,
-  kind: "fade",
+  kind: "auto",
   durationSeconds: 0.35,
   fps: 30,
   preserveAudio: true
@@ -41,12 +47,14 @@ export class TransitionEngine {
     const sourceAudioCount = audioPresence.filter(Boolean).length;
     const includeAudio = input.settings.preserveAudio && sourceAudioCount > 0;
     const silentAudioFillCount = includeAudio ? audioPresence.filter((hasAudio) => !hasAudio).length : 0;
-    const args = this.buildFfmpegArgs(input, metadata, targetHeight, targetWidth, transitionDurationSeconds, usesFixedCanvas, includeAudio);
+    const boundaryPlans = this.buildBoundaryPlans(input, metadata, transitionDurationSeconds);
+    const args = this.buildFfmpegArgs(input, metadata, targetHeight, targetWidth, boundaryPlans, usesFixedCanvas, includeAudio);
     await runProcess(readMediaToolCommand("ffmpeg"), args, signal);
 
     return {
       outputPath: input.outputPath,
       transitionCount: input.inputPaths.length - 1,
+      boundaryPlans,
       usedAudioCrossfade: includeAudio,
       audioPreservationMode: includeAudio
         ? silentAudioFillCount > 0
@@ -69,7 +77,7 @@ export class TransitionEngine {
     metadata: readonly MediaMetadata[],
     targetHeight: number,
     targetWidth: number,
-    transitionDurationSeconds: number,
+    boundaryPlans: readonly TransitionBoundaryPlan[],
     usesFixedCanvas: boolean,
     includeAudio: boolean
   ): readonly string[] {
@@ -89,24 +97,21 @@ export class TransitionEngine {
     }
 
     let currentVideoLabel = "v0";
-    let cumulativeDuration = this.durationFor(metadata[0]);
-    for (let index = 1; index < input.inputPaths.length; index += 1) {
-      const nextVideoLabel = `vx${index}`;
-      const offset = Math.max(0, cumulativeDuration - transitionDurationSeconds);
+    for (const boundary of boundaryPlans) {
+      const nextVideoLabel = `vx${boundary.toInputIndex}`;
       filters.push(
-        `[${currentVideoLabel}][v${index}]xfade=transition=${input.settings.kind}:duration=${transitionDurationSeconds}:offset=${offset.toFixed(3)}[${nextVideoLabel}]`
+        `[${currentVideoLabel}][v${boundary.toInputIndex}]xfade=transition=${boundary.kind}:duration=${boundary.durationSeconds}:offset=${boundary.offsetSeconds.toFixed(3)}[${nextVideoLabel}]`
       );
-      cumulativeDuration = cumulativeDuration + this.durationFor(metadata[index]) - transitionDurationSeconds;
       currentVideoLabel = nextVideoLabel;
     }
 
     let currentAudioLabel: string | undefined;
     if (includeAudio) {
       currentAudioLabel = "a0";
-      for (let index = 1; index < input.inputPaths.length; index += 1) {
-        const nextAudioLabel = `ax${index}`;
+      for (const boundary of boundaryPlans) {
+        const nextAudioLabel = `ax${boundary.toInputIndex}`;
         filters.push(
-          `[${currentAudioLabel}][a${index}]acrossfade=d=${transitionDurationSeconds}:c1=tri:c2=tri[${nextAudioLabel}]`
+          `[${currentAudioLabel}][a${boundary.toInputIndex}]acrossfade=d=${boundary.durationSeconds}:c1=tri:c2=tri[${nextAudioLabel}]`
         );
         currentAudioLabel = nextAudioLabel;
       }
@@ -131,6 +136,70 @@ export class TransitionEngine {
       input.outputPath
     );
     return args;
+  }
+
+  private buildBoundaryPlans(
+    input: TransitionAssemblyInput,
+    metadata: readonly MediaMetadata[],
+    transitionDurationSeconds: number
+  ): readonly TransitionBoundaryPlan[] {
+    const plans: TransitionBoundaryPlan[] = [];
+    let cumulativeDuration = this.durationFor(metadata[0]);
+    for (let index = 1; index < input.inputPaths.length; index += 1) {
+      const intent = cleanIntent(input.transitionIntents?.[index - 1]);
+      const selection = this.selectBoundaryTransition(input.settings.kind, intent);
+      const offsetSeconds = Math.max(0, cumulativeDuration - transitionDurationSeconds);
+      plans.push({
+        boundaryIndex: index - 1,
+        fromInputIndex: index - 1,
+        toInputIndex: index,
+        kind: selection.kind,
+        durationSeconds: transitionDurationSeconds,
+        offsetSeconds,
+        ...(intent ? { intent } : {}),
+        reasonCodes: selection.reasonCodes
+      });
+      cumulativeDuration = cumulativeDuration + this.durationFor(metadata[index]) - transitionDurationSeconds;
+    }
+    return plans;
+  }
+
+  private selectBoundaryTransition(
+    requestedKind: TransitionSettings["kind"],
+    intent: string | undefined
+  ): {
+    readonly kind: ResolvedTransitionKind;
+    readonly reasonCodes: readonly string[];
+  } {
+    if (requestedKind !== "auto") {
+      return {
+        kind: requestedKind,
+        reasonCodes: ["operator_fixed_transition_kind"]
+      };
+    }
+    const normalizedIntent = intent?.toLowerCase() ?? "";
+    if (/wipe|swipe|reveal|cover/.test(normalizedIntent)) {
+      return {
+        kind: /right|rtl|back/.test(normalizedIntent) ? "wiperight" : "wipeleft",
+        reasonCodes: ["auto_transition", "intent_wipe_reveal"]
+      };
+    }
+    if (/slide|push|pan|tracking|move/.test(normalizedIntent)) {
+      return {
+        kind: /right|rtl|back/.test(normalizedIntent) ? "slideright" : "slideleft",
+        reasonCodes: ["auto_transition", "intent_camera_motion"]
+      };
+    }
+    if (/match cut|seamless|continuous|continuity|last-frame|first-frame|xfade|bridge|clean start|clean end|same frame|stable transition/.test(normalizedIntent)) {
+      return {
+        kind: "fade",
+        reasonCodes: ["auto_transition", "continuity_dissolve"]
+      };
+    }
+    return {
+      kind: "fade",
+      reasonCodes: ["auto_transition", "default_invisible_dissolve"]
+    };
   }
 
   private durationFor(metadata: MediaMetadata | undefined): number {
@@ -218,6 +287,9 @@ export class TransitionEngine {
     if (!settings.enabled) {
       throw new Error("Transition settings must be enabled before transition assembly.");
     }
+    if (!["auto", "fade", "wipeleft", "wiperight", "slideleft", "slideright"].includes(settings.kind)) {
+      throw new Error("Transition kind must be auto, fade, wipeleft, wiperight, slideleft, or slideright.");
+    }
     if (!Number.isFinite(settings.durationSeconds) || settings.durationSeconds <= 0 || settings.durationSeconds > 3) {
       throw new Error("Transition duration must be between 0 and 3 seconds.");
     }
@@ -225,4 +297,9 @@ export class TransitionEngine {
       throw new Error("Transition FPS must be between 12 and 60.");
     }
   }
+}
+
+function cleanIntent(value: string | undefined): string | undefined {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  return trimmed || undefined;
 }

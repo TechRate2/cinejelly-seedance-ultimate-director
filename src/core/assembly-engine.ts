@@ -91,7 +91,8 @@ export class AssemblyEngine {
           {
             inputPaths: localClipPaths,
             outputPath: concatOutputPath,
-            settings: transitionSettings
+            settings: transitionSettings,
+            transitionIntents: this.transitionIntentsForClips(orderedClips)
           },
           signal
         )
@@ -279,6 +280,15 @@ export class AssemblyEngine {
 
   private toConcatList(paths: readonly string[]): string {
     return paths.map((path) => `file '${path.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`).join("\n");
+  }
+
+  private transitionIntentsForClips(clips: readonly AssemblyClip[]): readonly string[] {
+    const intents: string[] = [];
+    for (let index = 0; index < clips.length - 1; index += 1) {
+      const intent = clips[index]?.transitionOutIntent ?? clips[index + 1]?.transitionInIntent;
+      intents.push(intent ?? "");
+    }
+    return intents;
   }
 
   private async assertFfmpegAvailable(signal?: AbortSignal): Promise<void> {

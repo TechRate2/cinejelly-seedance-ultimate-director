@@ -6,7 +6,8 @@
 
 import type { AspectRatio } from "./settings.js";
 
-export type TransitionKind = "fade" | "wipeleft" | "wiperight" | "slideleft" | "slideright";
+export type ResolvedTransitionKind = "fade" | "wipeleft" | "wiperight" | "slideleft" | "slideright";
+export type TransitionKind = "auto" | ResolvedTransitionKind;
 
 export interface TransitionSettings {
   readonly enabled: boolean;
@@ -22,11 +23,24 @@ export interface TransitionAssemblyInput {
   readonly inputPaths: readonly string[];
   readonly outputPath: string;
   readonly settings: TransitionSettings;
+  readonly transitionIntents?: readonly string[];
+}
+
+export interface TransitionBoundaryPlan {
+  readonly boundaryIndex: number;
+  readonly fromInputIndex: number;
+  readonly toInputIndex: number;
+  readonly kind: ResolvedTransitionKind;
+  readonly durationSeconds: number;
+  readonly offsetSeconds: number;
+  readonly intent?: string;
+  readonly reasonCodes: readonly string[];
 }
 
 export interface TransitionArtifact {
   readonly outputPath: string;
   readonly transitionCount: number;
+  readonly boundaryPlans: readonly TransitionBoundaryPlan[];
   readonly usedAudioCrossfade: boolean;
   readonly audioPreservationMode: "none" | "crossfade_all_source_audio" | "crossfade_with_silence_fill";
   readonly silentAudioFillCount: number;
