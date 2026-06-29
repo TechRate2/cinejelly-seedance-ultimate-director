@@ -1,46 +1,46 @@
-# CineJelly Seedance Ultimate Director - Bao Cao Kien Truc Backend
+# CineJelly Seedance Ultimate Director - Báo Cáo Kiến Trúc Backend
 
-Ngay lap bao cao: 2026-06-29
-Branch duoc phan tich: `codex/backend-audit-short-pipes`
-Commit duoc phan tich: `16e11bf`
-Pham vi: backend logic trong `src/api`, `src/application`, `src/agents`, `src/core`, `src/prompt_compiler`, `src/providers`, `src/config`, `src/types`. Bao cao nay khong dua vao README de suy doan; cac nhan xet ben duoi duoc rut ra tu code runtime va contract TypeScript.
+Ngày lập báo cáo: 2026-06-29
+Branch được phân tích: `codex/backend-audit-short-pipes`
+Commit được phân tích: `16e11bf`
+Phạm vi: backend logic trong `src/api`, `src/application`, `src/agents`, `src/core`, `src/prompt_compiler`, `src/providers`, `src/config`, `src/types`. Báo cáo này không dựa vào README để suy đoán; các nhận xét bên dưới được rút ra từ code runtime và contract TypeScript.
 
-## Tom Tat Dieu Hanh
+## Tóm Tắt Điều Hành
 
-Backend hien tai khong phai mot ham "prompt vao, video ra" don gian. He thong da duoc tach thanh nhieu tang: API/admission, short no-spend planning, long/director runtime, production graph, prompt compiler, render orchestration, provider Atlas Cloud, assembly, delivery gate, artifact validation.
+Backend hiện tại không phải một hàm "prompt vào, video ra" đơn giản. Hệ thống đã được tách thành nhiều tầng: API/admission, short no-spend planning, long/director runtime, production graph, prompt compiler, render orchestration, provider Atlas Cloud, assembly, delivery gate, artifact validation.
 
-Trung tam cua full render la `DirectorAgent`, con trung tam cua truy vet la `ProductionGraph`. Short pipeline la mot lop agentic planning rieng, tao ra plan co review gate va render handoff truoc khi di vao `DirectorAgent`.
+Trung tâm của full render là `DirectorAgent`, còn Trung tâm của truy vết là `ProductionGraph`. Short pipeline là một lớp agentic planning riêng, tạo ra plan có review gate và render handoff trước khi đi vào `DirectorAgent`.
 
-Mac dinh model/provider mode khong bat user phai chon text-to-video, image-to-video hay reference-to-video. User chi nen chon cap chat luong/tier/cau hinh nhu `mini | fast | standard`, resolution, audio, duration. Backend tu router mode dua tren reference, visual bible, video pipe va prompt binding.
+Mặc định model/provider mode không bắt user phải chọn text-to-video, image-to-video hay reference-to-video. User chỉ nên chọn cấp chất lượng/tier/cấu hình như `mini | fast | standard`, resolution, audio, duration. Backend tự router mode dựa trên reference, visual bible, video pipe và prompt binding.
 
-Hien tai backend da co nen tang rat manh cho:
+Hiện tại backend đã có nền tảng rất mạnh cho:
 
-- short video nhieu niche voi pattern learning, candidate scoring, viral/niche intelligence;
-- Product/KOL UGC bang anh KOL + anh san pham;
+- short video nhiều niche với pattern learning, candidate scoring, viral/niche intelligence;
+- Product/KOL UGC bằng ảnh KOL + ảnh sản phẩm;
 - storyboard multishot;
-- video remake theo cau truc/pacing/camera/acting beat cua video tham chieu, nhung thay KOL/san pham/background/audio/claims bang tai san user;
-- long-form 2-10 phut bang cach chia thanh clip 4-15s, continuity bible, last-frame chaining, render schedule va assembly.
+- video remake theo cấu trúc/pacing/camera/acting beat của video tham chiếu, nhưng thay KOL/sản phẩm/background/audio/claims bằng tài sản user;
+- long-form 2-10 phút bằng cách chia thành clip 4-15s, continuity bible, last-frame chaining, render schedule và assembly.
 
-Nhung de goi la "commercial-grade 100%" theo nghia san xuat ban that, van can them bang chung van hanh thuc te: nhieu render live da duyet chat luong, audio paid/live, manual media review, live deployment, billing/operator approval, va bang chung provider resume/handoff tren traffic that.
+Nhưng để gọi là "commercial-grade 100%" theo nghĩa sản xuất bản thật, vẫn cần thêm bằng chứng vận hành thực tế: nhiều render live đã duyệt chất lượng, audio paid/live, manual media review, live deployment, billing/operator approval, và bằng chứng provider resume/handoff trên traffic thật.
 
 ---
 
-# PHAN 1: Tong Quan Kien Truc Backend
+# PHẦN 1: Tổng Quan Kiến Trúc Backend
 
-## 1.1 Cac Layer Chinh
+## 1.1 Các Layer Chính
 
 ### API Layer
 
-File chinh: `src/api/server.ts`
+File chính: `src/api/server.ts`
 
-Trach nhiem:
+Trách nhiệm:
 
-- Nhan HTTP request.
+- Nhận HTTP request.
 - Auth, rate limit, concurrency, content-type, body size.
 - Chia endpoint cho planning, UI contract backend, product-url research, render job, review job, admin diagnostics.
-- Khong truc tiep goi provider Seedance neu request chua qua admission, review va billing gates.
+- Không trực tiếp gọi provider Seedance nếu request chưa qua admission, review và billing gates.
 
-Endpoint quan trong:
+Endpoint quan trọng:
 
 - `GET /health`
 - `GET /v1/preflight`
@@ -58,11 +58,11 @@ Endpoint quan trong:
 - `DELETE /v1/render-jobs/:id`
 - `POST /v1/render`
 - `POST /v1/long-form/director-ui-contract`
-- Operator/admin endpoints cho launch, billing, client policy, provider lease va Production Graph resume queue.
+- Operator/admin endpoints cho launch, billing, client policy, provider lease và Production Graph resume queue.
 
 ### Admission, Security, Billing, Quota Layer
 
-Files chinh:
+Files chính:
 
 - `src/api/render-request-admission.ts`
 - `src/application/render-request-normalizer.ts`
@@ -72,26 +72,26 @@ Files chinh:
 - `src/api/api-client-policy.ts`
 - `src/api/workspace-billing-policy.ts`
 
-Trach nhiem:
+Trách nhiệm:
 
-- Chan request qua lon, sai schema, URL khong an toan, reference co token/signature/credential, local path leak.
-- Normalize path output/work/artifact vao output root.
-- Kiem tra `settings`, `modelPreferences`, metadata, caption/audio/transition/frame sampling/semantic inspection/source-video analysis.
-- Gate chi phi, quota, billing, idempotency.
+- Chặn request quá lớn, sai schema, URL không an toàn, reference có token/signature/credential, local path leak.
+- Normalize path output/work/artifact vào output root.
+- Kiểm tra `settings`, `modelPreferences`, metadata, caption/audio/transition/frame sampling/semantic inspection/source-video analysis.
+- Gate chi phí, quota, billing, idempotency.
 
 ### Application/Factory Layer
 
-File chinh: `src/application/director-factory.ts`
+File chính: `src/application/director-factory.ts`
 
-Trach nhiem:
+Trách nhiệm:
 
-- Load runtime config tu environment.
-- Tao `AtlasCloudProvider`, `ProviderCostLedger`, `StoryArchitect`, `RenderProducer`, `RenderCostGate`, `SemanticVisualInspector`, `SourceVideoAutoAnalyzer`, material adapters, `AssemblyEngine`.
-- Tra ve `DirectorRuntime` gom `DirectorAgent`, ledger va preflight.
+- Load runtime config từ environment.
+- Tạo `AtlasCloudProvider`, `ProviderCostLedger`, `StoryArchitect`, `RenderProducer`, `RenderCostGate`, `SemanticVisualInspector`, `SourceVideoAutoAnalyzer`, material adapters, `AssemblyEngine`.
+- Trả về `DirectorRuntime` gồm `DirectorAgent`, ledger và preflight.
 
 ### Agent/Application Orchestration Layer
 
-Files chinh:
+Files chính:
 
 - `src/agents/director-agent.ts`
 - `src/agents/intake-director.ts`
@@ -101,16 +101,16 @@ Files chinh:
 - `src/agents/source-video-reference-metadata-enricher.ts`
 - `src/agents/reference-librarian.ts`
 
-Trach nhiem:
+Trách nhiệm:
 
-- Bien request thanh plan san xuat.
-- Goi LLM de lap story plan.
-- Tao shot contracts, storyboard, prompt, render, inspect, repair, assemble, delivery.
-- Noi source-video analysis va references vao prompt/graph.
+- Biến request thành plan sản xuất.
+- Gọi LLM để lập story plan.
+- Tạo shot contracts, storyboard, prompt, render, inspect, repair, assemble, delivery.
+- Nối source-video analysis và references vào prompt/graph.
 
 ### Short Agentic Planning Layer
 
-Files chinh:
+Files chính:
 
 - `src/core/short-pipeline-planner.ts`
 - `src/core/short-pipeline-render-handoff.ts`
@@ -124,16 +124,16 @@ Files chinh:
 - `src/core/short-director-planner.ts`
 - `src/core/short-commercial-readiness-planner.ts`
 
-Trach nhiem:
+Trách nhiệm:
 
-- No-spend planning truoc provider spend.
-- Hieu niche, platform, product facts, KOL/product media reference, channel style, brand kit.
+- No-spend planning trước provider spend.
+- Hiểu niche, platform, product facts, KOL/product media reference, channel style, brand kit.
 - Sinh candidate, scoring, viral strategy, scene directives, visual bible, video pipe, prompt pack, review checkpoints.
-- Chuyen plan thanh `CineJellyProjectRequest` qua `buildShortPipelineRenderHandoff`.
+- Chuyển plan thành `CineJellyProjectRequest` quá `buildShortPipelineRenderHandoff`.
 
 ### Domain/Core Layer
 
-Files chinh:
+Files chính:
 
 - `src/core/production-graph.ts`
 - `src/core/production-graph-builder.ts`
@@ -149,32 +149,32 @@ Files chinh:
 - `src/core/assembly-engine.ts`
 - `src/core/delivery-gate.ts`
 
-Trach nhiem:
+Trách nhiệm:
 
-- Quan ly graph, continuity, scheduling, review, timeline, delivery validation.
-- Kiem tra deterministic truoc va sau render.
-- Tach planning va provider execution.
+- Quản lý graph, continuity, scheduling, review, timeline, delivery validation.
+- Kiểm tra deterministic trước và sau render.
+- Tách planning và provider execution.
 
 ### Prompt Compiler Layer
 
-Files chinh:
+Files chính:
 
 - `src/prompt_compiler/prompt-compiler.ts`
 - `src/prompt_compiler/reference-binding.ts`
 - `src/prompt_compiler/negative-constraints.ts`
 - `src/prompt_compiler/repair-hints.ts`
 
-Trach nhiem:
+Trách nhiệm:
 
-- Bien `ShotContract` thanh prompt Seedance va `VideoGenerationRequest`.
-- Sap xep, cap va filter references theo vai tro.
-- Tu chon provider mode: `text_to_video`, `image_to_video`, `reference_to_video`, `video_to_video`, `extend`, `edit`.
-- Tao @ handles: `@image1`, `@video1`, `@audio1`.
-- Them negative prompt, continuity, pacing, final-frame, source-video boundary, repair hints.
+- Bien `ShotContract` thành prompt Seedance và `VideoGenerationRequest`.
+- Sắp xếp, cap và filter references theo vai trò.
+- Tự chọn provider mode: `text_to_video`, `image_to_video`, `reference_to_video`, `video_to_video`, `extend`, `edit`.
+- Tạo @ handles: `@image1`, `@video1`, `@audio1`.
+- Thêm negative prompt, continuity, pacing, final-frame, source-video boundary, repair hints.
 
 ### Provider Layer
 
-Files chinh:
+Files chính:
 
 - `src/providers/contracts.ts`
 - `src/providers/atlascloud/atlas-cloud-provider.ts`
@@ -183,15 +183,15 @@ Files chinh:
 - `src/providers/capability-validator.ts`
 - `src/providers/cost-ledger.ts`
 
-Trach nhiem:
+Trách nhiệm:
 
-- Truu tuong hoa LLM, video provider, asset upload, audio provider.
-- Atlas Cloud provider goi chat/structured LLM, video generation, prediction polling, asset registration, audio generation.
+- Trừu tượng hóa LLM, video provider, asset upload, audio provider.
+- Atlas Cloud provider gọi chất/structured LLM, video generation, prediction polling, asset registration, audio generation.
 - Map payload Seedance/Atlas, capabilities, usage/cost ledger.
 
 ### Infrastructure, Artifact, Resume Layer
 
-Files chinh:
+Files chính:
 
 - `src/core/project-artifact-store.ts`
 - `src/core/project-artifact-validator.ts`
@@ -200,26 +200,26 @@ Files chinh:
 - `src/api/render-provider-handoff-lease-service.ts`
 - `src/api/production-graph-resume-queue-service.ts`
 
-Trach nhiem:
+Trách nhiệm:
 
 - Ghi artifact bundle, review packet, cost ledger, metadata, source-video analysis.
 - Validate artifact contract.
-- Tao resume capsule/queue dang digest, tranh serialize raw URL/local path/secret.
-- Operator service cho provider handoff lease va resume queue.
+- Tạo resume capsule/queue dạng digest, tránh serialize raw URL/local path/secret.
+- Operator service cho provider handoff lease và resume queue.
 
-## 1.2 Production Graph Dong Vai Tro Trung Tam Nhu The Nao
+## 1.2 Production Graph Đóng Vai Trò Trung Tâm Như Thế Nào
 
-`ProductionGraph` khong phai la "planner" duy nhat. No la lop lineage/truy vet va repair propagation trung tam cua full render.
+`ProductionGraph` không phải là "planner" duy nhất. Nó là lớp lineage/truy vết và repair propagation trung tâm của full render.
 
 Lifecycle:
 
 1. `DirectorAgent.run()` intake request.
-2. Story/shot/storyboard/material plan duoc tao.
-3. `ProductionGraphBuilder.build()` tao graph truoc render.
-4. Render/test-take/candidates/repair/deliverable xong thi `ProductionGraphRunRecorder.record()` ghi them node ket qua.
-5. Artifact store va review packet dung graph de chung minh lineage.
+2. Story/shot/storyboard/material plan được tạo.
+3. `ProductionGraphBuilder.build()` Tạo graph trước render.
+4. Render/test-take/candidates/repair/deliverable xong thì `ProductionGraphRunRecorder.record()` ghi thêm node kết quả.
+5. Artifact store và review packet dùng graph để chứng minh lineage.
 
-Node chinh:
+Node chính:
 
 - `project`
 - `story_arc`
@@ -236,7 +236,7 @@ Node chinh:
 - `repair_action`
 - `deliverable`
 
-Edge chinh:
+Edge chính:
 
 - `depends_on`
 - `transitions_to`
@@ -247,35 +247,35 @@ Edge chinh:
 
 Repair propagation:
 
-- `ProductionGraph.repairAffectedNodes()` di BFS qua `depends_on`, `transitions_to`, `requires_repair`.
-- Neu mot shot/reference/inspection fail, graph co the xac dinh node downstream bi anh huong.
+- `ProductionGraph.repairAffectedNodes()` đi BFS quá `depends_on`, `transitions_to`, `requires_repair`.
+- Nếu một shot/reference/inspection fail, graph có thể xác định node downstream bị ảnh hưởng.
 
-## 1.3 Cac Thanh Phan Cot Loi
+## 1.3 Các Thành Phần Cốt Lõi
 
 ### Production Graph
 
-- Quan ly lineage, node/edge, dependency, transition va repair scope.
-- Dam bao `depends_on` khong tao cycle.
-- Giu data cho artifact validation, review packet, resume state.
+- Quản lý lineage, node/edge, dependency, transition và repair scope.
+- Đảm bảo `depends_on` không Tạo cycle.
+- Giữ data cho artifact validation, review packet, resume state.
 
 ### Consistency Guardian
 
 File: `src/core/consistency-guardian.ts`
 
-- Kiem tra storyboard coverage.
-- Kiem tra shot duration 4-15s, subject/action/camera/lighting.
-- Kiem tra references va prompt binding conflicts.
-- Kiem tra prompt density, negative prompt, timeline.
-- Kiem tra provider render status/output URL/latency.
-- Tra ve status: `pass`, `warn`, `repair`, `rerender`, `block`.
+- Kiểm tra storyboard coverage.
+- Kiểm tra shot duration 4-15s, subject/action/camera/lighting.
+- Kiểm tra references và prompt binding conflicts.
+- Kiểm tra prompt density, negative prompt, timeline.
+- Kiểm tra provider render status/output URL/latency.
+- Trả về status: `pass`, `warn`, `repair`, `rerender`, `block`.
 
 ### Prompt Compiler
 
 File: `src/prompt_compiler/prompt-compiler.ts`
 
-- Tao prompt co cau truc: reference prelude, mode contract, continuity, pacing, bridge, boundary, subject/action/camera/lighting/timeline/audio/final frame.
-- Ho tro @ reference, first-frame, last-frame, source-video boundary.
-- Output gom `CompiledPrompt`, `VideoGenerationRequest`, negative prompt, references, binding plan, repair hints.
+- Tạo prompt có cấu trúc: reference prelude, mode contract, continuity, pacing, bridge, boundary, subject/action/camera/lighting/timeline/audio/final frame.
+- Hỗ trợ @ reference, first-frame, last-frame, source-video boundary.
+- Output gồm `CompiledPrompt`, `VideoGenerationRequest`, negative prompt, references, binding plan, repair hints.
 
 ### Render Orchestration
 
@@ -286,13 +286,13 @@ Files:
 - `src/agents/render-producer.ts`
 - `src/core/render-cost-gate.ts`
 
-Chuc nang:
+Chức năng:
 
 - Async queue, status polling, cancel, review resume.
 - Candidate count theo quality mode.
-- Test take neu quality khong phai economy.
-- Repair attempts neu Guardian bao repair/rerender.
-- Parallel chi khi shot khong co dependency/endpoint/source/risk.
+- Test take nếu quality không phải economy.
+- Repair attempts nếu Guardian báo repair/rerender.
+- Parallel chỉ khi shot không có dependency/endpoint/source/risk.
 
 ### Chaining / Continuation
 
@@ -301,11 +301,11 @@ Files:
 - `src/core/endpoint-frame-chain.ts`
 - `src/agents/director-agent.ts`
 
-Chuc nang:
+Chức năng:
 
-- Khi strategy yeu cau/recommend last-frame chaining, shot sau se lay image sidecar cua shot truoc lam `first_frame`.
-- Neu required ma provider khong tra last frame/image sidecar thi block.
-- Prompt duoc compile lai sau khi inject first-frame reference.
+- Khi strategy yêu cầu/recommend last-frame chaining, shot sau sẽ lấy image sidecar của shot trước làm `first_frame`.
+- Nếu required mà provider không trả last frame/image sidecar thì block.
+- Prompt được compile lại sau khi inject first-frame reference.
 
 ### Source Video Analysis
 
@@ -315,35 +315,35 @@ Files:
 - `src/core/source-video-auto-analyzer.ts`
 - `src/agents/source-video-reference-metadata-enricher.ts`
 
-Chuc nang:
+Chức năng:
 
-- Caller co the gui san `sourceVideoAnalysis`.
-- Opt-in auto-analysis co the lay frame sample tu clean HTTPS source video, gui LLM structured JSON de lay beat map/pacing/camera/style.
-- Enricher gan metadata source scene/shot/timeline vao references.
-- Remake chi dung structure/pacing/camera/acting/audio energy, khong copy transcript/face/logo/music/brand marks.
+- Caller có thể gửi sẵn `sourceVideoAnalysis`.
+- Opt-in auto-analysis có thể lấy frame sample từ clean HTTPS source video, gửi LLM structured JSON để lấy beat map/pacing/camera/style.
+- Enricher gắn metadata source scene/shot/timeline vào references.
+- Remake chỉ dùng structure/pacing/camera/acting/audio energy, không copy transcript/face/logo/music/brand marks.
 
-## 1.4 Ho Tro Long-form 2-10 Phut
+## 1.4 Hỗ Trợ Long-form 2-10 Phút
 
-`settings.durationTargetSeconds` cho phep 15-480s theo `src/config/seedance-settings.ts`. Seedance clip don le van bi gioi han 4-15s, nen long-form duoc xu ly bang chunking:
+`settings.durationTargetSeconds` cho phép 15-480s theo `src/config/seedance-settings.ts`. Seedance clip đơn lẻ vẫn bị giới hạn 4-15s, nên long-form được xử lý bằng chunking:
 
-- `StoryArchitect` tao story plan target duration.
-- `ShotPlanner` chia thanh shot 4-15s.
-- `LongFormSequencePlanner` gom scenes thanh sequence.
-- `LongFormContinuityPlanner` tao continuity bible.
-- `RenderScheduler` quyet dinh shot nao render parallel/sequential.
-- `LongFormTimelinePlanner` tao timeline segment.
-- `LongFormCreativeIntelligencePlanner` va `LongFormReadinessPlanner` cham coherence/repair queue.
-- `AssemblyEngine` ghep clip thanh deliverable.
+- `StoryArchitect` tạo story plan target duration.
+- `ShotPlanner` chia thành shot 4-15s.
+- `LongFormSequencePlanner` gồm scenes thành sequence.
+- `LongFormContinuityPlanner` Tạo continuity bible.
+- `RenderScheduler` quyết định shot nào render parallel/sequential.
+- `LongFormTimelinePlanner` Tạo timeline segment.
+- `LongFormCreativeIntelligencePlanner` và `LongFormReadinessPlanner` cham coherence/repair queue.
+- `AssemblyEngine` ghép clip thành deliverable.
 
 ---
 
-# PHAN 2: End-to-End Backend Pipeline
+# PHẦN 2: End-to-End Backend Pipeline
 
-## Buoc 1: API Layer - Nhan Request
+## Bước 1: API Layer - Nhận Request
 
-### Endpoint tao video
+### Endpoint tạo video
 
-Co 3 duong chinh:
+Có 3 đường chính:
 
 1. Short planning no-spend:
    - `POST /v1/short-pipeline/plan`
@@ -358,14 +358,14 @@ Co 3 duong chinh:
    - `POST /v1/render-jobs` cho async render.
    - `POST /v1/render` cho sync render.
 
-### Request body chinh
+### Request body chính
 
-`CineJellyProjectRequest` co cac truong quan trong:
+`CineJellyProjectRequest` có các trường quan trọng:
 
-- `userInput`: y tuong/brief.
+- `userInput`: ý tưởng/brief.
 - `settings`: tier, resolution, qualityMode, ratio, durationTargetSeconds, audioMode, bitrateMode, watermark, returnLastFrame, maxCostUsd.
 - `modelPreferences`: optional `seedanceModelId`.
-- `references`: PromptReference da normalize.
+- `references`: PromptReference đã normalize.
 - `sourceVideoAnalysis`: optional SourceVideoDeconstruction.
 - `captionCues`, `captionOptions`.
 - `audioTracks`, `audioMixOptions`.
@@ -376,15 +376,15 @@ Co 3 duong chinh:
 - `metadata`.
 - `outputPath`, `workDirectory`, `artifactDirectory`.
 
-Short pipeline request co them:
+Short pipeline request có thêm:
 
 - `projectId`, `requestId`.
 - `userPrompt`.
 - `targetPlatform`, `targetDurationSeconds`.
-- `product` gom URL/snapshot.
+- `product` gồm URL/snapshot.
 - `brandKit`.
 - `channelStyle`.
-- `mediaReferences` gom KOL/product/background/source_video/audio.
+- `mediaReferences` gồm KOL/product/background/source_video/audio.
 - `visualBible`.
 - `referenceVideoLearning`.
 - `audio`.
@@ -394,77 +394,77 @@ Short pipeline request co them:
 Trong `server.ts`:
 
 - `assertJsonContentType()`.
-- `readJsonBody()` gioi han bytes.
-- auth/rate limit/chinh sach client.
+- `readJsonBody()` giới hạn bytes.
+- auth/rate limit/chính sách client.
 
 Trong `RenderRequestAdmission.assertAcceptable()`:
 
-- `userInput` bat buoc va gioi han length.
-- settings validate bang `normalizeSeedanceSettings()`.
-- model ID phai nam trong allowlist env neu override.
-- references phai co `providerReference`.
-- URI phai clean HTTPS hoac `asset://`.
-- chan local path, localhost/private host, embedded credentials, secret query.
-- source video analysis bi bound scenes/transcript/keyframes/notes.
-- audio/caption/transition/frame sampling/semantic inspection deu duoc validate.
+- `userInput` bắt buộc và giới hạn length.
+- settings validate bằng `normalizeSeedanceSettings()`.
+- model ID phải nằm trong allowlist env nếu override.
+- references phải có `providerReference`.
+- URI phải clean HTTPS hoặc `asset://`.
+- chặn local path, localhost/private host, embedded credentials, secret query.
+- source video analysis bị bound scenes/transcript/keyframes/notes.
+- audio/caption/transition/frame sampling/semantic inspection deu được validate.
 
 Trong `normalizeRenderRequest()`:
 
-- set requestId vao metadata.
+- set requestId vào metadata.
 - resolve output/work/artifact directory.
-- enforce path nam trong `CINEJELLY_OUTPUT_DIR`.
+- enforce path nằm trong `CINEJELLY_OUTPUT_DIR`.
 
 ### Output sau validate
 
 - Short no-spend: `ShortPipelinePlan`.
-- Short render: `ShortPipelineRenderHandoff.request` la `CineJellyProjectRequest`.
+- Short render: `ShortPipelineRenderHandoff.request` là `CineJellyProjectRequest`.
 - General render: normalized `CineJellyProjectRequest`.
-- Async render: `RenderJobSummary` va `statusUrl`.
+- Async render: `RenderJobSummary` và `statusUrl`.
 
 ### Evidence / Logging
 
-- API gan `requestId` vao response headers.
-- Render job luu `stageProgressEvents`, provider checkpoint, cost ledger, artifact validation.
-- Short plan co `noSpend`, `networkCallsMade`, `providerCallsMade`, `releaseGateSummary`.
+- API gắn `requestId` vào response headers.
+- Render job lưu `stageProgressEvents`, provider checkpoint, cost ledger, artifact validation.
+- Short plan có `noSpend`, `networkCallsMade`, `providerCallsMade`, `releaseGateSummary`.
 
-## Buoc 2: Input Processing & Normalization
+## Bước 2: Input Processing & Normalization
 
-### Xu ly reference images/audio/video
+### Xử lý reference images/audio/video
 
-`IntakeDirector` goi `ReferenceLibrarian.normalize()`:
+`IntakeDirector` gọi `ReferenceLibrarian.normalize()`:
 
-- Role hop le: `identity`, `product`, `wardrobe`, `environment`, `motion`, `camera`, `audio_tempo`, `voice`, `style`, `first_frame`, `last_frame`, `source_video_structure`.
-- Kind hop le: `image`, `video`, `audio`, `first_frame`, `last_frame`, `identity`, `product`, `environment`, `motion`, `camera`, `style`.
-- Tu infer kind theo URL extension va role.
+- Role Hợp lệ: `identity`, `product`, `wardrobe`, `environment`, `motion`, `camera`, `audio_tempo`, `voice`, `style`, `first_frame`, `last_frame`, `source_video_structure`.
+- Kind Hợp lệ: `image`, `video`, `audio`, `first_frame`, `last_frame`, `identity`, `product`, `environment`, `motion`, `camera`, `style`.
+- Tự infer kind theo URL extension và role.
 - Dedupe theo role/label/kind/uri.
-- Sap xep theo thu tu role priority.
+- Sắp xếp theo thứ tự role priority.
 - Chan unsafe URI.
 
-Short pipeline co `mediaReferencePlanFor()`:
+Short pipeline có `mediaReferencePlanFor()`:
 
-- Nhan raw `ShortMediaReferenceInput`.
-- Tao prompt tag `@image1`, `@video1`, `@audio1`.
-- Doi role UI nhu `kol`, `creator`, `product`, `background`, `source_video` thanh prompt role.
-- Danh dau `includeInProviderHandoff` chi khi URI/rights/provider policy san sang.
-- Source video neu chua operator-approved/clean HTTPS thi dung planning-only.
+- Nhận raw `ShortMediaReferenceInput`.
+- Tạo prompt tag `@image1`, `@video1`, `@audio1`.
+- Đổi role UI như `kol`, `creator`, `product`, `background`, `source_video` thành prompt role.
+- Danh dấu `includeInProviderHandoff` chỉ khi URI/rights/provider policy sản sang.
+- Source video nếu chưa operator-approved/clean HTTPS thì dùng planning-only.
 
 ### Source video
 
-Co 3 muc:
+Có 3 mức:
 
-1. User chi upload/gui source video:
-   - Short planner tao `referenceVideoLearningFromSourceMedia()`.
-   - Tao summary: hoc rhythm, acting beats, camera grammar, retention timing, audio energy, payoff shape.
+1. User chỉ upload/gửi source video:
+   - Short planner Tạo `referenceVideoLearningFromSourceMedia()`.
+   - Tạo summary: học rhythm, acting beats, camera grammar, retention timing, audio energy, payoff shape.
 
-2. User/caller gui `sourceVideoAnalysis`:
-   - `SourceVideoAnalyst.normalize()` validate va cap du lieu.
+2. User/caller gửi `sourceVideoAnalysis`:
+   - `SourceVideoAnalyst.normalize()` validate và cap dữ liệu.
 
 3. Auto-analysis opt-in:
-   - `SourceVideoAutoAnalyzer.prepareRequest()` tim reference role `source_video_structure`.
-   - Chi nhan clean HTTPS, khong token/localhost.
-   - `MediaInspector.sampleFrames()` lay frames.
-   - LLM structured JSON tao scenes, keyframes, pacingNotes, styleNotes, structuralBeats, safetyNotes.
-   - Normalize lai qua `SourceVideoAnalyst`.
+   - `SourceVideoAutoAnalyzer.prepareRequest()` tìm reference role `source_video_structure`.
+   - Chỉ nhận clean HTTPS, không token/localhost.
+   - `MediaInspector.sampleFrames()` lấy frames.
+   - LLM structured JSON Tạo scenes, keyframes, pacingNotes, styleNotes, structuralBeats, safetyNotes.
+   - Normalize lại qua `SourceVideoAnalyst`.
 
 ### Output
 
@@ -473,55 +473,55 @@ Co 3 muc:
 
 ### Evidence
 
-- Hash URI thay vi expose raw URL trong nhieu metadata.
-- Source pattern origins duoc gan trong short plan va corpora.
+- Hash URI thay vì expose raw URL trong nhiều metadata.
+- Source pattern origins được gắn trong short plan và corpora.
 - Source-video auto-analysis cam leak data URL/local frame path.
 
-## Buoc 3: Planning & Storyboard Generation
+## Bước 3: Planning & Storyboard Generation
 
 ### Short planning
 
-`ShortPipelinePlanner.buildPlan()` lam cac viec sau:
+`ShortPipelinePlanner.buildPlan()` làm các việc sau:
 
 1. Clean prompt.
-2. Extract product brief bang `ProductUrlBriefExtractor`.
-3. Evaluate brand kit bang `BrandKitEvaluator`.
+2. Extract product brief bằng `ProductUrlBriefExtractor`.
+3. Evaluate brand kit bằng `BrandKitEvaluator`.
 4. Evaluate channel style.
 5. Infer intent: platform, duration, goal, audience, offer, aspect ratio.
-6. Tao audio policy mac dinh voiceover/guided.
-7. Tao visual text policy mac dinh no visible text.
-8. Tao media reference plan.
-9. Tao optional workflow template suggestions.
-10. Tao concepts.
-11. Tao preliminary scenes.
+6. Tạo audio policy Mặc định voiceover/guided.
+7. Tạo visual text policy Mặc định no visible text.
+8. Tạo media reference plan.
+9. Tạo optional workflow template suggestions.
+10. Tạo concepts.
+11. Tạo preliminary scenes.
 12. Chay `ShortViralIntelligencePlanner`.
 13. Chay preliminary `ShortAgentGraphPlanner`.
-14. Dung selected candidate de tao scenes cuoi.
-15. Chay viral intelligence lan 2.
-16. Tao `referenceRemakeBlueprint` neu co source video/reference learning.
-17. Tao `ShortVisualBiblePlan`.
-18. Tao final `ShortAgentGraph`.
-19. Tao `seedanceRouting`.
-20. Tao `ShortDirectorPlan`.
-21. Tao `ShortVideoPipePlan`.
-22. Tao review checkpoints.
-23. Tao commercial readiness.
+14. Dùng selected candidate để Tạo scenes cuối.
+15. Chay viral intelligence lần 2.
+16. Tạo `referenceRemakeBlueprint` nếu có source video/reference learning.
+17. Tạo `ShortVisualBiblePlan`.
+18. Tạo final `ShortAgentGraph`.
+19. Tạo `seedanceRouting`.
+20. Tạo `ShortDirectorPlan`.
+21. Tạo `ShortVideoPipePlan`.
+22. Tạo review checkpoints.
+23. Tạo commercial readiness.
 
-Short co 5 pipe:
+Short có 5 pipe:
 
-- `smart_short`: y tuong ngan, it reference.
-- `product_kol_ugc`: co KOL/product reference.
-- `storyboard_multishot`: can full beginning/middle/end nhieu clip.
-- `video_remake`: co source/trend/reference video.
-- `production_bible`: 60-480s hoac can character/product/sequence bible.
+- `smart_short`: ý tưởng ngắn, ít reference.
+- `product_kol_ugc`: có KOL/product reference.
+- `storyboard_multishot`: cần full beginning/middle/end nhiều clip.
+- `video_remake`: có source/trend/reference video.
+- `production_bible`: 60-480s hoặc cần character/product/sequence bible.
 
 ### General/long planning
 
 `DirectorAgent.run()`:
 
-1. `StoryArchitect.plan()` goi LLM structured de tao `StoryPlan`.
+1. `StoryArchitect.plan()` Gọi LLM structured để Tạo `StoryPlan`.
 2. `ContinuityLedgerBuilder.build()`.
-3. `ShotPlanner.plan()` tao `ShotContract`.
+3. `ShotPlanner.plan()` Tạo `ShotContract`.
 4. `ReferenceSelectionPlanner.planForShots()`.
 5. `LongFormContinuityPlanner.build()`.
 6. `LongFormAgentReviewPlanner.build()`.
@@ -530,26 +530,26 @@ Short co 5 pipe:
 9. `ConsistencyGuardian.inspectStoryboard()`.
 10. `StoryboardApprovalGate.evaluate()`.
 
-### Storyboard va Shot Contract
+### Storyboard và Shot Contract
 
-`StoryboardPlanner` tao panel tu shot contracts. Guardian yeu cau:
+`StoryboardPlanner` Tạo panel từ shot contracts. Guardian yêu cầu:
 
-- moi shot co panel;
-- khong panel du thua/duplicate;
-- duration khop shot;
-- action/camera/lighting khop shot;
-- references khop shot;
-- transition intent khop shot.
+- mỗi shot có panel;
+- không panel dư thừa/duplicate;
+- duration khớp shot;
+- action/camera/lighting khớp shot;
+- references khớp shot;
+- transition intent khớp shot.
 
 ### Production Graph
 
-`ProductionGraphBuilder.build()` tao graph sau khi co intake, storyPlan, shots, storyboard, material sourcing.
+`ProductionGraphBuilder.build()` Tạo graph sau khi có intake, storyPlan, shots, storyboard, material sourcing.
 
-Graph gom project -> story -> sequence -> scene -> beat -> storyboard_panel -> shot. References va material sourcing duoc noi vao shot.
+Graph gồm project -> story -> sequence -> scene -> beat -> storyboard_panel -> shot. References và material sourcing được nối vào shot.
 
 ### Source video enrich storyboard
 
-Source video khong duoc copy truc tiep vao storyboard. No di qua:
+Source video không được copy trực tiếp vào storyboard. Nó đi qua:
 
 - source analysis;
 - reference metadata enricher;
@@ -558,11 +558,11 @@ Source video khong duoc copy truc tiep vao storyboard. No di qua:
 - remake blueprint;
 - render strategy.
 
-## Buoc 4: Prompt Compilation
+## Bước 4: Prompt Compilation
 
 ### Input
 
-`SeedancePromptCompiler.compile()` nhan:
+`SeedancePromptCompiler.compile()` nhận:
 
 - `shot`
 - `settings`
@@ -571,23 +571,23 @@ Source video khong duoc copy truc tiep vao storyboard. No di qua:
 - `providerSupportedReferenceKinds`
 - optional max provider references.
 
-### Xu ly chinh
+### Xử lý chính
 
-1. Chon references:
-   - uu tien `shot.referenceSelectionPlan.selectedReferences`;
+1. Chọn references:
+   - ưu tiên `shot.referenceSelectionPlan.selectedReferences`;
    - fallback `shot.references`.
 
 2. `buildPromptBindingPlan()`:
    - sort theo role priority;
    - filter duplicate;
    - filter unsupported provider kind;
-   - source_video_structure planning-only neu chua `selection.authorized === true` hoac chua co provider capability;
-   - cap tong provider refs mac dinh 8;
+   - source_video_structure planning-only nếu chưa `selection.authorized === true` hoặc chưa có provider capability;
+   - cap Tổng provider refs Mặc định 8;
    - cap family Atlas: image 9, video 3, audio 3;
-   - tao conflicts va roleScopes.
+   - tạo conflicts và roleScopes.
 
 3. Resolve provider mode:
-   - khong reference -> `text_to_video`.
+   - không reference -> `text_to_video`.
    - image/identity/product/first_frame/last_frame -> `image_to_video`.
    - video/source_video_structure/motion/camera/audio/style -> `reference_to_video`.
 
@@ -604,25 +604,25 @@ Source video khong duoc copy truc tiep vao storyboard. No di qua:
    - final-frame contract.
 
 5. Build negative prompt:
-   - no watermark, no subtitles/captions neu khong request;
+   - no watermark, no subtitles/captions nếu không request;
    - no fake UI text;
    - no flicker/static product pose;
-   - no copied source face/transcript/music/logo/watermark neu co source video.
+   - no copied source face/transcript/music/logo/watermark nếu có source video.
 
-### Ho tro @ reference, first_frame, multi-shot, continuation
+### Hỗ trợ @ reference, first_frame, multi-shot, continuation
 
-Co ho tro:
+Có hỗ trợ:
 
 - `@imageN`, `@videoN`, `@audioN`.
 - first-frame/last-frame refs.
-- source video refs chi dung structure.
+- source video refs chỉ dùng structure.
 - inter-shot bridge.
 - final-frame contract.
-- last-frame chaining se recompile prompt o buoc render neu can.
+- last-frame chaining sẽ recompile prompt ở bước render nếu cần.
 
 ### Output
 
-`CompiledPrompt` gom:
+`CompiledPrompt` gồm:
 
 - `prompt`
 - `negativePrompt`
@@ -632,23 +632,23 @@ Co ho tro:
 - `repairHints`
 - `videoRequest`
 
-## Buoc 5: Render Job Creation & Execution
+## Bước 5: Render Job Creation & Execution
 
 ### Async render job
 
 `RenderJobManager.submit()`:
 
-- Kiem tra idempotency.
+- Kiểm tra idempotency.
 - Evaluate pre-render review approval.
-- Neu can review thi status `paused_for_review` hoac `paused_for_revision`.
-- Neu reject thi `rejected`.
-- Neu pass thi `queued`.
-- `pumpQueue()` chay theo maxConcurrent.
+- Nếu cần review thì status `paused_for_review` hoặc `paused_for_revision`.
+- Nếu reject thì `rejected`.
+- Nếu pass thì `queued`.
+- `pumpQueue()` chạy theo maxConcurrent.
 
 `runJob()`:
 
-- Tao runtime qua `createDirectorRuntime()`.
-- Goi `runtime.director.run()`.
+- Tạo runtime quá `createDirectorRuntime()`.
+- Gọi `runtime.director.run()`.
 - Ghi artifact bundle.
 - Validate artifact.
 - Update result/cost/provider checkpoint.
@@ -657,41 +657,41 @@ Co ho tro:
 
 Theo `qualityMode`:
 
-- `economy`: 1 candidate, 0 repair, khong test take.
-- `standard`: 2 candidates, 1 repair, co test take.
-- `high`: 3 candidates, 2 repairs, co test take.
-- `ultimate`: 4 candidates, 3 repairs, co test take.
+- `economy`: 1 candidate, 0 repair, không test take.
+- `standard`: 2 candidates, 1 repair, có test take.
+- `high`: 3 candidates, 2 repairs, có test take.
+- `ultimate`: 4 candidates, 3 repairs, có test take.
 
 `DirectorAgent.renderShot()`:
 
 1. optional test take 4s.
-2. neu test take repair thi compile repair prompt.
+2. Nếu test take repair thì compile repair prompt.
 3. render candidates.
-4. chon best candidate theo Guardian status/severity/output/latency/index.
-5. repair attempts neu selected candidate can repair/rerender.
+4. chọn best candidate theo Guardian status/severity/output/latency/index.
+5. repair attempts nếu selected candidate cần repair/rerender.
 
 ### Tier/model selection
 
 `resolveSeedanceModelId()`:
 
-- Neu `modelPreferences.seedanceModelId` co va nam trong allowlist: dung model do.
-- Tier `mini`: dung `ATLASCLOUD_SEEDANCE_MINI_MODEL` neu co, neu khong tim capability mini, fallback fast.
-- Tier `fast`: dung fast model.
-- Tier `standard`: dung standard model.
+- Nếu `modelPreferences.seedanceModelId` có và nằm trong allowlist: dùng model đó.
+- Tier `mini`: dùng `ATLASCLOUD_SEEDANCE_MINI_MODEL` nếu có, nếu không tìm capability mini, fallback fast.
+- Tier `fast`: dùng fast model.
+- Tier `standard`: dùng standard model.
 
-User khong can chon provider mode. Backend chon mode theo references/prompt compiler.
+User không cần chọn provider mode. Backend chọn mode theo references/prompt compiler.
 
 ### Atlas Cloud / Seedance call
 
 `RenderProducer.render()`:
 
 - validate capability.
-- prepare/register video/audio references neu can.
+- prepare/register video/audio references nếu cần.
 - submit qua provider method theo mode.
-- wait prediction neu async.
-- block neu succeeded ma khong co output URL.
+- wait prediction nếu async.
+- block nếu succeeded mà không có output URL.
 
-`AtlasCloudProvider.toAtlasVideoPayload()` tao:
+`AtlasCloudProvider.toAtlasVideoPayload()` Tạo:
 
 - `model`
 - `prompt`
@@ -706,9 +706,9 @@ User khong can chon provider mode. Backend chon mode theo references/prompt comp
 - `last_image`, `image_end`, `last_image_url`, `end_image_url`
 - `video`, `video_url`
 - `audio`, `audio_url`
-- `reference_images` toi da 9
-- `reference_videos` toi da 3
-- `reference_audios` toi da 3
+- `reference_images` tối đa 9
+- `reference_videos` tối đa 3
+- `reference_audios` tối đa 3
 - `references`
 - `generate_audio`
 - `watermark`
@@ -721,7 +721,7 @@ User khong can chon provider mode. Backend chon mode theo references/prompt comp
 - `RenderJobProviderCheckpoint` ghi operation count, provider, prediction IDs, asset IDs, retry count.
 - `ProductionGraphRunRecorder` ghi clip render, inspection, repair, deliverable.
 
-## Buoc 6: Inspection & Consistency Check
+## Bước 6: Inspection & Consistency Check
 
 ### Guardian checks
 
@@ -744,7 +744,7 @@ Preflight:
 
 - duration 4-15s;
 - subject/action/camera/lighting non-empty;
-- references bat buoc theo risk;
+- references bắt buộc theo risk;
 - binding conflicts;
 - continuity ledger;
 - prompt density;
@@ -757,124 +757,124 @@ Render:
 - output presence;
 - latency warning.
 
-### Visual inspection thuc te
+### Visual inspection thực tế
 
-Co optional `SemanticVisualInspector`:
+Có optional `SemanticVisualInspector`:
 
-- Can `frameSamplingOptions` va `semanticVisualInspectionOptions.enabled`.
-- `MediaInspector.sampleFrames()` lay frames tu deliverable.
+- Cần `frameSamplingOptions` và `semanticVisualInspectionOptions.enabled`.
+- `MediaInspector.sampleFrames()` lấy frames từ deliverable.
 - Multimodal LLM inspect theo expectations.
 
-Mac dinh deterministic Guardian khong "nhin" video pixel tung frame. No check provider response va ffprobe delivery. Visual semantic QA la optional.
+Mặc định deterministic Guardian không "nhìn" video pixel từng frame. Nó check provider response và ffprobe delivery. Visual semantic QA là optional.
 
 ### Pass / repair / rerender / block
 
 - `pass`: tiep tuc.
-- `warn`: ghi nhan, van tiep tuc.
-- `repair`: compile repair prompt neu o test-take/candidate stage.
-- `rerender`: render lai shot trong repair attempts.
-- `block`: dung pipeline.
+- `warn`: ghi nhận, vẫn tiep tuc.
+- `repair`: compile repair prompt nếu ở test-take/candidate stage.
+- `rerender`: render lại shot trong repair attempts.
+- `block`: dùng pipeline.
 
 ### Evidence
 
-- `GuardianReport` co nodeId, stage, status, findings, repairScope, affectedNodeIds, sourceCheckpoints, recommendedNextStep.
+- `GuardianReport` có nodeId, stage, status, findings, repairScope, affectedNodeIds, sourceCheckpoints, recommendedNextStep.
 - Stage progress ghi status theo stage.
 
-## Buoc 7: Repair & Re-render Flow
+## Bước 7: Repair & Re-render Flow
 
-Khi can repair:
+Khi cần repair:
 
-1. Guardian tao finding va repair directive.
-2. `DirectorAgent.compileTestTakeRepair()` hoac `compileRepairAttempt()` noi repair block vao prompt.
-3. Chi shot dang fail duoc rerender.
-4. Candidates moi duoc inspect lai.
-5. Best candidate duoc chon.
-6. `ProductionGraphRunRecorder` ghi repair_action va inspection.
+1. Guardian Tạo finding và repair directive.
+2. `DirectorAgent.compileTestTakeRepair()` hoặc `compileRepairAttempt()` nối repair block vào prompt.
+3. Chỉ shot dạng fail được rerender.
+4. Candidate mới được inspect lại.
+5. Best candidate được chọn.
+6. `ProductionGraphRunRecorder` ghi repair_action và inspection.
 
-Repair khong tu dong rebuild toan bo story neu loi nam o story/graph/storyboard/preflight. Cac loi planning do bi block som va yeu cau regenerate/approve truoc provider spend.
+Repair không tự động rebuild toàn bộ story nếu lỗi nằm ở story/graph/storyboard/preflight. Các lỗi planning bị block sớm và yêu cầu regenerate/approve trước provider spend.
 
-## Buoc 8: Chaining / Continuation Long-form
+## Bước 8: Chaining / Continuation Long-form
 
 ### Render schedule
 
 `RenderScheduler` chia batch:
 
-- Parallel neu shot khong co endpoint/source/risk/transition dependency.
-- Sequential neu:
-  - co first/last frame;
-  - co source_video_structure;
-  - co source timeline selection;
-  - co continuity endpoint;
-  - co risks;
-  - transition intent can bridge;
-  - strategy yeu cau reference lock/source video/sequence bible/last-frame chaining/manual storyboard.
+- Parallel nếu shot không có endpoint/source/risk/transition dependency.
+- Sequential nếu:
+  - có first/last frame;
+  - có source_video_structure;
+  - có source timeline selection;
+  - có continuity endpoint;
+  - có risks;
+  - transition intent cần bridge;
+  - strategy yêu cầu reference lock/source video/sequence bible/last-frame chaining/manual storyboard.
 
 ### Last-frame chaining
 
 `prepareChainedRenderItem()`:
 
-1. Neu plan khong can chaining: dung prompt da compile.
-2. Neu shot dau tien: dung prompt da compile.
-3. Neu shot sau:
-   - lay `previousRenderedShot`;
-   - `selectLastFrameReference()` tim image sidecar/final frame;
-   - inject reference nay vao shot moi voi role `first_frame`;
-   - xoa first_frame cu;
+1. Nếu plan không cần chaining: dùng prompt đã cómpile.
+2. Nếu shot dấu tiên: dùng prompt đã cómpile.
+3. Nếu shot sau:
+   - lấy `previousRenderedShot`;
+   - `selectLastFrameReference()` tìm image sidecar/final frame;
+   - inject reference này vào shot mỗi với role `first_frame`;
+   - xóa first_frame cũ;
    - set metadata `chainedFromShotId`, `chainReferenceRole`, `chainReferenceUrlSha256`;
-   - compile prompt lai;
-   - preflight lai.
+   - compile prompt lại;
+   - preflight lại.
 
-Neu chaining required ma khong co image sidecar: throw error truoc provider spend cho shot sau.
+Nếu chaining required mà không có image sidecar: throw error trước provider spend cho shot sau.
 
-## Buoc 9: Assembly & Post-production
+## Bước 9: Assembly & Post-production
 
 ### Assembly
 
 File: `src/core/assembly-engine.ts`
 
-Dieu kien:
+Điều kiến:
 
-- Co `outputPath`, `workDirectory`, va renderedShots.
+- Có `outputPath`, `workDirectory`, và renderedShots.
 
 Flow:
 
-1. Kiem tra ffmpeg/ffprobe.
+1. Kiểm tra ffmpeg/ffprobe.
 2. Materialize remote/local clips.
-3. Tao concat list.
-4. Neu nhieu clip va transition enabled: dung `TransitionEngine`.
-5. Neu khong: ffmpeg concat copy.
-6. Postproduction polish neu enabled.
-7. Caption burn-in neu `captionOptions.enabled && burnIn`.
-8. Audio mix neu co audio tracks.
+3. Tạo concat list.
+4. Nếu nhiều clip và transition enabled: dùng `TransitionEngine`.
+5. Nếu không: ffmpeg concat copy.
+6. Postproduction polish nếu enabled.
+7. Caption burn-in Nếu `captionOptions.enabled && burnIn`.
+8. Audio mix nếu có audio tracks.
 9. ffprobe final output.
-10. sample frames neu request.
-11. tinh output byte size va SHA-256.
+10. sample frames nếu request.
+11. tính output byte size và SHA-256.
 
 ### Transition
 
 `TransitionEngine`:
 
 - normalize canvas, fps, pixel format;
-- dung `xfade`;
-- preserve audio bang `acrossfade`;
-- fill silence neu clip thieu audio;
-- auto chon fade/hblur/wipe/slide/... theo transition intent.
+- dùng `xfade`;
+- preserve audio bằng `acrossfade`;
+- fill silence nếu clip thiếu audio;
+- auto chọn fade/hblur/wipe/slide/... theo transition intent.
 
 ### Audio
 
-Audio co 3 nhom:
+Audio có 3 nhom:
 
 - provider native/guided trong Seedance payload: `generate_audio`.
-- generated audio intents qua Atlas audio provider neu capability/env san sang.
+- generated audio intents quá Atlas audio provider nếu capability/env sản sang.
 - audio tracks user/provided cho `AudioMixEngine`.
 
-Short handoff mac dinh:
+Short handoff Mặc định:
 
 - `audioPolicy.mode = voiceover`;
 - `renderAudioMode = guided`;
 - `generatedAudioIntentEnabled = true`;
 - `nativeProviderAudioEnabled = false`;
-- caption burn-in mac dinh false.
+- caption burn-in Mặc định false.
 
 ### Delivery validation
 
@@ -884,13 +884,13 @@ Short handoff mac dinh:
 - resolution height;
 - aspect ratio tolerance;
 - duration drift warn/block;
-- audio presence warning neu audio mode khac none ma deliverable khong co audio.
+- audio presence warning nếu audio mode khác none mà deliverable không có audio.
 
-## Buoc 10: Delivery & Artifact Generation
+## Bước 10: Delivery & Artifact Generation
 
 ### Final output
 
-`DirectorRunResult` gom:
+`DirectorRunResult` gồm:
 
 - projectId;
 - storyPlan;
@@ -926,7 +926,7 @@ Short handoff mac dinh:
 - rendered shots;
 - cost ledger;
 - review packet;
-- source-video analysis neu co;
+- source-video analysis nếu có;
 - delivery metadata;
 - validation reports.
 
@@ -934,13 +934,13 @@ Short handoff mac dinh:
 
 ### Hash, provenance
 
-- Deliverable co `outputSha256`.
-- Source URLs thuong duoc hash/redact trong metadata.
-- Resume state chi luu digest, khong luu raw graph/provider payload/output URLs/local paths/secret-like text.
+- Deliverable có `outputSha256`.
+- Source URLs thường được hash/redact trong metadata.
+- Resume state chỉ lưu digest, không lưu raw graph/provider payload/output URLs/local paths/secret-like text.
 
 ---
 
-# PHAN 3: Chi Tiet Cac Thanh Phan Cot Loi
+# PHẦN 3: Chỉ Tiết Các Thành Phần Cốt Lõi
 
 ## 3.1 Production Graph
 
@@ -951,63 +951,63 @@ Files:
 - `src/core/production-graph-run-recorder.ts`
 - `src/core/production-graph-resume-state.ts`
 
-### Cau truc
+### Cấu trúc
 
-`ProductionGraph` dung Map nodes/edges. Moi node co `id`, `type`, `data`, `createdAt`, `updatedAt`.
+`ProductionGraph` dùng Map nodes/edges. Mỗi node có `id`, `type`, `data`, `createdAt`, `updatedAt`.
 
-`addNode()` chan duplicate node ID.
-`addEdge()` yeu cau source/target ton tai.
-`assertAcyclicForDependency()` chan cycle cho `depends_on`.
+`addNode()` chặn duplicate node ID.
+`addEdge()` yêu cầu source/target tồn tại.
+`assertAcyclicForDependency()` chặn cycle cho `depends_on`.
 
 ### Dependency
 
-Graph the hien:
+Graph Thể hiện:
 
 - project sinh story;
 - story sinh sequence;
 - sequence sinh scene;
 - scene sinh beat;
 - beat sinh storyboard/shot;
-- reference/material noi vao shot;
-- shot noi voi shot tiep theo bang `transitions_to`.
+- reference/material nối vào shot;
+- shot nối với shot tiếp theo bằng `transitions_to`.
 
 ### Repair propagation
 
-`repairAffectedNodes()` bat dau tu node fail va di qua:
+`repairAffectedNodes()` bắt đầu từ node fail và đi qua:
 
 - `depends_on`
 - `transitions_to`
 - `requires_repair`
 
-Dung de xac dinh node nao can review/rerender/repair.
+Dùng để xác định node nào cần review/rerender/repair.
 
 ### Resume state
 
-`production-graph-resume-state.ts` tao resume capsule dang digest:
+`production-graph-resume-state.ts` Tạo resume capsule dạng digest:
 
 - hash prediction IDs;
 - count provider work;
-- khong serialize raw graph state;
-- khong serialize output URLs/local paths/secrets.
+- không serialize raw graph state;
+- không serialize output URLs/local paths/secrets.
 
-Day la nen tang an toan cho resume/handoff, nhung de thanh distributed resume runtime day du can evidence van hanh tren deployment.
+Đây là nền tảng an toàn cho resume/handoff, nhưng để thành distributed resume runtime đầy đủ cần evidence vận hành trên deployment.
 
 ## 3.2 Consistency Guardian
 
 File: `src/core/consistency-guardian.ts`
 
-Guardian la deterministic QA truoc khi dung semantic/video QA.
+Guardian là deterministic QA trước khi dùng semantic/video QA.
 
 Strength:
 
-- Bat loi schema/storyboard/prompt/reference truoc provider spend.
-- Tao repair directive ro rang.
-- Co stage/status/severity.
+- Bắt lỗi schema/storyboard/prompt/reference trước provider spend.
+- Tạo repair directive rõ ràng.
+- Có stage/status/severity.
 
 Limit:
 
-- Render inspection mac dinh chi dua tren provider status/output/latency.
-- Khong tu dong xem toan bo video bang pixel-level neu khong bat semantic visual inspection va frame sampling.
+- Render inspection Mặc định chỉ dựa trên provider status/output/latency.
+- Không tự động xem toàn bộ video bằng pixel-level nếu không bắt semantic visual inspection và frame sampling.
 
 ## 3.3 Prompt Compiler
 
@@ -1018,7 +1018,7 @@ Files:
 
 ### Reference ordering
 
-Thu tu role:
+Thứ từ role:
 
 1. identity
 2. product
@@ -1033,14 +1033,14 @@ Thu tu role:
 11. style
 12. source_video_structure
 
-Y nghia:
+Ý nghĩa:
 
-- KOL/product/endpoint duoc khoa truoc.
-- Style/camera/source video chi la huong dan sau.
+- KOL/product/endpoint được khóa trước.
+- Style/camera/source video chỉ là hướng dẫn sau.
 
 ### Provider reference cap
 
-- Tong default: 8 provider refs.
+- Tổng default: 8 provider refs.
 - Family cap Atlas:
   - image: 9
   - video: 3
@@ -1048,7 +1048,7 @@ Y nghia:
 
 ### Prompt structure
 
-Prompt co cac contract:
+Prompt có các contract:
 
 - Seedance mode contract.
 - Reference tag syntax.
@@ -1059,13 +1059,13 @@ Prompt co cac contract:
 - Inter-shot bridge.
 - Final-frame contract.
 
-Day la phan giup prompt khong bi "thieu mo bai/than bai/ket bai" cho tung shot.
+Đây là phần giúp prompt không bị "thiếu mở bài/thân bài/kết bài" cho từng shot.
 
 ## 3.4 Render Orchestration
 
 ### Job scheduling
 
-`RenderJobManager` la queue in-process:
+`RenderJobManager` là queue in-process:
 
 - queued/running/paused_for_review/paused_for_revision/blocked/succeeded/failed/canceled/rejected.
 - idempotency replay.
@@ -1075,11 +1075,11 @@ Day la phan giup prompt khong bi "thieu mo bai/than bai/ket bai" cho tung shot.
 
 ### Render schedule
 
-`RenderScheduler` chi parallel khi an toan. Neu long-form/reference/source/video/remake can continuity thi render sequential.
+`RenderScheduler` chỉ parallel khi an toàn. Nếu long-form/reference/source/video/remake cần continuity thì render sequential.
 
 ### Candidate selection
 
-`DirectorAgent.selectBestCandidate()` chon output dua tren:
+`DirectorAgent.selectBestCandidate()` chọn output dựa trên:
 
 - Guardian status;
 - severity;
@@ -1089,11 +1089,11 @@ Day la phan giup prompt khong bi "thieu mo bai/than bai/ket bai" cho tung shot.
 
 ### Cost gate
 
-`RenderCostGate` uoc luong chi phi truoc render dua tren compiled prompts/settings/test take. Neu vuot `maxCostUsd` thi block.
+`RenderCostGate` ước lượng chi phí trước render dựa trên compiled prompts/settings/test take. Nếu vượt `maxCostUsd` thì block.
 
 ## 3.5 Chaining / Continuity Logic
 
-Co 3 cap continuity:
+Có 3 cấp continuity:
 
 1. Planning continuity:
    - `ContinuityLedgerBuilder`
@@ -1101,20 +1101,20 @@ Co 3 cap continuity:
    - `LongFormReadinessPlanner`
 
 2. Prompt continuity:
-   - Prompt compiler them prior/next endpoint, screen direction, camera momentum, final frame.
+   - Prompt compiler thêm prior/next endpoint, screen direction, camera momentum, final frame.
 
 3. Render continuity:
-   - last-frame image sidecar cua shot truoc thanh first-frame reference cua shot sau.
+   - last-frame image sidecar của shot trước thành first-frame reference của shot sau.
 
-Voi Seedance, day la cach dung model 4-15s de tao video dai hon ma van co identity/product continuity.
+Với Seedance, đây là cách dùng model 4-15s để tạo video dài hơn mà vẫn có identity/product continuity.
 
 ## 3.6 Source Video Analysis
 
 ### Source-video trong short
 
-`referenceRemakeBlueprintFor()` tao:
+`referenceRemakeBlueprintFor()` Tạo:
 
-- mode: `structure_remake` hoac `rights_cleared_close_remake`;
+- mode: `structure_remake` hoặc `rights_cleared_close_remake`;
 - sourceSafetyStatus;
 - fidelityTarget;
 - lockedElements;
@@ -1126,13 +1126,13 @@ Voi Seedance, day la cach dung model 4-15s de tao video dai hon ma van co identi
 
 Important:
 
-- Neu user noi copy/clone 100% ma chua rights-cleared, status se `review_required`.
-- Pipeline chi hoc structure/pacing/camera/acting/audio energy.
-- KOL/product/background/audio/script/claims/CTA phai thay bang input user.
+- Nếu user nói copy/clone 100% mà chưa rights-cleared, status sẽ là `review_required`.
+- Pipeline chỉ học structure/pacing/camera/acting/audio energy.
+- KOL/product/background/audio/script/claims/CTA phải thay bằng input user.
 
 ### Source-video trong full DirectorAgent
 
-Source analysis anh huong:
+Source analysis ảnh huong:
 
 - reference selection metadata;
 - continuity anchors;
@@ -1144,7 +1144,7 @@ Source analysis anh huong:
 
 ---
 
-# PHAN 4: Data Flow & Interaction
+# PHẦN 4: Data Flow & Interaction
 
 ## 4.1 Main Full Render Flow
 
@@ -1191,9 +1191,9 @@ flowchart TD
   M --> N["RenderJobManager -> DirectorAgent"]
 ```
 
-## 4.3 Evidence va Lineage
+## 4.3 Evidence và Lineage
 
-Evidence duoc duy tri qua:
+Evidence được duy trì qua:
 
 - `requestId` API context.
 - `metadata` trong render request.
@@ -1206,64 +1206,64 @@ Evidence duoc duy tri qua:
 - `ReviewPacketBuilder`.
 - `outputSha256`.
 
-## 4.4 Mapping User Input Thuc Te
+## 4.4 Mapping User Input Thực tế
 
-### Vi du 1: User nhap anh KOL + anh serum
+### Ví dụ 1: User nhập ảnh KOL + ảnh serum
 
 1. Short media refs:
    - KOL -> role `identity`, provider kind image.
    - serum -> role `product`, provider kind image.
-2. `ShortVideoPipePlanner` chon `product_kol_ugc`.
-3. `ShortVisualBiblePlanner` recommend product/KOL reference pipe, co the tao identity_sheet/product_sheet neu can.
+2. `ShortVideoPipePlanner` chọn `product_kol_ugc`.
+3. `ShortVisualBiblePlanner` recommend product/KOL reference pipe, có thể tạo identity_sheet/product_sheet nếu cần.
 4. `ShortCreativePatternLearningEngine` retrieve beauty_skincare/UGC/proof diary/sensory closeup/before-after guarded patterns.
-5. Scenes co hook, problem, demo/proof, payoff.
-6. Handoff prompt nhan manh:
+5. Scenes có hook, problem, demo/proof, payoff.
+6. Handoff prompt nhận mạnh:
    - product geometry;
    - KOL identity;
    - natural UGC performance;
    - no visible text;
    - guided voiceover;
-   - claim-safe before/after neu co.
-7. Prompt compiler chon `image_to_video` hoac `reference_to_video` tuy refs.
-8. Render nhieu candidates theo quality mode.
+   - claim-safe before/after nếu có.
+7. Prompt compiler chọn `image_to_video` hoặc `reference_to_video` tùy refs.
+8. Render nhiều candidates theo quality mode.
 
-### Vi du 2: User upload video TikTok hay va muon lam bang KOL/san pham minh
+### Ví dụ 2: User upload video TikTok hay và muốn làm bằng KOL/sản phẩm mình
 
 1. Source video -> `source_video_structure`.
-2. Short planner tao `referenceVideoLearning`.
-3. Viral planner tao `referenceVideoPattern`.
-4. `referenceRemakeBlueprint` tao source beat map.
-5. Pipe chon `video_remake`.
-6. Prompt va handoff:
+2. Short planner Tạo `referenceVideoLearning`.
+3. Viral planner Tạo `referenceVideoPattern`.
+4. `referenceRemakeBlueprint` Tạo source beat map.
+5. Pipe chọn `video_remake`.
+6. Prompt và handoff:
    - bam hook job, pacing, cut density, camera grammar, acting rhythm, payoff timing;
    - thay KOL/product/background/audio/claims/CTA;
-   - khong copy transcript, music, face, watermark, captions, logos.
-7. Source video chi provider handoff neu rights/operator approved va clean HTTPS.
+   - không copy transcript, music, face, watermark, captions, logos.
+7. Source video chỉ provider handoff nếu rights/operator approved và clean HTTPS.
 
-### Vi du 3: User muon video dai 3 phut brand/product story
+### Ví dụ 3: User muốn video dài 3 phút brand/product story
 
 1. Duration > 60s -> visual bible recommend `production_bible`.
-2. Short pipe hoac general DirectorAgent se chia thanh multiple clips 4-15s.
-3. Long-form planners tao sequence, bridge, timeline, readiness.
-4. Scheduler sequential neu can last-frame/source/reference lock.
-5. AssemblyEngine ghep thanh deliverable.
+2. Short pipe hoặc general DirectorAgent sẽ chia thành multiple clips 4-15s.
+3. Long-form planners Tạo sequence, bridge, timeline, readiness.
+4. Scheduler sequential nếu cần last-frame/source/reference lock.
+5. AssemblyEngine ghép thành deliverable.
 
 ---
 
-# PHAN 5: Danh Gia & Nhan Xet
+# PHẦN 5: Đánh Giá & Nhận Xét
 
-## 5.1 Diem Manh
+## 5.1 Điểm Mạnh
 
-1. Kien truc layer ro rang
+1. Kiến trúc layer rõ ràng
 
-API, admission, planning, prompt compiler, provider, assembly, artifact validation tach nhau tot. Dieu nay giup scale va test tung phan.
+API, admission, planning, prompt compiler, provider, assembly, artifact validation tách nhau tốt. Điều này giúp scale và test từng phần.
 
-2. Short backend da agentic hon template cung
+2. Short backend đã agentic hơn template cứng
 
-Short khong chi co 7 template co dinh. No co:
+Short không chỉ có 7 template cố định. Nó có:
 
 - audience/niche intelligence;
-- prompt corpus 3817 snapshot declared, runtime patterns va 42 taxonomy families;
+- prompt corpus 3817 snapshot declared, runtime patterns và 42 taxonomy families;
 - platform template corpus 48 niche families;
 - candidate factory;
 - critique council;
@@ -1272,67 +1272,67 @@ Short khong chi co 7 template co dinh. No co:
 - video pipe planner;
 - Seedance prompt pack.
 
-3. Reference discipline kha chat
+3. Reference discipline khá chặt
 
-KOL/product/first/last frame duoc uu tien hon style/source video. Source video khong duoc de overwrite identity/product.
+KOL/product/first/last frame được ưu tiên hơn style/source video. Source video không được để overwrite identity/product.
 
-4. Long-form foundation tot
+4. Long-form foundation tốt
 
-Da co continuity bible, sequence bridges, render scheduling, timeline, readiness scoring, delivery gate va graph lineage.
+Đã có continuity bible, sequence bridges, render scheduling, timeline, readiness scoring, delivery gate và graph lineage.
 
-5. Atlas Cloud integration co capability validation
+5. Atlas Cloud integration có capability validation
 
-Provider payload map ro, co capabilities, polling fallback, cost ledger, upload/register asset, generated audio capability.
+Provider payload map rõ, có capabilities, polling fallback, cost ledger, upload/register asset, generated audio capability.
 
-6. Review va no-spend gates nghiem ngat
+6. Review và no-spend gates nghiêm ngặt
 
-Short plan, pipe catalog, UI contract, viral intelligence, long-director UI contract deu no-spend truoc. Provider spend can approval/cost/billing/admission.
+Short plan, pipe catalog, UI contract, viral intelligence, long-director UI contract deu no-spend trước. Provider spend cần approval/cost/billing/admission.
 
-## 5.2 Diem Yeu / Gap Lon Khi Scale 5-10 Phut
+## 5.2 Điểm Yếu / Gap Lớn Khi Scale 5-10 Phút
 
-1. Visual semantic inspection chua mac dinh bat buoc
+1. Visual semantic inspection chưa mặc định bắt buộc
 
-Neu khong bat `semanticVisualInspectionOptions` va `frameSamplingOptions`, he thong khong tu xem noi dung video cuoi bang multimodal QA. Guardian deterministic chi bat provider status/output/ffprobe.
+Nếu không bắt `semanticVisualInspectionOptions` và `frameSamplingOptions`, hệ thống không tự xem nội dùng video cuối bằng multimodal QA. Guardian deterministic chỉ bắt provider status/output/ffprobe.
 
-2. Source-video auto-analysis con opt-in
+2. Source-video auto-analysis còn opt-in
 
-Auto-analysis co san, nhung default runtime phu thuoc env. No lay frame va LLM beat-map, chua thay audio transcription automatic full trong code duoc doc. Neu user muon remake sat rhythm/audio, nen co live media QA/audio beat extraction rieng.
+Auto-analysis có sẵn, nhưng default runtime phụ thuộc env. Nó lấy frame và LLM beat-map, chưa thấy audio transcription automatic full trong code được đọc. Nếu user muốn remake sát rhythm/audio, nên có live media QA/audio beat extraction riêng.
 
-3. Long-form 5-10 phut co chi phi va thoi gian cao
+3. Long-form 5-10 phút có chi phí và thời gian cao
 
-480s voi clip 4-15s co the tao 32-120 shots tuy planning. Neu quality standard/high/ultimate thi candidates/test-takes nhan chi phi len lon.
+480s với clip 4-15s có thể tạo 32-120 shots tùy planning. Nếu quality standard/high/ultimate thì candidates/test-takes nhân chi phí lên lớn.
 
-4. Resume/distributed provider handoff la foundation, chua phai bang chung live
+4. Resume/distributed provider handoff là foundation, chưa phải bằng chứng live
 
-Code co resume capsule/queue/lease service, nhung commercial readiness can bang chung tren deployment/provider interruptions thuc te.
+Code có resume capsule/queue/lease service, nhưng commercial readiness cần bằng chứng trên deployment/provider interruptions thực te.
 
-5. Audio commercial polish chua du bang chung
+5. Audio commercial polish chưa đủ bằng chứng
 
-Generated audio/audio mix co code, nhung can live paid generated-audio evidence, voice library/capability config, manual audio review.
+Generated audio/audio mix có code, nhưng cần live paid generated-audio evidence, voice library/capability config, manual audio review.
 
-6. Product/legal/rights proof van can human/operator
+6. Product/legal/rights proof vẫn cần human/operator
 
-Pipeline co guardrail, nhung khong tu bien video reference/source public thanh rights-cleared. Close remake can approval.
+Pipeline có guardrail, nhưng không tự bien video reference/source public thành rights-cleared. Close remake cần approval.
 
-## 5.3 Nhung Phan Can Cai Thien De Thanh Commercial-grade Long-form Pipeline
+## 5.3 Nhưng Phần Cần Cải Thiện Để Thành Commercial-grade Long-form Pipeline
 
-Uu tien cao:
+Ưu tiên cao:
 
-1. Bat buoc artifact-bound media QA cho moi render thuong mai:
+1. Bắt buộc artifact-bound media QA cho mỗi render thương mại:
    - frame sampling;
    - semantic visual inspection;
    - audio presence/loudness;
    - identity/product drift checklist;
    - manual review packet.
 
-2. Source-video analysis nang cao:
+2. Source-video analysis nâng cao:
    - audio tempo/beat extraction;
-   - transcript/OCR/caption detection neu duoc phep;
+   - transcript/OCR/caption detection nếu được phép;
    - shot boundary detection;
-   - motion/camera map thanh shot constraints.
+   - motion/camera map thành shot constraints.
 
 3. Resume live:
-   - persist graph/job state day du hon;
+   - persist graph/job state đầy đủ hơn;
    - resume failed/interrupted provider predictions;
    - idempotent provider handoff replay.
 
@@ -1344,26 +1344,26 @@ Uu tien cao:
 5. Long-form final QA:
    - full timeline audio continuity;
    - scene-to-scene semantic continuity;
-   - pacing review theo 2-10 phut;
+   - pacing review theo 2-10 phút;
    - delivery variants.
 
-## 5.4 Muc Do Hoan Thien Theo Backend Code Hien Tai
+## 5.4 Mức Do Hoan Thiện Theo Backend Code Hiện tại
 
-Danh gia nay la theo code architecture va no-spend/backend evidence, khong phai bao dam commercial traffic 100%.
+Đánh giá này là theo code architecture và no-spend/backend evidence, không phải bảo đảm commercial traffic 100%.
 
-- API/admission/security/job orchestration: khoang 90-93%.
-- Short no-spend planning + render handoff: khoang 88-92%.
-- Prompt compiler/reference binding/Seedance mode routing: khoang 90-93%.
-- Atlas provider integration: khoang 85-90% ve code contract, can them live provider evidence nhieu niche.
-- Production Graph/artifact validation: khoang 85-90%.
-- Long-form planning/continuity/readiness: khoang 80-86%.
-- Assembly/post-production/delivery gate: khoang 78-84%.
-- Semantic visual/media QA commercial: khoang 70-78% vi optional va can evidence live/manual.
-- Commercial readiness toan he thong: khoang 65-75% neu tinh ca billing, deployment, provider resume, manual review, paid audio/media evidence.
+- API/admission/security/job orchestration: khoảng 90-93%.
+- Short no-spend planning + render handoff: khoảng 88-92%.
+- Prompt compiler/reference binding/Seedance mode routing: khoảng 90-93%.
+- Atlas provider integration: khoảng 85-90% về code contract, cần thêm live provider evidence nhiều niche.
+- Production Graph/artifact validation: khoảng 85-90%.
+- Long-form planning/continuity/readiness: khoảng 80-86%.
+- Assembly/post-production/delivery gate: khoảng 78-84%.
+- Semantic visual/media QA commercial: khoảng 70-78% vì optional và cần evidence live/manual.
+- Commercial readiness toàn hệ thống: khoảng 65-75% nếu tính cả billing, deployment, provider resume, manual review, paid audio/media evidence.
 
-## 5.5 Ket Luan
+## 5.5 Kết Luận
 
-Backend hien tai da la mot agentic production pipeline nghiem tuc, khong phai script-to-video template engine don gian. Diem manh nhat nam o:
+Backend hiện tại đã là một agentic production pipeline nghiêm túc, không phải script-to-video template engine đơn giản. Điểm mạnh nhất nằm ở:
 
 - short niche intelligence;
 - creative pattern learning;
@@ -1372,4 +1372,4 @@ Backend hien tai da la mot agentic production pipeline nghiem tuc, khong phai sc
 - long-form continuity/readiness;
 - render/job/artifact gates.
 
-Neu chi xet backend code, he thong da san sang de build UI MVP va chay render co kiem soat. Neu xet muc tieu "Topview/Higgsfield-level commercial platform", diem con thieu khong nam chu yeu o viec code them template, ma o bang chung van hanh thuc te: live media QA, paid audio, manual review, deployment, billing, provider resume va nhieu render benchmark theo niche.
+Nếu chỉ xét backend code, hệ thống đã sẵn sàng để build UI MVP và chạy render có kiểm soát. Nếu xét mục tiêu "Topview/Higgsfield-level commercial platform", điểm còn thiếu không nằm chủ yếu ở việc code thêm template, mà ở bằng chứng vận hành thực tế: live media QA, paid audio, manual review, deployment, billing, provider resume và nhiều render benchmark theo niche.
