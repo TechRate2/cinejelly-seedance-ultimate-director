@@ -110,10 +110,10 @@ const checks = [
   selectedClips.map((clip) => clip.order).join(",") === "0,1,1.01"
     ? pass("stable_clip_order", "Selected clip order preserves shot order and multiple video outputs.")
     : fail("stable_clip_order", "Selected clip order drifted from expected timeline order."),
-  selectedClips[0]?.transitionOutIntent === "seamless match cut from serum closeup to proof demo" &&
-    selectedClips.slice(1).every((clip) => clip.transitionOutIntent === "wipe reveal into final result")
-    ? pass("transition_intent_extraction", "Assembly clips inherit transition intent from both paragraph bridge prompts and explicit Transition lines.")
-    : fail("transition_intent_extraction", "Assembly clips did not inherit transition intent from compiled prompt text."),
+  selectedClips[0]?.transitionOutIntent === "seamless match cut from serum closeup to proof demo. Keep screen direction" &&
+    selectedClips.slice(1).every((clip) => clip.transitionOutIntent === "wipe reveal into final result. Keep product scale stable")
+    ? pass("transition_intent_extraction", "Assembly clips inherit full-line transition intent from both paragraph bridge prompts and explicit Transition lines.")
+    : fail("transition_intent_extraction", "Assembly clips did not inherit full-line transition intent from compiled prompt text."),
   boundaryTransitionIntents.length === 2 &&
     boundaryTransitionIntents[0] === "outgoing: seamless xfade from mirror hook to serum proof | incoming: continue exact hand motion and product scale from prior endpoint" &&
     boundaryTransitionIntents[1] === "wipe reveal into final packshot"

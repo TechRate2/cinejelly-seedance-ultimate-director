@@ -81,10 +81,18 @@ function transitionIntentFromPrompt(prompt: string | undefined): string | undefi
   if (typeof prompt !== "string" || !prompt.trim()) {
     return undefined;
   }
-  const transitionLine = prompt.match(/(?:^|\n)Transition:\s*([^\n]+?)(?:\.|\n|$)/m)?.[1]?.trim();
+  const transitionLine = cleanTransitionIntentLine(
+    prompt.match(/(?:^|\n)Transition:\s*([^\n]+)/m)?.[1]
+  );
   if (transitionLine) {
     return transitionLine;
   }
-  const bridgeLine = prompt.match(/(?:^|\n|\. )Bridge transition intent:\s*([^\n]+?)(?:\.|\n|$)/m)?.[1]?.trim();
-  return bridgeLine || undefined;
+  return cleanTransitionIntentLine(
+    prompt.match(/(?:^|\n|\. )Bridge transition intent:\s*([^\n]+)/m)?.[1]
+  );
+}
+
+function cleanTransitionIntentLine(value: string | undefined): string | undefined {
+  const trimmed = value?.replace(/\s+/g, " ").trim().replace(/[.。]+$/u, "").trim();
+  return trimmed || undefined;
 }
