@@ -1,1375 +1,1504 @@
-# CineJelly Seedance Ultimate Director - Báo Cáo Kiến Trúc Backend
+# CineJelly Seedance Ultimate Director - Báo Cáo Audit Sâu Backend Có Chứng Minh Code
 
-Ngày lập báo cáo: 2026-06-29
-Branch được phân tích: `codex/backend-audit-short-pipes`
-Commit được phân tích: `16e11bf`
-Phạm vi: backend logic trong `src/api`, `src/application`, `src/agents`, `src/core`, `src/prompt_compiler`, `src/providers`, `src/config`, `src/types`. Báo cáo này không dựa vào README để suy đoán; các nhận xét bên dưới được rút ra từ code runtime và contract TypeScript.
+Ngày lập báo cáo: 2026-06-30
 
-## Tóm Tắt Điều Hành
+Branch được đọc: `codex/backend-audit-short-pipes`
 
-Backend hiện tại không phải một hàm "prompt vào, video ra" đơn giản. Hệ thống đã được tách thành nhiều tầng: API/admission, short no-spend planning, long/director runtime, production graph, prompt compiler, render orchestration, provider Atlas Cloud, assembly, delivery gate, artifact validation.
+Commit source được đọc trước khi viết lại báo cáo: `f6cce60`
 
-Trung tâm của full render là `DirectorAgent`, còn Trung tâm của truy vết là `ProductionGraph`. Short pipeline là một lớp agentic planning riêng, tạo ra plan có review gate và render handoff trước khi đi vào `DirectorAgent`.
-
-Mặc định model/provider mode không bắt user phải chọn text-to-video, image-to-video hay reference-to-video. User chỉ nên chọn cấp chất lượng/tier/cấu hình như `mini | fast | standard`, resolution, audio, duration. Backend tự router mode dựa trên reference, visual bible, video pipe và prompt binding.
-
-Hiện tại backend đã có nền tảng rất mạnh cho:
-
-- short video nhiều niche với pattern learning, candidate scoring, viral/niche intelligence;
-- Product/KOL UGC bằng ảnh KOL + ảnh sản phẩm;
-- storyboard multishot;
-- video remake theo cấu trúc/pacing/camera/acting beat của video tham chiếu, nhưng thay KOL/sản phẩm/background/audio/claims bằng tài sản user;
-- long-form 2-10 phút bằng cách chia thành clip 4-15s, continuity bible, last-frame chaining, render schedule và assembly.
-
-Nhưng để gọi là "commercial-grade 100%" theo nghĩa sản xuất bản thật, vẫn cần thêm bằng chứng vận hành thực tế: nhiều render live đã duyệt chất lượng, audio paid/live, manual media review, live deployment, billing/operator approval, và bằng chứng provider resume/handoff trên traffic thật.
+Phạm vi: phân tích backend logic thật trong `src/agents`, `src/core`, `src/prompt_compiler`, `src/providers`, `src/application`, `src/config`, `src/types`, và smoke scripts liên quan. Báo cáo này được viết lại từ đầu sau khi xóa bản cũ, tập trung vào điểm yếu còn tồn tại, không dựa vào README hay báo cáo trước.
 
 ---
 
-# PHẦN 1: Tổng Quan Kiến Trúc Backend
+# 0. Kết Luận Ngắn Gọn
 
-## 1.1 Các Layer Chính
+Backend hiện tại có nền tảng agentic khá mạnh: planner, shot chunking, prompt compiler, reference binding, render scheduler, cost gate, assembly, production graph và một số no-spend validation smoke. Tuy nhiên, nếu đánh giá theo tiêu chuẩn video dài 5-10 phút dùng thật ngoài thị trường, bốn điểm yếu mà báo cáo trước từng nêu là có thật trong code:
 
-### API Layer
+1. Last-frame chaining phụ thuộc vào provider trả về image sidecar. Chưa có cơ chế tự extract last frame từ MP4 bằng ffmpeg khi provider không trả ảnh cuối.
+2. Continuity Bible hiện là kế hoạch trước render, không phải state sống được cập nhật sau mỗi clip render thành công.
+3. Visual Semantic Inspection có implement LLM vision trên frame samples, nhưng optional và chỉ chạy sau assembly, chưa được dùng để chọn candidate hoặc tự rerender từng shot.
+4. Source Video Analysis đã có frame sampling + LLM structured analysis, nhưng opt-in, mặc định tắt, chưa có audio ASR/OCR/shot-boundary thực sự, và chưa tự tạo reference asset/keyframe mới từ source video.
 
-File chính: `src/api/server.ts`
+Mức sẵn sàng thực tế cho video dài 5-10 phút: khoảng 65-72% nếu xét backend architecture và no-spend orchestration; khoảng 55-65% nếu xét vận hành thương mại có media QA thật, continuity thật qua nhiều clip, audio/source-video analysis thật và automatic repair theo visual evidence.
 
-Trách nhiệm:
+---
 
-- Nhận HTTP request.
-- Auth, rate limit, concurrency, content-type, body size.
-- Chia endpoint cho planning, UI contract backend, product-url research, render job, review job, admin diagnostics.
-- Không trực tiếp gọi provider Seedance nếu request chưa qua admission, review và billing gates.
+# 1. Last-Frame Chaining & Continuation Logic
 
-Endpoint quan trọng:
+## 1.1 Các file và function liên quan
 
-- `GET /health`
-- `GET /v1/preflight`
-- `GET /v1/validation-readiness`
-- `GET /v1/render-settings`
-- `GET /v1/short-pipeline/video-pipes`
-- `POST /v1/short-pipeline/plan`
-- `POST /v1/short-pipeline/ui-contract`
-- `POST /v1/short-pipeline/product-url-plan`
-- `POST /v1/short-pipeline/render-jobs`
-- `POST /v1/render-jobs`
-- `GET /v1/render-jobs`
-- `GET /v1/render-jobs/:id`
-- `POST /v1/render-jobs/:id/review`
-- `DELETE /v1/render-jobs/:id`
-- `POST /v1/render`
-- `POST /v1/long-form/director-ui-contract`
-- Operator/admin endpoints cho launch, billing, client policy, provider lease và Production Graph resume queue.
-
-### Admission, Security, Billing, Quota Layer
-
-Files chính:
-
-- `src/api/render-request-admission.ts`
-- `src/application/render-request-normalizer.ts`
-- `src/api/api-auth.ts`
-- `src/api/api-rate-limit.ts`
-- `src/api/api-concurrency-gate.ts`
-- `src/api/api-client-policy.ts`
-- `src/api/workspace-billing-policy.ts`
-
-Trách nhiệm:
-
-- Chặn request quá lớn, sai schema, URL không an toàn, reference có token/signature/credential, local path leak.
-- Normalize path output/work/artifact vào output root.
-- Kiểm tra `settings`, `modelPreferences`, metadata, caption/audio/transition/frame sampling/semantic inspection/source-video analysis.
-- Gate chi phí, quota, billing, idempotency.
-
-### Application/Factory Layer
-
-File chính: `src/application/director-factory.ts`
-
-Trách nhiệm:
-
-- Load runtime config từ environment.
-- Tạo `AtlasCloudProvider`, `ProviderCostLedger`, `StoryArchitect`, `RenderProducer`, `RenderCostGate`, `SemanticVisualInspector`, `SourceVideoAutoAnalyzer`, material adapters, `AssemblyEngine`.
-- Trả về `DirectorRuntime` gồm `DirectorAgent`, ledger và preflight.
-
-### Agent/Application Orchestration Layer
-
-Files chính:
-
-- `src/agents/director-agent.ts`
-- `src/agents/intake-director.ts`
-- `src/agents/story-architect.ts`
-- `src/agents/render-producer.ts`
-- `src/agents/source-video-analyst.ts`
-- `src/agents/source-video-reference-metadata-enricher.ts`
-- `src/agents/reference-librarian.ts`
-
-Trách nhiệm:
-
-- Biến request thành plan sản xuất.
-- Gọi LLM để lập story plan.
-- Tạo shot contracts, storyboard, prompt, render, inspect, repair, assemble, delivery.
-- Nối source-video analysis và references vào prompt/graph.
-
-### Short Agentic Planning Layer
-
-Files chính:
-
-- `src/core/short-pipeline-planner.ts`
-- `src/core/short-pipeline-render-handoff.ts`
-- `src/core/short-video-pipe-planner.ts`
-- `src/core/short-viral-intelligence-planner.ts`
-- `src/core/short-creative-pattern-learning.ts`
-- `src/core/short-prompt-pattern-corpus.ts`
-- `src/core/short-platform-template-corpus.ts`
-- `src/core/short-agent-graph-planner.ts`
-- `src/core/short-visual-bible-planner.ts`
-- `src/core/short-director-planner.ts`
-- `src/core/short-commercial-readiness-planner.ts`
-
-Trách nhiệm:
-
-- No-spend planning trước provider spend.
-- Hiểu niche, platform, product facts, KOL/product media reference, channel style, brand kit.
-- Sinh candidate, scoring, viral strategy, scene directives, visual bible, video pipe, prompt pack, review checkpoints.
-- Chuyển plan thành `CineJellyProjectRequest` quá `buildShortPipelineRenderHandoff`.
-
-### Domain/Core Layer
-
-Files chính:
-
-- `src/core/production-graph.ts`
-- `src/core/production-graph-builder.ts`
-- `src/core/production-graph-run-recorder.ts`
-- `src/core/consistency-guardian.ts`
-- `src/core/render-scheduler.ts`
-- `src/core/long-form-continuity-planner.ts`
-- `src/core/long-form-agent-review-planner.ts`
-- `src/core/long-form-timeline-planner.ts`
-- `src/core/long-form-creative-intelligence-planner.ts`
-- `src/core/long-form-readiness-planner.ts`
-- `src/core/video-render-strategy-planner.ts`
-- `src/core/assembly-engine.ts`
-- `src/core/delivery-gate.ts`
-
-Trách nhiệm:
-
-- Quản lý graph, continuity, scheduling, review, timeline, delivery validation.
-- Kiểm tra deterministic trước và sau render.
-- Tách planning và provider execution.
-
-### Prompt Compiler Layer
-
-Files chính:
-
-- `src/prompt_compiler/prompt-compiler.ts`
-- `src/prompt_compiler/reference-binding.ts`
-- `src/prompt_compiler/negative-constraints.ts`
-- `src/prompt_compiler/repair-hints.ts`
-
-Trách nhiệm:
-
-- Bien `ShotContract` thành prompt Seedance và `VideoGenerationRequest`.
-- Sắp xếp, cap và filter references theo vai trò.
-- Tự chọn provider mode: `text_to_video`, `image_to_video`, `reference_to_video`, `video_to_video`, `extend`, `edit`.
-- Tạo @ handles: `@image1`, `@video1`, `@audio1`.
-- Thêm negative prompt, continuity, pacing, final-frame, source-video boundary, repair hints.
-
-### Provider Layer
-
-Files chính:
-
-- `src/providers/contracts.ts`
-- `src/providers/atlascloud/atlas-cloud-provider.ts`
-- `src/providers/atlascloud/atlas-cloud-http.ts`
-- `src/providers/atlascloud/atlas-cloud-mappers.ts`
-- `src/providers/capability-validator.ts`
-- `src/providers/cost-ledger.ts`
-
-Trách nhiệm:
-
-- Trừu tượng hóa LLM, video provider, asset upload, audio provider.
-- Atlas Cloud provider gọi chất/structured LLM, video generation, prediction polling, asset registration, audio generation.
-- Map payload Seedance/Atlas, capabilities, usage/cost ledger.
-
-### Infrastructure, Artifact, Resume Layer
-
-Files chính:
-
-- `src/core/project-artifact-store.ts`
-- `src/core/project-artifact-validator.ts`
-- `src/core/review-packet-builder.ts`
-- `src/core/production-graph-resume-state.ts`
-- `src/api/render-provider-handoff-lease-service.ts`
-- `src/api/production-graph-resume-queue-service.ts`
-
-Trách nhiệm:
-
-- Ghi artifact bundle, review packet, cost ledger, metadata, source-video analysis.
-- Validate artifact contract.
-- Tạo resume capsule/queue dạng digest, tránh serialize raw URL/local path/secret.
-- Operator service cho provider handoff lease và resume queue.
-
-## 1.2 Production Graph Đóng Vai Trò Trung Tâm Như Thế Nào
-
-`ProductionGraph` không phải là "planner" duy nhất. Nó là lớp lineage/truy vết và repair propagation trung tâm của full render.
-
-Lifecycle:
-
-1. `DirectorAgent.run()` intake request.
-2. Story/shot/storyboard/material plan được tạo.
-3. `ProductionGraphBuilder.build()` Tạo graph trước render.
-4. Render/test-take/candidates/repair/deliverable xong thì `ProductionGraphRunRecorder.record()` ghi thêm node kết quả.
-5. Artifact store và review packet dùng graph để chứng minh lineage.
-
-Node chính:
-
-- `project`
-- `story_arc`
-- `sequence`
-- `scene`
-- `beat`
-- `storyboard_panel`
-- `shot`
-- `reference_asset`
-- `reference_selection`
-- `material_sourcing`
-- `inspection_report`
-- `clip_render`
-- `repair_action`
-- `deliverable`
-
-Edge chính:
-
-- `depends_on`
-- `transitions_to`
-- `continues_identity`
-- `continues_environment`
-- `matches_motion`
-- `requires_repair`
-
-Repair propagation:
-
-- `ProductionGraph.repairAffectedNodes()` đi BFS quá `depends_on`, `transitions_to`, `requires_repair`.
-- Nếu một shot/reference/inspection fail, graph có thể xác định node downstream bị ảnh hưởng.
-
-## 1.3 Các Thành Phần Cốt Lõi
-
-### Production Graph
-
-- Quản lý lineage, node/edge, dependency, transition và repair scope.
-- Đảm bảo `depends_on` không Tạo cycle.
-- Giữ data cho artifact validation, review packet, resume state.
-
-### Consistency Guardian
-
-File: `src/core/consistency-guardian.ts`
-
-- Kiểm tra storyboard coverage.
-- Kiểm tra shot duration 4-15s, subject/action/camera/lighting.
-- Kiểm tra references và prompt binding conflicts.
-- Kiểm tra prompt density, negative prompt, timeline.
-- Kiểm tra provider render status/output URL/latency.
-- Trả về status: `pass`, `warn`, `repair`, `rerender`, `block`.
-
-### Prompt Compiler
-
-File: `src/prompt_compiler/prompt-compiler.ts`
-
-- Tạo prompt có cấu trúc: reference prelude, mode contract, continuity, pacing, bridge, boundary, subject/action/camera/lighting/timeline/audio/final frame.
-- Hỗ trợ @ reference, first-frame, last-frame, source-video boundary.
-- Output gồm `CompiledPrompt`, `VideoGenerationRequest`, negative prompt, references, binding plan, repair hints.
-
-### Render Orchestration
-
-Files:
-
-- `src/api/render-job-manager.ts`
-- `src/core/render-scheduler.ts`
-- `src/agents/render-producer.ts`
-- `src/core/render-cost-gate.ts`
-
-Chức năng:
-
-- Async queue, status polling, cancel, review resume.
-- Candidate count theo quality mode.
-- Test take nếu quality không phải economy.
-- Repair attempts nếu Guardian báo repair/rerender.
-- Parallel chỉ khi shot không có dependency/endpoint/source/risk.
-
-### Chaining / Continuation
-
-Files:
+Các file được đọc trực tiếp:
 
 - `src/core/endpoint-frame-chain.ts`
 - `src/agents/director-agent.ts`
-
-Chức năng:
-
-- Khi strategy yêu cầu/recommend last-frame chaining, shot sau sẽ lấy image sidecar của shot trước làm `first_frame`.
-- Nếu required mà provider không trả last frame/image sidecar thì block.
-- Prompt được compile lại sau khi inject first-frame reference.
-
-### Source Video Analysis
-
-Files:
-
-- `src/agents/source-video-analyst.ts`
-- `src/core/source-video-auto-analyzer.ts`
-- `src/agents/source-video-reference-metadata-enricher.ts`
-
-Chức năng:
-
-- Caller có thể gửi sẵn `sourceVideoAnalysis`.
-- Opt-in auto-analysis có thể lấy frame sample từ clean HTTPS source video, gửi LLM structured JSON để lấy beat map/pacing/camera/style.
-- Enricher gắn metadata source scene/shot/timeline vào references.
-- Remake chỉ dùng structure/pacing/camera/acting/audio energy, không copy transcript/face/logo/music/brand marks.
-
-## 1.4 Hỗ Trợ Long-form 2-10 Phút
-
-`settings.durationTargetSeconds` cho phép 15-480s theo `src/config/seedance-settings.ts`. Seedance clip đơn lẻ vẫn bị giới hạn 4-15s, nên long-form được xử lý bằng chunking:
-
-- `StoryArchitect` tạo story plan target duration.
-- `ShotPlanner` chia thành shot 4-15s.
-- `LongFormSequencePlanner` gồm scenes thành sequence.
-- `LongFormContinuityPlanner` Tạo continuity bible.
-- `RenderScheduler` quyết định shot nào render parallel/sequential.
-- `LongFormTimelinePlanner` Tạo timeline segment.
-- `LongFormCreativeIntelligencePlanner` và `LongFormReadinessPlanner` cham coherence/repair queue.
-- `AssemblyEngine` ghép clip thành deliverable.
-
----
-
-# PHẦN 2: End-to-End Backend Pipeline
-
-## Bước 1: API Layer - Nhận Request
-
-### Endpoint tạo video
-
-Có 3 đường chính:
-
-1. Short planning no-spend:
-   - `POST /v1/short-pipeline/plan`
-   - `POST /v1/short-pipeline/ui-contract`
-   - `POST /v1/short-pipeline/product-url-plan`
-
-2. Short render job:
-   - `POST /v1/short-pipeline/render-jobs`
-   - `POST /v1/short-pipeline/conversation-sessions/:id/render-jobs`
-
-3. General render:
-   - `POST /v1/render-jobs` cho async render.
-   - `POST /v1/render` cho sync render.
-
-### Request body chính
-
-`CineJellyProjectRequest` có các trường quan trọng:
-
-- `userInput`: ý tưởng/brief.
-- `settings`: tier, resolution, qualityMode, ratio, durationTargetSeconds, audioMode, bitrateMode, watermark, returnLastFrame, maxCostUsd.
-- `modelPreferences`: optional `seedanceModelId`.
-- `references`: PromptReference đã normalize.
-- `sourceVideoAnalysis`: optional SourceVideoDeconstruction.
-- `captionCues`, `captionOptions`.
-- `audioTracks`, `audioMixOptions`.
-- `generatedAudioIntents`.
-- `frameSamplingOptions`.
-- `transitionSettings`.
-- `semanticVisualInspectionOptions`.
-- `metadata`.
-- `outputPath`, `workDirectory`, `artifactDirectory`.
-
-Short pipeline request có thêm:
-
-- `projectId`, `requestId`.
-- `userPrompt`.
-- `targetPlatform`, `targetDurationSeconds`.
-- `product` gồm URL/snapshot.
-- `brandKit`.
-- `channelStyle`.
-- `mediaReferences` gồm KOL/product/background/source_video/audio.
-- `visualBible`.
-- `referenceVideoLearning`.
-- `audio`.
-
-### Validation
-
-Trong `server.ts`:
-
-- `assertJsonContentType()`.
-- `readJsonBody()` giới hạn bytes.
-- auth/rate limit/chính sách client.
-
-Trong `RenderRequestAdmission.assertAcceptable()`:
-
-- `userInput` bắt buộc và giới hạn length.
-- settings validate bằng `normalizeSeedanceSettings()`.
-- model ID phải nằm trong allowlist env nếu override.
-- references phải có `providerReference`.
-- URI phải clean HTTPS hoặc `asset://`.
-- chặn local path, localhost/private host, embedded credentials, secret query.
-- source video analysis bị bound scenes/transcript/keyframes/notes.
-- audio/caption/transition/frame sampling/semantic inspection deu được validate.
-
-Trong `normalizeRenderRequest()`:
-
-- set requestId vào metadata.
-- resolve output/work/artifact directory.
-- enforce path nằm trong `CINEJELLY_OUTPUT_DIR`.
-
-### Output sau validate
-
-- Short no-spend: `ShortPipelinePlan`.
-- Short render: `ShortPipelineRenderHandoff.request` là `CineJellyProjectRequest`.
-- General render: normalized `CineJellyProjectRequest`.
-- Async render: `RenderJobSummary` và `statusUrl`.
-
-### Evidence / Logging
-
-- API gắn `requestId` vào response headers.
-- Render job lưu `stageProgressEvents`, provider checkpoint, cost ledger, artifact validation.
-- Short plan có `noSpend`, `networkCallsMade`, `providerCallsMade`, `releaseGateSummary`.
-
-## Bước 2: Input Processing & Normalization
-
-### Xử lý reference images/audio/video
-
-`IntakeDirector` gọi `ReferenceLibrarian.normalize()`:
-
-- Role Hợp lệ: `identity`, `product`, `wardrobe`, `environment`, `motion`, `camera`, `audio_tempo`, `voice`, `style`, `first_frame`, `last_frame`, `source_video_structure`.
-- Kind Hợp lệ: `image`, `video`, `audio`, `first_frame`, `last_frame`, `identity`, `product`, `environment`, `motion`, `camera`, `style`.
-- Tự infer kind theo URL extension và role.
-- Dedupe theo role/label/kind/uri.
-- Sắp xếp theo thứ tự role priority.
-- Chan unsafe URI.
-
-Short pipeline có `mediaReferencePlanFor()`:
-
-- Nhận raw `ShortMediaReferenceInput`.
-- Tạo prompt tag `@image1`, `@video1`, `@audio1`.
-- Đổi role UI như `kol`, `creator`, `product`, `background`, `source_video` thành prompt role.
-- Danh dấu `includeInProviderHandoff` chỉ khi URI/rights/provider policy sản sang.
-- Source video nếu chưa operator-approved/clean HTTPS thì dùng planning-only.
-
-### Source video
-
-Có 3 mức:
-
-1. User chỉ upload/gửi source video:
-   - Short planner Tạo `referenceVideoLearningFromSourceMedia()`.
-   - Tạo summary: học rhythm, acting beats, camera grammar, retention timing, audio energy, payoff shape.
-
-2. User/caller gửi `sourceVideoAnalysis`:
-   - `SourceVideoAnalyst.normalize()` validate và cap dữ liệu.
-
-3. Auto-analysis opt-in:
-   - `SourceVideoAutoAnalyzer.prepareRequest()` tìm reference role `source_video_structure`.
-   - Chỉ nhận clean HTTPS, không token/localhost.
-   - `MediaInspector.sampleFrames()` lấy frames.
-   - LLM structured JSON Tạo scenes, keyframes, pacingNotes, styleNotes, structuralBeats, safetyNotes.
-   - Normalize lại qua `SourceVideoAnalyst`.
-
-### Output
-
-- `IntakeResult`: userInput, projectId, settings, references, metadata, sourceVideoAnalysis.
-- Short: `ShortPipelinePlan.mediaReferencePlan`, `referenceRemakeBlueprint`, `visualBiblePlan`.
-
-### Evidence
-
-- Hash URI thay vì expose raw URL trong nhiều metadata.
-- Source pattern origins được gắn trong short plan và corpora.
-- Source-video auto-analysis cam leak data URL/local frame path.
-
-## Bước 3: Planning & Storyboard Generation
-
-### Short planning
-
-`ShortPipelinePlanner.buildPlan()` làm các việc sau:
-
-1. Clean prompt.
-2. Extract product brief bằng `ProductUrlBriefExtractor`.
-3. Evaluate brand kit bằng `BrandKitEvaluator`.
-4. Evaluate channel style.
-5. Infer intent: platform, duration, goal, audience, offer, aspect ratio.
-6. Tạo audio policy Mặc định voiceover/guided.
-7. Tạo visual text policy Mặc định no visible text.
-8. Tạo media reference plan.
-9. Tạo optional workflow template suggestions.
-10. Tạo concepts.
-11. Tạo preliminary scenes.
-12. Chay `ShortViralIntelligencePlanner`.
-13. Chay preliminary `ShortAgentGraphPlanner`.
-14. Dùng selected candidate để Tạo scenes cuối.
-15. Chay viral intelligence lần 2.
-16. Tạo `referenceRemakeBlueprint` nếu có source video/reference learning.
-17. Tạo `ShortVisualBiblePlan`.
-18. Tạo final `ShortAgentGraph`.
-19. Tạo `seedanceRouting`.
-20. Tạo `ShortDirectorPlan`.
-21. Tạo `ShortVideoPipePlan`.
-22. Tạo review checkpoints.
-23. Tạo commercial readiness.
-
-Short có 5 pipe:
-
-- `smart_short`: ý tưởng ngắn, ít reference.
-- `product_kol_ugc`: có KOL/product reference.
-- `storyboard_multishot`: cần full beginning/middle/end nhiều clip.
-- `video_remake`: có source/trend/reference video.
-- `production_bible`: 60-480s hoặc cần character/product/sequence bible.
-
-### General/long planning
-
-`DirectorAgent.run()`:
-
-1. `StoryArchitect.plan()` Gọi LLM structured để Tạo `StoryPlan`.
-2. `ContinuityLedgerBuilder.build()`.
-3. `ShotPlanner.plan()` Tạo `ShotContract`.
-4. `ReferenceSelectionPlanner.planForShots()`.
-5. `LongFormContinuityPlanner.build()`.
-6. `LongFormAgentReviewPlanner.build()`.
-7. `VideoRenderStrategyPlanner.build()`.
-8. `StoryboardPlanner.plan()`.
-9. `ConsistencyGuardian.inspectStoryboard()`.
-10. `StoryboardApprovalGate.evaluate()`.
-
-### Storyboard và Shot Contract
-
-`StoryboardPlanner` Tạo panel từ shot contracts. Guardian yêu cầu:
-
-- mỗi shot có panel;
-- không panel dư thừa/duplicate;
-- duration khớp shot;
-- action/camera/lighting khớp shot;
-- references khớp shot;
-- transition intent khớp shot.
-
-### Production Graph
-
-`ProductionGraphBuilder.build()` Tạo graph sau khi có intake, storyPlan, shots, storyboard, material sourcing.
-
-Graph gồm project -> story -> sequence -> scene -> beat -> storyboard_panel -> shot. References và material sourcing được nối vào shot.
-
-### Source video enrich storyboard
-
-Source video không được copy trực tiếp vào storyboard. Nó đi qua:
-
-- source analysis;
-- reference metadata enricher;
-- continuity anchors;
-- prompt/source-video boundary;
-- remake blueprint;
-- render strategy.
-
-## Bước 4: Prompt Compilation
-
-### Input
-
-`SeedancePromptCompiler.compile()` nhận:
-
-- `shot`
-- `settings`
-- `modelId`
-- `provider`
-- `providerSupportedReferenceKinds`
-- optional max provider references.
-
-### Xử lý chính
-
-1. Chọn references:
-   - ưu tiên `shot.referenceSelectionPlan.selectedReferences`;
-   - fallback `shot.references`.
-
-2. `buildPromptBindingPlan()`:
-   - sort theo role priority;
-   - filter duplicate;
-   - filter unsupported provider kind;
-   - source_video_structure planning-only nếu chưa `selection.authorized === true` hoặc chưa có provider capability;
-   - cap Tổng provider refs Mặc định 8;
-   - cap family Atlas: image 9, video 3, audio 3;
-   - tạo conflicts và roleScopes.
-
-3. Resolve provider mode:
-   - không reference -> `text_to_video`.
-   - image/identity/product/first_frame/last_frame -> `image_to_video`.
-   - video/source_video_structure/motion/camera/audio/style -> `reference_to_video`.
-
-4. Build prompt:
-   - provider reference handles;
-   - Atlas aliases;
-   - provider mode contract;
-   - continuity;
-   - pacing;
-   - motion continuity;
-   - inter-shot bridge;
-   - boundary choreography;
-   - subject/action/camera/lighting/style/timeline/audio/transition;
-   - final-frame contract.
-
-5. Build negative prompt:
-   - no watermark, no subtitles/captions nếu không request;
-   - no fake UI text;
-   - no flicker/static product pose;
-   - no copied source face/transcript/music/logo/watermark nếu có source video.
-
-### Hỗ trợ @ reference, first_frame, multi-shot, continuation
-
-Có hỗ trợ:
-
-- `@imageN`, `@videoN`, `@audioN`.
-- first-frame/last-frame refs.
-- source video refs chỉ dùng structure.
-- inter-shot bridge.
-- final-frame contract.
-- last-frame chaining sẽ recompile prompt ở bước render nếu cần.
-
-### Output
-
-`CompiledPrompt` gồm:
-
-- `prompt`
-- `negativePrompt`
-- `references`
-- `bindingPlan`
-- `inspectionExpectations`
-- `repairHints`
-- `videoRequest`
-
-## Bước 5: Render Job Creation & Execution
-
-### Async render job
-
-`RenderJobManager.submit()`:
-
-- Kiểm tra idempotency.
-- Evaluate pre-render review approval.
-- Nếu cần review thì status `paused_for_review` hoặc `paused_for_revision`.
-- Nếu reject thì `rejected`.
-- Nếu pass thì `queued`.
-- `pumpQueue()` chạy theo maxConcurrent.
-
-`runJob()`:
-
-- Tạo runtime quá `createDirectorRuntime()`.
-- Gọi `runtime.director.run()`.
-- Ghi artifact bundle.
-- Validate artifact.
-- Update result/cost/provider checkpoint.
-
-### Candidate generation
-
-Theo `qualityMode`:
-
-- `economy`: 1 candidate, 0 repair, không test take.
-- `standard`: 2 candidates, 1 repair, có test take.
-- `high`: 3 candidates, 2 repairs, có test take.
-- `ultimate`: 4 candidates, 3 repairs, có test take.
-
-`DirectorAgent.renderShot()`:
-
-1. optional test take 4s.
-2. Nếu test take repair thì compile repair prompt.
-3. render candidates.
-4. chọn best candidate theo Guardian status/severity/output/latency/index.
-5. repair attempts nếu selected candidate cần repair/rerender.
-
-### Tier/model selection
-
-`resolveSeedanceModelId()`:
-
-- Nếu `modelPreferences.seedanceModelId` có và nằm trong allowlist: dùng model đó.
-- Tier `mini`: dùng `ATLASCLOUD_SEEDANCE_MINI_MODEL` nếu có, nếu không tìm capability mini, fallback fast.
-- Tier `fast`: dùng fast model.
-- Tier `standard`: dùng standard model.
-
-User không cần chọn provider mode. Backend chọn mode theo references/prompt compiler.
-
-### Atlas Cloud / Seedance call
-
-`RenderProducer.render()`:
-
-- validate capability.
-- prepare/register video/audio references nếu cần.
-- submit qua provider method theo mode.
-- wait prediction nếu async.
-- block nếu succeeded mà không có output URL.
-
-`AtlasCloudProvider.toAtlasVideoPayload()` Tạo:
-
-- `model`
-- `prompt`
-- `negative_prompt`
-- `duration`
-- `fps: 24`
-- `resolution`
-- `bitrate_mode`
-- dimensions/ratio
-- `mode`
-- `image`, `image_url`
-- `last_image`, `image_end`, `last_image_url`, `end_image_url`
-- `video`, `video_url`
-- `audio`, `audio_url`
-- `reference_images` tối đa 9
-- `reference_videos` tối đa 3
-- `reference_audios` tối đa 3
-- `references`
-- `generate_audio`
-- `watermark`
-- `return_last_frame`
-- `metadata`
-
-### Evidence
-
-- `ProviderCostLedger` ghi provider operations.
-- `RenderJobProviderCheckpoint` ghi operation count, provider, prediction IDs, asset IDs, retry count.
-- `ProductionGraphRunRecorder` ghi clip render, inspection, repair, deliverable.
-
-## Bước 6: Inspection & Consistency Check
-
-### Guardian checks
-
-Storyboard:
-
-- coverage;
-- unknown shot;
-- missing panel;
-- duplicate;
-- panel count;
-- order;
-- duration;
-- completeness;
-- action/camera/lighting alignment;
-- reference alignment;
-- transition alignment;
-- inspection focus.
-
-Preflight:
-
-- duration 4-15s;
-- subject/action/camera/lighting non-empty;
-- references bắt buộc theo risk;
-- binding conflicts;
-- continuity ledger;
-- prompt density;
-- negative prompt density;
-- timeline bounds.
-
-Render:
-
-- provider status;
-- output presence;
-- latency warning.
-
-### Visual inspection thực tế
-
-Có optional `SemanticVisualInspector`:
-
-- Cần `frameSamplingOptions` và `semanticVisualInspectionOptions.enabled`.
-- `MediaInspector.sampleFrames()` lấy frames từ deliverable.
-- Multimodal LLM inspect theo expectations.
-
-Mặc định deterministic Guardian không "nhìn" video pixel từng frame. Nó check provider response và ffprobe delivery. Visual semantic QA là optional.
-
-### Pass / repair / rerender / block
-
-- `pass`: tiep tuc.
-- `warn`: ghi nhận, vẫn tiep tuc.
-- `repair`: compile repair prompt nếu ở test-take/candidate stage.
-- `rerender`: render lại shot trong repair attempts.
-- `block`: dùng pipeline.
-
-### Evidence
-
-- `GuardianReport` có nodeId, stage, status, findings, repairScope, affectedNodeIds, sourceCheckpoints, recommendedNextStep.
-- Stage progress ghi status theo stage.
-
-## Bước 7: Repair & Re-render Flow
-
-Khi cần repair:
-
-1. Guardian Tạo finding và repair directive.
-2. `DirectorAgent.compileTestTakeRepair()` hoặc `compileRepairAttempt()` nối repair block vào prompt.
-3. Chỉ shot dạng fail được rerender.
-4. Candidate mới được inspect lại.
-5. Best candidate được chọn.
-6. `ProductionGraphRunRecorder` ghi repair_action và inspection.
-
-Repair không tự động rebuild toàn bộ story nếu lỗi nằm ở story/graph/storyboard/preflight. Các lỗi planning bị block sớm và yêu cầu regenerate/approve trước provider spend.
-
-## Bước 8: Chaining / Continuation Long-form
-
-### Render schedule
-
-`RenderScheduler` chia batch:
-
-- Parallel nếu shot không có endpoint/source/risk/transition dependency.
-- Sequential nếu:
-  - có first/last frame;
-  - có source_video_structure;
-  - có source timeline selection;
-  - có continuity endpoint;
-  - có risks;
-  - transition intent cần bridge;
-  - strategy yêu cầu reference lock/source video/sequence bible/last-frame chaining/manual storyboard.
-
-### Last-frame chaining
-
-`prepareChainedRenderItem()`:
-
-1. Nếu plan không cần chaining: dùng prompt đã cómpile.
-2. Nếu shot dấu tiên: dùng prompt đã cómpile.
-3. Nếu shot sau:
-   - lấy `previousRenderedShot`;
-   - `selectLastFrameReference()` tìm image sidecar/final frame;
-   - inject reference này vào shot mỗi với role `first_frame`;
-   - xóa first_frame cũ;
-   - set metadata `chainedFromShotId`, `chainReferenceRole`, `chainReferenceUrlSha256`;
-   - compile prompt lại;
-   - preflight lại.
-
-Nếu chaining required mà không có image sidecar: throw error trước provider spend cho shot sau.
-
-## Bước 9: Assembly & Post-production
-
-### Assembly
-
-File: `src/core/assembly-engine.ts`
-
-Điều kiến:
-
-- Có `outputPath`, `workDirectory`, và renderedShots.
-
-Flow:
-
-1. Kiểm tra ffmpeg/ffprobe.
-2. Materialize remote/local clips.
-3. Tạo concat list.
-4. Nếu nhiều clip và transition enabled: dùng `TransitionEngine`.
-5. Nếu không: ffmpeg concat copy.
-6. Postproduction polish nếu enabled.
-7. Caption burn-in Nếu `captionOptions.enabled && burnIn`.
-8. Audio mix nếu có audio tracks.
-9. ffprobe final output.
-10. sample frames nếu request.
-11. tính output byte size và SHA-256.
-
-### Transition
-
-`TransitionEngine`:
-
-- normalize canvas, fps, pixel format;
-- dùng `xfade`;
-- preserve audio bằng `acrossfade`;
-- fill silence nếu clip thiếu audio;
-- auto chọn fade/hblur/wipe/slide/... theo transition intent.
-
-### Audio
-
-Audio có 3 nhom:
-
-- provider native/guided trong Seedance payload: `generate_audio`.
-- generated audio intents quá Atlas audio provider nếu capability/env sản sang.
-- audio tracks user/provided cho `AudioMixEngine`.
-
-Short handoff Mặc định:
-
-- `audioPolicy.mode = voiceover`;
-- `renderAudioMode = guided`;
-- `generatedAudioIntentEnabled = true`;
-- `nativeProviderAudioEnabled = false`;
-- caption burn-in Mặc định false.
-
-### Delivery validation
-
-`DeliveryGate.evaluate()`:
-
-- video stream presence;
-- resolution height;
-- aspect ratio tolerance;
-- duration drift warn/block;
-- audio presence warning nếu audio mode khác none mà deliverable không có audio.
-
-## Bước 10: Delivery & Artifact Generation
-
-### Final output
-
-`DirectorRunResult` gồm:
-
-- projectId;
-- storyPlan;
-- storyboard;
-- storyboardPreflight;
-- productionGraph;
-- longFormContinuityPlan;
-- longFormAgentReview;
-- videoRenderStrategyPlan;
-- longFormTimelinePlan;
-- longFormCreativeIntelligencePlan;
-- longFormReadinessPlan;
-- materialSourcingPlan;
-- materialSourceValidation;
-- postproductionAssetPlan;
-- generatedAudioOutputBatchValidation;
-- renderSchedulePlan;
-- stagePlan;
-- costEstimate;
-- compiledPrompts;
-- renderedShots;
-- deliverable;
-- deliveryGate;
-- semanticVisualInspection.
-
-### Artifacts
-
-`ProjectArtifactStore` ghi:
-
-- director result summary;
-- production graph;
-- compiled prompts;
-- rendered shots;
-- cost ledger;
-- review packet;
-- source-video analysis nếu có;
-- delivery metadata;
-- validation reports.
-
-`ProjectArtifactValidator` validate artifact contract, graph structure, source-video presence, long-form plans, provider evidence, delivery fields.
-
-### Hash, provenance
-
-- Deliverable có `outputSha256`.
-- Source URLs thường được hash/redact trong metadata.
-- Resume state chỉ lưu digest, không lưu raw graph/provider payload/output URLs/local paths/secret-like text.
-
----
-
-# PHẦN 3: Chỉ Tiết Các Thành Phần Cốt Lõi
-
-## 3.1 Production Graph
-
-Files:
-
-- `src/core/production-graph.ts`
-- `src/core/production-graph-builder.ts`
-- `src/core/production-graph-run-recorder.ts`
-- `src/core/production-graph-resume-state.ts`
-
-### Cấu trúc
-
-`ProductionGraph` dùng Map nodes/edges. Mỗi node có `id`, `type`, `data`, `createdAt`, `updatedAt`.
-
-`addNode()` chặn duplicate node ID.
-`addEdge()` yêu cầu source/target tồn tại.
-`assertAcyclicForDependency()` chặn cycle cho `depends_on`.
-
-### Dependency
-
-Graph Thể hiện:
-
-- project sinh story;
-- story sinh sequence;
-- sequence sinh scene;
-- scene sinh beat;
-- beat sinh storyboard/shot;
-- reference/material nối vào shot;
-- shot nối với shot tiếp theo bằng `transitions_to`.
-
-### Repair propagation
-
-`repairAffectedNodes()` bắt đầu từ node fail và đi qua:
-
-- `depends_on`
-- `transitions_to`
-- `requires_repair`
-
-Dùng để xác định node nào cần review/rerender/repair.
-
-### Resume state
-
-`production-graph-resume-state.ts` Tạo resume capsule dạng digest:
-
-- hash prediction IDs;
-- count provider work;
-- không serialize raw graph state;
-- không serialize output URLs/local paths/secrets.
-
-Đây là nền tảng an toàn cho resume/handoff, nhưng để thành distributed resume runtime đầy đủ cần evidence vận hành trên deployment.
-
-## 3.2 Consistency Guardian
-
-File: `src/core/consistency-guardian.ts`
-
-Guardian là deterministic QA trước khi dùng semantic/video QA.
-
-Strength:
-
-- Bắt lỗi schema/storyboard/prompt/reference trước provider spend.
-- Tạo repair directive rõ ràng.
-- Có stage/status/severity.
-
-Limit:
-
-- Render inspection Mặc định chỉ dựa trên provider status/output/latency.
-- Không tự động xem toàn bộ video bằng pixel-level nếu không bắt semantic visual inspection và frame sampling.
-
-## 3.3 Prompt Compiler
-
-Files:
-
+- `src/core/video-render-strategy-planner.ts`
+- `src/core/render-scheduler.ts`
 - `src/prompt_compiler/prompt-compiler.ts`
-- `src/prompt_compiler/reference-binding.ts`
+- `src/providers/atlascloud/atlas-cloud-provider.ts`
+- `src/config/seedance-settings.ts`
+- `scripts/run-last-frame-chaining-smoke.mjs`
 
-### Reference ordering
+## 1.2 Provider có được yêu cầu trả last frame không?
 
-Thứ từ role:
+Có. Runtime settings mặc định bật `returnLastFrame`, và payload Atlas có `return_last_frame`.
 
-1. identity
-2. product
-3. wardrobe
-4. first_frame
-5. last_frame
-6. environment
-7. motion
-8. camera
-9. audio_tempo
-10. voice
-11. style
-12. source_video_structure
+Code trong `src/types/settings.ts:106-116`:
 
-Ý nghĩa:
+```ts
+export const DEFAULT_SEEDANCE_SETTINGS: FlexibleSeedanceSettings = {
+  tier: "standard",
+  resolution: "720p",
+  qualityMode: "standard",
+  ratio: "16:9",
+  durationTargetSeconds: 120,
+  audioMode: "hybrid",
+  bitrateMode: "standard",
+  watermark: false,
+  returnLastFrame: true
+};
+```
 
-- KOL/product/endpoint được khóa trước.
-- Style/camera/source video chỉ là hướng dẫn sau.
+Code trong `src/config/seedance-settings.ts:97-112`:
 
-### Provider reference cap
+```ts
+export function toVideoGenerationSettings(
+  settings: FlexibleSeedanceSettings,
+  clipDurationSeconds: number
+): VideoGenerationSettings {
+  return {
+    durationSeconds: clipDurationSeconds,
+    resolution: settings.resolution,
+    ratio: settings.ratio,
+    generateAudio: settings.audioMode === "native" || settings.audioMode === "guided" || settings.audioMode === "hybrid",
+    bitrateMode: settings.bitrateMode,
+    watermark: settings.watermark,
+    returnLastFrame: settings.returnLastFrame
+  };
+}
+```
 
-- Tổng default: 8 provider refs.
-- Family cap Atlas:
-  - image: 9
-  - video: 3
-  - audio: 3
+Code trong `src/providers/atlascloud/atlas-cloud-provider.ts:831-863`:
 
-### Prompt structure
+```ts
+private toAtlasVideoPayload(request: VideoGenerationRequest): Record<string, unknown> {
+  const references = request.references.map((reference) => this.toAtlasReference(reference));
+  const firstImageUrl = this.firstReferenceUrl(references, ["first_frame", "image", "identity", "product", "environment", "style"]);
+  const lastImageUrl = this.firstReferenceUrl(references, ["last_frame"]);
 
-Prompt có các contract:
+  return {
+    model: request.modelId,
+    prompt: request.prompt,
+    duration: request.settings.durationSeconds,
+    ...(firstImageUrl ? { image: firstImageUrl, image_url: firstImageUrl } : {}),
+    ...(lastImageUrl ? { last_image: lastImageUrl, image_end: lastImageUrl, last_image_url: lastImageUrl, end_image_url: lastImageUrl } : {}),
+    generate_audio: request.settings.generateAudio,
+    watermark: request.settings.watermark,
+    return_last_frame: request.settings.returnLastFrame,
+    metadata: request.metadata
+  };
+}
+```
 
-- Seedance mode contract.
-- Reference tag syntax.
-- Identity/product/source-video/audio boundaries.
-- Continuity.
-- Pacing.
-- Motion continuity.
-- Inter-shot bridge.
-- Final-frame contract.
+Đánh giá: phần request xuống Atlas là đúng hướng. Nhưng việc dùng lại last frame vẫn phụ thuộc output response có URL ảnh cuối.
 
-Đây là phần giúp prompt không bị "thiếu mở bài/thân bài/kết bài" cho từng shot.
+## 1.3 Strategy quyết định khi nào bắt buộc chaining
 
-## 3.4 Render Orchestration
+Code trong `src/core/video-render-strategy-planner.ts:268-318`:
 
-### Job scheduling
+```ts
+private lastFrameChaining(input: {
+  readonly workflowMode: VideoRenderWorkflowMode;
+  readonly continuityMode: VideoRenderContinuityMode;
+  readonly shotCount: number;
+  readonly returnLastFrame: boolean | undefined;
+}): VideoRenderStrategyPlan["lastFrameChaining"] {
+  if (input.shotCount <= 1 || input.workflowMode === "single_clip" || input.workflowMode === "reference_locked_single_clip") {
+    return { status: "not_needed", eligibleShotCount: 0, requiresReturnLastFrame: false, reason: "Single-clip workflows do not need inter-shot endpoint chaining." };
+  }
+  const eligibleShotCount = Math.max(0, input.shotCount - 1);
+  const requiresReturnLastFrame = input.continuityMode === "last_frame_chaining" ||
+    input.workflowMode === "source_video_guided" ||
+    input.workflowMode === "sequence_bible";
+  if (requiresReturnLastFrame && input.returnLastFrame === false) {
+    return { status: "blocked", eligibleShotCount, requiresReturnLastFrame, reason: "The selected workflow needs provider last-frame output, but returnLastFrame is disabled." };
+  }
+  if (input.continuityMode === "last_frame_chaining" || input.workflowMode === "sequence_bible") {
+    return { status: "required", eligibleShotCount, requiresReturnLastFrame, reason: "..." };
+  }
+  if (input.workflowMode === "reference_locked_multishot" || input.workflowMode === "source_video_guided") {
+    return { status: "recommended", eligibleShotCount, requiresReturnLastFrame, reason: "..." };
+  }
+  return { status: "not_needed", eligibleShotCount: 0, requiresReturnLastFrame: false, reason: "..." };
+}
+```
 
-`RenderJobManager` là queue in-process:
+Code trong `src/core/video-render-strategy-planner.ts:454-460` block khi user tắt last frame:
 
-- queued/running/paused_for_review/paused_for_revision/blocked/succeeded/failed/canceled/rejected.
-- idempotency replay.
-- review resume.
-- provider checkpoint.
-- history restore compact.
+```ts
+if (input.lastFrameChainingStatus === "blocked") {
+  issues.push({
+    severity: "block",
+    code: "last_frame_chaining_requested_without_last_frame_output",
+    message: "The selected workflow needs last-frame chaining but returnLastFrame is disabled.",
+    repair: "Enable settings.returnLastFrame or change the workflow to an approved single-clip/reference-only mode."
+  });
+}
+```
 
-### Render schedule
+Đánh giá: logic chọn strategy hợp lý. Với multishot prompt-only hoặc sequence_bible, chaining có thể required. Với source/reference guided multishot, chaining recommended.
 
-`RenderScheduler` chỉ parallel khi an toàn. Nếu long-form/reference/source/video/remake cần continuity thì render sequential.
+## 1.4 Render scheduler có ép sequential không?
 
-### Candidate selection
+Có. Khi strategy báo required/recommended, `DirectorAgent.strategySequentialReasons()` thêm `strategy_last_frame_chaining`.
 
-`DirectorAgent.selectBestCandidate()` chọn output dựa trên:
+Code trong `src/agents/director-agent.ts:732-752`:
 
-- Guardian status;
-- severity;
-- output presence;
-- latency;
-- candidate index.
+```ts
+private strategySequentialReasons(plan: VideoRenderStrategyPlan): readonly RenderScheduleSequentialReason[] {
+  if (!plan.requiresSequentialRender) {
+    return [];
+  }
+  const reasons: RenderScheduleSequentialReason[] = [];
+  if (plan.lastFrameChaining.status === "required" || plan.lastFrameChaining.status === "recommended") {
+    reasons.push("strategy_last_frame_chaining");
+  }
+  return [...new Set(reasons)].sort();
+}
+```
 
-### Cost gate
+Render scheduler chạy tuần tự khi item có sequential reasons.
 
-`RenderCostGate` ước lượng chi phí trước render dựa trên compiled prompts/settings/test take. Nếu vượt `maxCostUsd` thì block.
+Code trong `src/core/render-scheduler.ts:133-152`:
 
-## 3.5 Chaining / Continuity Logic
+```ts
+public async run<TInput, TOutput>(
+  items: readonly RenderScheduleItem<TInput>[],
+  worker: (item: RenderScheduleItem<TInput>) => Promise<TOutput>
+): Promise<readonly RenderScheduleResult<TOutput>[]> {
+  const results: RenderScheduleResult<TOutput>[] = [];
+  for (const batch of this.createSchedule(items)) {
+    if (batch.mode === "sequential") {
+      const scheduled = batch.items[0];
+      results.push({
+        index: scheduled.item.index,
+        value: await worker(scheduled.item)
+      });
+    } else {
+      await this.flushParallelBatch(batch.items.map((scheduled) => scheduled.item), worker, results);
+    }
+  }
+  return results.sort((left, right) => left.index - right.index);
+}
+```
 
-Có 3 cấp continuity:
+Đánh giá: phần orchestration để shot sau đợi shot trước là có thật và đúng.
 
-1. Planning continuity:
-   - `ContinuityLedgerBuilder`
-   - `LongFormContinuityPlanner`
-   - `LongFormReadinessPlanner`
+## 1.5 Lấy last frame từ render output như thế nào?
 
-2. Prompt continuity:
-   - Prompt compiler thêm prior/next endpoint, screen direction, camera momentum, final frame.
+Code nằm trong `src/core/endpoint-frame-chain.ts`.
 
-3. Render continuity:
-   - last-frame image sidecar của shot trước thành first-frame reference của shot sau.
+Code chính tại `src/core/endpoint-frame-chain.ts:17-56`:
 
-Với Seedance, đây là cách dùng model 4-15s để tạo video dài hơn mà vẫn có identity/product continuity.
+```ts
+export function selectLastFrameReference(input: {
+  readonly renderedShot: RenderedShot;
+  readonly targetShotId: string;
+}): EndpointFrameReferenceSelection | undefined {
+  const candidates = input.renderedShot.prediction.outputUrls
+    .map((url, index) => ({ url, index, preferred: PREFERRED_LAST_FRAME_PATTERN.test(url) }))
+    .filter((candidate) => isImageOutputUrl(candidate.url));
+  const selected = [...candidates].sort((left, right) => {
+    if (left.preferred !== right.preferred) {
+      return left.preferred ? -1 : 1;
+    }
+    return right.index - left.index;
+  })[0];
+  if (!selected) {
+    return undefined;
+  }
 
-## 3.6 Source Video Analysis
+  const sourceShotId = input.renderedShot.compiledPrompt.shotId;
+  return {
+    sourceShotId,
+    targetShotId: input.targetShotId,
+    outputIndex: selected.index,
+    outputUrlSha256: sha256(selected.url),
+    reference: {
+      role: "first_frame",
+      label: `Continuity frame from ${sourceShotId}`,
+      providerReference: {
+        kind: "image",
+        uri: selected.url,
+        label: `Continuity frame from ${sourceShotId}`,
+        role: "first_frame"
+      },
+      priority: "primary",
+      selection: { sourceShotId, authorized: true }
+    }
+  };
+}
+```
 
-### Source-video trong short
+`isImageOutputUrl()` chỉ nhận URL ảnh hoặc URL có query kiểu `format=png`.
 
-`referenceRemakeBlueprintFor()` Tạo:
+Code tại `src/core/endpoint-frame-chain.ts:58-84`:
 
-- mode: `structure_remake` hoặc `rights_cleared_close_remake`;
-- sourceSafetyStatus;
-- fidelityTarget;
-- lockedElements;
-- adherenceTargets;
-- sourceBeatMap;
-- providerExecutionPlan;
-- remakeGuardrails;
-- replacementSlots.
+```ts
+export function isImageOutputUrl(value: string): boolean {
+  const parsed = outputUrl(value);
+  if (!parsed) {
+    return false;
+  }
+  if (hasImageExtension(parsed.pathname)) {
+    return true;
+  }
+  for (const key of ["filename", "file", "name", "download", "response-content-disposition"]) {
+    const queryValue = parsed.searchParams.get(key);
+    if (queryValue && hasImageExtension(queryValue)) {
+      return true;
+    }
+  }
+  const format = parsed.searchParams.get("format") ?? parsed.searchParams.get("ext") ?? parsed.searchParams.get("type");
+  if (format && IMAGE_EXTENSIONS.has(`.${format.toLowerCase().replace(/^image\//, "")}`)) {
+    return true;
+  }
+  return PREFERRED_LAST_FRAME_PATTERN.test(parsed.pathname) &&
+    !/\.(?:mp4|mov|webm|m4v)(?:$|[?#])/i.test(parsed.pathname);
+}
+```
 
-Important:
+Đánh giá quan trọng:
 
-- Nếu user nói copy/clone 100% mà chưa rights-cleared, status sẽ là `review_required`.
-- Pipeline chỉ học structure/pacing/camera/acting/audio energy.
-- KOL/product/background/audio/script/claims/CTA phải thay bằng input user.
+- Code không mở video.
+- Code không download MP4.
+- Code không gọi ffmpeg.
+- Code chỉ đọc `prediction.outputUrls` và chọn URL có vẻ là ảnh.
 
-### Source-video trong full DirectorAgent
+Kết luận: last-frame selection hiện tại là sidecar URL selection, không phải extraction.
 
-Source analysis ảnh huong:
+## 1.6 Có tự động extract last frame bằng ffmpeg không?
 
-- reference selection metadata;
-- continuity anchors;
-- render strategy;
-- scheduler sequential reasons;
-- prompt boundary;
-- review packet;
-- artifact validation.
+Không tìm thấy implementation cho việc extract last frame từ video render nếu provider không trả image sidecar.
+
+Bằng chứng:
+
+- `MediaInspector.sampleFrames()` có dùng ffmpeg, nhưng dùng `fps=1/interval` để sample nhiều frame, không phải lấy frame cuối.
+- `AssemblyEngine` chỉ gọi sample frame sau khi đã assemble xong deliverable, quá muộn để dùng cho shot kế tiếp.
+- Search trong source chỉ thấy `selectLastFrameReference`, `sampleFrames`, không thấy function kiểu `extractLastFrame`, `ensureLastFrame`, `lastFrameFromVideo`.
+
+Code `src/core/media-inspector.ts:93-126`:
+
+```ts
+public async sampleFrames(path: string, options: FrameSamplingOptions, signal?: AbortSignal): Promise<readonly FrameSample[]> {
+  if (!options.enabled) {
+    return [];
+  }
+  const pattern = join(options.outputDirectory, `${prefix}_%03d.jpg`);
+  await runProcess(
+    readMediaToolCommand("ffmpeg"),
+    [
+      "-y",
+      "-i",
+      path,
+      "-vf",
+      `fps=1/${options.intervalSeconds}`,
+      "-frames:v",
+      String(options.maxFrames),
+      pattern
+    ],
+    signal
+  );
+}
+```
+
+Đây là frame sampling, không phải last-frame extraction. Không có `-sseof`, không có `select='eq(n,last)'`, không có ffprobe duration để seek cuối clip.
+
+## 1.7 Shot sau được inject last frame như thế nào?
+
+Luồng nằm trong `DirectorAgent.prepareChainedRenderItem()`.
+
+Code `src/agents/director-agent.ts:802-891`:
+
+```ts
+private prepareChainedRenderItem<TValue>(input: {
+  readonly item: RenderScheduleItem<TValue>;
+  readonly previousRenderedShot: RenderedShot | undefined;
+  readonly videoRenderStrategyPlan: VideoRenderStrategyPlan;
+  readonly settings: FlexibleSeedanceSettings;
+  readonly modelId: string;
+  readonly continuityLedger: ReturnType<ContinuityLedgerBuilder["build"]>;
+}) {
+  if (!this.shouldApplyLastFrameChaining(input.videoRenderStrategyPlan)) {
+    return { shot: input.item.shot, compiledPrompt: this.renderItemCompiledPrompt(input.item), preflight: this.renderItemPreflight(input.item) };
+  }
+  if (input.item.index === 0) {
+    return { shot: input.item.shot, compiledPrompt: this.renderItemCompiledPrompt(input.item), preflight: this.renderItemPreflight(input.item) };
+  }
+  if (!input.previousRenderedShot) {
+    throw new Error("Last-frame chaining expected a previous rendered shot before provider spend.");
+  }
+
+  const selection = selectLastFrameReference({
+    renderedShot: input.previousRenderedShot,
+    targetShotId: input.item.shot.shotId
+  });
+  if (!selection) {
+    if (input.videoRenderStrategyPlan.lastFrameChaining.status === "required") {
+      throw new Error(
+        `Last-frame chaining required for ${input.item.shot.shotId}, but previous shot ${input.previousRenderedShot.compiledPrompt.shotId} returned no image sidecar.`
+      );
+    }
+    return { shot: input.item.shot, compiledPrompt: this.renderItemCompiledPrompt(input.item), preflight: this.renderItemPreflight(input.item) };
+  }
+
+  const chainedShot: ShotContract = {
+    ...shotWithoutSelectionPlan,
+    references: [
+      selection.reference,
+      ...input.item.shot.references.filter((reference) => reference.role !== "first_frame")
+    ],
+    continuity: {
+      ...input.item.shot.continuity,
+      previousShotEndState: input.item.shot.continuity.previousShotEndState ??
+        `Start from endpoint continuity frame of ${selection.sourceShotId}.`
+    },
+    metadata: {
+      ...(input.item.shot.metadata ?? {}),
+      chainedFromShotId: selection.sourceShotId,
+      chainReferenceRole: "first_frame",
+      chainReferenceUrlSha256: selection.outputUrlSha256
+    }
+  };
+  const compiledPrompt = this.promptCompiler.compile({ shot: chainedShot, settings: input.settings, modelId: input.modelId, provider: "atlascloud" });
+  const preflight = this.consistencyGuardian.preflight({ shot: chainedShot, prompt: compiledPrompt.prompt, negativePrompt: compiledPrompt.negativePrompt, bindingPlan: compiledPrompt.bindingPlan, ledger: input.continuityLedger });
+}
+```
+
+Đánh giá:
+
+- Shot 1 không chain.
+- Shot 2 trở đi lấy previousRenderedShot.
+- Nếu chọn được image sidecar, nó biến image đó thành reference role `first_frame`.
+- Nó xóa các `first_frame` cũ để tránh conflict, rồi inject reference mới vào đầu danh sách.
+- Metadata chỉ lưu hash URL, không leak raw URL vào báo cáo public.
+- Sau inject, prompt được compile lại và Guardian preflight chạy lại.
+
+## 1.8 Prompt sau khi inject có đủ câu continuation không?
+
+Có tương đối nhiều câu continuation trong prompt compiler. Chúng không phải hardcode template theo niche, mà là contract chung cho continuity.
+
+Code `src/prompt_compiler/prompt-compiler.ts:58-79` cho thấy prompt gồm các section về reference, continuity, pacing, motion continuity, inter-shot bridge, boundary choreography, final frame:
+
+```ts
+const sections = [
+  this.buildReferenceHandlePrelude(bindingPlan, providerMode),
+  `Shot ${shot.shotId}, ${shot.durationSeconds}s.`,
+  `Intent: ${shot.intent}.`,
+  this.buildReferenceSection(bindingPlan),
+  this.buildProviderModeContractSection(providerMode, bindingPlan),
+  this.buildContinuitySection(shot),
+  this.buildPacingSection(shot),
+  this.buildMotionContinuitySection(shot, bindingPlan),
+  this.buildInterShotBridgeSection(shot),
+  this.buildBoundaryChoreographySection(shot, bindingPlan),
+  ...
+  this.buildFinalFrameSection(shot, bindingPlan),
+  "Keep the result cinematic, coherent, and physically plausible."
+];
+```
+
+Khi có first_frame/last_frame, prompt có endpoint priority.
+
+Code `src/prompt_compiler/prompt-compiler.ts:132-136`:
+
+```ts
+roles.has("first_frame") || roles.has("last_frame")
+  ? "Endpoint priority: first-frame and last-frame references define the clip handles for chaining; motion must move between them without warping identity or product details."
+  : undefined
+```
+
+Prompt có inter-shot bridge.
+
+Code `src/prompt_compiler/prompt-compiler.ts:288-299`:
+
+```ts
+private buildInterShotBridgeSection(shot: ShotContract): string {
+  const previousState = shot.continuity.previousShotEndState;
+  const nextState = shot.continuity.nextShotStartState;
+  const bridgeLines = [
+    "Inter-shot bridge: this clip must cut together with adjacent clips as one continuous film, not as a disconnected standalone generation.",
+    previousState ? `Start by matching the prior clip endpoint: ${previousState}.` : "Start with a clean readable handle that can accept a prior xfade or first-frame chain.",
+    nextState ? `End by preparing the next clip start: ${nextState}.` : "End with a clean readable handle that can accept xfade, cut, or last-frame chaining.",
+    "Keep screen direction, camera momentum, subject scale, lighting color, room tone, and action state consistent across the edit boundary."
+  ];
+}
+```
+
+Prompt có boundary choreography.
+
+Code `src/prompt_compiler/prompt-compiler.ts:317-331`:
+
+```ts
+"Boundary choreography: stage this ... clip so the first frame, action middle, and final frame can assemble without a visible reset.",
+hasPreviousState
+  ? "Entry: match the prior endpoint before introducing new motion; keep the same screen direction, lens distance, subject scale, lighting color, and product/KOL state."
+  : "Entry: open on a stable readable first frame before the camera or subject starts moving.",
+"Exit: hold the final 0.5s as a clean review/delivery handle with no unresolved whip, blur, blink, or cropped product.",
+"Do not rely on postproduction crossfade to hide inconsistent generated endpoints; the generated frames themselves must already match the edit plan."
+```
+
+Đánh giá:
+
+- Prompt đủ mạnh ở mức prose.
+- Có nhấn mạnh identity, product, lighting, screen direction, camera momentum, endpoint.
+- Tuy nhiên, đây là prompt-only control. Không có post-render visual verification per boundary để đảm bảo model thật làm đúng.
+
+## 1.9 Flow diagram last-frame chaining hiện tại
+
+```text
+User request
+  -> normalize settings, returnLastFrame mặc định true
+  -> StoryArchitect tạo storyPlan
+  -> ShotPlanner chia beat thành shot 4-15s, thêm previousShotEndState / nextShotStartState
+  -> VideoRenderStrategyPlanner quyết định lastFrameChaining = required / recommended / blocked / not_needed
+  -> RenderScheduler ép sequential nếu cần chaining
+  -> Render shot 1
+       -> RenderProducer gọi Atlas
+       -> Prediction.outputUrls nhận video URL + có thể có image sidecar
+       -> ConsistencyGuardian.inspectRender chỉ check status/outputUrls/latency
+  -> Render shot 2
+       -> prepareChainedRenderItem(previousRenderedShot=shot1)
+       -> selectLastFrameReference(shot1.outputUrls)
+          -> nếu có URL ảnh last/final/end frame: tạo PromptReference role first_frame
+          -> nếu không có:
+             - required: throw, block trước provider spend shot 2
+             - recommended: fallback prompt cũ, render không chain
+       -> promptCompiler.compile(chainedShot)
+       -> ConsistencyGuardian.preflight(chainedShot)
+       -> RenderProducer gọi Atlas bằng image_to_video/reference mode
+  -> Lặp cho shot kế tiếp
+  -> AssemblyEngine ghép clip
+  -> Optional semantic visual inspection sau assembly nếu request bật
+```
+
+## 1.10 Độ robust khi scale video dài
+
+Mạnh:
+
+- Strategy biết khi nào phải chain.
+- Scheduler biết ép sequential.
+- Prompt compiler có continuation prose tốt.
+- Smoke test `scripts/run-last-frame-chaining-smoke.mjs` xác nhận shot 2+ nhận `first_frame`, mode chuyển `image_to_video`, có chain metadata.
+
+Bằng chứng smoke `scripts/run-last-frame-chaining-smoke.mjs:75-93`:
+
+```js
+provider.requests.length === 3
+publicRequests[0]?.hasFirstFrameReference === false &&
+  publicRequests.slice(1).every((request) => request.hasFirstFrameReference)
+publicRequests.slice(1).every((request) => request.mode === "image_to_video")
+result.renderSchedulePlan.sequentialItemCount === 3
+```
+
+Yếu:
+
+- Nếu Atlas chỉ trả MP4, chaining required sẽ fail vì không có image sidecar.
+- Không có automatic ffmpeg extract fallback.
+- Không có boundary visual QA từng cặp shot.
+- Không có "last-frame quality score" trước khi dùng làm first_frame shot sau.
+- Recommended mode fallback im lặng sang prompt-only nếu sidecar thiếu. Điều này có thể làm video dài drift mà user không biết.
 
 ---
 
-# PHẦN 4: Data Flow & Interaction
+# 2. Global Consistency Bible & Cross-Chunk Continuity
 
-## 4.1 Main Full Render Flow
+## 2.1 Có Global Character Bible / Style Bible không?
 
-```mermaid
-flowchart TD
-  A["HTTP API request"] --> B["RenderRequestAdmission"]
-  B --> C["normalizeRenderRequest"]
-  C --> D["RenderJobManager or sync /v1/render"]
-  D --> E["createDirectorRuntime"]
-  E --> F["DirectorAgent.run"]
-  F --> G["IntakeDirector + ReferenceLibrarian"]
-  G --> H["StoryArchitect LLM story plan"]
-  H --> I["ShotPlanner + ReferenceSelection"]
-  I --> J["LongForm continuity/review/strategy"]
-  J --> K["StoryboardPlanner + ConsistencyGuardian"]
-  K --> L["SeedancePromptCompiler"]
-  L --> M["RenderCostGate + provider capability validation"]
-  M --> N["RenderScheduler"]
-  N --> O["RenderProducer -> AtlasCloudProvider"]
-  O --> P["ConsistencyGuardian render inspection"]
-  P --> Q["Repair/candidate selection"]
-  Q --> R["AssemblyEngine"]
-  R --> S["DeliveryGate + optional SemanticVisualInspector"]
-  S --> T["ProductionGraphRunRecorder"]
-  T --> U["ProjectArtifactStore + Validator"]
+Có, nhưng implementation hiện là ledger trước render, không phải global bible động sau render.
+
+Code `src/core/continuity-ledger-builder.ts:11-22`:
+
+```ts
+export class ContinuityLedgerBuilder {
+  public build(input: {
+    readonly intake: IntakeResult;
+    readonly storyPlan: StoryPlan;
+  }): ContinuityLedger {
+    const beats = input.storyPlan.scenes.flatMap((scene) => scene.beats);
+    return {
+      characters: this.buildCharacterBibles(beats, input.intake),
+      styles: this.buildStyleBibles(beats),
+      approvedShotIds: []
+    };
+  }
+}
 ```
 
-## 4.2 Short Pipeline Flow
+Character bible lấy identity từ beat continuity và identity references.
 
-```mermaid
-flowchart TD
-  A["Short user prompt + product/KOL/source refs"] --> B["ShortPipelinePlanner"]
-  B --> C["Product brief + brand kit + channel style"]
-  C --> D["Audience/niche intelligence"]
-  D --> E["Creative pattern learning + candidates"]
-  E --> F["Viral intelligence + scene directives"]
-  F --> G["Reference remake blueprint if source video exists"]
-  G --> H["Visual Bible plan"]
-  H --> I["Short video pipe plan"]
-  I --> J["Short agent graph + Seedance prompt pack"]
-  J --> K["Review approval checkpoints"]
-  K --> L["ShortPipelineRenderHandoff"]
-  L --> M["CineJellyProjectRequest"]
-  M --> N["RenderJobManager -> DirectorAgent"]
+Code `src/core/continuity-ledger-builder.ts:24-39`:
+
+```ts
+private buildCharacterBibles(beats: readonly BeatPlan[], intake: IntakeResult): readonly CharacterBible[] {
+  const identityReferenceLabels = intake.references
+    .filter((reference) => reference.role === "identity")
+    .map((reference) => reference.label);
+  const identities = this.unique(
+    beats
+      .map((beat) => beat.continuity.identity)
+      .filter((identity): identity is string => Boolean(identity?.trim()))
+  );
+
+  return identities.map((identity) => ({
+    characterId: identity,
+    identityDescription: identity,
+    requiredReferenceLabels: identityReferenceLabels
+  }));
+}
 ```
 
-## 4.3 Evidence và Lineage
+Style bible lấy style từ beat.
 
-Evidence được duy trì qua:
+Code `src/core/continuity-ledger-builder.ts:41-56`:
 
-- `requestId` API context.
-- `metadata` trong render request.
-- `sourcePatternOrigins` trong short/long planning.
-- `ProviderCostLedger`.
-- `RenderJobProviderCheckpoint`.
-- `GuardianReport`.
-- `ProductionGraph`.
-- `ProjectArtifactBundle`.
-- `ReviewPacketBuilder`.
-- `outputSha256`.
+```ts
+private buildStyleBibles(beats: readonly BeatPlan[]): readonly StyleBible[] {
+  const styleValues = this.unique(
+    beats
+      .flatMap((beat) => [beat.style, beat.continuity.style])
+      .filter((style): style is string => Boolean(style?.trim()))
+  );
 
-## 4.4 Mapping User Input Thực tế
+  return styleValues.map((style) => ({
+    styleId: style,
+    visualRules: [style],
+    prohibitedDrift: [
+      "change visual style",
+      "unrelated visual style",
+      "inconsistent style"
+    ]
+  }));
+}
+```
 
-### Ví dụ 1: User nhập ảnh KOL + ảnh serum
+Đánh giá:
 
-1. Short media refs:
-   - KOL -> role `identity`, provider kind image.
-   - serum -> role `product`, provider kind image.
-2. `ShortVideoPipePlanner` chọn `product_kol_ugc`.
-3. `ShortVisualBiblePlanner` recommend product/KOL reference pipe, có thể tạo identity_sheet/product_sheet nếu cần.
-4. `ShortCreativePatternLearningEngine` retrieve beauty_skincare/UGC/proof diary/sensory closeup/before-after guarded patterns.
-5. Scenes có hook, problem, demo/proof, payoff.
-6. Handoff prompt nhận mạnh:
-   - product geometry;
-   - KOL identity;
-   - natural UGC performance;
-   - no visible text;
-   - guided voiceover;
-   - claim-safe before/after nếu có.
-7. Prompt compiler chọn `image_to_video` hoặc `reference_to_video` tùy refs.
-8. Render nhiều candidates theo quality mode.
+- Có character/style bible ở mức deterministic ledger.
+- Bible này không có ảnh canonical mới sinh sau render.
+- Không có lighting bible riêng biệt, lighting nằm trong shot/beat text.
+- Không có product bible type riêng trong `ContinuityLedgerBuilder`, product chỉ nằm trong shot continuity và long-form anchors.
 
-### Ví dụ 2: User upload video TikTok hay và muốn làm bằng KOL/sản phẩm mình
+## 2.2 Có LongFormContinuityPlan / sequence bible không?
 
-1. Source video -> `source_video_structure`.
-2. Short planner Tạo `referenceVideoLearning`.
-3. Viral planner Tạo `referenceVideoPattern`.
-4. `referenceRemakeBlueprint` Tạo source beat map.
-5. Pipe chọn `video_remake`.
-6. Prompt và handoff:
-   - bam hook job, pacing, cut density, camera grammar, acting rhythm, payoff timing;
-   - thay KOL/product/background/audio/claims/CTA;
-   - không copy transcript, music, face, watermark, captions, logos.
-7. Source video chỉ provider handoff nếu rights/operator approved và clean HTTPS.
+Có. `LongFormContinuityPlanner` gom anchors theo sequence, global anchors, bridge intent.
 
-### Ví dụ 3: User muốn video dài 3 phút brand/product story
+Code `src/core/long-form-continuity-planner.ts:33-97`:
 
-1. Duration > 60s -> visual bible recommend `production_bible`.
-2. Short pipe hoặc general DirectorAgent sẽ chia thành multiple clips 4-15s.
-3. Long-form planners Tạo sequence, bridge, timeline, readiness.
-4. Scheduler sequential nếu cần last-frame/source/reference lock.
-5. AssemblyEngine ghép thành deliverable.
+```ts
+public build(input: {
+  readonly projectId: string;
+  readonly storyPlan: StoryPlan;
+  readonly shots: readonly ShotContract[];
+  readonly references?: readonly PromptReference[];
+  readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
+}): LongFormContinuityPlan {
+  const groups = this.sequencePlanner.plan({ projectId: input.projectId, storyPlan: input.storyPlan });
+  const sequencesWithoutBridges = groups.map((group) => {
+    const sceneIds = group.scenes.map((scene) => scene.sceneId);
+    const beats = group.scenes.flatMap((scene) => scene.beats);
+    const shots = input.shots.filter((shot) => shot.sceneId && sceneIds.includes(shot.sceneId));
+    const anchors = this.sequenceAnchors(beats, shots, input.references ?? []);
+    const riskCodes = uniqueValues(shots.flatMap((shot) => shot.risks));
+    return { ..., anchors, riskCodes, renderModeRecommendation: this.renderModeRecommendation(riskCodes, anchors) };
+  });
+  const globalAnchors = mergeAnchors(sequences.map((sequence) => sequence.anchors));
+  return { ..., globalAnchors, sequences };
+}
+```
+
+Sequence anchors gom identity/product/environment/style/source-video scene IDs.
+
+Code `src/core/long-form-continuity-planner.ts:99-134`:
+
+```ts
+private sequenceAnchors(...): LongFormContinuityAnchors {
+  const references = [...projectReferences, ...shots.flatMap((shot) => shot.references)];
+  return {
+    identity: uniqueValues([...beats.map((beat) => beat.continuity.identity), ...shots.map((shot) => shot.continuity.identity), ...references.filter((reference) => reference.role === "identity" || reference.role === "wardrobe").map((reference) => reference.label)]),
+    product: uniqueValues([...beats.map((beat) => beat.continuity.product), ...shots.map((shot) => shot.continuity.product), ...references.filter((reference) => reference.role === "product").map((reference) => reference.label)]),
+    environment: uniqueValues([...]),
+    style: uniqueValues([...]),
+    sourceVideoSceneIds: uniqueValues(references.filter((reference) => reference.role === "source_video_structure").map((reference) => reference.selection?.sourceSceneId))
+  };
+}
+```
+
+Bridge giữa sequence có mô tả continuity.
+
+Code `src/core/long-form-continuity-planner.ts:150-171`:
+
+```ts
+private bridge(current, next): LongFormSequenceBridge {
+  const sharedAnchors = sharedAnchorLabels(current.anchors, next.anchors);
+  const requiredAnchors = sharedAnchors.length > 0 ? sharedAnchors : uniqueValues([...]).slice(0, 4);
+  return {
+    nextSequenceId: next.sequenceId,
+    bridgeIntent: [
+      `${current.closingBeat} -> ${next.openingBeat}`,
+      "Preserve shared anchors, screen direction, camera momentum, lighting color, room tone, product/KOL scale, and endpoint action state so the sequence cut feels continuous."
+    ].join(". ").slice(0, 420),
+    requiredAnchors
+  };
+}
+```
+
+Đánh giá:
+
+- Có sequence-level continuity plan.
+- Có global anchors và bridge intent.
+- Nhưng plan này chủ yếu dùng cho readiness/timeline/review evidence, không được truyền trực tiếp vào `SeedancePromptCompiler.compile()` như một Bible object toàn cục.
+
+## 2.3 Bible có được inject vào mọi prompt không?
+
+Không theo nghĩa "inject toàn bộ Global Bible". Prompt compiler chỉ nhận `ShotContract`, không nhận `LongFormContinuityPlan`.
+
+Bằng chứng `src/prompt_compiler/prompt-compiler.ts:19-31`:
+
+```ts
+export class SeedancePromptCompiler {
+  public compile(input: PromptCompilerInput): CompiledPrompt {
+    const referencesForBinding = input.shot.referenceSelectionPlan?.selectedReferences ?? input.shot.references;
+    const bindingPlan = buildPromptBindingPlan({ references: referencesForBinding, risks: input.shot.risks, ... });
+    const providerMode = this.resolveMode(bindingPlan);
+    const prompt = this.buildPrompt(input.shot, bindingPlan, providerMode);
+    ...
+  }
+}
+```
+
+`PromptCompilerInput` không có `continuityPlan` hay `globalBible`. Prompt được build từ:
+
+- `shot.continuity`
+- `shot.references`
+- `shot.timeline`
+- `shot.transitionIntent`
+- `bindingPlan`
+
+Shot continuity được thêm bởi `ShotPlanner.withAdjacentContinuityStates()`.
+
+Code `src/core/shot-planner.ts:103-123`:
+
+```ts
+private withAdjacentContinuityStates(shots: readonly ShotContract[]): readonly ShotContract[] {
+  return shots.map((shot, index) => {
+    const previous = shots[index - 1];
+    const next = shots[index + 1];
+    return {
+      ...shot,
+      continuity: {
+        ...shot.continuity,
+        ...(previous && !shot.continuity.previousShotEndState ? { previousShotEndState: this.endpointState(previous, "end") } : {}),
+        ...(next && !shot.continuity.nextShotStartState ? { nextShotStartState: this.endpointState(next, "start") } : {})
+      }
+    };
+  });
+}
+```
+
+Đánh giá:
+
+- Mọi prompt có shot-level continuity.
+- Nhưng Global Bible không được serialize và inject đầy đủ vào từng prompt.
+- Nếu một anchor chỉ tồn tại trong `longFormContinuityPlan.globalAnchors` nhưng không nằm trong từng `shot.continuity` hoặc `shot.references`, prompt compiler không tự thấy anchor đó.
+
+## 2.4 Có reconcile / cập nhật bible sau render thành công không?
+
+Không tìm thấy. `ContinuityLedgerBuilder` chạy trước render trong `DirectorAgent.run()`.
+
+Code `src/agents/director-agent.ts:207-229`:
+
+```ts
+const preparedRequest = await this.prepareRequestForIntake(request, signal);
+const intake = this.intakeDirector.intake(preparedRequest);
+const storyPlan = await this.storyArchitect.plan(intake, signal);
+const continuityLedger = this.continuityLedgerBuilder.build({ intake, storyPlan });
+const plannedShots = this.shotPlanner.plan(...);
+const shots = this.referenceSelectionPlanner.planForShots({ shots: plannedShots });
+const longFormContinuityPlan = this.longFormContinuityPlanner.build({ projectId, storyPlan, shots, references: intake.references, ... });
+```
+
+Sau render, `ProductionGraphRunRecorder.record()` chỉ ghi evidence.
+
+Code `src/core/production-graph-run-recorder.ts:19-75`:
+
+```ts
+public record(input: {
+  readonly graph: ProductionGraphSnapshot;
+  readonly renderedShots: readonly RenderedShot[];
+  readonly deliverable?: AssembledDeliverable;
+  readonly settings: FlexibleSeedanceSettings;
+}): ProductionGraphSnapshot {
+  const nodes: ProductionGraphNode[] = [...input.graph.nodes];
+  const edges: ProductionGraphEdge[] = [...input.graph.edges];
+  for (const renderedShot of input.renderedShots) {
+    const shotId = renderedShot.compiledPrompt.shotId;
+    const preflightNode = this.inspectionNode(shotId, renderedShot.preflight);
+    nodes.push(preflightNode);
+    ...
+  }
+  return { nodes, edges };
+}
+```
+
+Không có hàm cập nhật `continuityLedger`, `longFormContinuityPlan`, hoặc `shot.continuity` sau khi có visual inspection/render output.
+
+Đánh giá: Bible hiện là planned bible, không phải live bible. Nó chưa học lại từ render thật.
+
+## 2.5 ConsistencyGuardian có check cross-shot / cross-chunk không?
+
+Một phần trước render, không phải bằng hình ảnh sau render.
+
+Guardian preflight gọi:
+
+Code `src/core/consistency-guardian.ts:35-45`:
+
+```ts
+public preflight(input: PreflightInput): GuardianReport {
+  const findings: GuardianFinding[] = [
+    ...this.validateShotBasics(input.shot),
+    ...this.validateReferences(input.shot, input.bindingPlan),
+    ...this.validateBindingPlan(input.bindingPlan),
+    ...this.validateContinuity(input),
+    ...this.validatePromptDensity(input.prompt, input.negativePrompt),
+    ...this.validateTimeline(input.shot)
+  ];
+  return this.toReport(input.shot.shotId, "preflight", findings);
+}
+```
+
+`validateContinuity()` check character required reference labels và style prohibited drift.
+
+Code `src/core/consistency-guardian.ts:379-415`:
+
+```ts
+private validateContinuity(input: PreflightInput): readonly GuardianFinding[] {
+  const findings: GuardianFinding[] = [];
+  for (const character of input.ledger.characters) {
+    const requiresCharacter = input.shot.continuity.identity?.includes(character.characterId);
+    if (!requiresCharacter) continue;
+    const labels = new Set(input.shot.references.map((reference) => reference.label));
+    const missingLabels = character.requiredReferenceLabels.filter((label) => !labels.has(label));
+    if (missingLabels.length > 0) {
+      findings.push({ checkpoint: "character_bible_reference", ... });
+    }
+  }
+  for (const style of input.ledger.styles) {
+    const violatesRule = style.prohibitedDrift.some((rule) => input.prompt.toLowerCase().includes(rule.toLowerCase()));
+    if (violatesRule) {
+      findings.push({ checkpoint: "style_bible_drift", ... });
+    }
+  }
+  return findings;
+}
+```
+
+Đánh giá:
+
+- Có check một shot so với ledger toàn cục.
+- Không so sánh frame shot N với frame shot N+1.
+- Không check product/lighting/environment bằng vision.
+- Không check cross-chunk identity drift sau render.
+
+Production Graph có hàm `repairAffectedNodes()` để tìm downstream nodes.
+
+Code `src/core/production-graph.ts:75-94`:
+
+```ts
+public repairAffectedNodes(nodeId: string): readonly ProductionGraphNode[] {
+  this.requireNode(nodeId);
+  const visited = new Set<string>();
+  const queue = [nodeId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    visited.add(current);
+    for (const edge of this.listEdges().filter((candidate) => candidate.fromNodeId === current)) {
+      if (edge.type === "depends_on" || edge.type === "transitions_to" || edge.type === "requires_repair") {
+        queue.push(edge.toNodeId);
+      }
+    }
+  }
+  return [...visited].map((id) => this.getNode(id));
+}
+```
+
+Nhưng runtime render loop không gọi hàm này để rebuild/rerender downstream. Recorder chỉ thêm repair_action evidence.
 
 ---
 
-# PHẦN 5: Đánh Giá & Nhận Xét
+# 3. Visual Semantic Inspection
 
-## 5.1 Điểm Mạnh
+## 3.1 SemanticVisualInspector implement như thế nào?
 
-1. Kiến trúc layer rõ ràng
+Nó có thật và dùng multimodal LLM qua `image_url` data URL.
 
-API, admission, planning, prompt compiler, provider, assembly, artifact validation tách nhau tốt. Điều này giúp scale và test từng phần.
+Code `src/core/semantic-visual-inspector.ts:51-126`:
 
-2. Short backend đã agentic hơn template cứng
+```ts
+public async inspect(
+  frames: readonly FrameSample[],
+  options: SemanticVisualInspectionOptions,
+  signal?: AbortSignal
+): Promise<SemanticVisualInspectionReport> {
+  if (!options.enabled) {
+    return { status: "pass", frameCount: 0, findings: [], reviewedFrames: [] };
+  }
+  const reviewedFrames = frames.slice(0, options.maxFrames);
+  if (reviewedFrames.length === 0) {
+    return { status: "warn", frameCount: 0, findings: [{ checkpoint: "frame_samples", ... }], reviewedFrames };
+  }
 
-Short không chỉ có 7 template cố định. Nó có:
+  const frameParts = await Promise.all(
+    reviewedFrames.map(async (frame) => ({
+      type: "image_url" as const,
+      image_url: { url: await this.toDataUrl(frame.path) }
+    }))
+  );
 
-- audience/niche intelligence;
-- prompt corpus 3817 snapshot declared, runtime patterns và 42 taxonomy families;
-- platform template corpus 48 niche families;
-- candidate factory;
-- critique council;
-- repair actions;
-- visual bible;
-- video pipe planner;
-- Seedance prompt pack.
+  const response = await this.llmProvider.structured<VisualInspectionJson, typeof VISUAL_INSPECTION_SCHEMA>(
+    {
+      modelId: options.modelId ?? this.defaultModelId,
+      instruction: "Review sampled video frames for commercial delivery quality...",
+      schema: VISUAL_INSPECTION_SCHEMA,
+      messages: [...]
+    },
+    signal
+  );
 
-3. Reference discipline khá chặt
+  return {
+    status: response.value.status,
+    frameCount: reviewedFrames.length,
+    findings: response.value.findings,
+    reviewedFrames
+  };
+}
+```
 
-KOL/product/first/last frame được ưu tiên hơn style/source video. Source video không được để overwrite identity/product.
+Nó check theo system prompt:
 
-4. Long-form foundation tốt
+```ts
+"Check identity drift, product distortion, temporal coherence, visual artifacts, composition, and delivery blockers."
+```
 
-Đã có continuity bible, sequence bridges, render scheduling, timeline, readiness scoring, delivery gate và graph lineage.
+Đánh giá: implementation có khả năng gọi LLM vision thật nếu provider LLM hỗ trợ image_url/data URL.
 
-5. Atlas Cloud integration có capability validation
+## 3.2 Tại sao optional?
 
-Provider payload map rõ, có capabilities, polling fallback, cost ledger, upload/register asset, generated audio capability.
+Vì request phải truyền `semanticVisualInspectionOptions.enabled=true`, và phải có `frameSamplingOptions` để assembly tạo frame samples.
 
-6. Review và no-spend gates nghiêm ngặt
+Type request trong `src/types/agent.ts:49-52`:
 
-Short plan, pipe catalog, UI contract, viral intelligence, long-director UI contract deu no-spend trước. Provider spend cần approval/cost/billing/admission.
+```ts
+readonly frameSamplingOptions?: FrameSamplingOptions;
+readonly semanticVisualInspectionOptions?: SemanticVisualInspectionOptions;
+readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
+```
 
-## 5.2 Điểm Yếu / Gap Lớn Khi Scale 5-10 Phút
+Assembly chỉ sample frames nếu request có `frameSamplingOptions`.
 
-1. Visual semantic inspection chưa mặc định bắt buộc
+Code `src/core/assembly-engine.ts:180-183`:
 
-Nếu không bắt `semanticVisualInspectionOptions` và `frameSamplingOptions`, hệ thống không tự xem nội dùng video cuối bằng multimodal QA. Guardian deterministic chỉ bắt provider status/output/ffprobe.
+```ts
+const frameSamples = input.frameSamplingOptions
+  ? await this.mediaInspector.sampleFrames(outputPath, input.frameSamplingOptions, signal)
+  : undefined;
+```
 
-2. Source-video auto-analysis còn opt-in
+DirectorAgent chỉ gọi semantic inspector khi deliverable có samples và option enabled.
 
-Auto-analysis có sẵn, nhưng default runtime phụ thuộc env. Nó lấy frame và LLM beat-map, chưa thấy audio transcription automatic full trong code được đọc. Nếu user muốn remake sát rhythm/audio, nên có live media QA/audio beat extraction riêng.
+Code `src/agents/director-agent.ts:659-666`:
 
-3. Long-form 5-10 phút có chi phí và thời gian cao
+```ts
+const semanticVisualInspection =
+  deliverable?.frameSamples && preparedRequest.semanticVisualInspectionOptions?.enabled
+    ? await this.requireSemanticVisualInspector().inspect(
+        deliverable.frameSamples,
+        preparedRequest.semanticVisualInspectionOptions,
+        signal
+      )
+    : undefined;
+```
 
-480s với clip 4-15s có thể tạo 32-120 shots tùy planning. Nếu quality standard/high/ultimate thì candidates/test-takes nhân chi phí lên lớn.
+Đánh giá: mặc dù `SemanticVisualInspector` được wire trong factory, nó không tự chạy. Nó là opt-in request-level.
 
-4. Resume/distributed provider handoff là foundation, chưa phải bằng chứng live
+## 3.3 ConsistencyGuardian có gọi visual inspection không?
 
-Code có resume capsule/queue/lease service, nhưng commercial readiness cần bằng chứng trên deployment/provider interruptions thực te.
+Không. `ConsistencyGuardian.inspectRender()` chỉ check deterministic provider status, output URL và latency.
 
-5. Audio commercial polish chưa đủ bằng chứng
+Code `src/core/consistency-guardian.ts:215-251`:
 
-Generated audio/audio mix có code, nhưng cần live paid generated-audio evidence, voice library/capability config, manual audio review.
+```ts
+public inspectRender(input: RenderInspectionInput): GuardianReport {
+  const findings: GuardianFinding[] = [];
 
-6. Product/legal/rights proof vẫn cần human/operator
+  if (input.prediction.status !== "succeeded") {
+    findings.push({ checkpoint: "provider_status", status: "rerender", ... });
+  }
 
-Pipeline có guardrail, nhưng không tự bien video reference/source public thành rights-cleared. Close remake cần approval.
+  if (input.prediction.outputUrls.length === 0) {
+    findings.push({ checkpoint: "output_presence", status: "block", ... });
+  }
 
-## 5.3 Nhưng Phần Cần Cải Thiện Để Thành Commercial-grade Long-form Pipeline
+  if (input.prediction.latencyMs && input.prediction.latencyMs > 20 * 60 * 1000) {
+    findings.push({ checkpoint: "latency", status: "warn", ... });
+  }
 
-Ưu tiên cao:
+  return this.toReport(input.shot.shotId, "render", findings);
+}
+```
 
-1. Bắt buộc artifact-bound media QA cho mỗi render thương mại:
-   - frame sampling;
-   - semantic visual inspection;
-   - audio presence/loudness;
-   - identity/product drift checklist;
-   - manual review packet.
+Không có frame, image, pixel, identity, product distortion, motion coherence, audio-sync check trong Guardian render stage.
 
-2. Source-video analysis nâng cao:
-   - audio tempo/beat extraction;
-   - transcript/OCR/caption detection nếu được phép;
-   - shot boundary detection;
-   - motion/camera map thành shot constraints.
+## 3.4 Nếu không bật visual inspection, hệ thống dựa vào gì?
 
-3. Resume live:
-   - persist graph/job state đầy đủ hơn;
-   - resume failed/interrupted provider predictions;
-   - idempotent provider handoff replay.
+Trong default runtime:
 
-4. Commercial budget UX/backend:
-   - pre-render cost simulation theo candidate/test-take/repair;
-   - workspace approval cho maxCostUsd;
-   - spend ledger theo client/project.
+1. Preflight trước render:
+   - Shot duration 4-15s.
+   - Reference binding.
+   - Character/style ledger.
+   - Prompt density.
+   - Timeline bounds.
 
-5. Long-form final QA:
-   - full timeline audio continuity;
-   - scene-to-scene semantic continuity;
-   - pacing review theo 2-10 phút;
-   - delivery variants.
+2. Render inspection sau provider:
+   - Provider status.
+   - Có output URL không.
+   - Latency.
 
-## 5.4 Mức Do Hoan Thiện Theo Backend Code Hiện tại
+3. Assembly delivery:
+   - FFprobe kiểm video stream, duration, width/height, audio stream.
 
-Đánh giá này là theo code architecture và no-spend/backend evidence, không phải bảo đảm commercial traffic 100%.
+Code delivery media inspection `src/core/media-inspector.ts:67-91`:
 
-- API/admission/security/job orchestration: khoảng 90-93%.
-- Short no-spend planning + render handoff: khoảng 88-92%.
-- Prompt compiler/reference binding/Seedance mode routing: khoảng 90-93%.
-- Atlas provider integration: khoảng 85-90% về code contract, cần thêm live provider evidence nhiều niche.
-- Production Graph/artifact validation: khoảng 85-90%.
-- Long-form planning/continuity/readiness: khoảng 80-86%.
-- Assembly/post-production/delivery gate: khoảng 78-84%.
-- Semantic visual/media QA commercial: khoảng 70-78% vì optional và cần evidence live/manual.
-- Commercial readiness toàn hệ thống: khoảng 65-75% nếu tính cả billing, deployment, provider resume, manual review, paid audio/media evidence.
+```ts
+public inspectDelivery(metadata: MediaMetadata): DeliveryInspectionReport {
+  const findings: string[] = [];
+  const videoStream = metadata.streams.find((stream) => stream.type === "video");
+  const audio = this.inspectAudio(metadata);
 
-## 5.5 Kết Luận
+  if (!videoStream) findings.push("No video stream detected.");
+  if (!metadata.durationSeconds || metadata.durationSeconds <= 0) findings.push("Media duration is missing or zero.");
+  if (videoStream && (!videoStream.width || !videoStream.height)) findings.push("Video stream is missing width or height.");
+  if (audio.findings.length > 0) findings.push(...audio.findings);
 
-Backend hiện tại đã là một agentic production pipeline nghiêm túc, không phải script-to-video template engine đơn giản. Điểm mạnh nhất nằm ở:
+  return { status: findings.some(...) ? "fail" : findings.length > 0 ? "warn" : "pass", findings };
+}
+```
 
-- short niche intelligence;
-- creative pattern learning;
-- reference/video-remake guardrails;
-- Seedance prompt compiler;
-- long-form continuity/readiness;
-- render/job/artifact gates.
+Đánh giá: nếu không bật semantic visual inspection, hệ thống có thể giao một clip "file hợp lệ" nhưng mặt KOL lệch, sản phẩm méo, nhịp diễn sai, hoặc cảnh không tự nhiên mà backend không biết.
 
-Nếu chỉ xét backend code, hệ thống đã sẵn sàng để build UI MVP và chạy render có kiểm soát. Nếu xét mục tiêu "Topview/Higgsfield-level commercial platform", điểm còn thiếu không nằm chủ yếu ở việc code thêm template, mà ở bằng chứng vận hành thực tế: live media QA, paid audio, manual review, deployment, billing, provider resume và nhiều render benchmark theo niche.
+## 3.5 Rủi ro khi visual inspection không bật mặc định
+
+Rủi ro cao cho thương mại:
+
+- Candidate selection chọn theo Guardian deterministic, không theo chất lượng hình ảnh.
+- Repair loop sửa theo provider status/output/latency, không sửa drift/méo/không tự nhiên.
+- Long-form 5-10 phút tích lũy lỗi qua nhiều clip, nhưng visual inspection sau assembly nếu bật cũng quá muộn để chọn candidate từng shot.
+- Không có cross-boundary visual QA: frame cuối shot N và frame đầu shot N+1 có khớp không.
+
+---
+
+# 4. Source Video Analysis & Enrichment
+
+## 4.1 Logic phân tích source video nằm ở đâu?
+
+Các file:
+
+- `src/core/source-video-auto-analyzer.ts`
+- `src/agents/source-video-analyst.ts`
+- `src/agents/source-video-reference-metadata-enricher.ts`
+- `src/agents/intake-director.ts`
+- `src/agents/story-architect.ts`
+
+## 4.2 Auto analysis được bật như thế nào?
+
+Mặc định tắt.
+
+Code `src/config/runtime-config.ts:212-231`:
+
+```ts
+export function loadSourceVideoAutoAnalysisSettings(env: NodeJS.ProcessEnv = process.env): SourceVideoAutoAnalysisSettings {
+  return {
+    enabled: optionalBooleanEnv("CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS", env, false),
+    workDirectory: optionalPathEnv("CINEJELLY_SOURCE_VIDEO_ANALYSIS_WORK_DIR", env) ?? DEFAULT_SOURCE_VIDEO_ANALYSIS_WORK_DIR,
+    frameIntervalSeconds: optionalIntegerEnv("CINEJELLY_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS", env, DEFAULT_SOURCE_VIDEO_ANALYSIS_FRAME_INTERVAL_SECONDS),
+    maxFrames: optionalIntegerEnv("CINEJELLY_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES", env, DEFAULT_SOURCE_VIDEO_ANALYSIS_MAX_FRAMES),
+    failOnError: optionalBooleanEnv("CINEJELLY_SOURCE_VIDEO_ANALYSIS_FAIL_ON_ERROR", env, false)
+  };
+}
+```
+
+Factory chỉ tạo analyzer khi enabled.
+
+Code `src/application/director-factory.ts:42-48`:
+
+```ts
+const sourceVideoAutoAnalyzer = settings.sourceVideoAutoAnalysis.enabled
+  ? new SourceVideoAutoAnalyzer({
+      llmProvider: atlasProvider,
+      defaultModelId: settings.atlasCloud.models.llmModel
+    })
+  : undefined;
+```
+
+DirectorAgent chỉ prepare request nếu analyzer tồn tại và settings enabled.
+
+Code `src/agents/director-agent.ts:992-1000`:
+
+```ts
+private async prepareRequestForIntake(request: CineJellyProjectRequest, signal: AbortSignal | undefined): Promise<CineJellyProjectRequest> {
+  if (!this.sourceVideoAutoAnalyzer || !this.sourceVideoAutoAnalysisSettings?.enabled) {
+    return request;
+  }
+  return this.sourceVideoAutoAnalyzer.prepareRequest(request, this.sourceVideoAutoAnalysisSettings, signal);
+}
+```
+
+Đánh giá: đây là opt-in env-level feature, không phải default behavior.
+
+## 4.3 Auto analyzer làm được gì?
+
+Code `src/core/source-video-auto-analyzer.ts:98-155`:
+
+```ts
+public async prepareRequest(
+  request: CineJellyProjectRequest,
+  settings: SourceVideoAutoAnalysisSettings,
+  signal?: AbortSignal
+): Promise<CineJellyProjectRequest> {
+  if (!settings.enabled || request.sourceVideoAnalysis) {
+    return request;
+  }
+
+  const sourceReference = this.sourceVideoReference(request.references ?? []);
+  if (!sourceReference) return request;
+
+  const sourceUri = this.safeHttpsSourceUri(sourceReference);
+  if (!sourceUri) return request;
+
+  try {
+    const frames = await this.mediaInspector.sampleFrames(sourceUri, { enabled: true, outputDirectory: settings.workDirectory, intervalSeconds: settings.frameIntervalSeconds, maxFrames: settings.maxFrames }, signal);
+    if (frames.length === 0) throw new Error("Source-video auto analysis produced no frame samples.");
+
+    const analysis = await this.analyzeFrames({ userInput: request.userInput, sourceReference, frames: frames.slice(0, settings.maxFrames), signal });
+    const normalized = this.sourceVideoAnalyst.normalize(analysis, request.references ?? []);
+    if (!normalized || !this.hasUsableAnalysis(normalized)) throw new Error("Source-video auto analysis returned no usable deconstruction content.");
+    this.assertNoFrameLeakage(normalized, frames);
+    return { ...request, sourceVideoAnalysis: normalized };
+  } catch (error) {
+    if (settings.failOnError) throw error;
+    return request;
+  }
+}
+```
+
+LLM structured output yêu cầu scene/keyframe/pacing/style/structural beats/safety.
+
+Code `src/core/source-video-auto-analyzer.ts:173-208`:
+
+```ts
+const response = await this.llmProvider.structured<SourceVideoAnalysisJson, typeof SOURCE_VIDEO_ANALYSIS_SCHEMA>(
+  {
+    modelId: this.defaultModelId,
+    instruction:
+      "Return bounded source-video deconstruction JSON only. Build a beat-map style analysis: timeline beats, cut rhythm, camera grammar, performance beats, audio energy, retention mechanics, and replacement/safety constraints. Do not include local frame paths, data URLs, signed URLs, or copied transcript wording.",
+    schema: SOURCE_VIDEO_ANALYSIS_SCHEMA,
+    messages: [...]
+  },
+  input.signal
+);
+```
+
+Đánh giá:
+
+- Có frame sampling thật bằng ffmpeg.
+- Có LLM vision-ish structured analysis nếu provider hỗ trợ image_url.
+- Có leakage guard không cho data URL/local frame path lọt vào output.
+- Có safe HTTPS URL guard.
+
+## 4.4 Giới hạn của source-video analysis
+
+`safeHttpsSourceUri()` chỉ cho HTTPS sạch, không nhận local path hay URL nội bộ.
+
+Code `src/core/source-video-auto-analyzer.ts:262-279`:
+
+```ts
+private safeHttpsSourceUri(reference: PromptReference): string | undefined {
+  let parsed: URL;
+  try { parsed = new URL(reference.providerReference.uri); } catch { return undefined; }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || isBlockedHostname(parsed.hostname)) {
+    return undefined;
+  }
+  for (const [key, value] of parsed.searchParams.entries()) {
+    if (SECRET_QUERY_TEXT_PATTERN.test(key) || SECRET_QUERY_TEXT_PATTERN.test(value)) {
+      return undefined;
+    }
+  }
+  parsed.hash = "";
+  return parsed.toString();
+}
+```
+
+`SourceVideoAnalyst.normalize()` chỉ normalize caller/LLM-supplied deconstruction, không phân tích video.
+
+Code `src/agents/source-video-analyst.ts:19-53`:
+
+```ts
+export class SourceVideoAnalyst {
+  public normalize(value: SourceVideoDeconstruction | undefined, references: readonly PromptReference[]): SourceVideoDeconstruction | undefined {
+    if (!value) return undefined;
+    const sourceReferenceLabel = this.sourceReferenceLabel(value.sourceReferenceLabel, references);
+    const transformationIntent = this.cleanOptionalText(value.transformationIntent, "transformationIntent");
+    const transcript = this.normalizeTranscript(value.transcript);
+    const scenes = this.normalizeScenes(value.scenes);
+    const pacingNotes = this.normalizeNotes(value.pacingNotes, "pacingNotes");
+    ...
+    if (!this.hasUsableAnalysis(normalized)) {
+      throw new Error("sourceVideoAnalysis must include at least one ...");
+    }
+    return normalized;
+  }
+}
+```
+
+Không có audio transcription thật. `transcript` chỉ là field trong JSON, không có Whisper/ASR pipeline trong source-video auto analyzer. Không có OCR/caption detection thật. Không có shot-boundary detection thật. Nó dựa vào LLM nhìn sampled frames.
+
+## 4.5 Có tự động extract reference từ source video không?
+
+Không theo nghĩa tạo asset/keyframe mới. Enricher chỉ gắn metadata vào references đã tồn tại.
+
+Code `src/agents/source-video-reference-metadata-enricher.ts:31-71`:
+
+```ts
+export class SourceVideoReferenceMetadataEnricher {
+  public enrich(input: SourceVideoReferenceMetadataEnrichmentInput): readonly PromptReference[] {
+    const scenes = input.sourceVideoAnalysis?.scenes ?? [];
+    if (scenes.length === 0) {
+      return input.references;
+    }
+
+    const keyframesByUri = this.keyframesByUri(scenes);
+    return input.references.map((reference) =>
+      this.enrichReference({ reference, sourceVideoAnalysis: input.sourceVideoAnalysis, scenes, keyframesByUri })
+    );
+  }
+
+  private enrichReference(input): PromptReference {
+    const exactKeyframe = input.keyframesByUri.get(input.reference.providerReference.uri);
+    if (exactKeyframe) {
+      return this.mergeSelection(input.reference, this.selectionFromKeyframe(input.reference, exactKeyframe));
+    }
+    if (input.reference.role === "source_video_structure" && input.sourceVideoAnalysis?.sourceReferenceLabel && input.reference.label === input.sourceVideoAnalysis.sourceReferenceLabel) {
+      const firstScene = input.scenes[0];
+      if (firstScene) {
+        return this.mergeSelection(input.reference, this.selectionFromScene(firstScene, 0));
+      }
+    }
+    return input.reference;
+  }
+}
+```
+
+Đánh giá:
+
+- Nếu analysis keyframe có URI trùng với một reference đã có, metadata được enrich.
+- Nếu source video reference label match, nó gắn scene đầu.
+- Không tự extract frame image từ source video thành `PromptReference`.
+- Không upload extracted keyframes lên Atlas asset library.
+
+## 4.6 Source video đi vào story planning như thế nào?
+
+`IntakeDirector` normalize sourceVideoAnalysis và enrich references.
+
+Code `src/agents/intake-director.ts:37-55`:
+
+```ts
+const references = this.referenceLibrarian.normalize({ projectId, references: request.references ?? [] });
+const sourceVideoAnalysis = this.sourceVideoAnalyst.normalize(request.sourceVideoAnalysis, references);
+const enrichedReferences = this.sourceVideoReferenceMetadataEnricher.enrich({
+  references,
+  ...(sourceVideoAnalysis ? { sourceVideoAnalysis } : {})
+});
+return { ..., references: enrichedReferences, ...(sourceVideoAnalysis ? { sourceVideoAnalysis } : {}) };
+```
+
+`StoryArchitect` đưa source video brief vào LLM.
+
+Code `src/agents/story-architect.ts:82-114`:
+
+```ts
+public async plan(intake: IntakeResult, signal?: AbortSignal): Promise<StoryPlan> {
+  const response = await this.llmProvider.structured(
+    {
+      instruction:
+        "Create a production-ready video scene plan... If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression.",
+      messages: [
+        { role: "system", content: "..." },
+        {
+          role: "user",
+          content: JSON.stringify({
+            userInput: intake.userInput,
+            settings: intake.settings,
+            referenceCount: intake.references.length,
+            ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: this.sourceVideoBrief(intake.sourceVideoAnalysis) } : {})
+          })
+        }
+      ]
+    },
+    signal
+  );
+}
+```
+
+`sourceVideoBrief()` cắt scenes/transcript/notes giới hạn.
+
+Code `src/agents/story-architect.ts:366-395`:
+
+```ts
+private sourceVideoBrief(value: SourceVideoDeconstruction): Record<string, unknown> {
+  return {
+    sceneCount: value.scenes?.length ?? 0,
+    transcriptCueCount: value.transcript?.length ?? 0,
+    scenes: (value.scenes ?? []).slice(0, 80).map((scene) => ({ sceneId, startSecond, endSecond, summary, pacing, camera, audio, visualStyle, keyframes: ... })),
+    transcript: (value.transcript ?? []).slice(0, 160).map((cue) => ({ startSecond, endSecond, text: cue.text })),
+    pacingNotes: (value.pacingNotes ?? []).slice(0, 60),
+    styleNotes: (value.styleNotes ?? []).slice(0, 60),
+    structuralBeats: (value.structuralBeats ?? []).slice(0, 80),
+    safetyNotes: (value.safetyNotes ?? []).slice(0, 60)
+  };
+}
+```
+
+Đánh giá: source video ảnh hưởng planning thật, nhưng chất lượng phụ thuộc vào caller-supplied analysis hoặc LLM frame analysis opt-in.
+
+---
+
+# 5. Tổng Hợp Đánh Giá Và Chứng Minh
+
+## 5.1 Những điểm yếu báo cáo trước nêu có đúng không?
+
+Có. Đối chiếu code:
+
+1. Last-frame fidelity còn yếu:
+   - `selectLastFrameReference()` chỉ chọn URL ảnh từ `prediction.outputUrls`.
+   - Không có ffmpeg fallback extract last frame từ MP4.
+   - Required chain block nếu không có image sidecar.
+
+2. Visual QA chưa mặc định:
+   - `SemanticVisualInspector` có implement LLM vision, nhưng `DirectorAgent` chỉ gọi khi có `deliverable.frameSamples` và `semanticVisualInspectionOptions.enabled`.
+   - `ConsistencyGuardian.inspectRender()` không nhìn frame.
+
+3. Bible chưa sống:
+   - `ContinuityLedgerBuilder` và `LongFormContinuityPlanner` build trước render.
+   - Không thấy code reconcile/update sau render.
+   - Prompt compiler không nhận `LongFormContinuityPlan` trực tiếp.
+
+4. Source-video remake chưa thật sự "clone học 100%":
+   - Có frame sampling và LLM beat-map, nhưng opt-in.
+   - Không có audio ASR/OCR/shot-boundary/motion extraction thực.
+   - Không tự tạo keyframe references.
+
+## 5.2 Mức sẵn sàng cho video dài 5-10 phút
+
+Đánh giá theo layer:
+
+- Planning/story/shot chunking: 78-85%. Có StoryArchitect, ShotPlanner, timeline 3 phase, duration 4-15s, story arc metadata.
+- Sequential orchestration/chaining: 70-78%. Có required/recommended strategy, scheduler sequential, prompt recompile. Yếu ở sidecar-only last frame.
+- Prompt continuity: 78-85%. Prompt compiler có reference handles, endpoint priority, bridge, boundary choreography, final frame.
+- Cross-render visual consistency: 45-55%. Có optional semantic visual after assembly, nhưng chưa per-shot/cross-shot/default.
+- Source-video understanding: 55-65%. Có frame-based LLM analysis opt-in, chưa audio/ASR/OCR/shot boundary/reference extraction.
+- Commercial long-form runtime: 60-70%. Có nhiều gates và evidence, nhưng thiếu live media QA + automatic endpoint extraction + repair propagation thật.
+
+Kết luận: nếu chỉ dùng backend hiện tại cho 5-10 phút, nên coi là "có nền tảng tốt nhưng cần operator review và benchmark live", không nên gọi là tự động tuyệt đối kiểu Topview/Higgsfield-level.
+
+## 5.3 Top 5 điểm yếu nghiêm trọng nhất và hướng sửa code-level
+
+### Điểm yếu 1: Không có ffmpeg last-frame extraction fallback
+
+Ảnh hưởng:
+
+- Chaining required có thể fail nếu Atlas chỉ trả MP4.
+- Video dài phụ thuộc behavior response của provider.
+
+Fix đề xuất:
+
+Tạo service mới:
+
+```ts
+// src/core/endpoint-frame-extractor.ts
+export class EndpointFrameExtractor {
+  public async ensureLastFrameReference(input: {
+    readonly prediction: Prediction;
+    readonly shotId: string;
+    readonly workDirectory: string;
+    readonly assetProvider?: AssetProvider;
+    readonly signal?: AbortSignal;
+  }): Promise<PromptReference | undefined> {
+    // 1. thử selectLastFrameReference từ outputUrls
+    // 2. nếu không có, chọn video output URL
+    // 3. materialize video về workDirectory
+    // 4. ffmpeg -sseof -0.15 -i input.mp4 -frames:v 1 shotId_last_frame.jpg
+    // 5. upload/register asset nếu provider cần asset://
+    // 6. trả PromptReference role first_frame kind image
+  }
+}
+```
+
+Chỗ nối:
+
+- Inject vào `DirectorAgent.renderCandidate()` sau khi prediction succeeded.
+- Hoặc enrich `RenderedShot` với `endpointFrameReference`.
+- `prepareChainedRenderItem()` dùng `renderedShot.endpointFrameReference` trước, fallback `selectLastFrameReference()`.
+
+### Điểm yếu 2: Visual semantic inspection không chạy per candidate
+
+Ảnh hưởng:
+
+- Candidate selection có thể chọn clip hợp lệ về file nhưng xấu về hình.
+- Repair loop không sửa identity/product drift.
+
+Fix đề xuất:
+
+Tạo `RenderedCandidateMediaInspector`:
+
+```ts
+export class RenderedCandidateMediaInspector {
+  public async inspectCandidate(input: {
+    readonly candidate: RenderCandidate;
+    readonly shot: ShotContract;
+    readonly compiledPrompt: CompiledPrompt;
+    readonly workDirectory: string;
+    readonly semanticOptions: SemanticVisualInspectionOptions;
+  }): Promise<GuardianReport> {
+    // materialize video output
+    // sample frames: first/middle/last hoặc interval
+    // SemanticVisualInspector.inspect(frames, expectations)
+    // map SemanticVisualFinding -> GuardianFinding
+  }
+}
+```
+
+Chỗ nối:
+
+- Trong `DirectorAgent.renderCandidate()`, sau `inspectRender()`, merge deterministic Guardian + semantic Guardian.
+- `selectBestCandidate()` sẽ chọn theo semantic status/severity.
+- Repair prompt lấy recommendation từ visual findings.
+
+### Điểm yếu 3: Continuity Bible không được cập nhật sau render
+
+Ảnh hưởng:
+
+- Nếu clip 1 thực tế lệch ánh sáng/pose, clip 2 vẫn dùng planned bible, không biết trạng thái thật.
+- Long-form càng dài càng drift.
+
+Fix đề xuất:
+
+Tạo `ContinuityStateTracker`:
+
+```ts
+export interface RenderedContinuityState {
+  shotId: string;
+  firstFrameSummary?: string;
+  lastFrameSummary?: string;
+  identityState?: string;
+  productState?: string;
+  lightingState?: string;
+  environmentState?: string;
+  confidence: number;
+}
+
+export class ContinuityStateTracker {
+  public updateFromVisualInspection(...): RenderedContinuityState;
+  public nextShotContinuityPatch(previous: RenderedContinuityState): Partial<ShotContinuity>;
+}
+```
+
+Chỗ nối:
+
+- Sau render candidate selected, visual inspector tóm tắt first/last frame.
+- Trước `prepareChainedRenderItem()` compile shot kế tiếp, merge `previousShotEndState` bằng actual state, không chỉ planned state.
+
+### Điểm yếu 4: Source-video analysis chưa có audio/ASR/OCR/shot boundary thực
+
+Ảnh hưởng:
+
+- Remake chưa bám được rhythm/audio/caption/cut density thật.
+- LLM nhìn vài frame không đủ để học nhịp edit.
+
+Fix đề xuất:
+
+Mở rộng `SourceVideoAutoAnalyzer` thành pipeline nhiều extractor:
+
+```ts
+export class SourceVideoMediaAnalyzer {
+  public async analyze(input: { uri: string; workDirectory: string }): Promise<SourceVideoDeconstruction> {
+    // ffprobe duration/fps/audio streams
+    // ffmpeg scene detection: select='gt(scene,0.35)'
+    // audio energy extraction: astats hoặc ffprobe audio frames
+    // optional ASR provider: transcript cues
+    // optional OCR provider: captions/on-screen text
+    // keyframe export + asset registration
+  }
+}
+```
+
+Chỗ nối:
+
+- `SourceVideoAutoAnalyzer.prepareRequest()` gọi media analyzer trước LLM.
+- LLM nhận real metrics: shot boundaries, frame timestamps, audio energy, OCR/ASR.
+- `SourceVideoReferenceMetadataEnricher` tự tạo `PromptReference` cho extracted keyframes nếu operator approves.
+
+### Điểm yếu 5: Production Graph chưa điều khiển repair propagation runtime
+
+Ảnh hưởng:
+
+- Có graph và repair_action evidence, nhưng runtime chưa dùng graph để rebuild only affected downstream nodes.
+- Auto rerender hiện local ở candidate/shot, không graph-aware theo sequence.
+
+Fix đề xuất:
+
+Tạo `GraphRepairOrchestrator`:
+
+```ts
+export class GraphRepairOrchestrator {
+  public planRepair(input: {
+    graph: ProductionGraph;
+    failedNodeId: string;
+    guardianReport: GuardianReport;
+  }): RepairExecutionPlan {
+    const affected = graph.repairAffectedNodes(failedNodeId);
+    // classify: prompt-only, reference-rebind, shot-replan, downstream-rerender
+  }
+}
+```
+
+Chỗ nối:
+
+- Khi Guardian/SemanticVisualInspector trả repair/rerender/block, gọi graph repair plan.
+- Với downstream nodes bị ảnh hưởng bởi `transitions_to`, recompile prompts và rerender theo minimal set.
+- Lưu repair plan vào `ProductionGraphRunRecorder` và `ReviewPacketBuilder`.
+
+---
+
+# 6. Kết Luận Cuối
+
+Backend hiện tại không phải template cứng. Nó đã có nhiều phần đúng hướng: chiến lược multishot, return last frame, sequential rendering, reference binding, prompt bridge, continuity ledger, long-form continuity plan, source-video LLM frame analysis opt-in, semantic visual inspector opt-in, assembly/ffprobe validation và production graph evidence.
+
+Nhưng để đạt mức "siêu tự động, mọi niche, long-form 5-10 phút, remake video bám rất sát, thương mại mạnh", phần còn thiếu không nằm ở việc thêm nhiều prompt nữa. Điểm nghẽn thật trong code là:
+
+- thiếu automatic endpoint frame extraction;
+- thiếu visual QA per-shot/per-candidate/per-boundary;
+- thiếu live continuity bible được cập nhật từ output thật;
+- thiếu source-video media analysis sâu gồm audio/ASR/OCR/cut detection;
+- thiếu repair orchestration dựa trên graph để sửa đúng node và downstream.
+
+Nói ngắn: kiến trúc đã có xương sống tốt, nhưng fidelity engine còn chưa đủ sâu. Muốn lên đẳng cấp thương mại thật, cần biến các evidence/planning module hiện tại thành vòng lặp media-aware: render -> inspect visual/audio thật -> update continuity state -> repair/rerender targeted -> mới assemble/deliver.
