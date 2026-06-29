@@ -3,6 +3,7 @@ import type { RenderedShot } from "../types/agent.js";
 import type { PromptReference } from "../types/prompt.js";
 
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
+const IMAGE_MIME_PATTERN = /^image\/(?:jpeg|jpg|png|webp)$/i;
 const PREFERRED_LAST_FRAME_PATTERN = /(?:last|end|final)[_-]?(?:frame|image|still)|frame[-_]?last/i;
 
 export interface EndpointFrameReferenceSelection {
@@ -55,23 +56,48 @@ export function selectLastFrameReference(input: {
 }
 
 export function isImageOutputUrl(value: string): boolean {
-  const path = outputPathname(value);
-  if (!path) {
+  const parsed = outputUrl(value);
+  if (!parsed) {
     return false;
   }
-  const dotIndex = path.lastIndexOf(".");
-  if (dotIndex < 0) {
-    return false;
+  if (hasImageExtension(parsed.pathname)) {
+    return true;
   }
-  return IMAGE_EXTENSIONS.has(path.slice(dotIndex).toLowerCase());
+  for (const key of ["filename", "file", "name", "download", "response-content-disposition"]) {
+    const queryValue = parsed.searchParams.get(key);
+    if (queryValue && hasImageExtension(queryValue)) {
+      return true;
+    }
+  }
+  const format = parsed.searchParams.get("format") ?? parsed.searchParams.get("ext") ?? parsed.searchParams.get("type");
+  if (format && IMAGE_EXTENSIONS.has(`.${format.toLowerCase().replace(/^image\//, "")}`)) {
+    return true;
+  }
+  const contentType = parsed.searchParams.get("content_type") ??
+    parsed.searchParams.get("content-type") ??
+    parsed.searchParams.get("response-content-type");
+  if (contentType && IMAGE_MIME_PATTERN.test(contentType)) {
+    return true;
+  }
+  return PREFERRED_LAST_FRAME_PATTERN.test(parsed.pathname) &&
+    !/\.(?:mp4|mov|webm|m4v)(?:$|[?#])/i.test(parsed.pathname);
 }
 
-function outputPathname(value: string): string | undefined {
+function outputUrl(value: string): URL | undefined {
   try {
-    return new URL(value).pathname;
+    return new URL(value);
   } catch {
     return undefined;
   }
+}
+
+function hasImageExtension(value: string): boolean {
+  const normalized = value.toLowerCase();
+  const dotIndex = normalized.lastIndexOf(".");
+  if (dotIndex < 0) {
+    return false;
+  }
+  return IMAGE_EXTENSIONS.has(normalized.slice(dotIndex));
 }
 
 function sha256(value: string): string {

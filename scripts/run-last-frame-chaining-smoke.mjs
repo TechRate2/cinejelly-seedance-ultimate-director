@@ -250,7 +250,7 @@ class FakeVideoProvider {
       status: "succeeded",
       outputUrls: [
         `https://cdn.example.test/chaining/shot-${index + 1}.mp4`,
-        `https://cdn.example.test/chaining/shot-${index + 1}-last-frame.png?token=secret_${index + 1}`
+        `https://cdn.example.test/chaining/download/shot-${index + 1}-last-frame?format=png&token=secret_${index + 1}`
       ],
       raw: { fake: true },
       submittedAt,
