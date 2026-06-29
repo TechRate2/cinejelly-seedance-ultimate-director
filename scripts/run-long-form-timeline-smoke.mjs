@@ -174,7 +174,9 @@ const storyArcPositions = new Set(timeline.segments.map((segment) => segment.sto
 const compiledPromptStoryArcReady = compiledLongPrompts.every((prompt) =>
   prompt.prompt.includes("Pacing contract:") &&
   prompt.prompt.includes("Whole-video arc:") &&
-  prompt.prompt.includes("Timeline:")
+  prompt.prompt.includes("Timeline:") &&
+  prompt.prompt.includes("Boundary choreography:") &&
+  prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints")
 );
 
 const checks = [
@@ -201,8 +203,8 @@ const checks = [
     timeline.segments.every((segment) => segment.storyArcContract.includes("full video")) &&
     shots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
     compiledPromptStoryArcReady
-    ? pass("whole_video_story_arc_prompt_contract", "Long-form prompts and timeline segments carry opening, development/proof, and payoff contracts across the full duration.")
-    : fail("whole_video_story_arc_prompt_contract", "Expected long-form ShotPlanner and PromptCompiler to preserve whole-video story arc contracts."),
+    ? pass("whole_video_story_arc_prompt_contract", "Long-form prompts and timeline segments carry opening, development/proof, payoff, and boundary-choreography contracts across the full duration.")
+    : fail("whole_video_story_arc_prompt_contract", "Expected long-form ShotPlanner and PromptCompiler to preserve whole-video story arc and boundary-choreography contracts."),
   timeline.sequenceCount === continuityPlan.sequenceCount &&
     timeline.sequences.every((sequence, index) => sequence.order === index && sequence.startSecond < sequence.endSecond)
     ? pass("sequence_timing_boundaries", "Timeline exposes deterministic sequence timing boundaries.")

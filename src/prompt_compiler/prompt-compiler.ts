@@ -66,6 +66,7 @@ export class SeedancePromptCompiler {
       this.buildPacingSection(shot),
       this.buildMotionContinuitySection(shot, bindingPlan),
       this.buildInterShotBridgeSection(shot),
+      this.buildBoundaryChoreographySection(shot, bindingPlan),
       `Scene subject: ${shot.subject}.`,
       `Action: ${shot.action}.`,
       `Camera: ${shot.camera}.`,
@@ -278,6 +279,39 @@ export class SeedancePromptCompiler {
     return bridgeLines.join(" ");
   }
 
+  private buildBoundaryChoreographySection(shot: ShotContract, bindingPlan: PromptBindingPlan): string {
+    const role = this.storyArcRole(shot);
+    const hasPreviousState = Boolean(shot.continuity.previousShotEndState);
+    const hasNextState = Boolean(shot.continuity.nextShotStartState);
+    const referenceRoles = new Set(bindingPlan.providerReferences.map((reference) => reference.role ?? reference.kind));
+    const sourceGuided = referenceRoles.has("source_video_structure") ||
+      referenceRoles.has("video") ||
+      referenceRoles.has("motion") ||
+      referenceRoles.has("camera");
+    const primaryAnchors = [
+      referenceRoles.has("identity") ? "KOL/character identity" : undefined,
+      referenceRoles.has("product") ? "product geometry and scale" : undefined,
+      referenceRoles.has("environment") ? "background spatial layout" : undefined
+    ].filter((anchor): anchor is string => Boolean(anchor));
+    return [
+      `Boundary choreography: stage this ${role} clip so the first frame, action middle, and final frame can assemble without a visible reset.`,
+      hasPreviousState
+        ? "Entry: match the prior endpoint before introducing new motion; keep the same screen direction, lens distance, subject scale, lighting color, and product/KOL state."
+        : "Entry: open on a stable readable first frame before the camera or subject starts moving.",
+      "Middle: add one concrete visible state change tied to the shot intent, not a repeated pose, idle product hold, or style-only flourish.",
+      hasNextState
+        ? "Exit: finish the action early enough to hold the final 0.5s as a clean next-shot handle with subject and product still visible."
+        : "Exit: hold the final 0.5s as a clean review/delivery handle with no unresolved whip, blur, blink, or cropped product.",
+      primaryAnchors.length > 0
+        ? `Anchor lock during entry and exit: preserve ${primaryAnchors.join(", ")} before camera motion, style, source-video rhythm, or audio energy.`
+        : undefined,
+      sourceGuided
+        ? "For source-video/remake guidance, inherit timing, motion grammar, and camera direction only after replacement KOL/product/background anchors are visible at both entry and exit."
+        : undefined,
+      "Do not rely on postproduction crossfade to hide inconsistent generated endpoints; the generated frames themselves must already match the edit plan."
+    ].filter((line): line is string => Boolean(line)).join(" ");
+  }
+
   private storyArcRole(shot: ShotContract): string {
     if (typeof shot.metadata?.storyArcRole === "string" && shot.metadata.storyArcRole.trim()) {
       return shot.metadata.storyArcRole.trim();
@@ -358,6 +392,16 @@ export class SeedancePromptCompiler {
     }
     if (shot.transitionIntent) {
       expectations.add("start and end states support the requested transition");
+    }
+    if (shot.continuity.previousShotEndState || shot.continuity.nextShotStartState) {
+      expectations.add("boundary choreography supports seamless assembly without visible reset");
+    }
+    if (bindingPlan.sortedReferences.some((reference) =>
+      reference.role === "source_video_structure" ||
+      reference.role === "motion" ||
+      reference.role === "camera"
+    )) {
+      expectations.add("source-video rhythm is transferred only after user anchors remain visible at entry and exit");
     }
     return [...expectations];
   }
