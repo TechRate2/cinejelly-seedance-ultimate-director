@@ -569,6 +569,14 @@ const planningOnlySourceVideoPrompt = new SeedancePromptCompiler().compile({
   provider: "atlascloud",
   providerSupportedReferenceKinds: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"]
 });
+const providerFamilyLimitPrompt = new SeedancePromptCompiler().compile({
+  shot: sourceVideoFamilyLimitShot(),
+  settings: audioEnabledStoryboardSettings,
+  modelId: "bytedance/seedance-2.0/reference-to-video",
+  provider: "atlascloud",
+  providerSupportedReferenceKinds: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"],
+  maxProviderReferences: 12
+});
 
 const serialized = JSON.stringify({
   reviewRequiredPlan,
@@ -688,6 +696,15 @@ const checks = [
     planningOnlySourceVideoPrompt.negativePrompt.includes("no copied source-video transcript")
     ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references compile as reference-to-video provider inputs with front-loaded @image/@video handle bindings, primary-anchor priority, source-boundary prompt/negative-prompt contracts, while unapproved source-video references stay planning-only without a provider @video handle.")
     : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization, provider video capability, reference-to-video mode, front-loaded @image/@video handle bindings, primary-anchor priority, source-boundary prompt/negative-prompt contract, and planning-only source-video prompt constraints."),
+  providerFamilyLimitPrompt.videoRequest.references.filter((reference) => reference.kind === "video" || reference.role === "source_video_structure").length === 3 &&
+    providerFamilyLimitPrompt.prompt.includes("@video1 -> source_video_structure/video=Trend source video 1") &&
+    providerFamilyLimitPrompt.prompt.includes("@video2 -> source_video_structure/video=Trend source video 2") &&
+    providerFamilyLimitPrompt.prompt.includes("@video3 -> source_video_structure/video=Trend source video 3") &&
+    !providerFamilyLimitPrompt.prompt.includes("@video4") &&
+    providerFamilyLimitPrompt.bindingPlan.conflicts.filter((conflict) => conflict.code === "provider_reference_family_limit_exceeded").length === 2 &&
+    providerFamilyLimitPrompt.bindingPlan.roleScopes.filter((scope) => scope.role === "source_video_structure" && !scope.providerIncluded).length === 2
+    ? pass("provider_reference_family_limit_guard", "Prompt binding caps provider video references at Atlas's documented family limit so prompts never mention @video handles that are absent from provider payload arrays.")
+    : fail("provider_reference_family_limit_guard", "Expected provider binding to keep only three video handles, retain overflow source videos as planning-only references, and record family-limit conflicts."),
   cleanHttpsReferencePlan.mediaReferencePlan.filter((reference) =>
     ["identity", "product", "source_video_structure"].includes(reference.promptRole)
   ).every((reference) =>
@@ -1049,6 +1066,27 @@ function sourceVideoBindingShot(mode) {
     metadata: {
       storyArcRole: "video remake proof"
     }
+  };
+}
+
+function sourceVideoFamilyLimitShot() {
+  return {
+    ...sourceVideoBindingShot("authorized"),
+    shotId: "source_video_family_limit",
+    references: [
+      promptReference("identity", "Limit KOL", "image", "asset://short-pipeline/limit-kol", "primary", true),
+      promptReference("product", "Limit serum pack", "image", "asset://short-pipeline/limit-serum-pack", "primary", true),
+      ...Array.from({ length: 5 }, (_, index) =>
+        promptReference(
+          "source_video_structure",
+          `Trend source video ${index + 1}`,
+          "video",
+          `asset://short-pipeline/trend-source-${index + 1}`,
+          "supporting",
+          true
+        )
+      )
+    ]
   };
 }
 

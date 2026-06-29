@@ -95,6 +95,7 @@ export type PromptBindingConflictCode =
   | "source_video_structure_planning_only"
   | "unsupported_provider_reference_kind"
   | "provider_reference_limit_exceeded"
+  | "provider_reference_family_limit_exceeded"
   | "duplicate_role_reference";
 
 export type PromptCompressionSection =
