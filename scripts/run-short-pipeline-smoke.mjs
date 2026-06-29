@@ -647,11 +647,15 @@ const checks = [
     : fail("seedance_mini_fallback_capability_guard", "Expected fallback capability mapping to prevent Mini from advertising unsupported high/SR resolutions."),
   authorizedSourceVideoPrompt.videoRequest.references.some((reference) => reference.role === "source_video_structure" && reference.kind === "video") &&
     authorizedSourceVideoPrompt.videoRequest.mode === "reference_to_video" &&
+    authorizedSourceVideoPrompt.prompt.includes("Seedance mode contract: reference-to-video") &&
+    authorizedSourceVideoPrompt.prompt.includes("Source/reference-video boundary:") &&
     authorizedSourceVideoPrompt.prompt.includes("use source/reference video only for rhythm") &&
     planningOnlySourceVideoPrompt.videoRequest.references.every((reference) => reference.role !== "source_video_structure") &&
-    planningOnlySourceVideoPrompt.bindingPlan.conflicts.some((conflict) => conflict.code === "source_video_structure_planning_only")
-    ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references compile as reference-to-video provider inputs, while unapproved source-video references stay planning-only.")
-    : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization, provider video capability, and reference-to-video mode."),
+    planningOnlySourceVideoPrompt.bindingPlan.conflicts.some((conflict) => conflict.code === "source_video_structure_planning_only") &&
+    planningOnlySourceVideoPrompt.prompt.includes("Planning-only references:") &&
+    planningOnlySourceVideoPrompt.prompt.includes("Source/reference-video boundary:")
+    ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references compile as reference-to-video provider inputs with mode/source-boundary prompt contracts, while unapproved source-video references stay planning-only with prompt-only structure constraints.")
+    : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization, provider video capability, reference-to-video mode, source-boundary prompt contract, and planning-only source-video prompt constraints."),
   cleanHttpsReferencePlan.mediaReferencePlan.filter((reference) =>
     ["identity", "product", "source_video_structure"].includes(reference.promptRole)
   ).every((reference) =>
@@ -826,7 +830,7 @@ const checks = [
     : fail("explicit_storyboard_mode_overrides_single_recommendation", "Expected explicit storyboard mode to preserve multi-scene planning."),
   shortStoryboardShots.length === 3 &&
     shortStoryboardShots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
-    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Pacing contract:") && prompt.prompt.includes("Timeline:")) &&
+    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Seedance mode contract:") && prompt.prompt.includes("Pacing contract:") && prompt.prompt.includes("Timeline:")) &&
   compiledShortStoryboardPrompts.every((prompt) =>
     prompt.prompt.includes("Motion continuity:") &&
     prompt.prompt.includes("Inter-shot bridge:") &&
@@ -839,8 +843,8 @@ const checks = [
     shortStoryboardShots[2]?.continuity.previousShotEndState &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.videoRequest.settings.generateAudio === true) &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Audio:") && !prompt.prompt.includes("Audio: Silent"))
-    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include duration-aware timeline beats, pacing contract, motion-continuity/inter-shot-bridge/final-frame contracts, adjacent shot state, and audio-on provider settings by default.")
-    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include timeline, pacing contract, motion-continuity/inter-shot-bridge/final-frame contracts, adjacent shot state, and enabled audio."),
+    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include Seedance mode, duration-aware timeline beats, pacing contract, motion-continuity/inter-shot-bridge/final-frame contracts, adjacent shot state, and audio-on provider settings by default.")
+    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include Seedance mode, timeline, pacing contract, motion-continuity/inter-shot-bridge/final-frame contracts, adjacent shot state, and enabled audio."),
   pendingRenderHandoff.request.metadata?.workflowMode === "storyboard" &&
     pendingRenderHandoff.request.metadata?.renderMode === "storyboard_multishot" &&
     pendingRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "storyboard_multishot"

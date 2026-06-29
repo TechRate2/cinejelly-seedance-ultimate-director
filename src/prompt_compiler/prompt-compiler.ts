@@ -27,13 +27,14 @@ export class SeedancePromptCompiler {
         : {}),
       ...(input.maxProviderReferences !== undefined ? { maxProviderReferences: input.maxProviderReferences } : {})
     });
-    const prompt = this.buildPrompt(input.shot, bindingPlan);
+    const providerMode = this.resolveMode(bindingPlan);
+    const prompt = this.buildPrompt(input.shot, bindingPlan, providerMode);
     const negativePrompt = buildNegativePrompt(input.shot);
     const references = bindingPlan.providerReferences;
     const videoRequest = {
       provider: input.provider,
       modelId: input.modelId,
-      mode: this.resolveMode(bindingPlan),
+      mode: providerMode,
       prompt,
       negativePrompt,
       references,
@@ -54,11 +55,12 @@ export class SeedancePromptCompiler {
     };
   }
 
-  private buildPrompt(shot: ShotContract, bindingPlan: PromptBindingPlan): string {
+  private buildPrompt(shot: ShotContract, bindingPlan: PromptBindingPlan, providerMode: ProviderMode): string {
     const sections = [
       `Shot ${shot.shotId}, ${shot.durationSeconds}s.`,
       `Intent: ${shot.intent}.`,
       this.buildReferenceSection(bindingPlan),
+      this.buildProviderModeContractSection(providerMode, bindingPlan),
       this.buildContinuitySection(shot),
       this.buildPacingSection(shot),
       this.buildMotionContinuitySection(shot, bindingPlan),
@@ -76,6 +78,98 @@ export class SeedancePromptCompiler {
     ];
 
     return sections.filter((section): section is string => Boolean(section && section.trim())).join("\n");
+  }
+
+  private buildProviderModeContractSection(mode: ProviderMode, bindingPlan: PromptBindingPlan): string {
+    const providerReferenceSummary = bindingPlan.providerReferences.length > 0
+      ? bindingPlan.providerReferences.map((reference, index) => {
+          const role = reference.role ?? reference.kind;
+          const label = reference.label ? `=${reference.label}` : "";
+          return `${index + 1}:${role}/${reference.kind}${label}`;
+        }).join("; ")
+      : "none";
+    const roles = new Set([
+      ...bindingPlan.sortedReferences.flatMap((reference) => [reference.role, reference.providerReference.kind]),
+      ...bindingPlan.providerReferences.flatMap((reference) =>
+        [reference.kind, reference.role].filter((value): value is string => Boolean(value))
+      )
+    ]);
+    const planningOnlyReferences = bindingPlan.roleScopes.filter((reference) => !reference.providerIncluded);
+    const lines = [
+      `Seedance mode contract: ${this.providerModeLabel(mode)}.`,
+      `Provider reference map: ${providerReferenceSummary}.`,
+      planningOnlyReferences.length > 0
+        ? `Planning-only references: ${planningOnlyReferences.map((reference) => `${reference.role}/${reference.label} (${reference.providerFilterReason ?? "not sent to provider"})`).join("; ")}; use them only as prompt/scenario constraints, not as provider media inputs.`
+        : undefined,
+      mode !== "text_to_video"
+        ? "Reference tag syntax: when the provider exposes @image/@video/@audio handles, bind each handle by the listed role/order before prose; never reuse a handle for an unlisted role."
+        : undefined,
+      ...this.providerModeRules(mode),
+      roles.has("identity") ? "Identity priority: KOL/character face, hair, body presence, and eye-line stay locked before style, motion, or camera references are applied." : undefined,
+      roles.has("product") ? "Product priority: product geometry, packaging, label/logo placement, material, and scale stay locked before camera, lighting, or style changes." : undefined,
+      roles.has("first_frame") || roles.has("last_frame")
+        ? "Endpoint priority: first-frame and last-frame references define the clip handles for chaining; motion must move between them without warping identity or product details."
+        : undefined,
+      roles.has("source_video_structure") || roles.has("video") || roles.has("motion") || roles.has("camera")
+        ? "Source/reference-video boundary: transfer only structure, beat timing, camera grammar, motion rhythm, acting energy, and endpoint framing; replace faces, products, setting, transcript wording, music, brand marks, claims, and CTA with approved user inputs."
+        : undefined,
+      roles.has("audio") || roles.has("audio_tempo") || roles.has("voice")
+        ? "Audio reference boundary: use audio/voice references only for tempo, mood, and approved voice character; do not copy protected music, melody, or unapproved voice likeness."
+        : undefined
+    ].filter((line): line is string => Boolean(line));
+    return lines.join(" ");
+  }
+
+  private providerModeRules(mode: ProviderMode): readonly string[] {
+    switch (mode) {
+      case "text_to_video":
+        return [
+          "Text-to-video rule: no media reference will be sent, so the prompt must be fully self-contained with subject, action, camera, lighting, physical motion, audio intent, and final frame.",
+          "Do not invent a specific KOL likeness, exact product packaging, logo, source-video scene, or protected style that was not supplied by the shot contract."
+        ];
+      case "image_to_video":
+        return [
+          "Image-to-video rule: treat supplied image references as identity/product/endpoint anchors, not generic mood boards.",
+          "Add controlled camera and body/product motion while preserving the anchor's geometry, pose logic, lighting direction, and recognizable details."
+        ];
+      case "reference_to_video":
+        return [
+          "Reference-to-video rule: separate every reference by role, then apply identity/product/endpoints first, environment second, camera/motion/audio/style last.",
+          "If multiple references conflict, preserve approved KOL identity and product fidelity before trend style, source-video energy, or cinematic polish."
+        ];
+      case "video_to_video":
+        return [
+          "Video-to-video rule: use the source video only as the editable base and keep all edits scoped to the shot contract.",
+          "Preserve continuity handles and replace any unapproved subject, product, text, logo, music, or claim."
+        ];
+      case "extend":
+        return [
+          "Extend rule: continue naturally from the supplied endpoint, matching motion direction, scale, lighting, room tone, and subject/product state.",
+          "Do not restart the action, jump to a new scene, or introduce a new character/product identity unless the shot contract requires it."
+        ];
+      case "edit":
+        return [
+          "Edit rule: change only the requested subject/action/setting detail while keeping all untouched identity, product, camera, light, and endpoint continuity stable.",
+          "Do not rewrite the shot into a new concept."
+        ];
+    }
+  }
+
+  private providerModeLabel(mode: ProviderMode): string {
+    switch (mode) {
+      case "text_to_video":
+        return "text-to-video";
+      case "image_to_video":
+        return "image-to-video";
+      case "reference_to_video":
+        return "reference-to-video";
+      case "video_to_video":
+        return "video-to-video";
+      case "extend":
+        return "extend";
+      case "edit":
+        return "edit";
+    }
   }
 
   private buildPacingSection(shot: ShotContract): string {
