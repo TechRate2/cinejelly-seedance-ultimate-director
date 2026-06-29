@@ -649,13 +649,16 @@ const checks = [
     authorizedSourceVideoPrompt.videoRequest.mode === "reference_to_video" &&
     authorizedSourceVideoPrompt.prompt.includes("Seedance mode contract: reference-to-video") &&
     authorizedSourceVideoPrompt.prompt.includes("Source/reference-video boundary:") &&
+    authorizedSourceVideoPrompt.prompt.includes("@image1 -> identity/image") &&
+    authorizedSourceVideoPrompt.prompt.includes("@image2 -> product/image") &&
+    authorizedSourceVideoPrompt.prompt.includes("@video1 -> source_video_structure/video") &&
     authorizedSourceVideoPrompt.prompt.includes("use source/reference video only for rhythm") &&
     planningOnlySourceVideoPrompt.videoRequest.references.every((reference) => reference.role !== "source_video_structure") &&
     planningOnlySourceVideoPrompt.bindingPlan.conflicts.some((conflict) => conflict.code === "source_video_structure_planning_only") &&
     planningOnlySourceVideoPrompt.prompt.includes("Planning-only references:") &&
     planningOnlySourceVideoPrompt.prompt.includes("Source/reference-video boundary:")
-    ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references compile as reference-to-video provider inputs with mode/source-boundary prompt contracts, while unapproved source-video references stay planning-only with prompt-only structure constraints.")
-    : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization, provider video capability, reference-to-video mode, source-boundary prompt contract, and planning-only source-video prompt constraints."),
+    ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references compile as reference-to-video provider inputs with explicit @image/@video handle bindings and mode/source-boundary prompt contracts, while unapproved source-video references stay planning-only with prompt-only structure constraints.")
+    : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization, provider video capability, reference-to-video mode, explicit @image/@video handle bindings, source-boundary prompt contract, and planning-only source-video prompt constraints."),
   cleanHttpsReferencePlan.mediaReferencePlan.filter((reference) =>
     ["identity", "product", "source_video_structure"].includes(reference.promptRole)
   ).every((reference) =>

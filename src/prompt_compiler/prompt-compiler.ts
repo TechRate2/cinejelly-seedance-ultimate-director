@@ -81,12 +81,9 @@ export class SeedancePromptCompiler {
   }
 
   private buildProviderModeContractSection(mode: ProviderMode, bindingPlan: PromptBindingPlan): string {
-    const providerReferenceSummary = bindingPlan.providerReferences.length > 0
-      ? bindingPlan.providerReferences.map((reference, index) => {
-          const role = reference.role ?? reference.kind;
-          const label = reference.label ? `=${reference.label}` : "";
-          return `${index + 1}:${role}/${reference.kind}${label}`;
-        }).join("; ")
+    const providerReferenceHandleBindings = this.providerReferenceHandleBindings(bindingPlan);
+    const providerReferenceSummary = providerReferenceHandleBindings.length > 0
+      ? providerReferenceHandleBindings.join("; ")
       : "none";
     const roles = new Set([
       ...bindingPlan.sortedReferences.flatMap((reference) => [reference.role, reference.providerReference.kind]),
@@ -101,8 +98,10 @@ export class SeedancePromptCompiler {
       planningOnlyReferences.length > 0
         ? `Planning-only references: ${planningOnlyReferences.map((reference) => `${reference.role}/${reference.label} (${reference.providerFilterReason ?? "not sent to provider"})`).join("; ")}; use them only as prompt/scenario constraints, not as provider media inputs.`
         : undefined,
-      mode !== "text_to_video"
-        ? "Reference tag syntax: when the provider exposes @image/@video/@audio handles, bind each handle by the listed role/order before prose; never reuse a handle for an unlisted role."
+      mode !== "text_to_video" && providerReferenceHandleBindings.length > 0
+        ? `Reference tag syntax: use these handles exactly as listed before prose: ${providerReferenceHandleBindings.join("; ")}. Never reuse a handle for an unlisted role.`
+        : mode !== "text_to_video"
+          ? "Reference tag syntax: no provider media handles are available; keep reference-only logic in prose and do not invent @image/@video/@audio handles."
         : undefined,
       ...this.providerModeRules(mode),
       roles.has("identity") ? "Identity priority: KOL/character face, hair, body presence, and eye-line stay locked before style, motion, or camera references are applied." : undefined,
@@ -118,6 +117,32 @@ export class SeedancePromptCompiler {
         : undefined
     ].filter((line): line is string => Boolean(line));
     return lines.join(" ");
+  }
+
+  private providerReferenceHandleBindings(bindingPlan: PromptBindingPlan): readonly string[] {
+    const handleCounts: Record<"image" | "video" | "audio", number> = {
+      image: 0,
+      video: 0,
+      audio: 0
+    };
+    return bindingPlan.providerReferences.map((reference) => {
+      const handleKind = this.providerHandleKind(reference.kind);
+      handleCounts[handleKind] += 1;
+      const handle = `@${handleKind}${handleCounts[handleKind]}`;
+      const role = reference.role ?? reference.kind;
+      const label = reference.label ? `=${reference.label}` : "";
+      return `${handle} -> ${role}/${reference.kind}${label}`;
+    });
+  }
+
+  private providerHandleKind(kind: string): "image" | "video" | "audio" {
+    if (kind === "audio") {
+      return "audio";
+    }
+    if (kind === "video" || kind === "motion" || kind === "camera") {
+      return "video";
+    }
+    return "image";
   }
 
   private providerModeRules(mode: ProviderMode): readonly string[] {
