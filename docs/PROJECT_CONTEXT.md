@@ -23,7 +23,7 @@ The target long-form range is 2 to 8 minutes with high consistency.
 ## Non-Negotiable Rules
 
 - Production-grade only.
-- No CineJelly-owned test/mock/demo/sample/example files in the production runtime. Upstream snapshot tests, mocks, demos, examples, generated build folders, temporary files, notebooks, and sample media are pruned from `external/upstream/`; upstream material becomes product material only after an intentional copy/adapt step.
+- No CineJelly-owned test/mock/demo/sample/example files in the production runtime. Upstream snapshot tests, mocks, demos, examples, generated build folders, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, and vendored font/music resources are pruned from `external/upstream/`; upstream material becomes product material only after an intentional copy/adapt step.
 - Never commit `.env`, API keys, tokens, private keys, credentials, or generated customer media.
 - Atlas Cloud is the default provider.
 - Use a Model Provider Abstraction so future providers such as Kie.ai, fal.ai, Runway, Replicate, or direct Volcengine can be added later.

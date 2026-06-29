@@ -4,7 +4,7 @@
 
 CineJelly uses curated upstream source snapshots under `external/upstream/`. The goal is to build a strong autonomous commercial product by combining the best useful parts from multiple open-source repositories, then extending them into CineJelly-owned architecture, code, data, and documentation.
 
-The product repository is not a raw upstream mirror. After a snapshot add or refresh, prune upstream tests, mocks, demos, examples, generated build folders, temporary files, notebooks, and sample media before commit. Full raw clones can live outside this repo for legal/source review, but commercial source control should stay focused on product code, source lineage, license evidence, and documentation anchors.
+The product repository is not a raw upstream mirror. After a snapshot add or refresh, prune upstream tests, mocks, demos, examples, generated build folders, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, and vendored font/music resources before commit. Full raw clones can live outside this repo for legal/source review, but commercial source control should stay focused on product code, source lineage, license evidence, and documentation anchors.
 
 Snapshots are valid source material for:
 
@@ -61,7 +61,7 @@ git subtree add --prefix=external/upstream/seedance-2.0 https://github.com/Emily
 ## Snapshot To Product Workflow
 
 1. Add or refresh the upstream repository under `external/upstream/` with Git Subtree and `--squash`.
-2. Prune upstream tests, mocks, demos, examples, generated build folders, temporary files, notebooks, and sample media from the tracked product repo.
+2. Prune upstream tests, mocks, demos, examples, generated build folders, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, and vendored font/music resources from the tracked product repo.
 3. Review the upstream license, notices, README attribution requirements, and nested third-party license files.
 4. Identify useful documents, structures, patterns, schemas, prompts, agent roles, graph logic, quality gates, or implementation logic.
 5. For important behavior, create a Reference Implementation using `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md` before writing production code.
@@ -120,7 +120,7 @@ For implementation order, milestones, and the shared validation checklist, use `
 
 `external/upstream/` is the curated source snapshot and audit layer. It should preserve enough upstream context for engineers to compare CineJelly behavior against the original source without turning the product repo into a raw mirror.
 
-`external/upstream/` must not keep upstream tests, mocks, demos, examples, generated build folders, temporary files, notebooks, or sample media. Those files are useful for source review only in an external raw clone or archive; they become CineJelly product material only after a deliberate copy/adapt step into `src/`, `data/`, or `docs/`.
+`external/upstream/` must not keep upstream tests, mocks, demos, examples, generated build folders, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, or vendored font/music resources. Those files are useful for source review only in an external raw clone or archive; they become CineJelly product material only after a deliberate copy/adapt step into `src/`, `data/`, or `docs/`.
 
 Production code must import CineJelly-owned modules from `src/`, not upstream files from `external/upstream/`. The commercial product path is to copy or adapt the useful logic into owned modules, keep the source trail in docs, and avoid direct production coupling to a snapshot.
 

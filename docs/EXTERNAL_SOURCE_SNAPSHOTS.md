@@ -9,7 +9,7 @@ We are explicitly permitted and encouraged to snapshot the upstream repositories
 ## Core Integration Policy
 
 1. **Subtree**: Bring the original repo into `external/upstream/<name>` using `git subtree add --prefix=external/upstream/<name> <url> <branch> --squash`, or `git subtree pull` with `--squash` to refresh.
-2. **Prune**: Remove upstream tests, mocks, demos, examples, generated build folders, temporary files, notebooks, and sample media from the tracked product repo. Keep raw full clones outside this repo when deeper legal/source review needs them.
+2. **Prune**: Remove upstream tests, mocks, demos, examples, generated build folders, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, and vendored font/music resources from the tracked product repo. Keep raw full clones outside this repo when deeper legal/source review needs them.
 3. **Snapshot**: Preserve the curated upstream repository as read-only source material with a clean squashed history boundary.
 4. **Review**: Examine license, structure, prompt patterns, agent workflows, graph designs, provider logic, quality gates, long-form strategies, error handling, and cost handling.
 5. **Adapt + Improve**: Extract the useful essence, not whole files. Redesign it to fit CineJelly contracts such as Production Graph, Provider Abstraction, Prompt Compiler rules, Guardian checkpoints, flexible settings, and 2-8 minute long-form control.
@@ -146,6 +146,6 @@ Implementation sequencing and milestone checks are tracked in `docs/IMPLEMENTATI
 
 ## Security Handling
 
-Upstream source snapshots in this product repo are curated: tests, mocks, demos, examples, generated build folders, temporary files, notebooks, and sample media should be pruned before push. Keep raw upstream clones outside the product repository when full-source forensic comparison is needed. Before every push, run `npm.cmd run validation:snapshot-parity` so the source hygiene guard reports file paths and counts only, never raw secret-like values.
+Upstream source snapshots in this product repo are curated: tests, mocks, demos, examples, generated build folders, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, and vendored font/music resources should be pruned before push. Keep raw upstream clones outside the product repository when full-source forensic comparison is needed. Before every push, run `npm.cmd run validation:snapshot-parity` so the source hygiene guard reports file paths and counts only, never raw secret-like values.
 
 Last updated: June 2026

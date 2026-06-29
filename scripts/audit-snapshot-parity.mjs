@@ -50,7 +50,7 @@ const sourceScanRoots = ["src", "scripts"];
 const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".tsx"]);
 const productOwnedHygieneRoots = ["src", "scripts", "schemas", "docs"];
 const pathHygienePattern =
-  /(^|\/)(test|tests|__tests__|mock|mocks|fixture|fixtures|sample|samples|demo|demos|example|examples)(\/|\.|$)|(^|\/)(build|temp|tmp)\/|(^|\/).+\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|py)$|mock|fixture|stub|dummy|fake|\.mp4$|\.wav$|\.jpg$|\.png$|\.ipynb$|\.npy$|\.gz$/iu;
+  /(^|\/)(test|tests|__tests__|__pycache__|mock|mocks|fixture|fixtures|sample|samples|demo|demos|example|examples)(\/|\.|$)|(^|\/)(build|temp|tmp|data\/processed|dataset\/presentation_style|resource\/fonts|resource\/songs)\/|(^|\/).+\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|py)$|mock|fixture|stub|dummy|fake|\.(mp4|mov|mkv|avi|webm|mp3|wav|flac|aac|jpg|jpeg|png|gif|webp|ipynb|npy|npz|gz|zip|tar|tgz|ttc|ttf|otf|woff|woff2|bin|onnx|pt|pth|ckpt|safetensors|csv|jsonl|tiktoken|pyc|tsbuildinfo|ds_store|sample|example|snap)$/iu;
 
 function snapshot(id, localPath, upstreamRepository, license) {
   return { id, localPath, upstreamRepository, license };
