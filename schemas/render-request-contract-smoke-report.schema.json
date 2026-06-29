@@ -37,7 +37,8 @@
         "malformedSourceVideoRequestPath",
         "mismatchedSourceLabelRequestPath",
         "emptySourceVideoRequestPath",
-        "invalidSourceVideoMediaMetricsRequestPath"
+        "invalidSourceVideoMediaMetricsRequestPath",
+        "invalidSeedanceCapabilityRequestPath"
       ],
       "properties": {
         "schemaPath": { "const": "schemas/render-request.schema.json" },
@@ -49,7 +50,8 @@
         "malformedSourceVideoRequestPath": { "type": "string", "minLength": 1 },
         "mismatchedSourceLabelRequestPath": { "type": "string", "minLength": 1 },
         "emptySourceVideoRequestPath": { "type": "string", "minLength": 1 },
-        "invalidSourceVideoMediaMetricsRequestPath": { "type": "string", "minLength": 1 }
+        "invalidSourceVideoMediaMetricsRequestPath": { "type": "string", "minLength": 1 },
+        "invalidSeedanceCapabilityRequestPath": { "type": "string", "minLength": 1 }
       }
     },
     "scenarios": {
@@ -62,7 +64,8 @@
         "invalidSourceVideoShape",
         "invalidSourceVideoLabel",
         "invalidEmptySourceVideoAnalysis",
-        "invalidSourceVideoMediaMetrics"
+        "invalidSourceVideoMediaMetrics",
+        "invalidSeedanceCapabilitySettings"
       ],
       "properties": {
         "validProviderReference1440": { "$ref": "#/$defs/scenario" },
@@ -71,7 +74,8 @@
         "invalidSourceVideoShape": { "$ref": "#/$defs/scenario" },
         "invalidSourceVideoLabel": { "$ref": "#/$defs/scenario" },
         "invalidEmptySourceVideoAnalysis": { "$ref": "#/$defs/scenario" },
-        "invalidSourceVideoMediaMetrics": { "$ref": "#/$defs/scenario" }
+        "invalidSourceVideoMediaMetrics": { "$ref": "#/$defs/scenario" },
+        "invalidSeedanceCapabilitySettings": { "$ref": "#/$defs/scenario" }
       }
     },
     "checks": {

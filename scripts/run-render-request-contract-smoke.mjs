@@ -77,6 +77,7 @@ const malformedSourceVideoRequestPath = resolve(fixtureDir, "invalid-source-vide
 const mismatchedSourceLabelRequestPath = resolve(fixtureDir, "invalid-source-video-label.json");
 const emptySourceVideoRequestPath = resolve(fixtureDir, "invalid-empty-source-video-analysis.json");
 const invalidSourceVideoMediaMetricsRequestPath = resolve(fixtureDir, "invalid-source-video-media-metrics.json");
+const invalidSeedanceCapabilityRequestPath = resolve(fixtureDir, "invalid-seedance-capability-settings.json");
 const validSchemaReportPath = resolve(fixtureDir, "valid-provider-reference-schema-report.json");
 const flatSchemaReportPath = resolve(fixtureDir, "invalid-flat-reference-schema-report.json");
 const secretSchemaReportPath = resolve(fixtureDir, "secret-query-reference-schema-report.json");
@@ -84,6 +85,32 @@ const malformedSourceSchemaReportPath = resolve(fixtureDir, "invalid-source-vide
 const mismatchedSourceSchemaReportPath = resolve(fixtureDir, "invalid-source-video-label-schema-report.json");
 const emptySourceSchemaReportPath = resolve(fixtureDir, "invalid-empty-source-video-analysis-schema-report.json");
 const invalidSourceVideoMediaMetricsSchemaReportPath = resolve(fixtureDir, "invalid-source-video-media-metrics-schema-report.json");
+const invalidSeedanceCapabilitySchemaReportPath = resolve(fixtureDir, "invalid-seedance-capability-settings-schema-report.json");
+const miniCapabilityModelId = "bytedance/seedance-2.0-mini/text-to-video";
+const seedanceCapabilityAdmissionEnv = {
+  ...process.env,
+  ATLASCLOUD_SEEDANCE_FAST_MODEL: "bytedance/seedance-2.0-fast/reference-to-video",
+  ATLASCLOUD_SEEDANCE_STANDARD_MODEL: "bytedance/seedance-2.0/reference-to-video",
+  ATLASCLOUD_SEEDANCE_MINI_MODEL: miniCapabilityModelId,
+  ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON: JSON.stringify([
+    {
+      provider: "atlascloud",
+      modelId: miniCapabilityModelId,
+      modes: ["text_to_video", "image_to_video", "reference_to_video"],
+      durations: { min: 4, max: 15 },
+      resolutions: ["480p", "720p"],
+      ratios: ["9:16", "16:9", "1:1"],
+      references: ["image", "product", "identity"],
+      settings: {
+        generateAudio: false,
+        returnLastFrame: false,
+        bitrateModes: ["standard"],
+        watermark: false
+      },
+      async: true
+    }
+  ])
+};
 
 writeJson(validRequestPath, buildValidRequest());
 writeJson(flatReferenceRequestPath, buildFlatReferenceRequest());
@@ -92,6 +119,7 @@ writeJson(malformedSourceVideoRequestPath, buildMalformedSourceVideoRequest());
 writeJson(mismatchedSourceLabelRequestPath, buildMismatchedSourceLabelRequest());
 writeJson(emptySourceVideoRequestPath, buildEmptySourceVideoRequest());
 writeJson(invalidSourceVideoMediaMetricsRequestPath, buildInvalidSourceVideoMediaMetricsRequest());
+writeJson(invalidSeedanceCapabilityRequestPath, buildInvalidSeedanceCapabilityRequest(miniCapabilityModelId));
 
 const { validateRenderRequestFile } = await import("../dist/application/render-request-validation-entrypoint.js");
 const { buildRenderSettingsDescriptor } = await import("../dist/application/render-settings-descriptor.js");
@@ -104,6 +132,7 @@ const malformedSourceSchema = validateRequestSchema("invalid_source_video_shape"
 const mismatchedSourceSchema = validateRequestSchema("invalid_source_video_label", mismatchedSourceLabelRequestPath, mismatchedSourceSchemaReportPath);
 const emptySourceSchema = validateRequestSchema("invalid_empty_source_video_analysis", emptySourceVideoRequestPath, emptySourceSchemaReportPath);
 const invalidSourceVideoMediaMetricsSchema = validateRequestSchema("invalid_source_video_media_metrics", invalidSourceVideoMediaMetricsRequestPath, invalidSourceVideoMediaMetricsSchemaReportPath);
+const invalidSeedanceCapabilitySchema = validateRequestSchema("invalid_seedance_capability_settings", invalidSeedanceCapabilityRequestPath, invalidSeedanceCapabilitySchemaReportPath);
 
 const validAdmission = await validateRenderRequestFile(validRequestPath, process.env);
 const flatAdmission = await validateRenderRequestFile(flatReferenceRequestPath, process.env);
@@ -112,6 +141,10 @@ const malformedSourceAdmission = await validateRenderRequestFile(malformedSource
 const mismatchedSourceAdmission = await validateRenderRequestFile(mismatchedSourceLabelRequestPath, process.env);
 const emptySourceAdmission = await validateRenderRequestFile(emptySourceVideoRequestPath, process.env);
 const invalidSourceVideoMediaMetricsAdmission = await validateRenderRequestFile(invalidSourceVideoMediaMetricsRequestPath, process.env);
+const invalidSeedanceCapabilityAdmission = await validateRenderRequestFile(
+  invalidSeedanceCapabilityRequestPath,
+  seedanceCapabilityAdmissionEnv
+);
 const atlasPayload = await captureAtlasVideoPayload();
 const atlasCapabilityGuard = await validateAtlasCapabilitySettingsGuard();
 const renderSettingsDescriptorGuard = validateRenderSettingsDescriptorCapabilitySupport();
@@ -156,6 +189,11 @@ const checks = [
   invalidSourceVideoMediaMetricsSchema.exitCode !== 0 && invalidSourceVideoMediaMetricsAdmission.status === "fail"
     ? pass("invalid_source_video_media_metrics_rejected", "Schema and admission reject invalid source-video media metrics before remake/story planning.")
     : fail("invalid_source_video_media_metrics_rejected", "Expected invalid source-video media metrics to be rejected by schema and admission."),
+  invalidSeedanceCapabilitySchema.exitCode === 0 &&
+    invalidSeedanceCapabilityAdmission.status === "fail" &&
+    /not supported by Seedance model/i.test(invalidSeedanceCapabilityAdmission.issues?.[0]?.message ?? "")
+    ? pass("seedance_model_capability_admission_guard", "Runtime admission rejects model-specific Seedance settings that schema can express but the selected model cannot support.")
+    : fail("seedance_model_capability_admission_guard", "Expected runtime admission to reject unsupported Mini resolution/audio/last-frame/bitrate settings before planning/provider spend."),
   Array.isArray(atlasPayload.reference_images) &&
     atlasPayload.reference_images.length === 2 &&
     atlasPayload.reference_images[0] === "asset://render-contract/approved-kol" &&
@@ -201,7 +239,8 @@ const report = {
     malformedSourceVideoRequestPath: toRepoRelative(malformedSourceVideoRequestPath),
     mismatchedSourceLabelRequestPath: toRepoRelative(mismatchedSourceLabelRequestPath),
     emptySourceVideoRequestPath: toRepoRelative(emptySourceVideoRequestPath),
-    invalidSourceVideoMediaMetricsRequestPath: toRepoRelative(invalidSourceVideoMediaMetricsRequestPath)
+    invalidSourceVideoMediaMetricsRequestPath: toRepoRelative(invalidSourceVideoMediaMetricsRequestPath),
+    invalidSeedanceCapabilityRequestPath: toRepoRelative(invalidSeedanceCapabilityRequestPath)
   },
   scenarios: {
     validProviderReference1440: {
@@ -213,7 +252,8 @@ const report = {
     invalidSourceVideoShape: summarizeScenario(malformedSourceSchema, malformedSourceAdmission),
     invalidSourceVideoLabel: summarizeScenario(mismatchedSourceSchema, mismatchedSourceAdmission),
     invalidEmptySourceVideoAnalysis: summarizeScenario(emptySourceSchema, emptySourceAdmission),
-    invalidSourceVideoMediaMetrics: summarizeScenario(invalidSourceVideoMediaMetricsSchema, invalidSourceVideoMediaMetricsAdmission)
+    invalidSourceVideoMediaMetrics: summarizeScenario(invalidSourceVideoMediaMetricsSchema, invalidSourceVideoMediaMetricsAdmission),
+    invalidSeedanceCapabilitySettings: summarizeScenario(invalidSeedanceCapabilitySchema, invalidSeedanceCapabilityAdmission)
   },
   checks,
   releaseGateSummary: {
@@ -547,6 +587,28 @@ function buildInvalidSourceVideoMediaMetricsRequest() {
         }
       }
     }
+  };
+}
+
+function buildInvalidSeedanceCapabilityRequest(modelId) {
+  const request = buildValidRequest();
+  return {
+    ...request,
+    metadata: {
+      requestId: "render_request_contract_invalid_seedance_capability_smoke"
+    },
+    modelPreferences: {
+      seedanceModelId: modelId
+    },
+    settings: {
+      ...request.settings,
+      tier: "mini",
+      resolution: "1080p",
+      audioMode: "native",
+      bitrateMode: "high",
+      returnLastFrame: true
+    },
+    sourceVideoAnalysis: undefined
   };
 }
 
