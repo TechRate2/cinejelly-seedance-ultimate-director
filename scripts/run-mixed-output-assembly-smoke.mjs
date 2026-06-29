@@ -48,7 +48,7 @@ const { DeliveryGate } = await import("../dist/core/delivery-gate.js");
 
 const mixedRenderedShots = [
   renderedShot("shot_a", [
-    "https://cdn.example.test/project/shot-a.mp4?Expires=redacted",
+    "https://cdn.example.test/project/download/shot-a?format=mp4&Expires=redacted",
     "https://cdn.example.test/project/shot-a-last-frame.png?Expires=redacted",
     "https://cdn.example.test/project/shot-a-preview.jpg"
   ]),
@@ -90,9 +90,12 @@ const checks = [
     : fail("stable_clip_order", "Selected clip order drifted from expected timeline order."),
   !isVideoOutputUrl("https://cdn.example.test/project/last-frame.png?Expires=redacted") &&
     isVideoOutputUrl("https://cdn.example.test/project/clip.MP4?Expires=redacted") &&
-    isVideoOutputUrl("C:\\media\\clip.webm?token=redacted")
-    ? pass("extension_classifier", "The media classifier accepts video extensions and rejects image sidecars with query strings.")
-    : fail("extension_classifier", "The media classifier did not handle video/image extensions with query strings."),
+    isVideoOutputUrl("C:\\media\\clip.webm?token=redacted") &&
+    isVideoOutputUrl("https://cdn.example.test/provider/download?id=clip123&format=mp4") &&
+    isVideoOutputUrl("https://cdn.example.test/provider/download?id=clip456&response-content-type=video%2Fmp4") &&
+    !isVideoOutputUrl("https://cdn.example.test/provider/download?id=frame123&format=png")
+    ? pass("extension_classifier", "The media classifier accepts video extensions and provider download URLs while rejecting image sidecars.")
+    : fail("extension_classifier", "The media classifier did not handle video/image provider output URL variants."),
   missingVideoError.includes("did not include a video output URL")
     ? pass("missing_video_blocks_assembly", "Shots without video output fail before assembly.")
     : fail("missing_video_blocks_assembly", "Shots without video output did not produce the expected assembly blocker."),
