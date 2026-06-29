@@ -4,7 +4,7 @@
 
 This document defines user-selectable Seedance settings for CineJelly while keeping provider-specific details behind the Model Provider Abstraction Layer.
 
-The runtime exposes the current option contract through `GET /v1/render-settings`. That endpoint is the preferred source for API clients and future UI controls because it is generated from the same TypeScript constants used by request validation and prompt/render planning. It returns defaults, allowed option values, duration constraints, quality-mode behavior, configured model IDs, and capability configuration status without returning API keys, local paths, or customer artifacts.
+The runtime exposes the current option contract through `GET /v1/render-settings`. That endpoint is the preferred source for API clients and future UI controls because it is generated from the same TypeScript constants used by request validation and prompt/render planning. It returns defaults, allowed option values, duration constraints, quality-mode behavior, configured model IDs, per-model capability support, and capability configuration status without returning API keys, local paths, or customer artifacts.
 
 ## Sources Used
 
@@ -25,6 +25,8 @@ User-facing controls should be simple:
 - audio behavior
 
 Do not hardcode duplicate UI option lists outside the runtime contract. A UI should call `GET /v1/render-settings`, display the returned options, and submit the selected values under the `/v1/render` or `/v1/render-jobs` request `settings` object.
+
+For model-specific controls, use `modelSelection.seedance.selectableModels[].capabilitySupport`. That object exposes effective provider modes, durations, resolutions, ratios, reference kinds, native-audio support, return-last-frame support, accepted bitrate modes, and watermark support for each admin-allowlisted Seedance model. If no reviewed capability JSON is present, the descriptor uses the same documented default assumptions as the Atlas provider fallback.
 
 Internal controls should remain flexible:
 

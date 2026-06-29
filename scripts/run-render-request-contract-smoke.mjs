@@ -94,6 +94,7 @@ writeJson(emptySourceVideoRequestPath, buildEmptySourceVideoRequest());
 writeJson(invalidSourceVideoMediaMetricsRequestPath, buildInvalidSourceVideoMediaMetricsRequest());
 
 const { validateRenderRequestFile } = await import("../dist/application/render-request-validation-entrypoint.js");
+const { buildRenderSettingsDescriptor } = await import("../dist/application/render-settings-descriptor.js");
 const { AtlasCloudProvider } = await import("../dist/providers/atlascloud/atlas-cloud-provider.js");
 
 const validSchema = validateRequestSchema("valid_provider_reference", validRequestPath, validSchemaReportPath);
@@ -113,6 +114,7 @@ const emptySourceAdmission = await validateRenderRequestFile(emptySourceVideoReq
 const invalidSourceVideoMediaMetricsAdmission = await validateRenderRequestFile(invalidSourceVideoMediaMetricsRequestPath, process.env);
 const atlasPayload = await captureAtlasVideoPayload();
 const atlasCapabilityGuard = await validateAtlasCapabilitySettingsGuard();
+const renderSettingsDescriptorGuard = validateRenderSettingsDescriptorCapabilitySupport();
 
 const checks = [
   validSchema.exitCode === 0
@@ -175,7 +177,10 @@ const checks = [
     : fail("atlas_reference_payload_aliases", "Expected Atlas video payload to preserve reference aliases plus audio/high-bitrate/last-frame settings before live provider spend."),
   atlasCapabilityGuard.status === "pass"
     ? pass("atlas_capability_settings_guard", "Atlas provider blocks unsupported native audio, last-frame, and high-bitrate settings before any network call.")
-    : fail("atlas_capability_settings_guard", atlasCapabilityGuard.message)
+    : fail("atlas_capability_settings_guard", atlasCapabilityGuard.message),
+  renderSettingsDescriptorGuard.status === "pass"
+    ? pass("render_settings_descriptor_capability_support", "Render settings descriptor exposes model-level capability support for audio, last-frame, bitrate, references, and mini resolution bounds.")
+    : fail("render_settings_descriptor_capability_support", renderSettingsDescriptorGuard.message)
 ];
 
 const failed = checks.filter((check) => check.status !== "pass");
@@ -749,6 +754,83 @@ async function validateAtlasCapabilitySettingsCase(item) {
   } finally {
     globalThis.fetch = originalFetch;
   }
+}
+
+function validateRenderSettingsDescriptorCapabilitySupport() {
+  const standardModelId = "bytedance/seedance-2.0/reference-to-video";
+  const miniModelId = "bytedance/seedance-2.0-mini/text-to-video";
+  const descriptor = buildRenderSettingsDescriptor({
+    ATLASCLOUD_LLM_MODEL: "atlas-llm-smoke",
+    ATLASCLOUD_SEEDANCE_STANDARD_MODEL: standardModelId,
+    ATLASCLOUD_SEEDANCE_FAST_MODEL: "bytedance/seedance-2.0-fast/reference-to-video",
+    ATLASCLOUD_SEEDANCE_MINI_MODEL: miniModelId,
+    ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON: JSON.stringify([
+      {
+        provider: "atlascloud",
+        modelId: standardModelId,
+        modes: ["reference_to_video"],
+        durations: { min: 4, max: 12 },
+        resolutions: ["720p", "1080p"],
+        ratios: ["9:16"],
+        references: ["image", "video", "product"],
+        settings: {
+          generateAudio: false,
+          returnLastFrame: true,
+          bitrateModes: ["standard"],
+          watermark: false
+        },
+        async: true
+      }
+    ])
+  });
+  const selectableModels = descriptor.modelSelection.seedance.selectableModels;
+  const standard = selectableModels.find((model) => model.modelId === standardModelId);
+  const mini = selectableModels.find((model) => model.modelId === miniModelId);
+  const failures = [];
+  if (!standard) {
+    failures.push("configured standard model is missing from selectableModels");
+  } else {
+    if (standard.capabilitySupport.capabilitySource !== "capability_json") {
+      failures.push("standard model did not use capability_json support");
+    }
+    if (standard.capabilitySupport.durations.max !== 12) {
+      failures.push("standard model duration override was not exposed");
+    }
+    if (standard.capabilitySupport.effectiveSettings.generateAudio !== false) {
+      failures.push("standard model audio override was not exposed");
+    }
+    if (standard.capabilitySupport.effectiveSettings.returnLastFrame !== true) {
+      failures.push("standard model returnLastFrame support was not exposed");
+    }
+    if (standard.capabilitySupport.effectiveSettings.bitrateModes.join(",") !== "standard") {
+      failures.push("standard model bitrate override was not exposed");
+    }
+    if (standard.capabilitySupport.effectiveSettings.watermark !== false) {
+      failures.push("standard model watermark override was not exposed");
+    }
+    if (!standard.capabilitySupport.references.includes("product")) {
+      failures.push("standard model product reference support was not exposed");
+    }
+  }
+  if (!mini) {
+    failures.push("configured mini model is missing from selectableModels");
+  } else {
+    if (mini.capabilitySupport.capabilitySource !== "documented_default") {
+      failures.push("mini model should use documented default support when no capability record is configured");
+    }
+    if (mini.capabilitySupport.resolutions.join(",") !== "480p,720p") {
+      failures.push("mini documented default resolutions should stay bounded to 480p and 720p");
+    }
+    if (!mini.capabilitySupport.effectiveSettings.generateAudio || !mini.capabilitySupport.effectiveSettings.returnLastFrame) {
+      failures.push("mini documented defaults should expose audio and returnLastFrame support");
+    }
+    if (!mini.capabilitySupport.effectiveSettings.bitrateModes.includes("high")) {
+      failures.push("mini documented defaults should expose high bitrate support");
+    }
+  }
+  return failures.length === 0
+    ? { status: "pass", message: "Render settings descriptor capability support passed." }
+    : { status: "fail", message: failures.join("; ") };
 }
 
 function readIssueCount(outputPath) {

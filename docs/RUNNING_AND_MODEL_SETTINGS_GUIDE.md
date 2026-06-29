@@ -346,7 +346,7 @@ GET /v1/render-settings
 Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>
 ```
 
-The response intentionally contains no API keys or local paths. It reports defaults, supported setting values, duration and cost constraints, quality-mode behavior, selected model IDs, admin-allowlisted Seedance model choices, Seedance capability configuration source, and whether a first-party UI exists. Today the official control surface is still HTTP API plus CLI; a future UI should read this descriptor instead of duplicating option lists.
+The response intentionally contains no API keys or local paths. It reports defaults, supported setting values, duration and cost constraints, quality-mode behavior, selected model IDs, admin-allowlisted Seedance model choices, per-model capability support, Seedance capability configuration source, and whether a first-party UI exists. Today the official control surface is still HTTP API plus CLI; a future UI should read this descriptor instead of duplicating option lists.
 
 | Setting | Options | What it controls |
 | --- | --- | --- |
@@ -363,6 +363,7 @@ The response intentionally contains no API keys or local paths. It reports defau
 Model selection for API/UI clients:
 
 - Read `modelSelection.seedance.selectableModels` from `GET /v1/render-settings`.
+- Read each selectable model's `capabilitySupport` before enabling settings that depend on model support, especially native audio, return-last-frame chaining, high bitrate, references, and Mini resolution limits.
 - Send an optional `modelPreferences.seedanceModelId` in `/v1/render`, `/v1/render-jobs`, or validation request JSON only when the user selects one of those IDs.
 - Runtime admission rejects model IDs outside the admin allowlist built from `ATLASCLOUD_SEEDANCE_MINI_MODEL`, `ATLASCLOUD_SEEDANCE_FAST_MODEL`, `ATLASCLOUD_SEEDANCE_STANDARD_MODEL`, and `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`.
 - If no reviewed `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` is configured, the Atlas provider fallback treats Mini as `480p`/`720p` only; higher and SR resolutions require Fast/Standard fallback capability or an operator-reviewed capability record that proves Mini support.
@@ -378,6 +379,7 @@ Default settings in `src/types/settings.ts`:
   "ratio": "16:9",
   "durationTargetSeconds": 120,
   "audioMode": "hybrid",
+  "bitrateMode": "high",
   "watermark": false,
   "returnLastFrame": true
 }

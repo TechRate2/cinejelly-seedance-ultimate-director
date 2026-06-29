@@ -18,7 +18,32 @@ import {
   repairAttemptCountForQuality,
   usesTestTakesForQuality
 } from "../config/seedance-settings.js";
-import { DEFAULT_SEEDANCE_SETTINGS, type QualityMode } from "../types/settings.js";
+import { DEFAULT_SEEDANCE_SETTINGS, type AspectRatio, type BitrateMode, type QualityMode, type Resolution } from "../types/settings.js";
+import type { DurationRange, ProviderMode, ReferenceKind } from "../types/provider.js";
+
+const ATLAS_PROVIDER_NAME = "atlascloud";
+const DEFAULT_SEEDANCE_MODES: readonly ProviderMode[] = [
+  "text_to_video",
+  "image_to_video",
+  "reference_to_video",
+  "video_to_video",
+  "extend",
+  "edit"
+];
+const DEFAULT_SEEDANCE_REFERENCES: readonly ReferenceKind[] = [
+  "image",
+  "video",
+  "audio",
+  "first_frame",
+  "last_frame",
+  "identity",
+  "product",
+  "environment",
+  "motion",
+  "camera",
+  "style"
+];
+const DEFAULT_PROVIDER_DURATION: DurationRange = { min: MIN_CLIP_DURATION_SECONDS, max: MAX_CLIP_DURATION_SECONDS };
 
 export interface RenderSettingsDescriptor {
   readonly schemaVersion: "cinejelly.render-settings.v1";
@@ -94,6 +119,26 @@ export interface SeedanceSelectableModelDescriptor {
   readonly configuredTier?: "mini" | "fast" | "standard";
   readonly capabilityConfigured: boolean;
   readonly source: "configured_tier" | "capability_json" | "configured_tier_and_capability_json";
+  readonly capabilitySupport: SeedanceCapabilitySupportDescriptor;
+}
+
+export interface SeedanceCapabilitySupportDescriptor {
+  readonly provider: string;
+  readonly capabilitySource: "capability_json" | "documented_default";
+  readonly modes: readonly ProviderMode[];
+  readonly durations: DurationRange;
+  readonly resolutions: readonly Resolution[];
+  readonly ratios: readonly AspectRatio[];
+  readonly references: readonly ReferenceKind[];
+  readonly effectiveSettings: SeedanceEffectiveSettingsDescriptor;
+}
+
+export interface SeedanceEffectiveSettingsDescriptor {
+  readonly source: "explicit_capability" | "capability_json_defaults" | "documented_default";
+  readonly generateAudio: boolean;
+  readonly returnLastFrame: boolean;
+  readonly bitrateModes: readonly BitrateMode[];
+  readonly watermark: boolean;
 }
 
 export function buildRenderSettingsDescriptor(env: NodeJS.ProcessEnv = process.env): RenderSettingsDescriptor {
@@ -158,7 +203,7 @@ function buildModelSelectionDescriptor(env: NodeJS.ProcessEnv): RenderSettingsDe
   const fastModel = env.ATLASCLOUD_SEEDANCE_FAST_MODEL?.trim();
   const miniModel = env.ATLASCLOUD_SEEDANCE_MINI_MODEL?.trim();
   const standardModel = env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL?.trim();
-  const capabilityModelIds = seedanceCapabilityModelIds(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
+  const capabilityRecords = seedanceCapabilityRecords(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
   const entries = new Map<string, {
     configuredTier?: "mini" | "fast" | "standard";
     capabilityConfigured: boolean;
@@ -172,7 +217,7 @@ function buildModelSelectionDescriptor(env: NodeJS.ProcessEnv): RenderSettingsDe
   if (standardModel) {
     entries.set(standardModel, { configuredTier: "standard", capabilityConfigured: false });
   }
-  for (const modelId of capabilityModelIds) {
+  for (const modelId of capabilityRecords.keys()) {
     const existing = entries.get(modelId);
     entries.set(modelId, {
       ...(existing?.configuredTier ? { configuredTier: existing.configuredTier } : {}),
@@ -184,7 +229,8 @@ function buildModelSelectionDescriptor(env: NodeJS.ProcessEnv): RenderSettingsDe
       modelId,
       ...(entry.configuredTier ? { configuredTier: entry.configuredTier } : {}),
       capabilityConfigured: entry.capabilityConfigured,
-      source: sourceForSelectableModel(entry)
+      source: sourceForSelectableModel(entry),
+      capabilitySupport: seedanceCapabilitySupportForModel(modelId, entry.configuredTier, capabilityRecords.get(modelId))
     }))
     .sort((left, right) => left.modelId.localeCompare(right.modelId));
   const defaultModelId = DEFAULT_SEEDANCE_SETTINGS.tier === "mini"
@@ -218,25 +264,110 @@ function sourceForSelectableModel(entry: {
   return entry.configuredTier ? "configured_tier" : "capability_json";
 }
 
-function seedanceCapabilityModelIds(value: string | undefined): readonly string[] {
+interface SeedanceCapabilityRecord {
+  readonly provider?: unknown;
+  readonly modelId: string;
+  readonly modes?: unknown;
+  readonly durations?: unknown;
+  readonly resolutions?: unknown;
+  readonly ratios?: unknown;
+  readonly references?: unknown;
+  readonly settings?: unknown;
+}
+
+function seedanceCapabilityRecords(value: string | undefined): Map<string, SeedanceCapabilityRecord> {
+  const records = new Map<string, SeedanceCapabilityRecord>();
   if (!value?.trim()) {
-    return [];
+    return records;
   }
   try {
     const parsed = JSON.parse(value) as unknown;
     if (!Array.isArray(parsed)) {
-      return [];
+      return records;
     }
-    return [...new Set(parsed.flatMap((item) => {
+    for (const item of parsed) {
       if (!item || typeof item !== "object" || Array.isArray(item)) {
-        return [];
+        continue;
       }
-      const modelId = (item as Record<string, unknown>).modelId;
-      return typeof modelId === "string" && modelId.trim() ? [modelId.trim()] : [];
-    }))].sort((left, right) => left.localeCompare(right));
+      const payload = item as Record<string, unknown>;
+      const modelId = typeof payload.modelId === "string" ? payload.modelId.trim() : "";
+      if (modelId) {
+        records.set(modelId, { ...payload, modelId });
+      }
+    }
   } catch {
-    return [];
+    return records;
   }
+  return records;
+}
+
+function seedanceCapabilitySupportForModel(
+  modelId: string,
+  tier: "mini" | "fast" | "standard" | undefined,
+  record: SeedanceCapabilityRecord | undefined
+): SeedanceCapabilitySupportDescriptor {
+  const defaultResolutions = defaultResolutionsForModel(modelId, tier);
+  return {
+    provider: cleanString(record?.provider) ?? ATLAS_PROVIDER_NAME,
+    capabilitySource: record ? "capability_json" : "documented_default",
+    modes: cleanAllowedArray(record?.modes, DEFAULT_SEEDANCE_MODES) ?? DEFAULT_SEEDANCE_MODES,
+    durations: cleanDurationRange(record?.durations) ?? DEFAULT_PROVIDER_DURATION,
+    resolutions: cleanAllowedArray(record?.resolutions, RESOLUTIONS) ?? defaultResolutions,
+    ratios: cleanAllowedArray(record?.ratios, RATIOS) ?? RATIOS,
+    references: cleanAllowedArray(record?.references, DEFAULT_SEEDANCE_REFERENCES) ?? DEFAULT_SEEDANCE_REFERENCES,
+    effectiveSettings: effectiveSeedanceSettings(record)
+  };
+}
+
+function defaultResolutionsForModel(modelId: string, tier: "mini" | "fast" | "standard" | undefined): readonly Resolution[] {
+  return tier === "mini" || /(^|[-_/])mini([-_/]|$)/i.test(modelId)
+    ? ["480p", "720p"]
+    : RESOLUTIONS;
+}
+
+function effectiveSeedanceSettings(record: SeedanceCapabilityRecord | undefined): SeedanceEffectiveSettingsDescriptor {
+  const settings = record?.settings && typeof record.settings === "object" && !Array.isArray(record.settings)
+    ? (record.settings as Record<string, unknown>)
+    : undefined;
+  return {
+    source: settings ? "explicit_capability" : record ? "capability_json_defaults" : "documented_default",
+    generateAudio: typeof settings?.generateAudio === "boolean" ? settings.generateAudio : true,
+    returnLastFrame: typeof settings?.returnLastFrame === "boolean" ? settings.returnLastFrame : true,
+    bitrateModes: cleanAllowedArray(settings?.bitrateModes, BITRATE_MODES) ?? BITRATE_MODES,
+    watermark: typeof settings?.watermark === "boolean" ? settings.watermark : true
+  };
+}
+
+function cleanString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function cleanAllowedArray<TValue extends string>(
+  value: unknown,
+  allowed: readonly TValue[]
+): readonly TValue[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const cleaned = [...new Set(value.filter((item): item is TValue => allowed.includes(item as TValue)))];
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function cleanDurationRange(value: unknown): DurationRange | undefined {
+  const durations = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+  if (
+    typeof durations?.min !== "number" ||
+    typeof durations.max !== "number" ||
+    !Number.isFinite(durations.min) ||
+    !Number.isFinite(durations.max) ||
+    durations.min <= 0 ||
+    durations.max < durations.min
+  ) {
+    return undefined;
+  }
+  return { min: durations.min, max: durations.max };
 }
 
 function describeSeedanceCapabilityConfiguration(value: string | undefined): RenderSettingsDescriptor["capabilityConfiguration"] {
