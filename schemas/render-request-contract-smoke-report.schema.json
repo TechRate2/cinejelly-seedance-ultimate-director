@@ -118,6 +118,7 @@
         "admissionStatus": { "enum": ["pass", "fail"] },
         "normalizedReferenceCount": { "type": "integer", "minimum": 0 },
         "sourceVideoAnalysisPresent": { "type": "boolean" },
+        "sourceVideoMediaMetricsPresent": { "type": "boolean" },
         "semanticVisualInspectionEnabled": { "type": "boolean" },
         "issueCodes": {
           "type": "array",

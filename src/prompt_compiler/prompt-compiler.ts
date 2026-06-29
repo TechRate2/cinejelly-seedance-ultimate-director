@@ -73,7 +73,7 @@ export class SeedancePromptCompiler {
       `Lighting: ${shot.lighting}.`,
       shot.style ? `Style: ${shot.style}.` : undefined,
       shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline) : undefined,
-      shot.audioIntent ? `Audio: ${shot.audioIntent}.` : undefined,
+      this.buildAudioProductionSection(shot),
       shot.transitionIntent ? `Transition: ${shot.transitionIntent}.` : undefined,
       this.buildFinalFrameSection(shot, bindingPlan),
       "Keep the result cinematic, coherent, and physically plausible."
@@ -381,14 +381,35 @@ export class SeedancePromptCompiler {
 
   private buildTimelineSection(timeline: readonly TimelineSegment[]): string {
     const lines = timeline.map((segment, index) => {
+      const segmentDuration = Math.max(0, segment.endSecond - segment.startSecond);
       const parts = [
         `Beat ${index + 1}, ${segment.startSecond}-${segment.endSecond}s: ${segment.action}`,
         segment.camera ? `camera ${segment.camera}` : undefined,
-        segment.audioCue ? `audio cue ${segment.audioCue}` : undefined
+        segment.audioCue
+          ? `audio cue ${segment.audioCue}; keep spoken words within about ${this.voiceoverWordBudget(segmentDuration)} words for this beat`
+          : undefined
       ].filter((part): part is string => Boolean(part));
       return parts.join("; ");
     });
     return `Timeline:\n${lines.map((line) => `- ${line}.`).join("\n")}`;
+  }
+
+  private buildAudioProductionSection(shot: ShotContract): string | undefined {
+    if (!shot.audioIntent) {
+      return undefined;
+    }
+    const wordBudget = this.voiceoverWordBudget(shot.durationSeconds);
+    return [
+      `Audio production plan: ${shot.audioIntent}.`,
+      `If native provider audio is enabled, generate only original ambience/music/voice that follows this shot timing; do not copy protected songs, melodies, transcripts, or voices.`,
+      `If external voice/music is produced later, this prompt still defines the script timing: keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s and leave micro-pauses around product contact, proof, or reaction moments.`,
+      "The visual story must remain understandable without audio, while the audio rhythm should strengthen the hook, proof/demo, and final resolve."
+    ].join(" ");
+  }
+
+  private voiceoverWordBudget(durationSeconds: number): number {
+    const seconds = Number.isFinite(durationSeconds) ? Math.max(1, durationSeconds) : 4;
+    return Math.max(3, Math.floor(seconds * 2.4));
   }
 
   private buildInspectionExpectations(shot: ShotContract, bindingPlan: PromptBindingPlan): readonly string[] {

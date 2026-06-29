@@ -321,6 +321,9 @@
         {
           "required": ["safetyNotes"],
           "properties": { "safetyNotes": { "type": "array", "minItems": 1 } }
+        },
+        {
+          "required": ["mediaMetrics"]
         }
       ],
       "properties": {
@@ -339,7 +342,68 @@
         "pacingNotes": { "$ref": "#/$defs/sourceVideoNoteArray" },
         "styleNotes": { "$ref": "#/$defs/sourceVideoNoteArray" },
         "structuralBeats": { "$ref": "#/$defs/sourceVideoNoteArray" },
-        "safetyNotes": { "$ref": "#/$defs/sourceVideoNoteArray" }
+        "safetyNotes": { "$ref": "#/$defs/sourceVideoNoteArray" },
+        "mediaMetrics": { "$ref": "#/$defs/sourceVideoMediaMetrics" }
+      }
+    },
+    "sourceVideoMediaMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "audio", "editRhythm", "evidence"],
+      "properties": {
+        "schemaVersion": { "const": "cinejelly.source-video-media-metrics.v1" },
+        "durationSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 86400 },
+        "bitrate": { "type": "number", "exclusiveMinimum": 0 },
+        "formatName": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "video": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "codecName": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "width": { "type": "integer", "minimum": 1, "maximum": 16384 },
+            "height": { "type": "integer", "minimum": 1, "maximum": 16384 },
+            "frameRate": { "type": "number", "exclusiveMinimum": 0, "maximum": 240 },
+            "aspectRatio": { "type": "string", "minLength": 3, "maxLength": 32 }
+          }
+        },
+        "audio": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hasAudio"],
+          "properties": {
+            "hasAudio": { "type": "boolean" },
+            "codecName": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "sampleRate": { "type": "integer", "minimum": 1, "maximum": 384000 },
+            "channelCount": { "type": "integer", "minimum": 1, "maximum": 64 }
+          }
+        },
+        "editRhythm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sceneCutCount", "rhythmLabel"],
+          "properties": {
+            "sampledWindowSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 86400 },
+            "sceneCutCount": { "type": "integer", "minimum": 0, "maximum": 100000 },
+            "cutDensityPerMinute": { "type": "number", "minimum": 0, "maximum": 10000 },
+            "averageShotLengthSeconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 86400 },
+            "rhythmLabel": { "enum": ["unknown", "slow", "balanced", "fast", "very_fast"] },
+            "sceneCutTimestampsSeconds": {
+              "type": "array",
+              "maxItems": 120,
+              "items": { "type": "number", "minimum": 0, "maximum": 86400 }
+            }
+          }
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["probeSucceeded", "sceneDetectionSucceeded", "sourceUriSha256"],
+          "properties": {
+            "probeSucceeded": { "type": "boolean" },
+            "sceneDetectionSucceeded": { "type": "boolean" },
+            "sourceUriSha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" }
+          }
+        }
       }
     },
     "sourceVideoTranscriptCue": {

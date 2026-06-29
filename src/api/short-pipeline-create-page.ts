@@ -396,8 +396,8 @@ export function buildShortPipelineCreatePage(): string {
                 </label>
                 <label><span>Bitrate</span>
                   <select id="seedance-bitrate">
-                    <option value="standard" selected>Standard</option>
-                    <option value="high">High</option>
+                    <option value="high" selected>High</option>
+                    <option value="standard">Standard</option>
                   </select>
                 </label>
                 <label><span>Last Frame</span>
@@ -619,7 +619,7 @@ export function buildShortPipelineCreatePage(): string {
       const returnLastFrame = document.getElementById("return-last-frame").value;
       const settings = {};
       if (resolution !== "720p") settings.resolution = resolution;
-      if (bitrateMode !== "standard") settings.bitrateMode = bitrateMode;
+      if (bitrateMode !== "high") settings.bitrateMode = bitrateMode;
       if (returnLastFrame !== "auto") settings.returnLastFrame = returnLastFrame === "true";
       return Object.keys(settings).length ? settings : undefined;
     }

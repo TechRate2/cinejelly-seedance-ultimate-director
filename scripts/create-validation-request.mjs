@@ -26,7 +26,7 @@ function parseArgs(args) {
     ratio: "16:9",
     durationTargetSeconds: 15,
     audioMode: "none",
-    bitrateMode: "standard",
+    bitrateMode: "high",
     watermark: false,
     returnLastFrame: true,
     maxCostUsd: 5,

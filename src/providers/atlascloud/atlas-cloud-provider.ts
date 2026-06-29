@@ -825,7 +825,12 @@ export class AtlasCloudProvider implements ModelProvider {
     if (isHttpsUri(uri) || isAssetUri(uri)) {
       return false;
     }
-    return reference.kind === "video" || reference.kind === "audio";
+    return reference.kind === "image" ||
+      reference.kind === "video" ||
+      reference.kind === "audio" ||
+      reference.kind === "first_frame" ||
+      reference.kind === "last_frame" ||
+      ["identity", "product", "environment", "style"].includes(reference.role ?? "");
   }
 
   private toAtlasVideoPayload(request: VideoGenerationRequest): Record<string, unknown> {

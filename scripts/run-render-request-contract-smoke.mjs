@@ -132,9 +132,10 @@ const checks = [
     : fail("render_contract_supports_auto_1440_transition", "Expected auto 1440 transition settings to be contract-valid."),
   validSchema.exitCode === 0 &&
     validAdmission.status === "pass" &&
-    validAdmission.normalizedSummary?.sourceVideoAnalysisPresent === true
-    ? pass("source_video_schema_accepts_bounded_deconstruction", "Schema and admission accept bounded transcript, scene, keyframe, beat, and safety source-video deconstruction.")
-    : fail("source_video_schema_accepts_bounded_deconstruction", "Expected bounded source-video deconstruction to pass schema and admission."),
+    validAdmission.normalizedSummary?.sourceVideoAnalysisPresent === true &&
+    buildValidRequest().sourceVideoAnalysis.mediaMetrics?.schemaVersion === "cinejelly.source-video-media-metrics.v1"
+    ? pass("source_video_schema_accepts_bounded_deconstruction", "Schema and admission accept bounded transcript, scene, keyframe, media metrics, beat, and safety source-video deconstruction.")
+    : fail("source_video_schema_accepts_bounded_deconstruction", "Expected bounded source-video deconstruction with media metrics to pass schema and admission."),
   malformedSourceSchema.exitCode !== 0 && malformedSourceAdmission.status === "fail"
     ? pass("malformed_source_video_schema_rejected", "Schema and admission reject malformed sourceVideoAnalysis before planning/provider spend.")
     : fail("malformed_source_video_schema_rejected", "Expected malformed sourceVideoAnalysis to be rejected by schema and admission."),
@@ -183,7 +184,10 @@ const report = {
     emptySourceVideoRequestPath: toRepoRelative(emptySourceVideoRequestPath)
   },
   scenarios: {
-    validProviderReference1440: summarizeScenario(validSchema, validAdmission),
+    validProviderReference1440: {
+      ...summarizeScenario(validSchema, validAdmission),
+      sourceVideoMediaMetricsPresent: true
+    },
     invalidFlatReference: summarizeScenario(flatSchema, flatAdmission),
     invalidSecretQueryReference: summarizeScenario(secretSchema, secretAdmission),
     invalidSourceVideoShape: summarizeScenario(malformedSourceSchema, malformedSourceAdmission),
@@ -363,7 +367,39 @@ function buildValidRequest() {
       pacingNotes: ["Open with a fast source-style pattern interrupt."],
       styleNotes: ["Use structure only, not protected visual identity."],
       structuralBeats: ["hook", "proof setup", "demo", "payoff"],
-      safetyNotes: ["Do not copy source creator, captions, music, logo, or claims."]
+      safetyNotes: ["Do not copy source creator, captions, music, logo, or claims."],
+      mediaMetrics: {
+        schemaVersion: "cinejelly.source-video-media-metrics.v1",
+        durationSeconds: 18,
+        bitrate: 3200000,
+        formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+        video: {
+          codecName: "h264",
+          width: 1080,
+          height: 1920,
+          frameRate: 30,
+          aspectRatio: "9:16"
+        },
+        audio: {
+          hasAudio: true,
+          codecName: "aac",
+          sampleRate: 48000,
+          channelCount: 2
+        },
+        editRhythm: {
+          sampledWindowSeconds: 18,
+          sceneCutCount: 5,
+          cutDensityPerMinute: 16.667,
+          averageShotLengthSeconds: 3,
+          rhythmLabel: "fast",
+          sceneCutTimestampsSeconds: [1.2, 3.6, 7.4, 11.2, 14.8]
+        },
+        evidence: {
+          probeSucceeded: true,
+          sceneDetectionSucceeded: true,
+          sourceUriSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        }
+      }
     }
   };
 }

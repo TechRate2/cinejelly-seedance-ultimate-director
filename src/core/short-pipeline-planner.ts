@@ -80,7 +80,7 @@ const SHORT_MAX_COMMERCIAL_RENDER_SECONDS = 60;
 const SHORT_MAX_SEQUENCE_RENDER_SECONDS = 480;
 const NO_VISIBLE_TEXT_CAPTION = "NO_ON_SCREEN_TEXT";
 const DEFAULT_SHORT_SEEDANCE_RESOLUTION: Resolution = "720p";
-const DEFAULT_SHORT_SEEDANCE_BITRATE_MODE: BitrateMode = "standard";
+const DEFAULT_SHORT_SEEDANCE_BITRATE_MODE: BitrateMode = "high";
 
 export class ProductUrlBriefExtractor {
   public build(input: ProductUrlBriefInput | undefined, userPrompt = ""): ProductUrlBrief | undefined {
@@ -1362,7 +1362,7 @@ function seedanceRoutingFor(input: {
   const requestedSettings = input.input.seedanceSettings;
   const resolution = requestedSettings?.resolution ?? DEFAULT_SHORT_SEEDANCE_RESOLUTION;
   const bitrateMode = requestedSettings?.bitrateMode ?? DEFAULT_SHORT_SEEDANCE_BITRATE_MODE;
-  const returnLastFrame = requestedSettings?.returnLastFrame ?? (storyboardRequired || hasSourceOrMotion || hasVisualBibleSequence);
+  const returnLastFrame = requestedSettings?.returnLastFrame ?? true;
   const targetPerClip = Math.min(15, Math.max(4, Math.ceil(input.intent.targetDurationSeconds / Math.max(1, input.scenes.length))));
   const referenceTags = readyReferences.map((reference) => ({
     tag: reference.promptTag,

@@ -84,13 +84,13 @@ export class StoryArchitect {
       {
         modelId: this.modelId,
         instruction:
-          "Create a production-ready video scene plan. Use reusable production primitives, not hardcoded niche templates. For short commercial inputs, allocate the full requested duration into a complete hook/problem, proof/demo, and payoff arc. For every multi-clip or storyboard plan, make each beat end on a clear visual state that the next beat can continue without a visible jump cut.",
+          "Create a production-ready video scene plan. Use reusable production primitives, not hardcoded niche templates. Allocate the full requested duration into a complete beginning, middle, and ending: short commercial inputs need hook/problem, proof/demo, and payoff/soft next-step; long-form inputs need setup, development, proof escalation, and resolved close. Every beat must include a concrete visible state change, timed audio intent when audio is enabled, and an endpoint that the next beat can continue without a visible jump cut.",
         schema: STORY_PLAN_SCHEMA,
         messages: [
           {
             role: "system",
             content:
-              "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, and continuity. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. Make every action concrete enough to film: visible subject state, physical product contact or proof action, camera movement, and an endpoint that can cut or crossfade into the next beat. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
+              "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, continuity, and audioIntent when audio is not none. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. For longer videos, avoid a loose montage: each section must advance the argument, proof, emotion, or product understanding. Make every action concrete enough to film: visible subject state, physical product contact or proof action, camera movement, audio rhythm, and an endpoint that can cut or crossfade into the next beat. Keep voiceover concise enough for the beat duration. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
           },
           {
             role: "user",
@@ -367,6 +367,7 @@ export class StoryArchitect {
     return {
       ...(value.sourceReferenceLabel ? { sourceReferenceLabel: value.sourceReferenceLabel } : {}),
       ...(value.transformationIntent ? { transformationIntent: value.transformationIntent } : {}),
+      ...(value.mediaMetrics ? { mediaMetrics: this.sourceVideoMediaMetricsBrief(value.mediaMetrics) } : {}),
       sceneCount: value.scenes?.length ?? 0,
       transcriptCueCount: value.transcript?.length ?? 0,
       scenes: (value.scenes ?? []).slice(0, 80).map((scene) => ({
@@ -392,6 +393,26 @@ export class StoryArchitect {
       styleNotes: (value.styleNotes ?? []).slice(0, 60),
       structuralBeats: (value.structuralBeats ?? []).slice(0, 80),
       safetyNotes: (value.safetyNotes ?? []).slice(0, 60)
+    };
+  }
+
+  private sourceVideoMediaMetricsBrief(value: NonNullable<SourceVideoDeconstruction["mediaMetrics"]>): Record<string, unknown> {
+    return {
+      ...(value.durationSeconds !== undefined ? { durationSeconds: value.durationSeconds } : {}),
+      ...(value.video ? { video: value.video } : {}),
+      audio: value.audio,
+      editRhythm: {
+        sceneCutCount: value.editRhythm.sceneCutCount,
+        cutDensityPerMinute: value.editRhythm.cutDensityPerMinute,
+        averageShotLengthSeconds: value.editRhythm.averageShotLengthSeconds,
+        rhythmLabel: value.editRhythm.rhythmLabel,
+        sceneCutTimestampsSeconds: (value.editRhythm.sceneCutTimestampsSeconds ?? []).slice(0, 24)
+      },
+      evidence: {
+        probeSucceeded: value.evidence.probeSucceeded,
+        sceneDetectionSucceeded: value.evidence.sceneDetectionSucceeded,
+        sourceUriSha256: value.evidence.sourceUriSha256
+      }
     };
   }
 }

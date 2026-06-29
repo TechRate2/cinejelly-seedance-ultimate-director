@@ -352,7 +352,7 @@ try {
       ui.seedanceRouting.preferredTier === "standard" &&
       ui.seedanceRouting.resolution === "720p" &&
       ui.seedanceRouting.superResolution === false &&
-      ui.seedanceRouting.bitrateMode === "standard" &&
+      ui.seedanceRouting.bitrateMode === "high" &&
       ui.seedanceRouting.returnLastFrame === true &&
       ui.seedanceRouting.referenceTagCount >= 3 &&
       ui.seedanceRouting.promptRecipe?.name === "reference_board_to_video_sequence" &&

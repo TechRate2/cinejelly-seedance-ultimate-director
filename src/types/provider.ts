@@ -165,7 +165,7 @@ export interface PredictionPollingContext {
 
 export interface AssetRegistrationRequest {
   readonly uri: string;
-  readonly kind: "video" | "audio";
+  readonly kind: "image" | "video" | "audio";
   readonly metadata?: ProviderMetadata;
 }
 

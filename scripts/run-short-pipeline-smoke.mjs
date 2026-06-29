@@ -536,6 +536,21 @@ const compiledShortStoryboardPrompts = shortStoryboardShots.map((shot) =>
     provider: "atlascloud"
   })
 );
+const shortStoryboardPromptContractDiagnostics = compiledShortStoryboardPrompts.map((prompt) => ({
+  shotId: prompt.shotId,
+  hasSeedanceMode: prompt.prompt.includes("Seedance mode contract:"),
+  hasPacingContract: prompt.prompt.includes("Pacing contract:"),
+  hasTimeline: prompt.prompt.includes("Timeline:"),
+  hasMotionContinuity: prompt.prompt.includes("Motion continuity:"),
+  hasInterShotBridge: prompt.prompt.includes("Inter-shot bridge:"),
+  hasBoundaryChoreography: prompt.prompt.includes("Boundary choreography:"),
+  hasFinalFrameContract: prompt.prompt.includes("Final-frame contract:"),
+  hasAudioProductionPlan: prompt.prompt.includes("Audio production plan:"),
+  hasNativeProviderAudioGuidance: prompt.prompt.includes("native provider audio is enabled"),
+  hasShotNarrationBudget: prompt.prompt.includes("keep narration under about"),
+  hasBeatSpokenWordBudget: prompt.prompt.includes("words for this beat"),
+  generateAudio: prompt.videoRequest.settings.generateAudio
+}));
 const seedanceCapabilityProvider = new AtlasCloudProvider({
   apiKey: "test-key",
   apiBaseUrl: "https://api.atlascloud.ai/v1",
@@ -920,9 +935,15 @@ const checks = [
     shortStoryboardShots[1]?.continuity.nextShotStartState &&
     shortStoryboardShots[2]?.continuity.previousShotEndState &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.videoRequest.settings.generateAudio === true) &&
-    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Audio:") && !prompt.prompt.includes("Audio: Silent"))
-    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include Seedance mode, duration-aware timeline beats, pacing contract, motion-continuity/inter-shot-bridge/boundary-choreography/final-frame contracts, adjacent shot state, and audio-on provider settings by default.")
-    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include Seedance mode, timeline, pacing contract, motion-continuity/inter-shot-bridge/boundary-choreography/final-frame contracts, adjacent shot state, and enabled audio."),
+    compiledShortStoryboardPrompts.every((prompt) =>
+      prompt.prompt.includes("Audio production plan:") &&
+      prompt.prompt.includes("native provider audio is enabled") &&
+      prompt.prompt.includes("keep narration under about") &&
+      prompt.prompt.includes("words for this beat") &&
+      !prompt.prompt.includes("Audio: Silent")
+    )
+    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include Seedance mode, duration-aware timeline beats, pacing contract, motion-continuity/inter-shot-bridge/boundary-choreography/final-frame contracts, adjacent shot state, and duration-budgeted audio-on provider settings by default.")
+    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include Seedance mode, timeline, pacing contract, motion-continuity/inter-shot-bridge/boundary-choreography/final-frame contracts, adjacent shot state, and duration-budgeted enabled audio."),
   pendingRenderHandoff.request.metadata?.workflowMode === "storyboard" &&
     pendingRenderHandoff.request.metadata?.renderMode === "storyboard_multishot" &&
     pendingRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "storyboard_multishot"
@@ -1013,7 +1034,8 @@ const report = {
       chineseIntentLanguage: chineseAudioHandoff.request.generatedAudioIntents?.[0]?.language,
       audioOffHandoffAudioMode: audioOffHandoff.request.settings?.audioMode,
       audioOffIntentCount: audioOffHandoff.summary.generatedAudioIntentCount
-    }
+    },
+    shortStoryboardPromptContractDiagnostics
   },
   checks,
   releaseGateSummary: {

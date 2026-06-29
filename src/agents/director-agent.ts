@@ -16,7 +16,7 @@ import { selectAssemblyClipsForRenderedShots } from "../core/assembly-output-sel
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
-import { selectLastFrameReference } from "../core/endpoint-frame-chain.js";
+import { selectOrExtractLastFrameReference, type EndpointFrameQualityEvidence } from "../core/endpoint-frame-chain.js";
 import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
 import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
 import { LongFormCreativeIntelligencePlanner } from "../core/long-form-creative-intelligence-planner.js";
@@ -67,7 +67,7 @@ import type { AudioMixOptions, AudioMixTrack, GeneratedAudioIntent } from "../ty
 import type { PostproductionSettings } from "../types/media.js";
 import type { PostproductionAssetPlan } from "../types/postproduction-assets.js";
 import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
-import type { AudioGenerationCapability, Prediction } from "../types/provider.js";
+import type { AudioGenerationCapability, Prediction, ProviderMetadata } from "../types/provider.js";
 import type { ReviewApprovalReport } from "../types/review-approval.js";
 import type { VideoRenderStrategyPlan } from "../types/video-render-strategy.js";
 import type { AudioProvider } from "../providers/contracts.js";
@@ -534,14 +534,18 @@ export class DirectorAgent {
       renderResults = await this.renderScheduler.run(
         renderScheduleItems,
         async (item) => {
-          const prepared = this.prepareChainedRenderItem({
+          const prepared = await this.prepareChainedRenderItem({
             item,
             previousRenderedShot,
             videoRenderStrategyPlan,
             settings: intake.settings,
             modelId,
             ...(providerSupportedReferenceKinds ? { providerSupportedReferenceKinds } : {}),
-            continuityLedger
+            continuityLedger,
+            ...(preparedRequest.workDirectory ?? preparedRequest.artifactDirectory
+              ? { workDirectory: preparedRequest.workDirectory ?? preparedRequest.artifactDirectory }
+              : {}),
+            ...(signal ? { signal } : {})
           });
           const renderedShot = await this.renderShot({
             shot: prepared.shot,
@@ -799,7 +803,7 @@ export class DirectorAgent {
     return `Storyboard approval gate blocked provider spend. Status=${report.status}. ${unresolved}`;
   }
 
-  private prepareChainedRenderItem<TValue>(input: {
+  private async prepareChainedRenderItem<TValue>(input: {
     readonly item: RenderScheduleItem<TValue>;
     readonly previousRenderedShot: RenderedShot | undefined;
     readonly videoRenderStrategyPlan: VideoRenderStrategyPlan;
@@ -807,11 +811,13 @@ export class DirectorAgent {
     readonly modelId: string;
     readonly providerSupportedReferenceKinds?: readonly import("../types/provider.js").ReferenceKind[];
     readonly continuityLedger: ReturnType<ContinuityLedgerBuilder["build"]>;
-  }): {
+    readonly workDirectory?: string;
+    readonly signal?: AbortSignal;
+  }): Promise<{
     readonly shot: ShotContract;
     readonly compiledPrompt: CompiledPrompt;
     readonly preflight: GuardianReport;
-  } {
+  }> {
     if (!this.shouldApplyLastFrameChaining(input.videoRenderStrategyPlan)) {
       return {
         shot: input.item.shot,
@@ -830,24 +836,30 @@ export class DirectorAgent {
       throw new Error("Last-frame chaining expected a previous rendered shot before provider spend.");
     }
 
-    const selection = selectLastFrameReference({
+    const selection = await selectOrExtractLastFrameReference({
       renderedShot: input.previousRenderedShot,
-      targetShotId: input.item.shot.shotId
+      targetShotId: input.item.shot.shotId,
+      ...(input.workDirectory ? { workDirectory: input.workDirectory } : {}),
+      ...(input.signal ? { signal: input.signal } : {})
     });
     if (!selection) {
       if (input.videoRenderStrategyPlan.lastFrameChaining.status === "required") {
         throw new Error(
-          `Last-frame chaining required for ${input.item.shot.shotId}, but previous shot ${input.previousRenderedShot.compiledPrompt.shotId} returned no image sidecar.`
+          `Last-frame chaining required for ${input.item.shot.shotId}, but previous shot ${input.previousRenderedShot.compiledPrompt.shotId} returned no usable image sidecar or extractable endpoint frame.`
         );
       }
-      return {
-        shot: input.item.shot,
-        compiledPrompt: this.renderItemCompiledPrompt(input.item),
-        preflight: this.renderItemPreflight(input.item)
-      };
+      return this.preparePromptOnlyChainFallback({
+        item: input.item,
+        previousRenderedShot: input.previousRenderedShot,
+        settings: input.settings,
+        modelId: input.modelId,
+        ...(input.providerSupportedReferenceKinds ? { providerSupportedReferenceKinds: input.providerSupportedReferenceKinds } : {}),
+        continuityLedger: input.continuityLedger
+      });
     }
 
     const { referenceSelectionPlan: _referenceSelectionPlan, ...shotWithoutSelectionPlan } = input.item.shot;
+    const runtimeContinuityBridge = this.runtimeContinuityBridge(input.previousRenderedShot, selection.sourceShotId);
     const chainedShot: ShotContract = {
       ...shotWithoutSelectionPlan,
       references: [
@@ -857,13 +869,18 @@ export class DirectorAgent {
       continuity: {
         ...input.item.shot.continuity,
         previousShotEndState: input.item.shot.continuity.previousShotEndState ??
-          `Start from endpoint continuity frame of ${selection.sourceShotId}.`
+          runtimeContinuityBridge
       },
       metadata: {
         ...(input.item.shot.metadata ?? {}),
         chainedFromShotId: selection.sourceShotId,
         chainReferenceRole: "first_frame",
-        chainReferenceUrlSha256: selection.outputUrlSha256
+        chainReferenceUrlSha256: selection.outputUrlSha256,
+        chainReferenceExtracted: selection.extracted ? "true" : "false",
+        ...(selection.quality ? this.endpointFrameMetadata(selection.quality) : {}),
+        chainSourceRenderStatus: input.previousRenderedShot.renderInspection.status,
+        chainSourceSelectedCandidateIndex: String(input.previousRenderedShot.selectedCandidateIndex),
+        chainRuntimeContinuityBridge: runtimeContinuityBridge
       }
     };
     const compiledPrompt = this.promptCompiler.compile({
@@ -891,8 +908,85 @@ export class DirectorAgent {
     };
   }
 
+  private preparePromptOnlyChainFallback<TValue>(input: {
+    readonly item: RenderScheduleItem<TValue>;
+    readonly previousRenderedShot: RenderedShot;
+    readonly settings: FlexibleSeedanceSettings;
+    readonly modelId: string;
+    readonly providerSupportedReferenceKinds?: readonly import("../types/provider.js").ReferenceKind[];
+    readonly continuityLedger: ReturnType<ContinuityLedgerBuilder["build"]>;
+  }): {
+    readonly shot: ShotContract;
+    readonly compiledPrompt: CompiledPrompt;
+    readonly preflight: GuardianReport;
+  } {
+    const sourceShotId = input.previousRenderedShot.compiledPrompt.shotId;
+    const runtimeContinuityBridge = this.runtimeContinuityBridge(input.previousRenderedShot, sourceShotId);
+    const fallbackShot: ShotContract = {
+      ...input.item.shot,
+      continuity: {
+        ...input.item.shot.continuity,
+        previousShotEndState: input.item.shot.continuity.previousShotEndState ?? runtimeContinuityBridge
+      },
+      metadata: {
+        ...(input.item.shot.metadata ?? {}),
+        chainedFromShotId: sourceShotId,
+        chainReferenceRole: "first_frame",
+        chainReferenceMissing: "true",
+        chainFallbackMode: "prompt_only_continuity",
+        chainFallbackReason: "no_usable_image_sidecar_or_extractable_endpoint_frame",
+        chainSourceRenderStatus: input.previousRenderedShot.renderInspection.status,
+        chainSourceSelectedCandidateIndex: String(input.previousRenderedShot.selectedCandidateIndex),
+        chainRuntimeContinuityBridge: runtimeContinuityBridge
+      }
+    };
+    const compiledPrompt = this.promptCompiler.compile({
+      shot: fallbackShot,
+      settings: input.settings,
+      modelId: input.modelId,
+      provider: "atlascloud",
+      ...(input.providerSupportedReferenceKinds ? { providerSupportedReferenceKinds: input.providerSupportedReferenceKinds } : {})
+    });
+    const preflight = this.consistencyGuardian.preflight({
+      shot: fallbackShot,
+      prompt: compiledPrompt.prompt,
+      negativePrompt: compiledPrompt.negativePrompt,
+      bindingPlan: compiledPrompt.bindingPlan,
+      ledger: input.continuityLedger
+    });
+    return {
+      shot: fallbackShot,
+      compiledPrompt,
+      preflight
+    };
+  }
+
   private shouldApplyLastFrameChaining(plan: VideoRenderStrategyPlan): boolean {
     return plan.lastFrameChaining.status === "required" || plan.lastFrameChaining.status === "recommended";
+  }
+
+  private endpointFrameMetadata(quality: EndpointFrameQualityEvidence): ProviderMetadata {
+    return {
+      chainEndpointFrameStrategy: quality.strategy,
+      chainEndpointFrameCandidateCount: quality.candidateCount,
+      ...(quality.selectedOffsetSeconds !== undefined ? { chainEndpointFrameSelectedOffsetSeconds: quality.selectedOffsetSeconds } : {}),
+      ...(quality.selectedFileSizeBytes !== undefined ? { chainEndpointFrameSelectedFileSizeBytes: quality.selectedFileSizeBytes } : {}),
+      ...(quality.score !== undefined ? { chainEndpointFrameQualityScore: quality.score } : {})
+    };
+  }
+
+  private runtimeContinuityBridge(renderedShot: RenderedShot, sourceShotId: string): string {
+    const metadata = renderedShot.compiledPrompt.videoRequest.metadata ?? {};
+    const storyArcRole = typeof metadata.storyArcRole === "string" ? metadata.storyArcRole : undefined;
+    const storyArcPosition = typeof metadata.storyArcPosition === "string" ? metadata.storyArcPosition : undefined;
+    return [
+      `Start from endpoint continuity frame of ${sourceShotId}`,
+      `selected candidate ${renderedShot.selectedCandidateIndex}`,
+      `source render inspection ${renderedShot.renderInspection.status}`,
+      storyArcRole ? `prior story role ${storyArcRole}` : undefined,
+      storyArcPosition ? `prior arc position ${storyArcPosition}` : undefined,
+      "preserve visible subject/product state, screen direction, camera momentum, lighting color, room tone, and final action result before introducing new motion"
+    ].filter((line): line is string => Boolean(line)).join("; ") + ".";
   }
 
   private renderItemCompiledPrompt<TValue>(item: RenderScheduleItem<TValue>): CompiledPrompt {

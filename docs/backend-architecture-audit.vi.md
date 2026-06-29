@@ -4,7 +4,7 @@ Ngày lập báo cáo: 2026-06-30
 
 Branch được đọc: `codex/backend-audit-short-pipes`
 
-Commit source được đọc trước khi viết lại báo cáo: `f6cce60`
+Commit nền được đọc: `9143170`; báo cáo này đã được cập nhật thêm theo các thay đổi local sau vòng nâng cấp backend cuối.
 
 Phạm vi: phân tích backend logic thật trong `src/agents`, `src/core`, `src/prompt_compiler`, `src/providers`, `src/application`, `src/config`, `src/types`, và smoke scripts liên quan. Báo cáo này được viết lại từ đầu sau khi xóa bản cũ, tập trung vào điểm yếu còn tồn tại, không dựa vào README hay báo cáo trước.
 
@@ -12,14 +12,14 @@ Phạm vi: phân tích backend logic thật trong `src/agents`, `src/core`, `src
 
 # 0. Kết Luận Ngắn Gọn
 
-Backend hiện tại có nền tảng agentic khá mạnh: planner, shot chunking, prompt compiler, reference binding, render scheduler, cost gate, assembly, production graph và một số no-spend validation smoke. Tuy nhiên, nếu đánh giá theo tiêu chuẩn video dài 5-10 phút dùng thật ngoài thị trường, bốn điểm yếu mà báo cáo trước từng nêu là có thật trong code:
+Backend hiện tại có nền tảng agentic khá mạnh: planner, shot chunking, prompt compiler, reference binding, render scheduler, cost gate, assembly, production graph và một số no-spend validation smoke. Sau vòng nâng cấp mới nhất, last-frame chaining đã có fallback extract ảnh cuối bằng ffmpeg khi provider không trả image sidecar, có multi-offset endpoint-frame scoring nhẹ, default Seedance đã ưu tiên `720p` + bitrate `high` + `returnLastFrame`, và prompt/audio timing đã chặt hơn. Tuy nhiên, nếu đánh giá theo tiêu chuẩn video dài 5-10 phút dùng thật ngoài thị trường, bốn nhóm rủi ro lớn còn lại vẫn có thật trong code:
 
-1. Last-frame chaining phụ thuộc vào provider trả về image sidecar. Chưa có cơ chế tự extract last frame từ MP4 bằng ffmpeg khi provider không trả ảnh cuối.
+1. Last-frame chaining đã robust hơn nhờ `selectOrExtractLastFrameReference()` và scoring nhẹ, nhưng vẫn phụ thuộc nguồn video có thể đọc được, cần `workDirectory`, và chưa có semantic visual score thật cho blur/crop/identity/product.
 2. Continuity Bible hiện là kế hoạch trước render, không phải state sống được cập nhật sau mỗi clip render thành công.
 3. Visual Semantic Inspection có implement LLM vision trên frame samples, nhưng optional và chỉ chạy sau assembly, chưa được dùng để chọn candidate hoặc tự rerender từng shot.
-4. Source Video Analysis đã có frame sampling + LLM structured analysis, nhưng opt-in, mặc định tắt, chưa có audio ASR/OCR/shot-boundary thực sự, và chưa tự tạo reference asset/keyframe mới từ source video.
+4. Source Video Analysis đã có frame sampling, LLM structured analysis và deterministic media metrics bằng `ffprobe/ffmpeg` cho duration/fps/audio/cut-density estimate; nhưng vẫn opt-in, mặc định tắt, chưa có ASR/OCR/caption understanding thật, và chưa tự tạo reference asset/keyframe mới từ source video.
 
-Mức sẵn sàng thực tế cho video dài 5-10 phút: khoảng 65-72% nếu xét backend architecture và no-spend orchestration; khoảng 55-65% nếu xét vận hành thương mại có media QA thật, continuity thật qua nhiều clip, audio/source-video analysis thật và automatic repair theo visual evidence.
+Mức sẵn sàng thực tế cho video dài 5-10 phút: khoảng 70-78% nếu xét backend architecture và no-spend orchestration; khoảng 60-68% nếu xét vận hành thương mại có media QA thật, continuity thật qua nhiều clip, audio/source-video analysis thật và automatic repair theo visual evidence.
 
 ---
 
@@ -52,7 +52,7 @@ export const DEFAULT_SEEDANCE_SETTINGS: FlexibleSeedanceSettings = {
   ratio: "16:9",
   durationTargetSeconds: 120,
   audioMode: "hybrid",
-  bitrateMode: "standard",
+  bitrateMode: "high",
   watermark: false,
   returnLastFrame: true
 };
@@ -269,49 +269,65 @@ export function isImageOutputUrl(value: string): boolean {
 
 Đánh giá quan trọng:
 
-- Code không mở video.
-- Code không download MP4.
-- Code không gọi ffmpeg.
-- Code chỉ đọc `prediction.outputUrls` và chọn URL có vẻ là ảnh.
+- `selectLastFrameReference()` vẫn là nhánh ưu tiên vì sidecar image từ provider là nhanh nhất và ít tốn xử lý nhất.
+- Nếu provider trả ảnh cuối đúng pattern, hệ thống không cần mở video.
+- Nếu provider chỉ trả video, nhánh mới `selectOrExtractLastFrameReference()` sẽ thử fallback extract ảnh cuối bằng ffmpeg.
 
-Kết luận: last-frame selection hiện tại là sidecar URL selection, không phải extraction.
+Kết luận: last-frame selection hiện tại có hai tầng: ưu tiên sidecar URL, sau đó fallback extract từ video output nếu có `workDirectory`.
 
 ## 1.6 Có tự động extract last frame bằng ffmpeg không?
 
-Không tìm thấy implementation cho việc extract last frame từ video render nếu provider không trả image sidecar.
+Có, sau vòng nâng cấp mới nhất. Function `selectOrExtractLastFrameReference()` trong `src/core/endpoint-frame-chain.ts` thử chọn image sidecar trước, nếu không có thì chọn video output và gọi `extractLastFrameImage()`.
 
-Bằng chứng:
-
-- `MediaInspector.sampleFrames()` có dùng ffmpeg, nhưng dùng `fps=1/interval` để sample nhiều frame, không phải lấy frame cuối.
-- `AssemblyEngine` chỉ gọi sample frame sau khi đã assemble xong deliverable, quá muộn để dùng cho shot kế tiếp.
-- Search trong source chỉ thấy `selectLastFrameReference`, `sampleFrames`, không thấy function kiểu `extractLastFrame`, `ensureLastFrame`, `lastFrameFromVideo`.
-
-Code `src/core/media-inspector.ts:93-126`:
+Code mới trong `src/core/endpoint-frame-chain.ts`:
 
 ```ts
-public async sampleFrames(path: string, options: FrameSamplingOptions, signal?: AbortSignal): Promise<readonly FrameSample[]> {
-  if (!options.enabled) {
-    return [];
+export async function selectOrExtractLastFrameReference(input: {
+  readonly renderedShot: RenderedShot;
+  readonly targetShotId: string;
+  readonly workDirectory?: string;
+  readonly signal?: AbortSignal;
+}): Promise<EndpointFrameReferenceSelection | undefined> {
+  const providerSidecar = selectLastFrameReference(input);
+  if (providerSidecar) {
+    return providerSidecar;
   }
-  const pattern = join(options.outputDirectory, `${prefix}_%03d.jpg`);
-  await runProcess(
-    readMediaToolCommand("ffmpeg"),
-    [
-      "-y",
-      "-i",
-      path,
-      "-vf",
-      `fps=1/${options.intervalSeconds}`,
-      "-frames:v",
-      String(options.maxFrames),
-      pattern
-    ],
-    signal
-  );
+  if (!input.workDirectory) {
+    return undefined;
+  }
+
+  const selectedVideo = selectVideoOutput(input.renderedShot);
+  if (!selectedVideo) {
+    return undefined;
+  }
+
+  const outputPath = join(input.workDirectory, "endpoint-frames", "...jpg");
+  await extractLastFrameImage(selectedVideo.url, outputPath, input.signal);
+  return { extracted: true, reference: { role: "first_frame", providerReference: { kind: "image", uri: outputPath } } };
 }
 ```
 
-Đây là frame sampling, không phải last-frame extraction. Không có `-sseof`, không có `select='eq(n,last)'`, không có ffprobe duration để seek cuối clip.
+Code extract thật:
+
+```ts
+const ENDPOINT_FRAME_EXTRACTION_OFFSETS_SECONDS = [0.1, 0.3, 0.6, 1] as const;
+
+async function extractBestLastFrameImage(input): Promise<ExtractedEndpointFrameCandidate | undefined> {
+  for (const offsetSeconds of ENDPOINT_FRAME_EXTRACTION_OFFSETS_SECONDS) {
+    await extractLastFrameImage(input.sourceUrlOrPath, outputPath, offsetSeconds, input.signal);
+    const fileSizeBytes = (await stat(outputPath)).size;
+    candidates.push({ outputPath, offsetSeconds, fileSizeBytes, score: endpointFrameScore(fileSizeBytes, offsetSeconds) });
+  }
+  return candidates.sort((left, right) => right.score - left.score)[0];
+}
+```
+
+Đánh giá:
+
+- Đây là cải thiện quan trọng vì workflow `required` không còn chỉ phụ thuộc image sidecar.
+- Fallback hiện thử nhiều mốc gần cuối clip, bỏ frame quá nhỏ, chọn frame có score tốt hơn dựa trên độ lớn file và độ gần endpoint.
+- Fallback vẫn cần ffmpeg đọc được `sourceUrlOrPath`. Nếu provider trả URL có token hết hạn, stream không seek được, hoặc môi trường thiếu `workDirectory`, function sẽ trả `undefined` và để logic required/recommended xử lý như trước.
+- Smoke test `scripts/run-last-frame-chaining-smoke.mjs` đã có case tạo MP4 synthetic bằng ffmpeg và xác nhận fallback tạo ảnh local role `first_frame`, có `qualityStrategy=ffmpeg_multi_offset`, candidate count và quality score.
 
 ## 1.7 Shot sau được inject last frame như thế nào?
 
@@ -338,14 +354,15 @@ private prepareChainedRenderItem<TValue>(input: {
     throw new Error("Last-frame chaining expected a previous rendered shot before provider spend.");
   }
 
-  const selection = selectLastFrameReference({
+  const selection = await selectOrExtractLastFrameReference({
     renderedShot: input.previousRenderedShot,
-    targetShotId: input.item.shot.shotId
+    targetShotId: input.item.shot.shotId,
+    workDirectory: input.workDirectory
   });
   if (!selection) {
     if (input.videoRenderStrategyPlan.lastFrameChaining.status === "required") {
       throw new Error(
-        `Last-frame chaining required for ${input.item.shot.shotId}, but previous shot ${input.previousRenderedShot.compiledPrompt.shotId} returned no image sidecar.`
+        `Last-frame chaining required for ${input.item.shot.shotId}, but previous shot ${input.previousRenderedShot.compiledPrompt.shotId} returned no usable image sidecar or extractable endpoint frame.`
       );
     }
     return { shot: input.item.shot, compiledPrompt: this.renderItemCompiledPrompt(input.item), preflight: this.renderItemPreflight(input.item) };
@@ -360,13 +377,15 @@ private prepareChainedRenderItem<TValue>(input: {
     continuity: {
       ...input.item.shot.continuity,
       previousShotEndState: input.item.shot.continuity.previousShotEndState ??
-        `Start from endpoint continuity frame of ${selection.sourceShotId}.`
+        runtimeContinuityBridge
     },
     metadata: {
       ...(input.item.shot.metadata ?? {}),
       chainedFromShotId: selection.sourceShotId,
       chainReferenceRole: "first_frame",
-      chainReferenceUrlSha256: selection.outputUrlSha256
+      chainReferenceUrlSha256: selection.outputUrlSha256,
+      chainReferenceExtracted: selection.extracted ? "true" : "false",
+      chainRuntimeContinuityBridge: runtimeContinuityBridge
     }
   };
   const compiledPrompt = this.promptCompiler.compile({ shot: chainedShot, settings: input.settings, modelId: input.modelId, provider: "atlascloud" });
@@ -468,11 +487,12 @@ User request
        -> ConsistencyGuardian.inspectRender chỉ check status/outputUrls/latency
   -> Render shot 2
        -> prepareChainedRenderItem(previousRenderedShot=shot1)
-       -> selectLastFrameReference(shot1.outputUrls)
-          -> nếu có URL ảnh last/final/end frame: tạo PromptReference role first_frame
-          -> nếu không có:
-             - required: throw, block trước provider spend shot 2
-             - recommended: fallback prompt cũ, render không chain
+       -> selectOrExtractLastFrameReference(shot1.outputUrls, workDirectory)
+           -> nếu có URL ảnh last/final/end frame: tạo PromptReference role first_frame
+           -> nếu không có sidecar nhưng có video output đọc được: ffmpeg extract ảnh cuối vào endpoint-frames/*.jpg
+           -> nếu không có:
+              - required: throw, block trước provider spend shot 2
+              - recommended: fallback prompt cũ, render không chain
        -> promptCompiler.compile(chainedShot)
        -> ConsistencyGuardian.preflight(chainedShot)
        -> RenderProducer gọi Atlas bằng image_to_video/reference mode
@@ -488,7 +508,8 @@ Mạnh:
 - Strategy biết khi nào phải chain.
 - Scheduler biết ép sequential.
 - Prompt compiler có continuation prose tốt.
-- Smoke test `scripts/run-last-frame-chaining-smoke.mjs` xác nhận shot 2+ nhận `first_frame`, mode chuyển `image_to_video`, có chain metadata.
+- Có fallback ffmpeg để tự tạo ảnh endpoint khi provider chỉ trả video output.
+- Smoke test `scripts/run-last-frame-chaining-smoke.mjs` xác nhận shot 2+ nhận `first_frame`, mode chuyển `image_to_video`, có chain metadata và fallback extract ảnh cuối hoạt động.
 
 Bằng chứng smoke `scripts/run-last-frame-chaining-smoke.mjs:75-93`:
 
@@ -502,11 +523,10 @@ result.renderSchedulePlan.sequentialItemCount === 3
 
 Yếu:
 
-- Nếu Atlas chỉ trả MP4, chaining required sẽ fail vì không có image sidecar.
-- Không có automatic ffmpeg extract fallback.
+- Nếu Atlas trả URL video không đọc/seek được, hoặc môi trường không có `workDirectory`, fallback extract vẫn không thể chạy.
 - Không có boundary visual QA từng cặp shot.
-- Không có "last-frame quality score" trước khi dùng làm first_frame shot sau.
-- Recommended mode fallback im lặng sang prompt-only nếu sidecar thiếu. Điều này có thể làm video dài drift mà user không biết.
+- Quality score hiện là deterministic/lightweight, chưa phải visual semantic QA để hiểu frame bị blur, blink, crop sản phẩm, lệch mặt, hay sai identity.
+- Recommended mode fallback im lặng sang prompt-only nếu sidecar và ffmpeg fallback đều thiếu. Điều này có thể làm video dài drift mà user không biết.
 
 ---
 
@@ -1014,6 +1034,7 @@ Rủi ro cao cho thương mại:
 Các file:
 
 - `src/core/source-video-auto-analyzer.ts`
+- `src/core/source-video-media-metrics-analyzer.ts`
 - `src/agents/source-video-analyst.ts`
 - `src/agents/source-video-reference-metadata-enricher.ts`
 - `src/agents/intake-director.ts`
@@ -1086,11 +1107,14 @@ public async prepareRequest(
   if (!sourceUri) return request;
 
   try {
-    const frames = await this.mediaInspector.sampleFrames(sourceUri, { enabled: true, outputDirectory: settings.workDirectory, intervalSeconds: settings.frameIntervalSeconds, maxFrames: settings.maxFrames }, signal);
+    const [frames, mediaMetrics] = await Promise.all([
+      this.mediaInspector.sampleFrames(sourceUri, { enabled: true, outputDirectory: settings.workDirectory, intervalSeconds: settings.frameIntervalSeconds, maxFrames: settings.maxFrames }, signal),
+      this.safeAnalyzeMediaMetrics(sourceUri, settings, signal)
+    ]);
     if (frames.length === 0) throw new Error("Source-video auto analysis produced no frame samples.");
 
-    const analysis = await this.analyzeFrames({ userInput: request.userInput, sourceReference, frames: frames.slice(0, settings.maxFrames), signal });
-    const normalized = this.sourceVideoAnalyst.normalize(analysis, request.references ?? []);
+    const analysis = await this.analyzeFrames({ userInput: request.userInput, sourceReference, frames: frames.slice(0, settings.maxFrames), mediaMetrics, signal });
+    const normalized = this.sourceVideoAnalyst.normalize({ ...analysis, mediaMetrics }, request.references ?? []);
     if (!normalized || !this.hasUsableAnalysis(normalized)) throw new Error("Source-video auto analysis returned no usable deconstruction content.");
     this.assertNoFrameLeakage(normalized, frames);
     return { ...request, sourceVideoAnalysis: normalized };
@@ -1102,6 +1126,20 @@ public async prepareRequest(
 ```
 
 LLM structured output yêu cầu scene/keyframe/pacing/style/structural beats/safety.
+
+Trước khi gọi LLM, `SourceVideoMediaMetricsAnalyzer` dùng `ffprobe` để lấy duration, bitrate, format, video width/height/fps, audio stream; sau đó dùng `ffmpeg` scene detection bounded window để ước lượng cut density và rhythm label.
+
+Code mới trong `src/core/source-video-media-metrics-analyzer.ts`:
+
+```ts
+export class SourceVideoMediaMetricsAnalyzer {
+  public async analyze(sourceUri: string, signal?: AbortSignal): Promise<SourceVideoMediaMetrics> {
+    const metadata = await this.mediaInspector.probe(sourceUri, signal);
+    const sceneCutTimestampsSeconds = await this.detectSceneCuts(sourceUri, signal);
+    return this.toMetrics(sourceUri, metadata, sceneCutTimestampsSeconds, true);
+  }
+}
+```
 
 Code `src/core/source-video-auto-analyzer.ts:173-208`:
 
@@ -1121,6 +1159,7 @@ const response = await this.llmProvider.structured<SourceVideoAnalysisJson, type
 Đánh giá:
 
 - Có frame sampling thật bằng ffmpeg.
+- Có media metrics thật bằng ffprobe/ffmpeg: duration/fps/aspect/audio presence/cut-density estimate/rhythm label.
 - Có LLM vision-ish structured analysis nếu provider hỗ trợ image_url.
 - Có leakage guard không cho data URL/local frame path lọt vào output.
 - Có safe HTTPS URL guard.
@@ -1148,7 +1187,7 @@ private safeHttpsSourceUri(reference: PromptReference): string | undefined {
 }
 ```
 
-`SourceVideoAnalyst.normalize()` chỉ normalize caller/LLM-supplied deconstruction, không phân tích video.
+`SourceVideoAnalyst.normalize()` normalize caller/LLM-supplied deconstruction và giữ lại `mediaMetrics` đã được backend tạo/validate.
 
 Code `src/agents/source-video-analyst.ts:19-53`:
 
@@ -1160,6 +1199,7 @@ export class SourceVideoAnalyst {
     const transformationIntent = this.cleanOptionalText(value.transformationIntent, "transformationIntent");
     const transcript = this.normalizeTranscript(value.transcript);
     const scenes = this.normalizeScenes(value.scenes);
+    const mediaMetrics = this.normalizeMediaMetrics(value.mediaMetrics);
     const pacingNotes = this.normalizeNotes(value.pacingNotes, "pacingNotes");
     ...
     if (!this.hasUsableAnalysis(normalized)) {
@@ -1170,7 +1210,7 @@ export class SourceVideoAnalyst {
 }
 ```
 
-Không có audio transcription thật. `transcript` chỉ là field trong JSON, không có Whisper/ASR pipeline trong source-video auto analyzer. Không có OCR/caption detection thật. Không có shot-boundary detection thật. Nó dựa vào LLM nhìn sampled frames.
+Không có audio transcription thật. `transcript` chỉ là field trong JSON, không có Whisper/ASR pipeline trong source-video auto analyzer. Không có OCR/caption detection thật. Scene/cut analysis hiện là deterministic estimate từ ffmpeg scene threshold, không phải hiểu semantic shot-boundary hay motion vectors sâu. Phần hình ảnh vẫn dựa vào LLM nhìn sampled frames.
 
 ## 4.5 Có tự động extract reference từ source video không?
 
@@ -1278,7 +1318,7 @@ private sourceVideoBrief(value: SourceVideoDeconstruction): Record<string, unkno
 }
 ```
 
-Đánh giá: source video ảnh hưởng planning thật, nhưng chất lượng phụ thuộc vào caller-supplied analysis hoặc LLM frame analysis opt-in.
+Đánh giá: source video ảnh hưởng planning thật. Chất lượng hiện dựa vào caller-supplied analysis hoặc opt-in auto analysis gồm frame sampling, deterministic media metrics, và LLM frame analysis.
 
 ---
 
@@ -1288,10 +1328,10 @@ private sourceVideoBrief(value: SourceVideoDeconstruction): Record<string, unkno
 
 Có. Đối chiếu code:
 
-1. Last-frame fidelity còn yếu:
-   - `selectLastFrameReference()` chỉ chọn URL ảnh từ `prediction.outputUrls`.
-   - Không có ffmpeg fallback extract last frame từ MP4.
-   - Required chain block nếu không có image sidecar.
+1. Last-frame fidelity trước đây yếu, hiện đã được nâng cấp:
+   - `selectLastFrameReference()` vẫn chọn URL ảnh từ `prediction.outputUrls` trước.
+   - `selectOrExtractLastFrameReference()` bổ sung fallback ffmpeg extract last frame từ video output.
+   - Required chain chỉ block khi cả sidecar lẫn fallback extraction đều không có usable frame.
 
 2. Visual QA chưa mặc định:
    - `SemanticVisualInspector` có implement LLM vision, nhưng `DirectorAgent` chỉ gọi khi có `deliverable.frameSamples` và `semanticVisualInspectionOptions.enabled`.
@@ -1303,8 +1343,8 @@ Có. Đối chiếu code:
    - Prompt compiler không nhận `LongFormContinuityPlan` trực tiếp.
 
 4. Source-video remake chưa thật sự "clone học 100%":
-   - Có frame sampling và LLM beat-map, nhưng opt-in.
-   - Không có audio ASR/OCR/shot-boundary/motion extraction thực.
+   - Có frame sampling, media metrics và LLM beat-map, nhưng opt-in.
+   - Có duration/fps/audio presence/cut-density estimate, nhưng chưa có audio ASR/OCR/semantic shot-boundary/motion-vector extraction thực.
    - Không tự tạo keyframe references.
 
 ## 5.2 Mức sẵn sàng cho video dài 5-10 phút
@@ -1312,52 +1352,47 @@ Có. Đối chiếu code:
 Đánh giá theo layer:
 
 - Planning/story/shot chunking: 78-85%. Có StoryArchitect, ShotPlanner, timeline 3 phase, duration 4-15s, story arc metadata.
-- Sequential orchestration/chaining: 70-78%. Có required/recommended strategy, scheduler sequential, prompt recompile. Yếu ở sidecar-only last frame.
-- Prompt continuity: 78-85%. Prompt compiler có reference handles, endpoint priority, bridge, boundary choreography, final frame.
+- Sequential orchestration/chaining: 80-87%. Có required/recommended strategy, scheduler sequential, prompt recompile, sidecar-first, ffmpeg fallback và endpoint-frame score nhẹ. Yếu còn lại là chưa có semantic visual score theo identity/product/blur/crop.
+- Prompt continuity: 82-88%. Prompt compiler có reference handles, endpoint priority, runtime continuity bridge, boundary choreography, final frame.
 - Cross-render visual consistency: 45-55%. Có optional semantic visual after assembly, nhưng chưa per-shot/cross-shot/default.
-- Source-video understanding: 55-65%. Có frame-based LLM analysis opt-in, chưa audio/ASR/OCR/shot boundary/reference extraction.
-- Commercial long-form runtime: 60-70%. Có nhiều gates và evidence, nhưng thiếu live media QA + automatic endpoint extraction + repair propagation thật.
+- Source-video understanding: 62-72%. Có frame-based LLM analysis opt-in, deterministic duration/fps/audio/cut-density metrics, nhưng chưa ASR/OCR/semantic shot-boundary/motion-vector/reference extraction.
+- Commercial long-form runtime: 64-72%. Có nhiều gates, evidence và automatic endpoint extraction fallback, nhưng thiếu live media QA + live continuity bible + repair propagation thật.
 
 Kết luận: nếu chỉ dùng backend hiện tại cho 5-10 phút, nên coi là "có nền tảng tốt nhưng cần operator review và benchmark live", không nên gọi là tự động tuyệt đối kiểu Topview/Higgsfield-level.
 
 ## 5.3 Top 5 điểm yếu nghiêm trọng nhất và hướng sửa code-level
 
-### Điểm yếu 1: Không có ffmpeg last-frame extraction fallback
+### Điểm yếu 1: Endpoint-frame score đã có, nhưng chưa có semantic endpoint QA
 
 Ảnh hưởng:
 
-- Chaining required có thể fail nếu Atlas chỉ trả MP4.
-- Video dài phụ thuộc behavior response của provider.
+- Chaining không còn sidecar-only và đã có score nhẹ, nhưng score hiện dựa trên file size + recency, không hiểu nội dung ảnh.
+- Nếu frame cuối bị motion blur, blink, crop sản phẩm, lệch mặt, hoặc ánh sáng sai, shot kế tiếp vẫn có thể kế thừa lỗi nếu file vẫn hợp lệ.
 
 Fix đề xuất:
 
-Tạo service mới:
+Mở rộng service hiện tại thành semantic endpoint selector:
 
 ```ts
-// src/core/endpoint-frame-extractor.ts
-export class EndpointFrameExtractor {
-  public async ensureLastFrameReference(input: {
-    readonly prediction: Prediction;
-    readonly shotId: string;
+export class SemanticEndpointFrameSelector {
+  public async selectBestEndpoint(input: {
+    readonly renderedShot: RenderedShot;
     readonly workDirectory: string;
-    readonly assetProvider?: AssetProvider;
-    readonly signal?: AbortSignal;
   }): Promise<PromptReference | undefined> {
-    // 1. thử selectLastFrameReference từ outputUrls
-    // 2. nếu không có, chọn video output URL
-    // 3. materialize video về workDirectory
-    // 4. ffmpeg -sseof -0.15 -i input.mp4 -frames:v 1 shotId_last_frame.jpg
-    // 5. upload/register asset nếu provider cần asset://
-    // 6. trả PromptReference role first_frame kind image
+    // 1. dùng sidecar/fallback candidates hiện có
+    // 2. sample thêm endpoint alternatives nếu cần
+    // 3. optional vision/image QA: blur, crop, visible product, face/identity, lighting continuity
+    // 4. chọn frame đủ rõ và hợp continuity nhất
+    // 5. trả PromptReference role first_frame kind image + semantic score metadata
   }
 }
 ```
 
 Chỗ nối:
 
-- Inject vào `DirectorAgent.renderCandidate()` sau khi prediction succeeded.
-- Hoặc enrich `RenderedShot` với `endpointFrameReference`.
-- `prepareChainedRenderItem()` dùng `renderedShot.endpointFrameReference` trước, fallback `selectLastFrameReference()`.
+- Mở rộng `selectOrExtractLastFrameReference()` để nhận optional semantic inspector.
+- Ghi thêm `chainEndpointFrameSemanticScore` và reason codes vào metadata.
+- Nếu workflow `required` và semantic score dưới ngưỡng, block/rerender shot trước thay vì chain từ frame xấu.
 
 ### Điểm yếu 2: Visual semantic inspection không chạy per candidate
 
@@ -1427,23 +1462,23 @@ Chỗ nối:
 - Sau render candidate selected, visual inspector tóm tắt first/last frame.
 - Trước `prepareChainedRenderItem()` compile shot kế tiếp, merge `previousShotEndState` bằng actual state, không chỉ planned state.
 
-### Điểm yếu 4: Source-video analysis chưa có audio/ASR/OCR/shot boundary thực
+### Điểm yếu 4: Source-video analysis chưa có ASR/OCR/audio-energy/semantic boundary thực
 
 Ảnh hưởng:
 
-- Remake chưa bám được rhythm/audio/caption/cut density thật.
-- LLM nhìn vài frame không đủ để học nhịp edit.
+- Remake đã có cut-density/rhythm estimate, nhưng chưa hiểu lời thoại, caption/on-screen text, audio energy curve, motion vectors, hoặc semantic shot boundary.
+- LLM nhìn vài frame cộng media metrics vẫn chưa đủ để học toàn bộ performance/edit rhythm như một video-understanding stack chuyên dụng.
 
 Fix đề xuất:
 
-Mở rộng `SourceVideoAutoAnalyzer` thành pipeline nhiều extractor:
+Mở rộng `SourceVideoAutoAnalyzer` từ metrics extractor hiện tại thành pipeline nhiều extractor:
 
 ```ts
 export class SourceVideoMediaAnalyzer {
   public async analyze(input: { uri: string; workDirectory: string }): Promise<SourceVideoDeconstruction> {
-    // ffprobe duration/fps/audio streams
-    // ffmpeg scene detection: select='gt(scene,0.35)'
-    // audio energy extraction: astats hoặc ffprobe audio frames
+    // đã có: ffprobe duration/fps/audio streams
+    // đã có: ffmpeg scene detection: select='gt(scene,0.35)'
+    // cần thêm: audio energy extraction: astats hoặc ffprobe audio frames
     // optional ASR provider: transcript cues
     // optional OCR provider: captions/on-screen text
     // keyframe export + asset registration
@@ -1453,8 +1488,8 @@ export class SourceVideoMediaAnalyzer {
 
 Chỗ nối:
 
-- `SourceVideoAutoAnalyzer.prepareRequest()` gọi media analyzer trước LLM.
-- LLM nhận real metrics: shot boundaries, frame timestamps, audio energy, OCR/ASR.
+- `SourceVideoAutoAnalyzer.prepareRequest()` hiện đã gọi media metrics analyzer trước LLM.
+- Mở rộng để LLM nhận thêm audio energy, OCR/ASR, semantic boundary, motion-vector summaries.
 - `SourceVideoReferenceMetadataEnricher` tự tạo `PromptReference` cho extracted keyframes nếu operator approves.
 
 ### Điểm yếu 5: Production Graph chưa điều khiển repair propagation runtime
@@ -1491,14 +1526,14 @@ Chỗ nối:
 
 # 6. Kết Luận Cuối
 
-Backend hiện tại không phải template cứng. Nó đã có nhiều phần đúng hướng: chiến lược multishot, return last frame, sequential rendering, reference binding, prompt bridge, continuity ledger, long-form continuity plan, source-video LLM frame analysis opt-in, semantic visual inspector opt-in, assembly/ffprobe validation và production graph evidence.
+Backend hiện tại không phải template cứng. Nó đã có nhiều phần đúng hướng: chiến lược multishot, return last frame, ffmpeg fallback extraction, endpoint-frame score nhẹ, sequential rendering, reference binding, prompt bridge, continuity ledger, long-form continuity plan, source-video media metrics + LLM frame analysis opt-in, semantic visual inspector opt-in, assembly/ffprobe validation và production graph evidence.
 
 Nhưng để đạt mức "siêu tự động, mọi niche, long-form 5-10 phút, remake video bám rất sát, thương mại mạnh", phần còn thiếu không nằm ở việc thêm nhiều prompt nữa. Điểm nghẽn thật trong code là:
 
-- thiếu automatic endpoint frame extraction;
+- thiếu semantic endpoint-frame QA trước khi dùng làm continuity frame;
 - thiếu visual QA per-shot/per-candidate/per-boundary;
 - thiếu live continuity bible được cập nhật từ output thật;
-- thiếu source-video media analysis sâu gồm audio/ASR/OCR/cut detection;
+- thiếu source-video analysis sâu gồm ASR/OCR/audio-energy/motion-vector/semantic boundary;
 - thiếu repair orchestration dựa trên graph để sửa đúng node và downstream.
 
 Nói ngắn: kiến trúc đã có xương sống tốt, nhưng fidelity engine còn chưa đủ sâu. Muốn lên đẳng cấp thương mại thật, cần biến các evidence/planning module hiện tại thành vòng lặp media-aware: render -> inspect visual/audio thật -> update continuity state -> repair/rerender targeted -> mới assemble/deliver.

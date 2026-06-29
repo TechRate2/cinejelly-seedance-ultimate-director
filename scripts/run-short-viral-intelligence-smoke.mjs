@@ -700,7 +700,7 @@ const checks = [
     viralPlan.seedanceRouting.preferredTier === "standard" &&
     viralPlan.seedanceRouting.resolution === "720p" &&
     viralPlan.seedanceRouting.superResolution === false &&
-    viralPlan.seedanceRouting.bitrateMode === "standard" &&
+    viralPlan.seedanceRouting.bitrateMode === "high" &&
     viralPlan.seedanceRouting.promptRecipe.name === "reference_to_video_remake_blueprint" &&
     viralPlan.visualBiblePlan.status === "recommended" &&
     viralPlan.visualBiblePlan.recommendedPipe === "video_remake_pipe" &&
@@ -711,10 +711,10 @@ const checks = [
     renderHandoff.request.metadata?.shortSeedanceProviderMode === "reference_to_video" &&
     renderHandoff.request.metadata?.shortSeedancePreferredTier === "standard" &&
     renderHandoff.request.settings?.resolution === "720p" &&
-    renderHandoff.request.settings?.bitrateMode === "standard" &&
+    renderHandoff.request.settings?.bitrateMode === "high" &&
     renderHandoff.request.userInput.includes("Seedance routing:") &&
     renderHandoff.request.userInput.includes("Media reference binding:")
-    ? pass("seedance_reference_routing_handoff", "KOL/product assets route to Seedance reference-to-video with visual-bible evidence, @image tags, standard tier, 720p default bitrate, metadata, prompt, and provider references.")
+    ? pass("seedance_reference_routing_handoff", "KOL/product assets route to Seedance reference-to-video with visual-bible evidence, @image tags, standard tier, 720p/high-bitrate defaults, metadata, prompt, and provider references.")
     : fail("seedance_reference_routing_handoff", "Expected KOL/product media references to drive reference-to-video routing and render handoff references."),
   viralPlan.videoPipePlan?.schemaVersion === "cinejelly.short-video-pipe-plan.v1" &&
     viralPlan.videoPipePlan.selectedMode === "video_remake" &&

@@ -459,6 +459,7 @@ export class RenderRequestAdmission {
     this.assertStringArray(analysis.styleNotes, "sourceVideoAnalysis.styleNotes", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
     this.assertStringArray(analysis.structuralBeats, "sourceVideoAnalysis.structuralBeats", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
     this.assertStringArray(analysis.safetyNotes, "sourceVideoAnalysis.safetyNotes", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
+    this.assertSourceVideoMediaMetrics(analysis.mediaMetrics);
     this.assertSourceVideoAnalysisHasContent(analysis);
   }
 
@@ -469,10 +470,11 @@ export class RenderRequestAdmission {
       Array.isArray(analysis.pacingNotes) && analysis.pacingNotes.length > 0 ||
       Array.isArray(analysis.styleNotes) && analysis.styleNotes.length > 0 ||
       Array.isArray(analysis.structuralBeats) && analysis.structuralBeats.length > 0 ||
-      Array.isArray(analysis.safetyNotes) && analysis.safetyNotes.length > 0;
+      Array.isArray(analysis.safetyNotes) && analysis.safetyNotes.length > 0 ||
+      analysis.mediaMetrics !== undefined;
     if (!hasContent) {
       throw new RenderRequestAdmissionError(
-        "sourceVideoAnalysis must include at least one transformationIntent, transcript cue, scene, pacing/style note, structural beat, or safety note."
+        "sourceVideoAnalysis must include at least one transformationIntent, transcript cue, scene, media metric, pacing/style note, structural beat, or safety note."
       );
     }
   }
@@ -591,6 +593,90 @@ export class RenderRequestAdmission {
       if (keyframe.uri !== undefined) {
         this.assertReferenceUri(keyframe.uri, `sourceVideoAnalysis.scenes[${sceneIndex}].keyframes[${index}].uri`);
       }
+    }
+  }
+
+  private assertSourceVideoMediaMetrics(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    const metrics = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics must be an object.");
+    if (metrics.schemaVersion !== "cinejelly.source-video-media-metrics.v1") {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.mediaMetrics.schemaVersion is invalid.");
+    }
+    this.assertOptionalBoundedNumber(metrics.durationSeconds, "sourceVideoAnalysis.mediaMetrics.durationSeconds", 0.000001, 86400);
+    this.assertOptionalBoundedNumber(metrics.bitrate, "sourceVideoAnalysis.mediaMetrics.bitrate", 0.000001, Number.MAX_SAFE_INTEGER);
+    this.assertBoundedString(metrics.formatName, "sourceVideoAnalysis.mediaMetrics.formatName", 160, false);
+    this.assertSourceVideoMediaVideoMetrics(metrics.video);
+    this.assertSourceVideoMediaAudioMetrics(metrics.audio);
+    this.assertSourceVideoMediaEditRhythm(metrics.editRhythm);
+    this.assertSourceVideoMediaEvidence(metrics.evidence);
+  }
+
+  private assertSourceVideoMediaVideoMetrics(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    const video = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics.video must be an object.");
+    this.assertBoundedString(video.codecName, "sourceVideoAnalysis.mediaMetrics.video.codecName", 80, false);
+    if (video.width !== undefined) {
+      this.assertPositiveInteger(video.width, "sourceVideoAnalysis.mediaMetrics.video.width", 16384);
+    }
+    if (video.height !== undefined) {
+      this.assertPositiveInteger(video.height, "sourceVideoAnalysis.mediaMetrics.video.height", 16384);
+    }
+    this.assertOptionalBoundedNumber(video.frameRate, "sourceVideoAnalysis.mediaMetrics.video.frameRate", 0.000001, 240);
+    this.assertBoundedString(video.aspectRatio, "sourceVideoAnalysis.mediaMetrics.video.aspectRatio", 32, false);
+  }
+
+  private assertSourceVideoMediaAudioMetrics(value: unknown): void {
+    const audio = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics.audio must be an object.");
+    this.assertBoolean(audio.hasAudio, "sourceVideoAnalysis.mediaMetrics.audio.hasAudio");
+    this.assertBoundedString(audio.codecName, "sourceVideoAnalysis.mediaMetrics.audio.codecName", 80, false);
+    if (audio.sampleRate !== undefined) {
+      this.assertPositiveInteger(audio.sampleRate, "sourceVideoAnalysis.mediaMetrics.audio.sampleRate", 384000);
+    }
+    if (audio.channelCount !== undefined) {
+      this.assertPositiveInteger(audio.channelCount, "sourceVideoAnalysis.mediaMetrics.audio.channelCount", 64);
+    }
+  }
+
+  private assertSourceVideoMediaEditRhythm(value: unknown): void {
+    const editRhythm = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics.editRhythm must be an object.");
+    this.assertPositiveOrZeroInteger(editRhythm.sceneCutCount, "sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutCount", 100000);
+    this.assertOption(editRhythm.rhythmLabel, "sourceVideoAnalysis.mediaMetrics.editRhythm.rhythmLabel", ["unknown", "slow", "balanced", "fast", "very_fast"]);
+    this.assertOptionalBoundedNumber(editRhythm.sampledWindowSeconds, "sourceVideoAnalysis.mediaMetrics.editRhythm.sampledWindowSeconds", 0.000001, 86400);
+    this.assertOptionalBoundedNumber(editRhythm.cutDensityPerMinute, "sourceVideoAnalysis.mediaMetrics.editRhythm.cutDensityPerMinute", 0, 10000);
+    this.assertOptionalBoundedNumber(editRhythm.averageShotLengthSeconds, "sourceVideoAnalysis.mediaMetrics.editRhythm.averageShotLengthSeconds", 0.000001, 86400);
+    this.assertSourceVideoSceneCutTimestamps(editRhythm.sceneCutTimestampsSeconds);
+  }
+
+  private assertSourceVideoSceneCutTimestamps(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    if (!Array.isArray(value)) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds must be an array.");
+    }
+    if (value.length > 120) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds cannot contain more than 120 items.");
+    }
+    for (const [index, timestamp] of value.entries()) {
+      this.assertBoundedNumber(
+        timestamp,
+        `sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds[${index}]`,
+        0,
+        86400
+      );
+    }
+  }
+
+  private assertSourceVideoMediaEvidence(value: unknown): void {
+    const evidence = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics.evidence must be an object.");
+    this.assertBoolean(evidence.probeSucceeded, "sourceVideoAnalysis.mediaMetrics.evidence.probeSucceeded");
+    this.assertBoolean(evidence.sceneDetectionSucceeded, "sourceVideoAnalysis.mediaMetrics.evidence.sceneDetectionSucceeded");
+    if (typeof evidence.sourceUriSha256 !== "string" || !/^[a-f0-9]{64}$/i.test(evidence.sourceUriSha256)) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.mediaMetrics.evidence.sourceUriSha256 must be a sha256 hex digest.");
     }
   }
 

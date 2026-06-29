@@ -9,6 +9,7 @@ import {
   SOURCE_VIDEO_ANALYSIS_LIMITS,
   type SourceVideoDeconstruction,
   type SourceVideoKeyframe,
+  type SourceVideoMediaMetrics,
   type SourceVideoSceneDeconstruction,
   type SourceVideoTranscriptCue
 } from "../types/source-video.js";
@@ -33,12 +34,14 @@ export class SourceVideoAnalyst {
     const styleNotes = this.normalizeNotes(value.styleNotes, "styleNotes");
     const structuralBeats = this.normalizeNotes(value.structuralBeats, "structuralBeats");
     const safetyNotes = this.normalizeNotes(value.safetyNotes, "safetyNotes");
+    const mediaMetrics = this.normalizeMediaMetrics(value.mediaMetrics);
 
     const normalized = {
       ...(sourceReferenceLabel ? { sourceReferenceLabel } : {}),
       ...(transformationIntent ? { transformationIntent } : {}),
       ...(transcript.length > 0 ? { transcript } : {}),
       ...(scenes.length > 0 ? { scenes } : {}),
+      ...(mediaMetrics ? { mediaMetrics } : {}),
       ...(pacingNotes.length > 0 ? { pacingNotes } : {}),
       ...(styleNotes.length > 0 ? { styleNotes } : {}),
       ...(structuralBeats.length > 0 ? { structuralBeats } : {}),
@@ -57,6 +60,7 @@ export class SourceVideoAnalyst {
       value.transformationIntent ||
         value.transcript?.length ||
         value.scenes?.length ||
+        value.mediaMetrics ||
         value.pacingNotes?.length ||
         value.styleNotes?.length ||
         value.structuralBeats?.length ||
@@ -167,6 +171,84 @@ export class SourceVideoAnalyst {
     return value.map((item, index) => this.requiredText(item, `sourceVideoAnalysis.${fieldName}[${index}]`));
   }
 
+  private normalizeMediaMetrics(value: SourceVideoMediaMetrics | undefined): SourceVideoMediaMetrics | undefined {
+    if (!value) {
+      return undefined;
+    }
+    if (value.schemaVersion !== "cinejelly.source-video-media-metrics.v1") {
+      throw new Error("sourceVideoAnalysis.mediaMetrics has an invalid schemaVersion.");
+    }
+    const durationSeconds = value.durationSeconds !== undefined
+      ? this.positiveNumber(value.durationSeconds, "sourceVideoAnalysis.mediaMetrics.durationSeconds")
+      : undefined;
+    const bitrate = value.bitrate !== undefined
+      ? this.positiveNumber(value.bitrate, "sourceVideoAnalysis.mediaMetrics.bitrate")
+      : undefined;
+    const video = value.video;
+    const audio = value.audio;
+    const editRhythm = value.editRhythm;
+    if (!audio || typeof audio.hasAudio !== "boolean") {
+      throw new Error("sourceVideoAnalysis.mediaMetrics.audio.hasAudio must be boolean.");
+    }
+    if (!editRhythm || typeof editRhythm.sceneCutCount !== "number") {
+      throw new Error("sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutCount must be a number.");
+    }
+    const sceneCutTimestampsSeconds = this.normalizeSceneCutTimestamps(editRhythm.sceneCutTimestampsSeconds);
+    return {
+      schemaVersion: "cinejelly.source-video-media-metrics.v1",
+      ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+      ...(bitrate !== undefined ? { bitrate } : {}),
+      ...(value.formatName ? { formatName: this.requiredText(value.formatName, "sourceVideoAnalysis.mediaMetrics.formatName") } : {}),
+      ...(video ? {
+        video: {
+          ...(video.codecName ? { codecName: this.requiredText(video.codecName, "sourceVideoAnalysis.mediaMetrics.video.codecName") } : {}),
+          ...(video.width !== undefined ? { width: this.positiveInteger(video.width, "sourceVideoAnalysis.mediaMetrics.video.width") } : {}),
+          ...(video.height !== undefined ? { height: this.positiveInteger(video.height, "sourceVideoAnalysis.mediaMetrics.video.height") } : {}),
+          ...(video.frameRate !== undefined ? { frameRate: this.positiveNumber(video.frameRate, "sourceVideoAnalysis.mediaMetrics.video.frameRate") } : {}),
+          ...(video.aspectRatio ? { aspectRatio: this.requiredText(video.aspectRatio, "sourceVideoAnalysis.mediaMetrics.video.aspectRatio") } : {})
+        }
+      } : {}),
+      audio: {
+        hasAudio: audio.hasAudio,
+        ...(audio.codecName ? { codecName: this.requiredText(audio.codecName, "sourceVideoAnalysis.mediaMetrics.audio.codecName") } : {}),
+        ...(audio.sampleRate !== undefined ? { sampleRate: this.positiveInteger(audio.sampleRate, "sourceVideoAnalysis.mediaMetrics.audio.sampleRate") } : {}),
+        ...(audio.channelCount !== undefined ? { channelCount: this.positiveInteger(audio.channelCount, "sourceVideoAnalysis.mediaMetrics.audio.channelCount") } : {})
+      },
+      editRhythm: {
+        ...(editRhythm.sampledWindowSeconds !== undefined ? { sampledWindowSeconds: this.positiveNumber(editRhythm.sampledWindowSeconds, "sourceVideoAnalysis.mediaMetrics.editRhythm.sampledWindowSeconds") } : {}),
+        sceneCutCount: this.nonNegativeInteger(editRhythm.sceneCutCount, "sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutCount"),
+        ...(editRhythm.cutDensityPerMinute !== undefined ? { cutDensityPerMinute: this.nonNegativeNumber(editRhythm.cutDensityPerMinute, "sourceVideoAnalysis.mediaMetrics.editRhythm.cutDensityPerMinute") } : {}),
+        ...(editRhythm.averageShotLengthSeconds !== undefined ? { averageShotLengthSeconds: this.positiveNumber(editRhythm.averageShotLengthSeconds, "sourceVideoAnalysis.mediaMetrics.editRhythm.averageShotLengthSeconds") } : {}),
+        rhythmLabel: this.rhythmLabel(editRhythm.rhythmLabel),
+        ...(sceneCutTimestampsSeconds.length > 0 ? { sceneCutTimestampsSeconds } : {})
+      },
+      evidence: {
+        probeSucceeded: Boolean(value.evidence?.probeSucceeded),
+        sceneDetectionSucceeded: Boolean(value.evidence?.sceneDetectionSucceeded),
+        sourceUriSha256: this.hashText(value.evidence?.sourceUriSha256, "sourceVideoAnalysis.mediaMetrics.evidence.sourceUriSha256")
+      }
+    };
+  }
+
+  private normalizeSceneCutTimestamps(value: readonly number[] | undefined): readonly number[] {
+    if (!value) {
+      return [];
+    }
+    if (!Array.isArray(value)) {
+      throw new Error("sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds must be an array.");
+    }
+    return value.slice(0, SOURCE_VIDEO_ANALYSIS_LIMITS.maxScenes).map((timestamp, index) =>
+      this.nonNegativeNumber(timestamp, `sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds[${index}]`)
+    );
+  }
+
+  private rhythmLabel(value: SourceVideoMediaMetrics["editRhythm"]["rhythmLabel"]): SourceVideoMediaMetrics["editRhythm"]["rhythmLabel"] {
+    if (["unknown", "slow", "balanced", "fast", "very_fast"].includes(value)) {
+      return value;
+    }
+    throw new Error("sourceVideoAnalysis.mediaMetrics.editRhythm.rhythmLabel is invalid.");
+  }
+
   private optionalText<TKey extends string>(key: TKey, value: string | undefined, fieldName: string): { readonly [K in TKey]?: string } {
     const text = this.cleanOptionalText(value, fieldName);
     return text ? { [key]: text } as { readonly [K in TKey]?: string } : {};
@@ -206,6 +288,36 @@ export class SourceVideoAnalyst {
       throw new Error(`${fieldName} must be a non-negative number.`);
     }
     return value;
+  }
+
+  private positiveNumber(value: number, fieldName: string): number {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+      throw new Error(`${fieldName} must be a positive number.`);
+    }
+    return value;
+  }
+
+  private positiveInteger(value: number, fieldName: string): number {
+    const parsed = this.positiveNumber(value, fieldName);
+    if (!Number.isSafeInteger(parsed)) {
+      throw new Error(`${fieldName} must be an integer.`);
+    }
+    return parsed;
+  }
+
+  private nonNegativeInteger(value: number, fieldName: string): number {
+    const parsed = this.nonNegativeNumber(value, fieldName);
+    if (!Number.isSafeInteger(parsed)) {
+      throw new Error(`${fieldName} must be an integer.`);
+    }
+    return parsed;
+  }
+
+  private hashText(value: unknown, fieldName: string): string {
+    if (typeof value !== "string" || !/^[a-f0-9]{64}$/i.test(value)) {
+      throw new Error(`${fieldName} must be a sha256 hex digest.`);
+    }
+    return value.toLowerCase();
   }
 
   private endSecond(value: number, startSecond: number, fieldName: string): number {

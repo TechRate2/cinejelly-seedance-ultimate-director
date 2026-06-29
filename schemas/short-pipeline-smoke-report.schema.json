@@ -57,7 +57,11 @@
         "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" },
         "productionBibleRenderHandoff": { "$ref": "#/$defs/productionBibleRenderHandoffScenario" },
         "productionBibleMaxDuration": { "$ref": "#/$defs/productionBibleMaxDurationScenario" },
-        "audioPolicies": { "$ref": "#/$defs/audioPoliciesScenario" }
+        "audioPolicies": { "$ref": "#/$defs/audioPoliciesScenario" },
+        "shortStoryboardPromptContractDiagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/shortStoryboardPromptContractDiagnostic" }
+        }
       }
     },
     "checks": {
@@ -473,6 +477,40 @@
         "chineseIntentLanguage": { "const": "zh" },
         "audioOffHandoffAudioMode": { "const": "none" },
         "audioOffIntentCount": { "const": 0 }
+      }
+    },
+    "shortStoryboardPromptContractDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shotId",
+        "hasSeedanceMode",
+        "hasPacingContract",
+        "hasTimeline",
+        "hasMotionContinuity",
+        "hasInterShotBridge",
+        "hasBoundaryChoreography",
+        "hasFinalFrameContract",
+        "hasAudioProductionPlan",
+        "hasNativeProviderAudioGuidance",
+        "hasShotNarrationBudget",
+        "hasBeatSpokenWordBudget",
+        "generateAudio"
+      ],
+      "properties": {
+        "shotId": { "type": "string" },
+        "hasSeedanceMode": { "type": "boolean" },
+        "hasPacingContract": { "type": "boolean" },
+        "hasTimeline": { "type": "boolean" },
+        "hasMotionContinuity": { "type": "boolean" },
+        "hasInterShotBridge": { "type": "boolean" },
+        "hasBoundaryChoreography": { "type": "boolean" },
+        "hasFinalFrameContract": { "type": "boolean" },
+        "hasAudioProductionPlan": { "type": "boolean" },
+        "hasNativeProviderAudioGuidance": { "type": "boolean" },
+        "hasShotNarrationBudget": { "type": "boolean" },
+        "hasBeatSpokenWordBudget": { "type": "boolean" },
+        "generateAudio": { "type": "boolean" }
       }
     }
   }

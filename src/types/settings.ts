@@ -110,7 +110,7 @@ export const DEFAULT_SEEDANCE_SETTINGS: FlexibleSeedanceSettings = {
   ratio: "16:9",
   durationTargetSeconds: 120,
   audioMode: "hybrid",
-  bitrateMode: "standard",
+  bitrateMode: "high",
   watermark: false,
   returnLastFrame: true
 };
