@@ -76,6 +76,7 @@ const defaultContracts = [
   contract("generated_audio_manual_review_readiness", "schemas/generated-audio-manual-review-readiness-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-manual-review-readiness-report.json"),
   contract("generated_audio_mapping_smoke", "schemas/generated-audio-mapping-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json"),
   contract("generated_audio_polling_resilience", "schemas/generated-audio-polling-resilience-smoke-report.schema.json", "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"),
+  contract("transition_audio_continuity_smoke", "schemas/transition-audio-continuity-smoke-report.schema.json", "assets/output_deliverables/business-readiness/transition-audio-continuity-smoke-report.json"),
   contract("short_pipeline_smoke", "schemas/short-pipeline-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-pipeline-smoke-report.json"),
   contract("short_viral_intelligence_smoke", "schemas/short-viral-intelligence-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-viral-intelligence-smoke-report.json"),
   contract("short_agent_graph_smoke", "schemas/short-agent-graph-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-agent-graph-smoke-report.json"),

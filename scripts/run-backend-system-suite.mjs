@@ -70,6 +70,9 @@ const suiteCommands = [
   command("generated_audio_polling_resilience", ["scripts/run-generated-audio-polling-resilience-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"
   }),
+  command("transition_audio_continuity", ["scripts/run-transition-audio-continuity-smoke.mjs"], {
+    reportPath: "assets/output_deliverables/business-readiness/transition-audio-continuity-smoke-report.json"
+  }),
   command("render_scheduler", ["scripts/run-render-scheduler-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/render-scheduler-smoke-report.json"
   }),

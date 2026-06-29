@@ -1,6 +1,7 @@
 /**
  * Transition types for smooth timeline assembly.
  * FFmpeg xfade/acrossfade is used to reduce hard cuts between Seedance clips.
+ * Missing per-clip audio is filled with silence when neighboring clips have sound.
  */
 
 import type { AspectRatio } from "./settings.js";
@@ -27,6 +28,8 @@ export interface TransitionArtifact {
   readonly outputPath: string;
   readonly transitionCount: number;
   readonly usedAudioCrossfade: boolean;
+  readonly audioPreservationMode: "none" | "crossfade_all_source_audio" | "crossfade_with_silence_fill";
+  readonly silentAudioFillCount: number;
   readonly settings: TransitionSettings;
   readonly assembledAt: Date;
 }

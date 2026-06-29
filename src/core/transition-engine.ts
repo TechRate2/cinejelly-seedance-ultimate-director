@@ -1,6 +1,7 @@
 /**
  * FFmpeg transition engine for smooth clip assembly.
- * It normalizes clip dimensions/timebase, applies xfade between video clips, and uses acrossfade when every clip has audio.
+ * It normalizes clip dimensions/timebase, applies xfade between video clips, and preserves audio
+ * by crossfading real tracks while filling missing clip audio with silence.
  */
 
 import type { MediaMetadata } from "../types/media.js";
@@ -36,14 +37,23 @@ export class TransitionEngine {
     const targetWidth = this.targetWidth(targetHeight, input.settings.targetRatio, metadata);
     const transitionDurationSeconds = this.effectiveTransitionDurationSeconds(input.settings.durationSeconds, metadata);
     const usesFixedCanvas = Boolean(input.settings.targetRatio && input.settings.targetRatio !== "adaptive");
-    const allHaveAudio = input.settings.preserveAudio && metadata.every((item) => item.streams.some((stream) => stream.type === "audio"));
-    const args = this.buildFfmpegArgs(input, metadata, targetHeight, targetWidth, transitionDurationSeconds, usesFixedCanvas, allHaveAudio);
+    const audioPresence = metadata.map((item) => this.hasAudio(item));
+    const sourceAudioCount = audioPresence.filter(Boolean).length;
+    const includeAudio = input.settings.preserveAudio && sourceAudioCount > 0;
+    const silentAudioFillCount = includeAudio ? audioPresence.filter((hasAudio) => !hasAudio).length : 0;
+    const args = this.buildFfmpegArgs(input, metadata, targetHeight, targetWidth, transitionDurationSeconds, usesFixedCanvas, includeAudio);
     await runProcess(readMediaToolCommand("ffmpeg"), args, signal);
 
     return {
       outputPath: input.outputPath,
       transitionCount: input.inputPaths.length - 1,
-      usedAudioCrossfade: allHaveAudio,
+      usedAudioCrossfade: includeAudio,
+      audioPreservationMode: includeAudio
+        ? silentAudioFillCount > 0
+          ? "crossfade_with_silence_fill"
+          : "crossfade_all_source_audio"
+        : "none",
+      silentAudioFillCount,
       settings: {
         ...input.settings,
         durationSeconds: transitionDurationSeconds,
@@ -74,7 +84,7 @@ export class TransitionEngine {
         `[${index}:v]setpts=PTS-STARTPTS,${this.canvasFilter(targetWidth, targetHeight, usesFixedCanvas)},setsar=1,fps=${input.settings.fps},format=yuv420p[v${index}]`
       );
       if (includeAudio) {
-        filters.push(`[${index}:a]asetpts=PTS-STARTPTS,aresample=async=1[a${index}]`);
+        filters.push(this.audioFilterFor(index, metadata[index]));
       }
     }
 
@@ -128,6 +138,19 @@ export class TransitionEngine {
       throw new Error("Transition assembly requires valid clip durations from ffprobe.");
     }
     return metadata.durationSeconds;
+  }
+
+  private hasAudio(metadata: MediaMetadata | undefined): boolean {
+    return Boolean(metadata?.streams.some((stream) => stream.type === "audio"));
+  }
+
+  private audioFilterFor(index: number, metadata: MediaMetadata | undefined): string {
+    const durationSeconds = this.durationFor(metadata).toFixed(3);
+    const normalizedFormat = "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo";
+    if (this.hasAudio(metadata)) {
+      return `[${index}:a]asetpts=PTS-STARTPTS,aresample=48000,${normalizedFormat},apad,atrim=duration=${durationSeconds}[a${index}]`;
+    }
+    return `anullsrc=channel_layout=stereo:sample_rate=48000,atrim=duration=${durationSeconds},asetpts=PTS-STARTPTS,${normalizedFormat}[a${index}]`;
   }
 
   private effectiveTransitionDurationSeconds(requestedDurationSeconds: number, metadata: readonly MediaMetadata[]): number {
