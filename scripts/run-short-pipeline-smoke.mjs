@@ -617,11 +617,12 @@ const checks = [
     ? pass("seedance_mini_fallback_capability_guard", "Atlas fallback capabilities keep Seedance Mini on 480p/720p only while broader tiers retain higher/SR options.")
     : fail("seedance_mini_fallback_capability_guard", "Expected fallback capability mapping to prevent Mini from advertising unsupported high/SR resolutions."),
   authorizedSourceVideoPrompt.videoRequest.references.some((reference) => reference.role === "source_video_structure" && reference.kind === "video") &&
+    authorizedSourceVideoPrompt.videoRequest.mode === "reference_to_video" &&
     authorizedSourceVideoPrompt.prompt.includes("use source/reference video only for rhythm") &&
     planningOnlySourceVideoPrompt.videoRequest.references.every((reference) => reference.role !== "source_video_structure") &&
     planningOnlySourceVideoPrompt.bindingPlan.conflicts.some((conflict) => conflict.code === "source_video_structure_planning_only")
-    ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references can reach provider video references, while unapproved source-video references stay planning-only.")
-    : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization and provider video capability."),
+    ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references compile as reference-to-video provider inputs, while unapproved source-video references stay planning-only.")
+    : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization, provider video capability, and reference-to-video mode."),
   hasEveryReviewSurface(reviewRequiredPlan)
     ? pass("review_surfaces_present", "Scene, audio, no-visible-text, and claim checkpoints are present before render.")
     : fail("review_surfaces_present", "Expected scene, audio, no-visible-text, and claim checkpoints."),

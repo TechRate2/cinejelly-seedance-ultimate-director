@@ -140,6 +140,7 @@ Rules:
 - First and last frames are treated as endpoint constraints.
 - If source limits conflict across articles, runtime provider schema wins.
 - `source_video_structure` remains planning/prose guidance by default and is sent as a provider video reference only when source rights are explicitly authorized and the selected provider capability supports that reference kind.
+- Any authorized provider video, source-video, motion, camera, audio, voice, or style reference must compile as `reference_to_video`; image-only first/last/identity/product anchors compile as `image_to_video`; no provider references compile as `text_to_video`.
 - Binding conflicts are emitted to Consistency Guardian preflight before provider spend.
 
 ## Identity vs Motion Weighting

@@ -215,7 +215,16 @@ export class SeedancePromptCompiler {
         roles.add(reference.role);
       }
     }
-    if (roles.has("motion") || roles.has("audio_tempo") || roles.has("style")) {
+    if (
+      roles.has("video") ||
+      roles.has("source_video_structure") ||
+      roles.has("motion") ||
+      roles.has("camera") ||
+      roles.has("audio") ||
+      roles.has("audio_tempo") ||
+      roles.has("voice") ||
+      roles.has("style")
+    ) {
       return "reference_to_video";
     }
     if (roles.has("first_frame") || roles.has("last_frame") || roles.has("identity") || roles.has("product")) {
