@@ -284,6 +284,35 @@ const videoRemakePipePlan = planner.buildPlan({
     mediaReference("source_video", "video", "asset://short-pipeline/approved-serum-trend", "Approved serum trend structure", "operator_approved", "supporting")
   ]
 });
+const cleanHttpsMediaReferences = [
+  mediaReference("kol", "image", "https://cdn.example.test/refs/mina-kol.png", "Clean HTTPS KOL reference", "operator_approved", "primary"),
+  mediaReference("product", "image", "https://cdn.example.test/refs/glow-serum-pack.png", "Clean HTTPS serum pack", "operator_approved", "primary"),
+  mediaReference("source_video", "video", "https://media.example.test/refs/serum-trend.mp4", "Clean HTTPS source trend", "operator_approved", "supporting")
+];
+const cleanHttpsReferencePlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_clean_https_references",
+  generatedAt,
+  userPrompt: "Create a 24 second Video Remake using clean HTTPS KOL, product, and source-video references. Keep the source rhythm only and replace all identity, product, audio, and claims.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 24,
+  product: {
+    snapshot: {
+      productTitle: "Glow Focus Serum",
+      category: "beauty",
+      benefits: ["Lightweight texture layers cleanly under makeup"],
+      claims: ["Lightweight texture layers cleanly under makeup"],
+      targetBuyer: "busy skincare buyers",
+      cta: "Shop now"
+    }
+  },
+  mediaReferences: cleanHttpsMediaReferences
+});
+const cleanHttpsReferenceHandoff = buildShortPipelineRenderHandoff({
+  plan: cleanHttpsReferencePlan,
+  mediaReferenceInputs: cleanHttpsMediaReferences,
+  includeGeneratedAudioIntents: true
+});
 const productionBiblePipePlan = planner.buildPlan({
   projectId: "short_pipeline_smoke",
   requestId: "req_short_pipeline_pipe_production_bible",
@@ -623,6 +652,19 @@ const checks = [
     planningOnlySourceVideoPrompt.bindingPlan.conflicts.some((conflict) => conflict.code === "source_video_structure_planning_only")
     ? pass("source_video_authorized_provider_binding", "Authorized source-video structure references compile as reference-to-video provider inputs, while unapproved source-video references stay planning-only.")
     : fail("source_video_authorized_provider_binding", "Expected source-video provider binding to require authorization, provider video capability, and reference-to-video mode."),
+  cleanHttpsReferencePlan.mediaReferencePlan.filter((reference) =>
+    ["identity", "product", "source_video_structure"].includes(reference.promptRole)
+  ).every((reference) =>
+    reference.includeInProviderHandoff === true &&
+      reference.uriPolicy === "clean_https_hashed" &&
+      !reference.providerUri &&
+      !reference.providerAssetId
+  ) &&
+    cleanHttpsReferenceHandoff.request.references?.some((reference) => reference.role === "identity" && reference.providerReference.uri.startsWith("https://")) &&
+    cleanHttpsReferenceHandoff.request.references?.some((reference) => reference.role === "product" && reference.providerReference.uri.startsWith("https://")) &&
+    cleanHttpsReferenceHandoff.request.references?.some((reference) => reference.role === "source_video_structure" && reference.providerReference.kind === "video" && reference.providerReference.uri.startsWith("https://"))
+    ? pass("clean_https_media_provider_handoff", "Operator-approved clean HTTPS KOL, product, and source-video references stay hashed in the plan and reach provider handoff only from the raw render input.")
+    : fail("clean_https_media_provider_handoff", "Expected clean HTTPS media references to remain redacted in the plan and reach render handoff after operator approval."),
   hasEveryReviewSurface(reviewRequiredPlan)
     ? pass("review_surfaces_present", "Scene, audio, no-visible-text, and claim checkpoints are present before render.")
     : fail("review_surfaces_present", "Expected scene, audio, no-visible-text, and claim checkpoints."),
@@ -861,7 +903,7 @@ const report = {
   ],
   checkedInputs: {
     outputPath: options.outputPath,
-    scenarioCount: 10,
+    scenarioCount: 11,
     pipeScenarioCount: pipeMatrixExpected.length,
     endpointPath: "/v1/short-pipeline/plan",
     renderHandoffEndpointPath: "/v1/short-pipeline/render-jobs",
@@ -871,6 +913,7 @@ const report = {
     reviewRequired: summarizePlan(reviewRequiredPlan),
     blocked: summarizePlan(blockedPlan),
     naturalOnly: summarizePlan(naturalOnlyPlan),
+    cleanHttpsReferences: summarizeCleanHttpsReferences(cleanHttpsReferencePlan, cleanHttpsReferenceHandoff),
     pipeMatrix: summarizePipeMatrix(pipeMatrixPlans),
     renderHandoff: summarizeHandoff(pendingRenderHandoff, approvedRenderHandoff),
     productionBibleRenderHandoff: summarizeProductionBibleHandoff(productionBibleRenderHandoff),
@@ -986,6 +1029,31 @@ function summarizePlan(plan) {
     channelStyleMemoryPatternCount: plan.agentGraph?.memoryPack.retrievedPatterns.filter((pattern) => pattern.source === "channel_style_memory").length ?? 0,
     canUseAsNoSpendPlanningEvidence: plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence,
     canReleaseToCustomerTraffic: plan.releaseGateSummary.canReleaseToCustomerTraffic
+  };
+}
+
+function summarizeCleanHttpsReferences(plan, handoff) {
+  const planned = plan.mediaReferencePlan.filter((reference) =>
+    ["identity", "product", "source_video_structure"].includes(reference.promptRole)
+  );
+  const handoffReferences = handoff.request.references ?? [];
+  return {
+    planId: plan.planId,
+    plannedReferenceCount: planned.length,
+    plannedProviderHandoffCount: planned.filter((reference) => reference.includeInProviderHandoff).length,
+    plannedCleanHttpsCount: planned.filter((reference) => reference.uriPolicy === "clean_https_hashed").length,
+    plannedProviderUriCount: planned.filter((reference) => Boolean(reference.providerUri)).length,
+    plannedProviderAssetIdCount: planned.filter((reference) => Boolean(reference.providerAssetId)).length,
+    handoffReferenceCount: handoffReferences.length,
+    handoffCleanHttpsRoleCount: handoffReferences.filter((reference) =>
+      ["identity", "product", "source_video_structure"].includes(reference.role) &&
+        reference.providerReference.uri.startsWith("https://")
+    ).length,
+    sourceVideoHandoffPresent: handoffReferences.some((reference) =>
+      reference.role === "source_video_structure" &&
+        reference.providerReference.kind === "video" &&
+        reference.providerReference.uri.startsWith("https://")
+    )
   };
 }
 

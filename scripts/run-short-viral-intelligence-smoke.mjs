@@ -243,6 +243,45 @@ const qualityOverridePlan = planner.buildPlan({
   }
 });
 
+const videoRemakeMediaReferences = [
+  {
+    role: "kol",
+    kind: "image",
+    uri: "asset://short-viral/desk-kol",
+    label: "Desk KOL reference",
+    rightsStatus: "operator_approved",
+    priority: "primary",
+    description: "Preserve approved KOL identity only."
+  },
+  {
+    role: "product",
+    kind: "image",
+    uri: "asset://short-viral/magsnap-product",
+    label: "MagSnap product reference",
+    rightsStatus: "operator_approved",
+    priority: "primary",
+    description: "Preserve product geometry and magnetic mechanism only."
+  },
+  {
+    role: "background",
+    kind: "image",
+    uri: "asset://short-viral/desk-background",
+    label: "Desk background",
+    rightsStatus: "operator_approved",
+    priority: "supporting",
+    description: "Preserve desk layout and broad environment only."
+  },
+  {
+    role: "source_video",
+    kind: "video",
+    uri: "https://media.example.com/reference/office-life-remake",
+    label: "Office-life remake structure",
+    rightsStatus: "operator_approved",
+    priority: "supporting",
+    description: "Learn rhythm, acting beats, camera grammar, retention timing, and payoff structure only."
+  }
+];
+
 const videoRemakePlan = planner.buildPlan({
   projectId: "short_viral_smoke",
   requestId: "req_short_viral_video_remake_blueprint",
@@ -277,44 +316,7 @@ const videoRemakePlan = planner.buildPlan({
     visualMotifs: ["desk chaos", "magnetic snap", "clean final frame"],
     doNotCopy: true
   },
-  mediaReferences: [
-    {
-      role: "kol",
-      kind: "image",
-      uri: "asset://short-viral/desk-kol",
-      label: "Desk KOL reference",
-      rightsStatus: "operator_approved",
-      priority: "primary",
-      description: "Preserve approved KOL identity only."
-    },
-    {
-      role: "product",
-      kind: "image",
-      uri: "asset://short-viral/magsnap-product",
-      label: "MagSnap product reference",
-      rightsStatus: "operator_approved",
-      priority: "primary",
-      description: "Preserve product geometry and magnetic mechanism only."
-    },
-    {
-      role: "background",
-      kind: "image",
-      uri: "asset://short-viral/desk-background",
-      label: "Desk background",
-      rightsStatus: "operator_approved",
-      priority: "supporting",
-      description: "Preserve desk layout and broad environment only."
-    },
-    {
-      role: "source_video",
-      kind: "video",
-      uri: "https://media.example.com/reference/office-life-remake",
-      label: "Office-life remake structure",
-      rightsStatus: "operator_approved",
-      priority: "supporting",
-      description: "Learn rhythm, acting beats, camera grammar, retention timing, and payoff structure only."
-    }
-  ]
+  mediaReferences: videoRemakeMediaReferences
 });
 
 const trendUploadOnlyPlan = planner.buildPlan({
@@ -479,6 +481,7 @@ const renderHandoff = buildShortPipelineRenderHandoff({
 
 const videoRemakeHandoff = buildShortPipelineRenderHandoff({
   plan: videoRemakePlan,
+  mediaReferenceInputs: videoRemakeMediaReferences,
   includeGeneratedAudioIntents: true,
   metadata: {
     workspaceId: "short_viral_remake_workspace"
@@ -493,6 +496,9 @@ const trendUploadHandoff = buildShortPipelineRenderHandoff({
   }
 });
 
+const redactedRenderHandoff = redactHandoffProviderReferenceUris(renderHandoff);
+const redactedVideoRemakeHandoff = redactHandoffProviderReferenceUris(videoRemakeHandoff);
+const redactedTrendUploadHandoff = redactHandoffProviderReferenceUris(trendUploadHandoff);
 const serialized = JSON.stringify({
   viralPlan,
   copyRiskPlan,
@@ -508,9 +514,9 @@ const serialized = JSON.stringify({
   fashionTryOnPlan,
   mobileAppPlan,
   conversation,
-  renderHandoff,
-  videoRemakeHandoff,
-  trendUploadHandoff
+  renderHandoff: redactedRenderHandoff,
+  videoRemakeHandoff: redactedVideoRemakeHandoff,
+  trendUploadHandoff: redactedTrendUploadHandoff
 });
 const rawReferenceLeak = serialized.includes("https://media.example.com/reference/glow-review") ||
   serialized.includes("https://media.example.com/reference/copy-risk") ||
@@ -938,4 +944,20 @@ function writeJson(outputPath, value) {
   const absolutePath = resolve(repoRoot, outputPath);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function redactHandoffProviderReferenceUris(handoff) {
+  return {
+    ...handoff,
+    request: {
+      ...handoff.request,
+      references: (handoff.request.references ?? []).map((reference) => ({
+        ...reference,
+        providerReference: {
+          ...reference.providerReference,
+          uri: "[PROVIDER_REFERENCE_URI_REDACTED]"
+        }
+      }))
+    }
+  };
 }

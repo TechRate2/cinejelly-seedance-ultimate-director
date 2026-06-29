@@ -1273,7 +1273,7 @@ function mediaReferencePlanFor(
     const sourceVideoProviderEligible = role.promptRole === "source_video_structure" &&
       rightsStatus === "operator_approved" &&
       uriEvidence.status === "ready" &&
-      Boolean(uriEvidence.providerAssetId);
+      uriEvidence.providerReady;
     const issues = uniqueClean([
       ...(uriEvidence.status === "blocked" ? ["unsafe_or_private_media_reference"] : []),
       ...(rightsStatus !== "operator_approved" ? ["media_rights_review_required"] : []),
@@ -1315,10 +1315,11 @@ function mediaReferencePlanFor(
       uriPolicy: uriEvidence.uriPolicy,
       ...(uriEvidence.uriSha256 ? { uriSha256: uriEvidence.uriSha256 } : {}),
       ...(uriEvidence.sourceHost ? { sourceHost: uriEvidence.sourceHost } : {}),
+      ...(uriEvidence.providerUri ? { providerUri: uriEvidence.providerUri } : {}),
       ...(uriEvidence.providerAssetId ? { providerAssetId: uriEvidence.providerAssetId } : {}),
       includeInProviderHandoff: status === "ready" &&
         uriEvidence.status === "ready" &&
-        Boolean(uriEvidence.providerAssetId) &&
+        uriEvidence.providerReady &&
         (role.promptRole !== "source_video_structure" || sourceVideoProviderEligible),
       transferScope: mediaTransferScope(role.promptRole, promptTag, cleanText(reference.description, 160)),
       doNotTransfer: mediaDoNotTransfer(role.promptRole),
@@ -1537,12 +1538,15 @@ function mediaUriEvidence(uri: string): {
   readonly uriPolicy: ShortMediaReferencePlan["uriPolicy"];
   readonly uriSha256?: string;
   readonly sourceHost?: string;
+  readonly providerReady: boolean;
+  readonly providerUri?: string;
   readonly providerAssetId?: string;
 } {
   if (!uri || UNSAFE_MEDIA_REFERENCE_PATTERN.test(uri)) {
     return {
       status: "blocked",
-      uriPolicy: "blocked_unsafe_or_private"
+      uriPolicy: "blocked_unsafe_or_private",
+      providerReady: false
     };
   }
   if (uri.startsWith("asset://")) {
@@ -1552,11 +1556,14 @@ function mediaUriEvidence(uri: string): {
           status: "ready",
           uriPolicy: "asset_id_retained",
           uriSha256: sha256(uri),
+          providerReady: true,
+          providerUri: `asset://${providerAssetId}`,
           providerAssetId
         }
       : {
           status: "blocked",
-          uriPolicy: "blocked_unsafe_or_private"
+          uriPolicy: "blocked_unsafe_or_private",
+          providerReady: false
         };
   }
   let parsed: URL;
@@ -1565,26 +1572,30 @@ function mediaUriEvidence(uri: string): {
   } catch {
     return {
       status: "blocked",
-      uriPolicy: "blocked_unsafe_or_private"
+      uriPolicy: "blocked_unsafe_or_private",
+      providerReady: false
     };
   }
   if (parsed.protocol !== "https:" || isLocalHost(parsed.hostname) || parsed.username || parsed.password || parsed.hash) {
     return {
       status: "blocked",
-      uriPolicy: "blocked_unsafe_or_private"
+      uriPolicy: "blocked_unsafe_or_private",
+      providerReady: false
     };
   }
   if ([...parsed.searchParams.entries()].some(([key, value]) => UNSAFE_QUERY_PATTERN.test(key) || UNSAFE_QUERY_PATTERN.test(value))) {
     return {
       status: "blocked",
-      uriPolicy: "blocked_unsafe_or_private"
+      uriPolicy: "blocked_unsafe_or_private",
+      providerReady: false
     };
   }
   return {
     status: "ready",
     uriPolicy: "clean_https_hashed",
     uriSha256: sha256(uri),
-    sourceHost: parsed.hostname.toLowerCase()
+    sourceHost: parsed.hostname.toLowerCase(),
+    providerReady: true
   };
 }
 

@@ -4,6 +4,7 @@
  * without bypassing admission, quota, review, cost, or artifact gates.
  */
 
+import { createHash } from "node:crypto";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { CaptionCue, CaptionOptions } from "../types/caption.js";
 import type { GeneratedAudioIntent } from "../types/audio.js";
@@ -16,6 +17,8 @@ import type {
 import type {
   ShortPipelineAudioPolicy,
   ShortPipelineAudioPolicyInput,
+  ShortMediaReferenceInput,
+  ShortMediaReferencePlan,
   ShortPipelinePlan,
   ShortPipelineVisualTextPolicy
 } from "../types/short-pipeline.js";
@@ -33,6 +36,7 @@ export interface ShortPipelineRenderHandoffInput {
   readonly reviewApproval?: ShortPipelineRenderHandoffReviewInput;
   readonly settings?: CineJellyProjectRequest["settings"];
   readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
+  readonly mediaReferenceInputs?: readonly ShortMediaReferenceInput[];
   readonly references?: CineJellyProjectRequest["references"];
   readonly metadata?: CineJellyProjectRequest["metadata"];
   readonly outputPath?: string;
@@ -62,6 +66,9 @@ export interface ShortPipelineRenderHandoff {
 
 const RENDER_PROMPT_MAX_CHARS = 23_500;
 const SHORT_RENDER_METADATA_MAX_ENTRIES = 50;
+const UNSAFE_MEDIA_REFERENCE_PATTERN =
+  /[A-Za-z]:\\|\\\\|(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|data:|bearer\s+|api[_-]?key|secret|token|password|authorization/i;
+const UNSAFE_QUERY_PATTERN = /token|signature|sig|key|apikey|api_key|secret|password|auth|credential|expires|policy/i;
 const SHORT_RENDER_METADATA_PRIORITY_KEYS = [
   "workspaceId",
   "smoke",
@@ -132,7 +139,7 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
     checkpoints: plan.reviewApproval.checkpoints.map(checkpointInputFromReport)
   };
   const workflowMetadata = shortWorkflowMetadata(plan, input.metadata);
-  const references = mergeShortHandoffReferences(plan, input.references);
+  const references = mergeShortHandoffReferences(plan, input.references, input.mediaReferenceInputs);
   const requestedAudioMode = input.settings?.audioMode ?? audioPolicy.renderAudioMode ?? plan.seedanceRouting.generatedAudioMode;
   const shortAudioMode = requestedAudioMode === "none" ? "none" : "guided";
   const selectedPipe = selectedVideoPipeOption(plan);
@@ -344,12 +351,15 @@ function shortWorkflowMetadata(
 
 function mergeShortHandoffReferences(
   plan: ShortPipelinePlan,
-  providedReferences: CineJellyProjectRequest["references"] | undefined
+  providedReferences: CineJellyProjectRequest["references"] | undefined,
+  mediaReferenceInputs: readonly ShortMediaReferenceInput[] | undefined
 ): readonly PromptReference[] {
   const plannedReferences = plan.mediaReferencePlan
     .flatMap((reference): readonly PromptReference[] => {
-      const providerAssetId = reference.providerAssetId;
-      if (!reference.includeInProviderHandoff || !providerAssetId) {
+      const providerUri = reference.providerUri ?? (
+        reference.providerAssetId ? `asset://${reference.providerAssetId}` : providerUriFromRawMediaInput(reference, mediaReferenceInputs)
+      );
+      if (!reference.includeInProviderHandoff || !providerUri) {
         return [];
       }
       return [{
@@ -358,9 +368,9 @@ function mergeShortHandoffReferences(
         priority: reference.priority,
         providerReference: {
           kind: reference.providerKind,
-          uri: `asset://${providerAssetId}`,
+          uri: providerUri,
           role: reference.promptRole,
-          providerAssetId,
+          ...(reference.providerAssetId ? { providerAssetId: reference.providerAssetId } : {}),
           label: reference.label
         },
         selection: {
@@ -382,6 +392,103 @@ function mergeShortHandoffReferences(
     }
   }
   return [...deduped.values()];
+}
+
+function providerUriFromRawMediaInput(
+  reference: ShortMediaReferencePlan,
+  mediaReferenceInputs: readonly ShortMediaReferenceInput[] | undefined
+): string | undefined {
+  if (!mediaReferenceInputs?.length || reference.uriPolicy !== "clean_https_hashed" || !reference.uriSha256) {
+    return undefined;
+  }
+  for (const rawReference of mediaReferenceInputs.slice(0, 12)) {
+    const evidence = cleanRawMediaProviderUri(rawReference.uri);
+    if (
+      evidence.uriSha256 === reference.uriSha256 &&
+      rawMediaPromptRole(rawReference.role) === reference.promptRole &&
+      rawMediaProviderKind(rawReference) === reference.providerKind &&
+      evidence.providerUri
+    ) {
+      return evidence.providerUri;
+    }
+  }
+  return undefined;
+}
+
+function cleanRawMediaProviderUri(uri: string): { readonly uriSha256?: string; readonly providerUri?: string } {
+  const cleaned = boundedText(uri, 600);
+  if (!cleaned || UNSAFE_MEDIA_REFERENCE_PATTERN.test(cleaned)) {
+    return {};
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(cleaned);
+  } catch {
+    return {};
+  }
+  if (parsed.protocol !== "https:" || isLocalHost(parsed.hostname) || parsed.username || parsed.password || parsed.hash) {
+    return {};
+  }
+  if ([...parsed.searchParams.entries()].some(([key, value]) => UNSAFE_QUERY_PATTERN.test(key) || UNSAFE_QUERY_PATTERN.test(value))) {
+    return {};
+  }
+  return {
+    uriSha256: sha256(cleaned),
+    providerUri: parsed.toString()
+  };
+}
+
+function rawMediaPromptRole(role: ShortMediaReferenceInput["role"]): ShortMediaReferencePlan["promptRole"] {
+  switch (role) {
+    case "kol":
+    case "creator":
+      return "identity";
+    case "product":
+      return "product";
+    case "wardrobe":
+    case "clothing":
+      return "wardrobe";
+    case "background":
+    case "environment":
+      return "environment";
+    case "first_frame":
+      return "first_frame";
+    case "last_frame":
+      return "last_frame";
+    case "style":
+      return "style";
+    case "motion":
+      return "motion";
+    case "camera":
+      return "camera";
+    case "audio":
+      return "audio_tempo";
+    case "source_video":
+      return "source_video_structure";
+  }
+}
+
+function rawMediaProviderKind(reference: ShortMediaReferenceInput): ShortMediaReferencePlan["providerKind"] {
+  const role = rawMediaPromptRole(reference.role);
+  if (reference.kind === "audio" || role === "audio_tempo") {
+    return "audio";
+  }
+  if (
+    reference.kind === "video" ||
+    role === "motion" ||
+    role === "camera" ||
+    role === "source_video_structure" ||
+    /\.(?:mp4|mov|webm|m4v)(?:$|[?#])/i.test(reference.uri)
+  ) {
+    return "video";
+  }
+  if (role === "first_frame" || role === "last_frame") {
+    return role;
+  }
+  if (role === "identity" || role === "product" || role === "environment" || role === "style") {
+    return role;
+  }
+  return "image";
 }
 
 export function reviewInputCanQueueRender(input: ShortPipelineRenderHandoffReviewInput): boolean {
@@ -883,6 +990,18 @@ function compactLines(lines: readonly string[]): string {
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean)
     .join("\n");
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function isLocalHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized === "localhost" ||
+    normalized === "127.0.0.1" ||
+    normalized === "::1" ||
+    normalized.endsWith(".local");
 }
 
 function roundSeconds(value: number): number {

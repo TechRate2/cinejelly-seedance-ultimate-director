@@ -337,6 +337,7 @@ export interface ShortMediaReferencePlan {
   readonly uriPolicy: ShortMediaReferenceUriPolicy;
   readonly uriSha256?: string;
   readonly sourceHost?: string;
+  readonly providerUri?: string;
   readonly providerAssetId?: string;
   readonly includeInProviderHandoff: boolean;
   readonly transferScope: string;

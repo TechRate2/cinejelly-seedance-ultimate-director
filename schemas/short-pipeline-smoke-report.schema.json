@@ -36,7 +36,7 @@
       "required": ["outputPath", "scenarioCount", "pipeScenarioCount", "endpointPath", "renderHandoffEndpointPath", "rawUrlLeakCheckPassed"],
       "properties": {
         "outputPath": { "type": "string" },
-        "scenarioCount": { "const": 10 },
+        "scenarioCount": { "const": 11 },
         "pipeScenarioCount": { "const": 5 },
         "endpointPath": { "const": "/v1/short-pipeline/plan" },
         "renderHandoffEndpointPath": { "const": "/v1/short-pipeline/render-jobs" },
@@ -46,11 +46,12 @@
     "scenarios": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reviewRequired", "blocked", "naturalOnly", "pipeMatrix", "renderHandoff", "productionBibleRenderHandoff", "productionBibleMaxDuration", "audioPolicies"],
+      "required": ["reviewRequired", "blocked", "naturalOnly", "cleanHttpsReferences", "pipeMatrix", "renderHandoff", "productionBibleRenderHandoff", "productionBibleMaxDuration", "audioPolicies"],
       "properties": {
         "reviewRequired": { "$ref": "#/$defs/scenario" },
         "blocked": { "$ref": "#/$defs/scenario" },
         "naturalOnly": { "$ref": "#/$defs/scenario" },
+        "cleanHttpsReferences": { "$ref": "#/$defs/cleanHttpsReferencesScenario" },
         "pipeMatrix": { "$ref": "#/$defs/pipeMatrix" },
         "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" },
         "productionBibleRenderHandoff": { "$ref": "#/$defs/productionBibleRenderHandoffScenario" },
@@ -157,6 +158,32 @@
         "channelStyleMemoryPatternCount": { "type": "integer", "minimum": 0 },
         "canUseAsNoSpendPlanningEvidence": { "type": "boolean" },
         "canReleaseToCustomerTraffic": { "const": false }
+      }
+    },
+    "cleanHttpsReferencesScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "plannedReferenceCount",
+        "plannedProviderHandoffCount",
+        "plannedCleanHttpsCount",
+        "plannedProviderUriCount",
+        "plannedProviderAssetIdCount",
+        "handoffReferenceCount",
+        "handoffCleanHttpsRoleCount",
+        "sourceVideoHandoffPresent"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "plannedReferenceCount": { "const": 3 },
+        "plannedProviderHandoffCount": { "const": 3 },
+        "plannedCleanHttpsCount": { "const": 3 },
+        "plannedProviderUriCount": { "const": 0 },
+        "plannedProviderAssetIdCount": { "const": 0 },
+        "handoffReferenceCount": { "const": 3 },
+        "handoffCleanHttpsRoleCount": { "const": 3 },
+        "sourceVideoHandoffPresent": { "const": true }
       }
     },
     "renderHandoffScenario": {

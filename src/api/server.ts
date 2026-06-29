@@ -813,6 +813,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(handoffBody.reviewApproval ? { reviewApproval: handoffBody.reviewApproval } : {}),
           ...(handoffBody.settings ? { settings: handoffBody.settings } : {}),
           ...(handoffBody.modelPreferences ? { modelPreferences: handoffBody.modelPreferences } : {}),
+          ...(handoffBody.planInput.mediaReferences ? { mediaReferenceInputs: handoffBody.planInput.mediaReferences } : {}),
           ...(handoffBody.references ? { references: handoffBody.references } : {}),
           ...(handoffBody.metadata ? { metadata: handoffBody.metadata } : {}),
           ...(handoffBody.outputPath ? { outputPath: handoffBody.outputPath } : {}),
