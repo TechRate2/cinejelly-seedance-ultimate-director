@@ -5,6 +5,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { isIP } from "node:net";
 import { ShortChannelStyleProfileEvaluator } from "./short-channel-style-profile.js";
 import { ReviewApprovalSystem } from "./review-approval-system.js";
 import { ShortDirectorPlanner } from "./short-director-planner.js";
@@ -2118,8 +2119,33 @@ function sha256(value: string): string {
 }
 
 function isLocalHost(hostname: string): boolean {
-  const lower = hostname.toLowerCase();
-  return lower === "localhost" || lower === "127.0.0.1" || lower === "::1" || lower.endsWith(".local");
+  const lower = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    lower === "localhost" ||
+    lower === "::" ||
+    lower === "::1" ||
+    lower === "0.0.0.0" ||
+    lower.endsWith(".local") ||
+    lower.endsWith(".internal")
+  ) {
+    return true;
+  }
+  const ipVersion = isIP(lower);
+  if (ipVersion === 4) {
+    const [first = 0, second = 0] = lower.split(".").map((part) => Number(part));
+    return first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168);
+  }
+  if (ipVersion === 6) {
+    return lower.startsWith("fc") ||
+      lower.startsWith("fd") ||
+      lower.startsWith("fe80:");
+  }
+  return false;
 }
 
 function isCleanHttps(value: string): boolean {

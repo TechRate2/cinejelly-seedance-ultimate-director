@@ -46,12 +46,13 @@
     "scenarios": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reviewRequired", "blocked", "naturalOnly", "cleanHttpsReferences", "pipeMatrix", "renderHandoff", "productionBibleRenderHandoff", "productionBibleMaxDuration", "audioPolicies"],
+      "required": ["reviewRequired", "blocked", "naturalOnly", "cleanHttpsReferences", "privateMediaReferences", "pipeMatrix", "renderHandoff", "productionBibleRenderHandoff", "productionBibleMaxDuration", "audioPolicies"],
       "properties": {
         "reviewRequired": { "$ref": "#/$defs/scenario" },
         "blocked": { "$ref": "#/$defs/scenario" },
         "naturalOnly": { "$ref": "#/$defs/scenario" },
         "cleanHttpsReferences": { "$ref": "#/$defs/cleanHttpsReferencesScenario" },
+        "privateMediaReferences": { "$ref": "#/$defs/privateMediaReferencesScenario" },
         "pipeMatrix": { "$ref": "#/$defs/pipeMatrix" },
         "renderHandoff": { "$ref": "#/$defs/renderHandoffScenario" },
         "productionBibleRenderHandoff": { "$ref": "#/$defs/productionBibleRenderHandoffScenario" },
@@ -184,6 +185,30 @@
         "handoffReferenceCount": { "const": 3 },
         "handoffCleanHttpsRoleCount": { "const": 3 },
         "sourceVideoHandoffPresent": { "const": true }
+      }
+    },
+    "privateMediaReferencesScenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "plannedReferenceCount",
+        "blockedReferenceCount",
+        "providerHandoffCount",
+        "handoffReferenceCount",
+        "uriPolicies"
+      ],
+      "properties": {
+        "planId": { "type": "string" },
+        "plannedReferenceCount": { "const": 3 },
+        "blockedReferenceCount": { "const": 3 },
+        "providerHandoffCount": { "const": 0 },
+        "handoffReferenceCount": { "const": 0 },
+        "uriPolicies": {
+          "type": "array",
+          "minItems": 3,
+          "items": { "const": "blocked_unsafe_or_private" }
+        }
       }
     },
     "renderHandoffScenario": {

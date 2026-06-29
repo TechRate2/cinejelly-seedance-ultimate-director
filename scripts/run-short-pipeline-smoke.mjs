@@ -313,6 +313,25 @@ const cleanHttpsReferenceHandoff = buildShortPipelineRenderHandoff({
   mediaReferenceInputs: cleanHttpsMediaReferences,
   includeGeneratedAudioIntents: true
 });
+const privateMediaReferenceInputs = [
+  mediaReference("kol", "image", "https://192.168.1.10/refs/private-kol.png", "Private network KOL reference", "operator_approved", "primary"),
+  mediaReference("product", "image", "https://10.0.0.5/refs/private-product.png", "Private network product reference", "operator_approved", "primary"),
+  mediaReference("source_video", "video", "https://media.internal/refs/private-source.mp4", "Internal source trend", "operator_approved", "supporting")
+];
+const privateMediaReferencePlan = planner.buildPlan({
+  projectId: "short_pipeline_smoke",
+  requestId: "req_short_pipeline_private_media_references",
+  generatedAt,
+  userPrompt: "Create a 24 second Video Remake using private-network media references. Backend must block unsafe media handoff.",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 24,
+  mediaReferences: privateMediaReferenceInputs
+});
+const privateMediaReferenceHandoff = buildShortPipelineRenderHandoff({
+  plan: privateMediaReferencePlan,
+  mediaReferenceInputs: privateMediaReferenceInputs,
+  includeGeneratedAudioIntents: true
+});
 const productionBiblePipePlan = planner.buildPlan({
   projectId: "short_pipeline_smoke",
   requestId: "req_short_pipeline_pipe_production_bible",
@@ -672,6 +691,16 @@ const checks = [
     cleanHttpsReferenceHandoff.request.references?.some((reference) => reference.role === "source_video_structure" && reference.providerReference.kind === "video" && reference.providerReference.uri.startsWith("https://"))
     ? pass("clean_https_media_provider_handoff", "Operator-approved clean HTTPS KOL, product, and source-video references stay hashed in the plan and reach provider handoff only from the raw render input.")
     : fail("clean_https_media_provider_handoff", "Expected clean HTTPS media references to remain redacted in the plan and reach render handoff after operator approval."),
+  privateMediaReferencePlan.mediaReferencePlan.length === 3 &&
+    privateMediaReferencePlan.mediaReferencePlan.every((reference) =>
+      reference.status === "blocked" &&
+        reference.uriPolicy === "blocked_unsafe_or_private" &&
+        reference.includeInProviderHandoff === false &&
+        reference.issues.includes("unsafe_or_private_media_reference")
+    ) &&
+    privateMediaReferenceHandoff.request.references === undefined
+    ? pass("private_media_references_blocked_before_handoff", "Private/internal KOL, product, and source-video media references are blocked before provider handoff even when marked operator-approved.")
+    : fail("private_media_references_blocked_before_handoff", "Expected private/internal media references to be blocked before provider handoff."),
   [pendingRenderHandoff, cleanHttpsReferenceHandoff, productionBibleRenderHandoff].every((handoff) =>
     handoff.request.userInput.includes("Seamless multishot edit contract:") &&
       handoff.request.userInput.includes("start from the prior endpoint") &&
@@ -934,6 +963,7 @@ const report = {
     blocked: summarizePlan(blockedPlan),
     naturalOnly: summarizePlan(naturalOnlyPlan),
     cleanHttpsReferences: summarizeCleanHttpsReferences(cleanHttpsReferencePlan, cleanHttpsReferenceHandoff),
+    privateMediaReferences: summarizePrivateMediaReferences(privateMediaReferencePlan, privateMediaReferenceHandoff),
     pipeMatrix: summarizePipeMatrix(pipeMatrixPlans),
     renderHandoff: summarizeHandoff(pendingRenderHandoff, approvedRenderHandoff),
     productionBibleRenderHandoff: summarizeProductionBibleHandoff(productionBibleRenderHandoff),
@@ -1074,6 +1104,17 @@ function summarizeCleanHttpsReferences(plan, handoff) {
         reference.providerReference.kind === "video" &&
         reference.providerReference.uri.startsWith("https://")
     )
+  };
+}
+
+function summarizePrivateMediaReferences(plan, handoff) {
+  return {
+    planId: plan.planId,
+    plannedReferenceCount: plan.mediaReferencePlan.length,
+    blockedReferenceCount: plan.mediaReferencePlan.filter((reference) => reference.status === "blocked").length,
+    providerHandoffCount: plan.mediaReferencePlan.filter((reference) => reference.includeInProviderHandoff).length,
+    handoffReferenceCount: handoff.request.references?.length ?? 0,
+    uriPolicies: plan.mediaReferencePlan.map((reference) => reference.uriPolicy)
   };
 }
 
