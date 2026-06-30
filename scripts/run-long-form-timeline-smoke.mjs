@@ -203,10 +203,10 @@ const providerSettingPolicyReady = timeline.providerSettingPolicy.resolution ===
   timeline.providerSettingPolicy.returnLastFrame === true &&
   timeline.providerSettingPolicy.lastFrameChainingPreferred === true;
 const compiledPromptStoryArcReady = compiledLongPrompts.every((prompt) =>
-  prompt.prompt.includes("Pacing contract:") &&
-  prompt.prompt.includes("Whole-video arc:") &&
+  prompt.prompt.includes("Pacing:") &&
+  prompt.prompt.includes("Story arc:") &&
   prompt.prompt.includes("Timeline:") &&
-    prompt.prompt.includes("Boundary choreography:") &&
+    prompt.prompt.includes("Shot choreography:") &&
     prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints")
 );
 const compiledPromptProviderSettingsReady = compiledLongPrompts.every((prompt) =>

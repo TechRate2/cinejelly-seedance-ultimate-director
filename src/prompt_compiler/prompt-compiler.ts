@@ -58,17 +58,17 @@ export class SeedancePromptCompiler {
   private buildPrompt(shot: ShotContract, bindingPlan: PromptBindingPlan, providerMode: ProviderMode): string {
     const sections = [
       this.buildReferenceHandlePrelude(bindingPlan, providerMode),
-      `Shot ${shot.shotId}, ${shot.durationSeconds}s.`,
-      `Intent: ${shot.intent}.`,
+      `Video brief: ${shot.durationSeconds}s ${this.providerModeLabel(providerMode)} clip.`,
+      `Creative intent: ${shot.intent}.`,
       this.buildReferenceSection(bindingPlan),
       this.buildProviderModeContractSection(providerMode, bindingPlan),
-      this.buildContinuitySection(shot),
+      this.buildContinuitySection(shot, bindingPlan),
       this.buildPacingSection(shot),
       this.buildMotionContinuitySection(shot, bindingPlan),
-      this.buildInterShotBridgeSection(shot),
+      this.buildInterShotBridgeSection(shot, bindingPlan),
       this.buildBoundaryChoreographySection(shot, bindingPlan),
       `Scene subject: ${shot.subject}.`,
-      `Action: ${shot.action}.`,
+      `Action: ${this.providerActionText(shot.action)}.`,
       `Camera: ${shot.camera}.`,
       `Lighting: ${shot.lighting}.`,
       shot.style ? `Style: ${shot.style}.` : undefined,
@@ -76,7 +76,7 @@ export class SeedancePromptCompiler {
       this.buildAudioProductionSection(shot),
       shot.transitionIntent ? `Transition: ${shot.transitionIntent}.` : undefined,
       this.buildFinalFrameSection(shot, bindingPlan),
-      "Keep the result cinematic, coherent, and physically plausible."
+      "Quality guardrails: cinematic, coherent, physically plausible, no visible generated text unless explicitly requested."
     ];
 
     return sections.filter((section): section is string => Boolean(section && section.trim())).join("\n");
@@ -92,13 +92,13 @@ export class SeedancePromptCompiler {
     );
     const supportingHandles = providerReferenceHandleBindings.filter((binding) => !primaryHandles.includes(binding));
     return [
-      `Provider reference handles (bind before prose): ${providerReferenceHandleBindings.join("; ")}.`,
-      `Atlas reference aliases: ${this.providerReferenceAliasBindings(bindingPlan).join("; ")}. Treat each @image/@video/@audio handle as the matching ordered Atlas reference input.`,
+      `Reference handles: ${providerReferenceHandleBindings.join("; ")}.`,
+      `Atlas aliases: ${this.providerReferenceAliasBindings(bindingPlan).join("; ")}. Use each @image/@video/@audio handle only for its listed input.`,
       primaryHandles.length > 0
-        ? `Primary anchor order: ${primaryHandles.join("; ")} must be preserved before style, motion, camera, audio, or source-video structure.`
-        : "Primary anchor order: no primary identity/product/endpoint media handles are available; do not invent one.",
+        ? `Primary anchors: preserve ${primaryHandles.join("; ")} before style, motion, camera, audio, or source-video structure.`
+        : "Primary anchors: none supplied; do not invent a specific real person, brand package, logo, or source-video frame.",
       supportingHandles.length > 0
-        ? `Supporting reference order: ${supportingHandles.join("; ")} guides rhythm, camera, style, and audio only after primary anchors are locked.`
+        ? `Supporting references: ${supportingHandles.join("; ")} guide rhythm, camera, style, and audio only after primary anchors are stable.`
         : undefined
     ].filter((line): line is string => Boolean(line)).join(" ");
   }
@@ -116,16 +116,17 @@ export class SeedancePromptCompiler {
     ]);
     const planningOnlyReferences = bindingPlan.roleScopes.filter((reference) => !reference.providerIncluded);
     const lines = [
-      `Seedance mode contract: ${this.providerModeLabel(mode)}.`,
-      `Provider reference map: ${providerReferenceSummary}.`,
+      bindingPlan.providerReferences.length > 0
+        ? `Provider input: ${this.providerModeLabel(mode)}. Reference map: ${providerReferenceSummary}.`
+        : `Input mode: ${this.providerModeLabel(mode)} with no media references.`,
       planningOnlyReferences.length > 0
-        ? `Planning-only references: ${planningOnlyReferences.map((reference) => `${reference.role}/${reference.label} (${reference.providerFilterReason ?? "not sent to provider"})`).join("; ")}; use them only as prompt/scenario constraints, not as provider media inputs.`
+        ? `Planning-only references: ${planningOnlyReferences.map((reference) => `${reference.role}/${reference.label} (${reference.providerFilterReason ?? "not sent to provider"})`).join("; ")}; treat them as scenario constraints, not as uploaded media.`
         : undefined,
       mode !== "text_to_video" && providerReferenceHandleBindings.length > 0
-        ? `Reference tag syntax: use these handles exactly as listed before prose: ${providerReferenceHandleBindings.join("; ")}. Never reuse a handle for an unlisted role.`
+        ? `Use these handles exactly as listed: ${providerReferenceHandleBindings.join("; ")}. Never reuse a handle for an unlisted role.`
         : mode !== "text_to_video"
-          ? "Reference tag syntax: no provider media handles are available; keep reference-only logic in prose and do not invent @image/@video/@audio handles."
-        : undefined,
+          ? "No provider media handles are available; keep reference-only logic in prose and do not invent @image/@video/@audio handles."
+          : undefined,
       ...this.providerModeRules(mode),
       roles.has("identity") ? "Identity priority: KOL/character face, hair, body presence, and eye-line stay locked before style, motion, or camera references are applied." : undefined,
       roles.has("product") ? "Product priority: product geometry, packaging, label/logo placement, material, and scale stay locked before camera, lighting, or style changes." : undefined,
@@ -191,32 +192,32 @@ export class SeedancePromptCompiler {
     switch (mode) {
       case "text_to_video":
         return [
-          "Text-to-video rule: no media reference will be sent, so the prompt must be fully self-contained with subject, action, camera, lighting, physical motion, audio intent, and final frame.",
-          "Do not invent a specific KOL likeness, exact product packaging, logo, source-video scene, or protected style that was not supplied by the shot contract."
+          "No media reference is attached; make the subject, action, camera, lighting, physical motion, audio intent, and ending frame self-contained.",
+          "Do not imply a supplied KOL likeness, exact product packaging, logo, source-video scene, or protected style when no such reference was provided."
         ];
       case "image_to_video":
         return [
-          "Image-to-video rule: treat supplied image references as identity/product/endpoint anchors, not generic mood boards.",
+          "Treat supplied image references as identity/product/endpoint anchors, not generic mood boards.",
           "Add controlled camera and body/product motion while preserving the anchor's geometry, pose logic, lighting direction, and recognizable details."
         ];
       case "reference_to_video":
         return [
-          "Reference-to-video rule: separate every reference by role, then apply identity/product/endpoints first, environment second, camera/motion/audio/style last.",
+          "Separate every reference by role, then apply identity/product/endpoints first, environment second, camera/motion/audio/style last.",
           "If multiple references conflict, preserve approved KOL identity and product fidelity before trend style, source-video energy, or cinematic polish."
         ];
       case "video_to_video":
         return [
-          "Video-to-video rule: use the source video only as the editable base and keep all edits scoped to the shot contract.",
+          "Use the source video only as the editable base and keep all edits scoped to the approved shot.",
           "Preserve continuity handles and replace any unapproved subject, product, text, logo, music, or claim."
         ];
       case "extend":
         return [
-          "Extend rule: continue naturally from the supplied endpoint, matching motion direction, scale, lighting, room tone, and subject/product state.",
+          "Continue naturally from the supplied endpoint, matching motion direction, scale, lighting, room tone, and subject/product state.",
           "Do not restart the action, jump to a new scene, or introduce a new character/product identity unless the shot contract requires it."
         ];
       case "edit":
         return [
-          "Edit rule: change only the requested subject/action/setting detail while keeping all untouched identity, product, camera, light, and endpoint continuity stable.",
+          "Change only the requested subject/action/setting detail while keeping all untouched identity, product, camera, light, and endpoint continuity stable.",
           "Do not rewrite the shot into a new concept."
         ];
     }
@@ -243,7 +244,7 @@ export class SeedancePromptCompiler {
     const role = this.storyArcRole(shot);
     const hasTimeline = Boolean(shot.timeline?.length);
     return [
-      `Pacing contract: use the full ${shot.durationSeconds}s for a complete ${role} beat with a clear opening, middle action, and ending state.`,
+      `Pacing: use the full ${shot.durationSeconds}s for a complete ${role} beat with a clear opening, middle action, and ending state.`,
       this.wholeVideoArcLine(shot, role),
       "Do not collapse the shot into one static product macro, one hand pose, or an unfinished setup.",
       hasTimeline
@@ -264,8 +265,8 @@ export class SeedancePromptCompiler {
         : undefined
     ].filter((line): line is string => Boolean(line));
     return [
-      `Motion continuity: make the ${role} beat feel like one filmed moment, with cause-and-effect motion instead of disconnected poses.`,
-      "First half-second must be readable immediately; final half-second must settle into an edit-ready handle for xfade, last-frame chaining, or the next shot.",
+      `Motion: make the ${role} beat feel like one filmed moment, with cause-and-effect movement instead of disconnected poses.`,
+      "First half-second must be readable immediately; final half-second must settle into a clean edit handle.",
       "Avoid teleporting hands, products, faces, props, camera direction, or lighting between timeline segments.",
       ...continuityPriority
     ].join(" ");
@@ -277,7 +278,7 @@ export class SeedancePromptCompiler {
       reference.role === "last_frame" || reference.kind === "last_frame"
     );
     const clauses = [
-      "Final-frame contract: end on a stable, usable frame with the main subject, product, and action result still legible.",
+      "End frame: finish on a stable, usable frame with the main subject, product, and action result still legible.",
       hasNextState ? `The next shot expects: ${shot.continuity.nextShotStartState}.` : undefined,
       hasLastFrameReference ? "If a last-frame reference is present, move toward it without deforming identity or product details." : undefined,
       "Do not end on a blur, mid-blink, hidden product, cropped face, empty frame, or unresolved camera whip unless explicitly requested."
@@ -285,14 +286,23 @@ export class SeedancePromptCompiler {
     return clauses.join(" ");
   }
 
-  private buildInterShotBridgeSection(shot: ShotContract): string {
+  private buildInterShotBridgeSection(shot: ShotContract, bindingPlan: PromptBindingPlan): string | undefined {
     const previousState = shot.continuity.previousShotEndState;
     const nextState = shot.continuity.nextShotStartState;
+    const hasEndpointReference = bindingPlan.providerReferences.some((reference) =>
+      reference.role === "first_frame" ||
+      reference.role === "last_frame" ||
+      reference.kind === "first_frame" ||
+      reference.kind === "last_frame"
+    );
+    if (!previousState && !nextState && !hasEndpointReference) {
+      return undefined;
+    }
     const bridgeLines = [
-      "Inter-shot bridge: this clip must cut together with adjacent clips as one continuous film, not as a disconnected standalone generation.",
-      previousState ? `Start by matching the prior clip endpoint: ${previousState}.` : "Start with a clean readable handle that can accept a prior xfade or first-frame chain.",
-      nextState ? `End by preparing the next clip start: ${nextState}.` : "End with a clean readable handle that can accept xfade, cut, or last-frame chaining.",
-      shot.transitionIntent ? `Bridge transition intent: ${shot.transitionIntent}.` : undefined,
+      "Edit continuity: this clip must cut together with adjacent clips as one continuous film.",
+      previousState ? `Start by matching the prior clip endpoint: ${previousState}.` : "Start with a clean readable first frame.",
+      nextState ? `End by preparing the next clip start: ${nextState}.` : "End with a clean readable endpoint.",
+      shot.transitionIntent ? `Transition intent: ${shot.transitionIntent}.` : undefined,
       "Keep screen direction, camera momentum, subject scale, lighting color, room tone, and action state consistent across the edit boundary.",
       "Do not create a new location, different product scale, different KOL face, sudden color shift, silent audio gap, or unrelated camera angle at the boundary."
     ].filter((line): line is string => Boolean(line));
@@ -314,7 +324,7 @@ export class SeedancePromptCompiler {
       referenceRoles.has("environment") ? "background spatial layout" : undefined
     ].filter((anchor): anchor is string => Boolean(anchor));
     return [
-      `Boundary choreography: stage this ${role} clip so the first frame, action middle, and final frame can assemble without a visible reset.`,
+      `Shot choreography: stage this ${role} clip with a readable first frame, clear middle action, and stable final frame.`,
       hasPreviousState
         ? "Entry: match the prior endpoint before introducing new motion; keep the same screen direction, lens distance, subject scale, lighting color, and product/KOL state."
         : "Entry: open on a stable readable first frame before the camera or subject starts moving.",
@@ -328,7 +338,7 @@ export class SeedancePromptCompiler {
       sourceGuided
         ? "For source-video/remake guidance, inherit timing, motion grammar, and camera direction only after replacement KOL/product/background anchors are visible at both entry and exit."
         : undefined,
-      "Do not rely on postproduction crossfade to hide inconsistent generated endpoints; the generated frames themselves must already match the edit plan."
+      "Do not rely on postproduction crossfade to hide inconsistent generated endpoints; the generated frames themselves should match the edit plan."
     ].filter((line): line is string => Boolean(line)).join(" ");
   }
 
@@ -353,22 +363,25 @@ export class SeedancePromptCompiler {
       return undefined;
     }
     const positionLine = position ? `, ${position}` : "";
-    return `Whole-video arc: this shot covers ${startSecond}-${endSecond}s of ${targetDurationSeconds}s${positionLine}; it must advance the ${role} movement and hand off cleanly to the next beat.`;
+    if (startSecond <= 0 && endSecond >= targetDurationSeconds) {
+      return `Story arc: this clip covers the full ${targetDurationSeconds}s video${positionLine}; open clearly, develop visibly, and resolve cleanly.`;
+    }
+    return `Story arc: this shot covers ${startSecond}-${endSecond}s of ${targetDurationSeconds}s${positionLine}; advance the ${role} movement and hand off cleanly to the next beat.`;
   }
 
   private buildReferenceSection(bindingPlan: PromptBindingPlan): string {
     if (bindingPlan.sortedReferences.length === 0) {
-      return "References: no external reference assets; follow the shot contract only.";
+      return "References: none attached. Create the scene from the text brief only; do not invent a supplied KOL/product reference.";
     }
     const referenceLines = describeReferenceBindingsFromPlan(bindingPlan).map((item) => `- ${item}`);
     return `References:\n${referenceLines.join("\n")}`;
   }
 
-  private buildContinuitySection(shot: ShotContract): string {
+  private buildContinuitySection(shot: ShotContract, bindingPlan: PromptBindingPlan): string {
     const continuity = shot.continuity;
     const clauses = [
       continuity.identity ? `Identity: preserve ${continuity.identity}.` : undefined,
-      continuity.product ? `Product: preserve ${continuity.product}.` : undefined,
+      continuity.product ? `${this.productContinuityLabel(continuity.product, bindingPlan)}: preserve ${continuity.product}.` : undefined,
       continuity.wardrobe ? `Wardrobe: preserve ${continuity.wardrobe}.` : undefined,
       continuity.environment ? `Environment: preserve ${continuity.environment}.` : undefined,
       continuity.style ? `Visual continuity: maintain ${continuity.style}.` : undefined,
@@ -383,7 +396,7 @@ export class SeedancePromptCompiler {
     const lines = timeline.map((segment, index) => {
       const segmentDuration = Math.max(0, segment.endSecond - segment.startSecond);
       const parts = [
-        `Beat ${index + 1}, ${segment.startSecond}-${segment.endSecond}s: ${segment.action}`,
+        `Beat ${index + 1}, ${segment.startSecond}-${segment.endSecond}s: ${this.providerActionText(segment.action)}`,
         segment.camera ? `camera ${segment.camera}` : undefined,
         segment.audioCue
           ? `audio cue ${segment.audioCue}; keep spoken words within about ${this.voiceoverWordBudget(segmentDuration)} words for this beat`
@@ -394,13 +407,49 @@ export class SeedancePromptCompiler {
     return `Timeline:\n${lines.map((line) => `- ${line}.`).join("\n")}`;
   }
 
+  private productContinuityLabel(value: string, bindingPlan: PromptBindingPlan): string {
+    const hasProductReference = bindingPlan.providerReferences.some((reference) =>
+      reference.role === "product" || reference.kind === "product"
+    );
+    if (hasProductReference) {
+      return "Product";
+    }
+    return /outfit|wardrobe|clothes|blazer|trouser|dress|fashion|garment|fabric|accessor/i.test(value)
+      ? "Wardrobe/result"
+      : "Hero object/result";
+  }
+
+  private providerActionText(value: string): string {
+    let normalized = value.replace(/\s+/g, " ").trim();
+    const plannedActionIndex = normalized.toLowerCase().indexOf("planned action:");
+    if (plannedActionIndex >= 0) {
+      normalized = normalized.slice(plannedActionIndex + "planned action:".length).trim();
+    }
+    normalized = normalized
+      .replace(/\bThen\b/g, "then")
+      .replace(/\s+then\s+/gi, "; then ")
+      .replace(/\s*;\s*/g, "; ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return this.compactProviderText(normalized, 1_100);
+  }
+
+  private compactProviderText(value: string, maxChars: number): string {
+    if (value.length <= maxChars) {
+      return value;
+    }
+    const clipped = value.slice(0, maxChars);
+    const boundary = Math.max(clipped.lastIndexOf(";"), clipped.lastIndexOf("."), clipped.lastIndexOf(","));
+    return `${clipped.slice(0, boundary > maxChars * 0.6 ? boundary : maxChars).trim()}...`;
+  }
+
   private buildAudioProductionSection(shot: ShotContract): string | undefined {
     if (!shot.audioIntent) {
       return undefined;
     }
     const wordBudget = this.voiceoverWordBudget(shot.durationSeconds);
     return [
-      `Audio production plan: ${shot.audioIntent}.`,
+      `Audio plan: ${shot.audioIntent}.`,
       `If native provider audio is enabled, generate only original ambience/music/voice that follows this shot timing; do not copy protected songs, melodies, transcripts, or voices.`,
       `If external voice/music is produced later, this prompt still defines the script timing: keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s and leave micro-pauses around product contact, proof, or reaction moments.`,
       "The visual story must remain understandable without audio, while the audio rhythm should strengthen the hook, proof/demo, and final resolve."

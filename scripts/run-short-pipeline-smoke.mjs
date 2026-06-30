@@ -538,14 +538,14 @@ const compiledShortStoryboardPrompts = shortStoryboardShots.map((shot) =>
 );
 const shortStoryboardPromptContractDiagnostics = compiledShortStoryboardPrompts.map((prompt) => ({
   shotId: prompt.shotId,
-  hasSeedanceMode: prompt.prompt.includes("Seedance mode contract:"),
-  hasPacingContract: prompt.prompt.includes("Pacing contract:"),
+  hasProviderInput: prompt.prompt.includes("Provider input:") || prompt.prompt.includes("Input mode:"),
+  hasPacing: prompt.prompt.includes("Pacing:"),
   hasTimeline: prompt.prompt.includes("Timeline:"),
-  hasMotionContinuity: prompt.prompt.includes("Motion continuity:"),
-  hasInterShotBridge: prompt.prompt.includes("Inter-shot bridge:"),
-  hasBoundaryChoreography: prompt.prompt.includes("Boundary choreography:"),
-  hasFinalFrameContract: prompt.prompt.includes("Final-frame contract:"),
-  hasAudioProductionPlan: prompt.prompt.includes("Audio production plan:"),
+  hasMotion: prompt.prompt.includes("Motion:"),
+  hasEditContinuity: prompt.prompt.includes("Edit continuity:"),
+  hasShotChoreography: prompt.prompt.includes("Shot choreography:"),
+  hasEndFrame: prompt.prompt.includes("End frame:"),
+  hasAudioPlan: prompt.prompt.includes("Audio plan:"),
   hasNativeProviderAudioGuidance: prompt.prompt.includes("native provider audio is enabled"),
   hasShotNarrationBudget: prompt.prompt.includes("keep narration under about"),
   hasBeatSpokenWordBudget: prompt.prompt.includes("words for this beat"),
@@ -689,21 +689,21 @@ const checks = [
     : fail("seedance_mini_fallback_capability_guard", "Expected fallback capability mapping to prevent Mini from advertising unsupported high/SR resolutions."),
   authorizedSourceVideoPrompt.videoRequest.references.some((reference) => reference.role === "source_video_structure" && reference.kind === "video") &&
     authorizedSourceVideoPrompt.videoRequest.mode === "reference_to_video" &&
-    authorizedSourceVideoPrompt.prompt.startsWith("Provider reference handles (bind before prose): @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack; @video1 -> source_video_structure/video=Approved trend source video.") &&
-    authorizedSourceVideoPrompt.prompt.includes("Seedance mode contract: reference-to-video") &&
+    authorizedSourceVideoPrompt.prompt.startsWith("Reference handles: @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack; @video1 -> source_video_structure/video=Approved trend source video.") &&
+    authorizedSourceVideoPrompt.prompt.includes("Provider input: reference-to-video") &&
     authorizedSourceVideoPrompt.prompt.includes("Source/reference-video boundary:") &&
     authorizedSourceVideoPrompt.prompt.includes("@image1 -> identity/image") &&
     authorizedSourceVideoPrompt.prompt.includes("@image2 -> product/image") &&
     authorizedSourceVideoPrompt.prompt.includes("@video1 -> source_video_structure/video") &&
-    authorizedSourceVideoPrompt.prompt.includes("Primary anchor order: @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack must be preserved before style, motion, camera, audio, or source-video structure.") &&
-    authorizedSourceVideoPrompt.prompt.includes("Supporting reference order: @video1 -> source_video_structure/video=Approved trend source video guides rhythm, camera, style, and audio only after primary anchors are locked.") &&
+    authorizedSourceVideoPrompt.prompt.includes("Primary anchors: preserve @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack before style, motion, camera, audio, or source-video structure.") &&
+    authorizedSourceVideoPrompt.prompt.includes("Supporting references: @video1 -> source_video_structure/video=Approved trend source video guide rhythm, camera, style, and audio only after primary anchors are stable.") &&
     authorizedSourceVideoPrompt.prompt.includes("use source/reference video only for rhythm") &&
     authorizedSourceVideoPrompt.negativePrompt.includes("no copied source-video face identity") &&
     authorizedSourceVideoPrompt.negativePrompt.includes("no copied source-video transcript") &&
     authorizedSourceVideoPrompt.negativePrompt.includes("no copied source-video music or melody") &&
     authorizedSourceVideoPrompt.negativePrompt.includes("no source-video watermark, caption style, logo, or brand marks") &&
     planningOnlySourceVideoPrompt.videoRequest.references.every((reference) => reference.role !== "source_video_structure") &&
-    planningOnlySourceVideoPrompt.prompt.startsWith("Provider reference handles (bind before prose): @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack.") &&
+    planningOnlySourceVideoPrompt.prompt.startsWith("Reference handles: @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack.") &&
     !planningOnlySourceVideoPrompt.prompt.includes("@video1 -> source_video_structure/video") &&
     planningOnlySourceVideoPrompt.bindingPlan.conflicts.some((conflict) => conflict.code === "source_video_structure_planning_only") &&
     planningOnlySourceVideoPrompt.prompt.includes("Planning-only references:") &&
@@ -921,13 +921,13 @@ const checks = [
     : fail("explicit_storyboard_mode_overrides_single_recommendation", "Expected explicit storyboard mode to preserve multi-scene planning."),
   shortStoryboardShots.length === 3 &&
     shortStoryboardShots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
-    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Seedance mode contract:") && prompt.prompt.includes("Pacing contract:") && prompt.prompt.includes("Timeline:")) &&
+    compiledShortStoryboardPrompts.every((prompt) => (prompt.prompt.includes("Provider input:") || prompt.prompt.includes("Input mode:")) && prompt.prompt.includes("Pacing:") && prompt.prompt.includes("Timeline:")) &&
   compiledShortStoryboardPrompts.every((prompt) =>
-    prompt.prompt.includes("Motion continuity:") &&
-    prompt.prompt.includes("Inter-shot bridge:") &&
-    prompt.prompt.includes("Boundary choreography:") &&
+    prompt.prompt.includes("Motion:") &&
+    prompt.prompt.includes("Edit continuity:") &&
+    prompt.prompt.includes("Shot choreography:") &&
     prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints") &&
-    prompt.prompt.includes("Final-frame contract:")
+    prompt.prompt.includes("End frame:")
   ) &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.negativePrompt.includes("no visible captions") && prompt.negativePrompt.includes("no frozen static product pose")) &&
     shortStoryboardShots[0]?.continuity.nextShotStartState &&
@@ -936,14 +936,14 @@ const checks = [
     shortStoryboardShots[2]?.continuity.previousShotEndState &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.videoRequest.settings.generateAudio === true) &&
     compiledShortStoryboardPrompts.every((prompt) =>
-      prompt.prompt.includes("Audio production plan:") &&
+      prompt.prompt.includes("Audio plan:") &&
       prompt.prompt.includes("native provider audio is enabled") &&
       prompt.prompt.includes("keep narration under about") &&
       prompt.prompt.includes("words for this beat") &&
       !prompt.prompt.includes("Audio: Silent")
     )
-    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts now include Seedance mode, duration-aware timeline beats, pacing contract, motion-continuity/inter-shot-bridge/boundary-choreography/final-frame contracts, adjacent shot state, and duration-budgeted audio-on provider settings by default.")
-    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include Seedance mode, timeline, pacing contract, motion-continuity/inter-shot-bridge/boundary-choreography/final-frame contracts, adjacent shot state, and duration-budgeted enabled audio."),
+    ? pass("short_storyboard_pacing_audio_prompt_contract", "Short storyboard prompts include provider mode, duration-aware timeline beats, clean pacing/motion/edit/choreography/end-frame guidance, adjacent shot state, and duration-budgeted audio-on provider settings by default.")
+    : fail("short_storyboard_pacing_audio_prompt_contract", "Expected short storyboard prompt compilation to include provider mode, timeline, pacing, motion/edit/choreography/end-frame guidance, adjacent shot state, and duration-budgeted enabled audio."),
   pendingRenderHandoff.request.metadata?.workflowMode === "storyboard" &&
     pendingRenderHandoff.request.metadata?.renderMode === "storyboard_multishot" &&
     pendingRenderHandoff.request.metadata?.shortPipelineRecommendedWorkflowMode === "storyboard_multishot"
