@@ -454,7 +454,8 @@ export class DirectorAgent {
       renderSchedulePlan,
       postproductionAssetPlan,
       ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
-      ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {})
+      ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {}),
+      seedanceSettings: intake.settings
     });
     if (!longFormTimelinePlan.releaseGateSummary.canProceedToRender) {
       this.reportStageProgress("render", "blocked", "Long-form timeline blocked render scheduling before provider spend.", {

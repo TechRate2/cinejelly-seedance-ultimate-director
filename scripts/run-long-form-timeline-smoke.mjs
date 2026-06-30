@@ -60,7 +60,7 @@ const seedanceSettings = {
   ratio: "16:9",
   durationTargetSeconds: storyPlan.targetDurationSeconds,
   audioMode: "hybrid",
-  bitrateMode: "standard",
+  bitrateMode: "high",
   watermark: false,
   returnLastFrame: true
 };
@@ -135,7 +135,8 @@ const timeline = timelinePlanner.build({
   renderSchedulePlan,
   postproductionAssetPlan,
   captionCues,
-  generatedAudioIntents
+  generatedAudioIntents,
+  seedanceSettings
 });
 
 const blockedTimeline = timelinePlanner.build({
@@ -156,7 +157,8 @@ const blockedTimeline = timelinePlanner.build({
     projectId: `${projectId}_blocked`
   },
   captionCues,
-  generatedAudioIntents
+  generatedAudioIntents,
+  seedanceSettings
 });
 
 const serialized = JSON.stringify({ timeline, blockedTimeline });
@@ -171,12 +173,47 @@ const generatedIntentMapped = timeline.segments.some((segment) => segment.audioC
 const sequentialSegments = timeline.segments.filter((segment) => segment.renderMode === "sequential");
 const storyArcRoles = new Set(timeline.segments.map((segment) => segment.storyArcRole));
 const storyArcPositions = new Set(timeline.segments.map((segment) => segment.storyArcPosition));
+const productionContractsReady = timeline.segments.every((segment) =>
+  segment.productionContract &&
+  segment.productionContract.timingGoal.includes(`${segment.startSecond}-${segment.endSecond}s`) &&
+  segment.productionContract.requiredVisualChange.length > 20 &&
+  segment.productionContract.voiceoverLine.split(/\s+/).filter(Boolean).length <= Math.max(3, Math.floor(segment.durationSeconds * 2.4)) &&
+  segment.productionContract.nativeAudioPrompt.includes("Do not copy protected songs") &&
+  segment.productionContract.endpointJob.includes("stable") &&
+  segment.productionContract.providerSettingSummary.includes("bitrate=high") &&
+  segment.productionContract.providerSettingSummary.includes(`audioScriptLine=${segment.audioScriptLineId}`)
+);
+const audioScriptReady = timeline.audioScriptLineCount === timeline.segmentCount &&
+  timeline.audioScript.length === timeline.segmentCount &&
+  timeline.audioScript.every((line) => {
+    const segment = timeline.segments.find((item) => item.audioScriptLineId === line.lineId);
+    return segment &&
+      line.shotId === segment.shotId &&
+      line.startSecond === segment.startSecond &&
+      line.endSecond === segment.endSecond &&
+      (line.language === "vi" || line.language === "auto") &&
+      line.wordBudget >= line.spokenLine.split(/\s+/).filter(Boolean).length &&
+      line.visualSync === segment.productionContract.requiredVisualChange;
+  });
+const providerSettingPolicyReady = timeline.providerSettingPolicy.resolution === "720p" &&
+  timeline.providerSettingPolicy.bitrateMode === "high" &&
+  timeline.providerSettingPolicy.audioMode === "hybrid" &&
+  timeline.providerSettingPolicy.nativeProviderAudioEnabled === true &&
+  timeline.providerSettingPolicy.externalAudioScriptEnabled === true &&
+  timeline.providerSettingPolicy.returnLastFrame === true &&
+  timeline.providerSettingPolicy.lastFrameChainingPreferred === true;
 const compiledPromptStoryArcReady = compiledLongPrompts.every((prompt) =>
   prompt.prompt.includes("Pacing contract:") &&
   prompt.prompt.includes("Whole-video arc:") &&
   prompt.prompt.includes("Timeline:") &&
-  prompt.prompt.includes("Boundary choreography:") &&
-  prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints")
+    prompt.prompt.includes("Boundary choreography:") &&
+    prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints")
+);
+const compiledPromptProviderSettingsReady = compiledLongPrompts.every((prompt) =>
+  prompt.videoRequest.settings.resolution === "720p" &&
+  prompt.videoRequest.settings.bitrateMode === "high" &&
+  prompt.videoRequest.settings.generateAudio === true &&
+  prompt.videoRequest.settings.returnLastFrame === true
 );
 const sourceVideoCompiledPrompts = compiledLongPrompts.filter((prompt) =>
   prompt.bindingPlan.sortedReferences.some((reference) => reference.role === "source_video_structure")
@@ -215,6 +252,18 @@ const checks = [
     compiledPromptStoryArcReady
     ? pass("whole_video_story_arc_prompt_contract", "Long-form prompts and timeline segments carry opening, development/proof, payoff, and boundary-choreography contracts across the full duration.")
     : fail("whole_video_story_arc_prompt_contract", "Expected long-form ShotPlanner and PromptCompiler to preserve whole-video story arc and boundary-choreography contracts."),
+  productionContractsReady &&
+    audioScriptReady &&
+    timeline.audioScript.some((line) => line.language === "vi") &&
+    timeline.segments.some((segment) => segment.productionContract.productionAct === "opening") &&
+    timeline.segments.some((segment) => segment.productionContract.productionAct === "proof") &&
+    timeline.segments.some((segment) => segment.productionContract.productionAct === "payoff")
+    ? pass("segment_production_audio_contract", "Every long-form segment exposes a concrete timing, visual-change, voiceover, native-audio, music/SFX, endpoint, and audio-script contract.")
+    : fail("segment_production_audio_contract", "Expected every long-form segment to expose production and audio script contracts."),
+  providerSettingPolicyReady &&
+    compiledPromptProviderSettingsReady
+    ? pass("provider_setting_policy_contract", "Long-form timeline and compiled video requests preserve 720p, high bitrate, hybrid provider audio, and last-frame return policy.")
+    : fail("provider_setting_policy_contract", "Expected timeline policy and compiled requests to preserve provider setting defaults for quality, audio, and chaining."),
   timeline.sequenceCount === continuityPlan.sequenceCount &&
     timeline.sequences.every((sequence, index) => sequence.order === index && sequence.startSecond < sequence.endSecond)
     ? pass("sequence_timing_boundaries", "Timeline exposes deterministic sequence timing boundaries.")
@@ -433,6 +482,13 @@ function summarizeTimeline(value) {
     captionCueCount: value.captionCueCount,
     audioEventCount: value.audioEventCount,
     generatedAudioEventCount: value.generatedAudioEventCount,
+    audioScriptLineCount: value.audioScriptLineCount,
+    providerResolution: value.providerSettingPolicy.resolution,
+    providerBitrateMode: value.providerSettingPolicy.bitrateMode,
+    providerAudioMode: value.providerSettingPolicy.audioMode,
+    nativeProviderAudioEnabled: value.providerSettingPolicy.nativeProviderAudioEnabled,
+    externalAudioScriptEnabled: value.providerSettingPolicy.externalAudioScriptEnabled,
+    returnLastFrame: value.providerSettingPolicy.returnLastFrame,
     issueCount: value.issueCount,
     blockingIssueCount: value.blockingIssueCount,
     warningIssueCount: value.warningIssueCount,

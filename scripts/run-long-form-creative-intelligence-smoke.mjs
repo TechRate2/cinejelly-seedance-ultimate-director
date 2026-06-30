@@ -67,6 +67,17 @@ const renderScheduler = new RenderScheduler(2);
 const projectId = "long_form_creative_intelligence_smoke";
 const userInput = "Build a premium ecommerce product video ad for skincare buyers on TikTok Shop with a strong hook, proof stack, visual payoff, and clear CTA.";
 const storyPlan = buildStoryPlan(projectId, 6, 120);
+const seedanceSettings = {
+  tier: "standard",
+  resolution: "720p",
+  qualityMode: "standard",
+  ratio: "16:9",
+  durationTargetSeconds: storyPlan.targetDurationSeconds,
+  audioMode: "hybrid",
+  bitrateMode: "high",
+  watermark: false,
+  returnLastFrame: true
+};
 const shots = shotsFor(storyPlan);
 const sourceVideoAnalysis = sourceVideoAnalysisFor();
 const continuityPlan = continuityPlanner.build({ projectId, storyPlan, shots, sourceVideoAnalysis });
@@ -75,7 +86,7 @@ const videoRenderStrategyPlan = strategyPlanner.build({
   projectId,
   request: {
     userInput,
-    settings: { durationTargetSeconds: storyPlan.targetDurationSeconds, returnLastFrame: true },
+    settings: seedanceSettings,
     references: shots.flatMap((shot) => shot.references),
     metadata: {
       workflowMode: "storyboard",
@@ -122,7 +133,8 @@ const timelinePlan = timelinePlanner.build({
   renderSchedulePlan,
   postproductionAssetPlan,
   captionCues,
-  generatedAudioIntents
+  generatedAudioIntents,
+  seedanceSettings
 });
 const creative = creativePlanner.build({
   projectId,
@@ -150,7 +162,8 @@ const blockedTimelinePlan = timelinePlanner.build({
   },
   postproductionAssetPlan: { ...postproductionAssetPlan, projectId: `${projectId}_blocked` },
   captionCues,
-  generatedAudioIntents
+  generatedAudioIntents,
+  seedanceSettings
 });
 const blockedCreative = creativePlanner.build({
   projectId: `${projectId}_blocked`,

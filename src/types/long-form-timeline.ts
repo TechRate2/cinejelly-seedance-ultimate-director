@@ -6,6 +6,14 @@
 import type { AudioTrackRole, GeneratedAudioIntentKind } from "./audio.js";
 import type { LongFormSequenceRenderModeRecommendation } from "./long-form-continuity.js";
 import type { ContinuityRisk } from "./prompt.js";
+import type {
+  AspectRatio,
+  AudioMode,
+  BitrateMode,
+  QualityMode,
+  Resolution,
+  SpeedTier
+} from "./settings.js";
 import type { RenderScheduleMode, RenderScheduleSequentialReason } from "../core/render-scheduler.js";
 
 export type LongFormTimelineIssueSeverity = "info" | "warn" | "block";
@@ -30,6 +38,54 @@ export interface LongFormTimelineAudioCoverage {
   readonly suppliedTrackRoles: readonly AudioTrackRole[];
   readonly generatedIntentIds: readonly string[];
   readonly generatedKinds: readonly GeneratedAudioIntentKind[];
+  readonly generatedLanguages: readonly string[];
+}
+
+export type LongFormTimelineProductionAct =
+  | "opening"
+  | "development"
+  | "proof"
+  | "turning_point"
+  | "payoff";
+
+export interface LongFormTimelineProviderSettingPolicy {
+  readonly tier: SpeedTier;
+  readonly resolution: Resolution;
+  readonly qualityMode: QualityMode;
+  readonly ratio: AspectRatio;
+  readonly audioMode: AudioMode;
+  readonly bitrateMode: BitrateMode;
+  readonly watermark: boolean;
+  readonly returnLastFrame: boolean;
+  readonly nativeProviderAudioEnabled: boolean;
+  readonly externalAudioScriptEnabled: boolean;
+  readonly lastFrameChainingPreferred: boolean;
+}
+
+export interface LongFormTimelineSegmentProductionContract {
+  readonly productionAct: LongFormTimelineProductionAct;
+  readonly timingGoal: string;
+  readonly requiredVisualChange: string;
+  readonly voiceoverLine: string;
+  readonly nativeAudioPrompt: string;
+  readonly musicCue: string;
+  readonly sfxCue: string;
+  readonly endpointJob: string;
+  readonly providerSettingSummary: string;
+}
+
+export interface LongFormTimelineAudioScriptLine {
+  readonly lineId: string;
+  readonly sequenceId: string;
+  readonly shotId: string;
+  readonly startSecond: number;
+  readonly endSecond: number;
+  readonly durationSeconds: number;
+  readonly spokenLine: string;
+  readonly language: string;
+  readonly delivery: string;
+  readonly wordBudget: number;
+  readonly visualSync: string;
 }
 
 export interface LongFormTimelineSegment {
@@ -62,6 +118,8 @@ export interface LongFormTimelineSegment {
   readonly sourceVideoSceneIds: readonly string[];
   readonly captionCoverage: LongFormTimelineCaptionCoverage;
   readonly audioCoverage: LongFormTimelineAudioCoverage;
+  readonly productionContract: LongFormTimelineSegmentProductionContract;
+  readonly audioScriptLineId: string;
   readonly requiresManualReview: boolean;
 }
 
@@ -122,11 +180,14 @@ export interface LongFormTimelinePlan {
   readonly captionCueCount: number;
   readonly audioEventCount: number;
   readonly generatedAudioEventCount: number;
+  readonly audioScriptLineCount: number;
+  readonly providerSettingPolicy: LongFormTimelineProviderSettingPolicy;
   readonly issueCount: number;
   readonly blockingIssueCount: number;
   readonly warningIssueCount: number;
   readonly sequences: readonly LongFormTimelineSequence[];
   readonly segments: readonly LongFormTimelineSegment[];
+  readonly audioScript: readonly LongFormTimelineAudioScriptLine[];
   readonly postproduction: LongFormTimelinePostproductionSummary;
   readonly issues: readonly LongFormTimelineIssue[];
   readonly releaseGateSummary: {
