@@ -11,7 +11,7 @@ const sourcePatternOrigins = ["HKUDS/VideoAgent", "vericontext/vibeframe", "Mone
 
 const { DirectorAgent } = await import("../dist/agents/director-agent.js");
 const { RenderProducer } = await import("../dist/agents/render-producer.js");
-const { selectOrExtractLastFrameReference } = await import("../dist/core/endpoint-frame-chain.js");
+const { isImageOutputUrl, selectOrExtractLastFrameReference } = await import("../dist/core/endpoint-frame-chain.js");
 const { readMediaToolCommand } = await import("../dist/utils/media-tools.js");
 const { runProcess } = await import("../dist/utils/process.js");
 
@@ -72,6 +72,7 @@ const rawUrlLeakDetected = serializedPublicReport.includes("https://cdn.example.
   serializedPublicReport.includes("token=secret") ||
   serializedPublicReport.includes("api_key=");
 const fallbackExtraction = await runFallbackExtractionScenario();
+const localSidecarSelection = await runLocalSidecarSelectionScenario();
 
 const checks = [
   result.videoRenderStrategyPlan.workflowMode === "storyboard_multishot" &&
@@ -126,7 +127,16 @@ const checks = [
     fallbackExtraction.selectedFileSizeBytes > 0 &&
     fallbackExtraction.qualityScore > 0
     ? pass("ffmpeg_last_frame_fallback_extracts_image", "When no provider sidecar image exists, the fallback extracts scored endpoint-frame candidates and selects a first-frame image reference.")
-    : fail("ffmpeg_last_frame_fallback_extracts_image", "Expected ffmpeg fallback to extract a scored first-frame image reference from a video output.")
+    : fail("ffmpeg_last_frame_fallback_extracts_image", "Expected ffmpeg fallback to extract a scored first-frame image reference from a video output."),
+  localSidecarSelection.recognizedAsImage &&
+    localSidecarSelection.selected &&
+    localSidecarSelection.extracted === false &&
+    localSidecarSelection.outputIndex === 1 &&
+    localSidecarSelection.providerKind === "image" &&
+    localSidecarSelection.role === "first_frame" &&
+    localSidecarSelection.qualityStrategy === "provider_sidecar"
+    ? pass("local_last_frame_sidecar_selected_without_fallback", "Local image sidecar outputs are recognized and selected directly for first-frame chaining without ffmpeg fallback.")
+    : fail("local_last_frame_sidecar_selected_without_fallback", "Expected local last-frame image sidecar output to be selected directly.")
 ];
 
 const status = checks.every((check) => check.status === "pass") ? "pass" : "fail";
@@ -158,6 +168,18 @@ const report = {
     selectedOffsetSeconds: fallbackExtraction.selectedOffsetSeconds,
     selectedFileSizeBytes: fallbackExtraction.selectedFileSizeBytes,
     qualityScore: fallbackExtraction.qualityScore
+  },
+  localSidecarSelection: {
+    recognizedAsImage: localSidecarSelection.recognizedAsImage,
+    selected: localSidecarSelection.selected,
+    extracted: localSidecarSelection.extracted,
+    outputIndex: localSidecarSelection.outputIndex,
+    outputUrlSha256Present: Boolean(localSidecarSelection.outputUrlSha256),
+    providerKind: localSidecarSelection.providerKind,
+    role: localSidecarSelection.role,
+    qualityStrategy: localSidecarSelection.qualityStrategy,
+    qualityCandidateCount: localSidecarSelection.qualityCandidateCount,
+    qualityScore: localSidecarSelection.qualityScore
   },
   strategy: {
     requestedMode: result.videoRenderStrategyPlan.requestedMode,
@@ -334,6 +356,31 @@ async function runFallbackExtractionScenario() {
     qualityCandidateCount: selection?.quality?.candidateCount,
     selectedOffsetSeconds: selection?.quality?.selectedOffsetSeconds,
     selectedFileSizeBytes: selection?.quality?.selectedFileSizeBytes,
+    qualityScore: selection?.quality?.score
+  };
+}
+
+async function runLocalSidecarSelectionScenario() {
+  const workDirectory = mkdtempSync(join(tmpdir(), "cinejelly-local-sidecar-"));
+  const videoPath = join(workDirectory, "source.mp4");
+  const localSidecarPath = join(workDirectory, "source-last-frame.png");
+  writeFileSync(localSidecarPath, "local sidecar image placeholder", "utf8");
+  const renderedShot = renderedShotForFallback(videoPath);
+  renderedShot.prediction.outputUrls = [videoPath, localSidecarPath];
+  const selection = await selectOrExtractLastFrameReference({
+    renderedShot,
+    targetShotId: "local_sidecar_target"
+  });
+  return {
+    recognizedAsImage: isImageOutputUrl(localSidecarPath),
+    selected: Boolean(selection),
+    extracted: selection?.extracted === true,
+    outputIndex: selection?.outputIndex,
+    outputUrlSha256: selection?.outputUrlSha256,
+    providerKind: selection?.reference.providerReference.kind,
+    role: selection?.reference.providerReference.role,
+    qualityStrategy: selection?.quality?.strategy,
+    qualityCandidateCount: selection?.quality?.candidateCount,
     qualityScore: selection?.quality?.score
   };
 }

@@ -249,12 +249,13 @@ async function removeIfUnselected(path: string): Promise<void> {
 }
 
 export function isImageOutputUrl(value: string): boolean {
-  const parsed = outputUrl(value);
+  const source = outputSource(value);
+  if (hasImageExtension(source.pathnameOrPath)) {
+    return true;
+  }
+  const parsed = source.url;
   if (!parsed) {
     return false;
-  }
-  if (hasImageExtension(parsed.pathname)) {
-    return true;
   }
   for (const key of ["filename", "file", "name", "download", "response-content-disposition"]) {
     const queryValue = parsed.searchParams.get(key);
@@ -276,11 +277,12 @@ export function isImageOutputUrl(value: string): boolean {
     !/\.(?:mp4|mov|webm|m4v)(?:$|[?#])/i.test(parsed.pathname);
 }
 
-function outputUrl(value: string): URL | undefined {
+function outputSource(value: string): { readonly pathnameOrPath: string; readonly url?: URL } {
   try {
-    return new URL(value);
+    const url = new URL(value);
+    return { pathnameOrPath: url.pathname, url };
   } catch {
-    return undefined;
+    return { pathnameOrPath: value.split(/[?#]/, 1)[0] ?? value };
   }
 }
 
