@@ -36,6 +36,7 @@ import { RenderCostGate } from "../core/render-cost-gate.js";
 import {
   RenderScheduler,
   type RenderScheduleItem,
+  type RenderSchedulePlan,
   type RenderScheduleResult,
   type RenderScheduleSequentialReason
 } from "../core/render-scheduler.js";
@@ -557,6 +558,20 @@ export class DirectorAgent {
             repairAttemptCount,
             signal
           });
+          if (this.shouldAbortSequentialRenderAfterFailedShot(item, renderedShot, renderSchedulePlan)) {
+            this.reportStageProgress(
+              "render",
+              "failed",
+              "Stopping dependent render sequence after a shot failed inspection.",
+              {
+                failedShotId: renderedShot.compiledPrompt.shotId,
+                failedPredictionStatus: renderedShot.prediction.status,
+                failedRenderInspectionStatus: renderedShot.renderInspection.status,
+                renderScheduleBatchCount: renderSchedulePlan.batchCount
+              }
+            );
+            throw new Error(this.describeRenderBlock([renderedShot]));
+          }
           previousRenderedShot = renderedShot;
           return renderedShot;
         }
@@ -964,6 +979,19 @@ export class DirectorAgent {
 
   private shouldApplyLastFrameChaining(plan: VideoRenderStrategyPlan): boolean {
     return plan.lastFrameChaining.status === "required" || plan.lastFrameChaining.status === "recommended";
+  }
+
+  private shouldAbortSequentialRenderAfterFailedShot(
+    item: RenderScheduleItem<unknown>,
+    renderedShot: RenderedShot,
+    renderSchedulePlan: RenderSchedulePlan
+  ): boolean {
+    if (!this.needsRenderRepair(renderedShot.renderInspection)) {
+      return false;
+    }
+    return renderSchedulePlan.items.some((planItem) =>
+      planItem.index === item.index && planItem.mode === "sequential"
+    );
   }
 
   private endpointFrameMetadata(quality: EndpointFrameQualityEvidence): ProviderMetadata {
@@ -1634,12 +1662,31 @@ export class DirectorAgent {
         const finding = renderedShot.renderInspection.findings.find((candidate) =>
           candidate.status === "block" || candidate.status === "repair" || candidate.status === "rerender"
         );
+        const providerFailure = this.providerFailureSummary(renderedShot.prediction);
+        const providerSuffix = providerFailure ? ` Provider failure: ${providerFailure}.` : "";
         return finding
-          ? `${renderedShot.compiledPrompt.shotId}: ${finding.checkpoint} (${finding.severity}) - ${finding.repair}`
-          : `${renderedShot.compiledPrompt.shotId}: ${renderedShot.renderInspection.status}`;
+          ? `${renderedShot.compiledPrompt.shotId}: ${finding.checkpoint} (${finding.severity}) - ${finding.repair}.${providerSuffix}`
+          : `${renderedShot.compiledPrompt.shotId}: ${renderedShot.renderInspection.status}.${providerSuffix}`;
       })
       .join("; ");
     return `Consistency Guardian render gate blocked ${renderedShots.length} shot(s) after targeted repair budget. ${details}`;
+  }
+
+  private providerFailureSummary(prediction: Prediction): string | undefined {
+    if (prediction.status === "succeeded") {
+      return undefined;
+    }
+    const raw = prediction.raw;
+    if (!raw || typeof raw !== "object") {
+      return `status=${prediction.status}`;
+    }
+    const record = raw as Record<string, unknown>;
+    const code = typeof record.code === "string" ? record.code : undefined;
+    const message = typeof record.message === "string" ? record.message : undefined;
+    if (!code && !message) {
+      return `status=${prediction.status}`;
+    }
+    return [code ? `code=${code}` : undefined, message].filter(Boolean).join(", ");
   }
 
   private describeTestTakeBlock(shot: ShotContract, report: GuardianReport): string {
