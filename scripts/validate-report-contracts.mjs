@@ -17,6 +17,7 @@ const defaultContracts = [
   contract("business_readiness_plan", "schemas/business-readiness-validation-plan.schema.json", "assets/output_deliverables/business-readiness/business-readiness-validation-plan.json"),
   contract("live_readiness_inputs", "schemas/live-readiness-inputs-report.schema.json", "assets/output_deliverables/business-readiness/live-readiness-inputs-report.json"),
   contract("deployment_package_validation", "schemas/deployment-package-validation-report.schema.json", "assets/output_deliverables/business-readiness/deployment-package-validation-report.json"),
+  contract("source_structure_audit", "schemas/source-structure-audit-report.schema.json", "assets/output_deliverables/business-readiness/source-structure-audit-report.json"),
   contract("api_response_redaction_smoke", "schemas/api-response-redaction-smoke-report.schema.json", "assets/output_deliverables/business-readiness/api-response-redaction-smoke-report.json"),
   contract("private_source_lineage_boundary_audit", "schemas/private-source-lineage-boundary-audit-report.schema.json", "assets/output_deliverables/business-readiness/private-source-lineage-boundary-audit-report.json"),
   contract("render_request_contract_smoke", "schemas/render-request-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-request-contract-smoke-report.json"),
@@ -329,6 +330,9 @@ function failContract(item, issues) {
 function validateSemanticContract(item, report, options) {
   if (item.name === "snapshot_parity_audit") {
     return validateSnapshotParityAuditSemantics(report);
+  }
+  if (item.name === "source_structure_audit") {
+    return validateSourceStructureAuditSemantics(report);
   }
   if (item.name === "commercial_launch_doctor") {
     return validateCommercialLaunchDoctorSemantics(report, {
@@ -831,6 +835,47 @@ function validateSnapshotParityAuditSemantics(report) {
   const directImports = Array.isArray(report?.directExternalImports) ? report.directExternalImports : [];
   if (directImports.length > 0) {
     issues.push(`$.directExternalImports: expected zero direct external import findings, found ${directImports.length}.`);
+  }
+  return issues;
+}
+
+function validateSourceStructureAuditSemantics(report) {
+  const issues = [];
+  if (report?.status !== "pass") {
+    issues.push("$.status: expected pass for source structure evidence.");
+  }
+  if (Number(report?.summary?.failedChecks ?? 0) !== 0) {
+    issues.push("$.summary.failedChecks: expected zero failed source-structure checks.");
+  }
+  if (Number(report?.summary?.missingRootFileCount ?? 0) !== 0) {
+    issues.push("$.summary.missingRootFileCount: expected zero missing root files.");
+  }
+  if (Number(report?.summary?.missingRuntimeDirCount ?? 0) !== 0) {
+    issues.push("$.summary.missingRuntimeDirCount: expected zero missing runtime directories.");
+  }
+  if (Number(report?.summary?.missingDeployFileCount ?? 0) !== 0) {
+    issues.push("$.summary.missingDeployFileCount: expected zero missing deploy files.");
+  }
+  if (Number(report?.summary?.directExternalImportFindingCount ?? 0) !== 0) {
+    issues.push("$.summary.directExternalImportFindingCount: expected zero direct external imports.");
+  }
+  if (Number(report?.summary?.productHygieneFindingCount ?? 0) !== 0) {
+    issues.push("$.summary.productHygieneFindingCount: expected zero product test/mock/demo/sample findings.");
+  }
+  if (Number(report?.summary?.publicExportMissingCount ?? 0) !== 0) {
+    issues.push("$.summary.publicExportMissingCount: expected zero missing public exports.");
+  }
+  if (Number(report?.summary?.packageForbiddenFileEntryCount ?? 0) !== 0) {
+    issues.push("$.summary.packageForbiddenFileEntryCount: expected zero forbidden package file entries.");
+  }
+  if (report?.releaseGateSummary?.sourceStructurePass !== true) {
+    issues.push("$.releaseGateSummary.sourceStructurePass: expected true.");
+  }
+  if (report?.releaseGateSummary?.canUseAsNoSpendSourceStructureEvidence !== true) {
+    issues.push("$.releaseGateSummary.canUseAsNoSpendSourceStructureEvidence: expected true.");
+  }
+  if (report?.releaseGateSummary?.canReleaseToCustomerTraffic !== false) {
+    issues.push("$.releaseGateSummary.canReleaseToCustomerTraffic: expected false; source structure is not commercial release approval.");
   }
   return issues;
 }

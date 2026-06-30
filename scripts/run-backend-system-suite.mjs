@@ -24,6 +24,9 @@ const suiteCommands = [
   command("deployment_package", ["scripts/validate-deployment-package.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/deployment-package-validation-report.json"
   }),
+  command("source_structure", ["scripts/audit-source-structure.mjs"], {
+    reportPath: "assets/output_deliverables/business-readiness/source-structure-audit-report.json"
+  }),
   command("render_request_contract", ["scripts/run-render-request-contract-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/render-request-contract-smoke-report.json"
   }),
