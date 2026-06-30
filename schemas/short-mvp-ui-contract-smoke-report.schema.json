@@ -113,7 +113,7 @@
               ]
             },
             "defaultResolution": { "const": "720p" },
-            "defaultAudioMode": { "const": "guided" },
+            "defaultAudioMode": { "const": "hybrid" },
             "defaultReturnLastFrame": { "const": true },
             "pipeNavigationGroups": {
               "type": "array",

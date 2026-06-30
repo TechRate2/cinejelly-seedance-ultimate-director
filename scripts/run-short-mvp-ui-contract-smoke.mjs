@@ -281,7 +281,7 @@ try {
       videoPipeCatalog.body?.providerCallsMade === false &&
       videoPipeCatalog.body?.pipeCount === 5 &&
       videoPipeCatalog.body?.defaultResolution === "720p" &&
-      videoPipeCatalog.body?.defaultAudioMode === "guided" &&
+      videoPipeCatalog.body?.defaultAudioMode === "hybrid" &&
       videoPipeCatalog.body?.defaultReturnLastFrame === true &&
       videoPipeCatalog.body?.releaseGateSummary?.canSubmitToProviderNow === false &&
       videoPipeCatalog.body?.pipes?.map((pipe) => pipe.mode).join("|") === "smart_short|product_kol_ugc|storyboard_multishot|video_remake|production_bible" &&
@@ -291,7 +291,7 @@ try {
       videoPipeCatalog.body.pipes.every((pipe) =>
         pipe.backendPipe !== "reference_board_pipe" &&
         pipe.settings.some((setting) => setting.settingId === "resolution" && setting.value === "720p") &&
-        pipe.settings.some((setting) => setting.settingId === "audio_mode" && setting.value === "guided") &&
+        pipe.settings.some((setting) => setting.settingId === "audio_mode" && setting.value === "hybrid") &&
         pipe.settings.some((setting) => setting.settingId === "provider_mode" && setting.backendManaged === true) &&
         pipe.settings.some((setting) =>
           setting.settingId === "visual_bible_mode" &&
@@ -341,7 +341,7 @@ try {
       uiPipeCapabilityPolicyPresent &&
       ui.pipeNavigation.every((pipe) =>
         pipe.settings.some((setting) => setting.settingId === "resolution" && setting.value === "720p") &&
-        pipe.settings.some((setting) => setting.settingId === "audio_mode" && setting.value === "guided") &&
+        pipe.settings.some((setting) => setting.settingId === "audio_mode" && setting.value === "hybrid") &&
         pipe.settings.some((setting) => setting.settingId === "provider_mode" && setting.control === "backend_auto") &&
         pipe.settings.some((setting) => setting.settingId === "review_before_spend" && setting.control === "review_gate")
       )
@@ -430,7 +430,7 @@ try {
       : fail("short_director_guidance_available", "Expected UI contract to expose Short Director guidance without frontend reimplementation."),
     ui?.audioControls?.options?.map((option) => option.optionId).join("|") === "off|english|vietnamese|chinese" &&
       ui?.audioControls?.selectedOptionId === "english" &&
-      ui?.outputContract?.audioMode === "guided" &&
+      ui?.outputContract?.audioMode === "hybrid" &&
       ui?.outputContract?.audioLanguage === "en" &&
       ui?.visualTextPolicy?.noOnScreenText === true &&
       ui?.visualTextPolicy?.noCaptions === true &&

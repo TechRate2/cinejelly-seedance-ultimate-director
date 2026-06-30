@@ -45,9 +45,11 @@ export function buildShortMvpUiContract(plan: ShortPipelinePlan): ShortMvpUiCont
     mode: "voiceover" as const,
     language: "en" as const,
     languageLabel: "English" as const,
-    renderAudioMode: "guided" as const,
+    renderAudioMode: "hybrid" as const,
     generatedAudioIntentEnabled: true,
-    nativeProviderAudioEnabled: false as const,
+    nativeProviderAudioEnabled: true,
+    providerAudioPromptEnabled: true,
+    externalAudioScriptEnabled: true,
     reviewRequired: true as const
   };
   const recommendedWorkflowMode = plan.directorPlan.recommendedWorkflowMode;
@@ -289,9 +291,9 @@ function audioControls(audioPolicy: NonNullable<ShortPipelinePlan["audioPolicy"]
   const selected = selectedAudioOptionId(audioPolicy);
   return [
     audioControl("off", "Audio off", selected === "off", "none", undefined, "Use when the user wants a fully silent visual short."),
-    audioControl("english", "English VO", selected === "english", "guided", "en", "Generate guided narration/audio intents in English."),
-    audioControl("vietnamese", "Vietnamese VO", selected === "vietnamese", "guided", "vi", "Generate guided narration/audio intents in Vietnamese."),
-    audioControl("chinese", "Chinese VO", selected === "chinese", "guided", "zh", "Generate guided narration/audio intents in Chinese.")
+    audioControl("english", "English VO", selected === "english", audioPolicy.renderAudioMode, "en", "Use model audio when available and keep TTS-ready narration/audio intents in English."),
+    audioControl("vietnamese", "Vietnamese VO", selected === "vietnamese", audioPolicy.renderAudioMode, "vi", "Use model audio when available and keep TTS-ready narration/audio intents in Vietnamese."),
+    audioControl("chinese", "Chinese VO", selected === "chinese", audioPolicy.renderAudioMode, "zh", "Use model audio when available and keep TTS-ready narration/audio intents in Chinese.")
   ];
 }
 

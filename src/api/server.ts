@@ -63,6 +63,7 @@ import type {
   ShortPipelineConversationMessageInput,
   ShortPipelineConversationRole,
   ShortMediaReferenceInput,
+  ShortPipelineAudioPolicyInput,
   ShortPipelinePlan,
   ShortPipelinePlanInput,
   ShortSeedanceSettingsInput,
@@ -168,6 +169,8 @@ const SHORT_MEDIA_REFERENCE_ROLES = new Set([
 const SHORT_MEDIA_REFERENCE_KINDS = new Set(["image", "video", "audio"]);
 const SHORT_MEDIA_REFERENCE_RIGHTS = new Set(["operator_approved", "needs_review", "unknown"]);
 const SHORT_MEDIA_REFERENCE_PRIORITIES = new Set(["primary", "supporting"]);
+const SHORT_AUDIO_MODES = new Set(["off", "voiceover", "native", "hybrid"]);
+const SHORT_AUDIO_LANGUAGES = new Set(["en", "vi", "zh"]);
 const MAX_SHORT_MEDIA_REFERENCES = 12;
 const OPERATOR_LAUNCH_UI_REPORTS = [
   {
@@ -1373,6 +1376,7 @@ function shortPipelineConversationInputFromBody(
   }
   const channelStyle = resolveShortChannelStyleInput(body, channelStyleStore, clientScope);
   const mediaReferences = mediaReferencesFromBody(body.mediaReferences, "mediaReferences");
+  const audio = shortAudioFromBody(body.audio, "audio");
   const seedanceSettings = shortSeedanceSettingsFromBody(body.seedanceSettings ?? body.settings, "seedanceSettings");
   const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
@@ -1390,7 +1394,7 @@ function shortPipelineConversationInputFromBody(
       : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
-    ...(body.audio ? { audio: body.audio } : {}),
+    ...(audio ? { audio } : {}),
     ...(seedanceSettings ? { seedanceSettings } : {}),
     ...(visualBible ? { visualBible } : {}),
     ...(body.generatedAt ? { generatedAt: optionalDate(body.generatedAt, "generatedAt") } : {})
@@ -1469,6 +1473,26 @@ function mediaReferencesFromBody(
     return reference as unknown as ShortMediaReferenceInput;
   });
   return references.length > 0 ? references : undefined;
+}
+
+function shortAudioFromBody(value: unknown, label: string): ShortPipelineAudioPolicyInput | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isJsonRecord(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an object when provided.`);
+  }
+  const audio: Record<string, unknown> = {};
+  if (value.mode !== undefined) {
+    audio.mode = boundedMediaEnum(value.mode, `${label}.mode`, SHORT_AUDIO_MODES) as ShortPipelineAudioPolicyInput["mode"];
+  }
+  if (value.language !== undefined) {
+    audio.language = boundedMediaEnum(value.language, `${label}.language`, SHORT_AUDIO_LANGUAGES) as ShortPipelineAudioPolicyInput["language"];
+  }
+  if (value.voiceStyle !== undefined) {
+    audio.voiceStyle = boundedMediaString(value.voiceStyle, `${label}.voiceStyle`, 120, false);
+  }
+  return Object.keys(audio).length > 0 ? audio as ShortPipelineAudioPolicyInput : undefined;
 }
 
 function shortSeedanceSettingsFromBody(value: unknown, label: string): ShortSeedanceSettingsInput | undefined {
@@ -1584,6 +1608,7 @@ function shortPipelinePlanInputFromBody(
   }
   const channelStyle = resolveShortChannelStyleInput(body, channelStyleStore, clientScope);
   const mediaReferences = mediaReferencesFromBody(body.mediaReferences, "mediaReferences");
+  const audio = shortAudioFromBody(body.audio, "audio");
   const seedanceSettings = shortSeedanceSettingsFromBody(body.seedanceSettings ?? body.settings, "seedanceSettings");
   const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
@@ -1601,7 +1626,7 @@ function shortPipelinePlanInputFromBody(
       : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
-    ...(body.audio ? { audio: body.audio } : {}),
+    ...(audio ? { audio } : {}),
     ...(seedanceSettings ? { seedanceSettings } : {}),
     ...(visualBible ? { visualBible } : {}),
     ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
@@ -1798,12 +1823,13 @@ function shortPipelineRenderJobBodyFromBody(
         checkpoints: body.reviewApprovalCheckpoints
       })
     : undefined;
+  const audio = shortAudioFromBody(body.audio, "audio");
   return {
     planInput: shortPipelinePlanInputFromBody(body.planInput, requestId, channelStyleStore, clientScope),
     ...(reviewApproval ? { reviewApproval } : {}),
     confirmRenderSubmission,
     ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
-    ...(body.audio ? { audio: body.audio } : {}),
+    ...(audio ? { audio } : {}),
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
     ...(body.references ? { references: body.references } : {}),
@@ -1839,11 +1865,12 @@ function shortPipelineConversationSessionRenderJobBodyFromBody(
         checkpoints: body.reviewApprovalCheckpoints
       })
     : undefined;
+  const audio = shortAudioFromBody(body.audio, "audio");
   return {
     ...(reviewApproval ? { reviewApproval } : {}),
     confirmRenderSubmission,
     ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
-    ...(body.audio ? { audio: body.audio } : {}),
+    ...(audio ? { audio } : {}),
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
     ...(body.references ? { references: body.references } : {}),

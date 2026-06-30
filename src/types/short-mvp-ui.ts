@@ -3,6 +3,7 @@ import type {
   ReviewApprovalGate,
   ReviewApprovalSurface
 } from "./review-approval.js";
+import type { AudioMode } from "./settings.js";
 import type { ShortPipelinePlan, ShortReferenceRemakeBlueprint } from "./short-pipeline.js";
 
 export type ShortMvpUiWorkflowMode =
@@ -67,7 +68,7 @@ export interface ShortMvpUiPipeNavigationItem {
   readonly seedanceMode: ShortPipelinePlan["seedanceRouting"]["recommendedProviderMode"];
   readonly preferredTier: ShortPipelinePlan["seedanceRouting"]["preferredTier"];
   readonly defaultResolution: ShortPipelinePlan["seedanceRouting"]["resolution"];
-  readonly audioDefault: "none" | "guided";
+  readonly audioDefault: AudioMode;
   readonly returnLastFrameDefault: boolean;
   readonly requiredInputs: readonly string[];
   readonly optionalInputs: readonly string[];
@@ -137,7 +138,7 @@ export interface ShortMvpUiAudioControl {
   readonly label: string;
   readonly recommended: boolean;
   readonly enabled: boolean;
-  readonly handoffAudioMode: "none" | "guided";
+  readonly handoffAudioMode: AudioMode;
   readonly language?: "en" | "vi" | "zh";
   readonly reason: string;
 }
@@ -325,7 +326,7 @@ export interface ShortMvpUiContract {
     readonly finalMp4AssemblyManagedByBackend: true;
     readonly captionsCanBeBurnedIn: boolean;
     readonly visibleTextAllowed: false;
-    readonly audioMode: "none" | "guided";
+    readonly audioMode: AudioMode;
     readonly audioLanguage?: "en" | "vi" | "zh";
     readonly generatedAudioIntentCount: number;
     readonly expectedSceneCount: number;

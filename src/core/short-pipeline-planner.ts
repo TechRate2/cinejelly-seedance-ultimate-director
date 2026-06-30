@@ -1986,22 +1986,44 @@ function audioPolicyFor(
   input: ShortPipelineAudioPolicyInput | undefined,
   brandKitEvaluation: BrandKitEvaluation | undefined
 ): ShortPipelineAudioPolicy {
-  const mode = input?.mode === "off" ? "off" : "voiceover";
+  const mode = shortAudioModeFor(input?.mode);
   const language = mode === "off"
     ? undefined
     : isShortAudioLanguage(input?.language) ? input.language : languageFromBrandKit(brandKitEvaluation?.language);
   const voiceStyle = cleanText(input?.voiceStyle, 120) ?? brandKitEvaluation?.tone;
+  const renderAudioMode = renderAudioModeForShortMode(mode);
   return {
     schemaVersion: "cinejelly.short-audio-policy.v1",
     mode,
     ...(language ? { language } : {}),
     ...(language ? { languageLabel: languageLabelFor(language) } : {}),
     ...(voiceStyle && mode !== "off" ? { voiceStyle } : {}),
-    renderAudioMode: mode === "off" ? "none" : "guided",
+    renderAudioMode,
     generatedAudioIntentEnabled: mode !== "off",
-    nativeProviderAudioEnabled: false,
+    nativeProviderAudioEnabled: renderAudioMode === "native" || renderAudioMode === "hybrid",
+    providerAudioPromptEnabled: renderAudioMode === "native" || renderAudioMode === "guided" || renderAudioMode === "hybrid",
+    externalAudioScriptEnabled: mode !== "off",
     reviewRequired: true
   };
+}
+
+function shortAudioModeFor(value: unknown): ShortPipelineAudioPolicy["mode"] {
+  if (value === "off" || value === "native" || value === "hybrid" || value === "voiceover") {
+    return value;
+  }
+  return "voiceover";
+}
+
+function renderAudioModeForShortMode(mode: ShortPipelineAudioPolicy["mode"]): ShortPipelineAudioPolicy["renderAudioMode"] {
+  switch (mode) {
+    case "off":
+      return "none";
+    case "native":
+      return "native";
+    case "hybrid":
+    case "voiceover":
+      return "hybrid";
+  }
 }
 
 function noVisibleTextPolicy(): ShortPipelineVisualTextPolicy {

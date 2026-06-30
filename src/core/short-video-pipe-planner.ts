@@ -49,7 +49,7 @@ type PipeDefinition = Omit<
 };
 
 const DEFAULT_PIPE_CATALOG_RESOLUTION = "720p" as const;
-const DEFAULT_PIPE_CATALOG_AUDIO = "guided" as const;
+const DEFAULT_PIPE_CATALOG_AUDIO = "hybrid" as const;
 const DEFAULT_PIPE_CATALOG_RETURN_LAST_FRAME = true as const;
 const DEFAULT_PROVIDER_CLIP_MAX_SECONDS = 15 as const;
 const STANDARD_RESOLUTION_OPTIONS = ["480p", "720p", "1080p", "720p-SR", "1080p-SR"] as const;
@@ -68,7 +68,7 @@ const PIPE_DEFINITIONS: readonly PipeDefinition[] = [
     preferredTier: "mini",
     requiredInputs: ["brief_or_idea"],
     optionalInputs: ["product_facts", "brand_kit", "channel_style"],
-    outputStrategy: "One compact text-to-video or image-to-video idea with hook, proof/demo, payoff, guided audio, and review gates.",
+    outputStrategy: "One compact text-to-video or image-to-video idea with hook, proof/demo, payoff, hybrid model audio plus TTS-ready script cues, and review gates.",
     reason: "Best when the user has only a rough idea and does not need identity/product continuity across many clips."
   },
   {
@@ -307,7 +307,7 @@ function pipeOption(input: {
     seedanceMode: input.defaultSeedanceMode,
     preferredTier: input.preferredTier,
     defaultResolution: DEFAULT_PIPE_CATALOG_RESOLUTION,
-    audioDefault: input.input.seedanceRouting.generatedAudioMode === "none" ? "none" : "guided",
+    audioDefault: input.input.seedanceRouting.generatedAudioMode,
     returnLastFrameDefault: input.input.seedanceRouting.returnLastFrame,
     requiredInputs: input.requiredInputs,
     optionalInputs: input.optionalInputs,
@@ -325,7 +325,7 @@ function effectiveSettingsFor(routing: ShortSeedanceRoutingPlan): NonNullable<Sh
     resolution: routing.resolution,
     bitrateMode: routing.bitrateMode,
     superResolution: routing.superResolution,
-    audioMode: routing.generatedAudioMode === "none" ? "none" : "guided",
+    audioMode: routing.generatedAudioMode,
     returnLastFrame: routing.returnLastFrame,
     promptRecipeName: routing.promptRecipe.name
   };
@@ -391,12 +391,12 @@ function pipeSettingsFor(input: {
       scope: "advanced",
       helperText: "Used by storyboard, remake, and production sequence pipes to preserve continuity across Seedance clips."
     }),
-    pipeSetting("audio_mode", "Audio", runtime.seedanceRouting.generatedAudioMode === "none" ? "none" : "guided", true, true, {
+    pipeSetting("audio_mode", "Audio", runtime.seedanceRouting.generatedAudioMode, true, true, {
       group: "audio",
       control: "select",
       scope: "primary",
-      options: settingOptions(["guided", "none"], runtime.seedanceRouting.generatedAudioMode === "none" ? "none" : "guided"),
-      helperText: "Guided audio is default; native provider audio stays off until a reviewed audio pipeline approves it."
+      options: settingOptions(["hybrid", "native", "guided", "none"], runtime.seedanceRouting.generatedAudioMode),
+      helperText: "Hybrid is default: use Seedance native audio when supported and keep TTS-ready script cues for external voice/audio providers."
     }),
     pipeSetting("visual_bible_mode", "Visual Bible", visualBibleModeForCatalog(input.mode), true, true, {
       group: "input",
@@ -468,7 +468,7 @@ function catalogSettingsFor(definition: PipeDefinition): readonly ShortVideoPipe
       group: "audio",
       control: "select",
       scope: "primary",
-      options: settingOptions(["guided", "none"], DEFAULT_PIPE_CATALOG_AUDIO)
+      options: settingOptions(["hybrid", "native", "guided", "none"], DEFAULT_PIPE_CATALOG_AUDIO)
     }),
     pipeSetting("visual_bible_mode", "Visual Bible", visualBibleModeForCatalog(definition.mode), true, true, {
       group: "input",

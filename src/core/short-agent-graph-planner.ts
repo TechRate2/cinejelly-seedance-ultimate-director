@@ -26,7 +26,11 @@ import type {
   ShortAgentResearchQuestion,
   ShortAgentStageName,
   ShortAgentStageRun,
+  ShortSeedanceAudioScriptLine,
+  ShortSeedanceDurationProductionContract,
   ShortSeedancePromptPack,
+  ShortSeedanceProductionAct,
+  ShortSeedanceShotBeatContract,
   ShortSeedanceShotPrompt
 } from "../types/short-agent.js";
 import type {
@@ -368,6 +372,8 @@ function seedancePromptPackFor(
   const reference = input.viralIntelligence.referenceVideoPattern;
   const selectedIdea = selectedCreativeIdea(input);
   const shots = shotPromptsFor(input, selectedCandidate, critiques);
+  const durationProductionContract = durationProductionContractFor(input, shots);
+  const audioScript = audioScriptFor(input, shots);
   const promptPackId = createStableId(
     "short_seedance_pack",
     [
@@ -389,6 +395,7 @@ function seedancePromptPackFor(
     channelStyleLine,
     `Creative mode: ${strategy.creativeMode}. Platform focus: ${strategy.platformFocus}. Target duration: ${input.intent.targetDurationSeconds}s. Aspect ratio: ${input.intent.aspectRatio}.`,
     shortDurationArcPrompt(input.intent.targetDurationSeconds, input.scenes),
+    durationProductionContractLine(durationProductionContract),
     selectedCandidate ? `Winning candidate: ${selectedCandidate.label}. Hook: ${selectedCandidate.hook}. Story arc: ${selectedCandidate.storyArc}.` : "",
     selectedIdea ? `Selected creative-pattern idea: ${selectedIdea.label}. Hook: ${selectedIdea.hook}. Proof: ${selectedIdea.proofPlan}. KOL direction: ${selectedIdea.creatorOrKolDirection}.` : "",
     `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
@@ -396,6 +403,7 @@ function seedancePromptPackFor(
     "Seedance quality contract: write prompt details as physical direction, not abstract marketing. Specify reference binding, subject identity, product geometry, lens distance, camera motion, lighting source, hand/action timing, material texture, background depth, audio bed, and exact final frame.",
     seedanceReferenceHandleDiscipline(input),
     "Human realism contract: natural blink timing, tiny pauses before/after product contact, believable eye-line, slight handheld correction, real skin/hand texture, and unpolished creator timing. Avoid stiff posing, plastic skin, warped fingers, floating products, overacting, and studio-commercial fakery unless user asks for cinematic mode.",
+    `Native/audio contract: if model audio is enabled, produce natural room tone, voice timing, soft music/SFX, and cadence from the shot audio fields; also keep the TTS-ready audio script separate for later external voice APIs. Script lines: ${audioScript.map((line) => `${line.startSecond}-${line.endSecond}s ${line.spokenLine}`).join(" | ")}`,
     reference
       ? `Reference policy: adapt structure only from ${reference.patternId}; hook=${reference.hookPattern}; pacing=${reference.pacingPattern}; camera=${reference.cameraPattern}; text-rhythm=${reference.captionPattern}; do not render visible text.`
       : "Reference policy: no external reference video pattern supplied; use original shots from product, brand, and user brief evidence.",
@@ -414,6 +422,8 @@ function seedancePromptPackFor(
     aspectRatio: input.intent.aspectRatio,
     masterPrompt,
     shotPrompts: shots,
+    durationProductionContract,
+    audioScript,
     globalNegativeConstraints: GLOBAL_NEGATIVE_CONSTRAINTS,
     audioPlan: audioPlanFor(strategy.creativeMode, channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone),
     captionPlan: visibleTextPlanFor(strategy.platformFocus, input.brandKitEvaluation?.language, input.channelStyleProfile?.captionStyle),
@@ -445,6 +455,17 @@ function shotPromptsFor(
     ]);
     const caption = "NO_ON_SCREEN_TEXT";
     const audio = audioForScene(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode, channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone);
+    const beatContract = beatContractFor(sceneItem, input, index, startSecond, endSecond);
+    const voiceoverLine = voiceoverLineFor(sceneItem, input, beatContract, startSecond, endSecond);
+    const musicCue = musicCueFor(sceneItem, input.viralIntelligence.nicheStrategy.creativeMode);
+    const sfxCue = sfxCueFor(sceneItem, input.productBrief?.title ?? "main subject");
+    const nativeAudioPrompt = nativeAudioPromptFor({
+      audio,
+      voiceoverLine,
+      musicCue,
+      sfxCue,
+      beatContract
+    });
     const continuity = continuityFor(sceneItem, input, index);
     const transitionBridge = transitionBridgeFor(sceneItem, input, index);
     const referencePolicy = directive?.referencePatternAlignment ??
@@ -468,9 +489,14 @@ function shotPromptsFor(
       visualPrompt: visualPromptFor(sceneItem, input, firstFrame, action),
       camera,
       action,
-      dialogueOrNarration: sceneItem.narration,
+      dialogueOrNarration: voiceoverLine,
       caption,
       audio,
+      beatContract,
+      voiceoverLine,
+      nativeAudioPrompt,
+      musicCue,
+      sfxCue,
       continuity,
       transitionBridge,
       referencePolicy: scopedReferencePolicy,
@@ -481,6 +507,268 @@ function shotPromptsFor(
       ], 10)
     };
   });
+}
+
+function durationProductionContractFor(
+  input: ShortAgentGraphPlannerInput,
+  shots: readonly ShortSeedanceShotPrompt[]
+): ShortSeedanceDurationProductionContract {
+  const actStructure = shots.map((shot) => shot.beatContract.act);
+  const sceneRoleOrder = input.scenes.map((sceneItem) => sceneItem.role);
+  const targetDurationSeconds = input.intent.targetDurationSeconds;
+  const minVisualChangeCount = Math.max(
+    input.scenes.length,
+    targetDurationSeconds <= 15
+      ? 4
+      : targetDurationSeconds <= 30
+        ? 8
+        : Math.min(24, Math.ceil(targetDurationSeconds / 3))
+  );
+  const hasOpening = actStructure.includes("opening");
+  const hasDevelopment = actStructure.includes("development");
+  const hasPayoff = actStructure.includes("payoff");
+  const timingRisk: ShortSeedanceDurationProductionContract["timingRisk"] =
+    hasOpening && hasDevelopment && hasPayoff && shots.length >= 3
+      ? "low"
+      : shots.length >= 2
+        ? "medium"
+        : "high";
+  return {
+    schemaVersion: "cinejelly.short-duration-production-contract.v1",
+    targetDurationSeconds,
+    actStructure,
+    sceneRoleOrder,
+    minVisualChangeCount,
+    completionRule: completionRuleFor(targetDurationSeconds, sceneRoleOrder),
+    timingRisk
+  };
+}
+
+function durationProductionContractLine(contract: ShortSeedanceDurationProductionContract): string {
+  return [
+    "Duration production contract:",
+    `target=${contract.targetDurationSeconds}s`,
+    `acts=${contract.actStructure.join(">")}`,
+    `roles=${contract.sceneRoleOrder.join(">")}`,
+    `minVisualChanges=${contract.minVisualChangeCount}`,
+    `timingRisk=${contract.timingRisk}`,
+    contract.completionRule
+  ].join(" ");
+}
+
+function completionRuleFor(
+  targetDurationSeconds: number,
+  roles: readonly ShortPipelineScenePlan["role"][]
+): string {
+  const roleLine = roles.join(" > ");
+  if (targetDurationSeconds <= 15) {
+    return `Complete the whole promise inside ${targetDurationSeconds}s: opening hook, proof/demo development, and payoff ending must all be visible; role order ${roleLine}.`;
+  }
+  if (targetDurationSeconds <= 30) {
+    return `Complete a compact three-act short inside ${targetDurationSeconds}s with no dead scene: hook, context, proof/demo, and ending payoff; role order ${roleLine}.`;
+  }
+  return `Sustain the short across ${targetDurationSeconds}s with repeated information changes, but still resolve the original hook in the final act; role order ${roleLine}.`;
+}
+
+function beatContractFor(
+  sceneItem: ShortPipelineScenePlan,
+  input: ShortAgentGraphPlannerInput,
+  index: number,
+  startSecond: number,
+  endSecond: number
+): ShortSeedanceShotBeatContract {
+  const product = input.productBrief?.title ?? "main subject";
+  const act = productionActFor(sceneItem, index, input.scenes.length);
+  return {
+    act,
+    timingGoal: timeboxedActionCueFor(sceneItem, startSecond, endSecond, input.intent.targetDurationSeconds),
+    requiredVisualChange: visualChangeFor(sceneItem, product),
+    narrationJob: narrationJobFor(sceneItem, product),
+    audioJob: audioJobFor(sceneItem, act),
+    endpointJob: endpointJobFor(sceneItem, input, index)
+  };
+}
+
+function productionActFor(
+  sceneItem: ShortPipelineScenePlan,
+  index: number,
+  sceneCount: number
+): ShortSeedanceProductionAct {
+  if (index === 0 || sceneItem.role === "hook") {
+    return "opening";
+  }
+  if (index === sceneCount - 1 || sceneItem.role === "payoff" || sceneItem.role === "offer") {
+    return "payoff";
+  }
+  return "development";
+}
+
+function visualChangeFor(sceneItem: ShortPipelineScenePlan, product: string): string {
+  switch (sceneItem.role) {
+    case "hook":
+      return `viewer sees ${product} or the problem/result promise before the first second ends`;
+    case "problem":
+      return "viewer sees the friction become specific through a human action or before-state";
+    case "proof":
+      return `viewer sees concrete evidence, texture, comparison, or product behavior for ${product}`;
+    case "demo":
+      return `viewer sees before-state, product contact/action, and after-state for ${product}`;
+    case "offer":
+      return "viewer sees why acting now follows naturally from the proof without a text card";
+    case "payoff":
+      return `viewer sees the resolved result, human reaction, or product-in-result frame for ${product}`;
+  }
+}
+
+function narrationJobFor(sceneItem: ShortPipelineScenePlan, product: string): string {
+  switch (sceneItem.role) {
+    case "hook":
+      return `say the problem or result promise in one natural spoken line about ${product}`;
+    case "problem":
+      return "name the viewer friction without exaggeration";
+    case "proof":
+      return "explain only the evidence visible in-frame";
+    case "demo":
+      return "talk through the use step while the action is happening";
+    case "offer":
+      return "make the next step feel earned, not pushy";
+    case "payoff":
+      return "resolve the original promise and stop before adding a new claim";
+  }
+}
+
+function audioJobFor(sceneItem: ShortPipelineScenePlan, act: ShortSeedanceProductionAct): string {
+  const base = act === "opening"
+    ? "audio starts immediately with no dead air"
+    : act === "payoff"
+      ? "audio resolves cleanly under the final visual"
+      : "audio keeps pace with the visible action";
+  if (sceneItem.role === "demo" || sceneItem.role === "proof") {
+    return `${base}; product/contact SFX may clarify the action but must not cover speech`;
+  }
+  return `${base}; music stays low and uncopyrighted`;
+}
+
+function endpointJobFor(
+  sceneItem: ShortPipelineScenePlan,
+  input: ShortAgentGraphPlannerInput,
+  index: number
+): string {
+  const product = input.productBrief?.title ?? "main subject";
+  const next = input.scenes[index + 1];
+  if (!next) {
+    return `finish on resolved ${product}/result frame with audio tail clean enough for final delivery`;
+  }
+  return `hold a stable ${product}/KOL/result frame that can become the first-frame reference for the next ${next.role} shot`;
+}
+
+function voiceoverLineFor(
+  sceneItem: ShortPipelineScenePlan,
+  input: ShortAgentGraphPlannerInput,
+  beatContract: ShortSeedanceShotBeatContract,
+  startSecond: number,
+  endSecond: number
+): string {
+  const product = input.productBrief?.title ?? "this";
+  const base = safeText(sceneItem.narration, 180);
+  const timing = `${startSecond}-${endSecond}s`;
+  if (base && base !== "NO_ON_SCREEN_TEXT") {
+    return `${base} (${timing}; ${beatContract.narrationJob})`;
+  }
+  switch (sceneItem.role) {
+    case "hook":
+      return `Watch what changes when ${product} enters the routine. (${timing}; immediate spoken hook)`;
+    case "problem":
+      return `This is the part that usually makes people hesitate. (${timing}; human context)`;
+    case "proof":
+      return `Here is the visible proof I would actually check. (${timing}; evidence only)`;
+    case "demo":
+      return `I use it like this, then look for the result in-frame. (${timing}; action-led demo)`;
+    case "offer":
+      return `If this matches your routine, this is the moment to compare it. (${timing}; soft next step)`;
+    case "payoff":
+      return `That is the before-to-after feeling the video promised. (${timing}; resolved ending)`;
+  }
+}
+
+function musicCueFor(sceneItem: ShortPipelineScenePlan, mode: ShortViralCreativeMode): string {
+  if (mode === "cinematic") {
+    return sceneItem.role === "payoff"
+      ? "restrained cinematic bed resolves softly"
+      : "premium low-volume cinematic pulse under dialogue";
+  }
+  if (mode === "ugc_review") {
+    return sceneItem.role === "hook"
+      ? "quiet platform-native bed starts under the first word"
+      : "low-volume social bed stays behind natural creator speech";
+  }
+  return "light low-volume music bed, no copyrighted melody, never louder than speech";
+}
+
+function sfxCueFor(sceneItem: ShortPipelineScenePlan, product: string): string {
+  if (sceneItem.role === "demo" || sceneItem.role === "proof") {
+    return `subtle real contact SFX for ${product} only when touch/action is visible`;
+  }
+  if (sceneItem.role === "payoff") {
+    return "small room-tone tail or soft resolve, no loud whoosh";
+  }
+  return "natural room tone, no distracting stings";
+}
+
+function nativeAudioPromptFor(input: {
+  readonly audio: string;
+  readonly voiceoverLine: string;
+  readonly musicCue: string;
+  readonly sfxCue: string;
+  readonly beatContract: ShortSeedanceShotBeatContract;
+}): string {
+  return compactLines([
+    input.audio,
+    `Native audio line: ${input.voiceoverLine}`,
+    `Music cue: ${input.musicCue}`,
+    `SFX cue: ${input.sfxCue}`,
+    `Audio job: ${input.beatContract.audioJob}`
+  ]);
+}
+
+function audioScriptFor(
+  input: ShortAgentGraphPlannerInput,
+  shots: readonly ShortSeedanceShotPrompt[]
+): readonly ShortSeedanceAudioScriptLine[] {
+  const languageHint = input.brandKitEvaluation?.language ?? "user-requested language";
+  const voiceStyle = channelVoiceStyle(input.channelStyleProfile) ?? input.brandKitEvaluation?.tone ?? (
+    input.viralIntelligence.nicheStrategy.creativeMode === "ugc_review"
+      ? "natural creator voice"
+      : "clear short-form narration"
+  );
+  return shots.map((shot) => ({
+    shotId: shot.shotId,
+    sceneId: shot.sceneId,
+    startSecond: shot.startSecond,
+    endSecond: shot.endSecond,
+    languageHint,
+    voiceStyle,
+    spokenLine: shot.voiceoverLine,
+    delivery: deliveryFor(shot.beatContract.act, shot.role),
+    musicCue: shot.musicCue,
+    sfxCue: shot.sfxCue,
+    externalTtsReady: true as const
+  }));
+}
+
+function deliveryFor(
+  act: ShortSeedanceProductionAct,
+  role: ShortPipelineScenePlan["role"]
+): string {
+  if (act === "opening") {
+    return "start immediately, natural and clear, no intro pause";
+  }
+  if (act === "payoff") {
+    return "slower final cadence, resolve the promise, do not add a new claim";
+  }
+  return role === "demo" || role === "proof"
+    ? "match speech rhythm to visible hand/product action"
+    : "keep speech conversational and paced for retention";
 }
 
 function seedanceReferenceHandleDiscipline(input: ShortAgentGraphPlannerInput): string {

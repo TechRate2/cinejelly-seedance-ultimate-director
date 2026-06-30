@@ -37,7 +37,7 @@ export type ProductUrlBriefStatus = "ready" | "review_required" | "blocked";
 
 export type ShortPipelineAudioLanguage = "en" | "vi" | "zh";
 
-export type ShortPipelineAudioMode = "off" | "voiceover";
+export type ShortPipelineAudioMode = "off" | "voiceover" | "native" | "hybrid";
 
 export interface ShortPipelineAudioPolicyInput {
   readonly mode?: ShortPipelineAudioMode;
@@ -51,9 +51,11 @@ export interface ShortPipelineAudioPolicy {
   readonly language?: ShortPipelineAudioLanguage;
   readonly languageLabel?: "English" | "Vietnamese" | "Chinese";
   readonly voiceStyle?: string;
-  readonly renderAudioMode: "none" | "guided";
+  readonly renderAudioMode: AudioMode;
   readonly generatedAudioIntentEnabled: boolean;
-  readonly nativeProviderAudioEnabled: false;
+  readonly nativeProviderAudioEnabled: boolean;
+  readonly providerAudioPromptEnabled: boolean;
+  readonly externalAudioScriptEnabled: boolean;
   readonly reviewRequired: true;
 }
 
@@ -723,7 +725,7 @@ export interface ShortVideoPipeEffectiveSettings {
   readonly resolution: Resolution;
   readonly bitrateMode: BitrateMode;
   readonly superResolution: boolean;
-  readonly audioMode: "none" | "guided";
+  readonly audioMode: AudioMode;
   readonly returnLastFrame: boolean;
   readonly promptRecipeName: ShortSeedancePromptRecipeName;
 }
@@ -769,7 +771,7 @@ export interface ShortVideoPipeOption {
   readonly seedanceMode: ProviderMode;
   readonly preferredTier: ShortSeedanceModelTier;
   readonly defaultResolution: Resolution;
-  readonly audioDefault: "none" | "guided";
+  readonly audioDefault: AudioMode;
   readonly returnLastFrameDefault: boolean;
   readonly requiredInputs: readonly string[];
   readonly optionalInputs: readonly string[];
@@ -794,7 +796,7 @@ export interface ShortVideoPipeCatalogItem {
   readonly defaultSeedanceMode: ProviderMode;
   readonly preferredTier: ShortSeedanceModelTier;
   readonly defaultResolution: Resolution;
-  readonly audioDefault: "none" | "guided";
+  readonly audioDefault: AudioMode;
   readonly returnLastFrameDefault: boolean;
   readonly requiredInputs: readonly string[];
   readonly optionalInputs: readonly string[];
@@ -811,7 +813,7 @@ export interface ShortVideoPipeCatalog {
   readonly providerCallsMade: false;
   readonly pipeCount: 5;
   readonly defaultResolution: Resolution;
-  readonly defaultAudioMode: "guided";
+  readonly defaultAudioMode: AudioMode;
   readonly defaultReturnLastFrame: true;
   readonly pipes: readonly ShortVideoPipeCatalogItem[];
   readonly releaseGateSummary: {

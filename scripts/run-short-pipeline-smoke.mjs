@@ -780,7 +780,7 @@ const checks = [
     pendingRenderHandoff.request.metadata?.shortCtaCardsAllowed === "false" &&
     pendingRenderHandoff.request.generatedAudioIntents?.length === reviewRequiredPlan.scenes.length &&
     pendingRenderHandoff.request.generatedAudioIntents?.every((intent) => intent.language === reviewRequiredPlan.audioPolicy.language) &&
-    pendingRenderHandoff.request.settings?.audioMode === "guided" &&
+    pendingRenderHandoff.request.settings?.audioMode === "hybrid" &&
     pendingRenderHandoff.request.userInput.includes("Scene plan:") &&
     pendingRenderHandoff.request.userInput.includes("No visible text") &&
     pendingRenderHandoff.request.userInput.includes("Visual Bible image prompt packs:") &&
@@ -845,7 +845,7 @@ const checks = [
       const selected = option.mode === plan.videoPipePlan.selectedMode;
       return requiredPipeSettingIds.every((settingId) => option.settings.some((setting) => setting.settingId === settingId)) &&
         option.defaultResolution === "720p" &&
-        option.audioDefault === (plan.seedanceRouting.generatedAudioMode === "none" ? "none" : "guided") &&
+        option.audioDefault === plan.seedanceRouting.generatedAudioMode &&
         option.returnLastFrameDefault === plan.seedanceRouting.returnLastFrame &&
         (!selected || (
           option.effectiveSettings?.resolvedForCurrentPlan === true &&
@@ -854,7 +854,7 @@ const checks = [
           option.effectiveSettings.resolution === plan.seedanceRouting.resolution &&
           option.effectiveSettings.bitrateMode === plan.seedanceRouting.bitrateMode &&
           option.effectiveSettings.superResolution === plan.seedanceRouting.superResolution &&
-          option.effectiveSettings.audioMode === (plan.seedanceRouting.generatedAudioMode === "none" ? "none" : "guided") &&
+          option.effectiveSettings.audioMode === plan.seedanceRouting.generatedAudioMode &&
           option.effectiveSettings.returnLastFrame === plan.seedanceRouting.returnLastFrame &&
           option.effectiveSettings.promptRecipeName === plan.seedanceRouting.promptRecipe.name
         )) &&
@@ -895,7 +895,7 @@ const checks = [
     productKolPipePlan.seedanceRouting.bitrateMode === "high" &&
     productKolPipePlan.videoPipePlan.pipeOptions.find((option) => option.mode === "product_kol_ugc")?.defaultResolution === "720p" &&
     productKolPipePlan.videoPipePlan.pipeOptions.find((option) => option.mode === "product_kol_ugc")?.effectiveSettings?.resolution === "1080p-SR" &&
-    productKolPipePlan.seedanceRouting.generatedAudioMode === "guided" &&
+    productKolPipePlan.seedanceRouting.generatedAudioMode === "hybrid" &&
     productKolPipePlan.seedanceRouting.referenceTags.some((tag) => tag.role === "identity" && tag.tag === "@image1") &&
     productKolPipePlan.seedanceRouting.referenceTags.some((tag) => tag.role === "product") &&
     videoRemakePipePlan.seedanceRouting.promptRecipe.name === "reference_to_video_remake_blueprint" &&
@@ -904,7 +904,7 @@ const checks = [
     productionBiblePipePlan.videoPipePlan.pipeOptions.some((option) => option.mode === "production_bible" && option.durationSupport.supportsLongSequence === true) &&
     productionBiblePipePlan.visualBiblePlan.recommendedPipe === "long_sequence_bible_pipe" &&
     productionBiblePipePlan.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved === true
-    ? pass("video_pipe_model_reference_contract", "Smart short stays text-to-video without references, while reference-heavy pipes select reference-to-video routing with 720p default, guided audio, @image bindings, Video Remake blueprint review, and Production Bible asset gating.")
+    ? pass("video_pipe_model_reference_contract", "Smart short stays text-to-video without references, while reference-heavy pipes select reference-to-video routing with 720p default, hybrid audio, @image bindings, Video Remake blueprint review, and Production Bible asset gating.")
     : fail("video_pipe_model_reference_contract", "Expected Smart Short text-to-video routing plus Product/KOL, Video Remake, and Production Bible model/reference/gating contracts."),
   singleClipRenderHandoff.request.metadata?.workflowMode === "single" &&
     singleClipRenderHandoff.request.metadata?.renderMode === "single_clip" &&
@@ -981,17 +981,19 @@ const checks = [
     : fail("audio_checkpoint_uses_intent_duration", "Expected audio checkpoint evidence to use the plan target duration."),
   vietnameseAudioPlan.audioPolicy.mode === "voiceover" &&
     vietnameseAudioPlan.audioPolicy.language === "vi" &&
-    vietnameseAudioHandoff.request.settings?.audioMode === "guided" &&
+    vietnameseAudioPlan.audioPolicy.renderAudioMode === "hybrid" &&
+    vietnameseAudioPlan.audioPolicy.nativeProviderAudioEnabled === true &&
+    vietnameseAudioHandoff.request.settings?.audioMode === "hybrid" &&
     vietnameseAudioHandoff.request.generatedAudioIntents?.length === vietnameseAudioPlan.scenes.length &&
     vietnameseAudioHandoff.request.generatedAudioIntents?.every((intent) => intent.language === "vi") &&
-    chineseAudioHandoff.request.settings?.audioMode === "guided" &&
+    chineseAudioHandoff.request.settings?.audioMode === "hybrid" &&
     chineseAudioHandoff.request.generatedAudioIntents?.length === vietnameseAudioPlan.scenes.length &&
     chineseAudioHandoff.request.generatedAudioIntents?.every((intent) => intent.language === "zh") &&
     audioOffHandoff.request.settings?.audioMode === "none" &&
     audioOffHandoff.summary.generatedAudioIntentCount === 0 &&
     audioOffHandoff.request.generatedAudioIntents === undefined
-    ? pass("short_audio_language_and_off_policy", "Short handoff supports Vietnamese/Chinese guided voiceover and explicit audio-off mode without native-audio fallback.")
-    : fail("short_audio_language_and_off_policy", "Expected multilingual guided audio and explicit audio-off handoff policies.")
+    ? pass("short_audio_language_and_off_policy", "Short handoff supports Vietnamese/Chinese hybrid model-audio plus TTS-ready script cues, and explicit audio-off mode.")
+    : fail("short_audio_language_and_off_policy", "Expected multilingual hybrid audio and explicit audio-off handoff policies.")
 ];
 
 const report = {

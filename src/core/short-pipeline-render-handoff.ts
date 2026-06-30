@@ -92,6 +92,9 @@ const SHORT_RENDER_METADATA_PRIORITY_KEYS = [
   "shortAudienceNicheTrendPosture",
   "shortCommercialReadinessId",
   "shortCommercialReadinessStatus",
+  "shortAudioRenderMode",
+  "shortAudioNativeProviderEnabled",
+  "shortAudioExternalScriptEnabled",
   "shortCrawlerPolicyStatus",
   "shortOutcomeMemoryStatus",
   "shortOnScreenTextAllowed",
@@ -141,7 +144,7 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
   const workflowMetadata = shortWorkflowMetadata(plan, input.metadata);
   const references = mergeShortHandoffReferences(plan, input.references, input.mediaReferenceInputs);
   const requestedAudioMode = input.settings?.audioMode ?? audioPolicy.renderAudioMode ?? plan.seedanceRouting.generatedAudioMode;
-  const shortAudioMode = requestedAudioMode === "none" ? "none" : "guided";
+  const shortAudioMode = requestedAudioMode;
   const selectedPipe = selectedVideoPipeOption(plan);
   const withinSelectedPipeDurationRange = selectedPipe
     ? plan.intent.targetDurationSeconds >= selectedPipe.durationSupport.minSeconds &&
@@ -184,6 +187,8 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         shortCommercialReadinessStatus: plan.commercialReadiness.status,
         shortCommercialReadinessScore: String(plan.commercialReadiness.qualityScore),
         shortAudioRenderMode: shortAudioMode,
+        shortAudioNativeProviderEnabled: String(audioPolicy.nativeProviderAudioEnabled),
+        shortAudioExternalScriptEnabled: String(audioPolicy.externalAudioScriptEnabled),
         ...(audioPolicy.language ? { shortAudioLanguage: audioPolicy.language } : {}),
         shortVisualTextPolicy: visualTextPolicy.mode,
         shortOnScreenTextAllowed: String(visualTextPolicy.allowOnScreenText),
@@ -630,6 +635,8 @@ function priorityRenderHandoffSummaryFromPlan(plan: ShortPipelinePlan, compact =
     promptPack ? "Seedance 2.0 prompt pack:" : "",
     promptPack ? `Prompt pack id: ${promptPack.promptPackId}` : "",
     promptPack ? `Time-coded Seedance shots: ${promptPack.shotPrompts.length} shot(s), ${promptPack.shotPrompts.map((shot) => `${shot.order}:${shot.startSecond}-${shot.endSecond}s:${shot.role}`).join(" | ")}` : "",
+    promptPack ? `Duration production contract: target=${promptPack.durationProductionContract.targetDurationSeconds}s; acts=${promptPack.durationProductionContract.actStructure.join(">")}; roles=${promptPack.durationProductionContract.sceneRoleOrder.join(">")}; minVisualChanges=${promptPack.durationProductionContract.minVisualChangeCount}; timingRisk=${promptPack.durationProductionContract.timingRisk}; ${boundedText(promptPack.durationProductionContract.completionRule, 220)}` : "",
+    promptPack ? `TTS-ready audio script: ${promptPack.audioScript.slice(0, 6).map((line) => `${line.startSecond}-${line.endSecond}s ${boundedText(line.spokenLine, 140)}`).join(" | ")}` : "",
     firstTransitionBridge ? `Transition bridge: ${boundedText(firstTransitionBridge, 180)}` : ""
   ]);
 }
@@ -895,17 +902,23 @@ function seedancePromptPackFromPlan(plan: ShortPipelinePlan, compact = false): s
   const shots = pack.shotPrompts
     .map((shot) => {
       if (compact) {
-        return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${boundedText(shot.firstFrame, 160)} | Visual: ${boundedText(shot.visualPrompt, 240)} | Camera: ${boundedText(shot.camera, 120)} | Action: ${boundedText(shot.action, 160)} | Narration: ${boundedText(shot.dialogueOrNarration, 200)} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${boundedText(shot.audio, 120)} | Continuity: ${boundedText(shot.continuity, 140)} | Transition bridge: ${boundedText(shot.transitionBridge, 180)}`;
+        return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | Act: ${shot.beatContract.act} | First frame: ${boundedText(shot.firstFrame, 160)} | Visual: ${boundedText(shot.visualPrompt, 240)} | Camera: ${boundedText(shot.camera, 120)} | Action: ${boundedText(shot.action, 160)} | Voiceover: ${boundedText(shot.voiceoverLine, 200)} | Native audio: ${boundedText(shot.nativeAudioPrompt, 180)} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Continuity: ${boundedText(shot.continuity, 140)} | Endpoint: ${boundedText(shot.beatContract.endpointJob, 160)} | Transition bridge: ${boundedText(shot.transitionBridge, 180)}`;
       }
-      return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Narration: ${shot.dialogueOrNarration} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Audio: ${shot.audio} | Continuity: ${shot.continuity} | Transition bridge: ${shot.transitionBridge} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`;
+      return `${shot.order}. ${shot.startSecond}-${shot.endSecond}s ${shot.role.toUpperCase()} | Act: ${shot.beatContract.act} | Timing goal: ${shot.beatContract.timingGoal} | Required visual change: ${shot.beatContract.requiredVisualChange} | First frame: ${shot.firstFrame} | Visual: ${shot.visualPrompt} | Camera: ${shot.camera} | Action: ${shot.action} | Voiceover: ${shot.voiceoverLine} | Native audio: ${shot.nativeAudioPrompt} | On-screen text: ${onScreenTextInstructionFor(shot.caption)} | Continuity: ${shot.continuity} | Endpoint: ${shot.beatContract.endpointJob} | Transition bridge: ${shot.transitionBridge} | Reference: ${shot.referencePolicy} | Negatives: ${shot.negativeConstraints.join("; ")} | Checks: ${shot.qualityChecks.join("; ")}`;
     })
+    .join("\n");
+  const contract = pack.durationProductionContract;
+  const audioScript = pack.audioScript
+    .map((line) => `${line.startSecond}-${line.endSecond}s ${line.voiceStyle}: ${line.spokenLine} | music=${line.musicCue} | sfx=${line.sfxCue}`)
     .join("\n");
   return compactLines([
     "Seedance 2.0 prompt pack:",
     `Prompt pack id: ${pack.promptPackId}`,
     `Time-coded Seedance shots: ${pack.shotPrompts.length} shot(s), ${pack.shotPrompts.map((shot) => `${shot.order}:${shot.startSecond}-${shot.endSecond}s:${shot.role}`).join(" | ")}`,
+    `Duration production contract: target=${contract.targetDurationSeconds}s; acts=${contract.actStructure.join(">")}; roles=${contract.sceneRoleOrder.join(">")}; minVisualChanges=${contract.minVisualChangeCount}; timingRisk=${contract.timingRisk}; ${contract.completionRule}`,
     compact ? boundedText(pack.masterPrompt, 800) : pack.masterPrompt,
     `Audio plan: ${compact ? boundedText(pack.audioPlan, 300) : pack.audioPlan}`,
+    `TTS-ready audio script:\n${compact ? boundedText(audioScript, 700) : audioScript}`,
     `No-visible-text plan: ${compact ? boundedText(pack.captionPlan, 300) : pack.captionPlan}`,
     `Reference policy: ${compact ? boundedText(pack.referencePolicy, 300) : pack.referencePolicy}`,
     `Global negative constraints: ${(compact ? pack.globalNegativeConstraints.slice(0, 8).map((item) => boundedText(item, 120)) : pack.globalNegativeConstraints).join("; ")}`,
@@ -923,19 +936,21 @@ function onScreenTextInstructionFor(caption: string): string {
 function generatedAudioIntentsFromPlan(plan: ShortPipelinePlan, audioPolicy: ShortPipelineAudioPolicy): readonly GeneratedAudioIntent[] {
   const sceneDuration = Math.max(1, plan.intent.targetDurationSeconds / Math.max(1, plan.scenes.length));
   return plan.scenes.map((scene, index) => {
-    const startSecond = roundSeconds(index * sceneDuration);
-    const endSecond = roundSeconds(Math.min(plan.intent.targetDurationSeconds, (index + 1) * sceneDuration));
+    const audioScriptLine = plan.seedancePromptPack?.audioScript.find((line) => line.sceneId === scene.sceneId);
+    const startSecond = audioScriptLine?.startSecond ?? roundSeconds(index * sceneDuration);
+    const endSecond = audioScriptLine?.endSecond ?? roundSeconds(Math.min(plan.intent.targetDurationSeconds, (index + 1) * sceneDuration));
     const voiceStyle = channelVoiceStyle(plan) ?? plan.brandKitEvaluation?.tone;
-    const selectedVoiceStyle = audioPolicy.voiceStyle ?? voiceStyle;
+    const selectedVoiceStyle = audioPolicy.voiceStyle ?? audioScriptLine?.voiceStyle ?? voiceStyle;
     return {
       intentId: createStableId("short_audio", `${plan.planId}:${scene.sceneId}:${scene.order}`),
       kind: "tts_narration",
-      prompt: scene.narration,
+      prompt: audioScriptLine?.spokenLine ?? scene.narration,
       startSecond,
       endSecond: endSecond > startSecond ? endSecond : roundSeconds(startSecond + 1),
       durationSeconds: roundSeconds(Math.max(1, endSecond - startSecond)),
       ...(audioPolicy.language ? { language: audioPolicy.language } : {}),
       ...(selectedVoiceStyle ? { voiceStyle: selectedVoiceStyle } : {}),
+      ...(audioScriptLine?.musicCue ? { mood: audioScriptLine.musicCue } : {}),
       volume: 0.9
     };
   });
@@ -948,18 +963,21 @@ function resolveAudioPolicy(
   if (!input) {
     return planPolicy;
   }
-  const mode = input.mode === "off" ? "off" : "voiceover";
+  const mode = shortAudioModeFor(input.mode);
   const language = mode === "off" ? undefined : isShortAudioLanguage(input.language) ? input.language : planPolicy.language ?? "en";
   const voiceStyle = input.voiceStyle ?? planPolicy.voiceStyle;
+  const renderAudioMode = renderAudioModeForShortMode(mode);
   return {
     schemaVersion: "cinejelly.short-audio-policy.v1",
     mode,
     ...(language ? { language } : {}),
     ...(language ? { languageLabel: languageLabelFor(language) } : {}),
     ...(voiceStyle && mode !== "off" ? { voiceStyle } : {}),
-    renderAudioMode: mode === "off" ? "none" : "guided",
+    renderAudioMode,
     generatedAudioIntentEnabled: mode !== "off",
-    nativeProviderAudioEnabled: false,
+    nativeProviderAudioEnabled: renderAudioMode === "native" || renderAudioMode === "hybrid",
+    providerAudioPromptEnabled: renderAudioMode === "native" || renderAudioMode === "guided" || renderAudioMode === "hybrid",
+    externalAudioScriptEnabled: mode !== "off",
     reviewRequired: true
   };
 }
@@ -972,9 +990,11 @@ function defaultAudioPolicyForPlan(plan: ShortPipelinePlan): ShortPipelineAudioP
     language,
     languageLabel: languageLabelFor(language),
     ...(plan.brandKitEvaluation?.tone ? { voiceStyle: plan.brandKitEvaluation.tone } : {}),
-    renderAudioMode: "guided",
+    renderAudioMode: "hybrid",
     generatedAudioIntentEnabled: true,
-    nativeProviderAudioEnabled: false,
+    nativeProviderAudioEnabled: true,
+    providerAudioPromptEnabled: true,
+    externalAudioScriptEnabled: true,
     reviewRequired: true
   };
 }
@@ -1018,7 +1038,32 @@ function audioPolicyPromptLine(audioPolicy: ShortPipelineAudioPolicy): string {
   if (audioPolicy.mode === "off") {
     return "Audio policy: audio is off; do not rely on voiceover, music, captions, or visible text to explain the video.";
   }
-  return `Audio policy: generate guided voiceover in ${audioPolicy.languageLabel ?? audioPolicy.language ?? "English"}; visuals must still be understandable without on-screen text.`;
+  const providerLine = audioPolicy.nativeProviderAudioEnabled
+    ? "enable Seedance/provider-native audio when the selected model supports it"
+    : "keep provider-native audio disabled";
+  const scriptLine = audioPolicy.externalAudioScriptEnabled
+    ? "also emit TTS-ready narration/script cues for later external voice or music APIs"
+    : "do not emit external audio script cues";
+  return `Audio policy: ${providerLine}; ${scriptLine}; language=${audioPolicy.languageLabel ?? audioPolicy.language ?? "English"}; mode=${audioPolicy.renderAudioMode}; visuals must still be understandable without on-screen text.`;
+}
+
+function shortAudioModeFor(value: ShortPipelineAudioPolicyInput["mode"] | undefined): ShortPipelineAudioPolicy["mode"] {
+  if (value === "off" || value === "native" || value === "hybrid" || value === "voiceover") {
+    return value;
+  }
+  return "voiceover";
+}
+
+function renderAudioModeForShortMode(mode: ShortPipelineAudioPolicy["mode"]): ShortPipelineAudioPolicy["renderAudioMode"] {
+  switch (mode) {
+    case "off":
+      return "none";
+    case "native":
+      return "native";
+    case "hybrid":
+    case "voiceover":
+      return "hybrid";
+  }
 }
 
 function channelVoiceStyle(plan: ShortPipelinePlan): string | undefined {
