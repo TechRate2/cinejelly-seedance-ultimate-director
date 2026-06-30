@@ -860,13 +860,26 @@ export class AtlasCloudProvider implements ModelProvider {
   private toAtlasVideoPayload(request: VideoGenerationRequest): Record<string, unknown> {
     const references = request.references.map((reference) => this.toAtlasReference(reference));
     const dimensions = this.dimensionsFor(request.settings.resolution, request.settings.ratio);
-    const firstImageUrl = this.firstReferenceUrl(references, ["first_frame", "image", "identity", "product", "environment", "style"]);
+    const endpointReferencePresent = references.some((reference) =>
+      reference.type === "first_frame" ||
+      reference.type === "last_frame" ||
+      reference.role === "first_frame" ||
+      reference.role === "last_frame"
+    );
+    const imageToVideoReferenceUrl = this.firstReferenceUrl(references, ["first_frame", "image", "identity", "product", "environment", "style"]);
+    const firstFrameUrl = this.firstReferenceUrl(references, ["first_frame"]);
     const lastImageUrl = this.firstReferenceUrl(references, ["last_frame"]);
     const firstVideoUrl = this.firstReferenceUrl(references, ["video", "motion", "camera"]);
     const firstAudioUrl = this.firstReferenceUrl(references, ["audio"]);
-    const referenceImages = this.referenceUrlsByFamily(references, "image");
+    const firstImageUrl = request.mode === "image_to_video" || endpointReferencePresent
+      ? (firstFrameUrl ?? imageToVideoReferenceUrl)
+      : undefined;
+    const referenceImages = request.mode === "image_to_video" || endpointReferencePresent
+      ? []
+      : this.referenceUrlsByFamily(references, "image");
     const referenceVideos = this.referenceUrlsByFamily(references, "video");
     const referenceAudios = this.referenceUrlsByFamily(references, "audio");
+    const includeReferenceArray = request.mode !== "image_to_video" && !endpointReferencePresent && references.length > 0;
 
     return {
       model: request.modelId,
@@ -885,7 +898,7 @@ export class AtlasCloudProvider implements ModelProvider {
       ...(referenceImages.length > 0 ? { reference_images: referenceImages.slice(0, 9) } : {}),
       ...(referenceVideos.length > 0 ? { reference_videos: referenceVideos.slice(0, 3) } : {}),
       ...(referenceAudios.length > 0 ? { reference_audios: referenceAudios.slice(0, 3) } : {}),
-      ...(references.length > 0 ? { references } : {}),
+      ...(includeReferenceArray ? { references } : {}),
       generate_audio: request.settings.generateAudio,
       watermark: request.settings.watermark,
       return_last_frame: request.settings.returnLastFrame,
