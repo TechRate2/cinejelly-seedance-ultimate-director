@@ -12,6 +12,12 @@
       "import": "./dist/index.js"
     }
   },
+  "files": [
+    "dist/",
+    "schemas/",
+    "README.md",
+    ".env.production.template"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
