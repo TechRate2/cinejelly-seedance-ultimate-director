@@ -20,12 +20,12 @@ const enumValues = {
 
 function parseArgs(args) {
   const options = {
-    tier: "fast",
-    resolution: "480p",
-    qualityMode: "economy",
+    tier: "standard",
+    resolution: "720p",
+    qualityMode: "standard",
     ratio: "16:9",
     durationTargetSeconds: 15,
-    audioMode: "none",
+    audioMode: "hybrid",
     bitrateMode: "high",
     watermark: false,
     returnLastFrame: true,
@@ -251,13 +251,13 @@ Usage:
 
 Options:
   --output <path>          Request file path. Default: assets/output_deliverables/phase6-validation/request.json
-  --tier <mini|fast|standard> Default: fast
-  --resolution <value>     480p, 720p, 1080p, 720p-SR, 1080p-SR, or 1440p-SR. Default: 480p
-  --quality <value>        economy, standard, high, or ultimate. Default: economy
+  --tier <mini|fast|standard> Default: standard
+  --resolution <value>     480p, 720p, 1080p, 720p-SR, 1080p-SR, or 1440p-SR. Default: 720p
+  --quality <value>        economy, standard, high, or ultimate. Default: standard
   --ratio <value>          Default: 16:9
   --duration <seconds>     15 to 480. Default: 15
-  --audio-mode <value>     none, native, guided, post, or hybrid. Default: none
-  --bitrate-mode <value>   standard or high. Default: standard
+  --audio-mode <value>     none, native, guided, post, or hybrid. Default: hybrid
+  --bitrate-mode <value>   standard or high. Default: high
   --max-cost <usd>         Default: 5
   --watermark              Enable watermark
   --no-return-last-frame   Disable last-frame return

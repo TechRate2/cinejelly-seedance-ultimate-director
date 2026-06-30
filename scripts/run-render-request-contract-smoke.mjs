@@ -148,6 +148,7 @@ const invalidSeedanceCapabilityAdmission = await validateRenderRequestFile(
 const atlasPayload = await captureAtlasVideoPayload();
 const atlasCapabilityGuard = await validateAtlasCapabilitySettingsGuard();
 const renderSettingsDescriptorGuard = validateRenderSettingsDescriptorCapabilitySupport();
+const safeDefaultValidationRequest = createSafeDefaultValidationRequest();
 
 const checks = [
   validSchema.exitCode === 0
@@ -218,7 +219,10 @@ const checks = [
     : fail("atlas_capability_settings_guard", atlasCapabilityGuard.message),
   renderSettingsDescriptorGuard.status === "pass"
     ? pass("render_settings_descriptor_capability_support", "Render settings descriptor exposes model-level capability support for audio, last-frame, bitrate, references, and mini resolution bounds.")
-    : fail("render_settings_descriptor_capability_support", renderSettingsDescriptorGuard.message)
+    : fail("render_settings_descriptor_capability_support", renderSettingsDescriptorGuard.message),
+  safeDefaultValidationRequest.status === "pass"
+    ? pass("safe_default_validation_request_uses_production_defaults", "validation:create-request safe default now emits 720p standard quality, hybrid audio, high bitrate, and last-frame return.")
+    : fail("safe_default_validation_request_uses_production_defaults", safeDefaultValidationRequest.message)
 ];
 
 const failed = checks.filter((check) => check.status !== "pass");
@@ -893,6 +897,54 @@ function validateRenderSettingsDescriptorCapabilitySupport() {
   return failures.length === 0
     ? { status: "pass", message: "Render settings descriptor capability support passed." }
     : { status: "fail", message: failures.join("; ") };
+}
+
+function createSafeDefaultValidationRequest() {
+  const outputPath = resolve(fixtureDir, "safe-default-validation-request.json");
+  const result = spawnSync(
+    process.execPath,
+    [
+      "scripts/create-validation-request.mjs",
+      "--safe-default",
+      "--output",
+      toRepoRelative(outputPath)
+    ],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024
+    }
+  );
+  if ((result.status ?? 1) !== 0) {
+    return {
+      status: "fail",
+      message: `safe-default request creation failed: ${tail(result.stderr || result.stdout, 400)}`
+    };
+  }
+  let request;
+  try {
+    request = JSON.parse(readFileSync(outputPath, "utf8"));
+  } catch (error) {
+    return {
+      status: "fail",
+      message: `safe-default request JSON could not be read: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+  const settings = request.settings ?? {};
+  const passDefaults =
+    settings.tier === "standard" &&
+    settings.resolution === "720p" &&
+    settings.qualityMode === "standard" &&
+    settings.audioMode === "hybrid" &&
+    settings.bitrateMode === "high" &&
+    settings.returnLastFrame === true &&
+    settings.watermark === false;
+  return passDefaults
+    ? { status: "pass", message: "Safe-default validation request settings are production aligned." }
+    : {
+        status: "fail",
+        message: `safe-default settings drifted: ${JSON.stringify(settings)}`
+      };
 }
 
 function readIssueCount(outputPath) {
