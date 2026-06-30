@@ -26,6 +26,7 @@ const defaultContracts = [
   contract("render_job_review_lifecycle_smoke", "schemas/render-job-review-lifecycle-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-job-review-lifecycle-smoke-report.json"),
   contract("render_scheduler_smoke", "schemas/render-scheduler-smoke-report.schema.json", "assets/output_deliverables/business-readiness/render-scheduler-smoke-report.json"),
   contract("video_render_strategy_smoke", "schemas/video-render-strategy-smoke-report.schema.json", "assets/output_deliverables/business-readiness/video-render-strategy-smoke-report.json"),
+  contract("last_frame_chaining_smoke", "schemas/last-frame-chaining-smoke-report.schema.json", "assets/output_deliverables/business-readiness/last-frame-chaining-smoke-report.json"),
   contract("render_provider_reconciliation", "schemas/render-provider-reconciliation-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json"),
   contract("render_provider_handoff", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-handoff-report.json"),
   contract("render_provider_external_lease", "schemas/render-provider-handoff-report.schema.json", "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json"),

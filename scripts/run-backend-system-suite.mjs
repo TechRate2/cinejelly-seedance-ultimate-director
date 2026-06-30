@@ -55,6 +55,9 @@ const suiteCommands = [
   command("video_render_strategy", ["scripts/run-video-render-strategy-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/video-render-strategy-smoke-report.json"
   }),
+  command("last_frame_chaining", ["scripts/run-last-frame-chaining-smoke.mjs"], {
+    reportPath: "assets/output_deliverables/business-readiness/last-frame-chaining-smoke-report.json"
+  }),
   command("source_video_auto_analysis_smoke", ["scripts/run-source-video-auto-analysis-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"
   }),
