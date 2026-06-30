@@ -226,6 +226,30 @@ const blockedCountsConsistent =
   blockedCreative.blockingFindingCount === blockedCreative.findings.filter((finding) => finding.severity === "block").length &&
   blockedCreative.reviewRequiredFindingCount === blockedCreative.findings.filter((finding) => finding.severity === "warn").length;
 const audienceNiche = creative.nicheStrategy.audienceNicheIntelligence;
+const selectedIdeaCandidate = creative.ideaCandidates.find((candidate) => candidate.selectedForRender);
+const blockedSelectedIdeaCandidate = blockedCreative.ideaCandidates.find((candidate) => candidate.selectedForRender);
+const ideaCandidateSources = new Set(creative.ideaCandidates.map((candidate) => candidate.source));
+const ideaCandidatesReady =
+  creative.ideaCandidateCount === creative.ideaCandidates.length &&
+  blockedCreative.ideaCandidateCount === blockedCreative.ideaCandidates.length &&
+  Boolean(selectedIdeaCandidate) &&
+  Boolean(blockedSelectedIdeaCandidate) &&
+  creative.selectedIdeaCandidateId === selectedIdeaCandidate?.ideaId &&
+  blockedCreative.selectedIdeaCandidateId === blockedSelectedIdeaCandidate?.ideaId &&
+  ideaCandidateSources.has("audience_niche") &&
+  ideaCandidateSources.has("story_bible") &&
+  ideaCandidateSources.has("timeline_production_contract") &&
+  ideaCandidateSources.has("source_video_structure") &&
+  ideaCandidateSources.has("director_repair") &&
+  creative.ideaCandidates.every((candidate) =>
+    candidate.score.totalScore >= 0 &&
+    candidate.score.totalScore <= 100 &&
+    candidate.sequenceArc.length > 0 &&
+    candidate.openingHook.length > 0 &&
+    candidate.proofPlan.length > 0 &&
+    candidate.audioNarrationPlan.length > 0 &&
+    (candidate.source !== "source_video_structure" || candidate.sourceVideoAdaptationRule.includes("Replace"))
+  );
 
 const checks = [
   creative.noSpend === true &&
@@ -253,6 +277,12 @@ const checks = [
     longDirectorUiContract.creative.ideaSeedCount === audienceNiche.ideaSeeds.length
     ? pass("shared_audience_niche_intelligence", "Long creative intelligence and UI contract carry shared user-intent, niche, trend, proof, objection, and idea-seed strategy.")
     : fail("shared_audience_niche_intelligence", "Expected shared audience/niche intelligence to be present in Long creative and UI contract evidence."),
+  ideaCandidatesReady &&
+    longDirectorUiContract.creative.ideaCandidateCount === creative.ideaCandidateCount &&
+    longDirectorUiContract.creative.selectedIdeaCandidateId === creative.selectedIdeaCandidateId &&
+    creative.ideaCandidateCount >= audienceNiche.ideaSeeds.length
+    ? pass("long_form_idea_candidate_engine", "Long creative intelligence now emits selected, scored idea candidates from audience, story bible, source-video, timeline, and repair signals.")
+    : fail("long_form_idea_candidate_engine", "Expected selected/scored long-form idea candidates with diversified evidence sources."),
   creative.storyBible.characterAnchors.length > 0 &&
     creative.storyBible.productAnchors.length > 0 &&
     creative.storyBible.environmentAnchors.length > 0 &&
@@ -536,6 +566,9 @@ function summarizeCreative(value, uiContract) {
     trendPosture: value.nicheStrategy.trendPosture,
     viewerObjection: value.nicheStrategy.viewerObjection,
     ideaSeedCount: value.nicheStrategy.audienceNicheIntelligence.ideaSeeds.length,
+    ideaCandidateCount: value.ideaCandidateCount,
+    selectedIdeaCandidateIdPresent: Boolean(value.selectedIdeaCandidateId),
+    selectedIdeaCandidateScore: value.ideaCandidates.find((candidate) => candidate.ideaId === value.selectedIdeaCandidateId)?.score.totalScore ?? 0,
     findingCount: value.findingCount,
     blockingFindingCount: value.blockingFindingCount,
     reviewRequiredFindingCount: value.reviewRequiredFindingCount,

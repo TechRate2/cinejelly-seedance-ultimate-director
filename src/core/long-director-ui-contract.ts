@@ -58,6 +58,8 @@ export function buildLongDirectorUiContract(plan: LongFormCreativeIntelligencePl
       proofStrategy: safeUiString(plan.nicheStrategy.proofStrategy),
       shareTrigger: safeUiString(plan.nicheStrategy.shareTrigger),
       ideaSeedCount: plan.nicheStrategy.audienceNicheIntelligence.ideaSeeds.length,
+      ideaCandidateCount: plan.ideaCandidateCount,
+      ...(plan.selectedIdeaCandidateId ? { selectedIdeaCandidateId: safeUiString(plan.selectedIdeaCandidateId) } : {}),
       viralLeverCount: plan.nicheStrategy.viralLevers.length,
       findingCount: plan.findingCount,
       blockingFindingCount: plan.blockingFindingCount,
@@ -104,7 +106,7 @@ function workflowControls(
     control("story_bible", "Story bible", true, true, "Review logline, central question, emotional arc, payoff, and global anchors before spend."),
     control("sequence_board", "Sequence board", true, true, "Approve sequence purposes, bridge intent, and continuity order before prompt compilation."),
     control("continuity_review", "Continuity", true, true, "Inspect identity, product, environment, style, and source-video structure anchors across sequences."),
-    control("candidate_review", "Candidates", plan.candidateDirectiveCount > 0, true, "Prioritize multi-candidate coverage for hook, payoff, transition, face, product, and source-video-sensitive shots."),
+    control("candidate_review", "Candidates", plan.candidateDirectiveCount > 0 || plan.ideaCandidateCount > 0, true, "Review idea candidates plus multi-candidate coverage for hook, payoff, transition, face, product, and source-video-sensitive shots."),
     control("repair_queue", "Repair queue", highPriorityRepairCount > 0 || plan.repairDirectiveCount > 0, plan.repairDirectiveCount > 0, "Resolve story, sequence, shot, prompt, timeline, or postproduction repair directives before paid validation."),
     control("manual_quality_review", "Manual review", true, true, "Bind paid artifacts to quality/redaction review and benchmark-grade evidence before customer release.")
   ];
@@ -114,7 +116,7 @@ function backendManagedActions(plan: LongFormCreativeIntelligencePlan): readonly
   return [
     backendAction("story_bible_generation", "Generate story bible and niche strategy", "ready", "Backend turns story, niche, viral intent, and source-video structure into no-spend creative evidence."),
     backendAction("long_director_policy", "Create Long Director story/continuity/checkpoint policy", plan.directorPlan.status === "blocked" ? "blocked" : "ready", "Long Director separates story, continuity, narrow repair, and checkpoint decisions from Short logic."),
-    backendAction("continuity_candidate_planning", "Plan continuity-aware candidate coverage", plan.candidateDirectiveCount > 0 ? "ready" : "optional", "Backend identifies shots that need stronger candidate coverage before paid validation."),
+    backendAction("continuity_candidate_planning", "Plan continuity-aware candidate coverage", plan.candidateDirectiveCount > 0 || plan.ideaCandidateCount > 0 ? "ready" : "optional", "Backend identifies idea-level and shot-level candidates that need review before paid validation."),
     backendAction("repair_queue_generation", "Build repair queue", plan.repairDirectiveCount > 0 ? "ready" : "optional", "Backend maps findings to story, sequence, shot, prompt, timeline, or postproduction repair scopes."),
     backendAction("audio_caption_review_summary", "Summarize audio and caption timing", plan.audioCaptionQuality.status === "blocked" ? "blocked" : "ready", "Backend exposes caption coverage and generated-audio timing evidence for review UI."),
     backendAction("provider_spend_gate", "Hold provider spend until approval", "ready", "Provider submission stays disabled in this contract until budget, review, and paid-validation gates are satisfied."),

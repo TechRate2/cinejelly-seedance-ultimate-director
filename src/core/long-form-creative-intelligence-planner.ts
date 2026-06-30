@@ -12,6 +12,9 @@ import type { LongFormContinuityPlan, LongFormContinuitySequence } from "../type
 import type {
   LongFormCreativeAudioCaptionQuality,
   LongFormCreativeCandidateDirective,
+  LongFormCreativeIdeaCandidate,
+  LongFormCreativeIdeaScore,
+  LongFormCreativeIdeaSource,
   LongFormCreativeIntelligencePlan,
   LongFormCreativeIntelligenceStatus,
   LongFormCreativeNicheStrategy,
@@ -44,6 +47,19 @@ const CLAIM_RISK_PATTERN =
 const HOOK_PATTERN = /hook|problem|pain|curious|secret|why|before|after|mistake|stop|watch|attention|opening/i;
 const PAYOFF_PATTERN = /cta|payoff|result|resolution|transform|proof|final|offer|buy|try|learn|subscribe|share/i;
 
+interface LongFormCreativeIdeaSpec {
+  readonly source: LongFormCreativeIdeaSource;
+  readonly label: string;
+  readonly logline: string;
+  readonly openingHook: string;
+  readonly sequenceArc: readonly string[];
+  readonly proofPlan: string;
+  readonly audioNarrationPlan: string;
+  readonly sourceVideoAdaptationRule: string;
+  readonly productionRisks: readonly string[];
+  readonly reasons: readonly string[];
+}
+
 export class LongFormCreativeIntelligencePlanner {
   private readonly longDirectorPlanner = new LongDirectorPlanner();
   private readonly audienceNichePlanner = new AudienceNicheIntelligencePlanner();
@@ -73,6 +89,8 @@ export class LongFormCreativeIntelligencePlanner {
     const shotDirectives = this.shotDirectives(input, nicheStrategy);
     const candidateDirectives = this.candidateDirectives(input, shotDirectives, findings);
     const repairDirectives = this.repairDirectives(input.projectId, findings);
+    const ideaCandidates = this.ideaCandidates(input, nicheStrategy, storyBible, findings, repairDirectives);
+    const selectedIdeaCandidate = ideaCandidates.find((candidate) => candidate.selectedForRender);
     const directorPlan = this.longDirectorPlanner.build({
       projectId: input.projectId,
       storyPlan: input.storyPlan,
@@ -102,11 +120,14 @@ export class LongFormCreativeIntelligencePlanner {
       findingCount: findings.length,
       blockingFindingCount,
       reviewRequiredFindingCount,
+      ...(selectedIdeaCandidate ? { selectedIdeaCandidateId: selectedIdeaCandidate.ideaId } : {}),
+      ideaCandidateCount: ideaCandidates.length,
       shotDirectiveCount: shotDirectives.length,
       candidateDirectiveCount: candidateDirectives.length,
       repairDirectiveCount: repairDirectives.length,
       audioCaptionQuality,
       findings,
+      ideaCandidates,
       shotDirectives,
       candidateDirectives,
       repairDirectives,
@@ -567,6 +588,269 @@ export class LongFormCreativeIntelligencePlanner {
       });
   }
 
+  private ideaCandidates(
+    input: {
+      readonly projectId: string;
+      readonly storyPlan: StoryPlan;
+      readonly shots: readonly ShotContract[];
+      readonly continuityPlan: LongFormContinuityPlan;
+      readonly timelinePlan: LongFormTimelinePlan;
+      readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
+    },
+    nicheStrategy: LongFormCreativeNicheStrategy,
+    storyBible: LongFormCreativeStoryBible,
+    findings: readonly LongFormCreativeQualityFinding[],
+    repairDirectives: readonly LongFormCreativeRepairDirective[]
+  ): readonly LongFormCreativeIdeaCandidate[] {
+    const specs = this.ideaSpecs(input, nicheStrategy, storyBible, findings, repairDirectives);
+    const seen = new Set<string>();
+    const candidates = specs
+      .filter((spec) => {
+        const key = `${spec.source}:${spec.label.toLowerCase()}`;
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      })
+      .map((spec) => this.ideaCandidateForSpec(input.projectId, spec, input, nicheStrategy, storyBible, findings))
+      .sort((left, right) => right.score.totalScore - left.score.totalScore || left.ideaId.localeCompare(right.ideaId));
+    const selectedIdeaId = candidates[0]?.ideaId;
+    return candidates.map((candidate) => ({
+      ...candidate,
+      selectedForRender: candidate.ideaId === selectedIdeaId
+    }));
+  }
+
+  private ideaSpecs(
+    input: {
+      readonly storyPlan: StoryPlan;
+      readonly continuityPlan: LongFormContinuityPlan;
+      readonly timelinePlan: LongFormTimelinePlan;
+      readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
+    },
+    nicheStrategy: LongFormCreativeNicheStrategy,
+    storyBible: LongFormCreativeStoryBible,
+    findings: readonly LongFormCreativeQualityFinding[],
+    repairDirectives: readonly LongFormCreativeRepairDirective[]
+  ): readonly LongFormCreativeIdeaSpec[] {
+    const ideaSeedSpecs = nicheStrategy.audienceNicheIntelligence.ideaSeeds.slice(0, 6).map((seed, index): LongFormCreativeIdeaSpec => ({
+      source: "audience_niche",
+      label: `Audience seed ${index + 1}`,
+      logline: `${nicheStrategy.audience} watches a ${nicheStrategy.niche} story turn "${nicheStrategy.viewerObjection}" into ${nicheStrategy.proofStrategy}.`,
+      openingHook: seed.includes("Hook:")
+        ? seed
+        : `Open with ${nicheStrategy.hookPattern}`,
+      sequenceArc: this.sequenceArcFromContinuity(input.continuityPlan, storyBible, seed),
+      proofPlan: seed.includes("Proof:")
+        ? seed
+        : nicheStrategy.proofStrategy,
+      audioNarrationPlan: `Narration follows ${nicheStrategy.trendPosture}: ${nicheStrategy.audienceNicheIntelligence.retentionPattern}.`,
+      sourceVideoAdaptationRule: "Use audience/niche seed as strategy only; write original scene wording, actions, claims, and CTA.",
+      productionRisks: this.productionRisksFor(findings),
+      reasons: uniqueValues([
+        `uses shared audience/niche intelligence ${nicheStrategy.audienceNicheIntelligence.intelligenceId}`,
+        `targets ${nicheStrategy.trendPosture}`,
+        `addresses ${nicheStrategy.viewerObjection}`
+      ])
+    }));
+
+    const timelineActs = uniqueValues(input.timelinePlan.segments.map((segment) => segment.productionContract.productionAct));
+    const timelineSpec: LongFormCreativeIdeaSpec = {
+      source: "timeline_production_contract",
+      label: "Timeline act coverage candidate",
+      logline: `A ${input.storyPlan.targetDurationSeconds}s story uses ${timelineActs.join(", ")} acts to prove the promise without compressing the middle.`,
+      openingHook: input.timelinePlan.segments[0]?.productionContract.voiceoverLine ?? nicheStrategy.hookPattern,
+      sequenceArc: input.timelinePlan.segments.slice(0, 8).map((segment) =>
+        `${segment.storyArcPosition}: ${segment.productionContract.requiredVisualChange}`
+      ),
+      proofPlan: `Use segment production contracts and audio script lines as proof rhythm: ${nicheStrategy.proofStrategy}`,
+      audioNarrationPlan: `Use ${input.timelinePlan.audioScriptLineCount} script line(s), native audio mode ${input.timelinePlan.providerSettingPolicy.audioMode}, and endpoint-aware pauses.`,
+      sourceVideoAdaptationRule: "Use source-video timing only where source-video anchors exist; otherwise follow timeline production contracts.",
+      productionRisks: this.productionRisksFor(findings),
+      reasons: uniqueValues([
+        "uses long-form timeline production contracts",
+        `provider policy ${input.timelinePlan.providerSettingPolicy.resolution}/${input.timelinePlan.providerSettingPolicy.bitrateMode}`,
+        `audio script lines ${input.timelinePlan.audioScriptLineCount}`
+      ])
+    };
+
+    const storySpec: LongFormCreativeIdeaSpec = {
+      source: "story_bible",
+      label: "Story bible proof arc candidate",
+      logline: storyBible.logline,
+      openingHook: storyBible.centralQuestion,
+      sequenceArc: storyBible.emotionalArc,
+      proofPlan: `${storyBible.payoff}. ${nicheStrategy.proofStrategy}`,
+      audioNarrationPlan: `Narration should carry the central question, proof turn, and payoff without unsupported claims.`,
+      sourceVideoAdaptationRule: "Let story bible anchors override trend style whenever they conflict.",
+      productionRisks: this.productionRisksFor(findings),
+      reasons: uniqueValues([
+        "uses story bible logline and central question",
+        `anchor coverage ${storyBible.characterAnchors.length + storyBible.productAnchors.length + storyBible.environmentAnchors.length + storyBible.styleAnchors.length}`,
+        `payoff ${storyBible.payoff}`
+      ])
+    };
+
+    const sourceVideoSpec = input.sourceVideoAnalysis?.scenes?.length
+      ? [{
+          source: "source_video_structure" as const,
+          label: "Source-video structure transfer candidate",
+          logline: `Transfer ${input.sourceVideoAnalysis.scenes.length} approved source scene structure(s) into an original ${nicheStrategy.niche} proof story.`,
+          openingHook: input.sourceVideoAnalysis.scenes[0]?.summary ?? nicheStrategy.hookPattern,
+          sequenceArc: input.sourceVideoAnalysis.scenes.slice(0, 6).map((scene) =>
+            `${scene.sceneId}: ${scene.summary}; pacing ${scene.pacing}; camera ${scene.camera}`
+          ),
+          proofPlan: `Borrow source structure only, then prove with user product/KOL anchors: ${nicheStrategy.proofStrategy}`,
+          audioNarrationPlan: "Match source pacing energy only; write original narration, room tone, SFX, and music instructions.",
+          sourceVideoAdaptationRule: "Replace faces, product, setting, transcript wording, captions, brand marks, music, claims, CTA, and assets with approved user inputs.",
+          productionRisks: uniqueValues([...this.productionRisksFor(findings), "source_video_structure_review"]),
+          reasons: uniqueValues([
+            "uses approved source-video analysis",
+            `source structural beats ${input.sourceVideoAnalysis.structuralBeats?.length ?? 0}`,
+            `source style notes ${input.sourceVideoAnalysis.styleNotes?.length ?? 0}`
+          ])
+        }]
+      : [];
+
+    const repairSpec = repairDirectives.length > 0
+      ? [{
+          source: "director_repair" as const,
+          label: "Repair-aware safer candidate",
+          logline: `A safer version prioritizes ${repairDirectives.slice(0, 3).map((repair) => repair.scope).join(", ")} repair before paid render.`,
+          openingHook: nicheStrategy.hookPattern,
+          sequenceArc: repairDirectives.slice(0, 6).map((repair) =>
+            `${repair.priority} ${repair.scope}: ${repair.action}`
+          ),
+          proofPlan: `Resolve repair-sensitive proof before render: ${nicheStrategy.proofStrategy}`,
+          audioNarrationPlan: "Narration avoids claim risk, leaves pauses for repair-sensitive shots, and stays aligned with reviewed captions.",
+          sourceVideoAdaptationRule: "Where repair conflicts with source-video style, repair and user assets win.",
+          productionRisks: uniqueValues(repairDirectives.flatMap((repair) => repair.triggerCodes)),
+          reasons: uniqueValues([
+            `repair directives ${repairDirectives.length}`,
+            `high priority repairs ${repairDirectives.filter((repair) => repair.priority === "high" || repair.priority === "critical").length}`
+          ])
+        }]
+      : [];
+
+    return [
+      ...ideaSeedSpecs,
+      timelineSpec,
+      storySpec,
+      ...sourceVideoSpec,
+      ...repairSpec
+    ];
+  }
+
+  private ideaCandidateForSpec(
+    projectId: string,
+    spec: LongFormCreativeIdeaSpec,
+    input: {
+      readonly shots: readonly ShotContract[];
+      readonly continuityPlan: LongFormContinuityPlan;
+      readonly timelinePlan: LongFormTimelinePlan;
+      readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
+    },
+    nicheStrategy: LongFormCreativeNicheStrategy,
+    storyBible: LongFormCreativeStoryBible,
+    findings: readonly LongFormCreativeQualityFinding[]
+  ): LongFormCreativeIdeaCandidate {
+    const score = this.ideaScore(spec, input, nicheStrategy, storyBible, findings);
+    const ideaId = createStableId(
+      "long_idea",
+      [
+        projectId,
+        spec.source,
+        spec.label,
+        spec.logline,
+        spec.openingHook,
+        score.totalScore
+      ].join(":")
+    );
+    return {
+      ideaId,
+      label: clean(spec.label, 120),
+      source: spec.source,
+      selectedForRender: false,
+      logline: clean(spec.logline, 360),
+      openingHook: clean(spec.openingHook, 260),
+      sequenceArc: spec.sequenceArc.slice(0, 10).map((item) => clean(item, 220)),
+      proofPlan: clean(spec.proofPlan, 300),
+      audioNarrationPlan: clean(spec.audioNarrationPlan, 300),
+      sourceVideoAdaptationRule: clean(spec.sourceVideoAdaptationRule, 300),
+      productionRisks: uniqueValues(spec.productionRisks).slice(0, 10),
+      score,
+      reasons: uniqueValues(spec.reasons).slice(0, 8)
+    };
+  }
+
+  private ideaScore(
+    spec: LongFormCreativeIdeaSpec,
+    input: {
+      readonly shots: readonly ShotContract[];
+      readonly continuityPlan: LongFormContinuityPlan;
+      readonly timelinePlan: LongFormTimelinePlan;
+      readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
+    },
+    nicheStrategy: LongFormCreativeNicheStrategy,
+    storyBible: LongFormCreativeStoryBible,
+    findings: readonly LongFormCreativeQualityFinding[]
+  ): LongFormCreativeIdeaScore {
+    const hasHookLanguage = HOOK_PATTERN.test(`${spec.openingHook} ${spec.logline}`);
+    const sequenceCoverage = Math.min(1, spec.sequenceArc.length / Math.max(1, input.continuityPlan.sequenceCount));
+    const anchorCount = storyBible.characterAnchors.length + storyBible.productAnchors.length + storyBible.environmentAnchors.length + storyBible.styleAnchors.length;
+    const warningCount = findings.filter((findingItem) => findingItem.severity === "warn").length;
+    const blockingCount = findings.filter((findingItem) => findingItem.severity === "block").length;
+    const sourceVideoBonus = spec.source === "source_video_structure" && input.sourceVideoAnalysis?.scenes?.length ? 8 : 0;
+    const hookStrength = clampScore((hasHookLanguage ? 78 : 62) + (nicheStrategy.viralLevers.includes("fast_hook") ? 8 : 0));
+    const retentionDepth = clampScore(58 + sequenceCoverage * 28 + (spec.sequenceArc.length >= 4 ? 6 : 0));
+    const nicheFit = clampScore(nicheStrategy.niche === "general_video" ? 52 : 82 + (nicheStrategy.trendPosture === "trend_native" ? 5 : 0));
+    const proofSpecificity = clampScore(60 + (spec.proofPlan.length > 80 ? 12 : 0) + (nicheStrategy.viralLevers.includes("proof_stack") ? 10 : 0));
+    const continuitySafety = clampScore(62 + Math.min(20, anchorCount * 3) - warningCount * 2 - blockingCount * 12);
+    const renderReadiness = clampScore(input.timelinePlan.blockingIssueCount > 0 ? 30 : 80 - warningCount * 2 - blockingCount * 20);
+    const originality = clampScore(78 + sourceVideoBonus + (spec.source === "audience_niche" ? 6 : 0) - (spec.productionRisks.includes("source_video_structure_review") ? 4 : 0));
+    const totalScore = round(
+      hookStrength * 0.18 +
+      retentionDepth * 0.18 +
+      nicheFit * 0.16 +
+      proofSpecificity * 0.16 +
+      continuitySafety * 0.14 +
+      renderReadiness * 0.1 +
+      originality * 0.08
+    );
+    return {
+      hookStrength,
+      retentionDepth,
+      nicheFit,
+      proofSpecificity,
+      continuitySafety,
+      renderReadiness,
+      originality,
+      totalScore
+    };
+  }
+
+  private sequenceArcFromContinuity(
+    continuityPlan: LongFormContinuityPlan,
+    storyBible: LongFormCreativeStoryBible,
+    seed: string
+  ): readonly string[] {
+    const seedLine = clean(seed.replace(/^(Hook|Retention|Proof|Share\/CTA|Format\/posture|Desire\/objecting tension):\s*/i, ""), 140);
+    return continuityPlan.sequences.length > 0
+      ? continuityPlan.sequences.map((sequence, index) =>
+          `${index + 1}. ${sequence.title}: ${sequence.purpose}; seed focus ${seedLine}`
+        )
+      : storyBible.emotionalArc;
+  }
+
+  private productionRisksFor(findings: readonly LongFormCreativeQualityFinding[]): readonly string[] {
+    return uniqueValues(
+      findings
+        .filter((findingItem) => findingItem.severity !== "info")
+        .map((findingItem) => findingItem.code)
+    );
+  }
+
   private repairDirectives(
     projectId: string,
     findings: readonly LongFormCreativeQualityFinding[]
@@ -821,6 +1105,10 @@ function clean(value: string, maxLength: number): string {
 
 function round(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+function clampScore(value: number): number {
+  return round(Math.max(0, Math.min(100, value)));
 }
 
 function uniqueValues<T extends string>(values: readonly (T | string | undefined)[]): readonly T[] {
