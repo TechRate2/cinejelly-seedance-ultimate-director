@@ -11,6 +11,14 @@ import { FileRenderProviderHandoffLeaseStore } from "../api/render-provider-hand
 import { readRenderProviderLeasePath } from "../api/render-provider-handoff-lease-service.js";
 import { parseApiClientPoliciesJson } from "../api/api-client-policy.js";
 import { readProductionGraphResumeQueuePath } from "../api/production-graph-resume-queue-service.js";
+import {
+  readShortChannelStyleLibraryPath,
+  ShortChannelStyleLibraryStore
+} from "../api/short-channel-style-library-store.js";
+import {
+  readShortPipelineSessionStorePath,
+  ShortPipelineSessionStore
+} from "../api/short-pipeline-session-store.js";
 import { GeneratedAudioAssetResolver } from "../core/generated-audio-asset-resolver.js";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
 import { FileProductionGraphResumeQueueStore } from "../core/production-graph-resume-state.js";
@@ -109,6 +117,8 @@ export class RuntimePreflight {
     ];
 
     checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
+    checks.push(await this.shortPipelineSessionStoreCheck());
+    checks.push(await this.shortChannelStyleLibraryStoreCheck());
     checks.push(await this.renderJobHistoryStoreCheck());
     checks.push(await this.renderProviderLeaseStoreCheck());
     checks.push(await this.productionGraphResumeQueueStoreCheck());
@@ -249,6 +259,72 @@ export class RuntimePreflight {
         message: error instanceof Error
           ? `CINEJELLY_API_JOB_HISTORY_PATH is not usable: ${error.message}`
           : "CINEJELLY_API_JOB_HISTORY_PATH is not usable."
+      };
+    }
+  }
+
+  private async shortPipelineSessionStoreCheck(): Promise<PreflightCheck> {
+    let storePath: string;
+    try {
+      storePath = readShortPipelineSessionStorePath(this.env);
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+        status: "fail",
+        message: error instanceof Error ? error.message : "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH is invalid."
+      };
+    }
+    try {
+      await mkdir(dirname(resolve(storePath)), { recursive: true });
+      await access(dirname(resolve(storePath)), constants.W_OK);
+      new ShortPipelineSessionStore({ storePath }).loadRecords();
+      return {
+        name: "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+        status: "pass",
+        message: this.env.CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH?.trim()
+          ? "Short pipeline session store points to a writable redacted session file."
+          : "Short pipeline session store uses the default writable file under CINEJELLY_OUTPUT_DIR."
+      };
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+        status: "fail",
+        message: error instanceof Error
+          ? `Short pipeline session store is not usable: ${error.message}`
+          : "Short pipeline session store is not usable."
+      };
+    }
+  }
+
+  private async shortChannelStyleLibraryStoreCheck(): Promise<PreflightCheck> {
+    let storePath: string;
+    try {
+      storePath = readShortChannelStyleLibraryPath(this.env);
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+        status: "fail",
+        message: error instanceof Error ? error.message : "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH is invalid."
+      };
+    }
+    try {
+      await mkdir(dirname(resolve(storePath)), { recursive: true });
+      await access(dirname(resolve(storePath)), constants.W_OK);
+      new ShortChannelStyleLibraryStore({ storePath }).loadRecords();
+      return {
+        name: "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+        status: "pass",
+        message: this.env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH?.trim()
+          ? "Short channel-style library points to a writable redacted profile file."
+          : "Short channel-style library uses the default writable file under CINEJELLY_OUTPUT_DIR."
+      };
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+        status: "fail",
+        message: error instanceof Error
+          ? `Short channel-style library is not usable: ${error.message}`
+          : "Short channel-style library is not usable."
       };
     }
   }

@@ -4,7 +4,7 @@
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { ShortChannelStyleProfileEvaluator } from "../core/short-channel-style-profile.js";
 import type {
   ShortChannelStyleProfile,
@@ -27,6 +27,8 @@ const SECRET_QUERY_PATTERN =
   /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/gi;
 const MAX_STYLE_RECORDS = 1_000;
 const DEFAULT_STYLE_RECORDS = 200;
+const DEFAULT_OUTPUT_DIR = "assets/output_deliverables";
+const DEFAULT_STYLE_LIBRARY_FILE = "short-channel-styles.json";
 
 export interface ShortChannelStyleLibraryRecord {
   readonly schemaVersion: typeof SHORT_CHANNEL_STYLE_LIBRARY_RECORD_SCHEMA_VERSION;
@@ -302,15 +304,21 @@ export class ShortChannelStyleLibraryStore {
   }
 }
 
-export function readShortChannelStyleLibraryPath(env: NodeJS.ProcessEnv): string | undefined {
+export function readShortChannelStyleLibraryPath(env: NodeJS.ProcessEnv): string {
   const configuredPath = env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH?.trim();
-  if (!configuredPath) {
-    return undefined;
-  }
-  if (CONTROL_CHARACTER_PATTERN.test(configuredPath)) {
+  const storePath = configuredPath || join(readShortChannelStyleOutputDir(env), DEFAULT_STYLE_LIBRARY_FILE);
+  if (CONTROL_CHARACTER_PATTERN.test(storePath)) {
     throw new Error("CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH must not contain control characters.");
   }
-  return configuredPath;
+  return storePath;
+}
+
+function readShortChannelStyleOutputDir(env: NodeJS.ProcessEnv): string {
+  const configuredOutputDir = env.CINEJELLY_OUTPUT_DIR?.trim() || DEFAULT_OUTPUT_DIR;
+  if (CONTROL_CHARACTER_PATTERN.test(configuredOutputDir)) {
+    throw new Error("CINEJELLY_OUTPUT_DIR must not contain control characters.");
+  }
+  return configuredOutputDir;
 }
 
 function scrubSensitiveStrings(value: unknown): unknown {

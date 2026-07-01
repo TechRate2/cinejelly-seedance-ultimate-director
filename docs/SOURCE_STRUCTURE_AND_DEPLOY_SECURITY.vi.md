@@ -52,6 +52,13 @@ Real mode cần tối thiểu:
 - FFmpeg/FFprobe qua `PATH` hoặc `CINEJELLY_FFMPEG_PATH` / `CINEJELLY_FFPROBE_PATH`
 - Durable output storage cho `CINEJELLY_OUTPUT_DIR`
 
+Short Studio tự tạo durable store mặc định dưới `CINEJELLY_OUTPUT_DIR`:
+
+- `short-pipeline-sessions.json` cho session hội thoại/kế hoạch đã redact.
+- `short-channel-styles.json` cho style/KOL/channel profile có thể dùng lại.
+
+Chỉ cần đặt `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH` hoặc `CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH` nếu muốn tách hai file này sang volume riêng.
+
 ## Bản Đồ Source
 
 | Khu vực | Vai trò | Runtime thật? | Ghi chú |

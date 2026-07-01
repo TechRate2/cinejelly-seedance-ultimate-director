@@ -9,6 +9,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const defaultOutput = "assets/output_deliverables/business-readiness/short-mvp-ui-contract-smoke-report.json";
 const defaultStyleStorePath = "assets/output_deliverables/business-readiness/short-mvp-ui-contract-smoke/channel-styles.json";
 const defaultSessionStorePath = "assets/output_deliverables/business-readiness/short-mvp-ui-contract-smoke/sessions.json";
+const defaultShortStudioOutputDir = "assets/output_deliverables/business-readiness/short-mvp-ui-contract-smoke/default-storage";
 
 function parseArgs(args) {
   const options = {
@@ -90,6 +91,17 @@ function assertSmokeStorePath(path, flag, allowedDir) {
 const clientAKey = "client-a-short-mvp-ui-key-2026";
 const clientBKey = "client-b-short-mvp-ui-key-2026";
 const port = 22_000 + Math.floor(Math.random() * 4_000);
+
+const { readShortChannelStyleLibraryPath } = await import("../dist/api/short-channel-style-library-store.js");
+const { readShortPipelineSessionStorePath } = await import("../dist/api/short-pipeline-session-store.js");
+const derivedDefaultStyleStorePath = readShortChannelStyleLibraryPath({
+  CINEJELLY_OUTPUT_DIR: defaultShortStudioOutputDir
+});
+const derivedDefaultSessionStorePath = readShortPipelineSessionStorePath({
+  CINEJELLY_OUTPUT_DIR: defaultShortStudioOutputDir
+});
+const normalizedDerivedDefaultStyleStorePath = derivedDefaultStyleStorePath.replace(/\\/g, "/");
+const normalizedDerivedDefaultSessionStorePath = derivedDefaultSessionStorePath.replace(/\\/g, "/");
 
 process.env.PORT = String(port);
 process.env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH = styleStorePath;
@@ -470,6 +482,10 @@ try {
     clientBPlan.statusCode === 404
       ? pass("cross_client_profile_use_blocked", "Client B cannot use client A channelStyleProfileId in plan/UI contract creation.")
       : fail("cross_client_profile_use_blocked", "Expected cross-client profile use to be blocked."),
+    normalizedDerivedDefaultStyleStorePath === `${defaultShortStudioOutputDir}/short-channel-styles.json` &&
+      normalizedDerivedDefaultSessionStorePath === `${defaultShortStudioOutputDir}/short-pipeline-sessions.json`
+      ? pass("short_studio_default_storage_paths_available", "Short Studio session/style stores derive durable defaults from CINEJELLY_OUTPUT_DIR without extra operator config.")
+      : fail("short_studio_default_storage_paths_available", "Expected Short Studio default session/style paths to derive from CINEJELLY_OUTPUT_DIR."),
     invalidRequestIdSession.statusCode === 400 &&
       String(invalidRequestIdSession.body.error ?? "").includes("requestId")
       ? pass("short_session_rejects_invalid_body_request_id", "Short session API rejects invalid body requestId before the durable session store.")
@@ -509,6 +525,8 @@ try {
       outputPath: options.outputPath,
       styleStorePath: options.styleStorePath,
       sessionStorePath: options.sessionStorePath,
+      derivedDefaultStyleStorePath,
+      derivedDefaultSessionStorePath,
       endpointPaths: [
         "GET /short/create",
         "GET /v1/short-pipeline/video-pipes",

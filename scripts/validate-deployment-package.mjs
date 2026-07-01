@@ -263,9 +263,16 @@ function envTemplateChecks(read) {
     return [];
   }
   const text = read.text;
-  const requiredPlaceholders = ["ATLASCLOUD_API_KEY", "ATLASCLOUD_LLM_API_KEY", "CINEJELLY_API_AUTH_TOKEN", "CINEJELLY_PUBLIC_HOST"];
+  const requiredPlaceholders = [
+    "ATLASCLOUD_API_KEY",
+    "ATLASCLOUD_LLM_API_KEY",
+    "CINEJELLY_API_AUTH_TOKEN",
+    "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+    "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+    "CINEJELLY_PUBLIC_HOST"
+  ];
   return [
-    check("env_template_required_runtime_keys", requiredPlaceholders.every((name) => hasEnvPlaceholder(text, name)), ".env template includes required Atlas/API auth and public-host placeholders.", "Keep Atlas media, Atlas LLM, CineJelly API auth, and Caddy public-host placeholders in the template."),
+    check("env_template_required_runtime_keys", requiredPlaceholders.every((name) => hasEnvPlaceholder(text, name)), ".env template includes required Atlas/API auth, Short Studio storage, and public-host placeholders.", "Keep Atlas media, Atlas LLM, CineJelly API auth, Short Studio storage, and Caddy public-host placeholders in the template."),
     check("env_template_budget_default", /CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD=5\b/.test(text), ".env template keeps the live validation budget default at 5 USD.", "Default live validation budget should stay conservative until explicitly raised."),
     check("env_template_container_storage_note", /container/i.test(text) && /CINEJELLY_OUTPUT_DIR/i.test(text) && /durable storage/i.test(text), ".env template explains container output storage.", "Document container CINEJELLY_OUTPUT_DIR and durable-storage expectations."),
     check("env_template_compose_https_note", /docker-compose\.yml/i.test(text) && /CINEJELLY_PUBLIC_HOST/i.test(text), ".env template documents the compose/Caddy public host.", "Document CINEJELLY_PUBLIC_HOST for docker compose HTTPS deployments."),

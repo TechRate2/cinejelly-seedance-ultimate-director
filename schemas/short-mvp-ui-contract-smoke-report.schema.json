@@ -39,6 +39,8 @@
         "outputPath",
         "styleStorePath",
         "sessionStorePath",
+        "derivedDefaultStyleStorePath",
+        "derivedDefaultSessionStorePath",
         "endpointPaths",
         "createPageStatusCode",
         "unauthorizedSessionsStatusCode",
@@ -54,6 +56,8 @@
         "outputPath": { "type": "string" },
         "styleStorePath": { "type": "string" },
         "sessionStorePath": { "type": "string" },
+        "derivedDefaultStyleStorePath": { "type": "string", "pattern": "short-channel-styles\\.json$" },
+        "derivedDefaultSessionStorePath": { "type": "string", "pattern": "short-pipeline-sessions\\.json$" },
         "endpointPaths": {
           "type": "array",
           "minItems": 6,
