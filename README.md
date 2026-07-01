@@ -97,12 +97,11 @@ cinejelly-seedance-ultimate-director/
 |-- assets/
 |   |-- output_deliverables/
 |   `-- reference_inputs/
-|-- config/
-|-- data/
+|-- deploy/
 |-- docs/
 |-- external/
-|-- ops/
 |-- schemas/
+|-- scripts/
 `-- src/
     |-- agents/
     |-- api/
@@ -115,7 +114,7 @@ cinejelly-seedance-ultimate-director/
     `-- utils/
 ```
 
-`data/` is reserved for production-approved local knowledge artifacts such as copied/adapted prompt-pattern snapshots, bibles, and evaluation rubrics when they become necessary. `external/upstream/` contains legally bounded, pruned upstream source snapshots; CineJelly uses them as source material, then productizes useful parts into `src/`, `data/`, and `docs/`. Production code must not import directly from `external/upstream/`; `src/` remains CineJelly-owned code written new or adapted into product-specific modules, not a drop zone for large upstream files.
+`assets/` is ignored runtime storage for real inputs, outputs, and validation evidence. `ops/` is an ignored operator-evidence directory created only when launch/billing/operations packets are promoted. A future `data/` directory is reserved for production-approved local knowledge artifacts such as copied/adapted prompt-pattern snapshots, bibles, and evaluation rubrics when they become necessary. `external/upstream/` contains legally bounded, pruned upstream source snapshots; CineJelly uses them as source material, then productizes useful parts into `src/`, future `data/`, and `docs/`. Production code must not import directly from `external/upstream/`; `src/` remains CineJelly-owned code written new or adapted into product-specific modules, not a drop zone for large upstream files.
 
 ## Documentation Map
 

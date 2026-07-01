@@ -76,6 +76,24 @@ const packageForbiddenFiles = [
   "ops/"
 ];
 
+const handoffDocFiles = [
+  "README.md",
+  "docs/SOURCE_STRUCTURE_AND_DEPLOY_SECURITY.vi.md",
+  "docs/PROJECT_CONTEXT.md"
+];
+
+const forbiddenHandoffDocFragments = [
+  "src/config/provider-config.ts"
+];
+
+const requiredHandoffDocFragments = [
+  "src/providers/provider-registry.ts",
+  "src/providers/contracts.ts",
+  "src/config/runtime-config.ts",
+  "src/config/seedance-capabilities.ts",
+  "src/config/seedance-settings.ts"
+];
+
 const requiredPackageScripts = [
   "build",
   "start",
@@ -169,6 +187,7 @@ function main() {
   const caddyfile = readText("deploy/Caddyfile");
   const envTemplate = readText(".env.production.template");
   const indexText = readText("src/index.ts");
+  const handoffDocs = handoffDocFiles.map((path) => ({ path, ...readText(path) }));
   const sourceFiles = listSourceFiles(resolve(repoRoot, "src")).map(toRepoRelative).sort();
   const productFiles = ["src", "scripts", "schemas", "docs"]
     .flatMap((root) => listAllFiles(resolve(repoRoot, root)).map(toRepoRelative))
@@ -183,6 +202,7 @@ function main() {
     ...tsconfigChecks(tsconfig.value),
     ...securityBoundaryChecks({ gitignore, dockerignore, envTemplate }),
     ...deployChecks({ dockerfile, compose, caddyfile }),
+    ...handoffDocChecks(handoffDocs),
     ...sourceBoundaryChecks({ directExternalImports, productHygieneFindings, publicExportCoverage })
   ];
   const failedChecks = checks.filter((item) => item.status === "fail");
@@ -336,6 +356,24 @@ function deployChecks({ dockerfile, compose, caddyfile }) {
     check("compose_no_secret_literals", !secretLikePatterns.some((pattern) => pattern.test(composeText)), "docker-compose contains no secret-like literals.", "docker-compose contains secret-like values."),
     check("caddyfile_uses_public_host_and_security_headers", /\{\$CINEJELLY_PUBLIC_HOST\}/.test(caddyText) && /Strict-Transport-Security/i.test(caddyText) && /X-Content-Type-Options/i.test(caddyText), "Caddyfile uses public host env and security headers.", "Caddyfile should use CINEJELLY_PUBLIC_HOST and baseline security headers."),
     check("caddyfile_reverse_proxies_api", /reverse_proxy\s+api:8787/i.test(caddyText), "Caddyfile reverse proxies to api:8787.", "Caddyfile should reverse_proxy api:8787.")
+  ];
+}
+
+function handoffDocChecks(handoffDocs) {
+  const combinedText = handoffDocs.map((doc) => doc.text).join("\n");
+  const existingRuntimeFragmentsPresent = requiredHandoffDocFragments.every((fragment) =>
+    combinedText.includes(fragment) && exists(fragment)
+  );
+  const forbiddenFragmentsAbsent = forbiddenHandoffDocFragments.every((fragment) =>
+    !combinedText.includes(fragment)
+  );
+  return [
+    check(
+      "handoff_docs_provider_paths_match_source",
+      existingRuntimeFragmentsPresent && forbiddenFragmentsAbsent,
+      "Handoff docs point provider/model developers to existing runtime config and provider files.",
+      "Handoff docs contain stale provider/model paths or omit the current provider-registry/config files."
+    )
   ];
 }
 

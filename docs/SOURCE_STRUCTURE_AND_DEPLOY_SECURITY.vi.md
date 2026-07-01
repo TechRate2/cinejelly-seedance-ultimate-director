@@ -167,7 +167,7 @@ Khi nâng cấp backend:
 - Long flow: `src/core/long-*`, `src/agents/story-architect.ts`, `src/core/production-graph-*`
 - API/security: `src/api/`, `src/application/runtime-preflight.ts`
 - UI MVP hiện tại: `src/api/short-pipeline-create-page.ts`
-- Provider mới: `src/providers/`, `src/config/provider-config.ts`, `src/types/provider.ts`
+- Provider mới: `src/providers/provider-registry.ts`, `src/providers/contracts.ts`, `src/config/runtime-config.ts`, `src/config/seedance-capabilities.ts`, `src/config/seedance-settings.ts`, `src/types/provider.ts`
 - Report/evidence: `schemas/`, `scripts/validate-*`, `scripts/audit-*`
 
 ## File Không Sửa Tay
