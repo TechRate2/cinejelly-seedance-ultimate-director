@@ -158,6 +158,14 @@ try {
     clientAHeaders,
     conversationBody(profileId)
   );
+  const invalidRequestIdSession = await postJson(
+    `${baseUrl}/v1/short-pipeline/conversation-sessions`,
+    clientAHeaders,
+    {
+      ...conversationBody(profileId),
+      requestId: "strict_runtime_ui_audit_without_req_prefix"
+    }
+  );
   const sessionId = createdSession.body.session?.sessionId;
   const sessionUi = await getJson(
     `${baseUrl}/v1/short-pipeline/conversation-sessions/${encodeURIComponent(sessionId)}/ui-contract`,
@@ -462,6 +470,10 @@ try {
     clientBPlan.statusCode === 404
       ? pass("cross_client_profile_use_blocked", "Client B cannot use client A channelStyleProfileId in plan/UI contract creation.")
       : fail("cross_client_profile_use_blocked", "Expected cross-client profile use to be blocked."),
+    invalidRequestIdSession.statusCode === 400 &&
+      String(invalidRequestIdSession.body.error ?? "").includes("requestId")
+      ? pass("short_session_rejects_invalid_body_request_id", "Short session API rejects invalid body requestId before the durable session store.")
+      : fail("short_session_rejects_invalid_body_request_id", "Expected invalid short session body requestId to return a 400 admission error instead of a 500 store error."),
     createdSession.statusCode === 201 &&
       sessionUi.statusCode === 200 &&
       sessionUiContract?.channelStyle?.profileId === profileId &&
@@ -512,6 +524,7 @@ try {
       profileId,
       sessionId,
       createPageEndpointCheckPassed: !createPageLeakDetected && createPageHtml.includes("/v1/short-pipeline/conversation-sessions"),
+      invalidRequestIdStatusCode: invalidRequestIdSession.statusCode,
       clientIsolationCheckPassed: detailB.statusCode === 404 && clientBPlan.statusCode === 404,
       secretLeakCheckPassed: !rawLeakDetected
     },

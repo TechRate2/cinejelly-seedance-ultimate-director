@@ -132,6 +132,7 @@ import {
 const DEFAULT_PORT = 8787;
 const DEFAULT_MAX_BODY_BYTES = 1_000_000;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_.:-]{8,160}$/;
+const PERSISTED_REQUEST_ID_PATTERN = /^req_[A-Za-z0-9_.:-]{8,160}$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const MIN_PORT = 1;
 const MAX_PORT = 65_535;
@@ -1382,7 +1383,7 @@ function shortPipelineConversationInputFromBody(
   const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
     projectId: body.projectId,
-    requestId: body.requestId ?? requestId,
+    requestId: shortPersistedRequestIdFromBody(body.requestId, requestId, "requestId"),
     messages,
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
@@ -1629,7 +1630,7 @@ function shortPipelinePlanInputFromBody(
   const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
     projectId: body.projectId,
-    requestId: body.requestId ?? requestId,
+    requestId: shortPersistedRequestIdFromBody(body.requestId, requestId, "requestId"),
     ...(body.userPrompt ? { userPrompt: body.userPrompt } : {}),
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
@@ -1648,6 +1649,18 @@ function shortPipelinePlanInputFromBody(
     ...(visualBible ? { visualBible } : {}),
     ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
   };
+}
+
+function shortPersistedRequestIdFromBody(value: unknown, fallback: string, label: string): string {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  if (typeof value !== "string" || !PERSISTED_REQUEST_ID_PATTERN.test(value.trim())) {
+    throw new RenderRequestAdmissionError(
+      `Short pipeline ${label} must start with req_ and use 8 to 160 safe characters when provided.`
+    );
+  }
+  return value.trim();
 }
 
 function longFormCreativeIntelligencePlanFromBody(body: LongDirectorUiContractRequestBody): LongFormCreativeIntelligencePlan {

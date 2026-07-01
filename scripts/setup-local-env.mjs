@@ -17,7 +17,8 @@ const DEFAULTS = {
   ATLASCLOUD_SEEDANCE_STANDARD_MODEL: "bytedance/seedance-2.0/reference-to-video",
   ATLASCLOUD_SEEDANCE_FAST_MODEL: "bytedance/seedance-2.0-fast/reference-to-video",
   CINEJELLY_API_AUTH_TOKEN: () => randomBytes(32).toString("hex"),
-  CINEJELLY_OUTPUT_DIR: outputDir
+  CINEJELLY_OUTPUT_DIR: outputDir,
+  CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH: `${outputDir}/short-pipeline-sessions.json`
 };
 
 const REQUIRED_AFTER_SETUP = [
@@ -183,6 +184,7 @@ function renderEnv(values) {
     "ATLASCLOUD_SEEDANCE_FAST_MODEL",
     "CINEJELLY_API_AUTH_TOKEN",
     "CINEJELLY_OUTPUT_DIR",
+    "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
     "CINEJELLY_FFMPEG_PATH",
     "CINEJELLY_FFPROBE_PATH",
     "ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON"
