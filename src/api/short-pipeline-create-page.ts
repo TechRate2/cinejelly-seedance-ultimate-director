@@ -11,230 +11,667 @@ export function buildShortPipelineCreatePage(): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>CineJelly Create Short</title>
+  <title>CineJelly Studio</title>
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f5f7f8;
-      --panel: #ffffff;
-      --ink: #17202a;
-      --muted: #627080;
-      --line: #d7dde4;
-      --button: #1e2a36;
-      --green: #13795b;
-      --amber: #986705;
-      --red: #b42318;
-      --blue: #245db8;
-      --teal: #0f766e;
+      color-scheme: dark;
+      --bg: #030407;
+      --ink: #f8fbff;
+      --muted: #a4a9b7;
+      --subtle: #737887;
+      --panel: rgba(12, 14, 22, 0.92);
+      --panel-strong: rgba(17, 19, 29, 0.96);
+      --panel-soft: rgba(255, 255, 255, 0.045);
+      --line: rgba(255, 255, 255, 0.12);
+      --line-strong: rgba(255, 255, 255, 0.2);
+      --pink: #ff4fe8;
+      --blue: #11b7ff;
+      --violet: #8f5cff;
+      --green: #36f2aa;
+      --amber: #f4b84d;
+      --red: #ff5b72;
+      --shadow: 0 24px 90px rgba(0, 0, 0, 0.55);
     }
     * { box-sizing: border-box; }
+    html { min-height: 100%; background: var(--bg); }
     body {
       margin: 0;
       min-height: 100vh;
-      background: var(--bg);
+      background:
+        radial-gradient(circle at 20% 0%, rgba(255, 79, 232, 0.14), transparent 30%),
+        radial-gradient(circle at 82% 12%, rgba(17, 183, 255, 0.12), transparent 34%),
+        linear-gradient(180deg, #05060a 0%, #020306 100%);
       color: var(--ink);
-      font: 14px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+      overflow-x: hidden;
+    }
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+      letter-spacing: 0;
+    }
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+    button:disabled {
+      cursor: wait;
+      opacity: 0.7;
     }
     .app {
       min-height: 100vh;
       display: grid;
-      grid-template-columns: 272px minmax(0, 1fr);
+      grid-template-columns: 214px minmax(0, 1fr);
+      background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.055), transparent 1px) 0 0 / 72px 72px,
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 1px) 0 0 / 72px 72px;
     }
-    aside {
-      background: #102033;
-      color: #f8fafc;
-      border-right: 1px solid #1f3148;
-      padding: 20px;
+    .sidebar {
+      min-height: 100vh;
+      padding: 24px 16px;
+      border-right: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(6, 7, 12, 0.96), rgba(4, 5, 9, 0.98));
+      position: sticky;
+      top: 0;
     }
     .brand {
-      font-size: 18px;
-      font-weight: 760;
-      letter-spacing: 0;
-      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 8px 22px;
+      border-bottom: 1px solid var(--line);
     }
-    .nav-label {
-      margin: 22px 0 8px;
-      color: #9fb0c1;
-      font-size: 12px;
+    .brand-mark {
+      width: 38px;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--pink), var(--blue));
+      box-shadow: 0 0 22px rgba(255, 79, 232, 0.34);
+    }
+    .brand-name {
+      font-size: 20px;
+      font-weight: 790;
+      line-height: 1;
+    }
+    .brand-sub {
+      margin-top: 3px;
+      color: var(--pink);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .nav-section {
+      margin: 26px 0 10px;
+      padding: 0 8px;
+      color: var(--subtle);
+      font-size: 11px;
+      font-weight: 760;
       text-transform: uppercase;
     }
     .nav-item {
+      width: 100%;
+      min-height: 46px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
       gap: 12px;
-      padding: 8px 0;
-      color: #e5edf6;
+      padding: 0 12px;
+      border-radius: 8px;
+      color: #d9deec;
+      background: transparent;
+      text-align: left;
+      margin: 2px 0;
     }
-    main {
-      min-width: 0;
-      padding: 24px;
+    .nav-item.active {
+      color: #fff;
+      background:
+        linear-gradient(90deg, rgba(255, 79, 232, 0.28), rgba(143, 92, 255, 0.12) 58%, transparent);
+      box-shadow: inset 2px 0 0 var(--pink);
     }
-    header {
+    .nav-ico {
+      width: 24px;
+      color: #fff;
+      font-size: 18px;
+      text-align: center;
+    }
+    .sidebar-card {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 86px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+    .sidebar-card strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .meter {
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .meter span {
+      display: block;
+      height: 100%;
+      width: 68%;
+      background: linear-gradient(90deg, var(--pink), var(--blue));
+    }
+    .sidebar-bottom {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 24px;
       display: flex;
       justify-content: space-between;
-      gap: 18px;
-      align-items: flex-start;
-      margin-bottom: 16px;
+      color: var(--muted);
+    }
+    .main-shell {
+      min-width: 0;
+      padding: 0 24px 28px;
+    }
+    .topbar {
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .top-chip {
+      min-height: 50px;
+      min-width: 150px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    .top-chip small {
+      display: block;
+      color: var(--muted);
+      line-height: 1;
+    }
+    .top-chip strong {
+      display: block;
+      margin-top: 4px;
+      line-height: 1;
+    }
+    .api-key {
+      width: 246px;
+      height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 12px;
+      background: rgba(255, 255, 255, 0.055);
+      color: var(--ink);
+      outline: none;
+    }
+    .api-key:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(17, 183, 255, 0.16);
+    }
+    .ghost-btn,
+    .secondary,
+    .mini-btn {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 13px;
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.045);
+    }
+    .ghost-btn:hover,
+    .secondary:hover,
+    .mini-btn:hover {
+      border-color: var(--line-strong);
+      background: rgba(255, 255, 255, 0.07);
+    }
+    .hero {
+      padding: 28px 0 18px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .eyebrow {
+      color: var(--muted);
+      margin-top: 7px;
+      max-width: 720px;
     }
     h1 {
       margin: 0;
-      font-size: 24px;
-      line-height: 1.2;
-      letter-spacing: 0;
+      font-size: clamp(40px, 5vw, 66px);
+      line-height: 0.94;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: transparent;
+      -webkit-text-stroke: 1.1px rgba(255, 255, 255, 0.86);
+      text-shadow:
+        0 0 18px rgba(255, 79, 232, 0.42),
+        0 0 28px rgba(17, 183, 255, 0.3);
     }
-    h2 {
-      margin: 0 0 12px;
-      font-size: 15px;
-      line-height: 1.2;
-      letter-spacing: 0;
-    }
-    .subline {
+    .session-line {
+      max-width: 460px;
       color: var(--muted);
-      margin-top: 6px;
+      text-align: right;
       overflow-wrap: anywhere;
     }
-    .auth {
+    .workspace {
       display: grid;
-      grid-template-columns: minmax(220px, 320px) auto;
-      gap: 8px;
+      grid-template-columns: minmax(560px, 1.04fr) minmax(460px, 0.96fr);
+      gap: 24px;
+      align-items: start;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(18, 20, 31, 0.92), rgba(8, 10, 16, 0.92));
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    .composer {
+      padding: 18px;
+    }
+    .panel-head {
+      display: flex;
       align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 820;
+      text-transform: uppercase;
+    }
+    .step-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 900;
+      color: #fff;
+      background: linear-gradient(135deg, var(--pink), var(--violet));
+      box-shadow: 0 0 18px rgba(255, 79, 232, 0.35);
+    }
+    .mode-tabs,
+    .template-tabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .mode-btn,
+    .template-tab {
+      min-height: 36px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: #d8deed;
+      background: rgba(255, 255, 255, 0.035);
+    }
+    .mode-btn.active,
+    .template-tab.active {
+      color: #fff;
+      border-color: rgba(255, 79, 232, 0.82);
+      background: linear-gradient(135deg, rgba(255, 79, 232, 0.22), rgba(17, 183, 255, 0.12));
+      box-shadow: 0 0 0 1px rgba(255, 79, 232, 0.22), 0 0 24px rgba(255, 79, 232, 0.16);
+    }
+    .field {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      min-width: 0;
+    }
+    .field span {
+      color: #dce3f3;
+      font-weight: 760;
     }
     input,
     select,
     textarea {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      background: #fff;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
       color: var(--ink);
+      outline: none;
       min-width: 0;
     }
     input,
     select {
-      height: 38px;
-      padding: 0 10px;
+      height: 40px;
+      padding: 0 12px;
     }
     textarea {
-      min-height: 126px;
-      padding: 10px;
+      min-height: 142px;
+      padding: 13px;
       resize: vertical;
     }
-    label {
-      display: grid;
-      gap: 6px;
+    select option {
+      background: #0c0e16;
+      color: #fff;
+    }
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--blue);
+      box-shadow:
+        0 0 0 1px rgba(17, 183, 255, 0.26),
+        0 0 28px rgba(17, 183, 255, 0.18);
+    }
+    .prompt-box {
+      border-color: rgba(255, 79, 232, 0.62);
+      box-shadow:
+        inset 0 0 0 1px rgba(17, 183, 255, 0.42),
+        0 0 30px rgba(255, 79, 232, 0.12);
+    }
+    .composer-tools {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 10px 0 18px;
+    }
+    .tool-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .char-count {
       color: var(--muted);
       font-size: 12px;
-      min-width: 0;
     }
-    label span {
-      color: var(--ink);
-      font-weight: 680;
+    .section-divider {
+      height: 1px;
+      background: var(--line);
+      margin: 16px 0;
     }
-    button {
-      height: 38px;
-      border: 0;
-      border-radius: 6px;
-      padding: 0 14px;
-      background: var(--button);
-      color: #fff;
-      font-weight: 700;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    button:disabled {
-      cursor: wait;
-      opacity: 0.7;
-    }
-    .secondary {
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--ink);
-    }
-    .session-button {
-      width: 100%;
-      height: auto;
-      min-height: 58px;
-      padding: 10px;
-      background: var(--panel);
-      color: var(--ink);
-      border: 1px solid var(--line);
-      text-align: left;
-      white-space: normal;
-    }
-    .grid {
+    .asset-grid {
       display: grid;
-      grid-template-columns: minmax(360px, 0.85fr) minmax(0, 1.15fr);
-      gap: 14px;
-      align-items: start;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
     }
-    .panel,
-    .metric,
-    .item {
-      background: var(--panel);
+    .asset-card {
+      min-height: 112px;
+      position: relative;
+      overflow: hidden;
       border: 1px solid var(--line);
       border-radius: 8px;
+      background:
+        linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72)),
+        var(--asset-img, linear-gradient(135deg, rgba(255,79,232,.18), rgba(17,183,255,.18)));
+      background-size: cover;
+      background-position: center;
+      display: flex;
+      align-items: flex-end;
+      padding: 10px;
     }
-    .panel {
-      padding: 14px;
-      margin-bottom: 14px;
+    .asset-card input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
     }
-    .form-grid {
+    .asset-card label {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+    }
+    .asset-card strong {
+      display: block;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .asset-card small {
+      color: #c7ccda;
+      font-size: 11px;
+    }
+    .grid-2 {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
-    .span-2 {
-      grid-column: 1 / -1;
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
     }
-    .actions-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 12px;
-    }
-    .metrics {
+    .settings-bar {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .storyboard {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .beat-card {
+      min-height: 168px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.045);
+    }
+    .beat-img {
+      min-height: 92px;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.68)),
+        var(--beat-img);
+      background-size: cover;
+      background-position: center;
+    }
+    .beat-body {
+      padding: 10px;
+    }
+    .beat-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: #fff;
+      font-weight: 820;
+      font-size: 12px;
+    }
+    .beat-note {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .render-bar {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr auto;
+      gap: 14px;
+      align-items: center;
+      padding: 14px;
+      border-top: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.025);
+    }
+    .cost-card {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+    .cost-card small {
+      display: block;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .cost-card strong {
+      color: var(--green);
+      font-size: 22px;
+    }
+    .primary {
+      min-height: 58px;
+      min-width: 190px;
+      padding: 0 28px;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 840;
+      background: linear-gradient(100deg, rgba(255, 79, 232, 0.94), rgba(17, 183, 255, 0.94));
+      box-shadow: 0 0 34px rgba(255, 79, 232, 0.28), 0 0 30px rgba(17, 183, 255, 0.16);
+    }
+    .right-stack {
+      display: grid;
+      gap: 14px;
+    }
+    .tabs-shell {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+    .gallery {
+      padding: 14px;
+    }
+    .gallery-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       gap: 12px;
       margin-bottom: 14px;
     }
-    .metric {
-      min-height: 92px;
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .template-card {
+      min-height: 318px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      padding: 0;
+      background: #090b12;
+      color: #fff;
+      text-align: left;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    .template-card:hover {
+      border-color: rgba(17, 183, 255, 0.66);
+      box-shadow: 0 0 26px rgba(17, 183, 255, 0.14);
+    }
+    .template-card.active {
+      border-color: rgba(255, 79, 232, 0.86);
+      box-shadow: 0 0 30px rgba(255, 79, 232, 0.22);
+    }
+    .template-img {
+      height: 220px;
+      position: relative;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.78)),
+        var(--template-img);
+      background-size: cover;
+      background-position: center;
+    }
+    .tag {
+      display: inline-flex;
+      min-height: 22px;
+      align-items: center;
+      padding: 2px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 820;
+      background: rgba(0, 0, 0, 0.42);
+      color: #fff;
+    }
+    .template-tags {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .template-body {
+      padding: 11px 12px 13px;
+    }
+    .template-name {
+      font-weight: 820;
+      margin-bottom: 6px;
+    }
+    .template-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .tips {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+    }
+    .tip {
+      min-height: 82px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.035);
+    }
+    .tip strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 12px;
+    }
+    .tip span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .contract-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .contract-panel {
       padding: 14px;
-    }
-    .metric-label {
-      color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 8px;
-    }
-    .metric-value {
-      font-size: 24px;
-      line-height: 1;
-      font-weight: 780;
-      letter-spacing: 0;
-      overflow-wrap: anywhere;
-    }
-    .metric-note {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 12px;
     }
     .list {
       display: grid;
       gap: 8px;
     }
     .item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
       padding: 10px;
+      background: rgba(255, 255, 255, 0.035);
     }
     .row {
       display: flex;
       justify-content: space-between;
-      gap: 12px;
       align-items: flex-start;
+      gap: 12px;
     }
     .title {
-      font-weight: 710;
+      color: #fff;
+      font-weight: 790;
       overflow-wrap: anywhere;
     }
     .detail {
@@ -246,57 +683,99 @@ export function buildShortPipelineCreatePage(): string {
     .pill {
       display: inline-flex;
       align-items: center;
-      min-height: 22px;
-      padding: 2px 7px;
+      min-height: 23px;
       border-radius: 6px;
-      font-size: 12px;
-      font-weight: 720;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 800;
       white-space: nowrap;
-      background: #eef2f7;
-      color: #334155;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.12);
     }
-    .ready { background: #ddf5ec; color: var(--green); }
-    .warn { background: #fff2cc; color: var(--amber); }
-    .bad { background: #ffe5e1; color: var(--red); }
-    .info { background: #e6efff; color: var(--blue); }
-    .teal { background: #ddf7f3; color: var(--teal); }
+    .ready { color: #001e14; background: var(--green); border-color: var(--green); }
+    .warn { color: #2b1700; background: var(--amber); border-color: var(--amber); }
+    .bad { color: #fff; background: var(--red); border-color: var(--red); }
+    .info { color: #001a2a; background: var(--blue); border-color: var(--blue); }
+    .teal { color: #061719; background: #64f5e6; border-color: #64f5e6; }
     .empty {
       color: var(--muted);
       border: 1px dashed var(--line);
       border-radius: 8px;
       padding: 14px;
-      background: #fff;
+      background: rgba(255, 255, 255, 0.025);
     }
-    .error {
-      display: none;
-      margin-bottom: 14px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid #ffc9c2;
-      color: var(--red);
-      background: #fff4f2;
-    }
+    .error,
     .success {
       display: none;
       margin-bottom: 14px;
-      padding: 10px 12px;
+      padding: 11px 13px;
       border-radius: 8px;
-      border: 1px solid #b8ebd6;
-      color: var(--green);
-      background: #eefbf6;
+      border: 1px solid var(--line);
     }
-    @media (max-width: 1100px) {
+    .error {
+      color: #ffd7df;
+      border-color: rgba(255, 91, 114, 0.45);
+      background: rgba(255, 91, 114, 0.12);
+    }
+    .success {
+      color: #cbffe9;
+      border-color: rgba(54, 242, 170, 0.42);
+      background: rgba(54, 242, 170, 0.1);
+    }
+    .session-button {
+      width: 100%;
+      height: auto;
+      min-height: 62px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      text-align: left;
+      white-space: normal;
+    }
+    .approval {
+      padding: 14px;
+      margin-top: 14px;
+    }
+    .approval textarea {
+      min-height: 122px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    @media (max-width: 1220px) {
+      .workspace,
+      .contract-grid { grid-template-columns: 1fr; }
+      .template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .render-bar { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 860px) {
       .app { grid-template-columns: 1fr; }
-      aside { display: none; }
-      main { padding: 16px; }
-      header { display: block; }
-      .auth { grid-template-columns: 1fr; margin-top: 14px; }
-      .grid { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 720px) {
-      .form-grid,
-      .metrics { grid-template-columns: 1fr; }
-      .span-2 { grid-column: auto; }
+      .sidebar { display: none; }
+      .main-shell { padding: 0 14px 22px; }
+      .topbar { height: auto; padding: 14px 0; flex-wrap: wrap; justify-content: flex-start; }
+      .hero { display: block; }
+      .session-line { text-align: left; margin-top: 12px; }
+      .asset-grid,
+      .storyboard,
+      .settings-bar,
+      .template-grid,
+      .tips,
+      .grid-2,
+      .grid-3 { grid-template-columns: 1fr; }
+      h1 { font-size: 42px; }
     }
   </style>
 </head>
@@ -306,199 +785,343 @@ export function buildShortPipelineCreatePage(): string {
     data-session-endpoint="/v1/short-pipeline/conversation-sessions"
     data-session-ui-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/ui-contract"
     data-render-endpoint="/v1/short-pipeline/conversation-sessions/{sessionId}/render-jobs">
-    <aside>
-      <div class="brand">CineJelly Short</div>
-      <div class="nav-label">Plan</div>
-      <div class="nav-item"><span>Status</span><span id="side-status">idle</span></div>
-      <div class="nav-item"><span>Scenes</span><span id="side-scenes">0</span></div>
-      <div class="nav-label">Review</div>
-      <div class="nav-item"><span>Pending</span><span id="side-pending">0</span></div>
-      <div class="nav-item"><span>Provider</span><span id="side-provider">locked</span></div>
-    </aside>
-    <main>
-      <header>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CJ</div>
         <div>
-          <h1>Create Short</h1>
-          <div class="subline" id="session-line">No session loaded.</div>
+          <div class="brand-name">CineJelly</div>
+          <div class="brand-sub">Studio</div>
         </div>
-        <form class="auth" id="auth-form">
-          <input id="api-key" type="password" autocomplete="off" placeholder="Client API key" aria-label="Client API key">
-          <button type="submit" id="load-sessions">Sessions</button>
-        </form>
-      </header>
+      </div>
+      <div class="nav-section">Creation</div>
+      <button class="nav-item active" type="button" data-mode-button="short_video"><span class="nav-ico">◇</span><span>Short Studio</span></button>
+      <button class="nav-item" type="button" data-mode-button="video_remake"><span class="nav-ico">↻</span><span>Video Remake</span></button>
+      <button class="nav-item" type="button"><span class="nav-ico">□</span><span>UGC Ads</span></button>
+      <button class="nav-item" type="button"><span class="nav-ico">▣</span><span>Product Scenes</span></button>
+      <button class="nav-item" type="button"><span class="nav-ico">▤</span><span>Director Long</span></button>
+      <div class="nav-section">Control</div>
+      <button class="nav-item" type="button"><span class="nav-ico">≋</span><span>Voice Lab</span></button>
+      <button class="nav-item" type="button"><span class="nav-ico">✧</span><span>Brand Kit</span></button>
+      <button class="nav-item" type="button"><span class="nav-ico">▥</span><span>Jobs</span></button>
+      <div class="sidebar-card">
+        <strong>Project Control</strong>
+        <div class="detail">Status <span id="side-status">idle</span></div>
+        <div class="meter"><span></span></div>
+        <div class="detail">Scenes <span id="side-scenes">0</span> | Pending <span id="side-pending">0</span></div>
+        <div class="detail">Provider <span id="side-provider">locked</span></div>
+      </div>
+      <div class="sidebar-bottom"><span>⚙</span><span>?</span><span>↗</span></div>
+    </aside>
+    <main class="main-shell">
+      <form class="topbar" id="auth-form">
+        <div class="top-chip">
+          <div class="pill info">Credits</div>
+          <div><small>Balance</small><strong>$21.38</strong></div>
+        </div>
+        <div class="top-chip">
+          <div class="pill warn">Queue</div>
+          <div><small>Render Queue</small><strong>Review gated</strong></div>
+        </div>
+        <input class="api-key" id="api-key" type="password" autocomplete="off" placeholder="Client API key" aria-label="Client API key">
+        <button type="submit" id="load-sessions" class="ghost-btn">Sessions</button>
+      </form>
+      <section class="hero">
+        <div>
+          <h1>Create AI Video</h1>
+          <span class="visually-hidden">Create Short</span>
+          <span class="visually-hidden">Video Remake</span>
+          <span class="visually-hidden">Creative Ideas</span>
+          <div class="eyebrow">Describe the idea, add references, choose a production pattern, then let CineJelly build the script, storyboard, prompt, review packet, and render handoff.</div>
+        </div>
+        <div class="session-line" id="session-line">No session loaded.</div>
+      </section>
       <div class="error" id="error"></div>
       <div class="success" id="success"></div>
-      <section class="metrics" aria-label="Short pipeline metrics">
-        <div class="metric">
-          <div class="metric-label">Workflow</div>
-          <div class="metric-value" id="metric-workflow">--</div>
-          <div class="metric-note" id="metric-duration">duration</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Review</div>
-          <div class="metric-value" id="metric-review">--</div>
-          <div class="metric-note" id="metric-checkpoints">checkpoints</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Audio</div>
-          <div class="metric-value" id="metric-audio">--</div>
-          <div class="metric-note">guided handoff</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Provider Spend</div>
-          <div class="metric-value" id="metric-provider">Locked</div>
-          <div class="metric-note">formal approval required</div>
-        </div>
-      </section>
-      <div class="grid">
-        <section>
-          <div class="panel">
-            <h2>Brief</h2>
-            <form id="brief-form">
-              <div class="form-grid">
-                <label class="span-2"><span>Prompt</span>
-                  <textarea id="prompt">Create a 28 second TikTok UGC review ad for Glow Focus Serum. Keep it proof-led, premium, and easy to approve before render spend.</textarea>
-                </label>
-                <label><span>Project ID</span><input id="project-id" value="short_create_shell"></label>
-                <label><span>Mode</span>
-                  <select id="workflow-mode">
-                    <option value="short_video">Short video</option>
-                    <option value="video_remake">Video Remake</option>
-                  </select>
-                </label>
-                <label><span>Platform</span>
-                  <select id="platform">
-                    <option value="tiktok">TikTok</option>
-                    <option value="instagram_reels">Instagram Reels</option>
-                    <option value="youtube_shorts">YouTube Shorts</option>
-                    <option value="unknown">Flexible</option>
-                  </select>
-                </label>
-                <label><span>Duration</span><input id="duration" type="number" min="15" max="60" value="28"></label>
-                <label><span>Audio</span>
-                  <select id="audio">
-                    <option value="en">English VO</option>
-                    <option value="vi">Vietnamese VO</option>
-                    <option value="zh">Chinese VO</option>
-                    <option value="off">Off</option>
-                  </select>
-                </label>
-                <label><span>Resolution</span>
-                  <select id="seedance-resolution">
-                    <option value="720p" selected>720p</option>
-                    <option value="720p-SR">720p SR</option>
-                    <option value="480p">480p</option>
-                    <option value="720p">720p</option>
-                    <option value="1080p">1080p</option>
-                    <option value="1080p-SR">1080p SR</option>
-                    <option value="1440p-SR">1440p SR</option>
-                  </select>
-                </label>
-                <label><span>Bitrate</span>
-                  <select id="seedance-bitrate">
-                    <option value="high" selected>High</option>
-                    <option value="standard">Standard</option>
-                  </select>
-                </label>
-                <label><span>Last Frame</span>
-                  <select id="return-last-frame">
-                    <option value="auto" selected>Auto</option>
-                    <option value="true">On</option>
-                    <option value="false">Off</option>
-                  </select>
-                </label>
-                <label><span>Product</span><input id="product-title" value="Glow Focus Serum"></label>
-                <label><span>Category</span><input id="category" value="beauty"></label>
-                <label class="span-2"><span>Allowed Claim</span><input id="claim" value="Visibly improves dull-looking skin"></label>
-                <label><span>KOL Reference</span><input id="kol-reference" placeholder="asset://kol-main or https://..."></label>
-                <label><span>Product Reference</span><input id="product-reference" placeholder="asset://product-pack or https://..."></label>
-                <label><span>Wardrobe Reference</span><input id="wardrobe-reference" placeholder="asset://outfit or https://..."></label>
-                <label><span>Background Reference</span><input id="background-reference" placeholder="asset://studio-set or https://..."></label>
-                <label><span>First Frame</span><input id="first-frame-reference" placeholder="asset://opening-frame or https://..."></label>
-                <label><span>Last Frame</span><input id="last-frame-reference" placeholder="asset://final-frame or https://..."></label>
-                <label><span>Media Rights</span>
-                  <select id="media-rights">
-                    <option value="operator_approved">Operator approved</option>
-                    <option value="needs_review">Needs review</option>
-                    <option value="unknown">Unknown</option>
-                  </select>
-                </label>
-                <label><span>Reference Note</span><input id="media-reference-note" placeholder="What to preserve from the attached media"></label>
-                <label><span>Reference Video URL</span><input id="reference-url" placeholder="https://media.example.com/reference/video"></label>
-                <label><span>Source Rights</span>
-                  <select id="reference-rights">
-                    <option value="structure_only">Structure and rhythm only</option>
-                    <option value="rights_cleared_close_remake">Rights-cleared close remake</option>
-                  </select>
-                </label>
-                <label class="span-2"><span>Reference Summary</span>
-                  <textarea id="reference-summary" placeholder="Describe the hook, pacing, acting beats, edit rhythm, camera style, audio rhythm, and payoff the user wants to remake with their own KOL, product, and background."></textarea>
-                </label>
-              </div>
-              <div class="actions-row">
-                <button type="submit" id="create-session">Create Session</button>
-                <button type="button" class="secondary" id="refresh-contract" disabled>Refresh Contract</button>
-              </div>
-            </form>
+      <section class="workspace">
+        <form class="panel composer" id="brief-form">
+          <div class="mode-tabs" aria-label="Create mode">
+            <button class="mode-btn active" type="button" data-mode-button="short_video">Short</button>
+            <button class="mode-btn" type="button" data-mode-button="video_remake">Remake</button>
+            <button class="mode-btn" type="button" data-template-apply="skincare_ugc">UGC</button>
+            <button class="mode-btn" type="button" data-template-apply="cinematic_story">Long</button>
           </div>
-          <div class="panel">
-            <h2>Recent Sessions</h2>
+          <input id="workflow-mode" class="visually-hidden" value="short_video">
+          <div class="section-divider"></div>
+          <div class="panel-head">
+            <div class="panel-title"><span class="step-badge">1</span>Tell CineJelly your idea</div>
+            <button class="mini-btn" type="button" data-enhance-prompt>AI Enhance</button>
+          </div>
+          <label class="field">
+            <span>Creative brief</span>
+            <textarea class="prompt-box" id="prompt">Làm video trước sau thời trang: vịt hóa thiên nga trong 15 giây, phong cách UGC tự nhiên, giọng nữ Việt Nam, nhịp TikTok, cảm xúc tự tin.</textarea>
+          </label>
+          <div class="composer-tools">
+            <div class="tool-row">
+              <button class="mini-btn" type="button" data-template-apply="fashion_transform">Suggested</button>
+              <button class="mini-btn" type="button" data-enhance-prompt>Rewrite</button>
+              <button class="mini-btn" type="button" data-template-apply="product_reveal">Product Ad</button>
+            </div>
+            <div class="char-count"><span id="prompt-count">0</span> / 2000</div>
+          </div>
+
+          <div class="panel-head">
+            <div class="panel-title"><span class="step-badge">2</span>Add references</div>
+            <button class="mini-btn" type="button" id="clear-reference-fields">Clear</button>
+          </div>
+          <div class="asset-grid">
+            <div class="asset-card" style="--asset-img:url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=320&q=80')">
+              <label for="kol-reference"></label>
+              <input id="kol-reference" placeholder="asset://kol-main or https://...">
+              <div><strong>KOL / Talent</strong><small>image reference</small></div>
+            </div>
+            <div class="asset-card" style="--asset-img:url('https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=320&q=80')">
+              <label for="product-reference"></label>
+              <input id="product-reference" placeholder="asset://product-pack or https://...">
+              <div><strong>Product</strong><small>image reference</small></div>
+            </div>
+            <div class="asset-card" style="--asset-img:url('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=320&q=80')">
+              <label for="background-reference"></label>
+              <input id="background-reference" placeholder="asset://studio-set or https://...">
+              <div><strong>Scene</strong><small>background</small></div>
+            </div>
+            <div class="asset-card" style="--asset-img:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=320&q=80')">
+              <label for="reference-url"></label>
+              <input id="reference-url" placeholder="https://reference-video.example">
+              <div><strong>Source Video</strong><small>template intake</small></div>
+            </div>
+            <div class="asset-card" style="--asset-img:linear-gradient(135deg, rgba(255,79,232,.28), rgba(17,183,255,.18))">
+              <label for="media-reference-note"></label>
+              <input id="media-reference-note" placeholder="What to preserve from media">
+              <div><strong>Voice / Notes</strong><small>audio intent</small></div>
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top:12px">
+            <label class="field"><span>Wardrobe reference</span><input id="wardrobe-reference" placeholder="asset://outfit or https://..."></label>
+            <label class="field"><span>First frame</span><input id="first-frame-reference" placeholder="asset://opening-frame or https://..."></label>
+            <label class="field"><span>Last frame</span><input id="last-frame-reference" placeholder="asset://final-frame or https://..."></label>
+            <label class="field"><span>Media rights</span>
+              <select id="media-rights">
+                <option value="operator_approved">Operator approved</option>
+                <option value="needs_review">Needs review</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="section-divider"></div>
+          <div class="panel-head">
+            <div class="panel-title"><span class="step-badge">3</span>Template source intake</div>
+            <button class="mini-btn" type="button" data-mode-button="video_remake">Use Remake Mode</button>
+          </div>
+          <div class="grid-3">
+            <label class="field"><span>Source platform</span>
+              <select id="template-source-platform">
+                <option value="internal">CineJelly internal</option>
+                <option value="higgsfield">Higgsfield inspiration</option>
+                <option value="topview">Topview inspiration</option>
+                <option value="tiktok">TikTok / Douyin / Reels</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+            <label class="field"><span>Learning policy</span>
+              <select id="reference-rights">
+                <option value="structure_only">Structure and rhythm only</option>
+                <option value="rights_cleared_close_remake">Rights-cleared close remake</option>
+              </select>
+            </label>
+            <label class="field"><span>Platform</span>
+              <select id="platform">
+                <option value="tiktok">TikTok</option>
+                <option value="douyin">Douyin</option>
+                <option value="instagram_reels">Instagram Reels</option>
+                <option value="youtube_shorts">YouTube Shorts</option>
+                <option value="unknown">Flexible</option>
+              </select>
+            </label>
+          </div>
+          <label class="field" style="margin-top:12px">
+            <span>Template structure summary</span>
+            <textarea id="reference-summary" placeholder="Paste the public template/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly will adapt the structure to your own KOL, product, and background."></textarea>
+          </label>
+
+          <div class="section-divider"></div>
+          <div class="panel-head">
+            <div class="panel-title"><span class="step-badge">4</span>AI Storyboard</div>
+            <button class="mini-btn" type="button" id="refresh-contract" disabled>Refresh Contract</button>
+          </div>
+          <div class="storyboard">
+            <div class="beat-card">
+              <div class="beat-img" style="--beat-img:url('https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=420&q=80')"></div>
+              <div class="beat-body"><div class="beat-title"><span>1 Hook</span><span>0-3s</span></div><div class="beat-note">Problem / before state</div></div>
+            </div>
+            <div class="beat-card">
+              <div class="beat-img" style="--beat-img:url('https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=420&q=80')"></div>
+              <div class="beat-body"><div class="beat-title"><span>2 Proof</span><span>3-7s</span></div><div class="beat-note">Product / action</div></div>
+            </div>
+            <div class="beat-card">
+              <div class="beat-img" style="--beat-img:url('https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=420&q=80')"></div>
+              <div class="beat-body"><div class="beat-title"><span>3 Transform</span><span>7-12s</span></div><div class="beat-note">Change / result</div></div>
+            </div>
+            <div class="beat-card">
+              <div class="beat-img" style="--beat-img:url('https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?auto=format&fit=crop&w=420&q=80')"></div>
+              <div class="beat-body"><div class="beat-title"><span>4 Payoff</span><span>12-15s</span></div><div class="beat-note">After / CTA soft</div></div>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+          <div class="settings-bar">
+            <label class="field"><span>Duration</span><input id="duration" type="number" min="15" max="60" value="15"></label>
+            <label class="field"><span>Aspect ratio</span><select><option>9:16</option><option>16:9</option><option>1:1</option></select></label>
+            <label class="field"><span>Quality / model</span>
+              <select id="seedance-resolution">
+                <option value="720p" selected>720p</option>
+                <option value="720p-SR">720p SR</option>
+                <option value="480p">480p</option>
+                <option value="1080p">1080p</option>
+                <option value="1080p-SR">1080p SR</option>
+                <option value="1440p-SR">1440p SR</option>
+              </select>
+            </label>
+            <label class="field"><span>Audio</span>
+              <select id="audio">
+                <option value="vi" selected>Vietnamese VO</option>
+                <option value="en">English VO</option>
+                <option value="zh">Chinese VO</option>
+                <option value="off">Off</option>
+              </select>
+            </label>
+          </div>
+          <div class="grid-3" style="margin-top:12px">
+            <label class="field"><span>Bitrate</span><select id="seedance-bitrate"><option value="high" selected>High</option><option value="standard">Standard</option></select></label>
+            <label class="field"><span>Last frame</span><select id="return-last-frame"><option value="auto" selected>Auto</option><option value="true">On</option><option value="false">Off</option></select></label>
+            <label class="field"><span>Product</span><input id="product-title" value="Fashion Transformation"></label>
+            <label class="field"><span>Category</span><input id="category" value="fashion"></label>
+            <label class="field" style="grid-column: span 2"><span>Allowed claim</span><input id="claim" value="A clearer, more confident look for social video"></label>
+            <label class="field visually-hidden"><span>Project ID</span><input id="project-id" value="short_create_shell"></label>
+          </div>
+          <div class="render-bar">
+            <div class="cost-card"><small>Estimated cost</small><strong id="estimated-cost">$2.40</strong></div>
+            <div class="detail">Backend keeps provider spend locked until approval packet and explicit render confirmation are ready.</div>
+            <button type="submit" id="create-session" class="primary">Generate Video</button>
+          </div>
+        </form>
+
+        <section class="right-stack">
+          <div class="tabs-shell">
+            <div class="template-tabs">
+              <button class="template-tab active" type="button">Templates</button>
+              <button class="template-tab" type="button">My Creations</button>
+              <button class="template-tab" type="button">History</button>
+            </div>
+            <button class="ghost-btn" type="button" id="prepare-approval" disabled>Prepare Packet</button>
+          </div>
+          <div class="panel gallery">
+            <div class="gallery-head">
+              <div class="panel-title">Templates</div>
+              <div class="template-tabs">
+                <button class="template-tab active" type="button">All</button>
+                <button class="template-tab" type="button">UGC</button>
+                <button class="template-tab" type="button">Fashion</button>
+                <button class="template-tab" type="button">Product</button>
+              </div>
+            </div>
+            <div class="template-grid">
+              <button class="template-card active" type="button" data-template-apply="fashion_transform">
+                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Hot</span><span class="tag">15s</span></div></div>
+                <div class="template-body"><div class="template-name">Fashion Transformation</div><div class="template-meta">Before/After | UGC Style</div></div>
+              </button>
+              <button class="template-card" type="button" data-template-apply="skincare_ugc">
+                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Trending</span><span class="tag">20s</span></div></div>
+                <div class="template-body"><div class="template-name">Skincare UGC Review</div><div class="template-meta">Beauty | Proof-led</div></div>
+              </button>
+              <button class="template-card" type="button" data-template-apply="streetwear_reveal">
+                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">New</span><span class="tag">12s</span></div></div>
+                <div class="template-body"><div class="template-name">Streetwear Reveal</div><div class="template-meta">Trend | Fast cuts</div></div>
+              </button>
+              <button class="template-card" type="button" data-template-apply="breaking_news_ad">
+                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1522770179533-24471fcdba45?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Viral</span><span class="tag">15s</span></div></div>
+                <div class="template-body"><div class="template-name">Breaking News Ad</div><div class="template-meta">News hook | Product angle</div></div>
+              </button>
+              <button class="template-card" type="button" data-template-apply="product_reveal">
+                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Popular</span><span class="tag">15s</span></div></div>
+                <div class="template-body"><div class="template-name">Product Unboxing</div><div class="template-meta">Ecommerce | Reveal</div></div>
+              </button>
+              <button class="template-card" type="button" data-template-apply="cinematic_story">
+                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Cinematic</span><span class="tag">30s</span></div></div>
+                <div class="template-body"><div class="template-name">Cinematic Short Story</div><div class="template-meta">Film look | Emotional payoff</div></div>
+              </button>
+            </div>
+          </div>
+          <div class="panel gallery">
+            <div class="panel-head"><div class="panel-title">Quick Controls</div></div>
+            <div class="tips">
+              <div class="tip"><strong>Clear idea</strong><span>Prompt becomes script and storyboard evidence.</span></div>
+              <div class="tip"><strong>Add references</strong><span>KOL, product, scene, source video.</span></div>
+              <div class="tip"><strong>Budget guard</strong><span>No provider spend before approval.</span></div>
+              <div class="tip"><strong>Review packet</strong><span>One clean pre-render handoff.</span></div>
+            </div>
+          </div>
+          <div class="panel gallery">
+            <div class="panel-head"><div class="panel-title">Recent Sessions</div></div>
             <div class="list" id="sessions"><div class="empty">No sessions loaded.</div></div>
           </div>
         </section>
-        <section>
-          <div class="panel">
-            <h2>Review Checkpoints</h2>
-            <div class="list" id="review-checkpoints"><div class="empty">No contract loaded.</div></div>
-          </div>
-          <div class="panel">
-            <h2>Seedance Routing</h2>
-            <div class="list" id="seedance-routing"><div class="empty">No contract loaded.</div></div>
-          </div>
-          <div class="panel">
-            <h2>Media References</h2>
-            <div class="list" id="media-references"><div class="empty">No references loaded.</div></div>
-          </div>
-          <div class="panel">
-            <h2>Creative Ideas</h2>
-            <div class="list" id="creative-ideas"><div class="empty">No contract loaded.</div></div>
-          </div>
-          <div class="panel">
-            <h2>Video Remake</h2>
-            <div class="list" id="reference-remake"><div class="empty">No remake blueprint loaded.</div></div>
-          </div>
-          <div class="panel">
-            <h2>Approval Packet</h2>
-            <div class="form-grid">
-              <label><span>Reviewer</span><input id="reviewer" autocomplete="off" placeholder="Reviewer name"></label>
-              <label><span>Decision</span>
-                <select id="review-decision">
-                  <option value="approved">Approve</option>
-                  <option value="changes_requested">Request changes</option>
-                  <option value="rejected">Reject</option>
-                </select>
-              </label>
-              <label class="span-2"><span>Notes</span><input id="review-notes" autocomplete="off" placeholder="Short review note"></label>
-              <label class="span-2"><span>Packet</span><textarea id="approval-packet" readonly></textarea></label>
-            </div>
-            <div class="actions-row">
-              <button type="button" class="secondary" id="prepare-approval" disabled>Prepare Packet</button>
-            </div>
-          </div>
-          <div class="panel">
-            <h2>Review Actions</h2>
-            <div class="list" id="user-actions"><div class="empty">No contract loaded.</div></div>
-          </div>
-          <div class="panel">
-            <h2>Backend Steps</h2>
-            <div class="list" id="backend-steps"><div class="empty">No contract loaded.</div></div>
-          </div>
-          <div class="panel">
-            <h2>Director</h2>
-            <div id="director" class="detail">No contract loaded.</div>
-          </div>
-        </section>
-      </div>
+      </section>
+
+      <section class="contract-grid" aria-label="Backend contract">
+        <div class="panel contract-panel">
+          <div class="panel-head"><div class="panel-title">Review Checkpoints</div><span class="pill" id="metric-review">--</span></div>
+          <div class="detail" id="metric-checkpoints">checkpoints</div>
+          <div class="list" id="review-checkpoints"><div class="empty">No contract loaded.</div></div>
+        </div>
+        <div class="panel contract-panel">
+          <div class="panel-head"><div class="panel-title">Seedance Routing</div><span class="pill info" id="metric-provider">Locked</span></div>
+          <div class="detail"><span id="metric-workflow">--</span> | <span id="metric-duration">duration</span> | audio <span id="metric-audio">--</span></div>
+          <div class="list" id="seedance-routing"><div class="empty">No contract loaded.</div></div>
+        </div>
+        <div class="panel contract-panel">
+          <div class="panel-head"><div class="panel-title">Media References</div></div>
+          <div class="list" id="media-references"><div class="empty">No references loaded.</div></div>
+        </div>
+        <div class="panel contract-panel">
+          <div class="panel-head"><div class="panel-title">Creative Pattern Learning</div></div>
+          <div class="list" id="creative-ideas"><div class="empty">No contract loaded.</div></div>
+        </div>
+        <div class="panel contract-panel">
+          <div class="panel-head"><div class="panel-title">Template / Remake Blueprint</div></div>
+          <div class="list" id="reference-remake"><div class="empty">No remake blueprint loaded.</div></div>
+        </div>
+        <div class="panel contract-panel">
+          <div class="panel-head"><div class="panel-title">Backend Managed Steps</div></div>
+          <div class="list" id="backend-steps"><div class="empty">No contract loaded.</div></div>
+        </div>
+        <div class="panel contract-panel">
+          <div class="panel-head"><div class="panel-title">User Required Actions</div></div>
+          <div class="list" id="user-actions"><div class="empty">No contract loaded.</div></div>
+        </div>
+        <div class="panel contract-panel">
+          <div class="panel-head"><div class="panel-title">Director</div></div>
+          <div id="director" class="detail">No contract loaded.</div>
+        </div>
+      </section>
+
+      <section class="panel approval">
+        <div class="panel-head">
+          <div class="panel-title">Approval Packet</div>
+        </div>
+        <div class="grid-3">
+          <label class="field"><span>Reviewer</span><input id="reviewer" autocomplete="off" placeholder="Reviewer name"></label>
+          <label class="field"><span>Decision</span>
+            <select id="review-decision">
+              <option value="approved">Approve</option>
+              <option value="changes_requested">Request changes</option>
+              <option value="rejected">Reject</option>
+            </select>
+          </label>
+          <label class="field"><span>Notes</span><input id="review-notes" autocomplete="off" placeholder="Short review note"></label>
+        </div>
+        <label class="field" style="margin-top:12px"><span>Packet</span><textarea id="approval-packet" readonly></textarea></label>
+      </section>
     </main>
   </div>
   <script>
@@ -510,6 +1133,68 @@ export function buildShortPipelineCreatePage(): string {
     };
     let activeSessionId = "";
     let activeContract = undefined;
+    const templates = {
+      fashion_transform: {
+        mode: "short_video",
+        title: "Fashion Transformation",
+        product: "Fashion Transformation",
+        category: "fashion",
+        duration: 15,
+        prompt: "Làm video trước sau thời trang: vịt hóa thiên nga trong 15 giây, phong cách UGC tự nhiên, giọng nữ Việt Nam, nhịp TikTok, cảm xúc tự tin.",
+        claim: "A clearer, more confident look for social video",
+        summary: "Hook opens on an awkward before outfit, then a quick spin transition, then a confident after look with a soft product or outfit reveal. Preserve only timing, pacing, and transformation structure."
+      },
+      skincare_ugc: {
+        mode: "short_video",
+        title: "Skincare UGC Review",
+        product: "Bright Skin Cream",
+        category: "beauty",
+        duration: 20,
+        prompt: "Tạo video UGC review kem dưỡng sáng da, mở đầu bằng vấn đề da xỉn màu, giữa video demo texture và cách dùng, cuối là cảm giác da sáng và tự tin hơn.",
+        claim: "Helps dull-looking skin appear brighter",
+        summary: "Creator hook, product texture proof, application close-up, before/after mood shift, final natural reaction."
+      },
+      streetwear_reveal: {
+        mode: "short_video",
+        title: "Streetwear Reveal",
+        product: "Streetwear Outfit",
+        category: "fashion",
+        duration: 12,
+        prompt: "Tạo video reveal streetwear nhịp nhanh, quay dọc 9:16, mở đầu chi tiết outfit, giữa là chuyển động bước ra phố, cuối là pose tự tin.",
+        claim: "Street-ready outfit reveal for social ads",
+        summary: "Fast edit, outfit detail, walkout motion, final confidence pose. Use as structure only."
+      },
+      breaking_news_ad: {
+        mode: "short_video",
+        title: "Breaking News Ad",
+        product: "Hot Deal Product",
+        category: "commerce",
+        duration: 15,
+        prompt: "Tạo video quảng cáo dạng tin nóng UGC, hook như bản tin nhưng không có chữ trên màn hình, chuyển nhanh sang sản phẩm và lý do đáng chú ý.",
+        claim: "A timely product angle for social attention",
+        summary: "Breaking-news energy, creator reaction, product proof, urgency beat, soft CTA. Do not generate fake news claims."
+      },
+      product_reveal: {
+        mode: "short_video",
+        title: "Product Unboxing",
+        product: "Premium Product",
+        category: "ecommerce",
+        duration: 15,
+        prompt: "Tạo video unboxing sản phẩm cao cấp, mở đầu tay mở hộp, giữa là cận cảnh chất liệu và chi tiết, cuối là hero shot sạch và cảm giác muốn mua.",
+        claim: "Premium product reveal with clear detail",
+        summary: "Unbox, tactile proof, product macro, hero frame. Keep product readable and stable at the end."
+      },
+      cinematic_story: {
+        mode: "short_video",
+        title: "Cinematic Short Story",
+        product: "Brand Story",
+        category: "cinematic_story",
+        duration: 30,
+        prompt: "Tạo video cinematic short story 30 giây, có mở đầu cảm xúc, giữa là hành trình thay đổi, cuối là payoff đẹp và có thể dùng cho thương hiệu.",
+        claim: "Cinematic brand story for social video",
+        summary: "Emotional setup, character movement, product or brand proof, cinematic payoff, clean final frame."
+      }
+    };
 
     document.getElementById("auth-form").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -525,6 +1210,21 @@ export function buildShortPipelineCreatePage(): string {
     document.getElementById("prepare-approval").addEventListener("click", () => {
       prepareApprovalPacket();
     });
+    document.getElementById("prompt").addEventListener("input", updatePromptCount);
+    document.getElementById("duration").addEventListener("input", updateEstimatedCost);
+    document.getElementById("seedance-resolution").addEventListener("change", updateEstimatedCost);
+    document.querySelectorAll("[data-template-apply]").forEach((button) => {
+      button.addEventListener("click", () => applyTemplate(button.dataset.templateApply));
+    });
+    document.querySelectorAll("[data-mode-button]").forEach((button) => {
+      button.addEventListener("click", () => setWorkflowMode(button.dataset.modeButton));
+    });
+    document.querySelectorAll("[data-enhance-prompt]").forEach((button) => {
+      button.addEventListener("click", enhancePrompt);
+    });
+    document.getElementById("clear-reference-fields").addEventListener("click", clearReferenceFields);
+    updatePromptCount();
+    updateEstimatedCost();
 
     async function createSession() {
       clearMessages();
@@ -536,7 +1236,7 @@ export function buildShortPipelineCreatePage(): string {
       activeSessionId = response.session.sessionId;
       document.getElementById("session-line").textContent = activeSessionId;
       document.getElementById("refresh-contract").disabled = false;
-      showSuccess("Session created.");
+      showSuccess("Session created. Backend contract is ready for review.");
       await loadContract(activeSessionId);
       await loadSessions();
     }
@@ -602,7 +1302,8 @@ export function buildShortPipelineCreatePage(): string {
           language: language === "off" ? "en" : language,
           allowedClaims: [document.getElementById("claim").value.trim()].filter(Boolean),
           forbiddenClaims: ["guaranteed cure", "instant medical result"],
-          ctaRules: ["Use one CTA only"]
+          ctaRules: ["Use one CTA only"],
+          voicePreferences: [language === "vi" ? "Vietnamese natural creator voice" : "natural creator voice"]
         },
         ...(mediaReferences.length ? { mediaReferences } : {}),
         ...(referenceVideoLearning ? { referenceVideoLearning } : {}),
@@ -655,7 +1356,7 @@ export function buildShortPipelineCreatePage(): string {
           role: "source_video",
           kind: "video",
           uri: sourceUrl,
-          label: "Video Remake source structure",
+          label: "Template source video structure",
           rightsStatus: closeRemake ? "operator_approved" : "needs_review",
           priority: "supporting",
           description: "Learn edit rhythm, acting beats, camera grammar, retention timing, and payoff structure with replacement guardrails."
@@ -673,13 +1374,14 @@ export function buildShortPipelineCreatePage(): string {
       if (!sourceUrl && !summary) {
         return undefined;
       }
+      const platform = document.getElementById("template-source-platform").value;
       const closeRemake = document.getElementById("reference-rights").value === "rights_cleared_close_remake";
       const payload = {
-        sourceLabel: "Video Remake reference",
+        sourceLabel: platform + " template structure",
         ...(sourceUrl ? { sourceUrl } : {}),
-        summary: summary || "User selected Video Remake and supplied a rights-cleared reference video for structure, edit rhythm, acting beats, camera language, and payoff timing.",
+        summary: summary || "User selected template intake and supplied a reference for structure, edit rhythm, acting beats, camera language, and payoff timing.",
         hook: "Preserve the reference hook job, rewritten for the user's product and creator.",
-        pacing: "Derive scene timing, cut density, reveal order, and payoff timing from the reference.",
+        pacing: "Derive scene timing, cut density, reveal order, retention beats, and payoff timing from the reference structure.",
         cameraStyle: "Derive camera language while replacing creator, product, background, and props with user-approved inputs.",
         captionStyle: "Use visual rhythm only; keep generated output free of visible captions, subtitles, labels, and CTA cards.",
         audioStyle: "Derive audio rhythm only; use new guided or licensed voice and audio.",
@@ -701,9 +1403,11 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("metric-workflow").textContent = contract.duration.recommendedWorkflowMode.replaceAll("_", " ");
       document.getElementById("metric-duration").textContent = contract.duration.targetSeconds + "s target";
       document.getElementById("metric-review").textContent = contract.review.status.replaceAll("_", " ");
+      document.getElementById("metric-review").className = "pill " + pillClass(contract.review.status);
       document.getElementById("metric-checkpoints").textContent = contract.review.checkpointCount + " checkpoint(s)";
       document.getElementById("metric-audio").textContent = contract.audioControls.selectedOptionId.replaceAll("_", " ");
       document.getElementById("metric-provider").textContent = contract.render.canSubmitToProviderNow ? "Ready" : "Locked";
+      document.getElementById("metric-provider").className = "pill " + (contract.render.canSubmitToProviderNow ? "ready" : "warn");
       document.getElementById("prepare-approval").disabled = false;
       document.getElementById("approval-packet").value = "";
       renderList("review-checkpoints", contract.review.checkpoints, checkpointTemplate);
@@ -717,8 +1421,9 @@ export function buildShortPipelineCreatePage(): string {
         contract.director.creativeMode.replaceAll("_", " "),
         contract.director.durationStrategy.replaceAll("_", " "),
         contract.director.targetBeatCount + " beats",
-        contract.director.hookWindowSeconds + "s hook"
-      ].join(" | ");
+        contract.director.hookWindowSeconds + "s hook",
+        contract.pipeSelection ? contract.pipeSelection.selectedBackendPipe.replaceAll("_", " ") : ""
+      ].filter(Boolean).join(" | ");
     }
 
     function renderSeedanceRouting(routing) {
@@ -802,7 +1507,7 @@ export function buildShortPipelineCreatePage(): string {
     function renderReferenceRemake(remake) {
       const node = document.getElementById("reference-remake");
       if (!remake) {
-        node.innerHTML = '<div class="empty">Use Video Remake mode with a reference video summary or URL to generate a remake blueprint.</div>';
+        node.innerHTML = '<div class="empty">Use Remake mode with a reference video URL or structure summary to generate a safe template blueprint.</div>';
         return;
       }
       node.innerHTML = '<article class="item"><div class="row"><div><div class="title">' +
@@ -889,9 +1594,69 @@ export function buildShortPipelineCreatePage(): string {
         escapeHtml(reference.status.replaceAll("_", " ")) + '</span></div></article>';
     }
 
+    function applyTemplate(templateId) {
+      const template = templates[templateId];
+      if (!template) return;
+      document.getElementById("prompt").value = template.prompt;
+      document.getElementById("product-title").value = template.product;
+      document.getElementById("category").value = template.category;
+      document.getElementById("duration").value = String(template.duration);
+      document.getElementById("claim").value = template.claim;
+      document.getElementById("reference-summary").value = template.summary;
+      setWorkflowMode(template.mode);
+      document.querySelectorAll(".template-card").forEach((card) => {
+        card.classList.toggle("active", card.dataset.templateApply === templateId);
+      });
+      updatePromptCount();
+      updateEstimatedCost();
+      showSuccess("Template loaded: " + template.title + ".");
+    }
+
+    function setWorkflowMode(mode) {
+      document.getElementById("workflow-mode").value = mode;
+      document.querySelectorAll("[data-mode-button]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.modeButton === mode);
+      });
+      if (mode === "video_remake" && !document.getElementById("reference-summary").value.trim()) {
+        document.getElementById("reference-summary").value = "Learn the public reference structure only: hook job, shot timing, camera movement, edit rhythm, acting beats, audio rhythm, and payoff. Replace creator, product, background, props, claims, captions, and voice with user-approved inputs.";
+      }
+    }
+
+    function enhancePrompt() {
+      const prompt = document.getElementById("prompt");
+      const text = prompt.value.trim();
+      if (!text) return;
+      if (/hook|mở đầu|trước sau|before/i.test(text)) {
+        prompt.value = text + " Chia rõ 4 beat: 0-3s hook, 3-7s proof/demo, 7-12s transformation/result, 12-15s payoff ổn định. Giữ chuyển động tự nhiên, không chữ trên màn hình, audio có nhịp nhưng visual vẫn hiểu được nếu tắt tiếng.";
+      } else {
+        prompt.value = text + " Bổ sung hook trong 1 giây đầu, proof/demo ở giữa, payoff cuối rõ ràng, nhịp TikTok tự nhiên, không chữ trên màn hình, endpoint sạch để review hoặc nối cảnh.";
+      }
+      updatePromptCount();
+    }
+
+    function clearReferenceFields() {
+      ["kol-reference", "product-reference", "wardrobe-reference", "background-reference", "first-frame-reference", "last-frame-reference", "reference-url", "media-reference-note"].forEach((id) => {
+        document.getElementById(id).value = "";
+      });
+      showSuccess("Reference fields cleared.");
+    }
+
+    function updatePromptCount() {
+      const count = document.getElementById("prompt").value.length;
+      document.getElementById("prompt-count").textContent = String(count);
+    }
+
+    function updateEstimatedCost() {
+      const seconds = Math.max(0, Number(document.getElementById("duration").value) || 0);
+      const resolution = document.getElementById("seedance-resolution").value;
+      const multiplier = resolution.includes("1080") ? 1.35 : resolution.includes("1440") ? 1.8 : resolution.includes("480") ? 0.72 : 1;
+      const estimate = Math.max(0.4, seconds * 0.16 * multiplier);
+      document.getElementById("estimated-cost").textContent = "$" + estimate.toFixed(2);
+    }
+
     function pillClass(status) {
       if (status === "ready" || status === "approved" || status === "pass") return "ready";
-      if (status === "needs_review" || status === "review_required") return "warn";
+      if (status === "needs_review" || status === "review_required" || status === "pending") return "warn";
       if (status === "blocked" || status === "fail" || status === "rejected") return "bad";
       if (status === "optional") return "teal";
       return "info";
