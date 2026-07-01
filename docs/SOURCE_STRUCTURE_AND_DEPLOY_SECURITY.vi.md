@@ -59,6 +59,19 @@ Short Studio tự tạo durable store mặc định dưới `CINEJELLY_OUTPUT_DI
 
 Chỉ cần đặt `CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH` hoặc `CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH` nếu muốn tách hai file này sang volume riêng.
 
+## Cấu Hình Một Chỗ
+
+`.env.production.template` là bảng cấu hình deploy duy nhất mà operator cần đọc trước khi chạy thật. File này có đủ các nhóm biến runtime hiện được `src/` đọc: Atlas/model, API auth, rate limit, body size, job queue, workspace billing, timeout/polling, output storage, short session/style store, provider lease/resume queue, request admission limits, cost estimation, source-video analysis, remote stock/material, generated-audio catalog, FFmpeg/FFprobe, và public host.
+
+Các biến nâng cao trong template được để comment để người mới không bị rối. Khi cần scale, chỉ mở đúng nhóm cần chỉnh:
+
+- Tăng tải API: `CINEJELLY_API_*`, `CINEJELLY_RENDER_CONCURRENCY`.
+- Giới hạn chi phí/customer: `CINEJELLY_API_CLIENTS_JSON`, `CINEJELLY_WORKSPACES_JSON`, usage ledger paths.
+- Tối ưu provider/media: timeout, polling, max clip/audio bytes, source-video analysis, remote stock.
+- Deploy thật: `CINEJELLY_PUBLIC_HOST`, durable output volume, auth token, Atlas keys.
+
+`scripts/audit-source-structure.mjs` tự quét tất cả biến môi trường được runtime `src/` đọc và fail nếu biến mới chưa được ghi trong `.env.production.template`. Vì vậy, khi dev thêm model/API/config mới, quy trình đúng là thêm code, thêm biến vào template, cập nhật schema/report nếu audit output thay đổi, rồi chạy `npm run validation:source-structure`.
+
 ## Bản Đồ Source
 
 | Khu vực | Vai trò | Runtime thật? | Ghi chú |
