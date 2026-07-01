@@ -136,6 +136,7 @@ cinejelly-seedance-ultimate-director/
 - `docs/reference-implementations/deployment-container-packaging.md`: Docker packaging contract and no-spend package validator for repeatable HTTPS deployment preparation without baking secrets or artifacts into images.
 - `docs/BEGINNER_QUICKSTART.md`: shortest setup path for non-specialist operators, including automation boundaries and clean-source checks.
 - `docs/RUNNING_AND_MODEL_SETTINGS_GUIDE.md`: practical install, environment, model, API, settings, and no-UI runtime guide.
+- `docs/SOURCE_STRUCTURE_AND_DEPLOY_SECURITY.vi.md`: Vietnamese source map for runtime code, validation tooling, snapshots, real-mode operation, deploy boundaries, and clean-source policy.
 - `docs/SHORT_PIPELINE_AGENTIC_DESIGN.md`: short-form agentic pipeline design that keeps templates optional, chat natural, and human review explicit.
 - `docs/COMMERCIAL_READINESS_CHECKLIST.md`: commercial-core checklist for backend evidence, paid validation, operations, product scope, and UI readiness.
 - `docs/WORKSPACE_PROJECT_BILLING_FOUNDATION.md`: opt-in workspace/project quota, credit, reservation, and usage-ledger design for commercial backend boundaries.

@@ -1,157 +1,250 @@
-# Cấu trúc source, cấu hình deploy và bảo mật vận hành
+# Cấu Trúc Source, Real Mode Và Bảo Mật Deploy
 
-Tài liệu này là bản đồ ngắn gọn để quản lý source CineJelly khi chuẩn bị build UI MVP, tích hợp thêm model/API, hoặc deploy thương mại. Mục tiêu là giữ source sạch, dễ scale, không lẫn secret/config thật vào code, và luôn có lệnh audit tự kiểm tra trước khi push/deploy.
+Tài liệu này là bản đồ thực dụng để dev hiểu nhanh toàn bộ dự án CineJelly Seedance Ultimate Director khi chuẩn bị build UI MVP, mở rộng backend, tích hợp thêm model/API, hoặc deploy thương mại.
 
-## Nguyên tắc chính
+Mục tiêu:
 
-1. Code chạy thật nằm trong `src/`.
-2. File build ra nằm trong `dist/`, không sửa tay.
-3. File kiểm định nằm trong `scripts/` và `schemas/`, không phải code runtime thừa.
-4. Config thật và secret nằm trong `.env` hoặc secret store của server, không commit.
-5. File deploy nằm riêng ở `Dockerfile`, `docker-compose.yml`, và `deploy/`.
-6. Snapshot học từ repo ngoài nằm trong `external/`, không import trực tiếp vào runtime.
-7. Output, media, evidence thật nằm trong `assets/` hoặc `ops/*.json`, đều bị ignore để không rò rỉ dữ liệu khách hàng.
+- Phân biệt rõ code runtime thật với validation/audit/dev tooling.
+- Giữ source sạch, dễ scale, không nhầm test/smoke với production path.
+- Chỉ dùng dữ liệu thật qua `.env`, ignored `assets/`, ignored `ops/*.json`, hoặc provider/live evidence được operator duyệt.
+- Giữ snapshot upstream như nguồn học/tài liệu, không import trực tiếp vào runtime.
 
-## Bản đồ thư mục
+## Kết Luận Ngắn
 
-| Khu vực | Mục đích | Có nên sửa thường xuyên không? |
-| --- | --- | --- |
-| `src/api/` | HTTP API, auth, rate limit, job manager, session store, route cho short/long/render. | Chỉ sửa khi thêm endpoint hoặc đổi contract API. |
-| `src/application/` | Entry point validation, preflight, normalizer, factory. | Sửa khi đổi flow chạy hoặc validation request. |
-| `src/agents/` | Agent điều phối: director, story, reference, render, source-video. | Sửa khi đổi logic agent. |
-| `src/core/` | Logic lõi: planning, prompt, graph, short/long, source-video, audio, assembly, guard, audit. | Đây là nơi nâng cấp backend chính. |
-| `src/providers/` | Adapter model/provider, hiện có Atlas Cloud/Seedance. | Sửa khi thêm provider/model/API mới. |
-| `src/prompt_compiler/` | Biên dịch prompt, reference binding, negative constraints, repair hints. | Sửa khi nâng chất lượng prompt. |
-| `src/types/` | Kiểu dữ liệu contract nội bộ. | Sửa cùng lúc với core/API khi đổi shape dữ liệu. |
-| `src/config/` | Cấu hình capability model và setting Seedance. | Sửa khi model/setting provider thay đổi. |
-| `scripts/` | Smoke, audit, validation, evidence runner. | Không xóa; đây là cổng kiểm định backend. |
-| `schemas/` | JSON schema cho request/report/evidence. | Sửa khi report hoặc API contract đổi. |
-| `deploy/` | Cấu hình reverse proxy HTTPS. | Sửa khi đổi cách publish API. |
-| `docs/` | Tài liệu kiến trúc, vận hành, nguồn tham khảo. | Sửa khi cần hướng dẫn/ghi nhận quyết định. |
-| `external/` | Snapshot nguồn học từ repo ngoài. | Không dùng runtime; chỉ đọc để dịch logic vào `src/`. |
-| `assets/` | Input/output/evidence sinh ra khi chạy. | Không commit dữ liệu thật. |
+Runtime thật nằm trong `src/` và build ra `dist/`.
 
-## File bạn có thể cần chỉnh khi deploy
+Docker runtime chỉ copy `src` qua build stage rồi copy `dist` sang image chạy thật. Dockerfile không copy `scripts/`, `schemas/`, `docs/`, `external/`, `.env`, `ops/`, hoặc generated `assets/`.
 
-### `.env`
+Các file `scripts/run-*-smoke.mjs`, `scripts/audit-*.mjs`, `scripts/validate-*.mjs`, và schema report tương ứng không phải code runtime thừa. Chúng là guardrail để chứng minh backend vẫn đúng trước khi dev push/deploy. Không xóa các file này nếu chưa thay bằng một validation harness tốt hơn.
 
-Đây là file cấu hình thật trên máy/server. File này bị `.gitignore` chặn, không được commit.
+## Real Mode
 
-Các trường thường cần điền:
+Real mode nghĩa là chạy API bằng config thật, auth thật, rate limit thật, model/provider thật, và chỉ dùng evidence thật khi có xác nhận operator.
+
+Chạy local/prod real mode:
+
+```bash
+npm run build
+npm start
+```
+
+Hoặc Docker:
+
+```bash
+docker compose up -d --build
+```
+
+Không bật các flag này trong production:
+
+```bash
+CINEJELLY_DISABLE_API_AUTH=true
+CINEJELLY_DISABLE_API_RATE_LIMIT=true
+```
+
+Hai flag trên chỉ dùng cho audit local/private một lần. Real mode mặc định của code là auth bật và rate limit bật. Nếu không có deployment token hoặc client policy, protected `/v1` endpoints sẽ trả lỗi thay vì chạy provider.
+
+Real mode cần tối thiểu:
 
 - `ATLASCLOUD_API_KEY`
-- `ATLASCLOUD_LLM_API_KEY`
+- `ATLASCLOUD_LLM_API_KEY` hoặc fallback qua `ATLASCLOUD_API_KEY`
 - `CINEJELLY_API_AUTH_TOKEN`
-- `CINEJELLY_PUBLIC_HOST`
-- `CINEJELLY_OUTPUT_DIR`
-- `CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD`
-- `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`
+- Seedance model IDs và `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON`
+- FFmpeg/FFprobe qua `PATH` hoặc `CINEJELLY_FFMPEG_PATH` / `CINEJELLY_FFPROBE_PATH`
+- Durable output storage cho `CINEJELLY_OUTPUT_DIR`
 
-Không đưa key thật vào `package.json`, `Dockerfile`, `docker-compose.yml`, README, docs, hoặc code TypeScript.
+## Bản Đồ Source
 
-### `.env.production.template`
+| Khu vực | Vai trò | Runtime thật? | Ghi chú |
+| --- | --- | --- | --- |
+| `src/api/` | HTTP API, auth, rate limit, route render/short/long/job/session/admin | Có | Đây là nơi nối UI/backend/API. |
+| `src/application/` | Runtime factory, preflight, request normalization, validation entrypoints | Có | Chạy trước khi provider spend. |
+| `src/agents/` | Director, Story Architect, Source Video Analyst, Render Producer | Có | Agent lập kế hoạch và điều phối. |
+| `src/core/` | Logic lõi: short/long, graph, prompt packs, review gates, assembly, audio, material, billing, readiness | Có | Nơi nâng cấp backend chính. |
+| `src/prompt_compiler/` | Prompt compiler, reference binding, negative constraints, repair hints | Có | Chịu trách nhiệm prompt Seedance/model. |
+| `src/providers/` | Provider abstraction và Atlas Cloud adapter | Có | Tích hợp model/API bên ngoài. |
+| `src/config/` | Model/runtime settings, Seedance settings, capability policy | Có | Không hardcode secret. |
+| `src/types/` | Type contract nội bộ | Có | Đổi API/core thì đổi types tương ứng. |
+| `src/utils/` | Redaction, retry, IDs, media tool resolution, helpers | Có | Dùng chung toàn backend. |
+| `dist/` | Build output từ TypeScript | Có khi chạy | Không sửa tay. |
+| `scripts/` | Validation, audit, evidence runner, operator tools | Không trong runtime image | Giữ để kiểm chứng. |
+| `schemas/` | JSON schema cho reports/evidence/API contracts | Không trong runtime image | Dùng bởi validation tools. |
+| `docs/` | Kiến trúc, roadmap, runbook, source policy | Không runtime | Dev đọc để hiểu dự án. |
+| `external/upstream/` | Snapshot repo/tài liệu public dùng để học/copy-adapt | Không runtime | Production code không import trực tiếp. |
+| `deploy/` | Caddy/reverse proxy config | Deploy | Không chứa secret. |
+| `assets/reference_inputs/` | Input media staging | Dữ liệu thật, ignored | Không commit. |
+| `assets/output_deliverables/` | Output/render/audit/evidence | Dữ liệu thật hoặc evidence local, ignored | Không commit. |
+| `ops/*.json` | Attestation/evidence operator điền | Ignored | Không commit. |
 
-Đây là template an toàn để biết cần những biến nào. Được phép commit vì secret để trống. Khi thêm model/provider mới, cập nhật template này bằng placeholder, không điền key thật.
+## Flow Runtime Chính
 
-### `Dockerfile`
+```mermaid
+flowchart TD
+  A["Client/UI/API request"] --> B["src/api/server.ts"]
+  B --> C["Auth, rate limit, media type, body size"]
+  C --> D["Admission / request normalization"]
+  D --> E["Director runtime / Short pipeline planner / Long planner"]
+  E --> F["Story Architect + Shot Planner"]
+  F --> G["Prompt Compiler + Reference Binding"]
+  G --> H["Provider abstraction"]
+  H --> I["Atlas Cloud Seedance / LLM / audio provider"]
+  I --> J["Project Artifact Store + Cost Ledger"]
+  J --> K["Assembly / postproduction / delivery gate"]
+  K --> L["Review packet + artifact validation + API response"]
+```
 
-Chỉ build runtime từ `src/` sang `dist/`. Không dùng `COPY .` để tránh kéo nhầm `.env`, `external/`, `docs/`, `assets/`, hoặc `ops/*.json` vào image.
+Short Studio UI hiện được render từ:
 
-### `docker-compose.yml`
+- `src/api/short-pipeline-create-page.ts`
 
-Dùng cho deploy đơn giản qua API + Caddy HTTPS. Secret đi qua `env_file: .env`. Output chạy thật được mount vào volume:
+Backend short UI contract chính:
 
-- `cinejelly-output`
-- `cinejelly-reference-inputs`
+- `src/core/short-mvp-ui-contract.ts`
+- `src/core/short-pipeline-conversation.ts`
+- `src/core/short-pipeline-planner.ts`
+- `src/core/short-pipeline-render-handoff.ts`
+- `src/core/short-video-pipe-planner.ts`
 
-### `deploy/Caddyfile`
+## Các Chế Độ Short Chính
 
-Reverse proxy HTTPS tới API nội bộ. Chỉ cần đổi host qua biến `CINEJELLY_PUBLIC_HOST`, không hardcode domain hoặc token trong file này.
+| Mode | Backend pipe | Input chính | Output logic |
+| --- | --- | --- | --- |
+| Smart Short | `normal_short_pipe` | Ý tưởng text, product facts optional | Plan ngắn, prompt tự đủ thông tin, review gate. |
+| Product/KOL UGC | `product_kol_reference_pipe` | KOL image, product image, background optional | Reference-to-video với @image role binding. |
+| Storyboard Multishot | `storyboard_board_pipe` | Ý tưởng + duration dài hơn hoặc cần nhiều cảnh | Multi-shot, timeline, endpoint, audio intent. |
+| Video Remake | `video_remake_pipe` | Source video/summary + KOL/product/background riêng | Học structure/rhythm/camera, thay toàn bộ identity/product/audio/claims. |
+| Production Bible | `long_sequence_bible_pipe` | 60-480s hoặc cần consistency dài | Visual bible, sequence boards, last-frame chaining, review gate. |
 
-## File không nên sửa tay
+## Không Xóa Các File Này
 
-- `dist/`: build output, chạy `npm run build` để tạo lại.
-- `assets/output_deliverables/`: report/output sinh ra khi audit/render.
-- `assets/reference_inputs/`: input media thật của khách hàng/operator.
-- `ops/*.json`: evidence/attestation thật, bị ignore.
-- `node_modules/`: dependency cài bằng `npm ci`.
-
-## File không được xóa dù tên là smoke/validation
-
-Các file `scripts/run-*-smoke.mjs`, `scripts/audit-*.mjs`, `scripts/validate-*.mjs` là cổng kiểm định backend. Chúng không phải runtime thừa. Nếu xóa, backend mất bằng chứng rằng short/long/render/request/deploy/source hygiene vẫn hoạt động.
-
-Ví dụ các cổng quan trọng:
+Không xóa chỉ vì tên có `smoke`, `audit`, `validation`, hoặc `schema`:
 
 - `scripts/run-backend-system-suite.mjs`
 - `scripts/run-short-pipeline-smoke.mjs`
+- `scripts/run-short-pipeline-conversation-smoke.mjs`
+- `scripts/run-short-mvp-ui-contract-smoke.mjs`
 - `scripts/run-render-request-contract-smoke.mjs`
 - `scripts/audit-source-structure.mjs`
-- `scripts/audit-snapshot-parity.mjs`
+- `scripts/audit-backend-system-readiness.mjs`
 - `scripts/validate-report-contracts.mjs`
+- `schemas/*-smoke-report.schema.json`
 
-## Public export surface
+Lý do: chúng không chạy trong production runtime, nhưng chứng minh source không bị lệch contract. Xóa chúng sẽ làm dự án sạch giả, không phải sạch thật.
 
-Integration bên ngoài nên import từ package root, tức `dist/index.js` sau build. Không import thẳng file sâu trong `dist/core/...` nếu không cần.
+## File Có Thể Dọn
 
-Source ổn định tương ứng là:
+Có thể dọn nếu xuất hiện:
 
-- `src/index.ts`
+- `assets/output_deliverables/**` sinh ra từ audit/render local.
+- `assets/live-tests/**` hoặc media thử nghiệm local.
+- `tmp-*`, console dump, screenshot tạm.
+- Build output cũ trong `dist/` nếu sẽ build lại.
+- File upstream test/demo/example nếu lọt khỏi `.gitignore` và không được docs/snapshot policy yêu cầu giữ.
 
-Các module nội bộ không export công khai:
+Không dọn:
 
-- `src/core/private-source-pattern-registry.ts`
-- `src/providers/atlascloud/atlas-cloud-http.ts`
-- `src/providers/atlascloud/atlas-cloud-mappers.ts`
+- `docs/`
+- `external/upstream/`
+- `scripts/`
+- `schemas/`
+- `README.md`
+- `AGENTS.md`
+- `.env.production.template`
+- `Dockerfile`, `docker-compose.yml`, `deploy/`
 
-Lý do: đây là registry nguồn học riêng và chi tiết HTTP/mapper nội bộ. UI MVP hoặc app bên ngoài không nên phụ thuộc vào chúng.
+## File Dev Thường Cần Sửa
 
-## Lệnh kiểm tra trước khi push hoặc deploy
+Khi nâng cấp backend:
 
-Chạy nhanh:
+- Short flow: `src/core/short-*`, `src/types/short-*`, `src/api/server.ts`
+- Prompt/model: `src/prompt_compiler/`, `src/config/seedance-settings.ts`, `src/providers/`
+- Long flow: `src/core/long-*`, `src/agents/story-architect.ts`, `src/core/production-graph-*`
+- API/security: `src/api/`, `src/application/runtime-preflight.ts`
+- UI MVP hiện tại: `src/api/short-pipeline-create-page.ts`
+- Provider mới: `src/providers/`, `src/config/provider-config.ts`, `src/types/provider.ts`
+- Report/evidence: `schemas/`, `scripts/validate-*`, `scripts/audit-*`
+
+## File Không Sửa Tay
+
+- `dist/`: chạy `npm run build` để tạo lại.
+- `.env`: chỉ operator/server sửa, không commit.
+- `assets/output_deliverables/`: generated evidence/output, không commit.
+- `assets/reference_inputs/`: media input thật, không commit.
+- `ops/*.json`: operator evidence thật, không commit.
+- `node_modules/`: dùng `npm ci`.
+
+## Checklist Trước Khi Push
+
+Nhanh:
 
 ```bash
-npm run validation:source-structure
 npm run build
+npm run validation:source-structure
 ```
 
-Chạy đầy đủ backend local no-spend:
+Đầy đủ backend no-spend:
 
 ```bash
 npm run validation:backend-system-suite
 ```
 
-Chạy trước khi deploy Docker:
+Trước deploy Docker:
 
 ```bash
 npm run validation:deployment-package
-npm run validation:source-structure
 ```
 
-Sau khi deploy HTTPS thật:
+Sau deploy HTTPS thật:
 
 ```bash
 npm run validation:deployment-readiness -- --base-url https://your-domain.example
 ```
 
-## Khi thêm model hoặc API provider mới
+## Cách Hiểu Readiness
 
-Thứ tự an toàn:
+`backend-system-suite: pass` nghĩa là code/contract local đã qua các cổng kiểm no-spend.
+
+`backend-system-readiness: blocked_by_external_evidence` không phải lỗi source nếu `codeIssueCount=0`. Nó nghĩa là còn thiếu bằng chứng ngoài source, ví dụ:
+
+- Live HTTPS deployment capture.
+- Paid/live provider evidence.
+- Operator attestation.
+- Manual media/audio review.
+- Product rights/review evidence.
+
+Các bằng chứng này phải đi qua `.env`, ignored `ops/*.json`, ignored `assets/output_deliverables/`, hoặc command validation thật. Không nhét bằng chứng thật vào source.
+
+## Khi Thêm Model/API Mới
 
 1. Thêm capability/config vào `src/config/`.
 2. Thêm provider adapter vào `src/providers/`.
-3. Nếu request shape đổi, cập nhật `src/types/`, `schemas/`, và admission guard trong `src/api/` hoặc `src/application/`.
-4. Nếu prompt/model behavior đổi, cập nhật `src/prompt_compiler/` và planner liên quan trong `src/core/`.
-5. Export public module cần thiết qua `src/index.ts`.
-6. Thêm hoặc cập nhật smoke/audit trong `scripts/`.
-7. Chạy `npm run validation:source-structure` và `npm run validation:backend-system-suite`.
+3. Cập nhật type contract trong `src/types/`.
+4. Cập nhật admission guard/API parsing nếu request shape đổi.
+5. Cập nhật prompt compiler hoặc planner nếu model cần prompt khác.
+6. Cập nhật schema/report/validation liên quan.
+7. Chạy build, source-structure audit, backend-system suite.
 
-## Cách hiểu readiness
+## Nguyên Tắc Snapshot
 
-Nếu `validation:backend-system-suite` pass thì code/logic local đang tốt theo gate hiện tại. Nếu còn blocker bên ngoài, đó thường là:
+`external/upstream/` là nguồn học và đối chiếu. Production code không import từ đây.
 
-- deployment HTTPS thật
-- bằng chứng provider/live paid run
-- attestation vận hành
-- manual review video/audio
+Quy trình đúng:
 
-Các blocker đó không nên được xử lý bằng cách nhét secret hoặc evidence thật vào source. Chúng đi qua `.env`, ignored `ops/*.json`, hoặc ignored `assets/output_deliverables/`.
+1. Đọc snapshot.
+2. Ghi nguồn/logic vào docs hoặc source-logic record.
+3. Copy/adapt ý tưởng thành CineJelly-owned code trong `src/`.
+4. Thêm attribution/credit nếu cần.
+5. Thêm validation chứng minh behavior mới.
+
+## Trạng Thái Kỳ Vọng Của Source Sạch
+
+Source sạch không có nghĩa là không có validation scripts.
+
+Source sạch nghĩa là:
+
+- `git status` không có file runtime/artifact lạ.
+- Docker runtime không copy secret/output/snapshot/dev tooling.
+- `src/` không import trực tiếp `external/upstream`.
+- Auth/rate-limit không bị tắt trong real mode.
+- Provider/model IDs nằm trong config/env/capability policy.
+- Generated media/evidence nằm trong ignored `assets/` hoặc ignored `ops/`.
+- Validation suite pass hoặc báo rõ blocker ngoài source.
