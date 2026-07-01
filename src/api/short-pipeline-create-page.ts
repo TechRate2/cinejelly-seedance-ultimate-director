@@ -857,15 +857,15 @@ export function buildShortPipelineCreatePage(): string {
         </div>
       </div>
       <div class="nav-section">Creation</div>
-      <button class="nav-item active" type="button" data-mode-button="short_video"><span class="nav-ico">◇</span><span>Short Studio</span></button>
+      <button class="nav-item active" type="button" data-mode-button="short_video" data-template-apply="fashion_transform"><span class="nav-ico">◇</span><span>Short Studio</span></button>
       <button class="nav-item" type="button" data-mode-button="video_remake"><span class="nav-ico">↻</span><span>Video Remake</span></button>
-      <button class="nav-item" type="button"><span class="nav-ico">□</span><span>UGC Ads</span></button>
-      <button class="nav-item" type="button"><span class="nav-ico">▣</span><span>Product Scenes</span></button>
-      <button class="nav-item" type="button"><span class="nav-ico">▤</span><span>Director Long</span></button>
+      <button class="nav-item" type="button" data-mode-button="product_kol_ugc" data-template-apply="skincare_ugc"><span class="nav-ico">□</span><span>UGC Ads</span></button>
+      <button class="nav-item" type="button" data-mode-button="storyboard_multishot" data-template-apply="product_reveal"><span class="nav-ico">▣</span><span>Product Scenes</span></button>
+      <button class="nav-item" type="button" data-mode-button="production_bible" data-template-apply="production_bible_story"><span class="nav-ico">▤</span><span>Director Long</span></button>
       <div class="nav-section">Control</div>
-      <button class="nav-item" type="button"><span class="nav-ico">≋</span><span>Voice Lab</span></button>
-      <button class="nav-item" type="button"><span class="nav-ico">✧</span><span>Brand Kit</span></button>
-      <button class="nav-item" type="button"><span class="nav-ico">▥</span><span>Jobs</span></button>
+      <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">≋</span><span>Voice Lab</span></button>
+      <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">✧</span><span>Brand Kit</span></button>
+      <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">▥</span><span>Jobs</span></button>
       <div class="sidebar-card">
         <strong>Project Control</strong>
         <div class="detail">Status <span id="side-status">idle</span></div>
@@ -903,10 +903,10 @@ export function buildShortPipelineCreatePage(): string {
       <section class="workspace">
         <form class="panel composer" id="brief-form">
           <div class="mode-tabs" aria-label="Create mode">
-            <button class="mode-btn active" type="button" data-mode-button="short_video">Short</button>
+            <button class="mode-btn active" type="button" data-mode-button="short_video" data-template-apply="fashion_transform">Short</button>
             <button class="mode-btn" type="button" data-mode-button="video_remake">Remake</button>
-            <button class="mode-btn" type="button" data-template-apply="skincare_ugc">UGC</button>
-            <button class="mode-btn" type="button" data-template-apply="cinematic_story">Long</button>
+            <button class="mode-btn" type="button" data-mode-button="product_kol_ugc" data-template-apply="skincare_ugc">UGC</button>
+            <button class="mode-btn" type="button" data-mode-button="production_bible" data-template-apply="production_bible_story">Long</button>
           </div>
           <input id="workflow-mode" class="visually-hidden" value="short_video">
           <div class="section-divider"></div>
@@ -1030,7 +1030,7 @@ export function buildShortPipelineCreatePage(): string {
 
           <div class="section-divider"></div>
           <div class="settings-bar">
-            <label class="field"><span>Duration</span><input id="duration" type="number" min="15" max="60" value="15"></label>
+            <label class="field"><span>Duration</span><input id="duration" type="number" min="15" max="480" value="15"></label>
             <label class="field"><span>Aspect ratio</span><select id="aspect-ratio"><option value="9:16" selected>9:16</option><option value="16:9">16:9</option><option value="1:1">1:1</option></select></label>
             <label class="field"><span>Quality / model</span>
               <select id="seedance-resolution">
@@ -1109,6 +1109,10 @@ export function buildShortPipelineCreatePage(): string {
               <button class="template-card" type="button" data-template-apply="cinematic_story">
                 <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Cinematic</span><span class="tag">30s</span></div></div>
                 <div class="template-body"><div class="template-name">Cinematic Short Story</div><div class="template-meta">Film look | Emotional payoff</div></div>
+              </button>
+              <button class="template-card" type="button" data-template-apply="production_bible_story">
+                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Series</span><span class="tag">90s</span></div></div>
+                <div class="template-body"><div class="template-name">Production Bible Sequence</div><div class="template-meta">Long sequence | Consistent identity</div></div>
               </button>
             </div>
           </div>
@@ -1193,9 +1197,47 @@ export function buildShortPipelineCreatePage(): string {
     };
     let activeSessionId = "";
     let activeContract = undefined;
+    let activeTemplateId = "fashion_transform";
+    const workflowModeConfig = {
+      short_video: {
+        visualBibleMode: "auto",
+        durationMin: 15,
+        durationMax: 60,
+        defaultTemplateId: "fashion_transform"
+      },
+      product_kol_ugc: {
+        visualBibleMode: "reference_board",
+        durationMin: 15,
+        durationMax: 60,
+        defaultTemplateId: "skincare_ugc",
+        maxBoardCount: 6
+      },
+      storyboard_multishot: {
+        visualBibleMode: "storyboard_board",
+        durationMin: 15,
+        durationMax: 60,
+        defaultTemplateId: "product_reveal",
+        maxBoardCount: 8
+      },
+      video_remake: {
+        visualBibleMode: "storyboard_board",
+        durationMin: 15,
+        durationMax: 60,
+        defaultTemplateId: "product_reveal",
+        maxBoardCount: 8
+      },
+      production_bible: {
+        visualBibleMode: "production_bible",
+        durationMin: 60,
+        durationMax: 480,
+        defaultTemplateId: "production_bible_story",
+        maxBoardCount: 12
+      }
+    };
     const templates = {
       fashion_transform: {
         mode: "short_video",
+        backendTemplateId: "comparison",
         title: "Fashion Transformation",
         product: "Fashion Transformation",
         category: "fashion",
@@ -1205,7 +1247,8 @@ export function buildShortPipelineCreatePage(): string {
         summary: "Hook opens on an awkward before outfit, then a quick spin transition, then a confident after look with a soft product or outfit reveal. Preserve only timing, pacing, and transformation structure."
       },
       skincare_ugc: {
-        mode: "short_video",
+        mode: "product_kol_ugc",
+        backendTemplateId: "ugc_ad",
         title: "Skincare UGC Review",
         product: "Bright Skin Cream",
         category: "beauty",
@@ -1215,7 +1258,8 @@ export function buildShortPipelineCreatePage(): string {
         summary: "Creator hook, product texture proof, application close-up, before/after mood shift, final natural reaction."
       },
       streetwear_reveal: {
-        mode: "short_video",
+        mode: "storyboard_multishot",
+        backendTemplateId: "tiktok_product_ad",
         title: "Streetwear Reveal",
         product: "Streetwear Outfit",
         category: "fashion",
@@ -1225,7 +1269,8 @@ export function buildShortPipelineCreatePage(): string {
         summary: "Fast edit, outfit detail, walkout motion, final confidence pose. Use as structure only."
       },
       breaking_news_ad: {
-        mode: "short_video",
+        mode: "storyboard_multishot",
+        backendTemplateId: "tiktok_product_ad",
         title: "Breaking News Ad",
         product: "Hot Deal Product",
         category: "commerce",
@@ -1235,7 +1280,8 @@ export function buildShortPipelineCreatePage(): string {
         summary: "Breaking-news energy, creator reaction, product proof, urgency beat, soft CTA. Do not generate fake news claims."
       },
       product_reveal: {
-        mode: "short_video",
+        mode: "storyboard_multishot",
+        backendTemplateId: "cinematic_product_reveal",
         title: "Product Unboxing",
         product: "Premium Product",
         category: "ecommerce",
@@ -1245,7 +1291,8 @@ export function buildShortPipelineCreatePage(): string {
         summary: "Unbox, tactile proof, product macro, hero frame. Keep product readable and stable at the end."
       },
       cinematic_story: {
-        mode: "short_video",
+        mode: "storyboard_multishot",
+        backendTemplateId: "founder_story",
         title: "Cinematic Short Story",
         product: "Brand Story",
         category: "cinematic_story",
@@ -1253,6 +1300,17 @@ export function buildShortPipelineCreatePage(): string {
         prompt: "Tạo video cinematic short story 30 giây, có mở đầu cảm xúc, giữa là hành trình thay đổi, cuối là payoff đẹp và có thể dùng cho thương hiệu.",
         claim: "Cinematic brand story for social video",
         summary: "Emotional setup, character movement, product or brand proof, cinematic payoff, clean final frame."
+      },
+      production_bible_story: {
+        mode: "production_bible",
+        backendTemplateId: "founder_story",
+        title: "Production Bible Sequence",
+        product: "Brand Sequence",
+        category: "production_bible",
+        duration: 90,
+        prompt: "Create a 90 second branded sequence with one recurring host, one product proof arc, clear opening, middle, ending, consistent visual bible, Vietnamese voiceover timing, and clean clip endpoints for last-frame chaining.",
+        claim: "A consistent branded sequence with clear product proof",
+        summary: "Production bible mode: recurring identity, product/world references, storyboard boards, audio timing cues, multi-clip sequence continuity, and final delivery handles."
       }
     };
 
@@ -1351,9 +1409,12 @@ export function buildShortPipelineCreatePage(): string {
       const referenceVideoLearning = referenceVideoLearningPayload();
       const mediaReferences = mediaReferencesPayload();
       const seedanceSettings = seedanceSettingsPayload();
+      const preferredTemplateId = preferredTemplateIdPayload();
+      const visualBible = visualBiblePayload();
       return {
         projectId: document.getElementById("project-id").value.trim(),
         userPrompt: document.getElementById("prompt").value.trim(),
+        ...(preferredTemplateId ? { preferredTemplateId } : {}),
         targetPlatform: document.getElementById("platform").value,
         targetDurationSeconds: Number(document.getElementById("duration").value),
         targetAspectRatio: document.getElementById("aspect-ratio").value,
@@ -1377,9 +1438,30 @@ export function buildShortPipelineCreatePage(): string {
         ...(mediaReferences.length ? { mediaReferences } : {}),
         ...(referenceVideoLearning ? { referenceVideoLearning } : {}),
         ...(seedanceSettings ? { seedanceSettings } : {}),
+        ...(visualBible ? { visualBible } : {}),
         messages: [
           { role: "user", text: document.getElementById("prompt").value.trim() }
         ]
+      };
+    }
+
+    function preferredTemplateIdPayload() {
+      const mode = document.getElementById("workflow-mode").value;
+      const template = templates[activeTemplateId];
+      return template && template.mode === mode ? template.backendTemplateId : undefined;
+    }
+
+    function visualBiblePayload() {
+      const mode = document.getElementById("workflow-mode").value;
+      const config = workflowModeConfig[mode] || workflowModeConfig.short_video;
+      if (!config.visualBibleMode || config.visualBibleMode === "auto") {
+        return undefined;
+      }
+      return {
+        mode: config.visualBibleMode,
+        imageProviderPolicy: "provider_neutral",
+        requireBeforeRender: true,
+        ...(config.maxBoardCount ? { maxBoardCount: config.maxBoardCount } : {})
       };
     }
 
@@ -1666,13 +1748,14 @@ export function buildShortPipelineCreatePage(): string {
     function applyTemplate(templateId) {
       const template = templates[templateId];
       if (!template) return;
+      activeTemplateId = templateId;
+      setWorkflowMode(template.mode);
       document.getElementById("prompt").value = template.prompt;
       document.getElementById("product-title").value = template.product;
       document.getElementById("category").value = template.category;
       document.getElementById("duration").value = String(template.duration);
       document.getElementById("claim").value = template.claim;
       document.getElementById("reference-summary").value = template.summary;
-      setWorkflowMode(template.mode);
       document.querySelectorAll(".template-card").forEach((card) => {
         card.classList.toggle("active", card.dataset.templateApply === templateId);
       });
@@ -1682,13 +1765,29 @@ export function buildShortPipelineCreatePage(): string {
     }
 
     function setWorkflowMode(mode) {
+      const config = workflowModeConfig[mode] || workflowModeConfig.short_video;
       document.getElementById("workflow-mode").value = mode;
+      const duration = document.getElementById("duration");
+      duration.min = String(config.durationMin);
+      duration.max = String(config.durationMax);
+      const currentDuration = Number(duration.value) || config.durationMin;
+      if (currentDuration < config.durationMin) {
+        duration.value = String(config.durationMin);
+      }
+      if (currentDuration > config.durationMax) {
+        duration.value = String(config.durationMax);
+      }
       document.querySelectorAll("[data-mode-button]").forEach((button) => {
         button.classList.toggle("active", button.dataset.modeButton === mode);
+      });
+      document.querySelectorAll(".template-card").forEach((card) => {
+        const template = templates[card.dataset.templateApply];
+        card.classList.toggle("active", template?.mode === mode && card.dataset.templateApply === activeTemplateId);
       });
       if (mode === "video_remake" && !document.getElementById("reference-summary").value.trim()) {
         document.getElementById("reference-summary").value = "Learn the public reference structure only: hook job, shot timing, camera movement, edit rhythm, acting beats, audio rhythm, and payoff. Replace creator, product, background, props, claims, captions, and voice with user-approved inputs.";
       }
+      updateEstimatedCost();
     }
 
     function enhancePrompt() {

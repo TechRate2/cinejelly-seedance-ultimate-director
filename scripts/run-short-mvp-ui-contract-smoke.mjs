@@ -193,6 +193,20 @@ try {
     "sk-secret",
     "Bearer secret"
   ]);
+  const createPageHasFiveCreationModeWiring = [
+    'data-mode-button="short_video"',
+    'data-mode-button="product_kol_ugc"',
+    'data-mode-button="storyboard_multishot"',
+    'data-mode-button="video_remake"',
+    'data-mode-button="production_bible"'
+  ].every((needle) => createPageHtml.includes(needle));
+  const createPageHasRealPayloadWiring =
+    createPageHtml.includes("function preferredTemplateIdPayload()") &&
+    createPageHtml.includes("function visualBiblePayload()") &&
+    createPageHtml.includes("preferredTemplateId") &&
+    createPageHtml.includes("visualBible") &&
+    createPageHtml.includes('max="480"') &&
+    createPageHtml.includes("production_bible_story");
   const rawLeakDetected = containsAny(`${rawStyleStore}\n${rawSessionStore}`, [
     "C:\\Users\\Admin",
     "api_key=secret",
@@ -292,6 +306,10 @@ try {
       !createPageLeakDetected
       ? pass("short_create_page_available", "First-party Short create/review page shell is served without embedded credentials, local paths, or launch evidence.")
       : fail("short_create_page_available", "Expected Short create page to expose safe endpoint wiring and no credential residue."),
+    createPageHasFiveCreationModeWiring &&
+      createPageHasRealPayloadWiring
+      ? pass("short_create_page_real_mode_wiring_available", "Short create shell wires all five creation modes into backend-safe template, visual-bible, and 480s production-bible payload controls.")
+      : fail("short_create_page_real_mode_wiring_available", "Expected Short create shell to wire five creation modes into preferredTemplateId, visualBible, and production-bible duration controls."),
     unauthorizedSessions.status === 401
       ? pass("short_create_data_requires_client_auth", "Short create shell is public, but protected session data still requires a client API key.")
       : fail("short_create_data_requires_client_auth", "Expected unauthenticated short-pipeline session list to return 401."),
