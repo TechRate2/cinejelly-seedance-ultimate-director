@@ -756,7 +756,7 @@ export class ShortPipelinePlanner {
       platform,
       emotion: inferEmotion(`${prompt} ${brandKitEvaluation?.tone ?? ""}`),
       targetDurationSeconds,
-      aspectRatio: platform === "website" || platform === "linkedin" ? "16:9" : "9:16",
+      aspectRatio: input.targetAspectRatio ?? (platform === "website" || platform === "linkedin" ? "16:9" : "9:16"),
       ...(offer ? { offer } : {}),
       missingInputs: [
         ...(!productBrief ? ["product_facts"] : productBrief.missingFields),

@@ -63,6 +63,7 @@ export class ShortPipelineConversationEngine {
       allowTemplateSuggestions,
       ...(input.targetPlatform ? { targetPlatform: input.targetPlatform } : {}),
       ...(input.targetDurationSeconds !== undefined ? { targetDurationSeconds: input.targetDurationSeconds } : {}),
+      ...(input.targetAspectRatio ? { targetAspectRatio: input.targetAspectRatio } : {}),
       ...(input.audio ? { audio: input.audio } : {}),
       ...(input.seedanceSettings ? { seedanceSettings: input.seedanceSettings } : {}),
       ...(input.visualBible ? { visualBible: input.visualBible } : {}),

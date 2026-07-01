@@ -854,6 +854,7 @@ export interface ShortPipelinePlanInput {
   readonly allowTemplateSuggestions?: boolean;
   readonly targetPlatform?: ShortPipelinePlatform;
   readonly targetDurationSeconds?: number;
+  readonly targetAspectRatio?: AspectRatio;
   readonly audio?: ShortPipelineAudioPolicyInput;
   readonly seedanceSettings?: ShortSeedanceSettingsInput;
   readonly visualBible?: ShortVisualBibleInput;
@@ -936,6 +937,7 @@ export interface ShortPipelineConversationInput {
   readonly allowTemplateSuggestions?: boolean;
   readonly targetPlatform?: ShortPipelinePlatform;
   readonly targetDurationSeconds?: number;
+  readonly targetAspectRatio?: AspectRatio;
   readonly audio?: ShortPipelineAudioPolicyInput;
   readonly seedanceSettings?: ShortSeedanceSettingsInput;
   readonly visualBible?: ShortVisualBibleInput;

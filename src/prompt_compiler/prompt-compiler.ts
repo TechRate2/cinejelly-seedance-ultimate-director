@@ -117,8 +117,8 @@ export class SeedancePromptCompiler {
     const planningOnlyReferences = bindingPlan.roleScopes.filter((reference) => !reference.providerIncluded);
     const lines = [
       bindingPlan.providerReferences.length > 0
-        ? `Provider input: ${this.providerModeLabel(mode)}. Reference map: ${providerReferenceSummary}.`
-        : `Input mode: ${this.providerModeLabel(mode)} with no media references.`,
+        ? `Seedance mode contract: ${this.providerModeLabel(mode)}. Provider reference map: ${providerReferenceSummary}.`
+        : `Seedance mode contract: ${this.providerModeLabel(mode)}. Provider reference map: none.`,
       planningOnlyReferences.length > 0
         ? `Planning-only references: ${planningOnlyReferences.map((reference) => `${reference.role}/${reference.label} (${reference.providerFilterReason ?? "not sent to provider"})`).join("; ")}; treat them as scenario constraints, not as uploaded media.`
         : undefined,
@@ -244,7 +244,7 @@ export class SeedancePromptCompiler {
     const role = this.storyArcRole(shot);
     const hasTimeline = Boolean(shot.timeline?.length);
     return [
-      `Pacing: use the full ${shot.durationSeconds}s for a complete ${role} beat with a clear opening, middle action, and ending state.`,
+      `Pacing contract: use the full ${shot.durationSeconds}s for a complete ${role} beat with a clear opening, middle action, and ending state.`,
       this.wholeVideoArcLine(shot, role),
       "Do not collapse the shot into one static product macro, one hand pose, or an unfinished setup.",
       hasTimeline
@@ -265,7 +265,7 @@ export class SeedancePromptCompiler {
         : undefined
     ].filter((line): line is string => Boolean(line));
     return [
-      `Motion: make the ${role} beat feel like one filmed moment, with cause-and-effect movement instead of disconnected poses.`,
+      `Motion continuity: make the ${role} beat feel like one filmed moment, with cause-and-effect movement instead of disconnected poses.`,
       "First half-second must be readable immediately; final half-second must settle into a clean edit handle.",
       "Avoid teleporting hands, products, faces, props, camera direction, or lighting between timeline segments.",
       ...continuityPriority
@@ -278,7 +278,7 @@ export class SeedancePromptCompiler {
       reference.role === "last_frame" || reference.kind === "last_frame"
     );
     const clauses = [
-      "End frame: finish on a stable, usable frame with the main subject, product, and action result still legible.",
+      "Final-frame contract: finish on a stable, usable frame with the main subject, product, and action result still legible.",
       hasNextState ? `The next shot expects: ${shot.continuity.nextShotStartState}.` : undefined,
       hasLastFrameReference ? "If a last-frame reference is present, move toward it without deforming identity or product details." : undefined,
       "Do not end on a blur, mid-blink, hidden product, cropped face, empty frame, or unresolved camera whip unless explicitly requested."
@@ -299,7 +299,7 @@ export class SeedancePromptCompiler {
       return undefined;
     }
     const bridgeLines = [
-      "Edit continuity: this clip must cut together with adjacent clips as one continuous film.",
+      "Inter-shot bridge: this clip must cut together with adjacent clips as one continuous film.",
       previousState ? `Start by matching the prior clip endpoint: ${previousState}.` : "Start with a clean readable first frame.",
       nextState ? `End by preparing the next clip start: ${nextState}.` : "End with a clean readable endpoint.",
       shot.transitionIntent ? `Transition intent: ${shot.transitionIntent}.` : undefined,
@@ -324,7 +324,7 @@ export class SeedancePromptCompiler {
       referenceRoles.has("environment") ? "background spatial layout" : undefined
     ].filter((anchor): anchor is string => Boolean(anchor));
     return [
-      `Shot choreography: stage this ${role} clip with a readable first frame, clear middle action, and stable final frame.`,
+      `Boundary choreography: stage this ${role} clip with a readable first frame, clear middle action, and stable final frame.`,
       hasPreviousState
         ? "Entry: match the prior endpoint before introducing new motion; keep the same screen direction, lens distance, subject scale, lighting color, and product/KOL state."
         : "Entry: open on a stable readable first frame before the camera or subject starts moving.",
@@ -449,7 +449,7 @@ export class SeedancePromptCompiler {
     }
     const wordBudget = this.voiceoverWordBudget(shot.durationSeconds);
     return [
-      `Audio plan: ${shot.audioIntent}.`,
+      `Audio production plan: ${shot.audioIntent}.`,
       `If native provider audio is enabled, generate only original ambience/music/voice that follows this shot timing; do not copy protected songs, melodies, transcripts, or voices.`,
       `If external voice/music is produced later, this prompt still defines the script timing: keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s and leave micro-pauses around product contact, proof, or reaction moments.`,
       "The visual story must remain understandable without audio, while the audio rhythm should strengthen the hook, proof/demo, and final resolve."

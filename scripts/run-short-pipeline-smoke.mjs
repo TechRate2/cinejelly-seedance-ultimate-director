@@ -538,14 +538,14 @@ const compiledShortStoryboardPrompts = shortStoryboardShots.map((shot) =>
 );
 const shortStoryboardPromptContractDiagnostics = compiledShortStoryboardPrompts.map((prompt) => ({
   shotId: prompt.shotId,
-  hasProviderInput: prompt.prompt.includes("Provider input:") || prompt.prompt.includes("Input mode:"),
-  hasPacing: prompt.prompt.includes("Pacing:"),
+  hasSeedanceMode: prompt.prompt.includes("Seedance mode contract:"),
+  hasPacingContract: prompt.prompt.includes("Pacing contract:"),
   hasTimeline: prompt.prompt.includes("Timeline:"),
-  hasMotion: prompt.prompt.includes("Motion:"),
-  hasEditContinuity: prompt.prompt.includes("Edit continuity:"),
-  hasShotChoreography: prompt.prompt.includes("Shot choreography:"),
-  hasEndFrame: prompt.prompt.includes("End frame:"),
-  hasAudioPlan: prompt.prompt.includes("Audio plan:"),
+  hasMotionContinuity: prompt.prompt.includes("Motion continuity:"),
+  hasInterShotBridge: prompt.prompt.includes("Inter-shot bridge:"),
+  hasBoundaryChoreography: prompt.prompt.includes("Boundary choreography:"),
+  hasFinalFrameContract: prompt.prompt.includes("Final-frame contract:"),
+  hasAudioProductionPlan: prompt.prompt.includes("Audio production plan:"),
   hasNativeProviderAudioGuidance: prompt.prompt.includes("native provider audio is enabled"),
   hasShotNarrationBudget: prompt.prompt.includes("keep narration under about"),
   hasBeatSpokenWordBudget: prompt.prompt.includes("words for this beat"),
@@ -690,7 +690,7 @@ const checks = [
   authorizedSourceVideoPrompt.videoRequest.references.some((reference) => reference.role === "source_video_structure" && reference.kind === "video") &&
     authorizedSourceVideoPrompt.videoRequest.mode === "reference_to_video" &&
     authorizedSourceVideoPrompt.prompt.startsWith("Reference handles: @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack; @video1 -> source_video_structure/video=Approved trend source video.") &&
-    authorizedSourceVideoPrompt.prompt.includes("Provider input: reference-to-video") &&
+    authorizedSourceVideoPrompt.prompt.includes("Seedance mode contract: reference-to-video") &&
     authorizedSourceVideoPrompt.prompt.includes("Source/reference-video boundary:") &&
     authorizedSourceVideoPrompt.prompt.includes("@image1 -> identity/image") &&
     authorizedSourceVideoPrompt.prompt.includes("@image2 -> product/image") &&
@@ -921,13 +921,13 @@ const checks = [
     : fail("explicit_storyboard_mode_overrides_single_recommendation", "Expected explicit storyboard mode to preserve multi-scene planning."),
   shortStoryboardShots.length === 3 &&
     shortStoryboardShots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
-    compiledShortStoryboardPrompts.every((prompt) => (prompt.prompt.includes("Provider input:") || prompt.prompt.includes("Input mode:")) && prompt.prompt.includes("Pacing:") && prompt.prompt.includes("Timeline:")) &&
+    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Seedance mode contract:") && prompt.prompt.includes("Pacing contract:") && prompt.prompt.includes("Timeline:")) &&
   compiledShortStoryboardPrompts.every((prompt) =>
-    prompt.prompt.includes("Motion:") &&
-    prompt.prompt.includes("Edit continuity:") &&
-    prompt.prompt.includes("Shot choreography:") &&
+    prompt.prompt.includes("Motion continuity:") &&
+    prompt.prompt.includes("Inter-shot bridge:") &&
+    prompt.prompt.includes("Boundary choreography:") &&
     prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints") &&
-    prompt.prompt.includes("End frame:")
+    prompt.prompt.includes("Final-frame contract:")
   ) &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.negativePrompt.includes("no visible captions") && prompt.negativePrompt.includes("no frozen static product pose")) &&
     shortStoryboardShots[0]?.continuity.nextShotStartState &&
@@ -936,7 +936,7 @@ const checks = [
     shortStoryboardShots[2]?.continuity.previousShotEndState &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.videoRequest.settings.generateAudio === true) &&
     compiledShortStoryboardPrompts.every((prompt) =>
-      prompt.prompt.includes("Audio plan:") &&
+      prompt.prompt.includes("Audio production plan:") &&
       prompt.prompt.includes("native provider audio is enabled") &&
       prompt.prompt.includes("keep narration under about") &&
       prompt.prompt.includes("words for this beat") &&

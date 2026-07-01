@@ -368,6 +368,9 @@ export function buildShortPipelineCreatePage(): string {
       min-height: 142px;
       padding: 13px;
       resize: vertical;
+      overflow-x: hidden;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
     }
     select option {
       background: #0c0e16;
@@ -429,15 +432,19 @@ export function buildShortPipelineCreatePage(): string {
       align-items: flex-end;
       padding: 10px;
     }
-    .asset-card input {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-    }
-    .asset-card label {
-      position: absolute;
-      inset: 0;
+    .asset-card {
+      border: 1px solid var(--line);
+      color: #fff;
+      text-align: left;
       cursor: pointer;
+    }
+    .asset-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 38%);
+      pointer-events: none;
     }
     .asset-card strong {
       display: block;
@@ -447,6 +454,12 @@ export function buildShortPipelineCreatePage(): string {
     .asset-card small {
       color: #c7ccda;
       font-size: 11px;
+    }
+    .asset-card:hover,
+    .asset-card:focus-visible {
+      border-color: rgba(17, 183, 255, 0.7);
+      box-shadow: 0 0 24px rgba(17, 183, 255, 0.14);
+      outline: none;
     }
     .grid-2 {
       display: grid;
@@ -764,10 +777,57 @@ export function buildShortPipelineCreatePage(): string {
     @media (max-width: 860px) {
       .app { grid-template-columns: 1fr; }
       .sidebar { display: none; }
-      .main-shell { padding: 0 14px 22px; }
-      .topbar { height: auto; padding: 14px 0; flex-wrap: wrap; justify-content: flex-start; }
+      .main-shell {
+        width: 100%;
+        max-width: 100vw;
+        min-width: 0;
+        padding: 0 14px 22px;
+        overflow-x: hidden;
+      }
+      .topbar {
+        height: auto;
+        padding: 14px 0;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+      }
+      .topbar > * {
+        min-width: 0;
+      }
+      .top-chip {
+        flex: 1 1 100%;
+        width: 100%;
+      }
+      .top-chip > div {
+        min-width: 0;
+      }
+      .top-chip small,
+      .top-chip strong {
+        white-space: normal;
+        line-height: 1.15;
+      }
+      .api-key {
+        width: auto;
+        flex: 1 1 100%;
+      }
       .hero { display: block; }
       .session-line { text-align: left; margin-top: 12px; }
+      .panel-head,
+      .gallery-head,
+      .tabs-shell,
+      .composer-tools {
+        display: grid;
+        grid-template-columns: 1fr;
+        flex-wrap: wrap;
+      }
+      .panel-head .secondary,
+      .tabs-shell > .ghost-btn {
+        width: 100%;
+        min-width: 0;
+      }
+      .primary {
+        width: 100%;
+        min-width: 0;
+      }
       .asset-grid,
       .storyboard,
       .settings-bar,
@@ -775,7 +835,10 @@ export function buildShortPipelineCreatePage(): string {
       .tips,
       .grid-2,
       .grid-3 { grid-template-columns: 1fr; }
-      h1 { font-size: 42px; }
+      h1 {
+        font-size: clamp(30px, 9vw, 38px);
+        overflow-wrap: anywhere;
+      }
     }
   </style>
 </head>
@@ -853,7 +916,7 @@ export function buildShortPipelineCreatePage(): string {
           </div>
           <label class="field">
             <span>Creative brief</span>
-            <textarea class="prompt-box" id="prompt">Làm video trước sau thời trang: vịt hóa thiên nga trong 15 giây, phong cách UGC tự nhiên, giọng nữ Việt Nam, nhịp TikTok, cảm xúc tự tin.</textarea>
+            <textarea class="prompt-box" id="prompt" wrap="soft">Làm video trước sau thời trang: vịt hóa thiên nga trong 15 giây, phong cách UGC tự nhiên, giọng nữ Việt Nam, nhịp TikTok, cảm xúc tự tin.</textarea>
           </label>
           <div class="composer-tools">
             <div class="tool-row">
@@ -869,31 +932,28 @@ export function buildShortPipelineCreatePage(): string {
             <button class="mini-btn" type="button" id="clear-reference-fields">Clear</button>
           </div>
           <div class="asset-grid">
-            <div class="asset-card" style="--asset-img:url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=320&q=80')">
-              <label for="kol-reference"></label>
-              <input id="kol-reference" placeholder="asset://kol-main or https://...">
+            <button class="asset-card" type="button" data-focus-reference="kol-reference" style="--asset-img:url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=320&q=80')">
               <div><strong>KOL / Talent</strong><small>image reference</small></div>
-            </div>
-            <div class="asset-card" style="--asset-img:url('https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=320&q=80')">
-              <label for="product-reference"></label>
-              <input id="product-reference" placeholder="asset://product-pack or https://...">
+            </button>
+            <button class="asset-card" type="button" data-focus-reference="product-reference" style="--asset-img:url('https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=320&q=80')">
               <div><strong>Product</strong><small>image reference</small></div>
-            </div>
-            <div class="asset-card" style="--asset-img:url('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=320&q=80')">
-              <label for="background-reference"></label>
-              <input id="background-reference" placeholder="asset://studio-set or https://...">
+            </button>
+            <button class="asset-card" type="button" data-focus-reference="background-reference" style="--asset-img:url('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=320&q=80')">
               <div><strong>Scene</strong><small>background</small></div>
-            </div>
-            <div class="asset-card" style="--asset-img:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=320&q=80')">
-              <label for="reference-url"></label>
-              <input id="reference-url" placeholder="https://reference-video.example">
+            </button>
+            <button class="asset-card" type="button" data-focus-reference="reference-url" style="--asset-img:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=320&q=80')">
               <div><strong>Source Video</strong><small>template intake</small></div>
-            </div>
-            <div class="asset-card" style="--asset-img:linear-gradient(135deg, rgba(255,79,232,.28), rgba(17,183,255,.18))">
-              <label for="media-reference-note"></label>
-              <input id="media-reference-note" placeholder="What to preserve from media">
+            </button>
+            <button class="asset-card" type="button" data-focus-reference="media-reference-note" style="--asset-img:linear-gradient(135deg, rgba(255,79,232,.28), rgba(17,183,255,.18))">
               <div><strong>Voice / Notes</strong><small>audio intent</small></div>
-            </div>
+            </button>
+          </div>
+          <div class="grid-2" style="margin-top:12px">
+            <label class="field"><span>KOL image URI</span><input id="kol-reference" placeholder="asset://kol-main or https://..."></label>
+            <label class="field"><span>Product image URI</span><input id="product-reference" placeholder="asset://product-pack or https://..."></label>
+            <label class="field"><span>Scene/background URI</span><input id="background-reference" placeholder="asset://studio-set or https://..."></label>
+            <label class="field"><span>Source video URL</span><input id="reference-url" placeholder="https://reference-video.example"></label>
+            <label class="field" style="grid-column: 1 / -1"><span>Reference / voice note</span><input id="media-reference-note" placeholder="What to preserve from the attached media, source video, or voice direction"></label>
           </div>
           <div class="grid-2" style="margin-top:12px">
             <label class="field"><span>Wardrobe reference</span><input id="wardrobe-reference" placeholder="asset://outfit or https://..."></label>
@@ -917,8 +977,8 @@ export function buildShortPipelineCreatePage(): string {
             <label class="field"><span>Source platform</span>
               <select id="template-source-platform">
                 <option value="internal">CineJelly internal</option>
-                <option value="higgsfield">Higgsfield inspiration</option>
-                <option value="topview">Topview inspiration</option>
+                <option value="reference_tool_motion">Reference-tool motion inspiration</option>
+                <option value="reference_tool_ads">Reference-tool ad inspiration</option>
                 <option value="tiktok">TikTok / Douyin / Reels</option>
                 <option value="custom">Custom</option>
               </select>
@@ -941,7 +1001,7 @@ export function buildShortPipelineCreatePage(): string {
           </div>
           <label class="field" style="margin-top:12px">
             <span>Template structure summary</span>
-            <textarea id="reference-summary" placeholder="Paste the public template/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly will adapt the structure to your own KOL, product, and background."></textarea>
+            <textarea id="reference-summary" wrap="soft" placeholder="Paste the public template/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly will adapt the structure to your own KOL, product, and background."></textarea>
           </label>
 
           <div class="section-divider"></div>
@@ -971,7 +1031,7 @@ export function buildShortPipelineCreatePage(): string {
           <div class="section-divider"></div>
           <div class="settings-bar">
             <label class="field"><span>Duration</span><input id="duration" type="number" min="15" max="60" value="15"></label>
-            <label class="field"><span>Aspect ratio</span><select><option>9:16</option><option>16:9</option><option>1:1</option></select></label>
+            <label class="field"><span>Aspect ratio</span><select id="aspect-ratio"><option value="9:16" selected>9:16</option><option value="16:9">16:9</option><option value="1:1">1:1</option></select></label>
             <label class="field"><span>Quality / model</span>
               <select id="seedance-resolution">
                 <option value="720p" selected>720p</option>
@@ -1120,7 +1180,7 @@ export function buildShortPipelineCreatePage(): string {
           </label>
           <label class="field"><span>Notes</span><input id="review-notes" autocomplete="off" placeholder="Short review note"></label>
         </div>
-        <label class="field" style="margin-top:12px"><span>Packet</span><textarea id="approval-packet" readonly></textarea></label>
+        <label class="field" style="margin-top:12px"><span>Packet</span><textarea id="approval-packet" wrap="soft" readonly></textarea></label>
       </section>
     </main>
   </div>
@@ -1219,6 +1279,14 @@ export function buildShortPipelineCreatePage(): string {
     document.querySelectorAll("[data-mode-button]").forEach((button) => {
       button.addEventListener("click", () => setWorkflowMode(button.dataset.modeButton));
     });
+    document.querySelectorAll("[data-focus-reference]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const field = document.getElementById(button.dataset.focusReference);
+        if (field) {
+          field.focus();
+        }
+      });
+    });
     document.querySelectorAll("[data-enhance-prompt]").forEach((button) => {
       button.addEventListener("click", enhancePrompt);
     });
@@ -1288,6 +1356,7 @@ export function buildShortPipelineCreatePage(): string {
         userPrompt: document.getElementById("prompt").value.trim(),
         targetPlatform: document.getElementById("platform").value,
         targetDurationSeconds: Number(document.getElementById("duration").value),
+        targetAspectRatio: document.getElementById("aspect-ratio").value,
         audio,
         product: {
           snapshot: {
@@ -1663,18 +1732,28 @@ export function buildShortPipelineCreatePage(): string {
     }
 
     function clearMessages() {
-      document.getElementById("error").style.display = "none";
-      document.getElementById("success").style.display = "none";
+      const errorNode = document.getElementById("error");
+      const successNode = document.getElementById("success");
+      errorNode.textContent = "";
+      successNode.textContent = "";
+      errorNode.style.display = "none";
+      successNode.style.display = "none";
     }
 
     function showError(message) {
       const node = document.getElementById("error");
+      const successNode = document.getElementById("success");
+      successNode.textContent = "";
+      successNode.style.display = "none";
       node.textContent = message;
       node.style.display = "block";
     }
 
     function showSuccess(message) {
       const node = document.getElementById("success");
+      const errorNode = document.getElementById("error");
+      errorNode.textContent = "";
+      errorNode.style.display = "none";
       node.textContent = message;
       node.style.display = "block";
     }

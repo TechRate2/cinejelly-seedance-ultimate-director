@@ -871,7 +871,7 @@ export class AtlasCloudProvider implements ModelProvider {
     const lastImageUrl = this.firstReferenceUrl(references, ["last_frame"]);
     const firstVideoUrl = this.firstReferenceUrl(references, ["video", "motion", "camera"]);
     const firstAudioUrl = this.firstReferenceUrl(references, ["audio"]);
-    const firstImageUrl = request.mode === "image_to_video" || endpointReferencePresent
+    const firstImageUrl = request.mode !== "text_to_video"
       ? (firstFrameUrl ?? imageToVideoReferenceUrl)
       : undefined;
     const referenceImages = request.mode === "image_to_video" || endpointReferencePresent

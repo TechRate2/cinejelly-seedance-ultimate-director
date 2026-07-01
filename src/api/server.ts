@@ -26,7 +26,7 @@ import {
   buildOperatorLaunchUiContract,
   type OperatorLaunchUiReportInput
 } from "../core/operator-launch-ui-contract.js";
-import { BITRATE_MODES, RESOLUTIONS } from "../config/seedance-settings.js";
+import { BITRATE_MODES, RATIOS, RESOLUTIONS } from "../config/seedance-settings.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import { ReviewApprovalSystem } from "../core/review-approval-system.js";
@@ -69,7 +69,7 @@ import type {
   ShortSeedanceSettingsInput,
   ShortVisualBibleInput
 } from "../types/short-pipeline.js";
-import type { BitrateMode, Resolution } from "../types/settings.js";
+import type { AspectRatio, BitrateMode, Resolution } from "../types/settings.js";
 import type { ShortChannelStyleProfileInput } from "../types/short-channel-style.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiResponse } from "./api-response-redaction.js";
@@ -1378,6 +1378,7 @@ function shortPipelineConversationInputFromBody(
   const mediaReferences = mediaReferencesFromBody(body.mediaReferences, "mediaReferences");
   const audio = shortAudioFromBody(body.audio, "audio");
   const seedanceSettings = shortSeedanceSettingsFromBody(body.seedanceSettings ?? body.settings, "seedanceSettings");
+  const targetAspectRatio = shortAspectRatioFromBody(body.targetAspectRatio, "targetAspectRatio");
   const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
     projectId: body.projectId,
@@ -1394,6 +1395,7 @@ function shortPipelineConversationInputFromBody(
       : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+    ...(targetAspectRatio ? { targetAspectRatio } : {}),
     ...(audio ? { audio } : {}),
     ...(seedanceSettings ? { seedanceSettings } : {}),
     ...(visualBible ? { visualBible } : {}),
@@ -1493,6 +1495,19 @@ function shortAudioFromBody(value: unknown, label: string): ShortPipelineAudioPo
     audio.voiceStyle = boundedMediaString(value.voiceStyle, `${label}.voiceStyle`, 120, false);
   }
   return Object.keys(audio).length > 0 ? audio as ShortPipelineAudioPolicyInput : undefined;
+}
+
+function shortAspectRatioFromBody(value: unknown, label: string): AspectRatio | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || !RATIOS.includes(value as AspectRatio)) {
+    throw new RenderRequestAdmissionError(`${label} is invalid.`);
+  }
+  if (value !== "9:16" && value !== "16:9" && value !== "1:1") {
+    throw new RenderRequestAdmissionError(`${label} is not available in the Short Studio UI.`);
+  }
+  return value as AspectRatio;
 }
 
 function shortSeedanceSettingsFromBody(value: unknown, label: string): ShortSeedanceSettingsInput | undefined {
@@ -1610,6 +1625,7 @@ function shortPipelinePlanInputFromBody(
   const mediaReferences = mediaReferencesFromBody(body.mediaReferences, "mediaReferences");
   const audio = shortAudioFromBody(body.audio, "audio");
   const seedanceSettings = shortSeedanceSettingsFromBody(body.seedanceSettings ?? body.settings, "seedanceSettings");
+  const targetAspectRatio = shortAspectRatioFromBody(body.targetAspectRatio, "targetAspectRatio");
   const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
     projectId: body.projectId,
@@ -1626,6 +1642,7 @@ function shortPipelinePlanInputFromBody(
       : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+    ...(targetAspectRatio ? { targetAspectRatio } : {}),
     ...(audio ? { audio } : {}),
     ...(seedanceSettings ? { seedanceSettings } : {}),
     ...(visualBible ? { visualBible } : {}),
