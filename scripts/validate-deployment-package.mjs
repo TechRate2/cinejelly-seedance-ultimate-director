@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,6 +19,7 @@ const secretLikePatterns = [
   /Bearer\s+[A-Za-z0-9._-]+/,
   /sk-[A-Za-z0-9_-]{20,}/
 ];
+const runtimeSourceExtensions = new Set([".ts", ".tsx", ".js", ".mjs"]);
 
 function parseArgs(args) {
   const options = {
@@ -100,6 +101,7 @@ function main() {
   const caddyfile = readText(options.caddyfilePath);
   const envTemplate = readText(options.envTemplatePath);
   const containerDoc = readText(options.containerDocPath);
+  const runtimeEnvNames = runtimeEnvNamesFromSourceRoot("src");
 
   const checks = [
     checkExists("dockerfile_exists", dockerfile, "Dockerfile is present.", "Add a root Dockerfile for repeatable deployment packaging."),
@@ -112,7 +114,7 @@ function main() {
     ...dockerignoreChecks(dockerignore),
     ...composeChecks(compose),
     ...caddyfileChecks(caddyfile),
-    ...envTemplateChecks(envTemplate),
+    ...envTemplateChecks(envTemplate, runtimeEnvNames),
     ...containerDocChecks(containerDoc),
     crossFileCheck(dockerfile, dockerignore, compose)
   ];
@@ -258,7 +260,7 @@ function caddyfileChecks(read) {
   ];
 }
 
-function envTemplateChecks(read) {
+function envTemplateChecks(read, runtimeEnvNames) {
   if (!read.exists) {
     return [];
   }
@@ -271,8 +273,10 @@ function envTemplateChecks(read) {
     "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
     "CINEJELLY_PUBLIC_HOST"
   ];
+  const missingRuntimeEnvNames = runtimeEnvNames.filter((name) => !hasEnvKey(text, name));
   return [
     check("env_template_required_runtime_keys", requiredPlaceholders.every((name) => hasEnvPlaceholder(text, name)), ".env template includes required Atlas/API auth, Short Studio storage, and public-host placeholders.", "Keep Atlas media, Atlas LLM, CineJelly API auth, Short Studio storage, and Caddy public-host placeholders in the template."),
+    check("env_template_covers_runtime_source_keys", missingRuntimeEnvNames.length === 0, ".env template documents every environment key read by src runtime code.", `Document runtime environment keys missing from .env template: ${missingRuntimeEnvNames.join(", ") || "none"}.`),
     check("env_template_budget_default", /CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD=5\b/.test(text), ".env template keeps the live validation budget default at 5 USD.", "Default live validation budget should stay conservative until explicitly raised."),
     check("env_template_container_storage_note", /container/i.test(text) && /CINEJELLY_OUTPUT_DIR/i.test(text) && /durable storage/i.test(text), ".env template explains container output storage.", "Document container CINEJELLY_OUTPUT_DIR and durable-storage expectations."),
     check("env_template_compose_https_note", /docker-compose\.yml/i.test(text) && /CINEJELLY_PUBLIC_HOST/i.test(text), ".env template documents the compose/Caddy public host.", "Document CINEJELLY_PUBLIC_HOST for docker compose HTTPS deployments."),
@@ -282,6 +286,58 @@ function envTemplateChecks(read) {
 
 function hasEnvPlaceholder(text, name) {
   return text.split(/\r?\n/).some((line) => line.trimStart().startsWith(`${name}${"="}`));
+}
+
+function hasEnvKey(text, name) {
+  return text
+    .split(/\r?\n/)
+    .some((line) => line.trimStart().startsWith(`${name}=`) || line.trimStart().startsWith(`# ${name}=`));
+}
+
+function runtimeEnvNamesFromSourceRoot(root) {
+  const sourceRoot = resolve(repoRoot, root);
+  if (!existsSync(sourceRoot)) {
+    return [];
+  }
+  const names = new Set();
+  for (const file of listSourceFiles(sourceRoot)) {
+    const text = readFileSync(file, "utf8").replace(/^\uFEFF/, "");
+    for (const match of text.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)/gu)) {
+      names.add(match[1]);
+    }
+    for (const match of text.matchAll(/process\.env\[['"]([A-Z][A-Z0-9_]*)['"]\]/gu)) {
+      names.add(match[1]);
+    }
+    for (const match of text.matchAll(/\benv\.([A-Z][A-Z0-9_]*)/gu)) {
+      names.add(match[1]);
+    }
+    for (const match of text.matchAll(/\benv\[['"]([A-Z][A-Z0-9_]*)['"]\]/gu)) {
+      names.add(match[1]);
+    }
+    for (const match of text.matchAll(/(?:requireEnv|optional(?:Integer|Number|NumberEnvWithFallback|Path|String|Boolean)Env|aliasedHttpsUrlEnv|optionalHttpsUrlEnv|readPositiveInteger|positiveIntegerEnv|readBooleanFlag)\(([^)]*)\)/gu)) {
+      for (const quoted of match[1].matchAll(/['"]([A-Z][A-Z0-9_]+)['"]/gu)) {
+        names.add(quoted[1]);
+      }
+    }
+  }
+  return [...names].sort();
+}
+
+function listSourceFiles(root) {
+  const stat = statSync(root);
+  if (stat.isFile()) {
+    return runtimeSourceExtensions.has(extname(root).toLowerCase()) ? [root] : [];
+  }
+  const files = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const child = resolve(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listSourceFiles(child));
+    } else if (entry.isFile() && runtimeSourceExtensions.has(extname(entry.name).toLowerCase())) {
+      files.push(child);
+    }
+  }
+  return files;
 }
 
 function containerDocChecks(read) {

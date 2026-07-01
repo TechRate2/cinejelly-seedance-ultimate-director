@@ -70,7 +70,7 @@ Các biến nâng cao trong template được để comment để người mới
 - Tối ưu provider/media: timeout, polling, max clip/audio bytes, source-video analysis, remote stock.
 - Deploy thật: `CINEJELLY_PUBLIC_HOST`, durable output volume, auth token, Atlas keys.
 
-`scripts/audit-source-structure.mjs` tự quét tất cả biến môi trường được runtime `src/` đọc và fail nếu biến mới chưa được ghi trong `.env.production.template`. Vì vậy, khi dev thêm model/API/config mới, quy trình đúng là thêm code, thêm biến vào template, cập nhật schema/report nếu audit output thay đổi, rồi chạy `npm run validation:source-structure`.
+`scripts/audit-source-structure.mjs` tự quét tất cả biến môi trường được runtime `src/` đọc và fail nếu biến mới chưa được ghi trong `.env.production.template`. `scripts/validate-deployment-package.mjs` cũng dùng cùng nguyên tắc này để chặn gói deploy nếu template thiếu biến runtime. Vì vậy, khi dev thêm model/API/config mới, quy trình đúng là thêm code, thêm biến vào template, cập nhật schema/report nếu audit output thay đổi, rồi chạy `npm run validation:source-structure` và `npm run validation:deployment-package`.
 
 ## Bản Đồ Source
 
