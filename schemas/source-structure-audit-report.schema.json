@@ -35,7 +35,8 @@
         "productFileCount",
         "requiredRootFileCount",
         "requiredRuntimeDirCount",
-        "requiredDeployFileCount"
+        "requiredDeployFileCount",
+        "runtimeEnvNameCount"
       ],
       "properties": {
         "outputPath": { "type": "string", "minLength": 1 },
@@ -43,7 +44,8 @@
         "productFileCount": { "type": "integer", "minimum": 1 },
         "requiredRootFileCount": { "type": "integer", "minimum": 1 },
         "requiredRuntimeDirCount": { "type": "integer", "minimum": 1 },
-        "requiredDeployFileCount": { "type": "integer", "minimum": 1 }
+        "requiredDeployFileCount": { "type": "integer", "minimum": 1 },
+        "runtimeEnvNameCount": { "type": "integer", "minimum": 1 }
       }
     },
     "summary": {
@@ -58,7 +60,8 @@
         "directExternalImportFindingCount",
         "productHygieneFindingCount",
         "publicExportMissingCount",
-        "packageForbiddenFileEntryCount"
+        "packageForbiddenFileEntryCount",
+        "missingRuntimeEnvTemplateKeyCount"
       ],
       "properties": {
         "passedChecks": { "type": "integer", "minimum": 0 },
@@ -69,7 +72,8 @@
         "directExternalImportFindingCount": { "type": "integer", "minimum": 0 },
         "productHygieneFindingCount": { "type": "integer", "minimum": 0 },
         "publicExportMissingCount": { "type": "integer", "minimum": 0 },
-        "packageForbiddenFileEntryCount": { "type": "integer", "minimum": 0 }
+        "packageForbiddenFileEntryCount": { "type": "integer", "minimum": 0 },
+        "missingRuntimeEnvTemplateKeyCount": { "type": "integer", "minimum": 0 }
       }
     },
     "sourceMap": {
@@ -97,7 +101,8 @@
         "directExternalImports",
         "productHygieneFindings",
         "missingPublicExports",
-        "packageForbiddenFileEntries"
+        "packageForbiddenFileEntries",
+        "missingRuntimeEnvTemplateKeys"
       ],
       "properties": {
         "directExternalImports": {
@@ -115,7 +120,8 @@
         },
         "productHygieneFindings": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "missingPublicExports": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "packageForbiddenFileEntries": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        "packageForbiddenFileEntries": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "missingRuntimeEnvTemplateKeys": { "type": "array", "items": { "type": "string", "minLength": 1 } }
       }
     },
     "checks": {

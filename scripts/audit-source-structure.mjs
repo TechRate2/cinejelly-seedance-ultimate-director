@@ -189,6 +189,7 @@ function main() {
   const indexText = readText("src/index.ts");
   const handoffDocs = handoffDocFiles.map((path) => ({ path, ...readText(path) }));
   const sourceFiles = listSourceFiles(resolve(repoRoot, "src")).map(toRepoRelative).sort();
+  const runtimeEnvNames = runtimeEnvNamesFromSourceFiles(sourceFiles);
   const productFiles = ["src", "scripts", "schemas", "docs"]
     .flatMap((root) => listAllFiles(resolve(repoRoot, root)).map(toRepoRelative))
     .sort();
@@ -200,7 +201,7 @@ function main() {
     ...runtimeLayoutChecks(sourceFiles),
     ...packageChecks(packageJson.value),
     ...tsconfigChecks(tsconfig.value),
-    ...securityBoundaryChecks({ gitignore, dockerignore, envTemplate }),
+    ...securityBoundaryChecks({ gitignore, dockerignore, envTemplate, runtimeEnvNames }),
     ...deployChecks({ dockerfile, compose, caddyfile }),
     ...handoffDocChecks(handoffDocs),
     ...sourceBoundaryChecks({ directExternalImports, productHygieneFindings, publicExportCoverage })
@@ -219,7 +220,8 @@ function main() {
       productFileCount: productFiles.length,
       requiredRootFileCount: requiredRootFiles.length,
       requiredRuntimeDirCount: requiredRuntimeDirs.length,
-      requiredDeployFileCount: requiredDeployFiles.length
+      requiredDeployFileCount: requiredDeployFiles.length,
+      runtimeEnvNameCount: runtimeEnvNames.length
     },
     summary: {
       passedChecks: checks.filter((item) => item.status === "pass").length,
@@ -230,7 +232,8 @@ function main() {
       directExternalImportFindingCount: directExternalImports.length,
       productHygieneFindingCount: productHygieneFindings.length,
       publicExportMissingCount: publicExportCoverage.missingPublicExports.length,
-      packageForbiddenFileEntryCount: packageForbiddenEntries(packageJson.value).length
+      packageForbiddenFileEntryCount: packageForbiddenEntries(packageJson.value).length,
+      missingRuntimeEnvTemplateKeyCount: runtimeEnvNames.filter((name) => !envHasKey(envTemplate.text, name)).length
     },
     sourceMap: {
       runtimeRoots: requiredRuntimeDirs,
@@ -243,7 +246,8 @@ function main() {
       directExternalImports,
       productHygieneFindings: productHygieneFindings.slice(0, 80),
       missingPublicExports: publicExportCoverage.missingPublicExports,
-      packageForbiddenFileEntries: packageForbiddenEntries(packageJson.value)
+      packageForbiddenFileEntries: packageForbiddenEntries(packageJson.value),
+      missingRuntimeEnvTemplateKeys: runtimeEnvNames.filter((name) => !envHasKey(envTemplate.text, name))
     },
     checks,
     releaseGateSummary: {
@@ -328,7 +332,7 @@ function tsconfigChecks(tsconfig) {
   ];
 }
 
-function securityBoundaryChecks({ gitignore, dockerignore, envTemplate }) {
+function securityBoundaryChecks({ gitignore, dockerignore, envTemplate, runtimeEnvNames }) {
   const gitPatterns = ignorePatterns(gitignore.text);
   const dockerPatterns = ignorePatterns(dockerignore.text);
   return [
@@ -336,6 +340,7 @@ function securityBoundaryChecks({ gitignore, dockerignore, envTemplate }) {
     check("gitignore_blocks_generated_media", ["assets/reference_inputs/*", "assets/output_deliverables/*", "*.mp4", "*.mp3", "*.wav"].every((item) => gitPatterns.has(item)), ".gitignore blocks generated media and customer artifacts.", ".gitignore must block generated media and customer artifacts."),
     check("dockerignore_blocks_secret_and_source_review_noise", [".env", ".env.*", "ops/*.json", "assets/reference_inputs/*", "assets/output_deliverables/*", "external/", "docs/"].every((item) => dockerPatterns.has(item)), ".dockerignore blocks secrets, operator evidence, outputs, docs, and upstream snapshots from runtime image context.", ".dockerignore must block secrets, operator evidence, outputs, docs, and external snapshots."),
     check("env_template_has_required_keys", [...requiredConfigSecrets, ...requiredConfigNonSecrets].every((name) => envHasKey(envTemplate.text, name)), ".env.production.template includes required provider/deploy keys.", ".env.production.template is missing required provider/deploy keys."),
+    check("env_template_covers_runtime_source_keys", runtimeEnvNames.every((name) => envHasKey(envTemplate.text, name)), ".env.production.template documents every environment key read by src runtime code.", ".env.production.template is missing one or more environment keys read by src runtime code."),
     check("env_template_keeps_secret_placeholders_empty", requiredConfigSecrets.every((name) => envHasEmptyValue(envTemplate.text, name)), ".env.production.template keeps secret placeholders empty.", ".env.production.template must not contain real secret values."),
     check("env_template_no_secret_literals", !secretLikePatterns.some((pattern) => pattern.test(envTemplate.text)), ".env.production.template contains no secret-like literals.", ".env.production.template contains secret-like values.")
   ];
@@ -456,6 +461,31 @@ function envHasKey(text, name) {
 
 function envHasEmptyValue(text, name) {
   return text.split(/\r?\n/u).some((line) => line.trim() === `${name}=`);
+}
+
+function runtimeEnvNamesFromSourceFiles(sourceFiles) {
+  const names = new Set();
+  for (const file of sourceFiles) {
+    const text = readText(file).text;
+    for (const match of text.matchAll(/process\.env\.([A-Z][A-Z0-9_]*)/gu)) {
+      names.add(match[1]);
+    }
+    for (const match of text.matchAll(/process\.env\[['"]([A-Z][A-Z0-9_]*)['"]\]/gu)) {
+      names.add(match[1]);
+    }
+    for (const match of text.matchAll(/\benv\.([A-Z][A-Z0-9_]*)/gu)) {
+      names.add(match[1]);
+    }
+    for (const match of text.matchAll(/\benv\[['"]([A-Z][A-Z0-9_]*)['"]\]/gu)) {
+      names.add(match[1]);
+    }
+    for (const match of text.matchAll(/(?:requireEnv|optional(?:Integer|Number|NumberEnvWithFallback|Path|String|Boolean)Env|aliasedHttpsUrlEnv|optionalHttpsUrlEnv|readPositiveInteger|positiveIntegerEnv|readBooleanFlag)\(([^)]*)\)/gu)) {
+      for (const quoted of match[1].matchAll(/['"]([A-Z][A-Z0-9_]+)['"]/gu)) {
+        names.add(quoted[1]);
+      }
+    }
+  }
+  return [...names].sort();
 }
 
 function readText(path) {
