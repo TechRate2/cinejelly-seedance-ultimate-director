@@ -135,6 +135,36 @@ export interface ImageGenerationRequest {
   readonly metadata?: ProviderMetadata;
 }
 
+/**
+ * Provider-neutral speech-to-text (transcription) request. Used to derive timed subtitle
+ * cues from user-supplied narration/source audio. The audio must be a clean https:// or
+ * asset:// URI already admitted by the normal reference-safety rules.
+ */
+export interface SpeechTranscriptionRequest {
+  readonly provider: ProviderName;
+  readonly modelId: string;
+  readonly audioUri: string;
+  /** Optional BCP-47-ish language hint (e.g. "vi", "en"). */
+  readonly language?: string;
+  readonly metadata?: ProviderMetadata;
+}
+
+export interface SpeechTranscriptSegment {
+  readonly startSecond: number;
+  readonly endSecond: number;
+  readonly text: string;
+}
+
+export interface SpeechTranscriptionResult {
+  readonly provider: ProviderName;
+  readonly modelId: string;
+  readonly language?: string;
+  readonly text: string;
+  readonly segments: readonly SpeechTranscriptSegment[];
+  /** Redacted raw payload for evidence/debugging. */
+  readonly raw: unknown;
+}
+
 export type ChatContentPart =
   | {
       readonly type: "text";

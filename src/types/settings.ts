@@ -59,6 +59,8 @@ export interface ProviderModelSettings {
   readonly seedanceFastModel: string;
   /** Optional still-image model (e.g. Seedream) for keyframe-first generation. */
   readonly imageModel?: string;
+  /** Optional speech-to-text model for subtitle generation from user audio. */
+  readonly speechModel?: string;
 }
 
 export interface AtlasCloudRuntimeSettings {

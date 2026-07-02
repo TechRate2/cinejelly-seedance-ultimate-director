@@ -11,6 +11,8 @@ import type {
   AudioGenerationCapability,
   AudioGenerationRequest,
   ImageGenerationRequest,
+  SpeechTranscriptionRequest,
+  SpeechTranscriptionResult,
   AudioGenerationResult,
   AssetRegistration,
   AssetRegistrationRequest,
@@ -35,7 +37,7 @@ import type { ModelProvider } from "../contracts.js";
 import { DEFAULT_RETRY_POLICY, withRetry } from "../../utils/retry.js";
 import { elapsedMs, now, sleep } from "../../utils/time.js";
 import { ProviderError, asProviderError } from "../../utils/errors.js";
-import { redactText } from "../../utils/redaction.js";
+import { redactText, redactUnknown } from "../../utils/redaction.js";
 import { AtlasCloudHttpClient } from "./atlas-cloud-http.js";
 import { mapAssetRegistration, mapPrediction, mapUsage, readChatContent } from "./atlas-cloud-mappers.js";
 
@@ -276,6 +278,213 @@ export class AtlasCloudProvider implements ModelProvider {
       },
       (prediction) => this.predictionLedgerMetadata(prediction)
     );
+  }
+
+  public supportsSpeechToText(): boolean {
+    return Boolean(this.settings.models.speechModel?.trim());
+  }
+
+  /**
+   * Speech-to-text for subtitle generation from user-supplied audio. Gated by
+   * ATLASCLOUD_SPEECH_MODEL; verify the exact model id and endpoint against the Atlas
+   * catalog before live use. Accepts a synchronous transcription payload or an async
+   * prediction that is polled to completion, then maps flexible segment shapes into the
+   * provider-neutral result.
+   */
+  public async transcribeAudio(
+    request: SpeechTranscriptionRequest,
+    signal?: AbortSignal
+  ): Promise<SpeechTranscriptionResult> {
+    if (request.provider !== ATLAS_PROVIDER_NAME) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Atlas Cloud provider received speech request for provider ${request.provider}.`
+      });
+    }
+    if (!request.modelId?.trim()) {
+      throw new ProviderError({
+        code: "MODEL_UNAVAILABLE",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Speech transcription needs a configured speech model (ATLASCLOUD_SPEECH_MODEL)."
+      });
+    }
+    if (!/^(https:\/\/|asset:\/\/)/.test(request.audioUri ?? "")) {
+      throw new ProviderError({
+        code: "INVALID_SCHEMA",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Speech transcription needs a clean https:// or asset:// audio URI."
+      });
+    }
+    const startedAt = now();
+    return this.trackProviderCall(
+      "speech.transcribe",
+      request.modelId,
+      request.metadata?.graphNodeId,
+      startedAt,
+      async (recordRetry) => {
+        const payload = {
+          model: request.modelId,
+          audio_url: request.audioUri,
+          audio: request.audioUri,
+          ...(request.language ? { language: request.language } : {}),
+          metadata: request.metadata
+        };
+        const response = await withRetry(
+          () =>
+            this.http.postJson<unknown>(this.url(this.settings.assetBaseUrl, "/model/transcribeAudio"), payload, signal),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+        const finalPayload = await this.resolveSpeechPayload(response, recordRetry, signal);
+        return this.mapSpeechResult(request, finalPayload);
+      },
+      () => ({ providerStatus: "succeeded" })
+    );
+  }
+
+  /** If the transcription endpoint answered with an async prediction, poll it to the end. */
+  private async resolveSpeechPayload(
+    response: unknown,
+    recordRetry: () => void,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    if (this.extractSpeechSegments(response).length > 0 || this.extractSpeechText(response)) {
+      return response;
+    }
+    const prediction = mapPrediction(response, "speech", now());
+    if (prediction.predictionId === "unknown") {
+      return response;
+    }
+    const deadline = Date.now() + this.settings.pollingTimeoutMs;
+    let latest: unknown = response;
+    while (Date.now() <= deadline) {
+      this.throwIfAborted(signal);
+      try {
+        latest = await this.getPredictionPayload(prediction.predictionId, signal, recordRetry);
+      } catch (error) {
+        const providerError = asProviderError(ATLAS_PROVIDER_NAME, error);
+        if (!this.shouldContinuePollingAfterError(providerError, deadline)) {
+          throw providerError;
+        }
+        await this.sleepForPolling(signal);
+        continue;
+      }
+      const status = mapPrediction(latest, "speech", now()).status;
+      if (status === "succeeded") {
+        return latest;
+      }
+      if (status === "failed" || status === "canceled") {
+        throw new ProviderError({
+          code: "GENERATION_FAILED",
+          provider: ATLAS_PROVIDER_NAME,
+          message: `Atlas Cloud transcription ended with status ${status}.`,
+          details: redactUnknown(latest)
+        });
+      }
+      await this.sleepForPolling(signal);
+    }
+    throw new ProviderError({
+      code: "POLLING_TIMEOUT",
+      provider: ATLAS_PROVIDER_NAME,
+      retryable: true,
+      message: `Atlas Cloud transcription did not finish within ${this.settings.pollingTimeoutMs}ms.`
+    });
+  }
+
+  private mapSpeechResult(request: SpeechTranscriptionRequest, payload: unknown): SpeechTranscriptionResult {
+    const segments = this.extractSpeechSegments(payload)
+      .filter((segment) => Number.isFinite(segment.startSecond) && Number.isFinite(segment.endSecond))
+      .filter((segment) => segment.endSecond > segment.startSecond && segment.text.trim().length > 0)
+      .sort((left, right) => left.startSecond - right.startSecond);
+    const text = this.extractSpeechText(payload) || segments.map((segment) => segment.text).join(" ").trim();
+    if (!text && segments.length === 0) {
+      throw new ProviderError({
+        code: "INVALID_SCHEMA",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Atlas Cloud transcription returned no text or timed segments.",
+        details: redactUnknown(payload)
+      });
+    }
+    return {
+      provider: ATLAS_PROVIDER_NAME,
+      modelId: request.modelId,
+      ...(request.language ? { language: request.language } : {}),
+      text,
+      segments,
+      raw: redactUnknown(payload)
+    };
+  }
+
+  private extractSpeechText(payload: unknown): string {
+    for (const container of this.speechContainers(payload)) {
+      for (const key of ["text", "transcript", "transcription"]) {
+        const value = (container as Record<string, unknown>)[key];
+        if (typeof value === "string" && value.trim()) {
+          return value.trim();
+        }
+      }
+    }
+    return "";
+  }
+
+  private extractSpeechSegments(payload: unknown): readonly { startSecond: number; endSecond: number; text: string }[] {
+    for (const container of this.speechContainers(payload)) {
+      for (const key of ["segments", "utterances", "words", "chunks"]) {
+        const value = (container as Record<string, unknown>)[key];
+        if (Array.isArray(value) && value.length > 0) {
+          const mapped = value
+            .map((item) => this.speechSegmentFrom(item))
+            .filter((item): item is { startSecond: number; endSecond: number; text: string } => item !== undefined);
+          if (mapped.length > 0) {
+            return mapped;
+          }
+        }
+      }
+    }
+    return [];
+  }
+
+  private speechContainers(payload: unknown): readonly object[] {
+    if (!payload || typeof payload !== "object") {
+      return [];
+    }
+    const containers: object[] = [payload];
+    for (const key of ["output", "result", "data", "response", "prediction"]) {
+      const nested = (payload as Record<string, unknown>)[key];
+      if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+        containers.push(nested);
+      }
+    }
+    return containers;
+  }
+
+  private speechSegmentFrom(item: unknown): { startSecond: number; endSecond: number; text: string } | undefined {
+    if (!item || typeof item !== "object") {
+      return undefined;
+    }
+    const record = item as Record<string, unknown>;
+    const start = this.speechSeconds(record, ["startSecond", "start_second", "start", "start_time", "begin"]);
+    const end = this.speechSeconds(record, ["endSecond", "end_second", "end", "end_time"]);
+    const textValue = record.text ?? record.content ?? record.word;
+    if (start === undefined || end === undefined || typeof textValue !== "string") {
+      return undefined;
+    }
+    return { startSecond: start, endSecond: end, text: textValue };
+  }
+
+  private speechSeconds(record: Record<string, unknown>, keys: readonly string[]): number | undefined {
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return value;
+      }
+      if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) {
+        return Number(value);
+      }
+    }
+    return undefined;
   }
 
   private toAtlasImagePayload(request: ImageGenerationRequest): Record<string, unknown> {

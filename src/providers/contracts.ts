@@ -13,6 +13,8 @@ import type {
   ChatResponse,
   ImageGenerationRequest,
   Prediction,
+  SpeechTranscriptionRequest,
+  SpeechTranscriptionResult,
   PredictionPollingContext,
   ProviderCapability,
   StructuredChatRequest,
@@ -53,6 +55,17 @@ export interface ImageProvider {
   supportsImageGeneration(): boolean;
 }
 
+/**
+ * Provider-neutral speech-to-text for subtitle generation from user-supplied audio.
+ * Optional on providers: callers must feature-check before use.
+ */
+export interface SpeechProvider {
+  readonly name: string;
+  transcribeAudio(request: SpeechTranscriptionRequest, signal?: AbortSignal): Promise<SpeechTranscriptionResult>;
+  /** True when a speech model is configured and transcription can be attempted. */
+  supportsSpeechToText(): boolean;
+}
+
 export interface AssetProvider {
   readonly name: string;
   registerAsset(request: AssetRegistrationRequest, signal?: AbortSignal): Promise<AssetRegistration>;
@@ -72,4 +85,5 @@ export interface AudioProvider {
   audioCapabilities(modelId?: string): readonly AudioGenerationCapability[];
 }
 
-export interface ModelProvider extends LlmProvider, VideoProvider, ImageProvider, AssetProvider, AudioProvider {}
+export interface ModelProvider
+  extends LlmProvider, VideoProvider, ImageProvider, SpeechProvider, AssetProvider, AudioProvider {}

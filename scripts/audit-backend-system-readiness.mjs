@@ -203,6 +203,7 @@ const auditedValidationCommandNames = [
   "validation:series-drama",
   "validation:keyframe-first",
   "validation:simple-brief",
+  "validation:speech-captions",
   "validation:quality-review-evidence",
   "validation:quality-review-guard",
   "validation:readiness",

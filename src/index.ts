@@ -130,6 +130,7 @@ export * from "./core/source-video-auto-analyzer.js";
 export * from "./core/source-video-media-metrics-analyzer.js";
 export * from "./core/source-logic-translation-ledger.js";
 export * from "./core/source-logic-translation-records.js";
+export * from "./core/subtitle-caption-builder.js";
 export * from "./core/storyboard-approval-gate.js";
 export * from "./core/storyboard-planner.js";
 export * from "./core/transition-engine.js";

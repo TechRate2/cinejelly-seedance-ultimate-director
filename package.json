@@ -97,6 +97,7 @@
     "validation:series-drama": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-series-drama-smoke.mjs",
     "validation:keyframe-first": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-keyframe-first-smoke.mjs",
     "validation:simple-brief": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-simple-brief-smoke.mjs",
+    "validation:speech-captions": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-speech-captions-smoke.mjs",
     "validation:candidate-visual-curation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-candidate-visual-curation-smoke.mjs",
     "validation:short-agent-graph": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-agent-graph-smoke.mjs",
     "validation:short-pipeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-smoke.mjs",

@@ -117,6 +117,7 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
   const llmApiKey = optionalStringEnv("ATLASCLOUD_LLM_API_KEY", env);
   const seedanceMiniModel = optionalStringEnv("ATLASCLOUD_SEEDANCE_MINI_MODEL", env);
   const imageModel = optionalStringEnv("ATLASCLOUD_IMAGE_MODEL", env);
+  const speechModel = optionalStringEnv("ATLASCLOUD_SPEECH_MODEL", env);
   return {
     apiKey: requireEnv("ATLASCLOUD_API_KEY", env),
     ...(llmApiKey ? { llmApiKey } : {}),
@@ -136,6 +137,7 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
       llmModel: requireEnv("ATLASCLOUD_LLM_MODEL", env),
       ...(seedanceMiniModel ? { seedanceMiniModel } : {}),
       ...(imageModel ? { imageModel } : {}),
+      ...(speechModel ? { speechModel } : {}),
       seedanceStandardModel: requireEnv("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", env),
       seedanceFastModel: requireEnv("ATLASCLOUD_SEEDANCE_FAST_MODEL", env)
     },
