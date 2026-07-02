@@ -43,6 +43,7 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Generalized structural patterns can be adapted into the Prompt Compiler and `data/` knowledge artifacts with source attribution.
 - CineJelly extension:
   - Converts mined prompt patterns into an adaptive Prompt Compiler that avoids hardcoded niche templates.
+  - `src/core/seedance-dna.ts` implements a niche-adaptive and creative-mode-adaptive prompt-DNA engine distilled from these patterns (original condensed direction, no verbatim prompt text) and carries the CC BY 4.0 attribution inline. It feeds the short-pipeline master prompt and the Seedance Prompt Compiler.
 
 ### HKUDS/ViMax
 

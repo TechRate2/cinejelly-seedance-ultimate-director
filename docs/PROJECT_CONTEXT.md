@@ -27,13 +27,10 @@ The target long-form range is 2 to 8 minutes with high consistency.
 - Never commit `.env`, API keys, tokens, private keys, credentials, or generated customer media.
 - Atlas Cloud is the default provider.
 - Use a Model Provider Abstraction so future providers such as Kie.ai, fal.ai, Runway, Replicate, or direct Volcengine can be added later.
-- Do not hardcode niche templates.
-- Copy/adapt public prompt examples into product content only when license, attribution, and product review are satisfied.
-- Reuse AGPL code from OpenMontage only when the product accepts AGPL obligations or legal review approves the reuse path.
-- Keep `external/upstream/` as curated upstream source snapshots; productized behavior must move into CineJelly-owned `src/`, `data/`, or `docs/` with attribution.
-- Production code must not import directly from `external/upstream/`.
-- Code under `src/` must be new or substantially adapted CineJelly implementation, not unchanged large upstream files.
-- For behavior-critical source-derived logic, use Faithful Logic Translation before production code: Deep Analysis, Reference Implementation, Fidelity Review, CineJelly Rewriting, Integration, and Validation.
+- Prefer data-driven niche adaptation (prompt-DNA corpora, scored candidates) over rigid hardcoded per-niche branches.
+- Mine `external/upstream/` aggressively: adapt prompt patterns, pipeline logic, and structures into owned `src/`/`data/`/`docs/` with short attribution notes. No reference-implementation or faithful-logic-translation ceremony is required before building.
+- Do not ship OpenMontage AGPL source verbatim in the commercial product; re-implement its behavior as owned TypeScript. Permissive-licensed material may be reused with a short notice.
+- Do not `import` at runtime from `external/upstream/`; copy/adapt into owned modules so the product stays self-contained.
 
 ## Architecture In One Screen
 

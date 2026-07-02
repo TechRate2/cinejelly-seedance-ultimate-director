@@ -34,18 +34,16 @@ Use this order:
 3. `docs/UPSTREAM_CONTEXT_ROUTING.md` when upstream snapshot context is needed.
 4. Original external sources under `external/upstream/` only when the change modifies source-derived claims, provider behavior, license-sensitive reuse, or model capability assumptions. Read only the focused upstream files named by the context-routing guide or by `src/core/source-logic-translation-records.ts`; do not scan the whole snapshot tree during normal implementation.
 
-## Source Snapshot And Reuse Policy
+## Snapshot Integration Policy
 
-- `docs/PROJECT_CONTEXT.md` is a compact memory map, not a full replacement for reading the detailed specs or upstream repositories.
-- Architecture, behavior, copied documents, adapted structures, and reused logic must stay traceable to the credited sources and local Git subtree snapshots.
-- `external/upstream/` stores snapshot source material. Productized components should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution and license notes.
-- Do not claim CineJelly has cloned or integrated 100% of ViMax, VibeFrame, OpenMontage, VideoAgent, Emily2040/seedance-2.0, or any Atlas Cloud workflow unless the matching production feature is implemented, verified, and attributed.
-- Public prompt corpora, AGPL implementation code, nested third-party tools, and no-license material require explicit license/product review before release use; compatible MIT/CC BY material may be reused with the required notices and attribution.
-- Production runtime must not import directly from `external/upstream/`. The product path is to copy/adapt useful ideas into CineJelly-owned modules so the product remains autonomous.
-- Code under `src/` must be CineJelly-owned implementation: write new modules and develop them further from source patterns instead of copying large upstream files wholesale.
-- Behavior-critical source-derived logic must follow Faithful Logic Translation: create a non-production Reference Implementation, review fidelity and license boundaries, then rewrite the behavior into CineJelly-owned `src/` modules.
-- Follow `docs/IMPLEMENTATION_ROADMAP.md` for the next module order and milestone checklist; do not treat foundation-level code as proof of full upstream parity.
-- When implementing a source-integrated feature, write a short note in the relevant design doc or code comment naming the source snapshot, copied/adapted element, and CineJelly-specific extension.
+`external/upstream/` is raw material to mine aggressively. This is a commercial MVP built to compete with Topview and Higgsfield, so the priority is the strongest possible product: integrate useful pipeline logic, prompt patterns, and structures directly into CineJelly-owned `src/`, `data/`, and `docs/`.
+
+- Integrate freely into owned modules. Adapt, rewrite, extend, and combine upstream ideas into production code. No mandatory reference-implementation ceremony and no "faithful logic translation" gate is required before building.
+- Keep attribution. When a module is clearly adapted from a snapshot, name the source in a short code/doc comment. Attribution stays; process gates do not block shipping.
+- Do not `import` at runtime from `external/upstream/` — copy/adapt into owned modules so the product is self-contained (snapshots may be pruned or removed).
+- One real legal line: do not ship OpenMontage AGPL-licensed source code verbatim inside the commercial product. Re-implement its useful behavior as owned TypeScript instead. Permissive (MIT/Apache/CC-BY) material may be reused with a short notice.
+- Build for full capability. It is fine to aim for and describe strong parity with upstream systems once a feature works and passes checks; defensive "not full parity" hedging is not required in code or docs.
+- Aim for every-niche coverage through data-driven adaptation (prompt-DNA corpora, scored candidates) rather than rigid per-niche code branches.
 
 ## Security Gate Before Push
 

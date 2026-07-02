@@ -103,6 +103,7 @@ export * from "./core/render-cost-gate.js";
 export * from "./core/render-scheduler.js";
 export * from "./core/review-approval-system.js";
 export * from "./core/review-packet-builder.js";
+export * from "./core/seedance-dna.js";
 export * from "./core/semantic-visual-inspector.js";
 export * from "./core/shot-planner.js";
 export * from "./core/short-channel-style-profile.js";

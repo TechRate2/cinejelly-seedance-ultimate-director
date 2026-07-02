@@ -12,6 +12,7 @@ import type {
   TimelineSegment
 } from "../types/prompt.js";
 import type { ProviderMode } from "../types/provider.js";
+import { resolveSeedanceDna } from "../core/seedance-dna.js";
 import { buildNegativePrompt } from "./negative-constraints.js";
 import { buildPromptBindingPlan, describeReferenceBindingsFromPlan } from "./reference-binding.js";
 import { buildRepairHints } from "./repair-hints.js";
@@ -75,6 +76,7 @@ export class SeedancePromptCompiler {
       shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline) : undefined,
       this.buildAudioProductionSection(shot),
       shot.transitionIntent ? `Transition: ${shot.transitionIntent}.` : undefined,
+      this.buildNicheDnaSection(shot),
       this.buildFinalFrameSection(shot, bindingPlan),
       this.buildRealismGuardrailsSection()
     ];
@@ -284,6 +286,24 @@ export class SeedancePromptCompiler {
       "Do not end on a blur, mid-blink, hidden product, cropped face, empty frame, or unresolved camera whip unless explicitly requested."
     ].filter((line): line is string => Boolean(line));
     return clauses.join(" ");
+  }
+
+  /**
+   * Niche and creative-mode prompt DNA. Fires only when the shot metadata carries a `niche`
+   * or `creativeMode` so the final provider prompt gets category-specific physical direction
+   * (e.g. macro skin texture for beauty, fit-in-motion for fashion). No-ops otherwise.
+   */
+  private buildNicheDnaSection(shot: ShotContract): string | undefined {
+    const niche = typeof shot.metadata?.niche === "string" ? shot.metadata.niche : undefined;
+    const creativeMode = typeof shot.metadata?.creativeMode === "string" ? shot.metadata.creativeMode : undefined;
+    if (!niche && !creativeMode) {
+      return undefined;
+    }
+    const lines = resolveSeedanceDna({
+      ...(niche ? { niche } : {}),
+      ...(creativeMode ? { creativeMode } : {})
+    }).promptLines;
+    return lines.length > 0 ? lines.join(" ") : undefined;
   }
 
   /**

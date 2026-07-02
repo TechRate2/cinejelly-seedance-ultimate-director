@@ -43,6 +43,7 @@ import type {
 } from "../types/short-viral-intelligence.js";
 import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
+import { resolveSeedanceDna, SEEDANCE_ANATOMY_DIRECTIVE } from "./seedance-dna.js";
 import {
   internalSourcePatternOrigins,
   SHORT_AGENT_SOURCE_PATTERN_IDS
@@ -400,6 +401,8 @@ function seedancePromptPackFor(
     selectedIdea ? `Selected creative-pattern idea: ${selectedIdea.label}. Hook: ${selectedIdea.hook}. Proof: ${selectedIdea.proofPlan}. KOL direction: ${selectedIdea.creatorOrKolDirection}.` : "",
     `Viewer desire: ${strategy.viewerDesire}. Viewer objection: ${strategy.viewerObjection}.`,
     `Use viral levers: ${strategy.viralLevers.join(", ")}.`,
+    ...resolveSeedanceDna({ niche: strategy.niche, creativeMode: strategy.creativeMode }).promptLines,
+    SEEDANCE_ANATOMY_DIRECTIVE,
     "Seedance quality contract: write prompt details as physical direction, not abstract marketing. Specify reference binding, subject identity, product geometry, lens distance, camera motion, lighting source, hand/action timing, material texture, background depth, audio bed, and exact final frame.",
     seedanceReferenceHandleDiscipline(input),
     "Human realism contract: natural blink timing, tiny pauses before/after product contact, believable eye-line, slight handheld correction, real skin/hand texture, and unpolished creator timing. Avoid stiff posing, plastic skin, warped fingers, floating products, overacting, and studio-commercial fakery unless user asks for cinematic mode.",
