@@ -202,6 +202,7 @@ function main() {
     ...packageChecks(packageJson.value),
     ...tsconfigChecks(tsconfig.value),
     ...securityBoundaryChecks({ gitignore, dockerignore, envTemplate, runtimeEnvNames }),
+    ...apiResponseSecurityChecks(),
     ...deployChecks({ dockerfile, compose, caddyfile }),
     ...handoffDocChecks(handoffDocs),
     ...sourceBoundaryChecks({ directExternalImports, productHygieneFindings, publicExportCoverage })
@@ -347,6 +348,54 @@ function securityBoundaryChecks({ gitignore, dockerignore, envTemplate, runtimeE
   ];
 }
 
+function apiResponseSecurityChecks() {
+  const serverText = readText("src/api/server.ts").text;
+  const sendJsonBody = functionBody(serverText, "sendJson");
+  const sendHtmlBody = functionBody(serverText, "sendHtml");
+  const writeHeadCount = [...serverText.matchAll(/\bresponse\.writeHead\(/gu)].length;
+  const baseHeaderFragments = [
+    "\"Cache-Control\": \"no-store\"",
+    "\"X-Content-Type-Options\": \"nosniff\"",
+    "\"X-Frame-Options\": \"DENY\"",
+    "\"Referrer-Policy\": \"no-referrer\"",
+    "\"Permissions-Policy\": \"camera=(), microphone=(), geolocation=(), payment=()\""
+  ];
+  return [
+    check(
+      "api_response_writes_use_sender_helpers",
+      writeHeadCount === 2 && sendJsonBody.includes("response.writeHead(") && sendHtmlBody.includes("response.writeHead("),
+      "API response.writeHead calls stay centralized in sendJson/sendHtml.",
+      "Keep response.writeHead centralized in sendJson/sendHtml so security, redaction, and request-context behavior cannot drift per route."
+    ),
+    check(
+      "api_base_security_headers_present",
+      baseHeaderFragments.every((fragment) => serverText.includes(fragment)),
+      "API defines no-store, nosniff, frame-deny, no-referrer, and permissions-policy base headers.",
+      "Add no-store, nosniff, frame-deny, no-referrer, and permissions-policy to BASE_SECURITY_HEADERS."
+    ),
+    check(
+      "api_json_security_headers_not_route_overridable",
+      sendJsonBody.indexOf("...headers") >= 0 &&
+        sendJsonBody.indexOf("...BASE_SECURITY_HEADERS") > sendJsonBody.indexOf("...headers") &&
+        sendJsonBody.includes("\"Content-Type\": \"application/json; charset=utf-8\""),
+      "sendJson applies route headers before base security headers, then locks JSON content-type.",
+      "In sendJson, spread route headers before BASE_SECURITY_HEADERS so per-route headers cannot weaken security defaults."
+    ),
+    check(
+      "api_html_security_headers_and_csp_present",
+      sendHtmlBody.includes("...BASE_SECURITY_HEADERS") &&
+        sendHtmlBody.includes("\"Content-Type\": \"text/html; charset=utf-8\"") &&
+        sendHtmlBody.includes("\"Content-Security-Policy\": HTML_CONTENT_SECURITY_POLICY") &&
+        serverText.includes("default-src 'none'") &&
+        serverText.includes("connect-src 'self'") &&
+        serverText.includes("frame-ancestors 'none'") &&
+        serverText.includes("form-action 'self'"),
+      "sendHtml applies base security headers plus a self-contained CSP for static UI shells.",
+      "sendHtml should include BASE_SECURITY_HEADERS and an HTML CSP with default-src none, self connect, no framing, and self form action."
+    )
+  ];
+}
+
 function deployChecks({ dockerfile, compose, caddyfile }) {
   const dockerfileText = normalize(dockerfile.text);
   const composeText = normalize(compose.text);
@@ -381,6 +430,49 @@ function handoffDocChecks(handoffDocs) {
       "Handoff docs contain stale provider/model paths or omit the current provider-registry/config files."
     )
   ];
+}
+
+function functionBody(text, functionName) {
+  const marker = `function ${functionName}`;
+  const start = text.indexOf(marker);
+  if (start < 0) {
+    return "";
+  }
+  const parameterStart = text.indexOf("(", start);
+  if (parameterStart < 0) {
+    return "";
+  }
+  let parameterDepth = 0;
+  let searchFrom = parameterStart;
+  for (let index = parameterStart; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "(") {
+      parameterDepth += 1;
+    } else if (character === ")") {
+      parameterDepth -= 1;
+      if (parameterDepth === 0) {
+        searchFrom = index + 1;
+        break;
+      }
+    }
+  }
+  const braceStart = text.indexOf("{", searchFrom);
+  if (braceStart < 0) {
+    return "";
+  }
+  let depth = 0;
+  for (let index = braceStart; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(braceStart, index + 1);
+      }
+    }
+  }
+  return text.slice(braceStart);
 }
 
 function sourceBoundaryChecks({ directExternalImports, productHygieneFindings, publicExportCoverage }) {

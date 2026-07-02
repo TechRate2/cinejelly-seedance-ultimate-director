@@ -1262,9 +1262,9 @@ function sendJson(
     return;
   }
   response.writeHead(statusCode, {
-    ...BASE_SECURITY_HEADERS,
     ...headers,
-    "Content-Type": "application/json; charset=utf-8",
+    ...BASE_SECURITY_HEADERS,
+    "Content-Type": "application/json; charset=utf-8"
   });
   response.end(JSON.stringify(redactApiResponse(redactUnknown(withRequestContext(payload, requestContext)))));
 }
