@@ -321,7 +321,8 @@ function packageChecks(packageJson) {
     check("package_exports_single_stable_surface", Boolean(packageJson.exports?.["."]?.import === "./dist/index.js" && packageJson.exports?.["."]?.types === "./dist/index.d.ts"), "Package exports one stable dist/index.js surface.", "Package exports should route consumers through dist/index.js only."),
     check("package_files_allow_runtime_and_schemas", packageFilesAllowlist.every((entry) => files.includes(entry)), "Package files whitelist includes dist, schemas, README, and env template.", "Package files whitelist must include dist/, schemas/, README.md, and .env.production.template."),
     check("package_files_exclude_source_noise", packageForbiddenEntries(packageJson).length === 0, "Package files whitelist excludes source snapshots, scripts, docs, raw assets, secrets, and ops inputs.", "Package files whitelist must not include src, scripts, docs, external, assets, .env, or ops."),
-    check("package_required_scripts_present", requiredPackageScripts.every((name) => typeof packageJson.scripts?.[name] === "string"), "Package exposes required build/start/validation scripts.", "Package scripts are missing one or more required source/deploy validation commands.")
+    check("package_required_scripts_present", requiredPackageScripts.every((name) => typeof packageJson.scripts?.[name] === "string"), "Package exposes required build/start/validation scripts.", "Package scripts are missing one or more required source/deploy validation commands."),
+    check("package_script_file_targets_exist", packageScriptTargetFindings(packageJson).length === 0, "Package scripts reference existing source script files and dist entrypoint source equivalents.", `Package scripts reference missing files: ${packageScriptTargetFindings(packageJson).map((item) => `${item.scriptName}->${item.path}`).join(", ") || "none"}.`)
   ];
 }
 
@@ -537,6 +538,28 @@ function packageForbiddenEntries(packageJson) {
     }
     return entry === forbidden;
   }));
+}
+
+function packageScriptTargetFindings(packageJson) {
+  const scripts = packageJson?.scripts && typeof packageJson.scripts === "object" ? packageJson.scripts : {};
+  const findings = [];
+  for (const [scriptName, command] of Object.entries(scripts)) {
+    const text = String(command);
+    for (const match of text.matchAll(/(?:^|\s)(scripts\/[A-Za-z0-9_.\/-]+\.(?:mjs|ps1))\b/gu)) {
+      const path = match[1];
+      if (!exists(path)) {
+        findings.push({ scriptName, path, kind: "missing_script_target" });
+      }
+    }
+    for (const match of text.matchAll(/(?:^|\s)(dist\/[A-Za-z0-9_.\/-]+\.js)\b/gu)) {
+      const path = match[1];
+      const sourcePath = `src/${path.slice("dist/".length).replace(/\.js$/u, ".ts")}`;
+      if (!exists(sourcePath)) {
+        findings.push({ scriptName, path, sourcePath, kind: "missing_dist_source_equivalent" });
+      }
+    }
+  }
+  return findings;
 }
 
 function ignorePatterns(text) {
