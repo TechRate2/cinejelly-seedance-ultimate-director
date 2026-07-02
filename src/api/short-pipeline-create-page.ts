@@ -920,9 +920,9 @@ export function buildShortPipelineCreatePage(): string {
           </label>
           <div class="composer-tools">
             <div class="tool-row">
-              <button class="mini-btn" type="button" data-template-apply="fashion_transform">Suggested</button>
+              <button class="mini-btn" type="button" data-template-apply="fashion_transform">Starter</button>
               <button class="mini-btn" type="button" data-enhance-prompt>Rewrite</button>
-              <button class="mini-btn" type="button" data-template-apply="product_reveal">Product Ad</button>
+              <button class="mini-btn" type="button" data-template-apply="product_reveal">Product Starter</button>
             </div>
             <div class="char-count"><span id="prompt-count">0</span> / 2000</div>
           </div>
@@ -942,7 +942,7 @@ export function buildShortPipelineCreatePage(): string {
               <div><strong>Scene</strong><small>background</small></div>
             </button>
             <button class="asset-card" type="button" data-focus-reference="reference-url" style="--asset-img:linear-gradient(135deg, rgba(143,92,255,.34), rgba(255,91,114,.18))">
-              <div><strong>Source Video</strong><small>template intake</small></div>
+              <div><strong>Source Video</strong><small>pattern intake</small></div>
             </button>
             <button class="asset-card" type="button" data-focus-reference="media-reference-note" style="--asset-img:linear-gradient(135deg, rgba(255,79,232,.28), rgba(17,183,255,.18))">
               <div><strong>Voice / Notes</strong><small>audio intent</small></div>
@@ -970,7 +970,7 @@ export function buildShortPipelineCreatePage(): string {
 
           <div class="section-divider"></div>
           <div class="panel-head">
-            <div class="panel-title"><span class="step-badge">3</span>Template source intake</div>
+            <div class="panel-title"><span class="step-badge">3</span>Source pattern intake</div>
             <button class="mini-btn" type="button" data-mode-button="video_remake">Use Remake Mode</button>
           </div>
           <div class="grid-3">
@@ -1000,8 +1000,8 @@ export function buildShortPipelineCreatePage(): string {
             </label>
           </div>
           <label class="field" style="margin-top:12px">
-            <span>Template structure summary</span>
-            <textarea id="reference-summary" wrap="soft" placeholder="Paste the public template/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly will adapt the structure to your own KOL, product, and background."></textarea>
+            <span>Source pattern summary</span>
+            <textarea id="reference-summary" wrap="soft" placeholder="Paste the public pattern/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly will adapt the structure to your own KOL, product, and background."></textarea>
           </label>
 
           <div class="section-divider"></div>
@@ -1069,7 +1069,7 @@ export function buildShortPipelineCreatePage(): string {
         <section class="right-stack">
           <div class="tabs-shell">
             <div class="template-tabs">
-              <button class="template-tab active" type="button">Templates</button>
+              <button class="template-tab active" type="button">Pattern Starters</button>
               <button class="template-tab" type="button">My Creations</button>
               <button class="template-tab" type="button">History</button>
             </div>
@@ -1077,7 +1077,7 @@ export function buildShortPipelineCreatePage(): string {
           </div>
           <div class="panel gallery">
             <div class="gallery-head">
-              <div class="panel-title">Templates</div>
+              <div class="panel-title">Pattern Starters</div>
               <div class="template-tabs">
                 <button class="template-tab active" type="button">All</button>
                 <button class="template-tab" type="button">UGC</button>
@@ -1152,7 +1152,7 @@ export function buildShortPipelineCreatePage(): string {
           <div class="list" id="creative-ideas"><div class="empty">No contract loaded.</div></div>
         </div>
         <div class="panel contract-panel">
-          <div class="panel-head"><div class="panel-title">Template / Remake Blueprint</div></div>
+          <div class="panel-head"><div class="panel-title">Pattern / Remake Blueprint</div></div>
           <div class="list" id="reference-remake"><div class="empty">No remake blueprint loaded.</div></div>
         </div>
         <div class="panel contract-panel">
@@ -1511,7 +1511,7 @@ export function buildShortPipelineCreatePage(): string {
           role: "source_video",
           kind: "video",
           uri: sourceUrl,
-          label: "Template source video structure",
+          label: "Source video structure",
           rightsStatus: closeRemake ? "operator_approved" : "needs_review",
           priority: "supporting",
           description: "Learn edit rhythm, acting beats, camera grammar, retention timing, and payoff structure with replacement guardrails."
@@ -1532,9 +1532,9 @@ export function buildShortPipelineCreatePage(): string {
       const platform = document.getElementById("template-source-platform").value;
       const closeRemake = document.getElementById("reference-rights").value === "rights_cleared_close_remake";
       const payload = {
-        sourceLabel: platform + " template structure",
+        sourceLabel: platform + " source pattern",
         ...(sourceUrl ? { sourceUrl } : {}),
-        summary: summary || "User selected template intake and supplied a reference for structure, edit rhythm, acting beats, camera language, and payoff timing.",
+        summary: summary || "User selected source-pattern intake and supplied a reference for structure, edit rhythm, acting beats, camera language, and payoff timing.",
         hook: "Preserve the reference hook job, rewritten for the user's product and creator.",
         pacing: "Derive scene timing, cut density, reveal order, retention beats, and payoff timing from the reference structure.",
         cameraStyle: "Derive camera language while replacing creator, product, background, and props with user-approved inputs.",
@@ -1662,7 +1662,7 @@ export function buildShortPipelineCreatePage(): string {
     function renderReferenceRemake(remake) {
       const node = document.getElementById("reference-remake");
       if (!remake) {
-        node.innerHTML = '<div class="empty">Use Remake mode with a reference video URL or structure summary to generate a safe template blueprint.</div>';
+        node.innerHTML = '<div class="empty">Use Remake mode with a reference video URL or structure summary to generate a safe pattern blueprint.</div>';
         return;
       }
       node.innerHTML = '<article class="item"><div class="row"><div><div class="title">' +
@@ -1765,7 +1765,7 @@ export function buildShortPipelineCreatePage(): string {
       });
       updatePromptCount();
       updateEstimatedCost();
-      showSuccess("Template loaded: " + template.title + ".");
+      showSuccess("Pattern starter loaded: " + template.title + ".");
     }
 
     function setWorkflowMode(mode) {

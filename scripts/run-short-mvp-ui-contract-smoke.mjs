@@ -213,6 +213,8 @@ try {
     !/<textarea\b(?=[^>]*\bid="prompt\b)[^>]*>\s*(?!<\/textarea>)\S[\s\S]*?<\/textarea>/iu.test(createPageHtml) &&
     !/<input\b(?=[^>]*\bid="(?:product-title|category|claim)\b)[^>]*\bvalue=/iu.test(createPageHtml) &&
     !/class="template-card\s+active"/iu.test(createPageHtml);
+  const createPagePatternStarterLanguageClean =
+    !/>\s*Templates\s*<|>\s*Template source intake\s*<|>\s*Template structure summary\s*<|Template loaded:|template intake|template\/video structure/iu.test(createPageHtml);
   const createPageSecurityHeadersPassed = htmlSecurityHeadersPass(createPage.headers);
   const rawLeakDetected = containsAny(`${rawStyleStore}\n${rawSessionStore}`, [
     "C:\\Users\\Admin",
@@ -315,11 +317,14 @@ try {
       : fail("short_create_page_available", "Expected Short create page to expose safe endpoint wiring and no credential residue."),
     createPageHasFiveCreationModeWiring &&
       createPageHasRealPayloadWiring
-      ? pass("short_create_page_real_mode_wiring_available", "Short create shell wires all five creation modes into backend-safe template, visual-bible, and 480s production-bible payload controls.")
+      ? pass("short_create_page_real_mode_wiring_available", "Short create shell wires all five creation modes into backend-safe pattern-starter, visual-bible, and 480s production-bible payload controls.")
       : fail("short_create_page_real_mode_wiring_available", "Expected Short create shell to wire five creation modes into preferredTemplateId, visualBible, and production-bible duration controls."),
     createPageRealModeClean
       ? pass("short_create_page_no_preview_data", "Short create shell serves real-mode controls without external placeholder images, fake balance, auto-prefilled brief/product/claim, or preselected pattern starter.")
       : fail("short_create_page_no_preview_data", "Expected Short create shell to start from user-provided real inputs and avoid preview data in served HTML."),
+    createPagePatternStarterLanguageClean
+      ? pass("short_create_page_pattern_starter_language", "Short create shell presents reusable ideas as pattern starters and source patterns instead of fixed hardcoded templates.")
+      : fail("short_create_page_pattern_starter_language", "Expected served Short create HTML to avoid user-facing hardcoded-template wording."),
     createPageSecurityHeadersPassed
       ? pass("short_create_page_security_headers", "Short create HTML is served with no-store, nosniff, frame-deny, no-referrer, permissions-policy, and self-only CSP guardrails.")
       : fail("short_create_page_security_headers", "Expected Short create HTML route to include strict browser security headers."),

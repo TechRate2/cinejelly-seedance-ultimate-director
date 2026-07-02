@@ -403,6 +403,7 @@ function staticUiShellChecks() {
   const externalDecorativeMediaPattern = /--(?:asset|template|beat)-img\s*:\s*url\(\s*["']https?:\/\//iu;
   const promptPrefillPattern = /<textarea\b(?=[^>]*\bid="prompt\b)[^>]*>\s*(?!<\/textarea>)\S[\s\S]*?<\/textarea>/iu;
   const prefilledProductFieldPattern = /<input\b(?=[^>]*\bid="(?:product-title|category|claim)\b)[^>]*\bvalue=/iu;
+  const hardcodedTemplateLanguagePattern = />\s*Templates\s*<|>\s*Template source intake\s*<|>\s*Template structure summary\s*<|Template loaded:|template intake|template\/video structure/iu;
   return [
     check(
       "short_create_shell_no_external_decorative_media",
@@ -427,6 +428,12 @@ function staticUiShellChecks() {
       !/class="template-card\s+active"/iu.test(shortCreatePageText) && /let\s+activeTemplateId\s*=\s*""/u.test(shortCreatePageText),
       "Short create shell does not select a template/pattern starter before the user chooses one.",
       "Short create shell should not have an active template by default; pattern starters must be explicit user actions."
+    ),
+    check(
+      "short_create_shell_uses_pattern_starter_language",
+      !hardcodedTemplateLanguagePattern.test(shortCreatePageText),
+      "Short create shell presents reusable ideas as pattern starters and source patterns instead of hardcoded templates.",
+      "Short create shell should use pattern-starter/source-pattern wording so UI does not imply fixed hardcoded templates."
     )
   ];
 }
