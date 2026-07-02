@@ -1203,6 +1203,9 @@ export function buildShortPipelineCreatePage(): string {
         </div>
         <div id="jobs-queue" class="detail">Queue: chưa tải.</div>
         <div id="jobs-list" style="margin-top:10px"><div class="empty">Bấm Refresh để tải danh sách job (cần API key).</div></div>
+        <div id="job-player" style="margin-top:12px" hidden>
+          <video id="job-video" controls style="width:100%;max-height:420px;border-radius:12px;background:#000"></video>
+        </div>
       </section>
     </main>
   </div>
@@ -1472,12 +1475,18 @@ export function buildShortPipelineCreatePage(): string {
         const status = escapeHtml(String(job.status || "unknown"));
         const created = job.createdAt ? escapeHtml(String(job.createdAt).replace("T", " ").slice(0, 19)) : "";
         const preview = escapeHtml(String(job.userInputPreview || "").slice(0, 90));
+        const jobIdAttr = escapeAttribute(String(job.jobId || ""));
+        const finishedButtons = String(job.status || "") === "succeeded"
+          ? '<button class="mini-btn" type="button" onclick="playJob(\'' + jobIdAttr + '\')">Xem</button>' +
+            '<button class="mini-btn" type="button" onclick="downloadJob(\'' + jobIdAttr + '\')">Tải</button>'
+          : "";
         return '<article class="item"><div class="row"><div>' +
           '<div class="title">' + shortId + '…</div>' +
           '<div class="detail">' + created + (preview ? " | " + preview : "") + '</div>' +
           '</div><div style="display:flex;gap:8px;align-items:center">' +
           '<span class="' + jobStatusPillClass(String(job.status || "")) + '">' + status.replaceAll("_", " ") + '</span>' +
-          '<button class="mini-btn" type="button" onclick="watchJob(\'' + escapeAttribute(String(job.jobId || "")) + '\')">Theo dõi</button>' +
+          finishedButtons +
+          '<button class="mini-btn" type="button" onclick="watchJob(\'' + jobIdAttr + '\')">Theo dõi</button>' +
           '</div></div></article>';
       }).join("");
     }
@@ -1492,6 +1501,56 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("render-status").scrollIntoView({ behavior: "smooth", block: "center" });
     }
     window.watchJob = watchJob;
+
+    async function fetchDeliverableBlob(jobId) {
+      const key = document.getElementById("api-key").value.trim();
+      const response = await fetch("/v1/render-jobs/" + encodeURIComponent(jobId) + "/deliverable", {
+        headers: { ...(key ? { "X-CineJelly-Api-Key": key } : {}) }
+      });
+      if (!response.ok) {
+        showError("Không tải được video (job chưa xong hoặc file đã dọn).");
+        return undefined;
+      }
+      return response.blob();
+    }
+
+    async function playJob(jobId) {
+      clearMessages();
+      const blob = await fetchDeliverableBlob(jobId);
+      if (!blob) {
+        return;
+      }
+      const player = document.getElementById("job-player");
+      const video = document.getElementById("job-video");
+      if (video.dataset.objectUrl) {
+        URL.revokeObjectURL(video.dataset.objectUrl);
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      video.dataset.objectUrl = objectUrl;
+      video.src = objectUrl;
+      player.hidden = false;
+      video.play().catch(() => {});
+      player.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    window.playJob = playJob;
+
+    async function downloadJob(jobId) {
+      clearMessages();
+      const blob = await fetchDeliverableBlob(jobId);
+      if (!blob) {
+        return;
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = jobId + ".mp4";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+      showSuccess("Đã bắt đầu tải video.");
+    }
+    window.downloadJob = downloadJob;
 
     async function pollRenderJob(statusUrl) {
       document.getElementById("stop-polling").disabled = false;

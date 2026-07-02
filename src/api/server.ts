@@ -4,7 +4,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
@@ -12,7 +13,7 @@ import {
   type Server,
   type ServerResponse
 } from "node:http";
-import { join, resolve } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDirectorRuntime } from "../application/director-factory.js";
 import {
@@ -980,6 +981,35 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           : { error: "Render job not found." }, requestContext);
         return;
       }
+      const jobDeliverableMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)\/deliverable$/);
+      if (request.method === "GET" && jobDeliverableMatch) {
+        const deliverablePath = jobManager.deliverablePathFor(
+          decodeURIComponent(jobDeliverableMatch[1] ?? ""),
+          clientFilter(authDecision.principal)
+        );
+        const outputRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
+        const resolvedPath = deliverablePath ? resolve(deliverablePath) : undefined;
+        const insideOutputRoot = Boolean(
+          resolvedPath && (resolvedPath === outputRoot || resolvedPath.startsWith(outputRoot + sep))
+        );
+        if (!resolvedPath || !insideOutputRoot) {
+          sendJson(response, 404, { error: "Render job deliverable not found." }, requestContext);
+          return;
+        }
+        let deliverableStat;
+        try {
+          deliverableStat = await stat(resolvedPath);
+        } catch {
+          sendJson(response, 404, { error: "Render job deliverable not found." }, requestContext);
+          return;
+        }
+        if (!deliverableStat.isFile()) {
+          sendJson(response, 404, { error: "Render job deliverable not found." }, requestContext);
+          return;
+        }
+        sendVideoStream(response, resolvedPath, deliverableStat.size);
+        return;
+      }
       const jobMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)$/);
       if (request.method === "GET" && jobMatch) {
         const job = jobManager.get(decodeURIComponent(jobMatch[1] ?? ""), clientFilter(authDecision.principal));
@@ -1350,6 +1380,24 @@ function sendHtml(response: ServerResponse, statusCode: number, html: string): v
     "Content-Security-Policy": HTML_CONTENT_SECURITY_POLICY
   });
   response.end(html);
+}
+
+/**
+ * Central binary sender for deliverable video streaming. Keeps response.writeHead usage
+ * inside the sender helpers (same policy as sendJson/sendHtml) so security headers and
+ * response behavior cannot drift per route.
+ */
+function sendVideoStream(response: ServerResponse, filePath: string, fileSizeBytes: number): void {
+  if (response.destroyed) {
+    return;
+  }
+  response.writeHead(200, {
+    ...BASE_SECURITY_HEADERS,
+    "Content-Type": "video/mp4",
+    "Content-Length": String(fileSizeBytes),
+    "Content-Disposition": `attachment; filename="${basename(filePath).replace(/["\\]/g, "")}"`
+  });
+  createReadStream(filePath).pipe(response);
 }
 
 function readPort(value: string | undefined): number {

@@ -394,6 +394,7 @@ function apiResponseSecurityChecks() {
   const serverText = readText("src/api/server.ts").text;
   const sendJsonBody = functionBody(serverText, "sendJson");
   const sendHtmlBody = functionBody(serverText, "sendHtml");
+  const sendVideoStreamBody = functionBody(serverText, "sendVideoStream");
   const writeHeadCount = [...serverText.matchAll(/\bresponse\.writeHead\(/gu)].length;
   const baseHeaderFragments = [
     "\"Cache-Control\": \"no-store\"",
@@ -405,9 +406,13 @@ function apiResponseSecurityChecks() {
   return [
     check(
       "api_response_writes_use_sender_helpers",
-      writeHeadCount === 2 && sendJsonBody.includes("response.writeHead(") && sendHtmlBody.includes("response.writeHead("),
-      "API response.writeHead calls stay centralized in sendJson/sendHtml.",
-      "Keep response.writeHead centralized in sendJson/sendHtml so security, redaction, and request-context behavior cannot drift per route."
+      writeHeadCount === 3 &&
+        sendJsonBody.includes("response.writeHead(") &&
+        sendHtmlBody.includes("response.writeHead(") &&
+        sendVideoStreamBody.includes("response.writeHead(") &&
+        sendVideoStreamBody.includes("BASE_SECURITY_HEADERS"),
+      "API response.writeHead calls stay centralized in sendJson/sendHtml/sendVideoStream.",
+      "Keep response.writeHead centralized in sendJson/sendHtml/sendVideoStream so security, redaction, and request-context behavior cannot drift per route."
     ),
     check(
       "api_base_security_headers_present",

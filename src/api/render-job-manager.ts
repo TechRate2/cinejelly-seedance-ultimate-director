@@ -531,6 +531,25 @@ export class RenderJobManager {
     return this.get(jobId);
   }
 
+  /**
+   * Local filesystem path of a succeeded job's final deliverable, for the guarded
+   * download/stream route. Returns undefined unless the job belongs to the caller,
+   * finished successfully, and still holds full in-memory detail.
+   */
+  public deliverablePathFor(jobId: string, filter: { readonly clientId?: string } = {}): string | undefined {
+    const record = this.jobs.get(jobId);
+    if (!record || record.retentionSource !== "memory") {
+      return undefined;
+    }
+    if (filter.clientId && record.clientId !== filter.clientId) {
+      return undefined;
+    }
+    if (record.status !== "succeeded") {
+      return undefined;
+    }
+    return record.result?.deliverable?.outputPath;
+  }
+
   private isTerminal(status: RenderJobStatus): boolean {
     return status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected";
   }
