@@ -72,7 +72,7 @@ Các biến nâng cao trong template được để comment để người mới
 - Tối ưu provider/media: timeout, polling, max clip/audio bytes, source-video analysis, remote stock.
 - Deploy thật: `CINEJELLY_PUBLIC_HOST`, durable output volume, auth token, Atlas keys.
 
-`scripts/audit-source-structure.mjs` tự quét tất cả biến môi trường được runtime `src/` đọc và fail nếu biến mới chưa được ghi trong `.env.production.template`. Audit này cũng fail nếu runtime `src/` có marker dang dở `TODO`, `FIXME`, `HACK`, hoặc `XXX`. `scripts/validate-deployment-package.mjs` cũng dùng cùng nguyên tắc này để chặn gói deploy nếu template thiếu biến runtime. Vì vậy, khi dev thêm model/API/config mới, quy trình đúng là thêm code, thêm biến vào template, cập nhật schema/report nếu audit output thay đổi, rồi chạy `npm run validation:source-structure` và `npm run validation:deployment-package`.
+`scripts/audit-source-structure.mjs` tự quét tất cả biến môi trường được runtime `src/` đọc và fail nếu biến mới chưa được ghi trong `.env.production.template`. Audit này cũng fail nếu runtime `src/` có marker dang dở `TODO`, `FIXME`, `HACK`, hoặc `XXX`, hoặc nếu code đọc env trực tiếp ngoài các boundary API/application/config/store đã duyệt. `scripts/validate-deployment-package.mjs` cũng dùng cùng nguyên tắc này để chặn gói deploy nếu template thiếu biến runtime. Vì vậy, khi dev thêm model/API/config mới, quy trình đúng là thêm code, thêm biến vào template, cập nhật schema/report nếu audit output thay đổi, rồi chạy `npm run validation:source-structure` và `npm run validation:deployment-package`.
 
 ## Bản Đồ Source
 
@@ -277,6 +277,7 @@ Kết quả audit ngày 2026-07-02:
 
 - `src/` không có file `smoke`, `mock`, `demo`, `test`, hoặc `fixture`.
 - `src/` không có marker `TODO`, `FIXME`, `HACK`, hoặc `XXX`; nếu cần ghi việc còn lại, đưa vào docs/runbook/issue thay vì để trong runtime path.
+- Env/runtime config chỉ được đọc ở boundary API/application/config/store đã duyệt; logic lõi `core/`, `agents/`, `providers/`, và `prompt_compiler/` nhận config qua object thay vì tự đọc `.env`.
 - `scripts/validate-deployment-package.mjs` chạy actual `npm pack --dry-run --json --silent` khi `dist/` đã build, parse danh sách file thật, và fail nếu package chứa `src/`, `scripts/`, `schemas/`, `docs/`, `external/`, `assets/`, `ops/`, `.env`, Docker/deploy config, source map, hoặc file test/smoke/demo/sample/example.
 - `dist/` production không còn file `.map`; `tsconfig.json` đặt `compilerOptions.sourceMap=false`.
 - `scripts/audit-source-structure.mjs` và `scripts/validate-deployment-package.mjs` cùng có guard `tsconfig_no_production_source_maps` để chặn việc bật lại source map trong artifact production.

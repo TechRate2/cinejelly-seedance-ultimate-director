@@ -111,6 +111,31 @@ const publicExportInternalAllowlist = new Set([
   "src/providers/atlascloud/atlas-cloud-mappers.ts"
 ]);
 
+const runtimeEnvReadBoundaryAllowlist = new Set([
+  "src/api/api-auth.ts",
+  "src/api/api-client-policy.ts",
+  "src/api/api-rate-limit.ts",
+  "src/api/production-graph-resume-queue-service.ts",
+  "src/api/render-job-history-store.ts",
+  "src/api/render-job-manager.ts",
+  "src/api/render-provider-handoff-lease-service.ts",
+  "src/api/render-request-admission.ts",
+  "src/api/server.ts",
+  "src/api/short-channel-style-library-store.ts",
+  "src/api/short-pipeline-session-store.ts",
+  "src/api/workspace-billing-policy.ts",
+  "src/application/director-factory.ts",
+  "src/application/paid-render-validation-entrypoint.ts",
+  "src/application/preflight-entrypoint.ts",
+  "src/application/render-request-normalizer.ts",
+  "src/application/render-request-validation-entrypoint.ts",
+  "src/application/render-settings-descriptor.ts",
+  "src/application/runtime-preflight.ts",
+  "src/application/validation-readiness-entrypoint.ts",
+  "src/config/runtime-config.ts",
+  "src/utils/media-tools.ts"
+]);
+
 const sourceExtensions = new Set([".ts", ".tsx", ".js", ".mjs", ".mts", ".cjs", ".cts"]);
 const secretLikePatterns = [
   /apikey-[A-Za-z0-9]{20,}/u,
@@ -120,6 +145,8 @@ const secretLikePatterns = [
   /^CINEJELLY_API_AUTH_TOKEN[ \t]*=[ \t]*[^\s#][^\r\n]*/imu
 ];
 const runtimeTodoMarkerPattern = /\b(?:TODO|FIXME|HACK|XXX)\b/u;
+const runtimeEnvReadPattern =
+  /\bprocess\.env\b|\benv\.(?:[A-Z][A-Z0-9_]*)\b|\benv\[['"][A-Z][A-Z0-9_]*['"]\]|\b(?:requireEnv|optional(?:Integer|Number|NumberEnvWithFallback|Path|String|Boolean)Env|aliasedHttpsUrlEnv|optionalHttpsUrlEnv|readPositiveInteger|positiveIntegerEnv|readBooleanFlag)\(/u;
 const hygienePattern =
   /(^|\/)(test|tests|__tests__|__pycache__|mock|mocks|fixture|fixtures|sample|samples|demo|demos|example|examples)(\/|\.|$)|(^|\/).+\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|py)$|mock|fixture|stub|dummy|fake|\.(mp4|mov|mkv|avi|webm|mp3|wav|flac|aac|jpg|jpeg|png|gif|webp|ipynb|npy|npz|gz|zip|tar|tgz|ttc|ttf|otf|woff|woff2|bin|onnx|pt|pth|ckpt|safetensors|csv|jsonl|tiktoken|pyc|tsbuildinfo|ds_store|sample|example|snap)$/iu;
 
@@ -197,6 +224,7 @@ function main() {
   const directExternalImports = findDirectExternalImports(["src", "scripts"]);
   const productHygieneFindings = productFiles.filter((path) => hygienePattern.test(path));
   const runtimeTodoMarkerFindings = findRuntimeTodoMarkers(sourceFiles);
+  const runtimeEnvBoundaryFindings = findRuntimeEnvBoundaryFindings(sourceFiles);
   const publicExportCoverage = buildPublicExportCoverage(sourceFiles, indexText.text);
   const checks = [
     ...rootChecks(),
@@ -208,7 +236,13 @@ function main() {
     ...staticUiShellChecks(),
     ...deployChecks({ dockerfile, compose, caddyfile }),
     ...handoffDocChecks(handoffDocs),
-    ...sourceBoundaryChecks({ directExternalImports, productHygieneFindings, runtimeTodoMarkerFindings, publicExportCoverage })
+    ...sourceBoundaryChecks({
+      directExternalImports,
+      productHygieneFindings,
+      runtimeTodoMarkerFindings,
+      runtimeEnvBoundaryFindings,
+      publicExportCoverage
+    })
   ];
   const failedChecks = checks.filter((item) => item.status === "fail");
   const report = {
@@ -236,6 +270,7 @@ function main() {
       directExternalImportFindingCount: directExternalImports.length,
       productHygieneFindingCount: productHygieneFindings.length,
       runtimeTodoMarkerFindingCount: runtimeTodoMarkerFindings.length,
+      runtimeEnvBoundaryFindingCount: runtimeEnvBoundaryFindings.length,
       publicExportMissingCount: publicExportCoverage.missingPublicExports.length,
       packageForbiddenFileEntryCount: packageForbiddenEntries(packageJson.value).length,
       missingRuntimeEnvTemplateKeyCount: runtimeEnvNames.filter((name) => !envHasKey(envTemplate.text, name)).length
@@ -251,6 +286,7 @@ function main() {
       directExternalImports,
       productHygieneFindings: productHygieneFindings.slice(0, 80),
       runtimeTodoMarkerFindings: runtimeTodoMarkerFindings.slice(0, 80),
+      runtimeEnvBoundaryFindings: runtimeEnvBoundaryFindings.slice(0, 80),
       missingPublicExports: publicExportCoverage.missingPublicExports,
       packageForbiddenFileEntries: packageForbiddenEntries(packageJson.value),
       missingRuntimeEnvTemplateKeys: runtimeEnvNames.filter((name) => !envHasKey(envTemplate.text, name))
@@ -543,11 +579,18 @@ function functionBody(text, functionName) {
   return text.slice(braceStart);
 }
 
-function sourceBoundaryChecks({ directExternalImports, productHygieneFindings, runtimeTodoMarkerFindings, publicExportCoverage }) {
+function sourceBoundaryChecks({
+  directExternalImports,
+  productHygieneFindings,
+  runtimeTodoMarkerFindings,
+  runtimeEnvBoundaryFindings,
+  publicExportCoverage
+}) {
   return [
     check("no_direct_external_upstream_imports", directExternalImports.length === 0, "Runtime/scripts do not import external/upstream directly.", "Runtime/scripts must translate upstream behavior into owned modules instead of importing external/upstream."),
     check("no_product_test_mock_demo_files", productHygieneFindings.length === 0, "Product source/docs/scripts/schemas contain no test/mock/demo/sample/example files.", "Remove product-owned test/mock/demo/sample/example files or move them outside product source."),
     check("runtime_source_no_todo_fixme_markers", runtimeTodoMarkerFindings.length === 0, "Runtime source contains no TODO/FIXME/HACK/XXX markers.", "Resolve or document runtime TODO/FIXME/HACK/XXX markers outside src before treating the code path as real-mode production logic."),
+    check("runtime_env_reads_stay_in_boundary_modules", runtimeEnvBoundaryFindings.length === 0, "Runtime environment reads stay in API/application/config/store boundary modules.", "Move runtime environment reads out of core/agent/provider/prompt logic and into approved API/application/config/store boundary modules."),
     check("public_export_surface_complete", publicExportCoverage.missingPublicExports.length === 0, "Public export surface covers all non-internal src modules.", "src/index.ts is missing exports for non-internal source modules."),
     check("internal_modules_not_public_exported", publicExportCoverage.unexpectedInternalExports.length === 0, "Internal source-pattern and Atlas HTTP/mapper modules stay internal.", "Internal-only source-pattern or Atlas HTTP/mapper modules should not be exported publicly.")
   ];
@@ -609,6 +652,28 @@ function findRuntimeTodoMarkers(sourceFiles) {
           line: index + 1,
           kind: "runtime_todo_marker",
           marker: line.match(runtimeTodoMarkerPattern)?.[0] ?? "TODO"
+        });
+      }
+    });
+  }
+  return findings;
+}
+
+function findRuntimeEnvBoundaryFindings(sourceFiles) {
+  const findings = [];
+  for (const file of sourceFiles) {
+    if (runtimeEnvReadBoundaryAllowlist.has(file)) {
+      continue;
+    }
+    const text = readText(file).text;
+    text.split(/\r?\n/u).forEach((line, index) => {
+      const match = line.match(runtimeEnvReadPattern);
+      if (match) {
+        findings.push({
+          path: file,
+          line: index + 1,
+          kind: "runtime_env_read_outside_boundary",
+          match: match[0]
         });
       }
     });

@@ -60,6 +60,7 @@
         "directExternalImportFindingCount",
         "productHygieneFindingCount",
         "runtimeTodoMarkerFindingCount",
+        "runtimeEnvBoundaryFindingCount",
         "publicExportMissingCount",
         "packageForbiddenFileEntryCount",
         "missingRuntimeEnvTemplateKeyCount"
@@ -73,6 +74,7 @@
         "directExternalImportFindingCount": { "type": "integer", "minimum": 0 },
         "productHygieneFindingCount": { "type": "integer", "minimum": 0 },
         "runtimeTodoMarkerFindingCount": { "type": "integer", "minimum": 0 },
+        "runtimeEnvBoundaryFindingCount": { "type": "integer", "minimum": 0 },
         "publicExportMissingCount": { "type": "integer", "minimum": 0 },
         "packageForbiddenFileEntryCount": { "type": "integer", "minimum": 0 },
         "missingRuntimeEnvTemplateKeyCount": { "type": "integer", "minimum": 0 }
@@ -103,6 +105,7 @@
         "directExternalImports",
         "productHygieneFindings",
         "runtimeTodoMarkerFindings",
+        "runtimeEnvBoundaryFindings",
         "missingPublicExports",
         "packageForbiddenFileEntries",
         "missingRuntimeEnvTemplateKeys"
@@ -133,6 +136,20 @@
               "line": { "type": "integer", "minimum": 1 },
               "kind": { "type": "string", "minLength": 1 },
               "marker": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "runtimeEnvBoundaryFindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "line", "kind", "match"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "line": { "type": "integer", "minimum": 1 },
+              "kind": { "type": "string", "minLength": 1 },
+              "match": { "type": "string", "minLength": 1 }
             }
           }
         },

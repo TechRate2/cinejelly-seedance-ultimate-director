@@ -9,6 +9,7 @@ Tài liệu này là bản đọc nhanh trước khi sửa code, build UI MVP, t
 - Docker runtime không copy `scripts/`, `schemas/`, `docs/`, `external/`, `.env`, `ops/`, hoặc generated `assets/`.
 - `scripts/` và `schemas/` là bộ kiểm chứng cho dev/operator, không phải code thừa.
 - Runtime `src/` phải không có file test/mock/demo/smoke và không có marker `TODO`, `FIXME`, `HACK`, hoặc `XXX`; `validation:source-structure` sẽ chặn nếu các dấu hiệu này xuất hiện.
+- Không đọc `.env` trực tiếp trong logic lõi video. Env chỉ đi qua các boundary API/application/config/store đã duyệt, rồi truyền thành object config cho core/agent/provider/prompt logic.
 - Config deploy tập trung ở `.env.production.template`; secret thật chỉ đi vào ignored `.env` hoặc secret store của server.
 - Web shell hiện có là `/short/create` và `/operator/launch-dashboard`; dữ liệu protected vẫn đi qua API auth/client key.
 
