@@ -2,6 +2,8 @@
 
 Tài liệu này là bản đồ thực dụng để dev hiểu nhanh toàn bộ dự án CineJelly Seedance Ultimate Director khi chuẩn bị build UI MVP, mở rộng backend, tích hợp thêm model/API, hoặc deploy thương mại.
 
+Nếu cần bản đọc nhanh trước khi đi sâu, bắt đầu từ `docs/DEVELOPER_OPERATOR_HANDOFF.vi.md`.
+
 Mục tiêu:
 
 - Phân biệt rõ code runtime thật với validation/audit/dev tooling.

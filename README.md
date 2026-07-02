@@ -118,6 +118,7 @@ cinejelly-seedance-ultimate-director/
 
 ## Documentation Map
 
+- `docs/DEVELOPER_OPERATOR_HANDOFF.vi.md`: one-page Vietnamese handoff for dev/operator source navigation, clean runtime boundaries, deploy config, and required validation commands.
 - `docs/PROJECT_CONTEXT.md`: compact project memory for token-efficient agent work.
 - `docs/ARCHITECTURE_SPEC.md`: full system architecture and agent responsibilities.
 - `docs/CREDITS.md`: attribution, source boundaries, and license cautions.

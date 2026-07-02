@@ -77,6 +77,7 @@ const packageForbiddenFiles = [
 
 const handoffDocFiles = [
   "README.md",
+  "docs/DEVELOPER_OPERATOR_HANDOFF.vi.md",
   "docs/SOURCE_STRUCTURE_AND_DEPLOY_SECURITY.vi.md",
   "docs/PROJECT_CONTEXT.md"
 ];
