@@ -107,6 +107,7 @@ export * from "./core/rendered-candidate-visual-inspector.js";
 export * from "./core/review-packet-builder.js";
 export * from "./core/seedance-dna.js";
 export * from "./core/semantic-visual-inspector.js";
+export * from "./core/series-drama-planner.js";
 export * from "./core/shot-planner.js";
 export * from "./core/short-channel-style-profile.js";
 export * from "./core/short-creative-pattern-learning.js";

@@ -15,6 +15,7 @@ import type { ProviderMode } from "../types/provider.js";
 import {
   ARC_ROLE_DIRECTIVES,
   buildDurationScript,
+  CLIFFHANGER_ENDING_ARC_DIRECTIVE,
   type VideoArcRole
 } from "../core/duration-scripting.js";
 import { resolveSeedanceDna } from "../core/seedance-dna.js";
@@ -269,6 +270,15 @@ export class SeedancePromptCompiler {
    */
   private buildDurationScriptSection(shot: ShotContract): string {
     const arcRole = this.videoArcRole(shot);
+    const cliffhanger = this.isCliffhangerEndingShot(shot, arcRole);
+    const arcDirective = arcRole
+      ? cliffhanger
+        ? CLIFFHANGER_ENDING_ARC_DIRECTIVE
+        : ARC_ROLE_DIRECTIVES[arcRole]
+      : undefined;
+    const finalBeatClause = cliffhanger
+      ? `the final beat holds the unresolved cliffhanger frame at ${shot.durationSeconds}s`
+      : `the final beat must still be purposeful motion that settles cleanly at ${shot.durationSeconds}s`;
     const hasTimeline = Boolean(shot.timeline?.length);
     if (hasTimeline) {
       const lines = [
@@ -276,15 +286,24 @@ export class SeedancePromptCompiler {
         shot.durationSeconds > 9
           ? "Add a new visible state change at least every 3 seconds; never hold one pose, product macro, or camera position through the middle of the clip."
           : undefined,
-        arcRole ? ARC_ROLE_DIRECTIVES[arcRole] : undefined,
-        `Do not finish the action early, freeze on a static frame, loop, or pad; the final beat must still be purposeful motion that settles cleanly at ${shot.durationSeconds}s. Total: ${shot.durationSeconds}s.`
+        arcDirective,
+        `Do not finish the action early, freeze on a static frame, loop, or pad; ${finalBeatClause}. Total: ${shot.durationSeconds}s.`
       ].filter((line): line is string => Boolean(line));
       return lines.join(" ");
     }
     return buildDurationScript({
       durationSeconds: shot.durationSeconds,
-      ...(arcRole ? { arcRole } : {})
+      ...(arcRole ? { arcRole } : {}),
+      ...(cliffhanger ? { endingStyle: "cliffhanger" as const } : {})
     }).promptLines.join(" ");
+  }
+
+  /** Cliffhanger endings apply only to the video's final shot (or a one-shot episode). */
+  private isCliffhangerEndingShot(shot: ShotContract, arcRole: VideoArcRole | undefined): boolean {
+    if (arcRole !== "closing_resolve" && arcRole !== "full_video") {
+      return false;
+    }
+    return this.stringMetadata(shot, "videoEndingStyle") === "cliffhanger";
   }
 
   private videoArcRole(shot: ShotContract): VideoArcRole | undefined {

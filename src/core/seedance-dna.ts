@@ -107,6 +107,8 @@ export const NICHE_DNA: Record<string, string> = {
     "Athletic motion with real weight and momentum, tracking/whip camera that stays coherent, sweat and fabric physics; crisp decisive endpoint.",
   creator_tools:
     "Show the creator workflow and the finished output side by side; hands on device, believable screens implied, energetic but real timing.",
+  drama_series:
+    "Vertical short-drama staging: charged confrontations played in expressive close-ups and reaction inserts, blocking that reads instantly (power positions, distance, touch), minimal dialogue reliance with emotion on faces and hands; consistent cast faces/wardrobe and location dressing across episodes; every beat is a visible action or reversal, never narration over static frames.",
   brand_story_documentary:
     "Observational, motivated natural light, unhurried authentic performance and real texture; let environment and detail carry emotion.",
   cinematic_story:

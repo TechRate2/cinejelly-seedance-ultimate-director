@@ -91,22 +91,35 @@ export function planDurationBeats(durationSeconds: number): readonly DurationBea
 /**
  * Build the full-duration prompt contract for one clip: a sandwich duration declaration
  * plus timestamped beats. `arcRole` tunes the hook/settle language to the shot's position
- * inside the whole video so openings open and endings end.
+ * inside the whole video so openings open and endings end. `endingStyle: "cliffhanger"`
+ * swaps the settled ending for a cut-before-resolution hold (serial episodes).
  */
 export function buildDurationScript(input: {
   readonly durationSeconds: number;
   readonly arcRole?: VideoArcRole;
+  readonly endingStyle?: "settle" | "cliffhanger";
 }): DurationScriptPlan {
+  const cliffhanger = input.endingStyle === "cliffhanger";
   const beats = planDurationBeats(input.durationSeconds);
-  const beatLines = beats.map(
-    (beat) => `[${beat.startSecond}-${beat.endSecond}s] ${beat.role.replace(/_/g, " ")}: ${beat.directive}.`
-  );
-  const arcLine = input.arcRole ? ARC_ROLE_DIRECTIVES[input.arcRole] : undefined;
+  const beatLines = beats.map((beat) => {
+    const directive = cliffhanger && beat.role === "settle"
+      ? "drive tension upward and cut before the resolution lands; hold a clean readable frame of the unresolved moment"
+      : beat.directive;
+    return `[${beat.startSecond}-${beat.endSecond}s] ${beat.role.replace(/_/g, " ")}: ${directive}.`;
+  });
+  const arcLine = cliffhanger
+    ? CLIFFHANGER_ENDING_ARC_DIRECTIVE
+    : input.arcRole
+      ? ARC_ROLE_DIRECTIVES[input.arcRole]
+      : undefined;
+  const finalBeatClause = cliffhanger
+    ? `the final beat holds the unresolved cliffhanger frame at ${input.durationSeconds}s`
+    : `the final beat must still be purposeful motion that settles cleanly at ${input.durationSeconds}s`;
   const promptLines = [
     `Runtime contract: this clip runs exactly ${input.durationSeconds} seconds and the action must fill the entire runtime; treat the timestamped beats as hard editorial instructions.`,
     ...beatLines,
     arcLine,
-    `Do not finish the action early, freeze on a static frame, loop, or pad; the final beat must still be purposeful motion that settles cleanly at ${input.durationSeconds}s. Total: ${input.durationSeconds}s.`
+    `Do not finish the action early, freeze on a static frame, loop, or pad; ${finalBeatClause}. Total: ${input.durationSeconds}s.`
   ].filter((line): line is string => Boolean(line));
   return {
     durationSeconds: input.durationSeconds,
@@ -114,6 +127,14 @@ export function buildDurationScript(input: {
     promptLines
   };
 }
+
+/**
+ * Serial-episode ending override: instead of settling, the final shot cuts before the
+ * payoff lands so the viewer must return for the next episode (short-drama retention).
+ * Applied by the prompt compiler when shot metadata carries videoEndingStyle=cliffhanger.
+ */
+export const CLIFFHANGER_ENDING_ARC_DIRECTIVE =
+  "Video ending (cliffhanger): this is the final shot of the episode; drive the tension upward to the last second and cut BEFORE the resolution lands — hold a clean readable frame of the unresolved moment (the reveal half-seen, the blow mid-swing, the reply unspoken). Do not settle into a finished afterglow and do not resolve the confrontation.";
 
 /** Video-level opening/ending direction so multi-shot videos open strong and end resolved. */
 export const ARC_ROLE_DIRECTIVES: Record<VideoArcRole, string> = {
