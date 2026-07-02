@@ -22,6 +22,7 @@ import type {
   ShortPipelinePlan,
   ShortPipelineVisualTextPolicy
 } from "../types/short-pipeline.js";
+import { buildCaptionCuesFromAudioScript } from "./subtitle-caption-builder.js";
 import { SHORT_PROMPT_CORPUS_COVERAGE } from "./short-prompt-pattern-corpus.js";
 import { SHORT_PLATFORM_TEMPLATE_CORPUS_COVERAGE } from "./short-platform-template-corpus.js";
 import { createStableId } from "../utils/ids.js";
@@ -45,6 +46,13 @@ export interface ShortPipelineRenderHandoffInput {
   readonly captionOptions?: CaptionOptions;
   readonly includeGeneratedAudioIntents?: boolean;
   readonly audio?: ShortPipelineAudioPolicyInput;
+  /**
+   * Subtitle switch. "narration_subtitles" derives perfectly-synced caption cues from the
+   * plan's own TTS audio script (zero transcription cost) and enables burn-in; the default
+   * "none" keeps the historical no-visible-text behavior. Caption evidence still passes
+   * the normal caption review checkpoint before render.
+   */
+  readonly captionPreference?: "narration_subtitles" | "none";
 }
 
 export interface ShortPipelineRenderHandoff {
@@ -133,7 +141,11 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
     !visualBibleBlocksRender;
   const visualTextPolicy = plan.visualTextPolicy ?? defaultVisualTextPolicy();
   const audioPolicy = resolveAudioPolicy(input.audio, plan.audioPolicy ?? defaultAudioPolicyForPlan(plan));
-  const captionCues: readonly CaptionCue[] = [];
+  const captionCues: readonly CaptionCue[] =
+    input.captionPreference === "narration_subtitles"
+      ? narrationCaptionCuesForPlan(plan)
+      : [];
+  const captionsEnabled = captionCues.length > 0;
   const generatedAudioIntents = audioPolicy.generatedAudioIntentEnabled && input.includeGeneratedAudioIntents !== false
     ? generatedAudioIntentsFromPlan(plan, audioPolicy)
     : [];
@@ -258,6 +270,7 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         } : {}),
         ...(plan.agentGraph ? { shortAgentGraphRunId: plan.agentGraph.graphRunId, shortAgentGraphStatus: plan.agentGraph.status } : {}),
         ...(plan.seedancePromptPack ? { shortSeedancePromptPackId: plan.seedancePromptPack.promptPackId } : {}),
+        ...(captionsEnabled ? { shortCaptionMode: "narration_subtitles" } : {}),
         ...(plan.selectedTemplate ? { shortPipelineSelectedTemplateId: plan.selectedTemplate.templateId } : {}),
         ...(plan.productBrief ? { productBriefId: plan.productBrief.briefId } : {}),
         ...(plan.brandKitEvaluation ? { brandKitId: plan.brandKitEvaluation.brandKitId } : {})
@@ -265,8 +278,8 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
       captionCues,
       captionOptions: {
         ...(input.captionOptions ?? {}),
-        enabled: false,
-        burnIn: false,
+        enabled: captionsEnabled,
+        burnIn: captionsEnabled,
         ...(plan.brandKitEvaluation?.language ? { language: plan.brandKitEvaluation.language } : {})
       },
       ...(generatedAudioIntents.length > 0 ? { generatedAudioIntents } : {}),
@@ -931,6 +944,25 @@ function onScreenTextInstructionFor(caption: string): string {
   return caption === "NO_ON_SCREEN_TEXT"
     ? "none; do not render captions, subtitles, CTA cards, labels, typography, lower thirds, or fake UI text"
     : caption;
+}
+
+/**
+ * Perfectly-synced subtitle cues from the plan's own TTS audio script. Exported so the
+ * speech-captions smoke can verify the handoff path without building a full plan through
+ * the planner. Returns [] when the plan has no narration script (captions stay off).
+ */
+export function narrationCaptionCuesForPlan(plan: ShortPipelinePlan): readonly CaptionCue[] {
+  const audioScript = plan.seedancePromptPack?.audioScript ?? [];
+  if (audioScript.length === 0) {
+    return [];
+  }
+  return buildCaptionCuesFromAudioScript(
+    audioScript.map((line) => ({
+      startSecond: line.startSecond,
+      endSecond: line.endSecond,
+      spokenLine: line.spokenLine
+    }))
+  );
 }
 
 function generatedAudioIntentsFromPlan(plan: ShortPipelinePlan, audioPolicy: ShortPipelineAudioPolicy): readonly GeneratedAudioIntent[] {

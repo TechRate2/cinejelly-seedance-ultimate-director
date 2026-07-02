@@ -64,7 +64,7 @@ interface UsageLedgerRecord {
   readonly monthKey: string;
   readonly clientId: string;
   readonly requestId: string;
-  readonly operation: "render.reserve";
+  readonly operation: "render.reserve" | "render.release";
   readonly channel: "sync" | "async";
   readonly reservedCostUsd: number;
   readonly durationTargetSeconds: number;
@@ -164,6 +164,42 @@ export class ApiClientPolicyGate {
       reservedCostUsd,
       reservedCostUsdAfterReservation: next.reservedCostUsd
     };
+  }
+
+  /**
+   * Return a reservation for a job canceled while still queued (no provider work
+   * happened). Decrements the same month bucket the reservation was taken from and
+   * appends a render.release ledger line so usage stays auditable.
+   */
+  public releaseRender(input: {
+    readonly reservation: ApiClientPolicyReservation;
+    readonly request: CineJellyProjectRequest;
+    readonly requestId: string;
+    readonly channel: "sync" | "async";
+  }): void {
+    const usageKey = this.usageKey(input.reservation.clientId, input.reservation.monthKey);
+    const current = this.usageByClientMonth.get(usageKey);
+    if (!current) {
+      return;
+    }
+    this.usageByClientMonth.set(usageKey, {
+      requestCount: Math.max(0, current.requestCount - 1),
+      reservedCostUsd: roundMoney(Math.max(0, current.reservedCostUsd - input.reservation.reservedCostUsd))
+    });
+    const settings = normalizeSeedanceSettings(input.request.settings ?? {});
+    this.writeUsageRecord({
+      schemaVersion: "cinejelly.client-usage-ledger.v1",
+      recordedAt: new Date().toISOString(),
+      monthKey: input.reservation.monthKey,
+      clientId: input.reservation.clientId,
+      requestId: input.requestId,
+      operation: "render.release",
+      channel: input.channel,
+      reservedCostUsd: input.reservation.reservedCostUsd,
+      durationTargetSeconds: settings.durationTargetSeconds,
+      qualityMode: settings.qualityMode,
+      tier: settings.tier
+    });
   }
 
   public summary(): unknown {

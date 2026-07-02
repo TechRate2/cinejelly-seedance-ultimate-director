@@ -73,7 +73,12 @@ export class AssemblyEngine {
     const localClipPaths = await Promise.all(
       orderedClips.map((clip) => this.materializeClip(input.projectId, input.workDirectory, clip, signal))
     );
+    // Working copies and intermediate renders are deleted on every exit path (success or
+    // error); the final deliverable and caption sidecar are never in this list.
+    const intermediateCleanupPaths: string[] = [...localClipPaths];
+    try {
     const concatListPath = join(input.workDirectory, `${input.projectId}_concat.txt`);
+    intermediateCleanupPaths.push(concatListPath);
     const postproductionSettings = input.postproductionSettings ?? DEFAULT_POSTPRODUCTION_SETTINGS;
     const audioMixOptions = input.audioMixOptions ?? {
       ...DEFAULT_AUDIO_MIX_OPTIONS,
@@ -93,6 +98,9 @@ export class AssemblyEngine {
     const concatOutputPath = postproductionSettings.enabled || needsCaptionBurn || needsAudioMix || needsTransitions
       ? join(input.workDirectory, `${input.projectId}_assembled_raw.mp4`)
       : input.outputPath;
+    if (concatOutputPath !== input.outputPath) {
+      intermediateCleanupPaths.push(concatOutputPath);
+    }
     await writeFileEnsuringDirectory(concatListPath, this.toConcatList(localClipPaths));
 
     const transition = needsTransitions
@@ -107,6 +115,11 @@ export class AssemblyEngine {
         )
       : undefined;
     if (!transition) {
+      if (localClipPaths.length > 1) {
+        // Stream-copy concat silently corrupts output when clips differ in resolution or
+        // audio presence; verify homogeneity up front and fail with a fix instruction.
+        await this.assertConcatHomogeneity(localClipPaths, signal);
+      }
       await runProcess(
         readMediaToolCommand("ffmpeg"),
         [
@@ -130,6 +143,9 @@ export class AssemblyEngine {
         ? join(input.workDirectory, `${input.projectId}_polished.mp4`)
         : input.outputPath
       : concatOutputPath;
+    if (postproductionOutputPath !== input.outputPath) {
+      intermediateCleanupPaths.push(postproductionOutputPath);
+    }
     const postproduction = postproductionSettings.enabled
       ? await this.postproductionEngine.polish(
           {
@@ -146,6 +162,9 @@ export class AssemblyEngine {
         ? join(input.workDirectory, `${input.projectId}_captioned.mp4`)
         : input.outputPath
       : videoAfterPostproduction;
+    if (captionedOutputPath !== input.outputPath) {
+      intermediateCleanupPaths.push(captionedOutputPath);
+    }
     const captions = input.captionCues && input.captionCues.length > 0 && captionOptions.enabled
       ? await this.captionEngine.render(
           {
@@ -198,6 +217,52 @@ export class AssemblyEngine {
       inspection,
       ...(frameSamples && frameSamples.length > 0 ? { frameSamples } : {})
     };
+    } finally {
+      await this.cleanupIntermediatePaths(intermediateCleanupPaths, input.outputPath);
+    }
+  }
+
+  /** Best-effort removal of working copies/intermediates; never touches the deliverable. */
+  private async cleanupIntermediatePaths(paths: readonly string[], keepOutputPath: string): Promise<void> {
+    const keep = resolve(keepOutputPath);
+    const unique = [...new Set(paths.map((path) => resolve(path)))].filter((path) => path !== keep);
+    for (const path of unique) {
+      try {
+        await rm(path, { force: true });
+      } catch {
+        // Cleanup is best-effort; a locked temp file must not fail the assembly result.
+      }
+    }
+  }
+
+  /**
+   * Stream-copy concat requires identical stream layouts. Reject mixed clips with a clear
+   * fix (enable transitions, which re-encode) instead of producing a corrupt deliverable.
+   */
+  private async assertConcatHomogeneity(paths: readonly string[], signal?: AbortSignal): Promise<void> {
+    const profiles: { readonly width?: number; readonly height?: number; readonly hasAudio: boolean }[] = [];
+    for (const path of paths) {
+      const metadata = await this.mediaInspector.probe(path, signal);
+      const video = metadata.streams.find((stream) => stream.type === "video");
+      profiles.push({
+        ...(video?.width !== undefined ? { width: video.width } : {}),
+        ...(video?.height !== undefined ? { height: video.height } : {}),
+        hasAudio: metadata.streams.some((stream) => stream.type === "audio")
+      });
+    }
+    const first = profiles[0];
+    if (!first) {
+      return;
+    }
+    const mismatched = profiles.some(
+      (profile) =>
+        profile.width !== first.width || profile.height !== first.height || profile.hasAudio !== first.hasAudio
+    );
+    if (mismatched) {
+      throw new Error(
+        "Stream-copy concat needs identical clips (same resolution and audio presence across all clips). Enable transitionSettings so mixed clips are re-encoded consistently."
+      );
+    }
   }
 
   private async materializeClip(

@@ -89,7 +89,7 @@ interface WorkspaceLedgerRecord {
   readonly projectId?: string;
   readonly clientId?: string;
   readonly requestId: string;
-  readonly operation: "render.reserve";
+  readonly operation: "render.reserve" | "render.release";
   readonly channel: "sync" | "async";
   readonly reservedCostUsd: number;
   readonly durationTargetSeconds: number;
@@ -201,6 +201,60 @@ export class ApiWorkspaceBillingGate {
           }
         : {})
     };
+  }
+
+  /**
+   * Return a reservation for a job canceled while still queued (no provider work
+   * happened). Decrements the workspace and project buckets for the reservation's month
+   * and appends a render.release ledger line so workspace usage stays auditable.
+   */
+  public releaseRender(input: {
+    readonly reservation: ApiWorkspaceBillingReservation;
+    readonly request: CineJellyProjectRequest;
+    readonly requestId: string;
+    readonly channel: "sync" | "async";
+  }): void {
+    const workspaceUsageKey = this.workspaceUsageKey(input.reservation.workspaceId, input.reservation.monthKey);
+    const currentWorkspaceUsage = this.usageByWorkspaceMonth.get(workspaceUsageKey);
+    if (currentWorkspaceUsage) {
+      this.usageByWorkspaceMonth.set(workspaceUsageKey, {
+        requestCount: Math.max(0, currentWorkspaceUsage.requestCount - 1),
+        reservedCostUsd: roundMoney(
+          Math.max(0, currentWorkspaceUsage.reservedCostUsd - input.reservation.reservedCostUsd)
+        )
+      });
+    }
+    if (input.reservation.projectId) {
+      const projectUsageKey = this.projectUsageKey(
+        input.reservation.workspaceId,
+        input.reservation.projectId,
+        input.reservation.monthKey
+      );
+      const currentProjectUsage = this.usageByProjectMonth.get(projectUsageKey);
+      if (currentProjectUsage) {
+        this.usageByProjectMonth.set(projectUsageKey, {
+          requestCount: Math.max(0, currentProjectUsage.requestCount - 1),
+          reservedCostUsd: roundMoney(
+            Math.max(0, currentProjectUsage.reservedCostUsd - input.reservation.reservedCostUsd)
+          )
+        });
+      }
+    }
+    const settings = normalizeSeedanceSettings(input.request.settings ?? {});
+    this.writeUsageRecord({
+      schemaVersion: "cinejelly.workspace-usage-ledger.v1",
+      recordedAt: new Date().toISOString(),
+      monthKey: input.reservation.monthKey,
+      workspaceId: input.reservation.workspaceId,
+      ...(input.reservation.projectId ? { projectId: input.reservation.projectId } : {}),
+      requestId: input.requestId,
+      operation: "render.release",
+      channel: input.channel,
+      reservedCostUsd: input.reservation.reservedCostUsd,
+      durationTargetSeconds: settings.durationTargetSeconds,
+      qualityMode: settings.qualityMode,
+      tier: settings.tier
+    });
   }
 
   public summary(): unknown {

@@ -198,6 +198,8 @@ interface ActiveRenderJobRecord extends RenderJobRecordBase {
   readonly artifactDirectory: string;
   readonly request: CineJellyProjectRequest;
   readonly abortController: AbortController;
+  /** Invoked when the job is canceled while still queued so reservations can be returned. */
+  readonly onCanceledBeforeRun?: () => void;
 }
 
 interface RestoredRenderJobRecord extends RenderJobRecordBase {
@@ -263,6 +265,8 @@ export class RenderJobManager {
     readonly reviewApproval?: RenderJobReviewInput;
     readonly preExportReviewApproval?: RenderJobReviewInput;
     readonly onAccepted?: (summary: RenderJobSummary) => void;
+    /** Called if the job is canceled while still queued (never ran) — release quota here. */
+    readonly onCanceledBeforeRun?: () => void;
   }): RenderJobSubmission {
     const replayedJob = this.findIdempotentReplay(input.idempotencyKeyDigest, input.requestFingerprint);
     if (replayedJob) {
@@ -319,6 +323,7 @@ export class RenderJobManager {
         : {}),
       request: recordRequest,
       abortController: new AbortController(),
+      ...(input.onCanceledBeforeRun ? { onCanceledBeforeRun: input.onCanceledBeforeRun } : {}),
       ...(recordRequest.settings?.durationTargetSeconds !== undefined
         ? { requestedDurationSeconds: recordRequest.settings.durationTargetSeconds }
         : {}),
@@ -499,6 +504,15 @@ export class RenderJobManager {
       const queueIndex = this.queue.indexOf(jobId);
       if (queueIndex >= 0) {
         this.queue.splice(queueIndex, 1);
+      }
+      // The job never ran and no provider work happened: return the commercial
+      // reservation so monthly quota is not consumed by a canceled queue entry.
+      if (record.onCanceledBeforeRun) {
+        try {
+          record.onCanceledBeforeRun();
+        } catch {
+          // Reservation release is best-effort; cancellation itself must not fail.
+        }
       }
       this.updateJob(jobId, {
         status: "canceled",

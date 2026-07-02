@@ -700,6 +700,24 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               requestId: requestContext.requestId,
               channel: "async"
             });
+          },
+          onCanceledBeforeRun: () => {
+            if (commercialReservation?.clientPolicyReservation) {
+              clientPolicyGate.releaseRender({
+                reservation: commercialReservation.clientPolicyReservation,
+                request: normalizedRequest,
+                requestId: requestContext.requestId,
+                channel: "async"
+              });
+            }
+            if (commercialReservation?.workspaceBillingReservation) {
+              workspaceBillingGate.releaseRender({
+                reservation: commercialReservation.workspaceBillingReservation,
+                request: normalizedRequest,
+                requestId: requestContext.requestId,
+                channel: "async"
+              });
+            }
           }
         });
         sendJson(response, 202, {
@@ -877,6 +895,24 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               requestId: requestContext.requestId,
               channel: "async"
             });
+          },
+          onCanceledBeforeRun: () => {
+            if (commercialReservation?.clientPolicyReservation) {
+              clientPolicyGate.releaseRender({
+                reservation: commercialReservation.clientPolicyReservation,
+                request: normalizedRequest,
+                requestId: requestContext.requestId,
+                channel: "async"
+              });
+            }
+            if (commercialReservation?.workspaceBillingReservation) {
+              workspaceBillingGate.releaseRender({
+                reservation: commercialReservation.workspaceBillingReservation,
+                request: normalizedRequest,
+                requestId: requestContext.requestId,
+                channel: "async"
+              });
+            }
           }
         });
         sendJson(response, 202, {
@@ -1047,6 +1083,24 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               requestId: requestContext.requestId,
               channel: "async"
             });
+          },
+          onCanceledBeforeRun: () => {
+            if (commercialReservation?.clientPolicyReservation) {
+              clientPolicyGate.releaseRender({
+                reservation: commercialReservation.clientPolicyReservation,
+                request: normalizedRequest,
+                requestId: requestContext.requestId,
+                channel: "async"
+              });
+            }
+            if (commercialReservation?.workspaceBillingReservation) {
+              workspaceBillingGate.releaseRender({
+                reservation: commercialReservation.workspaceBillingReservation,
+                request: normalizedRequest,
+                requestId: requestContext.requestId,
+                channel: "async"
+              });
+            }
           }
         });
         sendJson(response, 202, {

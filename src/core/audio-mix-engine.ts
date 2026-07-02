@@ -151,11 +151,47 @@ export class AudioMixEngine {
       filterParts.push(`[0:a]${normalize},volume=${this.safeVolume(input.options.originalVolume)}[a0]`);
       audioLabels.push("[a0]");
     }
+    // apad on every supplied track: a music bed shorter than the video pads with silence
+    // instead of ending the mix early (-shortest then bounds output at the video length),
+    // and short tracks no longer drop out mid-mix.
     input.tracks.forEach((track, index) => {
       const inputIndex = index + 1;
-      const label = `[a${inputIndex}]`;
-      filterParts.push(`[${inputIndex}:a]${normalize},volume=${this.safeVolume(track.volume)}${label}`);
-      audioLabels.push(label);
+      filterParts.push(`[${inputIndex}:a]${normalize},volume=${this.safeVolume(track.volume)},apad[t${inputIndex}]`);
+    });
+    // Sidechain ducking: when narration and music are both present, the first narration
+    // track drives a compressor on every music track so the voice stays intelligible.
+    const narrationIndexes = input.tracks
+      .map((track, index) => ({ track, index }))
+      .filter((item) => item.track.role === "narration")
+      .map((item) => item.index);
+    const musicIndexes = input.tracks
+      .map((track, index) => ({ track, index }))
+      .filter((item) => item.track.role === "music")
+      .map((item) => item.index);
+    const duckingEnabled = narrationIndexes.length > 0 && musicIndexes.length > 0;
+    const duckSourceInput = (narrationIndexes[0] ?? 0) + 1;
+    if (duckingEnabled) {
+      const copies = musicIndexes.length + 1;
+      const splitLabels = Array.from({ length: copies }, (_, copy) =>
+        copy === 0 ? `[n${duckSourceInput}mix]` : `[duck${copy}]`
+      );
+      filterParts.push(`[t${duckSourceInput}]asplit=${copies}${splitLabels.join("")}`);
+      musicIndexes.forEach((trackIndex, order) => {
+        const inputIndex = trackIndex + 1;
+        filterParts.push(
+          `[t${inputIndex}][duck${order + 1}]sidechaincompress=threshold=0.05:ratio=6:attack=30:release=400[t${inputIndex}d]`
+        );
+      });
+    }
+    input.tracks.forEach((track, index) => {
+      const inputIndex = index + 1;
+      if (duckingEnabled && track.role === "music") {
+        audioLabels.push(`[t${inputIndex}d]`);
+      } else if (duckingEnabled && inputIndex === duckSourceInput) {
+        audioLabels.push(`[n${inputIndex}mix]`);
+      } else {
+        audioLabels.push(`[t${inputIndex}]`);
+      }
     });
 
     const outputLabel = "[aout]";
