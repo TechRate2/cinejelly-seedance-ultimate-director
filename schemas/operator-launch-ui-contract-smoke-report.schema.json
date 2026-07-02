@@ -44,7 +44,8 @@
         "sourceReportCount",
         "productGapCount",
         "nextActionCount",
-        "redactionCheckPassed"
+        "redactionCheckPassed",
+        "htmlSecurityHeadersCheckPassed"
       ],
       "properties": {
         "outputPath": { "type": "string" },
@@ -64,7 +65,8 @@
         "sourceReportCount": { "type": "integer", "minimum": 8 },
         "productGapCount": { "type": "integer", "minimum": 3 },
         "nextActionCount": { "type": "integer", "minimum": 8 },
-        "redactionCheckPassed": { "const": true }
+        "redactionCheckPassed": { "const": true },
+        "htmlSecurityHeadersCheckPassed": { "const": true }
       }
     },
     "scenarios": {

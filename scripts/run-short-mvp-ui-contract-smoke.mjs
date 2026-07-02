@@ -207,6 +207,7 @@ try {
     createPageHtml.includes("visualBible") &&
     createPageHtml.includes('max="480"') &&
     createPageHtml.includes("production_bible_story");
+  const createPageSecurityHeadersPassed = htmlSecurityHeadersPass(createPage.headers);
   const rawLeakDetected = containsAny(`${rawStyleStore}\n${rawSessionStore}`, [
     "C:\\Users\\Admin",
     "api_key=secret",
@@ -310,6 +311,9 @@ try {
       createPageHasRealPayloadWiring
       ? pass("short_create_page_real_mode_wiring_available", "Short create shell wires all five creation modes into backend-safe template, visual-bible, and 480s production-bible payload controls.")
       : fail("short_create_page_real_mode_wiring_available", "Expected Short create shell to wire five creation modes into preferredTemplateId, visualBible, and production-bible duration controls."),
+    createPageSecurityHeadersPassed
+      ? pass("short_create_page_security_headers", "Short create HTML is served with no-store, nosniff, frame-deny, no-referrer, permissions-policy, and self-only CSP guardrails.")
+      : fail("short_create_page_security_headers", "Expected Short create HTML route to include strict browser security headers."),
     unauthorizedSessions.status === 401
       ? pass("short_create_data_requires_client_auth", "Short create shell is public, but protected session data still requires a client API key.")
       : fail("short_create_data_requires_client_auth", "Expected unauthenticated short-pipeline session list to return 401."),
@@ -560,6 +564,7 @@ try {
       profileId,
       sessionId,
       createPageEndpointCheckPassed: !createPageLeakDetected && createPageHtml.includes("/v1/short-pipeline/conversation-sessions"),
+      htmlSecurityHeadersCheckPassed: createPageSecurityHeadersPassed,
       invalidRequestIdStatusCode: invalidRequestIdSession.statusCode,
       clientIsolationCheckPassed: detailB.statusCode === 404 && clientBPlan.statusCode === 404,
       secretLeakCheckPassed: !rawLeakDetected
@@ -1019,6 +1024,19 @@ async function containsPrivateSourcePatternTextForSmoke(value) {
 
 function containsAny(value, needles) {
   return needles.some((needle) => value.includes(needle));
+}
+
+function htmlSecurityHeadersPass(headers) {
+  const csp = String(headers.get("content-security-policy") ?? "");
+  return String(headers.get("cache-control") ?? "").toLowerCase().includes("no-store") &&
+    String(headers.get("x-content-type-options") ?? "").toLowerCase() === "nosniff" &&
+    String(headers.get("x-frame-options") ?? "").toUpperCase() === "DENY" &&
+    String(headers.get("referrer-policy") ?? "").toLowerCase() === "no-referrer" &&
+    String(headers.get("permissions-policy") ?? "").includes("camera=()") &&
+    csp.includes("default-src 'none'") &&
+    csp.includes("connect-src 'self'") &&
+    csp.includes("frame-ancestors 'none'") &&
+    csp.includes("form-action 'self'");
 }
 
 function sha256(value) {

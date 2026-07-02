@@ -67,6 +67,7 @@ try {
     dashboardPage: dashboardPage.body,
     ui
   }));
+  const dashboardSecurityHeadersPassed = htmlSecurityHeadersPass(dashboardPage.headers);
   const sourceReports = Array.isArray(ui?.sourceReports) ? ui.sourceReports : [];
   const productGaps = Array.isArray(ui?.productGaps) ? ui.productGaps : [];
   const nextActions = Array.isArray(ui?.nextActions) ? ui.nextActions : [];
@@ -81,6 +82,9 @@ try {
       !dashboardPage.body.includes("ATLASCLOUD_API_KEY")
       ? pass("operator_dashboard_page_available", "First-party operator dashboard HTML is served without embedding credentials or local paths.")
       : fail("operator_dashboard_page_available", "Expected operator dashboard HTML route to be safe and available."),
+    dashboardSecurityHeadersPassed
+      ? pass("operator_dashboard_security_headers", "Operator launch dashboard HTML is served with no-store, nosniff, frame-deny, no-referrer, permissions-policy, and self-only CSP guardrails.")
+      : fail("operator_dashboard_security_headers", "Expected operator dashboard HTML route to include strict browser security headers."),
     unauthorized.statusCode === 401
       ? pass("deployment_token_required", "Operator launch UI contract is protected by the deployment token.")
       : fail("deployment_token_required", "Expected missing deployment token to be rejected."),
@@ -160,7 +164,8 @@ try {
       sourceReportCount: sourceReports.length,
       productGapCount: productGaps.length,
       nextActionCount: nextActions.length,
-      redactionCheckPassed: !leakDetected
+      redactionCheckPassed: !leakDetected,
+      htmlSecurityHeadersCheckPassed: dashboardSecurityHeadersPassed
     },
     scenarios: {
       dashboardStatus: ui?.dashboardStatus,
@@ -226,6 +231,19 @@ async function getText(url) {
     headers: response.headers,
     body: await response.text()
   };
+}
+
+function htmlSecurityHeadersPass(headers) {
+  const csp = String(headers.get("content-security-policy") ?? "");
+  return String(headers.get("cache-control") ?? "").toLowerCase().includes("no-store") &&
+    String(headers.get("x-content-type-options") ?? "").toLowerCase() === "nosniff" &&
+    String(headers.get("x-frame-options") ?? "").toUpperCase() === "DENY" &&
+    String(headers.get("referrer-policy") ?? "").toLowerCase() === "no-referrer" &&
+    String(headers.get("permissions-policy") ?? "").includes("camera=()") &&
+    csp.includes("default-src 'none'") &&
+    csp.includes("connect-src 'self'") &&
+    csp.includes("frame-ancestors 'none'") &&
+    csp.includes("form-action 'self'");
 }
 
 function writeJson(outputPath, value) {

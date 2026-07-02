@@ -278,6 +278,7 @@ Kết quả audit ngày 2026-07-02:
 - `dist/` production không còn file `.map`; `tsconfig.json` đặt `compilerOptions.sourceMap=false`.
 - `scripts/audit-source-structure.mjs` và `scripts/validate-deployment-package.mjs` cùng có guard `tsconfig_no_production_source_maps` để chặn việc bật lại source map trong artifact production.
 - `scripts/validate-deployment-package.mjs` kiểm tra `package.json` để npm package chỉ được chứa `dist/`, `schemas/`, `README.md`, `.env.production.template`, entrypoint chỉ trỏ `dist/`, không có lifecycle pack script, và `dist/` không có `.map` nếu đã build.
+- Các route HTML tĩnh như `/short/create` và `/operator/launch-dashboard` được API gửi kèm `no-store`, `nosniff`, `DENY` frame, `no-referrer`, permissions policy, và CSP chỉ cho tài nguyên cùng origin; hai UI smoke bắt buộc kiểm header này.
 - Các file `scripts/run-*-smoke.mjs` và `schemas/*-smoke-report.schema.json` được giữ lại như dev/audit guardrail, không phải code runtime. Chúng không được import bởi `src/` và không đi vào Docker runtime.
 - `.env.production.template` là nguồn config deploy sạch; `.env`, media thật, output thật và operator evidence phải nằm ngoài git.
 

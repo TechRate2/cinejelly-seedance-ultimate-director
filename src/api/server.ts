@@ -173,6 +173,23 @@ const SHORT_MEDIA_REFERENCE_PRIORITIES = new Set(["primary", "supporting"]);
 const SHORT_AUDIO_MODES = new Set(["off", "voiceover", "native", "hybrid"]);
 const SHORT_AUDIO_LANGUAGES = new Set(["en", "vi", "zh"]);
 const MAX_SHORT_MEDIA_REFERENCES = 12;
+const BASE_SECURITY_HEADERS: OutgoingHttpHeaders = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()"
+};
+const HTML_CONTENT_SECURITY_POLICY = [
+  "default-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "connect-src 'self'",
+  "img-src 'self' data:",
+  "style-src 'unsafe-inline'",
+  "script-src 'unsafe-inline'"
+].join("; ");
 const OPERATOR_LAUNCH_UI_REPORTS = [
   {
     reportId: "business_completion_audit",
@@ -1245,10 +1262,9 @@ function sendJson(
     return;
   }
   response.writeHead(statusCode, {
+    ...BASE_SECURITY_HEADERS,
     ...headers,
     "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff"
   });
   response.end(JSON.stringify(redactApiResponse(redactUnknown(withRequestContext(payload, requestContext)))));
 }
@@ -1258,9 +1274,9 @@ function sendHtml(response: ServerResponse, statusCode: number, html: string): v
     return;
   }
   response.writeHead(statusCode, {
+    ...BASE_SECURITY_HEADERS,
     "Content-Type": "text/html; charset=utf-8",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff"
+    "Content-Security-Policy": HTML_CONTENT_SECURITY_POLICY
   });
   response.end(html);
 }

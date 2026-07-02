@@ -47,6 +47,7 @@
         "profileId",
         "sessionId",
         "createPageEndpointCheckPassed",
+        "htmlSecurityHeadersCheckPassed",
         "invalidRequestIdStatusCode",
         "videoPipeCatalogStatusCode",
         "clientIsolationCheckPassed",
@@ -70,6 +71,7 @@
         "profileId": { "type": "string", "pattern": "^short_channel_style_[a-f0-9]{16}$" },
         "sessionId": { "type": "string", "pattern": "^short_session_[a-f0-9]{16}$" },
         "createPageEndpointCheckPassed": { "const": true },
+        "htmlSecurityHeadersCheckPassed": { "const": true },
         "clientIsolationCheckPassed": { "const": true },
         "secretLeakCheckPassed": { "const": true }
       }
