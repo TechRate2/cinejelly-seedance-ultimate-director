@@ -283,6 +283,7 @@ Kết quả audit ngày 2026-07-02:
 - `scripts/run-api-response-redaction-smoke.mjs` chạy local HTTP `/health` để kiểm JSON response có security headers và `X-CineJelly-Request-Id`, đồng thời kiểm redaction source-lineage/local-path.
 - `scripts/audit-source-structure.mjs` kiểm tra các npm scripts trong `package.json` để file `scripts/*.mjs`, `scripts/*.ps1`, và source tương ứng của `dist/*.js` entrypoint không bị stale hoặc mất file.
 - `scripts/validate-deployment-package.mjs` kiểm tra Docker/Compose tạo và mount bền cả `/app/assets/output_deliverables` lẫn `/app/assets/reference_inputs`, để output và input media thật không bị nhét vào image hoặc mất khi container restart.
+- `scripts/validate-deployment-package.mjs` cũng chặn `.env.production.template` nếu template chủ động bật tắt auth/rate-limit hoặc bật live source-video/remote-stock gates mặc định.
 - Các file `scripts/run-*-smoke.mjs` và `schemas/*-smoke-report.schema.json` được giữ lại như dev/audit guardrail, không phải code runtime. Chúng không được import bởi `src/` và không đi vào Docker runtime.
 - `.env.production.template` là nguồn config deploy sạch; `.env`, media thật, output thật và operator evidence phải nằm ngoài git.
 

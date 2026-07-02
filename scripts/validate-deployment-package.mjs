@@ -378,6 +378,7 @@ function envTemplateChecks(read, runtimeEnvNames) {
     check("env_template_required_runtime_keys", requiredPlaceholders.every((name) => hasEnvPlaceholder(text, name)), ".env template includes required Atlas/API auth, Short Studio storage, and public-host placeholders.", "Keep Atlas media, Atlas LLM, CineJelly API auth, Short Studio storage, and Caddy public-host placeholders in the template."),
     check("env_template_covers_runtime_source_keys", missingRuntimeEnvNames.length === 0, ".env template documents every environment key read by src runtime code.", `Document runtime environment keys missing from .env template: ${missingRuntimeEnvNames.join(", ") || "none"}.`),
     check("env_template_budget_default", /CINEJELLY_LIVE_VALIDATION_MAX_BUDGET_USD=5\b/.test(text), ".env template keeps the live validation budget default at 5 USD.", "Default live validation budget should stay conservative until explicitly raised."),
+    check("env_template_real_mode_safety_defaults", realModeSafetyDefaultsPass(text), ".env template keeps auth/rate-limit enabled and live-fetch/remote-stock gates disabled by default.", "Do not actively set auth/rate-limit disable flags or live-fetch/remote-stock flags to true in the production env template."),
     check("env_template_container_storage_note", /container/i.test(text) && /CINEJELLY_OUTPUT_DIR/i.test(text) && /durable storage/i.test(text), ".env template explains container output storage.", "Document container CINEJELLY_OUTPUT_DIR and durable-storage expectations."),
     check("env_template_compose_https_note", /docker-compose\.yml/i.test(text) && /CINEJELLY_PUBLIC_HOST/i.test(text), ".env template documents the compose/Caddy public host.", "Document CINEJELLY_PUBLIC_HOST for docker compose HTTPS deployments."),
     check("env_template_no_real_secrets", !secretLikePatterns.some((pattern) => pattern.test(text)), ".env template does not contain real secret-like values.", "Remove real API keys, bearer tokens, or secret key values from the template.")
@@ -386,6 +387,27 @@ function envTemplateChecks(read, runtimeEnvNames) {
 
 function hasEnvPlaceholder(text, name) {
   return text.split(/\r?\n/).some((line) => line.trimStart().startsWith(`${name}${"="}`));
+}
+
+function realModeSafetyDefaultsPass(text) {
+  return [
+    "CINEJELLY_DISABLE_API_AUTH",
+    "CINEJELLY_DISABLE_API_RATE_LIMIT",
+    "CINEJELLY_ENABLE_SOURCE_VIDEO_AUTO_ANALYSIS",
+    "CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS",
+    "CINEJELLY_COVERR_COMMERCIAL_USE_APPROVED"
+  ].every((name) => activeEnvValue(text, name) !== "true");
+}
+
+function activeEnvValue(text, name) {
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.startsWith(`${name}=`)) {
+      continue;
+    }
+    return trimmed.slice(name.length + 1).split("#")[0].trim().toLowerCase();
+  }
+  return undefined;
 }
 
 function hasEnvKey(text, name) {
