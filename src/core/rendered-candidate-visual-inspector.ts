@@ -47,6 +47,15 @@ interface FrameSamplerLike {
   sampleFrames(path: string, options: FrameSamplingOptions, signal?: AbortSignal): Promise<readonly FrameSample[]>;
 }
 
+interface MediaProberLike {
+  probe(path: string, signal?: AbortSignal): Promise<{ readonly durationSeconds?: number }>;
+}
+
+/** Rendered clips shorter than this fraction of the requested duration trigger a re-render. */
+const DURATION_SHORTFALL_RERENDER_RATIO = 0.12;
+/** Rendered clips shorter than this fraction of the requested duration raise a warning. */
+const DURATION_SHORTFALL_WARN_RATIO = 0.05;
+
 interface SemanticInspectorLike {
   inspect(
     frames: readonly FrameSample[],
@@ -58,13 +67,16 @@ interface SemanticInspectorLike {
 export class RenderedCandidateVisualInspector {
   private readonly mediaInspector: FrameSamplerLike;
   private readonly semanticVisualInspector: SemanticInspectorLike;
+  private readonly mediaProber: MediaProberLike | undefined;
 
   public constructor(input: {
     readonly mediaInspector: FrameSamplerLike;
     readonly semanticVisualInspector: SemanticInspectorLike;
+    readonly mediaProber?: MediaProberLike;
   }) {
     this.mediaInspector = input.mediaInspector;
     this.semanticVisualInspector = input.semanticVisualInspector;
+    this.mediaProber = input.mediaProber;
   }
 
   public async inspectCandidate(input: {
@@ -86,6 +98,9 @@ export class RenderedCandidateVisualInspector {
         )
       ]);
     }
+
+    const durationFinding = await this.durationShortfallFinding(videoUrl, input.compiledPrompt, input.signal);
+    const durationFindings = durationFinding ? [durationFinding] : [];
 
     try {
       const outputDirectory = join(
@@ -112,12 +127,13 @@ export class RenderedCandidateVisualInspector {
         },
         input.signal
       );
-      return this.toReport(input.shot.shotId, this.toGuardianFindings(semanticReport));
+      return this.toReport(input.shot.shotId, [...durationFindings, ...this.toGuardianFindings(semanticReport)]);
     } catch (error: unknown) {
       if (input.signal?.aborted) {
         throw error;
       }
       return this.toReport(input.shot.shotId, [
+        ...durationFindings,
         this.infraFinding(
           "visual_curation_unavailable",
           `Visual curation could not run for this candidate: ${error instanceof Error ? error.message : "unknown error"}.`,
@@ -125,6 +141,53 @@ export class RenderedCandidateVisualInspector {
         )
       ]);
     }
+  }
+
+  /**
+   * Measure the rendered clip's real duration against the requested duration. A short clip
+   * is the root cause of "video thiếu thời lượng": it silently shrinks the assembled total,
+   * so a meaningful shortfall becomes a rerender-grade finding for the repair loop.
+   * Fail-safe: probe errors or a missing prober produce no finding.
+   */
+  private async durationShortfallFinding(
+    videoUrl: string,
+    compiledPrompt: CompiledPrompt,
+    signal?: AbortSignal
+  ): Promise<GuardianFinding | undefined> {
+    if (!this.mediaProber) {
+      return undefined;
+    }
+    const requestedSeconds = compiledPrompt.videoRequest.settings.durationSeconds;
+    if (!Number.isFinite(requestedSeconds) || requestedSeconds <= 0) {
+      return undefined;
+    }
+    let actualSeconds: number | undefined;
+    try {
+      const metadata = await this.mediaProber.probe(videoUrl, signal);
+      actualSeconds = metadata.durationSeconds;
+    } catch (error: unknown) {
+      if (signal?.aborted) {
+        throw error;
+      }
+      return undefined;
+    }
+    if (actualSeconds === undefined || !Number.isFinite(actualSeconds) || actualSeconds <= 0) {
+      return undefined;
+    }
+    const shortfallRatio = (requestedSeconds - actualSeconds) / requestedSeconds;
+    if (shortfallRatio <= DURATION_SHORTFALL_WARN_RATIO) {
+      return undefined;
+    }
+    const severe = shortfallRatio > DURATION_SHORTFALL_RERENDER_RATIO;
+    return {
+      stage: "render",
+      status: severe ? "rerender" : "warn",
+      severity: severe ? "S1" : "S3",
+      checkpoint: "visual_duration_shortfall",
+      evidence: `Rendered clip covers ${actualSeconds.toFixed(2)}s of the requested ${requestedSeconds}s (${Math.round(shortfallRatio * 100)}% short).`,
+      repair: `Re-render this shot to fill the full ${requestedSeconds}s runtime; keep the action continuous to the final second and do not end early.`,
+      repairScope: severe ? "render" : "none"
+    };
   }
 
   private expectationsFor(

@@ -1,0 +1,203 @@
+/**
+ * Duration scripting engine.
+ *
+ * Guarantees that any requested duration gets a full-coverage, time-coded beat plan with a
+ * deliberate opening hook and a settled ending, so generated clips fill their entire runtime
+ * instead of ending action early or padding with frozen frames.
+ *
+ * Built on the highest-leverage Seedance timing techniques:
+ * - timestamped beat markers act as hard editorial instructions to the model;
+ * - a "sandwich" duration declaration (top and bottom of the prompt) locks total runtime;
+ * - an escalation arc (hook -> development -> peak -> settle) scales to any duration.
+ *
+ * Source lineage: distilled from YouMind-OpenLab/awesome-seedance-2-prompts (CC BY 4.0)
+ * timing patterns and public Seedance 2.0 prompting guidance; original condensed direction,
+ * no verbatim upstream text.
+ */
+
+export type DurationBeatRole = "hook" | "development" | "proof_peak" | "settle";
+
+export interface DurationBeat {
+  readonly role: DurationBeatRole;
+  readonly startSecond: number;
+  readonly endSecond: number;
+  readonly directive: string;
+}
+
+export interface DurationScriptPlan {
+  readonly durationSeconds: number;
+  readonly beats: readonly DurationBeat[];
+  /** Ready-to-embed prompt lines enforcing full-duration coverage with time-coded beats. */
+  readonly promptLines: readonly string[];
+}
+
+/** Video-level arc role for a shot inside a multi-shot video. */
+export type VideoArcRole = "full_video" | "opening_hook" | "development" | "climax" | "closing_resolve";
+
+const BEAT_DIRECTIVES: Record<DurationBeatRole, string> = {
+  hook:
+    "instantly readable hook already in motion (mid-action or mid-reaction, never a slow settle-in or empty establishing frame)",
+  development:
+    "continuous cause-and-effect action that adds new visible information every beat (no repeated poses, no idle holds, no filler)",
+  proof_peak:
+    "the peak proof/payoff moment fully on screen (the state change, result, or emotional turn lands here)",
+  settle:
+    "action resolves and settles into a stable, legible final frame with the subject/product still visible (no mid-blink, blur, whip, or unfinished motion)"
+};
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/**
+ * Build a full-coverage, time-coded beat plan for any clip duration.
+ * Beat count scales with duration (about one beat per 2.5-3s, min 2, max 6) and the
+ * segments always tile [0, durationSeconds] exactly, so the model receives hard timing
+ * instructions covering the entire runtime.
+ */
+export function planDurationBeats(durationSeconds: number): readonly DurationBeat[] {
+  const duration = Math.max(1, durationSeconds);
+  const hookSeconds = round1(Math.min(1.5, duration * 0.25));
+  const settleSeconds = round1(Math.min(1.5, Math.max(0.5, duration * 0.12)));
+  const middleStart = hookSeconds;
+  const middleEnd = round1(duration - settleSeconds);
+  const middleSpan = Math.max(0, middleEnd - middleStart);
+  const middleBeatCount = Math.min(4, Math.max(1, Math.round(middleSpan / 3)));
+
+  const beats: DurationBeat[] = [
+    { role: "hook", startSecond: 0, endSecond: hookSeconds, directive: BEAT_DIRECTIVES.hook }
+  ];
+  let cursor = middleStart;
+  for (let index = 0; index < middleBeatCount; index += 1) {
+    const isLastMiddle = index === middleBeatCount - 1;
+    const end = isLastMiddle ? middleEnd : round1(middleStart + (middleSpan * (index + 1)) / middleBeatCount);
+    beats.push({
+      role: isLastMiddle ? "proof_peak" : "development",
+      startSecond: cursor,
+      endSecond: end,
+      directive: isLastMiddle ? BEAT_DIRECTIVES.proof_peak : BEAT_DIRECTIVES.development
+    });
+    cursor = end;
+  }
+  beats.push({
+    role: "settle",
+    startSecond: middleEnd,
+    endSecond: duration,
+    directive: BEAT_DIRECTIVES.settle
+  });
+  return beats;
+}
+
+/**
+ * Build the full-duration prompt contract for one clip: a sandwich duration declaration
+ * plus timestamped beats. `arcRole` tunes the hook/settle language to the shot's position
+ * inside the whole video so openings open and endings end.
+ */
+export function buildDurationScript(input: {
+  readonly durationSeconds: number;
+  readonly arcRole?: VideoArcRole;
+}): DurationScriptPlan {
+  const beats = planDurationBeats(input.durationSeconds);
+  const beatLines = beats.map(
+    (beat) => `[${beat.startSecond}-${beat.endSecond}s] ${beat.role.replace(/_/g, " ")}: ${beat.directive}.`
+  );
+  const arcLine = input.arcRole ? ARC_ROLE_DIRECTIVES[input.arcRole] : undefined;
+  const promptLines = [
+    `Runtime contract: this clip runs exactly ${input.durationSeconds} seconds and the action must fill the entire runtime; treat the timestamped beats as hard editorial instructions.`,
+    ...beatLines,
+    arcLine,
+    `Do not finish the action early, freeze on a static frame, loop, or pad; the final beat must still be purposeful motion that settles cleanly at ${input.durationSeconds}s. Total: ${input.durationSeconds}s.`
+  ].filter((line): line is string => Boolean(line));
+  return {
+    durationSeconds: input.durationSeconds,
+    beats,
+    promptLines
+  };
+}
+
+/** Video-level opening/ending direction so multi-shot videos open strong and end resolved. */
+export const ARC_ROLE_DIRECTIVES: Record<VideoArcRole, string> = {
+  full_video:
+    "Whole video in one clip: the first frames are the scroll-stopping hook (open mid-action with the strongest visual tension) AND the final beat is the designed ending (payoff lands, action resolves, clean settled end frame that feels finished).",
+  opening_hook:
+    "Video opening: this is the first shot of the video; the very first frames are the scroll-stopping hook, so open mid-action with the strongest visual tension and establish subject and stakes immediately.",
+  development:
+    "Video middle: advance the story with new visible information and keep momentum from the previous shot; do not re-introduce the subject or restart the scene.",
+  climax:
+    "Video climax: this shot carries the peak proof/payoff of the whole video; make the result unmistakably visible before handing off.",
+  closing_resolve:
+    "Video ending: this is the final shot of the video; resolve the story, give the payoff/afterglow a held readable moment, and settle into a clean end frame that feels finished (no cliffhanger cut, no abrupt stop)."
+};
+
+/**
+ * Plan integer per-shot duration additions so the assembled video hits the requested
+ * target despite crossfade overlap and planning shortfall.
+ *
+ * Crossfade assembly consumes `transitionOverlapSeconds` at every clip boundary, so a
+ * video assembled from N clips loses overlap x (N-1) seconds; if the planned clip sum is
+ * also below target, the delivered video is short twice over. This returns whole-second
+ * additions (distributed from the last shot backward, respecting the per-clip maximum)
+ * that restore the full runtime.
+ */
+export function planDurationCompensation(input: {
+  readonly shotDurations: readonly number[];
+  readonly targetDurationSeconds: number;
+  readonly transitionOverlapSeconds: number;
+  readonly maxClipSeconds?: number;
+}): readonly number[] {
+  const maxClip = input.maxClipSeconds ?? 15;
+  const shotCount = input.shotDurations.length;
+  const additions = input.shotDurations.map(() => 0);
+  if (shotCount === 0) {
+    return additions;
+  }
+  const plannedTotal = input.shotDurations.reduce((sum, duration) => sum + duration, 0);
+  const overlapBudget = Math.max(0, input.transitionOverlapSeconds) * Math.max(0, shotCount - 1);
+  const shortfall = Math.max(0, input.targetDurationSeconds - plannedTotal);
+  let remaining = Math.round(overlapBudget + shortfall);
+  if (remaining <= 0) {
+    return additions;
+  }
+  // Distribute one second at a time from the last shot backward so the ending gains the
+  // most breathing room; skip shots already at the clip maximum.
+  let guard = remaining * shotCount + shotCount;
+  while (remaining > 0 && guard > 0) {
+    let placed = false;
+    for (let index = shotCount - 1; index >= 0 && remaining > 0; index -= 1) {
+      const current = (input.shotDurations[index] ?? 0) + (additions[index] ?? 0);
+      if (current + 1 <= maxClip) {
+        additions[index] = (additions[index] ?? 0) + 1;
+        remaining -= 1;
+        placed = true;
+      }
+    }
+    if (!placed) {
+      break;
+    }
+    guard -= 1;
+  }
+  return additions;
+}
+
+/**
+ * Assign video-level arc roles across the ordered shots of one video for any shot count,
+ * so every video gets a designed opening and ending regardless of duration.
+ */
+export function assignVideoArcRoles(shotCount: number): readonly VideoArcRole[] {
+  if (shotCount <= 0) {
+    return [];
+  }
+  if (shotCount === 1) {
+    return ["full_video"];
+  }
+  if (shotCount === 2) {
+    return ["opening_hook", "closing_resolve"];
+  }
+  const roles: VideoArcRole[] = ["opening_hook"];
+  for (let index = 1; index < shotCount - 2; index += 1) {
+    roles.push("development");
+  }
+  roles.push("climax");
+  roles.push("closing_resolve");
+  return roles;
+}

@@ -11,6 +11,12 @@ import { seedanceResolutionHeight } from "../config/seedance-settings.js";
 const ASPECT_RATIO_TOLERANCE = 0.02;
 const DURATION_WARN_TOLERANCE = 0.05;
 const DURATION_BLOCK_TOLERANCE = 0.15;
+/**
+ * Undershoot blocks earlier than overshoot: a video shorter than requested is the
+ * "thiếu thời lượng" defect customers notice immediately, while modest overshoot is
+ * usually acceptable padding.
+ */
+const DURATION_SHORT_BLOCK_TOLERANCE = 0.1;
 
 export class DeliveryGate {
   public evaluate(input: {
@@ -115,9 +121,11 @@ export class DeliveryGate {
       return [];
     }
 
+    const isShort = actualDurationSeconds < targetDurationSeconds;
+    const blockTolerance = isShort ? DURATION_SHORT_BLOCK_TOLERANCE : DURATION_BLOCK_TOLERANCE;
     const driftPercent = Number((drift * 100).toFixed(2));
-    const evidence = `Expected approximately ${targetDurationSeconds}s but final deliverable is ${Number(actualDurationSeconds.toFixed(3))}s (${driftPercent}% drift).`;
-    if (drift > DURATION_BLOCK_TOLERANCE) {
+    const evidence = `Expected approximately ${targetDurationSeconds}s but final deliverable is ${Number(actualDurationSeconds.toFixed(3))}s (${driftPercent}% drift${isShort ? ", short side" : ""}).`;
+    if (drift > blockTolerance) {
       return [
         {
           status: "block",

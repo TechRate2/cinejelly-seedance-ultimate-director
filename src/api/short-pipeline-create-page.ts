@@ -1185,6 +1185,14 @@ export function buildShortPipelineCreatePage(): string {
           <label class="field"><span>Notes</span><input id="review-notes" autocomplete="off" placeholder="Short review note"></label>
         </div>
         <label class="field" style="margin-top:12px"><span>Packet</span><textarea id="approval-packet" wrap="soft" readonly></textarea></label>
+        <div class="grid-3" style="margin-top:12px;align-items:end">
+          <label class="field"><span>Provider spend</span>
+            <span class="detail" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="confirm-render">Confirm paid render submission</span>
+          </label>
+          <button class="ghost-btn" type="button" id="submit-render" disabled>Create Render Job</button>
+          <button class="mini-btn" type="button" id="stop-polling" disabled>Stop Watching Job</button>
+        </div>
+        <div id="render-status" class="detail" style="margin-top:10px">No render job yet. Load a session contract, optionally prepare the review packet, then create the render job. Without approved and confirmed review the job is created paused for review with no provider spend.</div>
       </section>
     </main>
   </div>
@@ -1349,8 +1357,106 @@ export function buildShortPipelineCreatePage(): string {
       button.addEventListener("click", enhancePrompt);
     });
     document.getElementById("clear-reference-fields").addEventListener("click", clearReferenceFields);
+    document.getElementById("submit-render").addEventListener("click", submitRender);
+    document.getElementById("stop-polling").addEventListener("click", () => stopJobPolling("Stopped watching the job. Reload the contract or reopen the status URL to check again."));
     updatePromptCount();
     updateEstimatedCost();
+
+    let jobPollTimer = null;
+    let jobPollDelayMs = 3000;
+
+    function setRenderStatus(text) {
+      document.getElementById("render-status").textContent = text;
+    }
+
+    function stopJobPolling(message) {
+      if (jobPollTimer) {
+        clearTimeout(jobPollTimer);
+        jobPollTimer = null;
+      }
+      document.getElementById("stop-polling").disabled = true;
+      if (message) {
+        setRenderStatus(message);
+      }
+    }
+
+    async function submitRender() {
+      clearMessages();
+      if (!activeSessionId) {
+        showError("Load or create a session before creating a render job.");
+        return;
+      }
+      const confirmRender = document.getElementById("confirm-render").checked;
+      const review = collectReviewApproval();
+      const body = {
+        ...(review ? { reviewApprovalGate: review.gate, reviewApprovalCheckpoints: review.checkpoints } : {}),
+        confirmRenderSubmission: confirmRender
+      };
+      const endpoint = endpoints.render.replace("{sessionId}", encodeURIComponent(activeSessionId));
+      setRenderStatus("Submitting render job...");
+      const response = await apiFetch(endpoint, { method: "POST", body: JSON.stringify(body) });
+      const jobId = response.jobId || (response.job && response.job.jobId) || "";
+      const statusUrl = response.statusUrl || (jobId ? "/v1/render-jobs/" + encodeURIComponent(jobId) : "");
+      showSuccess("Render job created" + (jobId ? " (" + jobId + ")" : "") + ".");
+      if (statusUrl) {
+        jobPollDelayMs = 3000;
+        pollRenderJob(statusUrl);
+      } else {
+        setRenderStatus("Job created but no status URL was returned; check the Jobs API directly.");
+      }
+    }
+
+    async function pollRenderJob(statusUrl) {
+      document.getElementById("stop-polling").disabled = false;
+      let job;
+      try {
+        job = await apiFetch(statusUrl);
+      } catch (error) {
+        stopJobPolling("Job status check failed; open " + statusUrl + " manually.");
+        return;
+      }
+      const status = job.status || "unknown";
+      const stage = job.currentStage && job.currentStage.stage ? " | stage: " + job.currentStage.stage : "";
+      setRenderStatus("Job " + (job.jobId || "") + " status: " + status + stage + " | " + statusUrl);
+      if (status === "succeeded" || status === "failed" || status === "canceled") {
+        stopJobPolling("Job finished with status: " + status + ". Details: " + statusUrl);
+        return;
+      }
+      if (status.indexOf("paused") === 0) {
+        stopJobPolling("Job is " + status.replaceAll("_", " ") + "; submit accepted review evidence, then create the render job again with confirmation.");
+        return;
+      }
+      jobPollDelayMs = Math.min(Math.round(jobPollDelayMs * 1.25), 10000);
+      jobPollTimer = setTimeout(() => pollRenderJob(statusUrl), jobPollDelayMs);
+    }
+
+    function collectReviewApproval() {
+      if (!activeContract) {
+        return undefined;
+      }
+      const reviewer = document.getElementById("reviewer").value.trim();
+      if (!reviewer) {
+        return undefined;
+      }
+      const decision = document.getElementById("review-decision").value;
+      const notes = document.getElementById("review-notes").value.trim();
+      const reviewedAt = new Date().toISOString();
+      return {
+        gate: activeContract.review.approvalPayloadContract.gate,
+        checkpoints: activeContract.review.checkpoints
+          .filter((checkpoint) => checkpoint.canApproveInUi)
+          .map((checkpoint) => ({
+            surface: checkpoint.surface,
+            label: checkpoint.label,
+            ...(checkpoint.subjectId ? { subjectId: checkpoint.subjectId } : {}),
+            required: checkpoint.required,
+            decision,
+            reviewer,
+            reviewedAt,
+            ...(notes ? { notes } : {})
+          }))
+      };
+    }
 
     async function createSession() {
       clearMessages();
@@ -1564,6 +1670,7 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("metric-provider").textContent = contract.render.canSubmitToProviderNow ? "Ready" : "Locked";
       document.getElementById("metric-provider").className = "pill " + (contract.render.canSubmitToProviderNow ? "ready" : "warn");
       document.getElementById("prepare-approval").disabled = false;
+      document.getElementById("submit-render").disabled = false;
       document.getElementById("approval-packet").value = "";
       renderList("review-checkpoints", contract.review.checkpoints, checkpointTemplate);
       renderSeedanceRouting(contract.seedanceRouting);

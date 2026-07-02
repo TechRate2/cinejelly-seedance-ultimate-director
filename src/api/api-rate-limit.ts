@@ -73,7 +73,15 @@ export class ApiRateLimiter {
   }
 
   private shouldLimit(pathname: string, method: string | undefined): boolean {
-    return method === "POST" && (pathname === "/v1/render" || pathname === "/v1/render-jobs");
+    if (method !== "POST") {
+      return false;
+    }
+    return (
+      pathname === "/v1/render" ||
+      pathname === "/v1/render-jobs" ||
+      pathname === "/v1/short-pipeline/render-jobs" ||
+      /^\/v1\/short-pipeline\/conversation-sessions\/[^/]+\/render-jobs$/.test(pathname)
+    );
   }
 
   private bucketKeyFor(request: IncomingMessage): string {

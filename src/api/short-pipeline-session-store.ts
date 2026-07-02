@@ -4,7 +4,7 @@
  * secrets, and local filesystem paths are not allowed into the retained store.
  */
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type {
   ShortPipelineConversationSession,
@@ -75,6 +75,14 @@ interface ShortPipelineSessionStoreFile {
 export class ShortPipelineSessionStore {
   public readonly storePath: string;
   private readonly maxSessions: number;
+  /**
+   * mtime/size-keyed cache of the parsed store so hot list/get requests do not re-read,
+   * re-parse, and re-run redaction scrubbing over the whole file on every call. External
+   * file changes are still picked up because the stat fingerprint is checked first.
+   */
+  private recordsCache:
+    | { readonly mtimeMs: number; readonly sizeBytes: number; readonly records: readonly ShortPipelineStoredSessionRecord[] }
+    | undefined;
 
   public constructor(input: { readonly storePath: string; readonly maxSessions?: number }) {
     const configuredPath = input.storePath.trim();
@@ -89,16 +97,36 @@ export class ShortPipelineSessionStore {
   }
 
   public loadRecords(): readonly ShortPipelineStoredSessionRecord[] {
+    let fingerprint: { readonly mtimeMs: number; readonly sizeBytes: number } | undefined;
+    try {
+      const stats = statSync(this.storePath);
+      fingerprint = { mtimeMs: stats.mtimeMs, sizeBytes: stats.size };
+    } catch (error) {
+      if (isFileNotFound(error)) {
+        this.recordsCache = undefined;
+        return [];
+      }
+      throw new Error(`Short-pipeline session store cannot be read: ${errorMessage(error)}`);
+    }
+    if (
+      this.recordsCache &&
+      this.recordsCache.mtimeMs === fingerprint.mtimeMs &&
+      this.recordsCache.sizeBytes === fingerprint.sizeBytes
+    ) {
+      return this.recordsCache.records;
+    }
     let text: string;
     try {
       text = readFileSync(this.storePath, "utf8");
     } catch (error) {
       if (isFileNotFound(error)) {
+        this.recordsCache = undefined;
         return [];
       }
       throw new Error(`Short-pipeline session store cannot be read: ${errorMessage(error)}`);
     }
     if (!text.trim()) {
+      this.recordsCache = { ...fingerprint, records: [] };
       return [];
     }
     let parsed: unknown;
@@ -108,10 +136,12 @@ export class ShortPipelineSessionStore {
       throw new Error("Short-pipeline session store must be valid JSON.");
     }
     const storeFile = this.storeFile(parsed);
-    return storeFile.sessions
+    const records = storeFile.sessions
       .map((session) => this.storedRecord(session))
       .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
       .slice(0, this.maxSessions);
+    this.recordsCache = { ...fingerprint, records };
+    return records;
   }
 
   public saveSession(
@@ -204,6 +234,12 @@ export class ShortPipelineSessionStore {
     const tempPath = `${this.storePath}.${process.pid}.${Date.now()}.tmp`;
     writeFileSync(tempPath, serialized, "utf8");
     renameSync(tempPath, this.storePath);
+    try {
+      const stats = statSync(this.storePath);
+      this.recordsCache = { mtimeMs: stats.mtimeMs, sizeBytes: stats.size, records };
+    } catch {
+      this.recordsCache = undefined;
+    }
   }
 
   private serializableRecord(record: ShortPipelineStoredSessionRecord): Record<string, unknown> {

@@ -42,9 +42,11 @@ export function createDirectorRuntime(
   const renderProducer = new RenderProducer(atlasProvider, atlasProvider);
   const renderCostGate = new RenderCostGate(settings.costEstimation);
   const semanticVisualInspector = new SemanticVisualInspector(atlasProvider, settings.atlasCloud.models.llmModel);
+  const candidateMediaInspector = new MediaInspector();
   const renderedCandidateVisualInspector = new RenderedCandidateVisualInspector({
-    mediaInspector: new MediaInspector(),
-    semanticVisualInspector
+    mediaInspector: candidateMediaInspector,
+    semanticVisualInspector,
+    mediaProber: candidateMediaInspector
   });
   const sourceVideoAutoAnalyzer = settings.sourceVideoAutoAnalysis.enabled
     ? new SourceVideoAutoAnalyzer({

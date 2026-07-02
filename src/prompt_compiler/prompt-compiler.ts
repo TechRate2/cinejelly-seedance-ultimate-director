@@ -12,6 +12,11 @@ import type {
   TimelineSegment
 } from "../types/prompt.js";
 import type { ProviderMode } from "../types/provider.js";
+import {
+  ARC_ROLE_DIRECTIVES,
+  buildDurationScript,
+  type VideoArcRole
+} from "../core/duration-scripting.js";
 import { resolveSeedanceDna } from "../core/seedance-dna.js";
 import { buildNegativePrompt } from "./negative-constraints.js";
 import { buildPromptBindingPlan, describeReferenceBindingsFromPlan } from "./reference-binding.js";
@@ -65,6 +70,7 @@ export class SeedancePromptCompiler {
       this.buildProviderModeContractSection(providerMode, bindingPlan),
       this.buildContinuitySection(shot, bindingPlan),
       this.buildPacingSection(shot),
+      this.buildDurationScriptSection(shot),
       this.buildMotionContinuitySection(shot, bindingPlan),
       this.buildInterShotBridgeSection(shot, bindingPlan),
       this.buildBoundaryChoreographySection(shot, bindingPlan),
@@ -253,6 +259,46 @@ export class SeedancePromptCompiler {
         ? "Follow the time-coded timeline exactly; each segment must add new visual information."
         : "Create at least three visible state changes: first-frame hook, action/proof, and settled endpoint."
     ].filter((line): line is string => Boolean(line)).join(" ");
+  }
+
+  /**
+   * Full-runtime duration contract. When the shot has an explicit timeline, emit only the
+   * sandwich runtime contract plus the video-level arc directive (the timeline already
+   * carries beat timing); otherwise emit the complete timestamped beat plan so the model
+   * receives hard timing instructions covering the entire clip.
+   */
+  private buildDurationScriptSection(shot: ShotContract): string {
+    const arcRole = this.videoArcRole(shot);
+    const hasTimeline = Boolean(shot.timeline?.length);
+    if (hasTimeline) {
+      const lines = [
+        `Runtime contract: this clip runs exactly ${shot.durationSeconds} seconds and the action must fill the entire runtime; treat the time-coded timeline as hard editorial instructions.`,
+        shot.durationSeconds > 9
+          ? "Add a new visible state change at least every 3 seconds; never hold one pose, product macro, or camera position through the middle of the clip."
+          : undefined,
+        arcRole ? ARC_ROLE_DIRECTIVES[arcRole] : undefined,
+        `Do not finish the action early, freeze on a static frame, loop, or pad; the final beat must still be purposeful motion that settles cleanly at ${shot.durationSeconds}s. Total: ${shot.durationSeconds}s.`
+      ].filter((line): line is string => Boolean(line));
+      return lines.join(" ");
+    }
+    return buildDurationScript({
+      durationSeconds: shot.durationSeconds,
+      ...(arcRole ? { arcRole } : {})
+    }).promptLines.join(" ");
+  }
+
+  private videoArcRole(shot: ShotContract): VideoArcRole | undefined {
+    const value = shot.metadata?.videoArcRole;
+    if (
+      value === "full_video" ||
+      value === "opening_hook" ||
+      value === "development" ||
+      value === "climax" ||
+      value === "closing_resolve"
+    ) {
+      return value;
+    }
+    return undefined;
   }
 
   private buildMotionContinuitySection(shot: ShotContract, bindingPlan: PromptBindingPlan): string {

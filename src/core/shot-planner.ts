@@ -14,6 +14,7 @@ import type { ProviderMetadata } from "../types/provider.js";
 import type { FlexibleSeedanceSettings } from "../types/settings.js";
 import { createStableId } from "../utils/ids.js";
 import { planDurationChunks } from "./chunking.js";
+import { assignVideoArcRoles } from "./duration-scripting.js";
 
 export interface BeatPlan {
   readonly beatId: string;
@@ -97,7 +98,23 @@ export class ShotPlanner {
         globalBeatIndex += 1;
       });
     });
-    return this.withAdjacentContinuityStates(shots);
+    return this.withVideoArcRoles(this.withAdjacentContinuityStates(shots));
+  }
+
+  /**
+   * Stamp the video-level arc role (opening hook / development / climax / closing resolve,
+   * or full_video for one-shot videos) onto each shot so the prompt compiler can design
+   * openings that open and endings that end for any duration and shot count.
+   */
+  private withVideoArcRoles(shots: readonly ShotContract[]): readonly ShotContract[] {
+    const arcRoles = assignVideoArcRoles(shots.length);
+    return shots.map((shot, index) => ({
+      ...shot,
+      metadata: {
+        ...(shot.metadata ?? {}),
+        videoArcRole: arcRoles[index] ?? "development"
+      }
+    }));
   }
 
   private withAdjacentContinuityStates(shots: readonly ShotContract[]): readonly ShotContract[] {

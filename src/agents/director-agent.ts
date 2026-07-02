@@ -5,12 +5,16 @@
 
 import {
   candidateCountForQuality,
+  MAX_CLIP_DURATION_SECONDS,
   repairAttemptCountForQuality,
   SEEDANCE_TEST_TAKE_DURATION_SECONDS,
   resolveSeedanceModelId,
   seedanceResolutionHeight,
   usesTestTakesForQuality
 } from "../config/seedance-settings.js";
+import { planDurationCompensation } from "../core/duration-scripting.js";
+import { DEFAULT_TRANSITION_SETTINGS } from "../core/transition-engine.js";
+import type { TransitionSettings } from "../types/transition.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
 import { selectAssemblyClipsForRenderedShots } from "../core/assembly-output-selector.js";
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
@@ -222,12 +226,16 @@ export class DirectorAgent {
       intake,
       storyPlan
     });
-    const plannedShots = this.shotPlanner.plan({
-      projectId: intake.projectId,
-      scenes: storyPlan.scenes,
-      settings: intake.settings,
-      ...(intake.metadata ? { metadata: intake.metadata } : {})
-    });
+    const plannedShots = this.withDurationCompensation(
+      this.shotPlanner.plan({
+        projectId: intake.projectId,
+        scenes: storyPlan.scenes,
+        settings: intake.settings,
+        ...(intake.metadata ? { metadata: intake.metadata } : {})
+      }),
+      intake.settings,
+      preparedRequest.transitionSettings
+    );
     const shots = this.referenceSelectionPlanner.planForShots({ shots: plannedShots });
     const longFormContinuityPlan = this.longFormContinuityPlanner.build({
       projectId: intake.projectId,
@@ -1265,6 +1273,59 @@ export class DirectorAgent {
       referenceRoles.has("voice") ||
       referenceRoles.has("source_video_structure")
     );
+  }
+
+  /**
+   * Restore the full requested runtime before prompts compile: crossfade assembly consumes
+   * transition overlap at every clip boundary and planning can undershoot the target, so
+   * distribute whole-second duration additions (last shot first) across shots that still
+   * have headroom under the per-clip maximum. Extends the final timeline segment so the
+   * time-coded plan keeps covering the whole clip.
+   */
+  private withDurationCompensation(
+    shots: readonly ShotContract[],
+    settings: FlexibleSeedanceSettings,
+    transitionSettings: TransitionSettings | undefined
+  ): readonly ShotContract[] {
+    if (shots.length === 0) {
+      return shots;
+    }
+    const effectiveTransitions = transitionSettings ?? DEFAULT_TRANSITION_SETTINGS;
+    const transitionOverlapSeconds = shots.length > 1 && effectiveTransitions.enabled
+      ? effectiveTransitions.durationSeconds
+      : 0;
+    const additions = planDurationCompensation({
+      shotDurations: shots.map((shot) => shot.durationSeconds),
+      targetDurationSeconds: settings.durationTargetSeconds,
+      transitionOverlapSeconds,
+      maxClipSeconds: MAX_CLIP_DURATION_SECONDS
+    });
+    if (additions.every((addition) => addition === 0)) {
+      return shots;
+    }
+    return shots.map((shot, index) => {
+      const addition = additions[index] ?? 0;
+      if (addition <= 0) {
+        return shot;
+      }
+      const durationSeconds = shot.durationSeconds + addition;
+      const timeline = shot.timeline && shot.timeline.length > 0
+        ? shot.timeline.map((segment, segmentIndex) =>
+            segmentIndex === (shot.timeline?.length ?? 0) - 1
+              ? { ...segment, endSecond: durationSeconds }
+              : segment
+          )
+        : shot.timeline;
+      return {
+        ...shot,
+        durationSeconds,
+        ...(timeline ? { timeline } : {}),
+        metadata: {
+          ...(shot.metadata ?? {}),
+          durationCompensationSeconds: addition
+        }
+      };
+    });
   }
 
   private candidateVisualCurationFor(request: CineJellyProjectRequest): CandidateVisualCuration | undefined {
