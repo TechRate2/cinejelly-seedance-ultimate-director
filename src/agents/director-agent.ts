@@ -34,6 +34,11 @@ import { MaterialSourceValidator } from "../core/material-source-validator.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS } from "../core/postproduction-engine.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
 import {
+  mergeGuardianReports,
+  RenderedCandidateVisualInspector,
+  type CandidateVisualCuration
+} from "../core/rendered-candidate-visual-inspector.js";
+import {
   RenderScheduler,
   type RenderScheduleItem,
   type RenderSchedulePlan,
@@ -119,6 +124,7 @@ export class DirectorAgent {
   private readonly assemblyEngine: AssemblyEngine;
   private readonly deliveryGate: DeliveryGate;
   private readonly semanticVisualInspector: SemanticVisualInspector | undefined;
+  private readonly renderedCandidateVisualInspector: RenderedCandidateVisualInspector | undefined;
   private readonly sourceVideoAutoAnalyzer: SourceVideoAutoAnalyzer | undefined;
   private readonly sourceVideoAutoAnalysisSettings: SourceVideoAutoAnalysisSettings | undefined;
   private readonly audioGenerationCapabilities: readonly AudioGenerationCapability[];
@@ -160,6 +166,7 @@ export class DirectorAgent {
     readonly assemblyEngine?: AssemblyEngine;
     readonly deliveryGate?: DeliveryGate;
     readonly semanticVisualInspector?: SemanticVisualInspector;
+    readonly renderedCandidateVisualInspector?: RenderedCandidateVisualInspector;
     readonly sourceVideoAutoAnalyzer?: SourceVideoAutoAnalyzer;
     readonly sourceVideoAutoAnalysisSettings?: SourceVideoAutoAnalysisSettings;
     readonly audioGenerationCapabilities?: readonly AudioGenerationCapability[];
@@ -197,6 +204,7 @@ export class DirectorAgent {
     this.assemblyEngine = input.assemblyEngine ?? new AssemblyEngine();
     this.deliveryGate = input.deliveryGate ?? new DeliveryGate();
     this.semanticVisualInspector = input.semanticVisualInspector;
+    this.renderedCandidateVisualInspector = input.renderedCandidateVisualInspector;
     this.sourceVideoAutoAnalyzer = input.sourceVideoAutoAnalyzer;
     this.sourceVideoAutoAnalysisSettings = input.sourceVideoAutoAnalysisSettings;
     this.audioGenerationCapabilities = input.audioGenerationCapabilities ?? [];
@@ -549,6 +557,7 @@ export class DirectorAgent {
               : {}),
             ...(signal ? { signal } : {})
           });
+          const visualCuration = this.candidateVisualCurationFor(preparedRequest);
           const renderedShot = await this.renderShot({
             shot: prepared.shot,
             compiledPrompt: prepared.compiledPrompt,
@@ -556,6 +565,7 @@ export class DirectorAgent {
             shouldRunTestTake: item.value.shouldRunTestTake,
             candidateCount,
             repairAttemptCount,
+            ...(visualCuration ? { visualCuration } : {}),
             signal
           });
           if (this.shouldAbortSequentialRenderAfterFailedShot(item, renderedShot, renderSchedulePlan)) {
@@ -1257,6 +1267,21 @@ export class DirectorAgent {
     );
   }
 
+  private candidateVisualCurationFor(request: CineJellyProjectRequest): CandidateVisualCuration | undefined {
+    const workDirectory = request.workDirectory ?? request.artifactDirectory;
+    if (
+      !this.renderedCandidateVisualInspector ||
+      !request.semanticVisualInspectionOptions?.enabled ||
+      !workDirectory
+    ) {
+      return undefined;
+    }
+    return {
+      options: request.semanticVisualInspectionOptions,
+      workDirectory
+    };
+  }
+
   private async renderShot(input: {
     readonly shot: ShotContract;
     readonly compiledPrompt: CompiledPrompt;
@@ -1264,6 +1289,7 @@ export class DirectorAgent {
     readonly shouldRunTestTake: boolean;
     readonly candidateCount: number;
     readonly repairAttemptCount: number;
+    readonly visualCuration?: CandidateVisualCuration;
     readonly signal: AbortSignal | undefined;
   }): Promise<RenderedShot> {
     let compiledPrompt = input.compiledPrompt;
@@ -1288,6 +1314,7 @@ export class DirectorAgent {
       compiledPrompt,
       candidateCount: input.candidateCount,
       repairAttemptCount: input.repairAttemptCount,
+      ...(input.visualCuration ? { visualCuration: input.visualCuration } : {}),
       signal: input.signal
     });
     const selectedCandidate = this.selectBestCandidate(candidates);
@@ -1387,6 +1414,7 @@ export class DirectorAgent {
     readonly compiledPrompt: CompiledPrompt;
     readonly candidateCount: number;
     readonly repairAttemptCount: number;
+    readonly visualCuration?: CandidateVisualCuration;
     readonly signal: AbortSignal | undefined;
   }): Promise<readonly RenderCandidate[]> {
     const candidates: RenderCandidate[] = [];
@@ -1397,6 +1425,7 @@ export class DirectorAgent {
         shot: input.shot,
         compiledPrompt: preparedPrompt,
         candidateIndex,
+        ...(input.visualCuration ? { visualCuration: input.visualCuration } : {}),
         signal: input.signal
       });
       candidates.push(candidate);
@@ -1419,6 +1448,7 @@ export class DirectorAgent {
         compiledPrompt: repairCompiledPrompt,
         candidateIndex: candidates.length + 1,
         repairAttempt,
+        ...(input.visualCuration ? { visualCuration: input.visualCuration } : {}),
         signal: input.signal
       });
       candidates.push(repairCandidate);
@@ -1483,16 +1513,34 @@ export class DirectorAgent {
     readonly compiledPrompt: CompiledPrompt;
     readonly candidateIndex: number;
     readonly repairAttempt?: number;
+    readonly visualCuration?: CandidateVisualCuration;
     readonly signal: AbortSignal | undefined;
   }): Promise<RenderCandidate> {
     const submittedAt = new Date();
 
     try {
       const renderResult = await this.renderProducer.render(input.compiledPrompt, input.signal);
-      const renderInspection = this.consistencyGuardian.inspectRender({
+      let renderInspection = this.consistencyGuardian.inspectRender({
         shot: input.shot,
         prediction: renderResult.prediction
       });
+      if (
+        input.visualCuration &&
+        this.renderedCandidateVisualInspector &&
+        renderResult.prediction.status === "succeeded" &&
+        renderResult.prediction.outputUrls.length > 0
+      ) {
+        const visualInspection = await this.renderedCandidateVisualInspector.inspectCandidate({
+          shot: input.shot,
+          compiledPrompt: renderResult.compiledPrompt,
+          prediction: renderResult.prediction,
+          candidateIndex: input.candidateIndex,
+          ...(input.repairAttempt !== undefined ? { repairAttempt: input.repairAttempt } : {}),
+          curation: input.visualCuration,
+          ...(input.signal ? { signal: input.signal } : {})
+        });
+        renderInspection = mergeGuardianReports(renderInspection, visualInspection);
+      }
       return {
         candidateIndex: input.candidateIndex,
         ...(input.repairAttempt !== undefined ? { repairAttempt: input.repairAttempt } : {}),

@@ -92,6 +92,8 @@
     "validation:short-backend-integration": "node scripts/audit-short-backend-integration.mjs",
     "validation:backend-system-readiness": "node scripts/audit-backend-system-readiness.mjs",
     "validation:backend-system-suite": "node scripts/run-backend-system-suite.mjs",
+    "validation:seedance-dna": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-seedance-dna-smoke.mjs",
+    "validation:candidate-visual-curation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-candidate-visual-curation-smoke.mjs",
     "validation:short-agent-graph": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-agent-graph-smoke.mjs",
     "validation:short-pipeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-smoke.mjs",
     "validation:short-pipeline-conversation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-conversation-smoke.mjs",

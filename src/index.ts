@@ -102,6 +102,7 @@ export * from "./core/remote-stock-material-adapter.js";
 export * from "./core/render-cost-gate.js";
 export * from "./core/render-scheduler.js";
 export * from "./core/review-approval-system.js";
+export * from "./core/rendered-candidate-visual-inspector.js";
 export * from "./core/review-packet-builder.js";
 export * from "./core/seedance-dna.js";
 export * from "./core/semantic-visual-inspector.js";

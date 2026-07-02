@@ -39,23 +39,23 @@ export const SEEDANCE_ANATOMY_DIRECTIVE =
  */
 export const CREATIVE_MODE_DNA: Record<ShortViralCreativeMode, string> = {
   ugc_review:
-    "Handheld phone framing with slight natural sway and auto-exposure shifts, creator eye-line into lens, real skin/hand texture, micro-pauses before product contact, imperfect casual timing; avoid studio polish, tripod-locked stillness, and plastic skin.",
+    "Handheld phone framing with slight natural sway and auto-exposure shifts, creator eye-line into lens, real skin/hand texture, micro-pauses before product contact, imperfect casual timing; avoid studio polish, tripod-locked stillness, and plastic skin. First 1.5s hook: creator mid-reaction or mid-action already involving the product, never a slow settle-in.",
   product_ad:
-    "Premium but grounded: motivated key light, shallow depth of field, stable recognizable product geometry, one clean hero move (rotate/reveal/contact) and a settled end frame; keep packaging, label, and scale locked.",
+    "Premium but grounded: motivated key light, shallow depth of field, stable recognizable product geometry, one clean hero move (rotate/reveal/contact) and a settled end frame; keep packaging, label, and scale locked. First 1.5s hook: the product already in motion or being reached for, promise of the payoff visible.",
   demo:
-    "Action-led before -> contact -> after, all visibly on screen; hands and camera move together, one concrete state change proven on camera, no skipped cause-and-effect.",
+    "Action-led before -> contact -> after, all visibly on screen; hands and camera move together, one concrete state change proven on camera, no skipped cause-and-effect. First 1.5s hook: open mid-problem or mid-contact, not on an empty setup.",
   testimonial:
-    "Person on camera or voice-over-B-roll with authentic delivery, relaxed posture, real room tone; bound claims to what is shown, avoid miracle framing and over-lit fakery.",
+    "Person on camera or voice-over-B-roll with authentic delivery, relaxed posture, real room tone; bound claims to what is shown, avoid miracle framing and over-lit fakery. First 1.5s hook: the speaker already mid-sentence on the most surprising point.",
   problem_solution:
-    "Open on the friction/pain moment with visible tension, then introduce the product action that resolves it; keep the turn physical and readable, soft close rather than hard sell.",
+    "Open on the friction/pain moment with visible tension, then introduce the product action that resolves it; keep the turn physical and readable, soft close rather than hard sell. First 1.5s hook: the problem at its most visually frustrating instant.",
   comparison:
-    "Fair side-by-side or before/after with matched lighting, lens, and framing between options; change only the variable being compared, no disparagement, no unfair staging.",
+    "Fair side-by-side or before/after with matched lighting, lens, and framing between options; change only the variable being compared, no disparagement, no unfair staging. First 1.5s hook: both options on screen at once with visible difference tension.",
   education:
-    "One concrete example demonstrated per beat, clean legible staging, teaching-over-selling pacing; camera supports comprehension (insert shots, clear angles) without clutter.",
+    "One concrete example demonstrated per beat, clean legible staging, teaching-over-selling pacing; camera supports comprehension (insert shots, clear angles) without clutter. First 1.5s hook: the counterintuitive result shown before the explanation.",
   story:
-    "Relatable micro-moment and emotional beat before any product reveal; natural performance, motivated cuts, let the payoff land as consequence not advertisement.",
+    "Relatable micro-moment and emotional beat before any product reveal; natural performance, motivated cuts, let the payoff land as consequence not advertisement. First 1.5s hook: the emotional turning point mid-happening, not the setup.",
   cinematic:
-    "Motivated premium motion (dolly/crane/parallax), shallow depth, sophisticated lighting with practical sources and controlled contrast, filmic color and material sheen; hero the subject with intentional composition."
+    "Motivated premium motion (dolly/crane/parallax), shallow depth, sophisticated lighting with practical sources and controlled contrast, filmic color and material sheen; hero the subject with intentional composition. First 1.5s hook: the most striking composed frame already in motion."
 };
 
 /** Grounded realism direction used for general video and as the unknown-niche fallback. */
@@ -89,6 +89,8 @@ export const NICHE_DNA: Record<string, string> = {
     "Establishing wide to intimate detail, golden natural light, real depth and atmosphere (haze, water, foliage motion); aspirational yet physically plausible.",
   mobile_app:
     "Show the in-hand moment and the outcome; imply the app through reaction and context rather than fake burned-in UI; natural device handling.",
+  saas_b2b:
+    "Professional workspace realism: the workflow outcome and team reaction carry the story; believable office light and desk context, screens implied through posture and glow rather than fake UI; emphasize time-saved and adoption proof.",
   education_course:
     "Clear demonstrative staging, one idea per beat, insert shots that teach; approachable presenter energy, uncluttered background.",
   event_venue:

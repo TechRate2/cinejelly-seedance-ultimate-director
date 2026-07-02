@@ -294,8 +294,14 @@ export class SeedancePromptCompiler {
    * (e.g. macro skin texture for beauty, fit-in-motion for fashion). No-ops otherwise.
    */
   private buildNicheDnaSection(shot: ShotContract): string | undefined {
-    const niche = typeof shot.metadata?.niche === "string" ? shot.metadata.niche : undefined;
-    const creativeMode = typeof shot.metadata?.creativeMode === "string" ? shot.metadata.creativeMode : undefined;
+    // The short pipeline stamps niche/creative-mode onto shot metadata under these keys
+    // (via the render handoff -> intake -> shot planner). Accept the direct keys too so
+    // long-form/direct callers can opt in.
+    const niche = this.stringMetadata(shot, "shortViralNiche") ?? this.stringMetadata(shot, "niche");
+    const creativeMode =
+      this.stringMetadata(shot, "shortViralCreativeMode") ??
+      this.stringMetadata(shot, "shortDirectorCreativeMode") ??
+      this.stringMetadata(shot, "creativeMode");
     if (!niche && !creativeMode) {
       return undefined;
     }
@@ -304,6 +310,11 @@ export class SeedancePromptCompiler {
       ...(creativeMode ? { creativeMode } : {})
     }).promptLines;
     return lines.length > 0 ? lines.join(" ") : undefined;
+  }
+
+  private stringMetadata(shot: ShotContract, key: string): string | undefined {
+    const value = shot.metadata?.[key];
+    return typeof value === "string" && value.trim() ? value : undefined;
   }
 
   /**
