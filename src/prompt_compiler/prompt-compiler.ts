@@ -76,7 +76,7 @@ export class SeedancePromptCompiler {
       this.buildAudioProductionSection(shot),
       shot.transitionIntent ? `Transition: ${shot.transitionIntent}.` : undefined,
       this.buildFinalFrameSection(shot, bindingPlan),
-      "Quality guardrails: cinematic, coherent, physically plausible, no visible generated text unless explicitly requested."
+      this.buildRealismGuardrailsSection()
     ];
 
     return sections.filter((section): section is string => Boolean(section && section.trim())).join("\n");
@@ -284,6 +284,25 @@ export class SeedancePromptCompiler {
       "Do not end on a blur, mid-blink, hidden product, cropped face, empty frame, or unresolved camera whip unless explicitly requested."
     ].filter((line): line is string => Boolean(line));
     return clauses.join(" ");
+  }
+
+  /**
+   * Photoreal realism guardrails. This is the "anti-AI-slop" prompt anatomy distilled from
+   * the credited Seedance/ad/UGC prompt patterns (YouMind awesome-seedance-2-prompts DNA,
+   * not copied wording): natural optics, physically based light, real material microtexture,
+   * organic motion, and explicit artifact suppression. It targets the "does not look real"
+   * failure mode that separates raw text-to-video from commercial-grade cinematic output.
+   */
+  private buildRealismGuardrailsSection(): string {
+    return [
+      "Realism guardrails: deliver a photoreal cinematic capture, not a CGI, cartoon, or obvious AI render.",
+      "Optics: real lens depth-of-field with subtle focus falloff, true perspective, and motion blur consistent with the actual movement speed.",
+      "Light physically: motivated key light with soft fill, accurate cast and contact shadows, and physically based reflections/specular roll-off on product and skin surfaces.",
+      "Preserve real material microtexture (skin pores, fabric weave, brushed metal, glass, condensation, surface wear); avoid plastic, waxy, over-smoothed, or over-sharpened surfaces.",
+      "Keep motion organic with natural weight and easing plus small secondary micro-movements; avoid floaty, rubbery, warping, sped-up, or looping-glitch motion.",
+      "Suppress AI artifacts: no extra or fused fingers, morphing edges, temporal flicker, ghosting, melting geometry, warped logos/text, or duplicated features.",
+      "No visible generated text, captions, subtitles, watermark, or fake UI unless explicitly requested."
+    ].join(" ");
   }
 
   private buildInterShotBridgeSection(shot: ShotContract, bindingPlan: PromptBindingPlan): string | undefined {

@@ -902,6 +902,8 @@ export class AtlasCloudProvider implements ModelProvider {
       generate_audio: request.settings.generateAudio,
       watermark: request.settings.watermark,
       return_last_frame: request.settings.returnLastFrame,
+      ...(request.settings.seed !== undefined ? { seed: request.settings.seed } : {}),
+      ...(request.settings.guidanceScale !== undefined ? { guidance_scale: request.settings.guidanceScale } : {}),
       metadata: request.metadata
     };
   }

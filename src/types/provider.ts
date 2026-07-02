@@ -89,6 +89,16 @@ export interface VideoGenerationSettings {
   readonly bitrateMode: BitrateMode;
   readonly watermark: boolean;
   readonly returnLastFrame: boolean;
+  /**
+   * Optional deterministic seed. When set, the provider is asked to reproduce the same
+   * base generation, which lets a cinematic look be locked across candidates and shots.
+   */
+  readonly seed?: number;
+  /**
+   * Optional prompt-adherence strength (classifier-free guidance). Higher values follow
+   * the prompt/references more strictly; lower values allow more model freedom.
+   */
+  readonly guidanceScale?: number;
 }
 
 export interface VideoGenerationRequest {

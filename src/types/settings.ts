@@ -37,6 +37,15 @@ export interface FlexibleSeedanceSettings {
   readonly watermark: boolean;
   readonly returnLastFrame: boolean;
   readonly maxCostUsd?: number;
+  /**
+   * Optional deterministic seed for reproducible generations. Locking a seed keeps a
+   * chosen cinematic look consistent across candidates and across shots of one product.
+   */
+  readonly seed?: number;
+  /**
+   * Optional classifier-free guidance strength for prompt/reference adherence.
+   */
+  readonly guidanceScale?: number;
 }
 
 export interface ModelPreferences {

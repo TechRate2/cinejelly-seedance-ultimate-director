@@ -13,6 +13,11 @@ export const MIN_CLIP_DURATION_SECONDS = 4;
 export const MAX_CLIP_DURATION_SECONDS = 15;
 export const SEEDANCE_TEST_TAKE_DURATION_SECONDS = MIN_CLIP_DURATION_SECONDS;
 
+/** Bounds for optional deterministic seed and guidance strength controls. */
+export const MAX_SEED_VALUE = 2_147_483_647;
+export const MIN_GUIDANCE_SCALE = 1;
+export const MAX_GUIDANCE_SCALE = 30;
+
 export const SPEED_TIERS = ["mini", "fast", "standard"] as const;
 export const QUALITY_MODES = ["economy", "standard", "high", "ultimate"] as const;
 export const RESOLUTIONS = ["480p", "720p", "1080p", "720p-SR", "1080p-SR", "1440p-SR"] as const;
@@ -108,7 +113,9 @@ export function toVideoGenerationSettings(
     generateAudio: settings.audioMode === "native" || settings.audioMode === "guided" || settings.audioMode === "hybrid",
     bitrateMode: settings.bitrateMode,
     watermark: settings.watermark,
-    returnLastFrame: settings.returnLastFrame
+    returnLastFrame: settings.returnLastFrame,
+    ...(settings.seed !== undefined ? { seed: settings.seed } : {}),
+    ...(settings.guidanceScale !== undefined ? { guidanceScale: settings.guidanceScale } : {})
   };
 }
 
@@ -127,6 +134,22 @@ function validateFlexibleSettings(settings: FlexibleSeedanceSettings): void {
     (!Number.isFinite(settings.maxCostUsd) || settings.maxCostUsd <= 0)
   ) {
     throw new Error("maxCostUsd must be greater than zero when provided.");
+  }
+  if (
+    settings.seed !== undefined &&
+    (!Number.isInteger(settings.seed) || settings.seed < 0 || settings.seed > MAX_SEED_VALUE)
+  ) {
+    throw new Error(`seed must be an integer between 0 and ${MAX_SEED_VALUE} when provided.`);
+  }
+  if (
+    settings.guidanceScale !== undefined &&
+    (!Number.isFinite(settings.guidanceScale) ||
+      settings.guidanceScale < MIN_GUIDANCE_SCALE ||
+      settings.guidanceScale > MAX_GUIDANCE_SCALE)
+  ) {
+    throw new Error(
+      `guidanceScale must be between ${MIN_GUIDANCE_SCALE} and ${MAX_GUIDANCE_SCALE} when provided.`
+    );
   }
 }
 
