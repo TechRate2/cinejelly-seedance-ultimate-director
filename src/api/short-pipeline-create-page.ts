@@ -865,7 +865,7 @@ export function buildShortPipelineCreatePage(): string {
       <div class="nav-section">Control</div>
       <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">≋</span><span>Voice Lab</span></button>
       <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">✧</span><span>Brand Kit</span></button>
-      <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">▥</span><span>Jobs</span></button>
+      <button class="nav-item" type="button" id="nav-jobs"><span class="nav-ico">▥</span><span>Jobs</span></button>
       <div class="sidebar-card">
         <strong>Project Control</strong>
         <div class="detail">Status <span id="side-status">idle</span></div>
@@ -1188,11 +1188,21 @@ export function buildShortPipelineCreatePage(): string {
         <div class="grid-3" style="margin-top:12px;align-items:end">
           <label class="field"><span>Provider spend</span>
             <span class="detail" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="confirm-render">Confirm paid render submission</span>
+            <span class="detail" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="caption-toggle">Phụ đề tự động từ voice (khớp kịch bản, không tốn thêm)</span>
           </label>
           <button class="ghost-btn" type="button" id="submit-render" disabled>Create Render Job</button>
           <button class="mini-btn" type="button" id="stop-polling" disabled>Stop Watching Job</button>
         </div>
         <div id="render-status" class="detail" style="margin-top:10px">No render job yet. Load a session contract, optionally prepare the review packet, then create the render job. Without approved and confirmed review the job is created paused for review with no provider spend.</div>
+      </section>
+
+      <section class="panel" id="jobs-panel" hidden>
+        <div class="panel-head">
+          <div class="panel-title">Render Jobs</div>
+          <button class="mini-btn" type="button" id="refresh-jobs">Refresh</button>
+        </div>
+        <div id="jobs-queue" class="detail">Queue: chưa tải.</div>
+        <div id="jobs-list" style="margin-top:10px"><div class="empty">Bấm Refresh để tải danh sách job (cần API key).</div></div>
       </section>
     </main>
   </div>
@@ -1359,6 +1369,15 @@ export function buildShortPipelineCreatePage(): string {
     document.getElementById("clear-reference-fields").addEventListener("click", clearReferenceFields);
     document.getElementById("submit-render").addEventListener("click", submitRender);
     document.getElementById("stop-polling").addEventListener("click", () => stopJobPolling("Stopped watching the job. Reload the contract or reopen the status URL to check again."));
+    document.getElementById("nav-jobs").addEventListener("click", () => {
+      const panel = document.getElementById("jobs-panel");
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) {
+        loadJobs();
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+    document.getElementById("refresh-jobs").addEventListener("click", loadJobs);
     updatePromptCount();
     updateEstimatedCost();
 
@@ -1391,12 +1410,16 @@ export function buildShortPipelineCreatePage(): string {
         return;
       }
       submitButton.disabled = true;
+      const submitLabel = submitButton.textContent;
+      submitButton.textContent = "Đang gửi...";
       stopJobPolling();
       try {
         const confirmRender = document.getElementById("confirm-render").checked;
+        const captionsOn = document.getElementById("caption-toggle").checked;
         const review = collectReviewApproval();
         const body = {
           ...(review ? { reviewApprovalGate: review.gate, reviewApprovalCheckpoints: review.checkpoints } : {}),
+          ...(captionsOn ? { captionPreference: "narration_subtitles" } : {}),
           confirmRenderSubmission: confirmRender
         };
         const endpoint = endpoints.render.replace("{sessionId}", encodeURIComponent(activeSessionId));
@@ -1413,8 +1436,62 @@ export function buildShortPipelineCreatePage(): string {
         }
       } finally {
         submitButton.disabled = false;
+        submitButton.textContent = submitLabel;
       }
     }
+
+    function jobStatusPillClass(status) {
+      if (status === "succeeded") return "pill ready";
+      if (status === "queued" || status === "running") return "pill info";
+      return "pill warn";
+    }
+
+    async function loadJobs() {
+      clearMessages();
+      const queueNode = document.getElementById("jobs-queue");
+      const listNode = document.getElementById("jobs-list");
+      let response;
+      try {
+        response = await apiFetch("/v1/render-jobs");
+      } catch (error) {
+        listNode.innerHTML = '<div class="empty">Không tải được danh sách job — kiểm tra API key.</div>';
+        return;
+      }
+      const queue = response.queue || {};
+      queueNode.textContent = "Queue: " +
+        (queue.queuedJobCount ?? 0) + " chờ | " +
+        (queue.runningJobCount ?? 0) + " đang chạy | " +
+        (queue.pausedJobCount ?? 0) + " chờ duyệt";
+      const jobs = response.jobs || [];
+      if (jobs.length === 0) {
+        listNode.innerHTML = '<div class="empty">Chưa có render job nào.</div>';
+        return;
+      }
+      listNode.innerHTML = jobs.map((job) => {
+        const shortId = escapeHtml(String(job.jobId || "").slice(0, 24));
+        const status = escapeHtml(String(job.status || "unknown"));
+        const created = job.createdAt ? escapeHtml(String(job.createdAt).replace("T", " ").slice(0, 19)) : "";
+        const preview = escapeHtml(String(job.userInputPreview || "").slice(0, 90));
+        return '<article class="item"><div class="row"><div>' +
+          '<div class="title">' + shortId + '…</div>' +
+          '<div class="detail">' + created + (preview ? " | " + preview : "") + '</div>' +
+          '</div><div style="display:flex;gap:8px;align-items:center">' +
+          '<span class="' + jobStatusPillClass(String(job.status || "")) + '">' + status.replaceAll("_", " ") + '</span>' +
+          '<button class="mini-btn" type="button" onclick="watchJob(\'' + escapeAttribute(String(job.jobId || "")) + '\')">Theo dõi</button>' +
+          '</div></div></article>';
+      }).join("");
+    }
+
+    function watchJob(jobId) {
+      if (!jobId) {
+        return;
+      }
+      stopJobPolling();
+      jobPollDelayMs = 3000;
+      pollRenderJob("/v1/render-jobs/" + encodeURIComponent(jobId));
+      document.getElementById("render-status").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    window.watchJob = watchJob;
 
     async function pollRenderJob(statusUrl) {
       document.getElementById("stop-polling").disabled = false;

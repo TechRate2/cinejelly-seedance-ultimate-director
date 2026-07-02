@@ -290,6 +290,7 @@ interface ShortPipelineRenderJobRequestBody {
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
   readonly confirmRenderSubmission?: boolean;
   readonly includeGeneratedAudioIntents?: boolean;
+  readonly captionPreference?: "narration_subtitles" | "none";
   readonly audio?: ShortPipelinePlanInput["audio"];
   readonly settings?: CineJellyProjectRequest["settings"];
   readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
@@ -305,6 +306,7 @@ interface ShortPipelineConversationSessionRenderJobRequestBody {
   readonly reviewApprovalCheckpoints?: readonly ReviewApprovalCheckpointInput[];
   readonly confirmRenderSubmission?: boolean;
   readonly includeGeneratedAudioIntents?: boolean;
+  readonly captionPreference?: "narration_subtitles" | "none";
   readonly audio?: ShortPipelinePlanInput["audio"];
   readonly settings?: CineJellyProjectRequest["settings"];
   readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
@@ -320,6 +322,7 @@ interface NormalizedShortPipelineRenderJobBody {
   readonly reviewApproval?: ShortPipelineRenderHandoffReviewInput;
   readonly confirmRenderSubmission: boolean;
   readonly includeGeneratedAudioIntents?: boolean;
+  readonly captionPreference?: "narration_subtitles" | "none";
   readonly audio?: ShortPipelinePlanInput["audio"];
   readonly settings?: CineJellyProjectRequest["settings"];
   readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
@@ -334,6 +337,7 @@ interface NormalizedShortPipelineConversationSessionRenderJobBody {
   readonly reviewApproval?: ShortPipelineRenderHandoffReviewInput;
   readonly confirmRenderSubmission: boolean;
   readonly includeGeneratedAudioIntents?: boolean;
+  readonly captionPreference?: "narration_subtitles" | "none";
   readonly audio?: ShortPipelinePlanInput["audio"];
   readonly settings?: CineJellyProjectRequest["settings"];
   readonly modelPreferences?: CineJellyProjectRequest["modelPreferences"];
@@ -664,6 +668,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(handoffBody.includeGeneratedAudioIntents !== undefined
             ? { includeGeneratedAudioIntents: handoffBody.includeGeneratedAudioIntents }
             : {}),
+          ...(handoffBody.captionPreference ? { captionPreference: handoffBody.captionPreference } : {}),
           ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
         assertShortPipelineRenderHandoffAllowed(handoff);
@@ -861,6 +866,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(handoffBody.includeGeneratedAudioIntents !== undefined
             ? { includeGeneratedAudioIntents: handoffBody.includeGeneratedAudioIntents }
             : {}),
+          ...(handoffBody.captionPreference ? { captionPreference: handoffBody.captionPreference } : {}),
           ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
         assertShortPipelineRenderHandoffAllowed(handoff);
@@ -1928,6 +1934,14 @@ function shortPipelineRenderJobBodyFromBody(
     body.includeGeneratedAudioIntents,
     "includeGeneratedAudioIntents"
   );
+  if (
+    body.captionPreference !== undefined &&
+    body.captionPreference !== "narration_subtitles" &&
+    body.captionPreference !== "none"
+  ) {
+    throw new RenderRequestAdmissionError('captionPreference must be "narration_subtitles" or "none" when provided.');
+  }
+  const captionPreference = body.captionPreference;
   const reviewApproval = body.reviewApprovalGate !== undefined || body.reviewApprovalCheckpoints !== undefined
     ? normalizeReviewApprovalInput({
         gate: body.reviewApprovalGate,
@@ -1940,6 +1954,7 @@ function shortPipelineRenderJobBodyFromBody(
     ...(reviewApproval ? { reviewApproval } : {}),
     confirmRenderSubmission,
     ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
+    ...(captionPreference ? { captionPreference } : {}),
     ...(audio ? { audio } : {}),
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
@@ -1970,6 +1985,14 @@ function shortPipelineConversationSessionRenderJobBodyFromBody(
     body.includeGeneratedAudioIntents,
     "includeGeneratedAudioIntents"
   );
+  if (
+    body.captionPreference !== undefined &&
+    body.captionPreference !== "narration_subtitles" &&
+    body.captionPreference !== "none"
+  ) {
+    throw new RenderRequestAdmissionError('captionPreference must be "narration_subtitles" or "none" when provided.');
+  }
+  const captionPreference = body.captionPreference;
   const reviewApproval = body.reviewApprovalGate !== undefined || body.reviewApprovalCheckpoints !== undefined
     ? normalizeReviewApprovalInput({
         gate: body.reviewApprovalGate,
@@ -1981,6 +2004,7 @@ function shortPipelineConversationSessionRenderJobBodyFromBody(
     ...(reviewApproval ? { reviewApproval } : {}),
     confirmRenderSubmission,
     ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
+    ...(captionPreference ? { captionPreference } : {}),
     ...(audio ? { audio } : {}),
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
