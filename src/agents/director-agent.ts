@@ -21,6 +21,8 @@ import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
 import { selectOrExtractLastFrameReference, type EndpointFrameQualityEvidence } from "../core/endpoint-frame-chain.js";
+import { bindKeyframesToShots, planKeyframeRequests } from "../core/keyframe-first-planner.js";
+import { planSocialPublishingMetadata } from "../core/social-publishing-planner.js";
 import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
 import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
 import { LongFormCreativeIntelligencePlanner } from "../core/long-form-creative-intelligence-planner.js";
@@ -80,7 +82,7 @@ import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type { AudioGenerationCapability, Prediction, ProviderMetadata } from "../types/provider.js";
 import type { ReviewApprovalReport } from "../types/review-approval.js";
 import type { VideoRenderStrategyPlan } from "../types/video-render-strategy.js";
-import type { AudioProvider } from "../providers/contracts.js";
+import type { AudioProvider, ImageProvider } from "../providers/contracts.js";
 import type {
   ProductionStageEvidenceValue,
   ProductionStageName,
@@ -133,6 +135,7 @@ export class DirectorAgent {
   private readonly sourceVideoAutoAnalysisSettings: SourceVideoAutoAnalysisSettings | undefined;
   private readonly audioGenerationCapabilities: readonly AudioGenerationCapability[];
   private readonly audioProvider: AudioProvider | undefined;
+  private readonly imageProvider: ImageProvider | undefined;
   private readonly stageProgressReporter: ProductionStageProgressReporter | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
   private stageProgressSequence = 0;
@@ -175,6 +178,7 @@ export class DirectorAgent {
     readonly sourceVideoAutoAnalysisSettings?: SourceVideoAutoAnalysisSettings;
     readonly audioGenerationCapabilities?: readonly AudioGenerationCapability[];
     readonly audioProvider?: AudioProvider;
+    readonly imageProvider?: ImageProvider;
     readonly stageProgressReporter?: ProductionStageProgressReporter;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
@@ -213,6 +217,7 @@ export class DirectorAgent {
     this.sourceVideoAutoAnalysisSettings = input.sourceVideoAutoAnalysisSettings;
     this.audioGenerationCapabilities = input.audioGenerationCapabilities ?? [];
     this.audioProvider = input.audioProvider;
+    this.imageProvider = input.imageProvider;
     this.stageProgressReporter = input.stageProgressReporter;
     this.atlasSettings = input.atlasSettings;
   }
@@ -356,11 +361,13 @@ export class DirectorAgent {
     });
     this.validateProviderCapabilities(compiledPrompts);
     const plannedTestTakeCount = shots.filter((shot) => this.shouldRunTestTake(shot, intake.settings)).length;
+    const keyframeFirstEnabled = this.keyframeFirstEnabled(providerSupportedReferenceKinds);
     const costEstimate = this.renderCostGate.estimate({
       compiledPrompts,
       settings: intake.settings,
       plannedTestTakeCount,
-      plannedTestTakeRenderSeconds: plannedTestTakeCount * SEEDANCE_TEST_TAKE_DURATION_SECONDS
+      plannedTestTakeRenderSeconds: plannedTestTakeCount * SEEDANCE_TEST_TAKE_DURATION_SECONDS,
+      plannedKeyframeImageCount: keyframeFirstEnabled ? shots.length : 0
     });
     this.renderCostGate.assertWithinBudget(costEstimate);
 
@@ -377,7 +384,11 @@ export class DirectorAgent {
         ledger: continuityLedger
       });
     });
-    const blockingPreflightReports = preflightReports.filter(
+    const videoConsistencyReport = this.consistencyGuardian.inspectVideoConsistency({
+      projectId: intake.projectId,
+      shots: [...shots]
+    });
+    const blockingPreflightReports = [...preflightReports, videoConsistencyReport].filter(
       (report) => report.status === "block" || report.status === "repair"
     );
     if (blockingPreflightReports.length > 0) {
@@ -386,6 +397,20 @@ export class DirectorAgent {
       });
       throw new Error(this.describePreflightBlock(blockingPreflightReports));
     }
+
+    // Keyframe-first: generate an approved still opening frame per shot, then flip each
+    // bound shot to image-to-video. Runs only after every pre-spend gate above has passed
+    // (cost estimate already includes the planned keyframe images) and fails open per shot.
+    const renderReadyShots = keyframeFirstEnabled
+      ? await this.runKeyframeFirstStage({
+          shots,
+          compiledPrompts,
+          settings: intake.settings,
+          modelId,
+          ...(providerSupportedReferenceKinds ? { providerSupportedReferenceKinds } : {}),
+          ...(signal ? { signal } : {})
+        })
+      : shots;
 
     this.reportStageProgress("source_material", "running", "Planning source-material briefs and resolving configured adapters.");
     const materialSourcingPlan = this.materialSourcingPlanner.plan({
@@ -443,7 +468,7 @@ export class DirectorAgent {
       readonly preflight: GuardianReport;
       readonly shouldRunTestTake: boolean;
     }>[] = compiledPrompts.map((compiledPrompt, promptIndex) => {
-      const shot = shots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
+      const shot = renderReadyShots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
       const preflight = preflightReports[promptIndex];
       if (!shot) {
         throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
@@ -752,7 +777,14 @@ export class DirectorAgent {
       renderedShots,
       ...(deliverable ? { deliverable } : {}),
       ...(deliveryGate ? { deliveryGate } : {}),
-      ...(semanticVisualInspection ? { semanticVisualInspection } : {})
+      ...(semanticVisualInspection ? { semanticVisualInspection } : {}),
+      socialPublishing: planSocialPublishingMetadata({
+        premise: storyPlan.premise,
+        userInput: intake.userInput,
+        ...(intake.metadata?.platform ? { platform: intake.metadata.platform } : {}),
+        ...(intake.metadata?.niche ? { niche: intake.metadata.niche } : {}),
+        ...(intake.metadata?.voiceLanguage ? { language: intake.metadata.voiceLanguage } : {})
+      })
     };
   }
 
@@ -1761,6 +1793,94 @@ export class DirectorAgent {
       throw new Error("Semantic visual inspection was requested but no SemanticVisualInspector is configured.");
     }
     return this.semanticVisualInspector;
+  }
+
+  /**
+   * Keyframe-first runs only when an image provider + image model are configured AND the
+   * selected video model can consume a first-frame anchor — otherwise still generation
+   * would be spend with no way to feed the result back into the video request.
+   */
+  private keyframeFirstEnabled(
+    providerSupportedReferenceKinds: readonly import("../types/provider.js").ReferenceKind[] | undefined
+  ): boolean {
+    if (!this.imageProvider?.supportsImageGeneration()) {
+      return false;
+    }
+    if (!this.atlasSettings.models.imageModel?.trim()) {
+      return false;
+    }
+    return !providerSupportedReferenceKinds || providerSupportedReferenceKinds.includes("first_frame");
+  }
+
+  /**
+   * Generate one still keyframe per shot and rebind bound shots to image-to-video.
+   * Fail-open per shot: a failed still leaves that shot on its original text/reference
+   * path, so keyframe infrastructure can never take down a paid render batch.
+   */
+  private async runKeyframeFirstStage(input: {
+    readonly shots: readonly ShotContract[];
+    readonly compiledPrompts: CompiledPrompt[];
+    readonly settings: FlexibleSeedanceSettings;
+    readonly modelId: string;
+    readonly providerSupportedReferenceKinds?: readonly import("../types/provider.js").ReferenceKind[];
+    readonly signal?: AbortSignal;
+  }): Promise<readonly ShotContract[]> {
+    const imageProvider = this.imageProvider;
+    const imageModelId = this.atlasSettings.models.imageModel;
+    if (!imageProvider || !imageModelId?.trim()) {
+      return input.shots;
+    }
+    this.reportStageProgress("render", "running", "Generating keyframe stills for image-to-video anchoring.", {
+      keyframePlannedCount: input.shots.length
+    });
+    const requests = planKeyframeRequests({
+      shots: input.shots,
+      provider: "atlascloud",
+      imageModelId,
+      settings: input.settings
+    });
+    const results: { readonly shotId: string; readonly prediction: Prediction }[] = [];
+    const batchSize = 3;
+    for (let start = 0; start < requests.length; start += batchSize) {
+      const batch = requests.slice(start, start + batchSize);
+      const settled = await Promise.all(
+        batch.map(async (planned) => {
+          try {
+            const prediction = await imageProvider.generateImage(planned.request, input.signal);
+            return { shotId: planned.shotId, prediction };
+          } catch {
+            return undefined;
+          }
+        })
+      );
+      for (const entry of settled) {
+        if (entry) {
+          results.push(entry);
+        }
+      }
+    }
+    const binding = bindKeyframesToShots({ shots: input.shots, results });
+    for (const boundShotId of binding.boundShotIds) {
+      const promptIndex = input.compiledPrompts.findIndex((prompt) => prompt.shotId === boundShotId);
+      const boundShot = binding.shots.find((shot) => shot.shotId === boundShotId);
+      if (promptIndex < 0 || !boundShot) {
+        continue;
+      }
+      input.compiledPrompts[promptIndex] = this.promptCompiler.compile({
+        shot: boundShot,
+        settings: input.settings,
+        modelId: input.modelId,
+        provider: "atlascloud",
+        ...(input.providerSupportedReferenceKinds
+          ? { providerSupportedReferenceKinds: input.providerSupportedReferenceKinds }
+          : {})
+      });
+    }
+    this.reportStageProgress("render", "running", "Keyframe still generation completed.", {
+      keyframeBoundCount: binding.boundShotIds.length,
+      keyframeSkippedCount: binding.skippedShotIds.length
+    });
+    return binding.shots;
   }
 
   private describePreflightBlock(reports: readonly ReturnType<ConsistencyGuardian["preflight"]>[]): string {

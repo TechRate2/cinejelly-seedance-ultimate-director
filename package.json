@@ -99,6 +99,7 @@
     "validation:simple-brief": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-simple-brief-smoke.mjs",
     "validation:speech-captions": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-speech-captions-smoke.mjs",
     "validation:shot-framing": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-shot-framing-smoke.mjs",
+    "validation:pipeline-upgrades": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-pipeline-upgrades-smoke.mjs",
     "validation:candidate-visual-curation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-candidate-visual-curation-smoke.mjs",
     "validation:short-agent-graph": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-agent-graph-smoke.mjs",
     "validation:short-pipeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-smoke.mjs",

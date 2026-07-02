@@ -414,8 +414,8 @@ export class SeedancePromptCompiler {
 
   /**
    * Photoreal realism guardrails. This is the "anti-AI-slop" prompt anatomy distilled from
-   * the credited Seedance/ad/UGC prompt patterns (YouMind awesome-seedance-2-prompts DNA,
-   * not copied wording): natural optics, physically based light, real material microtexture,
+   * credited Seedance/ad/UGC prompt patterns (attribution lives in docs/CREDITS.md; original
+   * wording, not copied): natural optics, physically based light, real material microtexture,
    * organic motion, and explicit artifact suppression. It targets the "does not look real"
    * failure mode that separates raw text-to-video from commercial-grade cinematic output.
    */

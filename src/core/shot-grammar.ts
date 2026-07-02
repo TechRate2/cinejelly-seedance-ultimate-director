@@ -5,9 +5,8 @@
  * camera text alone. Structured-caption research on short-drama data shows generalist
  * models are weakest exactly here (framing/position fidelity), so making the grammar an
  * explicit, machine-checkable instruction tightens composition and gives inspection a
- * concrete axis to verify. Distilled as original CineJelly vocabulary from the SkyReels
- * SkyCaptioner structured-caption field taxonomy (see external snapshot; methodology
- * reference only, no upstream code).
+ * concrete axis to verify. Original CineJelly vocabulary distilled from credited
+ * structured-caption methodology (attribution in docs/CREDITS.md; no upstream code).
  */
 
 export type ShotType =

@@ -94,6 +94,7 @@ export function createDirectorRuntime(
       renderConcurrency: settings.renderConcurrency,
       audioGenerationCapabilities: atlasProvider.audioCapabilities(),
       audioProvider: atlasProvider,
+      imageProvider: atlasProvider,
       ...(options.stageProgressReporter ? { stageProgressReporter: options.stageProgressReporter } : {}),
       ...(sourceVideoAutoAnalyzer
         ? {

@@ -31,9 +31,15 @@ export interface SimpleMediaReference {
   readonly label?: string;
 }
 
+/** Marks a pasted user script inside userInput so the story stage keeps it verbatim. */
+export const USER_SCRIPT_OPEN_MARKER = "<<<USER_SCRIPT";
+export const USER_SCRIPT_CLOSE_MARKER = "USER_SCRIPT>>>";
+
 export interface SimpleBriefInput {
   /** The only required field: what the user wants, in their own words. */
   readonly idea: string;
+  /** Optional finished script pasted by the user; used verbatim, never rewritten. */
+  readonly script?: string;
   readonly platform?: string;
   readonly mediaReferences?: readonly SimpleMediaReference[];
   readonly voice?: { readonly language?: string };
@@ -133,8 +139,18 @@ export function resolveSimpleBrief(input: SimpleBriefInput): ResolvedSimpleBrief
     advancedOverrides.push(`Advanced override: ${key} = ${String(value)}.`);
   }
 
+  const script = input.script?.trim();
+  const userInput = script
+    ? `${idea}\n${USER_SCRIPT_OPEN_MARKER}\n${script}\n${USER_SCRIPT_CLOSE_MARKER}`
+    : idea;
+  if (script) {
+    appliedDefaults.push(
+      "Script-first mode: your pasted script is used verbatim — scenes, order, and lines are preserved; only the visual staging is planned around it."
+    );
+  }
+
   return {
-    userInput: idea,
+    userInput,
     platform,
     settings,
     references,

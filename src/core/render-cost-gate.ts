@@ -22,7 +22,9 @@ export class RenderCostGate {
     readonly settings: FlexibleSeedanceSettings;
     readonly plannedTestTakeCount?: number;
     readonly plannedTestTakeRenderSeconds?: number;
+    readonly plannedKeyframeImageCount?: number;
   }): RenderCostEstimate {
+    const plannedKeyframeImageCount = input.plannedKeyframeImageCount ?? 0;
     const candidateCount = candidateCountForQuality(input.settings.qualityMode);
     const repairAttemptCount = repairAttemptCountForQuality(input.settings.qualityMode);
     const plannedTestTakeCount = input.plannedTestTakeCount ?? 0;
@@ -39,10 +41,12 @@ export class RenderCostGate {
     const estimatedRenderCostUsd = this.multiply(plannedRenderSeconds, this.settings.renderCostUsdPerSecond);
     const estimatedAssetRegistrationCostUsd = this.multiply(referenceRegistrationCount, this.settings.assetRegistrationCostUsd);
     const estimatedLlmCostUsd = this.settings.llmPlanCostUsd;
+    const estimatedKeyframeImageCostUsd = this.multiply(plannedKeyframeImageCount, this.settings.imageGenerationCostUsd);
     const estimatedSubtotalUsd = this.sumDefined([
       estimatedRenderCostUsd,
       estimatedAssetRegistrationCostUsd,
-      estimatedLlmCostUsd
+      estimatedLlmCostUsd,
+      estimatedKeyframeImageCostUsd
     ]);
     const estimatedTotalCostUsd = estimatedSubtotalUsd === undefined
       ? undefined
@@ -66,10 +70,12 @@ export class RenderCostGate {
       plannedCandidateRenderSeconds,
       plannedRepairRenderSeconds,
       plannedRenderSeconds,
+      plannedKeyframeImageCount,
       referenceRegistrationCount,
       ...(estimatedRenderCostUsd !== undefined ? { estimatedRenderCostUsd } : {}),
       ...(estimatedAssetRegistrationCostUsd !== undefined ? { estimatedAssetRegistrationCostUsd } : {}),
       ...(estimatedLlmCostUsd !== undefined ? { estimatedLlmCostUsd } : {}),
+      ...(estimatedKeyframeImageCostUsd !== undefined ? { estimatedKeyframeImageCostUsd } : {}),
       ...(estimatedTotalCostUsd !== undefined ? { estimatedTotalCostUsd } : {}),
       ...(input.settings.maxCostUsd !== undefined ? { maxCostUsd: input.settings.maxCostUsd } : {}),
       findings

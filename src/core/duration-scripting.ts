@@ -54,6 +54,11 @@ function round1(value: number): number {
  * Beat count scales with duration (about one beat per 2.5-3s, min 2, max 6) and the
  * segments always tile [0, durationSeconds] exactly, so the model receives hard timing
  * instructions covering the entire runtime.
+ *
+ * Pacing is deliberately non-uniform (short-drama tempo): development beats get
+ * progressively SHORTER so the cutting rhythm accelerates toward the peak, and the
+ * proof/payoff beat is held LONGER than any development beat so the moment that sells
+ * the video gets room to land. Uniform beat lengths read as metronomic and cheap.
  */
 export function planDurationBeats(durationSeconds: number): readonly DurationBeat[] {
   const duration = Math.max(1, durationSeconds);
@@ -64,13 +69,26 @@ export function planDurationBeats(durationSeconds: number): readonly DurationBea
   const middleSpan = Math.max(0, middleEnd - middleStart);
   const middleBeatCount = Math.min(4, Math.max(1, Math.round(middleSpan / 3)));
 
+  // Rising-tempo weights: each development beat is shorter than the one before it, and
+  // the final (proof_peak) beat is the longest so the payoff breathes.
+  const developmentCount = middleBeatCount - 1;
+  const weights: number[] = [];
+  for (let index = 0; index < developmentCount; index += 1) {
+    const rampProgress = developmentCount > 1 ? index / (developmentCount - 1) : 0;
+    weights.push(round1(1.15 - 0.3 * rampProgress));
+  }
+  weights.push(1.4);
+  const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
+
   const beats: DurationBeat[] = [
     { role: "hook", startSecond: 0, endSecond: hookSeconds, directive: BEAT_DIRECTIVES.hook }
   ];
   let cursor = middleStart;
+  let weightConsumed = 0;
   for (let index = 0; index < middleBeatCount; index += 1) {
     const isLastMiddle = index === middleBeatCount - 1;
-    const end = isLastMiddle ? middleEnd : round1(middleStart + (middleSpan * (index + 1)) / middleBeatCount);
+    weightConsumed += weights[index] ?? 1;
+    const end = isLastMiddle ? middleEnd : round1(middleStart + (middleSpan * weightConsumed) / weightTotal);
     beats.push({
       role: isLastMiddle ? "proof_peak" : "development",
       startSecond: cursor,

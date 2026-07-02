@@ -111,6 +111,7 @@ export * from "./core/seedance-dna.js";
 export * from "./core/semantic-visual-inspector.js";
 export * from "./core/series-drama-planner.js";
 export * from "./core/shot-grammar.js";
+export * from "./core/social-publishing-planner.js";
 export * from "./core/shot-planner.js";
 export * from "./core/short-channel-style-profile.js";
 export * from "./core/short-creative-pattern-learning.js";

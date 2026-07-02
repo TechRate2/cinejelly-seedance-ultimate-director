@@ -9,6 +9,7 @@ import type { GuardianReport } from "./guardian.js";
 import type { Prediction } from "./provider.js";
 import type { ScenePlan } from "../core/shot-planner.js";
 import type { AssembledDeliverable } from "./assembly.js";
+import type { SocialPublishingMetadata } from "../core/social-publishing-planner.js";
 import type { ProductionGraphSnapshot } from "./graph.js";
 import type { Storyboard } from "./storyboard.js";
 import type { CaptionCue, CaptionOptions } from "./caption.js";
@@ -113,4 +114,6 @@ export interface DirectorRunResult {
   readonly deliverable?: AssembledDeliverable;
   readonly deliveryGate?: DeliveryGateReport;
   readonly semanticVisualInspection?: SemanticVisualInspectionReport;
+  /** Platform-ready title/description/hashtags so the deliverable can be posted immediately. */
+  readonly socialPublishing?: SocialPublishingMetadata;
 }

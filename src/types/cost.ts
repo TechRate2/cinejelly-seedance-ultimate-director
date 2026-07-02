@@ -9,6 +9,8 @@ export interface CostEstimationSettings {
   readonly renderCostUsdPerSecond?: number;
   readonly assetRegistrationCostUsd?: number;
   readonly llmPlanCostUsd?: number;
+  /** Cost per generated keyframe still (keyframe-first image-to-video path). */
+  readonly imageGenerationCostUsd?: number;
   readonly costBufferMultiplier: number;
 }
 
@@ -24,10 +26,12 @@ export interface RenderCostEstimate {
   readonly plannedCandidateRenderSeconds: number;
   readonly plannedRepairRenderSeconds: number;
   readonly plannedRenderSeconds: number;
+  readonly plannedKeyframeImageCount: number;
   readonly referenceRegistrationCount: number;
   readonly estimatedRenderCostUsd?: number;
   readonly estimatedAssetRegistrationCostUsd?: number;
   readonly estimatedLlmCostUsd?: number;
+  readonly estimatedKeyframeImageCostUsd?: number;
   readonly estimatedTotalCostUsd?: number;
   readonly maxCostUsd?: number;
   readonly findings: readonly string[];

@@ -343,11 +343,13 @@ export function loadCostEstimationSettings(env: NodeJS.ProcessEnv = process.env)
   const renderCostUsdPerSecond = optionalNumberEnv("CINEJELLY_RENDER_COST_USD_PER_SECOND", env);
   const assetRegistrationCostUsd = optionalNumberEnv("CINEJELLY_ASSET_REGISTRATION_COST_USD", env);
   const llmPlanCostUsd = optionalNumberEnv("CINEJELLY_LLM_PLAN_COST_USD", env);
+  const imageGenerationCostUsd = optionalNumberEnv("CINEJELLY_IMAGE_COST_USD", env);
 
   return {
     ...(renderCostUsdPerSecond !== undefined ? { renderCostUsdPerSecond } : {}),
     ...(assetRegistrationCostUsd !== undefined ? { assetRegistrationCostUsd } : {}),
     ...(llmPlanCostUsd !== undefined ? { llmPlanCostUsd } : {}),
+    ...(imageGenerationCostUsd !== undefined ? { imageGenerationCostUsd } : {}),
     costBufferMultiplier: optionalNumberEnvWithFallback("CINEJELLY_COST_BUFFER_MULTIPLIER", env, 1)
   };
 }

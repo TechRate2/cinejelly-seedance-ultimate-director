@@ -8,6 +8,35 @@ import type { IntakeResult, StoryPlan } from "../types/agent.js";
 import type { ContinuityRisk } from "../types/prompt.js";
 import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import type { BeatPlan, ScenePlan } from "../core/shot-planner.js";
+import { USER_SCRIPT_OPEN_MARKER } from "../core/simple-brief-resolver.js";
+
+/**
+ * Detect a pasted, already-written script inside free-form user input so the planner can
+ * switch to script-first mode. Explicit marker wins; otherwise a conservative heuristic:
+ * several lines that look like scene headings, dialogue, or numbered shots.
+ */
+export function looksLikeUserScript(userInput: string): boolean {
+  if (userInput.includes(USER_SCRIPT_OPEN_MARKER)) {
+    return true;
+  }
+  const lines = userInput
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length < 4) {
+    return false;
+  }
+  const scriptLike = lines.filter(
+    (line) =>
+      /^(INT\.|EXT\.|SCENE\b|CẢNH\b|SHOT\b|\d+[.)]\s)/iu.test(line) ||
+      /^[\p{Lu}][\p{L} .'-]{1,30}:\s/u.test(line) ||
+      /^\[\d{1,2}:?\d{0,2}\s*[-–]\s*\d{1,2}:?\d{0,2}s?\]/u.test(line)
+  );
+  return scriptLike.length >= 3;
+}
+
+const SCRIPT_FIRST_DIRECTIVE =
+  "SCRIPT-FIRST MODE: the user input contains a finished script. Treat it as the authoritative screenplay: keep its scene order, events, and any dialogue/narration lines VERBATIM in their original language (do not rewrite, translate, paraphrase, or invent new lines). Your job is only to decompose it into scenes/beats with timing and to design the visual staging (subject state, camera, lighting, audio rhythm) around the user's own lines.";
 
 interface StoryPlanJson {
   readonly premise: string;
@@ -90,6 +119,9 @@ export class StoryArchitect {
           {
             role: "system",
             content:
+              (looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true"
+                ? `${SCRIPT_FIRST_DIRECTIVE} `
+                : "") +
               "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, continuity, and audioIntent when audio is not none. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. For longer videos, avoid a loose montage: each section must advance the argument, proof, emotion, or product understanding. Make every action concrete enough to film: visible subject state, physical product contact or proof action, camera movement, audio rhythm, and an endpoint that can cut or crossfade into the next beat. Keep voiceover concise enough for the beat duration. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
           },
           {

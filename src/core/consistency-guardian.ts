@@ -45,6 +45,145 @@ export class ConsistencyGuardian {
     return this.toReport(input.shot.shotId, "preflight", findings);
   }
 
+  /**
+   * Video-level (cross-shot) consistency preflight, run once per render batch before spend.
+   * Per-shot preflight cannot see these: a character locked to DIFFERENT identity assets in
+   * different shots (face drift is guaranteed before any money is spent), identity locks fed
+   * from video sources instead of a still portrait, missing front-view anchors, and monotone
+   * framing across the batch that reads as a slideshow.
+   */
+  public inspectVideoConsistency(input: {
+    readonly projectId: string;
+    readonly shots: readonly ShotContract[];
+  }): GuardianReport {
+    const findings: GuardianFinding[] = [
+      ...this.validateCharacterLock(input.shots),
+      ...this.validateFramingVariety(input.shots)
+    ];
+    return this.toReport(input.projectId, "preflight", findings);
+  }
+
+  private validateCharacterLock(shots: readonly ShotContract[]): readonly GuardianFinding[] {
+    const findings: GuardianFinding[] = [];
+    const assetsByCharacter = new Map<string, Set<string>>();
+    const viewsByCharacter = new Map<string, Set<string>>();
+    const videoSourceCharacters = new Set<string>();
+
+    for (const shot of shots) {
+      for (const reference of shot.references) {
+        if (reference.role !== "identity") {
+          continue;
+        }
+        const characterKey = this.normalizedKey(reference.selection?.characterId ?? reference.label);
+        const assetKey = reference.providerReference.providerAssetId ?? reference.providerReference.uri;
+        const assets = assetsByCharacter.get(characterKey) ?? new Set<string>();
+        assets.add(assetKey);
+        assetsByCharacter.set(characterKey, assets);
+        const views = viewsByCharacter.get(characterKey) ?? new Set<string>();
+        views.add(reference.selection?.view ?? "unknown");
+        viewsByCharacter.set(characterKey, views);
+        if (reference.providerReference.kind === "video") {
+          videoSourceCharacters.add(characterKey);
+        }
+      }
+    }
+
+    for (const [characterKey, assets] of assetsByCharacter) {
+      if (assets.size > 1) {
+        findings.push({
+          stage: "preflight",
+          status: "repair",
+          severity: "S1",
+          checkpoint: "character_lock_asset_drift",
+          evidence: `Character "${characterKey}" is locked to ${assets.size} different identity assets across shots; the face will drift between clips.`,
+          repair: "Pin one canonical portrait asset per character and reuse it for every shot in the video."
+        });
+      }
+    }
+    for (const characterKey of videoSourceCharacters) {
+      findings.push({
+        stage: "preflight",
+        status: "repair",
+        severity: "S1",
+        checkpoint: "character_lock_still_source",
+        evidence: `Character "${characterKey}" uses a video as its identity lock; identity anchors need a sharp still portrait.`,
+        repair: "Replace the video identity reference with a sharp, front-facing still portrait."
+      });
+    }
+    for (const [characterKey, views] of viewsByCharacter) {
+      if (views.size > 0 && !views.has("front") && !views.has("unknown")) {
+        findings.push({
+          stage: "preflight",
+          status: "warn",
+          severity: "S2",
+          checkpoint: "character_lock_front_view",
+          evidence: `Character "${characterKey}" has no front-view identity portrait (views: ${[...views].sort().join(", ")}).`,
+          repair: "Add a sharp front-facing portrait as the primary identity anchor; side/back views alone lock identity poorly."
+        });
+      }
+    }
+
+    // Video-level coverage: a character demanded by identity continuity in 2+ shots but
+    // never anchored anywhere loses its face silently even when no single shot flags risk.
+    const demandCounts = new Map<string, number>();
+    for (const shot of shots) {
+      for (const characterId of shot.continuity.identity ?? []) {
+        const key = this.normalizedKey(characterId);
+        demandCounts.set(key, (demandCounts.get(key) ?? 0) + 1);
+      }
+    }
+    for (const [characterKey, demandCount] of demandCounts) {
+      if (demandCount >= 2 && !assetsByCharacter.has(characterKey)) {
+        findings.push({
+          stage: "preflight",
+          status: "warn",
+          severity: "S2",
+          checkpoint: "character_lock_coverage",
+          evidence: `Character "${characterKey}" appears in ${demandCount} shots with identity continuity but has no identity reference anywhere in the video.`,
+          repair: "Attach one canonical portrait for this character so every shot renders the same face."
+        });
+      }
+    }
+    return findings;
+  }
+
+  private validateFramingVariety(shots: readonly ShotContract[]): readonly GuardianFinding[] {
+    const shotTypes = shots
+      .map((shot) => shot.metadata?.shotType)
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+    if (shotTypes.length < 3 || shotTypes.length !== shots.length) {
+      return [];
+    }
+    let repeatedAdjacentPairs = 0;
+    for (let index = 1; index < shotTypes.length; index += 1) {
+      if (shotTypes[index] === shotTypes[index - 1]) {
+        repeatedAdjacentPairs += 1;
+      }
+    }
+    const repeatRatio = repeatedAdjacentPairs / (shotTypes.length - 1);
+    if (repeatRatio > 0.5) {
+      return [
+        {
+          stage: "preflight",
+          status: "warn",
+          severity: "S2",
+          checkpoint: "slideshow_risk_monotone_framing",
+          evidence: `${repeatedAdjacentPairs} of ${shotTypes.length - 1} consecutive shot pairs share the same shot size; the video will read as a slideshow.`,
+          repair: "Vary the framing between consecutive shots (alternate close/medium/wide) or remove the pinned uniform shot grammar."
+        }
+      ];
+    }
+    return [];
+  }
+
+  private normalizedKey(value: string): string {
+    return value
+      .normalize("NFKD")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim()
+      .toLowerCase();
+  }
+
   private validateStoryboardCoverage(input: StoryboardInspectionInput): readonly GuardianFinding[] {
     const findings: GuardianFinding[] = [];
     const shotIds = new Set(input.shots.map((shot) => shot.shotId));
