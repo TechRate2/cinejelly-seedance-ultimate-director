@@ -9,6 +9,7 @@ const defaults = {
   dockerignorePath: ".dockerignore",
   composePath: "docker-compose.yml",
   caddyfilePath: "deploy/Caddyfile",
+  tsconfigPath: "tsconfig.json",
   envTemplatePath: ".env.production.template",
   containerDocPath: "docs/reference-implementations/deployment-container-packaging.md",
   outputPath: "assets/output_deliverables/business-readiness/deployment-package-validation-report.json"
@@ -31,6 +32,7 @@ function parseArgs(args) {
     ["--dockerignore", "dockerignorePath"],
     ["--compose", "composePath"],
     ["--caddyfile", "caddyfilePath"],
+    ["--tsconfig", "tsconfigPath"],
     ["--env-template", "envTemplatePath"],
     ["--container-doc", "containerDocPath"],
     ["--output", "outputPath"]
@@ -79,6 +81,7 @@ Options:
   --dockerignore <path>     Default: ${defaults.dockerignorePath}
   --compose <path>          Default: ${defaults.composePath}
   --caddyfile <path>        Default: ${defaults.caddyfilePath}
+  --tsconfig <path>         Default: ${defaults.tsconfigPath}
   --env-template <path>     Default: ${defaults.envTemplatePath}
   --container-doc <path>    Default: ${defaults.containerDocPath}
   --output <path>           JSON report path. Default: ${defaults.outputPath}
@@ -99,6 +102,7 @@ function main() {
   const dockerignore = readText(options.dockerignorePath);
   const compose = readText(options.composePath);
   const caddyfile = readText(options.caddyfilePath);
+  const tsconfig = readJson(options.tsconfigPath);
   const envTemplate = readText(options.envTemplatePath);
   const containerDoc = readText(options.containerDocPath);
   const runtimeEnvNames = runtimeEnvNamesFromSourceRoot("src");
@@ -108,12 +112,14 @@ function main() {
     checkExists("dockerignore_exists", dockerignore, ".dockerignore is present.", "Add .dockerignore so secrets and generated artifacts stay out of build contexts."),
     checkExists("compose_exists", compose, "docker-compose.yml is present.", "Add docker-compose.yml for a repeatable HTTPS single-host deployment path."),
     checkExists("caddyfile_exists", caddyfile, "Caddyfile is present.", "Add deploy/Caddyfile so docker compose can publish the API behind HTTPS."),
+    checkExists("tsconfig_exists", tsconfig, "tsconfig.json is present.", "Keep tsconfig.json in the repo so container builds are reproducible."),
     checkExists("env_template_exists", envTemplate, ".env.production.template is present.", "Keep a secret-free production env template in the repo."),
     checkExists("container_doc_exists", containerDoc, "Deployment container packaging docs are present.", "Document how to build, run, and validate the container path."),
     ...dockerfileChecks(dockerfile),
     ...dockerignoreChecks(dockerignore),
     ...composeChecks(compose),
     ...caddyfileChecks(caddyfile),
+    ...tsconfigDeploymentChecks(tsconfig),
     ...envTemplateChecks(envTemplate, runtimeEnvNames),
     ...containerDocChecks(containerDoc),
     crossFileCheck(dockerfile, dockerignore, compose)
@@ -132,6 +138,7 @@ function main() {
       dockerignorePath: toRepoRelative(options.dockerignorePath),
       composePath: toRepoRelative(options.composePath),
       caddyfilePath: toRepoRelative(options.caddyfilePath),
+      tsconfigPath: toRepoRelative(options.tsconfigPath),
       envTemplatePath: toRepoRelative(options.envTemplatePath),
       containerDocPath: toRepoRelative(options.containerDocPath),
       outputPath: toRepoRelative(options.outputPath)
@@ -173,6 +180,17 @@ function readText(path) {
   return {
     exists: true,
     text: readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, "")
+  };
+}
+
+function readJson(path) {
+  const file = readText(path);
+  if (!file.exists) {
+    return { exists: false, value: {} };
+  }
+  return {
+    exists: true,
+    value: JSON.parse(file.text)
   };
 }
 
@@ -257,6 +275,21 @@ function caddyfileChecks(read) {
     check("caddyfile_sets_security_headers", /Strict-Transport-Security/i.test(text) && /X-Content-Type-Options/i.test(text) && /Referrer-Policy/i.test(text), "Caddyfile sets baseline HTTPS security headers.", "Set HSTS, nosniff, and referrer policy headers."),
     check("caddyfile_no_plain_http_site", !/^\s*http:\/\//im.test(text), "Caddyfile does not force a plaintext public site.", "Do not publish CineJelly as an http:// site."),
     check("caddyfile_no_secret_literals", !secretLikePatterns.some((pattern) => pattern.test(text)), "Caddyfile does not contain secret-like values.", "Remove raw API keys, bearer tokens, or secret key values from the Caddyfile.")
+  ];
+}
+
+function tsconfigDeploymentChecks(read) {
+  if (!read.exists) {
+    return [];
+  }
+  const compilerOptions = read.value?.compilerOptions ?? {};
+  return [
+    check(
+      "tsconfig_no_production_source_maps",
+      compilerOptions.sourceMap !== true,
+      "Production TypeScript build does not emit source maps into package or container artifacts.",
+      "Set compilerOptions.sourceMap=false so deploy/package artifacts do not include source maps."
+    )
   ];
 }
 

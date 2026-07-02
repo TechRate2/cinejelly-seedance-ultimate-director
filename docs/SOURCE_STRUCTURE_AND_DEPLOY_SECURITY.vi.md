@@ -268,3 +268,26 @@ Source sạch nghĩa là:
 - Provider/model IDs nằm trong config/env/capability policy.
 - Generated media/evidence nằm trong ignored `assets/` hoặc ignored `ops/`.
 - Validation suite pass hoặc báo rõ blocker ngoài source.
+
+## Audit Source Sạch Hiện Tại
+
+Kết quả audit ngày 2026-07-02:
+
+- `src/` không có file `smoke`, `mock`, `demo`, `test`, hoặc `fixture`.
+- `npm pack --dry-run --json` không đóng gói `src/`, `scripts/`, `docs/`, `external/`, `assets/`, `ops/`, `.env`, hoặc TypeScript source map.
+- `dist/` production không còn file `.map`; `tsconfig.json` đặt `compilerOptions.sourceMap=false`.
+- `scripts/audit-source-structure.mjs` và `scripts/validate-deployment-package.mjs` cùng có guard `tsconfig_no_production_source_maps` để chặn việc bật lại source map trong artifact production.
+- Các file `scripts/run-*-smoke.mjs` và `schemas/*-smoke-report.schema.json` được giữ lại như dev/audit guardrail, không phải code runtime. Chúng không được import bởi `src/` và không đi vào Docker runtime.
+- `.env.production.template` là nguồn config deploy sạch; `.env`, media thật, output thật và operator evidence phải nằm ngoài git.
+
+Các lệnh đã chứng minh trạng thái này:
+
+```bash
+npm run build
+npm run validation:source-structure
+npm run validation:deployment-package
+npm run validation:report-contracts
+npm run validation:short-mvp-ui-contract
+npm run validation:operator-launch-ui-contract
+npm run validation:backend-system-suite
+```

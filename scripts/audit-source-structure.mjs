@@ -328,7 +328,8 @@ function tsconfigChecks(tsconfig) {
   return [
     check("tsconfig_builds_src_only", Array.isArray(tsconfig.include) && tsconfig.include.includes("src/**/*.ts"), "TypeScript build includes src/**/*.ts only.", "TypeScript include should keep runtime compilation scoped to src/**/*.ts."),
     check("tsconfig_root_out_dir", tsconfig.compilerOptions?.rootDir === "src" && tsconfig.compilerOptions?.outDir === "dist", "TypeScript rootDir/outDir isolate source from build output.", "TypeScript rootDir should be src and outDir should be dist."),
-    check("tsconfig_strict_runtime", tsconfig.compilerOptions?.strict === true && tsconfig.compilerOptions?.noUncheckedIndexedAccess === true && tsconfig.compilerOptions?.exactOptionalPropertyTypes === true, "Strict TypeScript flags are enabled for backend logic.", "Strict TypeScript flags should remain enabled for backend logic.")
+    check("tsconfig_strict_runtime", tsconfig.compilerOptions?.strict === true && tsconfig.compilerOptions?.noUncheckedIndexedAccess === true && tsconfig.compilerOptions?.exactOptionalPropertyTypes === true, "Strict TypeScript flags are enabled for backend logic.", "Strict TypeScript flags should remain enabled for backend logic."),
+    check("tsconfig_no_production_source_maps", tsconfig.compilerOptions?.sourceMap !== true, "Production TypeScript build does not emit source maps into package or container artifacts.", "Set compilerOptions.sourceMap=false so deploy/package artifacts do not include source maps.")
   ];
 }
 
