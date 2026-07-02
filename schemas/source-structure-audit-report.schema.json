@@ -59,6 +59,7 @@
         "missingDeployFileCount",
         "directExternalImportFindingCount",
         "productHygieneFindingCount",
+        "runtimeTodoMarkerFindingCount",
         "publicExportMissingCount",
         "packageForbiddenFileEntryCount",
         "missingRuntimeEnvTemplateKeyCount"
@@ -71,6 +72,7 @@
         "missingDeployFileCount": { "type": "integer", "minimum": 0 },
         "directExternalImportFindingCount": { "type": "integer", "minimum": 0 },
         "productHygieneFindingCount": { "type": "integer", "minimum": 0 },
+        "runtimeTodoMarkerFindingCount": { "type": "integer", "minimum": 0 },
         "publicExportMissingCount": { "type": "integer", "minimum": 0 },
         "packageForbiddenFileEntryCount": { "type": "integer", "minimum": 0 },
         "missingRuntimeEnvTemplateKeyCount": { "type": "integer", "minimum": 0 }
@@ -100,6 +102,7 @@
       "required": [
         "directExternalImports",
         "productHygieneFindings",
+        "runtimeTodoMarkerFindings",
         "missingPublicExports",
         "packageForbiddenFileEntries",
         "missingRuntimeEnvTemplateKeys"
@@ -119,6 +122,20 @@
           }
         },
         "productHygieneFindings": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "runtimeTodoMarkerFindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "line", "kind", "marker"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "line": { "type": "integer", "minimum": 1 },
+              "kind": { "type": "string", "minLength": 1 },
+              "marker": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
         "missingPublicExports": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "packageForbiddenFileEntries": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "missingRuntimeEnvTemplateKeys": { "type": "array", "items": { "type": "string", "minLength": 1 } }

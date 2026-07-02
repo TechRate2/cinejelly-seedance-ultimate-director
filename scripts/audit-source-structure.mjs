@@ -119,6 +119,7 @@ const secretLikePatterns = [
   /^ATLASCLOUD_(?:LLM_)?API_KEY[ \t]*=[ \t]*[^\s#][^\r\n]*/imu,
   /^CINEJELLY_API_AUTH_TOKEN[ \t]*=[ \t]*[^\s#][^\r\n]*/imu
 ];
+const runtimeTodoMarkerPattern = /\b(?:TODO|FIXME|HACK|XXX)\b/u;
 const hygienePattern =
   /(^|\/)(test|tests|__tests__|__pycache__|mock|mocks|fixture|fixtures|sample|samples|demo|demos|example|examples)(\/|\.|$)|(^|\/).+\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|py)$|mock|fixture|stub|dummy|fake|\.(mp4|mov|mkv|avi|webm|mp3|wav|flac|aac|jpg|jpeg|png|gif|webp|ipynb|npy|npz|gz|zip|tar|tgz|ttc|ttf|otf|woff|woff2|bin|onnx|pt|pth|ckpt|safetensors|csv|jsonl|tiktoken|pyc|tsbuildinfo|ds_store|sample|example|snap)$/iu;
 
@@ -195,6 +196,7 @@ function main() {
     .sort();
   const directExternalImports = findDirectExternalImports(["src", "scripts"]);
   const productHygieneFindings = productFiles.filter((path) => hygienePattern.test(path));
+  const runtimeTodoMarkerFindings = findRuntimeTodoMarkers(sourceFiles);
   const publicExportCoverage = buildPublicExportCoverage(sourceFiles, indexText.text);
   const checks = [
     ...rootChecks(),
@@ -206,7 +208,7 @@ function main() {
     ...staticUiShellChecks(),
     ...deployChecks({ dockerfile, compose, caddyfile }),
     ...handoffDocChecks(handoffDocs),
-    ...sourceBoundaryChecks({ directExternalImports, productHygieneFindings, publicExportCoverage })
+    ...sourceBoundaryChecks({ directExternalImports, productHygieneFindings, runtimeTodoMarkerFindings, publicExportCoverage })
   ];
   const failedChecks = checks.filter((item) => item.status === "fail");
   const report = {
@@ -233,6 +235,7 @@ function main() {
       missingDeployFileCount: requiredDeployFiles.filter((path) => !exists(path)).length,
       directExternalImportFindingCount: directExternalImports.length,
       productHygieneFindingCount: productHygieneFindings.length,
+      runtimeTodoMarkerFindingCount: runtimeTodoMarkerFindings.length,
       publicExportMissingCount: publicExportCoverage.missingPublicExports.length,
       packageForbiddenFileEntryCount: packageForbiddenEntries(packageJson.value).length,
       missingRuntimeEnvTemplateKeyCount: runtimeEnvNames.filter((name) => !envHasKey(envTemplate.text, name)).length
@@ -247,6 +250,7 @@ function main() {
     findings: {
       directExternalImports,
       productHygieneFindings: productHygieneFindings.slice(0, 80),
+      runtimeTodoMarkerFindings: runtimeTodoMarkerFindings.slice(0, 80),
       missingPublicExports: publicExportCoverage.missingPublicExports,
       packageForbiddenFileEntries: packageForbiddenEntries(packageJson.value),
       missingRuntimeEnvTemplateKeys: runtimeEnvNames.filter((name) => !envHasKey(envTemplate.text, name))
@@ -539,10 +543,11 @@ function functionBody(text, functionName) {
   return text.slice(braceStart);
 }
 
-function sourceBoundaryChecks({ directExternalImports, productHygieneFindings, publicExportCoverage }) {
+function sourceBoundaryChecks({ directExternalImports, productHygieneFindings, runtimeTodoMarkerFindings, publicExportCoverage }) {
   return [
     check("no_direct_external_upstream_imports", directExternalImports.length === 0, "Runtime/scripts do not import external/upstream directly.", "Runtime/scripts must translate upstream behavior into owned modules instead of importing external/upstream."),
     check("no_product_test_mock_demo_files", productHygieneFindings.length === 0, "Product source/docs/scripts/schemas contain no test/mock/demo/sample/example files.", "Remove product-owned test/mock/demo/sample/example files or move them outside product source."),
+    check("runtime_source_no_todo_fixme_markers", runtimeTodoMarkerFindings.length === 0, "Runtime source contains no TODO/FIXME/HACK/XXX markers.", "Resolve or document runtime TODO/FIXME/HACK/XXX markers outside src before treating the code path as real-mode production logic."),
     check("public_export_surface_complete", publicExportCoverage.missingPublicExports.length === 0, "Public export surface covers all non-internal src modules.", "src/index.ts is missing exports for non-internal source modules."),
     check("internal_modules_not_public_exported", publicExportCoverage.unexpectedInternalExports.length === 0, "Internal source-pattern and Atlas HTTP/mapper modules stay internal.", "Internal-only source-pattern or Atlas HTTP/mapper modules should not be exported publicly.")
   ];
@@ -586,6 +591,24 @@ function findDirectExternalImports(roots) {
           path: toRepoRelative(file),
           line: index + 1,
           kind: "direct_external_upstream_import"
+        });
+      }
+    });
+  }
+  return findings;
+}
+
+function findRuntimeTodoMarkers(sourceFiles) {
+  const findings = [];
+  for (const file of sourceFiles) {
+    const text = readText(file).text;
+    text.split(/\r?\n/u).forEach((line, index) => {
+      if (runtimeTodoMarkerPattern.test(line)) {
+        findings.push({
+          path: file,
+          line: index + 1,
+          kind: "runtime_todo_marker",
+          marker: line.match(runtimeTodoMarkerPattern)?.[0] ?? "TODO"
         });
       }
     });
