@@ -11,6 +11,7 @@ import type {
   AssetRegistrationRequest,
   ChatRequest,
   ChatResponse,
+  ImageGenerationRequest,
   Prediction,
   PredictionPollingContext,
   ProviderCapability,
@@ -41,6 +42,17 @@ export interface VideoProvider {
   capabilities(modelId?: string): readonly ProviderCapability[];
 }
 
+/**
+ * Provider-neutral still-image generation for keyframe-first workflows.
+ * Optional on providers: callers must feature-check before use.
+ */
+export interface ImageProvider {
+  readonly name: string;
+  generateImage(request: ImageGenerationRequest, signal?: AbortSignal): Promise<Prediction>;
+  /** True when an image model is configured and image generation can be attempted. */
+  supportsImageGeneration(): boolean;
+}
+
 export interface AssetProvider {
   readonly name: string;
   registerAsset(request: AssetRegistrationRequest, signal?: AbortSignal): Promise<AssetRegistration>;
@@ -60,4 +72,4 @@ export interface AudioProvider {
   audioCapabilities(modelId?: string): readonly AudioGenerationCapability[];
 }
 
-export interface ModelProvider extends LlmProvider, VideoProvider, AssetProvider, AudioProvider {}
+export interface ModelProvider extends LlmProvider, VideoProvider, ImageProvider, AssetProvider, AudioProvider {}

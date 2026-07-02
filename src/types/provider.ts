@@ -112,6 +112,29 @@ export interface VideoGenerationRequest {
   readonly metadata?: ProviderMetadata;
 }
 
+export interface ImageGenerationSettings {
+  readonly ratio: AspectRatio;
+  /** Optional deterministic seed so a chosen keyframe look can be reproduced. */
+  readonly seed?: number;
+  /** Optional prompt-adherence strength for the image model. */
+  readonly guidanceScale?: number;
+}
+
+/**
+ * Provider-neutral still-image generation request. Used for keyframe-first workflows:
+ * generate a strong opening frame (optionally conditioned on identity/product references),
+ * review it, then animate it through image-to-video.
+ */
+export interface ImageGenerationRequest {
+  readonly provider: ProviderName;
+  readonly modelId: string;
+  readonly prompt: string;
+  readonly negativePrompt?: string;
+  readonly references: readonly ProviderReference[];
+  readonly settings: ImageGenerationSettings;
+  readonly metadata?: ProviderMetadata;
+}
+
 export type ChatContentPart =
   | {
       readonly type: "text";

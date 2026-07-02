@@ -281,6 +281,30 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 
 ## Other Frameworks Worth Monitoring
 
+### Anil-matcha/Open-AI-Micro-Drama-Generator
+
+- URL: https://github.com/Anil-matcha/Open-AI-Micro-Drama-Generator
+- Local snapshot: `external/upstream/open-ai-micro-drama-generator`
+- License: no license file found in the snapshot; treated as analysis-only reference, no code reuse.
+- Used for: multi-agent micro-drama pipeline shape (screenwriter -> storyboard -> per-scene still frames -> video).
+- CineJelly extension: the frames-stage concept is re-implemented as owned `src/core/keyframe-first-planner.ts` plus the provider-neutral `ImageProvider` contract; no upstream code is copied.
+
+### Anil-matcha/Open-AI-UGC
+
+- URL: https://github.com/Anil-matcha/Open-AI-UGC
+- Local snapshot: `external/upstream/open-ai-ugc`
+- License: no license file found in the snapshot; treated as analysis-only reference, no code reuse.
+- Used for: minimal-input UGC studio UX contract (idea plus a few reference images, everything else defaulted).
+- CineJelly extension: re-implemented as owned `src/core/simple-brief-resolver.ts` with plain-language default explanations for beginner-proof UI; no upstream code is copied.
+
+### SkyworkAI/SkyReels-V2
+
+- URL: https://github.com/SkyworkAI/SkyReels-V2
+- Local snapshot: `external/upstream/skyreels-v2` (docs and schema retained; media assets pruned)
+- License: Skywork model license file retained in the snapshot; model weights and inference code are not used at runtime.
+- Used for: short-drama methodology reference (hook-density/reversal-rhythm framing, structured shot-caption fields).
+- CineJelly extension: informs the owned Series Drama Planner and future shot-caption-style prompt fields; Seedance remains the render model.
+
 These were discovered during source review and are not primary sources for this first design:
 
 - LTX Studio: mentioned in Atlas Cloud's consistency article as focused on cinematic scene-to-scene character locking. It may be worth comparing for UI/UX and scene consistency workflows.

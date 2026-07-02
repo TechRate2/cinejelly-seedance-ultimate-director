@@ -57,6 +57,8 @@ export interface ProviderModelSettings {
   readonly seedanceMiniModel?: string;
   readonly seedanceStandardModel: string;
   readonly seedanceFastModel: string;
+  /** Optional still-image model (e.g. Seedream) for keyframe-first generation. */
+  readonly imageModel?: string;
 }
 
 export interface AtlasCloudRuntimeSettings {

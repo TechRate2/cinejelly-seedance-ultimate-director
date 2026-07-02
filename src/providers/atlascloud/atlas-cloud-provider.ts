@@ -10,6 +10,7 @@ import { defaultSeedanceProviderCapability } from "../../config/seedance-capabil
 import type {
   AudioGenerationCapability,
   AudioGenerationRequest,
+  ImageGenerationRequest,
   AudioGenerationResult,
   AssetRegistration,
   AssetRegistrationRequest,
@@ -224,6 +225,75 @@ export class AtlasCloudProvider implements ModelProvider {
 
   public extendVideo(request: VideoGenerationRequest, signal?: AbortSignal): Promise<Prediction> {
     return this.submitVideoGeneration("extend", request, signal);
+  }
+
+  public supportsImageGeneration(): boolean {
+    return Boolean(this.settings.models.imageModel?.trim());
+  }
+
+  /**
+   * Still-image generation for keyframe-first workflows. Uses the same async prediction
+   * submit/poll contract as video so downstream polling, cost ledger, and redaction reuse
+   * the existing machinery. Requires ATLASCLOUD_IMAGE_MODEL (settings.models.imageModel).
+   */
+  public generateImage(request: ImageGenerationRequest, signal?: AbortSignal): Promise<Prediction> {
+    if (request.provider !== ATLAS_PROVIDER_NAME) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Atlas Cloud provider received image request for provider ${request.provider}.`
+      });
+    }
+    if (!request.modelId?.trim()) {
+      throw new ProviderError({
+        code: "MODEL_UNAVAILABLE",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Image generation needs a configured image model (ATLASCLOUD_IMAGE_MODEL)."
+      });
+    }
+    if (!request.prompt?.trim()) {
+      throw new ProviderError({
+        code: "INVALID_SCHEMA",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Image generation prompt cannot be empty."
+      });
+    }
+    const startedAt = now();
+    const payload = this.toAtlasImagePayload(request);
+    return this.trackProviderCall(
+      "image.submit",
+      request.modelId,
+      request.metadata?.graphNodeId,
+      startedAt,
+      async (recordRetry) => {
+        const response = await withRetry(
+          () => this.http.postJson<unknown>(this.url(this.settings.assetBaseUrl, "/model/generateImage"), payload, signal),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+        return this.requireKnownPredictionId(mapPrediction(response, request.modelId, startedAt), "image generation");
+      },
+      (prediction) => this.predictionLedgerMetadata(prediction)
+    );
+  }
+
+  private toAtlasImagePayload(request: ImageGenerationRequest): Record<string, unknown> {
+    const references = request.references.map((reference) => this.toAtlasReference(reference));
+    const referenceImages = references
+      .filter((reference) => reference.type === "image" || reference.role === "identity" || reference.role === "product")
+      .map((reference) => reference.url)
+      .filter((url): url is string => Boolean(url));
+    return {
+      model: request.modelId,
+      prompt: request.prompt,
+      ...(request.negativePrompt ? { negative_prompt: request.negativePrompt } : {}),
+      ratio: request.settings.ratio,
+      ...(request.settings.seed !== undefined ? { seed: request.settings.seed } : {}),
+      ...(request.settings.guidanceScale !== undefined ? { guidance_scale: request.settings.guidanceScale } : {}),
+      ...(referenceImages.length > 0 ? { reference_images: referenceImages.slice(0, 9) } : {}),
+      metadata: request.metadata
+    };
   }
 
   public async getPrediction(
