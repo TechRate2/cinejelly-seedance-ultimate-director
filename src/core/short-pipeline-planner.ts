@@ -317,7 +317,11 @@ export class ProductUrlBriefExtractor {
 }
 
 export class BrandKitEvaluator {
-  public evaluate(input: BrandKitInput | undefined, claims: readonly ProductClaimInventoryItem[]): BrandKitEvaluation | undefined {
+  public evaluate(
+    input: BrandKitInput | undefined,
+    claims: readonly ProductClaimInventoryItem[],
+    additionalText?: string
+  ): BrandKitEvaluation | undefined {
     if (!input) {
       return undefined;
     }
@@ -335,17 +339,23 @@ export class BrandKitEvaluator {
     if (!input.allowedClaims?.length && !input.forbiddenClaims?.length) {
       issues.push(brandIssue("missing_claim_policy", "warn", "Brand claim policy is missing.", "Add allowed or forbidden claims so the claim reviewer has policy evidence."));
     }
+    // Also scan the raw user prompt, not just the extracted claim inventory: short or
+    // non-risk-flagged phrases (e.g. "Detox tea") never enter the inventory, so a
+    // forbidden phrase there would otherwise slip past the brand policy.
+    const rawPromptLower = (cleanText(additionalText, 2000) ?? "").toLowerCase();
     for (const forbidden of input.forbiddenClaims ?? []) {
       const normalizedForbidden = cleanText(forbidden, 120);
       if (!normalizedForbidden) continue;
-      const matchingClaim = claims.find((claim) => claim.text.toLowerCase().includes(normalizedForbidden.toLowerCase()));
-      if (matchingClaim) {
+      const forbiddenLower = normalizedForbidden.toLowerCase();
+      const matchingClaim = claims.find((claim) => claim.text.toLowerCase().includes(forbiddenLower));
+      const inRawPrompt = rawPromptLower.length > 0 && rawPromptLower.includes(forbiddenLower);
+      if (matchingClaim || inRawPrompt) {
         issues.push(brandIssue(
           "forbidden_claim_present",
           "block",
           "A product claim conflicts with the brand kit forbidden-claim policy.",
           "Remove or rewrite the forbidden claim before render.",
-          matchingClaim.claimId
+          matchingClaim?.claimId ?? sha256(forbiddenLower)
         ));
       }
     }
@@ -500,7 +510,7 @@ export class ShortPipelinePlanner {
       throw new Error("Short pipeline requires a natural-language prompt, product URL, or product snapshot.");
     }
     const productBrief = this.productExtractor.build(input.product, prompt);
-    const brandKitEvaluation = this.brandKitEvaluator.evaluate(input.brandKit, productBrief?.claimInventory ?? []);
+    const brandKitEvaluation = this.brandKitEvaluator.evaluate(input.brandKit, productBrief?.claimInventory ?? [], prompt);
     const channelStyleProfile = this.channelStyleEvaluator.evaluate(input.channelStyle);
     const intent = this.intent(input, prompt, productBrief, brandKitEvaluation);
     const audioPolicy = audioPolicyFor(input.audio, brandKitEvaluation);
@@ -739,6 +749,9 @@ export class ShortPipelinePlanner {
   ): ShortPipelineIntent {
     const platform = input.targetPlatform ?? inferPlatform(prompt);
     const requestedDurationSeconds = input.targetDurationSeconds ?? inferDuration(prompt);
+    // An explicit request over the short-form band opts into the long-form/series band
+    // (drama episodes, production bibles). It is still hard-clamped to the sequence max
+    // below, and provider spend is bounded by the cost gate + maxCostUsd — not by this band.
     const maxDurationSeconds = input.visualBible?.mode === "production_bible" || requestedDurationSeconds > SHORT_MAX_COMMERCIAL_RENDER_SECONDS
       ? SHORT_MAX_SEQUENCE_RENDER_SECONDS
       : SHORT_MAX_COMMERCIAL_RENDER_SECONDS;

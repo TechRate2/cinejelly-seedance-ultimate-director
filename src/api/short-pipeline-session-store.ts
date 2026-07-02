@@ -136,10 +136,12 @@ export class ShortPipelineSessionStore {
       throw new Error("Short-pipeline session store must be valid JSON.");
     }
     const storeFile = this.storeFile(parsed);
-    const records = storeFile.sessions
-      .map((session) => this.storedRecord(session))
-      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-      .slice(0, this.maxSessions);
+    const records = Object.freeze(
+      storeFile.sessions
+        .map((session) => this.storedRecord(session))
+        .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+        .slice(0, this.maxSessions)
+    );
     this.recordsCache = { ...fingerprint, records };
     return records;
   }

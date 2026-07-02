@@ -1441,6 +1441,11 @@ export class AtlasCloudProvider implements ModelProvider {
     if (prediction.predictionId !== "unknown") {
       return prediction;
     }
+    // A synchronously completed result is still a billable success even without an ID:
+    // keep it instead of discarding finished (paid) output over a missing identifier.
+    if (prediction.status === "succeeded" && prediction.outputUrls.length > 0) {
+      return prediction;
+    }
     throw new ProviderError({
       code: "INVALID_SCHEMA",
       provider: ATLAS_PROVIDER_NAME,

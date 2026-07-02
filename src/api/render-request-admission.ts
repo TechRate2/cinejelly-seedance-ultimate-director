@@ -13,7 +13,10 @@ import type { ProviderCapability } from "../types/provider.js";
 import { SOURCE_VIDEO_ANALYSIS_LIMITS } from "../types/source-video.js";
 import type { ModelPreferences, SpeedTier } from "../types/settings.js";
 
-const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
+// Word-bounded "auth" so benign keys like "author"/"authuser" are not rejected as
+// credential-like, while real "auth"/"authorization" tokens still match.
+const SECRET_QUERY_KEY_PATTERN =
+  /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|\bauth(?:orization)?\b)/i;
 const AUDIO_TRACK_ROLES = ["music", "narration", "ambience", "sfx"] as const;
 const GENERATED_AUDIO_INTENT_KINDS = ["tts_narration", "bgm", "ambience", "sfx"] as const;
 const AUDIO_MIX_MODES = ["mix", "replace"] as const;

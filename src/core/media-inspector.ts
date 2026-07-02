@@ -19,6 +19,9 @@ import { runProcess } from "../utils/process.js";
 
 type JsonObject = Record<string, unknown>;
 
+/** Process-wide counter so concurrent same-millisecond frame samplings never collide. */
+let frameSampleSequence = 0;
+
 export class MediaInspector {
   public async probe(path: string, signal?: AbortSignal): Promise<MediaMetadata> {
     const result = await runProcess(
@@ -98,7 +101,10 @@ export class MediaInspector {
       throw new Error("Frame sampling intervalSeconds and maxFrames must be positive.");
     }
     await ensureDirectory(options.outputDirectory);
-    const prefix = `frame_${Date.now()}`;
+    // Monotonic sequence keeps prefixes unique even when two samplings share the same
+    // millisecond and output directory (same-ms calls previously merged their files).
+    frameSampleSequence += 1;
+    const prefix = `frame_${Date.now()}_${frameSampleSequence}`;
     const pattern = join(options.outputDirectory, `${prefix}_%03d.jpg`);
     await runProcess(
       readMediaToolCommand("ffmpeg"),

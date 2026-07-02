@@ -5,6 +5,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { isIP } from "node:net";
 import type {
   ProductUrlSnapshotInput,
   ProductUrlSourceEvidence
@@ -28,6 +29,7 @@ export type ProductUrlResearchStatus =
   | "ready"
   | "blocked_by_live_network_confirmation"
   | "blocked_by_unsafe_url"
+  | "blocked_unsafe_redirect"
   | "fetch_failed"
   | "unsupported_content_type"
   | "response_too_large"
@@ -82,6 +84,8 @@ export interface ProductUrlResearchResult {
 interface ResponseLike {
   readonly ok: boolean;
   readonly status: number;
+  /** Final URL after any redirects (used to re-validate the destination host). */
+  readonly url?: string;
   readonly headers: {
     get(name: string): string | null;
   };
@@ -144,6 +148,30 @@ export class ProductUrlResearcher {
           "User-Agent": "CineJellyProductResearch/1.0"
         }
       });
+      // Re-validate the FINAL URL after redirects: hygiene ran only on the original URL,
+      // so a public page 302-ing to an internal/metadata host (or downgrading to http)
+      // would otherwise be fetched and its body extracted. Block it before reading any body.
+      const finalUrlRaw = typeof response.url === "string" && response.url ? response.url : input.productUrl.trim();
+      let finalUrlHostUnsafe = false;
+      try {
+        const finalParsed = new URL(finalUrlRaw);
+        finalUrlHostUnsafe =
+          finalParsed.protocol !== "https:" ||
+          isLocalHost(finalParsed.hostname) ||
+          Boolean(finalParsed.username) ||
+          Boolean(finalParsed.password);
+      } catch {
+        finalUrlHostUnsafe = true;
+      }
+      if (finalUrlHostUnsafe) {
+        return this.result({
+          status: "blocked_unsafe_redirect",
+          fetchedAt,
+          source,
+          fetch: { attempted: true, statusCode: response.status, byteCount: 0, maxBytes, truncated: false },
+          issues: ["Product URL redirected to an unsafe or non-public destination; extraction was blocked before reading the body."]
+        });
+      }
       const contentType = cleanText(response.headers.get("content-type") ?? undefined, 160);
       if (!response.ok) {
         return this.result({
@@ -561,6 +589,18 @@ function stripTags(html: string): string {
   return decodeHtml(html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
 }
 
+/** Guard String.fromCodePoint against out-of-range values (a hostile entity would throw). */
+function safeCodePoint(code: number, original: string): string {
+  if (!Number.isInteger(code) || code < 0 || code > 0x10ffff) {
+    return original;
+  }
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return original;
+  }
+}
+
 function decodeHtml(value: string): string {
   return value
     .replace(/&nbsp;/gi, " ")
@@ -569,8 +609,8 @@ function decodeHtml(value: string): string {
     .replace(/&#39;/gi, "'")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
-    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_match, code) => String.fromCodePoint(Number.parseInt(code, 16)));
+    .replace(/&#(\d+);/g, (match, code) => safeCodePoint(Number(code), match))
+    .replace(/&#x([0-9a-f]+);/gi, (match, code) => safeCodePoint(Number.parseInt(code, 16), match));
 }
 
 function cleanHttpsUrl(value: string | undefined, baseUrl: string): string | undefined {
@@ -655,6 +695,8 @@ function nextActionsFor(status: ProductUrlResearchStatus): readonly string[] {
       return ["Set confirmLiveNetwork=true only after the operator approves fetching the clean public product URL."];
     case "blocked_by_unsafe_url":
       return ["Provide a canonical clean HTTPS product URL without credentials, local hosts, or credential-like query values."];
+    case "blocked_unsafe_redirect":
+      return ["The product URL redirected to a non-public or non-HTTPS destination; provide a direct canonical HTTPS product URL that does not redirect off the public web."];
     case "fetch_failed":
       return ["Check the product page availability or provide a reviewed product snapshot manually."];
     case "unsupported_content_type":
@@ -715,8 +757,35 @@ function safeErrorMessage(error: unknown): string {
 }
 
 function isLocalHost(hostname: string): boolean {
-  const lower = hostname.toLowerCase();
-  return lower === "localhost" || lower === "127.0.0.1" || lower === "::1" || lower.endsWith(".local");
+  // Hardened SSRF guard: reject loopback, link-local, and all private IP literals
+  // (RFC1918 v4, unique-local/link-local v6) in every notation, plus internal TLDs.
+  const lower = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    lower === "localhost" ||
+    lower === "::" ||
+    lower === "::1" ||
+    lower === "0.0.0.0" ||
+    lower.endsWith(".local") ||
+    lower.endsWith(".internal")
+  ) {
+    return true;
+  }
+  const ipVersion = isIP(lower);
+  if (ipVersion === 4) {
+    const [first = 0, second = 0] = lower.split(".").map((part) => Number(part));
+    return (
+      first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168)
+    );
+  }
+  if (ipVersion === 6) {
+    return lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80:");
+  }
+  return false;
 }
 
 function sha256(value: string): string {

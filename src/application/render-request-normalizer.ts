@@ -31,12 +31,15 @@ export function normalizeRenderRequest(
   }
   const env = context.env ?? process.env;
   const outputRoot = resolve(env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
-  const now = context.now ?? new Date();
-  const safeName = `${now.getTime()}_cinejelly.mp4`;
+  const requestId = body.metadata?.requestId ?? context.requestId ?? `req_${randomUUID()}`;
+  // Per-request default paths keyed by requestId: two concurrent renders (or two in the
+  // same millisecond) previously shared work/artifacts dirs and could clobber the same
+  // default output file. A supplied path still wins and is confined to the output root.
+  const requestSlug = requestId.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 80) || "req";
+  const defaultWorkDirectory = join(outputRoot, "work", requestSlug);
   const workDirectory = body.workDirectory
     ? resolveInsideOutputRoot(outputRoot, body.workDirectory, "workDirectory")
-    : join(outputRoot, "work");
-  const requestId = body.metadata?.requestId ?? context.requestId ?? `req_${randomUUID()}`;
+    : defaultWorkDirectory;
 
   return {
     ...body,
@@ -46,7 +49,7 @@ export function normalizeRenderRequest(
     },
     outputPath: body.outputPath
       ? resolveInsideOutputRoot(outputRoot, body.outputPath, "outputPath")
-      : join(outputRoot, safeName),
+      : join(defaultWorkDirectory, "cinejelly.mp4"),
     workDirectory,
     artifactDirectory: body.artifactDirectory
       ? resolveInsideOutputRoot(outputRoot, body.artifactDirectory, "artifactDirectory")

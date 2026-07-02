@@ -62,7 +62,10 @@ export async function withRetry<T>(
         error
       });
       try {
-        await sleep(delayMs, signal);
+        // Small random jitter prevents many concurrent retries from re-hitting a
+        // rate-limited or recovering provider in lockstep (thundering herd).
+        const jitterMs = Math.floor(Math.random() * Math.min(250, delayMs * 0.4));
+        await sleep(delayMs + jitterMs, signal);
       } catch (abortError) {
         throw retryAbortError(error, abortError);
       }
