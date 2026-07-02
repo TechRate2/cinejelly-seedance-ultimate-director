@@ -146,7 +146,7 @@ export class AssemblyEngine {
         ? join(input.workDirectory, `${input.projectId}_captioned.mp4`)
         : input.outputPath
       : videoAfterPostproduction;
-    const captions = input.captionCues && captionOptions.enabled
+    const captions = input.captionCues && input.captionCues.length > 0 && captionOptions.enabled
       ? await this.captionEngine.render(
           {
             projectId: input.projectId,

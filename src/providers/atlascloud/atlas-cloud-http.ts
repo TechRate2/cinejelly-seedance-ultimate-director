@@ -68,6 +68,12 @@ export class AtlasCloudHttpClient {
     init: RequestInit,
     signal?: AbortSignal
   ): Promise<TValue> {
+    // An already-aborted caller signal has fired its abort event before we can listen;
+    // without this pre-check the request would still go out (e.g. submitting a paid
+    // generation after the operation was canceled).
+    if (signal?.aborted) {
+      throw this.abortProviderError(signal.reason);
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new Error("Atlas Cloud request timed out.")), this.timeoutMs);
     const abort = () => controller.abort(signal?.reason);

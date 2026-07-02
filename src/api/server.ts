@@ -1088,14 +1088,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         }
         normalizedRequest = requestWithPreRenderApprovalMetadata(normalizedRequest, preRenderReviewApproval);
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
-        const commercialReservation = reserveCommercialRender({
-          clientPolicyGate,
-          workspaceBillingGate,
-          principal: authDecision.principal,
-          request: normalizedRequest,
-          requestId: requestContext.requestId,
-          channel: "sync"
-        });
+        // Acquire the concurrency slot BEFORE reserving commercial spend: reservations
+        // have no refund path, so reserving first would burn monthly quota and reserved
+        // cost on every capacity 503 without any render happening.
         const renderLease = syncRenderGate.tryAcquire();
         if (!renderLease.allowed) {
           sendJson(response, renderLease.statusCode, {
@@ -1103,6 +1098,22 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             retryAfterSeconds: renderLease.retryAfterSeconds
           }, requestContext, retryAfterHeaders(renderLease.retryAfterSeconds));
           return;
+        }
+        let commercialReservation: CommercialRenderReservation;
+        try {
+          commercialReservation = reserveCommercialRender({
+            clientPolicyGate,
+            workspaceBillingGate,
+            principal: authDecision.principal,
+            request: normalizedRequest,
+            requestId: requestContext.requestId,
+            channel: "sync"
+          });
+        } catch (reservationError: unknown) {
+          // Quota/billing rejection happens before the render try/finally, so release the
+          // concurrency slot here or the sync gate would leak on every quota denial.
+          renderLease.release();
+          throw reservationError;
         }
         let costLedger: readonly CostLedgerEntry[] = [];
         let runtime: ReturnType<typeof createDirectorRuntime> | undefined;

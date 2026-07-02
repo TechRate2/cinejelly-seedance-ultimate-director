@@ -283,6 +283,10 @@ export class RenderJobManager {
     const recordRequest = this.requestWithPreRenderApprovalMetadata(input.request, preRenderReviewApproval);
     if (initialStatus === "queued") {
       this.assertQueueCapacity();
+    } else if (this.isReviewable(initialStatus)) {
+      // Paused/blocked jobs are retained, unreserved, and never pruned as terminal, so
+      // without their own bound a client could grow the job map without limit.
+      this.assertPausedCapacity();
     }
     const record: RenderJobRecord = {
       jobId,
@@ -525,6 +529,16 @@ export class RenderJobManager {
     const counts = this.queueCounts();
     if (counts.queued + counts.running >= this.queueLimit) {
       throw new RenderJobCapacityError(this.queueLimit);
+    }
+  }
+
+  private assertPausedCapacity(): void {
+    // Reviewable (paused/blocked) jobs wait on humans, so allow more of them than active
+    // queue slots — but still bound them to keep retained state and history writes finite.
+    const pausedLimit = Math.max(this.queueLimit * 4, 20);
+    const counts = this.queueCounts();
+    if (counts.paused >= pausedLimit) {
+      throw new RenderJobCapacityError(pausedLimit);
     }
   }
 
@@ -1032,9 +1046,21 @@ export class RenderJobManager {
     if (!current) {
       return;
     }
+    // Terminal states are final: a cancel that lands while the run loop is writing
+    // artifacts must not be overwritten to succeeded/failed afterwards. Non-status
+    // fields (artifacts, ledger) may still attach for audit.
+    let effectivePatch = patch;
+    if (
+      this.isTerminal(current.status) &&
+      patch.status !== undefined &&
+      patch.status !== current.status
+    ) {
+      const { status: _ignoredStatus, completedAt: _ignoredCompletedAt, ...rest } = patch;
+      effectivePatch = rest;
+    }
     this.jobs.set(jobId, {
       ...current,
-      ...patch
+      ...effectivePatch
     } as RenderJobRecord);
     this.persistHistory();
   }

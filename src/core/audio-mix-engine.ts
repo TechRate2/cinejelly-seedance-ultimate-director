@@ -144,14 +144,17 @@ export class AudioMixEngine {
     const filterParts: string[] = [];
     const audioLabels: string[] = [];
 
+    // Normalize every input to a common rate/format before amix: amix does not resample,
+    // so a 44.1kHz music bed against 48kHz original audio would fail filter negotiation.
+    const normalize = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo";
     if (includeOriginal) {
-      filterParts.push(`[0:a]volume=${this.safeVolume(input.options.originalVolume)}[a0]`);
+      filterParts.push(`[0:a]${normalize},volume=${this.safeVolume(input.options.originalVolume)}[a0]`);
       audioLabels.push("[a0]");
     }
     input.tracks.forEach((track, index) => {
       const inputIndex = index + 1;
       const label = `[a${inputIndex}]`;
-      filterParts.push(`[${inputIndex}:a]volume=${this.safeVolume(track.volume)}${label}`);
+      filterParts.push(`[${inputIndex}:a]${normalize},volume=${this.safeVolume(track.volume)}${label}`);
       audioLabels.push(label);
     });
 

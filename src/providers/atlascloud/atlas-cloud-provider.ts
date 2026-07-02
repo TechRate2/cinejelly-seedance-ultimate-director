@@ -330,11 +330,26 @@ export class AtlasCloudProvider implements ModelProvider {
       context?.modelId,
       context?.metadata?.graphNodeId,
       startedAt,
-      async () => {
+      async (recordRetry) => {
         const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
         while (Date.now() <= deadline) {
           this.throwIfAborted(signal);
-          const prediction = await this.getPrediction(predictionId, signal, context);
+          // Poll through the raw payload path (not the public getPrediction) so each poll
+          // does not open a nested ledger call: terminal cost is recorded exactly once on
+          // this wait entry, and transient poll failures are tolerated until the deadline
+          // instead of abandoning a still-running, already-paid render.
+          let prediction: Prediction;
+          try {
+            const response = await this.getPredictionPayload(predictionId, signal, recordRetry);
+            prediction = mapPrediction(response, context?.modelId ?? "unknown", startedAt);
+          } catch (error) {
+            const providerError = asProviderError(ATLAS_PROVIDER_NAME, error);
+            if (!this.shouldContinuePollingAfterError(providerError, deadline)) {
+              throw providerError;
+            }
+            await this.sleepForPolling(signal);
+            continue;
+          }
           latestMetadata = this.predictionLedgerMetadata(prediction);
           if (prediction.status === "succeeded") {
             return prediction;
@@ -451,7 +466,17 @@ export class AtlasCloudProvider implements ModelProvider {
         const deadline = startedAt.getTime() + this.settings.pollingTimeoutMs;
         while (Date.now() <= deadline) {
           this.throwIfAborted(signal);
-          const asset = await this.getAsset(assetId, signal);
+          let asset: AssetRegistration;
+          try {
+            asset = await this.getAsset(assetId, signal);
+          } catch (error) {
+            const providerError = asProviderError(ATLAS_PROVIDER_NAME, error);
+            if (!this.shouldContinuePollingAfterError(providerError, deadline)) {
+              throw providerError;
+            }
+            await this.sleepForPolling(signal);
+            continue;
+          }
           latestMetadata = this.assetLedgerMetadata(asset);
           if (asset.status === "active") {
             return asset;
@@ -726,7 +751,7 @@ export class AtlasCloudProvider implements ModelProvider {
         response = await this.getPredictionPayload(input.predictionId, input.signal, input.recordRetry);
       } catch (error) {
         const providerError = asProviderError(ATLAS_PROVIDER_NAME, error);
-        if (!this.shouldContinueAudioPollingAfterError(providerError, deadline)) {
+        if (!this.shouldContinuePollingAfterError(providerError, deadline)) {
           throw providerError;
         }
         input.onMetadata(latestMetadata);
@@ -767,7 +792,12 @@ export class AtlasCloudProvider implements ModelProvider {
     });
   }
 
-  private shouldContinueAudioPollingAfterError(error: ProviderError, deadline: number): boolean {
+  /**
+   * Shared polling tolerance for video/audio/asset waits: transient provider failures
+   * (network blips, request timeouts, rate limiting) keep polling until the overall
+   * deadline instead of abandoning a still-running, already-paid generation.
+   */
+  private shouldContinuePollingAfterError(error: ProviderError, deadline: number): boolean {
     if (Date.now() > deadline || !error.retryable) {
       return false;
     }
