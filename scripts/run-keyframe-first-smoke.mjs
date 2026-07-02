@@ -101,6 +101,19 @@ check(
 check("identity_ref_retained", boundShot.references.some((ref) => ref.role === "identity"));
 check("failed_shot_unchanged", binding.shots[1].references.length === 0);
 check("keyframe_metadata_recorded", boundShot.metadata?.keyframePredictionId === "p1");
+const videoOnlyBinding = bindKeyframesToShots({
+  shots: [shots[1]],
+  results: [{ shotId: "shot_kf_2", prediction: prediction("pv", "succeeded", ["https://example.com/clips/only-video.mp4"]) }]
+});
+check("video_only_output_skipped", videoOnlyBinding.skippedShotIds.includes("shot_kf_2") && videoOnlyBinding.shots[0].references.length === 0);
+const duplicateBinding = bindKeyframesToShots({
+  shots: [shots[0]],
+  results: [
+    { shotId: "shot_kf_1", prediction: prediction("pd1", "succeeded", ["https://example.com/frames/first.png"]) },
+    { shotId: "shot_kf_1", prediction: prediction("pd2", "failed", []) }
+  ]
+});
+check("duplicate_results_prefer_success", duplicateBinding.boundShotIds.includes("shot_kf_1"));
 
 // 3. Compiler flips to image-to-video once the keyframe is bound.
 const compiler = new SeedancePromptCompiler();

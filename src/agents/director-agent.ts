@@ -1303,26 +1303,46 @@ export class DirectorAgent {
     if (additions.every((addition) => addition === 0)) {
       return shots;
     }
+    const newDurations = shots.map((shot, index) => shot.durationSeconds + (additions[index] ?? 0));
+    const newTargetDurationSeconds = newDurations.reduce((sum, duration) => sum + duration, 0);
+    let arcCursorSeconds = 0;
     return shots.map((shot, index) => {
       const addition = additions[index] ?? 0;
-      if (addition <= 0) {
+      const durationSeconds = newDurations[index] ?? shot.durationSeconds;
+      const arcStartSecond = arcCursorSeconds;
+      arcCursorSeconds += durationSeconds;
+      // Scale timeline segments proportionally (instead of dumping all added seconds into
+      // the final settle beat) and pin the last segment to the exact new duration.
+      const timeline = addition > 0 && shot.timeline && shot.timeline.length > 0
+        ? shot.timeline.map((segment, segmentIndex) => {
+            const scale = durationSeconds / shot.durationSeconds;
+            const isLast = segmentIndex === (shot.timeline?.length ?? 0) - 1;
+            return {
+              ...segment,
+              startSecond: Math.round(segment.startSecond * scale * 10) / 10,
+              endSecond: isLast ? durationSeconds : Math.round(segment.endSecond * scale * 10) / 10
+            };
+          })
+        : shot.timeline;
+      const hasArcMetadata = typeof shot.metadata?.storyArcStartSecond === "number";
+      if (addition <= 0 && !hasArcMetadata) {
         return shot;
       }
-      const durationSeconds = shot.durationSeconds + addition;
-      const timeline = shot.timeline && shot.timeline.length > 0
-        ? shot.timeline.map((segment, segmentIndex) =>
-            segmentIndex === (shot.timeline?.length ?? 0) - 1
-              ? { ...segment, endSecond: durationSeconds }
-              : segment
-          )
-        : shot.timeline;
       return {
         ...shot,
         durationSeconds,
         ...(timeline ? { timeline } : {}),
         metadata: {
           ...(shot.metadata ?? {}),
-          durationCompensationSeconds: addition
+          ...(addition > 0 ? { durationCompensationSeconds: addition } : {}),
+          // Keep whole-video arc labels consistent with the compensated durations.
+          ...(hasArcMetadata
+            ? {
+                storyArcStartSecond: arcStartSecond,
+                storyArcEndSecond: arcStartSecond + durationSeconds,
+                storyArcTargetDurationSeconds: newTargetDurationSeconds
+              }
+            : {})
         }
       };
     });

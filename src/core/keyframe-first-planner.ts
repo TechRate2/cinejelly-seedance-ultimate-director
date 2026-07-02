@@ -82,7 +82,14 @@ export function bindKeyframesToShots(input: {
   readonly shots: readonly ShotContract[];
   readonly results: readonly { readonly shotId: string; readonly prediction: Prediction }[];
 }): KeyframeBindingResult {
-  const resultsByShot = new Map(input.results.map((result) => [result.shotId, result.prediction]));
+  // Prefer a succeeded prediction when duplicate shotIds appear in results.
+  const resultsByShot = new Map<string, Prediction>();
+  for (const result of input.results) {
+    const existing = resultsByShot.get(result.shotId);
+    if (!existing || (existing.status !== "succeeded" && result.prediction.status === "succeeded")) {
+      resultsByShot.set(result.shotId, result.prediction);
+    }
+  }
   const boundShotIds: string[] = [];
   const skippedShotIds: string[] = [];
   const shots = input.shots.map((shot) => {
@@ -227,7 +234,9 @@ function keyframePromptFor(shot: ShotContract): string {
 }
 
 function selectKeyframeImageUrl(prediction: Prediction): string | undefined {
-  return prediction.outputUrls.find((url) => isImageOutputUrl(url)) ?? prediction.outputUrls[0];
+  // Image outputs only: never fall back to an unclassified URL, or a video output could
+  // silently become a first_frame "image" reference and corrupt image-to-video mode.
+  return prediction.outputUrls.find((url) => isImageOutputUrl(url));
 }
 
 function stringMetadata(shot: ShotContract, key: string): string | undefined {

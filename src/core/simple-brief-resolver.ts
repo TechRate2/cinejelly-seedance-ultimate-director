@@ -147,9 +147,10 @@ export function resolveSimpleBrief(input: SimpleBriefInput): ResolvedSimpleBrief
 function normalizePlatform(value: string | undefined): SimplePlatform {
   const normalized = value?.trim().toLowerCase() ?? "";
   if (normalized.includes("douyin")) return "douyin";
-  if (normalized.includes("reel") || normalized.includes("instagram")) return "reels";
-  if (normalized.includes("short") || normalized.includes("youtube short")) return "shorts";
+  // Facebook wins before the generic "reel" test so "Facebook Reels" gets Facebook defaults.
   if (normalized.includes("facebook") || normalized.includes("fb")) return "facebook";
+  if (normalized.includes("reel") || normalized.includes("instagram")) return "reels";
+  if (normalized.includes("short")) return "shorts";
   if (normalized.includes("youtube") || normalized.includes("long")) return "youtube";
   return "tiktok";
 }
@@ -179,10 +180,10 @@ function buildReferences(media: readonly SimpleMediaReference[]): readonly Promp
     if (!uri || !/^(https:\/\/|asset:\/\/)/.test(uri)) {
       throw new Error(`Reference ${index + 1} (${item.kind}) must be a clean https:// or asset:// URI.`);
     }
-    const role = MEDIA_KIND_TO_ROLE[item.kind];
-    if (!role) {
+    if (!Object.hasOwn(MEDIA_KIND_TO_ROLE, item.kind)) {
       throw new Error(`Reference ${index + 1} has unsupported kind "${item.kind}".`);
     }
+    const role = MEDIA_KIND_TO_ROLE[item.kind];
     const label = item.label?.trim() || `${item.kind}_reference_${index + 1}`;
     return {
       role,

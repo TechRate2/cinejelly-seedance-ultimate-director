@@ -285,15 +285,19 @@ export class RenderedCandidateVisualInspector {
  */
 export function mergeGuardianReports(base: GuardianReport, extra: GuardianReport): GuardianReport {
   const worse = STATUS_ORDER[extra.status] > STATUS_ORDER[base.status] ? extra : base;
+  // On equal status, do not let a "none" repair scope on the deterministic base mask a
+  // concrete scope/next-step carried by the visual report.
+  const tied = STATUS_ORDER[extra.status] === STATUS_ORDER[base.status];
+  const scopeSource = tied && worse.repairScope === "none" && extra.repairScope !== "none" ? extra : worse;
   const affectedNodeIds = [...new Set([...base.affectedNodeIds, ...extra.affectedNodeIds])];
   return {
     nodeId: base.nodeId,
     stage: base.stage,
     status: worse.status,
     findings: [...base.findings, ...extra.findings],
-    repairScope: worse.repairScope,
+    repairScope: scopeSource.repairScope,
     affectedNodeIds,
     sourceCheckpoints: [...base.sourceCheckpoints, ...extra.sourceCheckpoints],
-    recommendedNextStep: worse.recommendedNextStep
+    recommendedNextStep: scopeSource.recommendedNextStep
   };
 }

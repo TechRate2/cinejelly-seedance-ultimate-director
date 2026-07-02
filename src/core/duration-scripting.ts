@@ -100,7 +100,10 @@ export function buildDurationScript(input: {
   readonly endingStyle?: "settle" | "cliffhanger";
 }): DurationScriptPlan {
   const cliffhanger = input.endingStyle === "cliffhanger";
-  const beats = planDurationBeats(input.durationSeconds);
+  // Keep the contract text, Total marker, and beats on the same clamped duration so
+  // sub-1s or invalid inputs cannot produce a self-contradictory runtime contract.
+  const durationSeconds = Math.max(1, Number.isFinite(input.durationSeconds) ? input.durationSeconds : 1);
+  const beats = planDurationBeats(durationSeconds);
   const beatLines = beats.map((beat) => {
     const directive = cliffhanger && beat.role === "settle"
       ? "drive tension upward and cut before the resolution lands; hold a clean readable frame of the unresolved moment"
@@ -113,16 +116,16 @@ export function buildDurationScript(input: {
       ? ARC_ROLE_DIRECTIVES[input.arcRole]
       : undefined;
   const finalBeatClause = cliffhanger
-    ? `the final beat holds the unresolved cliffhanger frame at ${input.durationSeconds}s`
-    : `the final beat must still be purposeful motion that settles cleanly at ${input.durationSeconds}s`;
+    ? `the final beat holds the unresolved cliffhanger frame at ${durationSeconds}s`
+    : `the final beat must still be purposeful motion that settles cleanly at ${durationSeconds}s`;
   const promptLines = [
-    `Runtime contract: this clip runs exactly ${input.durationSeconds} seconds and the action must fill the entire runtime; treat the timestamped beats as hard editorial instructions.`,
+    `Runtime contract: this clip runs exactly ${durationSeconds} seconds and the action must fill the entire runtime; treat the timestamped beats as hard editorial instructions.`,
     ...beatLines,
     arcLine,
-    `Do not finish the action early, freeze on a static frame, loop, or pad; ${finalBeatClause}. Total: ${input.durationSeconds}s.`
+    `Do not finish the action early, freeze on a static frame, loop, or pad; ${finalBeatClause}. Total: ${durationSeconds}s.`
   ].filter((line): line is string => Boolean(line));
   return {
-    durationSeconds: input.durationSeconds,
+    durationSeconds,
     beats,
     promptLines
   };

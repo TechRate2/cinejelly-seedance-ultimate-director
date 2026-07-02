@@ -303,6 +303,11 @@ function phaseForEpisode(episodeNumber: number, episodeCount: number): SeriesMac
   if (episodeNumber === episodeCount) {
     return "finale";
   }
+  // Episode 1 always establishes the story: short series (2-4 episodes) would otherwise
+  // never hit the <=0.2 progress band and open mid-escalation with no setup.
+  if (episodeNumber === 1) {
+    return "setup";
+  }
   const progress = episodeNumber / episodeCount;
   if (progress <= 0.2) {
     return "setup";

@@ -1386,23 +1386,33 @@ export function buildShortPipelineCreatePage(): string {
         showError("Load or create a session before creating a render job.");
         return;
       }
-      const confirmRender = document.getElementById("confirm-render").checked;
-      const review = collectReviewApproval();
-      const body = {
-        ...(review ? { reviewApprovalGate: review.gate, reviewApprovalCheckpoints: review.checkpoints } : {}),
-        confirmRenderSubmission: confirmRender
-      };
-      const endpoint = endpoints.render.replace("{sessionId}", encodeURIComponent(activeSessionId));
-      setRenderStatus("Submitting render job...");
-      const response = await apiFetch(endpoint, { method: "POST", body: JSON.stringify(body) });
-      const jobId = response.jobId || (response.job && response.job.jobId) || "";
-      const statusUrl = response.statusUrl || (jobId ? "/v1/render-jobs/" + encodeURIComponent(jobId) : "");
-      showSuccess("Render job created" + (jobId ? " (" + jobId + ")" : "") + ".");
-      if (statusUrl) {
-        jobPollDelayMs = 3000;
-        pollRenderJob(statusUrl);
-      } else {
-        setRenderStatus("Job created but no status URL was returned; check the Jobs API directly.");
+      const submitButton = document.getElementById("submit-render");
+      if (submitButton.disabled) {
+        return;
+      }
+      submitButton.disabled = true;
+      stopJobPolling();
+      try {
+        const confirmRender = document.getElementById("confirm-render").checked;
+        const review = collectReviewApproval();
+        const body = {
+          ...(review ? { reviewApprovalGate: review.gate, reviewApprovalCheckpoints: review.checkpoints } : {}),
+          confirmRenderSubmission: confirmRender
+        };
+        const endpoint = endpoints.render.replace("{sessionId}", encodeURIComponent(activeSessionId));
+        setRenderStatus("Submitting render job...");
+        const response = await apiFetch(endpoint, { method: "POST", body: JSON.stringify(body) });
+        const jobId = response.jobId || (response.job && response.job.jobId) || "";
+        const statusUrl = response.statusUrl || (jobId ? "/v1/render-jobs/" + encodeURIComponent(jobId) : "");
+        showSuccess("Render job created" + (jobId ? " (" + jobId + ")" : "") + ".");
+        if (statusUrl) {
+          jobPollDelayMs = 3000;
+          pollRenderJob(statusUrl);
+        } else {
+          setRenderStatus("Job created but no status URL was returned; check the Jobs API directly.");
+        }
+      } finally {
+        submitButton.disabled = false;
       }
     }
 
@@ -1416,9 +1426,11 @@ export function buildShortPipelineCreatePage(): string {
         return;
       }
       const status = job.status || "unknown";
-      const stage = job.currentStage && job.currentStage.stage ? " | stage: " + job.currentStage.stage : "";
+      const stage = typeof job.currentStage === "string" && job.currentStage
+        ? " | stage: " + job.currentStage
+        : "";
       setRenderStatus("Job " + (job.jobId || "") + " status: " + status + stage + " | " + statusUrl);
-      if (status === "succeeded" || status === "failed" || status === "canceled") {
+      if (status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected" || status === "blocked") {
         stopJobPolling("Job finished with status: " + status + ". Details: " + statusUrl);
         return;
       }

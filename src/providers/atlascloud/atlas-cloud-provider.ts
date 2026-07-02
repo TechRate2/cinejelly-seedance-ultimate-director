@@ -288,7 +288,8 @@ export class AtlasCloudProvider implements ModelProvider {
       model: request.modelId,
       prompt: request.prompt,
       ...(request.negativePrompt ? { negative_prompt: request.negativePrompt } : {}),
-      ratio: request.settings.ratio,
+      // "adaptive" is a video-side concept; omit ratio and let the image model decide.
+      ...(request.settings.ratio !== "adaptive" ? { ratio: request.settings.ratio } : {}),
       ...(request.settings.seed !== undefined ? { seed: request.settings.seed } : {}),
       ...(request.settings.guidanceScale !== undefined ? { guidance_scale: request.settings.guidanceScale } : {}),
       ...(referenceImages.length > 0 ? { reference_images: referenceImages.slice(0, 9) } : {}),

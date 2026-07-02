@@ -141,7 +141,7 @@ export interface ResolvedSeedanceDna {
 
 /** Safe lookup for a creative-mode directive; unknown/absent modes return undefined. */
 export function creativeModeDna(mode?: string): string | undefined {
-  if (!mode) {
+  if (!mode || !Object.hasOwn(CREATIVE_MODE_DNA, mode)) {
     return undefined;
   }
   return (CREATIVE_MODE_DNA as Record<string, string>)[mode];
@@ -150,7 +150,10 @@ export function creativeModeDna(mode?: string): string | undefined {
 /** Safe lookup for a niche directive; unknown/absent niches fall back to grounded realism. */
 export function nicheDna(niche?: string): string {
   const key = niche?.trim();
-  return (key && NICHE_DNA[key]) || GENERIC_NICHE_DNA;
+  if (!key || !Object.hasOwn(NICHE_DNA, key)) {
+    return GENERIC_NICHE_DNA;
+  }
+  return NICHE_DNA[key] ?? GENERIC_NICHE_DNA;
 }
 
 /**

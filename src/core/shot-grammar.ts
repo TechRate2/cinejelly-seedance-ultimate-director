@@ -56,9 +56,18 @@ const SHOT_POSITION_DIRECTIVES: Record<ShotPosition, string> = {
   point_of_view: "camera as the subject's own eyes"
 };
 
-/** One embeddable prompt line locking the framing grammar for the shot. */
-export function shotGrammarPromptLine(grammar: ShotGrammar): string {
-  return `Framing grammar (hold exactly): ${SHOT_TYPE_DIRECTIVES[grammar.shotType]}; ${SHOT_ANGLE_DIRECTIVES[grammar.shotAngle]}; ${SHOT_POSITION_DIRECTIVES[grammar.shotPosition]}. Do not drift to a different shot size, angle, or position unless the timeline explicitly cuts.`;
+/**
+ * One embeddable prompt line for the framing grammar. `mode: "strict"` locks the framing
+ * for the whole clip (single-framing shots); `mode: "home"` declares it the shot's home
+ * framing that per-beat timeline cameras may cut away from and return to — this keeps the
+ * grammar from contradicting planner beat cameras when a timeline exists.
+ */
+export function shotGrammarPromptLine(grammar: ShotGrammar, options?: { readonly mode?: "strict" | "home" }): string {
+  const base = `${SHOT_TYPE_DIRECTIVES[grammar.shotType]}; ${SHOT_ANGLE_DIRECTIVES[grammar.shotAngle]}; ${SHOT_POSITION_DIRECTIVES[grammar.shotPosition]}`;
+  if (options?.mode === "home") {
+    return `Framing grammar (home framing): ${base}. Per-beat timeline cameras may cut to other framings where the timeline says so, but always return to and end on this home framing.`;
+  }
+  return `Framing grammar (hold exactly): ${base}. Do not drift to a different shot size, angle, or position unless the timeline explicitly cuts.`;
 }
 
 /** Parse grammar from loosely-typed metadata values; returns undefined unless all valid. */
@@ -70,9 +79,9 @@ export function shotGrammarFromMetadata(metadata: Record<string, unknown> | unde
   const shotAngle = metadata.shotAngle;
   const shotPosition = metadata.shotPosition;
   if (
-    typeof shotType === "string" && shotType in SHOT_TYPE_DIRECTIVES &&
-    typeof shotAngle === "string" && shotAngle in SHOT_ANGLE_DIRECTIVES &&
-    typeof shotPosition === "string" && shotPosition in SHOT_POSITION_DIRECTIVES
+    typeof shotType === "string" && Object.hasOwn(SHOT_TYPE_DIRECTIVES, shotType) &&
+    typeof shotAngle === "string" && Object.hasOwn(SHOT_ANGLE_DIRECTIVES, shotAngle) &&
+    typeof shotPosition === "string" && Object.hasOwn(SHOT_POSITION_DIRECTIVES, shotPosition)
   ) {
     return {
       shotType: shotType as ShotType,

@@ -82,7 +82,7 @@ export class SeedancePromptCompiler {
       this.buildShotGrammarSection(shot),
       `Lighting: ${shot.lighting}.`,
       shot.style ? `Style: ${shot.style}.` : undefined,
-      shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline) : undefined,
+      shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline, shot) : undefined,
       this.buildAudioProductionSection(shot),
       shot.transitionIntent ? `Transition: ${shot.transitionIntent}.` : undefined,
       this.buildNicheDnaSection(shot),
@@ -254,14 +254,22 @@ export class SeedancePromptCompiler {
   private buildPacingSection(shot: ShotContract): string {
     const role = this.storyArcRole(shot);
     const hasTimeline = Boolean(shot.timeline?.length);
+    const cliffhanger = this.isCliffhangerShot(shot);
     return [
-      `Pacing contract: use the full ${shot.durationSeconds}s for a complete ${role} beat with a clear opening, middle action, and ending state.`,
+      `Pacing contract: use the full ${shot.durationSeconds}s for a complete ${role} beat with a clear opening, middle action, and ${cliffhanger ? "an unresolved cliffhanger hold as the ending state" : "ending state"}.`,
       this.wholeVideoArcLine(shot, role),
       "Do not collapse the shot into one static product macro, one hand pose, or an unfinished setup.",
       hasTimeline
         ? "Follow the time-coded timeline exactly; each segment must add new visual information."
-        : "Create at least three visible state changes: first-frame hook, action/proof, and settled endpoint."
+        : cliffhanger
+          ? "Create at least three visible state changes: first-frame hook, action/proof, and an unresolved cliffhanger hold (cut before the payoff lands)."
+          : "Create at least three visible state changes: first-frame hook, action/proof, and settled endpoint."
     ].filter((line): line is string => Boolean(line)).join(" ");
+  }
+
+  /** Whether this shot is the video's final shot with a requested cliffhanger ending. */
+  private isCliffhangerShot(shot: ShotContract): boolean {
+    return this.isCliffhangerEndingShot(shot, this.videoArcRole(shot));
   }
 
   /**
@@ -306,7 +314,13 @@ export class SeedancePromptCompiler {
    */
   private buildShotGrammarSection(shot: ShotContract): string | undefined {
     const grammar = shotGrammarFromMetadata(shot.metadata);
-    return grammar ? shotGrammarPromptLine(grammar) : undefined;
+    if (!grammar) {
+      return undefined;
+    }
+    // With a per-beat timeline the grammar is the HOME framing (beats may cut away and
+    // return); without one it is a strict lock. Keeps grammar from fighting beat cameras.
+    const mode = shot.timeline && shot.timeline.length > 0 ? "home" : "strict";
+    return shotGrammarPromptLine(grammar, { mode });
   }
 
   /** Cliffhanger endings apply only to the video's final shot (or a one-shot episode). */
@@ -355,11 +369,16 @@ export class SeedancePromptCompiler {
     const hasLastFrameReference = bindingPlan.providerReferences.some((reference) =>
       reference.role === "last_frame" || reference.kind === "last_frame"
     );
+    const cliffhanger = this.isCliffhangerShot(shot);
     const clauses = [
-      "Final-frame contract: finish on a stable, usable frame with the main subject, product, and action result still legible.",
+      cliffhanger
+        ? "Final-frame contract (cliffhanger): finish on a stable, legible frame of the UNRESOLVED moment — the confrontation frozen, the reveal half-seen, the reply unspoken; do not resolve the action."
+        : "Final-frame contract: finish on a stable, usable frame with the main subject, product, and action result still legible.",
       hasNextState ? `The next shot expects: ${shot.continuity.nextShotStartState}.` : undefined,
       hasLastFrameReference ? "If a last-frame reference is present, move toward it without deforming identity or product details." : undefined,
-      "Do not end on a blur, mid-blink, hidden product, cropped face, empty frame, or unresolved camera whip unless explicitly requested."
+      cliffhanger
+        ? "Do not end on a blur, mid-blink, hidden product, cropped face, or empty frame; the final frame stays technically clean while the story stays unresolved."
+        : "Do not end on a blur, mid-blink, hidden product, cropped face, empty frame, or unresolved camera whip unless explicitly requested."
     ].filter((line): line is string => Boolean(line));
     return clauses.join(" ");
   }
@@ -457,7 +476,9 @@ export class SeedancePromptCompiler {
       "Middle: add one concrete visible state change tied to the shot intent, not a repeated pose, idle product hold, or style-only flourish.",
       hasNextState
         ? "Exit: finish the action early enough to hold the final 0.5s as a clean next-shot handle with subject and product still visible."
-        : "Exit: hold the final 0.5s as a clean review/delivery handle with no unresolved whip, blur, blink, or cropped product.",
+        : this.isCliffhangerShot(shot)
+          ? "Exit: hold the final 0.5s on the unresolved cliffhanger frame — technically clean (no whip, blur, blink, or crop) while the story stays deliberately unresolved."
+          : "Exit: hold the final 0.5s as a clean review/delivery handle with no unresolved whip, blur, blink, or cropped product.",
       primaryAnchors.length > 0
         ? `Anchor lock during entry and exit: preserve ${primaryAnchors.join(", ")} before camera motion, style, source-video rhythm, or audio energy.`
         : undefined,
@@ -518,7 +539,7 @@ export class SeedancePromptCompiler {
     return clauses.length > 0 ? `Continuity:\n${clauses.map((clause) => `- ${clause}`).join("\n")}` : "Continuity: follow scene context with no unexplained changes.";
   }
 
-  private buildTimelineSection(timeline: readonly TimelineSegment[]): string {
+  private buildTimelineSection(timeline: readonly TimelineSegment[], shot: ShotContract): string {
     const lines = timeline.map((segment, index) => {
       const segmentDuration = Math.max(0, segment.endSecond - segment.startSecond);
       const parts = [
@@ -530,7 +551,10 @@ export class SeedancePromptCompiler {
       ].filter((part): part is string => Boolean(part));
       return parts.join("; ");
     });
-    return `Timeline:\n${lines.map((line) => `- ${line}.`).join("\n")}`;
+    const cliffhangerOverride = this.isCliffhangerShot(shot)
+      ? "\n- Ending-beat override: play the final timeline beat as a cliffhanger hold — drive tension to the last second and cut before the resolution lands; this override supersedes any 'resolves the story' or 'settled' wording in the beats above."
+      : "";
+    return `Timeline:\n${lines.map((line) => `- ${line}.`).join("\n")}${cliffhangerOverride}`;
   }
 
   private productContinuityLabel(value: string, bindingPlan: PromptBindingPlan): string {
