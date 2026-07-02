@@ -15,6 +15,7 @@ import type { FlexibleSeedanceSettings } from "../types/settings.js";
 import { createStableId } from "../utils/ids.js";
 import { planDurationChunks } from "./chunking.js";
 import { assignVideoArcRoles } from "./duration-scripting.js";
+import { planShotFramingSequence, type ArcRoleName } from "./shot-grammar.js";
 
 export interface BeatPlan {
   readonly beatId: string;
@@ -102,19 +103,51 @@ export class ShotPlanner {
   }
 
   /**
-   * Stamp the video-level arc role (opening hook / development / climax / closing resolve,
-   * or full_video for one-shot videos) onto each shot so the prompt compiler can design
-   * openings that open and endings that end for any duration and shot count.
+   * Stamp the video-level arc role AND a deliberately varied framing (shot size/angle/
+   * position) onto each shot. Arc roles design openings/endings; the framing sequence gives
+   * the whole video cinematic variety instead of the monotone same-size shots that read as
+   * a cheap AI video. The prompt compiler then emits both as hard framing instructions.
    */
   private withVideoArcRoles(shots: readonly ShotContract[]): readonly ShotContract[] {
     const arcRoles = assignVideoArcRoles(shots.length);
-    return shots.map((shot, index) => ({
-      ...shot,
-      metadata: {
-        ...(shot.metadata ?? {}),
-        videoArcRole: arcRoles[index] ?? "development"
+    const creativeMode = this.creativeModeFor(shots);
+    const framing = planShotFramingSequence({
+      arcRoles: arcRoles as readonly ArcRoleName[],
+      ...(creativeMode ? { creativeMode } : {})
+    });
+    return shots.map((shot, index) => {
+      const shotFraming = framing[index];
+      return {
+        ...shot,
+        metadata: {
+          ...(shot.metadata ?? {}),
+          videoArcRole: arcRoles[index] ?? "development",
+          // Only auto-assign framing when the caller has not already pinned a specific shot
+          // grammar, so an explicit request still wins.
+          ...(shotFraming && typeof shot.metadata?.shotType !== "string"
+            ? {
+                shotType: shotFraming.shotType,
+                shotAngle: shotFraming.shotAngle,
+                shotPosition: shotFraming.shotPosition
+              }
+            : {})
+        }
+      };
+    });
+  }
+
+  /** Read the creative mode carried on request metadata so framing can adapt to the format. */
+  private creativeModeFor(shots: readonly ShotContract[]): string | undefined {
+    for (const shot of shots) {
+      const value =
+        shot.metadata?.shortViralCreativeMode ??
+        shot.metadata?.creativeMode ??
+        shot.metadata?.shortDirectorCreativeMode;
+      if (typeof value === "string" && value.trim()) {
+        return value;
       }
-    }));
+    }
+    return undefined;
   }
 
   private withAdjacentContinuityStates(shots: readonly ShotContract[]): readonly ShotContract[] {

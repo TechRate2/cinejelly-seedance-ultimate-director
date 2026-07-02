@@ -1,0 +1,122 @@
+/**
+ * No-spend smoke for intelligent shot-framing variation.
+ * Proves: framing follows the emotional arc (hook/climax push closer), adjacent shots never
+ * repeat the same shot size (anti-monotony), the palette adapts to creative mode (UGC stays
+ * tight with no wides; cinematic roams to long shots), explicit caller grammar still wins,
+ * and the compiler emits the framing as a hard instruction. No network, no spend.
+ */
+
+import { planShotFramingSequence } from "../dist/core/shot-grammar.js";
+import { ShotPlanner } from "../dist/core/shot-planner.js";
+import { SeedancePromptCompiler } from "../dist/prompt_compiler/prompt-compiler.js";
+import { DEFAULT_SEEDANCE_SETTINGS } from "../dist/types/settings.js";
+
+const checks = [];
+function check(name, pass, detail) {
+  checks.push({ name, pass, ...(detail ? { detail } : {}) });
+}
+
+function noAdjacentRepeat(types) {
+  for (let i = 1; i < types.length; i += 1) {
+    if (types[i] === types[i - 1]) return false;
+  }
+  return true;
+}
+
+// 1. UGC stays tight and handheld: no long shots, no adjacent repeats, hook is a close-up.
+const ugc = planShotFramingSequence({
+  arcRoles: ["opening_hook", "development", "development", "climax", "closing_resolve"],
+  creativeMode: "ugc_review"
+});
+const ugcTypes = ugc.map((g) => g.shotType);
+check("ugc_no_wides", ugcTypes.every((t) => t !== "long_shot" && t !== "full_shot"), ugcTypes.join(","));
+check("ugc_no_adjacent_repeat", noAdjacentRepeat(ugcTypes));
+check("ugc_hook_is_close", ugcTypes[0] === "close_up");
+check("ugc_climax_low_angle", ugc[3].shotAngle === "low_angle");
+
+// 2. Cinematic roams wide, still no adjacent repeats.
+const cinematic = planShotFramingSequence({
+  arcRoles: ["opening_hook", "development", "development", "development", "climax", "closing_resolve"],
+  creativeMode: "cinematic"
+});
+const cinTypes = cinematic.map((g) => g.shotType);
+check("cinematic_has_wide", cinTypes.some((t) => t === "long_shot" || t === "full_shot"));
+check("cinematic_no_adjacent_repeat", noAdjacentRepeat(cinTypes));
+check("cinematic_more_variety_than_ugc", new Set(cinTypes).size >= new Set(ugcTypes).size);
+
+// 3. Single-shot and unknown mode are safe.
+check("single_shot_ok", planShotFramingSequence({ arcRoles: ["full_video"] }).length === 1);
+const unknown = planShotFramingSequence({ arcRoles: ["opening_hook", "development", "closing_resolve"], creativeMode: "totally_unknown_mode" });
+check("unknown_mode_falls_back", unknown.length === 3 && noAdjacentRepeat(unknown.map((g) => g.shotType)));
+
+// 4. End to end: the ShotPlanner stamps varied framing and the compiler emits it.
+const planner = new ShotPlanner();
+function beat(beatId, action, purpose) {
+  return {
+    beatId,
+    purpose,
+    action,
+    subject: "A creator and a serum bottle",
+    camera: "handheld phone",
+    lighting: "soft window light",
+    durationSeconds: 6,
+    risks: [],
+    references: [],
+    continuity: {}
+  };
+}
+const scenes = [
+  {
+    sceneId: "scene_1",
+    beats: [
+      beat("b1", "Creator lifts the serum into the light", "hook"),
+      beat("b2", "Dropper releases onto the back of the hand", "proof"),
+      beat("b3", "Skin looks visibly smoother", "payoff")
+    ]
+  }
+];
+const planned = planner.plan({
+  projectId: "proj_framing_smoke",
+  scenes,
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS, durationTargetSeconds: 18 },
+  metadata: { shortViralCreativeMode: "ugc_review" }
+});
+check("planner_stamps_shot_type", planned.every((shot) => typeof shot.metadata?.shotType === "string"));
+const plannedTypes = planned.map((shot) => shot.metadata?.shotType);
+check("planner_framing_varies", noAdjacentRepeat(plannedTypes), plannedTypes.join(","));
+
+const compiler = new SeedancePromptCompiler();
+const compiled = compiler.compile({
+  shot: planned[0],
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS },
+  modelId: "seedance-2-0-smoke",
+  provider: "atlascloud"
+});
+check("compiler_emits_framing", compiled.prompt.includes("Framing grammar"));
+
+// 5. Explicit caller grammar still wins over auto-assignment.
+const pinned = planner.plan({
+  projectId: "proj_framing_pinned",
+  scenes,
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS, durationTargetSeconds: 18 },
+  metadata: { shortViralCreativeMode: "ugc_review", shotType: "long_shot", shotAngle: "high_angle", shotPosition: "aerial_view" }
+});
+check("explicit_grammar_wins", pinned.every((shot) => shot.metadata?.shotType === "long_shot"));
+
+const failed = checks.filter((item) => !item.pass);
+const report = {
+  schemaVersion: "cinejelly.shot-framing-smoke.v1",
+  status: failed.length === 0 ? "pass" : "fail",
+  checkCount: checks.length,
+  failedCount: failed.length,
+  checks,
+  noSpend: true,
+  nextActions: [
+    "Keep this smoke passing when changing shot-grammar palettes, the shot planner framing pass, or the compiler grammar section.",
+    "Framing variation is a prompt-level cinematic upgrade; its visual benefit is confirmed only on a real paid render."
+  ]
+};
+console.log(JSON.stringify(report, null, 2));
+if (failed.length > 0) {
+  process.exit(1);
+}

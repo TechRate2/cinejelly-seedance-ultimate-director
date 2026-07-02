@@ -112,3 +112,76 @@ export function deriveShotGrammarForArcRole(
       return { shotType: "medium_shot", shotAngle: "eye_level", shotPosition: "front_view" };
   }
 }
+
+export type ArcRoleName = "full_video" | "opening_hook" | "development" | "climax" | "closing_resolve";
+
+/** Ordered shot-type palette per creative mode: how wide the framing range should roam. */
+const MODE_SHOT_TYPE_PALETTE: Record<string, readonly ShotType[]> = {
+  // Handheld selfie feel: stay tight, no wides.
+  ugc_review: ["close_up", "medium_shot", "close_up", "extreme_close_up"],
+  testimonial: ["close_up", "medium_shot", "close_up"],
+  // Action proof: medium/close, occasional full for the reveal.
+  demo: ["medium_shot", "close_up", "full_shot", "medium_shot"],
+  comparison: ["medium_shot", "full_shot", "close_up", "medium_shot"],
+  problem_solution: ["medium_shot", "close_up", "full_shot", "medium_shot"],
+  product_ad: ["medium_shot", "close_up", "full_shot", "extreme_close_up"],
+  education: ["medium_shot", "full_shot", "close_up", "medium_shot"],
+  // Story/cinematic: full expressive range including wides.
+  story: ["full_shot", "medium_shot", "close_up", "long_shot", "medium_shot"],
+  cinematic: ["long_shot", "medium_shot", "close_up", "full_shot", "extreme_close_up"]
+};
+
+const DEFAULT_SHOT_TYPE_PALETTE: readonly ShotType[] = ["medium_shot", "close_up", "full_shot"];
+
+const ANGLE_CYCLE: readonly ShotAngle[] = ["eye_level", "eye_level", "low_angle", "high_angle"];
+
+/**
+ * Plan a per-shot framing sequence for a whole video with deliberate variation.
+ *
+ * Two cinematic techniques the leading short-drama agents rely on: (1) framing follows the
+ * emotional arc — hooks and climaxes push closer, development breathes wider; (2) adjacent
+ * shots never repeat the same shot size, because monotone framing is the #1 tell of a
+ * cheap AI video. The palette width is chosen by creative mode (UGC stays tight and
+ * handheld; cinematic roams from long shots to extreme close-ups).
+ */
+export function planShotFramingSequence(input: {
+  readonly arcRoles: readonly ArcRoleName[];
+  readonly creativeMode?: string;
+}): readonly ShotGrammar[] {
+  const palette =
+    (input.creativeMode && MODE_SHOT_TYPE_PALETTE[input.creativeMode]) || DEFAULT_SHOT_TYPE_PALETTE;
+  const result: ShotGrammar[] = [];
+  let paletteCursor = 0;
+  for (let index = 0; index < input.arcRoles.length; index += 1) {
+    const arcRole = input.arcRoles[index] ?? "development";
+    const roleDefault = deriveShotGrammarForArcRole(arcRole);
+    const previousType = result[index - 1]?.shotType;
+    // Arc-critical beats keep their expressive role framing; other beats rotate the palette.
+    let shotType: ShotType;
+    if (arcRole === "opening_hook" || arcRole === "climax") {
+      shotType = roleDefault.shotType;
+    } else {
+      shotType = palette[paletteCursor % palette.length] ?? roleDefault.shotType;
+      paletteCursor += 1;
+    }
+    // Anti-monotony: never repeat the previous shot size two beats in a row.
+    if (shotType === previousType) {
+      shotType = nextDistinctShotType(palette, shotType, paletteCursor);
+      paletteCursor += 1;
+    }
+    const shotAngle = arcRole === "climax" ? "low_angle" : ANGLE_CYCLE[index % ANGLE_CYCLE.length] ?? "eye_level";
+    result.push({ shotType, shotAngle, shotPosition: roleDefault.shotPosition });
+  }
+  return result;
+}
+
+function nextDistinctShotType(palette: readonly ShotType[], avoid: ShotType, cursor: number): ShotType {
+  for (let step = 0; step < palette.length; step += 1) {
+    const candidate = palette[(cursor + step) % palette.length];
+    if (candidate && candidate !== avoid) {
+      return candidate;
+    }
+  }
+  // Palette has a single entry: fall back to a guaranteed-different size.
+  return avoid === "medium_shot" ? "close_up" : "medium_shot";
+}
