@@ -400,11 +400,14 @@ function apiResponseSecurityChecks() {
 
 function staticUiShellChecks() {
   const shortCreatePageText = readText("src/api/short-pipeline-create-page.ts").text;
+  const operatorLaunchPageText = readText("src/api/operator-launch-dashboard-page.ts").text;
   const externalDecorativeMediaPattern = /--(?:asset|template|beat)-img\s*:\s*url\(\s*["']https?:\/\//iu;
   const promptPrefillPattern = /<textarea\b(?=[^>]*\bid="prompt\b)[^>]*>\s*(?!<\/textarea>)\S[\s\S]*?<\/textarea>/iu;
   const prefilledProductFieldPattern = /<input\b(?=[^>]*\bid="(?:product-title|category|claim)\b)[^>]*\bvalue=/iu;
   const hardcodedTemplateLanguagePattern = />\s*Templates\s*<|>\s*Template source intake\s*<|>\s*Template structure summary\s*<|Template loaded:|template intake|template\/video structure/iu;
   const misleadingGenerationActionPattern = /id="create-session"[^>]*>\s*Generate Video\s*<\/button>|>\s*Estimated cost\s*</iu;
+  const prefilledOperatorLaunchStatePattern =
+    /id="side-(?:status|evidence|traffic|contracts)"\s*>\s*(?:locked|0%|blocked|unknown)\s*<\/span>|id="metric-traffic"\s*>\s*Blocked\s*<\/div>/iu;
   return [
     check(
       "short_create_shell_no_external_decorative_media",
@@ -443,6 +446,16 @@ function staticUiShellChecks() {
         /Provider render is still locked until explicit approval/u.test(shortCreatePageText),
       "Short create shell labels the first action as review-gated planning, not immediate provider generation.",
       "Short create shell must not imply that creating a session immediately spends provider credits or renders a video."
+    ),
+    check(
+      "operator_launch_shell_no_prefilled_readiness_state",
+      !prefilledOperatorLaunchStatePattern.test(operatorLaunchPageText) &&
+        /id="side-status"\s*>\s*--\s*<\/span>/u.test(operatorLaunchPageText) &&
+        /id="side-evidence"\s*>\s*--\s*<\/span>/u.test(operatorLaunchPageText) &&
+        /id="side-traffic"\s*>\s*--\s*<\/span>/u.test(operatorLaunchPageText) &&
+        /id="metric-traffic"\s*>\s*--\s*<\/div>/u.test(operatorLaunchPageText),
+      "Operator launch shell waits for the authenticated backend contract before showing readiness, evidence, or customer-traffic state.",
+      "Operator launch shell must not show hardcoded launch readiness, evidence percent, report status, or customer-traffic state before the admin contract loads."
     )
   ];
 }

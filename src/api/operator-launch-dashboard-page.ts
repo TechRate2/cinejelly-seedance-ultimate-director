@@ -245,11 +245,11 @@ export function buildOperatorLaunchDashboardPage(): string {
     <aside>
       <div class="brand">CineJelly Ops</div>
       <div class="nav-label">Launch</div>
-      <div class="nav-item"><span>Readiness</span><span id="side-status">locked</span></div>
-      <div class="nav-item"><span>Evidence</span><span id="side-evidence">0%</span></div>
+      <div class="nav-item"><span>Readiness</span><span id="side-status">--</span></div>
+      <div class="nav-item"><span>Evidence</span><span id="side-evidence">--</span></div>
       <div class="nav-label">Gates</div>
-      <div class="nav-item"><span>Customer Traffic</span><span id="side-traffic">blocked</span></div>
-      <div class="nav-item"><span>Report Contracts</span><span id="side-contracts">unknown</span></div>
+      <div class="nav-item"><span>Customer Traffic</span><span id="side-traffic">--</span></div>
+      <div class="nav-item"><span>Report Contracts</span><span id="side-contracts">--</span></div>
     </aside>
     <main>
       <header>
@@ -281,7 +281,7 @@ export function buildOperatorLaunchDashboardPage(): string {
         </div>
         <div class="metric release-lock">
           <div class="metric-label">Customer Traffic</div>
-          <div class="metric-value" id="metric-traffic">Blocked</div>
+          <div class="metric-value" id="metric-traffic">--</div>
           <div class="metric-note" id="metric-traffic-note">release gate</div>
         </div>
       </section>

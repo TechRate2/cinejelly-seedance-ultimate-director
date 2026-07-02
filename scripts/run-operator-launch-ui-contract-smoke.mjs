@@ -71,6 +71,13 @@ try {
   const sourceReports = Array.isArray(ui?.sourceReports) ? ui.sourceReports : [];
   const productGaps = Array.isArray(ui?.productGaps) ? ui.productGaps : [];
   const nextActions = Array.isArray(ui?.nextActions) ? ui.nextActions : [];
+  const dashboardNoPrefilledLaunchState =
+    !/id="side-(?:status|evidence|traffic|contracts)"\s*>\s*(?:locked|0%|blocked|unknown)\s*<\/span>|id="metric-traffic"\s*>\s*Blocked\s*<\/div>/iu.test(dashboardPage.body) &&
+    dashboardPage.body.includes('id="side-status">--</span>') &&
+    dashboardPage.body.includes('id="side-evidence">--</span>') &&
+    dashboardPage.body.includes('id="side-traffic">--</span>') &&
+    dashboardPage.body.includes('id="side-contracts">--</span>') &&
+    dashboardPage.body.includes('id="metric-traffic">--</div>');
   const checks = [
     dashboardPage.statusCode === 200 &&
       String(dashboardPage.headers.get("content-type") ?? "").includes("text/html") &&
@@ -85,6 +92,9 @@ try {
     dashboardSecurityHeadersPassed
       ? pass("operator_dashboard_security_headers", "Operator launch dashboard HTML is served with no-store, nosniff, frame-deny, no-referrer, permissions-policy, and self-only CSP guardrails.")
       : fail("operator_dashboard_security_headers", "Expected operator dashboard HTML route to include strict browser security headers."),
+    dashboardNoPrefilledLaunchState
+      ? pass("operator_dashboard_no_prefilled_launch_state", "Operator launch dashboard shell shows neutral placeholders until the authenticated backend contract is loaded.")
+      : fail("operator_dashboard_no_prefilled_launch_state", "Expected operator dashboard shell to avoid hardcoded readiness, evidence, or customer-traffic state before auth."),
     unauthorized.statusCode === 401
       ? pass("deployment_token_required", "Operator launch UI contract is protected by the deployment token.")
       : fail("deployment_token_required", "Expected missing deployment token to be rejected."),
