@@ -330,12 +330,12 @@ function buildRequiredInputs(reports) {
       envVars: [],
       filePaths: ["ops/commercial-launch-intake.json"],
       acceptance:
-        "Decide whether this launch is intentionally API/CLI/operator-report only, or whether a first-party Web UI is required before customer traffic. Record the decision in commercialOfferScope and rerun validation:launch-intake.",
+        "Decide whether this launch is intentionally API/CLI/operator-report only, or whether the full first-party commercial Web UI is required before customer traffic. Record the decision in commercialOfferScope and rerun validation:launch-intake.",
       validationCommand: "npm.cmd run validation:launch-intake -- --write-draft",
       blockerMessage:
         launchIntake?.intakeSummary?.commercialOfferScopeConfigured === true
           ? undefined
-          : "Commercial offer scope is not yet decided; first-party Web UI remains a product-scope blocker for full product parity until the intake records API/CLI-only scope or UI-required scope."
+          : "Commercial offer scope is not yet decided; the full first-party commercial Web UI remains a product-scope blocker for full product parity until the intake records API/CLI-only scope or UI-required scope."
     }),
     input({
       id: "live_provider_action_evidence",

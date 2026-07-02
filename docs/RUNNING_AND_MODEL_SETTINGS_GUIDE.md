@@ -8,17 +8,19 @@ Keep this rule first: real secrets belong only in local `.env` files or deployme
 
 ## Current Runtime Status
 
-The source currently runs as a TypeScript/Node production API and CLI validation toolchain. There is no first-party web UI in this repository yet.
+The source currently runs as a TypeScript/Node production API, CLI validation toolchain, first-party Short Studio create/review shell, and operator dashboard shell. The current web surfaces are backend-integration/operator shells, not a finished customer-facing commercial UI.
 
 Current control surfaces:
 
 - CLI validation commands in `package.json`
 - HTTP API in `src/api/server.ts`
+- Short Studio shell in `src/api/short-pipeline-create-page.ts`
+- Operator launch dashboard shell in `src/api/operator-launch-dashboard-page.ts`
 - JSON request contract in `schemas/render-request.schema.json`
 - Settings contract in `src/types/settings.ts`
 - Operator process in `docs/OPERATOR_RUNBOOK.md`
 
-Future UI work should not invent new settings. It should expose the existing request settings listed in this guide and submit them to `/v1/render` or `/v1/render-jobs`.
+Future full customer UI work should not invent new settings. It should expose the existing request settings and Short pipeline UI contracts listed in this guide, then submit reviewed jobs through `/v1/render-jobs` or the Short pipeline render handoff endpoints.
 
 ## What Must Be Installed
 
@@ -348,7 +350,7 @@ GET /v1/render-settings
 Authorization: Bearer <CINEJELLY_API_AUTH_TOKEN>
 ```
 
-The response intentionally contains no API keys or local paths. It reports defaults, supported setting values, duration and cost constraints, quality-mode behavior, selected model IDs, admin-allowlisted Seedance model choices, per-model capability support, Seedance capability configuration source, and whether a first-party UI exists. Today the official control surface is still HTTP API plus CLI; a future UI should read this descriptor instead of duplicating option lists.
+The response intentionally contains no API keys or local paths. It reports defaults, supported setting values, duration and cost constraints, quality-mode behavior, selected model IDs, admin-allowlisted Seedance model choices, per-model capability support, Seedance capability configuration source, and the UI-support status needed by first-party shells. The current official control surfaces are HTTP API, CLI, the Short Studio shell, and the operator dashboard shell; any future full customer UI should read this descriptor instead of duplicating option lists.
 
 | Setting | Options | What it controls |
 | --- | --- | --- |

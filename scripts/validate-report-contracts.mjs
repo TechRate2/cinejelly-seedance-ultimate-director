@@ -662,7 +662,7 @@ function validateCommercialLaunchDoctorSemantics(report, options = {}) {
       issues.push("$.commercialOfferScopeSummary.blocksApiCliCommercialLaunch: expected false for API/CLI-only commercial scope.");
     }
     if (scopeSummary.status === "first_party_web_ui_required" && scopeSummary.blocksApiCliCommercialLaunch !== true) {
-      issues.push("$.commercialOfferScopeSummary.blocksApiCliCommercialLaunch: expected true when first-party Web UI is required before customer traffic.");
+      issues.push("$.commercialOfferScopeSummary.blocksApiCliCommercialLaunch: expected true when the full first-party commercial Web UI is required before customer traffic.");
     }
   }
   issues.push(
@@ -927,7 +927,7 @@ function validateBusinessCompletionAuditSemantics(report) {
       issues.push("$.commercialOfferScopeSummary.launchIntakeStatus: expected to match sourceReports.launchIntake.status.");
     }
     if (scopeSummary.blocksFullSnapshotParity !== true) {
-      issues.push("$.commercialOfferScopeSummary.blocksFullSnapshotParity: expected true while first-party Web UI is not implemented.");
+      issues.push("$.commercialOfferScopeSummary.blocksFullSnapshotParity: expected true while the full first-party commercial Web UI is incomplete.");
     }
     if (firstPartyUiGap) {
       if (firstPartyUiGap.scopeDecisionRequired !== scopeSummary.scopeDecisionRequired) {
@@ -945,8 +945,17 @@ function validateBusinessCompletionAuditSemantics(report) {
       if (scopeSummary.status === "scope_decision_pending" && firstPartyUiGap.status !== "scope_decision_pending") {
         issues.push("$.productCodeGaps[id=first_party_web_ui].status: expected scope_decision_pending when commercial offer scope is undecided.");
       }
+      if (typeof firstPartyUiGap.label === "string" && /not implemented/i.test(firstPartyUiGap.label)) {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].label: expected partial commercial Web UI wording, not a stale not-implemented claim.");
+      }
+      if (Number(firstPartyUiGap.currentCoveragePercent ?? -1) <= 0) {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].currentCoveragePercent: expected positive coverage because the Short Studio/operator UI shells and UI contracts exist.");
+      }
+      if (typeof firstPartyUiGap.sourceEvidence === "string" && !firstPartyUiGap.sourceEvidence.includes("short-mvp-ui-contract-smoke-report.json")) {
+        issues.push("$.productCodeGaps[id=first_party_web_ui].sourceEvidence: expected current Short MVP UI contract evidence.");
+      }
     } else {
-      issues.push("$.productCodeGaps: expected first_party_web_ui product-code gap while no first-party UI exists.");
+      issues.push("$.productCodeGaps: expected first_party_web_ui product-code gap until the full first-party commercial Web UI is complete or explicitly scoped out.");
     }
   }
   issues.push(
@@ -4474,7 +4483,7 @@ function validateCommercialLaunchIntakePacketSemantics(report) {
     }
   } else if (productSurface === "first_party_web_ui_required") {
     if (report?.commercialOfferScope?.uiRequiredBeforeCustomerTraffic !== true) {
-      issues.push("$.commercialOfferScope.uiRequiredBeforeCustomerTraffic: expected true when first-party Web UI is required.");
+      issues.push("$.commercialOfferScope.uiRequiredBeforeCustomerTraffic: expected true when the full first-party commercial Web UI is required.");
     }
   }
 
@@ -4723,7 +4732,7 @@ function validateCommercialLaunchIntakeSemantics(report) {
     issues.push("$.intakeSummary.uiRequiredBeforeCustomerTraffic: expected false for API/CLI-only commercial scope.");
   }
   if (report?.intakeSummary?.commercialOfferProductSurface === "first_party_web_ui_required" && report?.intakeSummary?.uiRequiredBeforeCustomerTraffic !== true) {
-    issues.push("$.intakeSummary.uiRequiredBeforeCustomerTraffic: expected true for first-party Web UI required scope.");
+    issues.push("$.intakeSummary.uiRequiredBeforeCustomerTraffic: expected true for full first-party commercial Web UI required scope.");
   }
   if (report?.releaseGateSummary?.canRunPaidAtlasValidation !== false) {
     issues.push("$.releaseGateSummary.canRunPaidAtlasValidation: launch intake must not authorize paid Atlas execution by itself.");

@@ -457,7 +457,7 @@ function buildChecks({ docs, snapshotInventory, referenceImplementations, direct
       : undefined
   }));
   const parityText = docs["docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md"]?.text ?? "";
-  const staticParityAuditRefusesFullClaim = parityText.includes("No claim of 100% parity") || parityText.includes("No first-party web UI");
+  const staticParityAuditRefusesFullClaim = parityText.includes("No claim of 100% parity");
   checks.push(check({
     id: "static_parity_audit_keeps_no_100_percent_claim",
     label: "Static parity audit refuses 100% parity claim",

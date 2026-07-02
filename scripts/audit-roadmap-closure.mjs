@@ -182,10 +182,10 @@ const requirementDefinitions = [
     productGapIds: ["first_party_web_ui"],
     reportPaths: ["assets/output_deliverables/business-readiness/commercial-launch-intake-validation-report.json"],
     sourceAnchors: [
-      anchor("roadmap", "API/CLI-only versus first-party Web UI scope inputs"),
-      anchor("snapshotParity", "Decide whether to build a first-party UI or ship API/CLI only")
+      anchor("roadmap", "API/CLI-only versus full first-party commercial Web UI scope inputs"),
+      anchor("snapshotParity", "Decide whether to finish the full first-party customer-facing UI for launch or ship API/CLI/operator-report only")
     ],
-    requiredAction: "Record whether the commercial launch is API/CLI-only or first-party UI-required in the launch intake."
+    requiredAction: "Record whether the commercial launch is API/CLI-only or full first-party commercial UI-required in the launch intake."
   })
 ];
 
