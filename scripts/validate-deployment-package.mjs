@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -110,6 +111,7 @@ function main() {
   const envTemplate = readText(options.envTemplatePath);
   const containerDoc = readText(options.containerDocPath);
   const runtimeEnvNames = runtimeEnvNamesFromSourceRoot("src");
+  const npmPackDryRun = inspectNpmPackDryRun("dist");
 
   const checks = [
     checkExists("dockerfile_exists", dockerfile, "Dockerfile is present.", "Add a root Dockerfile for repeatable deployment packaging."),
@@ -127,6 +129,7 @@ function main() {
     ...tsconfigDeploymentChecks(tsconfig),
     ...packageJsonDeploymentChecks(packageJson),
     ...distArtifactChecks("dist"),
+    ...npmPackDryRun.checks,
     ...envTemplateChecks(envTemplate, runtimeEnvNames),
     ...containerDocChecks(containerDoc),
     crossFileCheck(dockerfile, dockerignore, compose)
@@ -149,7 +152,11 @@ function main() {
       packageJsonPath: toRepoRelative(options.packageJsonPath),
       envTemplatePath: toRepoRelative(options.envTemplatePath),
       containerDocPath: toRepoRelative(options.containerDocPath),
-      outputPath: toRepoRelative(options.outputPath)
+      outputPath: toRepoRelative(options.outputPath),
+      npmPackDryRunAttempted: npmPackDryRun.attempted,
+      npmPackDryRunExitCode: npmPackDryRun.exitCode,
+      npmPackDryRunFileCount: npmPackDryRun.fileCount,
+      npmPackDryRunForbiddenFileCount: npmPackDryRun.forbiddenPaths.length
     },
     summary: {
       passed: checks.filter((check) => check.status === "pass").length,
@@ -358,6 +365,123 @@ function distArtifactChecks(path) {
       `Remove built source maps from dist before packaging: ${sourceMaps.map((file) => toRepoRelative(file)).slice(0, 5).join(", ")}`
     )
   ];
+}
+
+function inspectNpmPackDryRun(distPath) {
+  const absoluteDistPath = resolve(repoRoot, distPath);
+  if (!existsSync(absoluteDistPath)) {
+    return {
+      attempted: false,
+      exitCode: null,
+      fileCount: 0,
+      forbiddenPaths: [],
+      checks: [
+        check(
+          "npm_pack_dry_run_requires_built_dist",
+          false,
+          "npm package dry-run can inspect built runtime artifacts.",
+          "Run npm.cmd run build before validating the concrete package file list."
+        )
+      ]
+    };
+  }
+
+  const result = runNpmPackDryRun();
+  const parsed = parseNpmPackJson(result.stdout);
+  const files = parsed.ok ? packageFilePaths(parsed.value) : [];
+  const forbiddenPaths = files.filter((path) => packagePathIsForbidden(path));
+  const requiredPaths = ["package.json", "README.md", ".env.production.template", "dist/index.js", "dist/api/server.js"];
+  const missingRequiredPaths = requiredPaths.filter((path) => !files.includes(path));
+  const smokeOrTestPaths = files.filter((path) => /(^|\/)(?:test|tests|__tests__|demo|demos|sample|samples|example|examples)(?:\/|$)|(?:test|smoke|demo|sample|example)/iu.test(path));
+
+  return {
+    attempted: true,
+    exitCode: result.status,
+    fileCount: files.length,
+    forbiddenPaths,
+    checks: [
+      check(
+        "npm_pack_dry_run_exit_zero",
+        result.status === 0 && !result.signal,
+        "npm pack dry-run exits cleanly without creating a package tarball.",
+        `npm pack dry-run failed with exit=${String(result.status)} signal=${String(result.signal)} stderr=${truncateForMessage(result.stderr)}.`
+      ),
+      check(
+        "npm_pack_dry_run_json_parseable",
+        parsed.ok && files.length > 0,
+        "npm pack dry-run returns a parseable package file list.",
+        `npm pack dry-run output was not parseable JSON: ${parsed.error ?? "empty file list"}.`
+      ),
+      check(
+        "npm_pack_dry_run_runtime_files_only",
+        parsed.ok && missingRequiredPaths.length === 0 && forbiddenPaths.length === 0,
+        "npm pack dry-run includes built runtime artifacts and excludes source, docs, snapshots, scripts, schemas, secrets, ops, and generated assets.",
+        `Fix npm package contents. Missing required: ${missingRequiredPaths.join(", ") || "none"}. Forbidden: ${forbiddenPaths.slice(0, 10).join(", ") || "none"}.`
+      ),
+      check(
+        "npm_pack_dry_run_no_test_smoke_demo_files",
+        parsed.ok && smokeOrTestPaths.length === 0,
+        "npm pack dry-run contains no test, smoke, demo, sample, or example files.",
+        `Remove validation/demo/test artifacts from runtime package: ${smokeOrTestPaths.slice(0, 10).join(", ") || "none"}.`
+      )
+    ]
+  };
+}
+
+function runNpmPackDryRun() {
+  const isWindows = process.platform === "win32";
+  const command = isWindows ? "cmd.exe" : "npm";
+  const args = isWindows
+    ? ["/d", "/s", "/c", "npm.cmd pack --dry-run --json --silent"]
+    : ["pack", "--dry-run", "--json", "--silent"];
+  const result = spawnSync(command, args, {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024
+  });
+  return {
+    status: typeof result.status === "number" ? result.status : 1,
+    signal: result.signal ?? null,
+    stdout: typeof result.stdout === "string" ? result.stdout : "",
+    stderr: typeof result.stderr === "string" ? result.stderr : result.error ? result.error.message : ""
+  };
+}
+
+function parseNpmPackJson(text) {
+  try {
+    const value = JSON.parse(text);
+    return { ok: true, value };
+  } catch (error) {
+    return { ok: false, value: null, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function packageFilePaths(value) {
+  if (!Array.isArray(value) || !value[0] || !Array.isArray(value[0].files)) {
+    return [];
+  }
+  return value[0].files
+    .map((entry) => entry?.path)
+    .filter((path) => typeof path === "string")
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function packagePathIsForbidden(path) {
+  const normalized = path.replace(/\\/g, "/");
+  if (normalized === ".env" || normalized.startsWith(".env.")) {
+    return normalized !== ".env.production.template";
+  }
+  return /^(?:src|scripts|schemas|docs|external|assets|ops|deploy)\//u.test(normalized) ||
+    /^(?:Dockerfile|docker-compose\.yml|\.dockerignore|\.gitignore|\.gitleaks\.toml)$/u.test(normalized) ||
+    /\.map$/iu.test(normalized);
+}
+
+function truncateForMessage(text) {
+  const normalized = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "none";
+  }
+  return normalized.length > 280 ? `${normalized.slice(0, 280)}...` : normalized;
 }
 
 function envTemplateChecks(read, runtimeEnvNames) {

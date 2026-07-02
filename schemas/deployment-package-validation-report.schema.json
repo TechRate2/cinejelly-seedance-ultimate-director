@@ -29,7 +29,7 @@
     "checkedInputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["dockerfilePath", "dockerignorePath", "composePath", "caddyfilePath", "envTemplatePath", "containerDocPath", "tsconfigPath", "packageJsonPath", "outputPath"],
+      "required": ["dockerfilePath", "dockerignorePath", "composePath", "caddyfilePath", "envTemplatePath", "containerDocPath", "tsconfigPath", "packageJsonPath", "outputPath", "npmPackDryRunAttempted", "npmPackDryRunExitCode", "npmPackDryRunFileCount", "npmPackDryRunForbiddenFileCount"],
       "properties": {
         "dockerfilePath": { "type": "string" },
         "dockerignorePath": { "type": "string" },
@@ -39,7 +39,11 @@
         "containerDocPath": { "type": "string" },
         "tsconfigPath": { "type": "string" },
         "packageJsonPath": { "type": "string" },
-        "outputPath": { "type": "string" }
+        "outputPath": { "type": "string" },
+        "npmPackDryRunAttempted": { "type": "boolean" },
+        "npmPackDryRunExitCode": { "type": ["integer", "null"] },
+        "npmPackDryRunFileCount": { "type": "integer", "minimum": 0 },
+        "npmPackDryRunForbiddenFileCount": { "type": "integer", "minimum": 0 }
       }
     },
     "summary": {

@@ -121,6 +121,8 @@ npm.cmd run validation:source-structure
 npm.cmd run validation:deployment-package
 ```
 
+`validation:deployment-package` kiểm Docker/Compose/env template/package config và, sau khi `dist/` đã build, tự chạy `npm pack --dry-run` để xác nhận package runtime không chứa source, docs, scripts, schemas, snapshots, secrets, ops, hoặc generated assets.
+
 Trước khi nói backend/UI contract ổn:
 
 ```powershell
