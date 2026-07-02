@@ -1060,9 +1060,9 @@ export function buildShortPipelineCreatePage(): string {
             <label class="field visually-hidden"><span>Project ID</span><input id="project-id" value="short_create_shell"></label>
           </div>
           <div class="render-bar">
-            <div class="cost-card"><small>Estimated cost</small><strong id="estimated-cost">$2.40</strong></div>
+            <div class="cost-card"><small>Preflight estimate</small><strong id="estimated-cost">$2.40</strong></div>
             <div class="detail">Backend keeps provider spend locked until approval packet and explicit render confirmation are ready.</div>
-            <button type="submit" id="create-session" class="primary">Generate Video</button>
+            <button type="submit" id="create-session" class="primary">Build Review Plan</button>
           </div>
         </form>
 
@@ -1366,7 +1366,7 @@ export function buildShortPipelineCreatePage(): string {
       activeSessionId = response.session.sessionId;
       document.getElementById("session-line").textContent = activeSessionId;
       document.getElementById("refresh-contract").disabled = false;
-      showSuccess("Session created. Backend contract is ready for review.");
+      showSuccess("Review plan created. Provider render is still locked until explicit approval.");
       await loadContract(activeSessionId);
       await loadSessions();
     }

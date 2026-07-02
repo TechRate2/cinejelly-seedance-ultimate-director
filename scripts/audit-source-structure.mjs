@@ -404,6 +404,7 @@ function staticUiShellChecks() {
   const promptPrefillPattern = /<textarea\b(?=[^>]*\bid="prompt\b)[^>]*>\s*(?!<\/textarea>)\S[\s\S]*?<\/textarea>/iu;
   const prefilledProductFieldPattern = /<input\b(?=[^>]*\bid="(?:product-title|category|claim)\b)[^>]*\bvalue=/iu;
   const hardcodedTemplateLanguagePattern = />\s*Templates\s*<|>\s*Template source intake\s*<|>\s*Template structure summary\s*<|Template loaded:|template intake|template\/video structure/iu;
+  const misleadingGenerationActionPattern = /id="create-session"[^>]*>\s*Generate Video\s*<\/button>|>\s*Estimated cost\s*</iu;
   return [
     check(
       "short_create_shell_no_external_decorative_media",
@@ -434,6 +435,14 @@ function staticUiShellChecks() {
       !hardcodedTemplateLanguagePattern.test(shortCreatePageText),
       "Short create shell presents reusable ideas as pattern starters and source patterns instead of hardcoded templates.",
       "Short create shell should use pattern-starter/source-pattern wording so UI does not imply fixed hardcoded templates."
+    ),
+    check(
+      "short_create_shell_review_gated_action_language",
+      !misleadingGenerationActionPattern.test(shortCreatePageText) &&
+        /Build Review Plan/u.test(shortCreatePageText) &&
+        /Provider render is still locked until explicit approval/u.test(shortCreatePageText),
+      "Short create shell labels the first action as review-gated planning, not immediate provider generation.",
+      "Short create shell must not imply that creating a session immediately spends provider credits or renders a video."
     )
   ];
 }

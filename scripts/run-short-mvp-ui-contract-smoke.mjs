@@ -215,6 +215,10 @@ try {
     !/class="template-card\s+active"/iu.test(createPageHtml);
   const createPagePatternStarterLanguageClean =
     !/>\s*Templates\s*<|>\s*Template source intake\s*<|>\s*Template structure summary\s*<|Template loaded:|template intake|template\/video structure/iu.test(createPageHtml);
+  const createPageReviewGatedActionLanguage =
+    !/id="create-session"[^>]*>\s*Generate Video\s*<\/button>|>\s*Estimated cost\s*</iu.test(createPageHtml) &&
+    createPageHtml.includes("Build Review Plan") &&
+    createPageHtml.includes("Provider render is still locked until explicit approval");
   const createPageSecurityHeadersPassed = htmlSecurityHeadersPass(createPage.headers);
   const rawLeakDetected = containsAny(`${rawStyleStore}\n${rawSessionStore}`, [
     "C:\\Users\\Admin",
@@ -325,6 +329,9 @@ try {
     createPagePatternStarterLanguageClean
       ? pass("short_create_page_pattern_starter_language", "Short create shell presents reusable ideas as pattern starters and source patterns instead of fixed hardcoded templates.")
       : fail("short_create_page_pattern_starter_language", "Expected served Short create HTML to avoid user-facing hardcoded-template wording."),
+    createPageReviewGatedActionLanguage
+      ? pass("short_create_page_review_gated_action_language", "Short create first action is labeled as review-gated planning instead of immediate provider generation.")
+      : fail("short_create_page_review_gated_action_language", "Expected Short create first action to avoid immediate-generate wording before approval."),
     createPageSecurityHeadersPassed
       ? pass("short_create_page_security_headers", "Short create HTML is served with no-store, nosniff, frame-deny, no-referrer, permissions-policy, and self-only CSP guardrails.")
       : fail("short_create_page_security_headers", "Expected Short create HTML route to include strict browser security headers."),
