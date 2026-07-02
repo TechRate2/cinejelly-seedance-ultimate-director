@@ -840,6 +840,76 @@ export function buildShortPipelineCreatePage(): string {
         overflow-wrap: anywhere;
       }
     }
+    /* ===== Visual polish layer (original CSS/SVG art, no external assets) ===== */
+    .hero { position: relative; }
+    .hero::before,
+    .hero::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(46px);
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: -1;
+      animation: heroFloat 9s ease-in-out infinite alternate;
+    }
+    .hero::before {
+      width: 300px; height: 300px; left: -70px; top: -110px;
+      background: radial-gradient(circle at 30% 30%, rgba(255, 79, 232, 0.5), transparent 70%);
+    }
+    .hero::after {
+      width: 340px; height: 340px; right: -60px; top: -140px;
+      background: radial-gradient(circle at 70% 30%, rgba(17, 183, 255, 0.42), transparent 70%);
+      animation-delay: -4.5s;
+    }
+    @keyframes heroFloat {
+      from { transform: translateY(0) scale(1); }
+      to { transform: translateY(16px) scale(1.06); }
+    }
+    .panel { transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease; }
+    .panel:hover {
+      transform: translateY(-1px);
+      border-color: rgba(17, 183, 255, 0.28);
+    }
+    .brand-mark {
+      background: conic-gradient(from 210deg, #ff4fe8, #11b7ff, #36f2aa, #ff4fe8) !important;
+      color: #05060a !important;
+      box-shadow: 0 0 18px rgba(255, 79, 232, 0.35);
+    }
+    .template-img { overflow: hidden; }
+    .template-img::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg fill='none' stroke='rgba(255,255,255,0.07)' stroke-width='1'%3E%3Cpath d='M0 108 L140 76'/%3E%3Cpath d='M0 124 L140 92'/%3E%3C/g%3E%3Cg fill='rgba(255,255,255,0.10)'%3E%3Ccircle cx='18' cy='22' r='1.1'/%3E%3Ccircle cx='58' cy='12' r='0.9'/%3E%3Ccircle cx='96' cy='30' r='1.2'/%3E%3Ccircle cx='124' cy='16' r='0.8'/%3E%3Ccircle cx='36' cy='48' r='0.9'/%3E%3Ccircle cx='110' cy='58' r='1.0'/%3E%3C/g%3E%3C/svg%3E");
+      background-size: 140px 140px;
+      pointer-events: none;
+    }
+    .template-card { transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease; }
+    .template-card:hover { transform: translateY(-2px); }
+    .empty {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 56px;
+    }
+    .empty::before {
+      content: "";
+      flex: 0 0 34px;
+      height: 34px;
+      opacity: 0.75;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='34' viewBox='0 0 40 40' fill='none' stroke='%238b93a8' stroke-width='1.6'%3E%3Crect x='6' y='10' width='28' height='20' rx='3'/%3E%3Cpath d='M6 16h28M12 10v20M28 10v20'/%3E%3Ccircle cx='20' cy='23' r='2.6' fill='%238b93a8' stroke='none' opacity='0.7'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
+    #job-video {
+      border: 1px solid rgba(17, 183, 255, 0.35);
+      box-shadow: 0 0 30px rgba(17, 183, 255, 0.12);
+    }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, rgba(255, 79, 232, 0.35), rgba(17, 183, 255, 0.35));
+      border-radius: 8px;
+    }
+    ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.03); }
   </style>
 </head>
 <body>
