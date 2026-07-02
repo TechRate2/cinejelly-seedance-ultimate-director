@@ -10,6 +10,7 @@ const defaults = {
   composePath: "docker-compose.yml",
   caddyfilePath: "deploy/Caddyfile",
   tsconfigPath: "tsconfig.json",
+  packageJsonPath: "package.json",
   envTemplatePath: ".env.production.template",
   containerDocPath: "docs/reference-implementations/deployment-container-packaging.md",
   outputPath: "assets/output_deliverables/business-readiness/deployment-package-validation-report.json"
@@ -33,6 +34,7 @@ function parseArgs(args) {
     ["--compose", "composePath"],
     ["--caddyfile", "caddyfilePath"],
     ["--tsconfig", "tsconfigPath"],
+    ["--package-json", "packageJsonPath"],
     ["--env-template", "envTemplatePath"],
     ["--container-doc", "containerDocPath"],
     ["--output", "outputPath"]
@@ -82,6 +84,7 @@ Options:
   --compose <path>          Default: ${defaults.composePath}
   --caddyfile <path>        Default: ${defaults.caddyfilePath}
   --tsconfig <path>         Default: ${defaults.tsconfigPath}
+  --package-json <path>     Default: ${defaults.packageJsonPath}
   --env-template <path>     Default: ${defaults.envTemplatePath}
   --container-doc <path>    Default: ${defaults.containerDocPath}
   --output <path>           JSON report path. Default: ${defaults.outputPath}
@@ -103,6 +106,7 @@ function main() {
   const compose = readText(options.composePath);
   const caddyfile = readText(options.caddyfilePath);
   const tsconfig = readJson(options.tsconfigPath);
+  const packageJson = readJson(options.packageJsonPath);
   const envTemplate = readText(options.envTemplatePath);
   const containerDoc = readText(options.containerDocPath);
   const runtimeEnvNames = runtimeEnvNamesFromSourceRoot("src");
@@ -113,6 +117,7 @@ function main() {
     checkExists("compose_exists", compose, "docker-compose.yml is present.", "Add docker-compose.yml for a repeatable HTTPS single-host deployment path."),
     checkExists("caddyfile_exists", caddyfile, "Caddyfile is present.", "Add deploy/Caddyfile so docker compose can publish the API behind HTTPS."),
     checkExists("tsconfig_exists", tsconfig, "tsconfig.json is present.", "Keep tsconfig.json in the repo so container builds are reproducible."),
+    checkExists("package_json_exists", packageJson, "package.json is present.", "Keep package.json in the repo so npm package and container builds are reproducible."),
     checkExists("env_template_exists", envTemplate, ".env.production.template is present.", "Keep a secret-free production env template in the repo."),
     checkExists("container_doc_exists", containerDoc, "Deployment container packaging docs are present.", "Document how to build, run, and validate the container path."),
     ...dockerfileChecks(dockerfile),
@@ -120,6 +125,8 @@ function main() {
     ...composeChecks(compose),
     ...caddyfileChecks(caddyfile),
     ...tsconfigDeploymentChecks(tsconfig),
+    ...packageJsonDeploymentChecks(packageJson),
+    ...distArtifactChecks("dist"),
     ...envTemplateChecks(envTemplate, runtimeEnvNames),
     ...containerDocChecks(containerDoc),
     crossFileCheck(dockerfile, dockerignore, compose)
@@ -139,6 +146,7 @@ function main() {
       composePath: toRepoRelative(options.composePath),
       caddyfilePath: toRepoRelative(options.caddyfilePath),
       tsconfigPath: toRepoRelative(options.tsconfigPath),
+      packageJsonPath: toRepoRelative(options.packageJsonPath),
       envTemplatePath: toRepoRelative(options.envTemplatePath),
       containerDocPath: toRepoRelative(options.containerDocPath),
       outputPath: toRepoRelative(options.outputPath)
@@ -293,6 +301,63 @@ function tsconfigDeploymentChecks(read) {
   ];
 }
 
+function packageJsonDeploymentChecks(read) {
+  if (!read.exists) {
+    return [];
+  }
+  const packageJson = read.value ?? {};
+  const files = Array.isArray(packageJson.files) ? packageJson.files : [];
+  const allowedFiles = new Set(["dist/", "schemas/", "README.md", ".env.production.template"]);
+  const requiredFiles = ["dist/", "README.md", ".env.production.template"];
+  const lifecycleScripts = ["prepack", "postpack", "prepare", "prepublishOnly"];
+  const scripts = packageJson.scripts && typeof packageJson.scripts === "object" ? packageJson.scripts : {};
+  const packageEntrypoints = [
+    packageJson.main,
+    packageJson.types,
+    packageJson.exports?.["."]?.import,
+    packageJson.exports?.["."]?.types
+  ].filter(Boolean);
+
+  return [
+    check(
+      "package_json_runtime_files_allowlist",
+      requiredFiles.every((item) => files.includes(item)) && files.every((item) => allowedFiles.has(item)),
+      "package.json files allowlist keeps npm package scoped to dist, schemas, README, and the env template.",
+      "Keep package.json files limited to dist/, schemas/, README.md, and .env.production.template; do not package src, scripts, docs, external, assets, ops, or .env."
+    ),
+    check(
+      "package_json_runtime_entrypoints_dist_only",
+      packageEntrypoints.length >= 2 && packageEntrypoints.every((entry) => typeof entry === "string" && entry.startsWith("./dist/")),
+      "package.json runtime entrypoints resolve only to dist outputs.",
+      "Keep main/types/exports entrypoints under ./dist so source files are not exposed as runtime entrypoints."
+    ),
+    check(
+      "package_json_no_pack_lifecycle_scripts",
+      lifecycleScripts.every((name) => !Object.prototype.hasOwnProperty.call(scripts, name)),
+      "package.json has no npm pack lifecycle scripts that can mutate deploy artifacts.",
+      "Avoid prepack/postpack/prepare/prepublishOnly scripts so packaging stays deterministic and audit-friendly."
+    )
+  ];
+}
+
+function distArtifactChecks(path) {
+  const absolutePath = resolve(repoRoot, path);
+  if (!existsSync(absolutePath)) {
+    return [
+      check("dist_artifact_source_maps_absent_when_built", true, "dist is not present, so no built source maps are packaged.", "Remove built .map files from dist before packaging.")
+    ];
+  }
+  const sourceMaps = listFilesByExtension(absolutePath, ".map");
+  return [
+    check(
+      "dist_artifact_source_maps_absent_when_built",
+      sourceMaps.length === 0,
+      "Built dist artifact contains no source maps.",
+      `Remove built source maps from dist before packaging: ${sourceMaps.map((file) => toRepoRelative(file)).slice(0, 5).join(", ")}`
+    )
+  ];
+}
+
 function envTemplateChecks(read, runtimeEnvNames) {
   if (!read.exists) {
     return [];
@@ -367,6 +432,23 @@ function listSourceFiles(root) {
     if (entry.isDirectory()) {
       files.push(...listSourceFiles(child));
     } else if (entry.isFile() && runtimeSourceExtensions.has(extname(entry.name).toLowerCase())) {
+      files.push(child);
+    }
+  }
+  return files;
+}
+
+function listFilesByExtension(root, extension) {
+  const stat = statSync(root);
+  if (stat.isFile()) {
+    return extname(root).toLowerCase() === extension ? [root] : [];
+  }
+  const files = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const child = resolve(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listFilesByExtension(child, extension));
+    } else if (entry.isFile() && extname(entry.name).toLowerCase() === extension) {
       files.push(child);
     }
   }

@@ -29,7 +29,7 @@
     "checkedInputs": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["dockerfilePath", "dockerignorePath", "composePath", "caddyfilePath", "envTemplatePath", "containerDocPath", "tsconfigPath", "outputPath"],
+      "required": ["dockerfilePath", "dockerignorePath", "composePath", "caddyfilePath", "envTemplatePath", "containerDocPath", "tsconfigPath", "packageJsonPath", "outputPath"],
       "properties": {
         "dockerfilePath": { "type": "string" },
         "dockerignorePath": { "type": "string" },
@@ -38,6 +38,7 @@
         "envTemplatePath": { "type": "string" },
         "containerDocPath": { "type": "string" },
         "tsconfigPath": { "type": "string" },
+        "packageJsonPath": { "type": "string" },
         "outputPath": { "type": "string" }
       }
     },
