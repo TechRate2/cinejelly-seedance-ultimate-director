@@ -118,6 +118,89 @@ export function bindKeyframesToShots(input: {
   return { shots, boundShotIds, skippedShotIds };
 }
 
+/** Minimal cast shape needed for portrait generation (matches SeriesCastMember). */
+export interface PortraitCastMember {
+  readonly characterId: string;
+  readonly name: string;
+  readonly description: string;
+  readonly staticFeatures?: string;
+  readonly dynamicFeatures?: string;
+  readonly identityReferenceUri?: string;
+}
+
+export interface CastPortraitRequestPlan {
+  readonly characterId: string;
+  readonly request: ImageGenerationRequest;
+}
+
+/**
+ * Build one portrait-sheet image request per cast member that has NO identity reference
+ * yet. The generated portrait then becomes that character's identity anchor for every
+ * shot and episode, so fictional characters stop drifting between generations. Members
+ * that already have an identity image are skipped (the real face wins).
+ */
+export function planCastPortraitRequests(input: {
+  readonly cast: readonly PortraitCastMember[];
+  readonly provider: ProviderName;
+  readonly imageModelId: string;
+  readonly ratio?: "9:16" | "1:1" | "3:4";
+  readonly seed?: number;
+}): readonly CastPortraitRequestPlan[] {
+  if (!input.imageModelId?.trim()) {
+    throw new Error("planCastPortraitRequests needs a configured image model id.");
+  }
+  return input.cast
+    .filter((member) => !member.identityReferenceUri?.trim())
+    .map((member) => ({
+      characterId: member.characterId,
+      request: {
+        provider: input.provider,
+        modelId: input.imageModelId,
+        prompt: [
+          `Photoreal character identity portrait of ${member.name}: head-and-shoulders, facing camera, neutral relaxed expression, even soft studio light, plain neutral background.`,
+          `Locked identity anchor: ${member.staticFeatures?.trim() || member.description}.`,
+          member.dynamicFeatures?.trim() ? `Current presentation: ${member.dynamicFeatures}.` : undefined,
+          "Real skin microtexture and hair detail, accurate facial geometry, no beautify smoothing; this image is the single source of truth for this character's face across a whole video series."
+        ]
+          .filter((line): line is string => Boolean(line))
+          .join(" "),
+        negativePrompt: KEYFRAME_NEGATIVE_PROMPT,
+        references: [],
+        settings: {
+          ratio: input.ratio ?? "3:4",
+          ...(input.seed !== undefined ? { seed: input.seed } : {})
+        },
+        metadata: {
+          characterId: member.characterId,
+          castPortrait: true
+        }
+      }
+    }));
+}
+
+/**
+ * Fill each cast member's identityReferenceUri from a successful portrait prediction.
+ * Members with an existing identity image, or whose portrait failed, are returned
+ * unchanged (fail-open).
+ */
+export function bindPortraitsToCast<TMember extends PortraitCastMember>(input: {
+  readonly cast: readonly TMember[];
+  readonly results: readonly { readonly characterId: string; readonly prediction: Prediction }[];
+}): readonly TMember[] {
+  const byCharacter = new Map(input.results.map((result) => [result.characterId, result.prediction]));
+  return input.cast.map((member) => {
+    if (member.identityReferenceUri?.trim()) {
+      return member;
+    }
+    const prediction = byCharacter.get(member.characterId);
+    const imageUrl = prediction ? selectKeyframeImageUrl(prediction) : undefined;
+    if (!prediction || prediction.status !== "succeeded" || !imageUrl) {
+      return member;
+    }
+    return { ...member, identityReferenceUri: imageUrl };
+  });
+}
+
 function keyframePromptFor(shot: ShotContract): string {
   const niche = stringMetadata(shot, "shortViralNiche") ?? stringMetadata(shot, "niche");
   const creativeMode =

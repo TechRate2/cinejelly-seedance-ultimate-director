@@ -30,6 +30,13 @@ export interface SeriesCastMember {
   readonly name: string;
   readonly castRole: "protagonist" | "antagonist" | "love_interest" | "support";
   readonly description: string;
+  /**
+   * Unchanging identity anchor (face shape, hair, build, age impression). This is what
+   * every episode must keep identical; used for auto-portrait prompts when no image exists.
+   */
+  readonly staticFeatures?: string;
+  /** Per-episode changeable presentation (wardrobe, props, styling). */
+  readonly dynamicFeatures?: string;
   /** Optional clean https:// or asset:// image of the real face/KOL to lock identity. */
   readonly identityReferenceUri?: string;
 }
@@ -197,7 +204,7 @@ function buildBible(seriesId: string, request: SeriesDramaRequest): SeriesBible 
   const consistencyContract = [
     ...request.cast.map(
       (member) =>
-        `${member.name} keeps the same face, hair, body, and signature wardrobe in every episode; identity reference "${member.characterId}" is the source of truth.`
+        `${member.name} keeps the same face, hair, body, and signature wardrobe in every episode; identity reference "${member.characterId}" is the source of truth.${member.staticFeatures ? ` Locked identity anchor: ${member.staticFeatures}.` : ""}${member.dynamicFeatures ? ` Current presentation (may evolve on camera): ${member.dynamicFeatures}.` : ""}`
     ),
     "Recurring locations keep the same spatial layout, dressing, and lighting mood between episodes.",
     "Wardrobe, props, injuries, and relationship states persist between episodes unless a beat changes them on camera.",

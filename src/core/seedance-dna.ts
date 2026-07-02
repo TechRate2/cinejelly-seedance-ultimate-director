@@ -6,9 +6,10 @@
  * "does not look real / generic ad" gap that separates raw text-to-video from
  * commercial-grade output like Topview/Higgsfield.
  *
- * Source lineage: pattern DNA distilled from YouMind-OpenLab/awesome-seedance-2-prompts
- * (CC BY 4.0, (c) YouMind OpenLab). This module contains ORIGINAL condensed direction,
- * not verbatim upstream prompt text, and keeps the required attribution notice.
+ * Source lineage: pattern DNA distilled from the community Seedance 2 prompt corpus
+ * snapshot (CC BY 4.0; full attribution with the exact source name lives in
+ * docs/CREDITS.md and the private source registry). This module contains ORIGINAL
+ * condensed direction, not verbatim upstream prompt text.
  *
  * The proven Seedance 2.0 prompt anatomy this engine follows:
  *   1 style/quality  2 duration+scene  3 subject+appearance  4 timestamped camera/shot plan
@@ -19,7 +20,7 @@
 import type { ShortViralCreativeMode } from "../types/short-viral-intelligence.js";
 
 export const SEEDANCE_PROMPT_DNA_ATTRIBUTION =
-  "Prompt DNA distilled from YouMind-OpenLab/awesome-seedance-2-prompts (CC BY 4.0); original condensed direction, no verbatim prompt text.";
+  "Prompt DNA distilled from the CC BY 4.0 community Seedance prompt corpus (exact source attribution in docs/CREDITS.md); original condensed direction, no verbatim prompt text.";
 
 /**
  * The reusable 8-component Seedance prompt anatomy directive. Steering the planner and the

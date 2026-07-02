@@ -10,9 +10,9 @@
  * - a "sandwich" duration declaration (top and bottom of the prompt) locks total runtime;
  * - an escalation arc (hook -> development -> peak -> settle) scales to any duration.
  *
- * Source lineage: distilled from YouMind-OpenLab/awesome-seedance-2-prompts (CC BY 4.0)
- * timing patterns and public Seedance 2.0 prompting guidance; original condensed direction,
- * no verbatim upstream text.
+ * Source lineage: distilled from the CC BY 4.0 community Seedance prompt corpus timing
+ * patterns (exact source attribution in docs/CREDITS.md) and public Seedance 2.0 prompting
+ * guidance; original condensed direction, no verbatim upstream text.
  */
 
 export type DurationBeatRole = "hook" | "development" | "proof_peak" | "settle";

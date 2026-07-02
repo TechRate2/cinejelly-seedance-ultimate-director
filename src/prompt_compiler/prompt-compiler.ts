@@ -19,6 +19,7 @@ import {
   type VideoArcRole
 } from "../core/duration-scripting.js";
 import { resolveSeedanceDna } from "../core/seedance-dna.js";
+import { shotGrammarFromMetadata, shotGrammarPromptLine } from "../core/shot-grammar.js";
 import { buildNegativePrompt } from "./negative-constraints.js";
 import { buildPromptBindingPlan, describeReferenceBindingsFromPlan } from "./reference-binding.js";
 import { buildRepairHints } from "./repair-hints.js";
@@ -78,6 +79,7 @@ export class SeedancePromptCompiler {
       `Scene subject: ${shot.subject}.`,
       `Action: ${this.providerActionText(shot.action)}.`,
       `Camera: ${shot.camera}.`,
+      this.buildShotGrammarSection(shot),
       `Lighting: ${shot.lighting}.`,
       shot.style ? `Style: ${shot.style}.` : undefined,
       shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline) : undefined,
@@ -296,6 +298,15 @@ export class SeedancePromptCompiler {
       ...(arcRole ? { arcRole } : {}),
       ...(cliffhanger ? { endingStyle: "cliffhanger" as const } : {})
     }).promptLines.join(" ");
+  }
+
+  /**
+   * Controlled framing grammar. Fires only when shot metadata carries valid shotType/
+   * shotAngle/shotPosition values so explicit framing never fights planner camera prose.
+   */
+  private buildShotGrammarSection(shot: ShotContract): string | undefined {
+    const grammar = shotGrammarFromMetadata(shot.metadata);
+    return grammar ? shotGrammarPromptLine(grammar) : undefined;
   }
 
   /** Cliffhanger endings apply only to the video's final shot (or a one-shot episode). */

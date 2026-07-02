@@ -113,6 +113,50 @@ const compiled = compiler.compile({
 check("compiler_mode_image_to_video", compiled.videoRequest.mode === "image_to_video");
 check("compiled_request_carries_keyframe", compiled.videoRequest.references.some((ref) => ref.role === "first_frame"));
 
+// 4. Cast portraits: generated only for members without an identity image; binding
+//    fills identityReferenceUri; existing/failed members stay unchanged (fail-open).
+const { planCastPortraitRequests, bindPortraitsToCast } = await import("../dist/core/keyframe-first-planner.js");
+const cast = [
+  { characterId: "lead", name: "Lan", description: "mid-20s woman, calm steel", staticFeatures: "oval face, long black hair, light build" },
+  { characterId: "villain", name: "Madam Vu", description: "elegant matriarch", identityReferenceUri: "https://example.com/refs/vu.jpg" }
+];
+const portraitPlans = planCastPortraitRequests({ cast, provider: "atlascloud", imageModelId: "seedream-smoke", seed: 9 });
+check("portrait_only_for_missing_identity", portraitPlans.length === 1 && portraitPlans[0].characterId === "lead");
+check("portrait_prompt_uses_static_features", portraitPlans[0].request.prompt.includes("oval face, long black hair"));
+check("portrait_marked_as_source_of_truth", portraitPlans[0].request.prompt.includes("single source of truth"));
+const boundCast = bindPortraitsToCast({
+  cast,
+  results: [{ characterId: "lead", prediction: prediction("pp1", "succeeded", ["https://example.com/portraits/lan.png"]) }]
+});
+check("portrait_binds_identity_uri", boundCast[0].identityReferenceUri === "https://example.com/portraits/lan.png");
+check("existing_identity_untouched", boundCast[1].identityReferenceUri === "https://example.com/refs/vu.jpg");
+const failedBind = bindPortraitsToCast({
+  cast: [cast[0]],
+  results: [{ characterId: "lead", prediction: prediction("pp2", "failed", []) }]
+});
+check("failed_portrait_fails_open", failedBind[0].identityReferenceUri === undefined);
+
+// 5. Shot grammar: compiler emits framing lock only when metadata carries valid enums.
+const grammarShot = {
+  ...shots[0],
+  shotId: "shot_kf_grammar",
+  metadata: { shotType: "close_up", shotAngle: "low_angle", shotPosition: "front_view" }
+};
+const grammarCompiled = compiler.compile({
+  shot: grammarShot,
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS },
+  modelId: "seedance-2-0-smoke",
+  provider: "atlascloud"
+});
+check("grammar_section_emitted", grammarCompiled.prompt.includes("Framing grammar (hold exactly):") && grammarCompiled.prompt.includes("below the subject looking up"));
+const noGrammarCompiled = compiler.compile({
+  shot: shots[1],
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS },
+  modelId: "seedance-2-0-smoke",
+  provider: "atlascloud"
+});
+check("grammar_absent_without_metadata", !noGrammarCompiled.prompt.includes("Framing grammar"));
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.keyframe-first-smoke.v1",
