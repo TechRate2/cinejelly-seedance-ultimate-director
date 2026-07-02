@@ -71,6 +71,8 @@ Client/UI/API request
 
 UI shell không tự quyết model thô. Backend tạo `uiContract`, `seedanceRouting`, `visualBible`, `reviewCheckpoints`, `approvalPayload`, rồi mới cho phép handoff render sau review.
 
+UI runtime phải bắt đầu từ dữ liệu thật của user: không hardcode số dư, không tự điền brief/sản phẩm/claim mẫu, không dùng ảnh placeholder từ host ngoài, và không chọn pattern starter trước khi user bấm. `validation:source-structure` và `validation:short-mvp-ui-contract` sẽ fail nếu các dấu vết preview này quay lại.
+
 ## Config Và Deploy
 
 Chỉ coi `.env.production.template` là bảng config deploy chính. Khi chạy thật:

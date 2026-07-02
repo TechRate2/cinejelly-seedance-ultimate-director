@@ -203,6 +203,7 @@ function main() {
     ...tsconfigChecks(tsconfig.value),
     ...securityBoundaryChecks({ gitignore, dockerignore, envTemplate, runtimeEnvNames }),
     ...apiResponseSecurityChecks(),
+    ...staticUiShellChecks(),
     ...deployChecks({ dockerfile, compose, caddyfile }),
     ...handoffDocChecks(handoffDocs),
     ...sourceBoundaryChecks({ directExternalImports, productHygieneFindings, publicExportCoverage })
@@ -393,6 +394,39 @@ function apiResponseSecurityChecks() {
         serverText.includes("form-action 'self'"),
       "sendHtml applies base security headers plus a self-contained CSP for static UI shells.",
       "sendHtml should include BASE_SECURITY_HEADERS and an HTML CSP with default-src none, self connect, no framing, and self form action."
+    )
+  ];
+}
+
+function staticUiShellChecks() {
+  const shortCreatePageText = readText("src/api/short-pipeline-create-page.ts").text;
+  const externalDecorativeMediaPattern = /--(?:asset|template|beat)-img\s*:\s*url\(\s*["']https?:\/\//iu;
+  const promptPrefillPattern = /<textarea\b(?=[^>]*\bid="prompt\b)[^>]*>\s*(?!<\/textarea>)\S[\s\S]*?<\/textarea>/iu;
+  const prefilledProductFieldPattern = /<input\b(?=[^>]*\bid="(?:product-title|category|claim)\b)[^>]*\bvalue=/iu;
+  return [
+    check(
+      "short_create_shell_no_external_decorative_media",
+      !externalDecorativeMediaPattern.test(shortCreatePageText),
+      "Short create shell does not load decorative placeholder media from external image hosts.",
+      "Short create shell must not use external placeholder images for asset, template, or storyboard cards; use user references or local/static CSS treatments."
+    ),
+    check(
+      "short_create_shell_no_fake_account_balance",
+      !/\$21\.38|fake\s+balance|demo\s+balance/i.test(shortCreatePageText),
+      "Short create shell contains no fake account balance.",
+      "Short create shell must not display hardcoded fake balance or account state."
+    ),
+    check(
+      "short_create_shell_no_auto_prefilled_brief",
+      !promptPrefillPattern.test(shortCreatePageText) && !prefilledProductFieldPattern.test(shortCreatePageText),
+      "Short create shell starts from real user input instead of auto-prefilled brief/product/claim values.",
+      "Short create shell must not auto-prefill creative brief, product, category, or claim fields with preview data."
+    ),
+    check(
+      "short_create_shell_no_active_template_by_default",
+      !/class="template-card\s+active"/iu.test(shortCreatePageText) && /let\s+activeTemplateId\s*=\s*""/u.test(shortCreatePageText),
+      "Short create shell does not select a template/pattern starter before the user chooses one.",
+      "Short create shell should not have an active template by default; pattern starters must be explicit user actions."
     )
   ];
 }

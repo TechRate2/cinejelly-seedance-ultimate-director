@@ -857,11 +857,11 @@ export function buildShortPipelineCreatePage(): string {
         </div>
       </div>
       <div class="nav-section">Creation</div>
-      <button class="nav-item active" type="button" data-mode-button="short_video" data-template-apply="fashion_transform"><span class="nav-ico">◇</span><span>Short Studio</span></button>
+      <button class="nav-item active" type="button" data-mode-button="short_video"><span class="nav-ico">◇</span><span>Short Studio</span></button>
       <button class="nav-item" type="button" data-mode-button="video_remake"><span class="nav-ico">↻</span><span>Video Remake</span></button>
-      <button class="nav-item" type="button" data-mode-button="product_kol_ugc" data-template-apply="skincare_ugc"><span class="nav-ico">□</span><span>UGC Ads</span></button>
-      <button class="nav-item" type="button" data-mode-button="storyboard_multishot" data-template-apply="product_reveal"><span class="nav-ico">▣</span><span>Product Scenes</span></button>
-      <button class="nav-item" type="button" data-mode-button="production_bible" data-template-apply="production_bible_story"><span class="nav-ico">▤</span><span>Director Long</span></button>
+      <button class="nav-item" type="button" data-mode-button="product_kol_ugc"><span class="nav-ico">□</span><span>UGC Ads</span></button>
+      <button class="nav-item" type="button" data-mode-button="storyboard_multishot"><span class="nav-ico">▣</span><span>Product Scenes</span></button>
+      <button class="nav-item" type="button" data-mode-button="production_bible"><span class="nav-ico">▤</span><span>Director Long</span></button>
       <div class="nav-section">Control</div>
       <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">≋</span><span>Voice Lab</span></button>
       <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">✧</span><span>Brand Kit</span></button>
@@ -879,7 +879,7 @@ export function buildShortPipelineCreatePage(): string {
       <form class="topbar" id="auth-form">
         <div class="top-chip">
           <div class="pill info">Credits</div>
-          <div><small>Balance</small><strong>$21.38</strong></div>
+          <div><small>Balance</small><strong id="balance-status">Connect key</strong></div>
         </div>
         <div class="top-chip">
           <div class="pill warn">Queue</div>
@@ -903,10 +903,10 @@ export function buildShortPipelineCreatePage(): string {
       <section class="workspace">
         <form class="panel composer" id="brief-form">
           <div class="mode-tabs" aria-label="Create mode">
-            <button class="mode-btn active" type="button" data-mode-button="short_video" data-template-apply="fashion_transform">Short</button>
+            <button class="mode-btn active" type="button" data-mode-button="short_video">Short</button>
             <button class="mode-btn" type="button" data-mode-button="video_remake">Remake</button>
-            <button class="mode-btn" type="button" data-mode-button="product_kol_ugc" data-template-apply="skincare_ugc">UGC</button>
-            <button class="mode-btn" type="button" data-mode-button="production_bible" data-template-apply="production_bible_story">Long</button>
+            <button class="mode-btn" type="button" data-mode-button="product_kol_ugc">UGC</button>
+            <button class="mode-btn" type="button" data-mode-button="production_bible">Long</button>
           </div>
           <input id="workflow-mode" class="visually-hidden" value="short_video">
           <div class="section-divider"></div>
@@ -916,7 +916,7 @@ export function buildShortPipelineCreatePage(): string {
           </div>
           <label class="field">
             <span>Creative brief</span>
-            <textarea class="prompt-box" id="prompt" wrap="soft">Làm video trước sau thời trang: vịt hóa thiên nga trong 15 giây, phong cách UGC tự nhiên, giọng nữ Việt Nam, nhịp TikTok, cảm xúc tự tin.</textarea>
+            <textarea class="prompt-box" id="prompt" wrap="soft" placeholder="Describe the actual video you want to create. Example: niche, product, KOL/person, source-video structure, duration, language, tone, proof, and final payoff."></textarea>
           </label>
           <div class="composer-tools">
             <div class="tool-row">
@@ -932,16 +932,16 @@ export function buildShortPipelineCreatePage(): string {
             <button class="mini-btn" type="button" id="clear-reference-fields">Clear</button>
           </div>
           <div class="asset-grid">
-            <button class="asset-card" type="button" data-focus-reference="kol-reference" style="--asset-img:url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=320&q=80')">
+            <button class="asset-card" type="button" data-focus-reference="kol-reference" style="--asset-img:linear-gradient(135deg, rgba(255,79,232,.34), rgba(17,183,255,.18))">
               <div><strong>KOL / Talent</strong><small>image reference</small></div>
             </button>
-            <button class="asset-card" type="button" data-focus-reference="product-reference" style="--asset-img:url('https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=320&q=80')">
+            <button class="asset-card" type="button" data-focus-reference="product-reference" style="--asset-img:linear-gradient(135deg, rgba(54,242,170,.32), rgba(143,92,255,.2))">
               <div><strong>Product</strong><small>image reference</small></div>
             </button>
-            <button class="asset-card" type="button" data-focus-reference="background-reference" style="--asset-img:url('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=320&q=80')">
+            <button class="asset-card" type="button" data-focus-reference="background-reference" style="--asset-img:linear-gradient(135deg, rgba(244,184,77,.28), rgba(17,183,255,.18))">
               <div><strong>Scene</strong><small>background</small></div>
             </button>
-            <button class="asset-card" type="button" data-focus-reference="reference-url" style="--asset-img:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=320&q=80')">
+            <button class="asset-card" type="button" data-focus-reference="reference-url" style="--asset-img:linear-gradient(135deg, rgba(143,92,255,.34), rgba(255,91,114,.18))">
               <div><strong>Source Video</strong><small>template intake</small></div>
             </button>
             <button class="asset-card" type="button" data-focus-reference="media-reference-note" style="--asset-img:linear-gradient(135deg, rgba(255,79,232,.28), rgba(17,183,255,.18))">
@@ -1011,19 +1011,19 @@ export function buildShortPipelineCreatePage(): string {
           </div>
           <div class="storyboard">
             <div class="beat-card">
-              <div class="beat-img" style="--beat-img:url('https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=420&q=80')"></div>
+              <div class="beat-img" style="--beat-img:linear-gradient(135deg, rgba(255,79,232,.26), rgba(17,183,255,.1))"></div>
               <div class="beat-body"><div class="beat-title"><span>1 Hook</span><span>0-3s</span></div><div class="beat-note">Problem / before state</div></div>
             </div>
             <div class="beat-card">
-              <div class="beat-img" style="--beat-img:url('https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=420&q=80')"></div>
+              <div class="beat-img" style="--beat-img:linear-gradient(135deg, rgba(54,242,170,.22), rgba(255,255,255,.08))"></div>
               <div class="beat-body"><div class="beat-title"><span>2 Proof</span><span>3-7s</span></div><div class="beat-note">Product / action</div></div>
             </div>
             <div class="beat-card">
-              <div class="beat-img" style="--beat-img:url('https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=420&q=80')"></div>
+              <div class="beat-img" style="--beat-img:linear-gradient(135deg, rgba(143,92,255,.28), rgba(255,79,232,.12))"></div>
               <div class="beat-body"><div class="beat-title"><span>3 Transform</span><span>7-12s</span></div><div class="beat-note">Change / result</div></div>
             </div>
             <div class="beat-card">
-              <div class="beat-img" style="--beat-img:url('https://images.unsplash.com/photo-1487412947147-5cebf100ffc2?auto=format&fit=crop&w=420&q=80')"></div>
+              <div class="beat-img" style="--beat-img:linear-gradient(135deg, rgba(244,184,77,.24), rgba(17,183,255,.14))"></div>
               <div class="beat-body"><div class="beat-title"><span>4 Payoff</span><span>12-15s</span></div><div class="beat-note">After / CTA soft</div></div>
             </div>
           </div>
@@ -1054,9 +1054,9 @@ export function buildShortPipelineCreatePage(): string {
           <div class="grid-3" style="margin-top:12px">
             <label class="field"><span>Bitrate</span><select id="seedance-bitrate"><option value="high" selected>High</option><option value="standard">Standard</option></select></label>
             <label class="field"><span>Last frame</span><select id="return-last-frame"><option value="auto" selected>Auto</option><option value="true">On</option><option value="false">Off</option></select></label>
-            <label class="field"><span>Product</span><input id="product-title" value="Fashion Transformation"></label>
-            <label class="field"><span>Category</span><input id="category" value="fashion"></label>
-            <label class="field" style="grid-column: span 2"><span>Allowed claim</span><input id="claim" value="A clearer, more confident look for social video"></label>
+            <label class="field"><span>Product</span><input id="product-title" placeholder="Your real product, service, channel, or story subject"></label>
+            <label class="field"><span>Category</span><input id="category" placeholder="beauty, fashion, SaaS, food, education..."></label>
+            <label class="field" style="grid-column: span 2"><span>Allowed claim</span><input id="claim" placeholder="Only claims you can approve or substantiate"></label>
             <label class="field visually-hidden"><span>Project ID</span><input id="project-id" value="short_create_shell"></label>
           </div>
           <div class="render-bar">
@@ -1086,32 +1086,32 @@ export function buildShortPipelineCreatePage(): string {
               </div>
             </div>
             <div class="template-grid">
-              <button class="template-card active" type="button" data-template-apply="fashion_transform">
-                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Hot</span><span class="tag">15s</span></div></div>
+              <button class="template-card" type="button" data-template-apply="fashion_transform">
+                <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(255,79,232,.32), rgba(17,183,255,.14))"><div class="template-tags"><span class="tag">Hot</span><span class="tag">15s</span></div></div>
                 <div class="template-body"><div class="template-name">Fashion Transformation</div><div class="template-meta">Before/After | UGC Style</div></div>
               </button>
               <button class="template-card" type="button" data-template-apply="skincare_ugc">
-                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Trending</span><span class="tag">20s</span></div></div>
+                <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(54,242,170,.28), rgba(255,79,232,.12))"><div class="template-tags"><span class="tag">Trending</span><span class="tag">20s</span></div></div>
                 <div class="template-body"><div class="template-name">Skincare UGC Review</div><div class="template-meta">Beauty | Proof-led</div></div>
               </button>
               <button class="template-card" type="button" data-template-apply="streetwear_reveal">
-                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">New</span><span class="tag">12s</span></div></div>
+                <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(143,92,255,.3), rgba(17,183,255,.14))"><div class="template-tags"><span class="tag">New</span><span class="tag">12s</span></div></div>
                 <div class="template-body"><div class="template-name">Streetwear Reveal</div><div class="template-meta">Trend | Fast cuts</div></div>
               </button>
               <button class="template-card" type="button" data-template-apply="breaking_news_ad">
-                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1522770179533-24471fcdba45?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Viral</span><span class="tag">15s</span></div></div>
+                <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(244,184,77,.3), rgba(255,91,114,.16))"><div class="template-tags"><span class="tag">Viral</span><span class="tag">15s</span></div></div>
                 <div class="template-body"><div class="template-name">Breaking News Ad</div><div class="template-meta">News hook | Product angle</div></div>
               </button>
               <button class="template-card" type="button" data-template-apply="product_reveal">
-                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Popular</span><span class="tag">15s</span></div></div>
+                <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(17,183,255,.3), rgba(54,242,170,.14))"><div class="template-tags"><span class="tag">Popular</span><span class="tag">15s</span></div></div>
                 <div class="template-body"><div class="template-name">Product Unboxing</div><div class="template-meta">Ecommerce | Reveal</div></div>
               </button>
               <button class="template-card" type="button" data-template-apply="cinematic_story">
-                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Cinematic</span><span class="tag">30s</span></div></div>
+                <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(143,92,255,.32), rgba(244,184,77,.14))"><div class="template-tags"><span class="tag">Cinematic</span><span class="tag">30s</span></div></div>
                 <div class="template-body"><div class="template-name">Cinematic Short Story</div><div class="template-meta">Film look | Emotional payoff</div></div>
               </button>
               <button class="template-card" type="button" data-template-apply="production_bible_story">
-                <div class="template-img" style="--template-img:url('https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=480&q=80')"><div class="template-tags"><span class="tag">Series</span><span class="tag">90s</span></div></div>
+                <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(255,79,232,.24), rgba(244,184,77,.16))"><div class="template-tags"><span class="tag">Series</span><span class="tag">90s</span></div></div>
                 <div class="template-body"><div class="template-name">Production Bible Sequence</div><div class="template-meta">Long sequence | Consistent identity</div></div>
               </button>
             </div>
@@ -1197,7 +1197,7 @@ export function buildShortPipelineCreatePage(): string {
     };
     let activeSessionId = "";
     let activeContract = undefined;
-    let activeTemplateId = "fashion_transform";
+    let activeTemplateId = "";
     const workflowModeConfig = {
       short_video: {
         visualBibleMode: "auto",
@@ -1355,6 +1355,10 @@ export function buildShortPipelineCreatePage(): string {
     async function createSession() {
       clearMessages();
       const payload = briefPayload();
+      if (!payload.userPrompt) {
+        showError("Creative brief is required before creating a real backend session.");
+        return;
+      }
       const response = await apiFetch(endpoints.sessions, {
         method: "POST",
         body: JSON.stringify(payload)

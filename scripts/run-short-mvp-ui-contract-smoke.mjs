@@ -207,6 +207,12 @@ try {
     createPageHtml.includes("visualBible") &&
     createPageHtml.includes('max="480"') &&
     createPageHtml.includes("production_bible_story");
+  const createPageRealModeClean =
+    !/--(?:asset|template|beat)-img\s*:\s*url\(\s*["']https?:\/\//iu.test(createPageHtml) &&
+    !/\$21\.38|fake\s+balance|demo\s+balance/i.test(createPageHtml) &&
+    !/<textarea\b(?=[^>]*\bid="prompt\b)[^>]*>\s*(?!<\/textarea>)\S[\s\S]*?<\/textarea>/iu.test(createPageHtml) &&
+    !/<input\b(?=[^>]*\bid="(?:product-title|category|claim)\b)[^>]*\bvalue=/iu.test(createPageHtml) &&
+    !/class="template-card\s+active"/iu.test(createPageHtml);
   const createPageSecurityHeadersPassed = htmlSecurityHeadersPass(createPage.headers);
   const rawLeakDetected = containsAny(`${rawStyleStore}\n${rawSessionStore}`, [
     "C:\\Users\\Admin",
@@ -311,6 +317,9 @@ try {
       createPageHasRealPayloadWiring
       ? pass("short_create_page_real_mode_wiring_available", "Short create shell wires all five creation modes into backend-safe template, visual-bible, and 480s production-bible payload controls.")
       : fail("short_create_page_real_mode_wiring_available", "Expected Short create shell to wire five creation modes into preferredTemplateId, visualBible, and production-bible duration controls."),
+    createPageRealModeClean
+      ? pass("short_create_page_no_preview_data", "Short create shell serves real-mode controls without external placeholder images, fake balance, auto-prefilled brief/product/claim, or preselected pattern starter.")
+      : fail("short_create_page_no_preview_data", "Expected Short create shell to start from user-provided real inputs and avoid preview data in served HTML."),
     createPageSecurityHeadersPassed
       ? pass("short_create_page_security_headers", "Short create HTML is served with no-store, nosniff, frame-deny, no-referrer, permissions-policy, and self-only CSP guardrails.")
       : fail("short_create_page_security_headers", "Expected Short create HTML route to include strict browser security headers."),
