@@ -280,6 +280,7 @@ Kết quả audit ngày 2026-07-02:
 - `scripts/validate-deployment-package.mjs` kiểm tra `package.json` để npm package chỉ được chứa `dist/`, `schemas/`, `README.md`, `.env.production.template`, entrypoint chỉ trỏ `dist/`, không có lifecycle pack script, và `dist/` không có `.map` nếu đã build.
 - Các route HTML tĩnh như `/short/create` và `/operator/launch-dashboard` được API gửi kèm `no-store`, `nosniff`, `DENY` frame, `no-referrer`, permissions policy, và CSP chỉ cho tài nguyên cùng origin; hai UI smoke bắt buộc kiểm header này.
 - `scripts/audit-source-structure.mjs` kiểm tra `src/api/server.ts` để response egress vẫn tập trung ở `sendJson`/`sendHtml`; route-level JSON headers không được ghi đè security base headers.
+- `scripts/run-api-response-redaction-smoke.mjs` chạy local HTTP `/health` để kiểm JSON response có security headers và `X-CineJelly-Request-Id`, đồng thời kiểm redaction source-lineage/local-path.
 - Các file `scripts/run-*-smoke.mjs` và `schemas/*-smoke-report.schema.json` được giữ lại như dev/audit guardrail, không phải code runtime. Chúng không được import bởi `src/` và không đi vào Docker runtime.
 - `.env.production.template` là nguồn config deploy sạch; `.env`, media thật, output thật và operator evidence phải nằm ngoài git.
 

@@ -8,7 +8,21 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = "assets/output_deliverables/business-readiness/api-response-redaction-smoke-report.json";
 
 const { redactApiResponse, redactApiLocalPaths } = await import("../dist/api/api-response-redaction.js");
+const { startServer } = await import("../dist/api/server.js");
 const { containsPrivateSourcePatternText } = await import("../dist/core/private-source-pattern-registry.js");
+
+const port = 24_000 + Math.floor(Math.random() * 4_000);
+process.env.PORT = String(port);
+process.env.CINEJELLY_DISABLE_API_RATE_LIMIT = "true";
+const baseUrl = `http://127.0.0.1:${port}`;
+const server = startServer(port);
+let healthResponse;
+
+try {
+  healthResponse = await waitForHealth(baseUrl);
+} finally {
+  await new Promise((resolveClose) => server.close(resolveClose));
+}
 
 const publicApiPayload = {
   schemaVersion: "cinejelly.api-redaction-smoke.fixture.v1",
@@ -37,7 +51,25 @@ const publicApiPayload = {
 const apiRedacted = redactApiResponse(publicApiPayload);
 const localOnlyRedacted = redactApiLocalPaths(publicApiPayload);
 const serializedApi = JSON.stringify(apiRedacted);
+const healthPayload = healthResponse.body;
+const jsonSecurityHeadersCheckPassed = jsonSecurityHeadersPass(healthResponse.headers);
+const requestIdHeaderPresent = Boolean(healthResponse.headers.get("x-cinejelly-request-id"));
 const checks = [
+  check(
+    "http_health_json_response_available",
+    healthResponse.statusCode === 200 && healthPayload?.status === "ok",
+    "Local /health JSON response is available through the real API sender."
+  ),
+  check(
+    "http_json_security_headers_present",
+    jsonSecurityHeadersCheckPassed,
+    "Real JSON responses carry no-store, nosniff, frame-deny, no-referrer, permissions-policy, and JSON content-type headers."
+  ),
+  check(
+    "http_request_id_header_present",
+    requestIdHeaderPresent,
+    "Real JSON responses include X-CineJelly-Request-Id for traceability without exposing secrets."
+  ),
   check(
     "api_strips_private_source_fields",
     !serializedApi.includes("sourcePatternOrigins") &&
@@ -78,10 +110,15 @@ const report = {
   generatedAt: new Date().toISOString(),
   status: failedChecks.length === 0 ? "pass" : "fail",
   noSpend: true,
+  localHttpCallsMade: true,
   networkCallsMade: false,
   providerCallsMade: false,
   checkedInputs: {
-    outputPath
+    outputPath,
+    endpointPaths: ["GET /health"],
+    healthStatusCode: healthResponse.statusCode,
+    jsonSecurityHeadersCheckPassed,
+    requestIdHeaderPresent
   },
   checks,
   releaseGateSummary: {
@@ -107,6 +144,38 @@ function check(name, condition, message) {
     status: condition ? "pass" : "fail",
     message
   };
+}
+
+async function waitForHealth(baseUrl) {
+  const deadline = Date.now() + 5_000;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${baseUrl}/health`);
+      const body = await response.json();
+      if (response.ok) {
+        return {
+          statusCode: response.status,
+          headers: response.headers,
+          body
+        };
+      }
+      lastError = new Error(`Unexpected /health status ${response.status}.`);
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  throw lastError instanceof Error ? lastError : new Error("Local API server did not become ready for API response redaction smoke.");
+}
+
+function jsonSecurityHeadersPass(headers) {
+  return String(headers.get("content-type") ?? "").toLowerCase().includes("application/json") &&
+    String(headers.get("cache-control") ?? "").toLowerCase().includes("no-store") &&
+    String(headers.get("x-content-type-options") ?? "").toLowerCase() === "nosniff" &&
+    String(headers.get("x-frame-options") ?? "").toUpperCase() === "DENY" &&
+    String(headers.get("referrer-policy") ?? "").toLowerCase() === "no-referrer" &&
+    String(headers.get("permissions-policy") ?? "").includes("camera=()");
 }
 
 function writeJson(relativePath, value) {
