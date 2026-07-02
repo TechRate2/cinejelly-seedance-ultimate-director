@@ -14,7 +14,6 @@
   },
   "files": [
     "dist/",
-    "schemas/",
     "README.md",
     ".env.production.template"
   ],

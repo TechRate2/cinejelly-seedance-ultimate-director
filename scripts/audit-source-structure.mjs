@@ -61,7 +61,6 @@ const requiredConfigNonSecrets = [
 
 const packageFilesAllowlist = [
   "dist/",
-  "schemas/",
   "README.md",
   ".env.production.template"
 ];
@@ -319,7 +318,7 @@ function packageChecks(packageJson) {
   return [
     check("package_esm_dist_entrypoints", packageJson.type === "module" && packageJson.main === "./dist/index.js" && packageJson.types === "./dist/index.d.ts", "Package entrypoints point to built dist runtime.", "Package must expose built dist runtime through main/types."),
     check("package_exports_single_stable_surface", Boolean(packageJson.exports?.["."]?.import === "./dist/index.js" && packageJson.exports?.["."]?.types === "./dist/index.d.ts"), "Package exports one stable dist/index.js surface.", "Package exports should route consumers through dist/index.js only."),
-    check("package_files_allow_runtime_and_schemas", packageFilesAllowlist.every((entry) => files.includes(entry)), "Package files whitelist includes dist, schemas, README, and env template.", "Package files whitelist must include dist/, schemas/, README.md, and .env.production.template."),
+    check("package_files_allow_runtime_artifacts_only", packageFilesAllowlist.every((entry) => files.includes(entry)), "Package files whitelist includes only runtime dist, README, and env template.", "Package files whitelist must include dist/, README.md, and .env.production.template."),
     check("package_files_exclude_source_noise", packageForbiddenEntries(packageJson).length === 0, "Package files whitelist excludes source snapshots, scripts, docs, raw assets, secrets, and ops inputs.", "Package files whitelist must not include src, scripts, docs, external, assets, .env, or ops."),
     check("package_required_scripts_present", requiredPackageScripts.every((name) => typeof packageJson.scripts?.[name] === "string"), "Package exposes required build/start/validation scripts.", "Package scripts are missing one or more required source/deploy validation commands."),
     check("package_script_file_targets_exist", packageScriptTargetFindings(packageJson).length === 0, "Package scripts reference existing source script files and dist entrypoint source equivalents.", `Package scripts reference missing files: ${packageScriptTargetFindings(packageJson).map((item) => `${item.scriptName}->${item.path}`).join(", ") || "none"}.`)

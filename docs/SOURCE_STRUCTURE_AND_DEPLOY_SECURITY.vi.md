@@ -274,10 +274,10 @@ Source sạch nghĩa là:
 Kết quả audit ngày 2026-07-02:
 
 - `src/` không có file `smoke`, `mock`, `demo`, `test`, hoặc `fixture`.
-- `npm pack --dry-run --json` không đóng gói `src/`, `scripts/`, `docs/`, `external/`, `assets/`, `ops/`, `.env`, hoặc TypeScript source map.
+- `npm pack --dry-run --json` không đóng gói `src/`, `scripts/`, `schemas/`, `docs/`, `external/`, `assets/`, `ops/`, `.env`, hoặc TypeScript source map. Lần kiểm tra ngày 2026-07-02 cho thấy package runtime còn 391 entry: `dist/`, `README.md`, `package.json`, và `.env.production.template`.
 - `dist/` production không còn file `.map`; `tsconfig.json` đặt `compilerOptions.sourceMap=false`.
 - `scripts/audit-source-structure.mjs` và `scripts/validate-deployment-package.mjs` cùng có guard `tsconfig_no_production_source_maps` để chặn việc bật lại source map trong artifact production.
-- `scripts/validate-deployment-package.mjs` kiểm tra `package.json` để npm package chỉ được chứa `dist/`, `schemas/`, `README.md`, `.env.production.template`, entrypoint chỉ trỏ `dist/`, không có lifecycle pack script, và `dist/` không có `.map` nếu đã build.
+- `scripts/validate-deployment-package.mjs` kiểm tra `package.json` để npm package chỉ được chứa runtime `dist/`, `README.md`, `.env.production.template`, entrypoint chỉ trỏ `dist/`, không có lifecycle pack script, và `dist/` không có `.map` nếu đã build. `schemas/` được giữ trong repo làm hợp đồng audit/dev, nhưng không đi vào npm package runtime.
 - Các route HTML tĩnh như `/short/create` và `/operator/launch-dashboard` được API gửi kèm `no-store`, `nosniff`, `DENY` frame, `no-referrer`, permissions policy, và CSP chỉ cho tài nguyên cùng origin; hai UI smoke bắt buộc kiểm header này.
 - `scripts/audit-source-structure.mjs` kiểm tra `src/api/server.ts` để response egress vẫn tập trung ở `sendJson`/`sendHtml`; route-level JSON headers không được ghi đè security base headers.
 - `scripts/run-api-response-redaction-smoke.mjs` chạy local HTTP `/health` để kiểm JSON response có security headers và `X-CineJelly-Request-Id`, đồng thời kiểm redaction source-lineage/local-path.

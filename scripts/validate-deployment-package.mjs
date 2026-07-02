@@ -309,7 +309,7 @@ function packageJsonDeploymentChecks(read) {
   }
   const packageJson = read.value ?? {};
   const files = Array.isArray(packageJson.files) ? packageJson.files : [];
-  const allowedFiles = new Set(["dist/", "schemas/", "README.md", ".env.production.template"]);
+  const allowedFiles = new Set(["dist/", "README.md", ".env.production.template"]);
   const requiredFiles = ["dist/", "README.md", ".env.production.template"];
   const lifecycleScripts = ["prepack", "postpack", "prepare", "prepublishOnly"];
   const scripts = packageJson.scripts && typeof packageJson.scripts === "object" ? packageJson.scripts : {};
@@ -324,8 +324,8 @@ function packageJsonDeploymentChecks(read) {
     check(
       "package_json_runtime_files_allowlist",
       requiredFiles.every((item) => files.includes(item)) && files.every((item) => allowedFiles.has(item)),
-      "package.json files allowlist keeps npm package scoped to dist, schemas, README, and the env template.",
-      "Keep package.json files limited to dist/, schemas/, README.md, and .env.production.template; do not package src, scripts, docs, external, assets, ops, or .env."
+      "package.json files allowlist keeps npm package scoped to runtime dist, README, and the env template.",
+      "Keep package.json files limited to dist/, README.md, and .env.production.template; do not package src, scripts, schemas, docs, external, assets, ops, or .env."
     ),
     check(
       "package_json_runtime_entrypoints_dist_only",
