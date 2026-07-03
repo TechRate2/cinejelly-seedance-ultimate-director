@@ -108,6 +108,8 @@ try {
   const page = await fetch(`${baseUrl}/short/create`);
   const pageHtml = await page.text();
   check("create_page_ships_upload_controls", pageHtml.includes("data-upload-for=") && pageHtml.includes("/v1/uploads"));
+  check("create_page_remembers_api_key", pageHtml.includes("cinejelly_api_key") && pageHtml.includes("forget-api-key"));
+  check("create_page_never_embeds_secrets", !pageHtml.includes("upload_smoke_token_0123456789abcdef"));
 } finally {
   await new Promise((resolveClose) => server.close(resolveClose));
   rmSync(uploadsWorkDir, { recursive: true, force: true });

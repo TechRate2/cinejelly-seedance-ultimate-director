@@ -1,7 +1,8 @@
 /**
  * First-party Short create/review page shell.
- * This page is intentionally static and credential-free; clients supply their
- * API key only in browser memory when calling protected /v1 endpoints.
+ * This page is intentionally static and credential-free: the served HTML never embeds a
+ * secret. Clients paste their API key once; it is remembered per-machine in browser
+ * localStorage (with a forget button for shared computers) and sent only on /v1 calls.
  */
 
 export function buildShortPipelineCreatePage(): string {
@@ -984,7 +985,8 @@ export function buildShortPipelineCreatePage(): string {
           <div class="pill warn">Queue</div>
           <div><small>Render Queue</small><strong>Review gated</strong></div>
         </div>
-        <input class="api-key" id="api-key" type="password" autocomplete="off" placeholder="Client API key" aria-label="Client API key">
+        <input class="api-key" id="api-key" type="password" autocomplete="off" placeholder="Client API key (dán 1 lần — máy này sẽ tự nhớ)" aria-label="Client API key" title="Dán 1 lần, trình duyệt máy này sẽ tự nhớ. Dùng máy chung thì bấm ✕ để xoá.">
+        <button type="button" id="forget-api-key" class="ghost-btn" title="Xoá key đã nhớ trên máy này" aria-label="Xoá key đã nhớ">✕</button>
         <button type="submit" id="load-sessions" class="ghost-btn">Sessions</button>
       </form>
       <section class="hero">
@@ -1471,6 +1473,40 @@ export function buildShortPipelineCreatePage(): string {
     });
     document.getElementById("clear-reference-fields").addEventListener("click", clearReferenceFields);
     setupReferenceUploads();
+    setupApiKeyMemory();
+
+    // Owner-friendly single-operator flow: the key is pasted once and remembered on THIS
+    // machine (browser localStorage) so reopening the page never asks again. The secret is
+    // never embedded in the page itself — the served HTML is public to anyone who can
+    // reach the server. The ✕ button forgets it (shared computers).
+    function setupApiKeyMemory() {
+      const KEY_STORAGE = "cinejelly_api_key";
+      const input = document.getElementById("api-key");
+      const forgetButton = document.getElementById("forget-api-key");
+      if (!input) return;
+      try {
+        const saved = window.localStorage.getItem(KEY_STORAGE);
+        if (saved && !input.value) {
+          input.value = saved;
+        }
+      } catch (error) { /* storage may be unavailable (private mode); typing still works */ }
+      input.addEventListener("change", () => {
+        try {
+          const value = input.value.trim();
+          if (value) {
+            window.localStorage.setItem(KEY_STORAGE, value);
+          }
+        } catch (error) { /* ignore */ }
+      });
+      if (forgetButton) {
+        forgetButton.addEventListener("click", () => {
+          try { window.localStorage.removeItem(KEY_STORAGE); } catch (error) { /* ignore */ }
+          input.value = "";
+          input.focus();
+          showSuccess("Đã xoá key khỏi máy này. Dán key mới khi cần dùng tiếp.");
+        });
+      }
+    }
     document.getElementById("submit-render").addEventListener("click", submitRender);
     document.getElementById("stop-polling").addEventListener("click", () => stopJobPolling("Stopped watching the job. Reload the contract or reopen the status URL to check again."));
     document.getElementById("nav-jobs").addEventListener("click", () => {
