@@ -798,6 +798,33 @@ export function buildShortPipelineCreatePage(): string {
       white-space: nowrap;
       border: 0;
     }
+    .cj-modal { position: fixed; inset: 0; background: rgba(4, 6, 16, 0.72); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 16px; }
+    .cj-modal[hidden] { display: none; }
+    .cj-modal-card { width: min(440px, 94vw); max-height: 88vh; overflow-y: auto; background: #10142a; border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+    .cj-modal-head { display: flex; justify-content: space-between; align-items: center; }
+    .cj-tabs { display: flex; gap: 6px; }
+    .cj-tab { flex: 1; min-height: 42px; border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px; cursor: pointer; }
+    .cj-tab.active { background: rgba(143, 92, 255, 0.25); border-color: rgba(143, 92, 255, 0.7); }
+    .cj-primary { background: linear-gradient(135deg, rgba(143, 92, 255, 0.85), rgba(17, 183, 255, 0.75)); border: 0; min-height: 44px; font-weight: 600; cursor: pointer; border-radius: 8px; color: var(--ink); }
+    .cj-packages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .cj-package { border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: rgba(255, 255, 255, 0.03); cursor: pointer; text-align: left; color: var(--ink); display: flex; flex-direction: column; gap: 4px; }
+    .cj-package.selected { border-color: rgba(54, 242, 170, 0.8); background: rgba(54, 242, 170, 0.1); }
+    .cj-package strong { font-size: 14px; }
+    .cj-package small { color: #9aa3c7; font-size: 11px; }
+    .cj-instructions { font-size: 12px; color: #9aa3c7; background: rgba(255, 255, 255, 0.04); border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+    .cj-modal-error { color: #ff7d8f; font-size: 12px; }
+    .cj-topup-item { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+    .cj-account-wrap { display: flex; align-items: center; gap: 8px; }
+    .cj-account-wrap[hidden] { display: none; }
+    .admin-key-wrap { display: flex; align-items: center; gap: 6px; }
+    .admin-key-wrap[hidden] { display: none; }
+    #credit-estimate { font-size: 12px; color: #9aa3c7; margin-top: 6px; }
+    @media (max-width: 620px) {
+      .cj-packages { grid-template-columns: 1fr; }
+      .cj-modal-card { padding: 14px; }
+      .upload-btn { min-height: 44px; }
+      .cj-account-wrap { flex-wrap: wrap; }
+    }
     @media (max-width: 1220px) {
       .workspace,
       .contract-grid { grid-template-columns: 1fr; }
@@ -985,10 +1012,44 @@ export function buildShortPipelineCreatePage(): string {
           <div class="pill warn">Queue</div>
           <div><small>Render Queue</small><strong>Review gated</strong></div>
         </div>
-        <input class="api-key" id="api-key" type="password" autocomplete="off" placeholder="Client API key (dán 1 lần — máy này sẽ tự nhớ)" aria-label="Client API key" title="Dán 1 lần, trình duyệt máy này sẽ tự nhớ. Dùng máy chung thì bấm ✕ để xoá.">
-        <button type="button" id="forget-api-key" class="ghost-btn" title="Xoá key đã nhớ trên máy này" aria-label="Xoá key đã nhớ">✕</button>
+        <button type="button" id="open-auth" class="mini-btn">Đăng nhập / Đăng ký</button>
+        <span class="cj-account-wrap" id="account-wrap" hidden>
+          <span class="pill info" id="account-name"></span>
+          <button type="button" id="open-topup" class="mini-btn">💎 Nạp credits</button>
+          <button type="button" id="logout-btn" class="ghost-btn" title="Đăng xuất">Thoát</button>
+        </span>
+        <span class="admin-key-wrap" id="admin-key-wrap" hidden>
+          <input class="api-key" id="api-key" type="password" autocomplete="off" placeholder="API key quản trị (chỉ dành cho chủ hệ thống)" aria-label="Admin API key" title="Chỉ dành cho quản trị viên. Khách hàng đăng nhập bằng tài khoản.">
+          <button type="button" id="forget-api-key" class="ghost-btn" title="Xoá key đã nhớ trên máy này" aria-label="Xoá key đã nhớ">✕</button>
+        </span>
+        <button type="button" id="toggle-admin-key" class="ghost-btn" title="Chế độ quản trị viên">⚙</button>
         <button type="submit" id="load-sessions" class="ghost-btn">Sessions</button>
       </form>
+      <div class="cj-modal" id="auth-modal" hidden>
+        <div class="cj-modal-card">
+          <div class="cj-modal-head"><strong id="auth-title">Đăng nhập</strong><button type="button" class="ghost-btn" data-close-modal="auth-modal">✕</button></div>
+          <div class="cj-tabs">
+            <button type="button" class="cj-tab active" id="tab-login">Đăng nhập</button>
+            <button type="button" class="cj-tab" id="tab-register">Tạo tài khoản</button>
+          </div>
+          <label class="field"><span>Email</span><input id="auth-email" type="email" autocomplete="email" placeholder="ban@email.com"></label>
+          <label class="field"><span>Mật khẩu</span><input id="auth-password" type="password" autocomplete="current-password" placeholder="Tối thiểu 8 ký tự"></label>
+          <label class="field" id="auth-name-field" hidden><span>Tên hiển thị (tuỳ chọn)</span><input id="auth-display-name" placeholder="Tên của bạn"></label>
+          <div class="cj-modal-error" id="auth-error" hidden></div>
+          <button type="button" class="cj-primary" id="auth-submit">Đăng nhập</button>
+          <small style="color:#9aa3c7">Tạo tài khoản miễn phí, nạp credits là tạo được video ngay. Không cần API key.</small>
+        </div>
+      </div>
+      <div class="cj-modal" id="topup-modal" hidden>
+        <div class="cj-modal-card">
+          <div class="cj-modal-head"><strong>💎 Nạp credits</strong><button type="button" class="ghost-btn" data-close-modal="topup-modal">✕</button></div>
+          <div class="cj-packages" id="package-grid"></div>
+          <div class="cj-instructions" id="topup-instructions"></div>
+          <label class="field"><span>Ghi chú chuyển khoản (tuỳ chọn)</span><input id="topup-note" placeholder="VD: đã CK 10:30 từ STK ...901"></label>
+          <button type="button" class="cj-primary" id="topup-submit" disabled>Tôi đã chuyển khoản — gửi yêu cầu duyệt</button>
+          <div id="my-topups"></div>
+        </div>
+      </div>
       <section class="hero">
         <div>
           <h1>Create AI Video</h1>
@@ -1293,6 +1354,7 @@ export function buildShortPipelineCreatePage(): string {
             <span class="detail" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="caption-toggle">Phụ đề tự động từ voice (khớp kịch bản, không tốn thêm)</span>
           </label>
           <button class="ghost-btn" type="button" id="submit-render" disabled>Create Render Job</button>
+          <div id="credit-estimate" hidden></div>
           <button class="mini-btn" type="button" id="stop-polling" disabled>Stop Watching Job</button>
         </div>
         <div id="render-status" class="detail" style="margin-top:10px">No render job yet. Load a session contract, optionally prepare the review packet, then create the render job. Without approved and confirmed review the job is created paused for review with no provider spend.</div>
@@ -1474,6 +1536,13 @@ export function buildShortPipelineCreatePage(): string {
     document.getElementById("clear-reference-fields").addEventListener("click", clearReferenceFields);
     setupReferenceUploads();
     setupApiKeyMemory();
+    setupAccountUi();
+    refreshAccount();
+    try {
+      if (window.localStorage.getItem("cinejelly_api_key")) {
+        document.getElementById("admin-key-wrap").hidden = false;
+      }
+    } catch (error) { /* ignore */ }
 
     // Owner-friendly single-operator flow: the key is pasted once and remembered on THIS
     // machine (browser localStorage) so reopening the page never asks again. The secret is
@@ -1640,9 +1709,8 @@ export function buildShortPipelineCreatePage(): string {
     window.watchJob = watchJob;
 
     async function fetchDeliverableBlob(jobId) {
-      const key = document.getElementById("api-key").value.trim();
       const response = await fetch("/v1/render-jobs/" + encodeURIComponent(jobId) + "/deliverable", {
-        headers: { ...(key ? { "X-CineJelly-Api-Key": key } : {}) }
+        headers: authHeaders()
       });
       if (!response.ok) {
         showError("Không tải được video (job chưa xong hoặc file đã dọn).");
@@ -1802,9 +1870,9 @@ export function buildShortPipelineCreatePage(): string {
           showError("File quá lớn (tối đa 25MB). Hãy nén ảnh/video rồi thử lại.");
           return;
         }
-        const key = document.getElementById("api-key").value.trim();
-        if (!key) {
-          showError("Nhập API key (ô trên cùng) trước khi tải file lên.");
+        const credentialHeaders = authHeaders();
+        if (Object.keys(credentialHeaders).length === 0) {
+          showError("Hãy đăng nhập tài khoản (nút Đăng nhập phía trên) trước khi tải file lên.");
           return;
         }
         const originalLabel = button.textContent;
@@ -1816,7 +1884,7 @@ export function buildShortPipelineCreatePage(): string {
             headers: {
               "Content-Type": "application/octet-stream",
               "X-File-Name": encodeURIComponent(file.name),
-              "X-CineJelly-Api-Key": key
+              ...credentialHeaders
             },
             body: file
           });
@@ -1850,11 +1918,190 @@ export function buildShortPipelineCreatePage(): string {
       reader.readAsDataURL(file);
     }
 
+    function readSessionToken() {
+      try { return window.localStorage.getItem("cinejelly_session") || ""; } catch (error) { return ""; }
+    }
+
+    function authHeaders() {
+      const headers = {};
+      const session = readSessionToken();
+      if (session) { headers["X-CineJelly-Session"] = session; }
+      const keyInput = document.getElementById("api-key");
+      const key = keyInput ? keyInput.value.trim() : "";
+      if (key) { headers["X-CineJelly-Api-Key"] = key; }
+      return headers;
+    }
+
+    let accountInfo = null;
+
+    function setupAccountUi() {
+      const openAuth = document.getElementById("open-auth");
+      const authModal = document.getElementById("auth-modal");
+      const topupModal = document.getElementById("topup-modal");
+      let authMode = "login";
+      document.querySelectorAll("[data-close-modal]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          document.getElementById(button.dataset.closeModal).hidden = true;
+        });
+      });
+      openAuth.addEventListener("click", function () { authModal.hidden = false; });
+      document.getElementById("tab-login").addEventListener("click", function () { setAuthMode("login"); });
+      document.getElementById("tab-register").addEventListener("click", function () { setAuthMode("register"); });
+      function setAuthMode(mode) {
+        authMode = mode;
+        document.getElementById("tab-login").classList.toggle("active", mode === "login");
+        document.getElementById("tab-register").classList.toggle("active", mode === "register");
+        document.getElementById("auth-name-field").hidden = mode !== "register";
+        document.getElementById("auth-title").textContent = mode === "login" ? "Đăng nhập" : "Tạo tài khoản";
+        document.getElementById("auth-submit").textContent = mode === "login" ? "Đăng nhập" : "Tạo tài khoản";
+      }
+      document.getElementById("auth-submit").addEventListener("click", async function () {
+        const errorBox = document.getElementById("auth-error");
+        errorBox.hidden = true;
+        const email = document.getElementById("auth-email").value.trim();
+        const password = document.getElementById("auth-password").value;
+        const displayName = document.getElementById("auth-display-name").value.trim();
+        try {
+          const path = authMode === "login" ? "/v1/account/login" : "/v1/account/register";
+          const body = authMode === "login" ? { email: email, password: password } : { email: email, password: password, displayName: displayName };
+          const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          const payload = await response.json();
+          if (!response.ok) { throw new Error(payload.error || "Không thực hiện được, thử lại."); }
+          const issuedToken = response.headers.get("X-CineJelly-Session-Token") || "";
+          if (!issuedToken) { throw new Error("Máy chủ không trả phiên đăng nhập. Thử lại."); }
+          try { window.localStorage.setItem("cinejelly_session", issuedToken); } catch (error) { /* private mode */ }
+          authModal.hidden = true;
+          document.getElementById("auth-password").value = "";
+          await refreshAccount();
+          showSuccess(authMode === "login" ? "Đăng nhập thành công!" : "Tạo tài khoản thành công! Nạp credits để bắt đầu tạo video.");
+        } catch (error) {
+          errorBox.textContent = error instanceof Error ? error.message : String(error);
+          errorBox.hidden = false;
+        }
+      });
+      document.getElementById("logout-btn").addEventListener("click", async function () {
+        try { await fetch("/v1/account/logout", { method: "POST", headers: authHeaders() }); } catch (error) { /* best effort */ }
+        try { window.localStorage.removeItem("cinejelly_session"); } catch (error) { /* ignore */ }
+        accountInfo = null;
+        updateAccountUi();
+      });
+      document.getElementById("open-topup").addEventListener("click", async function () {
+        topupModal.hidden = false;
+        await refreshAccount();
+        renderTopupModal();
+        await loadMyTopups();
+      });
+      document.getElementById("topup-submit").addEventListener("click", async function () {
+        const selected = document.querySelector(".cj-package.selected");
+        if (!selected) { return; }
+        const note = document.getElementById("topup-note").value.trim();
+        try {
+          const response = await fetch("/v1/account/topups", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ packageId: selected.dataset.packageId, ...(note ? { note: note } : {}) })
+          });
+          const payload = await response.json();
+          if (!response.ok) { throw new Error(payload.error || "Không gửi được yêu cầu."); }
+          showSuccess("Đã gửi yêu cầu nạp. Quản trị viên sẽ duyệt và cộng credits sớm nhất.");
+          await loadMyTopups();
+        } catch (error) {
+          showError(error instanceof Error ? error.message : String(error));
+        }
+      });
+      document.getElementById("toggle-admin-key").addEventListener("click", function () {
+        const wrap = document.getElementById("admin-key-wrap");
+        wrap.hidden = !wrap.hidden;
+      });
+      const durationInput = document.getElementById("duration");
+      if (durationInput) { durationInput.addEventListener("input", updateCreditEstimate); }
+    }
+
+    function renderTopupModal() {
+      if (!accountInfo) { return; }
+      const grid = document.getElementById("package-grid");
+      grid.innerHTML = "";
+      (accountInfo.packages || []).forEach(function (pkg) {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "cj-package";
+        card.dataset.packageId = pkg.packageId;
+        const price = (pkg.priceVnd || 0).toLocaleString("vi-VN");
+        card.innerHTML = "<strong>" + pkg.label + "</strong><span>" + pkg.credits.toLocaleString("vi-VN") + " credits</span><small>" + price + "đ" + (pkg.bonusNote ? " • " + pkg.bonusNote : "") + "</small>";
+        card.addEventListener("click", function () {
+          document.querySelectorAll(".cj-package").forEach(function (item) { item.classList.remove("selected"); });
+          card.classList.add("selected");
+          document.getElementById("topup-submit").disabled = false;
+        });
+        grid.appendChild(card);
+      });
+      document.getElementById("topup-instructions").textContent = accountInfo.topupInstructions || "";
+    }
+
+    async function loadMyTopups() {
+      try {
+        const response = await fetch("/v1/account/topups", { headers: authHeaders() });
+        if (!response.ok) { return; }
+        const payload = await response.json();
+        const box = document.getElementById("my-topups");
+        box.innerHTML = "";
+        (payload.topups || []).slice(0, 5).forEach(function (topup) {
+          const row = document.createElement("div");
+          row.className = "cj-topup-item";
+          const statusText = topup.status === "approved" ? "✅ Đã cộng" : topup.status === "rejected" ? "❌ Từ chối" : "⏳ Chờ duyệt";
+          row.innerHTML = "<span>" + topup.credits.toLocaleString("vi-VN") + " credits</span><span>" + statusText + "</span>";
+          box.appendChild(row);
+        });
+      } catch (error) { /* list is cosmetic */ }
+    }
+
+    async function refreshAccount() {
+      if (!readSessionToken()) { accountInfo = null; updateAccountUi(); return; }
+      try {
+        const response = await fetch("/v1/account/me", { headers: authHeaders() });
+        if (response.status === 401) {
+          try { window.localStorage.removeItem("cinejelly_session"); } catch (error) { /* ignore */ }
+          accountInfo = null;
+          updateAccountUi();
+          return;
+        }
+        if (!response.ok) { return; }
+        accountInfo = await response.json();
+        updateAccountUi();
+      } catch (error) { /* offline; keep current UI */ }
+    }
+
+    function updateAccountUi() {
+      const loggedIn = Boolean(accountInfo && accountInfo.account);
+      document.getElementById("open-auth").hidden = loggedIn;
+      document.getElementById("account-wrap").hidden = !loggedIn;
+      const balanceBox = document.getElementById("balance-status");
+      if (loggedIn) {
+        document.getElementById("account-name").textContent = "👤 " + accountInfo.account.displayName;
+        balanceBox.textContent = accountInfo.account.balanceCredits.toLocaleString("vi-VN") + " 💎";
+      } else {
+        balanceBox.textContent = "—";
+      }
+      updateCreditEstimate();
+    }
+
+    function updateCreditEstimate() {
+      const box = document.getElementById("credit-estimate");
+      if (!box) { return; }
+      if (!accountInfo || !accountInfo.renderPricing) { box.hidden = true; return; }
+      const durationInput = document.getElementById("duration");
+      const seconds = Math.max(1, Number(durationInput && durationInput.value ? durationInput.value : 15) || 15);
+      const pricing = accountInfo.renderPricing;
+      const credits = Math.max(pricing.minimumChargeCredits || 1, Math.ceil(seconds * (pricing.creditsPerRenderSecond || 10)));
+      const balance = accountInfo.account ? accountInfo.account.balanceCredits : 0;
+      box.textContent = "Chi phí ước tính: ~" + credits.toLocaleString("vi-VN") + " credits (số dư: " + balance.toLocaleString("vi-VN") + " 💎). Video lỗi được hoàn credits tự động.";
+      box.hidden = false;
+    }
+
     async function apiFetch(path, options = {}) {
-      const key = document.getElementById("api-key").value.trim();
       const headers = {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...(key ? { "X-CineJelly-Api-Key": key } : {})
+        ...authHeaders()
       };
       try {
         const response = await fetch(path, { ...options, headers });

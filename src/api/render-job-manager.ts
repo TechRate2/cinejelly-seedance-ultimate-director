@@ -200,6 +200,8 @@ interface ActiveRenderJobRecord extends RenderJobRecordBase {
   readonly abortController: AbortController;
   /** Invoked when the job is canceled while still queued so reservations can be returned. */
   readonly onCanceledBeforeRun?: () => void;
+  /** Invoked once when a run reaches a terminal status, so billing can settle or refund. */
+  readonly onFinished?: (status: RenderJobStatus) => void;
 }
 
 interface RestoredRenderJobRecord extends RenderJobRecordBase {
@@ -267,6 +269,8 @@ export class RenderJobManager {
     readonly onAccepted?: (summary: RenderJobSummary) => void;
     /** Called if the job is canceled while still queued (never ran) — release quota here. */
     readonly onCanceledBeforeRun?: () => void;
+    /** Called once when the run reaches a terminal status, so billing can settle or refund. */
+    readonly onFinished?: (status: RenderJobStatus) => void;
   }): RenderJobSubmission {
     const replayedJob = this.findIdempotentReplay(input.idempotencyKeyDigest, input.requestFingerprint);
     if (replayedJob) {
@@ -324,6 +328,7 @@ export class RenderJobManager {
       request: recordRequest,
       abortController: new AbortController(),
       ...(input.onCanceledBeforeRun ? { onCanceledBeforeRun: input.onCanceledBeforeRun } : {}),
+      ...(input.onFinished ? { onFinished: input.onFinished } : {}),
       ...(recordRequest.settings?.durationTargetSeconds !== undefined
         ? { requestedDurationSeconds: recordRequest.settings.durationTargetSeconds }
         : {}),
@@ -834,6 +839,7 @@ export class RenderJobManager {
           ? { error: this.errorPayload(new Error("Render job export approval is blocked by unsafe or inconsistent review evidence.")) }
           : {})
       });
+      this.notifyFinished(record, finalStatus);
     } catch (error) {
       costLedger = runtime?.ledger.list() ?? costLedger;
       const artifacts = await this.tryWriteFailureArtifacts({
@@ -856,6 +862,18 @@ export class RenderJobManager {
         ...(artifacts ? { artifacts } : {}),
         ...(artifactValidation ? { artifactValidation } : {})
       });
+      this.notifyFinished(record, status);
+    }
+  }
+
+  private notifyFinished(record: ActiveRenderJobRecord, status: RenderJobStatus): void {
+    if (!record.onFinished) {
+      return;
+    }
+    try {
+      record.onFinished(status);
+    } catch {
+      // Billing settlement callbacks must never take down the job pipeline.
     }
   }
 

@@ -1,0 +1,611 @@
+/**
+ * Customer accounts, sessions, and the credit ledger.
+ *
+ * The commercial flow is Topview-style: a customer registers with email + password, tops
+ * up a credit balance by buying a package (MVP: bank transfer + operator approval; a
+ * payment-gateway adapter can replace approval later without touching this ledger), and
+ * every render charges credits up front with an automatic refund if the job never runs or
+ * fails. Passwords are stored as scrypt hashes and session tokens are stored hashed, so a
+ * leaked store file exposes neither. Persistence is a single JSON file with atomic
+ * tmp+rename writes, matching the other API stores.
+ */
+
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+
+const STORE_SCHEMA_VERSION = "cinejelly.user-account-store.v1";
+const DEFAULT_OUTPUT_DIR = "assets/output_deliverables";
+const DEFAULT_STORE_FILE = "user-accounts.json";
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
+const CONTROL_CHARACTER_GLOBAL_PATTERN = /[\u0000-\u001f\u007f]/g;
+const EMAIL_PATTERN = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,24}$/;
+const MIN_PASSWORD_LENGTH = 8;
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SCRYPT_KEY_LENGTH = 64;
+const MAX_LOGIN_FAILURES = 5;
+const LOGIN_FAILURE_WINDOW_MS = 10 * 60 * 1000;
+const MAX_STATEMENT_ENTRIES = 200;
+const MAX_TOPUPS_PER_USER_PENDING = 3;
+
+export class UserAccountError extends Error {
+  public readonly statusCode: 400 | 401 | 402 | 403 | 404 | 409 | 429;
+
+  public constructor(message: string, statusCode: 400 | 401 | 402 | 403 | 404 | 409 | 429) {
+    super(message);
+    this.name = "UserAccountError";
+    this.statusCode = statusCode;
+  }
+}
+
+export interface CreditPackage {
+  readonly packageId: string;
+  readonly label: string;
+  readonly credits: number;
+  readonly priceVnd: number;
+  readonly bonusNote?: string;
+}
+
+/** Default catalog; override with CINEJELLY_CREDIT_PACKAGES_JSON. */
+export const DEFAULT_CREDIT_PACKAGES: readonly CreditPackage[] = [
+  { packageId: "goi_thu", label: "Gói Thử", credits: 500, priceVnd: 49_000 },
+  { packageId: "goi_pro", label: "Gói Pro", credits: 2_000, priceVnd: 179_000, bonusNote: "Tặng thêm 11% so với Gói Thử" },
+  { packageId: "goi_studio", label: "Gói Studio", credits: 7_000, priceVnd: 549_000, bonusNote: "Rẻ hơn 30% mỗi credit" }
+];
+
+export interface UserRecord {
+  readonly userId: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly passwordSaltHex: string;
+  readonly passwordHashHex: string;
+  readonly status: "active" | "disabled";
+  readonly createdAt: string;
+}
+
+export interface SessionRecord {
+  readonly tokenSha256: string;
+  readonly userId: string;
+  readonly createdAt: string;
+  readonly expiresAt: string;
+}
+
+export type CreditEntryType = "topup" | "render_charge" | "render_refund" | "admin_adjust";
+
+export interface CreditEntry {
+  readonly entryId: string;
+  readonly userId: string;
+  readonly type: CreditEntryType;
+  /** Positive adds credits, negative spends them. */
+  readonly credits: number;
+  readonly note: string;
+  readonly jobId?: string;
+  readonly topupId?: string;
+  readonly at: string;
+}
+
+export interface TopupRequestRecord {
+  readonly topupId: string;
+  readonly userId: string;
+  readonly packageId: string;
+  readonly credits: number;
+  readonly amountVnd: number;
+  readonly userNote?: string;
+  readonly status: "pending" | "approved" | "rejected";
+  readonly requestedAt: string;
+  readonly decidedAt?: string;
+  readonly decisionNote?: string;
+}
+
+export interface PublicUser {
+  readonly userId: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly balanceCredits: number;
+}
+
+interface StoreState {
+  schemaVersion: string;
+  users: UserRecord[];
+  sessions: SessionRecord[];
+  entries: CreditEntry[];
+  topups: TopupRequestRecord[];
+}
+
+export interface RenderCreditPricing {
+  readonly creditsPerRenderSecond: number;
+  readonly qualityMultipliers: Record<string, number>;
+  readonly minimumChargeCredits: number;
+}
+
+export function loadRenderCreditPricing(env: NodeJS.ProcessEnv = process.env): RenderCreditPricing {
+  const perSecond = readPositiveNumber(env.CINEJELLY_CREDITS_PER_RENDER_SECOND, 10);
+  return {
+    creditsPerRenderSecond: perSecond,
+    qualityMultipliers: { draft: 0.6, standard: 1, high: 1.5, ultimate: 2 },
+    minimumChargeCredits: Math.max(1, Math.round(perSecond * 3))
+  };
+}
+
+/**
+ * Customer-facing render pricing: predictable credits from requested duration and quality,
+ * independent of provider-side price fluctuations. Charged up front, refunded on failure.
+ */
+export function estimateRenderCredits(input: {
+  readonly durationTargetSeconds?: number;
+  readonly qualityMode?: string;
+  readonly pricing: RenderCreditPricing;
+}): number {
+  const seconds = Math.max(1, Math.min(3_600, input.durationTargetSeconds ?? 15));
+  const multiplier = input.pricing.qualityMultipliers[input.qualityMode ?? "standard"] ?? 1;
+  return Math.max(
+    input.pricing.minimumChargeCredits,
+    Math.ceil(seconds * input.pricing.creditsPerRenderSecond * multiplier)
+  );
+}
+
+export function loadCreditPackages(env: NodeJS.ProcessEnv = process.env): readonly CreditPackage[] {
+  const raw = env.CINEJELLY_CREDIT_PACKAGES_JSON?.trim();
+  if (!raw) {
+    return DEFAULT_CREDIT_PACKAGES;
+  }
+  const parsed = JSON.parse(raw) as unknown;
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error("CINEJELLY_CREDIT_PACKAGES_JSON must be a non-empty JSON array.");
+  }
+  return parsed.map((item, index) => {
+    const record = item as Partial<CreditPackage>;
+    if (
+      !record.packageId?.trim() ||
+      !record.label?.trim() ||
+      !Number.isFinite(record.credits) ||
+      (record.credits as number) <= 0 ||
+      !Number.isFinite(record.priceVnd) ||
+      (record.priceVnd as number) <= 0
+    ) {
+      throw new Error(`CINEJELLY_CREDIT_PACKAGES_JSON entry ${index} needs packageId, label, credits > 0, priceVnd > 0.`);
+    }
+    return {
+      packageId: record.packageId.trim(),
+      label: record.label.trim(),
+      credits: Math.floor(record.credits as number),
+      priceVnd: Math.floor(record.priceVnd as number),
+      ...(record.bonusNote?.trim() ? { bonusNote: record.bonusNote.trim() } : {})
+    };
+  });
+}
+
+export function readUserAccountStorePath(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.CINEJELLY_USER_ACCOUNT_STORE_PATH?.trim();
+  const outputDir = env.CINEJELLY_OUTPUT_DIR?.trim() || DEFAULT_OUTPUT_DIR;
+  const storePath = configured || join(outputDir, DEFAULT_STORE_FILE);
+  if (CONTROL_CHARACTER_PATTERN.test(storePath)) {
+    throw new Error("CINEJELLY_USER_ACCOUNT_STORE_PATH must not contain control characters.");
+  }
+  return storePath;
+}
+
+export class UserAccountStore {
+  private readonly storePath: string;
+  private readonly packages: readonly CreditPackage[];
+  private readonly pricing: RenderCreditPricing;
+  private readonly state: StoreState;
+  private readonly balances = new Map<string, number>();
+  private readonly loginFailures = new Map<string, { count: number; firstAt: number }>();
+
+  public constructor(input: {
+    readonly storePath: string;
+    readonly packages?: readonly CreditPackage[];
+    readonly pricing?: RenderCreditPricing;
+  }) {
+    this.storePath = input.storePath;
+    this.packages = input.packages ?? DEFAULT_CREDIT_PACKAGES;
+    this.pricing = input.pricing ?? loadRenderCreditPricing();
+    this.state = this.loadState();
+    for (const entry of this.state.entries) {
+      this.balances.set(entry.userId, (this.balances.get(entry.userId) ?? 0) + entry.credits);
+    }
+  }
+
+  public static fromEnv(env: NodeJS.ProcessEnv = process.env): UserAccountStore {
+    return new UserAccountStore({
+      storePath: readUserAccountStorePath(env),
+      packages: loadCreditPackages(env),
+      pricing: loadRenderCreditPricing(env)
+    });
+  }
+
+  public listPackages(): readonly CreditPackage[] {
+    return this.packages;
+  }
+
+  public renderPricing(): RenderCreditPricing {
+    return this.pricing;
+  }
+
+  public register(input: {
+    readonly email: string;
+    readonly password: string;
+    readonly displayName?: string;
+  }): { readonly user: PublicUser; readonly sessionToken: string } {
+    const email = normalizeEmail(input.email);
+    if (!EMAIL_PATTERN.test(email)) {
+      throw new UserAccountError("Email không hợp lệ.", 400);
+    }
+    if (typeof input.password !== "string" || input.password.length < MIN_PASSWORD_LENGTH) {
+      throw new UserAccountError(`Mật khẩu cần tối thiểu ${MIN_PASSWORD_LENGTH} ký tự.`, 400);
+    }
+    if (this.state.users.some((user) => user.email === email)) {
+      throw new UserAccountError("Email này đã có tài khoản. Hãy đăng nhập.", 409);
+    }
+    const displayName = sanitizeDisplayName(input.displayName) ?? email.split("@")[0] ?? "Creator";
+    const salt = randomBytes(16);
+    const hash = scryptSync(input.password, salt, SCRYPT_KEY_LENGTH);
+    const user: UserRecord = {
+      userId: `user_${randomBytes(8).toString("hex")}`,
+      email,
+      displayName,
+      passwordSaltHex: salt.toString("hex"),
+      passwordHashHex: hash.toString("hex"),
+      status: "active",
+      createdAt: new Date().toISOString()
+    };
+    this.state.users.push(user);
+    const sessionToken = this.issueSession(user.userId);
+    this.persist();
+    return { user: this.publicUser(user), sessionToken };
+  }
+
+  public login(input: { readonly email: string; readonly password: string }): {
+    readonly user: PublicUser;
+    readonly sessionToken: string;
+  } {
+    const email = normalizeEmail(input.email);
+    this.assertLoginNotLocked(email);
+    const user = this.state.users.find((candidate) => candidate.email === email);
+    const presented = typeof input.password === "string" ? input.password : "";
+    // Always run scrypt so wrong-email and wrong-password take the same time.
+    const salt = user ? Buffer.from(user.passwordSaltHex, "hex") : randomBytes(16);
+    const presentedHash = scryptSync(presented, salt, SCRYPT_KEY_LENGTH);
+    const expectedHash = user ? Buffer.from(user.passwordHashHex, "hex") : randomBytes(SCRYPT_KEY_LENGTH);
+    const matches = presentedHash.length === expectedHash.length && timingSafeEqual(presentedHash, expectedHash);
+    if (!user || !matches || user.status !== "active") {
+      this.recordLoginFailure(email);
+      throw new UserAccountError("Email hoặc mật khẩu chưa đúng.", 401);
+    }
+    this.loginFailures.delete(email);
+    const sessionToken = this.issueSession(user.userId);
+    this.persist();
+    return { user: this.publicUser(user), sessionToken };
+  }
+
+  public logout(sessionToken: string): void {
+    const tokenSha256 = sha256(sessionToken);
+    const index = this.state.sessions.findIndex((session) => session.tokenSha256 === tokenSha256);
+    if (index >= 0) {
+      this.state.sessions.splice(index, 1);
+      this.persist();
+    }
+  }
+
+  /** Resolve a presented session token to its active user; used by the API auth guard. */
+  public resolveSession(sessionToken: string | undefined): PublicUser | undefined {
+    if (!sessionToken?.trim()) {
+      return undefined;
+    }
+    const tokenSha256 = sha256(sessionToken.trim());
+    const session = this.state.sessions.find((candidate) => candidate.tokenSha256 === tokenSha256);
+    if (!session || Date.parse(session.expiresAt) <= Date.now()) {
+      return undefined;
+    }
+    const user = this.state.users.find((candidate) => candidate.userId === session.userId);
+    if (!user || user.status !== "active") {
+      return undefined;
+    }
+    return this.publicUser(user);
+  }
+
+  public balanceOf(userId: string): number {
+    return this.balances.get(userId) ?? 0;
+  }
+
+  public me(userId: string): PublicUser | undefined {
+    const user = this.state.users.find((candidate) => candidate.userId === userId);
+    return user && user.status === "active" ? this.publicUser(user) : undefined;
+  }
+
+  public statementOf(userId: string): readonly CreditEntry[] {
+    return this.state.entries
+      .filter((entry) => entry.userId === userId)
+      .slice(-MAX_STATEMENT_ENTRIES)
+      .reverse();
+  }
+
+  public requestTopup(input: {
+    readonly userId: string;
+    readonly packageId: string;
+    readonly userNote?: string;
+  }): TopupRequestRecord {
+    const creditPackage = this.packages.find((candidate) => candidate.packageId === input.packageId);
+    if (!creditPackage) {
+      throw new UserAccountError("Gói nạp không tồn tại.", 404);
+    }
+    const pendingCount = this.state.topups.filter(
+      (topup) => topup.userId === input.userId && topup.status === "pending"
+    ).length;
+    if (pendingCount >= MAX_TOPUPS_PER_USER_PENDING) {
+      throw new UserAccountError("Bạn đang có quá nhiều yêu cầu nạp chờ duyệt. Vui lòng chờ xử lý xong.", 429);
+    }
+    const topup: TopupRequestRecord = {
+      topupId: `topup_${randomBytes(8).toString("hex")}`,
+      userId: input.userId,
+      packageId: creditPackage.packageId,
+      credits: creditPackage.credits,
+      amountVnd: creditPackage.priceVnd,
+      ...(sanitizeNote(input.userNote) ? { userNote: sanitizeNote(input.userNote) as string } : {}),
+      status: "pending",
+      requestedAt: new Date().toISOString()
+    };
+    this.state.topups.push(topup);
+    this.persist();
+    return topup;
+  }
+
+  public topupsOf(userId: string): readonly TopupRequestRecord[] {
+    return this.state.topups.filter((topup) => topup.userId === userId).slice(-50).reverse();
+  }
+
+  public pendingTopups(): readonly (TopupRequestRecord & { readonly email: string })[] {
+    return this.state.topups
+      .filter((topup) => topup.status === "pending")
+      .map((topup) => ({
+        ...topup,
+        email: this.state.users.find((user) => user.userId === topup.userId)?.email ?? "unknown"
+      }));
+  }
+
+  public decideTopup(input: {
+    readonly topupId: string;
+    readonly approve: boolean;
+    readonly decisionNote?: string;
+  }): TopupRequestRecord {
+    const index = this.state.topups.findIndex((topup) => topup.topupId === input.topupId);
+    const existing = index >= 0 ? this.state.topups[index] : undefined;
+    if (!existing) {
+      throw new UserAccountError("Yêu cầu nạp không tồn tại.", 404);
+    }
+    if (existing.status !== "pending") {
+      throw new UserAccountError("Yêu cầu nạp này đã được xử lý rồi.", 409);
+    }
+    const decided: TopupRequestRecord = {
+      ...existing,
+      status: input.approve ? "approved" : "rejected",
+      decidedAt: new Date().toISOString(),
+      ...(sanitizeNote(input.decisionNote) ? { decisionNote: sanitizeNote(input.decisionNote) as string } : {})
+    };
+    this.state.topups[index] = decided;
+    if (input.approve) {
+      this.appendEntry({
+        userId: decided.userId,
+        type: "topup",
+        credits: decided.credits,
+        note: `Nạp ${decided.credits} credits (${decided.packageId})`,
+        topupId: decided.topupId
+      });
+    }
+    this.persist();
+    return decided;
+  }
+
+  public adminAdjust(input: { readonly email: string; readonly credits: number; readonly note?: string }): PublicUser {
+    const email = normalizeEmail(input.email);
+    const user = this.state.users.find((candidate) => candidate.email === email);
+    if (!user) {
+      throw new UserAccountError("Không tìm thấy tài khoản với email này.", 404);
+    }
+    if (!Number.isFinite(input.credits) || input.credits === 0 || Math.abs(input.credits) > 1_000_000) {
+      throw new UserAccountError("Số credits điều chỉnh không hợp lệ.", 400);
+    }
+    this.appendEntry({
+      userId: user.userId,
+      type: "admin_adjust",
+      credits: Math.trunc(input.credits),
+      note: sanitizeNote(input.note) ?? "Điều chỉnh bởi quản trị viên"
+    });
+    this.persist();
+    return this.publicUser(user);
+  }
+
+  public estimateChargeFor(input: { readonly durationTargetSeconds?: number; readonly qualityMode?: string }): number {
+    return estimateRenderCredits({ ...input, pricing: this.pricing });
+  }
+
+  /** Charge a render up front; throws 402 when the balance cannot cover it. */
+  public chargeRender(input: { readonly userId: string; readonly jobId: string; readonly credits: number }): CreditEntry {
+    if (!Number.isFinite(input.credits) || input.credits <= 0) {
+      throw new UserAccountError("Số credits tính phí không hợp lệ.", 400);
+    }
+    const balance = this.balanceOf(input.userId);
+    if (balance < input.credits) {
+      throw new UserAccountError(
+        `Số dư không đủ: cần ${input.credits} credits, hiện có ${balance}. Hãy nạp thêm để tiếp tục.`,
+        402
+      );
+    }
+    const entry = this.appendEntry({
+      userId: input.userId,
+      type: "render_charge",
+      credits: -input.credits,
+      note: `Trừ ${input.credits} credits cho video ${input.jobId}`,
+      jobId: input.jobId
+    });
+    this.persist();
+    return entry;
+  }
+
+  /** Refund the charge for a job (idempotent — refunds at most once per job). */
+  public refundRender(input: { readonly userId: string; readonly jobId: string; readonly reason: string }): CreditEntry | undefined {
+    const charge = this.state.entries.find(
+      (entry) => entry.userId === input.userId && entry.jobId === input.jobId && entry.type === "render_charge"
+    );
+    const alreadyRefunded = this.state.entries.some(
+      (entry) => entry.userId === input.userId && entry.jobId === input.jobId && entry.type === "render_refund"
+    );
+    if (!charge || alreadyRefunded) {
+      return undefined;
+    }
+    const entry = this.appendEntry({
+      userId: input.userId,
+      type: "render_refund",
+      credits: -charge.credits,
+      note: `Hoàn ${-charge.credits} credits (${input.reason}) cho video ${input.jobId}`,
+      jobId: input.jobId
+    });
+    this.persist();
+    return entry;
+  }
+
+  private publicUser(user: UserRecord): PublicUser {
+    return {
+      userId: user.userId,
+      email: user.email,
+      displayName: user.displayName,
+      balanceCredits: this.balanceOf(user.userId)
+    };
+  }
+
+  private issueSession(userId: string): string {
+    const token = `sess_${randomBytes(24).toString("hex")}`;
+    const now = Date.now();
+    this.state.sessions.push({
+      tokenSha256: sha256(token),
+      userId,
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + SESSION_TTL_MS).toISOString()
+    });
+    // Drop expired sessions so the store cannot grow without bound.
+    this.pruneSessions(now);
+    return token;
+  }
+
+  private pruneSessions(now: number): void {
+    for (let index = this.state.sessions.length - 1; index >= 0; index -= 1) {
+      const session = this.state.sessions[index];
+      if (session && Date.parse(session.expiresAt) <= now) {
+        this.state.sessions.splice(index, 1);
+      }
+    }
+  }
+
+  private assertLoginNotLocked(email: string): void {
+    const failures = this.loginFailures.get(email);
+    if (!failures) {
+      return;
+    }
+    if (Date.now() - failures.firstAt > LOGIN_FAILURE_WINDOW_MS) {
+      this.loginFailures.delete(email);
+      return;
+    }
+    if (failures.count >= MAX_LOGIN_FAILURES) {
+      throw new UserAccountError("Sai mật khẩu quá nhiều lần. Vui lòng thử lại sau 10 phút.", 429);
+    }
+  }
+
+  private recordLoginFailure(email: string): void {
+    const now = Date.now();
+    const failures = this.loginFailures.get(email);
+    if (!failures || now - failures.firstAt > LOGIN_FAILURE_WINDOW_MS) {
+      this.loginFailures.set(email, { count: 1, firstAt: now });
+      return;
+    }
+    failures.count += 1;
+  }
+
+  private appendEntry(input: {
+    readonly userId: string;
+    readonly type: CreditEntryType;
+    readonly credits: number;
+    readonly note: string;
+    readonly jobId?: string;
+    readonly topupId?: string;
+  }): CreditEntry {
+    const entry: CreditEntry = {
+      entryId: `credit_${randomBytes(8).toString("hex")}`,
+      userId: input.userId,
+      type: input.type,
+      credits: input.credits,
+      note: input.note,
+      ...(input.jobId ? { jobId: input.jobId } : {}),
+      ...(input.topupId ? { topupId: input.topupId } : {}),
+      at: new Date().toISOString()
+    };
+    this.state.entries.push(entry);
+    this.balances.set(entry.userId, (this.balances.get(entry.userId) ?? 0) + entry.credits);
+    return entry;
+  }
+
+  private loadState(): StoreState {
+    try {
+      const raw = readFileSync(this.storePath, "utf8");
+      const parsed = JSON.parse(raw) as Partial<StoreState>;
+      if (parsed.schemaVersion !== STORE_SCHEMA_VERSION) {
+        throw new Error(`User account store schema mismatch at ${this.storePath}.`);
+      }
+      return {
+        schemaVersion: STORE_SCHEMA_VERSION,
+        users: Array.isArray(parsed.users) ? (parsed.users as UserRecord[]) : [],
+        sessions: Array.isArray(parsed.sessions) ? (parsed.sessions as SessionRecord[]) : [],
+        entries: Array.isArray(parsed.entries) ? (parsed.entries as CreditEntry[]) : [],
+        topups: Array.isArray(parsed.topups) ? (parsed.topups as TopupRequestRecord[]) : []
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return { schemaVersion: STORE_SCHEMA_VERSION, users: [], sessions: [], entries: [], topups: [] };
+      }
+      throw error;
+    }
+  }
+
+  private persist(): void {
+    mkdirSync(dirname(this.storePath), { recursive: true });
+    const tempPath = `${this.storePath}.${process.pid}.${Date.now()}.tmp`;
+    writeFileSync(tempPath, JSON.stringify(this.state, null, 2), "utf8");
+    renameSync(tempPath, this.storePath);
+  }
+}
+
+function normalizeEmail(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function sanitizeDisplayName(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const cleaned = value.replace(CONTROL_CHARACTER_GLOBAL_PATTERN, " ").trim().slice(0, 60);
+  return cleaned || undefined;
+}
+
+function sanitizeNote(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const cleaned = value.replace(CONTROL_CHARACTER_GLOBAL_PATTERN, " ").trim().slice(0, 240);
+  return cleaned || undefined;
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function readPositiveNumber(value: string | undefined, fallback: number): number {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error("CINEJELLY_CREDITS_PER_RENDER_SECOND must be a positive number.");
+  }
+  return parsed;
+}

@@ -28,6 +28,7 @@ export * from "./api/server.js";
 export * from "./api/short-channel-style-library-store.js";
 export * from "./api/short-pipeline-create-page.js";
 export * from "./api/short-pipeline-session-store.js";
+export * from "./api/user-account-store.js";
 export * from "./api/workspace-billing-policy.js";
 export * from "./agents/director-agent.js";
 export * from "./agents/intake-director.js";

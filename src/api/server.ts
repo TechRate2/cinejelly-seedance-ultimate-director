@@ -22,6 +22,7 @@ import {
 } from "../application/render-request-normalizer.js";
 import { buildRenderSettingsDescriptor } from "../application/render-settings-descriptor.js";
 import { UPLOAD_FILE_NAME_PATTERN, buildUploadUri, uploadsDirectoryFor } from "../core/upload-reference.js";
+import { UserAccountError, UserAccountStore } from "./user-account-store.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
 import {
@@ -454,10 +455,15 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const requestAdmission = renderRequestAdmissionFromEnv(process.env);
   const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
   const workspaceBillingGate = ApiWorkspaceBillingGate.fromEnv(process.env);
+  const userAccountStore = UserAccountStore.fromEnv(process.env);
   const apiAuthGuard = new ApiAuthGuard({
     disabled: readApiAuthDisabled(process.env.CINEJELLY_DISABLE_API_AUTH),
     ...(process.env.CINEJELLY_API_AUTH_TOKEN ? { sharedKey: process.env.CINEJELLY_API_AUTH_TOKEN } : {}),
-    clientKeys: clientPolicyGate.authClientKeys()
+    clientKeys: clientPolicyGate.authClientKeys(),
+    sessionResolver: (sessionToken) => {
+      const account = userAccountStore.resolveSession(sessionToken);
+      return account ? { userId: account.userId, email: account.email } : undefined;
+    }
   });
   const apiRateLimiter = new ApiRateLimiter({
     windowMs: readPositiveInteger(process.env.CINEJELLY_API_RATE_LIMIT_WINDOW_MS, 60_000),
@@ -714,7 +720,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           channel: "async"
         });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
+        const userRenderCharge = planUserRenderCharge({
+          principal: authDecision.principal,
+          store: userAccountStore,
+          request: normalizedRequest
+        });
         let commercialReservation: CommercialRenderReservation | undefined;
+        let acceptedJobId: string | undefined;
         const submission = jobManager.submit({
           request: normalizedRequest,
           artifactDirectory,
@@ -722,7 +734,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
           ...(requestFingerprint ? { requestFingerprint } : {}),
           reviewApproval: handoff.reviewApproval,
-          onAccepted: () => {
+          onAccepted: (acceptedSummary) => {
+            acceptedJobId = acceptedSummary.jobId;
             commercialReservation = reserveCommercialRender({
               clientPolicyGate,
               workspaceBillingGate,
@@ -732,7 +745,19 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               channel: "async"
             });
           },
+          onFinished: (finalJobStatus) => {
+            if (userRenderCharge && acceptedJobId && (finalJobStatus === "failed" || finalJobStatus === "canceled")) {
+              userAccountStore.refundRender({
+                userId: userRenderCharge.userId,
+                jobId: acceptedJobId,
+                reason: finalJobStatus === "failed" ? "video bi loi" : "da huy"
+              });
+            }
+          },
           onCanceledBeforeRun: () => {
+            if (userRenderCharge && acceptedJobId) {
+              userAccountStore.refundRender({ userId: userRenderCharge.userId, jobId: acceptedJobId, reason: "huy truoc khi chay" });
+            }
             if (commercialReservation?.clientPolicyReservation) {
               clientPolicyGate.releaseRender({
                 reservation: commercialReservation.clientPolicyReservation,
@@ -751,6 +776,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }
           }
         });
+        if (userRenderCharge && !submission.idempotentReplay) {
+          userAccountStore.chargeRender({
+            userId: userRenderCharge.userId,
+            jobId: submission.summary.jobId,
+            credits: userRenderCharge.credits
+          });
+        }
         sendJson(response, 202, {
           shortPipelineSession: storedShortPipelineSessionResponse(store, record),
           shortPipeline: {
@@ -910,7 +942,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           channel: "async"
         });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
+        const userRenderCharge = planUserRenderCharge({
+          principal: authDecision.principal,
+          store: userAccountStore,
+          request: normalizedRequest
+        });
         let commercialReservation: CommercialRenderReservation | undefined;
+        let acceptedJobId: string | undefined;
         const submission = jobManager.submit({
           request: normalizedRequest,
           artifactDirectory,
@@ -918,7 +956,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
           ...(requestFingerprint ? { requestFingerprint } : {}),
           reviewApproval: handoff.reviewApproval,
-          onAccepted: () => {
+          onAccepted: (acceptedSummary) => {
+            acceptedJobId = acceptedSummary.jobId;
             commercialReservation = reserveCommercialRender({
               clientPolicyGate,
               workspaceBillingGate,
@@ -928,7 +967,19 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               channel: "async"
             });
           },
+          onFinished: (finalJobStatus) => {
+            if (userRenderCharge && acceptedJobId && (finalJobStatus === "failed" || finalJobStatus === "canceled")) {
+              userAccountStore.refundRender({
+                userId: userRenderCharge.userId,
+                jobId: acceptedJobId,
+                reason: finalJobStatus === "failed" ? "video bi loi" : "da huy"
+              });
+            }
+          },
           onCanceledBeforeRun: () => {
+            if (userRenderCharge && acceptedJobId) {
+              userAccountStore.refundRender({ userId: userRenderCharge.userId, jobId: acceptedJobId, reason: "huy truoc khi chay" });
+            }
             if (commercialReservation?.clientPolicyReservation) {
               clientPolicyGate.releaseRender({
                 reservation: commercialReservation.clientPolicyReservation,
@@ -947,6 +998,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }
           }
         });
+        if (userRenderCharge && !submission.idempotentReplay) {
+          userAccountStore.chargeRender({
+            userId: userRenderCharge.userId,
+            jobId: submission.summary.jobId,
+            credits: userRenderCharge.credits
+          });
+        }
         sendJson(response, 202, {
           shortPipeline: handoff.summary,
           ...submission.summary,
@@ -1004,6 +1062,108 @@ export function startServer(port = readPort(process.env.PORT)): Server {
                 : {})
             }
           : { error: "Render job not found." }, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/account/register") {
+        assertJsonContentType(request);
+        const body = await readJsonBody<{ email?: string; password?: string; displayName?: string }>(request, maxBodyBytes);
+        const registered = userAccountStore.register({
+          email: body.email ?? "",
+          password: body.password ?? "",
+          ...(body.displayName ? { displayName: body.displayName } : {})
+        });
+        // The session token travels in a response header: response bodies pass through the
+        // secret redactor (which rightly swallows token-shaped fields), headers do not.
+        sendJson(response, 201, { account: registered.user }, requestContext, {
+          "X-CineJelly-Session-Token": registered.sessionToken
+        });
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/account/login") {
+        assertJsonContentType(request);
+        const body = await readJsonBody<{ email?: string; password?: string }>(request, maxBodyBytes);
+        const loggedIn = userAccountStore.login({ email: body.email ?? "", password: body.password ?? "" });
+        sendJson(response, 200, { account: loggedIn.user }, requestContext, {
+          "X-CineJelly-Session-Token": loggedIn.sessionToken
+        });
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/account/logout") {
+        const sessionHeader = readHeader(request, "x-cinejelly-session");
+        if (sessionHeader) {
+          userAccountStore.logout(sessionHeader);
+        }
+        sendJson(response, 200, { status: "logged_out" }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/account/me") {
+        const { userId } = requireUserPrincipal(authDecision.principal);
+        const account = userAccountStore.me(userId);
+        if (!account) {
+          throw new UserAccountError("Phiên đăng nhập không còn hợp lệ. Hãy đăng nhập lại.", 401);
+        }
+        sendJson(response, 200, {
+          account,
+          packages: userAccountStore.listPackages(),
+          renderPricing: userAccountStore.renderPricing(),
+          topupInstructions: process.env.CINEJELLY_TOPUP_BANK_INFO?.trim() ||
+            "Chuyển khoản theo gói đã chọn rồi bấm 'Tôi đã chuyển khoản' — quản trị viên sẽ duyệt và cộng credits."
+        }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/account/statement") {
+        const { userId } = requireUserPrincipal(authDecision.principal);
+        sendJson(response, 200, { entries: userAccountStore.statementOf(userId), balanceCredits: userAccountStore.balanceOf(userId) }, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/account/topups") {
+        const { userId } = requireUserPrincipal(authDecision.principal);
+        assertJsonContentType(request);
+        const body = await readJsonBody<{ packageId?: string; note?: string }>(request, maxBodyBytes);
+        const topup = userAccountStore.requestTopup({
+          userId,
+          packageId: body.packageId ?? "",
+          ...(body.note ? { userNote: body.note } : {})
+        });
+        sendJson(response, 201, {
+          topup,
+          instructions: process.env.CINEJELLY_TOPUP_BANK_INFO?.trim() ||
+            "Chuyển khoản theo gói đã chọn; quản trị viên sẽ duyệt và cộng credits trong ít phút."
+        }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/account/topups") {
+        const { userId } = requireUserPrincipal(authDecision.principal);
+        sendJson(response, 200, { topups: userAccountStore.topupsOf(userId) }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/topups") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required to review top-ups.");
+        sendJson(response, 200, { pending: userAccountStore.pendingTopups() }, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/admin/topups/decide") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required to decide top-ups.");
+        assertJsonContentType(request);
+        const body = await readJsonBody<{ topupId?: string; approve?: boolean; note?: string }>(request, maxBodyBytes);
+        const decided = userAccountStore.decideTopup({
+          topupId: body.topupId ?? "",
+          approve: body.approve === true,
+          ...(body.note ? { decisionNote: body.note } : {})
+        });
+        sendJson(response, 200, { topup: decided }, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/admin/credits/adjust") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required to adjust credits.");
+        assertJsonContentType(request);
+        const body = await readJsonBody<{ email?: string; credits?: number; note?: string }>(request, maxBodyBytes);
+        const account = userAccountStore.adminAdjust({
+          email: body.email ?? "",
+          credits: Number(body.credits ?? 0),
+          ...(body.note ? { note: body.note } : {})
+        });
+        sendJson(response, 200, { account }, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/uploads") {
@@ -1542,7 +1702,8 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
 }
 
 function errorStatusCode(error: unknown): number {
-  return error instanceof RenderRequestAdmissionError ||
+  return error instanceof UserAccountError ||
+    error instanceof RenderRequestAdmissionError ||
     error instanceof RenderRequestNormalizationError ||
     error instanceof RenderJobCapacityError ||
     error instanceof RenderJobIdempotencyConflictError ||
@@ -2674,7 +2835,51 @@ function jsonObject(value: unknown, message: string): Record<string, unknown> {
 }
 
 function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]): { readonly clientId?: string } {
-  return principal?.kind === "client" && principal.clientId ? { clientId: principal.clientId } : {};
+  if (principal?.kind === "client" && principal.clientId) {
+    return { clientId: principal.clientId };
+  }
+  if (principal?.kind === "user" && principal.userId) {
+    // Customer jobs are scoped per account so users only ever see their own jobs.
+    return { clientId: `user:${principal.userId}` };
+  }
+  return {};
+}
+
+/**
+ * Customer render billing: predictable credits charged up front (fail 402 before any
+ * provider spend), refunded automatically when the job is canceled or fails.
+ */
+function planUserRenderCharge(input: {
+  readonly principal: ReturnType<ApiAuthGuard["authorize"]>["principal"];
+  readonly store: UserAccountStore;
+  readonly request: { readonly settings?: { readonly durationTargetSeconds?: number; readonly qualityMode?: string } };
+}): { readonly userId: string; readonly credits: number } | undefined {
+  if (input.principal?.kind !== "user" || !input.principal.userId) {
+    return undefined;
+  }
+  const credits = input.store.estimateChargeFor({
+    ...(input.request.settings?.durationTargetSeconds !== undefined
+      ? { durationTargetSeconds: input.request.settings.durationTargetSeconds }
+      : {}),
+    ...(input.request.settings?.qualityMode ? { qualityMode: input.request.settings.qualityMode } : {})
+  });
+  const balanceCredits = input.store.balanceOf(input.principal.userId);
+  if (balanceCredits < credits) {
+    throw new UserAccountError(
+      `Số dư không đủ: video này cần ${credits} credits, bạn đang có ${balanceCredits}. Hãy nạp thêm để tiếp tục.`,
+      402
+    );
+  }
+  return { userId: input.principal.userId, credits };
+}
+
+function requireUserPrincipal(
+  principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]
+): { readonly userId: string } {
+  if (principal?.kind !== "user" || !principal.userId) {
+    throw new UserAccountError("Cần đăng nhập tài khoản để dùng chức năng này.", 401);
+  }
+  return { userId: principal.userId };
 }
 
 function assertDeploymentPrincipal(
