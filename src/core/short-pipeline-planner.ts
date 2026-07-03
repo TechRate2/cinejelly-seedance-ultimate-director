@@ -62,6 +62,8 @@ const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_CORE_SOURCE_PA
 const PRODUCT_SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_PRODUCT_SOURCE_PATTERN_IDS);
 const BRAND_SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_BRAND_SOURCE_PATTERN_IDS);
 
+import { isUploadUri } from "./upload-reference.js";
+
 const UNSAFE_TEXT_PATTERN =
   /[A-Za-z]:\\|\\\\|(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|https?:\/\/|data:|bearer\s+|api[_-]?key|secret|token|password|authorization/i;
 
@@ -1561,6 +1563,15 @@ function mediaUriEvidence(uri: string): {
       status: "blocked",
       uriPolicy: "blocked_unsafe_or_private",
       providerReady: false
+    };
+  }
+  if (isUploadUri(uri)) {
+    return {
+      status: "ready",
+      uriPolicy: "upload_handle_retained",
+      uriSha256: sha256(uri),
+      providerReady: true,
+      providerUri: uri
     };
   }
   if (uri.startsWith("asset://")) {

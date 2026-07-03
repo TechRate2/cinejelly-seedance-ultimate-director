@@ -3,9 +3,9 @@
  * It exposes a small JSON API without adding framework dependencies.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
@@ -21,6 +21,7 @@ import {
   RenderRequestNormalizationError
 } from "../application/render-request-normalizer.js";
 import { buildRenderSettingsDescriptor } from "../application/render-settings-descriptor.js";
+import { UPLOAD_FILE_NAME_PATTERN, buildUploadUri, uploadsDirectoryFor } from "../core/upload-reference.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
 import {
@@ -139,6 +140,30 @@ const MIN_PORT = 1;
 const MAX_PORT = 65_535;
 const REVIEW_TEXT_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const MAX_REVIEW_APPROVAL_CHECKPOINTS = 120;
+const DEFAULT_UPLOAD_MAX_BYTES = 26_214_400;
+/** Reference uploads: extension -> served content type. Images/video/audio only. */
+const UPLOAD_CONTENT_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  m4a: "audio/mp4"
+};
+const UPLOAD_KIND_BY_EXTENSION: Record<string, "image" | "video" | "audio"> = {
+  png: "image",
+  jpg: "image",
+  jpeg: "image",
+  webp: "image",
+  mp4: "video",
+  mov: "video",
+  mp3: "audio",
+  wav: "audio",
+  m4a: "audio"
+};
 const MAX_REVIEW_APPROVAL_EVIDENCE_ENTRIES = 60;
 const MAX_REVIEW_APPROVAL_ARRAY_ITEMS = 80;
 const LONG_FORM_CREATIVE_STATUSES = new Set(["ready", "review_required", "blocked"]);
@@ -981,6 +1006,67 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           : { error: "Render job not found." }, requestContext);
         return;
       }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/uploads") {
+        const declaredName = readHeader(request, "x-file-name") ?? "";
+        const extensionMatch = declaredName.toLowerCase().match(/\.([a-z0-9]{2,5})$/);
+        const extension = extensionMatch?.[1] === "jpeg" ? "jpg" : extensionMatch?.[1];
+        const kind = extension ? UPLOAD_KIND_BY_EXTENSION[extension] : undefined;
+        if (!extension || !kind) {
+          sendJson(response, 415, {
+            error: "Unsupported upload type. Allowed: png, jpg, jpeg, webp, mp4, mov, mp3, wav, m4a (send the original file name in the X-File-Name header)."
+          }, requestContext);
+          return;
+        }
+        const uploadMaxBytes = readPositiveInteger(process.env.CINEJELLY_UPLOAD_MAX_BYTES, DEFAULT_UPLOAD_MAX_BYTES);
+        const body = await readRawBody(request, uploadMaxBytes);
+        if (body.length === 0) {
+          sendJson(response, 400, { error: "Upload body is empty." }, requestContext);
+          return;
+        }
+        const uploadsDir = uploadsDirectoryFor(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
+        await mkdir(uploadsDir, { recursive: true });
+        const storedFileName = `up_${randomBytes(8).toString("hex")}.${extension}`;
+        await writeFile(join(uploadsDir, storedFileName), body);
+        sendJson(response, 201, {
+          status: "uploaded",
+          kind,
+          // Opaque handle (no server paths): the render pipeline resolves it back to the
+          // stored file and uploads the bytes to the provider, so no public host is needed.
+          uri: buildUploadUri(storedFileName),
+          fileName: storedFileName,
+          byteSize: body.length
+        }, requestContext);
+        return;
+      }
+      const uploadedFileMatch = requestUrl.pathname.match(/^\/v1\/uploads\/([^/]+)$/);
+      if (request.method === "GET" && uploadedFileMatch) {
+        const requestedName = decodeURIComponent(uploadedFileMatch[1] ?? "");
+        const requestedExtension = requestedName.split(".").pop() ?? "";
+        const contentType = UPLOAD_CONTENT_TYPES[requestedExtension];
+        if (!UPLOAD_FILE_NAME_PATTERN.test(requestedName) || !contentType) {
+          sendJson(response, 404, { error: "Uploaded file not found." }, requestContext);
+          return;
+        }
+        const uploadsRoot = uploadsDirectoryFor(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
+        const uploadedPath = resolve(uploadsRoot, requestedName);
+        if (!uploadedPath.startsWith(uploadsRoot + sep)) {
+          sendJson(response, 404, { error: "Uploaded file not found." }, requestContext);
+          return;
+        }
+        let uploadedStat;
+        try {
+          uploadedStat = await stat(uploadedPath);
+        } catch {
+          sendJson(response, 404, { error: "Uploaded file not found." }, requestContext);
+          return;
+        }
+        if (!uploadedStat.isFile()) {
+          sendJson(response, 404, { error: "Uploaded file not found." }, requestContext);
+          return;
+        }
+        sendVideoStream(response, uploadedPath, uploadedStat.size, { contentType, inline: true });
+        return;
+      }
       const jobDeliverableMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)\/deliverable$/);
       if (request.method === "GET" && jobDeliverableMatch) {
         const deliverablePath = jobManager.deliverablePathFor(
@@ -1387,17 +1473,42 @@ function sendHtml(response: ServerResponse, statusCode: number, html: string): v
  * inside the sender helpers (same policy as sendJson/sendHtml) so security headers and
  * response behavior cannot drift per route.
  */
-function sendVideoStream(response: ServerResponse, filePath: string, fileSizeBytes: number): void {
+function sendVideoStream(
+  response: ServerResponse,
+  filePath: string,
+  fileSizeBytes: number,
+  options?: { readonly contentType?: string; readonly inline?: boolean }
+): void {
   if (response.destroyed) {
     return;
   }
+  const disposition = options?.inline ? "inline" : "attachment";
   response.writeHead(200, {
     ...BASE_SECURITY_HEADERS,
-    "Content-Type": "video/mp4",
+    "Content-Type": options?.contentType ?? "video/mp4",
     "Content-Length": String(fileSizeBytes),
-    "Content-Disposition": `attachment; filename="${basename(filePath).replace(/["\\]/g, "")}"`
+    "Content-Disposition": `${disposition}; filename="${basename(filePath).replace(/["\\]/g, "")}"`
   });
   createReadStream(filePath).pipe(response);
+}
+
+/** Read a raw (non-JSON) request body with a hard byte cap. */
+async function readRawBody(request: IncomingMessage, maxBytes: number): Promise<Buffer> {
+  const declaredContentLength = readContentLength(request);
+  if (declaredContentLength !== undefined && declaredContentLength > maxBytes) {
+    throw new RequestBodyTooLargeError(maxBytes);
+  }
+  const chunks: Buffer[] = [];
+  let received = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    received += buffer.length;
+    if (received > maxBytes) {
+      throw new RequestBodyTooLargeError(maxBytes);
+    }
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks);
 }
 
 function readPort(value: string | undefined): number {

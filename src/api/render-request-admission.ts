@@ -12,6 +12,7 @@ import { RATIOS, normalizeSeedanceSettings, type NormalizedSeedanceSettings } fr
 import type { ProviderCapability } from "../types/provider.js";
 import { SOURCE_VIDEO_ANALYSIS_LIMITS } from "../types/source-video.js";
 import type { ModelPreferences, SpeedTier } from "../types/settings.js";
+import { isUploadUri } from "../core/upload-reference.js";
 
 // Word-bounded "auth" so benign keys like "author"/"authuser" are not rejected as
 // credential-like, while real "auth"/"authorization" tokens still match.
@@ -845,8 +846,14 @@ export class RenderRequestAdmission {
     } catch {
       throw new RenderRequestAdmissionError(`${fieldName} must be a valid HTTPS URL or asset:// reference.`);
     }
+    if (parsed.protocol === "upload:") {
+      if (!isUploadUri(value)) {
+        throw new RenderRequestAdmissionError(`${fieldName} upload:// references must match the server-issued handle format.`);
+      }
+      return;
+    }
     if (parsed.protocol !== "https:" && parsed.protocol !== "asset:") {
-      throw new RenderRequestAdmissionError(`${fieldName} must use https or asset://.`);
+      throw new RenderRequestAdmissionError(`${fieldName} must use https, asset://, or an uploaded upload:// handle.`);
     }
     if (parsed.username || parsed.password) {
       throw new RenderRequestAdmissionError(`${fieldName} must not include embedded credentials.`);

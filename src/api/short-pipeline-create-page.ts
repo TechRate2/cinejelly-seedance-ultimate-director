@@ -236,6 +236,35 @@ export function buildShortPipelineCreatePage(): string {
       color: var(--ink);
       background: rgba(255, 255, 255, 0.045);
     }
+    .field-row {
+      display: flex;
+      gap: 6px;
+      align-items: stretch;
+    }
+    .field-row input {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .upload-btn {
+      flex: 0 0 auto;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0 10px;
+      color: var(--ink);
+      background: rgba(54, 242, 170, 0.08);
+      font-size: 12px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .upload-btn:hover {
+      border-color: rgba(54, 242, 170, 0.6);
+      background: rgba(54, 242, 170, 0.16);
+    }
+    .upload-btn[data-busy="true"] {
+      opacity: 0.55;
+      pointer-events: none;
+    }
     .ghost-btn:hover,
     .secondary:hover,
     .mini-btn:hover {
@@ -1018,17 +1047,18 @@ export function buildShortPipelineCreatePage(): string {
               <div><strong>Voice / Notes</strong><small>audio intent</small></div>
             </button>
           </div>
+          <input type="file" id="upload-file-input" style="display:none" aria-hidden="true">
           <div class="grid-2" style="margin-top:12px">
-            <label class="field"><span>KOL image URI</span><input id="kol-reference" placeholder="asset://kol-main or https://..."></label>
-            <label class="field"><span>Product image URI</span><input id="product-reference" placeholder="asset://product-pack or https://..."></label>
-            <label class="field"><span>Scene/background URI</span><input id="background-reference" placeholder="asset://studio-set or https://..."></label>
-            <label class="field"><span>Source video URL</span><input id="reference-url" placeholder="https://reference-video.example"></label>
+            <label class="field"><span>KOL image URI</span><div class="field-row"><input id="kol-reference" placeholder="asset://kol-main, https://... — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="kol-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁 Tải lên</button></div></label>
+            <label class="field"><span>Product image URI</span><div class="field-row"><input id="product-reference" placeholder="asset://product-pack, https://... — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="product-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁 Tải lên</button></div></label>
+            <label class="field"><span>Scene/background URI</span><div class="field-row"><input id="background-reference" placeholder="asset://studio-set, https://... — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="background-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁 Tải lên</button></div></label>
+            <label class="field"><span>Source video URL</span><div class="field-row"><input id="reference-url" placeholder="https://reference-video.example — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="reference-url" data-upload-accept="video/mp4,video/quicktime" title="Tải video từ máy">📁 Tải lên</button></div></label>
             <label class="field" style="grid-column: 1 / -1"><span>Reference / voice note</span><input id="media-reference-note" placeholder="What to preserve from the attached media, source video, or voice direction"></label>
           </div>
           <div class="grid-2" style="margin-top:12px">
-            <label class="field"><span>Wardrobe reference</span><input id="wardrobe-reference" placeholder="asset://outfit or https://..."></label>
-            <label class="field"><span>First frame</span><input id="first-frame-reference" placeholder="asset://opening-frame or https://..."></label>
-            <label class="field"><span>Last frame</span><input id="last-frame-reference" placeholder="asset://final-frame or https://..."></label>
+            <label class="field"><span>Wardrobe reference</span><div class="field-row"><input id="wardrobe-reference" placeholder="asset://outfit or https://..."><button type="button" class="upload-btn" data-upload-for="wardrobe-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁</button></div></label>
+            <label class="field"><span>First frame</span><div class="field-row"><input id="first-frame-reference" placeholder="asset://opening-frame or https://..."><button type="button" class="upload-btn" data-upload-for="first-frame-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁</button></div></label>
+            <label class="field"><span>Last frame</span><div class="field-row"><input id="last-frame-reference" placeholder="asset://final-frame or https://..."><button type="button" class="upload-btn" data-upload-for="last-frame-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁</button></div></label>
             <label class="field"><span>Media rights</span>
               <select id="media-rights">
                 <option value="operator_approved">Operator approved</option>
@@ -1440,6 +1470,7 @@ export function buildShortPipelineCreatePage(): string {
       button.addEventListener("click", enhancePrompt);
     });
     document.getElementById("clear-reference-fields").addEventListener("click", clearReferenceFields);
+    setupReferenceUploads();
     document.getElementById("submit-render").addEventListener("click", submitRender);
     document.getElementById("stop-polling").addEventListener("click", () => stopJobPolling("Stopped watching the job. Reload the contract or reopen the status URL to check again."));
     document.getElementById("nav-jobs").addEventListener("click", () => {
@@ -1710,6 +1741,77 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("session-line").textContent = sessionId;
       document.getElementById("refresh-contract").disabled = false;
       renderContract(response.uiContract);
+    }
+
+    function setupReferenceUploads() {
+      const fileInput = document.getElementById("upload-file-input");
+      if (!fileInput) return;
+      let pendingButton = null;
+      document.querySelectorAll("[data-upload-for]").forEach((button) => {
+        button.addEventListener("click", () => {
+          pendingButton = button;
+          fileInput.accept = button.dataset.uploadAccept || "image/*";
+          fileInput.value = "";
+          fileInput.click();
+        });
+      });
+      fileInput.addEventListener("change", async () => {
+        const file = fileInput.files && fileInput.files[0];
+        const button = pendingButton;
+        pendingButton = null;
+        if (!file || !button) return;
+        const target = document.getElementById(button.dataset.uploadFor);
+        if (!target) return;
+        if (file.size > 25 * 1024 * 1024) {
+          showError("File quá lớn (tối đa 25MB). Hãy nén ảnh/video rồi thử lại.");
+          return;
+        }
+        const key = document.getElementById("api-key").value.trim();
+        if (!key) {
+          showError("Nhập API key (ô trên cùng) trước khi tải file lên.");
+          return;
+        }
+        const originalLabel = button.textContent;
+        button.dataset.busy = "true";
+        button.textContent = "⏳...";
+        try {
+          const response = await fetch("/v1/uploads", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/octet-stream",
+              "X-File-Name": encodeURIComponent(file.name),
+              "X-CineJelly-Api-Key": key
+            },
+            body: file
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || "Upload failed");
+          }
+          target.value = payload.uri;
+          showSuccess('Đã tải lên "' + file.name + '" — trường reference đã được điền, cứ thế bấm render.');
+          applyUploadThumbnail(button.dataset.uploadFor, file, payload.kind);
+        } catch (error) {
+          showError(error instanceof Error ? error.message : String(error));
+        } finally {
+          button.dataset.busy = "false";
+          button.textContent = originalLabel;
+        }
+      });
+    }
+
+    function applyUploadThumbnail(targetId, file, kind) {
+      if (kind !== "image" || !file) return;
+      const isCardTarget = targetId === "kol-reference" || targetId === "product-reference" || targetId === "background-reference";
+      if (!isCardTarget) return;
+      const card = document.querySelector('[data-focus-reference="' + targetId + '"]');
+      if (!card) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        // data: URLs are allowed by the page CSP (img-src 'self' data:).
+        card.style.setProperty("--asset-img", "url(" + reader.result + ")");
+      };
+      reader.readAsDataURL(file);
     }
 
     async function apiFetch(path, options = {}) {

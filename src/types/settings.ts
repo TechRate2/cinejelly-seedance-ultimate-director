@@ -75,6 +75,8 @@ export interface AtlasCloudRuntimeSettings {
   readonly maxJsonResponseBytes: number;
   readonly pollingIntervalMs: number;
   readonly pollingTimeoutMs: number;
+  /** Root of the output/uploads storage, for resolving upload:// reference handles. */
+  readonly uploadsOutputRoot?: string;
 }
 
 export interface AssemblyRuntimeSettings {

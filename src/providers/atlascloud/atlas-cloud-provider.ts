@@ -40,6 +40,7 @@ import { ProviderError, asProviderError } from "../../utils/errors.js";
 import { redactText, redactUnknown } from "../../utils/redaction.js";
 import { AtlasCloudHttpClient } from "./atlas-cloud-http.js";
 import { mapAssetRegistration, mapPrediction, mapUsage, readChatContent } from "./atlas-cloud-mappers.js";
+import { resolveUploadUriToPath } from "../../core/upload-reference.js";
 
 const ATLAS_PROVIDER_NAME = "atlascloud";
 const DEFAULT_VIDEO_FPS = 24;
@@ -621,8 +622,9 @@ export class AtlasCloudProvider implements ModelProvider {
             raw: { url: request.uri, source: "operator_asset_reference" }
           };
         }
+        const uploadHandlePath = resolveUploadUriToPath(request.uri, this.settings.uploadsOutputRoot ?? "assets/output_deliverables");
         const formData = new FormData();
-        const file = await readFile(request.uri);
+        const file = await readFile(uploadHandlePath ?? request.uri);
         formData.set("file", new Blob([file]), basename(request.uri));
         const response = await withRetry(
           () =>

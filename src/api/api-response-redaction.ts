@@ -8,6 +8,7 @@ import {
   containsPrivateSourcePatternText,
   redactPrivateSourcePatternText
 } from "../core/private-source-pattern-registry.js";
+import { isUploadUri } from "../core/upload-reference.js";
 
 const REDACTED_LOCAL_PATH = "[REDACTED_LOCAL_PATH]";
 const REDACTED_DATA_URI = "[REDACTED_DATA_URI]";
@@ -93,6 +94,10 @@ function isSafePublicUri(value: string): boolean {
   }
   if (parsed.protocol === "asset:") {
     return !parsed.username && !parsed.password && !parsed.search && !parsed.hash;
+  }
+  if (parsed.protocol === "upload:") {
+    // Server-generated opaque handle (random hex name, no credentials or query).
+    return isUploadUri(value);
   }
   if (parsed.protocol !== "https:") {
     return false;

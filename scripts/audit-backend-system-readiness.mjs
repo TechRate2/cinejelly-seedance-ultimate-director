@@ -206,6 +206,7 @@ const auditedValidationCommandNames = [
   "validation:speech-captions",
   "validation:shot-framing",
   "validation:pipeline-upgrades",
+  "validation:upload-route",
   "validation:quality-review-evidence",
   "validation:quality-review-guard",
   "validation:readiness",

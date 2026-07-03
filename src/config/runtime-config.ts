@@ -121,6 +121,7 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
   return {
     apiKey: requireEnv("ATLASCLOUD_API_KEY", env),
     ...(llmApiKey ? { llmApiKey } : {}),
+    uploadsOutputRoot: env.CINEJELLY_OUTPUT_DIR?.trim() || "assets/output_deliverables",
     apiBaseUrl: aliasedHttpsUrlEnv(
       ["ATLASCLOUD_LLM_BASE_URL", "ATLASCLOUD_API_BASE_URL"],
       env,

@@ -322,6 +322,7 @@ export type ShortMediaReferencePlanStatus =
 
 export type ShortMediaReferenceUriPolicy =
   | "asset_id_retained"
+  | "upload_handle_retained"
   | "clean_https_hashed"
   | "blocked_unsafe_or_private";
 
