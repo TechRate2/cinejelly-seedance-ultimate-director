@@ -208,6 +208,7 @@ const auditedValidationCommandNames = [
   "validation:pipeline-upgrades",
   "validation:upload-route",
   "validation:account-billing",
+  "validation:admin-center",
   "validation:ui-contract-crosscheck",
   "validation:launch-rehearsal",
   "validation:quality-review-evidence",

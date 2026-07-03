@@ -1,10 +1,15 @@
 /**
- * Operator top-up desk.
+ * CineJelly Admin Center.
  *
- * The daily money task — approving customer bank-transfer top-ups — as a one-screen web
- * page instead of raw curl commands. The page itself is static and credential-free: the
- * operator pastes the deployment API key once (remembered per machine) and every action
- * calls the existing /v1/admin endpoints. Vietnamese-first, mobile-friendly.
+ * A full operator control panel served at /operator/topups (and /operator/admin), driving
+ * the existing /v1/admin/* endpoints. Everything an operator manages while LIVE: approve
+ * top-ups and refunds, review videos, look up customers, adjust/gift credits, reset
+ * passwords, and — on the Settings tab — edit render pricing, credit packages, provider
+ * models, bank info, and studio content (announcement + featured images) without touching
+ * the server. The page is static and credential-free: the operator pastes the deployment
+ * key once (remembered per machine) and it is sent only on /v1/admin calls. Vietnamese,
+ * mobile-friendly. All server data is rendered via textContent / created nodes (no
+ * innerHTML of untrusted values).
  */
 
 export function buildOperatorTopupPage(): string {
@@ -13,88 +18,164 @@ export function buildOperatorTopupPage(): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CineJelly — Duyệt nạp credits</title>
+  <title>CineJelly — Trung tâm quản trị</title>
   <style>
-    :root { --bg:#0b0e1d; --card:#141936; --line:rgba(255,255,255,.14); --ink:#eef1ff; --muted:#9aa3c7; --ok:#36f2aa; --bad:#ff5b72; }
+    :root { --bg:#0b0e1d; --card:#141936; --line:rgba(255,255,255,.14); --ink:#eef1ff; --muted:#9aa3c7; --ok:#36f2aa; --bad:#ff5b72; --accent:#8f5cff; }
     * { box-sizing: border-box; margin: 0; }
-    body { background: var(--bg); color: var(--ink); font: 14px/1.55 "Segoe UI", system-ui, sans-serif; padding: 18px; max-width: 860px; margin: 0 auto; }
-    h1 { font-size: 20px; margin-bottom: 4px; }
+    body { background: var(--bg); color: var(--ink); font: 14px/1.55 "Segoe UI", system-ui, sans-serif; padding: 16px; max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 20px; margin-bottom: 2px; }
     .muted { color: var(--muted); font-size: 12px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-top: 14px; }
-    input, button { font: inherit; color: var(--ink); border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.05); padding: 9px 11px; min-height: 42px; }
-    input { width: 100%; }
+    label.lbl { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input, button, select, textarea { font: inherit; color: var(--ink); border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.05); padding: 9px 11px; min-height: 42px; }
+    input, textarea, select { width: 100%; }
+    textarea { min-height: 64px; resize: vertical; }
     button { cursor: pointer; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-    .row > input { flex: 1 1 220px; }
+    .row > input, .row > select { flex: 1 1 200px; }
     .approve { background: rgba(54,242,170,.16); border-color: rgba(54,242,170,.55); }
     .reject { background: rgba(255,91,114,.14); border-color: rgba(255,91,114,.5); }
-    .topup { border-bottom: 1px dashed var(--line); padding: 10px 0; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .topup:last-child { border-bottom: 0; }
-    .status { margin-top: 8px; font-size: 13px; min-height: 18px; }
+    .primary { background: linear-gradient(135deg, rgba(143,92,255,.85), rgba(17,183,255,.7)); border: 0; font-weight: 600; }
+    .item { border-bottom: 1px dashed var(--line); padding: 10px 0; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .item:last-child { border-bottom: 0; }
+    .status { margin-top: 8px; font-size: 13px; min-height: 18px; white-space: pre-line; }
     .status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
-    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(143,92,255,.22); font-size: 11px; }
-    @media (max-width: 620px) { body { padding: 12px; } .topup { flex-direction: column; align-items: flex-start; } }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+    .tab { flex: 1 1 auto; min-height: 44px; border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px; }
+    .tab.active { background: rgba(143,92,255,.25); border-color: rgba(143,92,255,.7); }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .pkg-row { display: grid; grid-template-columns: 1.2fr 1.4fr 1fr 1fr auto; gap: 6px; margin-top: 6px; align-items: center; }
+    .pkg-row input { min-height: 38px; }
+    .del { background: rgba(255,91,114,.14); border-color: rgba(255,91,114,.5); min-height: 38px; }
+    .kpi { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .kpi > div { background: rgba(255,255,255,.04); border-radius: 8px; padding: 10px; }
+    .kpi strong { display: block; font-size: 17px; }
+    @media (max-width: 680px) { .pkg-row { grid-template-columns: 1fr 1fr; } .kpi { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
-  <h1>💎 Duyệt nạp credits</h1>
-  <div class="muted">Khách chuyển khoản xong sẽ hiện ở đây. Đối chiếu với app ngân hàng của bạn rồi bấm Duyệt — credits cộng ngay lập tức.</div>
+  <h1>🛠️ Trung tâm quản trị CineJelly</h1>
+  <div class="muted">Quản lý tiền, khách hàng, và cấu hình dự án ngay trên trình duyệt.</div>
 
   <div class="card">
-    <label class="muted" for="admin-key">Khóa quản trị (CINEJELLY_API_AUTH_TOKEN trong file .env — dán 1 lần, máy này tự nhớ)</label>
+    <label class="lbl" for="admin-key">Khóa quản trị (CINEJELLY_API_AUTH_TOKEN trong .env — dán 1 lần, máy này tự nhớ)</label>
     <div class="row">
       <input id="admin-key" type="password" autocomplete="off" placeholder="Dán khóa quản trị...">
-      <button id="load-btn">Tải danh sách</button>
+      <button id="load-btn" class="primary">Tải dữ liệu</button>
       <button id="forget-btn" title="Xoá khóa đã nhớ">✕</button>
     </div>
     <div class="status" id="status"></div>
   </div>
 
-  <div class="card">
-    <strong>Yêu cầu đang chờ duyệt</strong>
-    <div id="pending-list"><div class="muted" style="margin-top:8px">Bấm "Tải danh sách" để xem.</div></div>
+  <div class="tabs">
+    <button class="tab active" data-tab="money">💰 Tiền</button>
+    <button class="tab" data-tab="customers">👥 Khách hàng</button>
+    <button class="tab" data-tab="settings">⚙️ Cấu hình</button>
   </div>
 
-  <div class="card">
-    <strong>🎬 Video chờ duyệt</strong>
-    <div class="muted">Khách bấm tạo video xong sẽ chờ ở đây. Bấm Duyệt để video bắt đầu chạy (khách đã bị giữ credits; từ chối sẽ tự hoàn).</div>
-    <div id="review-list"><div class="muted" style="margin-top:8px">Bấm "Tải danh sách" phía trên để xem.</div></div>
-  </div>
-
-  <div class="card">
-    <strong>🔎 Tra cứu khách hàng</strong>
-    <div class="row">
-      <input id="lookup-email" type="email" placeholder="email khách hàng">
-      <button id="lookup-btn">Tra cứu</button>
+  <div class="panel active" id="panel-money">
+    <div class="card">
+      <div class="kpi" id="revenue-kpi"><div class="muted">Bấm "Tải dữ liệu" để xem doanh thu.</div></div>
     </div>
-    <div id="lookup-result" class="muted" style="margin-top:8px"></div>
-  </div>
-
-  <div class="card">
-    <strong>📈 Doanh thu</strong>
-    <div id="revenue-line" class="muted" style="margin-top:8px">Bấm "Tải danh sách" để cập nhật.</div>
-  </div>
-
-  <div class="card">
-    <strong>Cộng/trừ credits thủ công</strong>
-    <div class="muted">Dùng khi tặng khách, xử lý khiếu nại, hoặc trừ nhầm lẫn. Số âm để trừ.</div>
-    <div class="row">
-      <input id="reset-email" type="email" placeholder="email khách quên mật khẩu">
-      <button id="reset-btn">🔑 Cấp lại mật khẩu</button>
+    <div class="card">
+      <strong>💎 Nạp credits chờ duyệt</strong>
+      <div class="muted">Đối chiếu app ngân hàng rồi bấm Duyệt — credits cộng ngay.</div>
+      <div id="topup-list"><div class="muted" style="margin-top:8px">—</div></div>
     </div>
-    <div class="muted">Mật khẩu tạm sẽ hiện ở dòng trạng thái — gửi cho khách qua Zalo/tin nhắn, khách đăng nhập rồi tự đổi.</div>
-    <div class="row" style="margin-top:14px">
-      <input id="adjust-email" type="email" placeholder="email khách hàng">
-      <input id="adjust-credits" type="number" placeholder="số credits (vd 500 hoặc -200)">
-      <input id="adjust-note" placeholder="ghi chú (vd: tặng khách mới)">
-      <button id="adjust-btn">Thực hiện</button>
+    <div class="card">
+      <strong>↩️ Yêu cầu hoàn tiền chờ xử lý</strong>
+      <div class="muted">Video lỗi/hủy KHÔNG tự hoàn (có lợi cho bạn). Bạn quyết định từng ca ở đây.</div>
+      <div id="refund-list"><div class="muted" style="margin-top:8px">—</div></div>
+    </div>
+    <div class="card">
+      <strong>🎬 Video chờ duyệt</strong>
+      <div class="muted">Bấm Duyệt để video chạy; Từ chối sẽ đưa vào hàng chờ hoàn tiền.</div>
+      <div id="review-list"><div class="muted" style="margin-top:8px">—</div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-customers">
+    <div class="card">
+      <strong>🔎 Tra cứu khách hàng</strong>
+      <div class="row"><input id="lookup-email" type="email" placeholder="email khách hàng"><button id="lookup-btn" class="primary">Tra cứu</button></div>
+      <div id="lookup-result" class="muted" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <strong>💳 Cộng / trừ credits thủ công</strong>
+      <div class="muted">Tặng khách, xử lý khiếu nại, hoặc trừ nhầm lẫn. Số âm để trừ.</div>
+      <div class="row">
+        <input id="adjust-email" type="email" placeholder="email khách">
+        <input id="adjust-credits" type="number" placeholder="vd 500 hoặc -200">
+        <input id="adjust-note" placeholder="ghi chú">
+        <button id="adjust-btn" class="primary">Thực hiện</button>
+      </div>
+    </div>
+    <div class="card">
+      <strong>🔑 Cấp lại mật khẩu</strong>
+      <div class="muted">Mật khẩu tạm hiện ở dòng trạng thái — gửi cho khách qua Zalo, nhắc khách đổi ngay.</div>
+      <div class="row"><input id="reset-email" type="email" placeholder="email khách quên mật khẩu"><button id="reset-btn" class="primary">Cấp lại</button></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-settings">
+    <div class="card">
+      <strong>↩️ Chính sách hoàn tiền</strong>
+      <div class="muted">Mặc định "Thủ công": video lỗi KHÔNG tự hoàn, bạn duyệt từng ca (có lợi cho bạn). "Tự động" sẽ hoàn ngay khi lỗi.</div>
+      <div class="row">
+        <select id="set-refund-policy">
+          <option value="manual">Thủ công — bạn duyệt từng ca (khuyên dùng)</option>
+          <option value="auto">Tự động — hoàn ngay khi video lỗi</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <strong>💵 Giá render (tính theo giây)</strong>
+      <div class="muted">Số credits mỗi giây video. Ví dụ 10 → video 30 giây = 300 credits (nhân hệ số chất lượng).</div>
+      <div class="row"><input id="set-credits-per-second" type="number" step="0.1" placeholder="credits / giây"></div>
+      <div class="muted" style="margin-top:6px">Hệ số theo chất lượng:</div>
+      <div class="row">
+        <input id="mult-draft" type="number" step="0.1" placeholder="draft (vd 0.6)">
+        <input id="mult-standard" type="number" step="0.1" placeholder="standard (vd 1)">
+        <input id="mult-high" type="number" step="0.1" placeholder="high (vd 1.5)">
+        <input id="mult-ultimate" type="number" step="0.1" placeholder="ultimate (vd 2)">
+      </div>
+    </div>
+    <div class="card">
+      <strong>📦 Gói nạp credits</strong>
+      <div class="muted">Thêm / sửa / xoá gói. packageId chỉ gồm a-z, số, gạch.</div>
+      <div id="package-editor"></div>
+      <div class="row"><button id="add-package">➕ Thêm gói</button></div>
+    </div>
+    <div class="card">
+      <strong>🏦 Thông tin chuyển khoản</strong>
+      <div class="muted">Hiện cho khách khi nạp. Điền số tài khoản thật của bạn.</div>
+      <textarea id="set-bank-info" placeholder="Vietcombank 0123456789 - NGUYEN VAN A. Nội dung: email của bạn."></textarea>
+    </div>
+    <div class="card">
+      <strong>🤖 Model AI</strong>
+      <div class="muted">Để trống = dùng mặc định trong .env. Chỉ đổi khi bạn biết model mới.</div>
+      <div class="row"><input id="model-video" placeholder="Model video (Seedance)"></div>
+      <div class="row"><input id="model-image" placeholder="Model ảnh (Seedream)"></div>
+      <div class="row"><input id="model-llm" placeholder="Model ngôn ngữ (LLM)"><input id="model-speech" placeholder="Model giọng nói"></div>
+    </div>
+    <div class="card">
+      <strong>📣 Nội dung Studio khách thấy</strong>
+      <div class="muted">Thông báo hiện đầu trang khách (khuyến mãi, lưu ý...). Ảnh nổi bật: dán handle upload:// (tải ảnh ở Studio rồi copy handle).</div>
+      <textarea id="studio-announcement" placeholder="VD: Khuyến mãi Tết — nạp Gói Pro tặng thêm 20% credits!"></textarea>
+      <div class="row"><input id="studio-images" placeholder="upload://... , upload://... (cách nhau bằng dấu phẩy)"></div>
+    </div>
+    <div class="card">
+      <button id="save-settings" class="primary" style="width:100%">💾 Lưu toàn bộ cấu hình</button>
+      <div class="muted" id="audit-line" style="margin-top:8px"></div>
     </div>
   </div>
 
   <script>
-    const KEY_STORAGE = "cinejelly_admin_key";
-    const keyInput = document.getElementById("admin-key");
-    const statusBox = document.getElementById("status");
+    var KEY_STORAGE = "cinejelly_admin_key";
+    var keyInput = document.getElementById("admin-key");
+    var statusBox = document.getElementById("status");
+    var currentSettings = null;
     try { keyInput.value = localStorage.getItem(KEY_STORAGE) || ""; } catch (e) {}
     keyInput.addEventListener("change", function () {
       try { if (keyInput.value.trim()) localStorage.setItem(KEY_STORAGE, keyInput.value.trim()); } catch (e) {}
@@ -104,182 +185,262 @@ export function buildOperatorTopupPage(): string {
       keyInput.value = "";
       say("Đã xoá khóa khỏi máy này.", true);
     });
-    function say(message, ok) {
-      statusBox.textContent = message;
-      statusBox.className = "status " + (ok ? "ok" : "bad");
-    }
-    function headers() {
-      return { "Content-Type": "application/json", "X-CineJelly-Api-Key": keyInput.value.trim() };
-    }
-    async function loadPending() {
+    function say(message, ok) { statusBox.textContent = message; statusBox.className = "status " + (ok ? "ok" : "bad"); }
+    function headers() { return { "Content-Type": "application/json", "X-CineJelly-Api-Key": keyInput.value.trim() }; }
+    function vnd(n) { return (n || 0).toLocaleString("vi-VN"); }
+
+    document.querySelectorAll(".tab").forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        document.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
+        document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
+        tab.classList.add("active");
+        document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+      });
+    });
+
+    async function loadAll() {
       if (!keyInput.value.trim()) { say("Dán khóa quản trị trước.", false); return; }
-      const response = await fetch("/v1/admin/topups", { headers: headers() });
-      const payload = await response.json();
-      if (!response.ok) { say(payload.error || "Không tải được.", false); return; }
-      const box = document.getElementById("pending-list");
-      box.innerHTML = "";
-      const pending = payload.pending || [];
-      if (pending.length === 0) {
-        box.innerHTML = '<div class="muted" style="margin-top:8px">Không có yêu cầu nào đang chờ. 🎉</div>';
-      }
-      pending.forEach(function (topup) {
-        const row = document.createElement("div");
-        row.className = "topup";
-        const info = document.createElement("div");
-        const strong = document.createElement("strong");
-        strong.textContent = topup.email + " — " + topup.credits.toLocaleString("vi-VN") + " credits (" + topup.amountVnd.toLocaleString("vi-VN") + "đ)";
-        const note = document.createElement("div");
-        note.className = "muted";
-        note.textContent = (topup.userNote ? "Ghi chú: " + topup.userNote + " • " : "") + new Date(topup.requestedAt).toLocaleString("vi-VN");
-        info.appendChild(strong); info.appendChild(note);
-        const actions = document.createElement("div");
-        actions.className = "row";
-        const approveBtn = document.createElement("button");
-        approveBtn.className = "approve"; approveBtn.textContent = "✅ Duyệt";
-        approveBtn.addEventListener("click", function () { decide(topup.topupId, true); });
-        const rejectBtn = document.createElement("button");
-        rejectBtn.className = "reject"; rejectBtn.textContent = "❌ Từ chối";
-        rejectBtn.addEventListener("click", function () { decide(topup.topupId, false); });
-        actions.appendChild(approveBtn); actions.appendChild(rejectBtn);
-        row.appendChild(info); row.appendChild(actions);
-        box.appendChild(row);
-      });
-      say("Đang chờ: " + pending.length + " yêu cầu.", true);
+      await Promise.all([loadTopups(), loadRefunds(), loadReviewQueue(), loadRevenue(), loadSettings()]);
+      say("Đã tải dữ liệu.", true);
     }
-    async function decide(topupId, approve) {
-      const response = await fetch("/v1/admin/topups/decide", {
-        method: "POST", headers: headers(),
-        body: JSON.stringify({ topupId: topupId, approve: approve, note: approve ? "duyệt qua trang quản trị" : "từ chối qua trang quản trị" })
-      });
-      const payload = await response.json();
-      if (!response.ok) { say(payload.error || "Không xử lý được.", false); return; }
-      say(approve ? "Đã duyệt — credits đã cộng cho khách." : "Đã từ chối yêu cầu.", true);
-      loadPending();
-    }
-    async function loadReviewQueue() {
-      const response = await fetch("/v1/render-jobs", { headers: headers() });
-      if (!response.ok) { return; }
-      const payload = await response.json();
-      const paused = (payload.jobs || []).filter(function (job) { return job.status === "paused_for_review"; });
-      const box = document.getElementById("review-list");
+
+    function renderQueue(boxId, items, emptyText, buildRow) {
+      var box = document.getElementById(boxId);
       box.innerHTML = "";
-      if (paused.length === 0) {
-        box.innerHTML = '<div class="muted" style="margin-top:8px">Không có video nào chờ duyệt. 🎉</div>';
+      if (!items || items.length === 0) {
+        var empty = document.createElement("div");
+        empty.className = "muted"; empty.style.marginTop = "8px"; empty.textContent = emptyText;
+        box.appendChild(empty);
         return;
       }
-      paused.forEach(function (job) {
-        const row = document.createElement("div");
-        row.className = "topup";
-        const info = document.createElement("div");
-        const strong = document.createElement("strong");
-        strong.textContent = (job.userInputPreview || job.jobId).slice(0, 90);
-        const note = document.createElement("div");
-        note.className = "muted";
-        note.textContent = job.jobId + " • " + new Date(job.createdAt).toLocaleString("vi-VN");
-        info.appendChild(strong); info.appendChild(note);
-        const actions = document.createElement("div");
-        actions.className = "row";
-        const approveBtn = document.createElement("button");
-        approveBtn.className = "approve"; approveBtn.textContent = "✅ Duyệt chạy";
-        approveBtn.addEventListener("click", function () { decideReview(job.jobId, "approved"); });
-        const rejectBtn = document.createElement("button");
-        rejectBtn.className = "reject"; rejectBtn.textContent = "❌ Từ chối";
-        rejectBtn.addEventListener("click", function () { decideReview(job.jobId, "rejected"); });
-        actions.appendChild(approveBtn); actions.appendChild(rejectBtn);
-        row.appendChild(info); row.appendChild(actions);
-        box.appendChild(row);
+      items.forEach(function (item) { box.appendChild(buildRow(item)); });
+    }
+    function actionRow(labelInfo, subInfo, buttons) {
+      var row = document.createElement("div"); row.className = "item";
+      var info = document.createElement("div");
+      var strong = document.createElement("strong"); strong.textContent = labelInfo;
+      var note = document.createElement("div"); note.className = "muted"; note.textContent = subInfo;
+      info.appendChild(strong); info.appendChild(note);
+      var actions = document.createElement("div"); actions.className = "row";
+      buttons.forEach(function (b) {
+        var btn = document.createElement("button"); btn.className = b.cls; btn.textContent = b.text;
+        btn.addEventListener("click", b.onClick); actions.appendChild(btn);
+      });
+      row.appendChild(info); row.appendChild(actions);
+      return row;
+    }
+
+    async function loadTopups() {
+      var res = await fetch("/v1/admin/topups", { headers: headers() });
+      if (!res.ok) { say((await res.json()).error || "Không tải được.", false); return; }
+      var payload = await res.json();
+      renderQueue("topup-list", payload.pending, "Không có yêu cầu nạp nào. 🎉", function (t) {
+        return actionRow(
+          t.email + " — " + vnd(t.credits) + " credits (" + vnd(t.amountVnd) + "đ)",
+          (t.userNote ? "Ghi chú: " + t.userNote + " • " : "") + new Date(t.requestedAt).toLocaleString("vi-VN"),
+          [
+            { cls: "approve", text: "✅ Duyệt", onClick: function () { decideTopup(t.topupId, true); } },
+            { cls: "reject", text: "❌ Từ chối", onClick: function () { decideTopup(t.topupId, false); } }
+          ]
+        );
+      });
+    }
+    async function decideTopup(topupId, approve) {
+      var res = await fetch("/v1/admin/topups/decide", { method: "POST", headers: headers(), body: JSON.stringify({ topupId: topupId, approve: approve }) });
+      var payload = await res.json();
+      if (!res.ok) { say(payload.error || "Lỗi.", false); return; }
+      say(approve ? "Đã duyệt — credits đã cộng." : "Đã từ chối.", true);
+      loadTopups(); loadRevenue();
+    }
+
+    async function loadRefunds() {
+      var res = await fetch("/v1/admin/refunds", { headers: headers() });
+      if (!res.ok) { return; }
+      var payload = await res.json();
+      renderQueue("refund-list", payload.pending, "Không có yêu cầu hoàn tiền nào. 🎉", function (r) {
+        return actionRow(
+          r.email + " — hoàn " + vnd(r.credits) + " credits",
+          "Lý do: " + r.reason + " • " + r.jobId,
+          [
+            { cls: "approve", text: "✅ Hoàn tiền", onClick: function () { decideRefund(r.refundRequestId, true); } },
+            { cls: "reject", text: "🚫 Không hoàn", onClick: function () { decideRefund(r.refundRequestId, false); } }
+          ]
+        );
+      });
+    }
+    async function decideRefund(refundRequestId, approve) {
+      var res = await fetch("/v1/admin/refunds/decide", { method: "POST", headers: headers(), body: JSON.stringify({ refundRequestId: refundRequestId, approve: approve }) });
+      var payload = await res.json();
+      if (!res.ok) { say(payload.error || "Lỗi.", false); return; }
+      say(approve ? "Đã hoàn credits cho khách." : "Đã từ chối hoàn (giữ nguyên credits).", true);
+      loadRefunds();
+    }
+
+    async function loadReviewQueue() {
+      var res = await fetch("/v1/render-jobs", { headers: headers() });
+      if (!res.ok) { return; }
+      var payload = await res.json();
+      var paused = (payload.jobs || []).filter(function (j) { return j.status === "paused_for_review"; });
+      renderQueue("review-list", paused, "Không có video nào chờ duyệt. 🎉", function (j) {
+        return actionRow(
+          (j.userInputPreview || j.jobId).slice(0, 90),
+          j.jobId + " • " + new Date(j.createdAt).toLocaleString("vi-VN"),
+          [
+            { cls: "approve", text: "✅ Duyệt chạy", onClick: function () { decideReview(j.jobId, "approved"); } },
+            { cls: "reject", text: "❌ Từ chối", onClick: function () { decideReview(j.jobId, "rejected"); } }
+          ]
+        );
       });
     }
     async function decideReview(jobId, decision) {
-      const detailResponse = await fetch("/v1/render-jobs/" + encodeURIComponent(jobId), { headers: headers() });
-      const detail = await detailResponse.json();
-      if (!detailResponse.ok) { say(detail.error || "Không tải được job.", false); return; }
-      const report = detail.preRenderReviewApproval || detail.reviewApproval;
-      const reviewedAt = new Date().toISOString();
-      const checkpoints = ((report && report.checkpoints) || []).map(function (checkpoint) {
-        return {
-          surface: checkpoint.surface,
-          label: checkpoint.label,
-          ...(checkpoint.subjectId ? { subjectId: checkpoint.subjectId } : {}),
-          required: checkpoint.required !== false,
-          decision: decision,
-          reviewer: "operator-desk",
-          reviewedAt: reviewedAt,
-          notes: decision === "approved" ? "duyệt qua trang quản trị" : "từ chối qua trang quản trị"
-        };
+      var detailRes = await fetch("/v1/render-jobs/" + encodeURIComponent(jobId), { headers: headers() });
+      var detail = await detailRes.json();
+      if (!detailRes.ok) { say(detail.error || "Không tải được job.", false); return; }
+      var report = detail.preRenderReviewApproval || detail.reviewApproval;
+      var reviewedAt = new Date().toISOString();
+      var checkpoints = ((report && report.checkpoints) || []).map(function (c) {
+        return { surface: c.surface, label: c.label, subjectId: c.subjectId, required: c.required !== false, decision: decision, reviewer: "operator-desk", reviewedAt: reviewedAt, notes: decision === "approved" ? "duyet" : "tu choi" };
       });
-      if (checkpoints.length === 0) { say("Job không có checkpoint kiểm duyệt để quyết định.", false); return; }
-      const response = await fetch("/v1/render-jobs/" + encodeURIComponent(jobId) + "/review", {
-        method: "POST", headers: headers(),
-        body: JSON.stringify({ gate: (report && report.gate) || "pre_render", checkpoints: checkpoints })
-      });
-      const payload = await response.json();
-      if (!response.ok) { say(payload.error || "Không xử lý được.", false); return; }
-      say(decision === "approved" ? "Đã duyệt — video bắt đầu chạy." : "Đã từ chối — hệ thống tự hoàn credits cho khách.", true);
-      loadReviewQueue();
+      if (checkpoints.length === 0) { say("Job không có checkpoint để quyết định.", false); return; }
+      var res = await fetch("/v1/render-jobs/" + encodeURIComponent(jobId) + "/review", { method: "POST", headers: headers(), body: JSON.stringify({ gate: (report && report.gate) || "pre_render", checkpoints: checkpoints }) });
+      var payload = await res.json();
+      if (!res.ok) { say(payload.error || "Lỗi.", false); return; }
+      say(decision === "approved" ? "Đã duyệt — video chạy." : "Đã từ chối — vào hàng chờ hoàn tiền.", true);
+      loadReviewQueue(); loadRefunds();
     }
+
     async function loadRevenue() {
-      const response = await fetch("/v1/admin/revenue-summary", { headers: headers() });
-      if (!response.ok) { return; }
-      const payload = await response.json();
-      const revenue = payload.revenue || {};
-      document.getElementById("revenue-line").textContent =
-        (revenue.customerCount || 0) + " khách • " + (revenue.approvedTopupCount || 0) + " lượt nạp đã duyệt • " +
-        (revenue.totalRevenueVnd || 0).toLocaleString("vi-VN") + "đ doanh thu • " +
-        (revenue.totalCreditsSold || 0).toLocaleString("vi-VN") + " credits đã bán • còn nợ khách " +
-        (revenue.outstandingCreditsLiability || 0).toLocaleString("vi-VN") + " credits";
-    }
-    document.getElementById("lookup-btn").addEventListener("click", async function () {
-      const email = document.getElementById("lookup-email").value.trim();
-      if (!email) { say("Nhập email khách trước.", false); return; }
-      const response = await fetch("/v1/admin/accounts/lookup?email=" + encodeURIComponent(email), { headers: headers() });
-      const payload = await response.json();
-      if (!response.ok) { say(payload.error || "Không tra cứu được.", false); return; }
-      const lines = [
-        "Số dư: " + payload.account.balanceCredits.toLocaleString("vi-VN") + " credits (" + payload.account.displayName + ")"
+      var res = await fetch("/v1/admin/revenue-summary", { headers: headers() });
+      if (!res.ok) { return; }
+      var r = (await res.json()).revenue || {};
+      var box = document.getElementById("revenue-kpi");
+      box.innerHTML = "";
+      var kpis = [
+        ["Khách hàng", vnd(r.customerCount)],
+        ["Lượt nạp đã duyệt", vnd(r.approvedTopupCount)],
+        ["Doanh thu", vnd(r.totalRevenueVnd) + "đ"],
+        ["Credits đã bán", vnd(r.totalCreditsSold)],
+        ["Đang nợ khách", vnd(r.outstandingCreditsLiability) + " credits"]
       ];
-      (payload.statement || []).slice(0, 6).forEach(function (entry) {
-        lines.push(new Date(entry.at).toLocaleString("vi-VN") + " — " + (entry.credits > 0 ? "+" : "") + entry.credits + ": " + entry.note);
+      kpis.forEach(function (k) {
+        var d = document.createElement("div");
+        var s = document.createElement("strong"); s.textContent = k[1];
+        var m = document.createElement("div"); m.className = "muted"; m.textContent = k[0];
+        d.appendChild(s); d.appendChild(m); box.appendChild(d);
+      });
+    }
+
+    document.getElementById("lookup-btn").addEventListener("click", async function () {
+      var email = document.getElementById("lookup-email").value.trim();
+      if (!email) { say("Nhập email khách trước.", false); return; }
+      var res = await fetch("/v1/admin/accounts/lookup?email=" + encodeURIComponent(email), { headers: headers() });
+      var payload = await res.json();
+      if (!res.ok) { say(payload.error || "Không tra cứu được.", false); return; }
+      var lines = ["Số dư: " + vnd(payload.account.balanceCredits) + " credits (" + payload.account.displayName + ")"];
+      (payload.statement || []).slice(0, 8).forEach(function (e) {
+        lines.push(new Date(e.at).toLocaleString("vi-VN") + " — " + (e.credits > 0 ? "+" : "") + e.credits + ": " + e.note);
       });
       document.getElementById("lookup-result").textContent = lines.join("\n");
-      document.getElementById("lookup-result").style.whiteSpace = "pre-line";
       say("Đã tra cứu " + email + ".", true);
     });
-    document.getElementById("load-btn").addEventListener("click", function () {
-      loadReviewQueue();
-      loadRevenue();
-    });
-    document.getElementById("load-btn").addEventListener("click", loadPending);
-    document.getElementById("reset-btn").addEventListener("click", async function () {
-      const email = document.getElementById("reset-email").value.trim();
-      if (!email) { say("Nhập email của khách trước.", false); return; }
-      const response = await fetch("/v1/admin/accounts/reset-password", {
-        method: "POST", headers: headers(), body: JSON.stringify({ email: email })
-      });
-      const payload = await response.json();
-      if (!response.ok) { say(payload.error || "Không cấp lại được.", false); return; }
-      const temporary = response.headers.get("X-CineJelly-Temporary-Password") || "";
-      say("Mật khẩu tạm của " + email + ": " + temporary + " — gửi cho khách, nhắc khách đổi ngay sau khi vào.", true);
-    });
     document.getElementById("adjust-btn").addEventListener("click", async function () {
-      const email = document.getElementById("adjust-email").value.trim();
-      const credits = Number(document.getElementById("adjust-credits").value);
-      const note = document.getElementById("adjust-note").value.trim();
-      const response = await fetch("/v1/admin/credits/adjust", {
-        method: "POST", headers: headers(),
-        body: JSON.stringify({ email: email, credits: credits, ...(note ? { note: note } : {}) })
-      });
-      const payload = await response.json();
-      if (!response.ok) { say(payload.error || "Không thực hiện được.", false); return; }
-      say("Xong — số dư mới của " + email + ": " + payload.account.balanceCredits.toLocaleString("vi-VN") + " credits.", true);
+      var res = await fetch("/v1/admin/credits/adjust", { method: "POST", headers: headers(), body: JSON.stringify({ email: document.getElementById("adjust-email").value.trim(), credits: Number(document.getElementById("adjust-credits").value), note: document.getElementById("adjust-note").value.trim() }) });
+      var payload = await res.json();
+      if (!res.ok) { say(payload.error || "Lỗi.", false); return; }
+      say("Xong — số dư mới: " + vnd(payload.account.balanceCredits) + " credits.", true);
     });
-    // Auto refresh the queue every 60s while the desk is open.
-    setInterval(function () {
-      if (keyInput.value.trim()) {
-        loadPending();
-        loadReviewQueue();
-      }
-    }, 60000);
+    document.getElementById("reset-btn").addEventListener("click", async function () {
+      var email = document.getElementById("reset-email").value.trim();
+      if (!email) { say("Nhập email khách trước.", false); return; }
+      var res = await fetch("/v1/admin/accounts/reset-password", { method: "POST", headers: headers(), body: JSON.stringify({ email: email }) });
+      var payload = await res.json();
+      if (!res.ok) { say(payload.error || "Lỗi.", false); return; }
+      say("Mật khẩu tạm của " + email + ": " + (res.headers.get("X-CineJelly-Temporary-Password") || "") + " — gửi cho khách, nhắc đổi ngay.", true);
+    });
+
+    async function loadSettings() {
+      var res = await fetch("/v1/admin/settings", { headers: headers() });
+      if (!res.ok) { return; }
+      currentSettings = (await res.json()).settings;
+      document.getElementById("set-refund-policy").value = currentSettings.refundPolicy;
+      document.getElementById("set-credits-per-second").value = currentSettings.pricing.creditsPerRenderSecond;
+      var mult = currentSettings.pricing.qualityMultipliers || {};
+      ["draft", "standard", "high", "ultimate"].forEach(function (q) {
+        var el = document.getElementById("mult-" + q);
+        if (mult[q] !== undefined) { el.value = mult[q]; }
+      });
+      document.getElementById("set-bank-info").value = currentSettings.topupBankInfo || "";
+      document.getElementById("model-video").value = (currentSettings.models && currentSettings.models.videoModel) || "";
+      document.getElementById("model-image").value = (currentSettings.models && currentSettings.models.imageModel) || "";
+      document.getElementById("model-llm").value = (currentSettings.models && currentSettings.models.llmModel) || "";
+      document.getElementById("model-speech").value = (currentSettings.models && currentSettings.models.speechModel) || "";
+      document.getElementById("studio-announcement").value = (currentSettings.studio && currentSettings.studio.announcement) || "";
+      document.getElementById("studio-images").value = ((currentSettings.studio && currentSettings.studio.featuredImages) || []).join(", ");
+      renderPackages(currentSettings.packages || []);
+      var audit = (currentSettings.auditTrail || [])[0];
+      document.getElementById("audit-line").textContent = audit ? ("Sửa gần nhất: " + new Date(audit.at).toLocaleString("vi-VN") + " — " + audit.detail) : "";
+    }
+    function renderPackages(packages) {
+      var editor = document.getElementById("package-editor");
+      editor.innerHTML = "";
+      packages.forEach(function (pkg) { editor.appendChild(packageRow(pkg)); });
+    }
+    function packageRow(pkg) {
+      var row = document.createElement("div"); row.className = "pkg-row";
+      function inp(val, ph) { var i = document.createElement("input"); i.value = val == null ? "" : val; i.placeholder = ph; return i; }
+      var id = inp(pkg.packageId, "packageId"); id.dataset.f = "packageId";
+      var label = inp(pkg.label, "Tên gói"); label.dataset.f = "label";
+      var credits = inp(pkg.credits, "credits"); credits.type = "number"; credits.dataset.f = "credits";
+      var price = inp(pkg.priceVnd, "giá VND"); price.type = "number"; price.dataset.f = "priceVnd";
+      var del = document.createElement("button"); del.className = "del"; del.textContent = "🗑"; del.addEventListener("click", function () { row.remove(); });
+      row.appendChild(id); row.appendChild(label); row.appendChild(credits); row.appendChild(price); row.appendChild(del);
+      return row;
+    }
+    document.getElementById("add-package").addEventListener("click", function () {
+      document.getElementById("package-editor").appendChild(packageRow({ packageId: "", label: "", credits: 0, priceVnd: 0 }));
+    });
+    document.getElementById("save-settings").addEventListener("click", async function () {
+      var packages = [];
+      document.querySelectorAll("#package-editor .pkg-row").forEach(function (row) {
+        var pkg = {};
+        row.querySelectorAll("input").forEach(function (i) {
+          pkg[i.dataset.f] = (i.type === "number") ? Number(i.value) : i.value.trim();
+        });
+        packages.push(pkg);
+      });
+      var multipliers = {};
+      ["draft", "standard", "high", "ultimate"].forEach(function (q) {
+        var v = document.getElementById("mult-" + q).value;
+        if (v !== "") { multipliers[q] = Number(v); }
+      });
+      var images = document.getElementById("studio-images").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      var patch = {
+        refundPolicy: document.getElementById("set-refund-policy").value,
+        creditsPerRenderSecond: Number(document.getElementById("set-credits-per-second").value),
+        qualityMultipliers: multipliers,
+        packages: packages,
+        topupBankInfo: document.getElementById("set-bank-info").value.trim(),
+        models: {
+          videoModel: document.getElementById("model-video").value.trim(),
+          imageModel: document.getElementById("model-image").value.trim(),
+          llmModel: document.getElementById("model-llm").value.trim(),
+          speechModel: document.getElementById("model-speech").value.trim()
+        },
+        studio: {
+          announcement: document.getElementById("studio-announcement").value.trim(),
+          featuredImages: images
+        }
+      };
+      var res = await fetch("/v1/admin/settings", { method: "PUT", headers: headers(), body: JSON.stringify(patch) });
+      var payload = await res.json();
+      if (!res.ok) { say(payload.error || "Không lưu được.", false); return; }
+      currentSettings = payload.settings;
+      say("✅ Đã lưu cấu hình. Áp dụng ngay cho các video và lượt nạp tiếp theo.", true);
+      loadSettings();
+    });
+
+    document.getElementById("load-btn").addEventListener("click", loadAll);
+    setInterval(function () { if (keyInput.value.trim()) { loadTopups(); loadRefunds(); loadReviewQueue(); } }, 60000);
   </script>
 </body>
 </html>`;

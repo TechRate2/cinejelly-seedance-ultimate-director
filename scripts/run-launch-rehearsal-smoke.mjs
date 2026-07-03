@@ -195,12 +195,22 @@ try {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));
   }
   check("A_job_reaches_terminal_state", ["failed", "canceled"].includes(finalStatus), `status=${finalStatus}`);
+  // Default policy is MANUAL (admin-favorable): a failed video does NOT auto-refund — it
+  // lands in the operator refund queue and the customer keeps a debit until the operator
+  // decides. This is the core money-policy change and is proven here end to end.
   const meAfterFailure = await api("GET", "/v1/account/me", undefined, A);
   check(
-    "A_refunded_automatically",
-    meAfterFailure.payload.account?.balanceCredits === 500,
+    "A_not_auto_refunded_under_manual_policy",
+    meAfterFailure.payload.account?.balanceCredits === 500 - expectedCharge,
     `balance=${meAfterFailure.payload.account?.balanceCredits}`
   );
+  const refundQueue = await api("GET", "/v1/admin/refunds", undefined, adminHeaders);
+  const queuedRefund = (refundQueue.payload.pending ?? []).find((r) => r.jobId === jobId);
+  check("A_failure_queued_for_operator_refund", Boolean(queuedRefund), `pending=${(refundQueue.payload.pending ?? []).length}`);
+  const refundDecision = await api("POST", "/v1/admin/refunds/decide", { refundRequestId: queuedRefund?.refundRequestId, approve: true }, adminHeaders);
+  check("operator_approves_refund", refundDecision.status === 200 && refundDecision.payload.refundRequest?.status === "refunded");
+  const meAfterRefund = await api("GET", "/v1/account/me", undefined, A);
+  check("A_credited_after_operator_refund", meAfterRefund.payload.account?.balanceCredits === 500, `balance=${meAfterRefund.payload.account?.balanceCredits}`);
   const statement = await api("GET", "/v1/account/statement", undefined, A);
   const statementTypes = (statement.payload.entries ?? []).map((entry) => entry.type);
   check(

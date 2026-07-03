@@ -138,7 +138,7 @@ try {
   const serverSource = (await import("node:fs")).readFileSync(new URL("../src/api/server.ts", import.meta.url), "utf8");
   check("all_four_render_routes_charge_users", (serverSource.match(/planUserRenderCharge\(\{/g) || []).length >= 4);
   check("charges_gate_on_chargeable_status", (serverSource.match(/chargeableSubmissionStatus\(submission\.summary\.status\)/g) || []).length >= 3 && serverSource.includes('status === "paused_for_review"'));
-  check("global_billing_reconciler_wired", serverSource.includes("onJobFinalized: (event)") && serverSource.includes("reconcileRenderCharges((jobId) => jobManager.statusOfAny(jobId))"));
+  check("global_billing_reconciler_wired", serverSource.includes("onJobFinalized: (event)") && serverSource.includes("reconcileRenderCharges("));
   check("sync_render_charges_and_refunds", serverSource.includes("syncUserCharge") && serverSource.includes('jobId: syncJobId, reason: "video bị lỗi"'));
   check("workspace_pinning_blocked_for_users", serverSource.includes("Tài khoản khách không dùng workspace billing"));
   // Boot reconcile refunds charges whose job vanished; keeps live/succeeded jobs.
@@ -159,7 +159,7 @@ try {
   // Operator topup desk ships.
   const topupDesk = await fetch(`${baseUrl}/operator/topups`);
   const topupDeskHtml = await topupDesk.text();
-  check("operator_topup_desk_ships", topupDesk.status === 200 && topupDeskHtml.includes("Duyệt nạp credits") && !topupDeskHtml.includes("admin_smoke_token"));
+  check("operator_admin_center_ships", topupDesk.status === 200 && topupDeskHtml.includes("Trung tâm quản trị") && !topupDeskHtml.includes("admin_smoke_token"));
   // Landing page routes customers to the studio.
   const landing = await fetch(`${baseUrl}/`);
   const landingHtml = await landing.text();

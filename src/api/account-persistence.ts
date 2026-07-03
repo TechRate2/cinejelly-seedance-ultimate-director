@@ -25,6 +25,7 @@ export interface PersistedAccountState {
   sessions: unknown[];
   entries: unknown[];
   topups: unknown[];
+  refundRequests?: unknown[];
 }
 
 export interface AccountPersistenceDriver {
@@ -117,7 +118,8 @@ export class SqliteAccountDriver implements AccountPersistenceDriver {
       "CREATE TABLE IF NOT EXISTS account_users (user_id TEXT PRIMARY KEY, record TEXT NOT NULL);" +
         "CREATE TABLE IF NOT EXISTS account_sessions (token_sha256 TEXT PRIMARY KEY, record TEXT NOT NULL);" +
         "CREATE TABLE IF NOT EXISTS account_credit_entries (entry_id TEXT PRIMARY KEY, record TEXT NOT NULL);" +
-        "CREATE TABLE IF NOT EXISTS account_topups (topup_id TEXT PRIMARY KEY, record TEXT NOT NULL);"
+        "CREATE TABLE IF NOT EXISTS account_topups (topup_id TEXT PRIMARY KEY, record TEXT NOT NULL);" +
+        "CREATE TABLE IF NOT EXISTS account_refund_requests (refund_request_id TEXT PRIMARY KEY, record TEXT NOT NULL);"
     );
   }
 
@@ -126,7 +128,8 @@ export class SqliteAccountDriver implements AccountPersistenceDriver {
     const sessions = this.database.prepare("SELECT record FROM account_sessions").all() as { record: string }[];
     const entries = this.database.prepare("SELECT record FROM account_credit_entries").all() as { record: string }[];
     const topups = this.database.prepare("SELECT record FROM account_topups").all() as { record: string }[];
-    if (users.length === 0 && sessions.length === 0 && entries.length === 0 && topups.length === 0) {
+    const refundRequests = this.database.prepare("SELECT record FROM account_refund_requests").all() as { record: string }[];
+    if (users.length === 0 && sessions.length === 0 && entries.length === 0 && topups.length === 0 && refundRequests.length === 0) {
       return undefined;
     }
     const parse = (rows: { record: string }[]): unknown[] => rows.map((row) => JSON.parse(row.record) as unknown);
@@ -135,7 +138,8 @@ export class SqliteAccountDriver implements AccountPersistenceDriver {
       users: parse(users),
       sessions: parse(sessions),
       entries: parse(entries),
-      topups: parse(topups)
+      topups: parse(topups),
+      refundRequests: parse(refundRequests)
     };
   }
 
@@ -156,6 +160,12 @@ export class SqliteAccountDriver implements AccountPersistenceDriver {
         (record) => (record as { entryId: string }).entryId
       );
       this.replaceAll("account_topups", "topup_id", state.topups, (record) => (record as { topupId: string }).topupId);
+      this.replaceAll(
+        "account_refund_requests",
+        "refund_request_id",
+        state.refundRequests ?? [],
+        (record) => (record as { refundRequestId: string }).refundRequestId
+      );
       this.database.exec("COMMIT;");
     } catch (error) {
       this.database.exec("ROLLBACK;");
@@ -218,22 +228,25 @@ export class PostgresAccountDriver implements AccountPersistenceDriver {
       "CREATE TABLE IF NOT EXISTS account_users (user_id TEXT PRIMARY KEY, record TEXT NOT NULL);" +
         "CREATE TABLE IF NOT EXISTS account_sessions (token_sha256 TEXT PRIMARY KEY, record TEXT NOT NULL);" +
         "CREATE TABLE IF NOT EXISTS account_credit_entries (entry_id TEXT PRIMARY KEY, record TEXT NOT NULL);" +
-        "CREATE TABLE IF NOT EXISTS account_topups (topup_id TEXT PRIMARY KEY, record TEXT NOT NULL);"
+        "CREATE TABLE IF NOT EXISTS account_topups (topup_id TEXT PRIMARY KEY, record TEXT NOT NULL);" +
+        "CREATE TABLE IF NOT EXISTS account_refund_requests (refund_request_id TEXT PRIMARY KEY, record TEXT NOT NULL);"
     );
-    const [users, sessions, entries, topups] = await Promise.all([
+    const [users, sessions, entries, topups, refundRequests] = await Promise.all([
       this.pool.query("SELECT record FROM account_users"),
       this.pool.query("SELECT record FROM account_sessions"),
       this.pool.query("SELECT record FROM account_credit_entries"),
-      this.pool.query("SELECT record FROM account_topups")
+      this.pool.query("SELECT record FROM account_topups"),
+      this.pool.query("SELECT record FROM account_refund_requests")
     ]);
     const parse = (rows: { record: string }[]): unknown[] => rows.map((row) => JSON.parse(row.record) as unknown);
-    if (users.rows.length || sessions.rows.length || entries.rows.length || topups.rows.length) {
+    if (users.rows.length || sessions.rows.length || entries.rows.length || topups.rows.length || refundRequests.rows.length) {
       this.loaded = {
         schemaVersion: this.schemaVersion,
         users: parse(users.rows),
         sessions: parse(sessions.rows),
         entries: parse(entries.rows),
-        topups: parse(topups.rows)
+        topups: parse(topups.rows),
+        refundRequests: parse(refundRequests.rows)
       };
     }
   }
@@ -274,6 +287,11 @@ export class PostgresAccountDriver implements AccountPersistenceDriver {
       await writeTable("account_sessions", state.sessions, (record) => (record as { tokenSha256: string }).tokenSha256);
       await writeTable("account_credit_entries", state.entries, (record) => (record as { entryId: string }).entryId);
       await writeTable("account_topups", state.topups, (record) => (record as { topupId: string }).topupId);
+      await writeTable(
+        "account_refund_requests",
+        state.refundRequests ?? [],
+        (record) => (record as { refundRequestId: string }).refundRequestId
+      );
       await this.pool.query("COMMIT");
     } catch (error) {
       await this.pool.query("ROLLBACK");

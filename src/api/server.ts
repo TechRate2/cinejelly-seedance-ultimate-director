@@ -22,7 +22,8 @@ import {
 } from "../application/render-request-normalizer.js";
 import { buildRenderSettingsDescriptor } from "../application/render-settings-descriptor.js";
 import { UPLOAD_FILE_NAME_PATTERN, buildUploadUri, uploadsDirectoryFor } from "../core/upload-reference.js";
-import { UserAccountError, UserAccountStore } from "./user-account-store.js";
+import { UserAccountError, UserAccountStore, estimateRenderCredits, type RenderCreditPricing } from "./user-account-store.js";
+import { AdminSettingsStore } from "./admin-settings-store.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
 import {
@@ -457,6 +458,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const clientPolicyGate = ApiClientPolicyGate.fromEnv(process.env);
   const workspaceBillingGate = ApiWorkspaceBillingGate.fromEnv(process.env);
   const userAccountStore = UserAccountStore.fromEnv(process.env);
+  const adminSettingsStore = AdminSettingsStore.fromEnv(process.env);
+  // Re-apply operator model choices persisted from the admin UI before any job runs.
+  adminSettingsStore.applyModelEnvOverrides();
   const apiAuthGuard = new ApiAuthGuard({
     disabled: readApiAuthDisabled(process.env.CINEJELLY_DISABLE_API_AUTH),
     ...(process.env.CINEJELLY_API_AUTH_TOKEN ? { sharedKey: process.env.CINEJELLY_API_AUTH_TOKEN } : {}),
@@ -488,16 +492,22 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (!finalizedUserId || event.status === "succeeded") {
         return;
       }
-      userAccountStore.refundRender({
-        userId: finalizedUserId,
-        jobId: event.jobId,
-        reason: event.status === "failed" ? "video bị lỗi" : event.status === "canceled" ? "đã hủy" : "bị từ chối duyệt"
-      });
+      const reason = event.status === "failed" ? "video bị lỗi" : event.status === "canceled" ? "đã hủy" : "bị từ chối duyệt";
+      if (adminSettingsStore.refundPolicy() === "auto") {
+        userAccountStore.refundRender({ userId: finalizedUserId, jobId: event.jobId, reason });
+        return;
+      }
+      // Admin-favorable default: no automatic refunds — the case lands in the operator's
+      // refund queue on /operator/topups for a one-tap decision.
+      userAccountStore.queueRefundRequest({ userId: finalizedUserId, jobId: event.jobId, reason });
     }
   });
   // Charges are durable but jobs are not: after a restart, refund every unmatched charge
   // whose job vanished or ended without success.
-  userAccountStore.reconcileRenderCharges((jobId) => jobManager.statusOfAny(jobId));
+  userAccountStore.reconcileRenderCharges(
+    (jobId) => jobManager.statusOfAny(jobId),
+    { mode: adminSettingsStore.refundPolicy() === "auto" ? "refund" : "queue" }
+  );
   const renderProviderLeaseService = renderProviderLeaseServiceConfig(process.env);
   const productionGraphResumeQueueService = productionGraphResumeQueueServiceConfig(process.env);
   const shutdownCoordinator = new ApiShutdownCoordinator();
@@ -555,7 +565,10 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendHtml(response, 200, buildOperatorLaunchDashboardPage());
         return;
       }
-      if (request.method === "GET" && requestUrl.pathname === "/operator/topups") {
+      if (
+        request.method === "GET" &&
+        (requestUrl.pathname === "/operator/topups" || requestUrl.pathname === "/operator/admin")
+      ) {
         sendHtml(response, 200, buildOperatorTopupPage());
         return;
       }
@@ -759,6 +772,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const userRenderCharge = planUserRenderCharge({
           principal: authDecision.principal,
           store: userAccountStore,
+          pricing: adminSettingsStore.pricing(),
           request: normalizedRequest
         });
         let commercialReservation: CommercialRenderReservation | undefined;
@@ -976,6 +990,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const userRenderCharge = planUserRenderCharge({
           principal: authDecision.principal,
           store: userAccountStore,
+          pricing: adminSettingsStore.pricing(),
           request: normalizedRequest
         });
         let commercialReservation: CommercialRenderReservation | undefined;
@@ -1123,12 +1138,15 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         if (!account) {
           throw new UserAccountError("Phiên đăng nhập không còn hợp lệ. Hãy đăng nhập lại.", 401);
         }
+        const studioContent = adminSettingsStore.studio();
         sendJson(response, 200, {
           account,
-          packages: userAccountStore.listPackages(),
-          renderPricing: userAccountStore.renderPricing(),
-          topupInstructions: process.env.CINEJELLY_TOPUP_BANK_INFO?.trim() ||
-            "Chuyển khoản theo gói đã chọn rồi bấm 'Tôi đã chuyển khoản' — quản trị viên sẽ duyệt và cộng credits."
+          packages: adminSettingsStore.packages(),
+          renderPricing: adminSettingsStore.pricing(),
+          topupInstructions: adminSettingsStore.topupBankInfo() ||
+            "Chuyển khoản theo gói đã chọn rồi bấm 'Tôi đã chuyển khoản' — quản trị viên sẽ duyệt và cộng credits.",
+          ...(studioContent.announcement ? { announcement: studioContent.announcement } : {}),
+          ...(studioContent.featuredImages?.length ? { featuredImages: studioContent.featuredImages } : {})
         }, requestContext);
         return;
       }
@@ -1139,7 +1157,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/account/topups") {
         const { userId } = requireUserPrincipal(authDecision.principal);
-        const configuredBankInfo = process.env.CINEJELLY_TOPUP_BANK_INFO?.trim() ?? "";
+        const configuredBankInfo = adminSettingsStore.topupBankInfo();
         if (!configuredBankInfo || /dien ngan hang|so tai khoan/i.test(configuredBankInfo)) {
           // The money path must never show a placeholder: block until the operator fills
           // the real bank account in .env (CINEJELLY_TOPUP_BANK_INFO).
@@ -1150,15 +1168,18 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         }
         assertJsonContentType(request);
         const body = await readJsonBody<{ packageId?: string; note?: string }>(request, maxBodyBytes);
-        const topup = userAccountStore.requestTopup({
+        const chosenPackage = adminSettingsStore.packages().find((candidate) => candidate.packageId === (body.packageId ?? ""));
+        if (!chosenPackage) {
+          throw new UserAccountError("Gói nạp không tồn tại.", 404);
+        }
+        const topup = userAccountStore.requestTopupForPackage({
           userId,
-          packageId: body.packageId ?? "",
+          creditPackage: chosenPackage,
           ...(body.note ? { userNote: body.note } : {})
         });
         sendJson(response, 201, {
           topup,
-          instructions: process.env.CINEJELLY_TOPUP_BANK_INFO?.trim() ||
-            "Chuyển khoản theo gói đã chọn; quản trị viên sẽ duyệt và cộng credits trong ít phút."
+          instructions: configuredBankInfo
         }, requestContext);
         return;
       }
@@ -1191,6 +1212,35 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(response, 200, { status: "password_reset" }, requestContext, {
           "X-CineJelly-Temporary-Password": reset.temporaryPassword
         });
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/settings") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for admin settings.");
+        sendJson(response, 200, { settings: adminSettingsStore.snapshot() }, requestContext);
+        return;
+      }
+      if (request.method === "PUT" && requestUrl.pathname === "/v1/admin/settings") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required to change settings.");
+        assertJsonContentType(request);
+        const patch = await readJsonBody<Record<string, unknown>>(request, maxBodyBytes);
+        adminSettingsStore.update(patch, "operator-desk");
+        sendJson(response, 200, { settings: adminSettingsStore.snapshot() }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/refunds") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for the refund queue.");
+        sendJson(response, 200, { pending: userAccountStore.pendingRefundRequests() }, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/admin/refunds/decide") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required to decide refunds.");
+        assertJsonContentType(request);
+        const body = await readJsonBody<{ refundRequestId?: string; approve?: boolean }>(request, maxBodyBytes);
+        const decided = userAccountStore.decideRefundRequest({
+          refundRequestId: body.refundRequestId ?? "",
+          approve: body.approve === true
+        });
+        sendJson(response, 200, { refundRequest: decided }, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/admin/accounts/lookup") {
@@ -1417,6 +1467,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const userRenderCharge = planUserRenderCharge({
           principal: authDecision.principal,
           store: userAccountStore,
+          pricing: adminSettingsStore.pricing(),
           request: normalizedRequest
         });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
@@ -1535,6 +1586,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const syncUserCharge = planUserRenderCharge({
           principal: authDecision.principal,
           store: userAccountStore,
+          pricing: adminSettingsStore.pricing(),
           request: normalizedRequest
         });
         const syncJobId = `sync_${requestContext.requestId}`;
@@ -2949,6 +3001,7 @@ function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principa
 function planUserRenderCharge(input: {
   readonly principal: ReturnType<ApiAuthGuard["authorize"]>["principal"];
   readonly store: UserAccountStore;
+  readonly pricing: RenderCreditPricing;
   readonly request: { readonly settings?: { readonly durationTargetSeconds?: number; readonly qualityMode?: string } };
 }): { readonly userId: string; readonly credits: number } | undefined {
   if (input.principal?.kind !== "user" || !input.principal.userId) {
@@ -2959,11 +3012,12 @@ function planUserRenderCharge(input: {
     // be able to pin renders onto (and drain) another tenant's workspace quota.
     throw new UserAccountError("Tài khoản khách không dùng workspace billing.", 403);
   }
-  const credits = input.store.estimateChargeFor({
+  const credits = estimateRenderCredits({
     ...(input.request.settings?.durationTargetSeconds !== undefined
       ? { durationTargetSeconds: input.request.settings.durationTargetSeconds }
       : {}),
-    ...(input.request.settings?.qualityMode ? { qualityMode: input.request.settings.qualityMode } : {})
+    ...(input.request.settings?.qualityMode ? { qualityMode: input.request.settings.qualityMode } : {}),
+    pricing: input.pricing
   });
   const balanceCredits = input.store.balanceOf(input.principal.userId);
   if (balanceCredits < credits) {

@@ -1,0 +1,386 @@
+/**
+ * Runtime operator settings — the admin dashboard's backing store.
+ *
+ * Everything a Vietnamese solo operator tunes while the product is LIVE, editable from the
+ * admin UI without touching the server: render pricing (credits/second + quality
+ * multipliers), the credit-package catalog, bank-transfer instructions, provider model ids,
+ * the refund policy, and studio content (announcement + featured images). Values here
+ * OVERRIDE the .env defaults; anything not set falls back to the environment, so a fresh
+ * deploy still boots from the single .env file.
+ *
+ * Money policy: refundPolicy defaults to "manual" — failed/canceled/rejected render charges
+ * are queued for the operator to decide instead of refunding automatically. Switching to
+ * "auto" restores automatic refunds. Every change is appended to an audit trail.
+ */
+
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import {
+  DEFAULT_CREDIT_PACKAGES,
+  loadCreditPackages,
+  loadRenderCreditPricing,
+  UserAccountError,
+  type CreditPackage,
+  type RenderCreditPricing
+} from "./user-account-store.js";
+
+const SETTINGS_SCHEMA_VERSION = "cinejelly.admin-settings.v1";
+const DEFAULT_OUTPUT_DIR = "assets/output_deliverables";
+const DEFAULT_SETTINGS_FILE = "admin-settings.json";
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
+const MAX_AUDIT_ENTRIES = 200;
+const MAX_PACKAGES = 12;
+const MAX_FEATURED_IMAGES = 8;
+const MODEL_ID_PATTERN = /^[A-Za-z0-9._\/-]{2,160}$/;
+const UPLOAD_HANDLE_PATTERN = /^upload:\/\/up_[a-f0-9]{16,64}\.(png|jpg|webp)$/;
+
+export type RefundPolicy = "manual" | "auto";
+
+export interface AdminStudioContent {
+  readonly announcement?: string;
+  readonly featuredImages?: readonly string[];
+}
+
+export interface AdminModelOverrides {
+  readonly videoModel?: string;
+  readonly imageModel?: string;
+  readonly llmModel?: string;
+  readonly speechModel?: string;
+}
+
+export interface AdminSettingsState {
+  schemaVersion: string;
+  refundPolicy?: RefundPolicy;
+  creditsPerRenderSecond?: number;
+  qualityMultipliers?: Record<string, number>;
+  packages?: CreditPackage[];
+  topupBankInfo?: string;
+  models?: AdminModelOverrides;
+  studio?: AdminStudioContent;
+  auditTrail: { at: string; action: string; detail: string }[];
+}
+
+export interface AdminSettingsPatch {
+  readonly refundPolicy?: unknown;
+  readonly creditsPerRenderSecond?: unknown;
+  readonly qualityMultipliers?: unknown;
+  readonly packages?: unknown;
+  readonly topupBankInfo?: unknown;
+  readonly models?: unknown;
+  readonly studio?: unknown;
+}
+
+export function readAdminSettingsPath(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.CINEJELLY_ADMIN_SETTINGS_PATH?.trim();
+  const outputDir = env.CINEJELLY_OUTPUT_DIR?.trim() || DEFAULT_OUTPUT_DIR;
+  const settingsPath = configured || join(outputDir, DEFAULT_SETTINGS_FILE);
+  if (CONTROL_CHARACTER_PATTERN.test(settingsPath)) {
+    throw new Error("CINEJELLY_ADMIN_SETTINGS_PATH must not contain control characters.");
+  }
+  return settingsPath;
+}
+
+export class AdminSettingsStore {
+  private readonly settingsPath: string;
+  private readonly env: NodeJS.ProcessEnv;
+  private state: AdminSettingsState;
+
+  public constructor(input: { readonly settingsPath: string; readonly env?: NodeJS.ProcessEnv }) {
+    this.settingsPath = input.settingsPath;
+    this.env = input.env ?? process.env;
+    this.state = this.loadState();
+  }
+
+  public static fromEnv(env: NodeJS.ProcessEnv = process.env): AdminSettingsStore {
+    return new AdminSettingsStore({ settingsPath: readAdminSettingsPath(env), env });
+  }
+
+  // ---------- effective values (settings override env, env overrides defaults) ----------
+
+  public refundPolicy(): RefundPolicy {
+    if (this.state.refundPolicy) {
+      return this.state.refundPolicy;
+    }
+    const fromEnv = this.env.CINEJELLY_REFUND_POLICY?.trim().toLowerCase();
+    return fromEnv === "auto" ? "auto" : "manual";
+  }
+
+  public pricing(): RenderCreditPricing {
+    const base = loadRenderCreditPricing(this.env);
+    const perSecond = this.state.creditsPerRenderSecond ?? base.creditsPerRenderSecond;
+    return {
+      creditsPerRenderSecond: perSecond,
+      qualityMultipliers: { ...base.qualityMultipliers, ...(this.state.qualityMultipliers ?? {}) },
+      minimumChargeCredits: Math.max(1, Math.round(perSecond * 3))
+    };
+  }
+
+  public packages(): readonly CreditPackage[] {
+    if (this.state.packages && this.state.packages.length > 0) {
+      return this.state.packages;
+    }
+    try {
+      return loadCreditPackages(this.env);
+    } catch {
+      return DEFAULT_CREDIT_PACKAGES;
+    }
+  }
+
+  public topupBankInfo(): string {
+    return this.state.topupBankInfo?.trim() || this.env.CINEJELLY_TOPUP_BANK_INFO?.trim() || "";
+  }
+
+  public models(): AdminModelOverrides {
+    return this.state.models ?? {};
+  }
+
+  public studio(): AdminStudioContent {
+    return this.state.studio ?? {};
+  }
+
+  /** Everything the admin dashboard shows, plus the audit trail tail. */
+  public snapshot(): {
+    readonly refundPolicy: RefundPolicy;
+    readonly pricing: RenderCreditPricing;
+    readonly packages: readonly CreditPackage[];
+    readonly topupBankInfo: string;
+    readonly models: AdminModelOverrides;
+    readonly studio: AdminStudioContent;
+    readonly auditTrail: readonly { at: string; action: string; detail: string }[];
+  } {
+    return {
+      refundPolicy: this.refundPolicy(),
+      pricing: this.pricing(),
+      packages: this.packages(),
+      topupBankInfo: this.topupBankInfo(),
+      models: this.models(),
+      studio: this.studio(),
+      auditTrail: this.state.auditTrail.slice(-30).reverse()
+    };
+  }
+
+  /**
+   * Apply persisted model overrides onto the process environment at boot so the per-job
+   * director runtime (which reads env) uses the operator's choices after a restart.
+   */
+  public applyModelEnvOverrides(target: NodeJS.ProcessEnv = process.env): void {
+    const models = this.models();
+    if (models.videoModel) {
+      target.ATLASCLOUD_SEEDANCE_STANDARD_MODEL = models.videoModel;
+    }
+    if (models.imageModel) {
+      target.ATLASCLOUD_IMAGE_MODEL = models.imageModel;
+    }
+    if (models.llmModel) {
+      target.ATLASCLOUD_LLM_MODEL = models.llmModel;
+    }
+    if (models.speechModel) {
+      target.ATLASCLOUD_SPEECH_MODEL = models.speechModel;
+    }
+  }
+
+  // ---------- validated updates from the admin UI ----------
+
+  public update(patch: AdminSettingsPatch, updatedBy: string): void {
+    const changes: string[] = [];
+
+    if (patch.refundPolicy !== undefined) {
+      if (patch.refundPolicy !== "manual" && patch.refundPolicy !== "auto") {
+        throw new UserAccountError('refundPolicy phải là "manual" hoặc "auto".', 400);
+      }
+      this.state.refundPolicy = patch.refundPolicy;
+      changes.push(`refundPolicy=${patch.refundPolicy}`);
+    }
+
+    if (patch.creditsPerRenderSecond !== undefined) {
+      const value = Number(patch.creditsPerRenderSecond);
+      if (!Number.isFinite(value) || value <= 0 || value > 10_000) {
+        throw new UserAccountError("Giá credits/giây phải là số dương (tối đa 10000).", 400);
+      }
+      this.state.creditsPerRenderSecond = Math.round(value * 100) / 100;
+      changes.push(`creditsPerRenderSecond=${this.state.creditsPerRenderSecond}`);
+    }
+
+    if (patch.qualityMultipliers !== undefined) {
+      this.state.qualityMultipliers = this.validatedMultipliers(patch.qualityMultipliers);
+      changes.push(`qualityMultipliers=${JSON.stringify(this.state.qualityMultipliers)}`);
+    }
+
+    if (patch.packages !== undefined) {
+      this.state.packages = this.validatedPackages(patch.packages);
+      changes.push(`packages=${this.state.packages.length} gói`);
+    }
+
+    if (patch.topupBankInfo !== undefined) {
+      const value = typeof patch.topupBankInfo === "string" ? patch.topupBankInfo.trim() : "";
+      if (!value || value.length > 500 || CONTROL_CHARACTER_PATTERN.test(value)) {
+        throw new UserAccountError("Thông tin chuyển khoản không hợp lệ (1-500 ký tự).", 400);
+      }
+      this.state.topupBankInfo = value;
+      changes.push("topupBankInfo=đã cập nhật");
+    }
+
+    if (patch.models !== undefined) {
+      this.state.models = this.validatedModels(patch.models);
+      changes.push(`models=${JSON.stringify(this.state.models)}`);
+      // Live-apply so the very next render job uses the new models without a restart.
+      this.applyModelEnvOverrides();
+    }
+
+    if (patch.studio !== undefined) {
+      this.state.studio = this.validatedStudio(patch.studio);
+      changes.push("studio=đã cập nhật");
+    }
+
+    if (changes.length === 0) {
+      throw new UserAccountError("Không có thay đổi hợp lệ nào trong yêu cầu.", 400);
+    }
+    this.state.auditTrail.push({
+      at: new Date().toISOString(),
+      action: `update bởi ${updatedBy}`,
+      detail: changes.join("; ").slice(0, 500)
+    });
+    if (this.state.auditTrail.length > MAX_AUDIT_ENTRIES) {
+      this.state.auditTrail.splice(0, this.state.auditTrail.length - MAX_AUDIT_ENTRIES);
+    }
+    this.persist();
+  }
+
+  private validatedMultipliers(value: unknown): Record<string, number> {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new UserAccountError("qualityMultipliers phải là object {standard, high, ...}.", 400);
+    }
+    const allowed = new Set(["draft", "standard", "high", "ultimate"]);
+    const result: Record<string, number> = {};
+    for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+      if (!allowed.has(key)) {
+        throw new UserAccountError(`Hệ số chất lượng không hợp lệ: ${key}.`, 400);
+      }
+      const multiplier = Number(raw);
+      if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier > 100) {
+        throw new UserAccountError(`Hệ số ${key} phải là số dương (tối đa 100).`, 400);
+      }
+      result[key] = Math.round(multiplier * 100) / 100;
+    }
+    return result;
+  }
+
+  private validatedPackages(value: unknown): CreditPackage[] {
+    if (!Array.isArray(value) || value.length === 0 || value.length > MAX_PACKAGES) {
+      throw new UserAccountError(`Danh sách gói phải có 1-${MAX_PACKAGES} gói.`, 400);
+    }
+    const seen = new Set<string>();
+    return value.map((item, index) => {
+      const record = item as Partial<CreditPackage>;
+      const packageId = typeof record.packageId === "string" ? record.packageId.trim() : "";
+      const label = typeof record.label === "string" ? record.label.trim() : "";
+      const credits = Math.floor(Number(record.credits));
+      const priceVnd = Math.floor(Number(record.priceVnd));
+      if (!/^[a-z0-9_-]{2,40}$/.test(packageId)) {
+        throw new UserAccountError(`Gói ${index + 1}: packageId chỉ gồm a-z, 0-9, gạch (2-40 ký tự).`, 400);
+      }
+      if (seen.has(packageId)) {
+        throw new UserAccountError(`Gói ${index + 1}: packageId "${packageId}" bị trùng.`, 400);
+      }
+      seen.add(packageId);
+      if (!label || label.length > 60 || CONTROL_CHARACTER_PATTERN.test(label)) {
+        throw new UserAccountError(`Gói ${index + 1}: tên gói 1-60 ký tự.`, 400);
+      }
+      if (!Number.isFinite(credits) || credits <= 0 || credits > 10_000_000) {
+        throw new UserAccountError(`Gói ${index + 1}: credits phải là số dương.`, 400);
+      }
+      if (!Number.isFinite(priceVnd) || priceVnd <= 0 || priceVnd > 1_000_000_000) {
+        throw new UserAccountError(`Gói ${index + 1}: giá VND phải là số dương.`, 400);
+      }
+      const bonusNote = typeof record.bonusNote === "string" ? record.bonusNote.trim().slice(0, 80) : "";
+      return { packageId, label, credits, priceVnd, ...(bonusNote ? { bonusNote } : {}) };
+    });
+  }
+
+  private validatedModels(value: unknown): AdminModelOverrides {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new UserAccountError("models phải là object.", 400);
+    }
+    const record = value as Record<string, unknown>;
+    const result: Record<string, string> = {};
+    for (const key of ["videoModel", "imageModel", "llmModel", "speechModel"]) {
+      const raw = record[key];
+      if (raw === undefined || raw === null || raw === "") {
+        continue;
+      }
+      if (typeof raw !== "string" || !MODEL_ID_PATTERN.test(raw.trim())) {
+        throw new UserAccountError(`${key} không hợp lệ (chỉ chữ, số, dấu chấm, gạch, /).`, 400);
+      }
+      result[key] = raw.trim();
+    }
+    return result;
+  }
+
+  private validatedStudio(value: unknown): AdminStudioContent {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new UserAccountError("studio phải là object.", 400);
+    }
+    const record = value as Record<string, unknown>;
+    const result: { announcement?: string; featuredImages?: string[] } = {};
+    if (record.announcement !== undefined) {
+      const announcement = typeof record.announcement === "string" ? record.announcement.trim() : "";
+      if (announcement.length > 300 || CONTROL_CHARACTER_PATTERN.test(announcement)) {
+        throw new UserAccountError("Thông báo studio tối đa 300 ký tự.", 400);
+      }
+      if (announcement) {
+        result.announcement = announcement;
+      }
+    }
+    if (record.featuredImages !== undefined) {
+      if (!Array.isArray(record.featuredImages) || record.featuredImages.length > MAX_FEATURED_IMAGES) {
+        throw new UserAccountError(`featuredImages là danh sách tối đa ${MAX_FEATURED_IMAGES} ảnh.`, 400);
+      }
+      const images = record.featuredImages.map((item, index) => {
+        if (typeof item !== "string" || !UPLOAD_HANDLE_PATTERN.test(item)) {
+          throw new UserAccountError(`Ảnh ${index + 1} phải là handle upload:// (ảnh png/jpg/webp đã tải lên).`, 400);
+        }
+        return item;
+      });
+      if (images.length > 0) {
+        result.featuredImages = images;
+      }
+    }
+    return result;
+  }
+
+  private loadState(): AdminSettingsState {
+    try {
+      const parsed = JSON.parse(readFileSync(this.settingsPath, "utf8")) as Partial<AdminSettingsState>;
+      if (parsed.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
+        throw new Error(`Admin settings schema mismatch at ${this.settingsPath}.`);
+      }
+      return {
+        schemaVersion: SETTINGS_SCHEMA_VERSION,
+        ...(parsed.refundPolicy === "auto" || parsed.refundPolicy === "manual" ? { refundPolicy: parsed.refundPolicy } : {}),
+        ...(typeof parsed.creditsPerRenderSecond === "number" ? { creditsPerRenderSecond: parsed.creditsPerRenderSecond } : {}),
+        ...(parsed.qualityMultipliers && typeof parsed.qualityMultipliers === "object"
+          ? { qualityMultipliers: parsed.qualityMultipliers as Record<string, number> }
+          : {}),
+        ...(Array.isArray(parsed.packages) ? { packages: parsed.packages as CreditPackage[] } : {}),
+        ...(typeof parsed.topupBankInfo === "string" ? { topupBankInfo: parsed.topupBankInfo } : {}),
+        ...(parsed.models && typeof parsed.models === "object" ? { models: parsed.models as AdminModelOverrides } : {}),
+        ...(parsed.studio && typeof parsed.studio === "object" ? { studio: parsed.studio as AdminStudioContent } : {}),
+        auditTrail: Array.isArray(parsed.auditTrail)
+          ? (parsed.auditTrail as { at: string; action: string; detail: string }[])
+          : []
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return { schemaVersion: SETTINGS_SCHEMA_VERSION, auditTrail: [] };
+      }
+      throw error;
+    }
+  }
+
+  private persist(): void {
+    mkdirSync(dirname(this.settingsPath), { recursive: true });
+    const tempPath = `${this.settingsPath}.${process.pid}.${Date.now()}.tmp`;
+    writeFileSync(tempPath, JSON.stringify(this.state, null, 2), "utf8");
+    renameSync(tempPath, this.settingsPath);
+  }
+}

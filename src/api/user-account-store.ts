@@ -102,6 +102,17 @@ export interface TopupRequestRecord {
   readonly decisionNote?: string;
 }
 
+export interface RefundRequestRecord {
+  readonly refundRequestId: string;
+  readonly userId: string;
+  readonly jobId: string;
+  readonly credits: number;
+  readonly reason: string;
+  readonly status: "pending" | "refunded" | "dismissed";
+  readonly requestedAt: string;
+  readonly decidedAt?: string;
+}
+
 export interface PublicUser {
   readonly userId: string;
   readonly email: string;
@@ -115,6 +126,7 @@ interface StoreState {
   sessions: SessionRecord[];
   entries: CreditEntry[];
   topups: TopupRequestRecord[];
+  refundRequests: RefundRequestRecord[];
 }
 
 export interface RenderCreditPricing {
@@ -421,6 +433,20 @@ export class UserAccountStore {
     if (!creditPackage) {
       throw new UserAccountError("Gói nạp không tồn tại.", 404);
     }
+    return this.requestTopupForPackage({
+      userId: input.userId,
+      creditPackage,
+      ...(input.userNote !== undefined ? { userNote: input.userNote } : {})
+    });
+  }
+
+  /** Same as requestTopup, but the caller resolves the package (admin-editable catalog). */
+  public requestTopupForPackage(input: {
+    readonly userId: string;
+    readonly creditPackage: CreditPackage;
+    readonly userNote?: string;
+  }): TopupRequestRecord {
+    const creditPackage = input.creditPackage;
     // Double-click / flaky-retry guard: an identical pending request is returned as-is,
     // so one bank transfer can never become two credited top-ups.
     const existingPending = this.state.topups.find(
@@ -590,7 +616,11 @@ export class UserAccountStore {
    * are gone (restart wiped them) or ended without success are refunded; live or succeeded
    * jobs keep their charge. Returns the number of refunds issued.
    */
-  public reconcileRenderCharges(statusOf: (jobId: string) => string | undefined): number {
+  public reconcileRenderCharges(
+    statusOf: (jobId: string) => string | undefined,
+    options?: { readonly mode?: "refund" | "queue" }
+  ): number {
+    const mode = options?.mode ?? "refund";
     const KEEP_STATUSES = new Set(["queued", "running", "succeeded", "paused_for_review", "paused_for_revision"]);
     let refunded = 0;
     const charges = this.state.entries.filter((entry) => entry.type === "render_charge" && entry.jobId);
@@ -615,10 +645,83 @@ export class UserAccountStore {
           continue;
         }
       }
+      if (mode === "queue") {
+        if (this.queueRefundRequest({ userId: charge.userId, jobId, reason: "đối soát sau khi hệ thống khởi động lại" })) {
+          refunded += 1;
+        }
+        continue;
+      }
       this.refundRender({ userId: charge.userId, jobId, reason: "đối soát sau khi hệ thống khởi động lại" });
       refunded += 1;
     }
     return refunded;
+  }
+
+  /**
+   * Manual-refund policy: queue the case for the operator instead of refunding
+   * automatically (admin-favorable default). Idempotent per job — one queue entry, and
+   * never queued once a refund already exists.
+   */
+  public queueRefundRequest(input: {
+    readonly userId: string;
+    readonly jobId: string;
+    readonly reason: string;
+  }): RefundRequestRecord | undefined {
+    const charge = this.state.entries.find(
+      (entry) => entry.userId === input.userId && entry.jobId === input.jobId && entry.type === "render_charge"
+    );
+    const alreadyRefunded = this.state.entries.some(
+      (entry) => entry.userId === input.userId && entry.jobId === input.jobId && entry.type === "render_refund"
+    );
+    const alreadyQueued = this.state.refundRequests.some(
+      (request) => request.jobId === input.jobId && request.userId === input.userId
+    );
+    if (!charge || alreadyRefunded || alreadyQueued) {
+      return undefined;
+    }
+    const request: RefundRequestRecord = {
+      refundRequestId: `refundreq_${randomBytes(8).toString("hex")}`,
+      userId: input.userId,
+      jobId: input.jobId,
+      credits: -charge.credits,
+      reason: sanitizeNote(input.reason) ?? "video khong thanh cong",
+      status: "pending",
+      requestedAt: new Date().toISOString()
+    };
+    this.state.refundRequests.push(request);
+    this.persist();
+    return request;
+  }
+
+  public pendingRefundRequests(): readonly (RefundRequestRecord & { readonly email: string })[] {
+    return this.state.refundRequests
+      .filter((request) => request.status === "pending")
+      .map((request) => ({
+        ...request,
+        email: this.state.users.find((user) => user.userId === request.userId)?.email ?? "unknown"
+      }));
+  }
+
+  public decideRefundRequest(input: { readonly refundRequestId: string; readonly approve: boolean }): RefundRequestRecord {
+    const index = this.state.refundRequests.findIndex((request) => request.refundRequestId === input.refundRequestId);
+    const existing = index >= 0 ? this.state.refundRequests[index] : undefined;
+    if (!existing) {
+      throw new UserAccountError("Yêu cầu hoàn tiền không tồn tại.", 404);
+    }
+    if (existing.status !== "pending") {
+      throw new UserAccountError("Yêu cầu hoàn tiền này đã được xử lý rồi.", 409);
+    }
+    if (input.approve) {
+      this.refundRender({ userId: existing.userId, jobId: existing.jobId, reason: "admin duyệt hoàn" });
+    }
+    const decided: RefundRequestRecord = {
+      ...existing,
+      status: input.approve ? "refunded" : "dismissed",
+      decidedAt: new Date().toISOString()
+    };
+    this.state.refundRequests[index] = decided;
+    this.persist();
+    return decided;
   }
 
   /** Refund the charge for a job (idempotent — refunds at most once per job). */
@@ -725,7 +828,7 @@ export class UserAccountStore {
   private loadState(): StoreState {
     const persisted: PersistedAccountState | undefined = this.driver.load();
     if (!persisted) {
-      return { schemaVersion: STORE_SCHEMA_VERSION, users: [], sessions: [], entries: [], topups: [] };
+      return { schemaVersion: STORE_SCHEMA_VERSION, users: [], sessions: [], entries: [], topups: [], refundRequests: [] };
     }
     if (persisted.schemaVersion !== STORE_SCHEMA_VERSION) {
       throw new Error(`User account store schema mismatch (${this.driver.kind}).`);
@@ -735,7 +838,10 @@ export class UserAccountStore {
       users: Array.isArray(persisted.users) ? (persisted.users as UserRecord[]) : [],
       sessions: Array.isArray(persisted.sessions) ? (persisted.sessions as SessionRecord[]) : [],
       entries: Array.isArray(persisted.entries) ? (persisted.entries as CreditEntry[]) : [],
-      topups: Array.isArray(persisted.topups) ? (persisted.topups as TopupRequestRecord[]) : []
+      topups: Array.isArray(persisted.topups) ? (persisted.topups as TopupRequestRecord[]) : [],
+      refundRequests: Array.isArray((persisted as { refundRequests?: unknown[] }).refundRequests)
+        ? ((persisted as { refundRequests?: unknown[] }).refundRequests as RefundRequestRecord[])
+        : []
     };
   }
 

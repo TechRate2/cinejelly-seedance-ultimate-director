@@ -29,6 +29,7 @@ export * from "./api/short-channel-style-library-store.js";
 export * from "./api/short-pipeline-create-page.js";
 export * from "./api/short-pipeline-session-store.js";
 export * from "./api/account-persistence.js";
+export * from "./api/admin-settings-store.js";
 export * from "./api/operator-topup-page.js";
 export * from "./api/user-account-store.js";
 export * from "./api/workspace-billing-policy.js";

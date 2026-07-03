@@ -1064,6 +1064,7 @@ export function buildShortPipelineCreatePage(): string {
       </div>
       <section class="hero">
         <div>
+          <div id="studio-announcement-banner" hidden style="margin-bottom:10px;padding:10px 14px;border-radius:10px;background:rgba(143,92,255,.16);border:1px solid rgba(143,92,255,.4);font-size:13px"></div>
           <h1>Create AI Video</h1>
           <span class="visually-hidden">Create Short</span>
           <span class="visually-hidden">Video Remake</span>
@@ -2196,6 +2197,20 @@ export function buildShortPipelineCreatePage(): string {
         balanceBox.textContent = "—";
       }
       updateCreditEstimate();
+      renderStudioContent();
+    }
+
+    function renderStudioContent() {
+      var banner = document.getElementById("studio-announcement-banner");
+      if (!banner) { return; }
+      var announcement = accountInfo && accountInfo.announcement ? accountInfo.announcement : "";
+      if (announcement) {
+        // textContent, not innerHTML: operator content is shown verbatim, never as markup.
+        banner.textContent = "📣 " + announcement;
+        banner.hidden = false;
+      } else {
+        banner.hidden = true;
+      }
     }
 
     function updateCreditEstimate() {

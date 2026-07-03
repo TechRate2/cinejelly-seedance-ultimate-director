@@ -125,6 +125,7 @@ const runtimeEnvReadBoundaryAllowlist = new Set([
   "src/api/short-pipeline-session-store.ts",
   "src/api/user-account-store.ts",
   "src/api/account-persistence.ts",
+  "src/api/admin-settings-store.ts",
   "src/api/workspace-billing-policy.ts",
   "src/application/director-factory.ts",
   "src/application/paid-render-validation-entrypoint.ts",
