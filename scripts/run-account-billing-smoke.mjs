@@ -136,7 +136,7 @@ try {
   // --- Money-hole regressions: every render route charges customers; refunds reconcile.
   const serverSource = (await import("node:fs")).readFileSync(new URL("../src/api/server.ts", import.meta.url), "utf8");
   check("all_four_render_routes_charge_users", (serverSource.match(/planUserRenderCharge\(\{/g) || []).length >= 4);
-  check("charges_gate_on_queued_status", (serverSource.match(/submission\.summary\.status === "queued"/g) || []).length >= 3);
+  check("charges_gate_on_chargeable_status", (serverSource.match(/chargeableSubmissionStatus\(submission\.summary\.status\)/g) || []).length >= 3 && serverSource.includes('status === "paused_for_review"'));
   check("global_billing_reconciler_wired", serverSource.includes("onJobFinalized: (event)") && serverSource.includes("reconcileRenderCharges((jobId) => jobManager.statusOfAny(jobId))"));
   check("sync_render_charges_and_refunds", serverSource.includes("syncUserCharge") && serverSource.includes('jobId: syncJobId, reason: "video bị lỗi"'));
   check("workspace_pinning_blocked_for_users", serverSource.includes("Tài khoản khách không dùng workspace billing"));

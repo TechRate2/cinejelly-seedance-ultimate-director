@@ -100,6 +100,8 @@
     "validation:speech-captions": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-speech-captions-smoke.mjs",
     "validation:shot-framing": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-shot-framing-smoke.mjs",
     "backup:data": "node scripts/backup-data.mjs",
+    "validation:ui-contract-crosscheck": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-ui-contract-crosscheck-smoke.mjs",
+    "validation:launch-rehearsal": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-launch-rehearsal-smoke.mjs",
     "validation:account-billing": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-account-billing-smoke.mjs",
     "validation:upload-route": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-upload-route-smoke.mjs",
     "validation:pipeline-upgrades": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-pipeline-upgrades-smoke.mjs",

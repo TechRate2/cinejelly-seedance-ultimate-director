@@ -794,7 +794,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }
           }
         });
-        if (userRenderCharge && !submission.idempotentReplay && submission.summary.status === "queued") {
+        if (userRenderCharge && !submission.idempotentReplay && chargeableSubmissionStatus(submission.summary.status)) {
           userAccountStore.chargeRender({
             userId: userRenderCharge.userId,
             jobId: submission.summary.jobId,
@@ -1005,7 +1005,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }
           }
         });
-        if (userRenderCharge && !submission.idempotentReplay && submission.summary.status === "queued") {
+        if (userRenderCharge && !submission.idempotentReplay && chargeableSubmissionStatus(submission.summary.status)) {
           userAccountStore.chargeRender({
             userId: userRenderCharge.userId,
             jobId: submission.summary.jobId,
@@ -1397,7 +1397,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }
           }
         });
-        if (userRenderCharge && !submission.idempotentReplay && submission.summary.status === "queued") {
+        if (userRenderCharge && !submission.idempotentReplay && chargeableSubmissionStatus(submission.summary.status)) {
           userAccountStore.chargeRender({
             userId: userRenderCharge.userId,
             jobId: submission.summary.jobId,
@@ -2911,6 +2911,15 @@ function planUserRenderCharge(input: {
     );
   }
   return { userId: input.principal.userId, credits };
+}
+
+/**
+ * Statuses that commit the customer's money at submission time: the job either runs now
+ * (queued) or waits for operator review before running (paused_*). Born-rejected/blocked
+ * submissions never charge. Every non-success terminal transition refunds automatically.
+ */
+function chargeableSubmissionStatus(status: string): boolean {
+  return status === "queued" || status === "paused_for_review" || status === "paused_for_revision";
 }
 
 function userIdFromClientId(clientId: string | undefined): string | undefined {

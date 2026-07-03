@@ -469,6 +469,11 @@ export class RenderJobManager {
         : {}),
       ...(nextStatus === "paused_for_review" || nextStatus === "paused_for_revision" ? { error: undefined } : {})
     });
+    if (nextStatus === "rejected") {
+      // Pre-render rejection is terminal (the job will never run) — settle billing now.
+      // "blocked" stays re-reviewable, so its charge is kept until a true terminal.
+      this.emitJobFinalized(record, "rejected");
+    }
     return {
       summary: this.get(jobId) ?? this.toSummary(record, { includeDetails: false }),
       queuedForRender: false
