@@ -37,6 +37,7 @@ const PRODUCTION_STAGE_STATUSES: readonly ProductionStageStatus[] = [
 ];
 
 export interface RenderJobStoredSummary {
+  readonly deliverableRelativePath?: string;
   readonly jobId: string;
   readonly clientId?: string;
   readonly requestId?: string;
@@ -148,6 +149,7 @@ export class RenderJobHistoryStore {
       jobId: summary.jobId,
       ...(summary.clientId ? { clientId: summary.clientId } : {}),
       ...(summary.requestId ? { requestId: summary.requestId } : {}),
+      ...(summary.deliverableRelativePath ? { deliverableRelativePath: summary.deliverableRelativePath } : {}),
       status: summary.status,
       createdAt: summary.createdAt.toISOString(),
       updatedAt: summary.updatedAt.toISOString(),
@@ -209,6 +211,11 @@ export class RenderJobHistoryStore {
         : {}),
       ...(typeof payload.requestId === "string" && payload.requestId.trim()
         ? { requestId: this.requestId(payload.requestId) }
+        : {}),
+      ...(typeof payload.deliverableRelativePath === "string" &&
+      payload.deliverableRelativePath.trim() &&
+      !payload.deliverableRelativePath.includes("..")
+        ? { deliverableRelativePath: this.safeString(payload.deliverableRelativePath, "deliverableRelativePath") }
         : {}),
       status,
       createdAt: this.date(payload.createdAt, "createdAt"),
@@ -686,6 +693,12 @@ export class RenderJobHistoryStore {
 export function readRenderJobHistoryPath(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const value = env.CINEJELLY_API_JOB_HISTORY_PATH?.trim();
   if (!value) {
+    // Persist by default: a commercial customer's job list (and deliverable download
+    // links) must survive server restarts. Opt out explicitly with "off".
+    const outputDir = env.CINEJELLY_OUTPUT_DIR?.trim() || "assets/output_deliverables";
+    return `${outputDir}/render-jobs/job-history.json`;
+  }
+  if (value.toLowerCase() === "off" || value.toLowerCase() === "false" || value.toLowerCase() === "none") {
     return undefined;
   }
   if (CONTROL_CHARACTER_PATTERN.test(value)) {

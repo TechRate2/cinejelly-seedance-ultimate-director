@@ -20,6 +20,7 @@ process.env.CINEJELLY_DISABLE_API_RATE_LIMIT = "true";
 process.env.CINEJELLY_API_AUTH_TOKEN = "admin_smoke_token_0123456789abcdef";
 process.env.CINEJELLY_OUTPUT_DIR = workDir;
 process.env.CINEJELLY_CREDITS_PER_RENDER_SECOND = "10";
+process.env.CINEJELLY_TOPUP_BANK_INFO = "Vietcombank 0123456789 - SMOKE SHOP";
 
 const { startServer } = await import("../dist/api/server.js");
 const { UserAccountStore, estimateRenderCredits, loadRenderCreditPricing, UserAccountError } = await import("../dist/api/user-account-store.js");
@@ -183,6 +184,25 @@ try {
   const pgDriver = new PostgresAccountDriver({ connectionString: "postgres://x:y@127.0.0.1:1/db", schemaVersion: "cinejelly.user-account-store.v1" });
   const pgError = await pgDriver.ready().then(() => "", (error) => String(error && error.message));
   check("db_postgres_missing_pg_clear_error", pgError.includes("npm install pg") || pgError.length > 0, pgError.slice(0, 80));
+
+  // --- Password change (self-service) + admin reset.
+  const pwUser = await postJson("/v1/account/register", { email: "pw@shop.vn", password: "matkhau123" });
+  const pwSession = { "X-CineJelly-Session": pwUser.sessionToken };
+  check("change_password_wrong_current_401", (await postJson("/v1/account/change-password", { currentPassword: "sai", newPassword: "matkhaumoi123" }, pwSession)).status === 401);
+  const changed = await postJson("/v1/account/change-password", { currentPassword: "matkhau123", newPassword: "matkhaumoi123" }, pwSession);
+  check("change_password_succeeds_with_new_session", changed.status === 200 && typeof changed.sessionToken === "string");
+  check("old_session_revoked_after_change", (await getJson("/v1/account/me", pwSession)).status === 401);
+  check("new_password_logs_in", (await postJson("/v1/account/login", { email: "pw@shop.vn", password: "matkhaumoi123" })).status === 200);
+  check("old_password_rejected", (await postJson("/v1/account/login", { email: "pw@shop.vn", password: "matkhau123" })).status === 401);
+  const resetResponse = await fetch(`${baseUrl}/v1/admin/accounts/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...adminHeaders },
+    body: JSON.stringify({ email: "pw@shop.vn" })
+  });
+  const temporaryPassword = resetResponse.headers.get("x-cinejelly-temporary-password") ?? "";
+  check("admin_reset_returns_temp_password", resetResponse.status === 200 && temporaryPassword.length >= 10, `len=${temporaryPassword.length}`);
+  check("temp_password_logs_in", (await postJson("/v1/account/login", { email: "pw@shop.vn", password: temporaryPassword })).status === 200);
+  check("user_cannot_reset_passwords", (await postJson("/v1/admin/accounts/reset-password", { email: "chi@shop.vn" }, { "X-CineJelly-Session": changed.sessionToken })).status !== 200);
 
   // --- Logout invalidates the session.
   await fetch(`${baseUrl}/v1/account/logout`, { method: "POST", headers: session });

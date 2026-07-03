@@ -34,9 +34,9 @@ const MAX_STATEMENT_ENTRIES = 200;
 const MAX_TOPUPS_PER_USER_PENDING = 3;
 
 export class UserAccountError extends Error {
-  public readonly statusCode: 400 | 401 | 402 | 403 | 404 | 409 | 429;
+  public readonly statusCode: 400 | 401 | 402 | 403 | 404 | 409 | 429 | 503;
 
-  public constructor(message: string, statusCode: 400 | 401 | 402 | 403 | 404 | 409 | 429) {
+  public constructor(message: string, statusCode: 400 | 401 | 402 | 403 | 404 | 409 | 429 | 503) {
     super(message);
     this.name = "UserAccountError";
     this.statusCode = statusCode;
@@ -302,6 +302,74 @@ export class UserAccountStore {
     return { user: this.publicUser(user), sessionToken };
   }
 
+  /** Self-service password change; revokes every other session for safety. */
+  public changePassword(input: {
+    readonly userId: string;
+    readonly currentPassword: string;
+    readonly newPassword: string;
+  }): { readonly sessionToken: string } {
+    const index = this.state.users.findIndex((candidate) => candidate.userId === input.userId);
+    const user = index >= 0 ? this.state.users[index] : undefined;
+    if (!user || user.status !== "active") {
+      throw new UserAccountError("Phiên đăng nhập không còn hợp lệ. Hãy đăng nhập lại.", 401);
+    }
+    const presentedHash = scryptSync(
+      typeof input.currentPassword === "string" ? input.currentPassword : "",
+      Buffer.from(user.passwordSaltHex, "hex"),
+      SCRYPT_KEY_LENGTH
+    );
+    const expectedHash = Buffer.from(user.passwordHashHex, "hex");
+    if (presentedHash.length !== expectedHash.length || !timingSafeEqual(presentedHash, expectedHash)) {
+      throw new UserAccountError("Mật khẩu hiện tại chưa đúng.", 401);
+    }
+    if (typeof input.newPassword !== "string" || input.newPassword.length < MIN_PASSWORD_LENGTH) {
+      throw new UserAccountError(`Mật khẩu mới cần tối thiểu ${MIN_PASSWORD_LENGTH} ký tự.`, 400);
+    }
+    this.setPassword(index, input.newPassword);
+    this.revokeSessionsFor(user.userId);
+    const sessionToken = this.issueSession(user.userId);
+    this.persist();
+    return { sessionToken };
+  }
+
+  /**
+   * Operator password reset (no email infrastructure in the MVP): generates a readable
+   * temporary password the operator hands to the customer over their support channel.
+   * Every existing session is revoked.
+   */
+  public adminResetPassword(input: { readonly email: string }): { readonly temporaryPassword: string } {
+    const email = normalizeEmail(input.email);
+    const index = this.state.users.findIndex((candidate) => candidate.email === email);
+    if (index < 0) {
+      throw new UserAccountError("Không tìm thấy tài khoản với email này.", 404);
+    }
+    const temporaryPassword = generateTemporaryPassword();
+    this.setPassword(index, temporaryPassword);
+    this.revokeSessionsFor((this.state.users[index] as UserRecord).userId);
+    this.loginFailures.delete(email);
+    this.persist();
+    return { temporaryPassword };
+  }
+
+  private setPassword(userIndex: number, newPassword: string): void {
+    const user = this.state.users[userIndex] as UserRecord;
+    const salt = randomBytes(16);
+    const hash = scryptSync(newPassword, salt, SCRYPT_KEY_LENGTH);
+    this.state.users[userIndex] = {
+      ...user,
+      passwordSaltHex: salt.toString("hex"),
+      passwordHashHex: hash.toString("hex")
+    };
+  }
+
+  private revokeSessionsFor(userId: string): void {
+    for (let index = this.state.sessions.length - 1; index >= 0; index -= 1) {
+      if (this.state.sessions[index]?.userId === userId) {
+        this.state.sessions.splice(index, 1);
+      }
+    }
+  }
+
   public logout(sessionToken: string): void {
     const tokenSha256 = sha256(sessionToken);
     const index = this.state.sessions.findIndex((session) => session.tokenSha256 === tokenSha256);
@@ -352,6 +420,14 @@ export class UserAccountStore {
     const creditPackage = this.packages.find((candidate) => candidate.packageId === input.packageId);
     if (!creditPackage) {
       throw new UserAccountError("Gói nạp không tồn tại.", 404);
+    }
+    // Double-click / flaky-retry guard: an identical pending request is returned as-is,
+    // so one bank transfer can never become two credited top-ups.
+    const existingPending = this.state.topups.find(
+      (topup) => topup.userId === input.userId && topup.status === "pending" && topup.packageId === creditPackage.packageId
+    );
+    if (existingPending) {
+      return existingPending;
     }
     const pendingCount = this.state.topups.filter(
       (topup) => topup.userId === input.userId && topup.status === "pending"
@@ -418,6 +494,46 @@ export class UserAccountStore {
     }
     this.persist();
     return decided;
+  }
+
+  /** One-line business health for the operator desk. */
+  public revenueSummary(): {
+    readonly customerCount: number;
+    readonly approvedTopupCount: number;
+    readonly totalRevenueVnd: number;
+    readonly totalCreditsSold: number;
+    readonly outstandingCreditsLiability: number;
+  } {
+    const approved = this.state.topups.filter((topup) => topup.status === "approved");
+    let outstanding = 0;
+    for (const balance of this.balances.values()) {
+      outstanding += Math.max(0, balance);
+    }
+    return {
+      customerCount: this.state.users.length,
+      approvedTopupCount: approved.length,
+      totalRevenueVnd: approved.reduce((sum, topup) => sum + topup.amountVnd, 0),
+      totalCreditsSold: approved.reduce((sum, topup) => sum + topup.credits, 0),
+      outstandingCreditsLiability: outstanding
+    };
+  }
+
+  /** Operator support view: one customer's balance, latest movements, and top-ups. */
+  public adminLookup(emailInput: string): {
+    readonly account: PublicUser;
+    readonly statement: readonly CreditEntry[];
+    readonly topups: readonly TopupRequestRecord[];
+  } {
+    const email = normalizeEmail(emailInput);
+    const user = this.state.users.find((candidate) => candidate.email === email);
+    if (!user) {
+      throw new UserAccountError("Không tìm thấy tài khoản với email này.", 404);
+    }
+    return {
+      account: this.publicUser(user),
+      statement: this.statementOf(user.userId).slice(0, 15),
+      topups: this.topupsOf(user.userId).slice(0, 10)
+    };
   }
 
   public adminAdjust(input: { readonly email: string; readonly credits: number; readonly note?: string }): PublicUser {
@@ -489,6 +605,15 @@ export class UserAccountStore {
       const status = statusOf(jobId);
       if (status && KEEP_STATUSES.has(status)) {
         continue;
+      }
+      if (!status) {
+        // Unknown job: only refund RECENT charges (interrupted by a crash/restart).
+        // Older unknown charges are almost always delivered videos that aged out of the
+        // job-history retention window — never silently refund those.
+        const chargeAgeMs = Date.now() - Date.parse(charge.at);
+        if (!Number.isFinite(chargeAgeMs) || chargeAgeMs > 48 * 60 * 60 * 1000) {
+          continue;
+        }
       }
       this.refundRender({ userId: charge.userId, jobId, reason: "đối soát sau khi hệ thống khởi động lại" });
       refunded += 1;
@@ -637,6 +762,17 @@ function sanitizeNote(value: unknown): string | undefined {
   }
   const cleaned = value.replace(CONTROL_CHARACTER_GLOBAL_PATTERN, " ").trim().slice(0, 240);
   return cleaned || undefined;
+}
+
+/** Readable, unambiguous temp password (no 0/O/1/l), 10 chars + digits. */
+function generateTemporaryPassword(): string {
+  const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let password = "";
+  const bytes = randomBytes(10);
+  for (const byte of bytes) {
+    password += alphabet[byte % alphabet.length];
+  }
+  return password;
 }
 
 function sha256(value: string): string {

@@ -5,6 +5,8 @@
 
 import type { IncomingMessage } from "node:http";
 
+export type ApiRateLimitClass = "render" | "account";
+
 export interface ApiRateLimitSettings {
   readonly windowMs?: number;
   readonly maxRequests?: number;
@@ -42,12 +44,17 @@ export class ApiRateLimiter {
   }
 
   public check(request: IncomingMessage, pathname: string, method: string | undefined): ApiRateLimitDecision {
-    if (this.disabled || !this.shouldLimit(pathname, method)) {
+    const limitClass = this.disabled ? undefined : this.limitClassFor(pathname, method);
+    if (!limitClass) {
       return { allowed: true };
     }
+    // Account/upload actions get their own, more generous bucket: a customer's first
+    // session (register + login + a few uploads + topup) must never trip the strict
+    // render limit, and render spam must never be hidden inside account traffic.
+    const classMaxRequests = limitClass === "account" ? Math.max(this.maxRequests, 30) : this.maxRequests;
 
     const nowMs = Date.now();
-    const bucketKey = this.bucketKeyFor(request);
+    const bucketKey = `${limitClass}:${this.bucketKeyFor(request)}`;
     this.pruneExpired(nowMs);
 
     const current = this.buckets.get(bucketKey);
@@ -60,7 +67,7 @@ export class ApiRateLimiter {
     }
 
     current.count += 1;
-    if (current.count <= this.maxRequests) {
+    if (current.count <= classMaxRequests) {
       return { allowed: true };
     }
 
@@ -72,22 +79,30 @@ export class ApiRateLimiter {
     };
   }
 
-  private shouldLimit(pathname: string, method: string | undefined): boolean {
+  private limitClassFor(pathname: string, method: string | undefined): ApiRateLimitClass | undefined {
     if (method !== "POST") {
-      return false;
+      return undefined;
     }
-    return (
+    if (
       pathname === "/v1/render" ||
       pathname === "/v1/render-jobs" ||
       pathname === "/v1/short-pipeline/render-jobs" ||
-      // Unauthenticated account endpoints are brute-force/flood targets (scrypt on every
-      // login attempt; a store write on every registration), and uploads write disk.
+      /^\/v1\/short-pipeline\/conversation-sessions\/[^/]+\/render-jobs$/.test(pathname)
+    ) {
+      return "render";
+    }
+    if (
+      // Brute-force/flood targets: scrypt per login attempt, store write per registration,
+      // disk write per upload — limited, but generously enough for real onboarding.
       pathname === "/v1/account/register" ||
       pathname === "/v1/account/login" ||
+      pathname === "/v1/account/change-password" ||
       pathname === "/v1/account/topups" ||
-      pathname === "/v1/uploads" ||
-      /^\/v1\/short-pipeline\/conversation-sessions\/[^/]+\/render-jobs$/.test(pathname)
-    );
+      pathname === "/v1/uploads"
+    ) {
+      return "account";
+    }
+    return undefined;
   }
 
   private bucketKeyFor(request: IncomingMessage): string {

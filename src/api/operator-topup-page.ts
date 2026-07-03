@@ -56,9 +56,34 @@ export function buildOperatorTopupPage(): string {
   </div>
 
   <div class="card">
+    <strong>🎬 Video chờ duyệt</strong>
+    <div class="muted">Khách bấm tạo video xong sẽ chờ ở đây. Bấm Duyệt để video bắt đầu chạy (khách đã bị giữ credits; từ chối sẽ tự hoàn).</div>
+    <div id="review-list"><div class="muted" style="margin-top:8px">Bấm "Tải danh sách" phía trên để xem.</div></div>
+  </div>
+
+  <div class="card">
+    <strong>🔎 Tra cứu khách hàng</strong>
+    <div class="row">
+      <input id="lookup-email" type="email" placeholder="email khách hàng">
+      <button id="lookup-btn">Tra cứu</button>
+    </div>
+    <div id="lookup-result" class="muted" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <strong>📈 Doanh thu</strong>
+    <div id="revenue-line" class="muted" style="margin-top:8px">Bấm "Tải danh sách" để cập nhật.</div>
+  </div>
+
+  <div class="card">
     <strong>Cộng/trừ credits thủ công</strong>
     <div class="muted">Dùng khi tặng khách, xử lý khiếu nại, hoặc trừ nhầm lẫn. Số âm để trừ.</div>
     <div class="row">
+      <input id="reset-email" type="email" placeholder="email khách quên mật khẩu">
+      <button id="reset-btn">🔑 Cấp lại mật khẩu</button>
+    </div>
+    <div class="muted">Mật khẩu tạm sẽ hiện ở dòng trạng thái — gửi cho khách qua Zalo/tin nhắn, khách đăng nhập rồi tự đổi.</div>
+    <div class="row" style="margin-top:14px">
       <input id="adjust-email" type="email" placeholder="email khách hàng">
       <input id="adjust-credits" type="number" placeholder="số credits (vd 500 hoặc -200)">
       <input id="adjust-note" placeholder="ghi chú (vd: tặng khách mới)">
@@ -131,7 +156,111 @@ export function buildOperatorTopupPage(): string {
       say(approve ? "Đã duyệt — credits đã cộng cho khách." : "Đã từ chối yêu cầu.", true);
       loadPending();
     }
+    async function loadReviewQueue() {
+      const response = await fetch("/v1/render-jobs", { headers: headers() });
+      if (!response.ok) { return; }
+      const payload = await response.json();
+      const paused = (payload.jobs || []).filter(function (job) { return job.status === "paused_for_review"; });
+      const box = document.getElementById("review-list");
+      box.innerHTML = "";
+      if (paused.length === 0) {
+        box.innerHTML = '<div class="muted" style="margin-top:8px">Không có video nào chờ duyệt. 🎉</div>';
+        return;
+      }
+      paused.forEach(function (job) {
+        const row = document.createElement("div");
+        row.className = "topup";
+        const info = document.createElement("div");
+        const strong = document.createElement("strong");
+        strong.textContent = (job.userInputPreview || job.jobId).slice(0, 90);
+        const note = document.createElement("div");
+        note.className = "muted";
+        note.textContent = job.jobId + " • " + new Date(job.createdAt).toLocaleString("vi-VN");
+        info.appendChild(strong); info.appendChild(note);
+        const actions = document.createElement("div");
+        actions.className = "row";
+        const approveBtn = document.createElement("button");
+        approveBtn.className = "approve"; approveBtn.textContent = "✅ Duyệt chạy";
+        approveBtn.addEventListener("click", function () { decideReview(job.jobId, "approved"); });
+        const rejectBtn = document.createElement("button");
+        rejectBtn.className = "reject"; rejectBtn.textContent = "❌ Từ chối";
+        rejectBtn.addEventListener("click", function () { decideReview(job.jobId, "rejected"); });
+        actions.appendChild(approveBtn); actions.appendChild(rejectBtn);
+        row.appendChild(info); row.appendChild(actions);
+        box.appendChild(row);
+      });
+    }
+    async function decideReview(jobId, decision) {
+      const detailResponse = await fetch("/v1/render-jobs/" + encodeURIComponent(jobId), { headers: headers() });
+      const detail = await detailResponse.json();
+      if (!detailResponse.ok) { say(detail.error || "Không tải được job.", false); return; }
+      const report = detail.preRenderReviewApproval || detail.reviewApproval;
+      const reviewedAt = new Date().toISOString();
+      const checkpoints = ((report && report.checkpoints) || []).map(function (checkpoint) {
+        return {
+          surface: checkpoint.surface,
+          label: checkpoint.label,
+          ...(checkpoint.subjectId ? { subjectId: checkpoint.subjectId } : {}),
+          required: checkpoint.required !== false,
+          decision: decision,
+          reviewer: "operator-desk",
+          reviewedAt: reviewedAt,
+          notes: decision === "approved" ? "duyệt qua trang quản trị" : "từ chối qua trang quản trị"
+        };
+      });
+      if (checkpoints.length === 0) { say("Job không có checkpoint kiểm duyệt để quyết định.", false); return; }
+      const response = await fetch("/v1/render-jobs/" + encodeURIComponent(jobId) + "/review", {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ gate: (report && report.gate) || "pre_render", checkpoints: checkpoints })
+      });
+      const payload = await response.json();
+      if (!response.ok) { say(payload.error || "Không xử lý được.", false); return; }
+      say(decision === "approved" ? "Đã duyệt — video bắt đầu chạy." : "Đã từ chối — hệ thống tự hoàn credits cho khách.", true);
+      loadReviewQueue();
+    }
+    async function loadRevenue() {
+      const response = await fetch("/v1/admin/revenue-summary", { headers: headers() });
+      if (!response.ok) { return; }
+      const payload = await response.json();
+      const revenue = payload.revenue || {};
+      document.getElementById("revenue-line").textContent =
+        (revenue.customerCount || 0) + " khách • " + (revenue.approvedTopupCount || 0) + " lượt nạp đã duyệt • " +
+        (revenue.totalRevenueVnd || 0).toLocaleString("vi-VN") + "đ doanh thu • " +
+        (revenue.totalCreditsSold || 0).toLocaleString("vi-VN") + " credits đã bán • còn nợ khách " +
+        (revenue.outstandingCreditsLiability || 0).toLocaleString("vi-VN") + " credits";
+    }
+    document.getElementById("lookup-btn").addEventListener("click", async function () {
+      const email = document.getElementById("lookup-email").value.trim();
+      if (!email) { say("Nhập email khách trước.", false); return; }
+      const response = await fetch("/v1/admin/accounts/lookup?email=" + encodeURIComponent(email), { headers: headers() });
+      const payload = await response.json();
+      if (!response.ok) { say(payload.error || "Không tra cứu được.", false); return; }
+      const lines = [
+        "Số dư: " + payload.account.balanceCredits.toLocaleString("vi-VN") + " credits (" + payload.account.displayName + ")"
+      ];
+      (payload.statement || []).slice(0, 6).forEach(function (entry) {
+        lines.push(new Date(entry.at).toLocaleString("vi-VN") + " — " + (entry.credits > 0 ? "+" : "") + entry.credits + ": " + entry.note);
+      });
+      document.getElementById("lookup-result").textContent = lines.join("\n");
+      document.getElementById("lookup-result").style.whiteSpace = "pre-line";
+      say("Đã tra cứu " + email + ".", true);
+    });
+    document.getElementById("load-btn").addEventListener("click", function () {
+      loadReviewQueue();
+      loadRevenue();
+    });
     document.getElementById("load-btn").addEventListener("click", loadPending);
+    document.getElementById("reset-btn").addEventListener("click", async function () {
+      const email = document.getElementById("reset-email").value.trim();
+      if (!email) { say("Nhập email của khách trước.", false); return; }
+      const response = await fetch("/v1/admin/accounts/reset-password", {
+        method: "POST", headers: headers(), body: JSON.stringify({ email: email })
+      });
+      const payload = await response.json();
+      if (!response.ok) { say(payload.error || "Không cấp lại được.", false); return; }
+      const temporary = response.headers.get("X-CineJelly-Temporary-Password") || "";
+      say("Mật khẩu tạm của " + email + ": " + temporary + " — gửi cho khách, nhắc khách đổi ngay sau khi vào.", true);
+    });
     document.getElementById("adjust-btn").addEventListener("click", async function () {
       const email = document.getElementById("adjust-email").value.trim();
       const credits = Number(document.getElementById("adjust-credits").value);
@@ -145,7 +274,12 @@ export function buildOperatorTopupPage(): string {
       say("Xong — số dư mới của " + email + ": " + payload.account.balanceCredits.toLocaleString("vi-VN") + " credits.", true);
     });
     // Auto refresh the queue every 60s while the desk is open.
-    setInterval(function () { if (keyInput.value.trim()) loadPending(); }, 60000);
+    setInterval(function () {
+      if (keyInput.value.trim()) {
+        loadPending();
+        loadReviewQueue();
+      }
+    }, 60000);
   </script>
 </body>
 </html>`;

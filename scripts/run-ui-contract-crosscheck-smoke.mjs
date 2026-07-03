@@ -52,10 +52,10 @@ function routeExists(path) {
 for (const page of PAGES) {
   const endpoints = new Set();
   for (const match of page.html.matchAll(/fetch\(\s*["'](\/[^"']+)["']/g)) {
-    endpoints.add(match[1]);
+    endpoints.add(match[1].split("?")[0]);
   }
   for (const match of page.html.matchAll(/fetch\(\s*["'](\/[^"']+?)["']\s*\+/g)) {
-    endpoints.add(match[1] + "{param}");
+    endpoints.add(match[1].split("?")[0] + "{param}");
   }
   for (const match of page.html.matchAll(/data-[a-z-]*endpoint="([^"]+)"/g)) {
     endpoints.add(match[1]);

@@ -4,6 +4,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { relative, resolve, sep } from "node:path";
 import { createDirectorRuntime } from "../application/director-factory.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
@@ -114,6 +115,8 @@ export interface RenderJobSummary {
   readonly jobId: string;
   readonly clientId?: string;
   readonly requestId?: string;
+  /** Deliverable path relative to the output root; survives restarts via job history. */
+  readonly deliverableRelativePath?: string;
   readonly status: RenderJobStatus;
   readonly retentionSource: "memory" | "history_store";
   readonly detailRetention: "full" | "compact_restored";
@@ -563,7 +566,7 @@ export class RenderJobManager {
    */
   public deliverablePathFor(jobId: string, filter: { readonly clientId?: string } = {}): string | undefined {
     const record = this.jobs.get(jobId);
-    if (!record || record.retentionSource !== "memory") {
+    if (!record) {
       return undefined;
     }
     if (filter.clientId && record.clientId !== filter.clientId) {
@@ -572,7 +575,38 @@ export class RenderJobManager {
     if (record.status !== "succeeded") {
       return undefined;
     }
-    return record.result?.deliverable?.outputPath;
+    if (record.retentionSource === "memory") {
+      return record.result?.deliverable?.outputPath ?? this.deliverableAbsolutePath(record.deliverableRelativePath);
+    }
+    // Restored after a restart: the customer already paid for this video; serve it from
+    // the persisted relative path (the route re-validates output-root confinement).
+    return this.deliverableAbsolutePath(record.deliverableRelativePath);
+  }
+
+  private deliverableAbsolutePath(relativePath: string | undefined): string | undefined {
+    if (!relativePath) {
+      return undefined;
+    }
+    const outputRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR?.trim() || "assets/output_deliverables");
+    const absolute = resolve(outputRoot, relativePath);
+    return absolute.startsWith(outputRoot + sep) ? absolute : undefined;
+  }
+
+  /**
+   * Deliverable path relative to the output root, safe to persist in job history (leaks no
+   * machine paths) and to re-serve after a restart through the confined download route.
+   */
+  private deliverableRelativePathFor(result: { readonly deliverable?: { readonly outputPath?: string } } | undefined): string | undefined {
+    const outputPath = result?.deliverable?.outputPath;
+    if (!outputPath) {
+      return undefined;
+    }
+    const outputRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR?.trim() || "assets/output_deliverables");
+    const relativePath = relative(outputRoot, resolve(outputPath));
+    if (!relativePath || relativePath.startsWith("..") || relativePath.includes(":")) {
+      return undefined;
+    }
+    return relativePath.split(sep).join("/");
   }
 
   private isTerminal(status: RenderJobStatus): boolean {
@@ -844,6 +878,10 @@ export class RenderJobManager {
         updatedAt: completedAt,
         ...(finalStatus === "succeeded" || finalStatus === "rejected" ? { completedAt } : {}),
         projectId: result.projectId,
+        ...(() => {
+          const deliverableRelativePath = this.deliverableRelativePathFor(result);
+          return deliverableRelativePath ? { deliverableRelativePath } : {};
+        })(),
         result,
         costLedger,
         ...(providerCheckpoint ? { providerCheckpoint } : {}),
@@ -1206,6 +1244,7 @@ export class RenderJobManager {
     return {
       jobId: summary.jobId,
       ...(summary.clientId ? { clientId: summary.clientId } : {}),
+      ...(summary.deliverableRelativePath ? { deliverableRelativePath: summary.deliverableRelativePath } : {}),
       ...(summary.requestId ? { requestId: summary.requestId } : {}),
       status: restoredStatus,
       retentionSource: "history_store",
@@ -1336,6 +1375,7 @@ export class RenderJobManager {
       jobId,
       ...(clientId ? { clientId } : {}),
       ...(requestId ? { requestId } : {}),
+      ...(record.deliverableRelativePath ? { deliverableRelativePath: record.deliverableRelativePath } : {}),
       status,
       retentionSource,
       detailRetention,

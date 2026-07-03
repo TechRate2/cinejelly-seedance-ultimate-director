@@ -478,7 +478,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const jobManager = new RenderJobManager({
     artifactStore,
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
-    historyLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100),
+    historyLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_HISTORY_LIMIT, 500),
     queueLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_QUEUE_LIMIT, 50),
     ...renderJobHistoryStoreConfig(process.env),
     // Central billing settlement: every terminal transition of a customer job that did not
@@ -696,7 +696,14 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           sendJson(response, 404, { error: "Short-pipeline conversation session not found." }, requestContext);
           return;
         }
-        const body = await readJsonBody<ShortPipelineConversationSessionRenderJobRequestBody>(request, maxBodyBytes);
+        let body = await readJsonBody<ShortPipelineConversationSessionRenderJobRequestBody>(request, maxBodyBytes);
+        if (authDecision.principal?.kind === "user") {
+          // Customers cannot approve their own review gate; the operator desk decides.
+          const { reviewApprovalGate: strippedGate, reviewApprovalCheckpoints: strippedCheckpoints, ...sanitizedBody } = body;
+          void strippedGate;
+          void strippedCheckpoints;
+          body = sanitizedBody;
+        }
         const handoffBody = shortPipelineConversationSessionRenderJobBodyFromBody(body);
         const plan = shortPipelinePlanFromStoredSession(record);
         if (plan.status === "blocked") {
@@ -906,7 +913,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/render-jobs") {
         assertJsonContentType(request);
-        const body = await readJsonBody<ShortPipelineRenderJobRequestBody>(request, maxBodyBytes);
+        let body = await readJsonBody<ShortPipelineRenderJobRequestBody>(request, maxBodyBytes);
+        if (authDecision.principal?.kind === "user") {
+          const { reviewApprovalGate: strippedGate, reviewApprovalCheckpoints: strippedCheckpoints, ...sanitizedBody } = body;
+          void strippedGate;
+          void strippedCheckpoints;
+          body = sanitizedBody;
+        }
         const handoffBody = shortPipelineRenderJobBodyFromBody(
           body,
           requestContext.requestId,
@@ -1035,6 +1048,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       }
       const jobReviewMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)\/review$/);
       if (request.method === "POST" && jobReviewMatch) {
+        assertNotUserPrincipal(authDecision.principal, "Kiểm duyệt video do đội ngũ vận hành thực hiện — video của bạn sẽ được duyệt trong ít phút.");
         assertJsonContentType(request);
         const body = await readJsonBody<RenderJobReviewRequestBody>(request, maxBodyBytes);
         const reviewInput = renderJobReviewInputFromReviewBody(body);
@@ -1125,6 +1139,15 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/account/topups") {
         const { userId } = requireUserPrincipal(authDecision.principal);
+        const configuredBankInfo = process.env.CINEJELLY_TOPUP_BANK_INFO?.trim() ?? "";
+        if (!configuredBankInfo || /dien ngan hang|so tai khoan/i.test(configuredBankInfo)) {
+          // The money path must never show a placeholder: block until the operator fills
+          // the real bank account in .env (CINEJELLY_TOPUP_BANK_INFO).
+          throw new UserAccountError(
+            "Hệ thống chưa cấu hình tài khoản nhận tiền. Vui lòng liên hệ hỗ trợ (chủ hệ thống: điền CINEJELLY_TOPUP_BANK_INFO trong file .env).",
+            503
+          );
+        }
         assertJsonContentType(request);
         const body = await readJsonBody<{ packageId?: string; note?: string }>(request, maxBodyBytes);
         const topup = userAccountStore.requestTopup({
@@ -1142,6 +1165,43 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "GET" && requestUrl.pathname === "/v1/account/topups") {
         const { userId } = requireUserPrincipal(authDecision.principal);
         sendJson(response, 200, { topups: userAccountStore.topupsOf(userId) }, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/account/change-password") {
+        const { userId } = requireUserPrincipal(authDecision.principal);
+        assertJsonContentType(request);
+        const body = await readJsonBody<{ currentPassword?: string; newPassword?: string }>(request, maxBodyBytes);
+        const changed = userAccountStore.changePassword({
+          userId,
+          currentPassword: body.currentPassword ?? "",
+          newPassword: body.newPassword ?? ""
+        });
+        sendJson(response, 200, { status: "password_changed" }, requestContext, {
+          "X-CineJelly-Session-Token": changed.sessionToken
+        });
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/admin/accounts/reset-password") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required to reset passwords.");
+        assertJsonContentType(request);
+        const body = await readJsonBody<{ email?: string }>(request, maxBodyBytes);
+        const reset = userAccountStore.adminResetPassword({ email: body.email ?? "" });
+        // The temporary password must reach the operator; it travels via header because
+        // JSON bodies pass through the secret redactor (which rightly eats password fields).
+        sendJson(response, 200, { status: "password_reset" }, requestContext, {
+          "X-CineJelly-Temporary-Password": reset.temporaryPassword
+        });
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/accounts/lookup") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for customer lookup.");
+        const lookup = userAccountStore.adminLookup(requestUrl.searchParams.get("email") ?? "");
+        sendJson(response, 200, lookup, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/revenue-summary") {
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for the revenue summary.");
+        sendJson(response, 200, { revenue: userAccountStore.revenueSummary() }, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/admin/topups") {
@@ -1335,6 +1395,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render-jobs") {
+        assertNotUserPrincipal(authDecision.principal, "Tài khoản khách tạo video trong Studio (trang chính); endpoint này dành cho vận hành.");
         assertJsonContentType(request);
         const body = await readJsonBody<RenderRequestBody>(request, maxBodyBytes);
         const renderBody = renderRequestBody(body);
@@ -1418,6 +1479,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/render") {
+        assertNotUserPrincipal(authDecision.principal, "Tài khoản khách tạo video trong Studio (trang chính); endpoint này dành cho vận hành.");
         assertJsonContentType(request);
         const body = await readJsonBody<RenderRequestBody>(request, maxBodyBytes);
         const renderBody = renderRequestBody(body);
@@ -2924,6 +2986,15 @@ function chargeableSubmissionStatus(status: string): boolean {
 
 function userIdFromClientId(clientId: string | undefined): string | undefined {
   return clientId?.startsWith("user:") ? clientId.slice("user:".length) : undefined;
+}
+
+function assertNotUserPrincipal(
+  principal: ReturnType<ApiAuthGuard["authorize"]>["principal"],
+  message: string
+): void {
+  if (principal?.kind === "user") {
+    throw new UserAccountError(message, 403);
+  }
 }
 
 function requireUserPrincipal(

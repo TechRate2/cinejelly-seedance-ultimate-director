@@ -25,6 +25,7 @@ process.env.CINEJELLY_DISABLE_API_RATE_LIMIT = "true";
 process.env.CINEJELLY_API_AUTH_TOKEN = "rehearsal_admin_token_0123456789ab";
 process.env.CINEJELLY_OUTPUT_DIR = workDir;
 process.env.CINEJELLY_CREDITS_PER_RENDER_SECOND = "10";
+process.env.CINEJELLY_TOPUP_BANK_INFO = "Vietcombank 0123456789 - REHEARSAL SHOP";
 // Fake provider: real key shape, unreachable endpoints, fast timeouts -> jobs fail fast.
 process.env.ATLASCLOUD_API_KEY = "rehearsal-fake-key-not-real";
 process.env.ATLASCLOUD_API_BASE_URL = "https://127.0.0.1:9/v1";
@@ -129,7 +130,11 @@ try {
   const render = await api(
     "POST",
     `/v1/short-pipeline/conversation-sessions/${encodeURIComponent(sessionId)}/render-jobs`,
-    { confirmRenderSubmission: true },
+    {
+      confirmRenderSubmission: true,
+      reviewApprovalGate: "pre_render",
+      reviewApprovalCheckpoints: [{ surface: "scene", label: "tu duyet", decision: "approved", reviewer: "khach.a@shop.vn" }]
+    },
     A
   );
   check("A_render_accepted", render.status === 202, `status=${render.status} ${JSON.stringify(render.payload).slice(0, 180)}`);
@@ -143,29 +148,34 @@ try {
     `balance=${meAfterSubmit.payload.account?.balanceCredits}`
   );
 
-  // ---------- The commercial review gate: job pauses for operator approval ----------
+  // ---------- Review gate: forged self-approval ignored, customers cannot decide ----------
   const pausedJob = await api("GET", `/v1/render-jobs/${encodeURIComponent(jobId)}`, undefined, A);
-  check("A_job_pauses_for_review", pausedJob.payload.status === "paused_for_review", `status=${pausedJob.payload.status}`);
-  // Approve exactly like the shipped UI: checkpoints come from the session ui-contract.
-  const contract = uiContract.payload.uiContract;
+  check("A_forged_self_approval_ignored_job_pauses", pausedJob.payload.status === "paused_for_review", `status=${pausedJob.payload.status}`);
+  const customerReviewAttempt = await api(
+    "POST",
+    `/v1/render-jobs/${encodeURIComponent(jobId)}/review`,
+    { gate: "pre_render", checkpoints: [{ surface: "scene", label: "x", decision: "approved", reviewer: "khach" }] },
+    A
+  );
+  check("customer_cannot_decide_review_403", customerReviewAttempt.status === 403, `status=${customerReviewAttempt.status}`);
+  // Approve EXACTLY like the operator desk: checkpoints from the job's own report.
+  const report = pausedJob.payload.preRenderReviewApproval ?? pausedJob.payload.reviewApproval;
   const reviewedAt = new Date().toISOString();
-  const requiredCheckpoints = (contract?.review?.checkpoints ?? [])
-    .filter((checkpoint) => checkpoint.canApproveInUi)
-    .map((checkpoint) => ({
-      surface: checkpoint.surface,
-      label: checkpoint.label,
-      ...(checkpoint.subjectId ? { subjectId: checkpoint.subjectId } : {}),
-      required: checkpoint.required,
-      decision: "approved",
-      reviewer: "operator@rehearsal",
-      reviewedAt,
-      notes: "duyệt trong tổng duyệt launch"
-    }));
-  check("A_contract_lists_review_checkpoints", requiredCheckpoints.length > 0, `count=${requiredCheckpoints.length}`);
+  const requiredCheckpoints = (report?.checkpoints ?? []).map((checkpoint) => ({
+    surface: checkpoint.surface,
+    label: checkpoint.label,
+    ...(checkpoint.subjectId ? { subjectId: checkpoint.subjectId } : {}),
+    required: checkpoint.required !== false,
+    decision: "approved",
+    reviewer: "operator-desk",
+    reviewedAt,
+    notes: "duyet qua trang quan tri"
+  }));
+  check("desk_sees_review_checkpoints", requiredCheckpoints.length > 0, `count=${requiredCheckpoints.length}`);
   const reviewApprove = await api(
     "POST",
     `/v1/render-jobs/${encodeURIComponent(jobId)}/review`,
-    { gate: contract?.review?.approvalPayloadContract?.gate ?? "pre_render", checkpoints: requiredCheckpoints },
+    { gate: report?.gate ?? "pre_render", checkpoints: requiredCheckpoints },
     adminHeaders
   );
   check(
@@ -199,6 +209,25 @@ try {
     statementTypes.join(",")
   );
 
+  // ---------- Raw render endpoints are operator-only for customers ----------
+  check("customer_blocked_on_raw_render_jobs", (await api("POST", "/v1/render-jobs", { userInput: "x" }, A)).status === 403);
+  check("customer_blocked_on_raw_sync_render", (await api("POST", "/v1/render", { userInput: "x" }, A)).status === 403);
+
+  // ---------- Top-up double-click coalesces to ONE pending request ----------
+  const dupTopup1 = await api("POST", "/v1/account/topups", { packageId: "goi_pro" }, A);
+  const dupTopup2 = await api("POST", "/v1/account/topups", { packageId: "goi_pro" }, A);
+  check(
+    "duplicate_topup_coalesced",
+    Boolean(dupTopup1.payload.topup?.topupId) && dupTopup1.payload.topup.topupId === dupTopup2.payload.topup?.topupId,
+    `${dupTopup1.payload.topup?.topupId} vs ${dupTopup2.payload.topup?.topupId}`
+  );
+
+  // ---------- Money path refuses to run on a placeholder bank config ----------
+  const savedBankInfo = process.env.CINEJELLY_TOPUP_BANK_INFO;
+  delete process.env.CINEJELLY_TOPUP_BANK_INFO;
+  check("topup_blocked_without_bank_info", (await api("POST", "/v1/account/topups", { packageId: "goi_thu" }, A)).status === 503);
+  process.env.CINEJELLY_TOPUP_BANK_INFO = savedBankInfo;
+
   // ---------- Customer B: zero balance is blocked BEFORE any job exists ----------
   const registerB = await api("POST", "/v1/account/register", { email: "khach.b@shop.vn", password: "matkhau123" });
   const B = { "X-CineJelly-Session": registerB.sessionToken };
@@ -229,8 +258,78 @@ try {
   check("admin_adjust_works", adjust.status === 200 && adjust.payload.account?.balanceCredits === 200);
   await api("POST", "/v1/account/logout", undefined, A);
   check("A_logout_kills_session", (await api("GET", "/v1/account/me", undefined, A)).status === 401);
-} finally {
+  // ---------- RESTART: jobs survive, refunds do not double, paid videos still download ----------
+  const preRestartBalanceB = (await api("GET", "/v1/account/me", undefined, { "X-CineJelly-Session": registerB.sessionToken })).payload.account?.balanceCredits;
+  const aLogin2 = await api("POST", "/v1/account/login", { email: "khach.a@shop.vn", password: "matkhau123" });
+  const A2 = { "X-CineJelly-Session": aLogin2.sessionToken };
+  const aBalanceBeforeRestart = (await api("GET", "/v1/account/me", undefined, A2)).payload.account?.balanceCredits;
+  const aUserId = (await api("GET", "/v1/account/me", undefined, A2)).payload.account?.userId;
+  // Plant a synthetic SUCCEEDED job with a persisted deliverable (what a real paid render
+  // leaves behind) so the restart proves re-download works after recovery.
+  const { RenderJobHistoryStore } = await import("../dist/api/render-job-history-store.js");
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  const { randomUUID } = await import("node:crypto");
+  const plantedJobId = `render_job_${randomUUID()}`;
+  mkdirSync(join(workDir, "finished"), { recursive: true });
+  writeFileSync(join(workDir, "finished", "video-a.mp4"), Buffer.from("fake-mp4-bytes-for-download-proof"));
+  const historyStore = new RenderJobHistoryStore({ historyPath: join(workDir, "render-jobs", "job-history.json"), historyLimit: 500 });
+  const priorHistory = historyStore.load();
+  historyStore.save([
+    ...priorHistory,
+    {
+      jobId: plantedJobId,
+      clientId: `user:${aUserId}`,
+      deliverableRelativePath: "finished/video-a.mp4",
+      status: "succeeded",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      completedAt: new Date(),
+      userInputPreview: "video da giao truoc restart",
+      referenceCount: 0,
+      hasResult: true,
+      hasCostLedger: false,
+      hasArtifacts: true,
+      hasArtifactValidation: false,
+      hasError: false,
+      hasRetryableFailure: false,
+      retryCount: 0,
+      stageProgressEvents: []
+    }
+  ]);
   await new Promise((resolveClose) => server.close(resolveClose));
+  const server2 = startServer(port);
+  try {
+    await waitForHealth();
+    const aBalanceAfterRestart = (await api("GET", "/v1/account/me", undefined, A2)).payload.account?.balanceCredits;
+    check(
+      "restart_does_not_double_refund",
+      aBalanceAfterRestart === aBalanceBeforeRestart,
+      `before=${aBalanceBeforeRestart} after=${aBalanceAfterRestart}`
+    );
+    const bBalanceAfterRestart = (await api("GET", "/v1/account/me", undefined, { "X-CineJelly-Session": registerB.sessionToken })).payload.account?.balanceCredits;
+    check("restart_keeps_B_balance", bBalanceAfterRestart === preRestartBalanceB, `before=${preRestartBalanceB} after=${bBalanceAfterRestart}`);
+    const restoredJobs = await api("GET", "/v1/render-jobs", undefined, A2);
+    check(
+      "restart_restores_customer_job_history",
+      (restoredJobs.payload.jobs ?? []).some((job) => job.jobId === plantedJobId),
+      `count=${(restoredJobs.payload.jobs ?? []).length}`
+    );
+    const restoredDownload = await fetch(`${baseUrl}/v1/render-jobs/${plantedJobId}/deliverable`, { headers: A2 });
+    const restoredBytes = Buffer.from(await restoredDownload.arrayBuffer());
+    check(
+      "restart_paid_video_still_downloads",
+      restoredDownload.status === 200 && restoredBytes.toString().includes("fake-mp4-bytes"),
+      `status=${restoredDownload.status}`
+    );
+    const strangerDownload = await fetch(`${baseUrl}/v1/render-jobs/${plantedJobId}/deliverable`, {
+      headers: { "X-CineJelly-Session": registerB.sessionToken }
+    });
+    check("restored_video_still_owner_scoped", strangerDownload.status === 404, `status=${strangerDownload.status}`);
+  } finally {
+    await new Promise((resolveClose) => server2.close(resolveClose));
+  }
+} finally {
+  await new Promise((resolveClose) => server.close(resolveClose)).catch(() => {});
   rmSync(workDir, { recursive: true, force: true });
 }
 

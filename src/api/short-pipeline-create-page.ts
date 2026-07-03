@@ -1012,10 +1012,12 @@ export function buildShortPipelineCreatePage(): string {
           <div class="pill warn">Queue</div>
           <div><small>Hàng chờ render</small><strong id="queue-status">Sẵn sàng</strong></div>
         </div>
+        <button type="button" id="open-jobs-top" class="mini-btn" title="Video của tôi">🎬 Video</button>
         <button type="button" id="open-auth" class="mini-btn">Đăng nhập / Đăng ký</button>
         <span class="cj-account-wrap" id="account-wrap" hidden>
           <span class="pill info" id="account-name"></span>
           <button type="button" id="open-topup" class="mini-btn">💎 Nạp credits</button>
+          <button type="button" id="open-change-password" class="ghost-btn" title="Đổi mật khẩu">🔑</button>
           <button type="button" id="logout-btn" class="ghost-btn" title="Đăng xuất">Thoát</button>
         </span>
         <span class="admin-key-wrap" id="admin-key-wrap" hidden>
@@ -1038,6 +1040,16 @@ export function buildShortPipelineCreatePage(): string {
           <div class="cj-modal-error" id="auth-error" hidden></div>
           <button type="button" class="cj-primary" id="auth-submit">Đăng nhập</button>
           <small style="color:#9aa3c7">Tạo tài khoản miễn phí, nạp credits là tạo được video ngay. Không cần API key.</small>
+        </div>
+      </div>
+      <div class="cj-modal" id="password-modal" hidden>
+        <div class="cj-modal-card">
+          <div class="cj-modal-head"><strong>🔑 Đổi mật khẩu</strong><button type="button" class="ghost-btn" data-close-modal="password-modal">✕</button></div>
+          <label class="field"><span>Mật khẩu hiện tại</span><input id="current-password" type="password" autocomplete="current-password"></label>
+          <label class="field"><span>Mật khẩu mới (tối thiểu 8 ký tự)</span><input id="new-password" type="password" autocomplete="new-password"></label>
+          <div class="cj-modal-error" id="password-error" hidden></div>
+          <button type="button" class="cj-primary" id="password-submit">Đổi mật khẩu</button>
+          <small style="color:#9aa3c7">Sau khi đổi, các thiết bị khác sẽ phải đăng nhập lại. Quên mật khẩu? Liên hệ hỗ trợ để được cấp lại.</small>
         </div>
       </div>
       <div class="cj-modal" id="topup-modal" hidden>
@@ -1223,7 +1235,7 @@ export function buildShortPipelineCreatePage(): string {
             <label class="field visually-hidden"><span>Project ID</span><input id="project-id" value="short_create_shell"></label>
           </div>
           <div class="render-bar">
-            <div class="cost-card"><small>Preflight estimate</small><strong id="estimated-cost">$2.40</strong></div>
+            <div class="cost-card" id="usd-cost-card"><small>Preflight estimate</small><strong id="estimated-cost">$2.40</strong></div>
             <div class="detail">Backend keeps provider spend locked until approval packet and explicit render confirmation are ready.</div>
             <button type="submit" id="create-session" class="primary">Build Review Plan</button>
           </div>
@@ -1590,6 +1602,14 @@ export function buildShortPipelineCreatePage(): string {
       }
     });
     document.getElementById("refresh-jobs").addEventListener("click", loadJobs);
+    document.getElementById("open-jobs-top").addEventListener("click", () => {
+      const panel = document.getElementById("jobs-panel");
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) {
+        loadJobs();
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
     updatePromptCount();
     updateEstimatedCost();
 
@@ -1625,6 +1645,11 @@ export function buildShortPipelineCreatePage(): string {
       const submitLabel = submitButton.textContent;
       submitButton.textContent = "Đang gửi...";
       stopJobPolling();
+      // One idempotency key per submission intent: a flaky-network retry can never
+      // create (and charge) a second job for the same click.
+      if (!window.__cjRenderIdempotencyKey) {
+        window.__cjRenderIdempotencyKey = "ui_" + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random().toString(16).slice(2));
+      }
       try {
         const confirmRender = document.getElementById("confirm-render").checked;
         const captionsOn = document.getElementById("caption-toggle").checked;
@@ -1635,8 +1660,13 @@ export function buildShortPipelineCreatePage(): string {
           confirmRenderSubmission: confirmRender
         };
         const endpoint = endpoints.render.replace("{sessionId}", encodeURIComponent(activeSessionId));
-        setRenderStatus("Submitting render job...");
-        const response = await apiFetch(endpoint, { method: "POST", body: JSON.stringify(body) });
+        setRenderStatus("Đang gửi yêu cầu tạo video...");
+        const response = await apiFetch(endpoint, {
+          method: "POST",
+          body: JSON.stringify(body),
+          headers: { "Idempotency-Key": window.__cjRenderIdempotencyKey }
+        });
+        window.__cjRenderIdempotencyKey = null;
         const jobId = response.jobId || (response.job && response.job.jobId) || "";
         const statusUrl = response.statusUrl || (jobId ? "/v1/render-jobs/" + encodeURIComponent(jobId) : "");
         showSuccess("Render job created" + (jobId ? " (" + jobId + ")" : "") + ".");
@@ -1644,8 +1674,13 @@ export function buildShortPipelineCreatePage(): string {
           jobPollDelayMs = 3000;
           pollRenderJob(statusUrl);
         } else {
-          setRenderStatus("Job created but no status URL was returned; check the Jobs API directly.");
+          setRenderStatus("Đã tạo job nhưng thiếu đường dẫn trạng thái; mở mục Video của tôi để theo dõi.");
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const needTopup = message.indexOf("Số dư không đủ") >= 0;
+        setRenderStatus("⚠ " + message + (needTopup ? " — bấm nút 💎 Nạp credits phía trên." : ""));
+        throw error;
       } finally {
         submitButton.disabled = false;
         submitButton.textContent = submitLabel;
@@ -1775,10 +1810,29 @@ export function buildShortPipelineCreatePage(): string {
         : "";
       setRenderStatus("Job " + (job.jobId || "") + " status: " + status + stage + " | " + statusUrl);
       if (status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected" || status === "blocked") {
+        if (accountInfo && accountInfo.account) {
+          const terminalCopy = status === "succeeded"
+            ? "🎉 Video đã xong! Mở 🎬 Video của tôi để xem và tải về."
+            : status === "failed" ? "❌ Video bị lỗi — credits đã được hoàn tự động. Hãy thử lại."
+            : status === "canceled" ? "Video đã hủy — credits đã được hoàn."
+            : status === "rejected" ? "Video bị từ chối duyệt — credits đã được hoàn."
+            : "Video tạm giữ để kiểm tra thêm — đội ngũ sẽ xử lý sớm.";
+          stopJobPolling(terminalCopy);
+          refreshAccount();
+          if (status === "succeeded") { loadJobs(); }
+          return;
+        }
         stopJobPolling("Job finished with status: " + status + ". Details: " + statusUrl);
         return;
       }
       if (status.indexOf("paused") === 0) {
+        if (accountInfo && accountInfo.account) {
+          // Customer view: the operator approves shortly; credits are already reserved.
+          setRenderStatus("⏳ Video đang chờ đội ngũ kiểm duyệt (thường vài phút). Credits đã được giữ — KHÔNG cần gửi lại. Trang sẽ tự cập nhật.");
+          jobPollDelayMs = 15000;
+          jobPollTimer = setTimeout(() => pollRenderJob(statusUrl), jobPollDelayMs);
+          return;
+        }
         stopJobPolling("Job is " + status.replaceAll("_", " ") + "; submit accepted review evidence, then create the render job again with confirmation.");
         return;
       }
@@ -1921,8 +1975,20 @@ export function buildShortPipelineCreatePage(): string {
       reader.readAsDataURL(file);
     }
 
+    let memorySessionToken = "";
     function readSessionToken() {
-      try { return window.localStorage.getItem("cinejelly_session") || ""; } catch (error) { return ""; }
+      try {
+        return window.localStorage.getItem("cinejelly_session") || memorySessionToken;
+      } catch (error) {
+        return memorySessionToken;
+      }
+    }
+    function storeSessionToken(token) {
+      memorySessionToken = token || "";
+      try {
+        if (token) { window.localStorage.setItem("cinejelly_session", token); }
+        else { window.localStorage.removeItem("cinejelly_session"); }
+      } catch (error) { /* in-app browsers without storage still work via memory */ }
     }
 
     function authHeaders() {
@@ -1972,7 +2038,7 @@ export function buildShortPipelineCreatePage(): string {
           if (!response.ok) { throw new Error(payload.error || "Không thực hiện được, thử lại."); }
           const issuedToken = response.headers.get("X-CineJelly-Session-Token") || "";
           if (!issuedToken) { throw new Error("Máy chủ không trả phiên đăng nhập. Thử lại."); }
-          try { window.localStorage.setItem("cinejelly_session", issuedToken); } catch (error) { /* private mode */ }
+          storeSessionToken(issuedToken);
           authModal.hidden = true;
           document.getElementById("auth-password").value = "";
           await refreshAccount();
@@ -1984,7 +2050,7 @@ export function buildShortPipelineCreatePage(): string {
       });
       document.getElementById("logout-btn").addEventListener("click", async function () {
         try { await fetch("/v1/account/logout", { method: "POST", headers: authHeaders() }); } catch (error) { /* best effort */ }
-        try { window.localStorage.removeItem("cinejelly_session"); } catch (error) { /* ignore */ }
+        storeSessionToken("");
         accountInfo = null;
         updateAccountUi();
       });
@@ -1997,6 +2063,10 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("topup-submit").addEventListener("click", async function () {
         const selected = document.querySelector(".cj-package.selected");
         if (!selected) { return; }
+        const topupButton = document.getElementById("topup-submit");
+        if (topupButton.dataset.busy === "true") { return; }
+        topupButton.dataset.busy = "true";
+        topupButton.disabled = true;
         const note = document.getElementById("topup-note").value.trim();
         try {
           const response = await fetch("/v1/account/topups", {
@@ -2010,6 +2080,37 @@ export function buildShortPipelineCreatePage(): string {
           await loadMyTopups();
         } catch (error) {
           showError(error instanceof Error ? error.message : String(error));
+        } finally {
+          topupButton.dataset.busy = "false";
+          topupButton.disabled = false;
+        }
+      });
+      document.getElementById("open-change-password").addEventListener("click", function () {
+        document.getElementById("password-modal").hidden = false;
+      });
+      document.getElementById("password-submit").addEventListener("click", async function () {
+        const errorBox = document.getElementById("password-error");
+        errorBox.hidden = true;
+        try {
+          const response = await fetch("/v1/account/change-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({
+              currentPassword: document.getElementById("current-password").value,
+              newPassword: document.getElementById("new-password").value
+            })
+          });
+          const payload = await response.json();
+          if (!response.ok) { throw new Error(payload.error || "Không đổi được mật khẩu."); }
+          const issuedToken = response.headers.get("X-CineJelly-Session-Token") || "";
+          if (issuedToken) { storeSessionToken(issuedToken); }
+          document.getElementById("current-password").value = "";
+          document.getElementById("new-password").value = "";
+          document.getElementById("password-modal").hidden = true;
+          showSuccess("Đã đổi mật khẩu. Các thiết bị khác sẽ phải đăng nhập lại.");
+        } catch (error) {
+          errorBox.textContent = error instanceof Error ? error.message : String(error);
+          errorBox.hidden = false;
         }
       });
       document.getElementById("toggle-admin-key").addEventListener("click", function () {
@@ -2063,7 +2164,7 @@ export function buildShortPipelineCreatePage(): string {
       try {
         const response = await fetch("/v1/account/me", { headers: authHeaders() });
         if (response.status === 401) {
-          try { window.localStorage.removeItem("cinejelly_session"); } catch (error) { /* ignore */ }
+          storeSessionToken("");
           accountInfo = null;
           updateAccountUi();
           return;
@@ -2079,6 +2180,15 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("open-auth").hidden = loggedIn;
       document.getElementById("account-wrap").hidden = !loggedIn;
       const balanceBox = document.getElementById("balance-status");
+      // Operator-only concepts disappear for customers: raw USD preflight + review fields
+      // (the server ignores customer-sent review approvals anyway; the desk decides).
+      ["reviewer", "review-decision", "review-notes"].forEach(function (id) {
+        const field = document.getElementById(id);
+        const wrap = field && field.closest ? field.closest("label") : null;
+        if (wrap) { wrap.style.display = loggedIn ? "none" : ""; }
+      });
+      const usdCard = document.getElementById("usd-cost-card");
+      if (usdCard) { usdCard.style.display = loggedIn ? "none" : ""; }
       if (loggedIn) {
         document.getElementById("account-name").textContent = "👤 " + accountInfo.account.displayName;
         balanceBox.textContent = accountInfo.account.balanceCredits.toLocaleString("vi-VN") + " 💎";
@@ -2104,7 +2214,8 @@ export function buildShortPipelineCreatePage(): string {
     async function apiFetch(path, options = {}) {
       const headers = {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...authHeaders()
+        ...authHeaders(),
+        ...(options.headers || {})
       };
       try {
         const response = await fetch(path, { ...options, headers });
