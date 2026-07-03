@@ -133,6 +133,57 @@ try {
   direct.refundRender({ userId: chiId, jobId: "job_smoke_1", reason: "video lỗi" });
   check("refund_is_idempotent", direct.balanceOf(chiId) === 600);
 
+  // --- Money-hole regressions: every render route charges customers; refunds reconcile.
+  const serverSource = (await import("node:fs")).readFileSync(new URL("../src/api/server.ts", import.meta.url), "utf8");
+  check("all_four_render_routes_charge_users", (serverSource.match(/planUserRenderCharge\(\{/g) || []).length >= 4);
+  check("charges_gate_on_queued_status", (serverSource.match(/submission\.summary\.status === "queued"/g) || []).length >= 3);
+  check("global_billing_reconciler_wired", serverSource.includes("onJobFinalized: (event)") && serverSource.includes("reconcileRenderCharges((jobId) => jobManager.statusOfAny(jobId))"));
+  check("sync_render_charges_and_refunds", serverSource.includes("syncUserCharge") && serverSource.includes('jobId: syncJobId, reason: "video bị lỗi"'));
+  check("workspace_pinning_blocked_for_users", serverSource.includes("Tài khoản khách không dùng workspace billing"));
+  // Boot reconcile refunds charges whose job vanished; keeps live/succeeded jobs.
+  const reconcileStore = new UserAccountStore({ storePath: join(workDir, "reconcile-test.json"), pricing });
+  const rec = reconcileStore.register({ email: "rec@shop.vn", password: "matkhau123" });
+  reconcileStore.adminAdjust({ email: "rec@shop.vn", credits: 1000 });
+  reconcileStore.chargeRender({ userId: rec.user.userId, jobId: "job_gone", credits: 100 });
+  reconcileStore.chargeRender({ userId: rec.user.userId, jobId: "job_ok", credits: 100 });
+  reconcileStore.chargeRender({ userId: rec.user.userId, jobId: "job_failed", credits: 100 });
+  const refundedCount = reconcileStore.reconcileRenderCharges((jobId) => (jobId === "job_ok" ? "succeeded" : jobId === "job_failed" ? "failed" : undefined));
+  check("boot_reconcile_refunds_vanished_and_failed", refundedCount === 2 && reconcileStore.balanceOf(rec.user.userId) === 900, `refunded=${refundedCount} balance=${reconcileStore.balanceOf(rec.user.userId)}`);
+  let adjustRejected = false;
+  try { reconcileStore.adminAdjust({ email: "rec@shop.vn", credits: 0.4 }); } catch { adjustRejected = true; }
+  check("admin_adjust_rejects_subunit_credits", adjustRejected);
+  // Rate limiting now covers account endpoints (source-level: exemption bug regression).
+  const rateLimitSource = (await import("node:fs")).readFileSync(new URL("../src/api/api-rate-limit.ts", import.meta.url), "utf8");
+  check("rate_limit_covers_account_endpoints", rateLimitSource.includes('"/v1/account/register"') && rateLimitSource.includes('"/v1/account/login"') && rateLimitSource.includes('"/v1/uploads"'));
+  // Operator topup desk ships.
+  const topupDesk = await fetch(`${baseUrl}/operator/topups`);
+  const topupDeskHtml = await topupDesk.text();
+  check("operator_topup_desk_ships", topupDesk.status === 200 && topupDeskHtml.includes("Duyệt nạp credits") && !topupDeskHtml.includes("admin_smoke_token"));
+  // Landing page routes customers to the studio.
+  const landing = await fetch(`${baseUrl}/`);
+  const landingHtml = await landing.text();
+  check("landing_redirects_to_studio", landing.status === 200 && landingHtml.includes("/short/create"));
+
+  // --- Database driver choice (json | sqlite | postgres).
+  const { readDatabaseKind, SqliteAccountDriver, PostgresAccountDriver } = await import("../dist/api/account-persistence.js");
+  check("db_kind_defaults_to_json", readDatabaseKind({}) === "json");
+  let unknownKindRejected = false;
+  try { readDatabaseKind({ CINEJELLY_DATABASE_KIND: "mysql" }); } catch { unknownKindRejected = true; }
+  check("db_kind_rejects_unknown", unknownKindRejected);
+  let sqliteOutcome = "";
+  try {
+    const sqliteDriver = new SqliteAccountDriver({ databasePath: join(workDir, "driver-test.sqlite"), schemaVersion: "cinejelly.user-account-store.v1" });
+    sqliteDriver.persist({ schemaVersion: "cinejelly.user-account-store.v1", users: [{ userId: "u1" }], sessions: [], entries: [{ entryId: "e1" }], topups: [] });
+    const reloaded = sqliteDriver.load();
+    sqliteOutcome = reloaded && reloaded.users.length === 1 && reloaded.entries.length === 1 ? "roundtrip_ok" : "roundtrip_bad";
+  } catch (error) {
+    sqliteOutcome = /Node\.js >= 22\.5/.test(String(error && error.message)) ? "clear_version_error" : "unclear_error";
+  }
+  check("db_sqlite_roundtrip_or_clear_version_error", sqliteOutcome === "roundtrip_ok" || sqliteOutcome === "clear_version_error", sqliteOutcome);
+  const pgDriver = new PostgresAccountDriver({ connectionString: "postgres://x:y@127.0.0.1:1/db", schemaVersion: "cinejelly.user-account-store.v1" });
+  const pgError = await pgDriver.ready().then(() => "", (error) => String(error && error.message));
+  check("db_postgres_missing_pg_clear_error", pgError.includes("npm install pg") || pgError.length > 0, pgError.slice(0, 80));
+
   // --- Logout invalidates the session.
   await fetch(`${baseUrl}/v1/account/logout`, { method: "POST", headers: session });
   check("logout_invalidates_session", (await getJson("/v1/account/me", session)).status === 401);

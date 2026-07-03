@@ -1006,11 +1006,11 @@ export function buildShortPipelineCreatePage(): string {
       <form class="topbar" id="auth-form">
         <div class="top-chip">
           <div class="pill info">Credits</div>
-          <div><small>Balance</small><strong id="balance-status">Connect key</strong></div>
+          <div><small>Số dư</small><strong id="balance-status">—</strong></div>
         </div>
         <div class="top-chip">
           <div class="pill warn">Queue</div>
-          <div><small>Render Queue</small><strong>Review gated</strong></div>
+          <div><small>Hàng chờ render</small><strong id="queue-status">Sẵn sàng</strong></div>
         </div>
         <button type="button" id="open-auth" class="mini-btn">Đăng nhập / Đăng ký</button>
         <span class="cj-account-wrap" id="account-wrap" hidden>
@@ -1538,6 +1538,9 @@ export function buildShortPipelineCreatePage(): string {
     setupApiKeyMemory();
     setupAccountUi();
     refreshAccount();
+    // Balance keeps itself fresh: approved top-ups and render charges appear without a
+    // manual reload (30s poll only while logged in; silent when offline).
+    setInterval(function () { if (readSessionToken()) { refreshAccount(); } }, 30000);
     try {
       if (window.localStorage.getItem("cinejelly_api_key")) {
         document.getElementById("admin-key-wrap").hidden = false;

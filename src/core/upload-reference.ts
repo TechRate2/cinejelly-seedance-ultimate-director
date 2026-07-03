@@ -14,7 +14,7 @@ import { join, resolve, sep } from "node:path";
 export const UPLOAD_URI_PREFIX = "upload://";
 
 /** Server-generated names only: `up_` + 16 hex chars + a whitelisted media extension. */
-export const UPLOAD_FILE_NAME_PATTERN = /^up_[a-f0-9]{16}\.(png|jpg|webp|mp4|mov|mp3|wav|m4a)$/;
+export const UPLOAD_FILE_NAME_PATTERN = /^up_[a-f0-9]{16,64}\.(png|jpg|webp|mp4|mov|mp3|wav|m4a)$/;
 
 export function buildUploadUri(fileName: string): string {
   return `${UPLOAD_URI_PREFIX}${fileName}`;

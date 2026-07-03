@@ -80,6 +80,12 @@ export class ApiRateLimiter {
       pathname === "/v1/render" ||
       pathname === "/v1/render-jobs" ||
       pathname === "/v1/short-pipeline/render-jobs" ||
+      // Unauthenticated account endpoints are brute-force/flood targets (scrypt on every
+      // login attempt; a store write on every registration), and uploads write disk.
+      pathname === "/v1/account/register" ||
+      pathname === "/v1/account/login" ||
+      pathname === "/v1/account/topups" ||
+      pathname === "/v1/uploads" ||
       /^\/v1\/short-pipeline\/conversation-sessions\/[^/]+\/render-jobs$/.test(pathname)
     );
   }

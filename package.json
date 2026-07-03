@@ -99,6 +99,7 @@
     "validation:simple-brief": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-simple-brief-smoke.mjs",
     "validation:speech-captions": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-speech-captions-smoke.mjs",
     "validation:shot-framing": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-shot-framing-smoke.mjs",
+    "backup:data": "node scripts/backup-data.mjs",
     "validation:account-billing": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-account-billing-smoke.mjs",
     "validation:upload-route": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-upload-route-smoke.mjs",
     "validation:pipeline-upgrades": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-pipeline-upgrades-smoke.mjs",

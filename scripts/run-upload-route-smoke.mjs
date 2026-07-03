@@ -70,7 +70,7 @@ try {
   check(
     "upload_returns_opaque_handle_not_server_path",
     typeof uploadedPayload.uri === "string" &&
-      /^upload:\/\/up_[a-f0-9]{16}\.jpg$/.test(uploadedPayload.uri.replace(".png", ".jpg")) &&
+      /^upload:\/\/up_[a-f0-9]{16,64}\.jpg$/.test(uploadedPayload.uri.replace(".png", ".jpg")) &&
       uploadedPayload.uri.startsWith("upload://") &&
       !uploadedPayload.uri.includes("REDACTED") &&
       !uploadedPayload.uri.includes(uploadsWorkDir),

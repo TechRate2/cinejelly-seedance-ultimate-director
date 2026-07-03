@@ -11,8 +11,13 @@
  */
 
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import {
+  createAccountPersistenceDriver,
+  JsonFileAccountDriver,
+  type AccountPersistenceDriver,
+  type PersistedAccountState
+} from "./account-persistence.js";
 
 const STORE_SCHEMA_VERSION = "cinejelly.user-account-store.v1";
 const DEFAULT_OUTPUT_DIR = "assets/output_deliverables";
@@ -186,7 +191,7 @@ export function readUserAccountStorePath(env: NodeJS.ProcessEnv = process.env): 
 }
 
 export class UserAccountStore {
-  private readonly storePath: string;
+  private readonly driver: AccountPersistenceDriver;
   private readonly packages: readonly CreditPackage[];
   private readonly pricing: RenderCreditPricing;
   private readonly state: StoreState;
@@ -194,11 +199,15 @@ export class UserAccountStore {
   private readonly loginFailures = new Map<string, { count: number; firstAt: number }>();
 
   public constructor(input: {
-    readonly storePath: string;
+    readonly storePath?: string;
+    readonly driver?: AccountPersistenceDriver;
     readonly packages?: readonly CreditPackage[];
     readonly pricing?: RenderCreditPricing;
   }) {
-    this.storePath = input.storePath;
+    if (!input.driver && !input.storePath) {
+      throw new Error("UserAccountStore needs a persistence driver or a JSON store path.");
+    }
+    this.driver = input.driver ?? new JsonFileAccountDriver(input.storePath as string);
     this.packages = input.packages ?? DEFAULT_CREDIT_PACKAGES;
     this.pricing = input.pricing ?? loadRenderCreditPricing();
     this.state = this.loadState();
@@ -209,10 +218,24 @@ export class UserAccountStore {
 
   public static fromEnv(env: NodeJS.ProcessEnv = process.env): UserAccountStore {
     return new UserAccountStore({
-      storePath: readUserAccountStorePath(env),
+      driver: createAccountPersistenceDriver({
+        env,
+        jsonStorePath: readUserAccountStorePath(env),
+        schemaVersion: STORE_SCHEMA_VERSION
+      }),
       packages: loadCreditPackages(env),
       pricing: loadRenderCreditPricing(env)
     });
+  }
+
+  /** Resolves when the durability driver finished its boot load (postgres is async). */
+  public ready(): Promise<void> {
+    return this.driver.ready();
+  }
+
+  /** Which durability backend this store runs on (json | sqlite | postgres). */
+  public databaseKind(): string {
+    return this.driver.kind;
   }
 
   public listPackages(): readonly CreditPackage[] {
@@ -403,13 +426,14 @@ export class UserAccountStore {
     if (!user) {
       throw new UserAccountError("Không tìm thấy tài khoản với email này.", 404);
     }
-    if (!Number.isFinite(input.credits) || input.credits === 0 || Math.abs(input.credits) > 1_000_000) {
+    const adjustedCredits = Number.isFinite(input.credits) ? Math.trunc(input.credits) : 0;
+    if (adjustedCredits === 0 || Math.abs(adjustedCredits) > 1_000_000) {
       throw new UserAccountError("Số credits điều chỉnh không hợp lệ.", 400);
     }
     this.appendEntry({
       userId: user.userId,
       type: "admin_adjust",
-      credits: Math.trunc(input.credits),
+      credits: adjustedCredits,
       note: sanitizeNote(input.note) ?? "Điều chỉnh bởi quản trị viên"
     });
     this.persist();
@@ -441,6 +465,35 @@ export class UserAccountStore {
     });
     this.persist();
     return entry;
+  }
+
+  /**
+   * Boot-time settlement: charges are durable but refund callbacks live in process memory,
+   * so a crash/restart could leave customers charged for jobs that will never finish.
+   * For every unmatched render charge, ask the job manager for the job's status: jobs that
+   * are gone (restart wiped them) or ended without success are refunded; live or succeeded
+   * jobs keep their charge. Returns the number of refunds issued.
+   */
+  public reconcileRenderCharges(statusOf: (jobId: string) => string | undefined): number {
+    const KEEP_STATUSES = new Set(["queued", "running", "succeeded", "paused_for_review", "paused_for_revision"]);
+    let refunded = 0;
+    const charges = this.state.entries.filter((entry) => entry.type === "render_charge" && entry.jobId);
+    for (const charge of charges) {
+      const jobId = charge.jobId as string;
+      const alreadyRefunded = this.state.entries.some(
+        (entry) => entry.type === "render_refund" && entry.jobId === jobId && entry.userId === charge.userId
+      );
+      if (alreadyRefunded) {
+        continue;
+      }
+      const status = statusOf(jobId);
+      if (status && KEEP_STATUSES.has(status)) {
+        continue;
+      }
+      this.refundRender({ userId: charge.userId, jobId, reason: "đối soát sau khi hệ thống khởi động lại" });
+      refunded += 1;
+    }
+    return refunded;
   }
 
   /** Refund the charge for a job (idempotent — refunds at most once per job). */
@@ -545,32 +598,24 @@ export class UserAccountStore {
   }
 
   private loadState(): StoreState {
-    try {
-      const raw = readFileSync(this.storePath, "utf8");
-      const parsed = JSON.parse(raw) as Partial<StoreState>;
-      if (parsed.schemaVersion !== STORE_SCHEMA_VERSION) {
-        throw new Error(`User account store schema mismatch at ${this.storePath}.`);
-      }
-      return {
-        schemaVersion: STORE_SCHEMA_VERSION,
-        users: Array.isArray(parsed.users) ? (parsed.users as UserRecord[]) : [],
-        sessions: Array.isArray(parsed.sessions) ? (parsed.sessions as SessionRecord[]) : [],
-        entries: Array.isArray(parsed.entries) ? (parsed.entries as CreditEntry[]) : [],
-        topups: Array.isArray(parsed.topups) ? (parsed.topups as TopupRequestRecord[]) : []
-      };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return { schemaVersion: STORE_SCHEMA_VERSION, users: [], sessions: [], entries: [], topups: [] };
-      }
-      throw error;
+    const persisted: PersistedAccountState | undefined = this.driver.load();
+    if (!persisted) {
+      return { schemaVersion: STORE_SCHEMA_VERSION, users: [], sessions: [], entries: [], topups: [] };
     }
+    if (persisted.schemaVersion !== STORE_SCHEMA_VERSION) {
+      throw new Error(`User account store schema mismatch (${this.driver.kind}).`);
+    }
+    return {
+      schemaVersion: STORE_SCHEMA_VERSION,
+      users: Array.isArray(persisted.users) ? (persisted.users as UserRecord[]) : [],
+      sessions: Array.isArray(persisted.sessions) ? (persisted.sessions as SessionRecord[]) : [],
+      entries: Array.isArray(persisted.entries) ? (persisted.entries as CreditEntry[]) : [],
+      topups: Array.isArray(persisted.topups) ? (persisted.topups as TopupRequestRecord[]) : []
+    };
   }
 
   private persist(): void {
-    mkdirSync(dirname(this.storePath), { recursive: true });
-    const tempPath = `${this.storePath}.${process.pid}.${Date.now()}.tmp`;
-    writeFileSync(tempPath, JSON.stringify(this.state, null, 2), "utf8");
-    renameSync(tempPath, this.storePath);
+    this.driver.persist(this.state);
   }
 }
 

@@ -88,6 +88,7 @@ import { ApiRateLimiter, readRateLimitDisabled, readTrustProxyHeaders } from "./
 import { ApiShutdownCoordinator, createHttpRequestLifecycle } from "./http-lifecycle.js";
 import { isApplicationJsonMediaType } from "./media-type.js";
 import { buildOperatorLaunchDashboardPage } from "./operator-launch-dashboard-page.js";
+import { buildOperatorTopupPage } from "./operator-topup-page.js";
 import {
   createProductionGraphResumeQueueService,
   PRODUCTION_GRAPH_RESUME_QUEUE_SERVICE_PATH,
@@ -479,8 +480,24 @@ export function startServer(port = readPort(process.env.PORT)): Server {
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
     historyLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_HISTORY_LIMIT, 100),
     queueLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_QUEUE_LIMIT, 50),
-    ...renderJobHistoryStoreConfig(process.env)
+    ...renderJobHistoryStoreConfig(process.env),
+    // Central billing settlement: every terminal transition of a customer job that did not
+    // succeed refunds its up-front credit charge (idempotent in the store).
+    onJobFinalized: (event) => {
+      const finalizedUserId = userIdFromClientId(event.clientId);
+      if (!finalizedUserId || event.status === "succeeded") {
+        return;
+      }
+      userAccountStore.refundRender({
+        userId: finalizedUserId,
+        jobId: event.jobId,
+        reason: event.status === "failed" ? "video bị lỗi" : event.status === "canceled" ? "đã hủy" : "bị từ chối duyệt"
+      });
+    }
   });
+  // Charges are durable but jobs are not: after a restart, refund every unmatched charge
+  // whose job vanished or ended without success.
+  userAccountStore.reconcileRenderCharges((jobId) => jobManager.statusOfAny(jobId));
   const renderProviderLeaseService = renderProviderLeaseServiceConfig(process.env);
   const productionGraphResumeQueueService = productionGraphResumeQueueServiceConfig(process.env);
   const shutdownCoordinator = new ApiShutdownCoordinator();
@@ -503,6 +520,14 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       const authDecision = apiAuthGuard.authorize(request, requestUrl.pathname);
       if (!authDecision.allowed) {
         sendJson(response, authDecision.statusCode ?? 401, { error: authDecision.message ?? "Unauthorized." }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && (requestUrl.pathname === "/" || requestUrl.pathname === "/index.html")) {
+        sendHtml(
+          response,
+          200,
+          '<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/short/create"><title>CineJelly</title></head><body><a href="/short/create">Mở CineJelly Studio</a></body></html>'
+        );
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/health") {
@@ -528,6 +553,10 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         (requestUrl.pathname === "/operator/launch" || requestUrl.pathname === "/operator/launch-dashboard")
       ) {
         sendHtml(response, 200, buildOperatorLaunchDashboardPage());
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/operator/topups") {
+        sendHtml(response, 200, buildOperatorTopupPage());
         return;
       }
       if (
@@ -745,19 +774,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               channel: "async"
             });
           },
-          onFinished: (finalJobStatus) => {
-            if (userRenderCharge && acceptedJobId && (finalJobStatus === "failed" || finalJobStatus === "canceled")) {
-              userAccountStore.refundRender({
-                userId: userRenderCharge.userId,
-                jobId: acceptedJobId,
-                reason: finalJobStatus === "failed" ? "video bi loi" : "da huy"
-              });
-            }
-          },
+
           onCanceledBeforeRun: () => {
-            if (userRenderCharge && acceptedJobId) {
-              userAccountStore.refundRender({ userId: userRenderCharge.userId, jobId: acceptedJobId, reason: "huy truoc khi chay" });
-            }
             if (commercialReservation?.clientPolicyReservation) {
               clientPolicyGate.releaseRender({
                 reservation: commercialReservation.clientPolicyReservation,
@@ -776,7 +794,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }
           }
         });
-        if (userRenderCharge && !submission.idempotentReplay) {
+        if (userRenderCharge && !submission.idempotentReplay && submission.summary.status === "queued") {
           userAccountStore.chargeRender({
             userId: userRenderCharge.userId,
             jobId: submission.summary.jobId,
@@ -967,19 +985,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               channel: "async"
             });
           },
-          onFinished: (finalJobStatus) => {
-            if (userRenderCharge && acceptedJobId && (finalJobStatus === "failed" || finalJobStatus === "canceled")) {
-              userAccountStore.refundRender({
-                userId: userRenderCharge.userId,
-                jobId: acceptedJobId,
-                reason: finalJobStatus === "failed" ? "video bi loi" : "da huy"
-              });
-            }
-          },
+
           onCanceledBeforeRun: () => {
-            if (userRenderCharge && acceptedJobId) {
-              userAccountStore.refundRender({ userId: userRenderCharge.userId, jobId: acceptedJobId, reason: "huy truoc khi chay" });
-            }
             if (commercialReservation?.clientPolicyReservation) {
               clientPolicyGate.releaseRender({
                 reservation: commercialReservation.clientPolicyReservation,
@@ -998,7 +1005,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }
           }
         });
-        if (userRenderCharge && !submission.idempotentReplay) {
+        if (userRenderCharge && !submission.idempotentReplay && submission.summary.status === "queued") {
           userAccountStore.chargeRender({
             userId: userRenderCharge.userId,
             jobId: submission.summary.jobId,
@@ -1185,7 +1192,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         }
         const uploadsDir = uploadsDirectoryFor(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
         await mkdir(uploadsDir, { recursive: true });
-        const storedFileName = `up_${randomBytes(8).toString("hex")}.${extension}`;
+        const storedFileName = `up_${randomBytes(16).toString("hex")}.${extension}`;
         await writeFile(join(uploadsDir, storedFileName), body);
         sendJson(response, 201, {
           status: "uploaded",
@@ -1346,6 +1353,11 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           requestId: requestContext.requestId,
           channel: "async"
         });
+        const userRenderCharge = planUserRenderCharge({
+          principal: authDecision.principal,
+          store: userAccountStore,
+          request: normalizedRequest
+        });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
         let commercialReservation: CommercialRenderReservation | undefined;
         const submission = jobManager.submit({
@@ -1385,6 +1397,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }
           }
         });
+        if (userRenderCharge && !submission.idempotentReplay && submission.summary.status === "queued") {
+          userAccountStore.chargeRender({
+            userId: userRenderCharge.userId,
+            jobId: submission.summary.jobId,
+            credits: userRenderCharge.credits
+          });
+        }
         sendJson(response, 202, {
           ...submission.summary,
           ...(submission.idempotentReplay ? { idempotentReplay: true } : {}),
@@ -1451,6 +1470,19 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           renderLease.release();
           throw reservationError;
         }
+        const syncUserCharge = planUserRenderCharge({
+          principal: authDecision.principal,
+          store: userAccountStore,
+          request: normalizedRequest
+        });
+        const syncJobId = `sync_${requestContext.requestId}`;
+        if (syncUserCharge) {
+          userAccountStore.chargeRender({
+            userId: syncUserCharge.userId,
+            jobId: syncJobId,
+            credits: syncUserCharge.credits
+          });
+        }
         let costLedger: readonly CostLedgerEntry[] = [];
         let runtime: ReturnType<typeof createDirectorRuntime> | undefined;
         try {
@@ -1476,6 +1508,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             artifactValidation: toApiProjectArtifactValidationReport(artifactValidation)
           }, requestContext);
         } catch (renderError: unknown) {
+          if (syncUserCharge) {
+            userAccountStore.refundRender({ userId: syncUserCharge.userId, jobId: syncJobId, reason: "video bị lỗi" });
+          }
           costLedger = runtime?.ledger.list() ?? costLedger;
           const artifacts = await artifactStore.writeFailureArtifacts({
             request: normalizedRequest,
@@ -2857,6 +2892,11 @@ function planUserRenderCharge(input: {
   if (input.principal?.kind !== "user" || !input.principal.userId) {
     return undefined;
   }
+  if ((input.request as { metadata?: { workspaceId?: string } }).metadata?.workspaceId) {
+    // Workspace billing is an operator/enterprise construct; a customer account must not
+    // be able to pin renders onto (and drain) another tenant's workspace quota.
+    throw new UserAccountError("Tài khoản khách không dùng workspace billing.", 403);
+  }
   const credits = input.store.estimateChargeFor({
     ...(input.request.settings?.durationTargetSeconds !== undefined
       ? { durationTargetSeconds: input.request.settings.durationTargetSeconds }
@@ -2871,6 +2911,10 @@ function planUserRenderCharge(input: {
     );
   }
   return { userId: input.principal.userId, credits };
+}
+
+function userIdFromClientId(clientId: string | undefined): string | undefined {
+  return clientId?.startsWith("user:") ? clientId.slice("user:".length) : undefined;
 }
 
 function requireUserPrincipal(

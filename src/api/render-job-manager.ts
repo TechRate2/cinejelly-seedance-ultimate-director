@@ -237,6 +237,9 @@ export class RenderJobManager {
   private readonly idempotencyIndex = new Map<string, RenderJobIdempotencyRecord>();
   private readonly queue: string[] = [];
   private activeJobCount = 0;
+  private readonly onJobFinalized:
+    | ((event: { readonly jobId: string; readonly clientId?: string; readonly status: RenderJobStatus }) => void)
+    | undefined;
 
   public constructor(input: {
     readonly artifactStore?: ProjectArtifactStore;
@@ -246,12 +249,15 @@ export class RenderJobManager {
     readonly runtimeFactory?: RenderJobRuntimeFactory;
     readonly artifactValidator?: ProjectArtifactValidator;
     readonly historyStore?: RenderJobHistoryStore;
+    /** Invoked once per job at EVERY terminal transition (billing settlement seam). */
+    readonly onJobFinalized?: (event: { readonly jobId: string; readonly clientId?: string; readonly status: RenderJobStatus }) => void;
   } = {}) {
     this.artifactStore = input.artifactStore ?? new ProjectArtifactStore();
     this.artifactValidator = input.artifactValidator ?? new ProjectArtifactValidator();
     this.runtimeFactory =
       input.runtimeFactory ?? ((runtimeInput) => createDirectorRuntime(process.env, runtimeInput ?? {}));
     this.historyStore = input.historyStore;
+    this.onJobFinalized = input.onJobFinalized;
     this.maxConcurrentJobs = Math.max(1, input.maxConcurrentJobs ?? 1);
     this.historyLimit = Math.max(10, input.historyLimit ?? 100);
     this.queueLimit = Math.max(1, input.queueLimit ?? 50);
@@ -272,7 +278,7 @@ export class RenderJobManager {
     /** Called once when the run reaches a terminal status, so billing can settle or refund. */
     readonly onFinished?: (status: RenderJobStatus) => void;
   }): RenderJobSubmission {
-    const replayedJob = this.findIdempotentReplay(input.idempotencyKeyDigest, input.requestFingerprint);
+    const replayedJob = this.findIdempotentReplay(input.idempotencyKeyDigest, input.requestFingerprint, input.clientId);
     if (replayedJob) {
       return {
         summary: replayedJob,
@@ -340,8 +346,11 @@ export class RenderJobManager {
       input.onAccepted?.(this.toSummary(record, { includeDetails: false }));
     }
     this.jobs.set(jobId, record);
+    if (initialStatus === "rejected") {
+      this.emitJobFinalized(record, "rejected");
+    }
     if (input.idempotencyKeyDigest && input.requestFingerprint) {
-      this.idempotencyIndex.set(input.idempotencyKeyDigest, {
+      this.idempotencyIndex.set(`${input.clientId ?? ""}:${input.idempotencyKeyDigest}`, {
         jobId,
         requestFingerprint: input.requestFingerprint
       });
@@ -525,12 +534,18 @@ export class RenderJobManager {
         completedAt,
         error: this.errorPayload(record.abortController.signal.reason)
       });
+      this.emitJobFinalized(record, "canceled");
     } else {
       this.updateJob(jobId, {
         status: "canceled",
         updatedAt: completedAt,
         error: this.errorPayload(record.abortController.signal.reason)
       });
+      // Running jobs reach their terminal status (and settlement) through runJob's
+      // catch path once the abort lands; paused jobs never ran, so settle here.
+      if (record.status !== "running") {
+        this.emitJobFinalized(record, "canceled");
+      }
     }
 
     return this.get(jobId);
@@ -661,6 +676,9 @@ export class RenderJobManager {
         ? { error: undefined }
         : {})
     });
+    if (nextStatus === "succeeded" || nextStatus === "rejected" || nextStatus === "blocked") {
+      this.emitJobFinalized(record, nextStatus);
+    }
     return {
       summary: this.get(record.jobId) ?? this.toSummary(record, { includeDetails: false }),
       queuedForRender: false,
@@ -867,6 +885,7 @@ export class RenderJobManager {
   }
 
   private notifyFinished(record: ActiveRenderJobRecord, status: RenderJobStatus): void {
+    this.emitJobFinalized(record, status);
     if (!record.onFinished) {
       return;
     }
@@ -875,6 +894,22 @@ export class RenderJobManager {
     } catch {
       // Billing settlement callbacks must never take down the job pipeline.
     }
+  }
+
+  private emitJobFinalized(record: { readonly jobId: string; readonly clientId?: string }, status: RenderJobStatus): void {
+    if (!this.onJobFinalized) {
+      return;
+    }
+    try {
+      this.onJobFinalized({ jobId: record.jobId, ...(record.clientId ? { clientId: record.clientId } : {}), status });
+    } catch {
+      // Billing settlement callbacks must never take down the job pipeline.
+    }
+  }
+
+  /** Unscoped status lookup for boot-time billing reconciliation only. */
+  public statusOfAny(jobId: string): RenderJobStatus | undefined {
+    return this.jobs.get(jobId)?.status;
   }
 
   private async tryWriteFailureArtifacts(input: {
@@ -1222,18 +1257,21 @@ export class RenderJobManager {
 
   private findIdempotentReplay(
     idempotencyKeyDigest: string | undefined,
-    requestFingerprint: string | undefined
+    requestFingerprint: string | undefined,
+    clientId: string | undefined
   ): RenderJobSummary | undefined {
     if (!idempotencyKeyDigest || !requestFingerprint) {
       return undefined;
     }
-    const indexed = this.idempotencyIndex.get(idempotencyKeyDigest);
+    // Tenant-scoped: the same idempotency key from a different client must never replay
+    // (and leak) another tenant's job summary.
+    const indexed = this.idempotencyIndex.get(`${clientId ?? ""}:${idempotencyKeyDigest}`);
     if (!indexed) {
       return undefined;
     }
     const record = this.jobs.get(indexed.jobId);
     if (!record) {
-      this.idempotencyIndex.delete(idempotencyKeyDigest);
+      this.idempotencyIndex.delete(`${clientId ?? ""}:${idempotencyKeyDigest}`);
       return undefined;
     }
     if (indexed.requestFingerprint !== requestFingerprint) {
