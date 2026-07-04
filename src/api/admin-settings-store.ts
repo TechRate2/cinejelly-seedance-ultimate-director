@@ -221,7 +221,12 @@ export class AdminSettingsStore {
     }
 
     if (patch.models !== undefined) {
-      this.state.models = this.validatedModels(patch.models);
+      // MERGE, don't replace: a model key absent or blank in the patch keeps its current
+      // value. This prevents a stale/partial Settings form from silently wiping a model set
+      // out-of-band — in particular speechModel (enabled via the Model tab or a direct API
+      // PUT to power the Sub/Dub feature) must survive an admin who only edits the price and
+      // saves. To CHANGE a model, send its new value; blank never means "clear".
+      this.state.models = { ...this.state.models, ...this.validatedModels(patch.models) };
       changes.push(`models=${JSON.stringify(this.state.models)}`);
       // Live-apply so the very next render job uses the new models without a restart.
       this.applyModelEnvOverrides();

@@ -62,7 +62,9 @@ Bản sao nằm trong thư mục `backups/` kèm file hướng dẫn phục hồ
 
 ## Khi có sự cố
 
-- Server sập/khởi động lại: job đang chạy dở của khách được **tự động hoàn credits** khi server bật lại (đối soát tự động).
+- Server sập/khởi động lại: job đang chạy dở của khách được đối soát lại khi bật lên. Với chính sách mặc định "manual" (có lợi cho bạn), các job đó **vào hàng chờ hoàn tiền** ở `/operator/admin` để bạn duyệt (không tự hoàn). Đặt `CINEJELLY_REFUND_POLICY=auto` thì mới tự hoàn ngay. **Mẹo:** tránh khởi động lại/deploy khi đang có video của khách chạy dở hoặc chờ duyệt; sau mỗi lần khởi động lại, ghé mục hoàn tiền để duyệt các ca vừa vào hàng chờ.
+- Sau khi deploy hoặc đổi `.env`: chạy `npm run doctor` (hoặc mở `https://tenmien.com/v1/preflight` với khóa quản trị) để chắc chắn key Atlas + model + ffmpeg đều OK **trước khi** mời khách — server vẫn "sống" (`/health` xanh) kể cả khi thiếu key, chỉ đến lúc khách tạo video mới lộ lỗi.
+- Đặt sau proxy riêng (nginx…) thay vì Caddy đi kèm: BẮT BUỘC bật `CINEJELLY_TRUST_PROXY_HEADERS=true`, nếu không mọi khách bị gộp chung một hạn mức chống-spam (cả web chỉ còn ~6 lệnh tạo video/phút). Bản Docker đi kèm đã bật sẵn.
 - Quên khóa quản trị: mở file `.env` trên máy chủ, dòng `CINEJELLY_API_AUTH_TOKEN`.
-- Muốn tặng/trừ credits thủ công: trang `/operator/topups`, mục "Cộng/trừ credits thủ công".
+- Muốn tặng/trừ credits thủ công: trang `/operator/admin`, mục "Cộng/trừ credits thủ công".
 - Kiểm tra sức khỏe hệ thống: mở `https://tenmien.com/health` → thấy `{"status":"ok"}` là server sống.

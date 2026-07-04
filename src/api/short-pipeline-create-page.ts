@@ -1758,6 +1758,11 @@ export function buildShortPipelineCreatePage(): string {
     function applyI18n() {
       const dict = I18N[currentLang] || I18N.vi;
       document.querySelectorAll("[data-i18n]").forEach(function (node) {
+        // Live regions (session id, live render status) carry a data-i18n only for their
+        // INITIAL placeholder text. Once JS has written a live value into them, skip them so
+        // a language switch never clobbers the session id or an in-flight job status with a
+        // stale placeholder. They stay in their last language until the next live update.
+        if (node.dataset.i18nLive === "1") { return; }
         const key = node.dataset.i18n;
         if (dict[key] !== undefined) { node.textContent = dict[key]; }
         else if (I18N.vi[key] !== undefined) { node.textContent = I18N.vi[key]; }
@@ -2022,7 +2027,18 @@ export function buildShortPipelineCreatePage(): string {
     let jobPollDelayMs = 3000;
 
     function setRenderStatus(text) {
-      document.getElementById("render-status").textContent = text;
+      const node = document.getElementById("render-status");
+      node.textContent = text;
+      // Mark as a live region so a later language switch won't overwrite this live status
+      // with the idle placeholder (see applyI18n).
+      node.dataset.i18nLive = "1";
+    }
+
+    function setSessionLine(text) {
+      const node = document.getElementById("session-line");
+      node.textContent = text;
+      // Live region: keep the real session id across a language switch (see applyI18n).
+      node.dataset.i18nLive = "1";
     }
 
     function stopJobPolling(message) {
@@ -2418,7 +2434,7 @@ export function buildShortPipelineCreatePage(): string {
         body: JSON.stringify(payload)
       });
       activeSessionId = response.session.sessionId;
-      document.getElementById("session-line").textContent = activeSessionId;
+      setSessionLine(activeSessionId);
       document.getElementById("refresh-contract").disabled = false;
       showSuccess("Review plan created. Provider render is still locked until explicit approval.");
       await loadContract(activeSessionId);
@@ -2437,7 +2453,7 @@ export function buildShortPipelineCreatePage(): string {
       const endpoint = endpoints.sessionUi.replace("{sessionId}", encodeURIComponent(sessionId));
       const response = await apiFetch(endpoint);
       activeSessionId = sessionId;
-      document.getElementById("session-line").textContent = sessionId;
+      setSessionLine(sessionId);
       document.getElementById("refresh-contract").disabled = false;
       renderContract(response.uiContract);
     }
@@ -2669,7 +2685,17 @@ export function buildShortPipelineCreatePage(): string {
         card.className = "cj-package";
         card.dataset.packageId = pkg.packageId;
         const price = (pkg.priceVnd || 0).toLocaleString("vi-VN");
-        card.innerHTML = "<strong>" + pkg.label + "</strong><span>" + pkg.credits.toLocaleString("vi-VN") + " credits</span><small>" + price + "đ" + (pkg.bonusNote ? " • " + pkg.bonusNote : "") + "</small>";
+        // Build with textContent, never innerHTML: pkg.label/bonusNote come from admin
+        // settings and must never be interpreted as markup (even self-XSS by the owner).
+        const labelEl = document.createElement("strong");
+        labelEl.textContent = String(pkg.label || "");
+        const creditsEl = document.createElement("span");
+        creditsEl.textContent = pkg.credits.toLocaleString("vi-VN") + " credits";
+        const priceEl = document.createElement("small");
+        priceEl.textContent = price + "đ" + (pkg.bonusNote ? " • " + String(pkg.bonusNote) : "");
+        card.appendChild(labelEl);
+        card.appendChild(creditsEl);
+        card.appendChild(priceEl);
         card.addEventListener("click", function () {
           document.querySelectorAll(".cj-package").forEach(function (item) { item.classList.remove("selected"); });
           card.classList.add("selected");
@@ -2781,6 +2807,13 @@ export function buildShortPipelineCreatePage(): string {
         const response = await fetch(path, { ...options, headers });
         const payload = await response.json();
         if (!response.ok) {
+          if (response.status === 401 && readSessionToken()) {
+            // Session expired mid-journey: drop the dead token and refresh the account UI
+            // now (don't wait for the 30s poll) so the user is prompted to log in again.
+            storeSessionToken("");
+            accountInfo = null;
+            updateAccountUi();
+          }
           throw new Error(payload.error || "Request failed");
         }
         return payload;

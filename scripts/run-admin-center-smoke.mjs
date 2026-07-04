@@ -74,6 +74,21 @@ settings.update({ creditsPerRenderSecond: 20, refundPolicy: "auto" }, "test");
 check("settings_persist_and_read_back", settings.pricing().creditsPerRenderSecond === 20 && settings.refundPolicy() === "auto");
 check("settings_audit_trail_records", settings.snapshot().auditTrail.length >= 1);
 
+// ---- Model overrides MERGE, never wipe (data-loss guard) ----
+// Enable Sub/Dub by setting only the speech model (as the Model tab / a direct API PUT does).
+settings.update({ models: { speechModel: "openai/whisper-large-v3" } }, "test");
+check("settings_speech_model_set", settings.snapshot().models.speechModel === "openai/whisper-large-v3");
+// Now a stale/partial Settings save that carries only some model fields (blank speech box)
+// must NOT wipe the speech model — a merge, not a replace.
+settings.update({ models: { llmModel: "deepseek-ai/DeepSeek-V3", videoModel: "", imageModel: "" } }, "test");
+check(
+  "settings_partial_model_update_preserves_speech_model",
+  settings.snapshot().models.speechModel === "openai/whisper-large-v3" && settings.snapshot().models.llmModel === "deepseek-ai/DeepSeek-V3",
+  JSON.stringify(settings.snapshot().models)
+);
+// And it applied the speech model to the environment so the redub route sees it.
+check("settings_speech_model_applied_to_env", (process.env.ATLASCLOUD_SPEECH_MODEL ?? "") === "openai/whisper-large-v3");
+
 // ---- Account store: manual-policy refund queue (direct) ----
 const store = new UserAccountStore({ storePath: join(workDir, "acct-direct.json"), pricing: loadRenderCreditPricing(process.env) });
 const u = store.register({ email: "q@shop.vn", password: "matkhau123" });

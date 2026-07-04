@@ -18,7 +18,7 @@
     ".env.production.template"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.19.0"
   },
   "scripts": {
     "setup:local": "node scripts/setup-local-env.mjs",
@@ -81,6 +81,7 @@
     "validation:quality-review-guard": "node scripts/run-director-style-review-evidence-guard-smoke.mjs",
     "validation:review-approval-smoke": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-review-approval-smoke.mjs",
     "validation:render-job-review-lifecycle": "node scripts/run-render-job-review-lifecycle-smoke.mjs",
+    "validation:render-settlement-race": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-render-settlement-race-smoke.mjs",
     "validation:render-scheduler": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-render-scheduler-smoke.mjs",
     "validation:mixed-output-assembly": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-mixed-output-assembly-smoke.mjs",
     "validation:transition-audio-continuity": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-transition-audio-continuity-smoke.mjs",

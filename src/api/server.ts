@@ -1311,24 +1311,47 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           redubCharge = { userId: authDecision.principal.userId, credits: redubCredits };
         }
         redubInFlight.add(redubActorKey);
+        // The redub result exists ONLY in this HTTP response body (nothing is persisted).
+        // The work takes minutes — long enough that a browser fetch can time out or the
+        // customer can close the tab. If that happens we must NOT keep them charged for a
+        // result that now lands nowhere: wire the client disconnect to an abort so the
+        // provider work stops and the catch below refunds/queues per policy.
+        const redubAbort = new AbortController();
+        const onRedubClientGone = (): void => {
+          if (!response.writableEnded) {
+            redubAbort.abort(new Error("Mất kết nối trước khi trả kết quả dịch/thuyết minh."));
+          }
+        };
+        request.on("aborted", onRedubClientGone);
+        response.on("close", onRedubClientGone);
         try {
           const localizationProvider = new AtlasCloudProvider(loadRuntimeSettings(process.env).atlasCloud, new ProviderCostLedger());
-          const registeredAsset = await localizationProvider.registerAsset({ uri: redubSourceUri, kind: "video" });
+          const registeredAsset = await localizationProvider.registerAsset({ uri: redubSourceUri, kind: "video" }, redubAbort.signal);
           const activeAsset =
-            registeredAsset.status === "active" ? registeredAsset : await localizationProvider.waitUntilActive(registeredAsset.assetId);
+            registeredAsset.status === "active"
+              ? registeredAsset
+              : await localizationProvider.waitUntilActive(registeredAsset.assetId, redubAbort.signal);
           const redubAudioUri = activeAsset.uri?.startsWith("https://") ? activeAsset.uri : `asset://${activeAsset.assetId}`;
           const redubPlanner = new VideoRedubPlanner({ speechProvider: localizationProvider, llmProvider: localizationProvider });
-          const redubPlan = await redubPlanner.plan({
-            projectId: redubId,
-            audioUri: redubAudioUri,
-            ...(redubSourceLanguage ? { sourceLanguage: redubSourceLanguage } : {}),
-            dubLanguage,
-            subtitleLanguages,
-            ...(redubVoiceStyle ? { voiceStyle: redubVoiceStyle } : {}),
-            ...(redubAudioTreatment ? { originalAudioTreatment: redubAudioTreatment } : {}),
-            speechModelId: redubSpeechModelId,
-            llmModelId: redubLlmModelId
-          });
+          const redubPlan = await redubPlanner.plan(
+            {
+              projectId: redubId,
+              audioUri: redubAudioUri,
+              ...(redubSourceLanguage ? { sourceLanguage: redubSourceLanguage } : {}),
+              dubLanguage,
+              subtitleLanguages,
+              ...(redubVoiceStyle ? { voiceStyle: redubVoiceStyle } : {}),
+              ...(redubAudioTreatment ? { originalAudioTreatment: redubAudioTreatment } : {}),
+              speechModelId: redubSpeechModelId,
+              llmModelId: redubLlmModelId
+            },
+            redubAbort.signal
+          );
+          if (redubAbort.signal.aborted || response.writableEnded || response.destroyed) {
+            // Client vanished during the work: we cannot deliver the result, so treat it as
+            // a failure and let the catch refund/queue instead of silently keeping the money.
+            throw redubAbort.signal.reason ?? new Error("Không gửi được kết quả dịch/thuyết minh (mất kết nối).");
+          }
           sendJson(response, 200, {
             redubId,
             sourceLanguage: redubPlan.sourceLanguage,
@@ -1356,6 +1379,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           }
           throw error;
         } finally {
+          request.removeListener("aborted", onRedubClientGone);
+          response.removeListener("close", onRedubClientGone);
           redubInFlight.delete(redubActorKey);
         }
       }
@@ -1840,6 +1865,21 @@ export function startServer(port = readPort(process.env.PORT)): Server {
     const address = server.address();
     const boundPort = address && typeof address !== "string" ? address.port : port;
     console.log(`CineJelly API listening on port ${boundPort}`);
+    // Atlas settings load lazily per render, so a missing/typo'd key does NOT crash boot —
+    // the server is healthy and registration/top-up work, but the first customer render
+    // would fail. Surface it loudly at startup so a monitoring-only operator notices before
+    // announcing to customers (no spend; run `npm run doctor` or GET /v1/preflight to check).
+    if (!process.env.ATLASCLOUD_API_KEY?.trim()) {
+      console.warn(
+        "[CẢNH BÁO] Chưa có ATLASCLOUD_API_KEY — server chạy được nhưng KHÁCH TẠO VIDEO SẼ LỖI. " +
+          "Điền key trong .env rồi khởi động lại (kiểm tra: npm run doctor)."
+      );
+    }
+    if (!process.env.CINEJELLY_API_AUTH_TOKEN?.trim()) {
+      console.warn(
+        "[CẢNH BÁO] Chưa có CINEJELLY_API_AUTH_TOKEN — trang quản trị /operator/admin bị chặn, không duyệt nạp tiền được."
+      );
+    }
   });
   registerShutdownHandlers(server, jobManager, shutdownCoordinator);
   return server;

@@ -115,6 +115,26 @@ check("studio_collapsible_help_blocks", (studio.match(/class="cj-help"/g) || [])
 check("studio_redub_srt_download_client_side", studio.includes('"subtitle_" + (track.language || "xx") + ".srt"'));
 check("studio_redub_per_job_button", studio.includes("openRedubForJob"));
 
+// --- 6b. Redub route (money): the long synchronous paid work must be tied to the client
+// connection so a disconnect refunds/queues instead of silently keeping the charge, and the
+// charge/refund plumbing must bracket the provider work.
+check(
+  "server_redub_wires_client_disconnect_to_abort",
+  serverSource.includes('response.on("close", onRedubClientGone)') && serverSource.includes("redubAbort.abort("),
+  "redub route must abort provider work when the client disconnects"
+);
+check(
+  "server_redub_guards_delivery_before_charge_kept",
+  serverSource.includes("redubAbort.signal.aborted || response.writableEnded || response.destroyed"),
+  "redub route must not keep the charge when it cannot deliver the result"
+);
+check(
+  "server_redub_refunds_on_failure",
+  serverSource.includes("userAccountStore.refundRender({ userId: redubCharge.userId") &&
+    serverSource.includes("userAccountStore.queueRefundRequest({ userId: redubCharge.userId"),
+  "redub failure must refund (auto) or queue (manual) the charge"
+);
+
 // --- 7. Every shipped page's <script> parses as valid JavaScript (String.raw templates
 // can hide browser-only syntax errors that no TypeScript check catches).
 {

@@ -900,7 +900,12 @@ export class RenderJobManager {
           ? { error: this.errorPayload(new Error("Render job export approval is blocked by unsafe or inconsistent review evidence.")) }
           : {})
       });
-      this.notifyFinished(record, finalStatus);
+      // Settle on the status that actually STUCK, not the computed finalStatus. If a cancel
+      // landed while the artifacts above were being written, updateJob kept "canceled" via
+      // the terminal guard; emitting finalStatus ("succeeded") here would tell billing the
+      // job succeeded and skip the refund, leaving the customer charged with no downloadable
+      // video until the next restart's reconcile. Read the stored status instead.
+      this.notifyFinished(record, this.jobs.get(record.jobId)?.status ?? finalStatus);
     } catch (error) {
       costLedger = runtime?.ledger.list() ?? costLedger;
       const artifacts = await this.tryWriteFailureArtifacts({
@@ -923,7 +928,9 @@ export class RenderJobManager {
         ...(artifacts ? { artifacts } : {}),
         ...(artifactValidation ? { artifactValidation } : {})
       });
-      this.notifyFinished(record, status);
+      // Same guard as the success path: emit whatever status actually stuck (a cancel that
+      // raced this failure keeps "canceled"), never a computed status the store rejected.
+      this.notifyFinished(record, this.jobs.get(record.jobId)?.status ?? status);
     }
   }
 
