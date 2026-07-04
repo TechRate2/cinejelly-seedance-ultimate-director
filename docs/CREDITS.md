@@ -43,6 +43,12 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Generalized structural patterns can be adapted into the Prompt Compiler and `data/` knowledge artifacts with source attribution.
 - CineJelly extension:
   - Converts mined prompt patterns into an adaptive Prompt Compiler that avoids hardcoded niche templates.
+  - 2026-07: systematic structural mining of the full curated corpus (131 prompts analyzed for
+    hook formulas, camera language, audio integration, reference usage, pacing, and viral
+    triggers) distilled — as ORIGINAL wording — into `src/core/niche-playbooks.ts` (13
+    content-family script-time playbooks + cross-family Seedance mastery rules injected into
+    the Story Architect) and 8 entertainment-family entries in
+    `src/core/short-prompt-pattern-corpus.ts`. No prompt text copied.
 
 ### Seedance prompt-engineering guides (methodology reference, 2026)
 

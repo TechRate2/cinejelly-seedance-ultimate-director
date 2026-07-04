@@ -9,6 +9,7 @@ import type { ContinuityRisk } from "../types/prompt.js";
 import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import type { BeatPlan, ScenePlan } from "../core/shot-planner.js";
 import { USER_SCRIPT_OPEN_MARKER } from "../core/simple-brief-resolver.js";
+import { nichePlaybookDirective, SEEDANCE_MASTERY_DIRECTIVE } from "../core/niche-playbooks.js";
 
 /**
  * Detect a pasted, already-written script inside free-form user input so the planner can
@@ -109,11 +110,24 @@ export class StoryArchitect {
   }
 
   public async plan(intake: IntakeResult, signal?: AbortSignal): Promise<StoryPlan> {
+    // Script-time niche intelligence: the matching content-family playbook (mined from the
+    // proven Seedance prompt corpus) plus cross-family mastery rules become part of the
+    // planning instruction, so scripts are born with the winning hook/beats/audio/reference
+    // strategy for their niche instead of a generic arc.
+    const playbookDirective = nichePlaybookDirective({
+      ...(intake.metadata?.shortViralNiche ?? intake.metadata?.niche
+        ? { niche: (intake.metadata.shortViralNiche ?? intake.metadata.niche) as string }
+        : {}),
+      ...(intake.metadata?.shortViralCreativeMode ?? intake.metadata?.creativeMode
+        ? { creativeMode: (intake.metadata.shortViralCreativeMode ?? intake.metadata.creativeMode) as string }
+        : {})
+    });
     const response = await this.llmProvider.structured<StoryPlanJson, typeof STORY_PLAN_SCHEMA>(
       {
         modelId: this.modelId,
         instruction:
-          "Create a production-ready video scene plan. Use reusable production primitives, not hardcoded niche templates. Allocate the full requested duration into a complete beginning, middle, and ending: short commercial inputs need hook/problem, proof/demo, and payoff/soft next-step; long-form inputs need setup, development, proof escalation, and resolved close. Every beat must include a concrete visible state change, timed audio intent when audio is enabled, and an endpoint that the next beat can continue without a visible jump cut.",
+          "Create a production-ready video scene plan. Use reusable production primitives, not hardcoded niche templates. Allocate the full requested duration into a complete beginning, middle, and ending: short commercial inputs need hook/problem, proof/demo, and payoff/soft next-step; long-form inputs need setup, development, proof escalation, and resolved close. Every beat must include a concrete visible state change, timed audio intent when audio is enabled, and an endpoint that the next beat can continue without a visible jump cut. " +
+          `${playbookDirective} ${SEEDANCE_MASTERY_DIRECTIVE}`,
         schema: STORY_PLAN_SCHEMA,
         messages: [
           {
