@@ -130,7 +130,8 @@ export function buildOperatorTopupPage(): string {
       <div class="row">
         <select id="set-refund-policy">
           <option value="manual">Thủ công — bạn duyệt từng ca (khuyên dùng)</option>
-          <option value="auto">Tự động — hoàn ngay khi video lỗi</option>
+          <option value="auto">Tự động — hoàn credits ngay khi video lỗi</option>
+          <option value="off">Không hoàn — video lỗi KHÔNG trả credits (tiền mặt luôn giữ)</option>
         </select>
       </div>
     </div>

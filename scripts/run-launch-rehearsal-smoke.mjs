@@ -26,6 +26,8 @@ process.env.CINEJELLY_API_AUTH_TOKEN = "rehearsal_admin_token_0123456789ab";
 process.env.CINEJELLY_OUTPUT_DIR = workDir;
 process.env.CINEJELLY_CREDITS_PER_RENDER_SECOND = "10";
 process.env.CINEJELLY_TOPUP_BANK_INFO = "Vietcombank 0123456789 - REHEARSAL SHOP";
+// Pin the test package catalog so these assertions are independent of the shipped defaults.
+process.env.CINEJELLY_CREDIT_PACKAGES_JSON = JSON.stringify([{ packageId: "goi_thu", label: "Goi Thu", credits: 500, priceVnd: 49000 }, { packageId: "goi_pro", label: "Goi Pro", credits: 2000, priceVnd: 179000 }, { packageId: "goi_studio", label: "Goi Studio", credits: 7000, priceVnd: 549000 }]);
 // This rehearsal proves the immediate fail->refund machinery on a provider failure, so it
 // disables the operator-hold behavior (which would instead PARK the job on an infra error).
 // The hold behavior has its own end-to-end HTTP smoke (run-operator-hold-http-smoke.mjs).

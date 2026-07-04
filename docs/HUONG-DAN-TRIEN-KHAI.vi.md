@@ -40,6 +40,12 @@ Khách nạp tiền: chọn gói → chuyển khoản theo hướng dẫn trên 
 
 **Dịch phụ đề / thuyết minh video có sẵn (nút 🌐 Sub/Dub):** khách tải video lên (VD video tiếng Trung) hoặc bấm 🌐 trên video đã render → chọn ngôn ngữ thuyết minh + các phụ đề muốn xuất (VI/EN/中文/日本/한국) → hệ thống nghe, dịch, viết lời thuyết minh khớp thời gian và trả file phụ đề `.srt` từng ngôn ngữ + kịch bản đọc. Cần bật model nhận dạng giọng nói trước: Trung tâm quản trị → Cài đặt → Model → điền model speech (VD `openai/whisper-large-v3` — kiểm tra ID trong catalog Atlas). Chưa bật thì nút này báo lỗi rõ ràng và không trừ tiền ai. Phí mỗi lần dịch = giá 5 giây video; lỗi giữa chừng vào hàng chờ hoàn tiền cho bạn duyệt.
 
+**Chính sách kinh doanh (bật trong `.env` hoặc tab Cấu hình):**
+- **Tiền mặt luôn ở lại ngân hàng bạn** — hệ thống không bao giờ chuyển tiền mặt ngược về khách ở bất kỳ chế độ nào. "Hoàn tiền" chỉ là trả CREDITS (điểm) về ví khách.
+- **Khách gửi là chạy luôn (`CINEJELLY_CUSTOMER_AUTO_RUN=true`):** khách bấm tạo → trừ credits → chạy ngay → chỉ hiện "đang hoàn thiện" → trả video (không hiện bước duyệt). Bạn vẫn xem mọi job trong `/operator/admin`. **Lưu ý:** bật cái này = khách tiêu tiền ngay khi bấm tạo, không có bước bạn chặn trước.
+- **Không hoàn credits khi lỗi (`CINEJELLY_REFUND_POLICY=off`):** video lỗi thì credits không trả lại. Nên bật KÈM "treo chờ admin" (mặc định đã bật) để lỗi hạ tầng tự chạy lại tới khi ra video — nhờ vậy credits chỉ mất ở lỗi nội dung thật sự hiếm.
+- **Gói & giá:** bộ gói mặc định (Dùng thử/Phổ biến/Chuyên nghiệp/Studio) tính lãi ~2.5–3x giá vốn Atlas, nạp gói to rẻ hơn mỗi credit, credits không hết hạn. **Bạn PHẢI kiểm tra giá vốn thật trên dashboard Atlas của mình rồi chỉnh lại số cho khớp thị trường** trong tab Cấu hình (giá tính theo ~45–50k đ/video 15 giây tiêu chuẩn — nếu khách chủ yếu dùng chất lượng thấp hơn thì vốn rẻ hơn, lãi cao hơn).
+
 ## Chọn nơi lưu dữ liệu (1 dòng trong .env)
 
 - Mới mở bán: để nguyên (`json`) — không phải cài gì.

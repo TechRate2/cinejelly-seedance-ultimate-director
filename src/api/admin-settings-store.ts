@@ -34,7 +34,12 @@ const MAX_FEATURED_IMAGES = 8;
 const MODEL_ID_PATTERN = /^[A-Za-z0-9._\/-]{2,160}$/;
 const UPLOAD_HANDLE_PATTERN = /^upload:\/\/up_[a-f0-9]{16,64}\.(png|jpg|webp)$/;
 
-export type RefundPolicy = "manual" | "auto";
+// "manual" = failed jobs land in the operator refund queue (admin decides each case).
+// "auto"   = failed jobs auto-refund credits to the customer's balance.
+// "off"    = failed jobs never return credits (credits consumed). Cash is never returned
+//            under ANY policy — only in-app credits differ. Pair with operator-hold ON so
+//            infra failures retry to success rather than consuming credits.
+export type RefundPolicy = "manual" | "auto" | "off";
 
 export interface AdminStudioContent {
   readonly announcement?: string;
@@ -102,7 +107,7 @@ export class AdminSettingsStore {
       return this.state.refundPolicy;
     }
     const fromEnv = this.env.CINEJELLY_REFUND_POLICY?.trim().toLowerCase();
-    return fromEnv === "auto" ? "auto" : "manual";
+    return fromEnv === "auto" ? "auto" : fromEnv === "off" ? "off" : "manual";
   }
 
   public pricing(): RenderCreditPricing {
@@ -185,8 +190,8 @@ export class AdminSettingsStore {
     const changes: string[] = [];
 
     if (patch.refundPolicy !== undefined) {
-      if (patch.refundPolicy !== "manual" && patch.refundPolicy !== "auto") {
-        throw new UserAccountError('refundPolicy phải là "manual" hoặc "auto".', 400);
+      if (patch.refundPolicy !== "manual" && patch.refundPolicy !== "auto" && patch.refundPolicy !== "off") {
+        throw new UserAccountError('refundPolicy phải là "manual", "auto" hoặc "off".', 400);
       }
       this.state.refundPolicy = patch.refundPolicy;
       changes.push(`refundPolicy=${patch.refundPolicy}`);
@@ -361,7 +366,9 @@ export class AdminSettingsStore {
       }
       return {
         schemaVersion: SETTINGS_SCHEMA_VERSION,
-        ...(parsed.refundPolicy === "auto" || parsed.refundPolicy === "manual" ? { refundPolicy: parsed.refundPolicy } : {}),
+        ...(parsed.refundPolicy === "auto" || parsed.refundPolicy === "manual" || parsed.refundPolicy === "off"
+          ? { refundPolicy: parsed.refundPolicy }
+          : {}),
         ...(typeof parsed.creditsPerRenderSecond === "number" ? { creditsPerRenderSecond: parsed.creditsPerRenderSecond } : {}),
         ...(parsed.qualityMultipliers && typeof parsed.qualityMultipliers === "object"
           ? { qualityMultipliers: parsed.qualityMultipliers as Record<string, number> }

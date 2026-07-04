@@ -811,6 +811,9 @@ export function buildShortPipelineCreatePage(): string {
     .cj-package.selected { border-color: rgba(54, 242, 170, 0.8); background: rgba(54, 242, 170, 0.1); }
     .cj-package strong { font-size: 14px; }
     .cj-package small { color: #9aa3c7; font-size: 11px; }
+    .cj-package.popular { border-color: rgba(244,184,77,.85); background: rgba(244,184,77,.10); }
+    .cj-package .cj-badge { align-self: flex-start; font-size: 10px; font-weight: 700; color: #1a1400; background: #f4b84d; border-radius: 6px; padding: 2px 6px; margin-bottom: 2px; }
+    .cj-package .cj-pervideo { color: #8fe3b0; font-weight: 600; }
     .cj-instructions { font-size: 12px; color: #9aa3c7; background: rgba(255, 255, 255, 0.04); border-radius: 8px; padding: 10px; white-space: pre-wrap; }
     .cj-modal-error { color: #ff7d8f; font-size: 12px; }
     .cj-topup-item { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
@@ -1477,6 +1480,7 @@ export function buildShortPipelineCreatePage(): string {
         "pw.done": "Đã đổi mật khẩu. Các thiết bị khác sẽ phải đăng nhập lại.",
         "tu.title": "💎 Nạp credits", "tu.note": "Ghi chú chuyển khoản (tuỳ chọn)", "tu.notePh": "VD: đã CK 10:30 từ STK ...901",
         "tu.submit": "Tôi đã chuyển khoản — gửi yêu cầu duyệt", "tu.sent": "Đã gửi yêu cầu nạp. Quản trị viên sẽ duyệt và cộng credits sớm nhất.",
+        "tu.popular": "⭐ Phổ biến nhất", "tu.perVideo": "đ/video", "tu.noExpire": "💎 Credits không bao giờ hết hạn — nạp trước, dùng dần.",
         "hero.h1": "Tạo video AI", "hero.noSession": "Chưa có phiên.",
         "hero.eyebrow": "Mô tả ý tưởng, thêm ảnh/video tham chiếu, chọn kiểu sản xuất — CineJelly tự viết kịch bản, storyboard, prompt, gói kiểm duyệt và render.",
         "mode.short": "Short", "mode.remake": "Remake", "mode.ugc": "UGC", "mode.long": "Dài",
@@ -1573,6 +1577,7 @@ export function buildShortPipelineCreatePage(): string {
         "pw.done": "Password changed. Other devices must log in again.",
         "tu.title": "💎 Top up credits", "tu.note": "Transfer note (optional)", "tu.notePh": "e.g. paid 10:30 from account ...901",
         "tu.submit": "I have paid — submit for approval", "tu.sent": "Top-up submitted. The admin will verify and add credits shortly.",
+        "tu.popular": "⭐ Most popular", "tu.perVideo": "đ/video", "tu.noExpire": "💎 Credits never expire — top up once, use anytime.",
         "hero.h1": "Create AI Video", "hero.noSession": "No session loaded.",
         "hero.eyebrow": "Describe the idea, add references, choose a production pattern — CineJelly builds the script, storyboard, prompt, review packet, and render handoff.",
         "mode.short": "Short", "mode.remake": "Remake", "mode.ugc": "UGC", "mode.long": "Long",
@@ -1669,6 +1674,7 @@ export function buildShortPipelineCreatePage(): string {
         "pw.done": "密码已修改，其他设备需重新登录。",
         "tu.title": "💎 充值积分", "tu.note": "转账备注（可选）", "tu.notePh": "例：10:30 已从 ...901 转账",
         "tu.submit": "我已转账 — 提交审核", "tu.sent": "充值申请已提交，管理员核对后将尽快到账。",
+        "tu.popular": "⭐ 最受欢迎", "tu.perVideo": "đ/视频", "tu.noExpire": "💎 积分永不过期 — 一次充值，随时使用。",
         "hero.h1": "AI 视频创作", "hero.noSession": "尚未加载会话。",
         "hero.eyebrow": "描述创意、添加参考素材、选择制作模式 — CineJelly 自动生成脚本、分镜、提示词、审核包并渲染。",
         "mode.short": "短视频", "mode.remake": "翻拍", "mode.ugc": "UGC", "mode.long": "长片",
@@ -2684,23 +2690,41 @@ export function buildShortPipelineCreatePage(): string {
       if (!accountInfo) { return; }
       const grid = document.getElementById("package-grid");
       grid.innerHTML = "";
+      // Effective price per 15s video makes bigger packs feel cheaper (honest anchoring):
+      // credits for a 15s standard video = 15 * creditsPerRenderSecond.
+      const perSecond = (accountInfo.renderPricing && accountInfo.renderPricing.creditsPerRenderSecond) || 10;
+      const creditsPerVideo = Math.max(1, 15 * perSecond);
       (accountInfo.packages || []).forEach(function (pkg) {
         const card = document.createElement("button");
         card.type = "button";
         card.className = "cj-package";
         card.dataset.packageId = pkg.packageId;
+        // The "most popular" pack is marked by a ⭐ in its label (diacritic-proof) or POPULAR.
+        const isPopular = String(pkg.label || "").indexOf("⭐") >= 0 || /POPULAR/i.test(String(pkg.bonusNote || ""));
+        if (isPopular) { card.classList.add("popular"); }
         const price = (pkg.priceVnd || 0).toLocaleString("vi-VN");
         // Build with textContent, never innerHTML: pkg.label/bonusNote come from admin
         // settings and must never be interpreted as markup (even self-XSS by the owner).
+        if (isPopular) {
+          const badge = document.createElement("span");
+          badge.className = "cj-badge";
+          badge.textContent = t("tu.popular");
+          card.appendChild(badge);
+        }
         const labelEl = document.createElement("strong");
         labelEl.textContent = String(pkg.label || "");
         const creditsEl = document.createElement("span");
         creditsEl.textContent = pkg.credits.toLocaleString("vi-VN") + " credits";
         const priceEl = document.createElement("small");
         priceEl.textContent = price + "đ" + (pkg.bonusNote ? " • " + String(pkg.bonusNote) : "");
+        const perVideoEl = document.createElement("small");
+        perVideoEl.className = "cj-pervideo";
+        const perVideo = Math.round((pkg.priceVnd || 0) / Math.max(1, pkg.credits / creditsPerVideo) / 1000) * 1000;
+        perVideoEl.textContent = "≈ " + perVideo.toLocaleString("vi-VN") + t("tu.perVideo");
         card.appendChild(labelEl);
         card.appendChild(creditsEl);
         card.appendChild(priceEl);
+        card.appendChild(perVideoEl);
         card.addEventListener("click", function () {
           document.querySelectorAll(".cj-package").forEach(function (item) { item.classList.remove("selected"); });
           card.classList.add("selected");
@@ -2708,7 +2732,15 @@ export function buildShortPipelineCreatePage(): string {
         });
         grid.appendChild(card);
       });
-      document.getElementById("topup-instructions").textContent = accountInfo.topupInstructions || "";
+      const instr = document.getElementById("topup-instructions");
+      instr.textContent = "";
+      const noExpire = document.createElement("div");
+      noExpire.style.cssText = "margin-bottom:6px;color:#8fe3b0;font-weight:600";
+      noExpire.textContent = t("tu.noExpire");
+      instr.appendChild(noExpire);
+      const bank = document.createElement("div");
+      bank.textContent = accountInfo.topupInstructions || "";
+      instr.appendChild(bank);
     }
 
     async function loadMyTopups() {

@@ -505,8 +505,15 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (!finalizedUserId || event.status === "succeeded") {
         return;
       }
+      const policy = adminSettingsStore.refundPolicy();
+      if (policy === "off") {
+        // Owner policy: a failed job never returns credits (cash is never returned under any
+        // policy). Operator-hold means infra failures retry to success instead of landing
+        // here, so this consumes credits only on a genuinely terminal failure.
+        return;
+      }
       const reason = event.status === "failed" ? "video bị lỗi" : event.status === "canceled" ? "đã hủy" : "bị từ chối duyệt";
-      if (adminSettingsStore.refundPolicy() === "auto") {
+      if (policy === "auto") {
         userAccountStore.refundRender({ userId: finalizedUserId, jobId: event.jobId, reason });
         return;
       }
@@ -515,16 +522,19 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       userAccountStore.queueRefundRequest({ userId: finalizedUserId, jobId: event.jobId, reason });
     }
   });
-  // Charges are durable but jobs are not: after a restart, refund every unmatched charge
-  // whose job vanished or ended without success.
-  userAccountStore.reconcileRenderCharges(
-    (jobId) =>
-      // Phí dịch phụ đề/thuyết minh (redub_*) tính và trả kết quả ngay trong một request —
-      // không có job nền để đối soát; lỗi giữa chừng đã hoàn/vào hàng chờ ngay tại route,
-      // nên coi như đã tất toán (trường hợp sập máy đúng lúc chạy: admin cộng bù thủ công).
-      jobId.startsWith("redub_") ? "succeeded" : jobManager.statusOfAny(jobId),
-    { mode: adminSettingsStore.refundPolicy() === "auto" ? "refund" : "queue" }
-  );
+  // Charges are durable but jobs are not: after a restart, settle every unmatched charge
+  // whose job vanished or ended without success — per the refund policy. Under "off" the
+  // owner keeps the credits, so reconciliation is skipped entirely.
+  if (adminSettingsStore.refundPolicy() !== "off") {
+    userAccountStore.reconcileRenderCharges(
+      (jobId) =>
+        // Phí dịch phụ đề/thuyết minh (redub_*) tính và trả kết quả ngay trong một request —
+        // không có job nền để đối soát; lỗi giữa chừng đã hoàn/vào hàng chờ ngay tại route,
+        // nên coi như đã tất toán (trường hợp sập máy đúng lúc chạy: admin cộng bù thủ công).
+        jobId.startsWith("redub_") ? "succeeded" : jobManager.statusOfAny(jobId),
+      { mode: adminSettingsStore.refundPolicy() === "auto" ? "refund" : "queue" }
+    );
+  }
   // Start the periodic operator-hold sweep: retries held jobs (so a fixed key resumes them)
   // and force-fails+refunds any held past the deadline (money is never stuck forever).
   jobManager.startOperatorHoldSweep();
@@ -806,7 +816,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...clientFilter(authDecision.principal),
           ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
           ...(requestFingerprint ? { requestFingerprint } : {}),
-          reviewApproval: handoff.reviewApproval,
+          // Auto-run for customers skips the review pause; operators keep it.
+          ...(customerAutoRunEnabled(authDecision.principal) ? {} : { reviewApproval: handoff.reviewApproval }),
           onAccepted: (acceptedSummary) => {
             acceptedJobId = acceptedSummary.jobId;
             commercialReservation = reserveCommercialRender({
@@ -1024,7 +1035,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...clientFilter(authDecision.principal),
           ...(idempotencyKeyDigest ? { idempotencyKeyDigest } : {}),
           ...(requestFingerprint ? { requestFingerprint } : {}),
-          reviewApproval: handoff.reviewApproval,
+          // Auto-run for customers skips the review pause; operators keep it.
+          ...(customerAutoRunEnabled(authDecision.principal) ? {} : { reviewApproval: handoff.reviewApproval }),
           onAccepted: (acceptedSummary) => {
             acceptedJobId = acceptedSummary.jobId;
             commercialReservation = reserveCommercialRender({
@@ -3244,6 +3256,16 @@ function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principa
     return { clientId: `user:${principal.userId}` };
   }
   return {};
+}
+
+/**
+ * When CINEJELLY_CUSTOMER_AUTO_RUN=true, a customer's render skips the operator review pause
+ * and runs immediately ("gửi là chạy"): the credits are charged at submit and the job goes
+ * straight to the queue. Operator/API principals are unaffected. Default off keeps the review
+ * gate. The operator can still watch every job in the admin desk.
+ */
+function customerAutoRunEnabled(principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]): boolean {
+  return (process.env.CINEJELLY_CUSTOMER_AUTO_RUN ?? "").trim().toLowerCase() === "true" && principal?.kind === "user";
 }
 
 /**

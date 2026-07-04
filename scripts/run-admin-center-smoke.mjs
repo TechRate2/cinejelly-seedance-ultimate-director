@@ -72,6 +72,13 @@ try {
 check("settings_rejects_bad_model_id", rejectedBadModel);
 settings.update({ creditsPerRenderSecond: 20, refundPolicy: "auto" }, "test");
 check("settings_persist_and_read_back", settings.pricing().creditsPerRenderSecond === 20 && settings.refundPolicy() === "auto");
+// Owner "never refund credits" policy is a valid, persisted choice.
+settings.update({ refundPolicy: "off" }, "test");
+check("settings_accept_refund_policy_off", settings.refundPolicy() === "off");
+let rejectedBadPolicy = false;
+try { settings.update({ refundPolicy: "nonsense" }, "test"); } catch { rejectedBadPolicy = true; }
+check("settings_reject_bad_refund_policy", rejectedBadPolicy);
+settings.update({ refundPolicy: "manual" }, "test");
 check("settings_audit_trail_records", settings.snapshot().auditTrail.length >= 1);
 
 // ---- Model overrides MERGE, never wipe (data-loss guard) ----

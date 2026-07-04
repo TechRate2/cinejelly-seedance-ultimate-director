@@ -21,6 +21,8 @@ process.env.CINEJELLY_API_AUTH_TOKEN = "admin_smoke_token_0123456789abcdef";
 process.env.CINEJELLY_OUTPUT_DIR = workDir;
 process.env.CINEJELLY_CREDITS_PER_RENDER_SECOND = "10";
 process.env.CINEJELLY_TOPUP_BANK_INFO = "Vietcombank 0123456789 - SMOKE SHOP";
+// Pin the test package catalog so these assertions are independent of the shipped defaults.
+process.env.CINEJELLY_CREDIT_PACKAGES_JSON = JSON.stringify([{ packageId: "goi_thu", label: "Goi Thu", credits: 500, priceVnd: 49000 }, { packageId: "goi_pro", label: "Goi Pro", credits: 2000, priceVnd: 179000 }, { packageId: "goi_studio", label: "Goi Studio", credits: 7000, priceVnd: 549000 }]);
 
 const { startServer } = await import("../dist/api/server.js");
 const { UserAccountStore, estimateRenderCredits, loadRenderCreditPricing, UserAccountError } = await import("../dist/api/user-account-store.js");

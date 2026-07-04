@@ -84,6 +84,7 @@
     "validation:render-settlement-race": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-render-settlement-race-smoke.mjs",
     "validation:operator-hold": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-operator-hold-smoke.mjs",
     "validation:operator-hold-http": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-operator-hold-http-smoke.mjs",
+    "validation:commercial-policy": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-commercial-policy-smoke.mjs",
     "validation:render-scheduler": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-render-scheduler-smoke.mjs",
     "validation:mixed-output-assembly": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-mixed-output-assembly-smoke.mjs",
     "validation:transition-audio-continuity": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-transition-audio-continuity-smoke.mjs",

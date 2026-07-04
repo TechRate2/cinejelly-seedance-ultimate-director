@@ -51,11 +51,20 @@ export interface CreditPackage {
   readonly bonusNote?: string;
 }
 
-/** Default catalog; override with CINEJELLY_CREDIT_PACKAGES_JSON. */
+/**
+ * Default catalog; override with CINEJELLY_CREDIT_PACKAGES_JSON, or edit live in the admin
+ * Settings tab. Credits never expire (one-time top-ups, no monthly). Pricing is designed for
+ * a healthy ~2.5–3x margin over Atlas cost at the STANDARD tier (so cheaper tiers earn even
+ * more), with the per-credit price dropping ~16% from the trial to the Studio pack to reward
+ * bigger top-ups. IMPORTANT: these assume roughly ~45–50k VND provider cost per 15s standard
+ * video (150 credits at 10 credits/sec) — verify against your real Atlas dashboard + FX rate
+ * and tune the numbers (or the whole ladder) in the admin Settings tab.
+ */
 export const DEFAULT_CREDIT_PACKAGES: readonly CreditPackage[] = [
-  { packageId: "goi_thu", label: "Gói Thử", credits: 500, priceVnd: 49_000 },
-  { packageId: "goi_pro", label: "Gói Pro", credits: 2_000, priceVnd: 179_000, bonusNote: "Tặng thêm 11% so với Gói Thử" },
-  { packageId: "goi_studio", label: "Gói Studio", credits: 7_000, priceVnd: 549_000, bonusNote: "Rẻ hơn 30% mỗi credit" }
+  { packageId: "goi_dungthu", label: "⚡ Gói Dùng thử", credits: 150, priceVnd: 149_000, bonusNote: "Làm thử 1 video 15 giây" },
+  { packageId: "goi_phobien", label: "⭐ Gói Phổ biến", credits: 750, priceVnd: 690_000, bonusNote: "PHỔ BIẾN NHẤT • ~5 video • tiết kiệm ~7%/credit" },
+  { packageId: "goi_chuyennghiep", label: "💎 Gói Chuyên nghiệp", credits: 2_300, priceVnd: 1_990_000, bonusNote: "~15 video • tiết kiệm ~13%/credit" },
+  { packageId: "goi_studio", label: "👑 Gói Studio", credits: 6_000, priceVnd: 4_990_000, bonusNote: "RẺ NHẤT mỗi video • ~40 video • tiết kiệm ~16%" }
 ];
 
 export interface UserRecord {

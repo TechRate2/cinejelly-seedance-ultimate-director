@@ -28,6 +28,8 @@ process.env.CINEJELLY_API_AUTH_TOKEN = "hold_admin_token_0123456789abcd";
 process.env.CINEJELLY_OUTPUT_DIR = workDir;
 process.env.CINEJELLY_CREDITS_PER_RENDER_SECOND = "10";
 process.env.CINEJELLY_TOPUP_BANK_INFO = "Vietcombank 0123456789 - HOLD SHOP";
+// Pin the test package catalog so these assertions are independent of the shipped defaults.
+process.env.CINEJELLY_CREDIT_PACKAGES_JSON = JSON.stringify([{ packageId: "goi_thu", label: "Goi Thu", credits: 500, priceVnd: 49000 }, { packageId: "goi_pro", label: "Goi Pro", credits: 2000, priceVnd: 179000 }, { packageId: "goi_studio", label: "Goi Studio", credits: 7000, priceVnd: 549000 }]);
 // Operator-hold ON (the default), but sweep rarely so the test controls retries.
 process.env.CINEJELLY_JOB_HOLD_ON_CONFIG_ERROR = "true";
 process.env.CINEJELLY_JOB_HOLD_RETRY_INTERVAL_MS = "3600000";
