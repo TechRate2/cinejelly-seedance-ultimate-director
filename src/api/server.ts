@@ -1143,6 +1143,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           account,
           packages: adminSettingsStore.packages(),
           renderPricing: adminSettingsStore.pricing(),
+          refundPolicy: adminSettingsStore.refundPolicy(),
           topupInstructions: adminSettingsStore.topupBankInfo() ||
             "Chuyển khoản theo gói đã chọn rồi bấm 'Tôi đã chuyển khoản' — quản trị viên sẽ duyệt và cộng credits.",
           ...(studioContent.announcement ? { announcement: studioContent.announcement } : {}),

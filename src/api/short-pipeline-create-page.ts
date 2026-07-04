@@ -1514,6 +1514,11 @@ export function buildShortPipelineCreatePage(): string {
 
     document.getElementById("auth-form").addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (!accountInfo || !accountInfo.account) {
+        showError("Hãy đăng nhập để xem các phiên làm việc của bạn.");
+        document.getElementById("auth-modal").hidden = false;
+        return;
+      }
       await loadSessions();
     });
     document.getElementById("brief-form").addEventListener("submit", async (event) => {
@@ -1802,7 +1807,7 @@ export function buildShortPipelineCreatePage(): string {
       try {
         job = await apiFetch(statusUrl);
       } catch (error) {
-        stopJobPolling("Job status check failed; open " + statusUrl + " manually.");
+        stopJobPolling("Không kiểm tra được trạng thái video. Hãy đăng nhập lại rồi mở 🎬 Video của tôi.");
         return;
       }
       const status = job.status || "unknown";
@@ -1812,11 +1817,13 @@ export function buildShortPipelineCreatePage(): string {
       setRenderStatus("Job " + (job.jobId || "") + " status: " + status + stage + " | " + statusUrl);
       if (status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected" || status === "blocked") {
         if (accountInfo && accountInfo.account) {
+          var autoRefund = accountInfo && accountInfo.refundPolicy === "auto";
+          var refundNote = autoRefund ? "credits đã được hoàn tự động" : "yêu cầu hoàn credits đã được gửi tới đội ngũ để xử lý";
           const terminalCopy = status === "succeeded"
             ? "🎉 Video đã xong! Mở 🎬 Video của tôi để xem và tải về."
-            : status === "failed" ? "❌ Video bị lỗi — credits đã được hoàn tự động. Hãy thử lại."
-            : status === "canceled" ? "Video đã hủy — credits đã được hoàn."
-            : status === "rejected" ? "Video bị từ chối duyệt — credits đã được hoàn."
+            : status === "failed" ? "❌ Video bị lỗi — " + refundNote + ". Hãy thử lại."
+            : status === "canceled" ? "Video đã hủy — " + refundNote + "."
+            : status === "rejected" ? "Video bị từ chối duyệt — " + refundNote + "."
             : "Video tạm giữ để kiểm tra thêm — đội ngũ sẽ xử lý sớm.";
           stopJobPolling(terminalCopy);
           refreshAccount();
@@ -1871,9 +1878,14 @@ export function buildShortPipelineCreatePage(): string {
 
     async function createSession() {
       clearMessages();
+      if (!accountInfo || !accountInfo.account) {
+        showError("Hãy đăng nhập (nút Đăng nhập / Đăng ký phía trên) trước khi tạo video.");
+        document.getElementById("auth-modal").hidden = false;
+        return;
+      }
       const payload = briefPayload();
       if (!payload.userPrompt) {
-        showError("Creative brief is required before creating a real backend session.");
+        showError("Hãy nhập ý tưởng video trước khi tạo.");
         return;
       }
       const response = await apiFetch(endpoints.sessions, {
@@ -2181,15 +2193,22 @@ export function buildShortPipelineCreatePage(): string {
       document.getElementById("open-auth").hidden = loggedIn;
       document.getElementById("account-wrap").hidden = !loggedIn;
       const balanceBox = document.getElementById("balance-status");
-      // Operator-only concepts disappear for customers: raw USD preflight + review fields
-      // (the server ignores customer-sent review approvals anyway; the desk decides).
+      // Operator-only concepts (raw USD preflight + review fields + Prepare Packet) are
+      // shown ONLY in operator mode: an admin API key present and no customer session.
+      // Customers and first-time logged-out visitors never see them.
+      var operatorMode = (function () {
+        var keyEl = document.getElementById("api-key");
+        return Boolean(keyEl && keyEl.value.trim()) && !loggedIn;
+      })();
       ["reviewer", "review-decision", "review-notes"].forEach(function (id) {
         const field = document.getElementById(id);
         const wrap = field && field.closest ? field.closest("label") : null;
-        if (wrap) { wrap.style.display = loggedIn ? "none" : ""; }
+        if (wrap) { wrap.style.display = operatorMode ? "" : "none"; }
       });
       const usdCard = document.getElementById("usd-cost-card");
-      if (usdCard) { usdCard.style.display = loggedIn ? "none" : ""; }
+      if (usdCard) { usdCard.style.display = operatorMode ? "" : "none"; }
+      const prepareBtn = document.getElementById("prepare-approval");
+      if (prepareBtn) { prepareBtn.style.display = operatorMode ? "" : "none"; }
       if (loggedIn) {
         document.getElementById("account-name").textContent = "👤 " + accountInfo.account.displayName;
         balanceBox.textContent = accountInfo.account.balanceCredits.toLocaleString("vi-VN") + " 💎";
@@ -2222,7 +2241,8 @@ export function buildShortPipelineCreatePage(): string {
       const pricing = accountInfo.renderPricing;
       const credits = Math.max(pricing.minimumChargeCredits || 1, Math.ceil(seconds * (pricing.creditsPerRenderSecond || 10)));
       const balance = accountInfo.account ? accountInfo.account.balanceCredits : 0;
-      box.textContent = "Chi phí ước tính: ~" + credits.toLocaleString("vi-VN") + " credits (số dư: " + balance.toLocaleString("vi-VN") + " 💎). Video lỗi được hoàn credits tự động.";
+      var refundHint = (accountInfo && accountInfo.refundPolicy === "auto") ? "Video lỗi được hoàn credits tự động." : "Video lỗi sẽ được đội ngũ xem xét hoàn credits.";
+      box.textContent = "Chi phí ước tính: ~" + credits.toLocaleString("vi-VN") + " credits (số dư: " + balance.toLocaleString("vi-VN") + " 💎). " + refundHint;
       box.hidden = false;
     }
 

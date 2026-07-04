@@ -17,7 +17,8 @@ mkdirSync(backupDir, { recursive: true });
 const targets = [
   { source: process.env.CINEJELLY_USER_ACCOUNT_STORE_PATH?.trim() || join(outputDir, "user-accounts.json"), label: "Sổ tài khoản + credits (JSON)" },
   { source: process.env.CINEJELLY_SQLITE_PATH?.trim() || join(outputDir, "user-accounts.sqlite"), label: "Sổ tài khoản + credits (SQLite)" },
-  { source: join(outputDir, "render-job-history.json"), label: "Lịch sử job render" }
+  { source: join(outputDir, "render-job-history.json"), label: "Lịch sử job render" },
+  { source: process.env.CINEJELLY_ADMIN_SETTINGS_PATH?.trim() || join(outputDir, "admin-settings.json"), label: "Cấu hình admin (giá/gói/model/bank)" }
 ];
 
 const copied = [];
@@ -45,7 +46,9 @@ writeFileSync(
     "   (user-accounts.json hoặc .sqlite -> đặt đúng tên cũ; thư mục uploads -> uploads/)",
     "3. Bật lại server. Số dư + tài khoản khách trở lại nguyên vẹn.",
     "",
-    "Nên chạy backup mỗi ngày (Windows Task Scheduler / cron): npm run backup:data"
+    "Nên chạy backup mỗi ngày (Windows Task Scheduler / cron): npm run backup:data",
+    "QUAN TRONG: chep thu muc backups/ nay sang o dia/may khac — de chung 1 may voi du lieu goc thi hong may la mat ca hai.",
+    "Postgres: neu dung CINEJELLY_DATABASE_KIND=postgres, backup bang cong cu cua Postgres (pg_dump), khong nam trong file nay."
   ].join("\n"),
   "utf8"
 );

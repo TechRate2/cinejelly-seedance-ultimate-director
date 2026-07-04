@@ -32,15 +32,21 @@ docker compose up -d
 | Ai | Vào đâu | Làm gì |
 |---|---|---|
 | Khách hàng | `https://tenmien.com/` (tự chuyển vào Studio) | Đăng ký → Nạp credits → tải ảnh KOL/sản phẩm → tạo video |
-| Bạn (admin) | `https://tenmien.com/operator/topups` | Dán khóa quản trị 1 lần → thấy ai vừa chuyển khoản → bấm **Duyệt** |
+| Bạn (admin) | `https://tenmien.com/operator/admin` | Dán khóa quản trị 1 lần → thấy ai vừa chuyển khoản → bấm **Duyệt** |
 
-Khách nạp tiền: chọn gói → chuyển khoản theo hướng dẫn trên màn hình → bấm "Tôi đã chuyển khoản" → bạn mở trang Duyệt nạp, đối chiếu app ngân hàng, bấm Duyệt → credits cộng ngay. Video lỗi hệ thống tự hoàn credits.
+Khách nạp tiền: chọn gói → chuyển khoản theo hướng dẫn trên màn hình → bấm "Tôi đã chuyển khoản" → bạn mở trang quản trị, đối chiếu app ngân hàng, bấm Duyệt → credits cộng ngay. Mặc định video lỗi KHÔNG tự hoàn (có lợi cho bạn) — vào hàng chờ hoàn tiền để bạn duyệt từng ca; đổi sang tự động trong tab Cấu hình nếu muốn.
 
 ## Chọn nơi lưu dữ liệu (1 dòng trong .env)
 
 - Mới mở bán: để nguyên (`json`) — không phải cài gì.
 - Có khách đều đặn: `CINEJELLY_DATABASE_KIND=sqlite` — CSDL SQL thật, bền hơn (Docker đã hỗ trợ sẵn).
-- Scale nhiều máy chủ: `CINEJELLY_DATABASE_KIND=postgres` + điền `CINEJELLY_POSTGRES_URL=` (cần chạy `npm install pg` một lần).
+- Bền hơn / có sẵn công cụ sao lưu quản lý: `CINEJELLY_DATABASE_KIND=postgres` + `CINEJELLY_POSTGRES_URL=` (chạy `npm install pg` một lần).
+
+**Lưu ý scale quan trọng:** hệ thống chạy **một tiến trình máy chủ** (mọi dữ liệu nạp vào RAM). **KHÔNG chạy 2 server cùng lúc trên chung một kho dữ liệu** — sẽ ghi đè nhau và mất tiền/tài khoản. Muốn phục vụ nhiều khách hơn thì **nâng cấu hình máy (scale dọc)**, không phải thêm máy:
+- Tăng số video chạy song song: `CINEJELLY_API_JOB_CONCURRENCY=4` (mặc định 1). Atlas chạy bất đồng bộ nên nâng 3-8 là chạy được nhiều video cùng lúc.
+- Khi có khách đều: chuyển `CINEJELLY_DATABASE_KIND=sqlite` (bền hơn file JSON).
+- Nới giới hạn chống-spam khi lượng khách thật tăng: `CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS`.
+- **Dọn ổ đĩa:** video/ảnh khách tải lên không tự xoá — đặt lịch xoá file cũ trong thư mục output định kỳ để ổ không đầy.
 
 ## Sao lưu tiền + tài khoản (quan trọng!)
 

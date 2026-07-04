@@ -87,6 +87,9 @@ const REQUIRED_STUDIO_IDS = [
 const missingRequired = REQUIRED_STUDIO_IDS.filter((id) => !studio.includes(`id="${id}"`));
 check("studio_customer_journey_controls_present", missingRequired.length === 0, missingRequired.join(", "));
 
+// --- 5b. Money copy must not promise unconditional auto-refund (default policy is manual).
+check("studio_refund_copy_is_policy_aware", studio.includes('refundPolicy === "auto"') && !studio.includes("credits đã được hoàn tự động. Hãy thử lại"));
+
 // --- 5. No template-literal leakage into browser JS (String.raw hazards).
 for (const page of PAGES) {
   check(`${page.name}_no_unescaped_template_leakage`, !page.html.includes("undefined${") && !page.html.includes("[object Object]"));
