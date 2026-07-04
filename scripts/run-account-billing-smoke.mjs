@@ -91,6 +91,23 @@ try {
   });
   check("upload_works_with_session", upload.status === 201, `status=${upload.status}`);
 
+  // --- Redub (dịch phụ đề / thuyết minh): auth + validation + clean 503 without a speech
+  // model, all BEFORE any charge or provider call (no-spend; balance must stay untouched).
+  check("redub_requires_auth", (await postJson("/v1/redub/plans", { dubLanguage: "vi" })).status === 401);
+  check("redub_validates_dub_language", (await postJson("/v1/redub/plans", {}, session)).status === 400);
+  const redubNoModel = await postJson(
+    "/v1/redub/plans",
+    { dubLanguage: "vi", uploadUri: "upload://up_0123456789abcdef0123456789abcdef.mp4" },
+    session
+  );
+  check(
+    "redub_clear_503_without_speech_model",
+    redubNoModel.status === 503 && /ATLASCLOUD_SPEECH_MODEL/.test(redubNoModel.payload.error ?? ""),
+    `status=${redubNoModel.status}`
+  );
+  const meAfterRedubGates = await getJson("/v1/account/me", session);
+  check("redub_gates_never_charge", meAfterRedubGates.payload.account.balanceCredits === 0);
+
   // --- Top-up flow: request -> pending -> admin approves -> balance credited.
   check("topup_rejects_unknown_package", (await postJson("/v1/account/topups", { packageId: "khong_ton_tai" }, session)).status === 404);
   const topup = await postJson("/v1/account/topups", { packageId: "goi_thu", note: "đã CK 10:30" }, session);

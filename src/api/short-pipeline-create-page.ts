@@ -819,6 +819,11 @@ export function buildShortPipelineCreatePage(): string {
     .admin-key-wrap { display: flex; align-items: center; gap: 6px; }
     .admin-key-wrap[hidden] { display: none; }
     #credit-estimate { font-size: 12px; color: #9aa3c7; margin-top: 6px; }
+    .cj-help { margin: 8px 0; border: 1px dashed rgba(255,255,255,.18); border-radius: 10px; padding: 6px 10px; background: rgba(255,255,255,.03); font-size: 12.5px; }
+    .cj-help summary { cursor: pointer; color: #9fb0ff; font-weight: 600; }
+    .cj-help p { margin: 6px 0 2px; color: #aab3d6; line-height: 1.5; }
+    .cj-check { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 4px 8px; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; cursor: pointer; }
+    #lang-switch { background: rgba(255,255,255,.06); color: #cdd5f6; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 4px 6px; font-size: 12px; }
     @media (max-width: 620px) {
       .cj-packages { grid-template-columns: 1fr; }
       .cj-modal-card { padding: 14px; }
@@ -1006,209 +1011,263 @@ export function buildShortPipelineCreatePage(): string {
       <form class="topbar" id="auth-form">
         <div class="top-chip">
           <div class="pill info">Credits</div>
-          <div><small>Số dư</small><strong id="balance-status">—</strong></div>
+          <div><small data-i18n="top.balance">Số dư</small><strong id="balance-status">—</strong></div>
         </div>
         <div class="top-chip">
           <div class="pill warn">Queue</div>
-          <div><small>Hàng chờ render</small><strong id="queue-status">Sẵn sàng</strong></div>
+          <div><small data-i18n="top.queue">Hàng chờ render</small><strong id="queue-status" data-i18n="top.queueReady">Sẵn sàng</strong></div>
         </div>
         <button type="button" id="open-jobs-top" class="mini-btn" title="Video của tôi">🎬 Video</button>
-        <button type="button" id="open-auth" class="mini-btn">Đăng nhập / Đăng ký</button>
+        <button type="button" id="open-redub-top" class="mini-btn" data-i18n-title="top.redubTitle" title="Dịch phụ đề / thuyết minh video có sẵn">🌐 Sub/Dub</button>
+        <button type="button" id="open-auth" class="mini-btn" data-i18n="top.login">Đăng nhập / Đăng ký</button>
         <span class="cj-account-wrap" id="account-wrap" hidden>
           <span class="pill info" id="account-name"></span>
-          <button type="button" id="open-topup" class="mini-btn">💎 Nạp credits</button>
+          <button type="button" id="open-topup" class="mini-btn" data-i18n="top.topup">💎 Nạp credits</button>
           <button type="button" id="open-change-password" class="ghost-btn" title="Đổi mật khẩu">🔑</button>
-          <button type="button" id="logout-btn" class="ghost-btn" title="Đăng xuất">Thoát</button>
+          <button type="button" id="logout-btn" class="ghost-btn" title="Đăng xuất" data-i18n="top.logout">Thoát</button>
         </span>
         <span class="admin-key-wrap" id="admin-key-wrap" hidden>
           <input class="api-key" id="api-key" type="password" autocomplete="off" placeholder="API key quản trị (chỉ dành cho chủ hệ thống)" aria-label="Admin API key" title="Chỉ dành cho quản trị viên. Khách hàng đăng nhập bằng tài khoản.">
           <button type="button" id="forget-api-key" class="ghost-btn" title="Xoá key đã nhớ trên máy này" aria-label="Xoá key đã nhớ">✕</button>
         </span>
+        <select id="lang-switch" title="Ngôn ngữ / Language / 语言" aria-label="Language"><option value="vi">VI</option><option value="en">EN</option><option value="zh">中文</option></select>
         <button type="button" id="toggle-admin-key" class="ghost-btn" title="Chế độ quản trị viên">⚙</button>
         <button type="submit" id="load-sessions" class="ghost-btn">Sessions</button>
       </form>
       <div class="cj-modal" id="auth-modal" hidden>
         <div class="cj-modal-card">
-          <div class="cj-modal-head"><strong id="auth-title">Đăng nhập</strong><button type="button" class="ghost-btn" data-close-modal="auth-modal">✕</button></div>
+          <div class="cj-modal-head"><strong id="auth-title" data-i18n="auth.login">Đăng nhập</strong><button type="button" class="ghost-btn" data-close-modal="auth-modal">✕</button></div>
           <div class="cj-tabs">
-            <button type="button" class="cj-tab active" id="tab-login">Đăng nhập</button>
-            <button type="button" class="cj-tab" id="tab-register">Tạo tài khoản</button>
+            <button type="button" class="cj-tab active" id="tab-login" data-i18n="auth.login">Đăng nhập</button>
+            <button type="button" class="cj-tab" id="tab-register" data-i18n="auth.register">Tạo tài khoản</button>
           </div>
           <label class="field"><span>Email</span><input id="auth-email" type="email" autocomplete="email" placeholder="ban@email.com"></label>
-          <label class="field"><span>Mật khẩu</span><input id="auth-password" type="password" autocomplete="current-password" placeholder="Tối thiểu 8 ký tự"></label>
-          <label class="field" id="auth-name-field" hidden><span>Tên hiển thị (tuỳ chọn)</span><input id="auth-display-name" placeholder="Tên của bạn"></label>
+          <label class="field"><span data-i18n="auth.password">Mật khẩu</span><input id="auth-password" type="password" autocomplete="current-password" data-i18n-placeholder="auth.pwPh" placeholder="Tối thiểu 8 ký tự"></label>
+          <label class="field" id="auth-name-field" hidden><span data-i18n="auth.name">Tên hiển thị (tuỳ chọn)</span><input id="auth-display-name" placeholder="Tên của bạn"></label>
           <div class="cj-modal-error" id="auth-error" hidden></div>
-          <button type="button" class="cj-primary" id="auth-submit">Đăng nhập</button>
-          <small style="color:#9aa3c7">Tạo tài khoản miễn phí, nạp credits là tạo được video ngay. Không cần API key.</small>
+          <button type="button" class="cj-primary" id="auth-submit" data-i18n="auth.login">Đăng nhập</button>
+          <small style="color:#9aa3c7" data-i18n="auth.note">Tạo tài khoản miễn phí, nạp credits là tạo được video ngay. Không cần API key.</small>
         </div>
       </div>
       <div class="cj-modal" id="password-modal" hidden>
         <div class="cj-modal-card">
-          <div class="cj-modal-head"><strong>🔑 Đổi mật khẩu</strong><button type="button" class="ghost-btn" data-close-modal="password-modal">✕</button></div>
-          <label class="field"><span>Mật khẩu hiện tại</span><input id="current-password" type="password" autocomplete="current-password"></label>
-          <label class="field"><span>Mật khẩu mới (tối thiểu 8 ký tự)</span><input id="new-password" type="password" autocomplete="new-password"></label>
+          <div class="cj-modal-head"><strong data-i18n="pw.title">🔑 Đổi mật khẩu</strong><button type="button" class="ghost-btn" data-close-modal="password-modal">✕</button></div>
+          <label class="field"><span data-i18n="pw.current">Mật khẩu hiện tại</span><input id="current-password" type="password" autocomplete="current-password"></label>
+          <label class="field"><span data-i18n="pw.new">Mật khẩu mới (tối thiểu 8 ký tự)</span><input id="new-password" type="password" autocomplete="new-password"></label>
           <div class="cj-modal-error" id="password-error" hidden></div>
-          <button type="button" class="cj-primary" id="password-submit">Đổi mật khẩu</button>
-          <small style="color:#9aa3c7">Sau khi đổi, các thiết bị khác sẽ phải đăng nhập lại. Quên mật khẩu? Liên hệ hỗ trợ để được cấp lại.</small>
+          <button type="button" class="cj-primary" id="password-submit" data-i18n="pw.submit">Đổi mật khẩu</button>
+          <small style="color:#9aa3c7" data-i18n="pw.note">Sau khi đổi, các thiết bị khác sẽ phải đăng nhập lại. Quên mật khẩu? Liên hệ hỗ trợ để được cấp lại.</small>
         </div>
       </div>
       <div class="cj-modal" id="topup-modal" hidden>
         <div class="cj-modal-card">
-          <div class="cj-modal-head"><strong>💎 Nạp credits</strong><button type="button" class="ghost-btn" data-close-modal="topup-modal">✕</button></div>
+          <div class="cj-modal-head"><strong data-i18n="tu.title">💎 Nạp credits</strong><button type="button" class="ghost-btn" data-close-modal="topup-modal">✕</button></div>
+          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.topup">Chọn gói → chuyển khoản đúng nội dung hiển thị → bấm nút xác nhận. Quản trị viên duyệt là credits vào tài khoản (thường vài phút). Lỡ gửi trùng sẽ tự gộp, không mất tiền hai lần.</p></details>
           <div class="cj-packages" id="package-grid"></div>
           <div class="cj-instructions" id="topup-instructions"></div>
-          <label class="field"><span>Ghi chú chuyển khoản (tuỳ chọn)</span><input id="topup-note" placeholder="VD: đã CK 10:30 từ STK ...901"></label>
-          <button type="button" class="cj-primary" id="topup-submit" disabled>Tôi đã chuyển khoản — gửi yêu cầu duyệt</button>
+          <label class="field"><span data-i18n="tu.note">Ghi chú chuyển khoản (tuỳ chọn)</span><input id="topup-note" data-i18n-placeholder="tu.notePh" placeholder="VD: đã CK 10:30 từ STK ...901"></label>
+          <button type="button" class="cj-primary" id="topup-submit" disabled data-i18n="tu.submit">Tôi đã chuyển khoản — gửi yêu cầu duyệt</button>
           <div id="my-topups"></div>
+        </div>
+      </div>
+      <div class="cj-modal" id="redub-modal" hidden>
+        <div class="cj-modal-card">
+          <div class="cj-modal-head"><strong data-i18n="redub.title">🌐 Dịch phụ đề / Thuyết minh video</strong><button type="button" class="ghost-btn" data-close-modal="redub-modal">✕</button></div>
+          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.redub">Chọn video (tải từ máy bằng nút 📁, hoặc bấm nút 🌐 trên video đã render trong mục 🎬 Video). Chọn ngôn ngữ thuyết minh và các phụ đề muốn xuất. Hệ thống tự nghe → dịch → viết lời thuyết minh khớp thời gian, trả về file .srt từng ngôn ngữ và kịch bản thuyết minh.</p></details>
+          <label class="field"><span data-i18n="redub.source">Video nguồn</span><div class="field-row"><input id="redub-source" data-i18n-placeholder="redub.sourcePh" placeholder="Bấm 📁 để tải video lên, hoặc nút 🌐 trên video đã render" readonly><button type="button" class="upload-btn" data-upload-for="redub-source" data-upload-accept="video/mp4,video/quicktime,audio/mpeg,audio/wav" title="Tải video/audio từ máy">📁</button></div></label>
+          <div id="redub-job-line" class="detail" hidden></div>
+          <div class="grid-2">
+            <label class="field"><span data-i18n="redub.srcLang">Ngôn ngữ gốc</span>
+              <select id="redub-source-language">
+                <option value="auto" data-i18n="redub.auto">Tự nhận diện</option>
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+                <option value="vi">Tiếng Việt</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+              </select>
+            </label>
+            <label class="field"><span data-i18n="redub.dubLang">Thuyết minh sang</span>
+              <select id="redub-dub-language">
+                <option value="vi">Tiếng Việt</option>
+                <option value="en">English</option>
+                <option value="zh">中文</option>
+                <option value="ja">日本語</option>
+                <option value="ko">한국어</option>
+              </select>
+            </label>
+          </div>
+          <label class="field"><span data-i18n="redub.subs">Phụ đề xuất thêm (chọn nhiều)</span></label>
+          <div class="field-row" id="redub-subtitle-langs" style="flex-wrap:wrap">
+            <label class="cj-check"><input type="checkbox" value="vi" checked>VI</label>
+            <label class="cj-check"><input type="checkbox" value="en" checked>EN</label>
+            <label class="cj-check"><input type="checkbox" value="zh">中文</label>
+            <label class="cj-check"><input type="checkbox" value="ja">日本</label>
+            <label class="cj-check"><input type="checkbox" value="ko">한국</label>
+          </div>
+          <label class="field"><span data-i18n="redub.voice">Kiểu giọng thuyết minh (tuỳ chọn)</span><input id="redub-voice-style" data-i18n-placeholder="redub.voicePh" placeholder="VD: giọng nữ review ấm áp, tự nhiên"></label>
+          <label class="field"><span data-i18n="redub.mix">Âm thanh gốc</span>
+            <select id="redub-audio-treatment">
+              <option value="duck_under_dub" data-i18n="redub.mixDuck">Giữ nhạc nền, hạ nhỏ khi thuyết minh</option>
+              <option value="replace" data-i18n="redub.mixReplace">Thay hẳn bằng thuyết minh mới</option>
+            </select>
+          </label>
+          <div class="detail" id="redub-price-line"></div>
+          <div class="cj-modal-error" id="redub-error" hidden></div>
+          <button type="button" class="cj-primary" id="redub-run" data-i18n="redub.run">🌐 Dịch &amp; tạo phụ đề</button>
+          <div id="redub-result" style="margin-top:10px"></div>
         </div>
       </div>
       <section class="hero">
         <div>
           <div id="studio-announcement-banner" hidden style="margin-bottom:10px;padding:10px 14px;border-radius:10px;background:rgba(143,92,255,.16);border:1px solid rgba(143,92,255,.4);font-size:13px"></div>
-          <h1>Create AI Video</h1>
+          <h1 data-i18n="hero.h1">Create AI Video</h1>
           <span class="visually-hidden">Create Short</span>
           <span class="visually-hidden">Video Remake</span>
           <span class="visually-hidden">Creative Ideas</span>
-          <div class="eyebrow">Describe the idea, add references, choose a production pattern, then let CineJelly build the script, storyboard, prompt, review packet, and render handoff.</div>
+          <div class="eyebrow" data-i18n="hero.eyebrow">Describe the idea, add references, choose a production pattern, then let CineJelly build the script, storyboard, prompt, review packet, and render handoff.</div>
         </div>
-        <div class="session-line" id="session-line">No session loaded.</div>
+        <div class="session-line" id="session-line" data-i18n="hero.noSession">No session loaded.</div>
       </section>
       <div class="error" id="error"></div>
       <div class="success" id="success"></div>
       <section class="workspace">
         <form class="panel composer" id="brief-form">
           <div class="mode-tabs" aria-label="Create mode">
-            <button class="mode-btn active" type="button" data-mode-button="short_video">Short</button>
-            <button class="mode-btn" type="button" data-mode-button="video_remake">Remake</button>
-            <button class="mode-btn" type="button" data-mode-button="product_kol_ugc">UGC</button>
-            <button class="mode-btn" type="button" data-mode-button="production_bible">Long</button>
+            <button class="mode-btn active" type="button" data-mode-button="short_video" data-i18n="mode.short">Short</button>
+            <button class="mode-btn" type="button" data-mode-button="video_remake" data-i18n="mode.remake">Remake</button>
+            <button class="mode-btn" type="button" data-mode-button="product_kol_ugc" data-i18n="mode.ugc">UGC</button>
+            <button class="mode-btn" type="button" data-mode-button="production_bible" data-i18n="mode.long">Long</button>
           </div>
           <input id="workflow-mode" class="visually-hidden" value="short_video">
           <div class="section-divider"></div>
           <div class="panel-head">
-            <div class="panel-title"><span class="step-badge">1</span>Tell CineJelly your idea</div>
-            <button class="mini-btn" type="button" data-enhance-prompt>AI Enhance</button>
+            <div class="panel-title"><span class="step-badge">1</span><span data-i18n="s1.title">Tell CineJelly your idea</span></div>
+            <button class="mini-btn" type="button" data-enhance-prompt data-i18n="s1.enhance">AI Enhance</button>
           </div>
+          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.idea">Viết như kể cho một người bạn: bán gì / cho ai / video trông thế nào / cú chốt là gì. Càng cụ thể sản phẩm + cảm xúc, video càng dễ viral. Viết tiếng Việt, Trung hay Anh đều được.</p></details>
           <label class="field">
-            <span>Creative brief</span>
-            <textarea class="prompt-box" id="prompt" wrap="soft" placeholder="Describe the actual video you want to create. Example: niche, product, KOL/person, source-video structure, duration, language, tone, proof, and final payoff."></textarea>
+            <span data-i18n="s1.brief">Creative brief</span>
+            <textarea class="prompt-box" id="prompt" wrap="soft" data-i18n-placeholder="s1.briefPh" placeholder="Describe the actual video you want to create. Example: niche, product, KOL/person, source-video structure, duration, language, tone, proof, and final payoff."></textarea>
           </label>
           <div class="composer-tools">
             <div class="tool-row">
-              <button class="mini-btn" type="button" data-template-apply="fashion_transform">Starter</button>
-              <button class="mini-btn" type="button" data-enhance-prompt>Rewrite</button>
-              <button class="mini-btn" type="button" data-template-apply="product_reveal">Product Starter</button>
+              <button class="mini-btn" type="button" data-template-apply="fashion_transform" data-i18n="s1.starter">Starter</button>
+              <button class="mini-btn" type="button" data-enhance-prompt data-i18n="s1.rewrite">Rewrite</button>
+              <button class="mini-btn" type="button" data-template-apply="product_reveal" data-i18n="s1.productStarter">Product Starter</button>
             </div>
             <div class="char-count"><span id="prompt-count">0</span> / 2000</div>
           </div>
 
           <div class="panel-head">
-            <div class="panel-title"><span class="step-badge">2</span>Add references</div>
-            <button class="mini-btn" type="button" id="clear-reference-fields">Clear</button>
+            <div class="panel-title"><span class="step-badge">2</span><span data-i18n="s2.title">Add references</span></div>
+            <button class="mini-btn" type="button" id="clear-reference-fields" data-i18n="s2.clear">Clear</button>
           </div>
+          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.ref">Ảnh KOL = khoá gương mặt; ảnh sản phẩm = khoá sản phẩm; ảnh bối cảnh = khoá không gian; video mẫu = chỉ học cấu trúc nhịp (không sao chép nội dung). Bấm 📁 để tải từ điện thoại/máy tính — hệ thống tự điền, không cần link.</p></details>
           <div class="asset-grid">
             <button class="asset-card" type="button" data-focus-reference="kol-reference" style="--asset-img:linear-gradient(135deg, rgba(255,79,232,.34), rgba(17,183,255,.18))">
-              <div><strong>KOL / Talent</strong><small>image reference</small></div>
+              <div><strong data-i18n="s2.kol">KOL / Talent</strong><small data-i18n="s2.imgRef">image reference</small></div>
             </button>
             <button class="asset-card" type="button" data-focus-reference="product-reference" style="--asset-img:linear-gradient(135deg, rgba(54,242,170,.32), rgba(143,92,255,.2))">
-              <div><strong>Product</strong><small>image reference</small></div>
+              <div><strong data-i18n="s2.product">Product</strong><small data-i18n="s2.imgRef">image reference</small></div>
             </button>
             <button class="asset-card" type="button" data-focus-reference="background-reference" style="--asset-img:linear-gradient(135deg, rgba(244,184,77,.28), rgba(17,183,255,.18))">
-              <div><strong>Scene</strong><small>background</small></div>
+              <div><strong data-i18n="s2.scene">Scene</strong><small data-i18n="s2.bg">background</small></div>
             </button>
             <button class="asset-card" type="button" data-focus-reference="reference-url" style="--asset-img:linear-gradient(135deg, rgba(143,92,255,.34), rgba(255,91,114,.18))">
-              <div><strong>Source Video</strong><small>pattern intake</small></div>
+              <div><strong data-i18n="s2.source">Source Video</strong><small data-i18n="s2.pattern">pattern intake</small></div>
             </button>
             <button class="asset-card" type="button" data-focus-reference="media-reference-note" style="--asset-img:linear-gradient(135deg, rgba(255,79,232,.28), rgba(17,183,255,.18))">
-              <div><strong>Voice / Notes</strong><small>audio intent</small></div>
+              <div><strong data-i18n="s2.voice">Voice / Notes</strong><small data-i18n="s2.voiceS">audio intent</small></div>
             </button>
           </div>
           <input type="file" id="upload-file-input" style="display:none" aria-hidden="true">
           <div class="grid-2" style="margin-top:12px">
-            <label class="field"><span>KOL image URI</span><div class="field-row"><input id="kol-reference" placeholder="asset://kol-main, https://... — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="kol-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁 Tải lên</button></div></label>
-            <label class="field"><span>Product image URI</span><div class="field-row"><input id="product-reference" placeholder="asset://product-pack, https://... — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="product-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁 Tải lên</button></div></label>
-            <label class="field"><span>Scene/background URI</span><div class="field-row"><input id="background-reference" placeholder="asset://studio-set, https://... — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="background-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁 Tải lên</button></div></label>
-            <label class="field"><span>Source video URL</span><div class="field-row"><input id="reference-url" placeholder="https://reference-video.example — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="reference-url" data-upload-accept="video/mp4,video/quicktime" title="Tải video từ máy">📁 Tải lên</button></div></label>
-            <label class="field" style="grid-column: 1 / -1"><span>Reference / voice note</span><input id="media-reference-note" placeholder="What to preserve from the attached media, source video, or voice direction"></label>
+            <label class="field"><span data-i18n="s2.kolUri">KOL image URI</span><div class="field-row"><input id="kol-reference" placeholder="asset://kol-main, https://... — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="kol-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy" data-i18n="s2.upload">📁 Tải lên</button></div></label>
+            <label class="field"><span data-i18n="s2.productUri">Product image URI</span><div class="field-row"><input id="product-reference" placeholder="asset://product-pack, https://... — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="product-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy" data-i18n="s2.upload">📁 Tải lên</button></div></label>
+            <label class="field"><span data-i18n="s2.bgUri">Scene/background URI</span><div class="field-row"><input id="background-reference" placeholder="asset://studio-set, https://... — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="background-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy" data-i18n="s2.upload">📁 Tải lên</button></div></label>
+            <label class="field"><span data-i18n="s2.srcUrl">Source video URL</span><div class="field-row"><input id="reference-url" placeholder="https://reference-video.example — hoặc bấm Tải lên"><button type="button" class="upload-btn" data-upload-for="reference-url" data-upload-accept="video/mp4,video/quicktime" title="Tải video từ máy" data-i18n="s2.upload">📁 Tải lên</button></div></label>
+            <label class="field" style="grid-column: 1 / -1"><span data-i18n="s2.note">Reference / voice note</span><input id="media-reference-note" data-i18n-placeholder="s2.notePh" placeholder="What to preserve from the attached media, source video, or voice direction"></label>
           </div>
           <div class="grid-2" style="margin-top:12px">
-            <label class="field"><span>Wardrobe reference</span><div class="field-row"><input id="wardrobe-reference" placeholder="asset://outfit or https://..."><button type="button" class="upload-btn" data-upload-for="wardrobe-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁</button></div></label>
-            <label class="field"><span>First frame</span><div class="field-row"><input id="first-frame-reference" placeholder="asset://opening-frame or https://..."><button type="button" class="upload-btn" data-upload-for="first-frame-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁</button></div></label>
-            <label class="field"><span>Last frame</span><div class="field-row"><input id="last-frame-reference" placeholder="asset://final-frame or https://..."><button type="button" class="upload-btn" data-upload-for="last-frame-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁</button></div></label>
-            <label class="field"><span>Media rights</span>
+            <label class="field"><span data-i18n="s2.wardrobe">Wardrobe reference</span><div class="field-row"><input id="wardrobe-reference" placeholder="asset://outfit or https://..."><button type="button" class="upload-btn" data-upload-for="wardrobe-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁</button></div></label>
+            <label class="field"><span data-i18n="s2.first">First frame</span><div class="field-row"><input id="first-frame-reference" placeholder="asset://opening-frame or https://..."><button type="button" class="upload-btn" data-upload-for="first-frame-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁</button></div></label>
+            <label class="field"><span data-i18n="s2.last">Last frame</span><div class="field-row"><input id="last-frame-reference" placeholder="asset://final-frame or https://..."><button type="button" class="upload-btn" data-upload-for="last-frame-reference" data-upload-accept="image/png,image/jpeg,image/webp" title="Tải ảnh từ máy">📁</button></div></label>
+            <label class="field"><span data-i18n="s2.rights">Media rights</span>
               <select id="media-rights">
-                <option value="operator_approved">Operator approved</option>
-                <option value="needs_review">Needs review</option>
-                <option value="unknown">Unknown</option>
+                <option value="operator_approved" data-i18n="s2.rightsOk">Operator approved</option>
+                <option value="needs_review" data-i18n="s2.rightsReview">Needs review</option>
+                <option value="unknown" data-i18n="s2.rightsUnknown">Unknown</option>
               </select>
             </label>
           </div>
 
           <div class="section-divider"></div>
           <div class="panel-head">
-            <div class="panel-title"><span class="step-badge">3</span>Source pattern intake</div>
-            <button class="mini-btn" type="button" data-mode-button="video_remake">Use Remake Mode</button>
+            <div class="panel-title"><span class="step-badge">3</span><span data-i18n="s3.title">Source pattern intake</span></div>
+            <button class="mini-btn" type="button" data-mode-button="video_remake" data-i18n="s3.useRemake">Use Remake Mode</button>
           </div>
           <div class="grid-3">
-            <label class="field"><span>Source platform</span>
+            <label class="field"><span data-i18n="s3.srcPlatform">Source platform</span>
               <select id="template-source-platform">
-                <option value="internal">CineJelly internal</option>
-                <option value="reference_tool_motion">Reference-tool motion inspiration</option>
-                <option value="reference_tool_ads">Reference-tool ad inspiration</option>
+                <option value="internal" data-i18n="s3.pInternal">CineJelly internal</option>
+                <option value="reference_tool_motion" data-i18n="s3.pMotion">Reference-tool motion inspiration</option>
+                <option value="reference_tool_ads" data-i18n="s3.pAds">Reference-tool ad inspiration</option>
                 <option value="tiktok">TikTok / Douyin / Reels</option>
-                <option value="custom">Custom</option>
+                <option value="custom" data-i18n="s3.pCustom">Custom</option>
               </select>
             </label>
-            <label class="field"><span>Learning policy</span>
+            <label class="field"><span data-i18n="s3.learning">Learning policy</span>
               <select id="reference-rights">
-                <option value="structure_only">Structure and rhythm only</option>
-                <option value="rights_cleared_close_remake">Rights-cleared close remake</option>
+                <option value="structure_only" data-i18n="s3.structOnly">Structure and rhythm only</option>
+                <option value="rights_cleared_close_remake" data-i18n="s3.closeRemake">Rights-cleared close remake</option>
               </select>
             </label>
-            <label class="field"><span>Platform</span>
+            <label class="field"><span data-i18n="s3.platform">Platform</span>
               <select id="platform">
                 <option value="tiktok">TikTok</option>
                 <option value="douyin">Douyin</option>
                 <option value="instagram_reels">Instagram Reels</option>
                 <option value="youtube_shorts">YouTube Shorts</option>
-                <option value="unknown">Flexible</option>
+                <option value="unknown" data-i18n="s3.flexible">Flexible</option>
               </select>
             </label>
           </div>
           <label class="field" style="margin-top:12px">
-            <span>Source pattern summary</span>
-            <textarea id="reference-summary" wrap="soft" placeholder="Paste the public pattern/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly will adapt the structure to your own KOL, product, and background."></textarea>
+            <span data-i18n="s3.summary">Source pattern summary</span>
+            <textarea id="reference-summary" wrap="soft" data-i18n-placeholder="s3.summaryPh" placeholder="Paste the public pattern/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly will adapt the structure to your own KOL, product, and background."></textarea>
           </label>
 
           <div class="section-divider"></div>
           <div class="panel-head">
-            <div class="panel-title"><span class="step-badge">4</span>AI Storyboard</div>
-            <button class="mini-btn" type="button" id="refresh-contract" disabled>Refresh Contract</button>
+            <div class="panel-title"><span class="step-badge">4</span><span data-i18n="s4.title">AI Storyboard</span></div>
+            <button class="mini-btn" type="button" id="refresh-contract" disabled data-i18n="s4.refresh">Refresh Contract</button>
           </div>
           <div class="storyboard">
             <div class="beat-card">
               <div class="beat-img" style="--beat-img:linear-gradient(135deg, rgba(255,79,232,.26), rgba(17,183,255,.1))"></div>
-              <div class="beat-body"><div class="beat-title"><span>1 Hook</span><span>0-3s</span></div><div class="beat-note">Problem / before state</div></div>
+              <div class="beat-body"><div class="beat-title"><span data-i18n="s4.b1">1 Hook</span><span>0-3s</span></div><div class="beat-note" data-i18n="s4.b1n">Problem / before state</div></div>
             </div>
             <div class="beat-card">
               <div class="beat-img" style="--beat-img:linear-gradient(135deg, rgba(54,242,170,.22), rgba(255,255,255,.08))"></div>
-              <div class="beat-body"><div class="beat-title"><span>2 Proof</span><span>3-7s</span></div><div class="beat-note">Product / action</div></div>
+              <div class="beat-body"><div class="beat-title"><span data-i18n="s4.b2">2 Proof</span><span>3-7s</span></div><div class="beat-note" data-i18n="s4.b2n">Product / action</div></div>
             </div>
             <div class="beat-card">
               <div class="beat-img" style="--beat-img:linear-gradient(135deg, rgba(143,92,255,.28), rgba(255,79,232,.12))"></div>
-              <div class="beat-body"><div class="beat-title"><span>3 Transform</span><span>7-12s</span></div><div class="beat-note">Change / result</div></div>
+              <div class="beat-body"><div class="beat-title"><span data-i18n="s4.b3">3 Transform</span><span>7-12s</span></div><div class="beat-note" data-i18n="s4.b3n">Change / result</div></div>
             </div>
             <div class="beat-card">
               <div class="beat-img" style="--beat-img:linear-gradient(135deg, rgba(244,184,77,.24), rgba(17,183,255,.14))"></div>
-              <div class="beat-body"><div class="beat-title"><span>4 Payoff</span><span>12-15s</span></div><div class="beat-note">After / CTA soft</div></div>
+              <div class="beat-body"><div class="beat-title"><span data-i18n="s4.b4">4 Payoff</span><span>12-15s</span></div><div class="beat-note" data-i18n="s4.b4n">After / CTA soft</div></div>
             </div>
           </div>
 
           <div class="section-divider"></div>
+          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.settings">Thời lượng × chất lượng quyết định giá credits (hiện ngay dưới nút tạo). 9:16 cho TikTok/Reels. "Giọng đọc" chọn ngôn ngữ thuyết minh; phụ đề bật ở bước cuối.</p></details>
           <div class="settings-bar">
-            <label class="field"><span>Duration</span><input id="duration" type="number" min="15" max="480" value="15"></label>
-            <label class="field"><span>Aspect ratio</span><select id="aspect-ratio"><option value="9:16" selected>9:16</option><option value="16:9">16:9</option><option value="1:1">1:1</option></select></label>
-            <label class="field"><span>Quality / model</span>
+            <label class="field"><span data-i18n="set.duration">Duration</span><input id="duration" type="number" min="15" max="480" value="15"></label>
+            <label class="field"><span data-i18n="set.aspect">Aspect ratio</span><select id="aspect-ratio"><option value="9:16" selected>9:16</option><option value="16:9">16:9</option><option value="1:1">1:1</option></select></label>
+            <label class="field"><span data-i18n="set.quality">Quality / model</span>
               <select id="seedance-resolution">
                 <option value="720p" selected>720p</option>
                 <option value="720p-SR">720p SR</option>
@@ -1218,42 +1277,42 @@ export function buildShortPipelineCreatePage(): string {
                 <option value="1440p-SR">1440p SR</option>
               </select>
             </label>
-            <label class="field"><span>Audio</span>
+            <label class="field"><span data-i18n="set.audio">Audio</span>
               <select id="audio">
-                <option value="vi" selected>Vietnamese VO</option>
-                <option value="en">English VO</option>
-                <option value="zh">Chinese VO</option>
-                <option value="off">Off</option>
+                <option value="vi" selected data-i18n="set.audioVi">Vietnamese VO</option>
+                <option value="en" data-i18n="set.audioEn">English VO</option>
+                <option value="zh" data-i18n="set.audioZh">Chinese VO</option>
+                <option value="off" data-i18n="set.audioOff">Off</option>
               </select>
             </label>
           </div>
           <div class="grid-3" style="margin-top:12px">
-            <label class="field"><span>Bitrate</span><select id="seedance-bitrate"><option value="high" selected>High</option><option value="standard">Standard</option></select></label>
-            <label class="field"><span>Last frame</span><select id="return-last-frame"><option value="auto" selected>Auto</option><option value="true">On</option><option value="false">Off</option></select></label>
-            <label class="field"><span>Product</span><input id="product-title" placeholder="Your real product, service, channel, or story subject"></label>
-            <label class="field"><span>Category</span><input id="category" placeholder="beauty, fashion, SaaS, food, education..."></label>
-            <label class="field" style="grid-column: span 2"><span>Allowed claim</span><input id="claim" placeholder="Only claims you can approve or substantiate"></label>
+            <label class="field"><span>Bitrate</span><select id="seedance-bitrate"><option value="high" selected data-i18n="set.bitHigh">High</option><option value="standard" data-i18n="set.bitStd">Standard</option></select></label>
+            <label class="field"><span data-i18n="set.lastFrame">Last frame</span><select id="return-last-frame"><option value="auto" selected data-i18n="set.auto">Auto</option><option value="true" data-i18n="set.on">On</option><option value="false" data-i18n="set.off">Off</option></select></label>
+            <label class="field"><span data-i18n="set.product">Product</span><input id="product-title" data-i18n-placeholder="set.productPh" placeholder="Your real product, service, channel, or story subject"></label>
+            <label class="field"><span data-i18n="set.category">Category</span><input id="category" data-i18n-placeholder="set.categoryPh" placeholder="beauty, fashion, SaaS, food, education..."></label>
+            <label class="field" style="grid-column: span 2"><span data-i18n="set.claim">Allowed claim</span><input id="claim" data-i18n-placeholder="set.claimPh" placeholder="Only claims you can approve or substantiate"></label>
             <label class="field visually-hidden"><span>Project ID</span><input id="project-id" value="short_create_shell"></label>
           </div>
           <div class="render-bar">
             <div class="cost-card" id="usd-cost-card"><small>Preflight estimate</small><strong id="estimated-cost">$2.40</strong></div>
-            <div class="detail">Backend keeps provider spend locked until approval packet and explicit render confirmation are ready.</div>
-            <button type="submit" id="create-session" class="primary">Build Review Plan</button>
+            <div class="detail" data-i18n="rb.note">Backend keeps provider spend locked until approval packet and explicit render confirmation are ready.</div>
+            <button type="submit" id="create-session" class="primary" data-i18n="rb.build">Build Review Plan</button>
           </div>
         </form>
 
         <section class="right-stack">
           <div class="tabs-shell">
             <div class="template-tabs">
-              <button class="template-tab active" type="button">Pattern Starters</button>
-              <button class="template-tab" type="button">My Creations</button>
-              <button class="template-tab" type="button">History</button>
+              <button class="template-tab active" type="button" data-i18n="rs.starters">Pattern Starters</button>
+              <button class="template-tab" type="button" data-i18n="rs.mine">My Creations</button>
+              <button class="template-tab" type="button" data-i18n="rs.history">History</button>
             </div>
             <button class="ghost-btn" type="button" id="prepare-approval" disabled>Prepare Packet</button>
           </div>
           <div class="panel gallery">
             <div class="gallery-head">
-              <div class="panel-title">Pattern Starters</div>
+              <div class="panel-title" data-i18n="rs.starters">Pattern Starters</div>
               <div class="template-tabs">
                 <button class="template-tab active" type="button">All</button>
                 <button class="template-tab" type="button">UGC</button>
@@ -1293,62 +1352,63 @@ export function buildShortPipelineCreatePage(): string {
             </div>
           </div>
           <div class="panel gallery">
-            <div class="panel-head"><div class="panel-title">Quick Controls</div></div>
+            <div class="panel-head"><div class="panel-title" data-i18n="rs.quick">Quick Controls</div></div>
             <div class="tips">
-              <div class="tip"><strong>Clear idea</strong><span>Prompt becomes script and storyboard evidence.</span></div>
-              <div class="tip"><strong>Add references</strong><span>KOL, product, scene, source video.</span></div>
-              <div class="tip"><strong>Budget guard</strong><span>No provider spend before approval.</span></div>
-              <div class="tip"><strong>Review packet</strong><span>One clean pre-render handoff.</span></div>
+              <div class="tip"><strong data-i18n="rs.tip1">Clear idea</strong><span data-i18n="rs.tip1b">Prompt becomes script and storyboard evidence.</span></div>
+              <div class="tip"><strong data-i18n="rs.tip2">Add references</strong><span data-i18n="rs.tip2b">KOL, product, scene, source video.</span></div>
+              <div class="tip"><strong data-i18n="rs.tip3">Budget guard</strong><span data-i18n="rs.tip3b">No provider spend before approval.</span></div>
+              <div class="tip"><strong data-i18n="rs.tip4">Review packet</strong><span data-i18n="rs.tip4b">One clean pre-render handoff.</span></div>
             </div>
           </div>
           <div class="panel gallery">
-            <div class="panel-head"><div class="panel-title">Recent Sessions</div></div>
-            <div class="list" id="sessions"><div class="empty">No sessions loaded.</div></div>
+            <div class="panel-head"><div class="panel-title" data-i18n="rs.recent">Recent Sessions</div></div>
+            <div class="list" id="sessions"><div class="empty" data-i18n="rs.noSessions">No sessions loaded.</div></div>
           </div>
         </section>
       </section>
 
       <section class="contract-grid" aria-label="Backend contract">
         <div class="panel contract-panel">
-          <div class="panel-head"><div class="panel-title">Review Checkpoints</div><span class="pill" id="metric-review">--</span></div>
+          <div class="panel-head"><div class="panel-title" data-i18n="cg.review">Review Checkpoints</div><span class="pill" id="metric-review">--</span></div>
           <div class="detail" id="metric-checkpoints">checkpoints</div>
-          <div class="list" id="review-checkpoints"><div class="empty">No contract loaded.</div></div>
+          <div class="list" id="review-checkpoints"><div class="empty" data-i18n="cg.empty">No contract loaded.</div></div>
         </div>
         <div class="panel contract-panel">
-          <div class="panel-head"><div class="panel-title">Seedance Routing</div><span class="pill info" id="metric-provider">Locked</span></div>
+          <div class="panel-head"><div class="panel-title" data-i18n="cg.routing">Seedance Routing</div><span class="pill info" id="metric-provider">Locked</span></div>
           <div class="detail"><span id="metric-workflow">--</span> | <span id="metric-duration">duration</span> | audio <span id="metric-audio">--</span></div>
-          <div class="list" id="seedance-routing"><div class="empty">No contract loaded.</div></div>
+          <div class="list" id="seedance-routing"><div class="empty" data-i18n="cg.empty">No contract loaded.</div></div>
         </div>
         <div class="panel contract-panel">
-          <div class="panel-head"><div class="panel-title">Media References</div></div>
-          <div class="list" id="media-references"><div class="empty">No references loaded.</div></div>
+          <div class="panel-head"><div class="panel-title" data-i18n="cg.media">Media References</div></div>
+          <div class="list" id="media-references"><div class="empty" data-i18n="cg.emptyRefs">No references loaded.</div></div>
         </div>
         <div class="panel contract-panel">
-          <div class="panel-head"><div class="panel-title">Creative Pattern Learning</div></div>
-          <div class="list" id="creative-ideas"><div class="empty">No contract loaded.</div></div>
+          <div class="panel-head"><div class="panel-title" data-i18n="cg.creative">Creative Pattern Learning</div></div>
+          <div class="list" id="creative-ideas"><div class="empty" data-i18n="cg.empty">No contract loaded.</div></div>
         </div>
         <div class="panel contract-panel">
-          <div class="panel-head"><div class="panel-title">Pattern / Remake Blueprint</div></div>
-          <div class="list" id="reference-remake"><div class="empty">No remake blueprint loaded.</div></div>
+          <div class="panel-head"><div class="panel-title" data-i18n="cg.blueprint">Pattern / Remake Blueprint</div></div>
+          <div class="list" id="reference-remake"><div class="empty" data-i18n="cg.emptyRemake">No remake blueprint loaded.</div></div>
         </div>
         <div class="panel contract-panel">
-          <div class="panel-head"><div class="panel-title">Backend Managed Steps</div></div>
-          <div class="list" id="backend-steps"><div class="empty">No contract loaded.</div></div>
+          <div class="panel-head"><div class="panel-title" data-i18n="cg.backend">Backend Managed Steps</div></div>
+          <div class="list" id="backend-steps"><div class="empty" data-i18n="cg.empty">No contract loaded.</div></div>
         </div>
         <div class="panel contract-panel">
-          <div class="panel-head"><div class="panel-title">User Required Actions</div></div>
-          <div class="list" id="user-actions"><div class="empty">No contract loaded.</div></div>
+          <div class="panel-head"><div class="panel-title" data-i18n="cg.userActions">User Required Actions</div></div>
+          <div class="list" id="user-actions"><div class="empty" data-i18n="cg.empty">No contract loaded.</div></div>
         </div>
         <div class="panel contract-panel">
-          <div class="panel-head"><div class="panel-title">Director</div></div>
-          <div id="director" class="detail">No contract loaded.</div>
+          <div class="panel-head"><div class="panel-title" data-i18n="cg.director">Director</div></div>
+          <div id="director" class="detail" data-i18n="cg.empty">No contract loaded.</div>
         </div>
       </section>
 
       <section class="panel approval">
         <div class="panel-head">
-          <div class="panel-title">Approval Packet</div>
+          <div class="panel-title" data-i18n="ap.title">Approval Packet</div>
         </div>
+        <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.approval">Bấm "Tạo video" là hệ thống trừ credits và đưa video vào hàng chờ (một số video được đội ngũ duyệt nhanh trước khi chạy). Video lỗi xử lý theo chính sách hoàn credits ghi ngay dưới nút.</p></details>
         <div class="grid-3">
           <label class="field"><span>Reviewer</span><input id="reviewer" autocomplete="off" placeholder="Reviewer name"></label>
           <label class="field"><span>Decision</span>
@@ -1362,24 +1422,24 @@ export function buildShortPipelineCreatePage(): string {
         </div>
         <label class="field" style="margin-top:12px"><span>Packet</span><textarea id="approval-packet" wrap="soft" readonly></textarea></label>
         <div class="grid-3" style="margin-top:12px;align-items:end">
-          <label class="field"><span>Provider spend</span>
-            <span class="detail" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="confirm-render">Confirm paid render submission</span>
-            <span class="detail" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="caption-toggle">Phụ đề tự động từ voice (khớp kịch bản, không tốn thêm)</span>
+          <label class="field"><span data-i18n="ap.spend">Provider spend</span>
+            <span class="detail" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="confirm-render"><span data-i18n="ap.confirm">Confirm paid render submission</span></span>
+            <span class="detail" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="caption-toggle"><span data-i18n="ap.captions">Phụ đề tự động từ voice (khớp kịch bản, không tốn thêm)</span></span>
           </label>
-          <button class="ghost-btn" type="button" id="submit-render" disabled>Create Render Job</button>
+          <button class="ghost-btn" type="button" id="submit-render" disabled data-i18n="ap.create">Create Render Job</button>
           <div id="credit-estimate" hidden></div>
-          <button class="mini-btn" type="button" id="stop-polling" disabled>Stop Watching Job</button>
+          <button class="mini-btn" type="button" id="stop-polling" disabled data-i18n="ap.stop">Stop Watching Job</button>
         </div>
-        <div id="render-status" class="detail" style="margin-top:10px">No render job yet. Load a session contract, optionally prepare the review packet, then create the render job. Without approved and confirmed review the job is created paused for review with no provider spend.</div>
+        <div id="render-status" class="detail" style="margin-top:10px" data-i18n="ap.statusIdle">No render job yet. Load a session contract, optionally prepare the review packet, then create the render job. Without approved and confirmed review the job is created paused for review with no provider spend.</div>
       </section>
 
       <section class="panel" id="jobs-panel" hidden>
         <div class="panel-head">
-          <div class="panel-title">Render Jobs</div>
-          <button class="mini-btn" type="button" id="refresh-jobs">Refresh</button>
+          <div class="panel-title" data-i18n="jp.title">Render Jobs</div>
+          <button class="mini-btn" type="button" id="refresh-jobs" data-i18n="jp.refresh">Refresh</button>
         </div>
-        <div id="jobs-queue" class="detail">Queue: chưa tải.</div>
-        <div id="jobs-list" style="margin-top:10px"><div class="empty">Bấm Refresh để tải danh sách job (cần API key).</div></div>
+        <div id="jobs-queue" class="detail" data-i18n="jp.queueIdle">Queue: chưa tải.</div>
+        <div id="jobs-list" style="margin-top:10px"><div class="empty" data-i18n="jp.emptyHint">Bấm Refresh để tải danh sách video của bạn.</div></div>
         <div id="job-player" style="margin-top:12px" hidden>
           <video id="job-video" controls style="width:100%;max-height:420px;border-radius:12px;background:#000"></video>
         </div>
@@ -1396,6 +1456,338 @@ export function buildShortPipelineCreatePage(): string {
     let activeSessionId = "";
     let activeContract = undefined;
     let activeTemplateId = "";
+
+    // ---- i18n: 3 ngôn ngữ chính (vi/en/zh). data-i18n = textContent,
+    // data-i18n-placeholder = placeholder, data-i18n-title = title. ----
+    var currentLang = (function () {
+      try { var saved = window.localStorage.getItem("cinejelly_lang"); return saved === "en" || saved === "zh" ? saved : "vi"; }
+      catch (error) { return "vi"; }
+    })();
+    const I18N = {
+      vi: {
+        "top.balance": "Số dư", "top.queue": "Hàng chờ render", "top.queueReady": "Sẵn sàng",
+        "top.login": "Đăng nhập / Đăng ký", "top.topup": "💎 Nạp credits", "top.logout": "Thoát",
+        "top.redubTitle": "Dịch phụ đề / thuyết minh video có sẵn",
+        "auth.login": "Đăng nhập", "auth.register": "Tạo tài khoản", "auth.password": "Mật khẩu",
+        "auth.pwPh": "Tối thiểu 8 ký tự", "auth.name": "Tên hiển thị (tuỳ chọn)",
+        "auth.note": "Tạo tài khoản miễn phí, nạp credits là tạo được video ngay. Không cần API key.",
+        "auth.okLogin": "Đăng nhập thành công!", "auth.okRegister": "Tạo tài khoản thành công! Nạp credits để bắt đầu tạo video.",
+        "pw.title": "🔑 Đổi mật khẩu", "pw.current": "Mật khẩu hiện tại", "pw.new": "Mật khẩu mới (tối thiểu 8 ký tự)",
+        "pw.submit": "Đổi mật khẩu", "pw.note": "Sau khi đổi, các thiết bị khác sẽ phải đăng nhập lại. Quên mật khẩu? Liên hệ hỗ trợ để được cấp lại.",
+        "pw.done": "Đã đổi mật khẩu. Các thiết bị khác sẽ phải đăng nhập lại.",
+        "tu.title": "💎 Nạp credits", "tu.note": "Ghi chú chuyển khoản (tuỳ chọn)", "tu.notePh": "VD: đã CK 10:30 từ STK ...901",
+        "tu.submit": "Tôi đã chuyển khoản — gửi yêu cầu duyệt", "tu.sent": "Đã gửi yêu cầu nạp. Quản trị viên sẽ duyệt và cộng credits sớm nhất.",
+        "hero.h1": "Tạo video AI", "hero.noSession": "Chưa có phiên.",
+        "hero.eyebrow": "Mô tả ý tưởng, thêm ảnh/video tham chiếu, chọn kiểu sản xuất — CineJelly tự viết kịch bản, storyboard, prompt, gói kiểm duyệt và render.",
+        "mode.short": "Short", "mode.remake": "Remake", "mode.ugc": "UGC", "mode.long": "Dài",
+        "s1.title": "Kể ý tưởng của bạn", "s1.enhance": "✨ AI viết lại", "s1.brief": "Ý tưởng video",
+        "s1.briefPh": "Mô tả video bạn muốn: ngách, sản phẩm, người/KOL, cấu trúc video mẫu, thời lượng, ngôn ngữ, giọng điệu, bằng chứng và cú chốt.",
+        "s1.starter": "Mẫu nhanh", "s1.rewrite": "Viết lại", "s1.productStarter": "Mẫu sản phẩm",
+        "s2.title": "Thêm tham chiếu (ảnh/video)", "s2.clear": "Xoá hết",
+        "s2.kol": "KOL / Nhân vật", "s2.imgRef": "ảnh tham chiếu", "s2.product": "Sản phẩm", "s2.scene": "Bối cảnh", "s2.bg": "ảnh nền",
+        "s2.source": "Video mẫu", "s2.pattern": "học cấu trúc", "s2.voice": "Giọng / Ghi chú", "s2.voiceS": "định hướng giọng",
+        "s2.kolUri": "Ảnh KOL / nhân vật", "s2.productUri": "Ảnh sản phẩm", "s2.bgUri": "Ảnh bối cảnh", "s2.srcUrl": "Link video mẫu",
+        "s2.upload": "📁 Tải lên", "s2.note": "Ghi chú tham chiếu / giọng đọc",
+        "s2.notePh": "Cần giữ gì từ ảnh/video đính kèm, hoặc mô tả giọng đọc mong muốn",
+        "s2.wardrobe": "Trang phục", "s2.first": "Khung hình đầu", "s2.last": "Khung hình cuối",
+        "s2.rights": "Bản quyền media", "s2.rightsOk": "Đã được duyệt", "s2.rightsReview": "Cần kiểm tra", "s2.rightsUnknown": "Chưa rõ",
+        "s3.title": "Học từ video mẫu", "s3.useRemake": "Dùng chế độ Remake", "s3.srcPlatform": "Nền tảng nguồn",
+        "s3.pInternal": "Nội bộ CineJelly", "s3.pMotion": "Cảm hứng chuyển động", "s3.pAds": "Cảm hứng quảng cáo", "s3.pCustom": "Tuỳ chỉnh",
+        "s3.learning": "Chính sách học", "s3.structOnly": "Chỉ học cấu trúc và nhịp", "s3.closeRemake": "Remake sát (đã có bản quyền)",
+        "s3.platform": "Nền tảng đăng", "s3.flexible": "Linh hoạt", "s3.summary": "Tóm tắt cấu trúc video mẫu",
+        "s3.summaryPh": "Dán cấu trúc video mẫu: hook, nhịp, diễn xuất, góc máy, nhịp cắt, nhịp audio và cú chốt. CineJelly áp cấu trúc vào KOL, sản phẩm, bối cảnh CỦA BẠN.",
+        "s4.title": "Storyboard AI", "s4.refresh": "Tải lại contract",
+        "s4.b1": "1 Mở màn", "s4.b1n": "Vấn đề / trạng thái trước", "s4.b2": "2 Bằng chứng", "s4.b2n": "Sản phẩm / hành động",
+        "s4.b3": "3 Biến đổi", "s4.b3n": "Thay đổi / kết quả", "s4.b4": "4 Chốt", "s4.b4n": "Sau / CTA nhẹ",
+        "set.duration": "Thời lượng (giây)", "set.aspect": "Tỉ lệ khung", "set.quality": "Chất lượng / model", "set.audio": "Giọng đọc",
+        "set.audioVi": "Thuyết minh tiếng Việt", "set.audioEn": "Thuyết minh tiếng Anh", "set.audioZh": "Thuyết minh tiếng Trung", "set.audioOff": "Tắt",
+        "set.bitHigh": "Cao", "set.bitStd": "Chuẩn", "set.lastFrame": "Khung cuối", "set.auto": "Tự động", "set.on": "Bật", "set.off": "Tắt",
+        "set.product": "Sản phẩm / chủ đề", "set.productPh": "Sản phẩm, dịch vụ, kênh hay câu chuyện thật của bạn",
+        "set.category": "Ngành hàng", "set.categoryPh": "làm đẹp, thời trang, SaaS, đồ ăn, giáo dục...",
+        "set.claim": "Cam kết được phép nói", "set.claimPh": "Chỉ những cam kết bạn chịu trách nhiệm được",
+        "rb.note": "Backend giữ chặt chi phí: chưa duyệt và chưa xác nhận thì chưa gửi render trả phí.",
+        "rb.build": "Tạo kế hoạch video",
+        "rs.starters": "Mẫu có sẵn", "rs.mine": "Video của tôi", "rs.history": "Lịch sử", "rs.quick": "Mẹo nhanh",
+        "rs.tip1": "Ý tưởng rõ ràng", "rs.tip1b": "Prompt sẽ thành kịch bản và storyboard.",
+        "rs.tip2": "Thêm tham chiếu", "rs.tip2b": "KOL, sản phẩm, bối cảnh, video mẫu.",
+        "rs.tip3": "Chặn chi phí", "rs.tip3b": "Không tốn tiền provider trước khi duyệt.",
+        "rs.tip4": "Gói kiểm duyệt", "rs.tip4b": "Một bước bàn giao sạch trước render.",
+        "rs.recent": "Phiên gần đây", "rs.noSessions": "Chưa có phiên nào.",
+        "cg.review": "Điểm kiểm duyệt", "cg.routing": "Định tuyến Seedance", "cg.media": "Tham chiếu media",
+        "cg.creative": "Học mẫu sáng tạo", "cg.blueprint": "Bản thiết kế Remake", "cg.backend": "Bước backend tự lo",
+        "cg.userActions": "Việc bạn cần làm", "cg.director": "Đạo diễn",
+        "cg.empty": "Chưa có contract.", "cg.emptyRefs": "Chưa có tham chiếu.", "cg.emptyRemake": "Chưa có bản thiết kế remake.",
+        "ap.title": "Duyệt & Render", "ap.spend": "Xác nhận chi phí", "ap.confirm": "Xác nhận gửi render trả phí",
+        "ap.captions": "Phụ đề tự động từ giọng đọc (khớp kịch bản, không tốn thêm)",
+        "ap.create": "🎬 Tạo video", "ap.stop": "Ngừng theo dõi",
+        "ap.statusIdle": "Chưa có video nào đang tạo. Nhập ý tưởng → Tạo kế hoạch video → Tạo video.",
+        "jp.title": "Video đã tạo", "jp.refresh": "Tải lại", "jp.queueIdle": "Queue: chưa tải.",
+        "jp.emptyHint": "Bấm Tải lại để xem danh sách video của bạn.",
+        "jp.loadFail": "Không tải được danh sách — hãy đăng nhập rồi thử lại.", "jp.empty": "Chưa có video nào.",
+        "jp.qQueued": "chờ", "jp.qRunning": "đang chạy", "jp.qPaused": "chờ duyệt",
+        "jp.view": "Xem", "jp.dl": "Tải", "jp.watch": "Theo dõi", "jp.subdub": "Phụ đề đa ngữ / thuyết minh",
+        "jp.dlStarted": "Đã bắt đầu tải video.", "jp.dlFail": "Không tải được video (job chưa xong hoặc file đã dọn).",
+        "poll.checkFail": "Không kiểm tra được trạng thái video. Hãy đăng nhập lại rồi mở 🎬 Video.",
+        "poll.done": "🎉 Video đã xong! Mở 🎬 Video để xem và tải về.",
+        "poll.refundAuto": "credits đã được hoàn tự động", "poll.refundManual": "yêu cầu hoàn credits đã được gửi tới đội ngũ để xử lý",
+        "poll.failedPrefix": "❌ Video bị lỗi — ", "poll.tryAgain": ". Hãy thử lại.",
+        "poll.canceledPrefix": "Video đã hủy — ", "poll.rejectedPrefix": "Video bị từ chối duyệt — ",
+        "poll.held": "Video tạm giữ để kiểm tra thêm — đội ngũ sẽ xử lý sớm.",
+        "poll.reviewWait": "⏳ Video đang chờ đội ngũ kiểm duyệt (thường vài phút). Credits đã được giữ — KHÔNG cần gửi lại. Trang sẽ tự cập nhật.",
+        "err.loginFirst": "Hãy đăng nhập tài khoản (nút Đăng nhập phía trên) trước khi tải file lên.",
+        "err.uploadTooBig": "File quá lớn (tối đa 25MB). Hãy nén ảnh/video rồi thử lại.",
+        "up.done1": "Đã tải lên “", "up.done2": "” — trường tham chiếu đã được điền.",
+        "err.loginCreate": "Hãy đăng nhập (nút Đăng nhập / Đăng ký phía trên) trước khi tạo video.",
+        "err.needIdea": "Hãy nhập ý tưởng video trước khi tạo.",
+        "ce.cost": "Chi phí ước tính:", "ce.balance": "số dư:",
+        "ce.refundAuto": "Video lỗi được hoàn credits tự động.", "ce.refundManual": "Video lỗi sẽ được đội ngũ xem xét hoàn credits.",
+        "help.t": "💡 Hướng dẫn nhanh",
+        "help.idea": "Viết như kể cho một người bạn: bán gì / cho ai / video trông thế nào / cú chốt là gì. Càng cụ thể sản phẩm + cảm xúc, video càng dễ viral. Viết tiếng Việt, Trung hay Anh đều được.",
+        "help.ref": "Ảnh KOL = khoá gương mặt; ảnh sản phẩm = khoá sản phẩm; ảnh bối cảnh = khoá không gian; video mẫu = chỉ học cấu trúc nhịp (không sao chép nội dung). Bấm 📁 để tải từ điện thoại/máy tính — hệ thống tự điền, không cần link.",
+        "help.settings": "Thời lượng × chất lượng quyết định giá credits (hiện ngay dưới nút tạo). 9:16 cho TikTok/Reels. 'Giọng đọc' chọn ngôn ngữ thuyết minh; phụ đề bật ở bước cuối.",
+        "help.topup": "Chọn gói → chuyển khoản đúng nội dung hiển thị → bấm nút xác nhận. Quản trị viên duyệt là credits vào tài khoản (thường vài phút). Lỡ gửi trùng sẽ tự gộp, không mất tiền hai lần.",
+        "help.approval": "Bấm 'Tạo video' là hệ thống trừ credits và đưa video vào hàng chờ (một số video được đội ngũ duyệt nhanh trước khi chạy). Video lỗi xử lý theo chính sách hoàn credits ghi ngay dưới nút.",
+        "help.redub": "Chọn video (tải từ máy bằng nút 📁, hoặc bấm nút 🌐 trên video đã render trong mục 🎬 Video). Chọn ngôn ngữ thuyết minh và các phụ đề muốn xuất. Hệ thống tự nghe → dịch → viết lời thuyết minh khớp thời gian, trả về file .srt từng ngôn ngữ và kịch bản thuyết minh.",
+        "redub.title": "🌐 Dịch phụ đề / Thuyết minh video", "redub.source": "Video nguồn",
+        "redub.sourcePh": "Bấm 📁 để tải video lên, hoặc nút 🌐 trên video đã render",
+        "redub.fromJob": "Nguồn: video đã render", "redub.srcLang": "Ngôn ngữ gốc", "redub.auto": "Tự nhận diện",
+        "redub.dubLang": "Thuyết minh sang", "redub.subs": "Phụ đề xuất thêm (chọn nhiều)",
+        "redub.voice": "Kiểu giọng thuyết minh (tuỳ chọn)", "redub.voicePh": "VD: giọng nữ review ấm áp, tự nhiên",
+        "redub.mix": "Âm thanh gốc", "redub.mixDuck": "Giữ nhạc nền, hạ nhỏ khi thuyết minh", "redub.mixReplace": "Thay hẳn bằng thuyết minh mới",
+        "redub.run": "🌐 Dịch & tạo phụ đề", "redub.running": "⏳ Đang nghe & dịch video (1-3 phút)...",
+        "redub.needSource": "Chọn video trước: tải lên bằng 📁 hoặc bấm 🌐 trên video đã render.",
+        "redub.done": "✅ Xong:", "redub.segments": "đoạn thoại", "redub.script": "Kịch bản thuyết minh (đọc theo mốc thời gian):",
+        "redub.price1": "Phí:", "redub.priceOp": "Miễn phí với key vận hành.", "redub.credits": "credits / lần"
+      },
+      en: {
+        "top.balance": "Balance", "top.queue": "Render queue", "top.queueReady": "Ready",
+        "top.login": "Log in / Sign up", "top.topup": "💎 Top up", "top.logout": "Log out",
+        "top.redubTitle": "Translate subtitles / re-dub an existing video",
+        "auth.login": "Log in", "auth.register": "Create account", "auth.password": "Password",
+        "auth.pwPh": "At least 8 characters", "auth.name": "Display name (optional)",
+        "auth.note": "Free account — top up credits and start creating right away. No API key needed.",
+        "auth.okLogin": "Logged in!", "auth.okRegister": "Account created! Top up credits to start creating videos.",
+        "pw.title": "🔑 Change password", "pw.current": "Current password", "pw.new": "New password (min 8 characters)",
+        "pw.submit": "Change password", "pw.note": "Other devices will need to log in again. Forgot it? Contact support for a reset.",
+        "pw.done": "Password changed. Other devices must log in again.",
+        "tu.title": "💎 Top up credits", "tu.note": "Transfer note (optional)", "tu.notePh": "e.g. paid 10:30 from account ...901",
+        "tu.submit": "I have paid — submit for approval", "tu.sent": "Top-up submitted. The admin will verify and add credits shortly.",
+        "hero.h1": "Create AI Video", "hero.noSession": "No session loaded.",
+        "hero.eyebrow": "Describe the idea, add references, choose a production pattern — CineJelly builds the script, storyboard, prompt, review packet, and render handoff.",
+        "mode.short": "Short", "mode.remake": "Remake", "mode.ugc": "UGC", "mode.long": "Long",
+        "s1.title": "Tell CineJelly your idea", "s1.enhance": "✨ AI Enhance", "s1.brief": "Creative brief",
+        "s1.briefPh": "Describe the actual video you want: niche, product, KOL/person, source-video structure, duration, language, tone, proof, and final payoff.",
+        "s1.starter": "Starter", "s1.rewrite": "Rewrite", "s1.productStarter": "Product starter",
+        "s2.title": "Add references", "s2.clear": "Clear",
+        "s2.kol": "KOL / Talent", "s2.imgRef": "image reference", "s2.product": "Product", "s2.scene": "Scene", "s2.bg": "background",
+        "s2.source": "Source video", "s2.pattern": "pattern intake", "s2.voice": "Voice / Notes", "s2.voiceS": "audio intent",
+        "s2.kolUri": "KOL image", "s2.productUri": "Product image", "s2.bgUri": "Scene/background image", "s2.srcUrl": "Source video URL",
+        "s2.upload": "📁 Upload", "s2.note": "Reference / voice note",
+        "s2.notePh": "What to preserve from the attached media, source video, or voice direction",
+        "s2.wardrobe": "Wardrobe reference", "s2.first": "First frame", "s2.last": "Last frame",
+        "s2.rights": "Media rights", "s2.rightsOk": "Operator approved", "s2.rightsReview": "Needs review", "s2.rightsUnknown": "Unknown",
+        "s3.title": "Learn from a source video", "s3.useRemake": "Use Remake mode", "s3.srcPlatform": "Source platform",
+        "s3.pInternal": "CineJelly internal", "s3.pMotion": "Motion inspiration", "s3.pAds": "Ad inspiration", "s3.pCustom": "Custom",
+        "s3.learning": "Learning policy", "s3.structOnly": "Structure and rhythm only", "s3.closeRemake": "Rights-cleared close remake",
+        "s3.platform": "Publish platform", "s3.flexible": "Flexible", "s3.summary": "Source pattern summary",
+        "s3.summaryPh": "Paste the public pattern/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly adapts it to YOUR KOL, product, and background.",
+        "s4.title": "AI Storyboard", "s4.refresh": "Refresh contract",
+        "s4.b1": "1 Hook", "s4.b1n": "Problem / before state", "s4.b2": "2 Proof", "s4.b2n": "Product / action",
+        "s4.b3": "3 Transform", "s4.b3n": "Change / result", "s4.b4": "4 Payoff", "s4.b4n": "After / soft CTA",
+        "set.duration": "Duration (s)", "set.aspect": "Aspect ratio", "set.quality": "Quality / model", "set.audio": "Voiceover",
+        "set.audioVi": "Vietnamese VO", "set.audioEn": "English VO", "set.audioZh": "Chinese VO", "set.audioOff": "Off",
+        "set.bitHigh": "High", "set.bitStd": "Standard", "set.lastFrame": "Last frame", "set.auto": "Auto", "set.on": "On", "set.off": "Off",
+        "set.product": "Product / subject", "set.productPh": "Your real product, service, channel, or story subject",
+        "set.category": "Category", "set.categoryPh": "beauty, fashion, SaaS, food, education...",
+        "set.claim": "Allowed claim", "set.claimPh": "Only claims you can approve or substantiate",
+        "rb.note": "Backend keeps provider spend locked until the plan is approved and explicitly confirmed.",
+        "rb.build": "Build video plan",
+        "rs.starters": "Pattern starters", "rs.mine": "My creations", "rs.history": "History", "rs.quick": "Quick tips",
+        "rs.tip1": "Clear idea", "rs.tip1b": "Your prompt becomes the script and storyboard.",
+        "rs.tip2": "Add references", "rs.tip2b": "KOL, product, scene, source video.",
+        "rs.tip3": "Budget guard", "rs.tip3b": "No provider spend before approval.",
+        "rs.tip4": "Review packet", "rs.tip4b": "One clean pre-render handoff.",
+        "rs.recent": "Recent sessions", "rs.noSessions": "No sessions yet.",
+        "cg.review": "Review checkpoints", "cg.routing": "Seedance routing", "cg.media": "Media references",
+        "cg.creative": "Creative pattern learning", "cg.blueprint": "Pattern / remake blueprint", "cg.backend": "Backend managed steps",
+        "cg.userActions": "Your required actions", "cg.director": "Director",
+        "cg.empty": "No contract loaded.", "cg.emptyRefs": "No references loaded.", "cg.emptyRemake": "No remake blueprint loaded.",
+        "ap.title": "Review & Render", "ap.spend": "Cost confirmation", "ap.confirm": "Confirm paid render submission",
+        "ap.captions": "Auto captions from the voiceover (script-matched, no extra cost)",
+        "ap.create": "🎬 Create video", "ap.stop": "Stop watching",
+        "ap.statusIdle": "No render job yet. Describe the idea → Build video plan → Create video.",
+        "jp.title": "My videos", "jp.refresh": "Refresh", "jp.queueIdle": "Queue: not loaded.",
+        "jp.emptyHint": "Press Refresh to load your videos.",
+        "jp.loadFail": "Could not load the list — log in and try again.", "jp.empty": "No videos yet.",
+        "jp.qQueued": "queued", "jp.qRunning": "running", "jp.qPaused": "awaiting review",
+        "jp.view": "Play", "jp.dl": "Download", "jp.watch": "Track", "jp.subdub": "Multi-language subs / dub",
+        "jp.dlStarted": "Download started.", "jp.dlFail": "Could not fetch the video (job not finished or file cleaned up).",
+        "poll.checkFail": "Could not check the job status. Log in again and open 🎬 Video.",
+        "poll.done": "🎉 Your video is ready! Open 🎬 Video to watch and download.",
+        "poll.refundAuto": "credits were refunded automatically", "poll.refundManual": "a credit-refund request was sent to the team for review",
+        "poll.failedPrefix": "❌ The video failed — ", "poll.tryAgain": ". Please try again.",
+        "poll.canceledPrefix": "Video canceled — ", "poll.rejectedPrefix": "Video rejected in review — ",
+        "poll.held": "The video is held for an extra check — the team will handle it shortly.",
+        "poll.reviewWait": "⏳ Your video is waiting for the team review (usually minutes). Credits are already reserved — do NOT resubmit. This page updates automatically.",
+        "err.loginFirst": "Please log in (button above) before uploading files.",
+        "err.uploadTooBig": "File too large (max 25MB). Compress it and try again.",
+        "up.done1": "Uploaded “", "up.done2": "” — the reference field is filled in.",
+        "err.loginCreate": "Please log in (Log in / Sign up above) before creating a video.",
+        "err.needIdea": "Please describe your video idea first.",
+        "ce.cost": "Estimated cost:", "ce.balance": "balance:",
+        "ce.refundAuto": "Failed videos are refunded automatically.", "ce.refundManual": "Failed videos are reviewed by the team for a refund.",
+        "help.t": "💡 Quick guide",
+        "help.idea": "Write like you are telling a friend: what you sell / for whom / how the video should look / the payoff. The more specific the product + emotion, the more viral the result. Vietnamese, Chinese, or English all work.",
+        "help.ref": "KOL image locks the face; product image locks the product; scene locks the space; a source video teaches structure only (never copied). Press 📁 to upload from phone/PC — fields fill in automatically.",
+        "help.settings": "Duration × quality sets the credit price (shown under the create button). Use 9:16 for TikTok/Reels. 'Voiceover' picks the narration language; captions toggle on in the final step.",
+        "help.topup": "Pick a package → transfer with the shown reference → press confirm. Credits arrive once the admin approves (usually minutes). Duplicate submissions merge safely — you never pay twice.",
+        "help.approval": "'Create video' deducts credits and queues the video (some pass a quick team review first). Failed videos follow the refund policy shown under the button.",
+        "help.redub": "Pick a video (upload with 📁, or press 🌐 on a finished video in 🎬 Video). Choose the dub language and the subtitle languages to export. The system listens → translates → writes a time-fitted narration, returning one .srt per language plus the narration script.",
+        "redub.title": "🌐 Translate subtitles / Re-dub video", "redub.source": "Source video",
+        "redub.sourcePh": "Press 📁 to upload, or the 🌐 button on a finished video",
+        "redub.fromJob": "Source: rendered video", "redub.srcLang": "Original language", "redub.auto": "Auto detect",
+        "redub.dubLang": "Dub into", "redub.subs": "Extra subtitle languages (pick any)",
+        "redub.voice": "Narration voice style (optional)", "redub.voicePh": "e.g. warm, natural female review voice",
+        "redub.mix": "Original audio", "redub.mixDuck": "Keep the bed, duck under the dub", "redub.mixReplace": "Replace fully with the new narration",
+        "redub.run": "🌐 Translate & build subtitles", "redub.running": "⏳ Listening & translating (1-3 min)...",
+        "redub.needSource": "Pick a source first: upload with 📁 or press 🌐 on a finished video.",
+        "redub.done": "✅ Done:", "redub.segments": "speech segments", "redub.script": "Narration script (timed):",
+        "redub.price1": "Fee:", "redub.priceOp": "Free with the operator key.", "redub.credits": "credits per run"
+      },
+      zh: {
+        "top.balance": "余额", "top.queue": "渲染队列", "top.queueReady": "就绪",
+        "top.login": "登录 / 注册", "top.topup": "💎 充值积分", "top.logout": "退出",
+        "top.redubTitle": "为现有视频翻译字幕 / 配音",
+        "auth.login": "登录", "auth.register": "注册账号", "auth.password": "密码",
+        "auth.pwPh": "至少8个字符", "auth.name": "昵称（可选）",
+        "auth.note": "免费注册，充值积分即可开始创作，无需 API key。",
+        "auth.okLogin": "登录成功！", "auth.okRegister": "注册成功！充值积分即可开始创作视频。",
+        "pw.title": "🔑 修改密码", "pw.current": "当前密码", "pw.new": "新密码（至少8个字符）",
+        "pw.submit": "修改密码", "pw.note": "修改后其他设备需重新登录。忘记密码请联系客服重置。",
+        "pw.done": "密码已修改，其他设备需重新登录。",
+        "tu.title": "💎 充值积分", "tu.note": "转账备注（可选）", "tu.notePh": "例：10:30 已从 ...901 转账",
+        "tu.submit": "我已转账 — 提交审核", "tu.sent": "充值申请已提交，管理员核对后将尽快到账。",
+        "hero.h1": "AI 视频创作", "hero.noSession": "尚未加载会话。",
+        "hero.eyebrow": "描述创意、添加参考素材、选择制作模式 — CineJelly 自动生成脚本、分镜、提示词、审核包并渲染。",
+        "mode.short": "短视频", "mode.remake": "翻拍", "mode.ugc": "UGC", "mode.long": "长片",
+        "s1.title": "告诉 CineJelly 你的创意", "s1.enhance": "✨ AI 润色", "s1.brief": "创意简介",
+        "s1.briefPh": "描述你想要的视频：领域、产品、达人/人物、参考视频结构、时长、语言、语气、卖点证明和结尾亮点。",
+        "s1.starter": "快速模板", "s1.rewrite": "重写", "s1.productStarter": "产品模板",
+        "s2.title": "添加参考素材", "s2.clear": "清空",
+        "s2.kol": "达人 / 人物", "s2.imgRef": "参考图片", "s2.product": "产品", "s2.scene": "场景", "s2.bg": "背景",
+        "s2.source": "参考视频", "s2.pattern": "学习结构", "s2.voice": "配音 / 备注", "s2.voiceS": "配音意图",
+        "s2.kolUri": "达人图片", "s2.productUri": "产品图片", "s2.bgUri": "场景背景图", "s2.srcUrl": "参考视频链接",
+        "s2.upload": "📁 上传", "s2.note": "参考素材 / 配音备注",
+        "s2.notePh": "需要保留素材中的哪些元素，或期望的配音风格",
+        "s2.wardrobe": "服装参考", "s2.first": "首帧", "s2.last": "尾帧",
+        "s2.rights": "素材版权", "s2.rightsOk": "已审核通过", "s2.rightsReview": "需要审核", "s2.rightsUnknown": "未知",
+        "s3.title": "学习参考视频结构", "s3.useRemake": "使用翻拍模式", "s3.srcPlatform": "来源平台",
+        "s3.pInternal": "CineJelly 内部", "s3.pMotion": "动作灵感", "s3.pAds": "广告灵感", "s3.pCustom": "自定义",
+        "s3.learning": "学习策略", "s3.structOnly": "仅学习结构和节奏", "s3.closeRemake": "已授权近似翻拍",
+        "s3.platform": "发布平台", "s3.flexible": "灵活", "s3.summary": "参考视频结构摘要",
+        "s3.summaryPh": "粘贴参考视频结构：开场钩子、节奏、表演、运镜、剪辑节奏、音频节奏和结尾。CineJelly 会套用到你自己的达人、产品和场景上。",
+        "s4.title": "AI 分镜", "s4.refresh": "刷新契约",
+        "s4.b1": "1 开场钩子", "s4.b1n": "问题 / 之前状态", "s4.b2": "2 证明", "s4.b2n": "产品 / 动作",
+        "s4.b3": "3 转变", "s4.b3n": "变化 / 结果", "s4.b4": "4 收尾", "s4.b4n": "之后 / 轻CTA",
+        "set.duration": "时长（秒）", "set.aspect": "画面比例", "set.quality": "画质 / 模型", "set.audio": "配音",
+        "set.audioVi": "越南语配音", "set.audioEn": "英语配音", "set.audioZh": "中文配音", "set.audioOff": "关闭",
+        "set.bitHigh": "高", "set.bitStd": "标准", "set.lastFrame": "尾帧", "set.auto": "自动", "set.on": "开", "set.off": "关",
+        "set.product": "产品 / 主题", "set.productPh": "你的真实产品、服务、频道或故事主题",
+        "set.category": "品类", "set.categoryPh": "美妆、时尚、SaaS、美食、教育…",
+        "set.claim": "允许的宣称", "set.claimPh": "只填写你能负责或证实的宣称",
+        "rb.note": "后端严格锁定成本：未审核确认前不会提交付费渲染。",
+        "rb.build": "生成视频方案",
+        "rs.starters": "模板库", "rs.mine": "我的作品", "rs.history": "历史", "rs.quick": "快速提示",
+        "rs.tip1": "清晰创意", "rs.tip1b": "提示词会变成脚本和分镜。",
+        "rs.tip2": "添加参考", "rs.tip2b": "达人、产品、场景、参考视频。",
+        "rs.tip3": "成本保护", "rs.tip3b": "审核前不产生渲染费用。",
+        "rs.tip4": "审核包", "rs.tip4b": "渲染前一次干净交接。",
+        "rs.recent": "最近会话", "rs.noSessions": "暂无会话。",
+        "cg.review": "审核检查点", "cg.routing": "Seedance 路由", "cg.media": "媒体参考",
+        "cg.creative": "创意模式学习", "cg.blueprint": "翻拍蓝图", "cg.backend": "后端自动步骤",
+        "cg.userActions": "需要你操作的事项", "cg.director": "导演",
+        "cg.empty": "尚未加载契约。", "cg.emptyRefs": "尚未加载参考。", "cg.emptyRemake": "尚未加载翻拍蓝图。",
+        "ap.title": "审核与渲染", "ap.spend": "费用确认", "ap.confirm": "确认提交付费渲染",
+        "ap.captions": "根据配音自动生成字幕（匹配脚本，不额外收费）",
+        "ap.create": "🎬 生成视频", "ap.stop": "停止跟踪",
+        "ap.statusIdle": "暂无渲染任务。先描述创意 → 生成视频方案 → 生成视频。",
+        "jp.title": "我的视频", "jp.refresh": "刷新", "jp.queueIdle": "队列：未加载。",
+        "jp.emptyHint": "点击刷新加载你的视频。",
+        "jp.loadFail": "加载失败 — 请登录后重试。", "jp.empty": "还没有视频。",
+        "jp.qQueued": "排队", "jp.qRunning": "进行中", "jp.qPaused": "待审核",
+        "jp.view": "播放", "jp.dl": "下载", "jp.watch": "跟踪", "jp.subdub": "多语字幕 / 配音",
+        "jp.dlStarted": "开始下载。", "jp.dlFail": "无法获取视频（任务未完成或文件已清理）。",
+        "poll.checkFail": "无法查询视频状态，请重新登录后打开 🎬 视频。",
+        "poll.done": "🎉 视频完成！打开 🎬 视频即可观看和下载。",
+        "poll.refundAuto": "积分已自动退还", "poll.refundManual": "退款申请已提交给团队处理",
+        "poll.failedPrefix": "❌ 视频生成失败 — ", "poll.tryAgain": "。请重试。",
+        "poll.canceledPrefix": "视频已取消 — ", "poll.rejectedPrefix": "视频未通过审核 — ",
+        "poll.held": "视频暂被保留以进一步检查 — 团队会尽快处理。",
+        "poll.reviewWait": "⏳ 视频正在等待团队审核（通常几分钟）。积分已预留 — 无需重复提交。页面会自动更新。",
+        "err.loginFirst": "请先登录（上方按钮）再上传文件。",
+        "err.uploadTooBig": "文件太大（最大 25MB），请压缩后重试。",
+        "up.done1": "已上传 “", "up.done2": "” — 参考字段已自动填写。",
+        "err.loginCreate": "请先登录（上方 登录/注册）再创建视频。",
+        "err.needIdea": "请先输入视频创意。",
+        "ce.cost": "预计费用：", "ce.balance": "余额：",
+        "ce.refundAuto": "失败视频将自动退还积分。", "ce.refundManual": "失败视频将由团队审核后退还积分。",
+        "help.t": "💡 快速指南",
+        "help.idea": "像跟朋友聊天一样描述：卖什么 / 给谁看 / 视频长什么样 / 结尾亮点。产品和情绪越具体，越容易爆。支持越南语、中文、英文。",
+        "help.ref": "达人图锁定人脸；产品图锁定产品；场景图锁定空间；参考视频只学结构节奏（不抄内容）。点 📁 从手机/电脑上传，字段自动填写。",
+        "help.settings": "时长 × 画质决定积分价格（创建按钮下方实时显示）。TikTok/Reels 用 9:16。'配音'选择解说语言；字幕在最后一步开启。",
+        "help.topup": "选择套餐 → 按显示内容转账 → 点确认。管理员审核后积分到账（通常几分钟）。重复提交会自动合并，不会重复扣款。",
+        "help.approval": "点击'生成视频'即扣除积分并进入队列（部分视频需团队快速审核）。失败视频按按钮下方的退款政策处理。",
+        "help.redub": "选择视频（用 📁 上传，或在 🎬 视频中对已完成视频点 🌐）。选择配音语言和要导出的字幕语言。系统自动听写 → 翻译 → 生成对齐时间轴的配音稿，并输出每种语言的 .srt 和配音脚本。",
+        "redub.title": "🌐 视频翻译字幕 / 配音", "redub.source": "源视频",
+        "redub.sourcePh": "点 📁 上传视频，或在已完成视频上点 🌐",
+        "redub.fromJob": "来源：已渲染视频", "redub.srcLang": "原语言", "redub.auto": "自动识别",
+        "redub.dubLang": "配音语言", "redub.subs": "额外字幕语言（可多选）",
+        "redub.voice": "配音风格（可选）", "redub.voicePh": "例：温暖自然的女声测评腔",
+        "redub.mix": "原声处理", "redub.mixDuck": "保留背景音，配音时压低", "redub.mixReplace": "完全替换为新配音",
+        "redub.run": "🌐 翻译并生成字幕", "redub.running": "⏳ 正在听写和翻译（1-3分钟）…",
+        "redub.needSource": "请先选择视频：用 📁 上传，或在已完成视频上点 🌐。",
+        "redub.done": "✅ 完成：", "redub.segments": "段语音", "redub.script": "配音脚本（含时间轴）：",
+        "redub.price1": "费用：", "redub.priceOp": "使用运营密钥免费。", "redub.credits": "积分/次"
+      }
+    };
+    function t(key) {
+      const dict = I18N[currentLang] || I18N.vi;
+      if (dict[key] !== undefined) { return dict[key]; }
+      return I18N.vi[key] !== undefined ? I18N.vi[key] : key;
+    }
+    function applyI18n() {
+      const dict = I18N[currentLang] || I18N.vi;
+      document.querySelectorAll("[data-i18n]").forEach(function (node) {
+        const key = node.dataset.i18n;
+        if (dict[key] !== undefined) { node.textContent = dict[key]; }
+        else if (I18N.vi[key] !== undefined) { node.textContent = I18N.vi[key]; }
+      });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach(function (node) {
+        const key = node.dataset.i18nPlaceholder;
+        if (dict[key] !== undefined) { node.placeholder = dict[key]; }
+        else if (I18N.vi[key] !== undefined) { node.placeholder = I18N.vi[key]; }
+      });
+      document.querySelectorAll("[data-i18n-title]").forEach(function (node) {
+        const key = node.dataset.i18nTitle;
+        if (dict[key] !== undefined) { node.title = dict[key]; }
+        else if (I18N.vi[key] !== undefined) { node.title = I18N.vi[key]; }
+      });
+      document.documentElement.lang = currentLang === "zh" ? "zh-Hans" : currentLang;
+    }
+    function setupI18n() {
+      const switcher = document.getElementById("lang-switch");
+      if (switcher) {
+        switcher.value = currentLang;
+        switcher.addEventListener("change", function () {
+          currentLang = switcher.value === "en" ? "en" : switcher.value === "zh" ? "zh" : "vi";
+          try { window.localStorage.setItem("cinejelly_lang", currentLang); } catch (error) { /* memory only */ }
+          applyI18n();
+          updateAccountUi();
+          updateRedubPriceLine();
+        });
+      }
+      applyI18n();
+    }
     const workflowModeConfig = {
       short_video: {
         visualBibleMode: "auto",
@@ -1555,6 +1947,7 @@ export function buildShortPipelineCreatePage(): string {
     setupReferenceUploads();
     setupApiKeyMemory();
     setupAccountUi();
+    setupI18n();
     refreshAccount();
     // Balance keeps itself fresh: approved top-ups and render charges appear without a
     // manual reload (30s poll only while logged in; silent when offline).
@@ -1616,6 +2009,12 @@ export function buildShortPipelineCreatePage(): string {
         panel.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     });
+    document.getElementById("open-redub-top").addEventListener("click", function () {
+      redubJobId = "";
+      document.getElementById("redub-job-line").hidden = true;
+      openRedubModal();
+    });
+    document.getElementById("redub-run").addEventListener("click", runRedub);
     updatePromptCount();
     updateEstimatedCost();
 
@@ -1707,17 +2106,17 @@ export function buildShortPipelineCreatePage(): string {
       try {
         response = await apiFetch("/v1/render-jobs");
       } catch (error) {
-        listNode.innerHTML = '<div class="empty">Không tải được danh sách job — kiểm tra API key.</div>';
+        listNode.innerHTML = '<div class="empty">' + escapeHtml(t("jp.loadFail")) + '</div>';
         return;
       }
       const queue = response.queue || {};
       queueNode.textContent = "Queue: " +
-        (queue.queuedJobCount ?? 0) + " chờ | " +
-        (queue.runningJobCount ?? 0) + " đang chạy | " +
-        (queue.pausedJobCount ?? 0) + " chờ duyệt";
+        (queue.queuedJobCount ?? 0) + " " + t("jp.qQueued") + " | " +
+        (queue.runningJobCount ?? 0) + " " + t("jp.qRunning") + " | " +
+        (queue.pausedJobCount ?? 0) + " " + t("jp.qPaused");
       const jobs = response.jobs || [];
       if (jobs.length === 0) {
-        listNode.innerHTML = '<div class="empty">Chưa có render job nào.</div>';
+        listNode.innerHTML = '<div class="empty">' + escapeHtml(t("jp.empty")) + '</div>';
         return;
       }
       listNode.innerHTML = jobs.map((job) => {
@@ -1727,8 +2126,9 @@ export function buildShortPipelineCreatePage(): string {
         const preview = escapeHtml(String(job.userInputPreview || "").slice(0, 90));
         const jobIdAttr = escapeAttribute(String(job.jobId || ""));
         const finishedButtons = String(job.status || "") === "succeeded"
-          ? '<button class="mini-btn" type="button" onclick="playJob(\'' + jobIdAttr + '\')">Xem</button>' +
-            '<button class="mini-btn" type="button" onclick="downloadJob(\'' + jobIdAttr + '\')">Tải</button>'
+          ? '<button class="mini-btn" type="button" onclick="playJob(\'' + jobIdAttr + '\')">' + escapeHtml(t("jp.view")) + '</button>' +
+            '<button class="mini-btn" type="button" onclick="downloadJob(\'' + jobIdAttr + '\')">' + escapeHtml(t("jp.dl")) + '</button>' +
+            '<button class="mini-btn" type="button" onclick="openRedubForJob(\'' + jobIdAttr + '\')" title="' + escapeAttribute(t("jp.subdub")) + '">🌐</button>'
           : "";
         return '<article class="item"><div class="row"><div>' +
           '<div class="title">' + shortId + '…</div>' +
@@ -1736,7 +2136,7 @@ export function buildShortPipelineCreatePage(): string {
           '</div><div style="display:flex;gap:8px;align-items:center">' +
           '<span class="' + jobStatusPillClass(String(job.status || "")) + '">' + status.replaceAll("_", " ") + '</span>' +
           finishedButtons +
-          '<button class="mini-btn" type="button" onclick="watchJob(\'' + jobIdAttr + '\')">Theo dõi</button>' +
+          '<button class="mini-btn" type="button" onclick="watchJob(\'' + jobIdAttr + '\')">' + escapeHtml(t("jp.watch")) + '</button>' +
           '</div></div></article>';
       }).join("");
     }
@@ -1757,7 +2157,7 @@ export function buildShortPipelineCreatePage(): string {
         headers: authHeaders()
       });
       if (!response.ok) {
-        showError("Không tải được video (job chưa xong hoặc file đã dọn).");
+        showError(t("jp.dlFail"));
         return undefined;
       }
       return response.blob();
@@ -1797,9 +2197,134 @@ export function buildShortPipelineCreatePage(): string {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
-      showSuccess("Đã bắt đầu tải video.");
+      showSuccess(t("jp.dlStarted"));
     }
     window.downloadJob = downloadJob;
+
+    // ---- Dịch phụ đề / thuyết minh video (redub) ----
+    let redubJobId = "";
+    function updateRedubPriceLine() {
+      const line = document.getElementById("redub-price-line");
+      if (!line) { return; }
+      const loggedIn = Boolean(accountInfo && accountInfo.account);
+      const keyEl = document.getElementById("api-key");
+      if (!loggedIn && keyEl && keyEl.value.trim()) { line.textContent = t("redub.priceOp"); return; }
+      const perSecond = accountInfo && accountInfo.renderPricing ? (accountInfo.renderPricing.creditsPerRenderSecond || 10) : 10;
+      const credits = Math.max(1, Math.ceil(perSecond * 5));
+      const balance = accountInfo && accountInfo.account ? accountInfo.account.balanceCredits : 0;
+      line.textContent = t("redub.price1") + " ~" + credits.toLocaleString("vi-VN") + " " + t("redub.credits") +
+        (loggedIn ? " (" + t("ce.balance") + " " + balance.toLocaleString("vi-VN") + " 💎)" : "");
+    }
+    function openRedubModal() {
+      clearMessages();
+      if (!accountInfo || !accountInfo.account) {
+        const keyEl = document.getElementById("api-key");
+        if (!(keyEl && keyEl.value.trim())) {
+          showError(t("err.loginCreate"));
+          document.getElementById("auth-modal").hidden = false;
+          return;
+        }
+      }
+      updateRedubPriceLine();
+      document.getElementById("redub-error").hidden = true;
+      document.getElementById("redub-modal").hidden = false;
+    }
+    function openRedubForJob(jobId) {
+      redubJobId = String(jobId || "");
+      document.getElementById("redub-source").value = "";
+      const jobLine = document.getElementById("redub-job-line");
+      jobLine.textContent = t("redub.fromJob") + " " + redubJobId.slice(0, 28) + "…";
+      jobLine.hidden = false;
+      openRedubModal();
+    }
+    window.openRedubForJob = openRedubForJob;
+    async function runRedub() {
+      const errorNode = document.getElementById("redub-error");
+      errorNode.hidden = true;
+      const sourceValue = document.getElementById("redub-source").value.trim();
+      const body = {};
+      if (sourceValue.indexOf("upload://") === 0) { body.uploadUri = sourceValue; }
+      else if (redubJobId) { body.jobId = redubJobId; }
+      else {
+        errorNode.textContent = t("redub.needSource");
+        errorNode.hidden = false;
+        return;
+      }
+      body.dubLanguage = document.getElementById("redub-dub-language").value;
+      const redubSrc = document.getElementById("redub-source-language").value;
+      if (redubSrc && redubSrc !== "auto") { body.sourceLanguage = redubSrc; }
+      body.subtitleLanguages = Array.prototype.slice.call(document.querySelectorAll("#redub-subtitle-langs input:checked")).map(function (node) { return node.value; });
+      const voiceStyle = document.getElementById("redub-voice-style").value.trim();
+      if (voiceStyle) { body.voiceStyle = voiceStyle; }
+      body.originalAudioTreatment = document.getElementById("redub-audio-treatment").value;
+      const runButton = document.getElementById("redub-run");
+      if (runButton.dataset.busy === "true") { return; }
+      runButton.dataset.busy = "true";
+      runButton.disabled = true;
+      runButton.textContent = t("redub.running");
+      try {
+        const response = await fetch("/v1/redub/plans", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify(body)
+        });
+        const payload = await response.json();
+        if (!response.ok) { throw new Error(payload.error || ("HTTP " + response.status)); }
+        renderRedubResult(payload);
+        refreshAccount();
+      } catch (error) {
+        errorNode.textContent = error instanceof Error ? error.message : String(error);
+        errorNode.hidden = false;
+      } finally {
+        runButton.dataset.busy = "false";
+        runButton.disabled = false;
+        runButton.textContent = t("redub.run");
+      }
+    }
+    function renderRedubResult(payload) {
+      const container = document.getElementById("redub-result");
+      container.textContent = "";
+      const summaryLine = document.createElement("div");
+      summaryLine.className = "detail";
+      const segments = payload.summary && payload.summary.segmentCount ? payload.summary.segmentCount : 0;
+      summaryLine.textContent = t("redub.done") + " " + String(payload.sourceLanguage || "?").toUpperCase() + " → " + String(payload.dubLanguage || "?").toUpperCase() +
+        " | " + segments + " " + t("redub.segments") +
+        (payload.creditsCharged ? " | -" + payload.creditsCharged + " credits" : "");
+      container.appendChild(summaryLine);
+      const buttonRow = document.createElement("div");
+      buttonRow.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px";
+      (payload.subtitles || []).forEach(function (track) {
+        const trackButton = document.createElement("button");
+        trackButton.type = "button";
+        trackButton.className = "mini-btn";
+        trackButton.textContent = "⬇ .srt " + String(track.language || "").toUpperCase();
+        trackButton.addEventListener("click", function () {
+          const blob = new Blob([track.srt || ""], { type: "text/plain;charset=utf-8" });
+          const objectUrl = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = objectUrl;
+          link.download = "subtitle_" + (track.language || "xx") + ".srt";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 10000);
+        });
+        buttonRow.appendChild(trackButton);
+      });
+      container.appendChild(buttonRow);
+      if (payload.dubScript) {
+        const scriptLabel = document.createElement("div");
+        scriptLabel.className = "detail";
+        scriptLabel.style.marginTop = "8px";
+        scriptLabel.textContent = t("redub.script");
+        container.appendChild(scriptLabel);
+        const scriptBox = document.createElement("textarea");
+        scriptBox.readOnly = true;
+        scriptBox.value = payload.dubScript;
+        scriptBox.style.cssText = "width:100%;min-height:120px;background:#0d1230;color:#e8ecff;border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:8px;font-size:12px";
+        container.appendChild(scriptBox);
+      }
+    }
 
     async function pollRenderJob(statusUrl) {
       document.getElementById("stop-polling").disabled = false;
@@ -1807,7 +2332,7 @@ export function buildShortPipelineCreatePage(): string {
       try {
         job = await apiFetch(statusUrl);
       } catch (error) {
-        stopJobPolling("Không kiểm tra được trạng thái video. Hãy đăng nhập lại rồi mở 🎬 Video của tôi.");
+        stopJobPolling(t("poll.checkFail"));
         return;
       }
       const status = job.status || "unknown";
@@ -1818,13 +2343,13 @@ export function buildShortPipelineCreatePage(): string {
       if (status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected" || status === "blocked") {
         if (accountInfo && accountInfo.account) {
           var autoRefund = accountInfo && accountInfo.refundPolicy === "auto";
-          var refundNote = autoRefund ? "credits đã được hoàn tự động" : "yêu cầu hoàn credits đã được gửi tới đội ngũ để xử lý";
+          var refundNote = autoRefund ? t("poll.refundAuto") : t("poll.refundManual");
           const terminalCopy = status === "succeeded"
-            ? "🎉 Video đã xong! Mở 🎬 Video của tôi để xem và tải về."
-            : status === "failed" ? "❌ Video bị lỗi — " + refundNote + ". Hãy thử lại."
-            : status === "canceled" ? "Video đã hủy — " + refundNote + "."
-            : status === "rejected" ? "Video bị từ chối duyệt — " + refundNote + "."
-            : "Video tạm giữ để kiểm tra thêm — đội ngũ sẽ xử lý sớm.";
+            ? t("poll.done")
+            : status === "failed" ? t("poll.failedPrefix") + refundNote + t("poll.tryAgain")
+            : status === "canceled" ? t("poll.canceledPrefix") + refundNote + "."
+            : status === "rejected" ? t("poll.rejectedPrefix") + refundNote + "."
+            : t("poll.held");
           stopJobPolling(terminalCopy);
           refreshAccount();
           if (status === "succeeded") { loadJobs(); }
@@ -1836,7 +2361,7 @@ export function buildShortPipelineCreatePage(): string {
       if (status.indexOf("paused") === 0) {
         if (accountInfo && accountInfo.account) {
           // Customer view: the operator approves shortly; credits are already reserved.
-          setRenderStatus("⏳ Video đang chờ đội ngũ kiểm duyệt (thường vài phút). Credits đã được giữ — KHÔNG cần gửi lại. Trang sẽ tự cập nhật.");
+          setRenderStatus(t("poll.reviewWait"));
           jobPollDelayMs = 15000;
           jobPollTimer = setTimeout(() => pollRenderJob(statusUrl), jobPollDelayMs);
           return;
@@ -1879,13 +2404,13 @@ export function buildShortPipelineCreatePage(): string {
     async function createSession() {
       clearMessages();
       if (!accountInfo || !accountInfo.account) {
-        showError("Hãy đăng nhập (nút Đăng nhập / Đăng ký phía trên) trước khi tạo video.");
+        showError(t("err.loginCreate"));
         document.getElementById("auth-modal").hidden = false;
         return;
       }
       const payload = briefPayload();
       if (!payload.userPrompt) {
-        showError("Hãy nhập ý tưởng video trước khi tạo.");
+        showError(t("err.needIdea"));
         return;
       }
       const response = await apiFetch(endpoints.sessions, {
@@ -1937,12 +2462,12 @@ export function buildShortPipelineCreatePage(): string {
         const target = document.getElementById(button.dataset.uploadFor);
         if (!target) return;
         if (file.size > 25 * 1024 * 1024) {
-          showError("File quá lớn (tối đa 25MB). Hãy nén ảnh/video rồi thử lại.");
+          showError(t("err.uploadTooBig"));
           return;
         }
         const credentialHeaders = authHeaders();
         if (Object.keys(credentialHeaders).length === 0) {
-          showError("Hãy đăng nhập tài khoản (nút Đăng nhập phía trên) trước khi tải file lên.");
+          showError(t("err.loginFirst"));
           return;
         }
         const originalLabel = button.textContent;
@@ -1963,7 +2488,7 @@ export function buildShortPipelineCreatePage(): string {
             throw new Error(payload.error || "Upload failed");
           }
           target.value = payload.uri;
-          showSuccess('Đã tải lên "' + file.name + '" — trường reference đã được điền, cứ thế bấm render.');
+          showSuccess(t("up.done1") + file.name + t("up.done2"));
           applyUploadThumbnail(button.dataset.uploadFor, file, payload.kind);
         } catch (error) {
           showError(error instanceof Error ? error.message : String(error));
@@ -2034,8 +2559,8 @@ export function buildShortPipelineCreatePage(): string {
         document.getElementById("tab-login").classList.toggle("active", mode === "login");
         document.getElementById("tab-register").classList.toggle("active", mode === "register");
         document.getElementById("auth-name-field").hidden = mode !== "register";
-        document.getElementById("auth-title").textContent = mode === "login" ? "Đăng nhập" : "Tạo tài khoản";
-        document.getElementById("auth-submit").textContent = mode === "login" ? "Đăng nhập" : "Tạo tài khoản";
+        document.getElementById("auth-title").textContent = mode === "login" ? t("auth.login") : t("auth.register");
+        document.getElementById("auth-submit").textContent = mode === "login" ? t("auth.login") : t("auth.register");
       }
       document.getElementById("auth-submit").addEventListener("click", async function () {
         const errorBox = document.getElementById("auth-error");
@@ -2055,7 +2580,7 @@ export function buildShortPipelineCreatePage(): string {
           authModal.hidden = true;
           document.getElementById("auth-password").value = "";
           await refreshAccount();
-          showSuccess(authMode === "login" ? "Đăng nhập thành công!" : "Tạo tài khoản thành công! Nạp credits để bắt đầu tạo video.");
+          showSuccess(authMode === "login" ? t("auth.okLogin") : t("auth.okRegister"));
         } catch (error) {
           errorBox.textContent = error instanceof Error ? error.message : String(error);
           errorBox.hidden = false;
@@ -2089,7 +2614,7 @@ export function buildShortPipelineCreatePage(): string {
           });
           const payload = await response.json();
           if (!response.ok) { throw new Error(payload.error || "Không gửi được yêu cầu."); }
-          showSuccess("Đã gửi yêu cầu nạp. Quản trị viên sẽ duyệt và cộng credits sớm nhất.");
+          showSuccess(t("tu.sent"));
           await loadMyTopups();
         } catch (error) {
           showError(error instanceof Error ? error.message : String(error));
@@ -2120,7 +2645,7 @@ export function buildShortPipelineCreatePage(): string {
           document.getElementById("current-password").value = "";
           document.getElementById("new-password").value = "";
           document.getElementById("password-modal").hidden = true;
-          showSuccess("Đã đổi mật khẩu. Các thiết bị khác sẽ phải đăng nhập lại.");
+          showSuccess(t("pw.done"));
         } catch (error) {
           errorBox.textContent = error instanceof Error ? error.message : String(error);
           errorBox.hidden = false;
@@ -2241,8 +2766,8 @@ export function buildShortPipelineCreatePage(): string {
       const pricing = accountInfo.renderPricing;
       const credits = Math.max(pricing.minimumChargeCredits || 1, Math.ceil(seconds * (pricing.creditsPerRenderSecond || 10)));
       const balance = accountInfo.account ? accountInfo.account.balanceCredits : 0;
-      var refundHint = (accountInfo && accountInfo.refundPolicy === "auto") ? "Video lỗi được hoàn credits tự động." : "Video lỗi sẽ được đội ngũ xem xét hoàn credits.";
-      box.textContent = "Chi phí ước tính: ~" + credits.toLocaleString("vi-VN") + " credits (số dư: " + balance.toLocaleString("vi-VN") + " 💎). " + refundHint;
+      var refundHint = (accountInfo && accountInfo.refundPolicy === "auto") ? t("ce.refundAuto") : t("ce.refundManual");
+      box.textContent = t("ce.cost") + " ~" + credits.toLocaleString("vi-VN") + " credits (" + t("ce.balance") + " " + balance.toLocaleString("vi-VN") + " 💎). " + refundHint;
       box.hidden = false;
     }
 

@@ -335,6 +335,53 @@ try {
       headers: { "X-CineJelly-Session": registerB.sessionToken }
     });
     check("restored_video_still_owner_scoped", strangerDownload.status === 404, `status=${strangerDownload.status}`);
+
+    // ---------- Redub (dịch phụ đề / thuyết minh): admin enables the speech model at the
+    // desk, gate failures never charge, and the paid path charges BEFORE the provider —
+    // a provider failure lands in the manual refund queue for the admin (never lost).
+    const settingsPut = await api(
+      "PUT",
+      "/v1/admin/settings",
+      { models: { speechModel: "openai/whisper-large-v3", llmModel: "deepseek-ai/DeepSeek-V3" } },
+      adminHeaders
+    );
+    check(
+      "admin_enables_speech_model",
+      settingsPut.status === 200 && settingsPut.payload.settings?.models?.speechModel === "openai/whisper-large-v3",
+      `status=${settingsPut.status}`
+    );
+    const registerC = await api("POST", "/v1/account/register", { email: "khach.c@shop.vn", password: "matkhau123" });
+    const C = { "X-CineJelly-Session": registerC.sessionToken };
+    const redubPoor = await api("POST", "/v1/redub/plans", { dubLanguage: "vi", uploadUri: uploadPayload.uri }, C);
+    check("redub_402_before_any_provider_call", redubPoor.status === 402, `status=${redubPoor.status}`);
+    const redubForeign = await api("POST", "/v1/redub/plans", { dubLanguage: "vi", jobId: plantedJobId }, C);
+    check("redub_foreign_job_404", redubForeign.status === 404, `status=${redubForeign.status}`);
+    const cBalanceAfterGates = (await api("GET", "/v1/account/me", undefined, C)).payload.account?.balanceCredits;
+    check("redub_gate_failures_never_charge", cBalanceAfterGates === 0, `balance=${cBalanceAfterGates}`);
+    const aBalancePreRedub = (await api("GET", "/v1/account/me", undefined, A2)).payload.account?.balanceCredits ?? 0;
+    const redubReal = await api("POST", "/v1/redub/plans", { dubLanguage: "vi", subtitleLanguages: ["en"], jobId: plantedJobId }, A2);
+    check("redub_provider_failure_maps_to_5xx", redubReal.status >= 500, `status=${redubReal.status}`);
+    const aBalancePostRedub = (await api("GET", "/v1/account/me", undefined, A2)).payload.account?.balanceCredits ?? 0;
+    check(
+      "redub_charge_held_for_manual_refund",
+      aBalancePostRedub === aBalancePreRedub - 50,
+      `pre=${aBalancePreRedub} post=${aBalancePostRedub}`
+    );
+    const redubRefunds = await api("GET", "/v1/admin/refunds", undefined, adminHeaders);
+    const redubRefundReq = (redubRefunds.payload.pending ?? []).find((item) => String(item.jobId ?? "").startsWith("redub_"));
+    check("redub_refund_request_queued", Boolean(redubRefundReq), `pending=${(redubRefunds.payload.pending ?? []).length}`);
+    const redubRefundDecision = await api(
+      "POST",
+      "/v1/admin/refunds/decide",
+      { refundRequestId: redubRefundReq?.refundRequestId, approve: true },
+      adminHeaders
+    );
+    const aBalanceAfterRefund = (await api("GET", "/v1/account/me", undefined, A2)).payload.account?.balanceCredits;
+    check(
+      "admin_refunds_redub_charge",
+      redubRefundDecision.status === 200 && aBalanceAfterRefund === aBalancePreRedub,
+      `status=${redubRefundDecision.status} balance=${aBalanceAfterRefund}`
+    );
   } finally {
     await new Promise((resolveClose) => server2.close(resolveClose));
   }

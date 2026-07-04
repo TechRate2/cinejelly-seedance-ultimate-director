@@ -36,6 +36,10 @@ docker compose up -d
 
 Khách nạp tiền: chọn gói → chuyển khoản theo hướng dẫn trên màn hình → bấm "Tôi đã chuyển khoản" → bạn mở trang quản trị, đối chiếu app ngân hàng, bấm Duyệt → credits cộng ngay. Mặc định video lỗi KHÔNG tự hoàn (có lợi cho bạn) — vào hàng chờ hoàn tiền để bạn duyệt từng ca; đổi sang tự động trong tab Cấu hình nếu muốn.
 
+**Ngôn ngữ giao diện:** khách tự chọn VI / EN / 中文 bằng ô chọn trên thanh đầu trang (máy nhớ lựa chọn). Mỗi nhóm tuỳ chọn đều có mục "💡 Hướng dẫn nhanh" bấm ra đọc được, thu gọn lại được.
+
+**Dịch phụ đề / thuyết minh video có sẵn (nút 🌐 Sub/Dub):** khách tải video lên (VD video tiếng Trung) hoặc bấm 🌐 trên video đã render → chọn ngôn ngữ thuyết minh + các phụ đề muốn xuất (VI/EN/中文/日本/한국) → hệ thống nghe, dịch, viết lời thuyết minh khớp thời gian và trả file phụ đề `.srt` từng ngôn ngữ + kịch bản đọc. Cần bật model nhận dạng giọng nói trước: Trung tâm quản trị → Cài đặt → Model → điền model speech (VD `openai/whisper-large-v3` — kiểm tra ID trong catalog Atlas). Chưa bật thì nút này báo lỗi rõ ràng và không trừ tiền ai. Phí mỗi lần dịch = giá 5 giây video; lỗi giữa chừng vào hàng chờ hoàn tiền cho bạn duyệt.
+
 ## Chọn nơi lưu dữ liệu (1 dòng trong .env)
 
 - Mới mở bán: để nguyên (`json`) — không phải cài gì.

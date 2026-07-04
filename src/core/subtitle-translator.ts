@@ -157,6 +157,28 @@ export class SubtitleTranslator {
   }
 }
 
+/** Render cues as a standard .srt file (1-based index, `HH:MM:SS,mmm --> HH:MM:SS,mmm`). */
+export function captionCuesToSrt(cues: readonly CaptionCue[]): string {
+  if (cues.length === 0) {
+    return "";
+  }
+  return (
+    cues
+      .map((cue, index) => `${index + 1}\n${srtTimestamp(cue.startSecond)} --> ${srtTimestamp(cue.endSecond)}\n${cue.text}`)
+      .join("\n\n") + "\n"
+  );
+}
+
+function srtTimestamp(totalSeconds: number): string {
+  const totalMillis = Math.max(0, Math.round(totalSeconds * 1000));
+  const hours = Math.floor(totalMillis / 3_600_000);
+  const minutes = Math.floor((totalMillis % 3_600_000) / 60_000);
+  const seconds = Math.floor((totalMillis % 60_000) / 1000);
+  const millis = totalMillis % 1000;
+  const pad = (value: number, width = 2): string => String(value).padStart(width, "0");
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)},${pad(millis, 3)}`;
+}
+
 function chunk<T>(items: readonly T[], size: number): readonly (readonly T[])[] {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) {

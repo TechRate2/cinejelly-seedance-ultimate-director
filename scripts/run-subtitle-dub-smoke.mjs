@@ -8,7 +8,7 @@
  * and fails clearly when speech-to-text is not configured.
  */
 
-import { SubtitleTranslator } from "../dist/core/subtitle-translator.js";
+import { SubtitleTranslator, captionCuesToSrt } from "../dist/core/subtitle-translator.js";
 import { VideoRedubPlanner } from "../dist/core/video-redub-planner.js";
 
 const checks = [];
@@ -103,6 +103,18 @@ check("redub_tts_timing_covers_speech", plan.ttsIntents[0].startSecond === 0 && 
 check("redub_subtitle_tracks_dub_first_dedup", plan.subtitleTracks.length === 2 && plan.subtitleTracks[0].language === "vi" && plan.subtitleTracks[1].language === "en");
 check("redub_dub_cues_translated", plan.dubCues[0].text.startsWith("[vi]"));
 check("redub_default_keeps_original_bed", plan.originalAudioTreatment === "duck_under_dub");
+
+// ---- .srt rendering: standard numbering, comma-millisecond timestamps, blank-line cues. ----
+const srt = captionCuesToSrt([
+  { startSecond: 0, endSecond: 2.4, text: "Xin chào" },
+  { startSecond: 61.25, endSecond: 3661.999, text: "Dòng hai" }
+]);
+check(
+  "srt_standard_format",
+  srt.startsWith("1\n00:00:00,000 --> 00:00:02,400\nXin chào\n\n2\n") && srt.includes("00:01:01,250 --> 01:01:01,999\nDòng hai"),
+  JSON.stringify(srt.slice(0, 60))
+);
+check("srt_empty_input_empty_output", captionCuesToSrt([]) === "");
 
 // STT not configured -> clear error.
 const noSttPlanner = new VideoRedubPlanner({

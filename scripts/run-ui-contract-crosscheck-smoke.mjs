@@ -95,6 +95,54 @@ for (const page of PAGES) {
   check(`${page.name}_no_unescaped_template_leakage`, !page.html.includes("undefined${") && !page.html.includes("[object Object]"));
 }
 
+// --- 6. Redub feature + 3-language i18n + collapsible help ship on the studio page.
+const REQUIRED_REDUB_IDS = [
+  "open-redub-top", "redub-modal", "redub-source", "redub-source-language", "redub-dub-language",
+  "redub-subtitle-langs", "redub-voice-style", "redub-audio-treatment", "redub-price-line",
+  "redub-error", "redub-run", "redub-result", "redub-job-line", "lang-switch"
+];
+const missingRedub = REQUIRED_REDUB_IDS.filter((id) => !studio.includes(`id="${id}"`));
+check("studio_redub_controls_present", missingRedub.length === 0, missingRedub.join(", "));
+check("studio_redub_calls_server_route", studio.includes('fetch("/v1/redub/plans"') && serverSource.includes('"/v1/redub/plans"'));
+check(
+  "studio_i18n_three_languages",
+  studio.includes("const I18N") && ["vi: {", "en: {", "zh: {"].every((markers) => studio.includes(markers)) &&
+    (studio.match(/data-i18n=/g) || []).length >= 120,
+  `attrs=${(studio.match(/data-i18n=/g) || []).length}`
+);
+check("studio_language_switcher_persists", studio.includes("cinejelly_lang"));
+check("studio_collapsible_help_blocks", (studio.match(/class="cj-help"/g) || []).length >= 6, `count=${(studio.match(/class="cj-help"/g) || []).length}`);
+check("studio_redub_srt_download_client_side", studio.includes('"subtitle_" + (track.language || "xx") + ".srt"'));
+check("studio_redub_per_job_button", studio.includes("openRedubForJob"));
+
+// --- 7. Every shipped page's <script> parses as valid JavaScript (String.raw templates
+// can hide browser-only syntax errors that no TypeScript check catches).
+{
+  const { writeFileSync, rmSync: rmTemp } = await import("node:fs");
+  const { execFileSync } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url");
+  for (const page of PAGES) {
+    const scriptMatch = page.html.match(/<script>([\s\S]*)<\/script>/);
+    let parses = false;
+    let detail = "no <script> found";
+    if (scriptMatch) {
+      const tmpUrl = new URL(`./.tmp-${page.name}-script.mjs`, import.meta.url);
+      const tmpPath = fileURLToPath(tmpUrl);
+      try {
+        writeFileSync(tmpPath, scriptMatch[1]);
+        execFileSync(process.execPath, ["--check", tmpPath], { stdio: "pipe" });
+        parses = true;
+        detail = "";
+      } catch (error) {
+        detail = String(error.stderr ?? error.message).slice(0, 160);
+      } finally {
+        try { rmTemp(tmpPath, { force: true }); } catch { /* best effort */ }
+      }
+    }
+    check(`${page.name}_page_script_parses`, parses, detail);
+  }
+}
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.ui-contract-crosscheck-smoke.v1",

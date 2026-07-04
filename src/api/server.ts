@@ -3,7 +3,7 @@
  * It exposes a small JSON API without adding framework dependencies.
  */
 
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { mkdir, stat, writeFile } from "node:fs/promises";
 import {
@@ -22,6 +22,11 @@ import {
 } from "../application/render-request-normalizer.js";
 import { buildRenderSettingsDescriptor } from "../application/render-settings-descriptor.js";
 import { UPLOAD_FILE_NAME_PATTERN, buildUploadUri, uploadsDirectoryFor } from "../core/upload-reference.js";
+import { VideoRedubPlanner } from "../core/video-redub-planner.js";
+import { captionCuesToSrt } from "../core/subtitle-translator.js";
+import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider.js";
+import { ProviderCostLedger } from "../providers/cost-ledger.js";
+import { loadRuntimeSettings } from "../config/runtime-config.js";
 import { UserAccountError, UserAccountStore, estimateRenderCredits, type RenderCreditPricing } from "./user-account-store.js";
 import { AdminSettingsStore } from "./admin-settings-store.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
@@ -505,9 +510,16 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   // Charges are durable but jobs are not: after a restart, refund every unmatched charge
   // whose job vanished or ended without success.
   userAccountStore.reconcileRenderCharges(
-    (jobId) => jobManager.statusOfAny(jobId),
+    (jobId) =>
+      // Phí dịch phụ đề/thuyết minh (redub_*) tính và trả kết quả ngay trong một request —
+      // không có job nền để đối soát; lỗi giữa chừng đã hoàn/vào hàng chờ ngay tại route,
+      // nên coi như đã tất toán (trường hợp sập máy đúng lúc chạy: admin cộng bù thủ công).
+      jobId.startsWith("redub_") ? "succeeded" : jobManager.statusOfAny(jobId),
     { mode: adminSettingsStore.refundPolicy() === "auto" ? "refund" : "queue" }
   );
+  // Mỗi tài khoản chỉ một yêu cầu dịch/thuyết minh chạy tại một thời điểm (chặn double-click
+  // gây trừ tiền hai lần và giới hạn chi phí provider).
+  const redubInFlight = new Set<string>();
   const renderProviderLeaseService = renderProviderLeaseServiceConfig(process.env);
   const productionGraphResumeQueueService = productionGraphResumeQueueServiceConfig(process.env);
   const shutdownCoordinator = new ApiShutdownCoordinator();
@@ -1188,6 +1200,164 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const { userId } = requireUserPrincipal(authDecision.principal);
         sendJson(response, 200, { topups: userAccountStore.topupsOf(userId) }, requestContext);
         return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/redub/plans") {
+        // Dịch phụ đề / thuyết minh lại video (ví dụ video tiếng Trung -> lồng tiếng Việt +
+        // phụ đề nhiều nước). Khách đăng nhập trả phí cố định; key vận hành dùng tự do.
+        // Mọi kiểm tra chặn (model, nguồn video) chạy TRƯỚC khi trừ tiền.
+        if (!authDecision.principal) {
+          throw new UserAccountError("Cần đăng nhập tài khoản để dùng chức năng này.", 401);
+        }
+        assertJsonContentType(request);
+        const body = await readJsonBody<{
+          uploadUri?: string;
+          jobId?: string;
+          sourceLanguage?: string;
+          dubLanguage?: string;
+          subtitleLanguages?: readonly string[];
+          voiceStyle?: string;
+          originalAudioTreatment?: string;
+        }>(request, maxBodyBytes);
+        const languagePattern = /^[a-z]{2}(-[a-z0-9]{2,8})?$/;
+        const dubLanguage = typeof body.dubLanguage === "string" ? body.dubLanguage.trim().toLowerCase() : "";
+        if (!languagePattern.test(dubLanguage)) {
+          throw new UserAccountError("Thiếu hoặc sai ngôn ngữ thuyết minh (dubLanguage, ví dụ \"vi\").", 400);
+        }
+        const subtitleLanguages = (Array.isArray(body.subtitleLanguages) ? body.subtitleLanguages : [])
+          .map((language) => String(language).trim().toLowerCase())
+          .filter((language) => languagePattern.test(language))
+          .slice(0, 5);
+        const redubSourceLanguage =
+          typeof body.sourceLanguage === "string" && languagePattern.test(body.sourceLanguage.trim().toLowerCase())
+            ? body.sourceLanguage.trim().toLowerCase()
+            : undefined;
+        const redubVoiceStyle =
+          typeof body.voiceStyle === "string" && body.voiceStyle.trim() ? body.voiceStyle.trim().slice(0, 200) : undefined;
+        const redubAudioTreatment = body.originalAudioTreatment === "replace" ? ("replace" as const) : undefined;
+        // Model bắt buộc — kiểm tra trước khi trừ tiền: hệ thống chưa bật thì không ai mất tiền.
+        const redubSpeechModelId = (process.env.ATLASCLOUD_SPEECH_MODEL ?? "").trim();
+        const redubLlmModelId = (process.env.ATLASCLOUD_LLM_MODEL ?? "").trim();
+        if (!redubSpeechModelId || !redubLlmModelId) {
+          throw new UserAccountError(
+            "Tính năng dịch phụ đề/thuyết minh chưa được bật trên hệ thống (chủ hệ thống cần điền model nhận dạng giọng nói ATLASCLOUD_SPEECH_MODEL trong .env hoặc mục Model của Trung tâm quản trị).",
+            503
+          );
+        }
+        // Nguồn video: file vừa tải lên (upload://...) hoặc video đã render xong của chính mình (jobId).
+        let redubSourceUri: string | undefined;
+        if (typeof body.uploadUri === "string" && body.uploadUri.trim()) {
+          const trimmedUploadUri = body.uploadUri.trim();
+          const uploadFileName = trimmedUploadUri.startsWith("upload://") ? trimmedUploadUri.slice("upload://".length) : "";
+          if (!UPLOAD_FILE_NAME_PATTERN.test(uploadFileName)) {
+            throw new UserAccountError("uploadUri không hợp lệ — dùng đúng mã upload:// trả về khi tải file lên.", 400);
+          }
+          const redubUploadsRoot = uploadsDirectoryFor(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
+          const uploadedPath = resolve(redubUploadsRoot, uploadFileName);
+          let uploadedStat;
+          try {
+            uploadedStat = await stat(uploadedPath);
+          } catch {
+            uploadedStat = undefined;
+          }
+          if (!uploadedPath.startsWith(resolve(redubUploadsRoot) + sep) || !uploadedStat?.isFile()) {
+            throw new UserAccountError("File đã tải lên không tìm thấy — hãy tải video lên lại rồi thử tiếp.", 404);
+          }
+          redubSourceUri = trimmedUploadUri;
+        } else if (typeof body.jobId === "string" && body.jobId.trim()) {
+          const deliverablePath = jobManager.deliverablePathFor(body.jobId.trim(), clientFilter(authDecision.principal));
+          const redubOutputRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
+          const resolvedDeliverable = deliverablePath ? resolve(deliverablePath) : undefined;
+          const deliverableInsideRoot = Boolean(
+            resolvedDeliverable && (resolvedDeliverable === redubOutputRoot || resolvedDeliverable.startsWith(redubOutputRoot + sep))
+          );
+          let deliverableStat;
+          try {
+            deliverableStat = resolvedDeliverable ? await stat(resolvedDeliverable) : undefined;
+          } catch {
+            deliverableStat = undefined;
+          }
+          if (!resolvedDeliverable || !deliverableInsideRoot || !deliverableStat?.isFile()) {
+            throw new UserAccountError("Video của job này chưa sẵn sàng hoặc không thuộc tài khoản của bạn.", 404);
+          }
+          redubSourceUri = resolvedDeliverable;
+        }
+        if (!redubSourceUri) {
+          throw new UserAccountError("Cần uploadUri (video đã tải lên) hoặc jobId (video đã render xong).", 400);
+        }
+        const redubActorKey =
+          authDecision.principal.kind === "user" && authDecision.principal.userId
+            ? `user:${authDecision.principal.userId}`
+            : "operator";
+        if (redubInFlight.has(redubActorKey)) {
+          throw new UserAccountError("Bạn đang có một yêu cầu dịch/thuyết minh đang chạy — chờ xong rồi gửi tiếp.", 409);
+        }
+        // Phí cố định cho tài khoản khách, trừ TRƯỚC khi gọi provider; lỗi giữa chừng xử lý
+        // theo chính sách hoàn tiền (auto -> hoàn ngay, manual -> vào hàng chờ admin duyệt).
+        const redubId = `redub_${randomUUID()}`;
+        let redubCharge: { readonly userId: string; readonly credits: number } | undefined;
+        if (authDecision.principal.kind === "user" && authDecision.principal.userId) {
+          const redubCredits = Math.max(
+            1,
+            Math.ceil(adminSettingsStore.pricing().creditsPerRenderSecond * REDUB_FLAT_PRICE_SECONDS)
+          );
+          const balanceCredits = userAccountStore.balanceOf(authDecision.principal.userId);
+          if (balanceCredits < redubCredits) {
+            throw new UserAccountError(
+              `Số dư không đủ: dịch/thuyết minh cần ${redubCredits} credits, bạn đang có ${balanceCredits}. Hãy nạp thêm để tiếp tục.`,
+              402
+            );
+          }
+          userAccountStore.chargeRender({ userId: authDecision.principal.userId, jobId: redubId, credits: redubCredits });
+          redubCharge = { userId: authDecision.principal.userId, credits: redubCredits };
+        }
+        redubInFlight.add(redubActorKey);
+        try {
+          const localizationProvider = new AtlasCloudProvider(loadRuntimeSettings(process.env).atlasCloud, new ProviderCostLedger());
+          const registeredAsset = await localizationProvider.registerAsset({ uri: redubSourceUri, kind: "video" });
+          const activeAsset =
+            registeredAsset.status === "active" ? registeredAsset : await localizationProvider.waitUntilActive(registeredAsset.assetId);
+          const redubAudioUri = activeAsset.uri?.startsWith("https://") ? activeAsset.uri : `asset://${activeAsset.assetId}`;
+          const redubPlanner = new VideoRedubPlanner({ speechProvider: localizationProvider, llmProvider: localizationProvider });
+          const redubPlan = await redubPlanner.plan({
+            projectId: redubId,
+            audioUri: redubAudioUri,
+            ...(redubSourceLanguage ? { sourceLanguage: redubSourceLanguage } : {}),
+            dubLanguage,
+            subtitleLanguages,
+            ...(redubVoiceStyle ? { voiceStyle: redubVoiceStyle } : {}),
+            ...(redubAudioTreatment ? { originalAudioTreatment: redubAudioTreatment } : {}),
+            speechModelId: redubSpeechModelId,
+            llmModelId: redubLlmModelId
+          });
+          sendJson(response, 200, {
+            redubId,
+            sourceLanguage: redubPlan.sourceLanguage,
+            dubLanguage: redubPlan.dubLanguage,
+            summary: redubPlan.summary,
+            originalAudioTreatment: redubPlan.originalAudioTreatment,
+            dubScript: redubPlan.ttsIntents.map((intent) => intent.prompt).join("\n\n"),
+            subtitles: redubPlan.subtitleTracks.map((track) => ({
+              language: track.language,
+              cueCount: track.cues.length,
+              srt: captionCuesToSrt(track.cues)
+            })),
+            ...(redubCharge
+              ? { creditsCharged: redubCharge.credits, balanceCredits: userAccountStore.balanceOf(redubCharge.userId) }
+              : {})
+          }, requestContext);
+          return;
+        } catch (error) {
+          if (redubCharge) {
+            if (adminSettingsStore.refundPolicy() === "auto") {
+              userAccountStore.refundRender({ userId: redubCharge.userId, jobId: redubId, reason: "dịch/thuyết minh bị lỗi" });
+            } else {
+              userAccountStore.queueRefundRequest({ userId: redubCharge.userId, jobId: redubId, reason: "dịch/thuyết minh bị lỗi" });
+            }
+          }
+          throw error;
+        } finally {
+          redubInFlight.delete(redubActorKey);
+        }
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/account/change-password") {
         const { userId } = requireUserPrincipal(authDecision.principal);
@@ -3029,6 +3199,13 @@ function planUserRenderCharge(input: {
   }
   return { userId: input.principal.userId, credits };
 }
+
+/**
+ * Phí dịch phụ đề/thuyết minh cho tài khoản khách: cố định, bằng giá của
+ * REDUB_FLAT_PRICE_SECONDS giây video — admin chỉnh "credits mỗi giây" trong Trung tâm
+ * quản trị thì giá này tự đổi theo.
+ */
+const REDUB_FLAT_PRICE_SECONDS = 5;
 
 /**
  * Statuses that commit the customer's money at submission time: the job either runs now
