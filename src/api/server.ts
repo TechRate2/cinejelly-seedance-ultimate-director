@@ -106,7 +106,8 @@ import {
   RenderJobIdempotencyConflictError,
   RenderJobManager,
   RenderJobReviewStateError,
-  type RenderJobReviewInput
+  type RenderJobReviewInput,
+  type RenderJobSummary
 } from "./render-job-manager.js";
 import { readRenderJobHistoryPath, RenderJobHistoryStore } from "./render-job-history-store.js";
 import {
@@ -489,6 +490,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
     historyLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_HISTORY_LIMIT, 500),
     queueLimit: readPositiveInteger(process.env.CINEJELLY_API_JOB_QUEUE_LIMIT, 50),
+    // "Treo chờ admin": an admin-side/provider failure holds the job (customer sees
+    // "processing", money stays reserved) and auto-retries until the operator fixes it, up to
+    // a deadline after which it force-fails and refunds. Set the flag to "false" to restore
+    // the old immediate fail+refund behavior.
+    operatorHoldEnabled: (process.env.CINEJELLY_JOB_HOLD_ON_CONFIG_ERROR ?? "true").trim().toLowerCase() !== "false",
+    operatorHoldMaxMs: readPositiveInteger(process.env.CINEJELLY_JOB_HOLD_MAX_HOURS, 24) * 60 * 60 * 1000,
+    operatorHoldRetryIntervalMs: readPositiveInteger(process.env.CINEJELLY_JOB_HOLD_RETRY_INTERVAL_MS, 180_000),
     ...renderJobHistoryStoreConfig(process.env),
     // Central billing settlement: every terminal transition of a customer job that did not
     // succeed refunds its up-front credit charge (idempotent in the store).
@@ -517,6 +525,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       jobId.startsWith("redub_") ? "succeeded" : jobManager.statusOfAny(jobId),
     { mode: adminSettingsStore.refundPolicy() === "auto" ? "refund" : "queue" }
   );
+  // Start the periodic operator-hold sweep: retries held jobs (so a fixed key resumes them)
+  // and force-fails+refunds any held past the deadline (money is never stuck forever).
+  jobManager.startOperatorHoldSweep();
   // Mỗi tài khoản chỉ một yêu cầu dịch/thuyết minh chạy tại một thời điểm (chặn double-click
   // gây trừ tiền hai lần và giới hạn chi phí provider).
   const redubInFlight = new Set<string>();
@@ -1069,7 +1080,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "GET" && requestUrl.pathname === "/v1/render-jobs") {
         sendJson(response, 200, {
           queue: jobManager.stats(),
-          jobs: jobManager.list(clientFilter(authDecision.principal))
+          jobs: jobManager
+            .list(clientFilter(authDecision.principal))
+            .map((job) => jobSummaryForPrincipal(job, authDecision.principal))
         }, requestContext);
         return;
       }
@@ -1428,6 +1441,24 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(response, 200, { pending: userAccountStore.pendingRefundRequests() }, requestContext);
         return;
       }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/operator-holds") {
+        // Jobs held because of an admin-side/provider problem — the operator's attention
+        // queue. Full internal reasons are shown here (operator-only), never to customers.
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for the operator-hold queue.");
+        sendJson(response, 200, { holds: jobManager.listOperatorHolds() }, requestContext);
+        return;
+      }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/admin/operator-holds/retry") {
+        // "Thử lại ngay": after fixing the config (e.g. the API key), push held jobs back
+        // into the queue immediately instead of waiting for the next sweep. Optional jobId
+        // retries just one; omit it to retry all.
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required to retry held jobs.");
+        assertJsonContentType(request);
+        const body = await readJsonBody<{ jobId?: string }>(request, maxBodyBytes);
+        const requeued = body.jobId ? jobManager.retryOperatorHolds(body.jobId) : jobManager.retryOperatorHolds();
+        sendJson(response, 200, { requeued }, requestContext);
+        return;
+      }
       if (request.method === "POST" && requestUrl.pathname === "/v1/admin/refunds/decide") {
         assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required to decide refunds.");
         assertJsonContentType(request);
@@ -1572,12 +1603,22 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       const jobMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)$/);
       if (request.method === "GET" && jobMatch) {
         const job = jobManager.get(decodeURIComponent(jobMatch[1] ?? ""), clientFilter(authDecision.principal));
-        sendJson(response, job ? 200 : 404, job ?? { error: "Render job not found." }, requestContext);
+        sendJson(
+          response,
+          job ? 200 : 404,
+          job ? jobSummaryForPrincipal(job, authDecision.principal) : { error: "Render job not found." },
+          requestContext
+        );
         return;
       }
       if (request.method === "DELETE" && jobMatch) {
         const job = jobManager.cancel(decodeURIComponent(jobMatch[1] ?? ""), clientFilter(authDecision.principal));
-        sendJson(response, job ? 202 : 404, job ?? { error: "Render job not found." }, requestContext);
+        sendJson(
+          response,
+          job ? 202 : 404,
+          job ? jobSummaryForPrincipal(job, authDecision.principal) : { error: "Render job not found." },
+          requestContext
+        );
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/admin/client-policy") {
@@ -3206,6 +3247,52 @@ function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principa
 }
 
 /**
+ * Customers must never see internal problems — only progress. Strip the diagnostic surface
+ * (raw errors, operator-hold reasons, provider ledger/checkpoints, artifacts, reviewer
+ * notes, stage-event internals) from a job summary before it reaches a customer. Operators
+ * (deployment token) get the full summary so they can actually fix a held job. Status and
+ * progress fields stay, so the customer still sees "processing / succeeded / (refunded)".
+ */
+function jobSummaryForPrincipal(
+  summary: RenderJobSummary,
+  principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]
+): RenderJobSummary {
+  if (principal?.kind !== "user") {
+    return summary;
+  }
+  // Strip the internal DIAGNOSTIC surface (raw errors, hold reasons, provider ledger, stage
+  // event internals, artifacts, result payload). Keep the review-approval WORKFLOW state —
+  // that is legitimate status for the customer ("in review / approved"), not an internal
+  // problem, and the operator desk still reads full checkpoints via the deployment token.
+  const {
+    error: _error,
+    operatorHoldReason: _operatorHoldReason,
+    operatorHoldAttempts: _operatorHoldAttempts,
+    firstOperatorHoldAt: _firstOperatorHoldAt,
+    lastOperatorHoldAt: _lastOperatorHoldAt,
+    costLedger: _costLedger,
+    providerCheckpoint: _providerCheckpoint,
+    artifacts: _artifacts,
+    artifactValidation: _artifactValidation,
+    result: _result,
+    stageProgressEvents: _stageProgressEvents,
+    ...safe
+  } = summary;
+  void _error;
+  void _operatorHoldReason;
+  void _operatorHoldAttempts;
+  void _firstOperatorHoldAt;
+  void _lastOperatorHoldAt;
+  void _costLedger;
+  void _providerCheckpoint;
+  void _artifacts;
+  void _artifactValidation;
+  void _result;
+  void _stageProgressEvents;
+  return { ...safe, hasError: false };
+}
+
+/**
  * Customer render billing: predictable credits charged up front (fail 402 before any
  * provider spend), refunded automatically when the job is canceled or fails.
  */
@@ -3405,6 +3492,7 @@ function registerShutdownHandlers(
     }
     shuttingDown = true;
     const reason = `CineJelly API received ${signal}; canceling active render work for deployment shutdown.`;
+    jobManager.stopOperatorHoldSweep();
     const abortedRequestCount = shutdownCoordinator.abortActiveRequests(reason);
     const canceledJobs = jobManager.cancelAll(reason);
     console.log(

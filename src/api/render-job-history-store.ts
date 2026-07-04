@@ -514,6 +514,7 @@ export class RenderJobHistoryStore {
       value === "running" ||
       value === "paused_for_review" ||
       value === "paused_for_revision" ||
+      value === "paused_for_operator" ||
       value === "blocked" ||
       value === "succeeded" ||
       value === "failed" ||

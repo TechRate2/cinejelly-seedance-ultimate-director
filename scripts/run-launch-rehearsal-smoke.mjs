@@ -26,6 +26,10 @@ process.env.CINEJELLY_API_AUTH_TOKEN = "rehearsal_admin_token_0123456789ab";
 process.env.CINEJELLY_OUTPUT_DIR = workDir;
 process.env.CINEJELLY_CREDITS_PER_RENDER_SECOND = "10";
 process.env.CINEJELLY_TOPUP_BANK_INFO = "Vietcombank 0123456789 - REHEARSAL SHOP";
+// This rehearsal proves the immediate fail->refund machinery on a provider failure, so it
+// disables the operator-hold behavior (which would instead PARK the job on an infra error).
+// The hold behavior has its own end-to-end HTTP smoke (run-operator-hold-http-smoke.mjs).
+process.env.CINEJELLY_JOB_HOLD_ON_CONFIG_ERROR = "false";
 // Fake provider: real key shape, unreachable endpoints, fast timeouts -> jobs fail fast.
 process.env.ATLASCLOUD_API_KEY = "rehearsal-fake-key-not-real";
 process.env.ATLASCLOUD_API_BASE_URL = "https://127.0.0.1:9/v1";

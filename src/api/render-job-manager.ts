@@ -34,11 +34,28 @@ export type RenderJobStatus =
   | "running"
   | "paused_for_review"
   | "paused_for_revision"
+  // Held because of an admin-side/infrastructure problem (missing API key, provider down,
+  // rate limit). Non-terminal: the customer's money stays reserved and the job auto-retries
+  // once the operator fixes the configuration. From the customer's side it reads as "still
+  // processing"; the real reason is shown only to the operator.
+  | "paused_for_operator"
   | "blocked"
   | "succeeded"
   | "failed"
   | "canceled"
   | "rejected";
+
+/** Provider/config error codes that mean "admin-fixable or transient" -> hold, don't fail. */
+const OPERATOR_HOLD_ERROR_CODES: ReadonlySet<string> = new Set([
+  "AUTHENTICATION_FAILED",
+  "INSUFFICIENT_CREDITS",
+  "RATE_LIMITED",
+  "MODEL_UNAVAILABLE",
+  "POLLING_TIMEOUT",
+  "REQUEST_TIMEOUT",
+  "NETWORK_ERROR",
+  "UNKNOWN_PROVIDER_ERROR"
+]);
 const MAX_STAGE_PROGRESS_EVENTS = 200;
 const MAX_PROVIDER_CHECKPOINT_IDS = 50;
 const EMBEDDED_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s"',;)]*/g;
@@ -151,6 +168,11 @@ export interface RenderJobSummary {
   readonly preExportReviewApprovalLifecycleAction?: ReviewApprovalReport["lifecycle"]["action"];
   readonly hasError: boolean;
   readonly error?: unknown;
+  /** Operator-only: why the job is on hold (missing key, provider down…). Never shown to customers. */
+  readonly operatorHoldReason?: string;
+  readonly operatorHoldAttempts?: number;
+  readonly firstOperatorHoldAt?: Date;
+  readonly lastOperatorHoldAt?: Date;
   readonly costLedger?: readonly CostLedgerEntry[];
   readonly providerCheckpoint?: RenderJobProviderCheckpoint;
   readonly artifacts?: ApiProjectArtifactBundle;
@@ -243,6 +265,15 @@ export class RenderJobManager {
   private readonly onJobFinalized:
     | ((event: { readonly jobId: string; readonly clientId?: string; readonly status: RenderJobStatus }) => void)
     | undefined;
+  /** When true, config/transient failures HOLD the job (customer sees "processing") instead
+   * of failing it; false restores the old immediate fail+refund behavior. */
+  private readonly operatorHoldEnabled: boolean;
+  /** Max time a job may stay on operator-hold before it is force-failed and refunded, so a
+   * customer's money is never held indefinitely against a job that will never run. */
+  private readonly operatorHoldMaxMs: number;
+  /** How often the background sweep retries held jobs and enforces the deadline. */
+  private readonly operatorHoldRetryIntervalMs: number;
+  private operatorHoldTimer: ReturnType<typeof setInterval> | undefined;
 
   public constructor(input: {
     readonly artifactStore?: ProjectArtifactStore;
@@ -252,6 +283,9 @@ export class RenderJobManager {
     readonly runtimeFactory?: RenderJobRuntimeFactory;
     readonly artifactValidator?: ProjectArtifactValidator;
     readonly historyStore?: RenderJobHistoryStore;
+    readonly operatorHoldEnabled?: boolean;
+    readonly operatorHoldMaxMs?: number;
+    readonly operatorHoldRetryIntervalMs?: number;
     /** Invoked once per job at EVERY terminal transition (billing settlement seam). */
     readonly onJobFinalized?: (event: { readonly jobId: string; readonly clientId?: string; readonly status: RenderJobStatus }) => void;
   } = {}) {
@@ -264,6 +298,9 @@ export class RenderJobManager {
     this.maxConcurrentJobs = Math.max(1, input.maxConcurrentJobs ?? 1);
     this.historyLimit = Math.max(10, input.historyLimit ?? 100);
     this.queueLimit = Math.max(1, input.queueLimit ?? 50);
+    this.operatorHoldEnabled = input.operatorHoldEnabled ?? true;
+    this.operatorHoldMaxMs = Math.max(60_000, input.operatorHoldMaxMs ?? 24 * 60 * 60 * 1000);
+    this.operatorHoldRetryIntervalMs = Math.max(15_000, input.operatorHoldRetryIntervalMs ?? 3 * 60 * 1000);
     this.restoreHistory();
   }
 
@@ -487,6 +524,90 @@ export class RenderJobManager {
     return this.cancelWithReason(jobId, "Render job was canceled by API request.", filter);
   }
 
+  /** Jobs currently held for an operator fix — the operator's attention queue. */
+  public listOperatorHolds(): readonly RenderJobSummary[] {
+    return [...this.jobs.values()]
+      .filter((record) => record.status === "paused_for_operator")
+      .sort((left, right) => left.updatedAt.getTime() - right.updatedAt.getTime())
+      .map((record) => this.toSummary(record, { includeDetails: true }));
+  }
+
+  /** Operator "retry now": push a held job back into the queue immediately (e.g. right after
+   * fixing the API key) instead of waiting for the next sweep. Returns held jobs re-queued. */
+  public retryOperatorHolds(jobId?: string): number {
+    let requeued = 0;
+    for (const record of this.jobs.values()) {
+      if (record.status !== "paused_for_operator") {
+        continue;
+      }
+      if (jobId && record.jobId !== jobId) {
+        continue;
+      }
+      if (this.queueCounts().queued + this.queueCounts().running >= this.queueLimit) {
+        break;
+      }
+      this.updateJob(record.jobId, { status: "queued", updatedAt: new Date() });
+      this.queue.push(record.jobId);
+      requeued += 1;
+    }
+    if (requeued > 0) {
+      this.pumpQueue();
+    }
+    return requeued;
+  }
+
+  /**
+   * Background maintenance for operator-held jobs: force-fail (and thus refund) any job held
+   * past the deadline so a customer's money is never stuck forever, then retry the rest so a
+   * fixed configuration resumes on its own. Safe to call on a timer; also directly callable
+   * from tests. `now` is injectable for deterministic testing.
+   */
+  public sweepOperatorHolds(now: Date = new Date()): void {
+    const held = [...this.jobs.values()].filter((record) => record.status === "paused_for_operator");
+    for (const record of held) {
+      const firstHeldAt = record.firstOperatorHoldAt ?? record.updatedAt;
+      if (now.getTime() - firstHeldAt.getTime() >= this.operatorHoldMaxMs) {
+        // Deadline reached: settle as failed so the existing refund/queue path returns the
+        // customer's money. Money is never held indefinitely against an unrunnable job.
+        this.updateJob(record.jobId, {
+          status: "failed",
+          updatedAt: now,
+          completedAt: now,
+          error: this.errorPayload(
+            new Error(
+              `Render job held for operator ${Math.round(this.operatorHoldMaxMs / 3_600_000)}h without a fix; auto-failed and refunded.`
+            )
+          )
+        });
+        this.emitJobFinalized(record, this.jobs.get(record.jobId)?.status ?? "failed");
+      }
+    }
+    // Retry the still-held jobs (a fixed API key/model makes them succeed on the next run).
+    this.retryOperatorHolds();
+  }
+
+  /** Start the periodic operator-hold sweep. Unref'd so it never keeps the process alive. */
+  public startOperatorHoldSweep(): void {
+    if (!this.operatorHoldEnabled || this.operatorHoldTimer) {
+      return;
+    }
+    this.operatorHoldTimer = setInterval(() => {
+      try {
+        this.sweepOperatorHolds();
+      } catch {
+        // A sweep error must never crash the server; the next tick retries.
+      }
+    }, this.operatorHoldRetryIntervalMs);
+    this.operatorHoldTimer.unref?.();
+  }
+
+  public stopOperatorHoldSweep(): void {
+    if (this.operatorHoldTimer) {
+      clearInterval(this.operatorHoldTimer);
+      this.operatorHoldTimer = undefined;
+    }
+  }
+
   public cancelAll(reason: string): readonly RenderJobSummary[] {
     const canceled: RenderJobSummary[] = [];
     for (const record of this.jobs.values()) {
@@ -649,7 +770,9 @@ export class RenderJobManager {
         queued += 1;
       } else if (record.status === "running") {
         running += 1;
-      } else if (this.isReviewable(record.status)) {
+      } else if (this.isReviewable(record.status) || record.status === "paused_for_operator") {
+        // Operator-held jobs are non-terminal and wait on an admin fix, exactly like review
+        // pauses — count them in the same bounded bucket so they can't grow the map forever.
         paused += 1;
       } else {
         terminal += 1;
@@ -916,8 +1039,38 @@ export class RenderJobManager {
       });
       const artifactValidation = artifacts ? await this.validateArtifacts(artifacts) : undefined;
       const completedAt = new Date();
-      const status: RenderJobStatus = record.abortController.signal.aborted ? "canceled" : "failed";
       const providerCheckpoint = this.finalProviderCheckpoint(record.jobId, costLedger);
+
+      // HOLD, don't fail: an admin-side / infrastructure problem (missing API key, provider
+      // down, rate limit) must NOT burn the customer's video. The job stays non-terminal —
+      // money reserved, customer sees "still processing", operator sees the real reason — and
+      // the background sweep retries it once the operator fixes the setup. A cancel that
+      // raced this failure (signal aborted) always wins and settles; and a job that has been
+      // held past the deadline falls through to a real fail+refund so money is never stuck.
+      if (!record.abortController.signal.aborted && this.operatorHoldEnabled && this.isOperatorHoldError(error)) {
+        const held = this.jobs.get(record.jobId);
+        const firstOperatorHoldAt = held?.firstOperatorHoldAt ?? completedAt;
+        const withinDeadline = completedAt.getTime() - firstOperatorHoldAt.getTime() < this.operatorHoldMaxMs;
+        if (withinDeadline) {
+          this.updateJob(record.jobId, {
+            status: "paused_for_operator",
+            updatedAt: completedAt,
+            firstOperatorHoldAt,
+            lastOperatorHoldAt: completedAt,
+            operatorHoldAttempts: (held?.operatorHoldAttempts ?? 0) + 1,
+            operatorHoldReason: this.operatorHoldReasonFor(error),
+            error: this.errorPayload(error),
+            costLedger,
+            ...(providerCheckpoint ? { providerCheckpoint } : {}),
+            ...(artifacts ? { artifacts } : {}),
+            ...(artifactValidation ? { artifactValidation } : {})
+          });
+          // Non-terminal: do NOT notifyFinished (no settlement, money stays reserved).
+          return;
+        }
+      }
+
+      const status: RenderJobStatus = record.abortController.signal.aborted ? "canceled" : "failed";
       this.updateJob(record.jobId, {
         status,
         updatedAt: completedAt,
@@ -932,6 +1085,36 @@ export class RenderJobManager {
       // raced this failure keeps "canceled"), never a computed status the store rejected.
       this.notifyFinished(record, this.jobs.get(record.jobId)?.status ?? status);
     }
+  }
+
+  private isOperatorHoldError(error: unknown): boolean {
+    if (error && typeof error === "object" && (error as { name?: string }).name === "ProviderError") {
+      return OPERATOR_HOLD_ERROR_CODES.has(String((error as { code?: string }).code ?? ""));
+    }
+    // Plain configuration errors thrown before the provider is even reached (missing env vars,
+    // unreachable host) are also admin-fixable — hold rather than burn the customer's job.
+    const message = error instanceof Error ? error.message : String(error);
+    return /Missing required environment variable|ATLASCLOUD_|is required|not configured|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|fetch failed/i.test(
+      message
+    );
+  }
+
+  private operatorHoldReasonFor(error: unknown): string {
+    const code =
+      error && typeof error === "object" && (error as { name?: string }).name === "ProviderError"
+        ? String((error as { code?: string }).code ?? "")
+        : "CONFIG_ERROR";
+    const REASONS: Record<string, string> = {
+      AUTHENTICATION_FAILED: "Thiếu hoặc sai API key Atlas (kiểm tra ATLASCLOUD_API_KEY).",
+      INSUFFICIENT_CREDITS: "Tài khoản Atlas của bạn hết credits — nạp thêm cho nhà cung cấp.",
+      RATE_LIMITED: "Nhà cung cấp đang giới hạn tần suất — hệ thống sẽ tự thử lại.",
+      MODEL_UNAVAILABLE: "Model chưa cấu hình đúng (kiểm tra tên model trong catalog Atlas).",
+      POLLING_TIMEOUT: "Nhà cung cấp phản hồi chậm/quá giờ — hệ thống sẽ tự thử lại.",
+      REQUEST_TIMEOUT: "Kết nối tới nhà cung cấp quá giờ — hệ thống sẽ tự thử lại.",
+      NETWORK_ERROR: "Lỗi mạng/nhà cung cấp tạm thời — hệ thống sẽ tự thử lại.",
+      UNKNOWN_PROVIDER_ERROR: "Nhà cung cấp báo lỗi chưa rõ — hãy kiểm tra cấu hình."
+    };
+    return REASONS[code] ?? "Cấu hình hệ thống chưa đủ (kiểm tra .env / Trung tâm quản trị).";
   }
 
   private notifyFinished(record: ActiveRenderJobRecord, status: RenderJobStatus): void {
@@ -1245,6 +1428,7 @@ export class RenderJobManager {
       summary.status === "running" ||
       summary.status === "paused_for_review" ||
       summary.status === "paused_for_revision" ||
+      summary.status === "paused_for_operator" ||
       summary.status === "blocked";
     const restoredAt = new Date();
     const restoredStatus = staleActive ? "canceled" : this.restorableTerminalStatus(summary.status);
@@ -1362,6 +1546,10 @@ export class RenderJobManager {
       referenceCount,
       stageProgressEvents,
       error,
+      operatorHoldReason,
+      operatorHoldAttempts,
+      firstOperatorHoldAt,
+      lastOperatorHoldAt,
       costLedger,
       providerCheckpoint,
       artifacts,
@@ -1425,6 +1613,10 @@ export class RenderJobManager {
         : {}),
       hasError: error !== undefined,
       ...(options.includeDetails && error !== undefined ? { error } : {}),
+      ...(operatorHoldReason ? { operatorHoldReason } : {}),
+      ...(operatorHoldAttempts !== undefined ? { operatorHoldAttempts } : {}),
+      ...(firstOperatorHoldAt ? { firstOperatorHoldAt } : {}),
+      ...(lastOperatorHoldAt ? { lastOperatorHoldAt } : {}),
       ...(options.includeDetails && costLedger ? { costLedger } : {}),
       ...(options.includeDetails && providerCheckpoint ? { providerCheckpoint } : {}),
       ...(options.includeDetails && artifacts ? { artifacts: toApiProjectArtifactBundle(artifacts) } : {}),

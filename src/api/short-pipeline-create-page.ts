@@ -1534,6 +1534,7 @@ export function buildShortPipelineCreatePage(): string {
         "poll.canceledPrefix": "Video đã hủy — ", "poll.rejectedPrefix": "Video bị từ chối duyệt — ",
         "poll.held": "Video tạm giữ để kiểm tra thêm — đội ngũ sẽ xử lý sớm.",
         "poll.reviewWait": "⏳ Video đang chờ đội ngũ kiểm duyệt (thường vài phút). Credits đã được giữ — KHÔNG cần gửi lại. Trang sẽ tự cập nhật.",
+        "poll.finishing": "⏳ Video đang được xử lý và hoàn thiện, vui lòng chờ trong giây lát. Credits đã được giữ — trang sẽ tự cập nhật khi xong.",
         "err.loginFirst": "Hãy đăng nhập tài khoản (nút Đăng nhập phía trên) trước khi tải file lên.",
         "err.uploadTooBig": "File quá lớn (tối đa 25MB). Hãy nén ảnh/video rồi thử lại.",
         "up.done1": "Đã tải lên “", "up.done2": "” — trường tham chiếu đã được điền.",
@@ -1629,6 +1630,7 @@ export function buildShortPipelineCreatePage(): string {
         "poll.canceledPrefix": "Video canceled — ", "poll.rejectedPrefix": "Video rejected in review — ",
         "poll.held": "The video is held for an extra check — the team will handle it shortly.",
         "poll.reviewWait": "⏳ Your video is waiting for the team review (usually minutes). Credits are already reserved — do NOT resubmit. This page updates automatically.",
+        "poll.finishing": "⏳ Your video is being processed and finished — please wait a moment. Credits are reserved; this page updates automatically when it is ready.",
         "err.loginFirst": "Please log in (button above) before uploading files.",
         "err.uploadTooBig": "File too large (max 25MB). Compress it and try again.",
         "up.done1": "Uploaded “", "up.done2": "” — the reference field is filled in.",
@@ -1724,6 +1726,7 @@ export function buildShortPipelineCreatePage(): string {
         "poll.canceledPrefix": "视频已取消 — ", "poll.rejectedPrefix": "视频未通过审核 — ",
         "poll.held": "视频暂被保留以进一步检查 — 团队会尽快处理。",
         "poll.reviewWait": "⏳ 视频正在等待团队审核（通常几分钟）。积分已预留 — 无需重复提交。页面会自动更新。",
+        "poll.finishing": "⏳ 视频正在处理和完善中，请稍候。积分已预留 — 完成后页面会自动更新。",
         "err.loginFirst": "请先登录（上方按钮）再上传文件。",
         "err.uploadTooBig": "文件太大（最大 25MB），请压缩后重试。",
         "up.done1": "已上传 “", "up.done2": "” — 参考字段已自动填写。",
@@ -2376,8 +2379,10 @@ export function buildShortPipelineCreatePage(): string {
       }
       if (status.indexOf("paused") === 0) {
         if (accountInfo && accountInfo.account) {
-          // Customer view: the operator approves shortly; credits are already reserved.
-          setRenderStatus(t("poll.reviewWait"));
+          // Customer view: still processing. A team review pause and an operator-hold both
+          // read as "being finished" — the customer never sees an internal problem; credits
+          // stay reserved and the page keeps polling until it succeeds or is refunded.
+          setRenderStatus(status === "paused_for_operator" ? t("poll.finishing") : t("poll.reviewWait"));
           jobPollDelayMs = 15000;
           jobPollTimer = setTimeout(() => pollRenderJob(statusUrl), jobPollDelayMs);
           return;

@@ -93,6 +93,11 @@ export function buildOperatorTopupPage(): string {
       <div class="muted">Bấm Duyệt để video chạy; Từ chối sẽ đưa vào hàng chờ hoàn tiền.</div>
       <div id="review-list"><div class="muted" style="margin-top:8px">—</div></div>
     </div>
+    <div class="card">
+      <strong>⏳ Video đang treo chờ bạn xử lý</strong>
+      <div class="muted">Job gặp trục trặc phía hệ thống (thiếu API key, model sai, nhà cung cấp lỗi…). Khách CHỈ thấy "đang xử lý", tiền vẫn giữ. Sửa cấu hình rồi bấm "Thử lại ngay" — hoặc hệ thống tự thử lại định kỳ. Quá hạn sẽ tự hoàn tiền.</div>
+      <div id="hold-list"><div class="muted" style="margin-top:8px">—</div></div>
+    </div>
   </div>
 
   <div class="panel" id="panel-customers">
@@ -200,7 +205,7 @@ export function buildOperatorTopupPage(): string {
 
     async function loadAll() {
       if (!keyInput.value.trim()) { say("Dán khóa quản trị trước.", false); return; }
-      await Promise.all([loadTopups(), loadRefunds(), loadReviewQueue(), loadRevenue(), loadSettings()]);
+      await Promise.all([loadTopups(), loadRefunds(), loadReviewQueue(), loadOperatorHolds(), loadRevenue(), loadSettings()]);
       say("Đã tải dữ liệu.", true);
     }
 
@@ -307,6 +312,38 @@ export function buildOperatorTopupPage(): string {
       if (!res.ok) { say(payload.error || "Lỗi.", false); return; }
       say(decision === "approved" ? "Đã duyệt — video chạy." : "Đã từ chối — vào hàng chờ hoàn tiền.", true);
       loadReviewQueue(); loadRefunds();
+    }
+
+    async function loadOperatorHolds() {
+      var res = await fetch("/v1/admin/operator-holds", { headers: headers() });
+      if (!res.ok) { return; }
+      var payload = await res.json();
+      renderQueue("hold-list", payload.holds, "Không có video nào đang treo. 🎉", function (j) {
+        var reason = j.operatorHoldReason || "Cấu hình hệ thống chưa đủ.";
+        var attempts = j.operatorHoldAttempts ? " • đã thử " + j.operatorHoldAttempts + " lần" : "";
+        return actionRow(
+          (j.userInputPreview || j.jobId).slice(0, 80),
+          "⚠️ " + reason + attempts + " • " + j.jobId,
+          [
+            { cls: "approve", text: "🔄 Thử lại ngay", onClick: function () { retryHold(j.jobId); } },
+            { cls: "reject", text: "🚫 Hủy & hoàn tiền", onClick: function () { cancelHold(j.jobId); } }
+          ]
+        );
+      });
+    }
+    async function retryHold(jobId) {
+      var res = await fetch("/v1/admin/operator-holds/retry", { method: "POST", headers: headers(), body: JSON.stringify({ jobId: jobId }) });
+      var payload = await res.json();
+      if (!res.ok) { say(payload.error || "Không thử lại được.", false); return; }
+      say(payload.requeued > 0 ? "Đã cho chạy lại. Nếu cấu hình đã đúng, video sẽ hoàn thành." : "Job không còn ở trạng thái treo.", true);
+      loadOperatorHolds();
+    }
+    async function cancelHold(jobId) {
+      var res = await fetch("/v1/render-jobs/" + encodeURIComponent(jobId), { method: "DELETE", headers: headers() });
+      var payload = await res.json();
+      if (!res.ok) { say(payload.error || "Không hủy được.", false); return; }
+      say("Đã hủy — khách được hoàn tiền (theo chính sách hiện tại).", true);
+      loadOperatorHolds(); loadRefunds();
     }
 
     async function loadRevenue() {

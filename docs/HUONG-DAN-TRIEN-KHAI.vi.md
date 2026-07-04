@@ -45,6 +45,7 @@ Khách nạp tiền: chọn gói → chuyển khoản theo hướng dẫn trên 
 - Mới mở bán: để nguyên (`json`) — không phải cài gì.
 - Có khách đều đặn: `CINEJELLY_DATABASE_KIND=sqlite` — CSDL SQL thật, bền hơn (Docker đã hỗ trợ sẵn).
 - Bền hơn / có sẵn công cụ sao lưu quản lý: `CINEJELLY_DATABASE_KIND=postgres` + `CINEJELLY_POSTGRES_URL=` (chạy `npm install pg` một lần).
+- **Dùng Neon (Postgres đám mây, miễn phí để bắt đầu — khuyên dùng vì Neon tự lo sao lưu/độ bền):** tạo DB trên neon.tech → copy chuỗi kết nối (chọn "Pooled connection") → đặt `CINEJELLY_DATABASE_KIND=postgres` và `CINEJELLY_POSTGRES_URL=postgresql://...-pooler...neon.tech/db?sslmode=require` → `npm install pg`. Lưu ý: vẫn chạy **một tiến trình máy chủ** (Neon cho độ bền + sao lưu, chưa phải để chạy nhiều máy chủ cùng lúc); Neon có thể "ngủ" khi rảnh nên request đầu tiên hơi chậm.
 
 **Lưu ý scale quan trọng:** hệ thống chạy **một tiến trình máy chủ** (mọi dữ liệu nạp vào RAM). **KHÔNG chạy 2 server cùng lúc trên chung một kho dữ liệu** — sẽ ghi đè nhau và mất tiền/tài khoản. Muốn phục vụ nhiều khách hơn thì **nâng cấu hình máy (scale dọc)**, không phải thêm máy:
 - Tăng số video chạy song song: `CINEJELLY_API_JOB_CONCURRENCY=4` (mặc định 1). Atlas chạy bất đồng bộ nên nâng 3-8 là chạy được nhiều video cùng lúc.
