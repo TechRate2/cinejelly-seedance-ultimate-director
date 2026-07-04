@@ -50,6 +50,21 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
     the Story Architect) and 8 entertainment-family entries in
     `src/core/short-prompt-pattern-corpus.ts`. No prompt text copied.
 
+### Video translation / dubbing pipelines (methodology reference, 2026)
+
+- Public open-source video-localization pipelines reviewed for methodology only (no code
+  or text copied): krillinai/KrillinAI (full transcribe->translate->TTS-dub->reformat
+  pipeline for short-video platforms), Huanshere/VideoLingo (Translate-Reflect-Adaptation
+  three-step subtitle localization to broadcast standards), jianchang512/pyvideotrans
+  (multi-role dubbing and audio-video sync workflow).
+- Methodology absorbed as ORIGINAL TypeScript: `src/core/subtitle-translator.ts`
+  (three-step translate/reflect/adapt in one structured LLM call; timing never altered;
+  single-line + chars-per-second subtitle limits; dubbing duration-fit mode; per-cue
+  fail-safe fallback) and `src/core/video-redub-planner.ts` (transcribe -> dubbing-aware
+  translate -> merged-utterance TTS intents through the existing generated-audio pipeline
+  -> duck-or-replace original-audio treatment; multi-language subtitle tracks from the
+  same cues).
+
 ### Seedance prompt-engineering guides (methodology reference, 2026)
 
 - Public Seedance 2.0 prompt guides and prompt libraries reviewed for methodology only (no text copied):

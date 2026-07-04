@@ -118,6 +118,8 @@ export * from "./core/shot-grammar.js";
 export * from "./core/social-publishing-planner.js";
 export * from "./core/seedance-cinematic-grammar.js";
 export * from "./core/niche-playbooks.js";
+export * from "./core/video-redub-planner.js";
+export * from "./core/subtitle-translator.js";
 export * from "./core/typography-scene-composer.js";
 export * from "./core/semantic-sequence-segmenter.js";
 export * from "./core/upload-reference.js";
