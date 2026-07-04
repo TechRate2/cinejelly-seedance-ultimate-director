@@ -1021,7 +1021,7 @@ export function buildShortPipelineCreatePage(): string {
           <div><small data-i18n="top.queue">Hàng chờ render</small><strong id="queue-status" data-i18n="top.queueReady">Sẵn sàng</strong></div>
         </div>
         <button type="button" id="open-jobs-top" class="mini-btn" title="Video của tôi">🎬 Video</button>
-        <button type="button" id="open-redub-top" class="mini-btn" data-i18n-title="top.redubTitle" title="Dịch phụ đề / thuyết minh video có sẵn">🌐 Sub/Dub</button>
+        <button type="button" id="open-redub-top" class="mini-btn" data-i18n-title="top.redubTitle" title="Xuất phụ đề đa ngữ + kịch bản lồng tiếng từ video có sẵn">🌐 Phụ đề+</button>
         <button type="button" id="open-auth" class="mini-btn" data-i18n="top.login">Đăng nhập / Đăng ký</button>
         <span class="cj-account-wrap" id="account-wrap" hidden>
           <span class="pill info" id="account-name"></span>
@@ -1071,12 +1071,16 @@ export function buildShortPipelineCreatePage(): string {
           <label class="field"><span data-i18n="tu.note">Ghi chú chuyển khoản (tuỳ chọn)</span><input id="topup-note" data-i18n-placeholder="tu.notePh" placeholder="VD: đã CK 10:30 từ STK ...901"></label>
           <button type="button" class="cj-primary" id="topup-submit" disabled data-i18n="tu.submit">Tôi đã chuyển khoản — gửi yêu cầu duyệt</button>
           <div id="my-topups"></div>
+          <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,.12);padding-top:10px">
+            <strong data-i18n="tu.history" style="font-size:13px">📜 Lịch sử giao dịch credits</strong>
+            <div id="my-statement" style="margin-top:6px"></div>
+          </div>
         </div>
       </div>
       <div class="cj-modal" id="redub-modal" hidden>
         <div class="cj-modal-card">
-          <div class="cj-modal-head"><strong data-i18n="redub.title">🌐 Dịch phụ đề / Thuyết minh video</strong><button type="button" class="ghost-btn" data-close-modal="redub-modal">✕</button></div>
-          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.redub">Chọn video (tải từ máy bằng nút 📁, hoặc bấm nút 🌐 trên video đã render trong mục 🎬 Video). Chọn ngôn ngữ thuyết minh và các phụ đề muốn xuất. Hệ thống tự nghe → dịch → viết lời thuyết minh khớp thời gian, trả về file .srt từng ngôn ngữ và kịch bản thuyết minh.</p></details>
+          <div class="cj-modal-head"><strong data-i18n="redub.title">🌐 Phụ đề đa ngữ + Kịch bản lồng tiếng</strong><button type="button" class="ghost-btn" data-close-modal="redub-modal">✕</button></div>
+          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.redub">Chọn video (tải từ máy bằng 📁, hoặc bấm 🌐 trên video đã render). Chọn ngôn ngữ. Hệ thống nghe → dịch và TRẢ VỀ: (1) file phụ đề .srt cho từng ngôn ngữ, (2) kịch bản lồng tiếng khớp thời gian để BẠN tự thu âm hoặc giao cho người đọc. LƯU Ý: chức năng này KHÔNG tự lồng tiếng vào video — nó xuất phụ đề và kịch bản.</p></details>
           <label class="field"><span data-i18n="redub.source">Video nguồn</span><div class="field-row"><input id="redub-source" data-i18n-placeholder="redub.sourcePh" placeholder="Bấm 📁 để tải video lên, hoặc nút 🌐 trên video đã render" readonly><button type="button" class="upload-btn" data-upload-for="redub-source" data-upload-accept="video/mp4,video/quicktime,audio/mpeg,audio/wav" title="Tải video/audio từ máy">📁</button></div></label>
           <div id="redub-job-line" class="detail" hidden></div>
           <div class="grid-2">
@@ -1470,7 +1474,7 @@ export function buildShortPipelineCreatePage(): string {
       vi: {
         "top.balance": "Số dư", "top.queue": "Hàng chờ render", "top.queueReady": "Sẵn sàng",
         "top.login": "Đăng nhập / Đăng ký", "top.topup": "💎 Nạp credits", "top.logout": "Thoát",
-        "top.redubTitle": "Dịch phụ đề / thuyết minh video có sẵn",
+        "top.redubTitle": "Xuất phụ đề đa ngữ + kịch bản lồng tiếng từ video có sẵn",
         "auth.login": "Đăng nhập", "auth.register": "Tạo tài khoản", "auth.password": "Mật khẩu",
         "auth.pwPh": "Tối thiểu 8 ký tự", "auth.name": "Tên hiển thị (tuỳ chọn)",
         "auth.note": "Tạo tài khoản miễn phí, nạp credits là tạo được video ngay. Không cần API key.",
@@ -1479,7 +1483,7 @@ export function buildShortPipelineCreatePage(): string {
         "pw.submit": "Đổi mật khẩu", "pw.note": "Sau khi đổi, các thiết bị khác sẽ phải đăng nhập lại. Quên mật khẩu? Liên hệ hỗ trợ để được cấp lại.",
         "pw.done": "Đã đổi mật khẩu. Các thiết bị khác sẽ phải đăng nhập lại.",
         "tu.title": "💎 Nạp credits", "tu.note": "Ghi chú chuyển khoản (tuỳ chọn)", "tu.notePh": "VD: đã CK 10:30 từ STK ...901",
-        "tu.submit": "Tôi đã chuyển khoản — gửi yêu cầu duyệt", "tu.sent": "Đã gửi yêu cầu nạp. Quản trị viên sẽ duyệt và cộng credits sớm nhất.",
+        "tu.submit": "Tôi đã chuyển khoản — gửi yêu cầu duyệt", "tu.sent": "Đã gửi yêu cầu nạp. Quản trị viên sẽ duyệt và cộng credits sớm nhất.", "tu.history": "📜 Lịch sử giao dịch credits", "tu.noHistory": "Chưa có giao dịch nào.", "tu.kind.topup": "Nạp credits", "tu.kind.render_charge": "Tạo video", "tu.kind.render_refund": "Hoàn credits", "tu.kind.admin_adjust": "Điều chỉnh từ admin",
         "tu.popular": "⭐ Phổ biến nhất", "tu.perVideo": "đ/video", "tu.noExpire": "💎 Credits không bao giờ hết hạn — nạp trước, dùng dần.",
         "hero.h1": "Tạo video AI", "hero.noSession": "Chưa có phiên.",
         "hero.eyebrow": "Mô tả ý tưởng, thêm ảnh/video tham chiếu, chọn kiểu sản xuất — CineJelly tự viết kịch bản, storyboard, prompt, gói kiểm duyệt và render.",
@@ -1553,8 +1557,8 @@ export function buildShortPipelineCreatePage(): string {
         "help.settings": "Thời lượng × chất lượng quyết định giá credits (hiện ngay dưới nút tạo). 9:16 cho TikTok/Reels. 'Giọng đọc' chọn ngôn ngữ thuyết minh; phụ đề bật ở bước cuối.",
         "help.topup": "Chọn gói → chuyển khoản đúng nội dung hiển thị → bấm nút xác nhận. Quản trị viên duyệt là credits vào tài khoản (thường vài phút). Lỡ gửi trùng sẽ tự gộp, không mất tiền hai lần.",
         "help.approval": "Bấm 'Tạo video' là hệ thống trừ credits và đưa video vào hàng chờ (một số video được đội ngũ duyệt nhanh trước khi chạy). Video lỗi xử lý theo chính sách hoàn credits ghi ngay dưới nút.",
-        "help.redub": "Chọn video (tải từ máy bằng nút 📁, hoặc bấm nút 🌐 trên video đã render trong mục 🎬 Video). Chọn ngôn ngữ thuyết minh và các phụ đề muốn xuất. Hệ thống tự nghe → dịch → viết lời thuyết minh khớp thời gian, trả về file .srt từng ngôn ngữ và kịch bản thuyết minh.",
-        "redub.title": "🌐 Dịch phụ đề / Thuyết minh video", "redub.source": "Video nguồn",
+        "help.redub": "Chọn video (tải từ máy bằng 📁, hoặc bấm 🌐 trên video đã render). Chọn ngôn ngữ. Hệ thống nghe → dịch và TRẢ VỀ: (1) file phụ đề .srt cho từng ngôn ngữ, (2) kịch bản lồng tiếng khớp thời gian để BẠN tự thu âm hoặc giao cho người đọc. LƯU Ý: chức năng này KHÔNG tự lồng tiếng vào video — nó xuất phụ đề và kịch bản.",
+        "redub.title": "🌐 Phụ đề đa ngữ + Kịch bản lồng tiếng", "redub.source": "Video nguồn",
         "redub.sourcePh": "Bấm 📁 để tải video lên, hoặc nút 🌐 trên video đã render",
         "redub.fromJob": "Nguồn: video đã render", "redub.srcLang": "Ngôn ngữ gốc", "redub.auto": "Tự nhận diện",
         "redub.dubLang": "Thuyết minh sang", "redub.subs": "Phụ đề xuất thêm (chọn nhiều)",
@@ -1568,7 +1572,7 @@ export function buildShortPipelineCreatePage(): string {
       en: {
         "top.balance": "Balance", "top.queue": "Render queue", "top.queueReady": "Ready",
         "top.login": "Log in / Sign up", "top.topup": "💎 Top up", "top.logout": "Log out",
-        "top.redubTitle": "Translate subtitles / re-dub an existing video",
+        "top.redubTitle": "Export multi-language subtitles + a dubbing script from an existing video",
         "auth.login": "Log in", "auth.register": "Create account", "auth.password": "Password",
         "auth.pwPh": "At least 8 characters", "auth.name": "Display name (optional)",
         "auth.note": "Free account — top up credits and start creating right away. No API key needed.",
@@ -1577,7 +1581,7 @@ export function buildShortPipelineCreatePage(): string {
         "pw.submit": "Change password", "pw.note": "Other devices will need to log in again. Forgot it? Contact support for a reset.",
         "pw.done": "Password changed. Other devices must log in again.",
         "tu.title": "💎 Top up credits", "tu.note": "Transfer note (optional)", "tu.notePh": "e.g. paid 10:30 from account ...901",
-        "tu.submit": "I have paid — submit for approval", "tu.sent": "Top-up submitted. The admin will verify and add credits shortly.",
+        "tu.submit": "I have paid — submit for approval", "tu.sent": "Top-up submitted. The admin will verify and add credits shortly.", "tu.history": "📜 Credit transaction history", "tu.noHistory": "No transactions yet.", "tu.kind.topup": "Top-up", "tu.kind.render_charge": "Create video", "tu.kind.render_refund": "Refund", "tu.kind.admin_adjust": "Admin adjustment",
         "tu.popular": "⭐ Most popular", "tu.perVideo": "đ/video", "tu.noExpire": "💎 Credits never expire — top up once, use anytime.",
         "hero.h1": "Create AI Video", "hero.noSession": "No session loaded.",
         "hero.eyebrow": "Describe the idea, add references, choose a production pattern — CineJelly builds the script, storyboard, prompt, review packet, and render handoff.",
@@ -1651,8 +1655,8 @@ export function buildShortPipelineCreatePage(): string {
         "help.settings": "Duration × quality sets the credit price (shown under the create button). Use 9:16 for TikTok/Reels. 'Voiceover' picks the narration language; captions toggle on in the final step.",
         "help.topup": "Pick a package → transfer with the shown reference → press confirm. Credits arrive once the admin approves (usually minutes). Duplicate submissions merge safely — you never pay twice.",
         "help.approval": "'Create video' deducts credits and queues the video (some pass a quick team review first). Failed videos follow the refund policy shown under the button.",
-        "help.redub": "Pick a video (upload with 📁, or press 🌐 on a finished video in 🎬 Video). Choose the dub language and the subtitle languages to export. The system listens → translates → writes a time-fitted narration, returning one .srt per language plus the narration script.",
-        "redub.title": "🌐 Translate subtitles / Re-dub video", "redub.source": "Source video",
+        "help.redub": "Pick a video (upload with 📁, or press 🌐 on a finished video). Choose languages. The system listens → translates and RETURNS: (1) a .srt subtitle file per language, (2) a time-synced dubbing script for YOU to record or hand to a voice actor. NOTE: this does NOT auto-voice the video — it exports subtitles and a script.",
+        "redub.title": "🌐 Multi-language subtitles + Dubbing script", "redub.source": "Source video",
         "redub.sourcePh": "Press 📁 to upload, or the 🌐 button on a finished video",
         "redub.fromJob": "Source: rendered video", "redub.srcLang": "Original language", "redub.auto": "Auto detect",
         "redub.dubLang": "Dub into", "redub.subs": "Extra subtitle languages (pick any)",
@@ -1666,7 +1670,7 @@ export function buildShortPipelineCreatePage(): string {
       zh: {
         "top.balance": "余额", "top.queue": "渲染队列", "top.queueReady": "就绪",
         "top.login": "登录 / 注册", "top.topup": "💎 充值积分", "top.logout": "退出",
-        "top.redubTitle": "为现有视频翻译字幕 / 配音",
+        "top.redubTitle": "为现有视频导出多语字幕 + 配音脚本",
         "auth.login": "登录", "auth.register": "注册账号", "auth.password": "密码",
         "auth.pwPh": "至少8个字符", "auth.name": "昵称（可选）",
         "auth.note": "免费注册，充值积分即可开始创作，无需 API key。",
@@ -1675,7 +1679,7 @@ export function buildShortPipelineCreatePage(): string {
         "pw.submit": "修改密码", "pw.note": "修改后其他设备需重新登录。忘记密码请联系客服重置。",
         "pw.done": "密码已修改，其他设备需重新登录。",
         "tu.title": "💎 充值积分", "tu.note": "转账备注（可选）", "tu.notePh": "例：10:30 已从 ...901 转账",
-        "tu.submit": "我已转账 — 提交审核", "tu.sent": "充值申请已提交，管理员核对后将尽快到账。",
+        "tu.submit": "我已转账 — 提交审核", "tu.sent": "充值申请已提交，管理员核对后将尽快到账。", "tu.history": "📜 积分交易记录", "tu.noHistory": "暂无交易。", "tu.kind.topup": "充值", "tu.kind.render_charge": "生成视频", "tu.kind.render_refund": "退还积分", "tu.kind.admin_adjust": "管理员调整",
         "tu.popular": "⭐ 最受欢迎", "tu.perVideo": "đ/视频", "tu.noExpire": "💎 积分永不过期 — 一次充值，随时使用。",
         "hero.h1": "AI 视频创作", "hero.noSession": "尚未加载会话。",
         "hero.eyebrow": "描述创意、添加参考素材、选择制作模式 — CineJelly 自动生成脚本、分镜、提示词、审核包并渲染。",
@@ -1749,8 +1753,8 @@ export function buildShortPipelineCreatePage(): string {
         "help.settings": "时长 × 画质决定积分价格（创建按钮下方实时显示）。TikTok/Reels 用 9:16。'配音'选择解说语言；字幕在最后一步开启。",
         "help.topup": "选择套餐 → 按显示内容转账 → 点确认。管理员审核后积分到账（通常几分钟）。重复提交会自动合并，不会重复扣款。",
         "help.approval": "点击'生成视频'即扣除积分并进入队列（部分视频需团队快速审核）。失败视频按按钮下方的退款政策处理。",
-        "help.redub": "选择视频（用 📁 上传，或在 🎬 视频中对已完成视频点 🌐）。选择配音语言和要导出的字幕语言。系统自动听写 → 翻译 → 生成对齐时间轴的配音稿，并输出每种语言的 .srt 和配音脚本。",
-        "redub.title": "🌐 视频翻译字幕 / 配音", "redub.source": "源视频",
+        "help.redub": "选择视频（用 📁 上传，或对已完成视频点 🌐）。选择语言。系统听写 → 翻译并返回：(1) 每种语言的 .srt 字幕文件，(2) 对齐时间轴的配音脚本，供您自己录音或交给配音员。注意：本功能不会自动为视频配音，只导出字幕和脚本。",
+        "redub.title": "🌐 多语字幕 + 配音脚本", "redub.source": "源视频",
         "redub.sourcePh": "点 📁 上传视频，或在已完成视频上点 🌐",
         "redub.fromJob": "来源：已渲染视频", "redub.srcLang": "原语言", "redub.auto": "自动识别",
         "redub.dubLang": "配音语言", "redub.subs": "额外字幕语言（可多选）",
@@ -2634,6 +2638,7 @@ export function buildShortPipelineCreatePage(): string {
         await refreshAccount();
         renderTopupModal();
         await loadMyTopups();
+        await loadMyStatement();
       });
       document.getElementById("topup-submit").addEventListener("click", async function () {
         const selected = document.querySelector(".cj-package.selected");
@@ -2774,6 +2779,43 @@ export function buildShortPipelineCreatePage(): string {
           box.appendChild(row);
         });
       } catch (error) { /* list is cosmetic */ }
+    }
+
+    async function loadMyStatement() {
+      const box = document.getElementById("my-statement");
+      if (!box) { return; }
+      try {
+        const response = await fetch("/v1/account/statement", { headers: authHeaders() });
+        if (!response.ok) { return; }
+        const payload = await response.json();
+        box.textContent = "";
+        const entries = (payload.entries || []).slice(-12).reverse();
+        if (entries.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "detail";
+          empty.textContent = t("tu.noHistory");
+          box.appendChild(empty);
+          return;
+        }
+        entries.forEach(function (entry) {
+          const row = document.createElement("div");
+          row.className = "cj-topup-item";
+          const kindLabel = t("tu.kind." + String(entry.type)) || String(entry.type);
+          const credits = Number(entry.credits) || 0;
+          // entry.credits already carries the sign (charges/negative adjusts are negative).
+          const isDebit = credits < 0;
+          const sign = isDebit ? "-" : "+";
+          const when = entry.at ? String(entry.at).replace("T", " ").slice(0, 16) : "";
+          const left = document.createElement("span");
+          left.textContent = kindLabel + (when ? " · " + when : "");
+          const right = document.createElement("span");
+          right.textContent = sign + Math.abs(credits).toLocaleString("vi-VN") + " 💎";
+          right.style.color = isDebit ? "#ff8a8a" : "#7ee0a8";
+          row.appendChild(left);
+          row.appendChild(right);
+          box.appendChild(row);
+        });
+      } catch (error) { /* history view is cosmetic */ }
     }
 
     async function refreshAccount() {
