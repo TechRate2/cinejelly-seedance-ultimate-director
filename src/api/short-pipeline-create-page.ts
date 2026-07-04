@@ -1528,7 +1528,8 @@ export function buildShortPipelineCreatePage(): string {
         "jp.title": "Video đã tạo", "jp.refresh": "Tải lại", "jp.queueIdle": "Queue: chưa tải.",
         "jp.emptyHint": "Bấm Tải lại để xem danh sách video của bạn.",
         "jp.loadFail": "Không tải được danh sách — hãy đăng nhập rồi thử lại.", "jp.empty": "Chưa có video nào.",
-        "jp.qQueued": "chờ", "jp.qRunning": "đang chạy", "jp.qPaused": "chờ duyệt",
+        "jp.qQueued": "chờ", "jp.qRunning": "đang chạy", "jp.qPaused": "đang xử lý",
+        "jp.stDone": "✅ Xong", "jp.stProcessing": "⏳ Đang hoàn thiện", "jp.stFailed": "Không thành công",
         "jp.view": "Xem", "jp.dl": "Tải", "jp.watch": "Theo dõi", "jp.subdub": "Phụ đề đa ngữ / thuyết minh",
         "jp.dlStarted": "Đã bắt đầu tải video.", "jp.dlFail": "Không tải được video (job chưa xong hoặc file đã dọn).",
         "poll.checkFail": "Không kiểm tra được trạng thái video. Hãy đăng nhập lại rồi mở 🎬 Video.",
@@ -1625,7 +1626,8 @@ export function buildShortPipelineCreatePage(): string {
         "jp.title": "My videos", "jp.refresh": "Refresh", "jp.queueIdle": "Queue: not loaded.",
         "jp.emptyHint": "Press Refresh to load your videos.",
         "jp.loadFail": "Could not load the list — log in and try again.", "jp.empty": "No videos yet.",
-        "jp.qQueued": "queued", "jp.qRunning": "running", "jp.qPaused": "awaiting review",
+        "jp.qQueued": "queued", "jp.qRunning": "running", "jp.qPaused": "processing",
+        "jp.stDone": "✅ Done", "jp.stProcessing": "⏳ Finishing", "jp.stFailed": "Unsuccessful",
         "jp.view": "Play", "jp.dl": "Download", "jp.watch": "Track", "jp.subdub": "Multi-language subs / dub",
         "jp.dlStarted": "Download started.", "jp.dlFail": "Could not fetch the video (job not finished or file cleaned up).",
         "poll.checkFail": "Could not check the job status. Log in again and open 🎬 Video.",
@@ -1722,7 +1724,8 @@ export function buildShortPipelineCreatePage(): string {
         "jp.title": "我的视频", "jp.refresh": "刷新", "jp.queueIdle": "队列：未加载。",
         "jp.emptyHint": "点击刷新加载你的视频。",
         "jp.loadFail": "加载失败 — 请登录后重试。", "jp.empty": "还没有视频。",
-        "jp.qQueued": "排队", "jp.qRunning": "进行中", "jp.qPaused": "待审核",
+        "jp.qQueued": "排队", "jp.qRunning": "进行中", "jp.qPaused": "处理中",
+        "jp.stDone": "✅ 完成", "jp.stProcessing": "⏳ 处理中", "jp.stFailed": "未成功",
         "jp.view": "播放", "jp.dl": "下载", "jp.watch": "跟踪", "jp.subdub": "多语字幕 / 配音",
         "jp.dlStarted": "开始下载。", "jp.dlFail": "无法获取视频（任务未完成或文件已清理）。",
         "poll.checkFail": "无法查询视频状态，请重新登录后打开 🎬 视频。",
@@ -2122,6 +2125,13 @@ export function buildShortPipelineCreatePage(): string {
       if (status === "queued" || status === "running") return "pill info";
       return "pill warn";
     }
+    // Customer-facing status label: never expose raw internal statuses like
+    // "paused_for_operator". Every in-progress / held state reads as "đang hoàn thiện".
+    function customerStatusLabel(status) {
+      if (status === "succeeded") return t("jp.stDone");
+      if (status === "failed" || status === "canceled" || status === "rejected") return t("jp.stFailed");
+      return t("jp.stProcessing");
+    }
 
     async function loadJobs() {
       clearMessages();
@@ -2159,7 +2169,7 @@ export function buildShortPipelineCreatePage(): string {
           '<div class="title">' + shortId + '…</div>' +
           '<div class="detail">' + created + (preview ? " | " + preview : "") + '</div>' +
           '</div><div style="display:flex;gap:8px;align-items:center">' +
-          '<span class="' + jobStatusPillClass(String(job.status || "")) + '">' + status.replaceAll("_", " ") + '</span>' +
+          '<span class="' + jobStatusPillClass(String(job.status || "")) + '">' + escapeHtml(customerStatusLabel(String(job.status || ""))) + '</span>' +
           finishedButtons +
           '<button class="mini-btn" type="button" onclick="watchJob(\'' + jobIdAttr + '\')">' + escapeHtml(t("jp.watch")) + '</button>' +
           '</div></div></article>';
@@ -2723,7 +2733,8 @@ export function buildShortPipelineCreatePage(): string {
         perVideoEl.className = "cj-pervideo";
         const videos = Math.max(1, pkg.credits / creditsPerVideo);
         const perVideoUsd = usd > 0 ? usd / videos : 0;
-        const perVideo = Math.round((pkg.priceVnd || 0) / videos / 1000) * 1000;
+        // Round to the nearest 100đ, not 1000đ, so a low-price pack never displays "0đ/video".
+        const perVideo = Math.round((pkg.priceVnd || 0) / videos / 100) * 100;
         perVideoEl.textContent = (perVideoUsd > 0 ? "≈ $" + perVideoUsd.toFixed(2) + "/video (" : "≈ ") +
           perVideo.toLocaleString("vi-VN") + t("tu.perVideo") + (perVideoUsd > 0 ? ")" : "");
         card.appendChild(labelEl);

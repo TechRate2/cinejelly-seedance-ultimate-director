@@ -567,15 +567,16 @@ export class RenderJobManager {
     for (const record of held) {
       const firstHeldAt = record.firstOperatorHoldAt ?? record.updatedAt;
       if (now.getTime() - firstHeldAt.getTime() >= this.operatorHoldMaxMs) {
-        // Deadline reached: settle as failed so the existing refund/queue path returns the
-        // customer's money. Money is never held indefinitely against an unrunnable job.
+        // Deadline reached: settle as failed and let the billing seam apply the current refund
+        // policy (auto refunds, manual queues, "off" keeps the credits). The job is never held
+        // indefinitely — but whether the customer gets credits back depends on the policy.
         this.updateJob(record.jobId, {
           status: "failed",
           updatedAt: now,
           completedAt: now,
           error: this.errorPayload(
             new Error(
-              `Render job held for operator ${Math.round(this.operatorHoldMaxMs / 3_600_000)}h without a fix; auto-failed and refunded.`
+              `Render job held for operator ${Math.round(this.operatorHoldMaxMs / 3_600_000)}h without a fix; auto-failed (billing settles per refund policy).`
             )
           )
         });

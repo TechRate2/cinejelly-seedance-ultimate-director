@@ -536,7 +536,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
     );
   }
   // Start the periodic operator-hold sweep: retries held jobs (so a fixed key resumes them)
-  // and force-fails+refunds any held past the deadline (money is never stuck forever).
+  // and force-fails any held past the deadline (billing then settles per the refund policy —
+  // auto refunds, manual queues, "off" keeps the credits — so the job is never stuck forever).
   jobManager.startOperatorHoldSweep();
   // Mỗi tài khoản chỉ một yêu cầu dịch/thuyết minh chạy tại một thời điểm (chặn double-click
   // gây trừ tiền hai lần và giới hạn chi phí provider).
@@ -1397,9 +1398,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           return;
         } catch (error) {
           if (redubCharge) {
-            if (adminSettingsStore.refundPolicy() === "auto") {
+            // Match the render settlement policy exactly: auto refunds, manual queues, and
+            // "off" keeps the credits (no refund, no queue) — the redub charge must never be
+            // more refundable than a failed render under the same policy.
+            const redubPolicy = adminSettingsStore.refundPolicy();
+            if (redubPolicy === "auto") {
               userAccountStore.refundRender({ userId: redubCharge.userId, jobId: redubId, reason: "dịch/thuyết minh bị lỗi" });
-            } else {
+            } else if (redubPolicy === "manual") {
               userAccountStore.queueRefundRequest({ userId: redubCharge.userId, jobId: redubId, reason: "dịch/thuyết minh bị lỗi" });
             }
           }

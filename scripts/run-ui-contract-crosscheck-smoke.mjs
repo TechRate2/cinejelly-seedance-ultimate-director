@@ -134,6 +134,13 @@ check(
     serverSource.includes("userAccountStore.queueRefundRequest({ userId: redubCharge.userId"),
   "redub failure must refund (auto) or queue (manual) the charge"
 );
+check(
+  "server_redub_settlement_matches_refund_policy",
+  // Under refundPolicy "off" the redub charge must be kept like a failed render — the queue
+  // path is gated on "manual" only, never the catch-all else that would leak an "off" refund.
+  serverSource.includes('redubPolicy === "auto"') && serverSource.includes('redubPolicy === "manual"'),
+  "redub failure settlement must be three-way (auto/manual/off), not auto-vs-else"
+);
 
 // --- 7. Every shipped page's <script> parses as valid JavaScript (String.raw templates
 // can hide browser-only syntax errors that no TypeScript check catches).
