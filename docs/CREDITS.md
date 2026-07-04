@@ -43,6 +43,23 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
   - Generalized structural patterns can be adapted into the Prompt Compiler and `data/` knowledge artifacts with source attribution.
 - CineJelly extension:
   - Converts mined prompt patterns into an adaptive Prompt Compiler that avoids hardcoded niche templates.
+
+### Seedance prompt-engineering guides (methodology reference, 2026)
+
+- Public Seedance 2.0 prompt guides and prompt libraries reviewed for methodology only (no text copied):
+  ZeroLu/awesome-seedance, makesupday/Awesome-Seedance-2.0-Prompt-and-Examples,
+  gracech0322-cmd/seedance-2-prompt-library, HuyLe82US/awesome-seedance-prompts,
+  weshopai/awesome-Seedance-2.0-prompt, dexhunter/seedance2-skill; plus guides from
+  morphic.com and mindstudio.ai.
+- Methodology absorbed as ORIGINAL wording in `src/core/seedance-cinematic-grammar.ts`:
+  the CRAFT anatomy (context/reference/action/framing/timing) — already covered by the
+  compiler; reliable-Seedance film-grammar vocabulary (rack focus, shallow depth of field,
+  anamorphic flare, motivated lighting, hard rim / low-key, colour grades such as
+  teal-and-orange / bleach bypass / desaturated cold, 35mm grain); reference
+  disambiguation ("take X from this reference, not its background/lighting"); and timeline
+  timestamp beat divisions.
+- Note: guidance is that Seedance favours EXPLICIT specification over bracket "semantic
+  weighting" syntax, so bracket weighting is deliberately not used.
   - `src/core/seedance-dna.ts` implements a niche-adaptive and creative-mode-adaptive prompt-DNA engine distilled from these patterns (original condensed direction, no verbatim prompt text) and carries the CC BY 4.0 attribution inline. It feeds the short-pipeline master prompt and the Seedance Prompt Compiler.
 
 ### HKUDS/ViMax

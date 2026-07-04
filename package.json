@@ -105,6 +105,7 @@
     "validation:admin-center": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-admin-center-smoke.mjs",
     "validation:account-billing": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-account-billing-smoke.mjs",
     "validation:upload-route": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-upload-route-smoke.mjs",
+    "validation:cinematic-grammar": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-cinematic-grammar-smoke.mjs",
     "validation:pipeline-100": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-pipeline-100-smoke.mjs",
     "validation:pipeline-upgrades": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-pipeline-upgrades-smoke.mjs",
     "validation:candidate-visual-curation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-candidate-visual-curation-smoke.mjs",

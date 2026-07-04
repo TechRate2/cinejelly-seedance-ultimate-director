@@ -19,6 +19,7 @@ import {
   type VideoArcRole
 } from "../core/duration-scripting.js";
 import { resolveSeedanceDna } from "../core/seedance-dna.js";
+import { cinematicGrammarPromptLine } from "../core/seedance-cinematic-grammar.js";
 import { shotGrammarFromMetadata, shotGrammarPromptLine } from "../core/shot-grammar.js";
 import { buildNegativePrompt } from "./negative-constraints.js";
 import { buildPromptBindingPlan, describeReferenceBindingsFromPlan } from "./reference-binding.js";
@@ -86,6 +87,7 @@ export class SeedancePromptCompiler {
       this.buildAudioProductionSection(shot),
       shot.transitionIntent ? `Transition: ${shot.transitionIntent}.` : undefined,
       this.buildNicheDnaSection(shot),
+      this.buildCinematicGrammarSection(shot),
       this.buildFinalFrameSection(shot, bindingPlan),
       this.buildRealismGuardrailsSection()
     ];
@@ -108,6 +110,14 @@ export class SeedancePromptCompiler {
       primaryHandles.length > 0
         ? `Primary anchors: preserve ${primaryHandles.join("; ")} before style, motion, camera, audio, or source-video structure.`
         : "Primary anchors: none supplied; do not invent a specific real person, brand package, logo, or source-video frame.",
+      // Reference disambiguation (proven Seedance technique): state what to take from each
+      // anchor AND what to ignore, so its background/lighting/framing don't bleed in.
+      primaryHandles.some((binding) => /-> identity\//.test(binding))
+        ? "From identity references take only the person's face, hair, and features — not their background, lighting, wardrobe, or pose."
+        : undefined,
+      primaryHandles.some((binding) => /-> product\//.test(binding))
+        ? "From product references take only the exact product shape, colour, logo, and label — not their background or lighting."
+        : undefined,
       supportingHandles.length > 0
         ? `Supporting references: ${supportingHandles.join("; ")} guide rhythm, camera, style, and audio only after primary anchors are stable.`
         : undefined
@@ -405,6 +415,20 @@ export class SeedancePromptCompiler {
       ...(creativeMode ? { creativeMode } : {})
     }).promptLines;
     return lines.length > 0 ? lines.join(" ") : undefined;
+  }
+
+  /**
+   * Reliable-Seedance cinematography line: focus/lens, lighting, colour grade, and lens
+   * character chosen for the creative mode. This speaks Seedance's film-grammar language so
+   * lens/light/grade are directed instead of left to chance — the top output-quality lift
+   * once the CRAFT anatomy is complete. Mode-keyed; falls back to a grounded default.
+   */
+  private buildCinematicGrammarSection(shot: ShotContract): string {
+    const creativeMode =
+      this.stringMetadata(shot, "shortViralCreativeMode") ??
+      this.stringMetadata(shot, "shortDirectorCreativeMode") ??
+      this.stringMetadata(shot, "creativeMode");
+    return cinematicGrammarPromptLine(creativeMode);
   }
 
   private stringMetadata(shot: ShotContract, key: string): string | undefined {
