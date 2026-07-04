@@ -135,8 +135,20 @@ export interface PortraitCastMember {
   readonly identityReferenceUri?: string;
 }
 
+/** Turnaround views for character-consistency portrait sheets (ViMax multi-view essence). */
+export type PortraitView = "front" | "three_quarter" | "side";
+
+const PORTRAIT_VIEW_DIRECTIVES: Record<PortraitView, string> = {
+  front: "head-and-shoulders, facing camera directly (front view)",
+  three_quarter: "head-and-shoulders at a three-quarter angle (face turned ~45 degrees)",
+  side: "head-and-shoulders in profile (side view)"
+};
+
 export interface CastPortraitRequestPlan {
   readonly characterId: string;
+  readonly view: PortraitView;
+  /** True for the front view, which becomes the character's primary identity anchor. */
+  readonly isPrimary: boolean;
   readonly request: ImageGenerationRequest;
 }
 
@@ -152,37 +164,56 @@ export function planCastPortraitRequests(input: {
   readonly imageModelId: string;
   readonly ratio?: "9:16" | "1:1" | "3:4";
   readonly seed?: number;
+  /** Views to generate per character. Defaults to front-only (back-compatible). */
+  readonly views?: readonly PortraitView[];
 }): readonly CastPortraitRequestPlan[] {
   if (!input.imageModelId?.trim()) {
     throw new Error("planCastPortraitRequests needs a configured image model id.");
   }
-  return input.cast
-    .filter((member) => !member.identityReferenceUri?.trim())
-    .map((member) => ({
-      characterId: member.characterId,
-      request: {
-        provider: input.provider,
-        modelId: input.imageModelId,
-        prompt: [
-          `Photoreal character identity portrait of ${member.name}: head-and-shoulders, facing camera, neutral relaxed expression, even soft studio light, plain neutral background.`,
-          `Locked identity anchor: ${member.staticFeatures?.trim() || member.description}.`,
-          member.dynamicFeatures?.trim() ? `Current presentation: ${member.dynamicFeatures}.` : undefined,
-          "Real skin microtexture and hair detail, accurate facial geometry, no beautify smoothing; this image is the single source of truth for this character's face across a whole video series."
-        ]
-          .filter((line): line is string => Boolean(line))
-          .join(" "),
-        negativePrompt: KEYFRAME_NEGATIVE_PROMPT,
-        references: [],
-        settings: {
-          ratio: input.ratio ?? "3:4",
-          ...(input.seed !== undefined ? { seed: input.seed } : {})
-        },
-        metadata: {
-          characterId: member.characterId,
-          castPortrait: true
+  // Deduplicate and always lead with the front view (the identity anchor).
+  const requestedViews = input.views && input.views.length > 0 ? input.views : (["front"] as const);
+  const views = [...new Set<PortraitView>(["front", ...requestedViews.filter((view) => view !== "front")])].filter(
+    (view) => requestedViews.includes(view) || view === "front"
+  );
+  const plans: CastPortraitRequestPlan[] = [];
+  for (const member of input.cast) {
+    if (member.identityReferenceUri?.trim()) {
+      continue;
+    }
+    for (const view of views) {
+      plans.push({
+        characterId: member.characterId,
+        view,
+        isPrimary: view === "front",
+        request: {
+          provider: input.provider,
+          modelId: input.imageModelId,
+          prompt: [
+            `Photoreal character identity portrait of ${member.name}: ${PORTRAIT_VIEW_DIRECTIVES[view]}, neutral relaxed expression, even soft studio light, plain neutral background.`,
+            `Locked identity anchor: ${member.staticFeatures?.trim() || member.description}.`,
+            member.dynamicFeatures?.trim() ? `Current presentation: ${member.dynamicFeatures}.` : undefined,
+            view === "front"
+              ? "Real skin microtexture and hair detail, accurate facial geometry, no beautify smoothing; this image is the single source of truth for this character's face across a whole video series."
+              : "Keep identical facial geometry, skin tone, hair, and features to the front view — this is the same person from another angle for a consistent turnaround sheet."
+          ]
+            .filter((line): line is string => Boolean(line))
+            .join(" "),
+          negativePrompt: KEYFRAME_NEGATIVE_PROMPT,
+          references: [],
+          settings: {
+            ratio: input.ratio ?? "3:4",
+            ...(input.seed !== undefined ? { seed: input.seed } : {})
+          },
+          metadata: {
+            characterId: member.characterId,
+            castPortrait: true,
+            portraitView: view
+          }
         }
-      }
-    }));
+      });
+    }
+  }
+  return plans;
 }
 
 /**
@@ -192,9 +223,20 @@ export function planCastPortraitRequests(input: {
  */
 export function bindPortraitsToCast<TMember extends PortraitCastMember>(input: {
   readonly cast: readonly TMember[];
-  readonly results: readonly { readonly characterId: string; readonly prediction: Prediction }[];
+  readonly results: readonly {
+    readonly characterId: string;
+    readonly prediction: Prediction;
+    /** When multi-view portraits are generated, only the front view anchors identity. */
+    readonly isPrimary?: boolean;
+  }[];
 }): readonly TMember[] {
-  const byCharacter = new Map(input.results.map((result) => [result.characterId, result.prediction]));
+  // The identity anchor is the primary (front) view; extra turnaround views do not
+  // override it. Results without an isPrimary flag are treated as primary (back-compat).
+  const byCharacter = new Map(
+    input.results
+      .filter((result) => result.isPrimary !== false)
+      .map((result) => [result.characterId, result.prediction])
+  );
   return input.cast.map((member) => {
     if (member.identityReferenceUri?.trim()) {
       return member;

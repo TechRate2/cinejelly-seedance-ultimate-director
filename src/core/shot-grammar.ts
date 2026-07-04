@@ -26,11 +26,67 @@ export type ShotPosition =
   | "overhead_view"
   | "point_of_view";
 
+/** SkyCaptioner structured camera-motion field (the low-accuracy axis worth pinning). */
+export type CameraMotion =
+  | "static"
+  | "push_in"
+  | "pull_out"
+  | "pan_left"
+  | "pan_right"
+  | "tilt_up"
+  | "tilt_down"
+  | "tracking"
+  | "handheld"
+  | "orbit"
+  | "crane";
+
+/** SkyCaptioner structured subject-expression field, for identity/emotion consistency. */
+export type SubjectExpression =
+  | "neutral"
+  | "smiling"
+  | "laughing"
+  | "surprised"
+  | "focused"
+  | "worried"
+  | "confident"
+  | "tearful"
+  | "angry";
+
 export interface ShotGrammar {
   readonly shotType: ShotType;
   readonly shotAngle: ShotAngle;
   readonly shotPosition: ShotPosition;
+  /** Optional structured camera motion (SkyCaptioner axis). */
+  readonly cameraMotion?: CameraMotion;
+  /** Optional structured subject expression (SkyCaptioner axis). */
+  readonly subjectExpression?: SubjectExpression;
 }
+
+const CAMERA_MOTION_DIRECTIVES: Record<CameraMotion, string> = {
+  static: "locked-off static camera, no camera movement",
+  push_in: "slow push-in toward the subject to build intimacy or tension",
+  pull_out: "slow pull-out revealing more of the environment",
+  pan_left: "smooth pan left across the scene",
+  pan_right: "smooth pan right across the scene",
+  tilt_up: "tilt up from low detail to the subject",
+  tilt_down: "tilt down from wide context to detail",
+  tracking: "tracking move following the subject's motion",
+  handheld: "subtle handheld movement for lived-in energy (not shaky)",
+  orbit: "arc/orbit around the subject to add dimensionality",
+  crane: "vertical crane move for scale and reveal"
+};
+
+const SUBJECT_EXPRESSION_DIRECTIVES: Record<SubjectExpression, string> = {
+  neutral: "calm neutral expression",
+  smiling: "warm genuine smile",
+  laughing: "natural laughter",
+  surprised: "authentic surprise",
+  focused: "concentrated, focused expression",
+  worried: "worried, uneasy expression",
+  confident: "confident, self-assured expression",
+  tearful: "restrained tearful emotion",
+  angry: "controlled anger, tension in the jaw"
+};
 
 const SHOT_TYPE_DIRECTIVES: Record<ShotType, string> = {
   extreme_close_up: "extreme close-up isolating one detail (eyes, hands, product surface) with everything else falling away",
@@ -62,7 +118,18 @@ const SHOT_POSITION_DIRECTIVES: Record<ShotPosition, string> = {
  * grammar from contradicting planner beat cameras when a timeline exists.
  */
 export function shotGrammarPromptLine(grammar: ShotGrammar, options?: { readonly mode?: "strict" | "home" }): string {
-  const base = `${SHOT_TYPE_DIRECTIVES[grammar.shotType]}; ${SHOT_ANGLE_DIRECTIVES[grammar.shotAngle]}; ${SHOT_POSITION_DIRECTIVES[grammar.shotPosition]}`;
+  const parts = [
+    SHOT_TYPE_DIRECTIVES[grammar.shotType],
+    SHOT_ANGLE_DIRECTIVES[grammar.shotAngle],
+    SHOT_POSITION_DIRECTIVES[grammar.shotPosition]
+  ];
+  if (grammar.cameraMotion) {
+    parts.push(CAMERA_MOTION_DIRECTIVES[grammar.cameraMotion]);
+  }
+  if (grammar.subjectExpression) {
+    parts.push(SUBJECT_EXPRESSION_DIRECTIVES[grammar.subjectExpression]);
+  }
+  const base = parts.join("; ");
   if (options?.mode === "home") {
     return `Framing grammar (home framing): ${base}. Per-beat timeline cameras may cut to other framings where the timeline says so, but always return to and end on this home framing.`;
   }
@@ -82,10 +149,18 @@ export function shotGrammarFromMetadata(metadata: Record<string, unknown> | unde
     typeof shotAngle === "string" && Object.hasOwn(SHOT_ANGLE_DIRECTIVES, shotAngle) &&
     typeof shotPosition === "string" && Object.hasOwn(SHOT_POSITION_DIRECTIVES, shotPosition)
   ) {
+    const cameraMotion = metadata.cameraMotion;
+    const subjectExpression = metadata.subjectExpression;
     return {
       shotType: shotType as ShotType,
       shotAngle: shotAngle as ShotAngle,
-      shotPosition: shotPosition as ShotPosition
+      shotPosition: shotPosition as ShotPosition,
+      ...(typeof cameraMotion === "string" && Object.hasOwn(CAMERA_MOTION_DIRECTIVES, cameraMotion)
+        ? { cameraMotion: cameraMotion as CameraMotion }
+        : {}),
+      ...(typeof subjectExpression === "string" && Object.hasOwn(SUBJECT_EXPRESSION_DIRECTIVES, subjectExpression)
+        ? { subjectExpression: subjectExpression as SubjectExpression }
+        : {})
     };
   }
   return undefined;
@@ -169,7 +244,17 @@ export function planShotFramingSequence(input: {
       paletteCursor += 1;
     }
     const shotAngle = arcRole === "climax" ? "low_angle" : ANGLE_CYCLE[index % ANGLE_CYCLE.length] ?? "eye_level";
-    result.push({ shotType, shotAngle, shotPosition: roleDefault.shotPosition });
+    // Camera motion follows the arc: hooks/climaxes push in for tension, endings pull out
+    // to settle, tighter framings hold static, wider framings can track.
+    const cameraMotion: CameraMotion =
+      arcRole === "opening_hook" || arcRole === "climax"
+        ? "push_in"
+        : arcRole === "closing_resolve"
+          ? "pull_out"
+          : shotType === "long_shot" || shotType === "full_shot"
+            ? "tracking"
+            : "static";
+    result.push({ shotType, shotAngle, shotPosition: roleDefault.shotPosition, cameraMotion });
   }
   return result;
 }

@@ -116,6 +116,8 @@ export * from "./core/semantic-visual-inspector.js";
 export * from "./core/series-drama-planner.js";
 export * from "./core/shot-grammar.js";
 export * from "./core/social-publishing-planner.js";
+export * from "./core/typography-scene-composer.js";
+export * from "./core/semantic-sequence-segmenter.js";
 export * from "./core/upload-reference.js";
 export * from "./core/shot-planner.js";
 export * from "./core/short-channel-style-profile.js";

@@ -93,9 +93,9 @@ const sourceAnchoredSequences = plan.sequences.filter((sequence) => sequence.anc
 const sequentialSequences = plan.sequences.filter((sequence) => sequence.renderModeRecommendation === "sequential_recommended");
 
 const checks = [
-  plan.sequenceCount === 3
-    ? pass("deterministic_sequence_count", "A 120 second long-form story is grouped into three deterministic continuity sequences.")
-    : fail("deterministic_sequence_count", `Expected three sequences, saw ${plan.sequenceCount}.`),
+  plan.sequenceCount >= 3 && plan.sequenceCount <= 6
+    ? pass("deterministic_sequence_count", `A 120 second long-form story is grouped into ${plan.sequenceCount} narrative continuity sequences, within the documented 3-6 range (semantic segmentation).`)
+    : fail("deterministic_sequence_count", `Expected 3-6 sequences for 120 seconds, saw ${plan.sequenceCount}.`),
   plan.bridgeCount === plan.sequenceCount - 1 && bridgeTargetsValid
     ? pass("sequence_bridges", "Every non-final sequence has a bridge to the next sequence with required anchor evidence.")
     : fail("sequence_bridges", "Sequence bridge evidence is missing or does not point to the next sequence."),

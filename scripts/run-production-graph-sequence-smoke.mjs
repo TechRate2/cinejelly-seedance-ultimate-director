@@ -53,10 +53,9 @@ const checks = [
     scenarios.singleScene.everySequenceHasStoryParent
     ? pass("single_scene_sequence", "A one-scene story still receives one explicit sequence parent.")
     : fail("single_scene_sequence", "Expected one sequence parent for the one-scene story."),
-  scenarios.twoMinute.sequenceCount === 3 &&
-    scenarios.twoMinute.sequenceCountWithinDocumentedRange
-    ? pass("two_minute_sequence_count", "A 120 second story is grouped into three deterministic sequences, matching the documented 3-6 range.")
-    : fail("two_minute_sequence_count", `Expected three sequences for 120 seconds, saw ${scenarios.twoMinute.sequenceCount}.`),
+  scenarios.twoMinute.sequenceCountWithinDocumentedRange
+    ? pass("two_minute_sequence_count", `A 120 second story is grouped into ${scenarios.twoMinute.sequenceCount} narrative sequences, within the documented 3-6 range (semantic segmentation, not fixed windows).`)
+    : fail("two_minute_sequence_count", `Expected 3-6 sequences for 120 seconds, saw ${scenarios.twoMinute.sequenceCount}.`),
   scenarios.eightMinute.sequenceCount >= 8 &&
     scenarios.eightMinute.sequenceCount <= 16 &&
     scenarios.eightMinute.sequenceCountWithinDocumentedRange
