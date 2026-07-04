@@ -131,12 +131,22 @@ try {
   check("customer_sees_default_price", beforeMe.payload.renderPricing?.creditsPerRenderSecond === 10, `${beforeMe.payload.renderPricing?.creditsPerRenderSecond}`);
   const put = await req("PUT", "/v1/admin/settings", {
     creditsPerRenderSecond: 25,
-    packages: [{ packageId: "goi_test", label: "Gói Test", credits: 999, priceVnd: 12345 }]
+    usdToVnd: 27000,
+    packages: [{ packageId: "goi_test", label: "Gói Test", credits: 999, priceUsd: 3 }]
   }, admin);
   check("operator_edits_settings", put.status === 200 && put.payload.settings.pricing.creditsPerRenderSecond === 25);
   const afterMe = await req("GET", "/v1/account/me", undefined, custSession);
   check("customer_sees_new_price_live", afterMe.payload.renderPricing?.creditsPerRenderSecond === 25, `${afterMe.payload.renderPricing?.creditsPerRenderSecond}`);
-  check("customer_sees_new_package_live", (afterMe.payload.packages ?? []).some((p) => p.packageId === "goi_test"));
+  const liveTestPkg = (afterMe.payload.packages ?? []).find((p) => p.packageId === "goi_test");
+  check("customer_sees_new_package_live", Boolean(liveTestPkg));
+  // USD is the source of truth; the customer sees the VND transfer amount = USD × rate.
+  check("package_usd_converts_to_vnd", liveTestPkg?.priceUsd === 3 && liveTestPkg?.priceVnd === 81000 && afterMe.payload.usdToVnd === 27000, `usd=${liveTestPkg?.priceUsd} vnd=${liveTestPkg?.priceVnd} rate=${afterMe.payload.usdToVnd}`);
+  // Change ONLY the exchange rate: every pack re-prices in VND with no package edit.
+  await req("PUT", "/v1/admin/settings", { usdToVnd: 25000 }, admin);
+  const afterRate = await req("GET", "/v1/account/me", undefined, custSession);
+  const rePriced = (afterRate.payload.packages ?? []).find((p) => p.packageId === "goi_test");
+  check("exchange_rate_reprices_all_packs", rePriced?.priceVnd === 75000 && afterRate.payload.usdToVnd === 25000, `vnd=${rePriced?.priceVnd} rate=${afterRate.payload.usdToVnd}`);
+  await req("PUT", "/v1/admin/settings", { usdToVnd: 27000 }, admin);
 
   // ---- Refund policy switch is honored by the settings snapshot ----
   await req("PUT", "/v1/admin/settings", { refundPolicy: "auto" }, admin);

@@ -47,8 +47,21 @@ export interface CreditPackage {
   readonly packageId: string;
   readonly label: string;
   readonly credits: number;
+  /** Headline value in USD (Higgsfield-style tiers). Source of truth for the price. */
+  readonly priceUsd: number;
+  /** VND transfer amount = round(priceUsd × exchange rate). Computed when packages are served
+   * (so changing CINEJELLY_USD_TO_VND updates every pack); the value here is a 27k seed. */
   readonly priceVnd: number;
   readonly bonusNote?: string;
+}
+
+/** Default USD→VND exchange rate used to convert package prices for the bank transfer. */
+export const DEFAULT_USD_TO_VND = 27_000;
+
+/** Fill a package's VND transfer amount from its USD price at the given exchange rate. */
+export function withComputedVnd(creditPackage: CreditPackage, usdToVnd: number): CreditPackage {
+  const rate = Number.isFinite(usdToVnd) && usdToVnd > 0 ? usdToVnd : DEFAULT_USD_TO_VND;
+  return { ...creditPackage, priceVnd: Math.round(creditPackage.priceUsd * rate) };
 }
 
 /**
@@ -61,10 +74,10 @@ export interface CreditPackage {
  * and tune the numbers (or the whole ladder) in the admin Settings tab.
  */
 export const DEFAULT_CREDIT_PACKAGES: readonly CreditPackage[] = [
-  { packageId: "goi_dungthu", label: "⚡ Gói Dùng thử", credits: 150, priceVnd: 149_000, bonusNote: "Làm thử 1 video 15 giây" },
-  { packageId: "goi_phobien", label: "⭐ Gói Phổ biến", credits: 750, priceVnd: 690_000, bonusNote: "PHỔ BIẾN NHẤT • ~5 video • tiết kiệm ~7%/credit" },
-  { packageId: "goi_chuyennghiep", label: "💎 Gói Chuyên nghiệp", credits: 2_300, priceVnd: 1_990_000, bonusNote: "~15 video • tiết kiệm ~13%/credit" },
-  { packageId: "goi_studio", label: "👑 Gói Studio", credits: 6_000, priceVnd: 4_990_000, bonusNote: "RẺ NHẤT mỗi video • ~40 video • tiết kiệm ~16%" }
+  { packageId: "goi_dungthu", label: "⚡ Trial", credits: 150, priceUsd: 5, priceVnd: 135_000, bonusNote: "Làm thử 1 video 15 giây" },
+  { packageId: "goi_phobien", label: "⭐ Starter", credits: 500, priceUsd: 15, priceVnd: 405_000, bonusNote: "PHỔ BIẾN NHẤT • ~3 video" },
+  { packageId: "goi_chuyennghiep", label: "💎 Plus", credits: 1_400, priceUsd: 39, priceVnd: 1_053_000, bonusNote: "~9 video • tiết kiệm ~16%/credit" },
+  { packageId: "goi_studio", label: "👑 Ultra", credits: 4_000, priceUsd: 99, priceVnd: 2_673_000, bonusNote: "RẺ NHẤT mỗi video • ~26 video • credits KHÔNG hết hạn" }
 ];
 
 export interface UserRecord {
@@ -181,21 +194,26 @@ export function loadCreditPackages(env: NodeJS.ProcessEnv = process.env): readon
   }
   return parsed.map((item, index) => {
     const record = item as Partial<CreditPackage>;
+    const hasUsd = Number.isFinite(record.priceUsd) && (record.priceUsd as number) > 0;
+    const hasVnd = Number.isFinite(record.priceVnd) && (record.priceVnd as number) > 0;
     if (
       !record.packageId?.trim() ||
       !record.label?.trim() ||
       !Number.isFinite(record.credits) ||
       (record.credits as number) <= 0 ||
-      !Number.isFinite(record.priceVnd) ||
-      (record.priceVnd as number) <= 0
+      (!hasUsd && !hasVnd)
     ) {
-      throw new Error(`CINEJELLY_CREDIT_PACKAGES_JSON entry ${index} needs packageId, label, credits > 0, priceVnd > 0.`);
+      throw new Error(`CINEJELLY_CREDIT_PACKAGES_JSON entry ${index} needs packageId, label, credits > 0, and priceUsd > 0 (or priceVnd > 0).`);
     }
+    // priceUsd is the source of truth; accept a legacy priceVnd-only entry by deriving USD.
+    const priceUsd = hasUsd ? (record.priceUsd as number) : (record.priceVnd as number) / DEFAULT_USD_TO_VND;
+    const priceVnd = hasVnd ? Math.floor(record.priceVnd as number) : Math.round(priceUsd * DEFAULT_USD_TO_VND);
     return {
       packageId: record.packageId.trim(),
       label: record.label.trim(),
       credits: Math.floor(record.credits as number),
-      priceVnd: Math.floor(record.priceVnd as number),
+      priceUsd,
+      priceVnd,
       ...(record.bonusNote?.trim() ? { bonusNote: record.bonusNote.trim() } : {})
     };
   });

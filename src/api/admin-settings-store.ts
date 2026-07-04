@@ -17,9 +17,11 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   DEFAULT_CREDIT_PACKAGES,
+  DEFAULT_USD_TO_VND,
   loadCreditPackages,
   loadRenderCreditPricing,
   UserAccountError,
+  withComputedVnd,
   type CreditPackage,
   type RenderCreditPricing
 } from "./user-account-store.js";
@@ -57,6 +59,7 @@ export interface AdminSettingsState {
   schemaVersion: string;
   refundPolicy?: RefundPolicy;
   creditsPerRenderSecond?: number;
+  usdToVnd?: number;
   qualityMultipliers?: Record<string, number>;
   packages?: CreditPackage[];
   topupBankInfo?: string;
@@ -68,6 +71,7 @@ export interface AdminSettingsState {
 export interface AdminSettingsPatch {
   readonly refundPolicy?: unknown;
   readonly creditsPerRenderSecond?: unknown;
+  readonly usdToVnd?: unknown;
   readonly qualityMultipliers?: unknown;
   readonly packages?: unknown;
   readonly topupBankInfo?: unknown;
@@ -120,15 +124,30 @@ export class AdminSettingsStore {
     };
   }
 
+  /** USD→VND exchange rate for converting package prices to the bank-transfer amount. */
+  public usdToVnd(): number {
+    if (this.state.usdToVnd && this.state.usdToVnd > 0) {
+      return this.state.usdToVnd;
+    }
+    const fromEnv = Number(this.env.CINEJELLY_USD_TO_VND);
+    return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : DEFAULT_USD_TO_VND;
+  }
+
   public packages(): readonly CreditPackage[] {
-    if (this.state.packages && this.state.packages.length > 0) {
-      return this.state.packages;
-    }
-    try {
-      return loadCreditPackages(this.env);
-    } catch {
-      return DEFAULT_CREDIT_PACKAGES;
-    }
+    const rate = this.usdToVnd();
+    // priceUsd is the source of truth; the VND transfer amount is derived live at the current
+    // rate so changing the rate re-prices every pack without editing each one.
+    const source =
+      this.state.packages && this.state.packages.length > 0
+        ? this.state.packages
+        : (() => {
+            try {
+              return loadCreditPackages(this.env);
+            } catch {
+              return DEFAULT_CREDIT_PACKAGES;
+            }
+          })();
+    return source.map((creditPackage) => withComputedVnd(creditPackage, rate));
   }
 
   public topupBankInfo(): string {
@@ -147,6 +166,7 @@ export class AdminSettingsStore {
   public snapshot(): {
     readonly refundPolicy: RefundPolicy;
     readonly pricing: RenderCreditPricing;
+    readonly usdToVnd: number;
     readonly packages: readonly CreditPackage[];
     readonly topupBankInfo: string;
     readonly models: AdminModelOverrides;
@@ -156,6 +176,7 @@ export class AdminSettingsStore {
     return {
       refundPolicy: this.refundPolicy(),
       pricing: this.pricing(),
+      usdToVnd: this.usdToVnd(),
       packages: this.packages(),
       topupBankInfo: this.topupBankInfo(),
       models: this.models(),
@@ -204,6 +225,15 @@ export class AdminSettingsStore {
       }
       this.state.creditsPerRenderSecond = Math.round(value * 100) / 100;
       changes.push(`creditsPerRenderSecond=${this.state.creditsPerRenderSecond}`);
+    }
+
+    if (patch.usdToVnd !== undefined) {
+      const value = Number(patch.usdToVnd);
+      if (!Number.isFinite(value) || value < 1_000 || value > 1_000_000) {
+        throw new UserAccountError("Tỉ giá USD→VND phải là số dương hợp lý (1.000–1.000.000).", 400);
+      }
+      this.state.usdToVnd = Math.round(value);
+      changes.push(`usdToVnd=${this.state.usdToVnd}`);
     }
 
     if (patch.qualityMultipliers !== undefined) {
@@ -285,7 +315,10 @@ export class AdminSettingsStore {
       const packageId = typeof record.packageId === "string" ? record.packageId.trim() : "";
       const label = typeof record.label === "string" ? record.label.trim() : "";
       const credits = Math.floor(Number(record.credits));
-      const priceVnd = Math.floor(Number(record.priceVnd));
+      const rawUsd = Number(record.priceUsd);
+      const rawVnd = Number(record.priceVnd);
+      const hasUsd = Number.isFinite(rawUsd) && rawUsd > 0;
+      const hasVnd = Number.isFinite(rawVnd) && rawVnd > 0;
       if (!/^[a-z0-9_-]{2,40}$/.test(packageId)) {
         throw new UserAccountError(`Gói ${index + 1}: packageId chỉ gồm a-z, 0-9, gạch (2-40 ký tự).`, 400);
       }
@@ -299,11 +332,18 @@ export class AdminSettingsStore {
       if (!Number.isFinite(credits) || credits <= 0 || credits > 10_000_000) {
         throw new UserAccountError(`Gói ${index + 1}: credits phải là số dương.`, 400);
       }
-      if (!Number.isFinite(priceVnd) || priceVnd <= 0 || priceVnd > 1_000_000_000) {
-        throw new UserAccountError(`Gói ${index + 1}: giá VND phải là số dương.`, 400);
+      if (!hasUsd && !hasVnd) {
+        throw new UserAccountError(`Gói ${index + 1}: cần giá USD (priceUsd) dương.`, 400);
       }
+      // priceUsd is the source of truth. A USD input rounds to cents; a legacy VND-only edit
+      // keeps full precision so its VND transfer amount round-trips exactly at the base rate.
+      const priceUsd = hasUsd ? Math.round(rawUsd * 100) / 100 : rawVnd / DEFAULT_USD_TO_VND;
+      if (priceUsd <= 0 || priceUsd > 100_000) {
+        throw new UserAccountError(`Gói ${index + 1}: giá USD phải là số dương hợp lý.`, 400);
+      }
+      const priceVnd = hasVnd ? Math.floor(rawVnd) : Math.round(priceUsd * DEFAULT_USD_TO_VND);
       const bonusNote = typeof record.bonusNote === "string" ? record.bonusNote.trim().slice(0, 80) : "";
-      return { packageId, label, credits, priceVnd, ...(bonusNote ? { bonusNote } : {}) };
+      return { packageId, label, credits, priceUsd, priceVnd, ...(bonusNote ? { bonusNote } : {}) };
     });
   }
 
@@ -370,6 +410,7 @@ export class AdminSettingsStore {
           ? { refundPolicy: parsed.refundPolicy }
           : {}),
         ...(typeof parsed.creditsPerRenderSecond === "number" ? { creditsPerRenderSecond: parsed.creditsPerRenderSecond } : {}),
+        ...(typeof parsed.usdToVnd === "number" && parsed.usdToVnd > 0 ? { usdToVnd: parsed.usdToVnd } : {}),
         ...(parsed.qualityMultipliers && typeof parsed.qualityMultipliers === "object"
           ? { qualityMultipliers: parsed.qualityMultipliers as Record<string, number> }
           : {}),

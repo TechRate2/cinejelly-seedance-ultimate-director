@@ -24,17 +24,23 @@ function check(name, pass, detail) {
 // ---- Part A: the shipped default package ladder (no server needed). ----
 const { DEFAULT_CREDIT_PACKAGES } = await import("../dist/api/user-account-store.js");
 check("packages_are_a_ladder_of_four", DEFAULT_CREDIT_PACKAGES.length === 4, `count=${DEFAULT_CREDIT_PACKAGES.length}`);
+// USD is the source of truth (Higgsfield-style tiers); VND is derived at the exchange rate.
+check("every_pack_has_usd_price", DEFAULT_CREDIT_PACKAGES.every((pkg) => Number(pkg.priceUsd) > 0), DEFAULT_CREDIT_PACKAGES.map((p) => p.priceUsd).join(","));
 const ascendingCredits = DEFAULT_CREDIT_PACKAGES.every((pkg, index) => index === 0 || pkg.credits > DEFAULT_CREDIT_PACKAGES[index - 1].credits);
-const ascendingPrice = DEFAULT_CREDIT_PACKAGES.every((pkg, index) => index === 0 || pkg.priceVnd > DEFAULT_CREDIT_PACKAGES[index - 1].priceVnd);
+const ascendingPrice = DEFAULT_CREDIT_PACKAGES.every((pkg, index) => index === 0 || pkg.priceUsd > DEFAULT_CREDIT_PACKAGES[index - 1].priceUsd);
 check("packages_scale_up", ascendingCredits && ascendingPrice);
-const perCredit = DEFAULT_CREDIT_PACKAGES.map((pkg) => pkg.priceVnd / pkg.credits);
-const volumeDiscount = perCredit.every((value, index) => index === 0 || value < perCredit[index - 1]);
-check("bigger_pack_is_cheaper_per_credit", volumeDiscount, perCredit.map((v) => Math.round(v)).join(" -> "));
-// Margin floor: at ~333 VND/credit Atlas cost (≈50k per 150-credit video), every pack must
-// sell credits well above cost. Require >= 700 VND/credit (≈2.1x) so no pack loses money.
-check("every_pack_is_margin_positive", perCredit.every((value) => value >= 700), `min=${Math.round(Math.min(...perCredit))} VND/credit`);
+const perCreditUsd = DEFAULT_CREDIT_PACKAGES.map((pkg) => pkg.priceUsd / pkg.credits);
+const volumeDiscount = perCreditUsd.every((value, index) => index === 0 || value < perCreditUsd[index - 1]);
+check("bigger_pack_is_cheaper_per_credit", volumeDiscount, perCreditUsd.map((v) => v.toFixed(4)).join(" -> "));
+// Margin floor: Atlas cost ≈ $0.011/credit (~$1.6 per 150-credit 15s video). Every pack must
+// sell credits well above cost — require >= $0.022/credit (≈2x) so no pack loses money.
+check("every_pack_is_margin_positive", perCreditUsd.every((value) => value >= 0.022), `min=$${Math.min(...perCreditUsd).toFixed(4)}/credit`);
 const popularCount = DEFAULT_CREDIT_PACKAGES.filter((pkg) => String(pkg.label).includes("⭐")).length;
 check("exactly_one_popular_anchor", popularCount === 1, `count=${popularCount}`);
+// Verify the exchange conversion: served packages must carry a VND transfer amount = USD × rate.
+const { withComputedVnd, DEFAULT_USD_TO_VND } = await import("../dist/api/user-account-store.js");
+const converted = withComputedVnd(DEFAULT_CREDIT_PACKAGES[1], 27000);
+check("usd_to_vnd_conversion_correct", converted.priceVnd === Math.round(DEFAULT_CREDIT_PACKAGES[1].priceUsd * 27000) && DEFAULT_USD_TO_VND === 27000, `vnd=${converted.priceVnd}`);
 
 // ---- Part B: auto-run + refund-off over real HTTP. ----
 const workDir = mkdtempSync(join(tmpdir(), "cinejelly-commercial-policy-"));

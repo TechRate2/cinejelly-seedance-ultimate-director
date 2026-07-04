@@ -1179,6 +1179,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(response, 200, {
           account,
           packages: adminSettingsStore.packages(),
+          usdToVnd: adminSettingsStore.usdToVnd(),
           renderPricing: adminSettingsStore.pricing(),
           refundPolicy: adminSettingsStore.refundPolicy(),
           topupInstructions: adminSettingsStore.topupBankInfo() ||

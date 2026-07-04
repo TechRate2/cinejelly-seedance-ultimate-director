@@ -139,6 +139,8 @@ export function buildOperatorTopupPage(): string {
       <strong>💵 Giá render (tính theo giây)</strong>
       <div class="muted">Số credits mỗi giây video. Ví dụ 10 → video 30 giây = 300 credits (nhân hệ số chất lượng).</div>
       <div class="row"><input id="set-credits-per-second" type="number" step="0.1" placeholder="credits / giây"></div>
+      <div class="muted" style="margin-top:10px">Tỉ giá USD → VND (giá gói tính theo USD; số tiền khách chuyển = USD × tỉ giá):</div>
+      <div class="row"><input id="set-usd-to-vnd" type="number" step="100" placeholder="ví dụ 27000"></div>
       <div class="muted" style="margin-top:6px">Hệ số theo chất lượng:</div>
       <div class="row">
         <input id="mult-draft" type="number" step="0.1" placeholder="draft (vd 0.6)">
@@ -402,6 +404,7 @@ export function buildOperatorTopupPage(): string {
       currentSettings = (await res.json()).settings;
       document.getElementById("set-refund-policy").value = currentSettings.refundPolicy;
       document.getElementById("set-credits-per-second").value = currentSettings.pricing.creditsPerRenderSecond;
+      document.getElementById("set-usd-to-vnd").value = currentSettings.usdToVnd || 27000;
       var mult = currentSettings.pricing.qualityMultipliers || {};
       ["draft", "standard", "high", "ultimate"].forEach(function (q) {
         var el = document.getElementById("mult-" + q);
@@ -429,13 +432,14 @@ export function buildOperatorTopupPage(): string {
       var id = inp(pkg.packageId, "packageId"); id.dataset.f = "packageId";
       var label = inp(pkg.label, "Tên gói"); label.dataset.f = "label";
       var credits = inp(pkg.credits, "credits"); credits.type = "number"; credits.dataset.f = "credits";
-      var price = inp(pkg.priceVnd, "giá VND"); price.type = "number"; price.dataset.f = "priceVnd";
+      var price = inp(pkg.priceUsd, "giá USD"); price.type = "number"; price.step = "0.01"; price.dataset.f = "priceUsd";
+      price.title = "Giá theo USD. Số tiền VND khách chuyển = USD × tỉ giá.";
       var del = document.createElement("button"); del.className = "del"; del.textContent = "🗑"; del.addEventListener("click", function () { row.remove(); });
       row.appendChild(id); row.appendChild(label); row.appendChild(credits); row.appendChild(price); row.appendChild(del);
       return row;
     }
     document.getElementById("add-package").addEventListener("click", function () {
-      document.getElementById("package-editor").appendChild(packageRow({ packageId: "", label: "", credits: 0, priceVnd: 0 }));
+      document.getElementById("package-editor").appendChild(packageRow({ packageId: "", label: "", credits: 0, priceUsd: 0 }));
     });
     document.getElementById("save-settings").addEventListener("click", async function () {
       var packages = [];
@@ -455,6 +459,7 @@ export function buildOperatorTopupPage(): string {
       var patch = {
         refundPolicy: document.getElementById("set-refund-policy").value,
         creditsPerRenderSecond: Number(document.getElementById("set-credits-per-second").value),
+        usdToVnd: Number(document.getElementById("set-usd-to-vnd").value),
         qualityMultipliers: multipliers,
         packages: packages,
         topupBankInfo: document.getElementById("set-bank-info").value.trim(),

@@ -2712,15 +2712,20 @@ export function buildShortPipelineCreatePage(): string {
           card.appendChild(badge);
         }
         const labelEl = document.createElement("strong");
-        labelEl.textContent = String(pkg.label || "");
+        // USD is the headline value; VND (= USD × rate) is the actual bank-transfer amount.
+        const usd = Number(pkg.priceUsd || 0);
+        labelEl.textContent = String(pkg.label || "") + (usd > 0 ? " — $" + usd : "");
         const creditsEl = document.createElement("span");
         creditsEl.textContent = pkg.credits.toLocaleString("vi-VN") + " credits";
         const priceEl = document.createElement("small");
-        priceEl.textContent = price + "đ" + (pkg.bonusNote ? " • " + String(pkg.bonusNote) : "");
+        priceEl.textContent = "≈ " + price + "đ" + (pkg.bonusNote ? " • " + String(pkg.bonusNote) : "");
         const perVideoEl = document.createElement("small");
         perVideoEl.className = "cj-pervideo";
-        const perVideo = Math.round((pkg.priceVnd || 0) / Math.max(1, pkg.credits / creditsPerVideo) / 1000) * 1000;
-        perVideoEl.textContent = "≈ " + perVideo.toLocaleString("vi-VN") + t("tu.perVideo");
+        const videos = Math.max(1, pkg.credits / creditsPerVideo);
+        const perVideoUsd = usd > 0 ? usd / videos : 0;
+        const perVideo = Math.round((pkg.priceVnd || 0) / videos / 1000) * 1000;
+        perVideoEl.textContent = (perVideoUsd > 0 ? "≈ $" + perVideoUsd.toFixed(2) + "/video (" : "≈ ") +
+          perVideo.toLocaleString("vi-VN") + t("tu.perVideo") + (perVideoUsd > 0 ? ")" : "");
         card.appendChild(labelEl);
         card.appendChild(creditsEl);
         card.appendChild(priceEl);
