@@ -40,6 +40,22 @@ export function redactApiLocalPaths(value: unknown): unknown {
   return redactValue(value, undefined, false);
 }
 
+const EMBEDDED_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s"',;)]*/g;
+const EMBEDDED_UNC_PATH_PATTERN = /\\\\[^\s"',;)]*/g;
+const EMBEDDED_POSIX_PATH_PATTERN = /(^|\s)(\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/[^\s"',;)]+)/g;
+
+/**
+ * Redact absolute local paths embedded ANYWHERE inside a string (not only whole-string paths),
+ * e.g. an OS error message like "ENOENT: ... open 'C:\\Users\\...\\file'". Used on outbound
+ * error strings so no route or catch handler can leak deployment filesystem paths to a client.
+ */
+export function redactEmbeddedLocalPaths(text: string): string {
+  return text
+    .replace(EMBEDDED_WINDOWS_PATH_PATTERN, REDACTED_LOCAL_PATH)
+    .replace(EMBEDDED_UNC_PATH_PATTERN, REDACTED_LOCAL_PATH)
+    .replace(EMBEDDED_POSIX_PATH_PATTERN, (_match, prefix: string) => `${prefix}${REDACTED_LOCAL_PATH}`);
+}
+
 export function redactApiResponse(value: unknown): unknown {
   return redactValue(value, undefined, true);
 }

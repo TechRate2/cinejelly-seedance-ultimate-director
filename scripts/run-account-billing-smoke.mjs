@@ -162,7 +162,7 @@ try {
   check("workspace_pinning_blocked_for_users", serverSource.includes("Tài khoản khách không dùng workspace billing"));
   // Boot reconcile refunds charges whose job vanished; keeps live/succeeded jobs.
   const reconcileStore = new UserAccountStore({ storePath: join(workDir, "reconcile-test.json"), pricing });
-  const rec = reconcileStore.register({ email: "rec@shop.vn", password: "matkhau123" });
+  const rec = await reconcileStore.register({ email: "rec@shop.vn", password: "matkhau123" });
   reconcileStore.adminAdjust({ email: "rec@shop.vn", credits: 1000 });
   reconcileStore.chargeRender({ userId: rec.user.userId, jobId: "job_gone", credits: 100 });
   reconcileStore.chargeRender({ userId: rec.user.userId, jobId: "job_ok", credits: 100 });

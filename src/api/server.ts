@@ -5,7 +5,7 @@
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
@@ -23,6 +23,7 @@ import {
 import { buildRenderSettingsDescriptor } from "../application/render-settings-descriptor.js";
 import { UPLOAD_FILE_NAME_PATTERN, buildUploadUri, uploadsDirectoryFor } from "../core/upload-reference.js";
 import { VideoRedubPlanner } from "../core/video-redub-planner.js";
+import { MediaInspector } from "../core/media-inspector.js";
 import { captionCuesToSrt } from "../core/subtitle-translator.js";
 import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider.js";
 import { ProviderCostLedger } from "../providers/cost-ledger.js";
@@ -82,6 +83,7 @@ import type { AspectRatio, BitrateMode, Resolution } from "../types/settings.js"
 import type { ShortChannelStyleProfileInput } from "../types/short-channel-style.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiResponse } from "./api-response-redaction.js";
+import { redactEmbeddedLocalPaths } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import {
@@ -150,6 +152,10 @@ const MAX_PORT = 65_535;
 const REVIEW_TEXT_CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 const MAX_REVIEW_APPROVAL_CHECKPOINTS = 120;
 const DEFAULT_UPLOAD_MAX_BYTES = 26_214_400;
+/** Total uploads-directory ceiling (all customers combined) so no one can exhaust the disk. */
+const DEFAULT_UPLOADS_TOTAL_MAX_BYTES = 5 * 1024 * 1024 * 1024;
+/** Hard cap on the number of stored uploads so the directory scan and disk stay bounded. */
+const DEFAULT_UPLOADS_MAX_FILES = 5_000;
 /** Reference uploads: extension -> served content type. Images/video/audio only. */
 const UPLOAD_CONTENT_TYPES: Record<string, string> = {
   png: "image/png",
@@ -1141,7 +1147,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "POST" && requestUrl.pathname === "/v1/account/register") {
         assertJsonContentType(request);
         const body = await readJsonBody<{ email?: string; password?: string; displayName?: string }>(request, maxBodyBytes);
-        const registered = userAccountStore.register({
+        const registered = await userAccountStore.register({
           email: body.email ?? "",
           password: body.password ?? "",
           ...(body.displayName ? { displayName: body.displayName } : {})
@@ -1156,7 +1162,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "POST" && requestUrl.pathname === "/v1/account/login") {
         assertJsonContentType(request);
         const body = await readJsonBody<{ email?: string; password?: string }>(request, maxBodyBytes);
-        const loggedIn = userAccountStore.login({ email: body.email ?? "", password: body.password ?? "" });
+        const loggedIn = await userAccountStore.login({ email: body.email ?? "", password: body.password ?? "" });
         sendJson(response, 200, { account: loggedIn.user }, requestContext, {
           "X-CineJelly-Session-Token": loggedIn.sessionToken
         });
@@ -1272,6 +1278,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         }
         // Nguồn video: file vừa tải lên (upload://...) hoặc video đã render xong của chính mình (jobId).
         let redubSourceUri: string | undefined;
+        let redubProbePath: string | undefined;
         if (typeof body.uploadUri === "string" && body.uploadUri.trim()) {
           const trimmedUploadUri = body.uploadUri.trim();
           const uploadFileName = trimmedUploadUri.startsWith("upload://") ? trimmedUploadUri.slice("upload://".length) : "";
@@ -1290,6 +1297,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             throw new UserAccountError("File đã tải lên không tìm thấy — hãy tải video lên lại rồi thử tiếp.", 404);
           }
           redubSourceUri = trimmedUploadUri;
+          redubProbePath = uploadedPath;
         } else if (typeof body.jobId === "string" && body.jobId.trim()) {
           const deliverablePath = jobManager.deliverablePathFor(body.jobId.trim(), clientFilter(authDecision.principal));
           const redubOutputRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
@@ -1307,9 +1315,34 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             throw new UserAccountError("Video của job này chưa sẵn sàng hoặc không thuộc tài khoản của bạn.", 404);
           }
           redubSourceUri = resolvedDeliverable;
+          redubProbePath = resolvedDeliverable;
         }
         if (!redubSourceUri) {
           throw new UserAccountError("Cần uploadUri (video đã tải lên) hoặc jobId (video đã render xong).", 400);
+        }
+        // Bill redub by the ACTUAL source duration (like a render) instead of a flat rate, and
+        // hard-cap the length, so provider cost (STT + translation + TTS scale with duration)
+        // can never outrun the credits collected. Probe is best-effort: if ffprobe can't read
+        // the file, fall back to the flat minimum (the 25MB upload cap still bounds the source).
+        let redubBillableSeconds = REDUB_FLAT_PRICE_SECONDS;
+        if (redubProbePath) {
+          try {
+            const probed = await new MediaInspector().probe(redubProbePath);
+            if (probed.durationSeconds && probed.durationSeconds > 0) {
+              if (probed.durationSeconds > REDUB_MAX_SOURCE_SECONDS) {
+                throw new UserAccountError(
+                  `Video dài quá ${Math.round(REDUB_MAX_SOURCE_SECONDS / 60)} phút — hãy cắt ngắn rồi thử lại (giới hạn để kiểm soát chi phí).`,
+                  400
+                );
+              }
+              redubBillableSeconds = probed.durationSeconds;
+            }
+          } catch (probeError) {
+            if (probeError instanceof UserAccountError) {
+              throw probeError;
+            }
+            // ffprobe unavailable/unreadable: keep the flat-minimum billing, do not block.
+          }
         }
         const redubActorKey =
           authDecision.principal.kind === "user" && authDecision.principal.userId
@@ -1323,9 +1356,10 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const redubId = `redub_${randomUUID()}`;
         let redubCharge: { readonly userId: string; readonly credits: number } | undefined;
         if (authDecision.principal.kind === "user" && authDecision.principal.userId) {
+          const redubPricing = adminSettingsStore.pricing();
           const redubCredits = Math.max(
-            1,
-            Math.ceil(adminSettingsStore.pricing().creditsPerRenderSecond * REDUB_FLAT_PRICE_SECONDS)
+            redubPricing.minimumChargeCredits,
+            Math.ceil(redubPricing.creditsPerRenderSecond * redubBillableSeconds)
           );
           const balanceCredits = userAccountStore.balanceOf(authDecision.principal.userId);
           if (balanceCredits < redubCredits) {
@@ -1419,7 +1453,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const { userId } = requireUserPrincipal(authDecision.principal);
         assertJsonContentType(request);
         const body = await readJsonBody<{ currentPassword?: string; newPassword?: string }>(request, maxBodyBytes);
-        const changed = userAccountStore.changePassword({
+        const changed = await userAccountStore.changePassword({
           userId,
           currentPassword: body.currentPassword ?? "",
           newPassword: body.newPassword ?? ""
@@ -1433,7 +1467,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required to reset passwords.");
         assertJsonContentType(request);
         const body = await readJsonBody<{ email?: string }>(request, maxBodyBytes);
-        const reset = userAccountStore.adminResetPassword({ email: body.email ?? "" });
+        const reset = await userAccountStore.adminResetPassword({ email: body.email ?? "" });
         // The temporary password must reach the operator; it travels via header because
         // JSON bodies pass through the secret redactor (which rightly eats password fields).
         sendJson(response, 200, { status: "password_reset" }, requestContext, {
@@ -1546,9 +1580,29 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           return;
         }
         const uploadsDir = uploadsDirectoryFor(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
-        await mkdir(uploadsDir, { recursive: true });
         const storedFileName = `up_${randomBytes(16).toString("hex")}.${extension}`;
-        await writeFile(join(uploadsDir, storedFileName), body);
+        try {
+          await mkdir(uploadsDir, { recursive: true });
+          // Disk-exhaustion guard: reject when the whole uploads directory is at its size or
+          // file-count ceiling, so no account (even after self-registering) can fill the disk.
+          const uploadsTotalMaxBytes = readPositiveInteger(
+            process.env.CINEJELLY_UPLOADS_TOTAL_MAX_BYTES,
+            DEFAULT_UPLOADS_TOTAL_MAX_BYTES
+          );
+          const usage = await uploadsDirectoryUsage(uploadsDir);
+          if (usage.fileCount >= DEFAULT_UPLOADS_MAX_FILES || usage.totalBytes + body.length > uploadsTotalMaxBytes) {
+            sendJson(response, 507, {
+              error: "Kho lưu trữ tạm đã đầy — chủ hệ thống cần dọn thư mục uploads. Vui lòng thử lại sau."
+            }, requestContext);
+            return;
+          }
+          await writeFile(join(uploadsDir, storedFileName), body);
+        } catch (uploadError) {
+          // Never leak a raw filesystem error (which carries absolute local paths) to a customer.
+          void uploadError;
+          sendJson(response, 500, { error: "Không lưu được tệp tải lên. Vui lòng thử lại sau." }, requestContext);
+          return;
+        }
         sendJson(response, 201, {
           status: "uploaded",
           kind,
@@ -1909,8 +1963,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       sendJson(response, 404, { error: "Not found" }, requestContext);
     } catch (error) {
       const retryAfterSeconds = retryAfterSecondsFor(error);
+      // Strip any embedded local filesystem path BEFORE the message reaches the client, then
+      // the secret redactor — so an OS error (ENOENT/EACCES with an absolute path) can never
+      // leak the deployment's directory layout to a customer.
+      const safeMessage = redactEmbeddedLocalPaths(error instanceof Error ? error.message : String(error));
       sendJson(response, errorStatusCode(error), {
-        error: redactUnknown(error instanceof Error ? error.message : String(error)),
+        error: redactUnknown(safeMessage),
         ...(retryAfterSeconds ? { retryAfterSeconds } : {})
       }, requestContext, retryAfterHeaders(retryAfterSeconds));
     } finally {
@@ -3253,6 +3311,30 @@ function jsonObject(value: unknown, message: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/** Current total byte size and file count of the uploads directory (for the disk-usage guard). */
+async function uploadsDirectoryUsage(dir: string): Promise<{ readonly totalBytes: number; readonly fileCount: number }> {
+  let totalBytes = 0;
+  let fileCount = 0;
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return { totalBytes: 0, fileCount: 0 };
+  }
+  for (const name of names) {
+    try {
+      const fileStat = await stat(join(dir, name));
+      if (fileStat.isFile()) {
+        totalBytes += fileStat.size;
+        fileCount += 1;
+      }
+    } catch {
+      // A file that vanished mid-scan does not count.
+    }
+  }
+  return { totalBytes, fileCount };
+}
+
 function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]): { readonly clientId?: string } {
   if (principal?.kind === "client" && principal.clientId) {
     return { clientId: principal.clientId };
@@ -3361,6 +3443,9 @@ function planUserRenderCharge(input: {
  * quản trị thì giá này tự đổi theo.
  */
 const REDUB_FLAT_PRICE_SECONDS = 5;
+
+/** Hard cap on redub source length so provider spend can never outrun the credits charged. */
+const REDUB_MAX_SOURCE_SECONDS = 600;
 
 /**
  * Statuses that commit the customer's money at submission time: the job either runs now

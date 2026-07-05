@@ -5,6 +5,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { lookup as dnsLookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import type {
   ProductUrlSnapshotInput,
@@ -135,7 +136,9 @@ export class ProductUrlResearcher {
         issues: ["Product URL must be clean HTTPS with no local host, embedded credentials, or credential-like query values before live extraction."]
       });
     }
-
+    // SSRF note: the DNS-resolution guard (reject a public host that resolves to a private IP)
+    // lives in the real network layer (globalFetch), so it protects live fetches without
+    // running a real DNS lookup on the injected fake fetch used by no-spend tests.
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -756,6 +759,27 @@ function safeErrorMessage(error: unknown): string {
   return message.replace(/[A-Za-z]:\\|\\\\|\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|https?:\/\/\S+|bearer\s+\S+|api[_-]?key\s*[:=]\s*\S+|token\s*[:=]\s*\S+/gi, "[redacted]");
 }
 
+/** True if an IP literal (v4 or v6) is loopback/private/link-local — never fetch it. */
+function isPrivateIpLiteral(ip: string): boolean {
+  const lower = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  const ipVersion = isIP(lower);
+  if (ipVersion === 4) {
+    const [first = 0, second = 0] = lower.split(".").map((part) => Number(part));
+    return (
+      first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168)
+    );
+  }
+  if (ipVersion === 6) {
+    return lower === "::" || lower === "::1" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80:");
+  }
+  return false;
+}
+
 function isLocalHost(hostname: string): boolean {
   // Hardened SSRF guard: reject loopback, link-local, and all private IP literals
   // (RFC1918 v4, unique-local/link-local v6) in every notation, plus internal TLDs.
@@ -770,22 +794,29 @@ function isLocalHost(hostname: string): boolean {
   ) {
     return true;
   }
-  const ipVersion = isIP(lower);
-  if (ipVersion === 4) {
-    const [first = 0, second = 0] = lower.split(".").map((part) => Number(part));
-    return (
-      first === 0 ||
-      first === 10 ||
-      first === 127 ||
-      (first === 169 && second === 254) ||
-      (first === 172 && second >= 16 && second <= 31) ||
-      (first === 192 && second === 168)
-    );
+  return isPrivateIpLiteral(lower);
+}
+
+/**
+ * SSRF hardening beyond the hostname string: resolve the host and reject if ANY resolved
+ * address is loopback/private/link-local. Stops a public-looking domain whose DNS A/AAAA
+ * record points at an internal service (e.g. cloud metadata or an internal admin API).
+ * Fails safe (treats a resolution error as unsafe).
+ */
+async function hostnameResolvesToPrivate(hostname: string): Promise<boolean> {
+  const bare = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (isIP(bare)) {
+    return isPrivateIpLiteral(bare);
   }
-  if (ipVersion === 6) {
-    return lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80:");
+  try {
+    const addresses = await dnsLookup(bare, { all: true });
+    if (addresses.length === 0) {
+      return true;
+    }
+    return addresses.some((entry) => isPrivateIpLiteral(entry.address));
+  } catch {
+    return true;
   }
-  return false;
 }
 
 function sha256(value: string): string {
@@ -798,5 +829,17 @@ async function globalFetch(url: string, init: {
   readonly signal: AbortSignal;
   readonly headers: Record<string, string>;
 }): Promise<ResponseLike> {
+  // SSRF hardening at the network boundary: before any real request leaves the box, resolve
+  // the target host and refuse if it points at a private/internal/loopback address — this
+  // catches a public-looking domain whose DNS A/AAAA record aims at an internal service.
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    throw new Error("Invalid product URL.");
+  }
+  if (await hostnameResolvesToPrivate(host)) {
+    throw new Error("Product URL host resolves to a private or internal network address.");
+  }
   return fetch(url, init);
 }

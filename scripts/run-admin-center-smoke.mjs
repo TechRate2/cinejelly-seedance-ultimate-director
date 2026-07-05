@@ -98,7 +98,7 @@ check("settings_speech_model_applied_to_env", (process.env.ATLASCLOUD_SPEECH_MOD
 
 // ---- Account store: manual-policy refund queue (direct) ----
 const store = new UserAccountStore({ storePath: join(workDir, "acct-direct.json"), pricing: loadRenderCreditPricing(process.env) });
-const u = store.register({ email: "q@shop.vn", password: "matkhau123" });
+const u = await store.register({ email: "q@shop.vn", password: "matkhau123" });
 store.adminAdjust({ email: "q@shop.vn", credits: 1000 });
 store.chargeRender({ userId: u.user.userId, jobId: "job_q1", credits: 300 });
 const queued = store.queueRefundRequest({ userId: u.user.userId, jobId: "job_q1", reason: "video lỗi" });

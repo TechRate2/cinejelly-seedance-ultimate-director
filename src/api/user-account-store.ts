@@ -10,8 +10,25 @@
  * tmp+rename writes, matching the other API stores.
  */
 
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
+
+/**
+ * Password hashing on the libuv threadpool, never the event loop. scryptSync would block the
+ * single Node thread for ~50-80ms per call, so a burst of login/register attempts could stall
+ * the whole server (an unauthenticated event-loop DoS). The async form keeps the loop free.
+ */
+function hashPasswordAsync(password: string, salt: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, SCRYPT_KEY_LENGTH, (error, derivedKey) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(derivedKey);
+      }
+    });
+  });
+}
 import {
   createAccountPersistenceDriver,
   JsonFileAccountDriver,
@@ -285,11 +302,11 @@ export class UserAccountStore {
     return this.pricing;
   }
 
-  public register(input: {
+  public async register(input: {
     readonly email: string;
     readonly password: string;
     readonly displayName?: string;
-  }): { readonly user: PublicUser; readonly sessionToken: string } {
+  }): Promise<{ readonly user: PublicUser; readonly sessionToken: string }> {
     const email = normalizeEmail(input.email);
     if (!EMAIL_PATTERN.test(email)) {
       throw new UserAccountError("Email không hợp lệ.", 400);
@@ -302,7 +319,7 @@ export class UserAccountStore {
     }
     const displayName = sanitizeDisplayName(input.displayName) ?? email.split("@")[0] ?? "Creator";
     const salt = randomBytes(16);
-    const hash = scryptSync(input.password, salt, SCRYPT_KEY_LENGTH);
+    const hash = await hashPasswordAsync(input.password, salt);
     const user: UserRecord = {
       userId: `user_${randomBytes(8).toString("hex")}`,
       email,
@@ -318,17 +335,17 @@ export class UserAccountStore {
     return { user: this.publicUser(user), sessionToken };
   }
 
-  public login(input: { readonly email: string; readonly password: string }): {
+  public async login(input: { readonly email: string; readonly password: string }): Promise<{
     readonly user: PublicUser;
     readonly sessionToken: string;
-  } {
+  }> {
     const email = normalizeEmail(input.email);
     this.assertLoginNotLocked(email);
     const user = this.state.users.find((candidate) => candidate.email === email);
     const presented = typeof input.password === "string" ? input.password : "";
     // Always run scrypt so wrong-email and wrong-password take the same time.
     const salt = user ? Buffer.from(user.passwordSaltHex, "hex") : randomBytes(16);
-    const presentedHash = scryptSync(presented, salt, SCRYPT_KEY_LENGTH);
+    const presentedHash = await hashPasswordAsync(presented, salt);
     const expectedHash = user ? Buffer.from(user.passwordHashHex, "hex") : randomBytes(SCRYPT_KEY_LENGTH);
     const matches = presentedHash.length === expectedHash.length && timingSafeEqual(presentedHash, expectedHash);
     if (!user || !matches || user.status !== "active") {
@@ -342,20 +359,19 @@ export class UserAccountStore {
   }
 
   /** Self-service password change; revokes every other session for safety. */
-  public changePassword(input: {
+  public async changePassword(input: {
     readonly userId: string;
     readonly currentPassword: string;
     readonly newPassword: string;
-  }): { readonly sessionToken: string } {
+  }): Promise<{ readonly sessionToken: string }> {
     const index = this.state.users.findIndex((candidate) => candidate.userId === input.userId);
     const user = index >= 0 ? this.state.users[index] : undefined;
     if (!user || user.status !== "active") {
       throw new UserAccountError("Phiên đăng nhập không còn hợp lệ. Hãy đăng nhập lại.", 401);
     }
-    const presentedHash = scryptSync(
+    const presentedHash = await hashPasswordAsync(
       typeof input.currentPassword === "string" ? input.currentPassword : "",
-      Buffer.from(user.passwordSaltHex, "hex"),
-      SCRYPT_KEY_LENGTH
+      Buffer.from(user.passwordSaltHex, "hex")
     );
     const expectedHash = Buffer.from(user.passwordHashHex, "hex");
     if (presentedHash.length !== expectedHash.length || !timingSafeEqual(presentedHash, expectedHash)) {
@@ -364,7 +380,7 @@ export class UserAccountStore {
     if (typeof input.newPassword !== "string" || input.newPassword.length < MIN_PASSWORD_LENGTH) {
       throw new UserAccountError(`Mật khẩu mới cần tối thiểu ${MIN_PASSWORD_LENGTH} ký tự.`, 400);
     }
-    this.setPassword(index, input.newPassword);
+    await this.setPassword(index, input.newPassword);
     this.revokeSessionsFor(user.userId);
     const sessionToken = this.issueSession(user.userId);
     this.persist();
@@ -376,24 +392,24 @@ export class UserAccountStore {
    * temporary password the operator hands to the customer over their support channel.
    * Every existing session is revoked.
    */
-  public adminResetPassword(input: { readonly email: string }): { readonly temporaryPassword: string } {
+  public async adminResetPassword(input: { readonly email: string }): Promise<{ readonly temporaryPassword: string }> {
     const email = normalizeEmail(input.email);
     const index = this.state.users.findIndex((candidate) => candidate.email === email);
     if (index < 0) {
       throw new UserAccountError("Không tìm thấy tài khoản với email này.", 404);
     }
     const temporaryPassword = generateTemporaryPassword();
-    this.setPassword(index, temporaryPassword);
+    await this.setPassword(index, temporaryPassword);
     this.revokeSessionsFor((this.state.users[index] as UserRecord).userId);
     this.loginFailures.delete(email);
     this.persist();
     return { temporaryPassword };
   }
 
-  private setPassword(userIndex: number, newPassword: string): void {
+  private async setPassword(userIndex: number, newPassword: string): Promise<void> {
     const user = this.state.users[userIndex] as UserRecord;
     const salt = randomBytes(16);
-    const hash = scryptSync(newPassword, salt, SCRYPT_KEY_LENGTH);
+    const hash = await hashPasswordAsync(newPassword, salt);
     this.state.users[userIndex] = {
       ...user,
       passwordSaltHex: salt.toString("hex"),
@@ -821,6 +837,15 @@ export class UserAccountStore {
 
   private recordLoginFailure(email: string): void {
     const now = Date.now();
+    // Opportunistically drop expired entries so a flood of distinct wrong emails can't grow
+    // the map without bound (it is swept whenever any login fails, capped work per call).
+    if (this.loginFailures.size > 1_000) {
+      for (const [key, value] of this.loginFailures.entries()) {
+        if (now - value.firstAt > LOGIN_FAILURE_WINDOW_MS) {
+          this.loginFailures.delete(key);
+        }
+      }
+    }
     const failures = this.loginFailures.get(email);
     if (!failures || now - failures.firstAt > LOGIN_FAILURE_WINDOW_MS) {
       this.loginFailures.set(email, { count: 1, firstAt: now });

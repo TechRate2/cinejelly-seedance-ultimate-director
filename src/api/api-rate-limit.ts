@@ -59,6 +59,11 @@ export class ApiRateLimiter {
 
     const current = this.buckets.get(bucketKey);
     if (!current || current.resetAtMs <= nowMs) {
+      // Belt-and-suspenders against key-explosion: even with correct client-IP keying, never
+      // let the bucket map grow without bound — evict the oldest entry when at capacity.
+      if (this.buckets.size >= MAX_RATE_LIMIT_BUCKETS) {
+        this.evictOldestBucket();
+      }
       this.buckets.set(bucketKey, {
         count: 1,
         resetAtMs: nowMs + this.windowMs
@@ -109,7 +114,16 @@ export class ApiRateLimiter {
     if (this.trustProxyHeaders) {
       const forwardedFor = request.headers["x-forwarded-for"];
       if (typeof forwardedFor === "string" && forwardedFor.trim()) {
-        return `xff:${forwardedFor.split(",")[0]?.trim() || "unknown"}`;
+        // SECURITY: a trusted reverse proxy APPENDS the real peer IP to the RIGHT of whatever
+        // the client sent, so the left-most X-Forwarded-For value is fully client-controlled
+        // (spoofable) and must never be the rate-limit key. Take the right-most hop — the one
+        // the trusted proxy itself added — which the client cannot forge. (Assumes exactly one
+        // trusted proxy in front, which is the bundled Caddy topology.)
+        const hops = forwardedFor.split(",").map((hop) => hop.trim()).filter(Boolean);
+        const clientHop = hops[hops.length - 1];
+        if (clientHop) {
+          return `xff:${clientHop}`;
+        }
       }
     }
     return `remote:${request.socket.remoteAddress || "unknown"}`;
@@ -122,7 +136,24 @@ export class ApiRateLimiter {
       }
     }
   }
+
+  private evictOldestBucket(): void {
+    let oldestKey: string | undefined;
+    let oldestResetAtMs = Number.POSITIVE_INFINITY;
+    for (const [bucketKey, bucket] of this.buckets.entries()) {
+      if (bucket.resetAtMs < oldestResetAtMs) {
+        oldestResetAtMs = bucket.resetAtMs;
+        oldestKey = bucketKey;
+      }
+    }
+    if (oldestKey !== undefined) {
+      this.buckets.delete(oldestKey);
+    }
+  }
 }
+
+/** Hard ceiling on live rate-limit buckets so distinct keys can never exhaust memory. */
+const MAX_RATE_LIMIT_BUCKETS = 50_000;
 
 export function readRateLimitDisabled(value: string | undefined): boolean {
   return readBooleanFlag("CINEJELLY_DISABLE_API_RATE_LIMIT", value);

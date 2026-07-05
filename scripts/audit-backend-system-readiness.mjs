@@ -214,6 +214,7 @@ const auditedValidationCommandNames = [
   "validation:render-settlement-race",
   "validation:operator-hold",
   "validation:operator-hold-http",
+  "validation:security-hardening",
   "validation:commercial-policy",
   "validation:account-billing",
   "validation:admin-center",
