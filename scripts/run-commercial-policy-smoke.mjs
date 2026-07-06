@@ -23,18 +23,27 @@ function check(name, pass, detail) {
 
 // ---- Part A: the shipped default package ladder (no server needed). ----
 const { DEFAULT_CREDIT_PACKAGES } = await import("../dist/api/user-account-store.js");
-check("packages_are_a_ladder_of_four", DEFAULT_CREDIT_PACKAGES.length === 4, `count=${DEFAULT_CREDIT_PACKAGES.length}`);
+// The catalog splits into a once-per-account paid TRIAL hook (anti-farm loss-leader) and the
+// regular volume-discount LADDER. Metered pipeline pricing sets 1 credit ≈ $0.01 of provider cost.
+const COST_BASIS_USD_PER_CREDIT = 0.01;
+const trialPacks = DEFAULT_CREDIT_PACKAGES.filter((pkg) => pkg.oncePerAccount === true);
+const regularPacks = DEFAULT_CREDIT_PACKAGES.filter((pkg) => !pkg.oncePerAccount);
+check("one_once_per_account_trial", trialPacks.length === 1, `count=${trialPacks.length}`);
+check("trial_is_farm_proof_loss_leader",
+  trialPacks.every((pkg) => pkg.priceUsd / pkg.credits <= COST_BASIS_USD_PER_CREDIT + 0.0005),
+  trialPacks.map((p) => (p.priceUsd / p.credits).toFixed(4)).join(","));
+check("regular_ladder_of_four", regularPacks.length === 4, `count=${regularPacks.length}`);
 // USD is the source of truth (Higgsfield-style tiers); VND is derived at the exchange rate.
 check("every_pack_has_usd_price", DEFAULT_CREDIT_PACKAGES.every((pkg) => Number(pkg.priceUsd) > 0), DEFAULT_CREDIT_PACKAGES.map((p) => p.priceUsd).join(","));
-const ascendingCredits = DEFAULT_CREDIT_PACKAGES.every((pkg, index) => index === 0 || pkg.credits > DEFAULT_CREDIT_PACKAGES[index - 1].credits);
-const ascendingPrice = DEFAULT_CREDIT_PACKAGES.every((pkg, index) => index === 0 || pkg.priceUsd > DEFAULT_CREDIT_PACKAGES[index - 1].priceUsd);
+const ascendingCredits = regularPacks.every((pkg, index) => index === 0 || pkg.credits > regularPacks[index - 1].credits);
+const ascendingPrice = regularPacks.every((pkg, index) => index === 0 || pkg.priceUsd > regularPacks[index - 1].priceUsd);
 check("packages_scale_up", ascendingCredits && ascendingPrice);
-const perCreditUsd = DEFAULT_CREDIT_PACKAGES.map((pkg) => pkg.priceUsd / pkg.credits);
+const perCreditUsd = regularPacks.map((pkg) => pkg.priceUsd / pkg.credits);
 const volumeDiscount = perCreditUsd.every((value, index) => index === 0 || value < perCreditUsd[index - 1]);
 check("bigger_pack_is_cheaper_per_credit", volumeDiscount, perCreditUsd.map((v) => v.toFixed(4)).join(" -> "));
-// Margin floor: Atlas cost ≈ $0.011/credit (~$1.6 per 150-credit 15s video). Every pack must
-// sell credits well above cost — require >= $0.022/credit (≈2x) so no pack loses money.
-check("every_pack_is_margin_positive", perCreditUsd.every((value) => value >= 0.022), `min=$${Math.min(...perCreditUsd).toFixed(4)}/credit`);
+// Every REGULAR pack must sell credits ABOVE the provider-cost basis (margin-positive); only the
+// trial hook is allowed to sit at/below cost.
+check("every_regular_pack_margin_positive", perCreditUsd.every((value) => value > COST_BASIS_USD_PER_CREDIT), `min=$${Math.min(...perCreditUsd).toFixed(4)}/credit`);
 const popularCount = DEFAULT_CREDIT_PACKAGES.filter((pkg) => String(pkg.label).includes("⭐")).length;
 check("exactly_one_popular_anchor", popularCount === 1, `count=${popularCount}`);
 // Verify the exchange conversion: served packages must carry a VND transfer amount = USD × rate.

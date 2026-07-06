@@ -51,7 +51,11 @@ export function buildOperatorTopupPage(): string {
     .kpi { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
     .kpi > div { background: rgba(255,255,255,.04); border-radius: 8px; padding: 10px; }
     .kpi strong { display: block; font-size: 17px; }
-    @media (max-width: 680px) { .pkg-row { grid-template-columns: 1fr 1fr; } .kpi { grid-template-columns: 1fr; } }
+    .atlas-price-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+    .atlas-price-table th, .atlas-price-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .atlas-price-table th { color: var(--muted); font-weight: 600; }
+    .atlas-price-table td:last-child { font-weight: 700; color: #34d399; }
+    @media (max-width: 680px) { .pkg-row { grid-template-columns: 1fr 1fr; } .kpi { grid-template-columns: 1fr; } .atlas-price-table { display: block; overflow-x: auto; } }
   </style>
 </head>
 <body>
@@ -148,6 +152,13 @@ export function buildOperatorTopupPage(): string {
         <input id="mult-high" type="number" step="0.1" placeholder="high (vd 1.5)">
         <input id="mult-ultimate" type="number" step="0.1" placeholder="ultimate (vd 2)">
       </div>
+    </div>
+    <div class="card">
+      <strong>📡 Giá Atlas realtime</strong>
+      <div class="muted">Bấm để đọc giá Atlas Cloud NGAY LÚC NÀY (giá gốc từng giây mỗi model + khuyến mãi đang chạy). Dùng để canh promo và chỉnh giá bán. Atlas không có API giá nên đây là đọc trực tiếp trang giá của họ — nếu đọc lỗi sẽ báo rõ, không bao giờ hiện số bịa.</div>
+      <div class="row"><button id="check-atlas-pricing" class="primary">📡 Kiểm tra giá Atlas ngay</button></div>
+      <div class="muted" id="atlas-pricing-status" style="margin-top:8px"></div>
+      <div id="atlas-pricing-table" style="margin-top:8px"></div>
     </div>
     <div class="card">
       <strong>📦 Gói nạp credits</strong>
@@ -267,7 +278,7 @@ export function buildOperatorTopupPage(): string {
       var payload = await res.json();
       renderQueue("refund-list", payload.pending, "Không có yêu cầu hoàn tiền nào. 🎉", function (r) {
         return actionRow(
-          r.email + " — hoàn " + vnd(r.credits) + " credits",
+          r.email + " — hoàn " + vnd(Math.abs(r.credits)) + " credits",
           "Lý do: " + r.reason + " • " + r.jobId,
           [
             { cls: "approve", text: "✅ Hoàn tiền", onClick: function () { decideRefund(r.refundRequestId, true); } },
@@ -435,11 +446,112 @@ export function buildOperatorTopupPage(): string {
       var price = inp(pkg.priceUsd, "giá USD"); price.type = "number"; price.step = "0.01"; price.dataset.f = "priceUsd";
       price.title = "Giá theo USD. Số tiền VND khách chuyển = USD × tỉ giá.";
       var del = document.createElement("button"); del.className = "del"; del.textContent = "🗑"; del.addEventListener("click", function () { row.remove(); });
+      // Preserve the anti-farm once-per-account flag across edits (carried invisibly; the server
+      // also protects known trial IDs so this can never silently re-open the trial).
+      if (pkg.oncePerAccount) { row.dataset.once = "1"; label.title = "Gói dùng thử 1 lần/tài khoản (chống farm)"; }
       row.appendChild(id); row.appendChild(label); row.appendChild(credits); row.appendChild(price); row.appendChild(del);
       return row;
     }
     document.getElementById("add-package").addEventListener("click", function () {
       document.getElementById("package-editor").appendChild(packageRow({ packageId: "", label: "", credits: 0, priceUsd: 0 }));
+    });
+    function fmtUsd(n) {
+      if (n === null || n === undefined || isNaN(n)) { return "—"; }
+      var s = Number(n).toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+      return "$" + s;
+    }
+    function creditValueUsd() {
+      // Cheapest $/credit across packages = best-value pack for the customer = worst-case (lowest) margin.
+      if (!currentSettings || !currentSettings.packages) { return null; }
+      var best = null;
+      currentSettings.packages.forEach(function (p) {
+        if (p && p.credits > 0 && typeof p.priceUsd === "number") {
+          var per = p.priceUsd / p.credits;
+          if (best === null || per < best) { best = per; }
+        }
+      });
+      return best;
+    }
+    function atlasRowOf(cells, isHeader) {
+      var tr = document.createElement("tr");
+      cells.forEach(function (c) {
+        var el = document.createElement(isHeader ? "th" : "td");
+        el.textContent = c;
+        tr.appendChild(el);
+      });
+      return tr;
+    }
+    function renderAtlasPricing(payload, tableEl, statusEl) {
+      var models = (payload.models || []).slice();
+      models.sort(function (a, b) { return (b.perSecond ? 1 : 0) - (a.perSecond ? 1 : 0); });
+      var cvu = creditValueUsd();
+      var perSec = (currentSettings && currentSettings.pricing) ? currentSettings.pricing.creditsPerRenderSecond : null;
+      var retailPerSec = (cvu !== null && perSec !== null && perSec !== undefined) ? cvu * perSec : null;
+      var when = new Date(payload.fetchedAtIso || Date.now());
+      statusEl.textContent = "Cập nhật lúc " + when.toLocaleString("vi-VN") + " • " + models.length + " model"
+        + (retailPerSec !== null ? (" • Bạn đang bán ~" + fmtUsd(retailPerSec) + "/giây") : "");
+      var table = document.createElement("table"); table.className = "atlas-price-table";
+      var thead = document.createElement("thead");
+      thead.appendChild(atlasRowOf(["Model", "Đơn vị", "Giá gốc", "KM", "Giá Atlas", "Lãi vs giá bán"], true));
+      table.appendChild(thead);
+      var tbody = document.createElement("tbody");
+      models.forEach(function (m) {
+        var marginCell = "—";
+        if (m.perSecond && retailPerSec !== null && m.ourPriceUsd > 0) {
+          marginCell = "×" + (retailPerSec / m.ourPriceUsd).toFixed(1);
+        }
+        var discount = m.discountPercent ? ("-" + m.discountPercent + "%") : "—";
+        // Flag a row whose list/discount/price figures disagree — don't retune off a suspect number.
+        var priceCell = (m.rawOurPrice || fmtUsd(m.ourPriceUsd)) + (m.discountConsistent === false ? " ⚠" : "");
+        tbody.appendChild(atlasRowOf([
+          m.name,
+          m.unit || "—",
+          m.rawStandardPrice || "—",
+          discount,
+          priceCell,
+          marginCell
+        ], false));
+      });
+      table.appendChild(tbody);
+      tableEl.innerHTML = "";
+      // Partial-parse warning: some cards were detected but their price couldn't be read, so the
+      // table is incomplete — say so instead of letting the operator price off a short list.
+      if (payload.incompletePriceCount && payload.incompletePriceCount > 0) {
+        var warn = document.createElement("div");
+        warn.className = "muted"; warn.style.color = "#f59e0b"; warn.style.marginBottom = "6px";
+        warn.textContent = "⚠ " + payload.incompletePriceCount + " model không đọc được giá (Atlas có thể đã đổi giao diện). Mở trang giá Atlas để đối chiếu.";
+        tableEl.appendChild(warn);
+      }
+      tableEl.appendChild(table);
+      var note = document.createElement("div"); note.className = "muted"; note.style.marginTop = "6px";
+      note.textContent = "Lãi = giá bán của bạn ÷ giá Atlas (tính theo gói credit rẻ nhất → mức lãi thấp nhất). Atlas tăng giá thì tăng 'credits/giây' ở khối Giá render để giữ lãi.";
+      tableEl.appendChild(note);
+    }
+    document.getElementById("check-atlas-pricing").addEventListener("click", async function () {
+      var statusEl = document.getElementById("atlas-pricing-status");
+      var tableEl = document.getElementById("atlas-pricing-table");
+      if (!keyInput.value.trim()) { say("Dán khóa quản trị trước.", false); return; }
+      statusEl.textContent = "Đang đọc giá Atlas ngay lúc này...";
+      tableEl.innerHTML = "";
+      var res;
+      try {
+        res = await fetch("/v1/admin/atlas-pricing", { headers: headers() });
+      } catch (e) {
+        statusEl.textContent = "Lỗi mạng khi đọc giá Atlas.";
+        return;
+      }
+      var payload = await res.json();
+      if (!res.ok) {
+        statusEl.innerHTML = "";
+        var msg = document.createElement("span");
+        msg.textContent = (payload.error || "Không đọc được giá Atlas.") + " ";
+        var a = document.createElement("a");
+        a.href = payload.sourceUrl || "https://www.atlascloud.ai/pricing/models";
+        a.target = "_blank"; a.rel = "noopener"; a.textContent = "Mở trang giá Atlas ↗";
+        statusEl.appendChild(msg); statusEl.appendChild(a);
+        return;
+      }
+      renderAtlasPricing(payload, tableEl, statusEl);
     });
     document.getElementById("save-settings").addEventListener("click", async function () {
       var packages = [];
@@ -448,6 +560,7 @@ export function buildOperatorTopupPage(): string {
         row.querySelectorAll("input").forEach(function (i) {
           pkg[i.dataset.f] = (i.type === "number") ? Number(i.value) : i.value.trim();
         });
+        if (row.dataset.once === "1") { pkg.oncePerAccount = true; }
         packages.push(pkg);
       });
       var multipliers = {};

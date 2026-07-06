@@ -123,12 +123,17 @@ export class ShotPlanner {
           ...(shot.metadata ?? {}),
           videoArcRole: arcRoles[index] ?? "development",
           // Only auto-assign framing when the caller has not already pinned a specific shot
-          // grammar, so an explicit request still wins.
+          // grammar, so an explicit request still wins. cameraMotion MUST be carried too —
+          // shotGrammarFromMetadata reads metadata.cameraMotion, and dropping it here left the
+          // structured (arc-varied) camera moves dormant, so motion reached Seedance only as
+          // unconstrained prose (a monotone-camera risk).
           ...(shotFraming && typeof shot.metadata?.shotType !== "string"
             ? {
                 shotType: shotFraming.shotType,
                 shotAngle: shotFraming.shotAngle,
-                shotPosition: shotFraming.shotPosition
+                shotPosition: shotFraming.shotPosition,
+                ...(shotFraming.cameraMotion ? { cameraMotion: shotFraming.cameraMotion } : {}),
+                ...(shotFraming.subjectExpression ? { subjectExpression: shotFraming.subjectExpression } : {})
               }
             : {})
         }

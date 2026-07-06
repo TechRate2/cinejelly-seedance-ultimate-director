@@ -1488,9 +1488,11 @@ export function buildShortPipelineCreatePage(): string {
         "hero.h1": "Tạo video AI", "hero.noSession": "Chưa có phiên.",
         "hero.eyebrow": "Mô tả ý tưởng, thêm ảnh/video tham chiếu, chọn kiểu sản xuất — CineJelly tự viết kịch bản, storyboard, prompt, gói kiểm duyệt và render.",
         "mode.short": "Short", "mode.remake": "Remake", "mode.ugc": "UGC", "mode.long": "Dài",
-        "s1.title": "Kể ý tưởng của bạn", "s1.enhance": "✨ AI viết lại", "s1.brief": "Ý tưởng video",
+        "s1.title": "Kể ý tưởng của bạn", "s1.enhance": "✨ Thêm cấu trúc 4 nhịp", "s1.brief": "Ý tưởng video",
         "s1.briefPh": "Mô tả video bạn muốn: ngách, sản phẩm, người/KOL, cấu trúc video mẫu, thời lượng, ngôn ngữ, giọng điệu, bằng chứng và cú chốt.",
-        "s1.starter": "Mẫu nhanh", "s1.rewrite": "Viết lại", "s1.productStarter": "Mẫu sản phẩm",
+        "s1.starter": "Mẫu nhanh", "s1.rewrite": "Thêm cấu trúc", "s1.productStarter": "Mẫu sản phẩm",
+        "s1.beatAlt": " Chia rõ 4 beat: 0-3s hook, 3-7s proof/demo, 7-12s transformation/result, 12-15s payoff ổn định. Giữ chuyển động tự nhiên, không chữ trên màn hình, audio có nhịp nhưng visual vẫn hiểu được nếu tắt tiếng.",
+        "s1.beatMain": " Bổ sung hook trong 1 giây đầu, proof/demo ở giữa, payoff cuối rõ ràng, nhịp TikTok tự nhiên, không chữ trên màn hình, endpoint sạch để review hoặc nối cảnh.",
         "s2.title": "Thêm tham chiếu (ảnh/video)", "s2.clear": "Xoá hết",
         "s2.kol": "KOL / Nhân vật", "s2.imgRef": "ảnh tham chiếu", "s2.product": "Sản phẩm", "s2.scene": "Bối cảnh", "s2.bg": "ảnh nền",
         "s2.source": "Video mẫu", "s2.pattern": "học cấu trúc", "s2.voice": "Giọng / Ghi chú", "s2.voiceS": "định hướng giọng",
@@ -1546,10 +1548,12 @@ export function buildShortPipelineCreatePage(): string {
         "poll.finishing": "⏳ Video đang được xử lý và hoàn thiện, vui lòng chờ trong giây lát. Credits đã được giữ — trang sẽ tự cập nhật khi xong.",
         "err.loginFirst": "Hãy đăng nhập tài khoản (nút Đăng nhập phía trên) trước khi tải file lên.",
         "err.uploadTooBig": "File quá lớn (tối đa 25MB). Hãy nén ảnh/video rồi thử lại.",
+        "err.needSession": "Hãy tạo hoặc mở một phiên trò chuyện trước khi tạo video.",
+        "ok.renderCreated": "Đã tạo yêu cầu video", "ok.reviewPlan": "Đã tạo kế hoạch. Video chỉ chạy sau khi được duyệt.",
         "up.done1": "Đã tải lên “", "up.done2": "” — trường tham chiếu đã được điền.",
         "err.loginCreate": "Hãy đăng nhập (nút Đăng nhập / Đăng ký phía trên) trước khi tạo video.",
         "err.needIdea": "Hãy nhập ý tưởng video trước khi tạo.",
-        "ce.cost": "Chi phí ước tính:", "ce.balance": "số dư:",
+        "ce.cost": "Chi phí ước tính:", "ce.balance": "số dư:", "ce.from": "🎬 Video AI từ chỉ", "ce.needTopup": "⚠️ nạp thêm để tạo",
         "ce.refundAuto": "Video lỗi được hoàn credits tự động.", "ce.refundManual": "Video lỗi sẽ được đội ngũ xem xét hoàn credits.",
         "help.t": "💡 Hướng dẫn nhanh",
         "help.idea": "Viết như kể cho một người bạn: bán gì / cho ai / video trông thế nào / cú chốt là gì. Càng cụ thể sản phẩm + cảm xúc, video càng dễ viral. Viết tiếng Việt, Trung hay Anh đều được.",
@@ -1567,7 +1571,10 @@ export function buildShortPipelineCreatePage(): string {
         "redub.run": "🌐 Dịch & tạo phụ đề", "redub.running": "⏳ Đang nghe & dịch video (1-3 phút)...",
         "redub.needSource": "Chọn video trước: tải lên bằng 📁 hoặc bấm 🌐 trên video đã render.",
         "redub.done": "✅ Xong:", "redub.segments": "đoạn thoại", "redub.script": "Kịch bản thuyết minh (đọc theo mốc thời gian):",
-        "redub.price1": "Phí:", "redub.priceOp": "Miễn phí với key vận hành.", "redub.credits": "credits / lần"
+        "redub.price1": "Phí:", "redub.priceOp": "Miễn phí với key vận hành.", "redub.credits": "credits / lần",
+        "redub.priceBasis": "Phí = độ dài video (giây) × giá mỗi giây. Số chính xác sẽ hiện để bạn xác nhận TRƯỚC khi trừ.",
+        "redub.quoting": "⏳ Đang tính phí theo độ dài video...", "redub.confirmPrefix": "Video dài", "redub.confirmSuffix": "Đồng ý trừ credits và tạo?",
+        "redub.cancelled": "Đã huỷ — chưa trừ credits nào."
       },
       en: {
         "top.balance": "Balance", "top.queue": "Render queue", "top.queueReady": "Ready",
@@ -1586,9 +1593,11 @@ export function buildShortPipelineCreatePage(): string {
         "hero.h1": "Create AI Video", "hero.noSession": "No session loaded.",
         "hero.eyebrow": "Describe the idea, add references, choose a production pattern — CineJelly builds the script, storyboard, prompt, review packet, and render handoff.",
         "mode.short": "Short", "mode.remake": "Remake", "mode.ugc": "UGC", "mode.long": "Long",
-        "s1.title": "Tell CineJelly your idea", "s1.enhance": "✨ AI Enhance", "s1.brief": "Creative brief",
+        "s1.title": "Tell CineJelly your idea", "s1.enhance": "✨ Add 4-beat structure", "s1.brief": "Creative brief",
         "s1.briefPh": "Describe the actual video you want: niche, product, KOL/person, source-video structure, duration, language, tone, proof, and final payoff.",
-        "s1.starter": "Starter", "s1.rewrite": "Rewrite", "s1.productStarter": "Product starter",
+        "s1.starter": "Starter", "s1.rewrite": "Add structure", "s1.productStarter": "Product starter",
+        "s1.beatAlt": " Split into 4 beats: 0-3s hook, 3-7s proof/demo, 7-12s transformation/result, 12-15s stable payoff. Keep motion natural, no on-screen text, audio has rhythm but the visual still reads with sound off.",
+        "s1.beatMain": " Add a hook in the first second, proof/demo in the middle, a clear payoff at the end, natural TikTok pacing, no on-screen text, a clean endpoint for review or scene chaining.",
         "s2.title": "Add references", "s2.clear": "Clear",
         "s2.kol": "KOL / Talent", "s2.imgRef": "image reference", "s2.product": "Product", "s2.scene": "Scene", "s2.bg": "background",
         "s2.source": "Source video", "s2.pattern": "pattern intake", "s2.voice": "Voice / Notes", "s2.voiceS": "audio intent",
@@ -1644,10 +1653,12 @@ export function buildShortPipelineCreatePage(): string {
         "poll.finishing": "⏳ Your video is being processed and finished — please wait a moment. Credits are reserved; this page updates automatically when it is ready.",
         "err.loginFirst": "Please log in (button above) before uploading files.",
         "err.uploadTooBig": "File too large (max 25MB). Compress it and try again.",
+        "err.needSession": "Create or open a chat session before creating a video.",
+        "ok.renderCreated": "Render job created", "ok.reviewPlan": "Review plan created. Provider render is still locked until explicit approval.",
         "up.done1": "Uploaded “", "up.done2": "” — the reference field is filled in.",
         "err.loginCreate": "Please log in (Log in / Sign up above) before creating a video.",
         "err.needIdea": "Please describe your video idea first.",
-        "ce.cost": "Estimated cost:", "ce.balance": "balance:",
+        "ce.cost": "Estimated cost:", "ce.balance": "balance:", "ce.from": "🎬 AI video from just", "ce.needTopup": "⚠️ top up to create",
         "ce.refundAuto": "Failed videos are refunded automatically.", "ce.refundManual": "Failed videos are reviewed by the team for a refund.",
         "help.t": "💡 Quick guide",
         "help.idea": "Write like you are telling a friend: what you sell / for whom / how the video should look / the payoff. The more specific the product + emotion, the more viral the result. Vietnamese, Chinese, or English all work.",
@@ -1665,7 +1676,10 @@ export function buildShortPipelineCreatePage(): string {
         "redub.run": "🌐 Translate & build subtitles", "redub.running": "⏳ Listening & translating (1-3 min)...",
         "redub.needSource": "Pick a source first: upload with 📁 or press 🌐 on a finished video.",
         "redub.done": "✅ Done:", "redub.segments": "speech segments", "redub.script": "Narration script (timed):",
-        "redub.price1": "Fee:", "redub.priceOp": "Free with the operator key.", "redub.credits": "credits per run"
+        "redub.price1": "Fee:", "redub.priceOp": "Free with the operator key.", "redub.credits": "credits per run",
+        "redub.priceBasis": "Fee = video length (seconds) × per-second rate. The exact amount is shown for you to confirm BEFORE any charge.",
+        "redub.quoting": "⏳ Calculating fee from video length...", "redub.confirmPrefix": "Video length", "redub.confirmSuffix": "Confirm charge and generate?",
+        "redub.cancelled": "Cancelled — no credits charged."
       },
       zh: {
         "top.balance": "余额", "top.queue": "渲染队列", "top.queueReady": "就绪",
@@ -1684,9 +1698,11 @@ export function buildShortPipelineCreatePage(): string {
         "hero.h1": "AI 视频创作", "hero.noSession": "尚未加载会话。",
         "hero.eyebrow": "描述创意、添加参考素材、选择制作模式 — CineJelly 自动生成脚本、分镜、提示词、审核包并渲染。",
         "mode.short": "短视频", "mode.remake": "翻拍", "mode.ugc": "UGC", "mode.long": "长片",
-        "s1.title": "告诉 CineJelly 你的创意", "s1.enhance": "✨ AI 润色", "s1.brief": "创意简介",
+        "s1.title": "告诉 CineJelly 你的创意", "s1.enhance": "✨ 添加四段结构", "s1.brief": "创意简介",
         "s1.briefPh": "描述你想要的视频：领域、产品、达人/人物、参考视频结构、时长、语言、语气、卖点证明和结尾亮点。",
-        "s1.starter": "快速模板", "s1.rewrite": "重写", "s1.productStarter": "产品模板",
+        "s1.starter": "快速模板", "s1.rewrite": "添加结构", "s1.productStarter": "产品模板",
+        "s1.beatAlt": " 分为四段：0-3秒钩子，3-7秒证明/演示，7-12秒转变/效果，12-15秒稳定收尾。保持自然运动，无屏幕文字，音频有节奏但静音时画面仍可理解。",
+        "s1.beatMain": " 在第一秒加入钩子，中间放证明/演示，结尾清晰收尾，自然的 TikTok 节奏，无屏幕文字，干净的结束点便于审核或续接场景。",
         "s2.title": "添加参考素材", "s2.clear": "清空",
         "s2.kol": "达人 / 人物", "s2.imgRef": "参考图片", "s2.product": "产品", "s2.scene": "场景", "s2.bg": "背景",
         "s2.source": "参考视频", "s2.pattern": "学习结构", "s2.voice": "配音 / 备注", "s2.voiceS": "配音意图",
@@ -1742,10 +1758,12 @@ export function buildShortPipelineCreatePage(): string {
         "poll.finishing": "⏳ 视频正在处理和完善中，请稍候。积分已预留 — 完成后页面会自动更新。",
         "err.loginFirst": "请先登录（上方按钮）再上传文件。",
         "err.uploadTooBig": "文件太大（最大 25MB），请压缩后重试。",
+        "err.needSession": "创建视频前请先创建或打开一个会话。",
+        "ok.renderCreated": "已创建视频任务", "ok.reviewPlan": "已创建计划。视频需经批准后才会生成。",
         "up.done1": "已上传 “", "up.done2": "” — 参考字段已自动填写。",
         "err.loginCreate": "请先登录（上方 登录/注册）再创建视频。",
         "err.needIdea": "请先输入视频创意。",
-        "ce.cost": "预计费用：", "ce.balance": "余额：",
+        "ce.cost": "预计费用：", "ce.balance": "余额：", "ce.from": "🎬 AI 视频低至", "ce.needTopup": "⚠️ 充值后才能生成",
         "ce.refundAuto": "失败视频将自动退还积分。", "ce.refundManual": "失败视频将由团队审核后退还积分。",
         "help.t": "💡 快速指南",
         "help.idea": "像跟朋友聊天一样描述：卖什么 / 给谁看 / 视频长什么样 / 结尾亮点。产品和情绪越具体，越容易爆。支持越南语、中文、英文。",
@@ -1763,7 +1781,10 @@ export function buildShortPipelineCreatePage(): string {
         "redub.run": "🌐 翻译并生成字幕", "redub.running": "⏳ 正在听写和翻译（1-3分钟）…",
         "redub.needSource": "请先选择视频：用 📁 上传，或在已完成视频上点 🌐。",
         "redub.done": "✅ 完成：", "redub.segments": "段语音", "redub.script": "配音脚本（含时间轴）：",
-        "redub.price1": "费用：", "redub.priceOp": "使用运营密钥免费。", "redub.credits": "积分/次"
+        "redub.price1": "费用：", "redub.priceOp": "使用运营密钥免费。", "redub.credits": "积分/次",
+        "redub.priceBasis": "费用 = 视频时长（秒）× 每秒单价。扣费前会显示确切金额供你确认。",
+        "redub.quoting": "⏳ 正在按视频时长计算费用...", "redub.confirmPrefix": "视频时长", "redub.confirmSuffix": "确认扣费并生成？",
+        "redub.cancelled": "已取消 — 未扣除积分。"
       }
     };
     function t(key) {
@@ -2071,7 +2092,7 @@ export function buildShortPipelineCreatePage(): string {
     async function submitRender() {
       clearMessages();
       if (!activeSessionId) {
-        showError("Load or create a session before creating a render job.");
+        showError(t("err.needSession"));
         return;
       }
       const submitButton = document.getElementById("submit-render");
@@ -2106,7 +2127,7 @@ export function buildShortPipelineCreatePage(): string {
         window.__cjRenderIdempotencyKey = null;
         const jobId = response.jobId || (response.job && response.job.jobId) || "";
         const statusUrl = response.statusUrl || (jobId ? "/v1/render-jobs/" + encodeURIComponent(jobId) : "");
-        showSuccess("Render job created" + (jobId ? " (" + jobId + ")" : "") + ".");
+        showSuccess(t("ok.renderCreated") + (jobId ? " (" + jobId + ")" : "") + ".");
         if (statusUrl) {
           jobPollDelayMs = 3000;
           pollRenderJob(statusUrl);
@@ -2248,10 +2269,11 @@ export function buildShortPipelineCreatePage(): string {
       const loggedIn = Boolean(accountInfo && accountInfo.account);
       const keyEl = document.getElementById("api-key");
       if (!loggedIn && keyEl && keyEl.value.trim()) { line.textContent = t("redub.priceOp"); return; }
-      const perSecond = accountInfo && accountInfo.renderPricing ? (accountInfo.renderPricing.creditsPerRenderSecond || 10) : 10;
-      const credits = Math.max(1, Math.ceil(perSecond * 5));
+      // Honest basis: redub is billed by the source video's real length (not a flat rate). We can't
+      // know that length until the server probes the file, so we state the rule and defer the exact
+      // number to the confirm step — never a misleading "~50 credits".
       const balance = accountInfo && accountInfo.account ? accountInfo.account.balanceCredits : 0;
-      line.textContent = t("redub.price1") + " ~" + credits.toLocaleString("vi-VN") + " " + t("redub.credits") +
+      line.textContent = t("redub.priceBasis") +
         (loggedIn ? " (" + t("ce.balance") + " " + balance.toLocaleString("vi-VN") + " 💎)" : "");
     }
     function openRedubModal() {
@@ -2300,16 +2322,42 @@ export function buildShortPipelineCreatePage(): string {
       if (runButton.dataset.busy === "true") { return; }
       runButton.dataset.busy = "true";
       runButton.disabled = true;
-      runButton.textContent = t("redub.running");
+      runButton.textContent = t("redub.quoting");
       try {
-        const response = await fetch("/v1/redub/plans", {
+        // Step 1 — QUOTE: the server probes the real source duration and returns the exact cost
+        // WITHOUT charging. A customer must see and confirm the true number before any credit moves.
+        const quoteResp = await fetch("/v1/redub/plans", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify(body)
         });
-        const payload = await response.json();
-        if (!response.ok) { throw new Error(payload.error || ("HTTP " + response.status)); }
-        renderRedubResult(payload);
+        const quotePayload = await quoteResp.json();
+        if (!quoteResp.ok) { throw new Error(quotePayload.error || ("HTTP " + quoteResp.status)); }
+        if (quotePayload && quotePayload.status === "quote" && quotePayload.quote) {
+          const q = quotePayload.quote;
+          const confirmMsg = t("redub.confirmPrefix") + " " + Number(q.billableSeconds || 0).toLocaleString("vi-VN") +
+            "s → " + Number(q.credits || 0).toLocaleString("vi-VN") + " credits. " + t("redub.confirmSuffix");
+          if (!window.confirm(confirmMsg)) {
+            errorNode.textContent = t("redub.cancelled");
+            errorNode.hidden = false;
+            return;
+          }
+          // Step 2 — CONFIRM: re-submit echoing the exact quoted credits; only now does the server charge + run.
+          runButton.textContent = t("redub.running");
+          body.acknowledgedCredits = q.credits;
+          const runResp = await fetch("/v1/redub/plans", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify(body)
+          });
+          const runPayload = await runResp.json();
+          if (!runResp.ok) { throw new Error(runPayload.error || ("HTTP " + runResp.status)); }
+          renderRedubResult(runPayload);
+          refreshAccount();
+          return;
+        }
+        // Operator key (no per-run charge) gets the result directly with no quote step.
+        renderRedubResult(quotePayload);
         refreshAccount();
       } catch (error) {
         errorNode.textContent = error instanceof Error ? error.message : String(error);
@@ -2375,10 +2423,9 @@ export function buildShortPipelineCreatePage(): string {
         return;
       }
       const status = job.status || "unknown";
-      const stage = typeof job.currentStage === "string" && job.currentStage
-        ? " | stage: " + job.currentStage
-        : "";
-      setRenderStatus("Job " + (job.jobId || "") + " status: " + status + stage + " | " + statusUrl);
+      // Show the same friendly, localized label as the Jobs list — never the raw internal status
+      // string or the /v1/... URL (unpolished + confusing for a non-technical customer).
+      setRenderStatus("⏳ " + customerStatusLabel(status));
       if (status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected" || status === "blocked") {
         if (accountInfo && accountInfo.account) {
           var autoRefund = accountInfo && accountInfo.refundPolicy === "auto";
@@ -2461,7 +2508,7 @@ export function buildShortPipelineCreatePage(): string {
       activeSessionId = response.session.sessionId;
       setSessionLine(activeSessionId);
       document.getElementById("refresh-contract").disabled = false;
-      showSuccess("Review plan created. Provider render is still locked until explicit approval.");
+      showSuccess(t("ok.reviewPlan"));
       await loadContract(activeSessionId);
       await loadSessions();
     }
@@ -2878,17 +2925,59 @@ export function buildShortPipelineCreatePage(): string {
       }
     }
 
+    // Metered credit estimate for a clip. Mirrors the server formula (duration × candidate passes ×
+    // the tier's credits-per-render-second), falling back to the legacy per-second model.
+    function meteredCredits(seconds, tier, quality) {
+      var pp = accountInfo && accountInfo.pipelinePricing;
+      if (!pp || !pp.enabled) {
+        var per = (accountInfo && accountInfo.renderPricing && accountInfo.renderPricing.creditsPerRenderSecond) || 10;
+        var minLegacy = (accountInfo && accountInfo.renderPricing && accountInfo.renderPricing.minimumChargeCredits) || 1;
+        return Math.max(minLegacy, Math.ceil(seconds * per));
+      }
+      var rateMap = pp.creditsPerRenderSecondByTier || {};
+      var rate = rateMap[tier] || rateMap[pp.cheapestTier] || 10;
+      var cand = (pp.candidateCountByQuality && pp.candidateCountByQuality[quality]) || 2;
+      return Math.max(pp.minimumChargeCredits || 20, Math.ceil(seconds * cand * rate));
+    }
+    // Convert credits to đồng at the customer's BEST (cheapest) regular package rate.
+    function creditsToVnd(credits) {
+      var best = null;
+      var pkgs = (accountInfo && accountInfo.packages) || [];
+      pkgs.forEach(function (p) {
+        if (!p.oncePerAccount && p.credits > 0 && p.priceVnd > 0) {
+          var r = p.priceVnd / p.credits;
+          if (best === null || r < best) { best = r; }
+        }
+      });
+      return best ? Math.round(credits * best) : null;
+    }
     function updateCreditEstimate() {
       const box = document.getElementById("credit-estimate");
       if (!box) { return; }
-      if (!accountInfo || !accountInfo.renderPricing) { box.hidden = true; return; }
+      if (!accountInfo) { box.hidden = true; return; }
       const durationInput = document.getElementById("duration");
       const seconds = Math.max(1, Number(durationInput && durationInput.value ? durationInput.value : 15) || 15);
-      const pricing = accountInfo.renderPricing;
-      const credits = Math.max(pricing.minimumChargeCredits || 1, Math.ceil(seconds * (pricing.creditsPerRenderSecond || 10)));
-      const balance = accountInfo.account ? accountInfo.account.balanceCredits : 0;
-      var refundHint = (accountInfo && accountInfo.refundPolicy === "auto") ? t("ce.refundAuto") : t("ce.refundManual");
-      box.textContent = t("ce.cost") + " ~" + credits.toLocaleString("vi-VN") + " credits (" + t("ce.balance") + " " + balance.toLocaleString("vi-VN") + " 💎). " + refundHint;
+      const loggedIn = Boolean(accountInfo.account);
+      const balance = loggedIn ? accountInfo.account.balanceCredits : 0;
+      const pp = accountInfo.pipelinePricing;
+      // Teaser: no credits yet → show only the cheapest "from Xđ" anchor (hide the full configured
+      // total to stay attractive); the real per-clip cost is revealed once they have credits.
+      if (balance <= 0) {
+        const teaserTier = (pp && pp.cheapestTier) || "mini";
+        const teaserCredits = meteredCredits(seconds, teaserTier, "economy");
+        const teaserVnd = creditsToVnd(teaserCredits);
+        box.textContent = t("ce.from") + " " + (teaserVnd ? teaserVnd.toLocaleString("vi-VN") + "đ" : teaserCredits + " credits") + " / video";
+        box.hidden = false;
+        return;
+      }
+      // Has credits → reveal the real metered estimate for the standard render profile + gate hint.
+      const credits = meteredCredits(seconds, "standard", "standard");
+      const vnd = creditsToVnd(credits);
+      const refundHint = (accountInfo.refundPolicy === "auto") ? t("ce.refundAuto") : t("ce.refundManual");
+      const gate = balance < credits ? (" — " + t("ce.needTopup")) : "";
+      box.textContent = t("ce.cost") + " ~" + credits.toLocaleString("vi-VN") + " credits"
+        + (vnd ? " (~" + vnd.toLocaleString("vi-VN") + "đ)" : "")
+        + " • " + t("ce.balance") + " " + balance.toLocaleString("vi-VN") + " 💎" + gate + ". " + refundHint;
       box.hidden = false;
     }
 
@@ -3306,15 +3395,12 @@ export function buildShortPipelineCreatePage(): string {
       updateEstimatedCost();
     }
 
+    // Not an AI call — appends a proven 4-beat structure template (localized) to the brief.
     function enhancePrompt() {
       const prompt = document.getElementById("prompt");
       const text = prompt.value.trim();
       if (!text) return;
-      if (/hook|mở đầu|trước sau|before/i.test(text)) {
-        prompt.value = text + " Chia rõ 4 beat: 0-3s hook, 3-7s proof/demo, 7-12s transformation/result, 12-15s payoff ổn định. Giữ chuyển động tự nhiên, không chữ trên màn hình, audio có nhịp nhưng visual vẫn hiểu được nếu tắt tiếng.";
-      } else {
-        prompt.value = text + " Bổ sung hook trong 1 giây đầu, proof/demo ở giữa, payoff cuối rõ ràng, nhịp TikTok tự nhiên, không chữ trên màn hình, endpoint sạch để review hoặc nối cảnh.";
-      }
+      prompt.value = text + (/hook|mở đầu|trước sau|before/i.test(text) ? t("s1.beatAlt") : t("s1.beatMain"));
       updatePromptCount();
     }
 

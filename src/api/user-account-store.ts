@@ -70,6 +70,11 @@ export interface CreditPackage {
    * (so changing CINEJELLY_USD_TO_VND updates every pack); the value here is a 27k seed. */
   readonly priceVnd: number;
   readonly bonusNote?: string;
+  /**
+   * Anti-farm trial pack: claimable ONCE per account. Requires a real (admin-approved) payment,
+   * so it can't be farmed across throwaway accounts, and credits can't be cashed out — only spent.
+   */
+  readonly oncePerAccount?: boolean;
 }
 
 /** Default USD→VND exchange rate used to convert package prices for the bank transfer. */
@@ -83,18 +88,19 @@ export function withComputedVnd(creditPackage: CreditPackage, usdToVnd: number):
 
 /**
  * Default catalog; override with CINEJELLY_CREDIT_PACKAGES_JSON, or edit live in the admin
- * Settings tab. Credits never expire (one-time top-ups, no monthly). Pricing is designed for
- * a healthy ~2.5–3x margin over Atlas cost at the STANDARD tier (so cheaper tiers earn even
- * more), with the per-credit price dropping ~16% from the trial to the Studio pack to reward
- * bigger top-ups. IMPORTANT: these assume roughly ~45–50k VND provider cost per 15s standard
- * video (150 credits at 10 credits/sec) — verify against your real Atlas dashboard + FX rate
- * and tune the numbers (or the whole ladder) in the admin Settings tab.
+ * Settings tab. Credits NEVER expire (one-time top-ups — a deliberate edge over Topview's
+ * monthly-reset credits). With metered pipeline pricing (1 credit = ~$0.01 of real provider
+ * cost), the per-credit SELL price is the margin: it steps down from +25% (Starter) toward ~+7%
+ * (Business) to reward bigger top-ups and pull buyers up the ladder. The 🎁 trial pack is a
+ * once-per-account paid hook (slight loss-leader, farm-proof: real admin-approved payment, no
+ * cash-out). Tune everything (prices, credits, unit costs, markup) live in admin Settings.
  */
 export const DEFAULT_CREDIT_PACKAGES: readonly CreditPackage[] = [
-  { packageId: "goi_dungthu", label: "⚡ Trial", credits: 150, priceUsd: 5, priceVnd: 135_000, bonusNote: "Làm thử 1 video 15 giây" },
-  { packageId: "goi_phobien", label: "⭐ Starter", credits: 500, priceUsd: 15, priceVnd: 405_000, bonusNote: "PHỔ BIẾN NHẤT • ~3 video" },
-  { packageId: "goi_chuyennghiep", label: "💎 Plus", credits: 1_400, priceUsd: 39, priceVnd: 1_053_000, bonusNote: "~9 video • tiết kiệm ~16%/credit" },
-  { packageId: "goi_studio", label: "👑 Ultra", credits: 4_000, priceUsd: 99, priceVnd: 2_673_000, bonusNote: "RẺ NHẤT mỗi video • ~26 video • credits KHÔNG hết hạn" }
+  { packageId: "goi_dungthu", label: "🎁 Dùng thử", credits: 400, priceUsd: 3, priceVnd: 81_000, bonusNote: "1 LẦN/tài khoản • tặng +33% • dùng thử render thật", oncePerAccount: true },
+  { packageId: "goi_khoidiem", label: "⚡ Khởi điểm", credits: 1_600, priceUsd: 20, priceVnd: 540_000, bonusNote: "Vào cửa" },
+  { packageId: "goi_creator", label: "🎬 Creator", credits: 6_000, priceUsd: 69, priceVnd: 1_863_000, bonusNote: "Rẻ hơn ~8%/credit" },
+  { packageId: "goi_pro", label: "⭐ Pro", credits: 9_000, priceUsd: 99, priceVnd: 2_673_000, bonusNote: "PHỔ BIẾN NHẤT • rẻ hơn ~12%/credit" },
+  { packageId: "goi_business", label: "👑 Business", credits: 28_000, priceUsd: 299, priceVnd: 8_073_000, bonusNote: "RẺ NHẤT mỗi credit • credits KHÔNG hết hạn" }
 ];
 
 export interface UserRecord {
@@ -192,12 +198,142 @@ export function estimateRenderCredits(input: {
   readonly qualityMode?: string;
   readonly pricing: RenderCreditPricing;
 }): number {
-  const seconds = Math.max(1, Math.min(3_600, input.durationTargetSeconds ?? 15));
-  const multiplier = input.pricing.qualityMultipliers[input.qualityMode ?? "standard"] ?? 1;
+  // Coerce a non-finite/NaN duration to the default so the charge is always a real number
+  // (a NaN here would slip past a "balance < credits" check and leave a job queued but uncharged).
+  const requestedSeconds = input.durationTargetSeconds;
+  const safeSeconds = Number.isFinite(requestedSeconds) ? (requestedSeconds as number) : 15;
+  const seconds = Math.max(1, Math.min(3_600, safeSeconds));
+  const rawMultiplier = input.pricing.qualityMultipliers[input.qualityMode ?? "standard"];
+  // Default an unknown/unpriced quality tier to 1.0 (standard), never below — an unrecognised
+  // mode must never bill LESS than standard.
+  const multiplier = Number.isFinite(rawMultiplier) && (rawMultiplier as number) > 0 ? (rawMultiplier as number) : 1;
   return Math.max(
     input.pricing.minimumChargeCredits,
     Math.ceil(seconds * input.pricing.creditsPerRenderSecond * multiplier)
   );
+}
+
+/**
+ * Metered "total pipeline cost" pricing. Instead of a flat per-second proxy, the customer is
+ * charged the REAL provider cost of producing their clip — the dominant driver being video
+ * render seconds × the number of candidate passes the chosen quality renders (economy 1 /
+ * standard 2 / high 3 / ultimate 4), at the chosen speed tier's Atlas $/second — plus a small
+ * overhead multiplier that covers keyframe stills, the planning LLM call, and audio. The cost is
+ * expressed in credits via a fixed cost-basis (1 credit = creditCostBasisUsd of provider cost);
+ * the profit margin lives in the package price (what a credit is SOLD for), not here. So this
+ * number is the honest cost floor, and it auto-tracks Atlas price moves (feed live rates in).
+ */
+export interface PipelineCostConfig {
+  /** Provider-cost value of ONE credit, in USD (e.g. 0.01 → 1 credit = 1 cent of Atlas cost). */
+  readonly creditCostBasisUsd: number;
+  /** Atlas $/second of video, per speed tier (mini/fast/standard). The cost driver (~85-95%). */
+  readonly videoCostUsdPerSecondByTier: Readonly<Record<string, number>>;
+  /** Candidate render passes billed per quality mode (each pass re-renders the full duration). */
+  readonly candidateCountByQuality: Readonly<Record<string, number>>;
+  /**
+   * Repair render passes billed per quality mode. The pipeline re-renders (repairs) failed shots
+   * up to this many times on the higher tiers; billing them conservatively (worst case) keeps the
+   * charge >= real provider cost so margin can't invert on high/ultimate. Matches
+   * repairAttemptCountForQuality: economy 0 / standard 1 / high 2 / ultimate 3.
+   */
+  readonly repairCountByQuality: Readonly<Record<string, number>>;
+  /** Extra render-seconds per shot for QC test-takes on non-economy modes (0 = disabled). */
+  readonly testTakeSecondsPerShot: number;
+  /** Rough seconds-per-shot used to estimate shot count (for the test-take allowance). */
+  readonly avgSecondsPerShot: number;
+  /** Multiplier (>=1) covering keyframe images + planning LLM + audio on top of the video cost. */
+  readonly overheadMultiplier: number;
+  /** Never charge below this many credits (covers tiny clips + minimum viable margin). */
+  readonly minimumChargeCredits: number;
+}
+
+export function loadPipelineCostConfig(env: NodeJS.ProcessEnv = process.env): PipelineCostConfig {
+  const standardRate = readPositiveNumber(env.CINEJELLY_VIDEO_COST_USD_PER_SECOND_STANDARD, 0.09);
+  const fastRate = readPositiveNumber(env.CINEJELLY_VIDEO_COST_USD_PER_SECOND_FAST, 0.072);
+  const miniRate = readPositiveNumber(env.CINEJELLY_VIDEO_COST_USD_PER_SECOND_MINI, 0.045);
+  return {
+    creditCostBasisUsd: readPositiveNumber(env.CINEJELLY_CREDIT_COST_BASIS_USD, 0.01),
+    videoCostUsdPerSecondByTier: { mini: miniRate, fast: fastRate, standard: standardRate },
+    candidateCountByQuality: { economy: 1, standard: 2, high: 3, ultimate: 4 },
+    repairCountByQuality: { economy: 0, standard: 1, high: 2, ultimate: 3 },
+    testTakeSecondsPerShot: readNonNegativeNumber(env.CINEJELLY_TEST_TAKE_SECONDS_PER_SHOT, 4),
+    avgSecondsPerShot: Math.max(1, readPositiveNumber(env.CINEJELLY_AVG_SECONDS_PER_SHOT, 5)),
+    overheadMultiplier: readPositiveNumber(env.CINEJELLY_PIPELINE_OVERHEAD_MULTIPLIER, 1.15),
+    minimumChargeCredits: Math.max(1, Math.round(readPositiveNumber(env.CINEJELLY_MIN_CHARGE_CREDITS, 20)))
+  };
+}
+
+export interface PipelineCostEstimate {
+  readonly credits: number;
+  readonly estimatedCostUsd: number;
+  readonly billedRenderSeconds: number;
+  readonly candidateCount: number;
+  readonly tier: string;
+}
+
+/**
+ * Estimate the credits to charge for one clip. Deterministic and conservative: uses the actual
+ * candidate multiplier of the chosen quality so re-render passes are billed (never eaten), and a
+ * safety overhead multiplier so real cost rarely exceeds the quote.
+ */
+export function estimatePipelineRenderCredits(input: {
+  readonly durationTargetSeconds?: number;
+  readonly qualityMode?: string;
+  readonly tier?: string;
+  readonly config: PipelineCostConfig;
+}): PipelineCostEstimate {
+  const config = input.config;
+  const requestedSeconds = input.durationTargetSeconds;
+  const safeSeconds = Number.isFinite(requestedSeconds) ? (requestedSeconds as number) : 15;
+  const seconds = Math.max(1, Math.min(3_600, safeSeconds));
+  const quality = input.qualityMode ?? "standard";
+  const rawCandidates = config.candidateCountByQuality[quality];
+  // Unknown quality must never bill fewer passes than standard (never under-charge).
+  const candidateCount = Math.max(
+    1,
+    Number.isFinite(rawCandidates) ? (rawCandidates as number) : config.candidateCountByQuality.standard ?? 2
+  );
+  // Repair passes are billed too (the pipeline re-renders failed shots on higher tiers). Billing
+  // the worst case keeps the charge >= real cost so margin can't invert on high/ultimate.
+  const rawRepairs = config.repairCountByQuality[quality];
+  const repairCount = Math.max(
+    0,
+    Number.isFinite(rawRepairs) ? (rawRepairs as number) : config.repairCountByQuality.standard ?? 1
+  );
+  const tier = input.tier && config.videoCostUsdPerSecondByTier[input.tier] !== undefined ? input.tier : "standard";
+  const rawTierRate = config.videoCostUsdPerSecondByTier[tier];
+  const tierRate = Number.isFinite(rawTierRate) && (rawTierRate as number) > 0 ? (rawTierRate as number) : 0.09;
+  // Test-takes: short QC renders per shot on non-economy modes. Estimate shot count from duration.
+  const isEconomy = quality === "economy";
+  const estimatedShots = Math.max(1, Math.ceil(seconds / Math.max(1, config.avgSecondsPerShot)));
+  const testTakeSeconds =
+    !isEconomy && config.testTakeSecondsPerShot > 0 ? estimatedShots * config.testTakeSecondsPerShot : 0;
+  const billedRenderSeconds = seconds * (candidateCount + repairCount) + testTakeSeconds;
+  const videoUsd = billedRenderSeconds * tierRate;
+  const overhead = Number.isFinite(config.overheadMultiplier) && config.overheadMultiplier >= 1 ? config.overheadMultiplier : 1;
+  const totalUsd = videoUsd * overhead;
+  const basis = Number.isFinite(config.creditCostBasisUsd) && config.creditCostBasisUsd > 0 ? config.creditCostBasisUsd : 0.01;
+  const credits = Math.max(config.minimumChargeCredits, Math.ceil(totalUsd / basis));
+  return {
+    credits,
+    estimatedCostUsd: Math.round(totalUsd * 10_000) / 10_000,
+    billedRenderSeconds,
+    candidateCount,
+    tier
+  };
+}
+
+/**
+ * Package IDs that are ALWAYS once-per-account, independent of the editable catalog. Backstops the
+ * `oncePerAccount` flag so re-saving packages (admin Settings / env JSON) can't silently disable
+ * the paid-trial farm guard. Override with CINEJELLY_ONCE_PER_ACCOUNT_PACKAGE_IDS (comma list).
+ */
+export function oncePerAccountPackageIds(env: NodeJS.ProcessEnv = process.env): readonly string[] {
+  const raw = env.CINEJELLY_ONCE_PER_ACCOUNT_PACKAGE_IDS?.trim();
+  if (!raw) {
+    return ["goi_dungthu"];
+  }
+  return raw.split(",").map((id) => id.trim()).filter(Boolean);
 }
 
 export function loadCreditPackages(env: NodeJS.ProcessEnv = process.env): readonly CreditPackage[] {
@@ -231,7 +367,8 @@ export function loadCreditPackages(env: NodeJS.ProcessEnv = process.env): readon
       credits: Math.floor(record.credits as number),
       priceUsd,
       priceVnd,
-      ...(record.bonusNote?.trim() ? { bonusNote: record.bonusNote.trim() } : {})
+      ...(record.bonusNote?.trim() ? { bonusNote: record.bonusNote.trim() } : {}),
+      ...(record.oncePerAccount === true ? { oncePerAccount: true as const } : {})
     };
   });
 }
@@ -253,6 +390,10 @@ export class UserAccountStore {
   private readonly state: StoreState;
   private readonly balances = new Map<string, number>();
   private readonly loginFailures = new Map<string, { count: number; firstAt: number }>();
+  // Emails with a login verification currently in flight. Serialising to one attempt per email
+  // stops a burst of concurrent logins from all clearing the lockout check before any failure is
+  // recorded across the scrypt `await` (a check-then-act race that would outrun the attempt cap).
+  private readonly loginInFlight = new Set<string>();
 
   public constructor(input: {
     readonly storePath?: string;
@@ -341,21 +482,31 @@ export class UserAccountStore {
   }> {
     const email = normalizeEmail(input.email);
     this.assertLoginNotLocked(email);
-    const user = this.state.users.find((candidate) => candidate.email === email);
-    const presented = typeof input.password === "string" ? input.password : "";
-    // Always run scrypt so wrong-email and wrong-password take the same time.
-    const salt = user ? Buffer.from(user.passwordSaltHex, "hex") : randomBytes(16);
-    const presentedHash = await hashPasswordAsync(presented, salt);
-    const expectedHash = user ? Buffer.from(user.passwordHashHex, "hex") : randomBytes(SCRYPT_KEY_LENGTH);
-    const matches = presentedHash.length === expectedHash.length && timingSafeEqual(presentedHash, expectedHash);
-    if (!user || !matches || user.status !== "active") {
-      this.recordLoginFailure(email);
-      throw new UserAccountError("Email hoặc mật khẩu chưa đúng.", 401);
+    // One in-flight attempt per email: a concurrent burst can't all slip past the lockout check
+    // before any of them records a failure across the scrypt await.
+    if (this.loginInFlight.has(email)) {
+      throw new UserAccountError("Đang xử lý một lần đăng nhập cho email này — thử lại sau giây lát.", 429);
     }
-    this.loginFailures.delete(email);
-    const sessionToken = this.issueSession(user.userId);
-    this.persist();
-    return { user: this.publicUser(user), sessionToken };
+    this.loginInFlight.add(email);
+    try {
+      const user = this.state.users.find((candidate) => candidate.email === email);
+      const presented = typeof input.password === "string" ? input.password : "";
+      // Always run scrypt so wrong-email and wrong-password take the same time.
+      const salt = user ? Buffer.from(user.passwordSaltHex, "hex") : randomBytes(16);
+      const presentedHash = await hashPasswordAsync(presented, salt);
+      const expectedHash = user ? Buffer.from(user.passwordHashHex, "hex") : randomBytes(SCRYPT_KEY_LENGTH);
+      const matches = presentedHash.length === expectedHash.length && timingSafeEqual(presentedHash, expectedHash);
+      if (!user || !matches || user.status !== "active") {
+        this.recordLoginFailure(email);
+        throw new UserAccountError("Email hoặc mật khẩu chưa đúng.", 401);
+      }
+      this.loginFailures.delete(email);
+      const sessionToken = this.issueSession(user.userId);
+      this.persist();
+      return { user: this.publicUser(user), sessionToken };
+    } finally {
+      this.loginInFlight.delete(email);
+    }
   }
 
   /** Self-service password change; revokes every other session for safety. */
@@ -498,6 +649,22 @@ export class UserAccountStore {
     if (existingPending) {
       return existingPending;
     }
+    // Anti-farm: a once-per-account pack (the paid trial) can be claimed a single time. Any prior
+    // non-rejected request for it blocks a second claim, so throwaway accounts can't re-farm the
+    // bonus (and the payment itself is admin-approved, adding a human gate). The rule fires on the
+    // package's flag OR a server-side protected-ID set, so it survives even if the editable catalog
+    // (admin Settings / env JSON) drops the flag when packages are re-saved.
+    const isOncePerAccount =
+      creditPackage.oncePerAccount === true || oncePerAccountPackageIds().includes(creditPackage.packageId);
+    if (isOncePerAccount) {
+      const alreadyClaimed = this.state.topups.some(
+        (topup) =>
+          topup.userId === input.userId && topup.packageId === creditPackage.packageId && topup.status !== "rejected"
+      );
+      if (alreadyClaimed) {
+        throw new UserAccountError("Gói dùng thử chỉ dùng được 1 lần mỗi tài khoản. Hãy chọn gói khác.", 409);
+      }
+    }
     const pendingCount = this.state.topups.filter(
       (topup) => topup.userId === input.userId && topup.status === "pending"
     ).length;
@@ -614,6 +781,17 @@ export class UserAccountStore {
     const adjustedCredits = Number.isFinite(input.credits) ? Math.trunc(input.credits) : 0;
     if (adjustedCredits === 0 || Math.abs(adjustedCredits) > 1_000_000) {
       throw new UserAccountError("Số credits điều chỉnh không hợp lệ.", 400);
+    }
+    // Never let a manual adjustment drive the balance below zero (a stuck-negative account would
+    // silently swallow the customer's next top-up). Removing credits is capped at what they hold.
+    if (adjustedCredits < 0) {
+      const currentBalance = this.balanceOf(user.userId);
+      if (currentBalance + adjustedCredits < 0) {
+        throw new UserAccountError(
+          `Không thể trừ ${Math.abs(adjustedCredits)} credits: khách chỉ còn ${currentBalance}. Nhập tối đa -${currentBalance}.`,
+          400
+        );
+      }
     }
     this.appendEntry({
       userId: user.userId,
@@ -945,6 +1123,18 @@ function readPositiveNumber(value: string | undefined, fallback: number): number
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error("CINEJELLY_CREDITS_PER_RENDER_SECOND must be a positive number.");
+  }
+  return parsed;
+}
+
+function readNonNegativeNumber(value: string | undefined, fallback: number): number {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error("Pipeline cost value must be a non-negative number.");
   }
   return parsed;
 }

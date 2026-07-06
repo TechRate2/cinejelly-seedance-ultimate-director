@@ -173,6 +173,10 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
         resolution: plan.seedanceRouting.resolution,
         bitrateMode: plan.seedanceRouting.bitrateMode,
         returnLastFrame: plan.seedanceRouting.returnLastFrame,
+        // Customer renders default to single-pass (economy): no extra candidate/repair passes to
+        // eat cost, which keeps clips competitively cheap and makes the metered charge equal the
+        // real render. Callers can still override to a pricier best-of-N quality (billed for it).
+        qualityMode: "economy",
         ...input.settings,
         audioMode: shortAudioMode
       },

@@ -19,10 +19,12 @@ import {
   DEFAULT_CREDIT_PACKAGES,
   DEFAULT_USD_TO_VND,
   loadCreditPackages,
+  loadPipelineCostConfig,
   loadRenderCreditPricing,
   UserAccountError,
   withComputedVnd,
   type CreditPackage,
+  type PipelineCostConfig,
   type RenderCreditPricing
 } from "./user-account-store.js";
 
@@ -65,7 +67,15 @@ export interface AdminSettingsState {
   topupBankInfo?: string;
   models?: AdminModelOverrides;
   studio?: AdminStudioContent;
+  pipelineCost?: PipelineCostOverride;
   auditTrail: { at: string; action: string; detail: string }[];
+}
+
+export interface PipelineCostOverride {
+  creditCostBasisUsd?: number;
+  videoCostUsdPerSecondByTier?: Record<string, number>;
+  overheadMultiplier?: number;
+  minimumChargeCredits?: number;
 }
 
 export interface AdminSettingsPatch {
@@ -77,6 +87,7 @@ export interface AdminSettingsPatch {
   readonly topupBankInfo?: unknown;
   readonly models?: unknown;
   readonly studio?: unknown;
+  readonly pipelineCost?: unknown;
 }
 
 export function readAdminSettingsPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -121,6 +132,37 @@ export class AdminSettingsStore {
       creditsPerRenderSecond: perSecond,
       qualityMultipliers: { ...base.qualityMultipliers, ...(this.state.qualityMultipliers ?? {}) },
       minimumChargeCredits: Math.max(1, Math.round(perSecond * 3))
+    };
+  }
+
+  /**
+   * Metered pipeline cost config (env defaults + live admin overrides). Drives the customer's
+   * per-clip charge = real provider cost of the clip → credits.
+   */
+  public pipelineCost(): PipelineCostConfig {
+    const base = loadPipelineCostConfig(this.env);
+    const override = this.state.pipelineCost;
+    if (!override) {
+      return base;
+    }
+    return {
+      creditCostBasisUsd:
+        typeof override.creditCostBasisUsd === "number" && override.creditCostBasisUsd > 0
+          ? override.creditCostBasisUsd
+          : base.creditCostBasisUsd,
+      videoCostUsdPerSecondByTier: { ...base.videoCostUsdPerSecondByTier, ...(override.videoCostUsdPerSecondByTier ?? {}) },
+      candidateCountByQuality: base.candidateCountByQuality,
+      repairCountByQuality: base.repairCountByQuality,
+      testTakeSecondsPerShot: base.testTakeSecondsPerShot,
+      avgSecondsPerShot: base.avgSecondsPerShot,
+      overheadMultiplier:
+        typeof override.overheadMultiplier === "number" && override.overheadMultiplier >= 1
+          ? override.overheadMultiplier
+          : base.overheadMultiplier,
+      minimumChargeCredits:
+        typeof override.minimumChargeCredits === "number" && override.minimumChargeCredits >= 1
+          ? Math.round(override.minimumChargeCredits)
+          : base.minimumChargeCredits
     };
   }
 
@@ -343,7 +385,18 @@ export class AdminSettingsStore {
       }
       const priceVnd = hasVnd ? Math.floor(rawVnd) : Math.round(priceUsd * DEFAULT_USD_TO_VND);
       const bonusNote = typeof record.bonusNote === "string" ? record.bonusNote.trim().slice(0, 80) : "";
-      return { packageId, label, credits, priceUsd, priceVnd, ...(bonusNote ? { bonusNote } : {}) };
+      // Preserve the anti-farm once-per-account flag through admin edits (dropping it would silently
+      // let the paid trial be re-claimed). The server-side protected-ID set backstops this too.
+      const oncePerAccount = (record as { oncePerAccount?: unknown }).oncePerAccount === true;
+      return {
+        packageId,
+        label,
+        credits,
+        priceUsd,
+        priceVnd,
+        ...(bonusNote ? { bonusNote } : {}),
+        ...(oncePerAccount ? { oncePerAccount: true as const } : {})
+      };
     });
   }
 

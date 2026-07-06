@@ -28,7 +28,14 @@ import { captionCuesToSrt } from "../core/subtitle-translator.js";
 import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider.js";
 import { ProviderCostLedger } from "../providers/cost-ledger.js";
 import { loadRuntimeSettings } from "../config/runtime-config.js";
-import { UserAccountError, UserAccountStore, estimateRenderCredits, type RenderCreditPricing } from "./user-account-store.js";
+import {
+  UserAccountError,
+  UserAccountStore,
+  estimateRenderCredits,
+  estimatePipelineRenderCredits,
+  type RenderCreditPricing,
+  type PipelineCostConfig
+} from "./user-account-store.js";
 import { AdminSettingsStore } from "./admin-settings-store.js";
 import { RuntimePreflight } from "../application/runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "../application/validation-readiness-report.js";
@@ -84,6 +91,8 @@ import type { ShortChannelStyleProfileInput } from "../types/short-channel-style
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiResponse } from "./api-response-redaction.js";
 import { redactEmbeddedLocalPaths } from "./api-response-redaction.js";
+import { probeAtlasModelPricing, AtlasPricingProbeError, ATLAS_PRICING_PAGE_URL } from "./atlas-pricing-probe.js";
+import type { AtlasPricingProbeResult } from "./atlas-pricing-probe.js";
 import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import {
@@ -454,6 +463,23 @@ class ShortChannelStyleProfileNotFoundError extends Error {
   }
 }
 
+/**
+ * Short-lived cache for the live Atlas pricing scrape so rapid operator clicks don't hammer the
+ * Atlas marketing page (which is Cloudflare-fronted). "Realtime" for the operator's purposes: a
+ * click re-reads within a minute is served from cache; older than that re-fetches.
+ */
+const ATLAS_PRICING_CACHE_TTL_MS = 60_000;
+let atlasPricingCache: { at: number; result: AtlasPricingProbeResult } | undefined;
+
+async function readAtlasPricingCached(nowMs: number): Promise<AtlasPricingProbeResult> {
+  if (atlasPricingCache && nowMs - atlasPricingCache.at < ATLAS_PRICING_CACHE_TTL_MS) {
+    return atlasPricingCache.result;
+  }
+  const result = await probeAtlasModelPricing();
+  atlasPricingCache = { at: nowMs, result };
+  return result;
+}
+
 export function startServer(port = readPort(process.env.PORT)): Server {
   const maxBodyBytes = readPositiveInteger(process.env.CINEJELLY_API_MAX_BODY_BYTES, DEFAULT_MAX_BODY_BYTES);
   const preflight = new RuntimePreflight();
@@ -813,6 +839,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           principal: authDecision.principal,
           store: userAccountStore,
           pricing: adminSettingsStore.pricing(),
+          pipelineCost: adminSettingsStore.pipelineCost(),
           request: normalizedRequest
         });
         let commercialReservation: CommercialRenderReservation | undefined;
@@ -1032,6 +1059,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           principal: authDecision.principal,
           store: userAccountStore,
           pricing: adminSettingsStore.pricing(),
+          pipelineCost: adminSettingsStore.pipelineCost(),
           request: normalizedRequest
         });
         let commercialReservation: CommercialRenderReservation | undefined;
@@ -1188,6 +1216,10 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           packages: adminSettingsStore.packages(),
           usdToVnd: adminSettingsStore.usdToVnd(),
           renderPricing: adminSettingsStore.pricing(),
+          // Metered pricing exposed as DERIVED credit rates (credits per render-second per tier),
+          // never the raw Atlas USD cost — the customer can compute their clip's credit price
+          // client-side without seeing supplier cost.
+          pipelinePricing: buildPipelinePricingDescriptor(adminSettingsStore.pipelineCost(), process.env),
           refundPolicy: adminSettingsStore.refundPolicy(),
           topupInstructions: adminSettingsStore.topupBankInfo() ||
             "Chuyển khoản theo gói đã chọn rồi bấm 'Tôi đã chuyển khoản' — quản trị viên sẽ duyệt và cộng credits.",
@@ -1250,6 +1282,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           subtitleLanguages?: readonly string[];
           voiceStyle?: string;
           originalAudioTreatment?: string;
+          acknowledgedCredits?: number;
         }>(request, maxBodyBytes);
         const languagePattern = /^[a-z]{2}(-[a-z0-9]{2,8})?$/;
         const dubLanguage = typeof body.dubLanguage === "string" ? body.dubLanguage.trim().toLowerCase() : "";
@@ -1324,7 +1357,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         // hard-cap the length, so provider cost (STT + translation + TTS scale with duration)
         // can never outrun the credits collected. Probe is best-effort: if ffprobe can't read
         // the file, fall back to the flat minimum (the 25MB upload cap still bounds the source).
-        let redubBillableSeconds = REDUB_FLAT_PRICE_SECONDS;
+        let redubBillableSeconds = REDUB_FALLBACK_SECONDS;
         if (redubProbePath) {
           try {
             const probed = await new MediaInspector().probe(redubProbePath);
@@ -1361,6 +1394,23 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             redubPricing.minimumChargeCredits,
             Math.ceil(redubPricing.creditsPerRenderSecond * redubBillableSeconds)
           );
+          // Honest pre-charge quote. Redub is billed by the SOURCE video's REAL duration, which the
+          // browser cannot know until we probe the file here — so the first call NEVER charges: it
+          // returns the true cost and the client must re-submit with acknowledgedCredits matching.
+          // Nobody is ever charged an amount they were not shown and did not confirm first.
+          const acknowledgedCredits = Number(body.acknowledgedCredits);
+          if (!Number.isFinite(acknowledgedCredits) || acknowledgedCredits !== redubCredits) {
+            sendJson(response, 200, {
+              status: "quote",
+              quote: {
+                credits: redubCredits,
+                billableSeconds: Math.round(redubBillableSeconds),
+                creditsPerRenderSecond: redubPricing.creditsPerRenderSecond,
+                minimumChargeCredits: redubPricing.minimumChargeCredits
+              }
+            }, requestContext);
+            return;
+          }
           const balanceCredits = userAccountStore.balanceOf(authDecision.principal.userId);
           if (balanceCredits < redubCredits) {
             throw new UserAccountError(
@@ -1486,6 +1536,24 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const patch = await readJsonBody<Record<string, unknown>>(request, maxBodyBytes);
         adminSettingsStore.update(patch, "operator-desk");
         sendJson(response, 200, { settings: adminSettingsStore.snapshot() }, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/atlas-pricing") {
+        // "Kiểm tra giá Atlas realtime": reads Atlas Cloud's PUBLIC pricing page on demand (no API
+        // key, no billable call) so the operator can spot Atlas promos/price moves and retune the
+        // customer-facing rate. On any read/parse failure we return 502 with the page link so the
+        // operator can check manually — never a fabricated price.
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for Atlas pricing.");
+        try {
+          const pricing = await readAtlasPricingCached(Date.now());
+          sendJson(response, 200, pricing, requestContext);
+        } catch (error) {
+          const message =
+            error instanceof AtlasPricingProbeError
+              ? error.message
+              : "Không đọc được giá Atlas ngay lúc này.";
+          sendJson(response, 502, { error: message, sourceUrl: ATLAS_PRICING_PAGE_URL }, requestContext);
+        }
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/admin/refunds") {
@@ -1777,6 +1845,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           principal: authDecision.principal,
           store: userAccountStore,
           pricing: adminSettingsStore.pricing(),
+          pipelineCost: adminSettingsStore.pipelineCost(),
           request: normalizedRequest
         });
         const artifactDirectory = normalizedRequest.artifactDirectory || join(normalizedRequest.workDirectory || ".", "artifacts");
@@ -1896,6 +1965,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           principal: authDecision.principal,
           store: userAccountStore,
           pricing: adminSettingsStore.pricing(),
+          pipelineCost: adminSettingsStore.pipelineCost(),
           request: normalizedRequest
         });
         const syncJobId = `sync_${requestContext.requestId}`;
@@ -3406,11 +3476,53 @@ function jobSummaryForPrincipal(
  * Customer render billing: predictable credits charged up front (fail 402 before any
  * provider spend), refunded automatically when the job is canceled or fails.
  */
+/**
+ * Customer-safe view of metered pricing: credits-per-render-second per speed tier (video cost ×
+ * overhead ÷ credit basis) + the candidate multiplier per quality. Lets the studio compute a
+ * clip's credit price client-side WITHOUT exposing the raw Atlas USD cost. `cheapestTier` powers
+ * the logged-out "from Xđ" teaser.
+ */
+function buildPipelinePricingDescriptor(
+  config: PipelineCostConfig,
+  env: NodeJS.ProcessEnv
+): {
+  readonly enabled: boolean;
+  readonly creditsPerRenderSecondByTier: Readonly<Record<string, number>>;
+  readonly candidateCountByQuality: Readonly<Record<string, number>>;
+  readonly minimumChargeCredits: number;
+  readonly cheapestTier: string;
+} {
+  const basis = config.creditCostBasisUsd > 0 ? config.creditCostBasisUsd : 0.01;
+  const overhead = config.overheadMultiplier >= 1 ? config.overheadMultiplier : 1;
+  const creditsPerRenderSecondByTier: Record<string, number> = {};
+  let cheapestTier = "mini";
+  let cheapestRate = Infinity;
+  for (const [tier, usdPerSecond] of Object.entries(config.videoCostUsdPerSecondByTier)) {
+    const rate = Math.round(((usdPerSecond * overhead) / basis) * 1000) / 1000;
+    creditsPerRenderSecondByTier[tier] = rate;
+    if (rate < cheapestRate) {
+      cheapestRate = rate;
+      cheapestTier = tier;
+    }
+  }
+  return {
+    enabled: (env.CINEJELLY_PIPELINE_PRICING ?? "").trim().toLowerCase() === "true",
+    creditsPerRenderSecondByTier,
+    candidateCountByQuality: config.candidateCountByQuality,
+    minimumChargeCredits: config.minimumChargeCredits,
+    cheapestTier
+  };
+}
+
 function planUserRenderCharge(input: {
   readonly principal: ReturnType<ApiAuthGuard["authorize"]>["principal"];
   readonly store: UserAccountStore;
   readonly pricing: RenderCreditPricing;
-  readonly request: { readonly settings?: { readonly durationTargetSeconds?: number; readonly qualityMode?: string } };
+  readonly pipelineCost?: PipelineCostConfig;
+  readonly request: {
+    readonly settings?: { readonly durationTargetSeconds?: number; readonly qualityMode?: string; readonly tier?: string };
+    readonly modelPreferences?: { readonly seedanceModelId?: string };
+  };
 }): { readonly userId: string; readonly credits: number } | undefined {
   if (input.principal?.kind !== "user" || !input.principal.userId) {
     return undefined;
@@ -3420,13 +3532,32 @@ function planUserRenderCharge(input: {
     // be able to pin renders onto (and drain) another tenant's workspace quota.
     throw new UserAccountError("Tài khoản khách không dùng workspace billing.", 403);
   }
-  const credits = estimateRenderCredits({
-    ...(input.request.settings?.durationTargetSeconds !== undefined
-      ? { durationTargetSeconds: input.request.settings.durationTargetSeconds }
-      : {}),
-    ...(input.request.settings?.qualityMode ? { qualityMode: input.request.settings.qualityMode } : {}),
-    pricing: input.pricing
-  });
+  // Metered pipeline pricing: charge the REAL provider cost of this clip (video render seconds ×
+  // the quality's candidate passes × the tier's Atlas $/second, + overhead), converted to credits.
+  // Gated behind CINEJELLY_PIPELINE_PRICING so the rollout is deliberate; falls back to the legacy
+  // per-second model when the flag is off (keeps existing behavior/tests stable).
+  const usePipeline =
+    input.pipelineCost !== undefined && (process.env.CINEJELLY_PIPELINE_PRICING ?? "").trim().toLowerCase() === "true";
+  // Anti-underpay: a customer who pins a specific model via modelPreferences.seedanceModelId can
+  // run a pricier model than settings.tier implies. Bill the most expensive tier in that case so
+  // model pinning can never undercut the tier rate.
+  const billedTier = input.request.modelPreferences?.seedanceModelId ? "standard" : input.request.settings?.tier;
+  const credits = usePipeline && input.pipelineCost
+    ? estimatePipelineRenderCredits({
+        ...(input.request.settings?.durationTargetSeconds !== undefined
+          ? { durationTargetSeconds: input.request.settings.durationTargetSeconds }
+          : {}),
+        ...(input.request.settings?.qualityMode ? { qualityMode: input.request.settings.qualityMode } : {}),
+        ...(billedTier ? { tier: billedTier } : {}),
+        config: input.pipelineCost
+      }).credits
+    : estimateRenderCredits({
+        ...(input.request.settings?.durationTargetSeconds !== undefined
+          ? { durationTargetSeconds: input.request.settings.durationTargetSeconds }
+          : {}),
+        ...(input.request.settings?.qualityMode ? { qualityMode: input.request.settings.qualityMode } : {}),
+        pricing: input.pricing
+      });
   const balanceCredits = input.store.balanceOf(input.principal.userId);
   if (balanceCredits < credits) {
     throw new UserAccountError(
@@ -3438,11 +3569,11 @@ function planUserRenderCharge(input: {
 }
 
 /**
- * Phí dịch phụ đề/thuyết minh cho tài khoản khách: cố định, bằng giá của
- * REDUB_FLAT_PRICE_SECONDS giây video — admin chỉnh "credits mỗi giây" trong Trung tâm
- * quản trị thì giá này tự đổi theo.
+ * Phí dịch phụ đề/thuyết minh tính theo ĐỘ DÀI THẬT của video nguồn (× "credits mỗi giây"),
+ * và khách luôn được BÁO GIÁ + XÁC NHẬN trước khi trừ (handshake quote/acknowledgedCredits).
+ * Hằng số này chỉ là mức tối thiểu dự phòng khi không đọc được thời lượng (ffprobe lỗi).
  */
-const REDUB_FLAT_PRICE_SECONDS = 5;
+const REDUB_FALLBACK_SECONDS = 5;
 
 /** Hard cap on redub source length so provider spend can never outrun the credits charged. */
 const REDUB_MAX_SOURCE_SECONDS = 600;

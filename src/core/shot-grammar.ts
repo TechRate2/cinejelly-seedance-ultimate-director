@@ -38,7 +38,15 @@ export type CameraMotion =
   | "tracking"
   | "handheld"
   | "orbit"
-  | "crane";
+  | "crane"
+  // Workhorse commercial moves that were missing: lateral truck, vertical pedestal, and OPTICAL
+  // zoom (a lens change, distinct from a physical dolly push/pull — Seedance 2.0 follows both).
+  | "truck_left"
+  | "truck_right"
+  | "pedestal_up"
+  | "pedestal_down"
+  | "zoom_in"
+  | "zoom_out";
 
 /** SkyCaptioner structured subject-expression field, for identity/emotion consistency. */
 export type SubjectExpression =
@@ -73,7 +81,13 @@ const CAMERA_MOTION_DIRECTIVES: Record<CameraMotion, string> = {
   tracking: "tracking move following the subject's motion",
   handheld: "subtle handheld movement for lived-in energy (not shaky)",
   orbit: "arc/orbit around the subject to add dimensionality",
-  crane: "vertical crane move for scale and reveal"
+  crane: "vertical crane move for scale and reveal",
+  truck_left: "lateral truck move sliding left, parallax across the scene",
+  truck_right: "lateral truck move sliding right, parallax across the scene",
+  pedestal_up: "pedestal move raising the camera body straight up",
+  pedestal_down: "pedestal move lowering the camera body straight down",
+  zoom_in: "optical zoom-in tightening the lens on the subject (lens change, not a dolly)",
+  zoom_out: "optical zoom-out widening the lens to reveal context (lens change, not a dolly)"
 };
 
 const SUBJECT_EXPRESSION_DIRECTIVES: Record<SubjectExpression, string> = {
@@ -226,6 +240,11 @@ export function planShotFramingSequence(input: {
     (input.creativeMode && MODE_SHOT_TYPE_PALETTE[input.creativeMode]) || DEFAULT_SHOT_TYPE_PALETTE;
   const result: ShotGrammar[] = [];
   let paletteCursor = 0;
+  let motionCursor = 0;
+  // Size-appropriate dynamic camera moves for the development beats. Wide framings roam through
+  // space (track/truck/pan/orbit/crane); tight framings press in (push/zoom/pedestal/handheld).
+  const wideMotions: readonly CameraMotion[] = ["tracking", "truck_left", "pan_right", "orbit", "crane", "truck_right", "pan_left"];
+  const tightMotions: readonly CameraMotion[] = ["push_in", "zoom_in", "handheld", "pedestal_up", "tilt_up", "zoom_out"];
   for (let index = 0; index < input.arcRoles.length; index += 1) {
     const arcRole = input.arcRoles[index] ?? "development";
     const roleDefault = deriveShotGrammarForArcRole(arcRole);
@@ -244,16 +263,26 @@ export function planShotFramingSequence(input: {
       paletteCursor += 1;
     }
     const shotAngle = arcRole === "climax" ? "low_angle" : ANGLE_CYCLE[index % ANGLE_CYCLE.length] ?? "eye_level";
-    // Camera motion follows the arc: hooks/climaxes push in for tension, endings pull out
-    // to settle, tighter framings hold static, wider framings can track.
-    const cameraMotion: CameraMotion =
-      arcRole === "opening_hook" || arcRole === "climax"
-        ? "push_in"
-        : arcRole === "closing_resolve"
-          ? "pull_out"
-          : shotType === "long_shot" || shotType === "full_shot"
-            ? "tracking"
-            : "static";
+    // Camera motion follows the arc AND varies beat-to-beat — a monotone camera is the #1 tell of
+    // a cheap AI video. Hooks/climaxes push in for tension; endings pull out to settle; the beats
+    // in between rotate a size-appropriate palette of dynamic moves and never repeat.
+    const previousMotion = result[index - 1]?.cameraMotion;
+    const isWide = shotType === "long_shot" || shotType === "full_shot";
+    let cameraMotion: CameraMotion;
+    if (arcRole === "opening_hook" || arcRole === "climax") {
+      cameraMotion = "push_in";
+    } else if (arcRole === "closing_resolve") {
+      cameraMotion = "pull_out";
+    } else {
+      const pool = isWide ? wideMotions : tightMotions;
+      cameraMotion = pool[motionCursor % pool.length] ?? "push_in";
+      motionCursor += 1;
+    }
+    if (cameraMotion === previousMotion) {
+      const pool = isWide ? wideMotions : tightMotions;
+      cameraMotion = pool.find((motion) => motion !== previousMotion) ?? cameraMotion;
+      motionCursor += 1;
+    }
     result.push({ shotType, shotAngle, shotPosition: roleDefault.shotPosition, cameraMotion });
   }
   return result;

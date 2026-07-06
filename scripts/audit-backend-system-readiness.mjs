@@ -140,6 +140,8 @@ const criticalModulePaths = [
 
 const auditedValidationCommandNames = [
   "validation:atlas-billing",
+  "validation:atlas-pricing-probe",
+  "validation:pipeline-pricing",
   "validation:api-response-redaction",
   "validation:backend-system-readiness",
   "validation:backend-system-suite",

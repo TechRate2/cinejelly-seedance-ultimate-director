@@ -358,20 +358,49 @@ try {
     );
     const registerC = await api("POST", "/v1/account/register", { email: "khach.c@shop.vn", password: "matkhau123" });
     const C = { "X-CineJelly-Session": registerC.sessionToken };
-    const redubPoor = await api("POST", "/v1/redub/plans", { dubLanguage: "vi", uploadUri: uploadPayload.uri }, C);
+    // Redub quotes first and never charges on the first call: the customer must confirm the real
+    // (duration-based) cost. Poor account: quote returns 200 with no charge; confirming with the
+    // quoted credits then 402s for insufficient balance.
+    const redubQuotePoor = await api("POST", "/v1/redub/plans", { dubLanguage: "vi", uploadUri: uploadPayload.uri }, C);
+    check(
+      "redub_quote_returns_price_no_charge",
+      redubQuotePoor.status === 200 && redubQuotePoor.payload.status === "quote" && Number(redubQuotePoor.payload.quote?.credits) > 0,
+      `status=${redubQuotePoor.status} credits=${redubQuotePoor.payload.quote?.credits}`
+    );
+    const poorQuoteCredits = redubQuotePoor.payload.quote?.credits;
+    const redubPoor = await api(
+      "POST",
+      "/v1/redub/plans",
+      { dubLanguage: "vi", uploadUri: uploadPayload.uri, acknowledgedCredits: poorQuoteCredits },
+      C
+    );
     check("redub_402_before_any_provider_call", redubPoor.status === 402, `status=${redubPoor.status}`);
     const redubForeign = await api("POST", "/v1/redub/plans", { dubLanguage: "vi", jobId: plantedJobId }, C);
     check("redub_foreign_job_404", redubForeign.status === 404, `status=${redubForeign.status}`);
     const cBalanceAfterGates = (await api("GET", "/v1/account/me", undefined, C)).payload.account?.balanceCredits;
     check("redub_gate_failures_never_charge", cBalanceAfterGates === 0, `balance=${cBalanceAfterGates}`);
     const aBalancePreRedub = (await api("GET", "/v1/account/me", undefined, A2)).payload.account?.balanceCredits ?? 0;
-    const redubReal = await api("POST", "/v1/redub/plans", { dubLanguage: "vi", subtitleLanguages: ["en"], jobId: plantedJobId }, A2);
+    // Funded account: quote then confirm — only the confirm call charges and calls the provider
+    // (which fails in the rehearsal → 5xx), leaving the charge held for manual refund.
+    const redubQuoteReal = await api("POST", "/v1/redub/plans", { dubLanguage: "vi", subtitleLanguages: ["en"], jobId: plantedJobId }, A2);
+    const realQuoteCredits = redubQuoteReal.payload.quote?.credits;
+    check(
+      "redub_real_quote_before_confirm",
+      redubQuoteReal.status === 200 && redubQuoteReal.payload.status === "quote" && Number(realQuoteCredits) > 0,
+      `status=${redubQuoteReal.status} credits=${realQuoteCredits}`
+    );
+    const redubReal = await api(
+      "POST",
+      "/v1/redub/plans",
+      { dubLanguage: "vi", subtitleLanguages: ["en"], jobId: plantedJobId, acknowledgedCredits: realQuoteCredits },
+      A2
+    );
     check("redub_provider_failure_maps_to_5xx", redubReal.status >= 500, `status=${redubReal.status}`);
     const aBalancePostRedub = (await api("GET", "/v1/account/me", undefined, A2)).payload.account?.balanceCredits ?? 0;
     check(
       "redub_charge_held_for_manual_refund",
-      aBalancePostRedub === aBalancePreRedub - 50,
-      `pre=${aBalancePreRedub} post=${aBalancePostRedub}`
+      aBalancePostRedub === aBalancePreRedub - realQuoteCredits,
+      `pre=${aBalancePreRedub} post=${aBalancePostRedub} quoted=${realQuoteCredits}`
     );
     const redubRefunds = await api("GET", "/v1/admin/refunds", undefined, adminHeaders);
     const redubRefundReq = (redubRefunds.payload.pending ?? []).find((item) => String(item.jobId ?? "").startsWith("redub_"));

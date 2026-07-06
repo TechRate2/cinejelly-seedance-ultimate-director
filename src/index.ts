@@ -8,6 +8,7 @@ export * from "./api/api-client-policy.js";
 export * from "./api/api-concurrency-gate.js";
 export * from "./api/api-rate-limit.js";
 export * from "./api/api-response-redaction.js";
+export * from "./api/atlas-pricing-probe.js";
 export * from "./api/artifact-response.js";
 export * from "./api/http-lifecycle.js";
 export * from "./api/media-type.js";
