@@ -105,12 +105,11 @@ function slopRegex(term: string): RegExp {
 function tidy(text: string): string {
   return text
     .replace(/[ \t]{2,}/g, " ")
-    .replace(/\s+([,.;:!?])/g, "$1")
-    .replace(/([,;:])\s*(?=[,;:])/g, "")
-    .replace(/,\s*\./g, ".")
-    .replace(/\(\s*\)/g, "")
-    .replace(/^[\s,;:]+/, "")
-    .replace(/[\s,;:]+$/, "")
+    .replace(/\s+([,.;:!?])/g, "$1")            // drop whitespace before punctuation
+    .replace(/([,;:])\s*(?=[,;:.!?])/g, "")     // a comma/semicolon/colon before ANY punctuation -> drop it
+    .replace(/\(\s*\)/g, "")                     // empty parens left by a dropped token
+    .replace(/^[\s,;:.!?]+/, "")                 // strip leading punctuation/whitespace
+    .replace(/[\s,;:]+$/, "")                    // strip trailing whitespace/comma (keep sentence-final . ! ?)
     .trim();
 }
 
@@ -143,17 +142,22 @@ export function rewriteSlop(text: string): SlopRewriteResult {
   const tokenCount = countTokens(text);
   const replacements: { term: string; concrete: string; bucket: SlopBucket }[] = [];
   let slopCount = 0;
+  let slopWordCount = 0;
   let rewritten = text;
   for (const entry of SLOP_ENTRIES) {
     const regex = slopRegex(entry.term);
+    const entryWords = countTokens(entry.term);
     rewritten = rewritten.replace(regex, () => {
       slopCount += 1;
+      slopWordCount += entryWords;
       replacements.push({ term: entry.term, concrete: entry.concrete, bucket: entry.bucket });
       return entry.concrete;
     });
   }
   rewritten = tidy(rewritten);
-  const density = tokenCount > 0 ? slopCount / tokenCount : 0;
+  // Density is measured in slop WORDS over total words, so multiword filler ("hyper detailed",
+  // "trending on artstation") is not undercounted the way a per-match count would.
+  const density = tokenCount > 0 ? slopWordCount / tokenCount : 0;
   return { rewritten, replacements, slopCount, tokenCount, density, verdict: verdictFor(density, slopCount) };
 }
 
@@ -166,4 +170,22 @@ export function slopDensityScore(text: string): { readonly slopCount: number; re
 /** All listed slop terms (lowercased), for tests and tooling. */
 export function listSlopTerms(): readonly string[] {
   return SLOP_ENTRIES.map((entry) => entry.term);
+}
+
+/**
+ * Authoring directive for the script/prompt LLM: prevent slop AT THE SOURCE instead of rewriting a
+ * finished prompt (a post-hoc find/replace injects contradictions and breaks grammar). Injected
+ * into the Story Architect instruction alongside the niche playbook + mastery rules.
+ */
+export function antiSlopDirective(): string {
+  const banned = SLOP_ENTRIES.map((entry) => entry.term).slice(0, 14).join(", ");
+  return [
+    "ANTI-SLOP: never pad a shot with empty boosters",
+    `(${banned}, "8K/4K/ultra-HD", "masterpiece", "award-winning", "trending on artstation").`,
+    "They read as generic AI slop and push the model toward over-processed output.",
+    "Instead name the concrete cause — the lens, angle, rig, light direction+quality, and a number:",
+    'not "cinematic" but "85mm, shallow depth of field, hard 45-degree key with amber gel";',
+    'not "stunning sunset" but "low sun raking across the frame, long hard shadows".',
+    "Every adjective must earn its place with a visible, filmable specific."
+  ].join(" ");
 }

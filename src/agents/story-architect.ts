@@ -10,6 +10,7 @@ import type { SourceVideoDeconstruction } from "../types/source-video.js";
 import type { BeatPlan, ScenePlan } from "../core/shot-planner.js";
 import { USER_SCRIPT_OPEN_MARKER } from "../core/simple-brief-resolver.js";
 import { nichePlaybookDirective, SEEDANCE_MASTERY_DIRECTIVE } from "../core/niche-playbooks.js";
+import { antiSlopDirective } from "../core/anti-slop-lexicon.js";
 
 /**
  * Detect a pasted, already-written script inside free-form user input so the planner can
@@ -127,7 +128,7 @@ export class StoryArchitect {
         modelId: this.modelId,
         instruction:
           "Create a production-ready video scene plan. Use reusable production primitives, not hardcoded niche templates. Allocate the full requested duration into a complete beginning, middle, and ending: short commercial inputs need hook/problem, proof/demo, and payoff/soft next-step; long-form inputs need setup, development, proof escalation, and resolved close. Every beat must include a concrete visible state change, timed audio intent when audio is enabled, and an endpoint that the next beat can continue without a visible jump cut. " +
-          `${playbookDirective} ${SEEDANCE_MASTERY_DIRECTIVE}`,
+          `${playbookDirective} ${SEEDANCE_MASTERY_DIRECTIVE} ${antiSlopDirective()}`,
         schema: STORY_PLAN_SCHEMA,
         messages: [
           {

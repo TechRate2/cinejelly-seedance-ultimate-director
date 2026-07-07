@@ -36,6 +36,9 @@ export type BeatCutUnit = "beat" | "bar";
 const MIN_BPM = 40;
 const MAX_BPM = 220;
 const DEFAULT_BPM = 100;
+// Hard ceiling on grid duration: no real clip runs an hour. Prevents planBeatGrid from
+// allocating an unbounded beats[]/bars[] array when handed a huge (mis-configured) duration.
+const MAX_GRID_SECONDS = 3600;
 
 function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
@@ -68,7 +71,8 @@ export function planBeatGrid(input: {
   const beatSeconds = 60 / bpm;
   const beatsPerBar = Math.min(8, Math.max(2, Math.round(Number.isFinite(input.beatsPerBar) ? (input.beatsPerBar as number) : 4)));
   const barSeconds = beatSeconds * beatsPerBar;
-  const duration = Math.max(beatSeconds, Number.isFinite(input.durationSeconds) ? input.durationSeconds : beatSeconds);
+  const requestedDuration = Number.isFinite(input.durationSeconds) ? (input.durationSeconds as number) : beatSeconds;
+  const duration = Math.min(MAX_GRID_SECONDS, Math.max(beatSeconds, requestedDuration));
   const epsilon = beatSeconds * 1e-3;
   const beats: number[] = [];
   for (let t = 0; t <= duration + epsilon; t += beatSeconds) {
@@ -89,29 +93,13 @@ export function planBeatGrid(input: {
   };
 }
 
-/** Nearest grid line to `target` that is still at least `floor`; falls back to `target`. */
-function nearestGridLine(lines: readonly number[], target: number, floor: number): number {
-  let best: number | undefined;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (const line of lines) {
-    if (line < floor) {
-      continue;
-    }
-    const distance = Math.abs(line - target);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = line;
-    }
-  }
-  return best ?? Math.max(target, floor);
-}
-
 /**
- * Snap a sequence of planned shot durations so every internal cut lands on a beat (or bar).
- *
- * The running boundary after each shot is pulled to the nearest grid line that still leaves the
- * shot at least `minShotSeconds` long; the FINAL boundary is kept exact so the total runtime is
- * preserved (the last shot absorbs any remainder). Returns one snapped duration per input shot.
+ * Snap planned shot durations so every internal cut lands on a beat (or bar), while preserving the
+ * TOTAL runtime exactly and staying monotonic. Boundaries are computed analytically from the tempo
+ * (round(cumulative / unit) * unit), so the result is always on-grid even when the grid was built
+ * for a shorter duration than the shots sum to, and the FINAL boundary is pinned to the exact total
+ * so runtime never drifts (the last shot absorbs the remainder). `minShotSeconds` is a soft hint;
+ * total-preservation and grid-alignment take precedence. Returns one snapped duration (>= 0) per shot.
  */
 export function snapDurationsToBeatGrid(input: {
   readonly shotDurations: readonly number[];
@@ -119,22 +107,32 @@ export function snapDurationsToBeatGrid(input: {
   readonly unit?: BeatCutUnit;
   readonly minShotSeconds?: number;
 }): readonly number[] {
-  const grid = input.grid;
-  const lines = input.unit === "bar" ? grid.bars : grid.beats;
-  const minShot = Math.max(0.1, Number.isFinite(input.minShotSeconds) ? (input.minShotSeconds as number) : grid.beatSeconds);
   const shotCount = input.shotDurations.length;
-  if (shotCount === 0 || lines.length < 2) {
-    return input.shotDurations.map((duration) => round3(Math.max(0, duration)));
+  const sanitized = input.shotDurations.map((duration) => Math.max(0, Number.isFinite(duration) ? duration : 0));
+  if (shotCount === 0) {
+    return [];
+  }
+  const total = round3(sanitized.reduce((sum, duration) => sum + duration, 0));
+  const unit = input.unit === "bar" ? input.grid.barSeconds : input.grid.beatSeconds;
+  if (shotCount === 1 || total <= 0 || !(unit > 0)) {
+    return sanitized.map((duration) => round3(duration));
   }
   const snapped: number[] = [];
   let previousBoundary = 0;
   let cumulative = 0;
   for (let index = 0; index < shotCount; index += 1) {
-    cumulative += Math.max(0, input.shotDurations[index] ?? 0);
-    const isLast = index === shotCount - 1;
-    let boundary = isLast ? cumulative : nearestGridLine(lines, cumulative, previousBoundary + minShot);
-    if (boundary < previousBoundary + minShot) {
-      boundary = previousBoundary + minShot;
+    cumulative = round3(cumulative + (sanitized[index] ?? 0));
+    let boundary: number;
+    if (index === shotCount - 1) {
+      boundary = total; // pin the final boundary so total runtime is preserved exactly
+    } else {
+      boundary = round3(Math.round(cumulative / unit) * unit); // nearest beat/bar, computed analytically
+      if (boundary < previousBoundary) {
+        boundary = previousBoundary; // never move a cut backwards
+      }
+      if (boundary > total) {
+        boundary = total; // never push a cut past the end
+      }
     }
     snapped.push(round3(boundary - previousBoundary));
     previousBoundary = boundary;

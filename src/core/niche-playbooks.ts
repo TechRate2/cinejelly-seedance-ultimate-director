@@ -373,8 +373,9 @@ export function resolveNicheBeatProfile(input: {
 }
 
 /**
- * Compact, LLM-injectable directive: the family's winning formula as hard scripting rules.
- * Kept under ~1300 characters so it strengthens the instruction without drowning it.
+ * Compact, LLM-injectable directive: the family's winning formula as hard scripting rules, plus a
+ * beat-sync line for families that score to music. Kept under ~1700 characters (asserted by the
+ * niche-playbooks smoke) so it strengthens the instruction without drowning it.
  */
 export function nichePlaybookDirective(input: {
   readonly niche?: string;
@@ -393,7 +394,7 @@ export function nichePlaybookDirective(input: {
     `Never: ${playbook.avoid}.`
   ];
   if (beat.scoresToMusic) {
-    lines.push(`Beat sync: pace the edit to a ~${beat.bpm} BPM rhythm and let the model's own native audio carry that ${beat.bgmGenre} energy (no separate music track); land every hard cut and visual accent on the beat.`);
+    lines.push(`Beat sync: time the edit to a ~${beat.bpm} BPM pulse; the model's native audio carries the ${beat.bgmGenre} energy (no separate track). Land motion hits, accents, and hard cuts on the beat — a held continuous shot hits its accent on the beat rather than cutting to it.`);
   }
   return lines.join(" ");
 }

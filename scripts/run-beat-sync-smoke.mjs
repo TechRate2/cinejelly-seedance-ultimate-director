@@ -15,7 +15,7 @@ import {
   beatCutUnitForBpm,
   beatGridDirectiveLine
 } from "../dist/core/beat-grid-planner.js";
-import { resolveNicheBeatProfile } from "../dist/core/niche-playbooks.js";
+import { resolveNicheBeatProfile, nichePlaybookDirective } from "../dist/core/niche-playbooks.js";
 const resolveProfileFromPlaybooks = resolveNicheBeatProfile;
 
 const checks = [];
@@ -76,6 +76,25 @@ for (const niche of ["cinematic", "anime", "product_ad", "action", "food_beverag
   if (p.bpm < 40 || p.bpm > 220) { check(`bpm_in_range_${niche}`, false, p.bpm); }
 }
 check("all_family_bpm_in_range", checks.filter((c) => c.name.startsWith("bpm_in_range_")).length === 0);
+
+// ---- Part D2: directive wiring (integration — the beat line actually reaches the prompt). ----
+const animeDirective = nichePlaybookDirective({ niche: "anime" });
+check("directive_appends_beat_line_for_scoring", /Beat sync:/.test(animeDirective) && /150 BPM/.test(animeDirective), animeDirective.slice(-70));
+check("directive_omits_beat_line_for_dry", !/Beat sync:/.test(nichePlaybookDirective({ niche: "comedy" })));
+
+// ---- Part E2: snap total-preservation + on-grid edge cases (from the adversarial audit). ----
+const g10 = planBeatGrid({ bpm: 120, durationSeconds: 10 });
+const snapTiny = snapDurationsToBeatGrid({ shotDurations: [3, 0.01], grid: g10 });
+check("snap_preserves_total_tiny_last", Math.abs(snapTiny.reduce((a, b) => a + b, 0) - 3.01) < 1e-6, snapTiny.join(","));
+const snapAllTiny = snapDurationsToBeatGrid({ shotDurations: [0.01, 0.01, 0.01, 0.01, 0.01], grid: g10 });
+check("snap_preserves_total_all_tiny", Math.abs(snapAllTiny.reduce((a, b) => a + b, 0) - 0.05) < 1e-6, snapAllTiny.join(","));
+const snapBig = snapDurationsToBeatGrid({ shotDurations: [100, 1, 1], grid: g10 });
+const bigBoundaries = []; { let ba = 0; for (let i = 0; i < snapBig.length - 1; i += 1) { ba += snapBig[i]; bigBoundaries.push(ba); } }
+check("snap_on_grid_beyond_grid_span", bigBoundaries.every((b) => onGrid(b, g10.beatSeconds)) && Math.abs(snapBig.reduce((a, b) => a + b, 0) - 102) < 1e-6, bigBoundaries.join(","));
+
+// ---- Part F2: planBeatGrid clamps a huge duration (no unbounded-array DoS). ----
+const huge = planBeatGrid({ bpm: 220, durationSeconds: 1e9 });
+check("huge_duration_clamped", huge.durationSeconds === 3600 && huge.beats.length < 20000, `${huge.durationSeconds}:${huge.beats.length}`);
 
 const failed = checks.filter((item) => !item.pass);
 const report = {

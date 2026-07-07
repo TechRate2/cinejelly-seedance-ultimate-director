@@ -9,10 +9,12 @@
  *    "cinematically") are left untouched.
  */
 
+import { readFileSync } from "node:fs";
 import {
   rewriteSlop,
   slopDensityScore,
-  listSlopTerms
+  listSlopTerms,
+  antiSlopDirective
 } from "../dist/core/anti-slop-lexicon.js";
 
 const checks = [];
@@ -67,6 +69,23 @@ const terms = listSlopTerms();
 check("lexicon_non_empty", terms.length >= 25, `${terms.length}`);
 check("all_terms_lowercase", terms.every((t) => t === lower(t)));
 check("no_duplicate_terms", new Set(terms).size === terms.length, `${terms.length} vs ${new Set(terms).size}`);
+
+// ---- Part F: punctuation tidy after dropping filler (from the adversarial audit). ----
+check("tidy_comma_bang", rewriteSlop("wow, stunning!").rewritten === "wow!", rewriteSlop("wow, stunning!").rewritten);
+check("tidy_comma_question", rewriteSlop("wow, stunning?").rewritten === "wow?", rewriteSlop("wow, stunning?").rewritten);
+check("tidy_leading_period", rewriteSlop("stunning. great").rewritten === "great", rewriteSlop("stunning. great").rewritten);
+check("tidy_leading_bang", rewriteSlop("stunning! great").rewritten === "great", rewriteSlop("stunning! great").rewritten);
+check("tidy_no_orphan_punct", !/[,;:]\s*[.!?]/.test(rewriteSlop("push in, stunning!").rewritten), rewriteSlop("push in, stunning!").rewritten);
+
+// ---- Part G: density counts multiword slop by words (not per-match). ----
+check("multiword_density_full", slopDensityScore("hyper detailed").density === 1, `${slopDensityScore("hyper detailed").density}`);
+
+// ---- Part H: anti-slop AUTHORING directive (prevents slop at the source, not by rewriting). ----
+const dir = antiSlopDirective();
+check("directive_mentions_anti_slop", /ANTI-SLOP/.test(dir) && /85mm|shallow depth of field/.test(dir), dir.slice(0, 60));
+check("directive_lists_banned_terms", /stunning|masterpiece|8K/i.test(dir));
+const architectSrc = readFileSync(new URL("../src/agents/story-architect.ts", import.meta.url), "utf8");
+check("story_architect_injects_anti_slop", architectSrc.includes("antiSlopDirective("));
 
 const failed = checks.filter((item) => !item.pass);
 const report = {
