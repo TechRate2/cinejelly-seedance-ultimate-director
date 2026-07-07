@@ -4,8 +4,9 @@
  * LLM-authored shot descriptions drift toward empty boosters ("stunning, cinematic, 8K,
  * hyper-detailed, masterpiece") that push models toward generic, over-processed output. This
  * module maps each KNOWN slop token either to a concrete directive (a rig/angle/light/texture)
- * or to nothing (pure filler is dropped), and scores a prompt's slop density so the compiler can
- * de-slop the free-text fields before they reach the provider.
+ * or to nothing (pure filler is dropped), and scores a prompt's slop density. Slop is prevented at
+ * the SOURCE — the Story Architect is instructed to avoid it (see antiSlopDirective) — rather than by
+ * rewriting a finished prompt, which a prior design proved breaks grammar and blinds style guardrails.
  *
  * Deliberately HIGH-PRECISION: only tokens that are almost always empty filler are listed, so a
  * legitimate word ("a professional presenter", "a perfect circle") is never mangled. Every

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * No-spend regression for the anti-slop lexicon (compile-time prompt de-slopping). Pure string
+ * No-spend regression for the anti-slop lexicon + source-side authoring directive. Pure string
  * work — no network, no provider, no spend.
  *  - empty superlatives / resolution-theatre / self-praise are dropped; empty-atmosphere and
  *    vague-quality words are swapped for concrete cinematography;
@@ -98,7 +98,7 @@ const report = {
   networkCallsMade: false,
   nextActions: [
     "Keep green when adding slop terms or changing the rewrite/density rules.",
-    "The compiler de-slops LLM-authored shot fields (subject/action/camera/lighting/style) via rewriteSlop before provider handoff."
+    "The Story Architect is told to avoid filler at authoring time via antiSlopDirective(); rewriteSlop/slopDensityScore stay available for QA scoring."
   ]
 };
 console.log(JSON.stringify(report, null, 2));
