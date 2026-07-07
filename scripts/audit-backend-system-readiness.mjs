@@ -143,6 +143,7 @@ const auditedValidationCommandNames = [
   "validation:atlas-pricing-probe",
   "validation:pipeline-pricing",
   "validation:beat-sync",
+  "validation:anti-slop",
   "validation:api-response-redaction",
   "validation:backend-system-readiness",
   "validation:backend-system-suite",

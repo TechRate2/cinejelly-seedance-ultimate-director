@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+/**
+ * No-spend regression for the anti-slop lexicon (compile-time prompt de-slopping). Pure string
+ * work — no network, no provider, no spend.
+ *  - empty superlatives / resolution-theatre / self-praise are dropped; empty-atmosphere and
+ *    vague-quality words are swapped for concrete cinematography;
+ *  - the rewrite is idempotent and never reintroduces filler (every concrete is slop-free);
+ *  - HIGH-PRECISION: legitimate words ("professional", "perfect") and boundary cases ("8kg",
+ *    "cinematically") are left untouched.
+ */
+
+import {
+  rewriteSlop,
+  slopDensityScore,
+  listSlopTerms
+} from "../dist/core/anti-slop-lexicon.js";
+
+const checks = [];
+function check(name, pass, detail) {
+  checks.push({ name, pass: Boolean(pass), ...(detail !== undefined ? { detail: String(detail) } : {}) });
+}
+const lower = (s) => s.toLowerCase();
+
+// ---- Part A: removals + swaps. ----
+const r1 = rewriteSlop("a stunning breathtaking sunset over the sea");
+check("drops_empty_superlatives", !/stunning|breathtaking/i.test(r1.rewritten) && r1.slopCount === 2, `${r1.slopCount}:${r1.rewritten}`);
+
+const r2 = rewriteSlop("cinematic hero shot of the product");
+check("maps_cinematic_to_concrete", /shallow depth of field/i.test(r2.rewritten) && !/\bcinematic\b/i.test(r2.rewritten), r2.rewritten);
+
+const r3 = rewriteSlop("8K ultra hd hyper-detailed footage, masterpiece");
+check("drops_resolution_theater_and_praise", !/8k|ultra hd|hyper-detailed|masterpiece/i.test(r3.rewritten) && r3.slopCount === 4, `${r3.slopCount}:${r3.rewritten}`);
+
+const r4 = rewriteSlop("stunning cinematic 8K masterpiece");
+check("heavy_slop_all_replaced", r4.slopCount === 4 && /shallow depth of field/i.test(r4.rewritten) && !/stunning|masterpiece|8k/i.test(r4.rewritten), `${r4.slopCount}:${r4.rewritten}`);
+check("heavy_slop_verdict_rewrite", r4.verdict === "rewrite", r4.verdict);
+
+// ---- Part B: idempotency + no reintroduction. ----
+const once = rewriteSlop("epic cinematic atmospheric 4K masterpiece scene");
+const twice = rewriteSlop(once.rewritten);
+check("idempotent_second_pass_clean", twice.slopCount === 0, `${twice.slopCount}:${twice.rewritten}`);
+// Every concrete replacement must itself be slop-free (proves no reintroduction, for the whole lexicon).
+let dirtyConcrete = [];
+for (const term of listSlopTerms()) {
+  const swap = rewriteSlop(term);
+  const reSwap = rewriteSlop(swap.rewritten);
+  if (reSwap.slopCount !== 0) { dirtyConcrete.push(term); }
+}
+check("no_concrete_reintroduces_slop", dirtyConcrete.length === 0, dirtyConcrete.join(","));
+
+// ---- Part C: HIGH-PRECISION — legitimate words + boundaries untouched. ----
+const legit = "a professional presenter holds a perfect circle in a bright studio";
+const rl = rewriteSlop(legit);
+check("legit_words_untouched", rl.slopCount === 0 && rl.rewritten === legit, `${rl.slopCount}:${rl.rewritten}`);
+check("boundary_8kg_not_matched", rewriteSlop("an 8kg dumbbell").slopCount === 0, rewriteSlop("an 8kg dumbbell").rewritten);
+check("boundary_cinematically_not_matched", rewriteSlop("shot cinematically well").slopCount === 0, rewriteSlop("shot cinematically well").rewritten);
+
+// ---- Part D: density scoring + safety. ----
+check("clean_text_verdict_clean", slopDensityScore("a woman applies cream to her face").verdict === "clean");
+const ds = slopDensityScore("stunning gorgeous breathtaking");
+check("all_slop_density_one", ds.density === 1 && ds.verdict === "rewrite", `${ds.density}:${ds.verdict}`);
+check("empty_string_safe", rewriteSlop("").slopCount === 0 && rewriteSlop("").rewritten === "");
+check("non_string_safe", rewriteSlop(null).rewritten === "" && rewriteSlop(undefined).slopCount === 0);
+
+// ---- Part E: lexicon hygiene. ----
+const terms = listSlopTerms();
+check("lexicon_non_empty", terms.length >= 25, `${terms.length}`);
+check("all_terms_lowercase", terms.every((t) => t === lower(t)));
+check("no_duplicate_terms", new Set(terms).size === terms.length, `${terms.length} vs ${new Set(terms).size}`);
+
+const failed = checks.filter((item) => !item.pass);
+const report = {
+  schemaVersion: "cinejelly.anti-slop-smoke.v1",
+  status: failed.length === 0 ? "pass" : "fail",
+  checkCount: checks.length,
+  failedCount: failed.length,
+  checks,
+  noSpend: true,
+  networkCallsMade: false,
+  nextActions: [
+    "Keep green when adding slop terms or changing the rewrite/density rules.",
+    "The compiler de-slops LLM-authored shot fields (subject/action/camera/lighting/style) via rewriteSlop before provider handoff."
+  ]
+};
+console.log(JSON.stringify(report, null, 2));
+if (failed.length > 0) {
+  process.exit(1);
+}

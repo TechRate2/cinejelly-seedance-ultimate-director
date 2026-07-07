@@ -21,6 +21,7 @@ import {
 import { resolveSeedanceDna } from "../core/seedance-dna.js";
 import { cinematicGrammarPromptLine } from "../core/seedance-cinematic-grammar.js";
 import { shotGrammarFromMetadata, shotGrammarPromptLine } from "../core/shot-grammar.js";
+import { rewriteSlop } from "../core/anti-slop-lexicon.js";
 import { buildNegativePrompt } from "./negative-constraints.js";
 import { buildPromptBindingPlan, describeReferenceBindingsFromPlan } from "./reference-binding.js";
 import { buildRepairHints } from "./repair-hints.js";
@@ -77,12 +78,12 @@ export class SeedancePromptCompiler {
       this.buildMotionContinuitySection(shot, bindingPlan),
       this.buildInterShotBridgeSection(shot, bindingPlan),
       this.buildBoundaryChoreographySection(shot, bindingPlan),
-      `Scene subject: ${shot.subject}.`,
-      `Action: ${this.providerActionText(shot.action)}.`,
-      `Camera: ${shot.camera}.`,
+      `Scene subject: ${this.deslop(shot.subject)}.`,
+      `Action: ${this.deslop(this.providerActionText(shot.action))}.`,
+      `Camera: ${this.deslop(shot.camera)}.`,
       this.buildShotGrammarSection(shot),
-      `Lighting: ${shot.lighting}.`,
-      shot.style ? `Style: ${shot.style}.` : undefined,
+      `Lighting: ${this.deslop(shot.lighting)}.`,
+      shot.style ? `Style: ${this.deslop(shot.style)}.` : undefined,
       shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline, shot) : undefined,
       this.buildAudioProductionSection(shot),
       shot.transitionIntent ? `Transition: ${shot.transitionIntent}.` : undefined,
@@ -93,6 +94,16 @@ export class SeedancePromptCompiler {
     ];
 
     return sections.filter((section): section is string => Boolean(section && section.trim())).join("\n");
+  }
+
+  /**
+   * De-slop LLM-authored free text: swap empty filler ("stunning", "cinematic", "8K") for
+   * concrete cinematography (or drop it) before provider handoff. Applied ONLY to the model-written
+   * descriptive fields (subject/action/camera/lighting/style) — never to the curated directive
+   * sections, whose wording is deliberate. High-precision so legitimate words are untouched.
+   */
+  private deslop(text: string): string {
+    return rewriteSlop(text).rewritten;
   }
 
   private buildReferenceHandlePrelude(bindingPlan: PromptBindingPlan, providerMode: ProviderMode): string | undefined {
