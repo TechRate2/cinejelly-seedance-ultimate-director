@@ -9,8 +9,12 @@ import type {
   Phase6ValidationReadinessReport,
   RuntimePreflightReport
 } from "../types/preflight.js";
+import {
+  internalSourcePatternOrigins,
+  PHASE6_VALIDATION_READINESS_SOURCE_PATTERN_IDS
+} from "../core/private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = ["vericontext/vibeframe", "harry0703/MoneyPrinterTurbo"] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(PHASE6_VALIDATION_READINESS_SOURCE_PATTERN_IDS);
 
 export class Phase6ValidationReadinessReporter {
   public build(preflight: RuntimePreflightReport): Phase6ValidationReadinessReport {

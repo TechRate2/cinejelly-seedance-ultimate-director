@@ -6,7 +6,7 @@
 
 import type { AssetProvider, VideoProvider } from "../providers/contracts.js";
 import type { CompiledPrompt } from "../types/prompt.js";
-import type { Prediction, ProviderMetadata, ProviderReference, ReferenceKind } from "../types/provider.js";
+import type { AssetRegistrationRequest, Prediction, ProviderMetadata, ProviderReference, ReferenceKind } from "../types/provider.js";
 import { ProviderError } from "../utils/errors.js";
 import { ProviderCapabilityValidator } from "../providers/capability-validator.js";
 
@@ -132,7 +132,7 @@ export class RenderProducer {
 
   private async registerAndWait(
     reference: ProviderReference,
-    kind: "video" | "audio",
+    kind: AssetRegistrationRequest["kind"],
     metadata: ProviderMetadata | undefined,
     signal?: AbortSignal
   ): Promise<string> {
@@ -183,7 +183,7 @@ export class RenderProducer {
     }
   }
 
-  private assetKindFor(reference: ProviderReference): "video" | "audio" | undefined {
+  private assetKindFor(reference: ProviderReference): AssetRegistrationRequest["kind"] | undefined {
     if (reference.kind === "video") {
       return "video";
     }
@@ -195,6 +195,14 @@ export class RenderProducer {
     }
     if (reference.role && ["audio_tempo", "voice"].includes(reference.role)) {
       return "audio";
+    }
+    if (
+      reference.kind === "image" ||
+      reference.kind === "first_frame" ||
+      reference.kind === "last_frame" ||
+      ["identity", "product", "environment", "style", "first_frame", "last_frame"].includes(reference.role ?? "")
+    ) {
+      return "image";
     }
     return undefined;
   }

@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,6 +23,8 @@ const requiredScenarioNames = [
   "existing_analysis_not_overwritten",
   "asset_reference_skipped",
   "secret_query_reference_skipped",
+  "secret_query_value_reference_skipped",
+  "localhost_reference_skipped",
   "clean_https_generates_bounded_analysis",
   "leaking_output_rejected_non_strict",
   "strict_empty_analysis_throws"
@@ -108,6 +111,16 @@ async function main() {
     uri: "https://media.example.test/source-video.mp4?token=redacted",
     skippedReason: "credential_like_query_is_rejected"
   }));
+  scenarioSummaries.push(await runSkippedReferenceScenario(SourceVideoAutoAnalyzer, context, {
+    name: "secret_query_value_reference_skipped",
+    uri: "https://media.example.test/source-video.mp4?utm=secret-token",
+    skippedReason: "credential_like_query_value_is_rejected"
+  }));
+  scenarioSummaries.push(await runSkippedReferenceScenario(SourceVideoAutoAnalyzer, context, {
+    name: "localhost_reference_skipped",
+    uri: "https://localhost/source-video.mp4",
+    skippedReason: "localhost_or_private_source_is_rejected"
+  }));
   scenarioSummaries.push(await runCleanHttpsScenario(SourceVideoAutoAnalyzer, context));
   scenarioSummaries.push(await runLeakGuardScenario(SourceVideoAutoAnalyzer, context));
   scenarioSummaries.push(await runStrictEmptyScenario(SourceVideoAutoAnalyzer, context));
@@ -136,6 +149,7 @@ async function main() {
       passingScenarioCount: scenarioSummaries.filter((scenario) => scenario.status === "pass").length,
       failingScenarioCount: scenarioSummaries.filter((scenario) => scenario.status === "fail").length,
       frameSamplerCallCount: scenarioSummaries.reduce((sum, scenario) => sum + scenario.frameSamplerCallCount, 0),
+      mediaMetricsAnalyzerCallCount: scenarioSummaries.reduce((sum, scenario) => sum + scenario.mediaMetricsAnalyzerCallCount, 0),
       syntheticLlmCallCount: scenarioSummaries.reduce((sum, scenario) => sum + scenario.syntheticLlmCallCount, 0),
       analysisGeneratedScenarioCount: scenarioSummaries.filter((scenario) => scenario.analysisPresent).length,
       skippedScenarioCount: scenarioSummaries.filter((scenario) => Boolean(scenario.skippedReason)).length
@@ -243,9 +257,11 @@ async function runDisabledScenario(SourceVideoAutoAnalyzer, context) {
     status: prepared === request &&
       !prepared.sourceVideoAnalysis &&
       runtime.sampler.calls.length === 0 &&
+      runtime.metrics.calls.length === 0 &&
       runtime.llm.calls.length === 0 ? "pass" : "fail",
     prepared,
     sampler: runtime.sampler,
+    metrics: runtime.metrics,
     llm: runtime.llm,
     skippedReason: "settings_disabled"
   });
@@ -268,9 +284,11 @@ async function runExistingAnalysisScenario(SourceVideoAutoAnalyzer, context) {
     status: prepared === request &&
       prepared.sourceVideoAnalysis === existingAnalysis &&
       runtime.sampler.calls.length === 0 &&
+      runtime.metrics.calls.length === 0 &&
       runtime.llm.calls.length === 0 ? "pass" : "fail",
     prepared,
     sampler: runtime.sampler,
+    metrics: runtime.metrics,
     llm: runtime.llm,
     skippedReason: "caller_analysis_present",
     preservedExistingAnalysis: prepared.sourceVideoAnalysis === existingAnalysis
@@ -290,9 +308,11 @@ async function runSkippedReferenceScenario(SourceVideoAutoAnalyzer, context, inp
     status: prepared === request &&
       !prepared.sourceVideoAnalysis &&
       runtime.sampler.calls.length === 0 &&
+      runtime.metrics.calls.length === 0 &&
       runtime.llm.calls.length === 0 ? "pass" : "fail",
     prepared,
     sampler: runtime.sampler,
+    metrics: runtime.metrics,
     llm: runtime.llm,
     skippedReason: input.skippedReason
   });
@@ -317,15 +337,22 @@ async function runCleanHttpsScenario(SourceVideoAutoAnalyzer, context) {
       analysisSummary.keyframeCount === 2 &&
       analysisSummary.noInlineFrameData &&
       analysisSummary.noLocalFramePaths &&
+      analysisSummary.mediaMetricsPresent &&
+      analysisSummary.mediaMetricsRhythmLabel === "fast" &&
+      analysisSummary.mediaMetricsSceneCutCount === 5 &&
+      runtime.metrics.calls.length === 1 &&
       runtime.sampler.calls.length === 1 &&
       runtime.sampler.framePaths.length === 3 &&
       runtime.llm.calls.length === 1 &&
       llmCall?.imagePartCount === 3 &&
       llmCall?.dataImagePartCount === 3 &&
       llmCall?.nonDataImagePartCount === 0 &&
+      llmCall?.mediaMetricsInPrompt === true &&
+      llmCall?.rawSourceUriInPrompt === false &&
       llmCall?.localFramePathInPrompt === false ? "pass" : "fail",
     prepared,
     sampler: runtime.sampler,
+    metrics: runtime.metrics,
     llm: runtime.llm,
     analysisSummary
   });
@@ -347,9 +374,11 @@ async function runLeakGuardScenario(SourceVideoAutoAnalyzer, context) {
     status: prepared === request &&
       !prepared.sourceVideoAnalysis &&
       runtime.sampler.calls.length === 1 &&
+      runtime.metrics.calls.length === 1 &&
       runtime.llm.calls.length === 1 ? "pass" : "fail",
     prepared,
     sampler: runtime.sampler,
+    metrics: runtime.metrics,
     llm: runtime.llm,
     skippedReason: "analysis_output_failed_leak_guard"
   });
@@ -370,11 +399,13 @@ async function runStrictEmptyScenario(SourceVideoAutoAnalyzer, context) {
   return scenarioSummary({
     name: "strict_empty_analysis_throws",
     intent: "Strict mode must surface unusable LLM structure instead of silently claiming analysis.",
-    status: thrownError?.includes("no usable deconstruction content") &&
+    status: unusableAnalysisError(thrownError) &&
       runtime.sampler.calls.length === 1 &&
+      runtime.metrics.calls.length === 1 &&
       runtime.llm.calls.length === 1 ? "pass" : "fail",
     prepared: request,
     sampler: runtime.sampler,
+    metrics: runtime.metrics,
     llm: runtime.llm,
     thrownErrorRedacted: redactText(thrownError ?? "missing expected error")
   });
@@ -382,14 +413,17 @@ async function runStrictEmptyScenario(SourceVideoAutoAnalyzer, context) {
 
 function createScenarioRuntime(SourceVideoAutoAnalyzer, context, input) {
   const sampler = new FakeFrameSampler(context, input.name);
+  const metrics = new FakeMediaMetricsAnalyzer();
   const llm = new FakeLlmProvider(context, input.name, input.llmValueFactory);
   return {
     sampler,
+    metrics,
     llm,
     analyzer: new SourceVideoAutoAnalyzer({
       llmProvider: llm,
       defaultModelId: context.options.defaultModelId,
-      mediaInspector: sampler
+      mediaInspector: sampler,
+      mediaMetricsAnalyzer: metrics
     })
   };
 }
@@ -421,6 +455,51 @@ class FakeFrameSampler {
     }
     this.context.currentScenarioFramePaths = [...this.framePaths];
     return this.framePaths.map((path, index) => ({ path, index }));
+  }
+}
+
+class FakeMediaMetricsAnalyzer {
+  constructor() {
+    this.calls = [];
+  }
+
+  async analyze(sourceUri) {
+    this.calls.push({
+      sourceProtocol: safeProtocol(sourceUri),
+      sourceUriSha256: sha256(sourceUri)
+    });
+    return {
+      schemaVersion: "cinejelly.source-video-media-metrics.v1",
+      durationSeconds: 18,
+      bitrate: 2400000,
+      formatName: "mov,mp4,m4a,3gp,3g2,mj2",
+      video: {
+        codecName: "h264",
+        width: 1080,
+        height: 1920,
+        frameRate: 30,
+        aspectRatio: "9:16"
+      },
+      audio: {
+        hasAudio: true,
+        codecName: "aac",
+        sampleRate: 48000,
+        channelCount: 2
+      },
+      editRhythm: {
+        sampledWindowSeconds: 18,
+        sceneCutCount: 5,
+        cutDensityPerMinute: 16.667,
+        averageShotLengthSeconds: 3,
+        rhythmLabel: "fast",
+        sceneCutTimestampsSeconds: [1.2, 3.8, 7.4, 11.1, 15.5]
+      },
+      evidence: {
+        probeSucceeded: true,
+        sceneDetectionSucceeded: true,
+        sourceUriSha256: sha256(sourceUri)
+      }
+    };
   }
 }
 
@@ -470,6 +549,11 @@ function summarizeStructuredRequest(request, framePaths) {
     dataImagePartCount: imageParts.filter((part) => /^data:image\/[a-z0-9.+-]+;base64,/i.test(part.image_url?.url ?? "")).length,
     nonDataImagePartCount: imageParts.filter((part) => !/^data:image\/[a-z0-9.+-]+;base64,/i.test(part.image_url?.url ?? "")).length,
     localFramePathInPrompt: framePaths.some((framePath) => serialized.includes(framePath)),
+    mediaMetricsInPrompt: serialized.includes("cinejelly.source-video-media-metrics.v1") &&
+      serialized.includes("rhythmLabel") &&
+      serialized.includes("fast") &&
+      serialized.includes("cutDensityPerMinute"),
+    rawSourceUriInPrompt: serialized.includes("https://media.example.test/source-video.mp4"),
     inlineFrameDataSentToSyntheticLlm: /data:image\/[a-z0-9.+-]+;base64,/i.test(serialized),
     maxTokens: Number(request.maxTokens ?? 0),
     temperature: Number(request.temperature ?? 0)
@@ -559,10 +643,15 @@ function scenarioSummary(input) {
     status: input.status,
     intent: input.intent,
     frameSamplerCallCount: input.sampler.calls.length,
+    mediaMetricsAnalyzerCallCount: input.metrics?.calls.length ?? 0,
     syntheticLlmCallCount: input.llm.calls.length,
     analysisPresent: analysis.present,
     sceneCount: analysis.sceneCount,
     keyframeCount: analysis.keyframeCount,
+    mediaMetricsPresent: analysis.mediaMetricsPresent,
+    mediaMetricsRhythmLabel: analysis.mediaMetricsRhythmLabel,
+    mediaMetricsSceneCutCount: analysis.mediaMetricsSceneCutCount,
+    mediaMetricsSourceUriSha256Present: analysis.mediaMetricsSourceUriSha256Present,
     pacingNoteCount: analysis.pacingNoteCount,
     styleNoteCount: analysis.styleNoteCount,
     structuralBeatCount: analysis.structuralBeatCount,
@@ -576,7 +665,9 @@ function scenarioSummary(input) {
       llmImagePartCount: llmCall.imagePartCount,
       llmDataImagePartCount: llmCall.dataImagePartCount,
       llmNonDataImagePartCount: llmCall.nonDataImagePartCount,
-      llmLocalFramePathInPrompt: llmCall.localFramePathInPrompt
+      llmLocalFramePathInPrompt: llmCall.localFramePathInPrompt,
+      llmMediaMetricsInPrompt: llmCall.mediaMetricsInPrompt,
+      llmRawSourceUriInPrompt: llmCall.rawSourceUriInPrompt
     } : {})
   };
 }
@@ -605,6 +696,10 @@ function summarizeAnalysis(analysis, framePaths) {
     styleNoteCount: Array.isArray(analysis?.styleNotes) ? analysis.styleNotes.length : 0,
     structuralBeatCount: Array.isArray(analysis?.structuralBeats) ? analysis.structuralBeats.length : 0,
     safetyNoteCount: Array.isArray(analysis?.safetyNotes) ? analysis.safetyNotes.length : 0,
+    mediaMetricsPresent: analysis?.mediaMetrics?.schemaVersion === "cinejelly.source-video-media-metrics.v1",
+    mediaMetricsRhythmLabel: analysis?.mediaMetrics?.editRhythm?.rhythmLabel,
+    mediaMetricsSceneCutCount: analysis?.mediaMetrics?.editRhythm?.sceneCutCount,
+    mediaMetricsSourceUriSha256Present: /^[a-f0-9]{64}$/i.test(analysis?.mediaMetrics?.evidence?.sourceUriSha256 ?? ""),
     noInlineFrameData,
     noLocalFramePaths
   };
@@ -643,28 +738,39 @@ function buildChecks(scenarios, context) {
     byName.get("existing_analysis_not_overwritten")?.preservedExistingAnalysis === true
       ? pass("existing_analysis_preserved", "Caller-provided sourceVideoAnalysis remains authoritative.")
       : fail("existing_analysis_preserved", "Caller-provided sourceVideoAnalysis was not preserved."),
-    skippedScenarioPass(byName.get("asset_reference_skipped")) && skippedScenarioPass(byName.get("secret_query_reference_skipped"))
-      ? pass("unsafe_sources_skipped_before_sampling", "asset:// and credential-like HTTPS query references are skipped before frame sampling.")
+    [
+      "asset_reference_skipped",
+      "secret_query_reference_skipped",
+      "secret_query_value_reference_skipped",
+      "localhost_reference_skipped"
+    ].every((name) => skippedScenarioPass(byName.get(name)))
+      ? pass("unsafe_sources_skipped_before_sampling", "asset://, credential-like HTTPS query, and localhost/private references are skipped before frame sampling.")
       : fail("unsafe_sources_skipped_before_sampling", "Unsafe references were not skipped before frame sampling."),
     cleanHttpsScenario?.analysisPresent === true &&
       cleanHttpsScenario.sceneCount === 2 &&
       cleanHttpsScenario.keyframeCount === 2 &&
+      cleanHttpsScenario.mediaMetricsPresent === true &&
+      cleanHttpsScenario.mediaMetricsRhythmLabel === "fast" &&
+      cleanHttpsScenario.mediaMetricsSceneCutCount === 5 &&
+      cleanHttpsScenario.mediaMetricsSourceUriSha256Present === true &&
       cleanHttpsScenario.noInlineFrameDataInAnalysis === true &&
       cleanHttpsScenario.noLocalFramePathsInAnalysis === true
-      ? pass("clean_https_analysis_bounded_and_safe", "Clean HTTPS source-video reference produces bounded safe normalized analysis.")
+      ? pass("clean_https_analysis_bounded_and_safe", "Clean HTTPS source-video reference produces bounded safe normalized analysis with deterministic media metrics.")
       : fail("clean_https_analysis_bounded_and_safe", "Clean HTTPS scenario did not produce bounded safe analysis."),
     cleanHttpsScenario?.llmImagePartCount === 3 &&
       cleanHttpsScenario.llmDataImagePartCount === 3 &&
       cleanHttpsScenario.llmNonDataImagePartCount === 0 &&
+      cleanHttpsScenario.llmMediaMetricsInPrompt === true &&
+      cleanHttpsScenario.llmRawSourceUriInPrompt === false &&
       cleanHttpsScenario.llmLocalFramePathInPrompt === false
-      ? pass("synthetic_llm_receives_bounded_frame_parts", "Synthetic LLM received exactly the bounded frame count as image data parts without local frame paths.")
-      : fail("synthetic_llm_receives_bounded_frame_parts", "Synthetic LLM frame-part summary was not bounded or leaked local paths."),
+      ? pass("synthetic_llm_receives_bounded_frame_parts", "Synthetic LLM received bounded frame parts and media metrics without raw source URL or local frame paths.")
+      : fail("synthetic_llm_receives_bounded_frame_parts", "Synthetic LLM frame/media summary was not bounded or leaked local paths."),
     leakGuardScenario?.analysisPresent === false &&
       leakGuardScenario.frameSamplerCallCount === 1 &&
       leakGuardScenario.syntheticLlmCallCount === 1
       ? pass("leak_guard_rejects_local_frame_paths", "Output that includes local frame paths is rejected and does not attach sourceVideoAnalysis.")
       : fail("leak_guard_rejects_local_frame_paths", "Frame-path leakage was not rejected."),
-    strictEmptyScenario?.thrownErrorRedacted?.includes("no usable deconstruction content") === true
+    unusableAnalysisError(strictEmptyScenario?.thrownErrorRedacted)
       ? pass("strict_mode_surfaces_empty_analysis", "Strict mode throws when LLM output has no usable deconstruction content.")
       : fail("strict_mode_surfaces_empty_analysis", "Strict mode did not surface unusable LLM output."),
     context.createdFrameCount > 0
@@ -676,8 +782,19 @@ function buildChecks(scenarios, context) {
 function skippedScenarioPass(scenario) {
   return scenario?.status === "pass" &&
     scenario.frameSamplerCallCount === 0 &&
+    scenario.mediaMetricsAnalyzerCallCount === 0 &&
     scenario.syntheticLlmCallCount === 0 &&
     scenario.analysisPresent === false;
+}
+
+function unusableAnalysisError(value) {
+  const text = String(value ?? "");
+  return text.includes("no usable deconstruction content") ||
+    text.includes("sourceVideoAnalysis must include at least one transformationIntent");
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 function reportContainsNoFrameData(report, context) {

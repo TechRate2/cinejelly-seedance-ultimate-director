@@ -123,6 +123,7 @@
             "storyboard_multishot",
             "reference_locked_multishot",
             "source_video_guided",
+            "sequence_bible",
             "manual_storyboard"
           ]
         },

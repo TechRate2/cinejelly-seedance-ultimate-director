@@ -66,6 +66,8 @@ export interface LongDirectorUiContract {
     readonly proofStrategy: string;
     readonly shareTrigger: string;
     readonly ideaSeedCount: number;
+    readonly ideaCandidateCount: number;
+    readonly selectedIdeaCandidateId?: string;
     readonly viralLeverCount: number;
     readonly findingCount: number;
     readonly blockingFindingCount: number;
@@ -80,7 +82,7 @@ export interface LongDirectorUiContract {
   readonly outputContract: {
     readonly finalMp4AssemblyManagedByBackend: true;
     readonly longFormManualQualityReviewRequired: true;
-    readonly directorBenchEvidenceRequired: true;
+    readonly benchmarkEvidenceRequired: true;
     readonly canSubmitToProviderNow: false;
     readonly canProceedToRenderAfterApproval: boolean;
     readonly captionCoverageRatio: number;

@@ -1,6 +1,6 @@
 /**
  * Continuity Ledger Builder.
- * Extension based on ViMax/DirectorBench/Atlas consistency patterns: recurring identity and style anchors
+ * Extension based on reference-consistency and media-review patterns: recurring identity and style anchors
  * are converted into Character/Style bibles before render preflight, instead of leaving continuity implicit.
  */
 

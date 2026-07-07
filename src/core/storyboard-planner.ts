@@ -1,6 +1,6 @@
 /**
  * Storyboard Planner.
- * Extension based on ViMax storyboard planning and VibeFrame source-of-truth artifacts:
+ * Extension based on reference-consistency storyboard planning and source-of-truth artifacts:
  * generate deterministic, reviewable storyboard panels from shot contracts before render spend.
  */
 

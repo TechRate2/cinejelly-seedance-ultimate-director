@@ -5,7 +5,7 @@
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type {
   ShortPipelineConversationSession,
   ShortPipelineTemplatePreference,
@@ -31,6 +31,8 @@ const SECRET_QUERY_PATTERN =
   /([?&](?:api[_-]?key|access[_-]?key|token|secret|password|signature|credential|authorization)=)[^&#\s]+/gi;
 const MAX_SESSION_RECORDS = 1_000;
 const DEFAULT_SESSION_RECORDS = 200;
+const DEFAULT_OUTPUT_DIR = "assets/output_deliverables";
+const DEFAULT_SESSION_STORE_FILE = "short-pipeline-sessions.json";
 
 export interface ShortPipelineStoredSessionRecord {
   readonly schemaVersion: typeof SHORT_PIPELINE_SESSION_RECORD_SCHEMA_VERSION;
@@ -339,15 +341,21 @@ export class ShortPipelineSessionStore {
   }
 }
 
-export function readShortPipelineSessionStorePath(env: NodeJS.ProcessEnv): string | undefined {
+export function readShortPipelineSessionStorePath(env: NodeJS.ProcessEnv): string {
   const configuredPath = env.CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH?.trim();
-  if (!configuredPath) {
-    return undefined;
-  }
-  if (CONTROL_CHARACTER_PATTERN.test(configuredPath)) {
+  const storePath = configuredPath || join(readShortPipelineOutputDir(env), DEFAULT_SESSION_STORE_FILE);
+  if (CONTROL_CHARACTER_PATTERN.test(storePath)) {
     throw new Error("CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH must not contain control characters.");
   }
-  return configuredPath;
+  return storePath;
+}
+
+function readShortPipelineOutputDir(env: NodeJS.ProcessEnv): string {
+  const configuredOutputDir = env.CINEJELLY_OUTPUT_DIR?.trim() || DEFAULT_OUTPUT_DIR;
+  if (CONTROL_CHARACTER_PATTERN.test(configuredOutputDir)) {
+    throw new Error("CINEJELLY_OUTPUT_DIR must not contain control characters.");
+  }
+  return configuredOutputDir;
 }
 
 function scrubSensitiveStrings(value: unknown): unknown {

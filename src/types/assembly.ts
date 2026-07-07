@@ -18,6 +18,8 @@ export interface AssemblyClip {
   readonly clipId: string;
   readonly sourceUrlOrPath: string;
   readonly order: number;
+  readonly transitionInIntent?: string;
+  readonly transitionOutIntent?: string;
 }
 
 export interface AssemblyInput {

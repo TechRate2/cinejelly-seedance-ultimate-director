@@ -115,6 +115,7 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
   const seedanceCapabilities = parseCapabilitiesEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
   const generatedAudioCapabilities = parseAudioCapabilitiesEnv(env.ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON);
   const llmApiKey = optionalStringEnv("ATLASCLOUD_LLM_API_KEY", env);
+  const seedanceMiniModel = optionalStringEnv("ATLASCLOUD_SEEDANCE_MINI_MODEL", env);
   return {
     apiKey: requireEnv("ATLASCLOUD_API_KEY", env),
     ...(llmApiKey ? { llmApiKey } : {}),
@@ -132,6 +133,7 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
     ),
     models: {
       llmModel: requireEnv("ATLASCLOUD_LLM_MODEL", env),
+      ...(seedanceMiniModel ? { seedanceMiniModel } : {}),
       seedanceStandardModel: requireEnv("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", env),
       seedanceFastModel: requireEnv("ATLASCLOUD_SEEDANCE_FAST_MODEL", env)
     },
@@ -380,7 +382,31 @@ function validateCapability(value: unknown): ProviderCapability {
   if (typeof durations.min !== "number" || typeof durations.max !== "number") {
     throw new Error("Provider capability durations must include numeric min and max.");
   }
+  validateCapabilitySettings(payload.settings);
   return payload as unknown as ProviderCapability;
+}
+
+function validateCapabilitySettings(value: unknown): void {
+  if (value === undefined) {
+    return;
+  }
+  const settings = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+  if (!settings) {
+    throw new Error("Provider capability settings must be an object when provided.");
+  }
+  for (const name of ["generateAudio", "returnLastFrame", "watermark"] as const) {
+    if (settings[name] !== undefined && typeof settings[name] !== "boolean") {
+      throw new Error(`Provider capability settings.${name} must be boolean when provided.`);
+    }
+  }
+  if (
+    settings.bitrateModes !== undefined &&
+    (!Array.isArray(settings.bitrateModes) || !settings.bitrateModes.every(isBitrateMode))
+  ) {
+    throw new Error("Provider capability settings.bitrateModes must contain standard and/or high when provided.");
+  }
 }
 
 function validateAudioCapability(value: unknown): AudioGenerationCapability {
@@ -409,4 +435,8 @@ function isGeneratedAudioKind(value: unknown): boolean {
 
 function isAudioOutputFormat(value: unknown): boolean {
   return value === "mp3" || value === "wav";
+}
+
+function isBitrateMode(value: unknown): boolean {
+  return value === "standard" || value === "high";
 }

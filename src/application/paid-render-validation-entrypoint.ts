@@ -25,6 +25,10 @@ import { createDirectorRuntime } from "./director-factory.js";
 import { normalizeRenderRequest } from "./render-request-normalizer.js";
 import { RuntimePreflight } from "./runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "./validation-readiness-report.js";
+import {
+  internalSourcePatternOrigins,
+  PHASE6_RENDER_VALIDATION_SOURCE_PATTERN_IDS
+} from "../core/private-source-pattern-registry.js";
 
 type PaidRenderValidationStatus =
   | "blocked_by_readiness"
@@ -107,11 +111,7 @@ interface AtlasBillingGateCheck {
   readonly message: string;
 }
 
-const SOURCE_PATTERN_ORIGINS = [
-  "vericontext/vibeframe",
-  "harry0703/MoneyPrinterTurbo",
-  "calesthio/OpenMontage"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(PHASE6_RENDER_VALIDATION_SOURCE_PATTERN_IDS);
 
 const DEFAULT_ATLAS_BILLING_REPORT_PATH = "assets/output_deliverables/phase6-validation/atlas-billing-paid-render-report.json";
 const DEFAULT_ATLAS_BILLING_EVIDENCE_MAX_AGE_HOURS = 24;

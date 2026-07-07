@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/api-response-redaction-smoke-report.schema.json",
+  "title": "CineJelly API Response Redaction Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "localHttpCallsMade",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.api-response-redaction-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "localHttpCallsMade": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "endpointPaths",
+        "healthStatusCode",
+        "jsonSecurityHeadersCheckPassed",
+        "requestIdHeaderPresent"
+      ],
+      "properties": {
+        "outputPath": { "type": "string" },
+        "endpointPaths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["GET /health"] }
+        },
+        "healthStatusCode": { "const": 200 },
+        "jsonSecurityHeadersCheckPassed": { "const": true },
+        "requestIdHeaderPresent": { "const": true }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "message"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["pass", "fail"] },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiResponseRedactionPass",
+        "canUseAsNoSpendApiPrivacyEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "apiResponseRedactionPass": { "type": "boolean" },
+        "canUseAsNoSpendApiPrivacyEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

@@ -48,6 +48,9 @@ const requiredReferenceImplementations = [
 
 const sourceScanRoots = ["src", "scripts"];
 const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".tsx"]);
+const productOwnedHygieneRoots = ["src", "scripts", "schemas", "docs"];
+const pathHygienePattern =
+  /(^|\/)(test|tests|__tests__|__pycache__|mock|mocks|fixture|fixtures|sample|samples|demo|demos|example|examples)(\/|\.|$)|(^|\/)(build|temp|tmp|data\/processed|dataset\/presentation_style|resource\/fonts|resource\/songs)\/|(^|\/).+\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|py)$|mock|fixture|stub|dummy|fake|\.(mp4|mov|mkv|avi|webm|mp3|wav|flac|aac|jpg|jpeg|png|gif|webp|ipynb|npy|npz|gz|zip|tar|tgz|ttc|ttf|otf|woff|woff2|bin|onnx|pt|pth|ckpt|safetensors|csv|jsonl|tiktoken|pyc|tsbuildinfo|ds_store|sample|example|snap)$/iu;
 
 function snapshot(id, localPath, upstreamRepository, license) {
   return { id, localPath, upstreamRepository, license };
@@ -115,9 +118,10 @@ function main() {
   const snapshotInventory = expectedSnapshots.map((item) => buildSnapshotStatus(item, docs));
   const referenceImplementations = requiredReferenceImplementations.map((path) => buildReferenceImplementationStatus(path));
   const directExternalImports = findDirectExternalImports();
+  const sourceHygiene = buildSourceHygiene();
   const functionalParityEstimates = buildFunctionalParityEstimates(docs, snapshotInventory);
-  const checks = buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates });
-  const summary = buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates, checks });
+  const checks = buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, sourceHygiene, functionalParityEstimates });
+  const summary = buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, sourceHygiene, functionalParityEstimates, checks });
   const status = checks.some((check) => check.status === "fail") ? "fail" : checks.some((check) => check.status === "warn") ? "warn" : "pass";
 
   const report = {
@@ -132,6 +136,7 @@ function main() {
       requiredDocumentCount: requiredDocs.length,
       requiredReferenceImplementationCount: requiredReferenceImplementations.length,
       scannedSourceRoots: sourceScanRoots,
+      sourceHygieneRoots: productOwnedHygieneRoots,
       outputPath: toRepoRelative(options.outputPath)
     },
     summary,
@@ -139,6 +144,7 @@ function main() {
     functionalParityEstimates,
     referenceImplementations,
     directExternalImports,
+    sourceHygiene,
     checks,
     releaseGateSummary: {
       snapshotGuardrailsPass: status !== "fail",
@@ -317,6 +323,27 @@ function findDirectExternalImports() {
   return findings;
 }
 
+function buildSourceHygiene() {
+  const productOwnedFiles = productOwnedHygieneRoots
+    .flatMap((root) => listAllFiles(resolve(repoRoot, root)).map(toRepoRelative))
+    .sort();
+  const productOwnedFindings = productOwnedFiles.filter((path) => pathHygienePattern.test(path));
+  const externalFiles = listAllFiles(resolve(repoRoot, "external/upstream")).map(toRepoRelative).sort();
+  const externalPrunableFiles = externalFiles.filter((path) => pathHygienePattern.test(path));
+  const status = productOwnedFindings.length === 0 && externalPrunableFiles.length === 0 ? "pass" : "fail";
+  return {
+    status,
+    hygienePolicy: "product_source_keeps_no_test_mock_demo_sample_files_and_external_snapshots_are_pruned",
+    productOwnedScannedRoots: productOwnedHygieneRoots,
+    productOwnedFileCount: productOwnedFiles.length,
+    productOwnedTestMockFindingCount: productOwnedFindings.length,
+    productOwnedTestMockFindingsSample: productOwnedFindings.slice(0, 50),
+    externalSnapshotFileCount: externalFiles.length,
+    externalSnapshotPrunableFileCount: externalPrunableFiles.length,
+    externalSnapshotPrunableFilesSample: externalPrunableFiles.slice(0, 50)
+  };
+}
+
 function listSourceFiles(root) {
   if (!existsSync(root)) {
     return [];
@@ -340,7 +367,30 @@ function listSourceFiles(root) {
   return files;
 }
 
-function buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates }) {
+function listAllFiles(root) {
+  if (!existsSync(root)) {
+    return [];
+  }
+  const stat = statSync(root);
+  if (stat.isFile()) {
+    return [root];
+  }
+  const files = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.name === ".git" || entry.name === "node_modules" || entry.name === "dist") {
+      continue;
+    }
+    const child = resolve(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listAllFiles(child));
+    } else if (entry.isFile()) {
+      files.push(child);
+    }
+  }
+  return files;
+}
+
+function buildChecks({ docs, snapshotInventory, referenceImplementations, directExternalImports, sourceHygiene, functionalParityEstimates }) {
   const checks = [];
   for (const doc of Object.values(docs)) {
     checks.push(check({
@@ -377,6 +427,15 @@ function buildChecks({ docs, snapshotInventory, referenceImplementations, direct
     evidence: `${directExternalImports.length} direct import finding(s)`,
     blocker: directExternalImports.length === 0 ? undefined : "Production code must translate upstream behavior into owned modules instead of importing snapshot files."
   }));
+  checks.push(check({
+    id: "source_hygiene_pruned_snapshots",
+    label: "Product source has no test/mock/demo files and external snapshots are pruned",
+    status: sourceHygiene.status,
+    evidence: `${sourceHygiene.productOwnedTestMockFindingCount} product finding(s), ${sourceHygiene.externalSnapshotPrunableFileCount} external snapshot pruning finding(s)`,
+    blocker: sourceHygiene.status === "pass"
+      ? undefined
+      : "Remove product-owned test/mock/demo files or prune upstream snapshot tests/examples/build/temp/media before commercial handoff."
+  }));
   const missingFunctionalEstimates = functionalParityEstimates.filter((item) => item.status !== "estimated");
   checks.push(check({
     id: "functional_parity_estimate_coverage",
@@ -398,7 +457,7 @@ function buildChecks({ docs, snapshotInventory, referenceImplementations, direct
       : undefined
   }));
   const parityText = docs["docs/SNAPSHOT_FUNCTION_PARITY_AUDIT_2026-06-17.md"]?.text ?? "";
-  const staticParityAuditRefusesFullClaim = parityText.includes("No claim of 100% parity") || parityText.includes("No first-party web UI");
+  const staticParityAuditRefusesFullClaim = parityText.includes("No claim of 100% parity");
   checks.push(check({
     id: "static_parity_audit_keeps_no_100_percent_claim",
     label: "Static parity audit refuses 100% parity claim",
@@ -419,7 +478,7 @@ function check(value) {
   };
 }
 
-function buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, functionalParityEstimates, checks }) {
+function buildSummary({ snapshotInventory, referenceImplementations, directExternalImports, sourceHygiene, functionalParityEstimates, checks }) {
   const estimatedItems = functionalParityEstimates.filter((item) => item.status === "estimated");
   const minValues = estimatedItems.map((item) => item.estimateMinPercent);
   const maxValues = estimatedItems.map((item) => item.estimateMaxPercent);
@@ -435,6 +494,8 @@ function buildSummary({ snapshotInventory, referenceImplementations, directExter
     averageSnapshotParityEstimateMaxPercent: averageRounded(maxValues),
     referenceImplementationCount: referenceImplementations.filter((item) => item.present).length,
     directExternalImportFindingCount: directExternalImports.length,
+    productOwnedTestMockFindingCount: sourceHygiene.productOwnedTestMockFindingCount,
+    externalSnapshotPrunableFileCount: sourceHygiene.externalSnapshotPrunableFileCount,
     passedChecks: checks.filter((item) => item.status === "pass").length,
     warningChecks: checks.filter((item) => item.status === "warn").length,
     failedChecks: checks.filter((item) => item.status === "fail").length

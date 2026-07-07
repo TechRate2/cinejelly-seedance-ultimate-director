@@ -11,6 +11,14 @@ import { FileRenderProviderHandoffLeaseStore } from "../api/render-provider-hand
 import { readRenderProviderLeasePath } from "../api/render-provider-handoff-lease-service.js";
 import { parseApiClientPoliciesJson } from "../api/api-client-policy.js";
 import { readProductionGraphResumeQueuePath } from "../api/production-graph-resume-queue-service.js";
+import {
+  readShortChannelStyleLibraryPath,
+  ShortChannelStyleLibraryStore
+} from "../api/short-channel-style-library-store.js";
+import {
+  readShortPipelineSessionStorePath,
+  ShortPipelineSessionStore
+} from "../api/short-pipeline-session-store.js";
 import { GeneratedAudioAssetResolver } from "../core/generated-audio-asset-resolver.js";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
 import { FileProductionGraphResumeQueueStore } from "../core/production-graph-resume-state.js";
@@ -49,6 +57,7 @@ export class RuntimePreflight {
       this.present("ATLASCLOUD_LLM_MODEL", this.env.ATLASCLOUD_LLM_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
+      this.optionalModelId("ATLASCLOUD_SEEDANCE_MINI_MODEL", this.env.ATLASCLOUD_SEEDANCE_MINI_MODEL),
       this.apiAuthCheck(),
       this.optionalPort("PORT", this.env.PORT),
       this.optionalAtlasEndpointUrl("ATLASCLOUD_LLM_BASE_URL", this.env.ATLASCLOUD_LLM_BASE_URL, ATLAS_LLM_PATH),
@@ -108,6 +117,8 @@ export class RuntimePreflight {
     ];
 
     checks.push(await this.outputDirectoryCheck("CINEJELLY_OUTPUT_DIR", this.env.CINEJELLY_OUTPUT_DIR));
+    checks.push(await this.shortPipelineSessionStoreCheck());
+    checks.push(await this.shortChannelStyleLibraryStoreCheck());
     checks.push(await this.renderJobHistoryStoreCheck());
     checks.push(await this.renderProviderLeaseStoreCheck());
     checks.push(await this.productionGraphResumeQueueStoreCheck());
@@ -248,6 +259,72 @@ export class RuntimePreflight {
         message: error instanceof Error
           ? `CINEJELLY_API_JOB_HISTORY_PATH is not usable: ${error.message}`
           : "CINEJELLY_API_JOB_HISTORY_PATH is not usable."
+      };
+    }
+  }
+
+  private async shortPipelineSessionStoreCheck(): Promise<PreflightCheck> {
+    let storePath: string;
+    try {
+      storePath = readShortPipelineSessionStorePath(this.env);
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+        status: "fail",
+        message: error instanceof Error ? error.message : "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH is invalid."
+      };
+    }
+    try {
+      await mkdir(dirname(resolve(storePath)), { recursive: true });
+      await access(dirname(resolve(storePath)), constants.W_OK);
+      new ShortPipelineSessionStore({ storePath }).loadRecords();
+      return {
+        name: "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+        status: "pass",
+        message: this.env.CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH?.trim()
+          ? "Short pipeline session store points to a writable redacted session file."
+          : "Short pipeline session store uses the default writable file under CINEJELLY_OUTPUT_DIR."
+      };
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH",
+        status: "fail",
+        message: error instanceof Error
+          ? `Short pipeline session store is not usable: ${error.message}`
+          : "Short pipeline session store is not usable."
+      };
+    }
+  }
+
+  private async shortChannelStyleLibraryStoreCheck(): Promise<PreflightCheck> {
+    let storePath: string;
+    try {
+      storePath = readShortChannelStyleLibraryPath(this.env);
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+        status: "fail",
+        message: error instanceof Error ? error.message : "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH is invalid."
+      };
+    }
+    try {
+      await mkdir(dirname(resolve(storePath)), { recursive: true });
+      await access(dirname(resolve(storePath)), constants.W_OK);
+      new ShortChannelStyleLibraryStore({ storePath }).loadRecords();
+      return {
+        name: "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+        status: "pass",
+        message: this.env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH?.trim()
+          ? "Short channel-style library points to a writable redacted profile file."
+          : "Short channel-style library uses the default writable file under CINEJELLY_OUTPUT_DIR."
+      };
+    } catch (error) {
+      return {
+        name: "CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH",
+        status: "fail",
+        message: error instanceof Error
+          ? `Short channel-style library is not usable: ${error.message}`
+          : "Short channel-style library is not usable."
       };
     }
   }
@@ -534,6 +611,16 @@ export class RuntimePreflight {
       : { name, status: "pass", message: `${name} is not set; shared Atlas API key will be used.` };
   }
 
+  private optionalModelId(name: string, value: string | undefined): PreflightCheck {
+    if (!value?.trim()) {
+      return { name, status: "pass", message: `${name} is not set; capability fallback will be used when needed.` };
+    }
+    const issues = this.modelIdIssues(name, [value.trim()]);
+    return issues.length > 0
+      ? { name, status: "fail", message: issues.join(" ") }
+      : { name, status: "pass", message: `${name} is configured.` };
+  }
+
   private apiAuthCheck(): PreflightCheck {
     const disabledAuth = this.env.CINEJELLY_DISABLE_API_AUTH?.trim().toLowerCase();
     if (disabledAuth && disabledAuth !== "true" && disabledAuth !== "false") {
@@ -739,6 +826,7 @@ export class RuntimePreflight {
 
   private configuredSeedanceModelIds(): readonly string[] {
     return [
+      this.env.ATLASCLOUD_SEEDANCE_MINI_MODEL?.trim(),
       this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL?.trim(),
       this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL?.trim()
     ].filter((value): value is string => Boolean(value));
@@ -783,7 +871,7 @@ export class RuntimePreflight {
       }
       const missingModels = configuredSeedanceModels.filter((modelId) => !capabilityModels.has(modelId));
       if (missingModels.length > 0) {
-        issues.push("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must include the configured fast and standard Seedance model IDs.");
+        issues.push("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must include every configured Seedance model ID.");
       }
       return issues;
     } catch {
@@ -976,11 +1064,39 @@ export class RuntimePreflight {
         ) {
           return { valid: false, message: "Each provider capability must include provider, modelId, modes, durations, resolutions, ratios, and references." };
         }
+        const settingsIssue = this.providerCapabilitySettingsIssue(payload.settings);
+        if (settingsIssue) {
+          return { valid: false, message: settingsIssue };
+        }
       }
       return { valid: true, count: parsed.length };
     } catch {
       return { valid: false, message: "ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must be valid JSON." };
     }
+  }
+
+  private providerCapabilitySettingsIssue(value: unknown): string | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+    const settings = value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+    if (!settings) {
+      return "Provider capability settings must be an object when provided.";
+    }
+    for (const name of ["generateAudio", "returnLastFrame", "watermark"] as const) {
+      if (settings[name] !== undefined && typeof settings[name] !== "boolean") {
+        return `Provider capability settings.${name} must be boolean when provided.`;
+      }
+    }
+    if (
+      settings.bitrateModes !== undefined &&
+      (!Array.isArray(settings.bitrateModes) || !settings.bitrateModes.every((item) => item === "standard" || item === "high"))
+    ) {
+      return "Provider capability settings.bitrateModes must contain standard and/or high when provided.";
+    }
+    return undefined;
   }
 
   private parseGeneratedAudioCapabilityJson(value: string): { readonly valid: true; readonly count: number } | { readonly valid: false; readonly message: string } {

@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/last-frame-chaining-smoke-report.schema.json",
+  "title": "CineJelly Last-Frame Chaining Smoke Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "fakeProviderCallsMade",
+    "sourcePatternOrigins",
+    "checkedInputs",
+    "fallbackExtraction",
+    "localSidecarSelection",
+    "strategy",
+    "publicRequests",
+    "renderedPromptSummaries",
+    "renderSchedule",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.last-frame-chaining-smoke.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "fakeProviderCallsMade": { "const": true },
+    "sourcePatternOrigins": {
+      "type": "array",
+      "minItems": 3,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "targetDurationSeconds",
+        "plannedShotCount",
+        "storyboardApprovalStatus",
+        "rawUrlLeakCheckPassed"
+      ],
+      "properties": {
+        "outputPath": { "const": "assets/output_deliverables/business-readiness/last-frame-chaining-smoke-report.json" },
+        "targetDurationSeconds": { "type": "number", "minimum": 15 },
+        "plannedShotCount": { "type": "integer", "minimum": 2 },
+        "storyboardApprovalStatus": { "enum": ["approved", "changes_requested", "missing", "not_required"] },
+        "rawUrlLeakCheckPassed": { "type": "boolean" }
+      }
+    },
+    "fallbackExtraction": { "$ref": "#/$defs/frameSelection" },
+    "localSidecarSelection": { "$ref": "#/$defs/frameSelection" },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestedMode",
+        "workflowMode",
+        "continuityMode",
+        "lastFrameChainingStatus",
+        "requiresSequentialRender"
+      ],
+      "properties": {
+        "requestedMode": {
+          "enum": [
+            "auto",
+            "single",
+            "storyboard",
+            "multishot",
+            "reference_locked",
+            "source_video",
+            "sequence_bible",
+            "manual_storyboard"
+          ]
+        },
+        "workflowMode": {
+          "enum": [
+            "single_clip",
+            "reference_locked_single_clip",
+            "storyboard_multishot",
+            "reference_locked_multishot",
+            "source_video_guided",
+            "sequence_bible",
+            "manual_storyboard"
+          ]
+        },
+        "continuityMode": {
+          "enum": [
+            "single_clip",
+            "reference_locked",
+            "last_frame_chaining",
+            "source_video_guided",
+            "sequence_bible",
+            "manual_locked"
+          ]
+        },
+        "lastFrameChainingStatus": { "enum": ["not_needed", "recommended", "required", "blocked"] },
+        "requiresSequentialRender": { "type": "boolean" }
+      }
+    },
+    "publicRequests": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "$ref": "#/$defs/requestSummary" }
+    },
+    "renderedPromptSummaries": {
+      "type": "array",
+      "minItems": 2,
+      "items": { "$ref": "#/$defs/promptSummary" }
+    },
+    "renderSchedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["batchCount", "parallelBatchCount", "sequentialItemCount", "sequentialReasons"],
+      "properties": {
+        "batchCount": { "type": "integer", "minimum": 1 },
+        "parallelBatchCount": { "type": "integer", "minimum": 0 },
+        "sequentialItemCount": { "type": "integer", "minimum": 1 },
+        "sequentialReasons": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 13,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canUseAsNoSpendLastFrameChainingEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "canUseAsNoSpendLastFrameChainingEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "frameSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputUrlSha256Present",
+        "providerKind",
+        "role",
+        "qualityStrategy",
+        "qualityCandidateCount",
+        "qualityScore"
+      ],
+      "properties": {
+        "recognizedAsImage": { "type": "boolean" },
+        "selected": { "type": "boolean" },
+        "extracted": { "type": "boolean" },
+        "outputExists": { "type": "boolean" },
+        "providerKind": { "const": "image" },
+        "role": { "const": "first_frame" },
+        "sourceVideoOutputIndex": { "type": "integer", "minimum": 0 },
+        "outputIndex": { "type": "integer", "minimum": 0 },
+        "outputUrlSha256Present": { "type": "boolean" },
+        "qualityStrategy": { "enum": ["provider_sidecar", "ffmpeg_multi_offset"] },
+        "qualityCandidateCount": { "type": "integer", "minimum": 1 },
+        "selectedOffsetSeconds": { "type": "number", "minimum": 0 },
+        "selectedFileSizeBytes": { "type": "integer", "minimum": 1 },
+        "qualityScore": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "requestSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "mode",
+        "referenceRoles",
+        "referenceKinds",
+        "hasFirstFrameReference",
+        "promptMentionsContinuityFrame"
+      ],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "mode": { "$ref": "#/$defs/providerMode" },
+        "referenceRoles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "referenceKinds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "hasFirstFrameReference": { "type": "boolean" },
+        "chainedFromShotId": { "type": "string", "minLength": 1 },
+        "chainReferenceUrlSha256": { "$ref": "#/$defs/sha256" },
+        "chainEndpointFrameStrategy": { "enum": ["provider_sidecar", "ffmpeg_multi_offset"] },
+        "chainEndpointFrameCandidateCount": { "type": "integer", "minimum": 1 },
+        "chainEndpointFrameQualityScore": { "type": "number", "exclusiveMinimum": 0 },
+        "promptMentionsContinuityFrame": { "type": "boolean" }
+      }
+    },
+    "promptSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index",
+        "shotId",
+        "mode",
+        "hasFirstFrameReference"
+      ],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "shotId": { "type": "string", "minLength": 1 },
+        "mode": { "$ref": "#/$defs/providerMode" },
+        "hasFirstFrameReference": { "type": "boolean" },
+        "chainedFromShotId": { "type": "string", "minLength": 1 },
+        "chainReferenceUrlSha256": { "$ref": "#/$defs/sha256" },
+        "chainEndpointFrameStrategy": { "enum": ["provider_sidecar", "ffmpeg_multi_offset"] },
+        "chainEndpointFrameCandidateCount": { "type": "integer", "minimum": 1 },
+        "chainEndpointFrameQualityScore": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "providerMode": {
+      "enum": [
+        "text_to_video",
+        "image_to_video",
+        "reference_to_video",
+        "video_to_video",
+        "extend",
+        "edit"
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

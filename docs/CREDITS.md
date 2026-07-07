@@ -9,8 +9,8 @@ Các thành phần được snapshot từ repo gốc sẽ được ghi nhận ng
 ## Current Repository Review
 
 - Repository reviewed: `TechRate2/cinejelly-seedance-ultimate-director`
-- Result: the current repository contains production TypeScript source, design documentation, and upstream Git Subtree snapshots under `external/upstream/`.
-- Current Git Subtree snapshots are stored under `external/upstream/`; see `docs/SUBTREE_POLICY.md` for the workflow and `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` for local paths, license evidence, and reuse boundaries.
+- Result: the current repository contains production TypeScript source, design documentation, and curated upstream source snapshots under `external/upstream/`.
+- Current curated source snapshots are stored under `external/upstream/`; see `docs/SUBTREE_POLICY.md` for the workflow and `docs/EXTERNAL_SOURCE_SNAPSHOTS.md` for local paths, license evidence, pruning rules, and reuse boundaries.
 
 ## Primary Architecture References
 
@@ -289,7 +289,7 @@ These were discovered during source review and are not primary sources for this 
 ## Attribution Policy for CineJelly
 
 - Cite public repos and articles in internal architecture docs.
-- Use Git Subtree snapshots under `external/upstream/` as the durable source trail for copied/adapted components.
+- Use curated source snapshots under `external/upstream/` as the durable source trail for copied/adapted components.
 - Copy or adapt documentation, patterns, structures, data, and compatible code into `docs/`, `data/`, or `src/` when the license permits the intended commercial product use.
 - Code moved into `src/` must become CineJelly-owned implementation: new or substantially adapted product code, not unchanged large upstream files.
 - Production code must not import directly from `external/upstream/`.

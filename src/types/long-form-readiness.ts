@@ -34,6 +34,7 @@ export type LongFormUserControlMode =
   | "multishot"
   | "reference_locked"
   | "source_video"
+  | "sequence_bible"
   | "manual_storyboard";
 
 export type LongFormRenderUnitMode =
@@ -41,6 +42,7 @@ export type LongFormRenderUnitMode =
   | "storyboard_multishot"
   | "reference_locked"
   | "source_video_guided"
+  | "sequence_bible"
   | "manual_review_required";
 
 export type LongFormRepairCategory =

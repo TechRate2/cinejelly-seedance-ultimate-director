@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/short-prompt-pattern-corpus-report.schema.json",
+  "title": "CineJelly Short Prompt Pattern Corpus Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "sourceRepository",
+    "license",
+    "sourceSnapshot",
+    "transformationPolicy",
+    "visibleTaxonomy",
+    "runtimeTaxonomyFamilies",
+    "checks",
+    "releaseGateSummary"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.short-prompt-pattern-corpus-report.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "sourceRepository": { "type": "string", "minLength": 1 },
+    "license": { "type": "string", "minLength": 1 },
+    "sourceSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upstreamDir",
+        "readmeSha256",
+        "videoUrlsSha256",
+        "declaredPromptCount",
+        "localVideoUrlIndexCount",
+        "readmePromptSectionCount",
+        "localizedReadmeCount",
+        "localizedReadmes"
+      ],
+      "properties": {
+        "upstreamDir": { "type": "string", "minLength": 1 },
+        "readmeSha256": { "$ref": "#/$defs/sha256" },
+        "videoUrlsSha256": { "$ref": "#/$defs/sha256" },
+        "declaredPromptCount": { "type": "integer", "minimum": 1 },
+        "localVideoUrlIndexCount": { "type": "integer", "minimum": 0 },
+        "readmePromptSectionCount": { "type": "integer", "minimum": 0 },
+        "localizedReadmeCount": { "type": "integer", "minimum": 0 },
+        "localizedReadmes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "transformationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["promptTextBundling", "runtimeUse", "commercialGuardrail"],
+      "properties": {
+        "promptTextBundling": { "type": "string", "minLength": 1 },
+        "runtimeUse": { "type": "string", "minLength": 1 },
+        "commercialGuardrail": { "type": "string", "minLength": 1 }
+      }
+    },
+    "visibleTaxonomy": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["family", "count"],
+        "properties": {
+          "family": { "type": "string", "minLength": 1 },
+          "count": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "runtimeTaxonomyFamilies": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canUseAsNoSpendPromptCorpusEvidence", "canReleaseToCustomerTraffic", "releaseBlocker"],
+      "properties": {
+        "canUseAsNoSpendPromptCorpusEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail", "warn", "skipped"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

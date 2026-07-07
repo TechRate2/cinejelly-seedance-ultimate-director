@@ -63,9 +63,21 @@ try {
     serialized.includes("operator-launch-ui-credential-2026") ||
     serialized.includes("sk-secret") ||
     serialized.includes("api_key=");
+  const privateSourcePatternLineageLeakDetected = await containsPrivateSourcePatternTextForSmoke(JSON.stringify({
+    dashboardPage: dashboardPage.body,
+    ui
+  }));
+  const dashboardSecurityHeadersPassed = htmlSecurityHeadersPass(dashboardPage.headers);
   const sourceReports = Array.isArray(ui?.sourceReports) ? ui.sourceReports : [];
   const productGaps = Array.isArray(ui?.productGaps) ? ui.productGaps : [];
   const nextActions = Array.isArray(ui?.nextActions) ? ui.nextActions : [];
+  const dashboardNoPrefilledLaunchState =
+    !/id="side-(?:status|evidence|traffic|contracts)"\s*>\s*(?:locked|0%|blocked|unknown)\s*<\/span>|id="metric-traffic"\s*>\s*Blocked\s*<\/div>/iu.test(dashboardPage.body) &&
+    dashboardPage.body.includes('id="side-status">--</span>') &&
+    dashboardPage.body.includes('id="side-evidence">--</span>') &&
+    dashboardPage.body.includes('id="side-traffic">--</span>') &&
+    dashboardPage.body.includes('id="side-contracts">--</span>') &&
+    dashboardPage.body.includes('id="metric-traffic">--</div>');
   const checks = [
     dashboardPage.statusCode === 200 &&
       String(dashboardPage.headers.get("content-type") ?? "").includes("text/html") &&
@@ -77,6 +89,12 @@ try {
       !dashboardPage.body.includes("ATLASCLOUD_API_KEY")
       ? pass("operator_dashboard_page_available", "First-party operator dashboard HTML is served without embedding credentials or local paths.")
       : fail("operator_dashboard_page_available", "Expected operator dashboard HTML route to be safe and available."),
+    dashboardSecurityHeadersPassed
+      ? pass("operator_dashboard_security_headers", "Operator launch dashboard HTML is served with no-store, nosniff, frame-deny, no-referrer, permissions-policy, and self-only CSP guardrails.")
+      : fail("operator_dashboard_security_headers", "Expected operator dashboard HTML route to include strict browser security headers."),
+    dashboardNoPrefilledLaunchState
+      ? pass("operator_dashboard_no_prefilled_launch_state", "Operator launch dashboard shell shows neutral placeholders until the authenticated backend contract is loaded.")
+      : fail("operator_dashboard_no_prefilled_launch_state", "Expected operator dashboard shell to avoid hardcoded readiness, evidence, or customer-traffic state before auth."),
     unauthorized.statusCode === 401
       ? pass("deployment_token_required", "Operator launch UI contract is protected by the deployment token.")
       : fail("deployment_token_required", "Expected missing deployment token to be rejected."),
@@ -108,7 +126,7 @@ try {
       : fail("source_report_cards_present", "Expected completion and report-contract source cards."),
     productGaps.some((gap) => gap.gapId === "first_party_web_ui" && gap.scopeDecisionRequired === true) &&
       productGaps.some((gap) => gap.gapId === "distributed_active_provider_work_resume") &&
-      productGaps.some((gap) => gap.gapId === "directorbench_style_benchmark_harness")
+      productGaps.some((gap) => gap.gapId === "director_benchmarking_style_benchmark_harness")
       ? pass("product_gaps_visible", "Contract surfaces the known product-code gaps without claiming launch completeness.")
       : fail("product_gaps_visible", "Expected known product-code gaps in UI contract."),
     nextActions.length >= 8 &&
@@ -124,7 +142,10 @@ try {
       : fail("release_gate_stays_blocked", "Expected UI contract release gate to remain non-release evidence."),
     !leakDetected
       ? pass("admin_contract_redacted", "Response does not expose deployment token, local absolute paths, or secret-like values.")
-      : fail("admin_contract_redacted", "Expected response to stay redacted.")
+      : fail("admin_contract_redacted", "Expected response to stay redacted."),
+    !privateSourcePatternLineageLeakDetected
+      ? pass("operator_ui_hides_private_source_pattern_lineage", "Operator dashboard HTML and UI contract do not expose private source-pattern repo, platform, or upstream workflow labels.")
+      : fail("operator_ui_hides_private_source_pattern_lineage", "Expected operator dashboard HTML and UI contract to hide private source-pattern lineage.")
   ];
 
   report = {
@@ -153,7 +174,8 @@ try {
       sourceReportCount: sourceReports.length,
       productGapCount: productGaps.length,
       nextActionCount: nextActions.length,
-      redactionCheckPassed: !leakDetected
+      redactionCheckPassed: !leakDetected,
+      htmlSecurityHeadersCheckPassed: dashboardSecurityHeadersPassed
     },
     scenarios: {
       dashboardStatus: ui?.dashboardStatus,
@@ -221,10 +243,67 @@ async function getText(url) {
   };
 }
 
+function htmlSecurityHeadersPass(headers) {
+  const csp = String(headers.get("content-security-policy") ?? "");
+  return String(headers.get("cache-control") ?? "").toLowerCase().includes("no-store") &&
+    String(headers.get("x-content-type-options") ?? "").toLowerCase() === "nosniff" &&
+    String(headers.get("x-frame-options") ?? "").toUpperCase() === "DENY" &&
+    String(headers.get("referrer-policy") ?? "").toLowerCase() === "no-referrer" &&
+    String(headers.get("permissions-policy") ?? "").includes("camera=()") &&
+    csp.includes("default-src 'none'") &&
+    csp.includes("connect-src 'self'") &&
+    csp.includes("frame-ancestors 'none'") &&
+    csp.includes("form-action 'self'");
+}
+
 function writeJson(outputPath, value) {
   const absolutePath = resolve(repoRoot, outputPath);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+const PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS = [
+  "Topview",
+  "Higgsfield",
+  "OpenMontage",
+  "VideoAgent",
+  "ViMax",
+  "vibeframe",
+  "YouMind-OpenLab",
+  "ZeroLu",
+  "Emily2040",
+  "higgsfield-ai",
+  "OSideMedia",
+  "calesthio/",
+  "HKUDS/",
+  "video-db/",
+  "vericontext/",
+  "harry0703/",
+  "MoneyPrinterTurbo",
+  "moneyprinterturbo",
+  "jiaminchen-1031/",
+  "DirectorBench",
+  "directorbench",
+  "nirdiamant/",
+  "gswithjeff/",
+  "Shubhamsaboo/",
+  "hereandnowai/",
+  "Anil-matcha/"
+];
+
+async function containsPrivateSourcePatternTextForSmoke(value) {
+  try {
+    const registry = await import("../dist/core/private-source-pattern-registry.js");
+    if (typeof registry.containsPrivateSourcePatternText === "function") {
+      return registry.containsPrivateSourcePatternText(value);
+    }
+  } catch {
+    // A clean checkout may run this script before build output exists.
+  }
+  const lowered = value.toLowerCase();
+  return PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS.some((fragment) =>
+    lowered.includes(fragment.toLowerCase())
+  );
 }
 
 function pass(name, message) {

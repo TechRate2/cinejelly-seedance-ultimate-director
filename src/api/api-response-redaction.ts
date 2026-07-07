@@ -1,11 +1,19 @@
 /**
- * API response redaction for deployment-local filesystem paths.
- * Runtime artifacts keep full paths internally, while public JSON responses expose only safe operational fields.
+ * API response redaction for deployment-local filesystem paths and internal source lineage.
+ * Runtime artifacts keep full audit evidence internally, while public JSON responses expose
+ * only safe operational fields.
  */
+
+import {
+  containsPrivateSourcePatternText,
+  redactPrivateSourcePatternText
+} from "../core/private-source-pattern-registry.js";
 
 const REDACTED_LOCAL_PATH = "[REDACTED_LOCAL_PATH]";
 const REDACTED_DATA_URI = "[REDACTED_DATA_URI]";
 const REDACTED_UNSAFE_URI = "[REDACTED_UNSAFE_URI]";
+const REDACTED_SOURCE_PATTERN = "[REDACTED_SOURCE_PATTERN]";
+const OMIT_VALUE = Symbol("omit_api_response_value");
 
 const DATA_URI_PATTERN = /^data:/i;
 const URI_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
@@ -15,12 +23,30 @@ const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[a-zA-Z]:[\\/]/;
 const UNC_PATH_PATTERN = /^\\\\[^\\]+\\/;
 const POSIX_ABSOLUTE_PATH_PATTERN = /^\//;
 const RELATIVE_PATH_PATTERN = /^\.{1,2}[\\/]/;
+const PRIVATE_SOURCE_FIELD_NAMES = new Set([
+  "sourcePatternOrigins",
+  "sourcePatternOrigin",
+  "sourcePatternId",
+  "sourcePatternIds",
+  "sourceRepository",
+  "sourceRepositories",
+  "upstreamPaths",
+  "upstreamPath",
+  "snapshotPath"
+]);
 
 export function redactApiLocalPaths(value: unknown): unknown {
-  return redactValue(value, undefined);
+  return redactValue(value, undefined, false);
 }
 
-function redactValue(value: unknown, key: string | undefined): unknown {
+export function redactApiResponse(value: unknown): unknown {
+  return redactValue(value, undefined, true);
+}
+
+function redactValue(value: unknown, key: string | undefined, redactPrivateSources: boolean): unknown | typeof OMIT_VALUE {
+  if (redactPrivateSources && key && PRIVATE_SOURCE_FIELD_NAMES.has(key)) {
+    return OMIT_VALUE;
+  }
   if (value instanceof Date) {
     return value.toISOString();
   }
@@ -31,17 +57,21 @@ function redactValue(value: unknown, key: string | undefined): unknown {
     if (URI_SCHEME_PATTERN.test(value) && !isSafePublicUri(value)) {
       return REDACTED_UNSAFE_URI;
     }
-    return shouldRedactPathValue(key, value) ? REDACTED_LOCAL_PATH : value;
+    if (shouldRedactPathValue(key, value)) {
+      return REDACTED_LOCAL_PATH;
+    }
+    return redactPrivateSources ? redactPrivateSourcePatternValue(value) : value;
   }
   if (Array.isArray(value)) {
-    return value.map((item) => redactValue(item, undefined));
+    return value
+      .map((item) => redactValue(item, undefined, redactPrivateSources))
+      .filter((item) => item !== OMIT_VALUE);
   }
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([entryKey, entryValue]) => [
-        entryKey,
-        redactValue(entryValue, entryKey)
-      ])
+      Object.entries(value as Record<string, unknown>)
+        .map(([entryKey, entryValue]) => [entryKey, redactValue(entryValue, entryKey, redactPrivateSources)] as const)
+        .filter(([, entryValue]) => entryValue !== OMIT_VALUE)
     );
   }
   return value;
@@ -97,4 +127,13 @@ function looksLikeLocalPath(value: string): boolean {
     RELATIVE_PATH_PATTERN.test(value) ||
     value.includes("\\")
   );
+}
+
+function redactPrivateSourcePatternValue(value: string): string {
+  const redacted = redactPrivateSourcePatternText(value);
+  if (redacted === value) {
+    return value;
+  }
+  const trimmed = redacted.trim();
+  return trimmed && !containsPrivateSourcePatternText(trimmed) ? trimmed : REDACTED_SOURCE_PATTERN;
 }

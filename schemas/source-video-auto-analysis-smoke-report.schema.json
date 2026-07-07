@@ -60,6 +60,7 @@
         "passingScenarioCount",
         "failingScenarioCount",
         "frameSamplerCallCount",
+        "mediaMetricsAnalyzerCallCount",
         "syntheticLlmCallCount",
         "analysisGeneratedScenarioCount",
         "skippedScenarioCount"
@@ -69,6 +70,7 @@
         "passingScenarioCount": { "type": "integer", "minimum": 0 },
         "failingScenarioCount": { "type": "integer", "minimum": 0 },
         "frameSamplerCallCount": { "type": "integer", "minimum": 0 },
+        "mediaMetricsAnalyzerCallCount": { "type": "integer", "minimum": 0 },
         "syntheticLlmCallCount": { "type": "integer", "minimum": 0 },
         "analysisGeneratedScenarioCount": { "type": "integer", "minimum": 0 },
         "skippedScenarioCount": { "type": "integer", "minimum": 0 }
@@ -113,10 +115,13 @@
         "status",
         "intent",
         "frameSamplerCallCount",
+        "mediaMetricsAnalyzerCallCount",
         "syntheticLlmCallCount",
         "analysisPresent",
         "sceneCount",
         "keyframeCount",
+        "mediaMetricsPresent",
+        "mediaMetricsSourceUriSha256Present",
         "pacingNoteCount",
         "styleNoteCount",
         "structuralBeatCount",
@@ -129,10 +134,15 @@
         "status": { "enum": ["pass", "fail"] },
         "intent": { "type": "string" },
         "frameSamplerCallCount": { "type": "integer", "minimum": 0 },
+        "mediaMetricsAnalyzerCallCount": { "type": "integer", "minimum": 0 },
         "syntheticLlmCallCount": { "type": "integer", "minimum": 0 },
         "analysisPresent": { "type": "boolean" },
         "sceneCount": { "type": "integer", "minimum": 0 },
         "keyframeCount": { "type": "integer", "minimum": 0 },
+        "mediaMetricsPresent": { "type": "boolean" },
+        "mediaMetricsRhythmLabel": { "enum": ["unknown", "slow", "balanced", "fast", "very_fast"] },
+        "mediaMetricsSceneCutCount": { "type": "integer", "minimum": 0 },
+        "mediaMetricsSourceUriSha256Present": { "type": "boolean" },
         "pacingNoteCount": { "type": "integer", "minimum": 0 },
         "styleNoteCount": { "type": "integer", "minimum": 0 },
         "structuralBeatCount": { "type": "integer", "minimum": 0 },
@@ -145,7 +155,9 @@
         "llmImagePartCount": { "type": "integer", "minimum": 0 },
         "llmDataImagePartCount": { "type": "integer", "minimum": 0 },
         "llmNonDataImagePartCount": { "type": "integer", "minimum": 0 },
-        "llmLocalFramePathInPrompt": { "type": "boolean" }
+        "llmLocalFramePathInPrompt": { "type": "boolean" },
+        "llmMediaMetricsInPrompt": { "type": "boolean" },
+        "llmRawSourceUriInPrompt": { "type": "boolean" }
       }
     },
     "check": {

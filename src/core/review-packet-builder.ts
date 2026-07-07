@@ -1,6 +1,6 @@
 /**
  * Review Packet Builder.
- * Extension based on VibeFrame/OpenMontage review-report discipline:
+ * Extension based on storyboard-video review-report discipline:
  * emit one commercial handoff summary that ties planning, render, cost, and delivery evidence together.
  */
 
@@ -94,7 +94,7 @@ export class ReviewPacketBuilder {
         longDirectorNarrativeMode: longDirectorUiContract.director.narrativeMode,
         longDirectorCheckpointStageCount: longDirectorUiContract.director.checkpointStages.length,
         longDirectorManualQualityReviewRequired: longDirectorUiContract.outputContract.longFormManualQualityReviewRequired,
-        longDirectorBenchEvidenceRequired: longDirectorUiContract.outputContract.directorBenchEvidenceRequired,
+        longDirectorBenchEvidenceRequired: longDirectorUiContract.outputContract.benchmarkEvidenceRequired,
         longDirectorCanSubmitToProviderNow: longDirectorUiContract.outputContract.canSubmitToProviderNow,
         longDirectorCanProceedToRenderAfterApproval: longDirectorUiContract.outputContract.canProceedToRenderAfterApproval,
         longDirectorRepairQueueCount: longDirectorUiContract.outputContract.repairQueueCount,

@@ -26,6 +26,7 @@ import {
   buildOperatorLaunchUiContract,
   type OperatorLaunchUiReportInput
 } from "../core/operator-launch-ui-contract.js";
+import { BITRATE_MODES, RATIOS, RESOLUTIONS } from "../config/seedance-settings.js";
 import { ProjectArtifactValidator } from "../core/project-artifact-validator.js";
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import { ReviewApprovalSystem } from "../core/review-approval-system.js";
@@ -41,8 +42,10 @@ import { ShortPipelinePlanner } from "../core/short-pipeline-planner.js";
 import {
   buildShortPipelineRenderHandoff,
   reviewInputCanQueueRender,
+  type ShortPipelineRenderHandoff,
   type ShortPipelineRenderHandoffReviewInput
 } from "../core/short-pipeline-render-handoff.js";
+import { buildShortVideoPipeCatalog } from "../core/short-video-pipe-planner.js";
 import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { ProjectArtifactBundle, ProjectArtifactValidationReport } from "../types/artifact.js";
 import type { LongFormCreativeIntelligencePlan } from "../types/long-form-creative-intelligence.js";
@@ -59,12 +62,17 @@ import type {
   ShortPipelineConversationInput,
   ShortPipelineConversationMessageInput,
   ShortPipelineConversationRole,
+  ShortMediaReferenceInput,
+  ShortPipelineAudioPolicyInput,
   ShortPipelinePlan,
-  ShortPipelinePlanInput
+  ShortPipelinePlanInput,
+  ShortSeedanceSettingsInput,
+  ShortVisualBibleInput
 } from "../types/short-pipeline.js";
+import type { AspectRatio, BitrateMode, Resolution } from "../types/settings.js";
 import type { ShortChannelStyleProfileInput } from "../types/short-channel-style.js";
 import { redactUnknown } from "../utils/redaction.js";
-import { redactApiLocalPaths } from "./api-response-redaction.js";
+import { redactApiResponse } from "./api-response-redaction.js";
 import { toApiProjectArtifactBundle, toApiProjectArtifactValidationReport } from "./artifact-response.js";
 import { ApiAuthGuard, readApiAuthDisabled } from "./api-auth.js";
 import {
@@ -124,6 +132,7 @@ import {
 const DEFAULT_PORT = 8787;
 const DEFAULT_MAX_BODY_BYTES = 1_000_000;
 const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9_.:-]{8,160}$/;
+const PERSISTED_REQUEST_ID_PATTERN = /^req_[A-Za-z0-9_.:-]{8,160}$/;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 const MIN_PORT = 1;
 const MAX_PORT = 65_535;
@@ -142,6 +151,45 @@ const LONG_DIRECTOR_NARRATIVE_MODES = new Set([
 ]);
 const LONG_DIRECTOR_CONTINUITY_MODES = new Set(["project_bible", "series_bible_required"]);
 const LONG_DIRECTOR_CHECKPOINT_STAGES = new Set(["story", "scene_plan", "references", "sample", "render", "publish"]);
+const SHORT_MEDIA_REFERENCE_ROLES = new Set([
+  "kol",
+  "creator",
+  "product",
+  "wardrobe",
+  "clothing",
+  "background",
+  "environment",
+  "first_frame",
+  "last_frame",
+  "style",
+  "motion",
+  "camera",
+  "audio",
+  "source_video"
+]);
+const SHORT_MEDIA_REFERENCE_KINDS = new Set(["image", "video", "audio"]);
+const SHORT_MEDIA_REFERENCE_RIGHTS = new Set(["operator_approved", "needs_review", "unknown"]);
+const SHORT_MEDIA_REFERENCE_PRIORITIES = new Set(["primary", "supporting"]);
+const SHORT_AUDIO_MODES = new Set(["off", "voiceover", "native", "hybrid"]);
+const SHORT_AUDIO_LANGUAGES = new Set(["en", "vi", "zh"]);
+const MAX_SHORT_MEDIA_REFERENCES = 12;
+const BASE_SECURITY_HEADERS: OutgoingHttpHeaders = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()"
+};
+const HTML_CONTENT_SECURITY_POLICY = [
+  "default-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "connect-src 'self'",
+  "img-src 'self' data:",
+  "style-src 'unsafe-inline'",
+  "script-src 'unsafe-inline'"
+].join("; ");
 const OPERATOR_LAUNCH_UI_REPORTS = [
   {
     reportId: "business_completion_audit",
@@ -211,10 +259,12 @@ interface ShortPipelineConversationRequestBody extends Omit<ShortPipelineConvers
   readonly messages?: readonly ShortPipelineConversationMessageInput[];
   readonly userPrompt?: string;
   readonly channelStyleProfileId?: string;
+  readonly settings?: CineJellyProjectRequest["settings"];
 }
 
 interface ShortPipelinePlanRequestBody extends ShortPipelinePlanInput {
   readonly channelStyleProfileId?: string;
+  readonly settings?: CineJellyProjectRequest["settings"];
 }
 
 interface ShortPipelineProductUrlPlanRequestBody extends ShortPipelinePlanRequestBody {
@@ -323,6 +373,12 @@ class ShortPipelineRenderHandoffError extends Error {
   public constructor(message: string) {
     super(message);
     this.name = "ShortPipelineRenderHandoffError";
+  }
+}
+
+function assertShortPipelineRenderHandoffAllowed(handoff: ShortPipelineRenderHandoff): void {
+  if (!handoff.summary.canUseAsRenderJobHandoff) {
+    throw new ShortPipelineRenderHandoffError(handoff.summary.releaseBlocker);
   }
 }
 
@@ -443,6 +499,10 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         (requestUrl.pathname === "/short/create" || requestUrl.pathname === "/short/create-video")
       ) {
         sendHtml(response, 200, buildShortPipelineCreatePage());
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/short-pipeline/video-pipes") {
+        sendJson(response, 200, buildShortVideoPipeCatalog(), requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/channel-styles") {
@@ -606,6 +666,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             : {}),
           ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
+        assertShortPipelineRenderHandoffAllowed(handoff);
         requestAdmission.assertAcceptable(handoff.request);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest
@@ -773,6 +834,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(handoffBody.reviewApproval ? { reviewApproval: handoffBody.reviewApproval } : {}),
           ...(handoffBody.settings ? { settings: handoffBody.settings } : {}),
           ...(handoffBody.modelPreferences ? { modelPreferences: handoffBody.modelPreferences } : {}),
+          ...(handoffBody.planInput.mediaReferences ? { mediaReferenceInputs: handoffBody.planInput.mediaReferences } : {}),
           ...(handoffBody.references ? { references: handoffBody.references } : {}),
           ...(handoffBody.metadata ? { metadata: handoffBody.metadata } : {}),
           ...(handoffBody.outputPath ? { outputPath: handoffBody.outputPath } : {}),
@@ -783,6 +845,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             : {}),
           ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
+        assertShortPipelineRenderHandoffAllowed(handoff);
         requestAdmission.assertAcceptable(handoff.request);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
@@ -1200,11 +1263,10 @@ function sendJson(
   }
   response.writeHead(statusCode, {
     ...headers,
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff"
+    ...BASE_SECURITY_HEADERS,
+    "Content-Type": "application/json; charset=utf-8"
   });
-  response.end(JSON.stringify(redactApiLocalPaths(redactUnknown(withRequestContext(payload, requestContext)))));
+  response.end(JSON.stringify(redactApiResponse(redactUnknown(withRequestContext(payload, requestContext)))));
 }
 
 function sendHtml(response: ServerResponse, statusCode: number, html: string): void {
@@ -1212,9 +1274,9 @@ function sendHtml(response: ServerResponse, statusCode: number, html: string): v
     return;
   }
   response.writeHead(statusCode, {
+    ...BASE_SECURITY_HEADERS,
     "Content-Type": "text/html; charset=utf-8",
-    "Cache-Control": "no-store",
-    "X-Content-Type-Options": "nosniff"
+    "Content-Security-Policy": HTML_CONTENT_SECURITY_POLICY
   });
   response.end(html);
 }
@@ -1330,13 +1392,19 @@ function shortPipelineConversationInputFromBody(
     throw new RenderRequestAdmissionError("Short pipeline conversation requires messages or userPrompt.");
   }
   const channelStyle = resolveShortChannelStyleInput(body, channelStyleStore, clientScope);
+  const mediaReferences = mediaReferencesFromBody(body.mediaReferences, "mediaReferences");
+  const audio = shortAudioFromBody(body.audio, "audio");
+  const seedanceSettings = shortSeedanceSettingsFromBody(body.seedanceSettings ?? body.settings, "seedanceSettings");
+  const targetAspectRatio = shortAspectRatioFromBody(body.targetAspectRatio, "targetAspectRatio");
+  const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
     projectId: body.projectId,
-    requestId: body.requestId ?? requestId,
+    requestId: shortPersistedRequestIdFromBody(body.requestId, requestId, "requestId"),
     messages,
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
     ...(channelStyle ? { channelStyle } : {}),
+    ...(mediaReferences ? { mediaReferences } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
     ...(body.allowTemplateSuggestions !== undefined
@@ -1344,7 +1412,10 @@ function shortPipelineConversationInputFromBody(
       : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
-    ...(body.audio ? { audio: body.audio } : {}),
+    ...(targetAspectRatio ? { targetAspectRatio } : {}),
+    ...(audio ? { audio } : {}),
+    ...(seedanceSettings ? { seedanceSettings } : {}),
+    ...(visualBible ? { visualBible } : {}),
     ...(body.generatedAt ? { generatedAt: optionalDate(body.generatedAt, "generatedAt") } : {})
   };
 }
@@ -1374,6 +1445,178 @@ function conversationMessagesFromBody(body: ShortPipelineConversationRequestBody
   });
 }
 
+function mediaReferencesFromBody(
+  value: unknown,
+  label: string
+): readonly ShortMediaReferenceInput[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an array when provided.`);
+  }
+  if (value.length > MAX_SHORT_MEDIA_REFERENCES) {
+    throw new RenderRequestAdmissionError(`${label} cannot contain more than ${MAX_SHORT_MEDIA_REFERENCES} items.`);
+  }
+  const references = value.map((item, index): ShortMediaReferenceInput => {
+    const itemLabel = `${label}[${index}]`;
+    if (!isJsonRecord(item)) {
+      throw new RenderRequestAdmissionError(`${itemLabel} must be an object.`);
+    }
+    const role = boundedMediaEnum(item.role, `${itemLabel}.role`, SHORT_MEDIA_REFERENCE_ROLES);
+    const uri = boundedMediaString(item.uri, `${itemLabel}.uri`, 600, true);
+    const kind = item.kind === undefined
+      ? undefined
+      : boundedMediaEnum(item.kind, `${itemLabel}.kind`, SHORT_MEDIA_REFERENCE_KINDS);
+    const rightsStatus = item.rightsStatus === undefined
+      ? undefined
+      : boundedMediaEnum(item.rightsStatus, `${itemLabel}.rightsStatus`, SHORT_MEDIA_REFERENCE_RIGHTS);
+    const priority = item.priority === undefined
+      ? undefined
+      : boundedMediaEnum(item.priority, `${itemLabel}.priority`, SHORT_MEDIA_REFERENCE_PRIORITIES);
+    const displayLabel = item.label === undefined
+      ? undefined
+      : boundedMediaString(item.label, `${itemLabel}.label`, 120, false);
+    const description = item.description === undefined
+      ? undefined
+      : boundedMediaString(item.description, `${itemLabel}.description`, 300, false);
+    const reference: Record<string, unknown> = {
+      role: role as ShortMediaReferenceInput["role"],
+      uri
+    };
+    if (displayLabel) reference.label = displayLabel;
+    if (kind !== undefined) reference.kind = kind as ShortMediaReferenceInput["kind"];
+    if (rightsStatus !== undefined) reference.rightsStatus = rightsStatus as ShortMediaReferenceInput["rightsStatus"];
+    if (priority !== undefined) reference.priority = priority as ShortMediaReferenceInput["priority"];
+    if (description) reference.description = description;
+    return reference as unknown as ShortMediaReferenceInput;
+  });
+  return references.length > 0 ? references : undefined;
+}
+
+function shortAudioFromBody(value: unknown, label: string): ShortPipelineAudioPolicyInput | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isJsonRecord(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an object when provided.`);
+  }
+  const audio: Record<string, unknown> = {};
+  if (value.mode !== undefined) {
+    audio.mode = boundedMediaEnum(value.mode, `${label}.mode`, SHORT_AUDIO_MODES) as ShortPipelineAudioPolicyInput["mode"];
+  }
+  if (value.language !== undefined) {
+    audio.language = boundedMediaEnum(value.language, `${label}.language`, SHORT_AUDIO_LANGUAGES) as ShortPipelineAudioPolicyInput["language"];
+  }
+  if (value.voiceStyle !== undefined) {
+    audio.voiceStyle = boundedMediaString(value.voiceStyle, `${label}.voiceStyle`, 120, false);
+  }
+  return Object.keys(audio).length > 0 ? audio as ShortPipelineAudioPolicyInput : undefined;
+}
+
+function shortAspectRatioFromBody(value: unknown, label: string): AspectRatio | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || !RATIOS.includes(value as AspectRatio)) {
+    throw new RenderRequestAdmissionError(`${label} is invalid.`);
+  }
+  if (value !== "9:16" && value !== "16:9" && value !== "1:1") {
+    throw new RenderRequestAdmissionError(`${label} is not available in the Short Studio UI.`);
+  }
+  return value as AspectRatio;
+}
+
+function shortSeedanceSettingsFromBody(value: unknown, label: string): ShortSeedanceSettingsInput | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isJsonRecord(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an object when provided.`);
+  }
+  const settings: {
+    resolution?: Resolution;
+    bitrateMode?: BitrateMode;
+    returnLastFrame?: boolean;
+  } = {};
+  if (value.resolution !== undefined) {
+    if (typeof value.resolution !== "string" || !RESOLUTIONS.includes(value.resolution as Resolution)) {
+      throw new RenderRequestAdmissionError(`${label}.resolution is invalid.`);
+    }
+    settings.resolution = value.resolution as Resolution;
+  }
+  if (value.bitrateMode !== undefined) {
+    if (typeof value.bitrateMode !== "string" || !BITRATE_MODES.includes(value.bitrateMode as BitrateMode)) {
+      throw new RenderRequestAdmissionError(`${label}.bitrateMode is invalid.`);
+    }
+    settings.bitrateMode = value.bitrateMode as BitrateMode;
+  }
+  const returnLastFrame = optionalBoolean(value.returnLastFrame, `${label}.returnLastFrame`);
+  if (returnLastFrame !== undefined) {
+    settings.returnLastFrame = returnLastFrame;
+  }
+  return Object.keys(settings).length > 0 ? settings : undefined;
+}
+
+function shortVisualBibleFromBody(value: unknown, label: string): ShortVisualBibleInput | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isJsonRecord(value)) {
+    throw new RenderRequestAdmissionError(`${label} must be an object when provided.`);
+  }
+  const visualBible: ShortVisualBibleInput = {};
+  if (value.mode !== undefined) {
+    const allowedModes = new Set(["auto", "off", "reference_board", "storyboard_board", "production_bible"]);
+    if (typeof value.mode !== "string" || !allowedModes.has(value.mode)) {
+      throw new RenderRequestAdmissionError(`${label}.mode is invalid.`);
+    }
+    (visualBible as { mode?: ShortVisualBibleInput["mode"] }).mode = value.mode as ShortVisualBibleInput["mode"];
+  }
+  if (value.imageProviderPolicy !== undefined) {
+    const allowedPolicies = new Set(["provider_neutral", "openai_compatible", "atlascloud", "operator_supplied"]);
+    if (typeof value.imageProviderPolicy !== "string" || !allowedPolicies.has(value.imageProviderPolicy)) {
+      throw new RenderRequestAdmissionError(`${label}.imageProviderPolicy is invalid.`);
+    }
+    (visualBible as { imageProviderPolicy?: ShortVisualBibleInput["imageProviderPolicy"] }).imageProviderPolicy = value.imageProviderPolicy as ShortVisualBibleInput["imageProviderPolicy"];
+  }
+  if (value.maxBoardCount !== undefined) {
+    if (typeof value.maxBoardCount !== "number" || !Number.isFinite(value.maxBoardCount) || value.maxBoardCount < 1 || value.maxBoardCount > 12) {
+      throw new RenderRequestAdmissionError(`${label}.maxBoardCount must be between 1 and 12.`);
+    }
+    (visualBible as { maxBoardCount?: number }).maxBoardCount = Math.floor(value.maxBoardCount);
+  }
+  const requireBeforeRender = optionalBoolean(value.requireBeforeRender, `${label}.requireBeforeRender`);
+  if (requireBeforeRender !== undefined) {
+    (visualBible as { requireBeforeRender?: boolean }).requireBeforeRender = requireBeforeRender;
+  }
+  return Object.keys(visualBible).length > 0 ? visualBible : undefined;
+}
+
+function boundedMediaEnum(value: unknown, label: string, allowed: ReadonlySet<string>): string {
+  if (typeof value !== "string" || !allowed.has(value)) {
+    throw new RenderRequestAdmissionError(`${label} is invalid.`);
+  }
+  return value;
+}
+
+function boundedMediaString(value: unknown, label: string, maxLength: number, required: boolean): string {
+  if (typeof value !== "string") {
+    throw new RenderRequestAdmissionError(`${label} must be a string.`);
+  }
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (required && !normalized) {
+    throw new RenderRequestAdmissionError(`${label} cannot be empty.`);
+  }
+  if (normalized.length > maxLength) {
+    throw new RenderRequestAdmissionError(`${label} cannot exceed ${maxLength} characters.`);
+  }
+  if (REVIEW_TEXT_CONTROL_CHARACTER_PATTERN.test(normalized)) {
+    throw new RenderRequestAdmissionError(`${label} must not contain control characters.`);
+  }
+  return normalized;
+}
+
 function shortPipelinePlanInputFromBody(
   body: ShortPipelinePlanRequestBody,
   requestId: string,
@@ -1396,21 +1639,44 @@ function shortPipelinePlanInputFromBody(
     throw new RenderRequestAdmissionError("Short pipeline requires userPrompt, product.productUrl, or product.snapshot.");
   }
   const channelStyle = resolveShortChannelStyleInput(body, channelStyleStore, clientScope);
+  const mediaReferences = mediaReferencesFromBody(body.mediaReferences, "mediaReferences");
+  const audio = shortAudioFromBody(body.audio, "audio");
+  const seedanceSettings = shortSeedanceSettingsFromBody(body.seedanceSettings ?? body.settings, "seedanceSettings");
+  const targetAspectRatio = shortAspectRatioFromBody(body.targetAspectRatio, "targetAspectRatio");
+  const visualBible = shortVisualBibleFromBody(body.visualBible, "visualBible");
   return {
     projectId: body.projectId,
-    requestId: body.requestId ?? requestId,
+    requestId: shortPersistedRequestIdFromBody(body.requestId, requestId, "requestId"),
     ...(body.userPrompt ? { userPrompt: body.userPrompt } : {}),
     ...(body.product ? { product: body.product } : {}),
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
     ...(channelStyle ? { channelStyle } : {}),
+    ...(mediaReferences ? { mediaReferences } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
-    ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),
+    ...(body.allowTemplateSuggestions !== undefined
+      ? { allowTemplateSuggestions: optionalBoolean(body.allowTemplateSuggestions, "allowTemplateSuggestions") ?? true }
+      : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
-    ...(body.audio ? { audio: body.audio } : {}),
+    ...(targetAspectRatio ? { targetAspectRatio } : {}),
+    ...(audio ? { audio } : {}),
+    ...(seedanceSettings ? { seedanceSettings } : {}),
+    ...(visualBible ? { visualBible } : {}),
     ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
   };
+}
+
+function shortPersistedRequestIdFromBody(value: unknown, fallback: string, label: string): string {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+  if (typeof value !== "string" || !PERSISTED_REQUEST_ID_PATTERN.test(value.trim())) {
+    throw new RenderRequestAdmissionError(
+      `Short pipeline ${label} must start with req_ and use 8 to 160 safe characters when provided.`
+    );
+  }
+  return value.trim();
 }
 
 function longFormCreativeIntelligencePlanFromBody(body: LongDirectorUiContractRequestBody): LongFormCreativeIntelligencePlan {
@@ -1551,11 +1817,13 @@ function shortPipelineProductUrlPlanBodyFromBody(
     ...(body.brandKit ? { brandKit: body.brandKit } : {}),
     ...(body.channelStyle ? { channelStyle: body.channelStyle } : {}),
     ...(body.channelStyleProfileId ? { channelStyleProfileId: body.channelStyleProfileId } : {}),
+    ...(body.mediaReferences ? { mediaReferences: body.mediaReferences } : {}),
     ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
     ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
     ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),
     ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
     ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
+    ...(body.visualBible ? { visualBible: body.visualBible } : {}),
     ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
   }, requestId, channelStyleStore, clientScope);
   if (!planInput.product || typeof planInput.product !== "object" || Array.isArray(planInput.product)) {
@@ -1601,12 +1869,13 @@ function shortPipelineRenderJobBodyFromBody(
         checkpoints: body.reviewApprovalCheckpoints
       })
     : undefined;
+  const audio = shortAudioFromBody(body.audio, "audio");
   return {
     planInput: shortPipelinePlanInputFromBody(body.planInput, requestId, channelStyleStore, clientScope),
     ...(reviewApproval ? { reviewApproval } : {}),
     confirmRenderSubmission,
     ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
-    ...(body.audio ? { audio: body.audio } : {}),
+    ...(audio ? { audio } : {}),
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
     ...(body.references ? { references: body.references } : {}),
@@ -1642,11 +1911,12 @@ function shortPipelineConversationSessionRenderJobBodyFromBody(
         checkpoints: body.reviewApprovalCheckpoints
       })
     : undefined;
+  const audio = shortAudioFromBody(body.audio, "audio");
   return {
     ...(reviewApproval ? { reviewApproval } : {}),
     confirmRenderSubmission,
     ...(includeGeneratedAudioIntents !== undefined ? { includeGeneratedAudioIntents } : {}),
-    ...(body.audio ? { audio: body.audio } : {}),
+    ...(audio ? { audio } : {}),
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
     ...(body.references ? { references: body.references } : {}),

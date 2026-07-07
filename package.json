@@ -12,6 +12,11 @@
       "import": "./dist/index.js"
     }
   },
+  "files": [
+    "dist/",
+    "README.md",
+    ".env.production.template"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
@@ -27,6 +32,9 @@
     "validation:local-smoke": "node scripts/run-local-validation-smoke.mjs",
     "validation:client-policy-smoke": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-client-policy-smoke.mjs",
     "validation:deployment-package": "node scripts/validate-deployment-package.mjs",
+    "validation:source-structure": "node scripts/audit-source-structure.mjs",
+    "validation:api-response-redaction": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-api-response-redaction-smoke.mjs",
+    "validation:private-source-lineage-boundary": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/audit-private-source-lineage-boundary.mjs",
     "validation:deployment-readiness": "node scripts/capture-deployment-readiness.mjs",
     "validation:render-job-history": "node scripts/run-render-job-history-smoke.mjs",
     "validation:provider-reconciliation": "node scripts/run-render-provider-reconciliation-smoke.mjs",
@@ -75,9 +83,15 @@
     "validation:render-job-review-lifecycle": "node scripts/run-render-job-review-lifecycle-smoke.mjs",
     "validation:render-scheduler": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-render-scheduler-smoke.mjs",
     "validation:mixed-output-assembly": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-mixed-output-assembly-smoke.mjs",
+    "validation:transition-audio-continuity": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-transition-audio-continuity-smoke.mjs",
     "validation:long-backend-45s-closure": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/audit-long-backend-45s-closure.mjs",
     "validation:workspace-billing": "node scripts/run-workspace-billing-smoke.mjs",
     "validation:short-viral-intelligence": "node scripts/run-short-viral-intelligence-validation.mjs",
+    "validation:short-prompt-corpus": "node scripts/build-short-prompt-pattern-corpus.mjs",
+    "validation:short-platform-template-corpus": "node scripts/crawl-short-platform-template-corpus.mjs",
+    "validation:short-backend-integration": "node scripts/audit-short-backend-integration.mjs",
+    "validation:backend-system-readiness": "node scripts/audit-backend-system-readiness.mjs",
+    "validation:backend-system-suite": "node scripts/run-backend-system-suite.mjs",
     "validation:short-agent-graph": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-agent-graph-smoke.mjs",
     "validation:short-pipeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-smoke.mjs",
     "validation:short-pipeline-conversation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-conversation-smoke.mjs",
@@ -105,6 +119,7 @@
     "validation:launch-doctor": "node --env-file-if-exists=.env scripts/run-commercial-launch-doctor.mjs",
     "validation:report-contracts": "node scripts/validate-report-contracts.mjs",
     "validation:release-audit": "node scripts/run-release-audit.mjs",
+    "validation:render-request-contract": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-render-request-contract-smoke.mjs",
     "validation:render-request": "npm run build && node --env-file-if-exists=.env dist/application/render-request-validation-entrypoint.js",
     "validation:paid-render": "npm run build && node --env-file-if-exists=.env dist/application/paid-render-validation-entrypoint.js",
     "validation:business-readiness": "node scripts/run-business-readiness-audit.mjs",

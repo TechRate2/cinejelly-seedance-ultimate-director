@@ -6,6 +6,7 @@
 import type { AssembledDeliverable } from "../types/assembly.js";
 import type { DeliveryGateFinding, DeliveryGateReport } from "../types/delivery.js";
 import type { AspectRatio, FlexibleSeedanceSettings, Resolution } from "../types/settings.js";
+import { seedanceResolutionHeight } from "../config/seedance-settings.js";
 
 const ASPECT_RATIO_TOLERANCE = 0.02;
 const DURATION_WARN_TOLERANCE = 0.05;
@@ -153,15 +154,8 @@ export class DeliveryGate {
     ];
   }
 
-  private expectedHeight(resolution: Resolution): 480 | 720 | 1080 {
-    switch (resolution) {
-      case "480p":
-        return 480;
-      case "720p":
-        return 720;
-      case "1080p":
-        return 1080;
-    }
+  private expectedHeight(resolution: Resolution): 480 | 720 | 1080 | 1440 {
+    return seedanceResolutionHeight(resolution);
   }
 
   private expectedAspectRatio(ratio: AspectRatio): number | undefined {

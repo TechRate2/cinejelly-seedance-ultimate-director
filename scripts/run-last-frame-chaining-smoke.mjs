@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -10,6 +11,9 @@ const sourcePatternOrigins = ["HKUDS/VideoAgent", "vericontext/vibeframe", "Mone
 
 const { DirectorAgent } = await import("../dist/agents/director-agent.js");
 const { RenderProducer } = await import("../dist/agents/render-producer.js");
+const { isImageOutputUrl, selectOrExtractLastFrameReference } = await import("../dist/core/endpoint-frame-chain.js");
+const { readMediaToolCommand } = await import("../dist/utils/media-tools.js");
+const { runProcess } = await import("../dist/utils/process.js");
 
 async function main() {
 const provider = new FakeVideoProvider();
@@ -47,6 +51,9 @@ const publicRequests = provider.requests.map((request, index) => ({
   hasFirstFrameReference: request.references.some((reference) => reference.role === "first_frame" || reference.kind === "first_frame"),
   chainedFromShotId: request.metadata?.chainedFromShotId,
   chainReferenceUrlSha256: request.metadata?.chainReferenceUrlSha256,
+  chainEndpointFrameStrategy: request.metadata?.chainEndpointFrameStrategy,
+  chainEndpointFrameCandidateCount: request.metadata?.chainEndpointFrameCandidateCount,
+  chainEndpointFrameQualityScore: request.metadata?.chainEndpointFrameQualityScore,
   promptMentionsContinuityFrame: /Continuity frame from shot/i.test(request.prompt)
 }));
 const renderedPromptSummaries = result.compiledPrompts.map((prompt, index) => ({
@@ -55,12 +62,17 @@ const renderedPromptSummaries = result.compiledPrompts.map((prompt, index) => ({
   mode: prompt.videoRequest.mode,
   hasFirstFrameReference: prompt.videoRequest.references.some((reference) => reference.role === "first_frame" || reference.kind === "first_frame"),
   chainedFromShotId: prompt.videoRequest.metadata?.chainedFromShotId,
-  chainReferenceUrlSha256: prompt.videoRequest.metadata?.chainReferenceUrlSha256
+  chainReferenceUrlSha256: prompt.videoRequest.metadata?.chainReferenceUrlSha256,
+  chainEndpointFrameStrategy: prompt.videoRequest.metadata?.chainEndpointFrameStrategy,
+  chainEndpointFrameCandidateCount: prompt.videoRequest.metadata?.chainEndpointFrameCandidateCount,
+  chainEndpointFrameQualityScore: prompt.videoRequest.metadata?.chainEndpointFrameQualityScore
 }));
 const serializedPublicReport = JSON.stringify({ publicRequests, renderedPromptSummaries });
 const rawUrlLeakDetected = serializedPublicReport.includes("https://cdn.example.test") ||
   serializedPublicReport.includes("token=secret") ||
   serializedPublicReport.includes("api_key=");
+const fallbackExtraction = await runFallbackExtractionScenario();
+const localSidecarSelection = await runLocalSidecarSelectionScenario();
 
 const checks = [
   result.videoRenderStrategyPlan.workflowMode === "storyboard_multishot" &&
@@ -77,7 +89,7 @@ const checks = [
     : fail("provider_request_count", `Expected 3 provider requests, saw ${provider.requests.length}.`),
   publicRequests[0]?.hasFirstFrameReference === false &&
     publicRequests.slice(1).every((request) => request.hasFirstFrameReference)
-    ? pass("first_frame_injected_after_first_shot", "Shot 2+ provider requests received first-frame references from previous shot sidecars.")
+    ? pass("first_frame_injected_after_first_shot", "Shot 2+ provider requests received first-frame references from previous shot endpoint frames.")
     : fail("first_frame_injected_after_first_shot", "Shot 2+ did not receive first-frame references."),
   publicRequests.slice(1).every((request) => request.referenceKinds.includes("image") && !request.referenceKinds.includes("first_frame"))
     ? pass("chained_reference_uses_provider_image_kind", "Chained first-frame references use provider-compatible image kind while retaining first_frame role semantics.")
@@ -88,6 +100,13 @@ const checks = [
   renderedPromptSummaries.slice(1).every((prompt) => prompt.chainedFromShotId && prompt.chainReferenceUrlSha256)
     ? pass("compiled_prompt_chain_metadata", "Rendered compiled prompts preserve chain source metadata and URL digest evidence.")
     : fail("compiled_prompt_chain_metadata", "Compiled prompt chain metadata is missing."),
+  renderedPromptSummaries.slice(1).every((prompt) =>
+    prompt.chainEndpointFrameStrategy === "provider_sidecar" &&
+    Number(prompt.chainEndpointFrameCandidateCount) >= 1 &&
+    Number(prompt.chainEndpointFrameQualityScore) > 0
+  )
+    ? pass("endpoint_frame_quality_metadata", "Chained prompts carry endpoint-frame selection strategy, candidate count, and quality score evidence.")
+    : fail("endpoint_frame_quality_metadata", "Expected endpoint-frame quality metadata on chained prompts."),
   result.renderSchedulePlan.sequentialItemCount === 3 &&
     result.renderSchedulePlan.items.every((item) => item.sequentialReasons.includes("strategy_last_frame_chaining"))
     ? pass("schedule_forces_sequential_chaining", "Render schedule marks every shot sequential for last-frame chaining.")
@@ -98,7 +117,26 @@ const checks = [
     : fail("rendered_shots_succeeded", "At least one fake provider shot failed."),
   !rawUrlLeakDetected
     ? pass("public_report_redacts_raw_urls", "Smoke report stores only role/mode/hash evidence, not raw provider output URLs.")
-    : fail("public_report_redacts_raw_urls", "Smoke report leaked raw output URLs or secret-like query text.")
+    : fail("public_report_redacts_raw_urls", "Smoke report leaked raw output URLs or secret-like query text."),
+  fallbackExtraction.extracted &&
+    fallbackExtraction.outputExists &&
+    fallbackExtraction.providerKind === "image" &&
+    fallbackExtraction.role === "first_frame" &&
+    fallbackExtraction.qualityStrategy === "ffmpeg_multi_offset" &&
+    fallbackExtraction.qualityCandidateCount >= 1 &&
+    fallbackExtraction.selectedFileSizeBytes > 0 &&
+    fallbackExtraction.qualityScore > 0
+    ? pass("ffmpeg_last_frame_fallback_extracts_image", "When no provider sidecar image exists, the fallback extracts scored endpoint-frame candidates and selects a first-frame image reference.")
+    : fail("ffmpeg_last_frame_fallback_extracts_image", "Expected ffmpeg fallback to extract a scored first-frame image reference from a video output."),
+  localSidecarSelection.recognizedAsImage &&
+    localSidecarSelection.selected &&
+    localSidecarSelection.extracted === false &&
+    localSidecarSelection.outputIndex === 1 &&
+    localSidecarSelection.providerKind === "image" &&
+    localSidecarSelection.role === "first_frame" &&
+    localSidecarSelection.qualityStrategy === "provider_sidecar"
+    ? pass("local_last_frame_sidecar_selected_without_fallback", "Local image sidecar outputs are recognized and selected directly for first-frame chaining without ffmpeg fallback.")
+    : fail("local_last_frame_sidecar_selected_without_fallback", "Expected local last-frame image sidecar output to be selected directly.")
 ];
 
 const status = checks.every((check) => check.status === "pass") ? "pass" : "fail";
@@ -117,6 +155,31 @@ const report = {
     plannedShotCount: result.storyboard.panels.length,
     storyboardApprovalStatus: result.storyboardApprovalReport?.status,
     rawUrlLeakCheckPassed: !rawUrlLeakDetected
+  },
+  fallbackExtraction: {
+    extracted: fallbackExtraction.extracted,
+    outputExists: fallbackExtraction.outputExists,
+    providerKind: fallbackExtraction.providerKind,
+    role: fallbackExtraction.role,
+    sourceVideoOutputIndex: fallbackExtraction.sourceVideoOutputIndex,
+    outputUrlSha256Present: Boolean(fallbackExtraction.outputUrlSha256),
+    qualityStrategy: fallbackExtraction.qualityStrategy,
+    qualityCandidateCount: fallbackExtraction.qualityCandidateCount,
+    selectedOffsetSeconds: fallbackExtraction.selectedOffsetSeconds,
+    selectedFileSizeBytes: fallbackExtraction.selectedFileSizeBytes,
+    qualityScore: fallbackExtraction.qualityScore
+  },
+  localSidecarSelection: {
+    recognizedAsImage: localSidecarSelection.recognizedAsImage,
+    selected: localSidecarSelection.selected,
+    extracted: localSidecarSelection.extracted,
+    outputIndex: localSidecarSelection.outputIndex,
+    outputUrlSha256Present: Boolean(localSidecarSelection.outputUrlSha256),
+    providerKind: localSidecarSelection.providerKind,
+    role: localSidecarSelection.role,
+    qualityStrategy: localSidecarSelection.qualityStrategy,
+    qualityCandidateCount: localSidecarSelection.qualityCandidateCount,
+    qualityScore: localSidecarSelection.qualityScore
   },
   strategy: {
     requestedMode: result.videoRenderStrategyPlan.requestedMode,
@@ -250,7 +313,7 @@ class FakeVideoProvider {
       status: "succeeded",
       outputUrls: [
         `https://cdn.example.test/chaining/shot-${index + 1}.mp4`,
-        `https://cdn.example.test/chaining/shot-${index + 1}-last-frame.png?token=secret_${index + 1}`
+        `https://cdn.example.test/chaining/download/shot-${index + 1}-last-frame?format=png&token=secret_${index + 1}`
       ],
       raw: { fake: true },
       submittedAt,
@@ -258,6 +321,139 @@ class FakeVideoProvider {
       latencyMs: 0
     };
   }
+}
+
+async function runFallbackExtractionScenario() {
+  const workDirectory = mkdtempSync(join(tmpdir(), "cinejelly-last-frame-"));
+  const videoPath = join(workDirectory, "source.mp4");
+  await runProcess(
+    readMediaToolCommand("ffmpeg"),
+    [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=red:s=64x64:d=1",
+      "-vf",
+      "format=yuv420p",
+      videoPath
+    ]
+  );
+  const selection = await selectOrExtractLastFrameReference({
+    renderedShot: renderedShotForFallback(videoPath),
+    targetShotId: "fallback_target",
+    workDirectory
+  });
+  const outputPath = selection?.reference.providerReference.uri;
+  return {
+    extracted: selection?.extracted === true,
+    outputExists: outputPath ? existsSync(outputPath) : false,
+    providerKind: selection?.reference.providerReference.kind,
+    role: selection?.reference.providerReference.role,
+    sourceVideoOutputIndex: selection?.outputIndex,
+    outputUrlSha256: selection?.outputUrlSha256,
+    qualityStrategy: selection?.quality?.strategy,
+    qualityCandidateCount: selection?.quality?.candidateCount,
+    selectedOffsetSeconds: selection?.quality?.selectedOffsetSeconds,
+    selectedFileSizeBytes: selection?.quality?.selectedFileSizeBytes,
+    qualityScore: selection?.quality?.score
+  };
+}
+
+async function runLocalSidecarSelectionScenario() {
+  const workDirectory = mkdtempSync(join(tmpdir(), "cinejelly-local-sidecar-"));
+  const videoPath = join(workDirectory, "source.mp4");
+  const localSidecarPath = join(workDirectory, "source-last-frame.png");
+  writeFileSync(localSidecarPath, "local sidecar image placeholder", "utf8");
+  const renderedShot = renderedShotForFallback(videoPath);
+  renderedShot.prediction.outputUrls = [videoPath, localSidecarPath];
+  const selection = await selectOrExtractLastFrameReference({
+    renderedShot,
+    targetShotId: "local_sidecar_target"
+  });
+  return {
+    recognizedAsImage: isImageOutputUrl(localSidecarPath),
+    selected: Boolean(selection),
+    extracted: selection?.extracted === true,
+    outputIndex: selection?.outputIndex,
+    outputUrlSha256: selection?.outputUrlSha256,
+    providerKind: selection?.reference.providerReference.kind,
+    role: selection?.reference.providerReference.role,
+    qualityStrategy: selection?.quality?.strategy,
+    qualityCandidateCount: selection?.quality?.candidateCount,
+    qualityScore: selection?.quality?.score
+  };
+}
+
+function renderedShotForFallback(videoPath) {
+  const submittedAt = new Date();
+  return {
+    compiledPrompt: {
+      shotId: "fallback_source",
+      prompt: "fallback source",
+      negativePrompt: "",
+      references: [],
+      bindingPlan: {
+        sortedReferences: [],
+        providerReferences: [],
+        roleScopes: [],
+        conflicts: [],
+        referenceLines: [],
+        compressionNotes: []
+      },
+      inspectionExpectations: [],
+      repairHints: [],
+      videoRequest: {
+        provider: "atlascloud",
+        modelId: "seedance-fake",
+        mode: "text_to_video",
+        prompt: "fallback source",
+        negativePrompt: "",
+        references: [],
+        settings: {
+          durationSeconds: 4,
+          resolution: "480p",
+          ratio: "16:9",
+          generateAudio: false,
+          bitrateMode: "high",
+          watermark: false,
+          returnLastFrame: true
+        },
+        metadata: {
+          shotId: "fallback_source"
+        }
+      }
+    },
+    preflight: report("preflight", "pass"),
+    prediction: {
+      provider: "atlascloud",
+      predictionId: "fallback_prediction",
+      modelId: "seedance-fake",
+      status: "succeeded",
+      outputUrls: [videoPath],
+      raw: { fake: true },
+      submittedAt,
+      completedAt: submittedAt,
+      latencyMs: 0
+    },
+    renderInspection: report("render", "pass"),
+    candidates: [],
+    selectedCandidateIndex: 1,
+    repairAttemptCount: 0
+  };
+}
+
+function report(stage, status) {
+  return {
+    stage,
+    status,
+    nodeId: `${stage}_${status}`,
+    findings: [],
+    repairScope: "none",
+    affectedNodeIds: [],
+    sourceCheckpoints: [],
+    recommendedNextStep: "continue"
+  };
 }
 
 function atlasSettings() {

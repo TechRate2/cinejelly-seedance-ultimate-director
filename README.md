@@ -9,7 +9,7 @@ The repository contains a production-oriented TypeScript foundation. A short pai
 - Atlas Cloud is the default provider target for both LLM reasoning and Seedance 2.0 rendering.
 - `src/` contains working foundations for the provider layer, structured LLM parsing, Reference Librarian validation and graph lineage, Atlas media upload/direct-reference handling, configurable render cost gating, prompt compilation, Production Graph planning and run-recording, continuity ledger generation, Consistency Guardian checks, director orchestration, assembly/postproduction engines, postproduction asset planning, generated-audio intent/execution planning, generated-audio output validation, batch reconciliation, optional batch artifact evidence, generated-audio asset resolution plus catalog preflight, Atlas generated-audio submit/poll execution behind capability and spend gates, and production HTTP API.
 - `validation:quality-benchmark` now supports optional structured semantic-review, audio-review, ASR/lip-sync runtime-review, governance-review, generated-audio validation, and long-form validation JSON checkpoints plus review-text redaction and a parity evidence matrix on top of artifact, media probe, sampled-frame, transition-boundary, audio waveform, and duration-sync proxy evidence; it remains no-spend/no-network and never claims full DirectorBench parity or customer-traffic readiness by itself.
-- Local Git Subtree snapshots of upstream projects are stored under `external/upstream/` for source-fidelity review, copy/adaptation, and product integration. Productized behavior should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution instead of depending on live upstream availability or importing directly from snapshots. Behavior-critical source logic should follow Faithful Logic Translation before production rewriting.
+- Curated upstream source snapshots are stored under `external/upstream/` for source-fidelity review, copy/adaptation, and product integration. Snapshot tests, demos, examples, generated build folders, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, and vendored font/music resources are pruned from the product repo; productized behavior should be copied or adapted into CineJelly-owned `src/`, `data/`, or `docs/` surfaces with attribution instead of importing directly from snapshots. Behavior-critical source logic should follow Faithful Logic Translation before production rewriting.
 - Faithful Logic Translation is now defined, but only per-logic implementation work can make a module source-faithful. Current source-inspired modules should be upgraded one at a time with Reference Implementations, lineage records, and validation checklists.
 - Quality mode now drives actual render behavior: Economy/Standard/High/Ultimate produce one to four Seedance candidates per shot, authorize zero to three targeted repair attempts, the Consistency Guardian selects the best candidate, and the Production Graph records selected, rejected, and repair candidate evidence.
 - The HTTP API now creates or accepts a sanitized request correlation ID and propagates it through JSON responses, render job summaries, provider metadata, Production Graph project metadata, and success/failure artifacts.
@@ -59,7 +59,7 @@ The repository contains a production-oriented TypeScript foundation. A short pai
 - API admission now validates nested caption, audio mix, frame sampling, semantic visual inspection, and transition option objects before runtime creation or provider spend.
 - Runtime preflight now verifies the configured/default output directory can be prepared and written before customer traffic.
 - The package declares `main`, `types`, and ESM `exports` for stable production imports from the built `dist/index.js` surface, including API, agents, core engines, providers, prompt compiler, and shared types.
-- No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshots may contain original upstream development files inside `external/upstream/`; those files become product material only after license/product review and an intentional copy/adapt step.
+- No CineJelly-owned test, mock, demo, sample, or example files are part of the production runtime. Upstream snapshot tests, mocks, demos, examples, generated build artifacts, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, and vendored font/music resources are pruned from `external/upstream/`; upstream material becomes product material only after license/product review and an intentional copy/adapt step.
 - Runtime validation currently has real Atlas credentials, verified local FFmpeg/FFprobe access, a Phase 6 validation-readiness report at 59/60 pass with only the intentional mandatory-client-policy warning, one completed short paid Atlas render, no-spend client policy, deployment-readiness, billing/admin/quota, and production-operations evidence tooling, and a clean release-candidate release audit. Customer use is still blocked by full commercial evidence for a real HTTPS deployment, long-form/source-video/remote-stock/generated-audio paths, billing/admin operations, and production operations.
 - The repository now includes a production container packaging path (`Dockerfile`, `.dockerignore`, `docker-compose.yml`, and `deploy/Caddyfile`) plus `npm run validation:deployment-package`, which statically verifies the no-secret Docker build context, FFmpeg/FFprobe runtime installation, `/health` healthcheck, production API entrypoint, compose/Caddy HTTPS path, env template notes, and deployment docs before any real host is published.
 
@@ -97,12 +97,11 @@ cinejelly-seedance-ultimate-director/
 |-- assets/
 |   |-- output_deliverables/
 |   `-- reference_inputs/
-|-- config/
-|-- data/
+|-- deploy/
 |-- docs/
 |-- external/
-|-- ops/
 |-- schemas/
+|-- scripts/
 `-- src/
     |-- agents/
     |-- api/
@@ -115,10 +114,11 @@ cinejelly-seedance-ultimate-director/
     `-- utils/
 ```
 
-`data/` is reserved for production-approved local knowledge artifacts such as copied/adapted prompt-pattern snapshots, bibles, and evaluation rubrics when they become necessary. `external/upstream/` contains legally bounded Git Subtree snapshots of upstream repositories; CineJelly uses them as source material, then productizes useful parts into `src/`, `data/`, and `docs/`. Production code must not import directly from `external/upstream/`; `src/` remains CineJelly-owned code written new or adapted into product-specific modules, not a drop zone for large upstream files.
+`assets/` is ignored runtime storage for real inputs, outputs, and validation evidence. `ops/` is an ignored operator-evidence directory created only when launch/billing/operations packets are promoted. A future `data/` directory is reserved for production-approved local knowledge artifacts such as copied/adapted prompt-pattern snapshots, bibles, and evaluation rubrics when they become necessary. `external/upstream/` contains legally bounded, pruned upstream source snapshots; CineJelly uses them as source material, then productizes useful parts into `src/`, future `data/`, and `docs/`. Production code must not import directly from `external/upstream/`; `src/` remains CineJelly-owned code written new or adapted into product-specific modules, not a drop zone for large upstream files.
 
 ## Documentation Map
 
+- `docs/DEVELOPER_OPERATOR_HANDOFF.vi.md`: one-page Vietnamese handoff for dev/operator source navigation, clean runtime boundaries, deploy config, and required validation commands.
 - `docs/PROJECT_CONTEXT.md`: compact project memory for token-efficient agent work.
 - `docs/ARCHITECTURE_SPEC.md`: full system architecture and agent responsibilities.
 - `docs/CREDITS.md`: attribution, source boundaries, and license cautions.
@@ -136,6 +136,7 @@ cinejelly-seedance-ultimate-director/
 - `docs/reference-implementations/deployment-container-packaging.md`: Docker packaging contract and no-spend package validator for repeatable HTTPS deployment preparation without baking secrets or artifacts into images.
 - `docs/BEGINNER_QUICKSTART.md`: shortest setup path for non-specialist operators, including automation boundaries and clean-source checks.
 - `docs/RUNNING_AND_MODEL_SETTINGS_GUIDE.md`: practical install, environment, model, API, settings, and no-UI runtime guide.
+- `docs/SOURCE_STRUCTURE_AND_DEPLOY_SECURITY.vi.md`: Vietnamese source map for runtime code, validation tooling, snapshots, real-mode operation, deploy boundaries, and clean-source policy.
 - `docs/SHORT_PIPELINE_AGENTIC_DESIGN.md`: short-form agentic pipeline design that keeps templates optional, chat natural, and human review explicit.
 - `docs/COMMERCIAL_READINESS_CHECKLIST.md`: commercial-core checklist for backend evidence, paid validation, operations, product scope, and UI readiness.
 - `docs/WORKSPACE_PROJECT_BILLING_FOUNDATION.md`: opt-in workspace/project quota, credit, reservation, and usage-ledger design for commercial backend boundaries.
@@ -395,6 +396,6 @@ Detailed milestones are tracked in `docs/IMPLEMENTATION_ROADMAP.md`; validation 
 
 ## Source Snapshot Strategy
 
-CineJelly is source-traceable and product-owned. It keeps full upstream snapshots under `external/upstream/` so engineers can check behavior against original sources, copy or adapt useful pieces, and then develop them into CineJelly-owned modules under `src/`, `data/`, and `docs/`. The current snapshot set includes `video-db/Director` under `external/upstream/director` for agentic chat/media workflow patterns, but the production implementation remains CineJelly's own product layer.
+CineJelly is source-traceable and product-owned. It keeps curated upstream source snapshots under `external/upstream/` so engineers can check behavior against original sources, copy or adapt useful pieces, and then develop them into CineJelly-owned modules under `src/`, `data/`, and `docs/`. The product repo intentionally prunes upstream tests, demos, examples, generated build folders, temporary files, notebooks, sample media, generated datasets, cache files, binary model weights, and vendored font/music resources; full raw upstream clones should live outside this repository when deeper legal/source review is needed. The current snapshot set includes `video-db/Director` under `external/upstream/director` for agentic chat/media workflow patterns, but the production implementation remains CineJelly's own product layer.
 
 Public source is not automatically unrestricted. MIT sources can be reused with attribution and notices, CC BY prompt content needs attribution review before bundled use, AGPL implementation code requires acceptance of AGPL obligations or legal approval, and no-license sources stay in the snapshot/audit layer until permission is clarified.

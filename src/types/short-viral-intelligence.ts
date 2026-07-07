@@ -38,6 +38,8 @@ export type ShortCreativePatternSource =
   | "niche_playbook"
   | "reference_video"
   | "prompt_signal"
+  | "seedance_prompt_corpus"
+  | "platform_template_corpus"
   | "outcome_memory_placeholder";
 
 export type ShortCreativePatternKind =

@@ -43,22 +43,44 @@ if (extname(options.outputPath).toLowerCase() !== ".json") {
   throw new Error("--output must point to a JSON file.");
 }
 
+const { transitionIntentsForAssemblyClips } = await import("../dist/core/assembly-engine.js");
 const { selectAssemblyClipsForRenderedShots, isVideoOutputUrl } = await import("../dist/core/assembly-output-selector.js");
 const { DeliveryGate } = await import("../dist/core/delivery-gate.js");
 
 const mixedRenderedShots = [
   renderedShot("shot_a", [
-    "https://cdn.example.test/project/shot-a.mp4?Expires=redacted",
+    "https://cdn.example.test/project/download/shot-a?format=mp4&Expires=redacted",
     "https://cdn.example.test/project/shot-a-last-frame.png?Expires=redacted",
     "https://cdn.example.test/project/shot-a-preview.jpg"
-  ]),
+  ], "Inter-shot bridge: this clip must cut into the proof scene. Bridge transition intent: seamless match cut from serum closeup to proof demo. Keep screen direction."),
   renderedShot("shot_b", [
     "https://cdn.example.test/project/shot-b-last-frame.PNG",
     "C:\\media\\shot-b.MOV?token=redacted",
     "https://cdn.example.test/project/shot-b-alt.WEBM#fragment"
-  ])
+  ], "Transition: wipe reveal into final result. Keep product scale stable.")
 ];
 const selectedClips = selectAssemblyClipsForRenderedShots(mixedRenderedShots);
+const boundaryTransitionIntents = transitionIntentsForAssemblyClips([
+  {
+    clipId: "clip_a",
+    sourceUrlOrPath: "clip-a.mp4",
+    order: 0,
+    transitionOutIntent: "seamless xfade from mirror hook to serum proof"
+  },
+  {
+    clipId: "clip_b",
+    sourceUrlOrPath: "clip-b.mp4",
+    order: 1,
+    transitionInIntent: "continue exact hand motion and product scale from prior endpoint",
+    transitionOutIntent: "wipe reveal into final packshot"
+  },
+  {
+    clipId: "clip_c",
+    sourceUrlOrPath: "clip-c.mp4",
+    order: 2,
+    transitionInIntent: "wipe reveal into final packshot"
+  }
+]);
 let missingVideoError = "";
 try {
   selectAssemblyClipsForRenderedShots([
@@ -88,11 +110,23 @@ const checks = [
   selectedClips.map((clip) => clip.order).join(",") === "0,1,1.01"
     ? pass("stable_clip_order", "Selected clip order preserves shot order and multiple video outputs.")
     : fail("stable_clip_order", "Selected clip order drifted from expected timeline order."),
+  selectedClips[0]?.transitionOutIntent === "seamless match cut from serum closeup to proof demo. Keep screen direction" &&
+    selectedClips.slice(1).every((clip) => clip.transitionOutIntent === "wipe reveal into final result. Keep product scale stable")
+    ? pass("transition_intent_extraction", "Assembly clips inherit full-line transition intent from both paragraph bridge prompts and explicit Transition lines.")
+    : fail("transition_intent_extraction", "Assembly clips did not inherit full-line transition intent from compiled prompt text."),
+  boundaryTransitionIntents.length === 2 &&
+    boundaryTransitionIntents[0] === "outgoing: seamless xfade from mirror hook to serum proof | incoming: continue exact hand motion and product scale from prior endpoint" &&
+    boundaryTransitionIntents[1] === "wipe reveal into final packshot"
+    ? pass("boundary_transition_intent_merge", "Assembly boundaries merge outgoing and incoming transition intent without duplicating identical adjacent intent.")
+    : fail("boundary_transition_intent_merge", "Expected assembly boundary transition intent to preserve both sides and collapse duplicates."),
   !isVideoOutputUrl("https://cdn.example.test/project/last-frame.png?Expires=redacted") &&
     isVideoOutputUrl("https://cdn.example.test/project/clip.MP4?Expires=redacted") &&
-    isVideoOutputUrl("C:\\media\\clip.webm?token=redacted")
-    ? pass("extension_classifier", "The media classifier accepts video extensions and rejects image sidecars with query strings.")
-    : fail("extension_classifier", "The media classifier did not handle video/image extensions with query strings."),
+    isVideoOutputUrl("C:\\media\\clip.webm?token=redacted") &&
+    isVideoOutputUrl("https://cdn.example.test/provider/download?id=clip123&format=mp4") &&
+    isVideoOutputUrl("https://cdn.example.test/provider/download?id=clip456&response-content-type=video%2Fmp4") &&
+    !isVideoOutputUrl("https://cdn.example.test/provider/download?id=frame123&format=png")
+    ? pass("extension_classifier", "The media classifier accepts video extensions and provider download URLs while rejecting image sidecars.")
+    : fail("extension_classifier", "The media classifier did not handle video/image provider output URL variants."),
   missingVideoError.includes("did not include a video output URL")
     ? pass("missing_video_blocks_assembly", "Shots without video output fail before assembly.")
     : fail("missing_video_blocks_assembly", "Shots without video output did not produce the expected assembly blocker."),
@@ -132,6 +166,8 @@ const report = {
       selectedAssemblyClipCount: selectedClips.length,
       selectedClipIds: selectedClips.map((clip) => clip.clipId),
       selectedClipOrders: selectedClips.map((clip) => clip.order),
+      selectedClipTransitionIntentCount: selectedClips.filter((clip) => clip.transitionOutIntent).length,
+      boundaryTransitionIntents,
       rejectedSidecarCount: 3
     },
     missingVideoOutput: {
@@ -164,9 +200,9 @@ if (options.writeReport) {
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 process.exitCode = status === "pass" ? 0 : 1;
 
-function renderedShot(shotId, outputUrls) {
+function renderedShot(shotId, outputUrls, prompt = "") {
   return {
-    compiledPrompt: { shotId },
+    compiledPrompt: { shotId, prompt },
     prediction: { outputUrls }
   };
 }

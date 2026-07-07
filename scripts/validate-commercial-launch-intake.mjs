@@ -237,19 +237,19 @@ function validateCommercialOfferScope(scope) {
   if (productSurface === "api_cli_only") {
     checks.push(
       scope?.apiCliOnlyAcknowledgesNoFirstPartyUi === true
-        ? pass("launch_intake.offer_scope.api_cli_acknowledgement", "API/CLI-only launch explicitly acknowledges no first-party Web UI.")
+        ? pass("launch_intake.offer_scope.api_cli_acknowledgement", "API/CLI-only launch explicitly acknowledges it does not rely on a full first-party commercial Web UI.")
         : fail("launch_intake.offer_scope.api_cli_acknowledgement", "commercialOfferScope.apiCliOnlyAcknowledgesNoFirstPartyUi must be true when productSurface=api_cli_only.")
     );
     checks.push(
       scope?.uiRequiredBeforeCustomerTraffic === false
-        ? pass("launch_intake.offer_scope.ui_not_required", "First-party Web UI is not required before API/CLI-only customer traffic.")
+        ? pass("launch_intake.offer_scope.ui_not_required", "Full first-party commercial Web UI is not required before API/CLI-only customer traffic.")
         : fail("launch_intake.offer_scope.ui_not_required", "commercialOfferScope.uiRequiredBeforeCustomerTraffic must be false when productSurface=api_cli_only.")
     );
   }
   if (productSurface === "first_party_web_ui_required") {
     checks.push(
       scope?.uiRequiredBeforeCustomerTraffic === true
-        ? pass("launch_intake.offer_scope.ui_required", "First-party Web UI is required before customer traffic by operator decision.")
+        ? pass("launch_intake.offer_scope.ui_required", "Full first-party commercial Web UI is required before customer traffic by operator decision.")
         : fail("launch_intake.offer_scope.ui_required", "commercialOfferScope.uiRequiredBeforeCustomerTraffic must be true when productSurface=first_party_web_ui_required.")
     );
   }
@@ -529,7 +529,7 @@ function renderPacket(options, sourceReports, draft) {
     "",
     "- Use a real clean HTTPS deployment URL without credentials, query strings, or fragments.",
     "- Keep `deployment.authTokenEnvName` as an env var name only; put the secret value in `.env`, not this JSON.",
-    "- Set `commercialOfferScope.productSurface` to `api_cli_only` only when the launch is intentionally API/CLI/operator-report based without a first-party Web UI; otherwise use `first_party_web_ui_required` and keep customer traffic blocked until the UI exists.",
+    "- Set `commercialOfferScope.productSurface` to `api_cli_only` only when the launch is intentionally API/CLI/operator-report based and does not rely on a full first-party commercial Web UI; otherwise use `first_party_web_ui_required` and keep customer traffic blocked until the full UI exists.",
     "- Keep `remoteStock.keyEnvVars` as env var names only, such as `PEXELS_API_KEY`.",
     "- Set `budgetApproval.scope` to one of `generated_audio_smoke`, `long_form_120s_minimum`, `source_video_auto_analysis`, or `full_business_readiness_paid_sequence`.",
     "- Leave source-video disabled unless you have a credential-free HTTPS source video approved for Atlas LLM analysis.",

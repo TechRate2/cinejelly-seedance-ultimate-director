@@ -15,15 +15,12 @@ import type {
   ShortChannelVoiceInput
 } from "../types/short-channel-style.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  SHORT_CHANNEL_STYLE_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "nirdiamant/genai_agents:ContentIntelligence",
-  "gswithjeff/autogen-multi-agent-workflow",
-  "YouMind-OpenLab/awesome-seedance-2-prompts",
-  "ZeroLu/awesome-seedance",
-  "calesthio/OpenMontage",
-  "vericontext/vibeframe"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(SHORT_CHANNEL_STYLE_SOURCE_PATTERN_IDS);
 
 const UNSAFE_URI_PATTERN =
   /[A-Za-z]:\\|\\\\|(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|data:|bearer\s+|api[_-]?key|secret|token|password|authorization/i;

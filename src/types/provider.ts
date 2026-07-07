@@ -3,7 +3,7 @@
  * Application services depend on these shapes, never on Atlas-specific payloads.
  */
 
-import type { AspectRatio, Resolution } from "./settings.js";
+import type { AspectRatio, BitrateMode, Resolution } from "./settings.js";
 import type { GeneratedAudioIntentKind } from "./audio.js";
 import type { ProviderErrorCode } from "../utils/errors.js";
 
@@ -54,7 +54,15 @@ export interface ProviderCapability {
   readonly resolutions: readonly Resolution[];
   readonly ratios: readonly AspectRatio[];
   readonly references: readonly ReferenceKind[];
+  readonly settings?: ProviderCapabilitySettings;
   readonly async: boolean;
+}
+
+export interface ProviderCapabilitySettings {
+  readonly generateAudio?: boolean;
+  readonly returnLastFrame?: boolean;
+  readonly bitrateModes?: readonly BitrateMode[];
+  readonly watermark?: boolean;
 }
 
 export interface ProviderReference {
@@ -78,6 +86,7 @@ export interface VideoGenerationSettings {
   readonly resolution: Resolution;
   readonly ratio: AspectRatio;
   readonly generateAudio: boolean;
+  readonly bitrateMode: BitrateMode;
   readonly watermark: boolean;
   readonly returnLastFrame: boolean;
 }
@@ -164,7 +173,7 @@ export interface PredictionPollingContext {
 
 export interface AssetRegistrationRequest {
   readonly uri: string;
-  readonly kind: "video" | "audio";
+  readonly kind: "image" | "video" | "audio";
   readonly metadata?: ProviderMetadata;
 }
 

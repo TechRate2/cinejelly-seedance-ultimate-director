@@ -1,18 +1,20 @@
 /**
  * Source Video Analyst normalizes caller-supplied video deconstruction metadata.
- * It supports OpenMontage/VideoAgent-style source-video structure without copying their code or requiring live repos.
+ * It supports source-video structure analysis without copying upstream code or requiring live repos.
  */
 
+import { isIP } from "node:net";
 import type { PromptReference } from "../types/prompt.js";
 import {
   SOURCE_VIDEO_ANALYSIS_LIMITS,
   type SourceVideoDeconstruction,
   type SourceVideoKeyframe,
+  type SourceVideoMediaMetrics,
   type SourceVideoSceneDeconstruction,
   type SourceVideoTranscriptCue
 } from "../types/source-video.js";
 
-const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
+const SECRET_QUERY_TEXT_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|authorization|auth)/i;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
 
 export class SourceVideoAnalyst {
@@ -32,17 +34,38 @@ export class SourceVideoAnalyst {
     const styleNotes = this.normalizeNotes(value.styleNotes, "styleNotes");
     const structuralBeats = this.normalizeNotes(value.structuralBeats, "structuralBeats");
     const safetyNotes = this.normalizeNotes(value.safetyNotes, "safetyNotes");
+    const mediaMetrics = this.normalizeMediaMetrics(value.mediaMetrics);
 
-    return {
+    const normalized = {
       ...(sourceReferenceLabel ? { sourceReferenceLabel } : {}),
       ...(transformationIntent ? { transformationIntent } : {}),
       ...(transcript.length > 0 ? { transcript } : {}),
       ...(scenes.length > 0 ? { scenes } : {}),
+      ...(mediaMetrics ? { mediaMetrics } : {}),
       ...(pacingNotes.length > 0 ? { pacingNotes } : {}),
       ...(styleNotes.length > 0 ? { styleNotes } : {}),
       ...(structuralBeats.length > 0 ? { structuralBeats } : {}),
       ...(safetyNotes.length > 0 ? { safetyNotes } : {})
     };
+    if (!this.hasUsableAnalysis(normalized)) {
+      throw new Error(
+        "sourceVideoAnalysis must include at least one transformationIntent, transcript cue, scene, pacing/style note, structural beat, or safety note."
+      );
+    }
+    return normalized;
+  }
+
+  private hasUsableAnalysis(value: SourceVideoDeconstruction): boolean {
+    return Boolean(
+      value.transformationIntent ||
+        value.transcript?.length ||
+        value.scenes?.length ||
+        value.mediaMetrics ||
+        value.pacingNotes?.length ||
+        value.styleNotes?.length ||
+        value.structuralBeats?.length ||
+        value.safetyNotes?.length
+    );
   }
 
   private sourceReferenceLabel(value: string | undefined, references: readonly PromptReference[]): string | undefined {
@@ -148,6 +171,84 @@ export class SourceVideoAnalyst {
     return value.map((item, index) => this.requiredText(item, `sourceVideoAnalysis.${fieldName}[${index}]`));
   }
 
+  private normalizeMediaMetrics(value: SourceVideoMediaMetrics | undefined): SourceVideoMediaMetrics | undefined {
+    if (!value) {
+      return undefined;
+    }
+    if (value.schemaVersion !== "cinejelly.source-video-media-metrics.v1") {
+      throw new Error("sourceVideoAnalysis.mediaMetrics has an invalid schemaVersion.");
+    }
+    const durationSeconds = value.durationSeconds !== undefined
+      ? this.positiveNumber(value.durationSeconds, "sourceVideoAnalysis.mediaMetrics.durationSeconds")
+      : undefined;
+    const bitrate = value.bitrate !== undefined
+      ? this.positiveNumber(value.bitrate, "sourceVideoAnalysis.mediaMetrics.bitrate")
+      : undefined;
+    const video = value.video;
+    const audio = value.audio;
+    const editRhythm = value.editRhythm;
+    if (!audio || typeof audio.hasAudio !== "boolean") {
+      throw new Error("sourceVideoAnalysis.mediaMetrics.audio.hasAudio must be boolean.");
+    }
+    if (!editRhythm || typeof editRhythm.sceneCutCount !== "number") {
+      throw new Error("sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutCount must be a number.");
+    }
+    const sceneCutTimestampsSeconds = this.normalizeSceneCutTimestamps(editRhythm.sceneCutTimestampsSeconds);
+    return {
+      schemaVersion: "cinejelly.source-video-media-metrics.v1",
+      ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+      ...(bitrate !== undefined ? { bitrate } : {}),
+      ...(value.formatName ? { formatName: this.requiredText(value.formatName, "sourceVideoAnalysis.mediaMetrics.formatName") } : {}),
+      ...(video ? {
+        video: {
+          ...(video.codecName ? { codecName: this.requiredText(video.codecName, "sourceVideoAnalysis.mediaMetrics.video.codecName") } : {}),
+          ...(video.width !== undefined ? { width: this.positiveInteger(video.width, "sourceVideoAnalysis.mediaMetrics.video.width") } : {}),
+          ...(video.height !== undefined ? { height: this.positiveInteger(video.height, "sourceVideoAnalysis.mediaMetrics.video.height") } : {}),
+          ...(video.frameRate !== undefined ? { frameRate: this.positiveNumber(video.frameRate, "sourceVideoAnalysis.mediaMetrics.video.frameRate") } : {}),
+          ...(video.aspectRatio ? { aspectRatio: this.requiredText(video.aspectRatio, "sourceVideoAnalysis.mediaMetrics.video.aspectRatio") } : {})
+        }
+      } : {}),
+      audio: {
+        hasAudio: audio.hasAudio,
+        ...(audio.codecName ? { codecName: this.requiredText(audio.codecName, "sourceVideoAnalysis.mediaMetrics.audio.codecName") } : {}),
+        ...(audio.sampleRate !== undefined ? { sampleRate: this.positiveInteger(audio.sampleRate, "sourceVideoAnalysis.mediaMetrics.audio.sampleRate") } : {}),
+        ...(audio.channelCount !== undefined ? { channelCount: this.positiveInteger(audio.channelCount, "sourceVideoAnalysis.mediaMetrics.audio.channelCount") } : {})
+      },
+      editRhythm: {
+        ...(editRhythm.sampledWindowSeconds !== undefined ? { sampledWindowSeconds: this.positiveNumber(editRhythm.sampledWindowSeconds, "sourceVideoAnalysis.mediaMetrics.editRhythm.sampledWindowSeconds") } : {}),
+        sceneCutCount: this.nonNegativeInteger(editRhythm.sceneCutCount, "sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutCount"),
+        ...(editRhythm.cutDensityPerMinute !== undefined ? { cutDensityPerMinute: this.nonNegativeNumber(editRhythm.cutDensityPerMinute, "sourceVideoAnalysis.mediaMetrics.editRhythm.cutDensityPerMinute") } : {}),
+        ...(editRhythm.averageShotLengthSeconds !== undefined ? { averageShotLengthSeconds: this.positiveNumber(editRhythm.averageShotLengthSeconds, "sourceVideoAnalysis.mediaMetrics.editRhythm.averageShotLengthSeconds") } : {}),
+        rhythmLabel: this.rhythmLabel(editRhythm.rhythmLabel),
+        ...(sceneCutTimestampsSeconds.length > 0 ? { sceneCutTimestampsSeconds } : {})
+      },
+      evidence: {
+        probeSucceeded: Boolean(value.evidence?.probeSucceeded),
+        sceneDetectionSucceeded: Boolean(value.evidence?.sceneDetectionSucceeded),
+        sourceUriSha256: this.hashText(value.evidence?.sourceUriSha256, "sourceVideoAnalysis.mediaMetrics.evidence.sourceUriSha256")
+      }
+    };
+  }
+
+  private normalizeSceneCutTimestamps(value: readonly number[] | undefined): readonly number[] {
+    if (!value) {
+      return [];
+    }
+    if (!Array.isArray(value)) {
+      throw new Error("sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds must be an array.");
+    }
+    return value.slice(0, SOURCE_VIDEO_ANALYSIS_LIMITS.maxScenes).map((timestamp, index) =>
+      this.nonNegativeNumber(timestamp, `sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds[${index}]`)
+    );
+  }
+
+  private rhythmLabel(value: SourceVideoMediaMetrics["editRhythm"]["rhythmLabel"]): SourceVideoMediaMetrics["editRhythm"]["rhythmLabel"] {
+    if (["unknown", "slow", "balanced", "fast", "very_fast"].includes(value)) {
+      return value;
+    }
+    throw new Error("sourceVideoAnalysis.mediaMetrics.editRhythm.rhythmLabel is invalid.");
+  }
+
   private optionalText<TKey extends string>(key: TKey, value: string | undefined, fieldName: string): { readonly [K in TKey]?: string } {
     const text = this.cleanOptionalText(value, fieldName);
     return text ? { [key]: text } as { readonly [K in TKey]?: string } : {};
@@ -189,6 +290,36 @@ export class SourceVideoAnalyst {
     return value;
   }
 
+  private positiveNumber(value: number, fieldName: string): number {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+      throw new Error(`${fieldName} must be a positive number.`);
+    }
+    return value;
+  }
+
+  private positiveInteger(value: number, fieldName: string): number {
+    const parsed = this.positiveNumber(value, fieldName);
+    if (!Number.isSafeInteger(parsed)) {
+      throw new Error(`${fieldName} must be an integer.`);
+    }
+    return parsed;
+  }
+
+  private nonNegativeInteger(value: number, fieldName: string): number {
+    const parsed = this.nonNegativeNumber(value, fieldName);
+    if (!Number.isSafeInteger(parsed)) {
+      throw new Error(`${fieldName} must be an integer.`);
+    }
+    return parsed;
+  }
+
+  private hashText(value: unknown, fieldName: string): string {
+    if (typeof value !== "string" || !/^[a-f0-9]{64}$/i.test(value)) {
+      throw new Error(`${fieldName} must be a sha256 hex digest.`);
+    }
+    return value.toLowerCase();
+  }
+
   private endSecond(value: number, startSecond: number, fieldName: string): number {
     const endSecond = this.nonNegativeNumber(value, fieldName);
     if (endSecond <= startSecond) {
@@ -213,13 +344,46 @@ export class SourceVideoAnalyst {
     if (parsed.username || parsed.password) {
       throw new Error(`${fieldName} must not include embedded credentials.`);
     }
+    if (parsed.protocol === "https:" && isBlockedHostname(parsed.hostname)) {
+      throw new Error(`${fieldName} must not point to localhost, private IPs, or internal hostnames.`);
+    }
     if (parsed.protocol === "asset:" && (parsed.search || parsed.hash)) {
       throw new Error(`${fieldName} asset:// references must not include query strings or fragments.`);
     }
-    for (const key of parsed.searchParams.keys()) {
-      if (SECRET_QUERY_KEY_PATTERN.test(key)) {
+    for (const [key, value] of parsed.searchParams.entries()) {
+      if (SECRET_QUERY_TEXT_PATTERN.test(key) || SECRET_QUERY_TEXT_PATTERN.test(value)) {
         throw new Error(`${fieldName} query contains credential-like parameter ${key}.`);
       }
     }
   }
+}
+
+function isBlockedHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    normalized === "localhost" ||
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized === "0.0.0.0" ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal")
+  ) {
+    return true;
+  }
+  const ipVersion = isIP(normalized);
+  if (ipVersion === 4) {
+    const [first = 0, second = 0] = normalized.split(".").map((part) => Number(part));
+    return first === 0 ||
+      first === 10 ||
+      first === 127 ||
+      (first === 169 && second === 254) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 192 && second === 168);
+  }
+  if (ipVersion === 6) {
+    return normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80:");
+  }
+  return false;
 }

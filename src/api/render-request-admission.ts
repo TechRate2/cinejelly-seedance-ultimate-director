@@ -3,15 +3,42 @@
  * It rejects oversized or malformed production requests before LLM planning, provider calls, or job queue occupancy.
  */
 
-import { normalizeSeedanceSettings } from "../config/seedance-settings.js";
+import {
+  defaultSeedanceProviderCapability,
+  DEFAULT_SEEDANCE_PROVIDER_NAME,
+  isSeedanceMiniModel
+} from "../config/seedance-capabilities.js";
+import { RATIOS, normalizeSeedanceSettings, type NormalizedSeedanceSettings } from "../config/seedance-settings.js";
+import type { ProviderCapability } from "../types/provider.js";
 import { SOURCE_VIDEO_ANALYSIS_LIMITS } from "../types/source-video.js";
+import type { ModelPreferences, SpeedTier } from "../types/settings.js";
 
 const SECRET_QUERY_KEY_PATTERN = /(?:api[_-]?key|access[_-]?key|token|secret|signature|password|credential|auth)/i;
 const AUDIO_TRACK_ROLES = ["music", "narration", "ambience", "sfx"] as const;
 const GENERATED_AUDIO_INTENT_KINDS = ["tts_narration", "bgm", "ambience", "sfx"] as const;
 const AUDIO_MIX_MODES = ["mix", "replace"] as const;
-const TRANSITION_KINDS = ["fade", "wipeleft", "wiperight", "slideleft", "slideright"] as const;
-const TRANSITION_TARGET_HEIGHTS = [480, 720, 1080] as const;
+const TRANSITION_KINDS = [
+  "auto",
+  "fade",
+  "dissolve",
+  "fadeblack",
+  "fadewhite",
+  "hblur",
+  "zoomin",
+  "wipeleft",
+  "wiperight",
+  "wipeup",
+  "wipedown",
+  "slideleft",
+  "slideright",
+  "slideup",
+  "slidedown",
+  "smoothleft",
+  "smoothright",
+  "circleopen",
+  "circleclose"
+] as const;
+const TRANSITION_TARGET_HEIGHTS = [480, 720, 1080, 1440] as const;
 const REFERENCE_VIEWS = ["front", "side", "back", "three_quarter", "over_the_shoulder", "unknown"] as const;
 const AUDIO_BITRATE_PATTERN = /^([1-9]\d{1,3})k$/;
 const MAX_FRAME_SAMPLES = 240;
@@ -25,6 +52,8 @@ const MAX_GENERATED_AUDIO_TIMING_SECONDS = 600;
 
 export interface RenderRequestAdmissionSettings {
   readonly allowedSeedanceModelIds?: readonly string[];
+  readonly seedanceCapabilities?: readonly ProviderCapability[];
+  readonly seedanceModelDefaults?: RenderRequestSeedanceModelDefaults;
   readonly maxUserInputCharacters?: number;
   readonly maxReferences?: number;
   readonly maxCaptionCues?: number;
@@ -35,6 +64,12 @@ export interface RenderRequestAdmissionSettings {
   readonly maxSourceVideoTranscriptCues?: number;
   readonly maxSourceVideoKeyframesPerScene?: number;
   readonly maxSourceVideoNotes?: number;
+}
+
+export interface RenderRequestSeedanceModelDefaults {
+  readonly seedanceMiniModel?: string;
+  readonly seedanceFastModel?: string;
+  readonly seedanceStandardModel?: string;
 }
 
 export class RenderRequestAdmissionError extends Error {
@@ -48,6 +83,8 @@ export class RenderRequestAdmissionError extends Error {
 
 export class RenderRequestAdmission {
   private readonly allowedSeedanceModelIds: readonly string[];
+  private readonly seedanceCapabilities: readonly ProviderCapability[];
+  private readonly seedanceModelDefaults: RenderRequestSeedanceModelDefaults;
   private readonly maxUserInputCharacters: number;
   private readonly maxReferences: number;
   private readonly maxCaptionCues: number;
@@ -61,6 +98,8 @@ export class RenderRequestAdmission {
 
   public constructor(settings: RenderRequestAdmissionSettings = {}) {
     this.allowedSeedanceModelIds = uniqueNonEmptyStrings(settings.allowedSeedanceModelIds ?? []);
+    this.seedanceCapabilities = settings.seedanceCapabilities ?? [];
+    this.seedanceModelDefaults = trimSeedanceModelDefaults(settings.seedanceModelDefaults ?? {});
     this.maxUserInputCharacters = positiveOrDefault(settings.maxUserInputCharacters, 24_000);
     this.maxReferences = positiveOrDefault(settings.maxReferences, 24);
     this.maxCaptionCues = positiveOrDefault(settings.maxCaptionCues, 600);
@@ -82,10 +121,9 @@ export class RenderRequestAdmission {
   public assertAcceptable(body: unknown): void {
     const payload = this.objectPayload(body, "Request body must be a JSON object.");
     this.assertUserInput(payload.userInput);
-    if (payload.settings !== undefined) {
-      this.assertSettings(payload.settings);
-    }
-    this.assertModelPreferences(payload.modelPreferences);
+    const settings = this.assertSettings(payload.settings);
+    const modelPreferences = this.assertModelPreferences(payload.modelPreferences);
+    this.assertSeedanceCapabilityCompatibility(settings, modelPreferences);
     this.assertMetadata(payload.metadata);
     this.assertReferences(payload.references);
     this.assertCaptionCues(payload.captionCues);
@@ -111,24 +149,116 @@ export class RenderRequestAdmission {
     }
   }
 
-  private assertSettings(value: unknown): void {
-    const payload = this.objectPayload(value, "settings must be an object.");
+  private assertSettings(value: unknown): NormalizedSeedanceSettings {
+    const payload = value === undefined
+      ? {}
+      : this.objectPayload(value, "settings must be an object.");
     try {
-      normalizeSeedanceSettings(payload);
+      return normalizeSeedanceSettings(payload);
     } catch (error) {
       throw new RenderRequestAdmissionError(error instanceof Error ? error.message : "settings are invalid.");
     }
   }
 
-  private assertModelPreferences(value: unknown): void {
+  private assertModelPreferences(value: unknown): ModelPreferences {
     if (value === undefined) {
-      return;
+      return {};
     }
     const payload = this.objectPayload(value, "modelPreferences must be an object.");
     this.assertOptionalNonEmptyString(payload.seedanceModelId, "modelPreferences.seedanceModelId", 160);
     if (payload.seedanceModelId !== undefined && !this.allowedSeedanceModelIds.includes(String(payload.seedanceModelId))) {
       throw new RenderRequestAdmissionError("modelPreferences.seedanceModelId must match a configured admin-allowed Seedance model.");
     }
+    return {
+      ...(typeof payload.seedanceModelId === "string" ? { seedanceModelId: payload.seedanceModelId.trim() } : {})
+    };
+  }
+
+  private assertSeedanceCapabilityCompatibility(
+    settings: NormalizedSeedanceSettings,
+    modelPreferences: ModelPreferences
+  ): void {
+    const selectedModel = this.resolveSeedanceModelForAdmission(settings, modelPreferences);
+    if (!selectedModel) {
+      return;
+    }
+    const capability = this.resolveSeedanceCapabilityForAdmission(selectedModel.modelId, selectedModel.tier);
+    if (!capability.resolutions.includes(settings.resolution)) {
+      throw new RenderRequestAdmissionError(
+        `settings.resolution ${settings.resolution} is not supported by Seedance model ${selectedModel.modelId}.`
+      );
+    }
+    if (!capability.ratios.includes(settings.ratio)) {
+      throw new RenderRequestAdmissionError(
+        `settings.ratio ${settings.ratio} is not supported by Seedance model ${selectedModel.modelId}.`
+      );
+    }
+    const supportedSettings = capability.settings;
+    if (!supportedSettings) {
+      return;
+    }
+    const generateAudio = settings.audioMode === "native" || settings.audioMode === "guided" || settings.audioMode === "hybrid";
+    if (supportedSettings.generateAudio === false && generateAudio) {
+      throw new RenderRequestAdmissionError(`settings.audioMode ${settings.audioMode} requires native audio, but Seedance model ${selectedModel.modelId} does not support it.`);
+    }
+    if (supportedSettings.returnLastFrame === false && settings.returnLastFrame) {
+      throw new RenderRequestAdmissionError(`settings.returnLastFrame is not supported by Seedance model ${selectedModel.modelId}.`);
+    }
+    if (supportedSettings.bitrateModes && !supportedSettings.bitrateModes.includes(settings.bitrateMode)) {
+      throw new RenderRequestAdmissionError(
+        `settings.bitrateMode ${settings.bitrateMode} is not supported by Seedance model ${selectedModel.modelId}.`
+      );
+    }
+    if (supportedSettings.watermark === false && settings.watermark) {
+      throw new RenderRequestAdmissionError(`settings.watermark is not supported by Seedance model ${selectedModel.modelId}.`);
+    }
+  }
+
+  private resolveSeedanceModelForAdmission(
+    settings: Pick<NormalizedSeedanceSettings, "tier">,
+    modelPreferences: ModelPreferences
+  ): { readonly modelId: string; readonly tier?: SpeedTier } | undefined {
+    if (modelPreferences.seedanceModelId) {
+      const tier = this.configuredTierForModel(modelPreferences.seedanceModelId);
+      return {
+        modelId: modelPreferences.seedanceModelId,
+        ...(tier ? { tier } : {})
+      };
+    }
+    if (settings.tier === "mini") {
+      const modelId =
+        this.seedanceModelDefaults.seedanceMiniModel ||
+        this.seedanceCapabilities.find((capability) => isSeedanceMiniModel(capability.modelId))?.modelId ||
+        this.seedanceModelDefaults.seedanceFastModel;
+      return modelId ? { modelId, tier: this.configuredTierForModel(modelId) ?? "mini" } : undefined;
+    }
+    if (settings.tier === "fast") {
+      const modelId = this.seedanceModelDefaults.seedanceFastModel;
+      return modelId ? { modelId, tier: "fast" } : undefined;
+    }
+    const modelId = this.seedanceModelDefaults.seedanceStandardModel;
+    return modelId ? { modelId, tier: "standard" } : undefined;
+  }
+
+  private resolveSeedanceCapabilityForAdmission(modelId: string, tier: SpeedTier | undefined): ProviderCapability {
+    return (
+      this.seedanceCapabilities.find(
+        (capability) => capability.provider === DEFAULT_SEEDANCE_PROVIDER_NAME && capability.modelId === modelId
+      ) ?? defaultSeedanceProviderCapability(modelId, tier)
+    );
+  }
+
+  private configuredTierForModel(modelId: string): SpeedTier | undefined {
+    if (this.seedanceModelDefaults.seedanceMiniModel === modelId) {
+      return "mini";
+    }
+    if (this.seedanceModelDefaults.seedanceFastModel === modelId) {
+      return "fast";
+    }
+    if (this.seedanceModelDefaults.seedanceStandardModel === modelId) {
+      return "standard";
+    }
+    return undefined;
   }
 
   private assertMetadata(value: unknown): void {
@@ -391,6 +521,7 @@ export class RenderRequestAdmission {
     this.assertBoundedNumber(settings.durationSeconds, "transitionSettings.durationSeconds", 0.001, 3);
     this.assertBoundedNumber(settings.fps, "transitionSettings.fps", 12, 60);
     this.assertOptionalNumberOption(settings.targetHeight, "transitionSettings.targetHeight", TRANSITION_TARGET_HEIGHTS);
+    this.assertOptionalOption(settings.targetRatio, "transitionSettings.targetRatio", RATIOS);
     this.assertBoolean(settings.preserveAudio, "transitionSettings.preserveAudio");
   }
 
@@ -438,6 +569,24 @@ export class RenderRequestAdmission {
     this.assertStringArray(analysis.styleNotes, "sourceVideoAnalysis.styleNotes", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
     this.assertStringArray(analysis.structuralBeats, "sourceVideoAnalysis.structuralBeats", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
     this.assertStringArray(analysis.safetyNotes, "sourceVideoAnalysis.safetyNotes", this.maxSourceVideoNotes, SOURCE_VIDEO_ANALYSIS_LIMITS.maxTextLength);
+    this.assertSourceVideoMediaMetrics(analysis.mediaMetrics);
+    this.assertSourceVideoAnalysisHasContent(analysis);
+  }
+
+  private assertSourceVideoAnalysisHasContent(analysis: Record<string, unknown>): void {
+    const hasContent = typeof analysis.transformationIntent === "string" && analysis.transformationIntent.trim().length > 0 ||
+      Array.isArray(analysis.transcript) && analysis.transcript.length > 0 ||
+      Array.isArray(analysis.scenes) && analysis.scenes.length > 0 ||
+      Array.isArray(analysis.pacingNotes) && analysis.pacingNotes.length > 0 ||
+      Array.isArray(analysis.styleNotes) && analysis.styleNotes.length > 0 ||
+      Array.isArray(analysis.structuralBeats) && analysis.structuralBeats.length > 0 ||
+      Array.isArray(analysis.safetyNotes) && analysis.safetyNotes.length > 0 ||
+      analysis.mediaMetrics !== undefined;
+    if (!hasContent) {
+      throw new RenderRequestAdmissionError(
+        "sourceVideoAnalysis must include at least one transformationIntent, transcript cue, scene, media metric, pacing/style note, structural beat, or safety note."
+      );
+    }
   }
 
   private assertSourceReferenceLabelMatches(value: unknown, references: unknown): void {
@@ -557,6 +706,90 @@ export class RenderRequestAdmission {
     }
   }
 
+  private assertSourceVideoMediaMetrics(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    const metrics = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics must be an object.");
+    if (metrics.schemaVersion !== "cinejelly.source-video-media-metrics.v1") {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.mediaMetrics.schemaVersion is invalid.");
+    }
+    this.assertOptionalBoundedNumber(metrics.durationSeconds, "sourceVideoAnalysis.mediaMetrics.durationSeconds", 0.000001, 86400);
+    this.assertOptionalBoundedNumber(metrics.bitrate, "sourceVideoAnalysis.mediaMetrics.bitrate", 0.000001, Number.MAX_SAFE_INTEGER);
+    this.assertBoundedString(metrics.formatName, "sourceVideoAnalysis.mediaMetrics.formatName", 160, false);
+    this.assertSourceVideoMediaVideoMetrics(metrics.video);
+    this.assertSourceVideoMediaAudioMetrics(metrics.audio);
+    this.assertSourceVideoMediaEditRhythm(metrics.editRhythm);
+    this.assertSourceVideoMediaEvidence(metrics.evidence);
+  }
+
+  private assertSourceVideoMediaVideoMetrics(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    const video = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics.video must be an object.");
+    this.assertBoundedString(video.codecName, "sourceVideoAnalysis.mediaMetrics.video.codecName", 80, false);
+    if (video.width !== undefined) {
+      this.assertPositiveInteger(video.width, "sourceVideoAnalysis.mediaMetrics.video.width", 16384);
+    }
+    if (video.height !== undefined) {
+      this.assertPositiveInteger(video.height, "sourceVideoAnalysis.mediaMetrics.video.height", 16384);
+    }
+    this.assertOptionalBoundedNumber(video.frameRate, "sourceVideoAnalysis.mediaMetrics.video.frameRate", 0.000001, 240);
+    this.assertBoundedString(video.aspectRatio, "sourceVideoAnalysis.mediaMetrics.video.aspectRatio", 32, false);
+  }
+
+  private assertSourceVideoMediaAudioMetrics(value: unknown): void {
+    const audio = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics.audio must be an object.");
+    this.assertBoolean(audio.hasAudio, "sourceVideoAnalysis.mediaMetrics.audio.hasAudio");
+    this.assertBoundedString(audio.codecName, "sourceVideoAnalysis.mediaMetrics.audio.codecName", 80, false);
+    if (audio.sampleRate !== undefined) {
+      this.assertPositiveInteger(audio.sampleRate, "sourceVideoAnalysis.mediaMetrics.audio.sampleRate", 384000);
+    }
+    if (audio.channelCount !== undefined) {
+      this.assertPositiveInteger(audio.channelCount, "sourceVideoAnalysis.mediaMetrics.audio.channelCount", 64);
+    }
+  }
+
+  private assertSourceVideoMediaEditRhythm(value: unknown): void {
+    const editRhythm = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics.editRhythm must be an object.");
+    this.assertPositiveOrZeroInteger(editRhythm.sceneCutCount, "sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutCount", 100000);
+    this.assertOption(editRhythm.rhythmLabel, "sourceVideoAnalysis.mediaMetrics.editRhythm.rhythmLabel", ["unknown", "slow", "balanced", "fast", "very_fast"]);
+    this.assertOptionalBoundedNumber(editRhythm.sampledWindowSeconds, "sourceVideoAnalysis.mediaMetrics.editRhythm.sampledWindowSeconds", 0.000001, 86400);
+    this.assertOptionalBoundedNumber(editRhythm.cutDensityPerMinute, "sourceVideoAnalysis.mediaMetrics.editRhythm.cutDensityPerMinute", 0, 10000);
+    this.assertOptionalBoundedNumber(editRhythm.averageShotLengthSeconds, "sourceVideoAnalysis.mediaMetrics.editRhythm.averageShotLengthSeconds", 0.000001, 86400);
+    this.assertSourceVideoSceneCutTimestamps(editRhythm.sceneCutTimestampsSeconds);
+  }
+
+  private assertSourceVideoSceneCutTimestamps(value: unknown): void {
+    if (value === undefined) {
+      return;
+    }
+    if (!Array.isArray(value)) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds must be an array.");
+    }
+    if (value.length > 120) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds cannot contain more than 120 items.");
+    }
+    for (const [index, timestamp] of value.entries()) {
+      this.assertBoundedNumber(
+        timestamp,
+        `sourceVideoAnalysis.mediaMetrics.editRhythm.sceneCutTimestampsSeconds[${index}]`,
+        0,
+        86400
+      );
+    }
+  }
+
+  private assertSourceVideoMediaEvidence(value: unknown): void {
+    const evidence = this.objectPayload(value, "sourceVideoAnalysis.mediaMetrics.evidence must be an object.");
+    this.assertBoolean(evidence.probeSucceeded, "sourceVideoAnalysis.mediaMetrics.evidence.probeSucceeded");
+    this.assertBoolean(evidence.sceneDetectionSucceeded, "sourceVideoAnalysis.mediaMetrics.evidence.sceneDetectionSucceeded");
+    if (typeof evidence.sourceUriSha256 !== "string" || !/^[a-f0-9]{64}$/i.test(evidence.sourceUriSha256)) {
+      throw new RenderRequestAdmissionError("sourceVideoAnalysis.mediaMetrics.evidence.sourceUriSha256 must be a sha256 hex digest.");
+    }
+  }
+
   private assertStringArray(value: unknown, fieldName: string, maxItems: number, maxLength: number): void {
     if (value === undefined) {
       return;
@@ -661,6 +894,13 @@ export class RenderRequestAdmission {
     }
   }
 
+  private assertOptionalOption(value: unknown, fieldName: string, allowedValues: readonly string[]): void {
+    if (value === undefined) {
+      return;
+    }
+    this.assertOption(value, fieldName, allowedValues);
+  }
+
   private assertOptionalNumberOption(value: unknown, fieldName: string, allowedValues: readonly number[]): void {
     if (value === undefined) {
       return;
@@ -721,8 +961,15 @@ export class RenderRequestAdmission {
 }
 
 export function renderRequestAdmissionFromEnv(env: NodeJS.ProcessEnv = process.env): RenderRequestAdmission {
+  const seedanceCapabilities = seedanceCapabilitiesFromEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
   return new RenderRequestAdmission({
-    allowedSeedanceModelIds: seedanceModelIdsFromEnv(env),
+    allowedSeedanceModelIds: seedanceModelIdsFromEnv(env, seedanceCapabilities),
+    seedanceCapabilities,
+    seedanceModelDefaults: {
+      ...(env.ATLASCLOUD_SEEDANCE_MINI_MODEL ? { seedanceMiniModel: env.ATLASCLOUD_SEEDANCE_MINI_MODEL } : {}),
+      ...(env.ATLASCLOUD_SEEDANCE_FAST_MODEL ? { seedanceFastModel: env.ATLASCLOUD_SEEDANCE_FAST_MODEL } : {}),
+      ...(env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL ? { seedanceStandardModel: env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL } : {})
+    },
     maxUserInputCharacters: positiveIntegerEnv(env.CINEJELLY_MAX_USER_INPUT_CHARS, 24_000),
     maxReferences: positiveIntegerEnv(env.CINEJELLY_MAX_REFERENCES, 24),
     maxCaptionCues: positiveIntegerEnv(env.CINEJELLY_MAX_CAPTION_CUES, 600),
@@ -736,34 +983,92 @@ export function renderRequestAdmissionFromEnv(env: NodeJS.ProcessEnv = process.e
   });
 }
 
-function seedanceModelIdsFromEnv(env: NodeJS.ProcessEnv): readonly string[] {
+function seedanceModelIdsFromEnv(
+  env: NodeJS.ProcessEnv,
+  seedanceCapabilities: readonly ProviderCapability[] = seedanceCapabilitiesFromEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON)
+): readonly string[] {
   const modelIds = [
     env.ATLASCLOUD_SEEDANCE_FAST_MODEL,
     env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL,
-    ...seedanceCapabilityModelIds(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON)
+    env.ATLASCLOUD_SEEDANCE_MINI_MODEL,
+    ...seedanceCapabilities.map((capability) => capability.modelId)
   ];
   return uniqueNonEmptyStrings(modelIds);
 }
 
-function seedanceCapabilityModelIds(value: string | undefined): readonly string[] {
+function seedanceCapabilitiesFromEnv(value: string | undefined): readonly ProviderCapability[] {
   if (!value?.trim()) {
     return [];
   }
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(value) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.flatMap((item) => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) {
-        return [];
-      }
-      const modelId = (item as Record<string, unknown>).modelId;
-      return typeof modelId === "string" ? [modelId] : [];
-    });
+    parsed = JSON.parse(value);
   } catch {
-    return [];
+    throw new RenderRequestAdmissionError("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must be valid JSON.");
   }
+  if (!Array.isArray(parsed)) {
+    throw new RenderRequestAdmissionError("ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON must be a JSON array.");
+  }
+  return parsed.map((item) => admissionProviderCapability(item));
+}
+
+function admissionProviderCapability(value: unknown): ProviderCapability {
+  const payload = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+  if (!payload || typeof payload.provider !== "string" || typeof payload.modelId !== "string") {
+    throw new RenderRequestAdmissionError("Provider capability must include provider and modelId strings.");
+  }
+  if (
+    !Array.isArray(payload.modes) ||
+    !Array.isArray(payload.resolutions) ||
+    !Array.isArray(payload.ratios) ||
+    !Array.isArray(payload.references)
+  ) {
+    throw new RenderRequestAdmissionError("Provider capability must include modes, resolutions, ratios, and references arrays.");
+  }
+  const durations = payload.durations && typeof payload.durations === "object" && !Array.isArray(payload.durations)
+    ? (payload.durations as Record<string, unknown>)
+    : undefined;
+  if (typeof durations?.min !== "number" || typeof durations.max !== "number") {
+    throw new RenderRequestAdmissionError("Provider capability durations must include numeric min and max.");
+  }
+  validateAdmissionCapabilitySettings(payload.settings);
+  return payload as unknown as ProviderCapability;
+}
+
+function validateAdmissionCapabilitySettings(value: unknown): void {
+  if (value === undefined) {
+    return;
+  }
+  const settings = value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+  if (!settings) {
+    throw new RenderRequestAdmissionError("Provider capability settings must be an object when provided.");
+  }
+  for (const name of ["generateAudio", "returnLastFrame", "watermark"] as const) {
+    if (settings[name] !== undefined && typeof settings[name] !== "boolean") {
+      throw new RenderRequestAdmissionError(`Provider capability settings.${name} must be boolean when provided.`);
+    }
+  }
+  if (
+    settings.bitrateModes !== undefined &&
+    (!Array.isArray(settings.bitrateModes) || !settings.bitrateModes.every((item) => item === "standard" || item === "high"))
+  ) {
+    throw new RenderRequestAdmissionError("Provider capability settings.bitrateModes must contain standard and/or high when provided.");
+  }
+}
+
+function trimSeedanceModelDefaults(settings: RenderRequestSeedanceModelDefaults): RenderRequestSeedanceModelDefaults {
+  const seedanceMiniModel = settings.seedanceMiniModel?.trim();
+  const seedanceFastModel = settings.seedanceFastModel?.trim();
+  const seedanceStandardModel = settings.seedanceStandardModel?.trim();
+  return {
+    ...(seedanceMiniModel ? { seedanceMiniModel } : {}),
+    ...(seedanceFastModel ? { seedanceFastModel } : {}),
+    ...(seedanceStandardModel ? { seedanceStandardModel } : {})
+  };
 }
 
 function uniqueNonEmptyStrings(values: readonly (string | undefined)[]): readonly string[] {

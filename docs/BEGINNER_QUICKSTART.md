@@ -106,12 +106,13 @@ The local setup script writes these model IDs when `.env` does not already conta
 
 ```env
 ATLASCLOUD_LLM_MODEL=qwen/qwen3-vl-30b-a3b-thinking
+ATLASCLOUD_SEEDANCE_MINI_MODEL=bytedance/seedance-2.0-mini/reference-to-video
 ATLASCLOUD_SEEDANCE_STANDARD_MODEL=bytedance/seedance-2.0/reference-to-video
 ATLASCLOUD_SEEDANCE_FAST_MODEL=bytedance/seedance-2.0-fast/reference-to-video
 ```
 
 Verify the current model IDs in Atlas Cloud before customer release.
-`setup:local` also writes `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` using documented assumptions for these model IDs, which avoids local preflight warnings but still needs catalog verification before customer release.
+`setup:local` also writes `ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON` using documented assumptions for these model IDs, which avoids local preflight warnings but still needs catalog verification before customer release. The generated Mini capability is intentionally conservative: `480p`/`720p` only unless an operator-reviewed Atlas capability record proves broader support.
 
 ## Settings Users Can Control
 
@@ -119,8 +120,8 @@ These settings are accepted in render request JSON and can be exposed by a futur
 
 | Setting | Options |
 | --- | --- |
-| `tier` | `fast`, `standard` |
-| `resolution` | `480p`, `720p`, `1080p` |
+| `tier` | `mini`, `fast`, `standard` |
+| `resolution` | `480p`, `720p`, `1080p`, `720p-SR`, `1080p-SR`, `1440p-SR` |
 | `qualityMode` | `economy`, `standard`, `high`, `ultimate` |
 | `ratio` | `adaptive`, `21:9`, `16:9`, `4:3`, `1:1`, `3:4`, `9:16` |
 | `durationTargetSeconds` | `1` to `480` |

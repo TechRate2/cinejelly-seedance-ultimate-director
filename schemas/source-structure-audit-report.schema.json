@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cinejelly.local/schemas/source-structure-audit-report.schema.json",
+  "title": "CineJelly Source Structure Audit Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "status",
+    "noSpend",
+    "networkCallsMade",
+    "providerCallsMade",
+    "checkedInputs",
+    "summary",
+    "sourceMap",
+    "findings",
+    "checks",
+    "releaseGateSummary",
+    "nextActions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "cinejelly.source-structure-audit.v1" },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["pass", "fail"] },
+    "noSpend": { "const": true },
+    "networkCallsMade": { "const": false },
+    "providerCallsMade": { "const": false },
+    "checkedInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outputPath",
+        "sourceFileCount",
+        "productFileCount",
+        "requiredRootFileCount",
+        "requiredRuntimeDirCount",
+        "requiredDeployFileCount",
+        "runtimeEnvNameCount"
+      ],
+      "properties": {
+        "outputPath": { "type": "string", "minLength": 1 },
+        "sourceFileCount": { "type": "integer", "minimum": 1 },
+        "productFileCount": { "type": "integer", "minimum": 1 },
+        "requiredRootFileCount": { "type": "integer", "minimum": 1 },
+        "requiredRuntimeDirCount": { "type": "integer", "minimum": 1 },
+        "requiredDeployFileCount": { "type": "integer", "minimum": 1 },
+        "runtimeEnvNameCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "passedChecks",
+        "failedChecks",
+        "missingRootFileCount",
+        "missingRuntimeDirCount",
+        "missingDeployFileCount",
+        "directExternalImportFindingCount",
+        "productHygieneFindingCount",
+        "runtimeTodoMarkerFindingCount",
+        "runtimeEnvBoundaryFindingCount",
+        "publicExportMissingCount",
+        "packageForbiddenFileEntryCount",
+        "missingRuntimeEnvTemplateKeyCount"
+      ],
+      "properties": {
+        "passedChecks": { "type": "integer", "minimum": 0 },
+        "failedChecks": { "type": "integer", "minimum": 0 },
+        "missingRootFileCount": { "type": "integer", "minimum": 0 },
+        "missingRuntimeDirCount": { "type": "integer", "minimum": 0 },
+        "missingDeployFileCount": { "type": "integer", "minimum": 0 },
+        "directExternalImportFindingCount": { "type": "integer", "minimum": 0 },
+        "productHygieneFindingCount": { "type": "integer", "minimum": 0 },
+        "runtimeTodoMarkerFindingCount": { "type": "integer", "minimum": 0 },
+        "runtimeEnvBoundaryFindingCount": { "type": "integer", "minimum": 0 },
+        "publicExportMissingCount": { "type": "integer", "minimum": 0 },
+        "packageForbiddenFileEntryCount": { "type": "integer", "minimum": 0 },
+        "missingRuntimeEnvTemplateKeyCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "sourceMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtimeRoots",
+        "deployFiles",
+        "configFiles",
+        "generatedOrSecretPaths",
+        "internalOnlyModules"
+      ],
+      "properties": {
+        "runtimeRoots": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "deployFiles": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "configFiles": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "generatedOrSecretPaths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "internalOnlyModules": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "findings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "directExternalImports",
+        "productHygieneFindings",
+        "runtimeTodoMarkerFindings",
+        "runtimeEnvBoundaryFindings",
+        "missingPublicExports",
+        "packageForbiddenFileEntries",
+        "missingRuntimeEnvTemplateKeys"
+      ],
+      "properties": {
+        "directExternalImports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "line", "kind"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "line": { "type": "integer", "minimum": 1 },
+              "kind": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "productHygieneFindings": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "runtimeTodoMarkerFindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "line", "kind", "marker"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "line": { "type": "integer", "minimum": 1 },
+              "kind": { "type": "string", "minLength": 1 },
+              "marker": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "runtimeEnvBoundaryFindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "line", "kind", "match"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "line": { "type": "integer", "minimum": 1 },
+              "kind": { "type": "string", "minLength": 1 },
+              "match": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "missingPublicExports": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "packageForbiddenFileEntries": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "missingRuntimeEnvTemplateKeys": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "releaseGateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceStructurePass",
+        "canUseAsNoSpendSourceStructureEvidence",
+        "canReleaseToCustomerTraffic",
+        "releaseBlocker"
+      ],
+      "properties": {
+        "sourceStructurePass": { "type": "boolean" },
+        "canUseAsNoSpendSourceStructureEvidence": { "type": "boolean" },
+        "canReleaseToCustomerTraffic": { "const": false },
+        "releaseBlocker": { "type": "string", "minLength": 1 }
+      }
+    },
+    "nextActions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "message"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pass", "fail"] },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

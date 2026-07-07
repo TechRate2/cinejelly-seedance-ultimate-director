@@ -6,6 +6,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import type { AtlasCloudRuntimeSettings } from "../../types/settings.js";
+import { defaultSeedanceProviderCapability } from "../../config/seedance-capabilities.js";
 import type {
   AudioGenerationCapability,
   AudioGenerationRequest,
@@ -92,17 +93,9 @@ export class AtlasCloudProvider implements ModelProvider {
     }
     const standardModel = this.settings.models.seedanceStandardModel;
     const fastModel = this.settings.models.seedanceFastModel;
-    const models = modelId ? [modelId] : [standardModel, fastModel];
-    return models.map((selectedModelId) => ({
-      provider: ATLAS_PROVIDER_NAME,
-      modelId: selectedModelId,
-      modes: ["text_to_video", "image_to_video", "reference_to_video", "video_to_video", "extend", "edit"],
-      durations: { min: 4, max: 15 },
-      resolutions: ["480p", "720p", "1080p"],
-      ratios: ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
-      references: ["image", "video", "audio", "first_frame", "last_frame", "identity", "product", "environment", "motion", "camera", "style"],
-      async: true
-    }));
+    const miniModel = this.settings.models.seedanceMiniModel;
+    const models = modelId ? [modelId] : [standardModel, fastModel, miniModel].filter((value): value is string => Boolean(value));
+    return models.map((selectedModelId) => defaultSeedanceProviderCapability(selectedModelId));
   }
 
   public audioCapabilities(modelId?: string): readonly AudioGenerationCapability[] {
@@ -587,6 +580,7 @@ export class AtlasCloudProvider implements ModelProvider {
         message: `Aspect ratio ${request.settings.ratio} is not supported by configured capability.`
       });
     }
+    this.validateCapabilitySettings(request, capability);
     for (const reference of request.references) {
       this.validateReferenceCapability(reference, capability);
     }
@@ -815,21 +809,77 @@ export class AtlasCloudProvider implements ModelProvider {
     }
   }
 
+  private validateCapabilitySettings(request: VideoGenerationRequest, capability: ProviderCapability): void {
+    const supportedSettings = capability.settings;
+    if (!supportedSettings) {
+      return;
+    }
+    if (supportedSettings.generateAudio === false && request.settings.generateAudio) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Native audio generation is not supported by configured capability for model ${capability.modelId}.`
+      });
+    }
+    if (supportedSettings.returnLastFrame === false && request.settings.returnLastFrame) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Last-frame return is not supported by configured capability for model ${capability.modelId}.`
+      });
+    }
+    if (supportedSettings.bitrateModes && !supportedSettings.bitrateModes.includes(request.settings.bitrateMode)) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Bitrate mode ${request.settings.bitrateMode} is not supported by configured capability for model ${capability.modelId}.`
+      });
+    }
+    if (supportedSettings.watermark === false && request.settings.watermark) {
+      throw new ProviderError({
+        code: "UNSUPPORTED_SETTING",
+        provider: ATLAS_PROVIDER_NAME,
+        message: `Watermark output is not supported by configured capability for model ${capability.modelId}.`
+      });
+    }
+  }
+
   private requiresRegisteredAsset(reference: ProviderReference): boolean {
     const uri = reference.providerAssetId ? `asset://${reference.providerAssetId}` : reference.uri;
     if (isHttpsUri(uri) || isAssetUri(uri)) {
       return false;
     }
-    return reference.kind === "video" || reference.kind === "audio";
+    return reference.kind === "image" ||
+      reference.kind === "video" ||
+      reference.kind === "audio" ||
+      reference.kind === "first_frame" ||
+      reference.kind === "last_frame" ||
+      ["identity", "product", "environment", "style"].includes(reference.role ?? "");
   }
 
   private toAtlasVideoPayload(request: VideoGenerationRequest): Record<string, unknown> {
     const references = request.references.map((reference) => this.toAtlasReference(reference));
     const dimensions = this.dimensionsFor(request.settings.resolution, request.settings.ratio);
-    const firstImageUrl = this.firstReferenceUrl(references, ["first_frame", "image", "identity", "product", "environment", "style"]);
+    const endpointReferencePresent = references.some((reference) =>
+      reference.type === "first_frame" ||
+      reference.type === "last_frame" ||
+      reference.role === "first_frame" ||
+      reference.role === "last_frame"
+    );
+    const imageToVideoReferenceUrl = this.firstReferenceUrl(references, ["first_frame", "image", "identity", "product", "environment", "style"]);
+    const firstFrameUrl = this.firstReferenceUrl(references, ["first_frame"]);
     const lastImageUrl = this.firstReferenceUrl(references, ["last_frame"]);
     const firstVideoUrl = this.firstReferenceUrl(references, ["video", "motion", "camera"]);
     const firstAudioUrl = this.firstReferenceUrl(references, ["audio"]);
+    const firstImageUrl = request.mode !== "text_to_video"
+      ? (firstFrameUrl ?? imageToVideoReferenceUrl)
+      : undefined;
+    const referenceImages = request.mode === "image_to_video" || endpointReferencePresent
+      ? []
+      : this.referenceUrlsByFamily(references, "image");
+    const referenceVideos = this.referenceUrlsByFamily(references, "video");
+    const referenceAudios = this.referenceUrlsByFamily(references, "audio");
+    const includeReferenceArray = request.mode !== "image_to_video" && !endpointReferencePresent && references.length > 0;
 
     return {
       model: request.modelId,
@@ -837,13 +887,18 @@ export class AtlasCloudProvider implements ModelProvider {
       ...(request.negativePrompt ? { negative_prompt: request.negativePrompt } : {}),
       duration: request.settings.durationSeconds,
       fps: DEFAULT_VIDEO_FPS,
-      ...(dimensions ? dimensions : { resolution: request.settings.resolution, ratio: request.settings.ratio }),
+      resolution: request.settings.resolution,
+      bitrate_mode: request.settings.bitrateMode,
+      ...(dimensions ? dimensions : { ratio: request.settings.ratio }),
       ...(request.mode !== "text_to_video" ? { mode: request.mode } : {}),
-      ...(firstImageUrl ? { image_url: firstImageUrl } : {}),
-      ...(lastImageUrl ? { last_image_url: lastImageUrl, end_image_url: lastImageUrl } : {}),
-      ...(firstVideoUrl ? { video_url: firstVideoUrl } : {}),
-      ...(firstAudioUrl ? { audio_url: firstAudioUrl } : {}),
-      ...(references.length > 0 ? { references } : {}),
+      ...(firstImageUrl ? { image: firstImageUrl, image_url: firstImageUrl } : {}),
+      ...(lastImageUrl ? { last_image: lastImageUrl, image_end: lastImageUrl, last_image_url: lastImageUrl, end_image_url: lastImageUrl } : {}),
+      ...(firstVideoUrl ? { video: firstVideoUrl, video_url: firstVideoUrl } : {}),
+      ...(firstAudioUrl ? { audio: firstAudioUrl, audio_url: firstAudioUrl } : {}),
+      ...(referenceImages.length > 0 ? { reference_images: referenceImages.slice(0, 9) } : {}),
+      ...(referenceVideos.length > 0 ? { reference_videos: referenceVideos.slice(0, 3) } : {}),
+      ...(referenceAudios.length > 0 ? { reference_audios: referenceAudios.slice(0, 3) } : {}),
+      ...(includeReferenceArray ? { references } : {}),
       generate_audio: request.settings.generateAudio,
       watermark: request.settings.watermark,
       return_last_frame: request.settings.returnLastFrame,
@@ -893,6 +948,36 @@ export class AtlasCloudProvider implements ModelProvider {
       preferredKindsOrRoles.includes(reference.type) ||
       (reference.role ? preferredKindsOrRoles.includes(reference.role) : false)
     )?.url;
+  }
+
+  private referenceUrlsByFamily(
+    references: readonly { readonly type: ReferenceKind; readonly url: string; readonly role?: string }[],
+    family: "image" | "video" | "audio"
+  ): readonly string[] {
+    const urls = new Set<string>();
+    for (const reference of references) {
+      if (this.referenceFamily(reference) === family) {
+        urls.add(reference.url);
+      }
+    }
+    return [...urls];
+  }
+
+  private referenceFamily(reference: { readonly type: ReferenceKind; readonly role?: string }): "image" | "video" | "audio" {
+    if (reference.type === "audio" || reference.role === "audio_tempo" || reference.role === "voice") {
+      return "audio";
+    }
+    if (
+      reference.type === "video" ||
+      reference.type === "motion" ||
+      reference.type === "camera" ||
+      reference.role === "source_video_structure" ||
+      reference.role === "motion" ||
+      reference.role === "camera"
+    ) {
+      return "video";
+    }
+    return "image";
   }
 
   private dimensionsFor(

@@ -15,15 +15,9 @@ import type {
   ReviewApprovalSurface
 } from "../types/review-approval.js";
 import { createStableId } from "../utils/ids.js";
+import { reviewApprovalSourcePatternOrigins } from "./private-source-pattern-registry.js";
 
 const ALL_SURFACES: readonly ReviewApprovalSurface[] = ["scene", "audio", "caption", "claim"];
-
-const SOURCE_PATTERN_ORIGINS: Readonly<Record<ReviewApprovalSurface, readonly string[]>> = {
-  scene: ["calesthio/OpenMontage", "HKUDS/ViMax", "HKUDS/VideoAgent"],
-  audio: ["harry0703/MoneyPrinterTurbo", "jiaminchen-1031/DirectorBench"],
-  caption: ["harry0703/MoneyPrinterTurbo", "vericontext/vibeframe"],
-  claim: ["calesthio/OpenMontage", "vericontext/vibeframe"]
-};
 
 const UNSAFE_PUBLIC_TEXT_PATTERN =
   /[A-Za-z]:\\|\\\\|(^|\s)\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/|https?:\/\/|data:|bearer\s+|api[_-]?key|secret|token|password|authorization/i;
@@ -121,7 +115,7 @@ export class ReviewApprovalSystem {
       ...(notes ? { notes } : {}),
       issueCodes: [...issueCodes].sort(),
       evidence,
-      sourcePatternOrigins: SOURCE_PATTERN_ORIGINS[checkpoint.surface]
+      sourcePatternOrigins: reviewApprovalSourcePatternOrigins(checkpoint.surface)
     };
   }
 

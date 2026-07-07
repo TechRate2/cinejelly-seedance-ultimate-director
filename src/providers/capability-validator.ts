@@ -41,6 +41,12 @@ export class ProviderCapabilityValidator {
         `Aspect ratio ${input.request.settings.ratio} is not supported by model ${input.request.modelId}.`
       );
     }
+    this.validateSettingSupport({
+      providerName: input.providerName,
+      modelId: input.request.modelId,
+      capability,
+      request: input.request
+    });
     for (const reference of input.request.references) {
       this.validateReference({
         providerName: input.providerName,
@@ -67,6 +73,45 @@ export class ProviderCapabilityValidator {
       });
     }
     return capability;
+  }
+
+  private validateSettingSupport(input: {
+    readonly providerName: string;
+    readonly modelId: string;
+    readonly capability: ProviderCapability;
+    readonly request: VideoGenerationRequest;
+  }): void {
+    const supportedSettings = input.capability.settings;
+    if (!supportedSettings) {
+      return;
+    }
+    if (supportedSettings.generateAudio === false && input.request.settings.generateAudio) {
+      throw this.unsupported(
+        input.providerName,
+        `Native audio generation is not supported by model ${input.modelId}.`
+      );
+    }
+    if (supportedSettings.returnLastFrame === false && input.request.settings.returnLastFrame) {
+      throw this.unsupported(
+        input.providerName,
+        `Last-frame return is not supported by model ${input.modelId}.`
+      );
+    }
+    if (
+      supportedSettings.bitrateModes &&
+      !supportedSettings.bitrateModes.includes(input.request.settings.bitrateMode)
+    ) {
+      throw this.unsupported(
+        input.providerName,
+        `Bitrate mode ${input.request.settings.bitrateMode} is not supported by model ${input.modelId}.`
+      );
+    }
+    if (supportedSettings.watermark === false && input.request.settings.watermark) {
+      throw this.unsupported(
+        input.providerName,
+        `Watermark output is not supported by model ${input.modelId}.`
+      );
+    }
   }
 
   private validateReference(input: {

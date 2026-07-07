@@ -92,7 +92,6 @@ export interface OperatorLaunchUiContract {
   readonly networkCallsMade: false;
   readonly providerCallsMade: false;
   readonly dashboardStatus: OperatorLaunchUiDashboardStatus;
-  readonly sourcePatternOrigins: readonly string[];
   readonly sourceReports: readonly OperatorLaunchUiSourceReport[];
   readonly readiness: OperatorLaunchUiReadinessSummary;
   readonly budget: OperatorLaunchUiBudgetSummary;

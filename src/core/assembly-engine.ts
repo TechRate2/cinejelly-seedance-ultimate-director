@@ -20,6 +20,15 @@ import { runProcess } from "../utils/process.js";
 
 const DEFAULT_MAX_RENDERED_CLIP_BYTES = 2 * 1024 * 1024 * 1024;
 const NON_NEGATIVE_INTEGER_PATTERN = /^(?:0|[1-9]\d*)$/;
+const MAX_TRANSITION_INTENT_CHARS = 360;
+
+export function transitionIntentsForAssemblyClips(clips: readonly AssemblyClip[]): readonly string[] {
+  const intents: string[] = [];
+  for (let index = 0; index < clips.length - 1; index += 1) {
+    intents.push(mergedBoundaryTransitionIntent(clips[index], clips[index + 1]) ?? "");
+  }
+  return intents;
+}
 
 export class AssemblyEngine {
   private readonly postproductionEngine: PostproductionEngine;
@@ -70,9 +79,12 @@ export class AssemblyEngine {
       ...DEFAULT_AUDIO_MIX_OPTIONS,
       enabled: Boolean(input.audioTracks && input.audioTracks.length > 0)
     };
-    const transitionSettings = input.transitionSettings ?? {
+    const transitionSettings = {
       ...DEFAULT_TRANSITION_SETTINGS,
-      enabled: localClipPaths.length > 1
+      enabled: localClipPaths.length > 1,
+      ...(postproductionSettings.targetHeight ? { targetHeight: postproductionSettings.targetHeight } : {}),
+      ...(postproductionSettings.targetRatio ? { targetRatio: postproductionSettings.targetRatio } : {}),
+      ...(input.transitionSettings ?? {})
     };
     const captionOptions = input.captionOptions ?? { enabled: false, burnIn: false };
     const needsTransitions = localClipPaths.length > 1 && transitionSettings.enabled;
@@ -88,7 +100,8 @@ export class AssemblyEngine {
           {
             inputPaths: localClipPaths,
             outputPath: concatOutputPath,
-            settings: transitionSettings
+            settings: transitionSettings,
+            transitionIntents: transitionIntentsForAssemblyClips(orderedClips)
           },
           signal
         )
@@ -353,4 +366,29 @@ export class AssemblyEngine {
       });
     });
   }
+}
+
+function mergedBoundaryTransitionIntent(
+  outgoingClip: AssemblyClip | undefined,
+  incomingClip: AssemblyClip | undefined
+): string | undefined {
+  const outgoing = cleanTransitionIntent(outgoingClip?.transitionOutIntent);
+  const incoming = cleanTransitionIntent(incomingClip?.transitionInIntent);
+  if (!outgoing && !incoming) {
+    return undefined;
+  }
+  if (outgoing && incoming && outgoing.toLowerCase() !== incoming.toLowerCase()) {
+    return `outgoing: ${outgoing} | incoming: ${incoming}`;
+  }
+  return outgoing ?? incoming;
+}
+
+function cleanTransitionIntent(value: string | undefined): string | undefined {
+  const trimmed = value?.replace(/\s+/g, " ").trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.length > MAX_TRANSITION_INTENT_CHARS
+    ? `${trimmed.slice(0, MAX_TRANSITION_INTENT_CHARS - 1).trimEnd()}...`
+    : trimmed;
 }

@@ -43,6 +43,8 @@ const { LongFormContinuityPlanner } = await import("../dist/core/long-form-conti
 const { LongFormTimelinePlanner } = await import("../dist/core/long-form-timeline-planner.js");
 const { PostproductionAssetPlanner } = await import("../dist/core/postproduction-asset-planner.js");
 const { RenderScheduler } = await import("../dist/core/render-scheduler.js");
+const { ShotPlanner } = await import("../dist/core/shot-planner.js");
+const { SeedancePromptCompiler } = await import("../dist/prompt_compiler/prompt-compiler.js");
 
 const continuityPlanner = new LongFormContinuityPlanner();
 const timelinePlanner = new LongFormTimelinePlanner();
@@ -51,7 +53,33 @@ const renderScheduler = new RenderScheduler(2);
 
 const projectId = "long_form_timeline_smoke";
 const storyPlan = buildStoryPlan(projectId);
-const shots = shotsFor(storyPlan);
+const seedanceSettings = {
+  tier: "standard",
+  resolution: "720p",
+  qualityMode: "standard",
+  ratio: "16:9",
+  durationTargetSeconds: storyPlan.targetDurationSeconds,
+  audioMode: "hybrid",
+  bitrateMode: "high",
+  watermark: false,
+  returnLastFrame: true
+};
+const shots = new ShotPlanner().plan({
+  projectId,
+  scenes: storyPlan.scenes,
+  settings: seedanceSettings,
+  metadata: {
+    longFormSource: "long_form_timeline_smoke"
+  }
+});
+const compiledLongPrompts = shots.map((shot) =>
+  new SeedancePromptCompiler().compile({
+    shot,
+    settings: seedanceSettings,
+    modelId: "bytedance/seedance-2.0-standard/reference-to-video",
+    provider: "atlascloud"
+  })
+);
 const continuityPlan = continuityPlanner.build({
   projectId,
   storyPlan,
@@ -107,7 +135,8 @@ const timeline = timelinePlanner.build({
   renderSchedulePlan,
   postproductionAssetPlan,
   captionCues,
-  generatedAudioIntents
+  generatedAudioIntents,
+  seedanceSettings
 });
 
 const blockedTimeline = timelinePlanner.build({
@@ -128,7 +157,8 @@ const blockedTimeline = timelinePlanner.build({
     projectId: `${projectId}_blocked`
   },
   captionCues,
-  generatedAudioIntents
+  generatedAudioIntents,
+  seedanceSettings
 });
 
 const serialized = JSON.stringify({ timeline, blockedTimeline });
@@ -141,6 +171,60 @@ const generatedIntentMapped = timeline.segments.some((segment) => segment.audioC
   timeline.segments.some((segment) => segment.audioCoverage.generatedIntentIds.includes("narration_02")) &&
   timeline.segments.some((segment) => segment.audioCoverage.generatedIntentIds.includes("ambience_01"));
 const sequentialSegments = timeline.segments.filter((segment) => segment.renderMode === "sequential");
+const storyArcRoles = new Set(timeline.segments.map((segment) => segment.storyArcRole));
+const storyArcPositions = new Set(timeline.segments.map((segment) => segment.storyArcPosition));
+const productionContractsReady = timeline.segments.every((segment) =>
+  segment.productionContract &&
+  segment.productionContract.timingGoal.includes(`${segment.startSecond}-${segment.endSecond}s`) &&
+  segment.productionContract.requiredVisualChange.length > 20 &&
+  segment.productionContract.voiceoverLine.split(/\s+/).filter(Boolean).length <= Math.max(3, Math.floor(segment.durationSeconds * 2.4)) &&
+  segment.productionContract.nativeAudioPrompt.includes("Do not copy protected songs") &&
+  segment.productionContract.endpointJob.includes("stable") &&
+  segment.productionContract.providerSettingSummary.includes("bitrate=high") &&
+  segment.productionContract.providerSettingSummary.includes(`audioScriptLine=${segment.audioScriptLineId}`)
+);
+const audioScriptReady = timeline.audioScriptLineCount === timeline.segmentCount &&
+  timeline.audioScript.length === timeline.segmentCount &&
+  timeline.audioScript.every((line) => {
+    const segment = timeline.segments.find((item) => item.audioScriptLineId === line.lineId);
+    return segment &&
+      line.shotId === segment.shotId &&
+      line.startSecond === segment.startSecond &&
+      line.endSecond === segment.endSecond &&
+      (line.language === "vi" || line.language === "auto") &&
+      line.wordBudget >= line.spokenLine.split(/\s+/).filter(Boolean).length &&
+      line.visualSync === segment.productionContract.requiredVisualChange;
+  });
+const providerSettingPolicyReady = timeline.providerSettingPolicy.resolution === "720p" &&
+  timeline.providerSettingPolicy.bitrateMode === "high" &&
+  timeline.providerSettingPolicy.audioMode === "hybrid" &&
+  timeline.providerSettingPolicy.nativeProviderAudioEnabled === true &&
+  timeline.providerSettingPolicy.externalAudioScriptEnabled === true &&
+  timeline.providerSettingPolicy.returnLastFrame === true &&
+  timeline.providerSettingPolicy.lastFrameChainingPreferred === true;
+const compiledPromptStoryArcReady = compiledLongPrompts.every((prompt) =>
+  prompt.prompt.includes("Pacing contract:") &&
+  prompt.prompt.includes("Story arc:") &&
+  prompt.prompt.includes("Timeline:") &&
+    prompt.prompt.includes("Boundary choreography:") &&
+    prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints")
+);
+const compiledPromptProviderSettingsReady = compiledLongPrompts.every((prompt) =>
+  prompt.videoRequest.settings.resolution === "720p" &&
+  prompt.videoRequest.settings.bitrateMode === "high" &&
+  prompt.videoRequest.settings.generateAudio === true &&
+  prompt.videoRequest.settings.returnLastFrame === true
+);
+const sourceVideoCompiledPrompts = compiledLongPrompts.filter((prompt) =>
+  prompt.bindingPlan.sortedReferences.some((reference) => reference.role === "source_video_structure")
+);
+const sourceVideoNegativePromptReady = sourceVideoCompiledPrompts.length > 0 &&
+  sourceVideoCompiledPrompts.every((prompt) =>
+    prompt.negativePrompt.includes("no copied source-video face identity") &&
+    prompt.negativePrompt.includes("no copied source-video transcript") &&
+    prompt.negativePrompt.includes("no copied source-video music or melody") &&
+    prompt.negativePrompt.includes("no source-video watermark, caption style, logo, or brand marks")
+  );
 
 const checks = [
   timeline.noSpend === true &&
@@ -157,10 +241,36 @@ const checks = [
     timeline.plannedDurationSeconds === storyPlan.targetDurationSeconds
     ? pass("segment_and_duration_coverage", "Timeline covers every shot and matches the requested 120 second duration.")
     : fail("segment_and_duration_coverage", "Timeline segment or duration coverage is incomplete."),
+  storyArcRoles.has("hook") &&
+    storyArcRoles.has("payoff") &&
+    [...storyArcRoles].some((role) => role === "proof" || role === "development" || role === "turning_point") &&
+    storyArcPositions.has("opening") &&
+    storyArcPositions.has("middle_development") &&
+    storyArcPositions.has("ending") &&
+    timeline.segments.every((segment) => segment.storyArcContract.includes("full video")) &&
+    shots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
+    compiledPromptStoryArcReady
+    ? pass("whole_video_story_arc_prompt_contract", "Long-form prompts and timeline segments carry opening, development/proof, payoff, and boundary-choreography contracts across the full duration.")
+    : fail("whole_video_story_arc_prompt_contract", "Expected long-form ShotPlanner and PromptCompiler to preserve whole-video story arc and boundary-choreography contracts."),
+  productionContractsReady &&
+    audioScriptReady &&
+    timeline.audioScript.some((line) => line.language === "vi") &&
+    timeline.segments.some((segment) => segment.productionContract.productionAct === "opening") &&
+    timeline.segments.some((segment) => segment.productionContract.productionAct === "proof") &&
+    timeline.segments.some((segment) => segment.productionContract.productionAct === "payoff")
+    ? pass("segment_production_audio_contract", "Every long-form segment exposes a concrete timing, visual-change, voiceover, native-audio, music/SFX, endpoint, and audio-script contract.")
+    : fail("segment_production_audio_contract", "Expected every long-form segment to expose production and audio script contracts."),
+  providerSettingPolicyReady &&
+    compiledPromptProviderSettingsReady
+    ? pass("provider_setting_policy_contract", "Long-form timeline and compiled video requests preserve 720p, high bitrate, hybrid provider audio, and last-frame return policy.")
+    : fail("provider_setting_policy_contract", "Expected timeline policy and compiled requests to preserve provider setting defaults for quality, audio, and chaining."),
   timeline.sequenceCount === continuityPlan.sequenceCount &&
     timeline.sequences.every((sequence, index) => sequence.order === index && sequence.startSecond < sequence.endSecond)
     ? pass("sequence_timing_boundaries", "Timeline exposes deterministic sequence timing boundaries.")
     : fail("sequence_timing_boundaries", "Timeline sequence timing boundaries are invalid."),
+  sourceVideoNegativePromptReady
+    ? pass("source_video_negative_prompt_contract", "Long-form source-video guided prompts include negative constraints against copied identity, transcript, music, watermark, captions, logos, and brand marks.")
+    : fail("source_video_negative_prompt_contract", "Expected long-form source-video guided prompts to include copy-prevention negative constraints."),
   timeline.segments.every((segment) => segment.renderBatchId && segment.renderMode) &&
     sequentialSegments.length > 0 &&
     sequentialSegments.every((segment) => segment.sequentialReasons.length > 0)
@@ -251,8 +361,14 @@ function buildStoryPlan(prefix) {
             beatId: `${prefix}_beat_${String(order).padStart(2, "0")}`,
             purpose: order === 1 ? "hook and setup" : order === 6 ? "payoff and CTA" : "proof development",
             action: `Advance proof movement ${order} while keeping product, host, and macro style consistent.`,
+            subject: "Glow Focus Serum with founder host",
+            camera: sceneIndex < 2 ? "slow push-in" : "controlled macro cutaway",
+            lighting: "warm natural window light",
             durationSeconds: 20,
             style: "warm premium macro commercial",
+            audioIntent: `Narration and soft music support proof beat ${sceneIndex + 1}.`,
+            references: referencesFor(sceneIndex),
+            risks: risksFor(sceneIndex),
             continuity: {
               identity: "founder host identity",
               product: "Glow Focus Serum",
@@ -264,32 +380,6 @@ function buildStoryPlan(prefix) {
       };
     })
   };
-}
-
-function shotsFor(storyPlan) {
-  return storyPlan.scenes.flatMap((scene, sceneIndex) =>
-    scene.beats.map((beat) => ({
-      shotId: `${beat.beatId}_shot`,
-      sceneId: scene.sceneId,
-      beatId: beat.beatId,
-      durationSeconds: beat.durationSeconds,
-      intent: beat.purpose,
-      subject: "Glow Focus Serum with founder host",
-      action: beat.action,
-      camera: sceneIndex < 2 ? "slow push-in" : "controlled macro cutaway",
-      lighting: "warm natural window light",
-      style: beat.style,
-      audioIntent: `Narration and soft music support proof beat ${sceneIndex + 1}.`,
-      transitionIntent: sceneIndex === 2 ? "match cut bridge to the next macro proof" : undefined,
-      references: referencesFor(sceneIndex),
-      continuity: {
-        ...beat.continuity,
-        ...(sceneIndex === 2 ? { previousShotEndState: "serum bottle centered on vanity" } : {}),
-        ...(sceneIndex === 3 ? { nextShotStartState: "macro texture frame starts from same bottle angle" } : {})
-      },
-      risks: risksFor(sceneIndex)
-    }))
-  );
 }
 
 function referencesFor(sceneIndex) {
@@ -392,6 +482,13 @@ function summarizeTimeline(value) {
     captionCueCount: value.captionCueCount,
     audioEventCount: value.audioEventCount,
     generatedAudioEventCount: value.generatedAudioEventCount,
+    audioScriptLineCount: value.audioScriptLineCount,
+    providerResolution: value.providerSettingPolicy.resolution,
+    providerBitrateMode: value.providerSettingPolicy.bitrateMode,
+    providerAudioMode: value.providerSettingPolicy.audioMode,
+    nativeProviderAudioEnabled: value.providerSettingPolicy.nativeProviderAudioEnabled,
+    externalAudioScriptEnabled: value.providerSettingPolicy.externalAudioScriptEnabled,
+    returnLastFrame: value.providerSettingPolicy.returnLastFrame,
     issueCount: value.issueCount,
     blockingIssueCount: value.blockingIssueCount,
     warningIssueCount: value.warningIssueCount,

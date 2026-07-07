@@ -113,6 +113,41 @@ export interface ShortAgentRepairAction {
   readonly applied: true;
 }
 
+export type ShortSeedanceProductionAct = "opening" | "development" | "payoff";
+
+export interface ShortSeedanceShotBeatContract {
+  readonly act: ShortSeedanceProductionAct;
+  readonly timingGoal: string;
+  readonly requiredVisualChange: string;
+  readonly narrationJob: string;
+  readonly audioJob: string;
+  readonly endpointJob: string;
+}
+
+export interface ShortSeedanceDurationProductionContract {
+  readonly schemaVersion: "cinejelly.short-duration-production-contract.v1";
+  readonly targetDurationSeconds: number;
+  readonly actStructure: readonly ShortSeedanceProductionAct[];
+  readonly sceneRoleOrder: readonly ShortPipelineScenePlan["role"][];
+  readonly minVisualChangeCount: number;
+  readonly completionRule: string;
+  readonly timingRisk: "low" | "medium" | "high";
+}
+
+export interface ShortSeedanceAudioScriptLine {
+  readonly shotId: string;
+  readonly sceneId: string;
+  readonly startSecond: number;
+  readonly endSecond: number;
+  readonly languageHint: string;
+  readonly voiceStyle: string;
+  readonly spokenLine: string;
+  readonly delivery: string;
+  readonly musicCue: string;
+  readonly sfxCue: string;
+  readonly externalTtsReady: true;
+}
+
 export interface ShortSeedanceShotPrompt {
   readonly shotId: string;
   readonly sceneId: string;
@@ -128,7 +163,13 @@ export interface ShortSeedanceShotPrompt {
   readonly dialogueOrNarration: string;
   readonly caption: string;
   readonly audio: string;
+  readonly beatContract: ShortSeedanceShotBeatContract;
+  readonly voiceoverLine: string;
+  readonly nativeAudioPrompt: string;
+  readonly musicCue: string;
+  readonly sfxCue: string;
   readonly continuity: string;
+  readonly transitionBridge: string;
   readonly referencePolicy: string;
   readonly negativeConstraints: readonly string[];
   readonly qualityChecks: readonly string[];
@@ -146,6 +187,8 @@ export interface ShortSeedancePromptPack {
   readonly aspectRatio: string;
   readonly masterPrompt: string;
   readonly shotPrompts: readonly ShortSeedanceShotPrompt[];
+  readonly durationProductionContract: ShortSeedanceDurationProductionContract;
+  readonly audioScript: readonly ShortSeedanceAudioScriptLine[];
   readonly globalNegativeConstraints: readonly string[];
   readonly audioPlan: string;
   readonly captionPlan: string;

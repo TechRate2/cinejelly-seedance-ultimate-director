@@ -1,6 +1,6 @@
 /**
  * Reconciles generated-audio execution plans with provider results before final audio mixing.
- * Inspired by MoneyPrinterTurbo staged audio artifacts and VibeFrame validation/report discipline.
+ * Inspired by staged audio artifacts and storyboard-video validation/report discipline.
  */
 
 import type { GeneratedAudioIntent } from "../types/audio.js";

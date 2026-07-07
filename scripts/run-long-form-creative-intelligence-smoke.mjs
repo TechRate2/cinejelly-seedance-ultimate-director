@@ -67,6 +67,17 @@ const renderScheduler = new RenderScheduler(2);
 const projectId = "long_form_creative_intelligence_smoke";
 const userInput = "Build a premium ecommerce product video ad for skincare buyers on TikTok Shop with a strong hook, proof stack, visual payoff, and clear CTA.";
 const storyPlan = buildStoryPlan(projectId, 6, 120);
+const seedanceSettings = {
+  tier: "standard",
+  resolution: "720p",
+  qualityMode: "standard",
+  ratio: "16:9",
+  durationTargetSeconds: storyPlan.targetDurationSeconds,
+  audioMode: "hybrid",
+  bitrateMode: "high",
+  watermark: false,
+  returnLastFrame: true
+};
 const shots = shotsFor(storyPlan);
 const sourceVideoAnalysis = sourceVideoAnalysisFor();
 const continuityPlan = continuityPlanner.build({ projectId, storyPlan, shots, sourceVideoAnalysis });
@@ -75,7 +86,7 @@ const videoRenderStrategyPlan = strategyPlanner.build({
   projectId,
   request: {
     userInput,
-    settings: { durationTargetSeconds: storyPlan.targetDurationSeconds, returnLastFrame: true },
+    settings: seedanceSettings,
     references: shots.flatMap((shot) => shot.references),
     metadata: {
       workflowMode: "storyboard",
@@ -122,7 +133,8 @@ const timelinePlan = timelinePlanner.build({
   renderSchedulePlan,
   postproductionAssetPlan,
   captionCues,
-  generatedAudioIntents
+  generatedAudioIntents,
+  seedanceSettings
 });
 const creative = creativePlanner.build({
   projectId,
@@ -150,7 +162,8 @@ const blockedTimelinePlan = timelinePlanner.build({
   },
   postproductionAssetPlan: { ...postproductionAssetPlan, projectId: `${projectId}_blocked` },
   captionCues,
-  generatedAudioIntents
+  generatedAudioIntents,
+  seedanceSettings
 });
 const blockedCreative = creativePlanner.build({
   projectId: `${projectId}_blocked`,
@@ -197,6 +210,12 @@ const serialized = JSON.stringify({ creative, blockedCreative, longDirectorUiCon
 const rawLeakDetected = serialized.includes("https://private.example") ||
   serialized.includes("token=secret") ||
   serialized.includes("api_key=");
+const privateSourcePatternLineageLeakDetected = await containsPrivateSourcePatternTextForSmoke(JSON.stringify({
+  longDirectorUiContract,
+  blockedLongDirectorUiContract,
+  apiUiContract: apiContract.body.uiContract,
+  blockedApiUiContract: blockedApiContract.body.uiContract
+}));
 const directiveCountsConsistent =
   creative.findingCount === creative.findings.length &&
   creative.shotDirectiveCount === creative.shotDirectives.length &&
@@ -207,6 +226,30 @@ const blockedCountsConsistent =
   blockedCreative.blockingFindingCount === blockedCreative.findings.filter((finding) => finding.severity === "block").length &&
   blockedCreative.reviewRequiredFindingCount === blockedCreative.findings.filter((finding) => finding.severity === "warn").length;
 const audienceNiche = creative.nicheStrategy.audienceNicheIntelligence;
+const selectedIdeaCandidate = creative.ideaCandidates.find((candidate) => candidate.selectedForRender);
+const blockedSelectedIdeaCandidate = blockedCreative.ideaCandidates.find((candidate) => candidate.selectedForRender);
+const ideaCandidateSources = new Set(creative.ideaCandidates.map((candidate) => candidate.source));
+const ideaCandidatesReady =
+  creative.ideaCandidateCount === creative.ideaCandidates.length &&
+  blockedCreative.ideaCandidateCount === blockedCreative.ideaCandidates.length &&
+  Boolean(selectedIdeaCandidate) &&
+  Boolean(blockedSelectedIdeaCandidate) &&
+  creative.selectedIdeaCandidateId === selectedIdeaCandidate?.ideaId &&
+  blockedCreative.selectedIdeaCandidateId === blockedSelectedIdeaCandidate?.ideaId &&
+  ideaCandidateSources.has("audience_niche") &&
+  ideaCandidateSources.has("story_bible") &&
+  ideaCandidateSources.has("timeline_production_contract") &&
+  ideaCandidateSources.has("source_video_structure") &&
+  ideaCandidateSources.has("director_repair") &&
+  creative.ideaCandidates.every((candidate) =>
+    candidate.score.totalScore >= 0 &&
+    candidate.score.totalScore <= 100 &&
+    candidate.sequenceArc.length > 0 &&
+    candidate.openingHook.length > 0 &&
+    candidate.proofPlan.length > 0 &&
+    candidate.audioNarrationPlan.length > 0 &&
+    (candidate.source !== "source_video_structure" || candidate.sourceVideoAdaptationRule.includes("Replace"))
+  );
 
 const checks = [
   creative.noSpend === true &&
@@ -234,6 +277,12 @@ const checks = [
     longDirectorUiContract.creative.ideaSeedCount === audienceNiche.ideaSeeds.length
     ? pass("shared_audience_niche_intelligence", "Long creative intelligence and UI contract carry shared user-intent, niche, trend, proof, objection, and idea-seed strategy.")
     : fail("shared_audience_niche_intelligence", "Expected shared audience/niche intelligence to be present in Long creative and UI contract evidence."),
+  ideaCandidatesReady &&
+    longDirectorUiContract.creative.ideaCandidateCount === creative.ideaCandidateCount &&
+    longDirectorUiContract.creative.selectedIdeaCandidateId === creative.selectedIdeaCandidateId &&
+    creative.ideaCandidateCount >= audienceNiche.ideaSeeds.length
+    ? pass("long_form_idea_candidate_engine", "Long creative intelligence now emits selected, scored idea candidates from audience, story bible, source-video, timeline, and repair signals.")
+    : fail("long_form_idea_candidate_engine", "Expected selected/scored long-form idea candidates with diversified evidence sources."),
   creative.storyBible.characterAnchors.length > 0 &&
     creative.storyBible.productAnchors.length > 0 &&
     creative.storyBible.environmentAnchors.length > 0 &&
@@ -256,7 +305,7 @@ const checks = [
     longDirectorUiContract.duration.sequenceCount === continuityPlan.sequenceCount &&
     longDirectorUiContract.outputContract.canSubmitToProviderNow === false &&
     longDirectorUiContract.outputContract.longFormManualQualityReviewRequired === true &&
-    longDirectorUiContract.outputContract.directorBenchEvidenceRequired === true
+    longDirectorUiContract.outputContract.benchmarkEvidenceRequired === true
     ? pass("long_director_ui_contract_available", "Long Director UI contract exposes story, continuity, candidate, repair, and manual-review gates.")
     : fail("long_director_ui_contract_available", "Expected Long Director UI contract to expose no-spend review-console gates."),
   creative.status === "review_required" &&
@@ -304,6 +353,9 @@ const checks = [
   !rawLeakDetected
     ? pass("no_raw_provider_url_leak", "Creative intelligence evidence stores labels and strategy without raw provider URLs or query secrets.")
     : fail("no_raw_provider_url_leak", "Creative intelligence evidence leaked a raw provider URL or secret-like query text."),
+  !privateSourcePatternLineageLeakDetected
+    ? pass("long_director_ui_hides_private_source_pattern_lineage", "Long Director UI contracts do not expose private source-pattern repo, platform, or upstream workflow labels.")
+    : fail("long_director_ui_hides_private_source_pattern_lineage", "Expected Long Director UI contracts to hide private source-pattern lineage."),
   creative.sourcePatternOrigins.every((origin) => sourcePatternOrigins.includes(origin)) &&
     blockedCreative.sourcePatternOrigins.every((origin) => sourcePatternOrigins.includes(origin))
     ? pass("source_pattern_lineage", "Creative intelligence carries ViMax, VideoAgent, VibeFrame, OpenMontage, DirectorBench, MoneyPrinterTurbo, and Seedance prompt-pattern lineage.")
@@ -506,7 +558,7 @@ function summarizeCreative(value, uiContract) {
     directorNarrativeMode: uiContract.director.narrativeMode,
     directorCheckpointStageCount: uiContract.director.checkpointStages.length,
     manualQualityReviewRequired: uiContract.outputContract.longFormManualQualityReviewRequired,
-    directorBenchEvidenceRequired: uiContract.outputContract.directorBenchEvidenceRequired,
+    directorBenchEvidenceRequired: uiContract.outputContract.benchmarkEvidenceRequired,
     canSubmitToProviderNow: uiContract.outputContract.canSubmitToProviderNow,
     repairQueueCount: uiContract.outputContract.repairQueueCount,
     niche: value.nicheStrategy.niche,
@@ -514,6 +566,9 @@ function summarizeCreative(value, uiContract) {
     trendPosture: value.nicheStrategy.trendPosture,
     viewerObjection: value.nicheStrategy.viewerObjection,
     ideaSeedCount: value.nicheStrategy.audienceNicheIntelligence.ideaSeeds.length,
+    ideaCandidateCount: value.ideaCandidateCount,
+    selectedIdeaCandidateIdPresent: Boolean(value.selectedIdeaCandidateId),
+    selectedIdeaCandidateScore: value.ideaCandidates.find((candidate) => candidate.ideaId === value.selectedIdeaCandidateId)?.score.totalScore ?? 0,
     findingCount: value.findingCount,
     blockingFindingCount: value.blockingFindingCount,
     reviewRequiredFindingCount: value.reviewRequiredFindingCount,
@@ -556,6 +611,50 @@ async function postJson(url, body) {
     statusCode: response.status,
     body: await response.json()
   };
+}
+
+const PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS = [
+  "Topview",
+  "Higgsfield",
+  "OpenMontage",
+  "VideoAgent",
+  "ViMax",
+  "vibeframe",
+  "YouMind-OpenLab",
+  "ZeroLu",
+  "Emily2040",
+  "higgsfield-ai",
+  "OSideMedia",
+  "calesthio/",
+  "HKUDS/",
+  "video-db/",
+  "vericontext/",
+  "harry0703/",
+  "MoneyPrinterTurbo",
+  "moneyprinterturbo",
+  "jiaminchen-1031/",
+  "DirectorBench",
+  "directorbench",
+  "nirdiamant/",
+  "gswithjeff/",
+  "Shubhamsaboo/",
+  "hereandnowai/",
+  "Anil-matcha/"
+];
+
+async function containsPrivateSourcePatternTextForSmoke(value) {
+  try {
+    const registry = await import("../dist/core/private-source-pattern-registry.js");
+    if (typeof registry.containsPrivateSourcePatternText === "function") {
+      return registry.containsPrivateSourcePatternText(value);
+    }
+  } catch {
+    // A clean checkout may run this script before build output exists.
+  }
+  const lowered = value.toLowerCase();
+  return PRIVATE_SOURCE_PATTERN_FALLBACK_FORBIDDEN_FRAGMENTS.some((fragment) =>
+    lowered.includes(fragment.toLowerCase())
+  );
 }
 
 function pass(name, message) {

@@ -1,6 +1,6 @@
 /**
  * Builds deterministic stage lifecycle evidence for long-form and batch-aware runs.
- * Inspired by VibeFrame status/report discipline and MoneyPrinterTurbo stage progress,
+ * Inspired by status/report discipline and staged progress tracking,
  * rewritten as CineJelly-owned TypeScript.
  */
 
@@ -21,10 +21,10 @@ import type {
   ProductionStageRecord,
   ProductionStageStatus
 } from "../types/stage.js";
-import { PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS } from "../types/stage.js";
 import type { Storyboard } from "../types/storyboard.js";
 import type { VideoRenderStrategyPlan } from "../types/video-render-strategy.js";
 import { createStableId } from "../utils/ids.js";
+import { productionStageSourcePatternOrigins } from "./private-source-pattern-registry.js";
 
 export interface ProductionStagePlannerInput {
   readonly projectId: string;
@@ -138,7 +138,7 @@ export class ProductionStagePlanner {
       status,
       graphNodeIds: this.graphNodeIds(input.productionGraph, stage),
       evidence,
-      sourcePatternOrigins: PRODUCTION_STAGE_SOURCE_PATTERN_ORIGINS[stage],
+      sourcePatternOrigins: productionStageSourcePatternOrigins(stage),
       ...(blockingReason ? { blockingReason } : {})
     };
   }

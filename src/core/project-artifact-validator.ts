@@ -78,6 +78,7 @@ const RENDER_SCHEDULE_SEQUENTIAL_REASONS = new Set([
   "strategy_reference_lock",
   "strategy_last_frame_chaining",
   "strategy_source_video",
+  "strategy_sequence_bible",
   "strategy_manual_storyboard"
 ]);
 const GENERATED_AUDIO_OUTPUT_BATCH_STATUSES = new Set([
@@ -138,6 +139,7 @@ const LONG_FORM_READINESS_USER_CONTROL_MODES = new Set([
   "multishot",
   "reference_locked",
   "source_video",
+  "sequence_bible",
   "manual_storyboard"
 ]);
 const LONG_FORM_READINESS_RENDER_UNIT_MODES = new Set([
@@ -145,6 +147,7 @@ const LONG_FORM_READINESS_RENDER_UNIT_MODES = new Set([
   "storyboard_multishot",
   "reference_locked",
   "source_video_guided",
+  "sequence_bible",
   "manual_review_required"
 ]);
 const LONG_FORM_READINESS_REPAIR_CATEGORIES = new Set([
@@ -185,6 +188,7 @@ const VIDEO_RENDER_WORKFLOW_MODES = new Set([
   "storyboard_multishot",
   "reference_locked_multishot",
   "source_video_guided",
+  "sequence_bible",
   "manual_storyboard"
 ]);
 const VIDEO_RENDER_CONTINUITY_MODES = new Set([
@@ -193,6 +197,7 @@ const VIDEO_RENDER_CONTINUITY_MODES = new Set([
   "reference_locked",
   "last_frame_chaining",
   "source_video_guided",
+  "sequence_bible",
   "manual_locked"
 ]);
 const VIDEO_RENDER_LAST_FRAME_STATUSES = new Set(["not_needed", "recommended", "required", "blocked"]);
@@ -2153,7 +2158,7 @@ export class ProjectArtifactValidator {
       !outputContract ||
       outputContract.finalMp4AssemblyManagedByBackend !== true ||
       outputContract.longFormManualQualityReviewRequired !== true ||
-      outputContract.directorBenchEvidenceRequired !== true ||
+      outputContract.benchmarkEvidenceRequired !== true ||
       outputContract.canSubmitToProviderNow !== false ||
       typeof outputContract.canProceedToRenderAfterApproval !== "boolean" ||
       typeof outputContract.captionCoverageRatio !== "number" ||
@@ -2302,7 +2307,7 @@ export class ProjectArtifactValidator {
       longDirectorNarrativeMode: director?.narrativeMode,
       longDirectorCheckpointStageCount: Array.isArray(director?.checkpointStages) ? director.checkpointStages.length : undefined,
       longDirectorManualQualityReviewRequired: outputContract?.longFormManualQualityReviewRequired,
-      longDirectorBenchEvidenceRequired: outputContract?.directorBenchEvidenceRequired,
+      longDirectorBenchEvidenceRequired: outputContract?.benchmarkEvidenceRequired,
       longDirectorCanSubmitToProviderNow: outputContract?.canSubmitToProviderNow,
       longDirectorCanProceedToRenderAfterApproval: outputContract?.canProceedToRenderAfterApproval,
       longDirectorRepairQueueCount: outputContract?.repairQueueCount

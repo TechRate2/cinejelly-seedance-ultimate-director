@@ -114,10 +114,13 @@ const rawSourceLeak = serialized.includes("https://shop.example.com") ||
 
 const graph = plan.agentGraph;
 const pack = plan.seedancePromptPack;
+const durationContract = pack?.durationProductionContract;
+const audioScript = pack?.audioScript ?? [];
 const selectedIdea = plan.viralIntelligence.creativePatternLearning.candidates.find(
   (candidate) => candidate.ideaId === plan.viralIntelligence.creativePatternLearning.selectedIdeaId
 );
 const selectedGraphCandidate = graph?.candidates.find((candidate) => candidate.candidateId === graph.selectedCandidateId);
+const generatedAudioIntents = handoff.request.generatedAudioIntents ?? [];
 const checks = [
   graph?.noSpend && graph.networkCallsMade === false && graph.providerCallsMade === false &&
     pack?.schemaVersion === "cinejelly.short-seedance-prompt-pack.v1"
@@ -145,23 +148,83 @@ const checks = [
     pack.masterPrompt.includes(selectedIdea.label)
     ? pass("selected_creative_idea_reaches_agent_graph", "Winning creative-pattern idea becomes graph memory, selected candidate, and Seedance master prompt guidance.")
     : fail("selected_creative_idea_reaches_agent_graph", "Expected winning creative-pattern idea to reach graph ranking and master prompt."),
+  pack?.masterPrompt.includes("Reference handle discipline:") &&
+    pack.masterPrompt.includes("KOL/identity @image anchors and product @image anchors outrank @video") &&
+    pack.shotPrompts.every((shot) =>
+      shot.referencePolicy.includes("Reference handle discipline:") &&
+      shot.referencePolicy.includes("Never let @video overwrite user KOL face")
+    )
+    ? pass("seedance_reference_handle_discipline", "Short Agent prompt pack locks @image KOL/product anchors ahead of @video source/trend handles before render compilation.")
+    : fail("seedance_reference_handle_discipline", "Expected Short Agent prompt pack and every shot reference policy to include @image/@video handle priority discipline."),
   plan.scenes.length >= 5 &&
     pack?.shotPrompts.length === plan.scenes.length &&
     pack.shotPrompts.every((shot) =>
       shot.visualPrompt.includes("Visual style:") &&
       shot.camera.length > 20 &&
       shot.action.length > 20 &&
+      shot.transitionBridge?.includes("Transition bridge") &&
+      shot.transitionBridge.includes("Avoid boundary artifacts") &&
       shot.negativeConstraints.length >= 5 &&
       shot.qualityChecks.length >= 3
     )
-    ? pass("seedance_timecoded_prompt_pack", "Seedance prompt pack contains dynamic scene count, time-coded shots, camera/action/audio/no-visible-text/negative constraints.")
-    : fail("seedance_timecoded_prompt_pack", "Expected dynamic scene count and detailed Seedance shot prompts."),
+    ? pass("seedance_timecoded_prompt_pack", "Seedance prompt pack contains dynamic scene count, time-coded shots, camera/action/audio/no-visible-text/transition-bridge/negative constraints.")
+    : fail("seedance_timecoded_prompt_pack", "Expected dynamic scene count and detailed Seedance shot prompts with transition bridges."),
   handoff.request.metadata?.shortAgentGraphRunId === graph?.graphRunId &&
     handoff.request.metadata?.shortSeedancePromptPackId === pack?.promptPackId &&
     handoff.request.userInput.includes("Seedance 2.0 prompt pack:") &&
-    handoff.request.userInput.includes("Time-coded Seedance shots:")
-    ? pass("render_handoff_receives_prompt_pack", "Render handoff receives Short Agent graph metadata and the Seedance prompt pack.")
-    : fail("render_handoff_receives_prompt_pack", "Expected render handoff to include agent graph and Seedance prompt pack."),
+    handoff.request.userInput.includes("Time-coded Seedance shots:") &&
+    handoff.request.userInput.includes("Transition bridge:")
+    ? pass("render_handoff_receives_prompt_pack", "Render handoff receives Short Agent graph metadata and the Seedance prompt pack with transition bridge contracts.")
+    : fail("render_handoff_receives_prompt_pack", "Expected render handoff to include agent graph, Seedance prompt pack, and transition bridge contracts."),
+  durationContract?.schemaVersion === "cinejelly.short-duration-production-contract.v1" &&
+    durationContract.actStructure.includes("opening") &&
+    durationContract.actStructure.includes("development") &&
+    durationContract.actStructure.includes("payoff") &&
+    durationContract.minVisualChangeCount >= plan.scenes.length &&
+    pack?.shotPrompts.every((shot) =>
+      shot.beatContract.act &&
+      shot.beatContract.requiredVisualChange.length > 20 &&
+      shot.beatContract.endpointJob.length > 20 &&
+      shot.voiceoverLine.length > 20 &&
+      shot.nativeAudioPrompt.includes("Native audio line:")
+    )
+    ? pass("duration_audio_production_contract", "Prompt pack carries a structured opening/development/payoff contract, shot-level visual changes, endpoint jobs, voiceover lines, and native-audio prompts.")
+    : fail("duration_audio_production_contract", "Expected structured duration/audio production contract on the prompt pack and every shot."),
+  audioScript.length === pack?.shotPrompts.length &&
+    audioScript.every((line) =>
+      line.externalTtsReady === true &&
+      line.spokenLine.length > 20 &&
+      line.endSecond > line.startSecond &&
+      pack.shotPrompts.some((shot) =>
+        shot.shotId === line.shotId &&
+        shot.voiceoverLine === line.spokenLine &&
+        shot.startSecond === line.startSecond &&
+        shot.endSecond === line.endSecond
+      )
+    )
+    ? pass("tts_ready_audio_script_matches_shots", "TTS-ready audio script lines match every Seedance shot timing and voiceover line.")
+    : fail("tts_ready_audio_script_matches_shots", "Expected audio script coverage to match shot timing and spoken lines."),
+  plan.audioPolicy.renderAudioMode === "hybrid" &&
+    plan.audioPolicy.nativeProviderAudioEnabled === true &&
+    plan.audioPolicy.externalAudioScriptEnabled === true &&
+    plan.seedanceRouting.generatedAudioMode === "hybrid" &&
+    handoff.request.settings.audioMode === "hybrid" &&
+    handoff.request.metadata?.shortAudioNativeProviderEnabled === "true" &&
+    handoff.request.metadata?.shortAudioExternalScriptEnabled === "true" &&
+    handoff.request.userInput.includes("TTS-ready audio script:") &&
+    handoff.request.userInput.includes("Duration production contract:")
+    ? pass("hybrid_audio_handoff_default", "Short handoff defaults to hybrid model audio plus external script cues and carries both contracts into provider prompt text.")
+    : fail("hybrid_audio_handoff_default", "Expected hybrid audio mode, native-provider flag, external script flag, and prompt handoff contracts."),
+  generatedAudioIntents.length === audioScript.length &&
+    generatedAudioIntents.every((intent) => {
+      const line = audioScript.find((item) => item.spokenLine === intent.prompt);
+      return Boolean(line) &&
+        intent.startSecond === line.startSecond &&
+        intent.endSecond === line.endSecond &&
+        intent.durationSeconds === Number(Math.max(1, line.endSecond - line.startSecond).toFixed(2));
+    })
+    ? pass("generated_audio_intents_use_prompt_pack_timing", "Generated-audio intents reuse prompt-pack audio script timing instead of naive equal scene splitting.")
+    : fail("generated_audio_intents_use_prompt_pack_timing", "Expected generated-audio intents to align with prompt-pack audio script timing."),
   !rawSourceLeak
     ? pass("raw_source_redaction", "Raw product/reference URLs and signed query tokens are not serialized in agent evidence or handoff.")
     : fail("raw_source_redaction", "Expected raw source URLs and secret-like query values to stay redacted.")
@@ -181,6 +244,9 @@ const report = {
     sceneCount: plan.scenes.length,
     candidateCount: graph?.candidates.length ?? 0,
     promptShotCount: pack?.shotPrompts.length ?? 0,
+    durationProductionContractPresent: durationContract?.schemaVersion === "cinejelly.short-duration-production-contract.v1",
+    audioScriptLineCount: audioScript.length,
+    hybridAudioDefault: plan.seedanceRouting.generatedAudioMode === "hybrid" && handoff.request.settings.audioMode === "hybrid",
     selectedCreativeIdeaCandidatePresent: selectedGraphCandidate?.label === selectedIdea?.label,
     rawSourceLeakCheckPassed: !rawSourceLeak
   },
@@ -196,6 +262,9 @@ const report = {
     selectedCreativeIdeaId: selectedIdea?.ideaId ?? "missing",
     selectedCandidateLabel: selectedGraphCandidate?.label ?? "missing",
     promptPackId: pack?.promptPackId,
+    durationProductionTimingRisk: durationContract?.timingRisk ?? "missing",
+    audioScriptExternalTtsReady: audioScript.length > 0 && audioScript.every((line) => line.externalTtsReady === true),
+    handoffAudioMode: String(handoff.request.settings.audioMode ?? "missing"),
     handoffHasPromptPack: handoff.request.userInput.includes("Seedance 2.0 prompt pack:")
   },
   checks,

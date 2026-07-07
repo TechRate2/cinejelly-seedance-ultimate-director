@@ -1,6 +1,6 @@
 /**
  * Long Director planner.
- * Translates Seedance shot-list/continuity behavior and OpenMontage checkpoint discipline into a
+ * Translates Seedance shot-list/continuity behavior and checkpoint discipline into a
  * long-form-only planning artifact.
  */
 
@@ -15,13 +15,12 @@ import type { LongFormContinuityPlan } from "../types/long-form-continuity.js";
 import type { LongFormCreativeQualityFinding, LongFormCreativeStoryBible } from "../types/long-form-creative-intelligence.js";
 import type { ShotContract } from "../types/prompt.js";
 import { createStableId } from "../utils/ids.js";
+import {
+  internalSourcePatternOrigins,
+  LONG_DIRECTOR_SOURCE_PATTERN_IDS
+} from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "Emily2040/seedance-2.0",
-  "calesthio/OpenMontage",
-  "HKUDS/ViMax",
-  "vericontext/vibeframe"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins(LONG_DIRECTOR_SOURCE_PATTERN_IDS);
 
 export interface LongDirectorPlannerInput {
   readonly projectId: string;

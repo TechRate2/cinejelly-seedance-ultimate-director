@@ -99,6 +99,15 @@ const checks = [
   plan.bridgeCount === plan.sequenceCount - 1 && bridgeTargetsValid
     ? pass("sequence_bridges", "Every non-final sequence has a bridge to the next sequence with required anchor evidence.")
     : fail("sequence_bridges", "Sequence bridge evidence is missing or does not point to the next sequence."),
+  plan.sequences
+    .filter((sequence) => sequence.bridgeToNext)
+    .every((sequence) =>
+      sequence.bridgeToNext.bridgeIntent.includes("camera momentum") &&
+        sequence.bridgeToNext.bridgeIntent.includes("room tone") &&
+        sequence.bridgeToNext.bridgeIntent.includes("product/KOL scale")
+    )
+    ? pass("sequence_bridge_seamless_edit_contract", "Long-form sequence bridges carry camera, room-tone, lighting, scale, and endpoint-state continuity instructions.")
+    : fail("sequence_bridge_seamless_edit_contract", "Expected every long-form sequence bridge to carry seamless edit continuity instructions."),
   sequenceSceneCount === storyPlan.scenes.length && sequenceShotCount === shots.length
     ? pass("scene_and_shot_coverage", "Continuity sequences preserve every scene and shot.")
     : fail("scene_and_shot_coverage", "Continuity plan lost at least one scene or shot."),

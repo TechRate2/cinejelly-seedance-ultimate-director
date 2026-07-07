@@ -9,13 +9,14 @@ import type {
   ProductUrlSnapshotInput,
   ProductUrlSourceEvidence
 } from "../types/short-pipeline.js";
+import { internalSourcePatternOrigins } from "./private-source-pattern-registry.js";
 
-const SOURCE_PATTERN_ORIGINS = [
-  "calesthio/OpenMontage",
-  "HKUDS/VideoAgent",
-  "video-db/Director",
-  "vericontext/vibeframe"
-] as const;
+const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins([
+  "calesthio_openmontage",
+  "hkuds_videoagent",
+  "video_db_director",
+  "vericontext_vibeframe"
+]);
 
 const UNSAFE_QUERY_PATTERN = /token|signature|sig|key|apikey|api_key|secret|password|auth|credential|expires|policy/i;
 const DEFAULT_MAX_BYTES = 512_000;
