@@ -231,6 +231,38 @@ const GROUNDED_PLAYBOOK: NichePlaybook = {
   avoid: "static shots that overstay, monotone pacing, endings that just stop"
 };
 
+/**
+ * Per-family musical tempo + BGM identity, so cuts can be planned to a beat grid
+ * (see beat-grid-planner.ts) and any generated background music is asked for the SAME BPM —
+ * the edit and the track then share one grid by construction. Comedy/UGC run deliberately dry
+ * (usesBgm=false) because scored music kills their formats.
+ */
+export interface NicheBeatProfile {
+  /** Target soundtrack tempo for this family (beats per minute). */
+  readonly bpm: number;
+  /** House BGM genre/mood; ignored when usesBgm is false. */
+  readonly bgmGenre: string;
+  /** Whether this family scores under background music at all. */
+  readonly usesBgm: boolean;
+}
+
+const BEAT_PROFILE_BY_FAMILY: Record<string, NicheBeatProfile> = {
+  cinematic_film: { bpm: 70, bgmGenre: "restrained cinematic score (ambient strings, sub-bass swells)", usesBgm: true },
+  anime_animation: { bpm: 150, bgmGenre: "high-energy electronic/orchestral hybrid with impact stingers", usesBgm: true },
+  ugc_pov_authentic: { bpm: 100, bgmGenre: "none — in-camera sound or a single trending audio bed only", usesBgm: false },
+  commercial_product: { bpm: 112, bgmGenre: "upbeat modern pop/electronic with a clear build to the hero shot", usesBgm: true },
+  action_vfx_fantasy: { bpm: 140, bgmGenre: "epic percussive trailer bed with low-end weight", usesBgm: true },
+  comedy_meme: { bpm: 100, bgmGenre: "none — deadpan silence with a single sting on the punchline", usesBgm: false },
+  food_asmr: { bpm: 90, bgmGenre: "cozy lo-fi/acoustic kept low under crisp ASMR foley", usesBgm: true },
+  music_dance: { bpm: 120, bgmGenre: "genre-driven track (trap 808s or city-pop) with a hard drop", usesBgm: true },
+  sports_fitness: { bpm: 130, bgmGenre: "driving electronic/hip-hop rising into a crowd swell", usesBgm: true },
+  travel_worldtour: { bpm: 122, bgmGenre: "uplifting house/tropical bed that opens on the drop", usesBgm: true },
+  transformation_reveal: { bpm: 126, bgmGenre: "riser-into-drop electronic keyed to the change", usesBgm: true },
+  family_kids: { bpm: 85, bgmGenre: "warm acoustic (ukulele/piano) under natural family sound", usesBgm: true },
+  education_explainer: { bpm: 95, bgmGenre: "minimal corporate underscore beneath the voice", usesBgm: true },
+  grounded_general: { bpm: 105, bgmGenre: "neutral modern underscore that supports the voice", usesBgm: true }
+};
+
 /** Platform niches and creative modes -> content family. */
 const FAMILY_BY_KEY: Record<string, string> = {
   // creative modes
@@ -325,6 +357,20 @@ export function resolveNichePlaybook(input: {
 }
 
 /**
+ * Resolve the family's musical beat profile (tempo + BGM identity). Reuses the same family
+ * resolution as the playbook, so beat-synced cutting and background music stay aligned with
+ * the creative family that was chosen for the script.
+ */
+export function resolveNicheBeatProfile(input: {
+  readonly niche?: string;
+  readonly creativeMode?: string;
+}): NicheBeatProfile {
+  const family = resolveNichePlaybook(input).family;
+  const profile = BEAT_PROFILE_BY_FAMILY[family] ?? BEAT_PROFILE_BY_FAMILY["grounded_general"];
+  return profile ?? { bpm: 105, bgmGenre: "neutral modern underscore that supports the voice", usesBgm: true };
+}
+
+/**
  * Compact, LLM-injectable directive: the family's winning formula as hard scripting rules.
  * Kept under ~1300 characters so it strengthens the instruction without drowning it.
  */
@@ -333,7 +379,8 @@ export function nichePlaybookDirective(input: {
   readonly creativeMode?: string;
 }): string {
   const playbook = resolveNichePlaybook(input);
-  return [
+  const beat = resolveNicheBeatProfile(input);
+  const lines = [
     `NICHE PLAYBOOK (${playbook.family}) — script to this family's proven formula:`,
     `Hook (pick ONE and commit): ${playbook.hookFormulas.join(" | ")}.`,
     `Beat structure: ${playbook.beatTemplate}.`,
@@ -342,7 +389,11 @@ export function nichePlaybookDirective(input: {
     `References: ${playbook.referenceStrategy}.`,
     `Engineer at least one viral trigger: ${playbook.viralTriggers.join("; ")}.`,
     `Never: ${playbook.avoid}.`
-  ].join(" ");
+  ];
+  if (beat.usesBgm) {
+    lines.push(`Beat sync: score to a ~${beat.bpm} BPM bed (${beat.bgmGenre}) and land hard cuts and visual accents on the beat.`);
+  }
+  return lines.join(" ");
 }
 
 export function listNichePlaybookFamilies(): readonly string[] {

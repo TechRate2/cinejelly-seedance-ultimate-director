@@ -64,6 +64,7 @@ export * from "./core/consistency-guardian.js";
 export * from "./core/continuity-ledger-builder.js";
 export * from "./core/delivery-gate.js";
 export * from "./core/duration-scripting.js";
+export * from "./core/beat-grid-planner.js";
 export * from "./core/keyframe-first-planner.js";
 export * from "./core/simple-brief-resolver.js";
 export * from "./core/director-style-audio-review.js";
