@@ -64,10 +64,10 @@ check("snap_single_shot_keeps_total", (() => { const s = snapDurationsToBeatGrid
 // ---- Part C: per-niche beat profiles. ----
 check("anime_is_fast", resolveNicheBeatProfile({ niche: "anime" }).bpm === 150);
 check("cinematic_is_slow", resolveNicheBeatProfile({ creativeMode: "cinematic" }).bpm === 70);
-check("comedy_runs_dry", resolveNicheBeatProfile({ niche: "comedy" }).usesBgm === false);
-check("ugc_runs_dry", resolveNicheBeatProfile({ creativeMode: "ugc_review" }).usesBgm === false);
-check("commercial_uses_bgm", resolveNicheBeatProfile({ creativeMode: "product_ad" }).usesBgm === true);
-check("unknown_niche_grounded", (() => { const p = resolveNicheBeatProfile({ niche: "zzz-nonexistent-niche" }); return p.bpm === 105 && p.usesBgm === true; })());
+check("comedy_runs_dry", resolveNicheBeatProfile({ niche: "comedy" }).scoresToMusic === false);
+check("ugc_runs_dry", resolveNicheBeatProfile({ creativeMode: "ugc_review" }).scoresToMusic === false);
+check("commercial_uses_bgm", resolveNicheBeatProfile({ creativeMode: "product_ad" }).scoresToMusic === true);
+check("unknown_niche_grounded", (() => { const p = resolveNicheBeatProfile({ niche: "zzz-nonexistent-niche" }); return p.bpm === 105 && p.scoresToMusic === true; })());
 // Same resolver is re-exported from the niche-playbooks barrel (single source of truth).
 check("profile_reexport_matches", resolveProfileFromPlaybooks({ niche: "anime" }).bpm === 150);
 // Every family profile is musically sane.

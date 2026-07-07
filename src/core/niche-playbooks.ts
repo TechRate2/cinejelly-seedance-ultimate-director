@@ -232,35 +232,37 @@ const GROUNDED_PLAYBOOK: NichePlaybook = {
 };
 
 /**
- * Per-family musical tempo + BGM identity, so cuts can be planned to a beat grid
- * (see beat-grid-planner.ts) and any generated background music is asked for the SAME BPM —
- * the edit and the track then share one grid by construction. Comedy/UGC run deliberately dry
- * (usesBgm=false) because scored music kills their formats.
+ * Per-family musical tempo + sonic identity. Used two ways, both FREE (no separate music track):
+ * (1) plan the CUTTING rhythm to a beat grid (see beat-grid-planner.ts), and (2) tell Seedance
+ * the intended tempo/mood so its OWN native audio carries that energy under the voiceover.
+ * We deliberately do NOT mix a separate BGM bed — native model audio + TTS voiceover is cleaner
+ * and avoids muddying the voice. Comedy/UGC run dry (scoresToMusic=false): deadpan or in-camera
+ * sound with no musical scoring at all.
  */
 export interface NicheBeatProfile {
-  /** Target soundtrack tempo for this family (beats per minute). */
+  /** Target musical tempo for this family (beats per minute) — drives cut rhythm + native-audio feel. */
   readonly bpm: number;
-  /** House BGM genre/mood; ignored when usesBgm is false. */
+  /** Desired musical mood for the model's native audio; ignored when scoresToMusic is false. */
   readonly bgmGenre: string;
-  /** Whether this family scores under background music at all. */
-  readonly usesBgm: boolean;
+  /** Whether this family should feel musically scored at all (via native audio), vs run dry. */
+  readonly scoresToMusic: boolean;
 }
 
 const BEAT_PROFILE_BY_FAMILY: Record<string, NicheBeatProfile> = {
-  cinematic_film: { bpm: 70, bgmGenre: "restrained cinematic score (ambient strings, sub-bass swells)", usesBgm: true },
-  anime_animation: { bpm: 150, bgmGenre: "high-energy electronic/orchestral hybrid with impact stingers", usesBgm: true },
-  ugc_pov_authentic: { bpm: 100, bgmGenre: "none — in-camera sound or a single trending audio bed only", usesBgm: false },
-  commercial_product: { bpm: 112, bgmGenre: "upbeat modern pop/electronic with a clear build to the hero shot", usesBgm: true },
-  action_vfx_fantasy: { bpm: 140, bgmGenre: "epic percussive trailer bed with low-end weight", usesBgm: true },
-  comedy_meme: { bpm: 100, bgmGenre: "none — deadpan silence with a single sting on the punchline", usesBgm: false },
-  food_asmr: { bpm: 90, bgmGenre: "cozy lo-fi/acoustic kept low under crisp ASMR foley", usesBgm: true },
-  music_dance: { bpm: 120, bgmGenre: "genre-driven track (trap 808s or city-pop) with a hard drop", usesBgm: true },
-  sports_fitness: { bpm: 130, bgmGenre: "driving electronic/hip-hop rising into a crowd swell", usesBgm: true },
-  travel_worldtour: { bpm: 122, bgmGenre: "uplifting house/tropical bed that opens on the drop", usesBgm: true },
-  transformation_reveal: { bpm: 126, bgmGenre: "riser-into-drop electronic keyed to the change", usesBgm: true },
-  family_kids: { bpm: 85, bgmGenre: "warm acoustic (ukulele/piano) under natural family sound", usesBgm: true },
-  education_explainer: { bpm: 95, bgmGenre: "minimal corporate underscore beneath the voice", usesBgm: true },
-  grounded_general: { bpm: 105, bgmGenre: "neutral modern underscore that supports the voice", usesBgm: true }
+  cinematic_film: { bpm: 70, bgmGenre: "restrained cinematic score (ambient strings, sub-bass swells)", scoresToMusic: true },
+  anime_animation: { bpm: 150, bgmGenre: "high-energy electronic/orchestral hybrid with impact stingers", scoresToMusic: true },
+  ugc_pov_authentic: { bpm: 100, bgmGenre: "none — in-camera sound or a single trending audio bed only", scoresToMusic: false },
+  commercial_product: { bpm: 112, bgmGenre: "upbeat modern pop/electronic with a clear build to the hero shot", scoresToMusic: true },
+  action_vfx_fantasy: { bpm: 140, bgmGenre: "epic percussive trailer bed with low-end weight", scoresToMusic: true },
+  comedy_meme: { bpm: 100, bgmGenre: "none — deadpan silence with a single sting on the punchline", scoresToMusic: false },
+  food_asmr: { bpm: 90, bgmGenre: "cozy lo-fi/acoustic kept low under crisp ASMR foley", scoresToMusic: true },
+  music_dance: { bpm: 120, bgmGenre: "genre-driven track (trap 808s or city-pop) with a hard drop", scoresToMusic: true },
+  sports_fitness: { bpm: 130, bgmGenre: "driving electronic/hip-hop rising into a crowd swell", scoresToMusic: true },
+  travel_worldtour: { bpm: 122, bgmGenre: "uplifting house/tropical bed that opens on the drop", scoresToMusic: true },
+  transformation_reveal: { bpm: 126, bgmGenre: "riser-into-drop electronic keyed to the change", scoresToMusic: true },
+  family_kids: { bpm: 85, bgmGenre: "warm acoustic (ukulele/piano) under natural family sound", scoresToMusic: true },
+  education_explainer: { bpm: 95, bgmGenre: "minimal corporate underscore beneath the voice", scoresToMusic: true },
+  grounded_general: { bpm: 105, bgmGenre: "neutral modern underscore that supports the voice", scoresToMusic: true }
 };
 
 /** Platform niches and creative modes -> content family. */
@@ -367,7 +369,7 @@ export function resolveNicheBeatProfile(input: {
 }): NicheBeatProfile {
   const family = resolveNichePlaybook(input).family;
   const profile = BEAT_PROFILE_BY_FAMILY[family] ?? BEAT_PROFILE_BY_FAMILY["grounded_general"];
-  return profile ?? { bpm: 105, bgmGenre: "neutral modern underscore that supports the voice", usesBgm: true };
+  return profile ?? { bpm: 105, bgmGenre: "neutral modern underscore that supports the voice", scoresToMusic: true };
 }
 
 /**
@@ -390,8 +392,8 @@ export function nichePlaybookDirective(input: {
     `Engineer at least one viral trigger: ${playbook.viralTriggers.join("; ")}.`,
     `Never: ${playbook.avoid}.`
   ];
-  if (beat.usesBgm) {
-    lines.push(`Beat sync: score to a ~${beat.bpm} BPM bed (${beat.bgmGenre}) and land hard cuts and visual accents on the beat.`);
+  if (beat.scoresToMusic) {
+    lines.push(`Beat sync: pace the edit to a ~${beat.bpm} BPM rhythm and let the model's own native audio carry that ${beat.bgmGenre} energy (no separate music track); land every hard cut and visual accent on the beat.`);
   }
   return lines.join(" ");
 }
