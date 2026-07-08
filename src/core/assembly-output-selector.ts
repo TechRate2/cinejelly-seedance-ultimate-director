@@ -12,7 +12,16 @@ const VIDEO_MIME_PATTERN = /^video\/(?:mp4|quicktime|webm|x-m4v)$/i;
 export function selectAssemblyClipsForRenderedShots(renderedShots: readonly RenderedShot[]): readonly AssemblyClip[] {
   const clips: AssemblyClip[] = [];
   for (const [shotIndex, renderedShot] of renderedShots.entries()) {
-    const videoOutputs = renderedShot.prediction.outputUrls.filter(isVideoOutputUrl);
+    let videoOutputs = renderedShot.prediction.outputUrls.filter(isVideoOutputUrl);
+    if (videoOutputs.length === 0) {
+      // Opaque (extension-less) provider video URL: fall back to any non-image output so a fully
+      // rendered (and already-charged) shot is not abandoned at assembly just because its success
+      // URL carries no recognizable extension/format hint. Only a truly empty or image-only output throws.
+      const nonImageOutputs = renderedShot.prediction.outputUrls.filter((url) => !isLikelyImageOutputUrl(url));
+      if (nonImageOutputs.length > 0) {
+        videoOutputs = nonImageOutputs;
+      }
+    }
     if (videoOutputs.length === 0) {
       throw new Error(
         `Rendered shot ${renderedShot.compiledPrompt.shotId} did not include a video output URL for assembly.`
@@ -55,6 +64,31 @@ export function isVideoOutputUrl(value: string): boolean {
     source.url.searchParams.get("content-type") ??
     source.url.searchParams.get("response-content-type");
   return Boolean(contentType && VIDEO_MIME_PATTERN.test(contentType));
+}
+
+/**
+ * Conservative "is this an image output" test, used only to EXCLUDE image sidecars when falling
+ * back to an opaque (extension-less) video URL. Kept local to avoid a circular import with
+ * endpoint-frame-chain (which imports isVideoOutputUrl from here).
+ */
+function isLikelyImageOutputUrl(value: string): boolean {
+  const source = outputSource(value);
+  const imageExtensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif"];
+  if (imageExtensions.some((extension) => new RegExp(`\\${extension}(?:$|[^a-z0-9])`, "i").test(source.pathnameOrPath))) {
+    return true;
+  }
+  if (!source.url) {
+    return false;
+  }
+  const format = (source.url.searchParams.get("format") ?? source.url.searchParams.get("ext") ?? source.url.searchParams.get("type") ?? "")
+    .toLowerCase().replace(/^image\//, "").trim();
+  if (["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif"].includes(format)) {
+    return true;
+  }
+  const contentType = source.url.searchParams.get("content_type") ??
+    source.url.searchParams.get("content-type") ??
+    source.url.searchParams.get("response-content-type") ?? "";
+  return /^image\//i.test(contentType);
 }
 
 function outputSource(value: string): { readonly pathnameOrPath: string; readonly url?: URL } {

@@ -1374,7 +1374,11 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             if (probeError instanceof UserAccountError) {
               throw probeError;
             }
-            // ffprobe unavailable/unreadable: keep the flat-minimum billing, do not block.
+            // Probe unreadable: never fall back to the 5s minimum (a 25MB source can be minutes long,
+            // so 5s would bill a long clip as 5s — charge-cheap/render-expensive). Bill the WORST-CASE
+            // duration the source's byte size could hold at a low-bitrate floor, bounded by the 600s
+            // cap, so a failed probe can only ever OVER-estimate, never undercharge.
+            redubBillableSeconds = await worstCaseRedubSecondsFromBytes(redubProbePath);
           }
         }
         const redubActorKey =
@@ -3577,6 +3581,24 @@ const REDUB_FALLBACK_SECONDS = 5;
 
 /** Hard cap on redub source length so provider spend can never outrun the credits charged. */
 const REDUB_MAX_SOURCE_SECONDS = 600;
+// Low-bitrate floor (~200 kbps). A SMALLER bytes/second yields a LARGER (safer) worst-case duration,
+// so when ffprobe cannot read a source we still bill at least what its byte size could contain.
+const REDUB_WORST_CASE_BYTES_PER_SECOND = 25000;
+
+/**
+ * Money-safe fallback when ffprobe cannot read a redub source's real duration: estimate the longest
+ * clip its byte size could hold (bounded by the 600s cap), so a failed probe over-estimates rather
+ * than collapsing to the 5s minimum. Falls back to the hard cap if the file cannot even be stat()ed.
+ */
+async function worstCaseRedubSecondsFromBytes(localPath: string): Promise<number> {
+  try {
+    const info = await stat(localPath);
+    const seconds = Math.ceil(info.size / REDUB_WORST_CASE_BYTES_PER_SECOND);
+    return Math.min(REDUB_MAX_SOURCE_SECONDS, Math.max(REDUB_FALLBACK_SECONDS, seconds));
+  } catch {
+    return REDUB_MAX_SOURCE_SECONDS;
+  }
+}
 
 /**
  * Statuses that commit the customer's money at submission time: the job either runs now

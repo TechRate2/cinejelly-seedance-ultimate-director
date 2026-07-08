@@ -141,10 +141,15 @@ export function selectLastFrameReference(input: {
 }
 
 function selectVideoOutput(renderedShot: RenderedShot): { readonly url: string; readonly index: number } | undefined {
-  return renderedShot.prediction.outputUrls
-    .map((url, index) => ({ url, index }))
-    .filter((candidate) => isVideoOutputUrl(candidate.url))
-    .sort((left, right) => right.index - left.index)[0];
+  const outputs = renderedShot.prediction.outputUrls.map((url, index) => ({ url, index }));
+  let videos = outputs.filter((candidate) => isVideoOutputUrl(candidate.url));
+  if (videos.length === 0) {
+    // Opaque (extension-less) provider video URL: treat any non-image output as the video so a
+    // REQUIRED last-frame chain can still extract its endpoint frame instead of throwing and
+    // abandoning an already-charged sequential batch mid-render.
+    videos = outputs.filter((candidate) => !isImageOutputUrl(candidate.url));
+  }
+  return videos.sort((left, right) => right.index - left.index)[0];
 }
 
 interface ExtractedEndpointFrameCandidate {
