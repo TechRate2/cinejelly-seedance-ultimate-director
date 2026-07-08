@@ -144,6 +144,7 @@ const auditedValidationCommandNames = [
   "validation:pipeline-pricing",
   "validation:beat-sync",
   "validation:anti-slop",
+  "validation:ssrf-guard",
   "validation:api-response-redaction",
   "validation:backend-system-readiness",
   "validation:backend-system-suite",

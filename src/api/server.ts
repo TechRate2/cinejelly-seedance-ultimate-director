@@ -896,7 +896,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             ...handoff.summary,
             sessionId: record.sessionId
           },
-          ...submission.summary,
+          ...jobSummaryForPrincipal(submission.summary, authDecision.principal),
           ...(submission.idempotentReplay ? { idempotentReplay: true } : {}),
           ...(commercialReservation?.clientPolicyReservation
             ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
@@ -1112,7 +1112,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         }
         sendJson(response, 202, {
           shortPipeline: handoff.summary,
-          ...submission.summary,
+          ...jobSummaryForPrincipal(submission.summary, authDecision.principal),
           ...(submission.idempotentReplay ? { idempotentReplay: true } : {}),
           ...(commercialReservation?.clientPolicyReservation
             ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
@@ -1159,7 +1159,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         );
         sendJson(response, submission ? 202 : 404, submission
           ? {
-              ...submission.summary,
+              ...jobSummaryForPrincipal(submission.summary, authDecision.principal),
               queuedForRender: submission.queuedForRender,
               ...(submission.approvedForExport !== undefined ? { approvedForExport: submission.approvedForExport } : {}),
               ...(commercialReservation?.clientPolicyReservation
@@ -1895,7 +1895,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           });
         }
         sendJson(response, 202, {
-          ...submission.summary,
+          ...jobSummaryForPrincipal(submission.summary, authDecision.principal),
           ...(submission.idempotentReplay ? { idempotentReplay: true } : {}),
           ...(commercialReservation?.clientPolicyReservation
             ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
@@ -2014,7 +2014,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           });
           const artifactValidation = await validateArtifactsForApi(artifactValidator, artifacts);
           sendJson(response, 500, {
-            error: redactUnknown(renderError instanceof Error ? renderError.message : String(renderError)),
+            error: redactUnknown(redactEmbeddedLocalPaths(renderError instanceof Error ? renderError.message : String(renderError))),
             ...(commercialReservation.clientPolicyReservation
               ? { clientPolicyReservation: commercialReservation.clientPolicyReservation }
               : {}),

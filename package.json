@@ -89,6 +89,7 @@
     "validation:pipeline-pricing": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-pipeline-pricing-smoke.mjs",
     "validation:beat-sync": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-beat-sync-smoke.mjs",
     "validation:anti-slop": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-anti-slop-smoke.mjs",
+    "validation:ssrf-guard": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-ssrf-guard-smoke.mjs",
     "validation:commercial-policy": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-commercial-policy-smoke.mjs",
     "validation:render-scheduler": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-render-scheduler-smoke.mjs",
     "validation:mixed-output-assembly": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-mixed-output-assembly-smoke.mjs",

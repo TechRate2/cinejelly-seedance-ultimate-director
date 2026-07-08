@@ -7,6 +7,7 @@ import { access, copyFile, open, rename, rm } from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import type { AudioMixArtifact, AudioMixInput, AudioMixOptions, AudioMixTrack } from "../types/audio.js";
 import { ensureDirectory } from "../utils/files.js";
+import { assertPublicHttpsFetchTarget } from "../utils/ssrf-guard.js";
 import { createStableId } from "../utils/ids.js";
 import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
@@ -77,6 +78,8 @@ export class AudioMixEngine {
     targetPath: string,
     signal?: AbortSignal
   ): Promise<void> {
+    // SSRF guard: resolve the host and refuse private/internal targets before the request leaves the box.
+    await assertPublicHttpsFetchTarget(sourceUrl, `Audio track ${track.trackId}`);
     const response = await fetch(sourceUrl, signal ? { signal } : undefined);
     if (!response.ok) {
       throw new Error(`Failed to download audio track ${track.trackId}: HTTP ${response.status}`);

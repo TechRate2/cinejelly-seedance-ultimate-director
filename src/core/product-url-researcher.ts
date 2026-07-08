@@ -162,7 +162,10 @@ export class ProductUrlResearcher {
           finalParsed.protocol !== "https:" ||
           isLocalHost(finalParsed.hostname) ||
           Boolean(finalParsed.username) ||
-          Boolean(finalParsed.password);
+          Boolean(finalParsed.password) ||
+          // DNS-resolve the POST-redirect host too: a public-looking domain can 302 to an
+          // internal host whose A record is private, which the string-only checks above miss.
+          (await hostnameResolvesToPrivate(finalParsed.hostname));
       } catch {
         finalUrlHostUnsafe = true;
       }
