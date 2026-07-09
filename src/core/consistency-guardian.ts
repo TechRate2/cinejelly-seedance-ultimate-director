@@ -14,6 +14,7 @@ import type {
   RenderInspectionInput,
   StoryboardInspectionInput
 } from "../types/guardian.js";
+import { isImageOutputUrl } from "./endpoint-frame-chain.js";
 import type { PromptBindingConflict, PromptBindingPlan, ShotContract } from "../types/prompt.js";
 import type { SourceRepositoryId } from "../types/source-translation.js";
 import type { StoryboardPanel } from "../types/storyboard.js";
@@ -373,6 +374,19 @@ export class ConsistencyGuardian {
         checkpoint: "output_presence",
         evidence: "Provider response did not include a usable output URL.",
         repair: "Block delivery and resubmit the shot after provider diagnostics."
+      });
+    } else if (input.prediction.outputUrls.every((url) => isImageOutputUrl(url))) {
+      // A video shot that succeeded with ONLY image outputs (a poster/first-frame still, no video)
+      // cannot be assembled — without this it passes inspection, spends no repair attempt, and then
+      // throws at assembly AFTER every shot is charged (pre-spend final audit, LOW). Flag it for a
+      // repair pass so it retries or fails cleanly before the charge-consuming assembly step.
+      findings.push({
+        stage: "render",
+        status: "rerender",
+        severity: "S1",
+        checkpoint: "video_output_presence",
+        evidence: "Provider succeeded but returned only image outputs for a video shot; there is no assemblable video output.",
+        repair: "Rerender the shot — an image-only output cannot be assembled into video."
       });
     }
 
