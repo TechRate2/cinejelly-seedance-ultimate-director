@@ -174,6 +174,12 @@ export interface ShotContract {
   readonly lighting: string;
   readonly style?: string;
   readonly audioIntent?: string;
+  /**
+   * A finished, author-supplied dialogue/narration line to be spoken VERBATIM (script-first mode).
+   * Unlike audioIntent (guidance the compiler may rephrase), this is emitted to the provider exactly
+   * as written and is never normalized, truncated, or duplicated across a beat's sub-clips.
+   */
+  readonly spokenLine?: string;
   readonly transitionIntent?: string;
   readonly timeline?: readonly TimelineSegment[];
   readonly references: readonly PromptReference[];

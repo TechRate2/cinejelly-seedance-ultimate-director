@@ -26,6 +26,8 @@ export interface BeatPlan {
   readonly lighting: string;
   readonly style?: string;
   readonly audioIntent?: string;
+  /** Verbatim author-supplied dialogue/narration line for this beat (script-first mode). */
+  readonly spokenLine?: string;
   readonly durationSeconds: number;
   readonly risks: readonly ContinuityRisk[];
   readonly references: readonly PromptReference[];
@@ -222,6 +224,9 @@ export class ShotPlanner {
         lighting: beat.lighting,
         ...(beat.style ? { style: beat.style } : {}),
         ...(beat.audioIntent ? { audioIntent: this.chunkAudioIntent(beat.audioIntent, chunk.index, chunks.length) } : {}),
+        // A verbatim scripted line belongs to the beat as a whole; assign it to the FIRST clip only
+        // so it is spoken exactly once and never re-delivered across the beat's sub-clips.
+        ...(beat.spokenLine && chunk.index === 0 ? { spokenLine: beat.spokenLine } : {}),
         timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none", chunk.index, chunks.length),
         transitionIntent: this.transitionIntentForChunk(beat, storyRole, chunk.index, chunks.length),
         references: beat.references,

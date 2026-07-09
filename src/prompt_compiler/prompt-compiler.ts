@@ -618,16 +618,23 @@ export class SeedancePromptCompiler {
   }
 
   private buildAudioProductionSection(shot: ShotContract): string | undefined {
-    if (!shot.audioIntent) {
+    if (!shot.audioIntent && !shot.spokenLine) {
       return undefined;
     }
     const wordBudget = this.voiceoverWordBudget(shot.durationSeconds);
     return [
-      `Audio production plan: ${shot.audioIntent}.`,
+      // Verbatim scripted line first, quoted and marked do-not-change, emitted exactly as authored
+      // (never through providerActionText's normalizer/truncator) so script-first dialogue survives.
+      shot.spokenLine
+        ? `Spoken line (VERBATIM — deliver word-for-word, do not paraphrase, translate, or shorten): "${shot.spokenLine}".`
+        : undefined,
+      shot.audioIntent ? `Audio production plan: ${shot.audioIntent}.` : undefined,
       `If native provider audio is enabled, generate only original ambience/music/voice that follows this shot timing; do not copy protected songs, melodies, transcripts, or voices.`,
       `If external voice/music is produced later, this prompt still defines the script timing: keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s and leave micro-pauses around product contact, proof, or reaction moments.`,
       "The visual story must remain understandable without audio, while the audio rhythm should strengthen the hook, proof/demo, and final resolve."
-    ].join(" ");
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join(" ");
   }
 
   private voiceoverWordBudget(durationSeconds: number): number {

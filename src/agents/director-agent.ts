@@ -1924,6 +1924,24 @@ export class DirectorAgent {
           : {})
       });
     }
+    // Escalate when a large share of keyframes fell back (final-audit gap #7): fail-open is correct,
+    // but silently shipping many shots on the weaker text/reference-to-video path with only an
+    // aggregate count is easy to miss — surface a warning so provider health is reviewed.
+    const keyframeSkipRatio = anchoredShots.length > 0
+      ? binding.skippedShotIds.length / anchoredShots.length
+      : 0;
+    if (binding.skippedShotIds.length > 0 && keyframeSkipRatio >= 0.5) {
+      this.reportStageProgress(
+        "render",
+        "warn",
+        "A large share of keyframe stills failed; those shots fell back to text/reference-to-video (weaker composition and identity). Review image-provider health before relying on this batch.",
+        {
+          keyframeSkippedCount: binding.skippedShotIds.length,
+          keyframePlannedCount: anchoredShots.length,
+          keyframeSkippedPercent: Math.round(keyframeSkipRatio * 100)
+        }
+      );
+    }
     this.reportStageProgress("render", "running", "Keyframe still generation completed.", {
       keyframeBoundCount: binding.boundShotIds.length,
       keyframeSkippedCount: binding.skippedShotIds.length

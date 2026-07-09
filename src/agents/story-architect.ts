@@ -38,7 +38,7 @@ export function looksLikeUserScript(userInput: string): boolean {
 }
 
 const SCRIPT_FIRST_DIRECTIVE =
-  "SCRIPT-FIRST MODE: the user input contains a finished script. Treat it as the authoritative screenplay: keep its scene order, events, and any dialogue/narration lines VERBATIM in their original language (do not rewrite, translate, paraphrase, or invent new lines). Your job is only to decompose it into scenes/beats with timing and to design the visual staging (subject state, camera, lighting, audio rhythm) around the user's own lines.";
+  "SCRIPT-FIRST MODE: the user input contains a finished script. Treat it as the authoritative screenplay: keep its scene order, events, and any dialogue/narration lines VERBATIM in their original language (do not rewrite, translate, paraphrase, or invent new lines). Put each beat's exact spoken dialogue/narration line into that beat's `spokenLine` field word-for-word (leave `spokenLine` empty for beats with no spoken line); use `action` only for the visual staging, never to paraphrase the spoken line. Your job is only to decompose the script into scenes/beats with timing and to design the visual staging (subject state, camera, lighting, audio rhythm) around the user's own lines.";
 
 interface StoryPlanJson {
   readonly premise: string;
@@ -87,6 +87,7 @@ const STORY_PLAN_SCHEMA = {
                 lighting: { type: "string" },
                 style: { type: "string" },
                 audioIntent: { type: "string" },
+                spokenLine: { type: "string" },
                 durationSeconds: { type: "number" },
                 risks: { type: "array", items: { type: "string" } },
                 identity: { type: "string" },
@@ -216,6 +217,11 @@ export class StoryArchitect {
     const identity = typeof payload.identity === "string" ? payload.identity : undefined;
     const product = typeof payload.product === "string" ? payload.product : undefined;
     const environment = typeof payload.environment === "string" ? payload.environment : undefined;
+    // Verbatim scripted line: preserved EXACTLY as the model returned it (only outer whitespace
+    // trimmed) so a script-first user's dialogue/narration is never paraphrased downstream (gap #6).
+    const spokenLine = typeof payload.spokenLine === "string" && payload.spokenLine.trim()
+      ? payload.spokenLine.trim()
+      : undefined;
 
     return {
       beatId: typeof payload.beatId === "string" ? payload.beatId : `scene_${sceneIndex + 1}_beat_${beatIndex + 1}`,
@@ -226,6 +232,7 @@ export class StoryArchitect {
       lighting: this.readString(payload.lighting, "coherent cinematic lighting"),
       ...(style ? { style } : {}),
       ...(audioIntent ? { audioIntent } : {}),
+      ...(spokenLine ? { spokenLine } : {}),
       durationSeconds: this.readNumber(payload.durationSeconds, Math.max(8, Math.min(15, intake.settings.durationTargetSeconds / 12))),
       risks: this.readRisks(payload.risks),
       references: intake.references,
