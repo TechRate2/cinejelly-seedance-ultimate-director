@@ -534,7 +534,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
     // succeed refunds its up-front credit charge (idempotent in the store).
     onJobFinalized: (event) => {
       const finalizedUserId = userIdFromClientId(event.clientId);
-      if (!finalizedUserId || event.status === "succeeded") {
+      if (!finalizedUserId) {
+        return;
+      }
+      if (event.status === "succeeded") {
+        // Durable delivery marker so a post-restart reconcile never refunds this delivered video
+        // even after it ages out of the in-memory job history (finding F2).
+        userAccountStore.markRenderSettled({ userId: finalizedUserId, jobId: event.jobId });
         return;
       }
       const policy = adminSettingsStore.refundPolicy();

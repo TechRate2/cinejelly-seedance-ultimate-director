@@ -120,7 +120,7 @@ export interface SessionRecord {
   readonly expiresAt: string;
 }
 
-export type CreditEntryType = "topup" | "render_charge" | "render_refund" | "admin_adjust";
+export type CreditEntryType = "topup" | "render_charge" | "render_refund" | "render_settled" | "admin_adjust";
 
 export interface CreditEntry {
   readonly entryId: string;
@@ -831,6 +831,32 @@ export class UserAccountStore {
   }
 
   /**
+   * Durable delivery marker (zero-credit ledger entry): recorded when a customer render is
+   * confirmed SUCCEEDED, so boot-time reconciliation can distinguish "delivered but evicted from
+   * the in-memory job history" from "crashed mid-render" and NEVER refund a video the customer
+   * already received (finding F2). Idempotent per job. Does not change the balance.
+   */
+  public markRenderSettled(input: { readonly userId: string; readonly jobId: string }): void {
+    if (!input.jobId) {
+      return;
+    }
+    const alreadyMarked = this.state.entries.some(
+      (entry) => entry.type === "render_settled" && entry.jobId === input.jobId && entry.userId === input.userId
+    );
+    if (alreadyMarked) {
+      return;
+    }
+    this.appendEntry({
+      userId: input.userId,
+      type: "render_settled",
+      credits: 0,
+      note: `Đã giao video ${input.jobId}`,
+      jobId: input.jobId
+    });
+    this.persist();
+  }
+
+  /**
    * Boot-time settlement: charges are durable but refund callbacks live in process memory,
    * so a crash/restart could leave customers charged for jobs that will never finish.
    * For every unmatched render charge, ask the job manager for the job's status: jobs that
@@ -851,6 +877,15 @@ export class UserAccountStore {
         (entry) => entry.type === "render_refund" && entry.jobId === jobId && entry.userId === charge.userId
       );
       if (alreadyRefunded) {
+        continue;
+      }
+      const alreadySettled = this.state.entries.some(
+        (entry) => entry.type === "render_settled" && entry.jobId === jobId && entry.userId === charge.userId
+      );
+      if (alreadySettled) {
+        // Durably-delivered video (marked on success): never refund, even after it aged out of the
+        // in-memory job history and now reports an unknown status. This is the F2 fix — without it,
+        // a delivered charge younger than 48h but evicted from the 100-entry history looked "crashed".
         continue;
       }
       const status = statusOf(jobId);
