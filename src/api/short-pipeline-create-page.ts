@@ -2937,7 +2937,14 @@ export function buildShortPipelineCreatePage(): string {
       var rateMap = pp.creditsPerRenderSecondByTier || {};
       var rate = rateMap[tier] || rateMap[pp.cheapestTier] || 10;
       var cand = (pp.candidateCountByQuality && pp.candidateCountByQuality[quality]) || 2;
-      return Math.max(pp.minimumChargeCredits || 20, Math.ceil(seconds * cand * rate));
+      // Mirror estimatePipelineRenderCredits EXACTLY so the shown price equals the server charge:
+      // billed seconds = duration × (candidate + repair passes) + per-shot test-takes (non-economy).
+      var repair = (pp.repairCountByQuality && pp.repairCountByQuality[quality] != null) ? pp.repairCountByQuality[quality] : 0;
+      var avgShot = pp.avgSecondsPerShot > 0 ? pp.avgSecondsPerShot : 5;
+      var testPer = pp.testTakeSecondsPerShot > 0 ? pp.testTakeSecondsPerShot : 0;
+      var testTake = (quality !== "economy" && testPer > 0) ? Math.ceil(seconds / Math.max(1, avgShot)) * testPer : 0;
+      var billed = seconds * (cand + repair) + testTake;
+      return Math.max(pp.minimumChargeCredits || 20, Math.ceil(billed * rate));
     }
     // Convert credits to đồng at the customer's BEST (cheapest) regular package rate.
     function creditsToVnd(credits) {

@@ -3499,6 +3499,9 @@ function buildPipelinePricingDescriptor(
   readonly enabled: boolean;
   readonly creditsPerRenderSecondByTier: Readonly<Record<string, number>>;
   readonly candidateCountByQuality: Readonly<Record<string, number>>;
+  readonly repairCountByQuality: Readonly<Record<string, number>>;
+  readonly testTakeSecondsPerShot: number;
+  readonly avgSecondsPerShot: number;
   readonly minimumChargeCredits: number;
   readonly cheapestTier: string;
 } {
@@ -3519,6 +3522,11 @@ function buildPipelinePricingDescriptor(
     enabled: (env.CINEJELLY_PIPELINE_PRICING ?? "").trim().toLowerCase() === "true",
     creditsPerRenderSecondByTier,
     candidateCountByQuality: config.candidateCountByQuality,
+    // Counts/multipliers only — NOT raw Atlas USD — so the studio can mirror the FULL billed-seconds
+    // formula (candidate + repair passes + test-takes) and show the same price the server will charge.
+    repairCountByQuality: config.repairCountByQuality,
+    testTakeSecondsPerShot: config.testTakeSecondsPerShot,
+    avgSecondsPerShot: config.avgSecondsPerShot,
     minimumChargeCredits: config.minimumChargeCredits,
     cheapestTier
   };

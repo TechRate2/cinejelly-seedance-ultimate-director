@@ -109,6 +109,35 @@ try {
   rmSync(workDir, { recursive: true, force: true });
 }
 
+// ---- Part D: client/server PRICE PARITY (finding F4). ----
+// Faithful replica of the studio's meteredCredits + the descriptor's derived rate. The client must
+// show the SAME credits the server charges (repair passes + test-takes included), or a customer is
+// quoted a low number and then hit with a surprise 402.
+function descriptorRate(cfg, tier) {
+  const overhead = cfg.overheadMultiplier >= 1 ? cfg.overheadMultiplier : 1;
+  const basis = cfg.creditCostBasisUsd > 0 ? cfg.creditCostBasisUsd : 0.01;
+  const usd = cfg.videoCostUsdPerSecondByTier[tier];
+  return Math.round(((usd * overhead) / basis) * 1000) / 1000;
+}
+function clientMeteredCredits(cfg, seconds, tier, quality) {
+  const rate = descriptorRate(cfg, tier);
+  const cand = cfg.candidateCountByQuality[quality] || 2;
+  const repair = cfg.repairCountByQuality[quality] != null ? cfg.repairCountByQuality[quality] : 0;
+  const avgShot = cfg.avgSecondsPerShot > 0 ? cfg.avgSecondsPerShot : 5;
+  const testPer = cfg.testTakeSecondsPerShot > 0 ? cfg.testTakeSecondsPerShot : 0;
+  const testTake = (quality !== "economy" && testPer > 0) ? Math.ceil(seconds / Math.max(1, avgShot)) * testPer : 0;
+  const billed = seconds * (cand + repair) + testTake;
+  return Math.max(cfg.minimumChargeCredits || 20, Math.ceil(billed * rate));
+}
+for (const [sec, quality, tier] of [
+  [15, "economy", "standard"], [15, "standard", "standard"], [15, "high", "standard"],
+  [30, "ultimate", "standard"], [15, "economy", "mini"], [45, "standard", "standard"]
+]) {
+  const client = clientMeteredCredits(config, sec, tier, quality);
+  const server = estimatePipelineRenderCredits({ durationTargetSeconds: sec, qualityMode: quality, tier, config }).credits;
+  check(`price_parity_${sec}s_${quality}_${tier}`, client === server, `client=${client} server=${server}`);
+}
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.pipeline-pricing-smoke.v1",
