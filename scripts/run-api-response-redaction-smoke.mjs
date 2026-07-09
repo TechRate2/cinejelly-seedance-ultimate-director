@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = "assets/output_deliverables/business-readiness/api-response-redaction-smoke-report.json";
 
-const { redactApiResponse, redactApiLocalPaths } = await import("../dist/api/api-response-redaction.js");
+const { redactApiResponse, redactApiLocalPaths, redactEmbeddedLocalPaths } = await import("../dist/api/api-response-redaction.js");
 const { startServer } = await import("../dist/api/server.js");
 const { containsPrivateSourcePatternText } = await import("../dist/core/private-source-pattern-registry.js");
 
@@ -101,7 +101,11 @@ const checks = [
     JSON.stringify(localOnlyRedacted).includes("sourcePatternOrigins") &&
       JSON.stringify(localOnlyRedacted).includes("HKUDS/VideoAgent"),
     "Internal local-path redaction remains path-only for persisted audit stores."
-  )
+  ),
+  check("posix_app_path_redacted", !redactEmbeddedLocalPaths("write '/app/assets/output_deliverables/clip.mp4'").includes("/app/"), "POSIX /app (Docker root) path redacted."),
+  check("posix_home_quoted_redacted", !redactEmbeddedLocalPaths("EACCES open '/home/node/secret/f'").includes("/home/"), "Quote-prefixed /home path redacted."),
+  check("posix_var_paren_redacted", !redactEmbeddedLocalPaths("fail (/var/data/x)").includes("/var/"), "Paren-prefixed /var path redacted."),
+  check("public_url_not_redacted", redactEmbeddedLocalPaths("see https://cdn.example.com/a/b").includes("https://cdn.example.com/a/b"), "Public URL left intact for the URI redactor.")
 ];
 
 const failedChecks = checks.filter((item) => item.status === "fail");

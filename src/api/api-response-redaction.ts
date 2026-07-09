@@ -42,7 +42,11 @@ export function redactApiLocalPaths(value: unknown): unknown {
 
 const EMBEDDED_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s"',;)]*/g;
 const EMBEDDED_UNC_PATH_PATTERN = /\\\\[^\s"',;)]*/g;
-const EMBEDDED_POSIX_PATH_PATTERN = /(^|\s)(\/(?:Users|home|tmp|var|mnt|opt|work|workspace|private|etc)\/[^\s"',;)]+)/g;
+// Match an absolute POSIX path regardless of the delimiter before the leading slash (Node fs errors
+// quote them: open '/path'), and include the Docker/Linux deploy roots (/app is CINEJELLY_OUTPUT_DIR
+// in the shipped image). The negative lookbehind still excludes mid-URL slashes (host/seg) and paths
+// glued to a word char, so real https URLs are left for the separate URI redactor.
+const EMBEDDED_POSIX_PATH_PATTERN = /(?<![A-Za-z0-9_.~/])\/(?:Users|home|root|srv|data|app|tmp|var|mnt|opt|work|workspace|private|etc)\/[^\s"',;)]+/g;
 
 /**
  * Redact absolute local paths embedded ANYWHERE inside a string (not only whole-string paths),
@@ -53,7 +57,7 @@ export function redactEmbeddedLocalPaths(text: string): string {
   return text
     .replace(EMBEDDED_WINDOWS_PATH_PATTERN, REDACTED_LOCAL_PATH)
     .replace(EMBEDDED_UNC_PATH_PATTERN, REDACTED_LOCAL_PATH)
-    .replace(EMBEDDED_POSIX_PATH_PATTERN, (_match, prefix: string) => `${prefix}${REDACTED_LOCAL_PATH}`);
+    .replace(EMBEDDED_POSIX_PATH_PATTERN, REDACTED_LOCAL_PATH);
 }
 
 export function redactApiResponse(value: unknown): unknown {

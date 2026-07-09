@@ -2977,8 +2977,12 @@ export function buildShortPipelineCreatePage(): string {
         box.hidden = false;
         return;
       }
-      // Has credits → reveal the real metered estimate for the standard render profile + gate hint.
-      const credits = meteredCredits(seconds, "standard", "standard");
+      // Has credits → show the real metered estimate. Customer short renders are charged at
+      // qualityMode "economy" and the plan's tier (mini for a simple no-reference short), so mirror
+      // THAT profile instead of standard/standard — otherwise the number is several times too high
+      // and the gate below falsely blocks customers who can actually afford it (final-audit finding [6]).
+      const estimateTier = (pp && pp.cheapestTier) || "mini";
+      const credits = meteredCredits(seconds, estimateTier, "economy");
       const vnd = creditsToVnd(credits);
       const refundHint = (accountInfo.refundPolicy === "auto") ? t("ce.refundAuto") : t("ce.refundManual");
       const gate = balance < credits ? (" — " + t("ce.needTopup")) : "";
