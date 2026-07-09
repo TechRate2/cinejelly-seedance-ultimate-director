@@ -2035,6 +2035,10 @@ function shortAudioModeFor(value: unknown): ShortPipelineAudioPolicy["mode"] {
   if (value === "off" || value === "native" || value === "hybrid" || value === "voiceover") {
     return value;
   }
+  // Common ways a user disables audio must NOT silently default to voiceover (audio ON = extra spend).
+  if (value === "none" || value === "mute" || value === "muted" || value === "silent" || value === "silence") {
+    return "off";
+  }
   return "voiceover";
 }
 
@@ -2220,18 +2224,84 @@ function inferPlatform(prompt: string): ShortPipelinePlatform {
   return "unknown";
 }
 
-function inferDuration(prompt: string): number {
-  // Minutes first, and full 1-3 digit seconds, so "2 min" / "90-second" / "120s" no longer silently
-  // fall back to 30s (the old /[1-5]?\d/ only matched 0-59 seconds). clampDuration bounds the result.
-  // The separator allows an OPTIONAL hyphen/en/em dash as well as whitespace, so the most common
-  // user phrasings "60-second", "8-minute", "5-min", "2-minute" parse correctly instead of collapsing
-  // to the 30s default (final-audit gap #1 — catastrophic for the long-form 60-480s bands).
-  const minuteMatch = prompt.match(/\b(\d{1,3})[\s\-–—]*(?:min|mins|minute|minutes)\b/i);
-  if (minuteMatch?.[1]) {
-    return Number(minuteMatch[1]) * 60;
+// Word-number vocabulary for spelled-out durations ("eight minute", "ninety second"). Excludes bare
+// "a"/"an" (too idiomatic — "wait a second"); fractional phrases are normalized separately below.
+const DURATION_WORD_NUMBERS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17,
+  eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
+  seventy: 70, eighty: 80, ninety: 90, hundred: 100
+};
+// Unit tokens in EN + Vietnamese (giây/phút) + Chinese (秒/分钟/分) — the product's primary users are
+// Vietnamese, and platform inference already understands Chinese (抖音), so duration must too.
+const DURATION_MINUTE_UNITS = ["minutes", "minute", "mins", "min", "phút", "分钟", "分"];
+const DURATION_SECOND_UNITS = ["seconds", "second", "secs", "sec", "giây", "秒", "s"];
+
+/**
+ * Parse a duration from free-text intake robustly. Handles digits, decimals ("1.5 min"), spelled-out
+ * numbers ("eight minute"), Vietnamese/Chinese units ("2 phút", "90 giây", "3分钟", "60秒"), compound
+ * clock forms ("1m30s", "1 minute 30 seconds"), and fractional phrases ("half a minute", "a minute and
+ * a half"). When a prompt carries several durations (a user self-correction), the LAST one wins.
+ * Returns undefined when no duration is present so the caller can apply the 30s default. Callers clamp
+ * the result to the supported [15, 480] range separately.
+ */
+function parseDurationSeconds(prompt: string): number | undefined {
+  // Normalize fractional English phrases to explicit seconds so the numeric scan is uniform.
+  const text = prompt
+    .toLowerCase()
+    .replace(/\b(?:a|one|1)\s+minute\s+and\s+(?:a\s+)?half\b/g, " 90 seconds ")
+    .replace(/\bminute\s+and\s+(?:a\s+)?half\b/g, " 90 seconds ")
+    .replace(/\bhalf\s+(?:a\s+|an\s+)?minute\b/g, " 30 seconds ")
+    .replace(/\bhalf\s+(?:a\s+|an\s+)?second\b/g, " 1 second ");
+
+  // Compact clock form: "1m30s" / "1 m 30 s".
+  const clock = text.match(/\b(\d{1,3})\s*m\s*(\d{1,2})\s*s\b/);
+  if (clock?.[1] && clock[2] !== undefined) {
+    return Number(clock[1]) * 60 + Number(clock[2]);
   }
-  const secondMatch = prompt.match(/\b(\d{1,3})[\s\-–—]*(?:s|sec|secs|second|seconds)\b/i);
-  return secondMatch?.[1] ? Number(secondMatch[1]) : 30;
+
+  const numbers = ["\\d+(?:\\.\\d+)?", ...Object.keys(DURATION_WORD_NUMBERS).sort((a, b) => b.length - a.length)];
+  const units = [...DURATION_MINUTE_UNITS, ...DURATION_SECOND_UNITS].sort((a, b) => b.length - a.length);
+  const scanner = new RegExp(`(${numbers.join("|")})\\s*[-–—]?\\s*(${units.join("|")})`, "gi");
+  const minuteUnitSet = new Set(DURATION_MINUTE_UNITS);
+  const hits: { start: number; end: number; seconds: number; unit: "min" | "sec" }[] = [];
+  for (const match of text.matchAll(scanner)) {
+    const rawNumber = (match[1] ?? "").toLowerCase();
+    const value = /^\d/.test(rawNumber) ? Number(rawNumber) : DURATION_WORD_NUMBERS[rawNumber];
+    if (value === undefined || !Number.isFinite(value)) {
+      continue;
+    }
+    const isMinute = minuteUnitSet.has((match[2] ?? "").toLowerCase());
+    const start = match.index ?? 0;
+    hits.push({ start, end: start + match[0].length, seconds: isMinute ? value * 60 : value, unit: isMinute ? "min" : "sec" });
+  }
+  if (hits.length === 0) {
+    return undefined;
+  }
+
+  // Combine a "<n> minute <n> second" compound (e.g. "1 minute 30 seconds") into one value, but only
+  // when the two are directly adjacent (separator is whitespace/comma/"and"), so a self-correcting
+  // "2 minute ad ... no 30 seconds" is NOT merged — its later value simply wins as the final intent.
+  const values: number[] = [];
+  for (let index = 0; index < hits.length; index += 1) {
+    const current = hits[index];
+    const next = hits[index + 1];
+    if (!current) {
+      continue;
+    }
+    if (current.unit === "min" && next && next.unit === "sec" && /^[\s,]*(?:and\s+)?$/.test(text.slice(current.end, next.start))) {
+      values.push(current.seconds + next.seconds);
+      index += 1;
+    } else {
+      values.push(current.seconds);
+    }
+  }
+  return values[values.length - 1];
+}
+
+function inferDuration(prompt: string): number {
+  const parsed = parseDurationSeconds(prompt);
+  return parsed !== undefined && parsed > 0 ? Math.round(parsed) : 30;
 }
 
 function clampDuration(value: number, min: number, max: number): number {

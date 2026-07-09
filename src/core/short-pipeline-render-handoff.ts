@@ -1083,9 +1083,13 @@ function audioPolicyPromptLine(audioPolicy: ShortPipelineAudioPolicy): string {
   return `Audio policy: ${providerLine}; ${scriptLine}; language=${audioPolicy.languageLabel ?? audioPolicy.language ?? "English"}; mode=${audioPolicy.renderAudioMode}; visuals must still be understandable without on-screen text.`;
 }
 
-function shortAudioModeFor(value: ShortPipelineAudioPolicyInput["mode"] | undefined): ShortPipelineAudioPolicy["mode"] {
+function shortAudioModeFor(value: unknown): ShortPipelineAudioPolicy["mode"] {
   if (value === "off" || value === "native" || value === "hybrid" || value === "voiceover") {
     return value;
+  }
+  // Common ways a user disables audio must NOT silently default to voiceover (audio ON = extra spend).
+  if (value === "none" || value === "mute" || value === "muted" || value === "silent" || value === "silence") {
+    return "off";
   }
   return "voiceover";
 }

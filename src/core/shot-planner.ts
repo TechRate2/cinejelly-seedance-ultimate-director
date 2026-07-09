@@ -227,7 +227,7 @@ export class ShotPlanner {
         // A verbatim scripted line belongs to the beat as a whole; assign it to the FIRST clip only
         // so it is spoken exactly once and never re-delivered across the beat's sub-clips.
         ...(beat.spokenLine && chunk.index === 0 ? { spokenLine: beat.spokenLine } : {}),
-        timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none", chunk.index, chunks.length),
+        timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none", chunk.index, chunks.length, settings.ratio),
         transitionIntent: this.transitionIntentForChunk(beat, storyRole, chunk.index, chunks.length),
         references: beat.references,
         continuity: beat.continuity,
@@ -312,7 +312,8 @@ export class ShotPlanner {
     durationSeconds: number,
     audioEnabled: boolean,
     chunkIndex: number,
-    totalChunks: number
+    totalChunks: number,
+    ratio: string
   ): readonly TimelineSegment[] {
     const openingEnd = this.roundSeconds(Math.max(0.8, Math.min(1.2, durationSeconds * 0.22)));
     const endingStart = this.roundSeconds(Math.max(openingEnd + 0.8, durationSeconds - Math.max(0.8, Math.min(1.3, durationSeconds * 0.24))));
@@ -330,14 +331,14 @@ export class ShotPlanner {
         action: opensBeat
           ? this.openingTimelineAction(role, beat)
           : this.continuationOpeningAction(beat, chunkIndex, totalChunks),
-        camera: this.timelineCamera(role, "opening", beat, opensBeat, closesBeat),
+        camera: this.timelineCamera(role, "opening", beat, opensBeat, closesBeat, ratio),
         ...(audioEnabled ? { audioCue: this.timelineAudioCue(role, "opening", beat, opensBeat, closesBeat) } : {})
       },
       {
         startSecond: openingEnd,
         endSecond: endingStart,
         action: this.middleTimelineAction(role, beat),
-        camera: this.timelineCamera(role, "middle", beat, opensBeat, closesBeat),
+        camera: this.timelineCamera(role, "middle", beat, opensBeat, closesBeat, ratio),
         ...(audioEnabled ? { audioCue: this.timelineAudioCue(role, "middle", beat, opensBeat, closesBeat) } : {})
       },
       {
@@ -346,7 +347,7 @@ export class ShotPlanner {
         action: closesBeat
           ? this.endingTimelineAction(role, beat)
           : this.continuationHandleAction(beat, chunkIndex, totalChunks),
-        camera: this.timelineCamera(role, "ending", beat, opensBeat, closesBeat),
+        camera: this.timelineCamera(role, "ending", beat, opensBeat, closesBeat, ratio),
         ...(audioEnabled ? { audioCue: this.timelineAudioCue(role, "ending", beat, opensBeat, closesBeat) } : {})
       }
     ];
@@ -458,13 +459,18 @@ export class ShotPlanner {
     phase: "opening" | "middle" | "ending",
     beat: BeatPlan,
     opensBeat: boolean,
-    closesBeat: boolean
+    closesBeat: boolean,
+    ratio: string
   ): string {
     // Only the clip that actually opens the beat gets the hook first-frame treatment, and only the
     // clip that actually closes it gets the settled payoff framing — mid-beat continuation clips keep
     // the beat's own camera so they read as one continuous move, not repeated hook/payoff frames.
     if (phase === "opening" && role === "hook" && opensBeat) {
-      return "tight 9:16 readable first frame, slight handheld motion toward the subject";
+      // Compose the load-bearing hook frame for the ACTUAL requested aspect, not a hardcoded 9:16 —
+      // a landscape/square deliverable must not have its most important frame framed for portrait
+      // (final-audit input-matrix gap). "adaptive" stays ratio-neutral (the model decides).
+      const aspect = ratio && ratio !== "adaptive" ? `${ratio} ` : "";
+      return `tight ${aspect}readable first frame, slight handheld motion toward the subject`;
     }
     if (phase === "ending" && role === "payoff" && closesBeat) {
       return "steady final framing with product or result held in view";

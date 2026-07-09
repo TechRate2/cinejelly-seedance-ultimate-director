@@ -124,6 +124,7 @@
     "validation:candidate-visual-curation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-candidate-visual-curation-smoke.mjs",
     "validation:short-agent-graph": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-agent-graph-smoke.mjs",
     "validation:short-pipeline": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-smoke.mjs",
+    "validation:input-matrix": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-input-matrix-smoke.mjs",
     "validation:short-pipeline-conversation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-conversation-smoke.mjs",
     "validation:short-pipeline-session-store": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-session-store-smoke.mjs",
     "validation:short-pipeline-session-render-handoff": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-short-pipeline-session-render-handoff-smoke.mjs",
