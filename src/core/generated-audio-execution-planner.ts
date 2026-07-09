@@ -198,18 +198,20 @@ export class GeneratedAudioExecutionPlanner {
   }
 
   private durationSeconds(intent: GeneratedAudioIntent): number | undefined {
-    if (typeof intent.durationSeconds === "number" && Number.isFinite(intent.durationSeconds)) {
-      return intent.durationSeconds;
-    }
-    if (
+    const hasWindow =
       typeof intent.startSecond === "number" &&
       Number.isFinite(intent.startSecond) &&
       typeof intent.endSecond === "number" &&
-      Number.isFinite(intent.endSecond)
-    ) {
-      return intent.endSecond - intent.startSecond;
+      Number.isFinite(intent.endSecond);
+    const windowSeconds = hasWindow ? (intent.endSecond as number) - (intent.startSecond as number) : undefined;
+    if (typeof intent.durationSeconds === "number" && Number.isFinite(intent.durationSeconds)) {
+      // If an explicit start/end window is ALSO supplied, the cue must not exceed it — cap the
+      // requested duration at the window length so a cue never overruns its planned slot (gap [5]).
+      return windowSeconds !== undefined && windowSeconds > 0
+        ? Math.min(intent.durationSeconds, windowSeconds)
+        : intent.durationSeconds;
     }
-    return undefined;
+    return windowSeconds;
   }
 
   private planStatus(readyCount: number, blockedCount: number): GeneratedAudioExecutionPlanStatus {
