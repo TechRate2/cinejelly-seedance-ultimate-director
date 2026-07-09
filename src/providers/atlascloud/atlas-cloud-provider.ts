@@ -1186,7 +1186,11 @@ export class AtlasCloudProvider implements ModelProvider {
     const firstImageUrl = request.mode !== "text_to_video"
       ? (firstFrameUrl ?? imageToVideoReferenceUrl)
       : undefined;
-    const referenceImages = request.mode === "image_to_video" || endpointReferencePresent
+    // Send the image reference array in image_to_video too (previously forced to []), so a KOL+product
+    // shot never silently drops the product/environment — the first image is still `image`, and the
+    // full set (KOL + product + …) also rides in reference_images. Suppressed only for endpoint
+    // (last-frame) chaining, which pins the exact starting frame and must not carry extra references.
+    const referenceImages = endpointReferencePresent
       ? []
       : this.referenceUrlsByFamily(references, "image");
     const referenceVideos = this.referenceUrlsByFamily(references, "video");

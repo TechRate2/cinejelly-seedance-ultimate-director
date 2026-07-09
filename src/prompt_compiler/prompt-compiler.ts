@@ -678,6 +678,7 @@ export class SeedancePromptCompiler {
         roles.add(reference.role);
       }
     }
+    const imageReferenceCount = bindingPlan.providerReferences.filter((reference) => reference.kind === "image").length;
     if (
       roles.has("video") ||
       roles.has("source_video_structure") ||
@@ -690,7 +691,18 @@ export class SeedancePromptCompiler {
     ) {
       return "reference_to_video";
     }
-    if (roles.has("first_frame") || roles.has("last_frame") || roles.has("identity") || roles.has("product")) {
+    // A pinned first/last frame (keyframe-first / endpoint chaining) drives image_to_video: the
+    // keyframe was generated FROM the identity+product refs, so the product is already baked in.
+    if (roles.has("first_frame") || roles.has("last_frame")) {
+      return "image_to_video";
+    }
+    // Multiple image references with no pinned frame (e.g. a KOL face + a product photo) must go
+    // through reference_to_video so ALL of them reach the provider — image_to_video sends only the
+    // first image, which would silently DROP the product/environment (final-audit gap V8).
+    if (imageReferenceCount >= 2) {
+      return "reference_to_video";
+    }
+    if (roles.has("identity") || roles.has("product")) {
       return "image_to_video";
     }
     return "text_to_video";
