@@ -2232,10 +2232,35 @@ const DURATION_WORD_NUMBERS: Record<string, number> = {
   eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
   seventy: 70, eighty: 80, ninety: 90, hundred: 100
 };
-// Unit tokens in EN + Vietnamese (giây/phút) + Chinese (秒/分钟/分) — the product's primary users are
-// Vietnamese, and platform inference already understands Chinese (抖音), so duration must too.
-const DURATION_MINUTE_UNITS = ["minutes", "minute", "mins", "min", "phút", "分钟", "分"];
-const DURATION_SECOND_UNITS = ["seconds", "second", "secs", "sec", "giây", "秒", "s"];
+// Duration unit tokens across the major languages CineJelly serves. Digit+unit is the universal way
+// people write a duration ("2 phút", "2 minutos", "2分", "2분", "2 นาที"), so BROAD UNIT coverage (not
+// per-language word-numbers) is what makes non-English intake correct. Full words are preferred over
+// risky abbreviations, and the scanner adds a Latin-letter negative lookahead so a unit never matches
+// a partial word ("min" in "minimum", "s" in "shoes"). Longer units are tried first (see scanner sort)
+// so e.g. Thai วินาที (second) is matched before นาที (minute) which it contains.
+const DURATION_MINUTE_UNITS = [
+  "minutes", "minute", "mins", "min", // EN / FR (minute[s] shared)
+  "minutos", "minuto", "minuti",      // ES / PT / IT
+  "minuten",                          // DE
+  "menit",                            // ID / MS
+  "phút", "phut",                     // VI (with + without diacritics)
+  "минут",                            // RU (stem covers минута/минуты/минуту)
+  "นาที",                             // TH
+  "分钟", "分間", "分", "분"           // ZH / JA / KO
+];
+const DURATION_SECOND_UNITS = [
+  "seconds", "second", "secs", "sec", // EN
+  "secondes", "seconde",              // FR
+  "segundos", "segundo",              // ES / PT
+  "secondi", "secondo",               // IT
+  "sekunden", "sekunde",              // DE
+  "detik",                            // ID / MS
+  "giây", "giay",                     // VI (with + without diacritics)
+  "секунд",                           // RU (stem covers секунда/секунды/секунд)
+  "วินาที",                           // TH
+  "秒", "초",                          // ZH / JA / KO
+  "s"                                 // trailing ASCII abbrev (guarded by the negative lookahead)
+];
 
 /**
  * Parse a duration from free-text intake robustly. Handles digits, decimals ("1.5 min"), spelled-out
@@ -2262,7 +2287,9 @@ function parseDurationSeconds(prompt: string): number | undefined {
 
   const numbers = ["\\d+(?:\\.\\d+)?", ...Object.keys(DURATION_WORD_NUMBERS).sort((a, b) => b.length - a.length)];
   const units = [...DURATION_MINUTE_UNITS, ...DURATION_SECOND_UNITS].sort((a, b) => b.length - a.length);
-  const scanner = new RegExp(`(${numbers.join("|")})\\s*[-–—]?\\s*(${units.join("|")})`, "gi");
+  // Negative lookahead (?![a-zà-ÿ]) blocks partial-word matches on Latin units ("min" in "minimum",
+  // "s" in "shoes") while still allowing CJK/Thai/Cyrillic/space/digit to follow a unit.
+  const scanner = new RegExp(`(${numbers.join("|")})\\s*[-–—]?\\s*(${units.join("|")})(?![a-zà-ÿ])`, "gi");
   const minuteUnitSet = new Set(DURATION_MINUTE_UNITS);
   const hits: { start: number; end: number; seconds: number; unit: "min" | "sec" }[] = [];
   for (const match of text.matchAll(scanner)) {

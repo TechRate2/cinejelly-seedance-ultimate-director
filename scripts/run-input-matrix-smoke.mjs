@@ -72,6 +72,20 @@ const durationCases = [
   ["制作一个3分钟的品牌故事片", 180],
   ["制作60秒的广告", 60],
   ["制作一个90秒短视频", 90],
+  // Other major languages (digit + native unit)
+  ["Haz un video de 2 minutos", 120], // Spanish
+  ["Faça um vídeo de 30 segundos", 30], // Portuguese
+  ["Fais une vidéo de 2 minutes", 120], // French
+  ["Mach ein 30 Sekunden Video", 30], // German
+  ["buat video 2 menit", 120], // Indonesian
+  ["2分の動画を作って", 120], // Japanese
+  ["2분 영상 만들어줘", 120], // Korean
+  ["ทำวิดีโอ 30 วินาที", 30], // Thai
+  ["сделай видео 2 минуты", 120], // Russian
+  ["lam video 2 phut", 120], // Vietnamese, no diacritics
+  // False-positive guards: partial words must NOT be read as durations
+  ["make a 2 segment product ad", 30],
+  ["a video with 2 minimum shots", 30],
   // Decimals
   ["Make a 1.5 min ad for shoes", 90],
   ["Make a 2.5 minutes story", 150],
