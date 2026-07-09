@@ -140,8 +140,8 @@ export function buildOperatorTopupPage(): string {
       </div>
     </div>
     <div class="card">
-      <strong>💵 Giá render (tính theo giây)</strong>
-      <div class="muted">Số credits mỗi giây video. Ví dụ 10 → video 30 giây = 300 credits (nhân hệ số chất lượng).</div>
+      <strong>💵 Giá redub / giá cũ (credits/giây)</strong>
+      <div class="muted">Áp cho DỊCH/LỒNG TIẾNG (redub) và chế độ giá theo-giây cũ. LƯU Ý: khi bật giá pipeline (mặc định hiện tại), GIÁ VIDEO do chi phí pipeline thật quyết định — đặt trong .env (CINEJELLY_VIDEO_COST_USD_PER_SECOND_*, PIPELINE_OVERHEAD_MULTIPLIER, CREDIT_COST_BASIS_USD) rồi khởi động lại; sửa ô này KHÔNG đổi giá video.</div>
       <div class="row"><input id="set-credits-per-second" type="number" step="0.1" placeholder="credits / giây"></div>
       <div class="muted" style="margin-top:10px">Tỉ giá USD → VND (giá gói tính theo USD; số tiền khách chuyển = USD × tỉ giá):</div>
       <div class="row"><input id="set-usd-to-vnd" type="number" step="100" placeholder="ví dụ 27000"></div>
@@ -529,7 +529,7 @@ export function buildOperatorTopupPage(): string {
       }
       tableEl.appendChild(table);
       var note = document.createElement("div"); note.className = "muted"; note.style.marginTop = "6px";
-      note.textContent = "Lãi = giá bán của bạn ÷ giá Atlas (tính theo gói credit rẻ nhất → mức lãi thấp nhất). Atlas tăng giá thì tăng 'credits/giây' ở khối Giá render để giữ lãi.";
+      note.textContent = "Lãi = giá bán của bạn ÷ giá Atlas (tính theo gói credit rẻ nhất → mức lãi thấp nhất). Khi bật giá pipeline (mặc định), GIÁ VIDEO chỉnh trong .env (CINEJELLY_VIDEO_COST_USD_PER_SECOND_* / overhead / basis) rồi khởi động lại — ô 'credits/giây' chỉ đổi giá redub.";
       tableEl.appendChild(note);
     }
     document.getElementById("check-atlas-pricing").addEventListener("click", async function () {
