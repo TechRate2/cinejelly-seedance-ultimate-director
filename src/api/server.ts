@@ -517,6 +517,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const syncRenderGate = new ApiConcurrencyGate({
     maxConcurrent: readPositiveInteger(process.env.CINEJELLY_API_SYNC_RENDER_CONCURRENCY, 1)
   });
+  // Bound concurrent in-flight uploads so a flood of slow-body 25MB uploads from one free account
+  // can't accumulate in memory and OOM the whole process (finding F3). Each held upload buffers up
+  // to CINEJELLY_UPLOAD_MAX_BYTES, so peak upload memory is capped at (this) × that size.
+  const uploadGate = new ApiConcurrencyGate({
+    maxConcurrent: readPositiveInteger(process.env.CINEJELLY_API_UPLOAD_CONCURRENCY, 4)
+  });
   const jobManager = new RenderJobManager({
     artifactStore,
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
@@ -1651,6 +1657,14 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           }, requestContext);
           return;
         }
+        // Acquire a slot BEFORE buffering the body, so concurrent uploads (and their memory) are bounded.
+        const uploadLease = uploadGate.tryAcquire();
+        if (!uploadLease.allowed) {
+          response.setHeader("Retry-After", String(uploadLease.retryAfterSeconds));
+          sendJson(response, 503, { error: "Hệ thống đang bận nhận tệp tải lên — vui lòng thử lại sau giây lát." }, requestContext);
+          return;
+        }
+        try {
         const uploadMaxBytes = readPositiveInteger(process.env.CINEJELLY_UPLOAD_MAX_BYTES, DEFAULT_UPLOAD_MAX_BYTES);
         const body = await readRawBody(request, uploadMaxBytes);
         if (body.length === 0) {
@@ -1691,6 +1705,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           byteSize: body.length
         }, requestContext);
         return;
+        } finally {
+          uploadLease.release();
+        }
       }
       const uploadedFileMatch = requestUrl.pathname.match(/^\/v1\/uploads\/([^/]+)$/);
       if (request.method === "GET" && uploadedFileMatch) {
