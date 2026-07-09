@@ -6,7 +6,7 @@
  * literal IP). Verifies private/loopback/link-local ranges are rejected and public literals pass.
  */
 
-import { isPrivateIpLiteral, isLocalHost, assertPublicHttpsFetchTarget } from "../dist/utils/ssrf-guard.js";
+import { isPrivateIpLiteral, isLocalHost, assertPublicHttpsFetchTarget, ssrfSafeFetch } from "../dist/utils/ssrf-guard.js";
 
 const checks = [];
 function check(name, pass, detail) {
@@ -44,6 +44,24 @@ check("reject_localhost", await throws("https://localhost/x"));
 check("reject_linklocal_metadata", await throws("https://169.254.169.254/latest/meta-data"));
 check("reject_invalid_url", await throws("not a url"));
 check("allow_public_ip_literal", (await throws("https://8.8.8.8/ok")) === false);
+
+// ---- IPv4-mapped / compat IPv6 must NOT bypass the guard (pre-spend final-audit finding [1]) ----
+for (const mapped of ["::ffff:127.0.0.1", "::ffff:7f00:1", "::ffff:10.0.0.5", "::ffff:169.254.169.254", "::ffff:a9fe:a9fe", "::ffff:192.168.1.1"]) {
+  check(`mapped_private_${mapped}`, isPrivateIpLiteral(mapped) === true, mapped);
+}
+check("mapped_public_8888_allowed", isPrivateIpLiteral("::ffff:8.8.8.8") === false);
+check("linklocal_febf", isPrivateIpLiteral("febf::1") === true);
+check("ula_fd", isPrivateIpLiteral("fd12:3456::1") === true);
+check("public_v6_allowed", isPrivateIpLiteral("2606:4700:4700::1111") === false);
+check("reject_mapped_loopback_url", await throws("https://[::ffff:127.0.0.1]/x"));
+check("reject_mapped_metadata_url", await throws("https://[::ffff:169.254.169.254]/latest"));
+// ssrfSafeFetch validates BEFORE any network — a private target rejects without issuing a request.
+let safeFetchRejected = false;
+try { await ssrfSafeFetch("https://10.0.0.5/internal"); } catch { safeFetchRejected = true; }
+check("ssrfSafeFetch_rejects_private_pre_network", safeFetchRejected);
+let safeFetchRejectsHttp = false;
+try { await ssrfSafeFetch("http://example.com/x"); } catch { safeFetchRejectsHttp = true; }
+check("ssrfSafeFetch_rejects_http", safeFetchRejectsHttp);
 
 const failed = checks.filter((item) => !item.pass);
 const report = {

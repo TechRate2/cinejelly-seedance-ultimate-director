@@ -18,23 +18,76 @@ import { promisify } from "node:util";
 
 const dnsLookup = promisify(lookup);
 
-/** True if an IP literal (v4 or v6) is loopback/private/link-local — never fetch it. */
-export function isPrivateIpLiteral(ip: string): boolean {
-  const lower = ip.toLowerCase().replace(/^\[|\]$/g, "");
-  const ipVersion = isIP(lower);
-  if (ipVersion === 4) {
-    const [first = 0, second = 0] = lower.split(".").map((part) => Number(part));
-    return (
-      first === 0 ||
-      first === 10 ||
-      first === 127 ||
-      (first === 169 && second === 254) ||
-      (first === 172 && second >= 16 && second <= 31) ||
-      (first === 192 && second === 168)
-    );
+function isPrivateIpv4(ip: string): boolean {
+  const [first = 0, second = 0] = ip.split(".").map((part) => Number(part));
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    first >= 224 // multicast / reserved — never a legitimate fetch target
+  );
+}
+
+/** Expand an IPv6 literal (incl. `::` compression and a trailing dotted-quad) to 8 numeric groups. */
+function expandIpv6(host: string): number[] | undefined {
+  let text = host;
+  const dotted = text.match(/^(.*:)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (dotted) {
+    const a = Number(dotted[2]), b = Number(dotted[3]), c = Number(dotted[4]), d = Number(dotted[5]);
+    if ([a, b, c, d].some((n) => n > 255)) return undefined;
+    text = `${dotted[1]}${(((a << 8) | b) >>> 0).toString(16)}:${(((c << 8) | d) >>> 0).toString(16)}`;
   }
-  if (ipVersion === 6) {
-    return lower === "::" || lower === "::1" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80:");
+  const halves = text.split("::");
+  if (halves.length > 2) return undefined;
+  const head = halves[0] ? halves[0].split(":").filter((p) => p !== "") : [];
+  const tail = halves.length === 2 ? (halves[1] ? halves[1].split(":").filter((p) => p !== "") : []) : [];
+  const groups = halves.length === 2 ? [...head, ...Array(8 - head.length - tail.length).fill("0"), ...tail] : head;
+  if (groups.length !== 8) return undefined;
+  const nums = groups.map((g) => parseInt(g, 16));
+  return nums.some((n) => !Number.isFinite(n) || n < 0 || n > 0xffff) ? undefined : nums;
+}
+
+/** IPv4 embedded in an IPv4-mapped (`::ffff:x`) or IPv4-compatible (`::x`) IPv6 address, if any. */
+function embeddedIpv4(groups: number[]): string | undefined {
+  const firstFiveZero = groups.slice(0, 5).every((g) => g === 0);
+  const isMapped = firstFiveZero && groups[5] === 0xffff;
+  const isCompat = firstFiveZero && groups[5] === 0 && !(groups[6] === 0 && (groups[7] ?? 0) <= 1);
+  if (!isMapped && !isCompat) return undefined;
+  const g6 = groups[6] ?? 0, g7 = groups[7] ?? 0;
+  return `${(g6 >> 8) & 0xff}.${g6 & 0xff}.${(g7 >> 8) & 0xff}.${g7 & 0xff}`;
+}
+
+/**
+ * True if an IP literal (v4 or v6) is loopback/private/link-local/reserved — never fetch it.
+ * Handles IPv4-mapped/compat IPv6 (`::ffff:127.0.0.1` -> 127.0.0.1) so an internal host cannot be
+ * smuggled past the guard as a "public" IPv6 literal.
+ */
+export function isPrivateIpLiteral(ip: string): boolean {
+  let host = ip.toLowerCase().replace(/^\[|\]$/g, "").trim();
+  const zone = host.indexOf("%");
+  if (zone !== -1) {
+    host = host.slice(0, zone);
+  }
+  const version = isIP(host);
+  if (version === 4) {
+    return isPrivateIpv4(host);
+  }
+  if (version === 6) {
+    const groups = expandIpv6(host);
+    if (groups) {
+      const v4 = embeddedIpv4(groups);
+      if (v4 && isPrivateIpv4(v4)) {
+        return true;
+      }
+    }
+    if (host === "::" || host === "::1") {
+      return true;
+    }
+    // Unique-local fc00::/7 (fc../fd..) and link-local fe80::/10 (fe8./fe9./fea./feb.).
+    return /^f[cd]/.test(host) || /^fe[89ab]/.test(host);
   }
   return false;
 }
@@ -97,4 +150,36 @@ export async function assertPublicHttpsFetchTarget(url: string | URL, label = "M
   if (isLocalHost(parsed.hostname) || (await hostnameResolvesToPrivate(parsed.hostname))) {
     throw new Error(`${label} URL host resolves to a private or internal network address.`);
   }
+}
+
+/**
+ * SSRF-safe replacement for a plain fetch() of a caller-influenced URL. Validates the target, then
+ * follows redirects MANUALLY so every hop's Location is re-validated (host + DNS) BEFORE the request
+ * is issued — a plain fetch with the default redirect:"follow" would let a public host 302 to an
+ * internal/loopback/metadata address that the initial check never saw. Returns the final response.
+ */
+export async function ssrfSafeFetch(
+  url: string | URL,
+  init: RequestInit = {},
+  options: { readonly label?: string; readonly maxRedirects?: number } = {}
+): Promise<Response> {
+  const label = options.label ?? "Media";
+  const maxRedirects = options.maxRedirects ?? 5;
+  let current = url instanceof URL ? url.href : url;
+  for (let hop = 0; hop <= maxRedirects; hop += 1) {
+    await assertPublicHttpsFetchTarget(current, label);
+    const response = await fetch(current, { ...init, redirect: "manual" });
+    const location = response.status >= 300 && response.status < 400 ? response.headers.get("location") : null;
+    if (!location) {
+      return response;
+    }
+    let next: string;
+    try {
+      next = new URL(location, current).href;
+    } catch {
+      throw new Error(`${label} URL returned an invalid redirect target.`);
+    }
+    current = next;
+  }
+  throw new Error(`${label} URL exceeded the redirect limit.`);
 }

@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import type { AssembledDeliverable, AssemblyClip, AssemblyInput } from "../types/assembly.js";
 import { DEFAULT_POSTPRODUCTION_SETTINGS, PostproductionEngine } from "./postproduction-engine.js";
-import { assertPublicHttpsFetchTarget } from "../utils/ssrf-guard.js";
+import { ssrfSafeFetch } from "../utils/ssrf-guard.js";
 import { MediaInspector } from "./media-inspector.js";
 import { CaptionEngine } from "./caption-engine.js";
 import { AudioMixEngine, DEFAULT_AUDIO_MIX_OPTIONS } from "./audio-mix-engine.js";
@@ -296,9 +296,8 @@ export class AssemblyEngine {
     targetPath: string,
     signal?: AbortSignal
   ): Promise<void> {
-    // SSRF guard: resolve the host and refuse private/internal targets before the request leaves the box.
-    await assertPublicHttpsFetchTarget(sourceUrl, `Rendered clip ${clip.clipId}`);
-    const response = await fetch(sourceUrl, signal ? { signal } : undefined);
+    // SSRF guard: validates the target AND re-validates every redirect hop before issuing it.
+    const response = await ssrfSafeFetch(sourceUrl, signal ? { signal } : {}, { label: `Rendered clip ${clip.clipId}` });
     if (!response.ok) {
       throw new Error(`Failed to download rendered clip ${clip.clipId}: HTTP ${response.status}`);
     }

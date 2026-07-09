@@ -7,6 +7,7 @@ import { ensureDirectory } from "../utils/files.js";
 import { readMediaToolCommand } from "../utils/media-tools.js";
 import { runProcess } from "../utils/process.js";
 import { isVideoOutputUrl } from "./assembly-output-selector.js";
+import { assertPublicHttpsFetchTarget } from "../utils/ssrf-guard.js";
 
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 const IMAGE_MIME_PATTERN = /^image\/(?:jpeg|jpg|png|webp)$/i;
@@ -224,6 +225,11 @@ async function extractLastFrameImage(
   offsetSeconds: number,
   signal?: AbortSignal
 ): Promise<void> {
+  // SSRF guard: ffmpeg fetches a remote -i input itself, so validate a remote URL (https-only,
+  // reject private/internal/DNS-to-private) before handing it over. Local file paths pass through.
+  if (/^https?:\/\//i.test(sourceUrlOrPath)) {
+    await assertPublicHttpsFetchTarget(sourceUrlOrPath, "Endpoint frame source");
+  }
   await ensureDirectory(dirname(outputPath));
   await runProcess(
     readMediaToolCommand("ffmpeg"),
