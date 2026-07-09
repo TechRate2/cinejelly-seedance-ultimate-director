@@ -221,8 +221,8 @@ export class ShotPlanner {
         camera: beat.camera,
         lighting: beat.lighting,
         ...(beat.style ? { style: beat.style } : {}),
-        ...(beat.audioIntent ? { audioIntent: beat.audioIntent } : {}),
-        timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none"),
+        ...(beat.audioIntent ? { audioIntent: this.chunkAudioIntent(beat.audioIntent, chunk.index, chunks.length) } : {}),
+        timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none", chunk.index, chunks.length),
         transitionIntent: this.transitionIntentForChunk(beat, storyRole, chunk.index, chunks.length),
         references: beat.references,
         continuity: beat.continuity,
@@ -305,34 +305,66 @@ export class ShotPlanner {
     beat: BeatPlan,
     role: StoryArcRole,
     durationSeconds: number,
-    audioEnabled: boolean
+    audioEnabled: boolean,
+    chunkIndex: number,
+    totalChunks: number
   ): readonly TimelineSegment[] {
     const openingEnd = this.roundSeconds(Math.max(0.8, Math.min(1.2, durationSeconds * 0.22)));
     const endingStart = this.roundSeconds(Math.max(openingEnd + 0.8, durationSeconds - Math.max(0.8, Math.min(1.3, durationSeconds * 0.24))));
     const duration = this.roundSeconds(durationSeconds);
+    // A beat that spans multiple provider clips must be PHASED across them, not replayed in each:
+    // only the FIRST clip establishes the opening and only the LAST clip settles/resolves, so the
+    // assembled long-form video progresses instead of showing N re-takes of the same moment with a
+    // full open->settle arc every time (final-audit gap #3, the biggest 120-480s quality failure).
+    const opensBeat = totalChunks <= 1 || chunkIndex === 0;
+    const closesBeat = totalChunks <= 1 || chunkIndex === totalChunks - 1;
     return [
       {
         startSecond: 0,
         endSecond: openingEnd,
-        action: this.openingTimelineAction(role, beat),
-        camera: this.timelineCamera(role, "opening", beat),
-        ...(audioEnabled ? { audioCue: this.timelineAudioCue(role, "opening", beat) } : {})
+        action: opensBeat
+          ? this.openingTimelineAction(role, beat)
+          : this.continuationOpeningAction(beat, chunkIndex, totalChunks),
+        camera: this.timelineCamera(role, "opening", beat, opensBeat, closesBeat),
+        ...(audioEnabled ? { audioCue: this.timelineAudioCue(role, "opening", beat, opensBeat, closesBeat) } : {})
       },
       {
         startSecond: openingEnd,
         endSecond: endingStart,
         action: this.middleTimelineAction(role, beat),
-        camera: this.timelineCamera(role, "middle", beat),
-        ...(audioEnabled ? { audioCue: this.timelineAudioCue(role, "middle", beat) } : {})
+        camera: this.timelineCamera(role, "middle", beat, opensBeat, closesBeat),
+        ...(audioEnabled ? { audioCue: this.timelineAudioCue(role, "middle", beat, opensBeat, closesBeat) } : {})
       },
       {
         startSecond: endingStart,
         endSecond: duration,
-        action: this.endingTimelineAction(role, beat),
-        camera: this.timelineCamera(role, "ending", beat),
-        ...(audioEnabled ? { audioCue: this.timelineAudioCue(role, "ending", beat) } : {})
+        action: closesBeat
+          ? this.endingTimelineAction(role, beat)
+          : this.continuationHandleAction(beat, chunkIndex, totalChunks),
+        camera: this.timelineCamera(role, "ending", beat, opensBeat, closesBeat),
+        ...(audioEnabled ? { audioCue: this.timelineAudioCue(role, "ending", beat, opensBeat, closesBeat) } : {})
       }
     ];
+  }
+
+  // A sub-clip that is NOT the first of its beat: resume mid-motion, render only the next portion,
+  // and never replay the beat's opening — this is what stops long-form clips looking like re-takes.
+  private continuationOpeningAction(beat: BeatPlan, chunkIndex: number, totalChunks: number): string {
+    return `Continuation clip ${chunkIndex + 1} of ${totalChunks} inside one unbroken beat: resume exactly at the previous clip's end state — the subject pose, product, and framing are already established — and render ONLY the next portion of the action. Do not reset, re-introduce the subject, or replay the beat's opening. Advance from mid-motion: ${beat.action}`;
+  }
+
+  // A sub-clip that is NOT the last of its beat: leave the action unresolved so the next clip continues.
+  private continuationHandleAction(beat: BeatPlan, chunkIndex: number, totalChunks: number): string {
+    return `Clip ${chunkIndex + 1} of ${totalChunks} is not the beat's end: leave the action mid-progress on a clean continuation handle so the next clip picks up seamlessly. Do not settle, resolve, or return to a neutral end frame — keep advancing the same continuous action: ${beat.action}`;
+  }
+
+  // Per-shot audio intent for a chunked beat: continuation clips must not re-deliver lines already
+  // spoken earlier in the same beat, otherwise a scripted line is instructed N times across sub-clips.
+  private chunkAudioIntent(audioIntent: string, chunkIndex: number, totalChunks: number): string {
+    if (totalChunks <= 1 || chunkIndex === 0) {
+      return audioIntent;
+    }
+    return `${audioIntent}; CONTINUATION (clip ${chunkIndex + 1} of ${totalChunks}) — continue the same narration seamlessly from the previous clip and do not repeat any line already spoken earlier in this beat`;
   }
 
   private openingTimelineAction(role: StoryArcRole, beat: BeatPlan): string {
@@ -416,11 +448,20 @@ export class ShotPlanner {
     }
   }
 
-  private timelineCamera(role: StoryArcRole, phase: "opening" | "middle" | "ending", beat: BeatPlan): string {
-    if (phase === "opening" && role === "hook") {
+  private timelineCamera(
+    role: StoryArcRole,
+    phase: "opening" | "middle" | "ending",
+    beat: BeatPlan,
+    opensBeat: boolean,
+    closesBeat: boolean
+  ): string {
+    // Only the clip that actually opens the beat gets the hook first-frame treatment, and only the
+    // clip that actually closes it gets the settled payoff framing — mid-beat continuation clips keep
+    // the beat's own camera so they read as one continuous move, not repeated hook/payoff frames.
+    if (phase === "opening" && role === "hook" && opensBeat) {
       return "tight 9:16 readable first frame, slight handheld motion toward the subject";
     }
-    if (phase === "ending" && role === "payoff") {
+    if (phase === "ending" && role === "payoff" && closesBeat) {
       return "steady final framing with product or result held in view";
     }
     return beat.camera;
@@ -429,15 +470,23 @@ export class ShotPlanner {
   private timelineAudioCue(
     role: StoryArcRole,
     phase: "opening" | "middle" | "ending",
-    beat: BeatPlan
+    beat: BeatPlan,
+    opensBeat: boolean,
+    closesBeat: boolean
   ): string {
     const base = beat.audioIntent ?? "guided voiceover with low music bed and natural room tone";
     if (phase === "opening") {
+      if (!opensBeat) {
+        return `${base}; continue the narration seamlessly from the previous clip, no restart and no dead air`;
+      }
       return role === "hook"
         ? `${base}; spoken hook starts immediately, no dead air`
         : `${base}; audio begins on action, not after the visual`;
     }
     if (phase === "ending") {
+      if (!closesBeat) {
+        return `${base}; leave a clean transition handle, do not resolve the music or voiceover yet`;
+      }
       return role === "payoff"
         ? `${base}; music resolves under the visual payoff`
         : `${base}; leave a clean transition handle`;
