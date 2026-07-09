@@ -445,11 +445,16 @@ export function buildOperatorTopupPage(): string {
       var credits = inp(pkg.credits, "credits"); credits.type = "number"; credits.dataset.f = "credits";
       var price = inp(pkg.priceUsd, "giá USD"); price.type = "number"; price.step = "0.01"; price.dataset.f = "priceUsd";
       price.title = "Giá theo USD. Số tiền VND khách chuyển = USD × tỉ giá.";
+      // Customer-facing marketing/notice line (e.g. "PHỔ BIẾN NHẤT • rẻ hơn ~12%/credit"). Must be an
+      // EDITABLE field so a Settings save preserves it via the input collector instead of silently
+      // dropping it — otherwise any unrelated save erases every package's bonusNote (finding F5).
+      var note = inp(pkg.bonusNote, "ghi chú khuyến mãi (khách thấy)"); note.dataset.f = "bonusNote";
+      note.title = "Dòng khuyến mãi hiển thị cho khách cạnh giá gói.";
       var del = document.createElement("button"); del.className = "del"; del.textContent = "🗑"; del.addEventListener("click", function () { row.remove(); });
       // Preserve the anti-farm once-per-account flag across edits (carried invisibly; the server
       // also protects known trial IDs so this can never silently re-open the trial).
       if (pkg.oncePerAccount) { row.dataset.once = "1"; label.title = "Gói dùng thử 1 lần/tài khoản (chống farm)"; }
-      row.appendChild(id); row.appendChild(label); row.appendChild(credits); row.appendChild(price); row.appendChild(del);
+      row.appendChild(id); row.appendChild(label); row.appendChild(credits); row.appendChild(price); row.appendChild(note); row.appendChild(del);
       return row;
     }
     document.getElementById("add-package").addEventListener("click", function () {
