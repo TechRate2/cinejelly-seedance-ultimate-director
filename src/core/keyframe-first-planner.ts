@@ -19,7 +19,10 @@ import type { FlexibleSeedanceSettings } from "../types/settings.js";
 import { isImageOutputUrl } from "./endpoint-frame-chain.js";
 import { resolveSeedanceDna } from "./seedance-dna.js";
 
-const KEYFRAME_REFERENCE_ROLES = new Set(["identity", "product", "environment", "style"]);
+// "wardrobe" is included so the OPENING frame the whole shot animates from is anchored on the
+// signature-wardrobe reference too — otherwise the seed still is generated with no outfit anchor and
+// costume drifts shot-to-shot even when a correct wardrobe reference was supplied (final-audit gap #5).
+const KEYFRAME_REFERENCE_ROLES = new Set(["identity", "product", "wardrobe", "environment", "style"]);
 
 const KEYFRAME_NEGATIVE_PROMPT =
   "no watermark, no text, no captions, no plastic over-smoothed skin, no warped hands or fingers, no distorted product or logo, no extra limbs, no cartoon or 3D render look";
@@ -60,7 +63,11 @@ export function planKeyframeRequests(input: {
         .filter((reference) => KEYFRAME_REFERENCE_ROLES.has(reference.role))
         .map((reference) => reference.providerReference),
       settings: {
-        ratio: input.settings.ratio === "adaptive" ? "9:16" : input.settings.ratio,
+        // Pass "adaptive" through unchanged: the image provider omits ratio and lets the model
+        // decide (atlas-cloud-provider.ts:502), matching the video path — so a landscape-intent
+        // long-form left on "adaptive" is no longer silently pinned to 9:16 portrait via the
+        // first_frame (final-audit gap #8).
+        ratio: input.settings.ratio,
         ...(input.settings.seed !== undefined ? { seed: input.settings.seed } : {}),
         ...(input.settings.guidanceScale !== undefined ? { guidanceScale: input.settings.guidanceScale } : {})
       },

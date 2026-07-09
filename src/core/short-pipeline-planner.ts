@@ -2223,11 +2223,14 @@ function inferPlatform(prompt: string): ShortPipelinePlatform {
 function inferDuration(prompt: string): number {
   // Minutes first, and full 1-3 digit seconds, so "2 min" / "90-second" / "120s" no longer silently
   // fall back to 30s (the old /[1-5]?\d/ only matched 0-59 seconds). clampDuration bounds the result.
-  const minuteMatch = prompt.match(/\b(\d{1,3})\s*(?:min|mins|minute|minutes)\b/i);
+  // The separator allows an OPTIONAL hyphen/en/em dash as well as whitespace, so the most common
+  // user phrasings "60-second", "8-minute", "5-min", "2-minute" parse correctly instead of collapsing
+  // to the 30s default (final-audit gap #1 — catastrophic for the long-form 60-480s bands).
+  const minuteMatch = prompt.match(/\b(\d{1,3})[\s\-–—]*(?:min|mins|minute|minutes)\b/i);
   if (minuteMatch?.[1]) {
     return Number(minuteMatch[1]) * 60;
   }
-  const secondMatch = prompt.match(/\b(\d{1,3})\s*(?:s|sec|secs|second|seconds)\b/i);
+  const secondMatch = prompt.match(/\b(\d{1,3})[\s\-–—]*(?:s|sec|secs|second|seconds)\b/i);
   return secondMatch?.[1] ? Number(secondMatch[1]) : 30;
 }
 
