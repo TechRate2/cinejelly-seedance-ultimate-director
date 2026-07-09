@@ -530,13 +530,25 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   // EVERY request (finding F14), plus a per-user byte tally so one account cannot monopolize the
   // shared pool (finding F11). Seeded once by a lazy scan, then updated on each successful write; the
   // global total only drifts if files are deleted out-of-band (safe direction — it over-counts).
-  const uploadsUsage = { initialized: false, totalBytes: 0, fileCount: 0, perUserBytes: new Map<string, number>() };
+  const uploadsUsage: {
+    initialized: boolean;
+    seedPromise: Promise<void> | null;
+    totalBytes: number;
+    fileCount: number;
+    perUserBytes: Map<string, number>;
+  } = { initialized: false, seedPromise: null, totalBytes: 0, fileCount: 0, perUserBytes: new Map<string, number>() };
   const ensureUploadsUsage = async (dir: string): Promise<{ readonly totalBytes: number; readonly fileCount: number }> => {
     if (!uploadsUsage.initialized) {
-      const scanned = await uploadsDirectoryUsage(dir);
-      uploadsUsage.totalBytes = scanned.totalBytes;
-      uploadsUsage.fileCount = scanned.fileCount;
-      uploadsUsage.initialized = true;
+      // Single-flight seed: concurrent first-callers await ONE scan instead of each launching their
+      // own full readdir+stat (which would recreate the O(n) storm F14 removed, x uploadGate width).
+      if (!uploadsUsage.seedPromise) {
+        uploadsUsage.seedPromise = uploadsDirectoryUsage(dir).then((scanned) => {
+          uploadsUsage.totalBytes = scanned.totalBytes;
+          uploadsUsage.fileCount = scanned.fileCount;
+          uploadsUsage.initialized = true;
+        });
+      }
+      await uploadsUsage.seedPromise;
     }
     return { totalBytes: uploadsUsage.totalBytes, fileCount: uploadsUsage.fileCount };
   };
@@ -2265,6 +2277,13 @@ async function readRawBody(request: IncomingMessage, maxBytes: number): Promise<
   if (declaredContentLength !== undefined && declaredContentLength > maxBytes) {
     throw new RequestBodyTooLargeError(maxBytes);
   }
+  // Slow-body DoS guard: destroy the request if the client goes idle (no chunk) for too long, so a
+  // trickle-then-stall body cannot pin a connection or an uploadGate slot for the full request
+  // timeout. The socket timeout is inactivity-based, so a steady upload keeps resetting it.
+  const bodyIdleTimeoutMs = readPositiveInteger(process.env.CINEJELLY_API_BODY_IDLE_TIMEOUT_MS, 20_000);
+  request.setTimeout(bodyIdleTimeoutMs, () => {
+    request.destroy(new Error("Request body idle timeout."));
+  });
   const chunks: Buffer[] = [];
   let received = 0;
   for await (const chunk of request) {
