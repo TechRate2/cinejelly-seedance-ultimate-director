@@ -21,7 +21,16 @@ import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
 import { selectOrExtractLastFrameReference, type EndpointFrameQualityEvidence } from "../core/endpoint-frame-chain.js";
-import { bindKeyframesToShots, planKeyframeRequests } from "../core/keyframe-first-planner.js";
+import {
+  bindCharacterAnchorsToShots,
+  bindKeyframesToShots,
+  bindPortraitsToCast,
+  planCastPortraitRequests,
+  planCharacterAnchors,
+  planKeyframeRequests,
+  type CharacterAnchorPlan,
+  type PortraitCastMember
+} from "../core/keyframe-first-planner.js";
 import { planSocialPublishingMetadata } from "../core/social-publishing-planner.js";
 import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
 import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
@@ -362,12 +371,19 @@ export class DirectorAgent {
     this.validateProviderCapabilities(compiledPrompts);
     const plannedTestTakeCount = shots.filter((shot) => this.shouldRunTestTake(shot, intake.settings)).length;
     const keyframeFirstEnabled = this.keyframeFirstEnabled(providerSupportedReferenceKinds);
+    // Character anchors: invented characters that recur but have no uploaded face get ONE shared
+    // portrait each so their identity stays stable across the video (final-audit gap #2). Bounded,
+    // and counted into the cost gate BEFORE spend — this can only raise the estimate (the safe
+    // direction: the gate blocks sooner, never overspends). Uploaded-face requests plan zero anchors.
+    const characterAnchors = keyframeFirstEnabled && this.imageProvider && this.atlasSettings.models.imageModel?.trim()
+      ? planCharacterAnchors(shots)
+      : [];
     const costEstimate = this.renderCostGate.estimate({
       compiledPrompts,
       settings: intake.settings,
       plannedTestTakeCount,
       plannedTestTakeRenderSeconds: plannedTestTakeCount * SEEDANCE_TEST_TAKE_DURATION_SECONDS,
-      plannedKeyframeImageCount: keyframeFirstEnabled ? shots.length : 0
+      plannedKeyframeImageCount: keyframeFirstEnabled ? shots.length + characterAnchors.length : 0
     });
     this.renderCostGate.assertWithinBudget(costEstimate);
 
@@ -407,6 +423,7 @@ export class DirectorAgent {
           compiledPrompts,
           settings: intake.settings,
           modelId,
+          characterAnchors,
           ...(providerSupportedReferenceKinds ? { providerSupportedReferenceKinds } : {}),
           ...(signal ? { signal } : {})
         })
@@ -1822,6 +1839,7 @@ export class DirectorAgent {
     readonly compiledPrompts: CompiledPrompt[];
     readonly settings: FlexibleSeedanceSettings;
     readonly modelId: string;
+    readonly characterAnchors?: readonly CharacterAnchorPlan[];
     readonly providerSupportedReferenceKinds?: readonly import("../types/provider.js").ReferenceKind[];
     readonly signal?: AbortSignal;
   }): Promise<readonly ShotContract[]> {
@@ -1830,11 +1848,37 @@ export class DirectorAgent {
     if (!imageProvider || !imageModelId?.trim()) {
       return input.shots;
     }
+
+    // Character-anchor pass (final-audit gap #2): generate ONE shared portrait per recurring invented
+    // character with no uploaded face, then attach it as an identity reference on that character's
+    // shots BEFORE per-shot keyframes, so every keyframe and the video model share one canonical face
+    // instead of re-inventing (and drifting) the face each shot. Fail-open: any failure leaves the
+    // shot exactly as it was. Uploaded-face requests plan zero anchors, so this is inert for them.
+    let anchoredShots = input.shots;
+    let anchoredShotIds: readonly string[] = [];
+    if (input.characterAnchors && input.characterAnchors.length > 0) {
+      const anchorUris = await this.generateCharacterAnchorPortraits({
+        anchors: input.characterAnchors,
+        imageProvider,
+        imageModelId,
+        ...(input.signal ? { signal: input.signal } : {})
+      });
+      if (anchorUris.length > 0) {
+        const anchored = bindCharacterAnchorsToShots({ shots: input.shots, anchors: anchorUris });
+        anchoredShots = anchored.shots;
+        anchoredShotIds = anchored.anchoredShotIds;
+        this.reportStageProgress("render", "running", "Anchored recurring characters to shared identity portraits.", {
+          characterAnchorCount: anchorUris.length,
+          anchoredShotCount: anchoredShotIds.length
+        });
+      }
+    }
+
     this.reportStageProgress("render", "running", "Generating keyframe stills for image-to-video anchoring.", {
-      keyframePlannedCount: input.shots.length
+      keyframePlannedCount: anchoredShots.length
     });
     const requests = planKeyframeRequests({
-      shots: input.shots,
+      shots: anchoredShots,
       provider: "atlascloud",
       imageModelId,
       settings: input.settings
@@ -1859,15 +1903,19 @@ export class DirectorAgent {
         }
       }
     }
-    const binding = bindKeyframesToShots({ shots: input.shots, results });
-    for (const boundShotId of binding.boundShotIds) {
-      const promptIndex = input.compiledPrompts.findIndex((prompt) => prompt.shotId === boundShotId);
-      const boundShot = binding.shots.find((shot) => shot.shotId === boundShotId);
-      if (promptIndex < 0 || !boundShot) {
+    const binding = bindKeyframesToShots({ shots: anchoredShots, results });
+    // Recompile every shot that changed: those bound to a keyframe AND those that only received a
+    // character-anchor identity reference (so the anchor still reaches the video request even when
+    // that shot's own keyframe was skipped).
+    const shotIdsToRecompile = new Set<string>([...binding.boundShotIds, ...anchoredShotIds]);
+    for (const shotId of shotIdsToRecompile) {
+      const promptIndex = input.compiledPrompts.findIndex((prompt) => prompt.shotId === shotId);
+      const updatedShot = binding.shots.find((shot) => shot.shotId === shotId);
+      if (promptIndex < 0 || !updatedShot) {
         continue;
       }
       input.compiledPrompts[promptIndex] = this.promptCompiler.compile({
-        shot: boundShot,
+        shot: updatedShot,
         settings: input.settings,
         modelId: input.modelId,
         provider: "atlascloud",
@@ -1881,6 +1929,61 @@ export class DirectorAgent {
       keyframeSkippedCount: binding.skippedShotIds.length
     });
     return binding.shots;
+  }
+
+  /**
+   * Generate one shared identity portrait per recurring invented character (fail-open, batched).
+   * Returns only the characters whose front-view portrait succeeded, as {characterKey, name, uri}.
+   */
+  private async generateCharacterAnchorPortraits(input: {
+    readonly anchors: readonly CharacterAnchorPlan[];
+    readonly imageProvider: ImageProvider;
+    readonly imageModelId: string;
+    readonly signal?: AbortSignal;
+  }): Promise<readonly { readonly characterKey: string; readonly name: string; readonly uri: string }[]> {
+    const cast: readonly PortraitCastMember[] = input.anchors.map((anchor) => ({
+      characterId: anchor.characterKey,
+      name: anchor.name,
+      description: anchor.description
+    }));
+    const portraitPlans = planCastPortraitRequests({
+      cast,
+      provider: "atlascloud",
+      imageModelId: input.imageModelId
+    });
+    if (portraitPlans.length === 0) {
+      return [];
+    }
+    const portraitResults: { readonly characterId: string; readonly prediction: Prediction; readonly isPrimary: boolean }[] = [];
+    const batchSize = 3;
+    for (let start = 0; start < portraitPlans.length; start += batchSize) {
+      const batch = portraitPlans.slice(start, start + batchSize);
+      const settled = await Promise.all(
+        batch.map(async (planned) => {
+          try {
+            const prediction = await input.imageProvider.generateImage(planned.request, input.signal);
+            return { characterId: planned.characterId, prediction, isPrimary: planned.isPrimary };
+          } catch {
+            return undefined;
+          }
+        })
+      );
+      for (const entry of settled) {
+        if (entry) {
+          portraitResults.push(entry);
+        }
+      }
+    }
+    const nameByKey = new Map(input.anchors.map((anchor) => [anchor.characterKey, anchor.name]));
+    return bindPortraitsToCast({ cast, results: portraitResults })
+      .filter((member): member is typeof member & { identityReferenceUri: string } =>
+        Boolean(member.identityReferenceUri?.trim())
+      )
+      .map((member) => ({
+        characterKey: member.characterId,
+        name: nameByKey.get(member.characterId) ?? member.name,
+        uri: member.identityReferenceUri
+      }));
   }
 
   private describePreflightBlock(reports: readonly ReturnType<ConsistencyGuardian["preflight"]>[]): string {

@@ -257,6 +257,124 @@ export function bindPortraitsToCast<TMember extends PortraitCastMember>(input: {
   });
 }
 
+const MAX_ANCHOR_CHARACTERS = 6;
+const MIN_SHOTS_FOR_ANCHOR = 2;
+const CHARACTER_ARTICLE_PREFIX = /^(?:the|a|an)\s+/i;
+
+/**
+ * Normalize a free-text character identity into a stable grouping key so "the founder", "Founder",
+ * and "  founder " collapse to ONE character instead of fragmenting into separate anchors (which
+ * would both waste image spend and fail to anchor consistently).
+ */
+export function normalizeCharacterKey(identity: string | undefined): string {
+  if (!identity) {
+    return "";
+  }
+  return identity
+    .trim()
+    .toLowerCase()
+    .replace(CHARACTER_ARTICLE_PREFIX, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export interface CharacterAnchorPlan {
+  readonly characterKey: string;
+  readonly name: string;
+  readonly description: string;
+  readonly shotIds: readonly string[];
+}
+
+/**
+ * Find INVENTED characters that recur across shots but have NO uploaded identity reference, so a
+ * single shared portrait can anchor their face across the whole video. Without this, every per-shot
+ * keyframe re-invents the face and it drifts across a long video (final-audit gap #2). Characters
+ * that already carry an identity reference (a real uploaded face) are never anchored — the real face
+ * wins. Bounded to MAX_ANCHOR_CHARACTERS and to characters that appear in >=2 shots so image spend
+ * stays strictly capped and single-appearance descriptions never trigger a portrait.
+ */
+export function planCharacterAnchors(
+  shots: readonly ShotContract[],
+  maxCharacters: number = MAX_ANCHOR_CHARACTERS
+): readonly CharacterAnchorPlan[] {
+  const groups = new Map<
+    string,
+    { name: string; description: string; shotIds: string[]; hasIdentityRef: boolean }
+  >();
+  for (const shot of shots) {
+    const identity = typeof shot.continuity?.identity === "string" ? shot.continuity.identity : undefined;
+    const key = normalizeCharacterKey(identity);
+    if (!key) {
+      continue;
+    }
+    const hasIdentityRef = shot.references.some((reference) => reference.role === "identity");
+    const existing = groups.get(key);
+    if (existing) {
+      existing.shotIds.push(shot.shotId);
+      existing.hasIdentityRef = existing.hasIdentityRef || hasIdentityRef;
+      if (!existing.description && shot.subject?.trim()) {
+        existing.description = shot.subject.trim();
+      }
+    } else {
+      groups.set(key, {
+        name: (identity ?? "").trim() || key,
+        description: shot.subject?.trim() ?? "",
+        shotIds: [shot.shotId],
+        hasIdentityRef
+      });
+    }
+  }
+  const candidates: CharacterAnchorPlan[] = [];
+  for (const [characterKey, group] of groups) {
+    if (group.hasIdentityRef || group.shotIds.length < MIN_SHOTS_FOR_ANCHOR) {
+      continue;
+    }
+    candidates.push({
+      characterKey,
+      name: group.name,
+      description: group.description || group.name,
+      shotIds: group.shotIds
+    });
+  }
+  return candidates
+    .sort((left, right) => right.shotIds.length - left.shotIds.length)
+    .slice(0, Math.max(0, maxCharacters));
+}
+
+/**
+ * Attach a generated character-anchor portrait as an identity reference on every shot that features
+ * that character, so the per-shot keyframe AND the video model share one canonical face. Never
+ * overrides a shot that already has a real identity reference (fail-safe). Returns the anchored shot
+ * ids so the caller can recompile those prompts even when their per-shot keyframe was skipped.
+ */
+export function bindCharacterAnchorsToShots(input: {
+  readonly shots: readonly ShotContract[];
+  readonly anchors: readonly { readonly characterKey: string; readonly name: string; readonly uri: string }[];
+}): { readonly shots: readonly ShotContract[]; readonly anchoredShotIds: readonly string[] } {
+  const byKey = new Map(input.anchors.map((anchor) => [anchor.characterKey, anchor]));
+  const anchoredShotIds: string[] = [];
+  const shots = input.shots.map((shot) => {
+    if (shot.references.some((reference) => reference.role === "identity")) {
+      return shot;
+    }
+    const identity = typeof shot.continuity?.identity === "string" ? shot.continuity.identity : undefined;
+    const anchor = byKey.get(normalizeCharacterKey(identity));
+    if (!anchor) {
+      return shot;
+    }
+    anchoredShotIds.push(shot.shotId);
+    const identityReference: PromptReference = {
+      role: "identity",
+      label: anchor.name,
+      priority: "primary",
+      selection: { characterId: anchor.characterKey, authorized: true },
+      providerReference: { kind: "image", uri: anchor.uri, role: "identity", label: anchor.name }
+    };
+    return { ...shot, references: [identityReference, ...shot.references] };
+  });
+  return { shots, anchoredShotIds };
+}
+
 function keyframePromptFor(shot: ShotContract): string {
   const niche = stringMetadata(shot, "shortViralNiche") ?? stringMetadata(shot, "niche");
   const creativeMode =
