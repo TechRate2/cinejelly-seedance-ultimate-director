@@ -165,6 +165,9 @@ const DEFAULT_UPLOAD_MAX_BYTES = 26_214_400;
 const DEFAULT_UPLOADS_TOTAL_MAX_BYTES = 5 * 1024 * 1024 * 1024;
 /** Hard cap on the number of stored uploads so the directory scan and disk stay bounded. */
 const DEFAULT_UPLOADS_MAX_FILES = 5_000;
+// Per-USER upload byte cap so one account cannot consume the shared global pool and deny uploads to
+// every other tenant (finding F11). The global cap above stays the hard disk guard.
+const DEFAULT_UPLOADS_PER_USER_MAX_BYTES = 1024 * 1024 * 1024;
 /** Reference uploads: extension -> served content type. Images/video/audio only. */
 const UPLOAD_CONTENT_TYPES: Record<string, string> = {
   png: "image/png",
@@ -523,6 +526,27 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const uploadGate = new ApiConcurrencyGate({
     maxConcurrent: readPositiveInteger(process.env.CINEJELLY_API_UPLOAD_CONCURRENCY, 4)
   });
+  // Running upload-usage totals so the quota check is O(1) instead of a full directory stat-scan on
+  // EVERY request (finding F14), plus a per-user byte tally so one account cannot monopolize the
+  // shared pool (finding F11). Seeded once by a lazy scan, then updated on each successful write; the
+  // global total only drifts if files are deleted out-of-band (safe direction — it over-counts).
+  const uploadsUsage = { initialized: false, totalBytes: 0, fileCount: 0, perUserBytes: new Map<string, number>() };
+  const ensureUploadsUsage = async (dir: string): Promise<{ readonly totalBytes: number; readonly fileCount: number }> => {
+    if (!uploadsUsage.initialized) {
+      const scanned = await uploadsDirectoryUsage(dir);
+      uploadsUsage.totalBytes = scanned.totalBytes;
+      uploadsUsage.fileCount = scanned.fileCount;
+      uploadsUsage.initialized = true;
+    }
+    return { totalBytes: uploadsUsage.totalBytes, fileCount: uploadsUsage.fileCount };
+  };
+  const recordUpload = (uploaderId: string | undefined, bytes: number): void => {
+    uploadsUsage.totalBytes += bytes;
+    uploadsUsage.fileCount += 1;
+    if (uploaderId) {
+      uploadsUsage.perUserBytes.set(uploaderId, (uploadsUsage.perUserBytes.get(uploaderId) ?? 0) + bytes);
+    }
+  };
   const jobManager = new RenderJobManager({
     artifactStore,
     maxConcurrentJobs: readPositiveInteger(process.env.CINEJELLY_API_JOB_CONCURRENCY, 1),
@@ -1681,14 +1705,23 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             process.env.CINEJELLY_UPLOADS_TOTAL_MAX_BYTES,
             DEFAULT_UPLOADS_TOTAL_MAX_BYTES
           );
-          const usage = await uploadsDirectoryUsage(uploadsDir);
+          const usage = await ensureUploadsUsage(uploadsDir);
+          const uploaderId = authDecision.principal && authDecision.principal.kind === "user" ? authDecision.principal.userId : undefined;
           if (usage.fileCount >= DEFAULT_UPLOADS_MAX_FILES || usage.totalBytes + body.length > uploadsTotalMaxBytes) {
             sendJson(response, 507, {
               error: "Kho lưu trữ tạm đã đầy — chủ hệ thống cần dọn thư mục uploads. Vui lòng thử lại sau."
             }, requestContext);
             return;
           }
+          const perUserMaxBytes = readPositiveInteger(process.env.CINEJELLY_UPLOADS_PER_USER_MAX_BYTES, DEFAULT_UPLOADS_PER_USER_MAX_BYTES);
+          if (uploaderId && (uploadsUsage.perUserBytes.get(uploaderId) ?? 0) + body.length > perUserMaxBytes) {
+            sendJson(response, 507, {
+              error: "Bạn đã đạt hạn mức dung lượng tải lên của tài khoản — hãy dùng bớt file cũ hoặc liên hệ hỗ trợ."
+            }, requestContext);
+            return;
+          }
           await writeFile(join(uploadsDir, storedFileName), body);
+          recordUpload(uploaderId, body.length);
         } catch (uploadError) {
           // Never leak a raw filesystem error (which carries absolute local paths) to a customer.
           void uploadError;
