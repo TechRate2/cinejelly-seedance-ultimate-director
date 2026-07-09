@@ -158,7 +158,11 @@ export class AudioMixEngine {
     // and short tracks no longer drop out mid-mix.
     input.tracks.forEach((track, index) => {
       const inputIndex = index + 1;
-      filterParts.push(`[${inputIndex}:a]${normalize},volume=${this.safeVolume(track.volume)},apad[t${inputIndex}]`);
+      // adelay places a timed cue at its planned start (narration segment 2 at 8s, an SFX at 20s, …)
+      // instead of every track stacking at 0:00. Silence is prepended before apad pads the tail.
+      const startMs = Math.max(0, Math.round((track.startSeconds ?? 0) * 1000));
+      const delay = startMs > 0 ? `,adelay=${startMs}:all=1` : "";
+      filterParts.push(`[${inputIndex}:a]${normalize},volume=${this.safeVolume(track.volume)}${delay},apad[t${inputIndex}]`);
     });
     // Sidechain ducking: when narration and music are both present, the first narration
     // track drives a compressor on every music track so the voice stays intelligible.

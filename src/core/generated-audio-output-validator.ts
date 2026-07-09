@@ -328,7 +328,12 @@ export class GeneratedAudioOutputValidator {
       trackId: createStableId("generated_audio_track", intent.intentId),
       sourceUrlOrPath: outputUrl,
       role: this.roleForKind(intent.kind),
-      volume
+      volume,
+      // Carry the cue's planned start so the mix places it at that moment (adelay), instead of every
+      // narration segment / SFX / ambience cue stacking at 0:00 and overlapping (final-audit gap V7).
+      ...(Number.isFinite(intent.startSecond) && (intent.startSecond as number) > 0
+        ? { startSeconds: intent.startSecond as number }
+        : {})
     };
   }
 

@@ -12,6 +12,10 @@ export interface AudioMixTrack {
   readonly sourceUrlOrPath: string;
   readonly role: AudioTrackRole;
   readonly volume: number;
+  /** When this track should start in the mix (seconds from 0). Omitted/0 = from the beginning.
+   * Applied as an ffmpeg adelay so timed narration/SFX/ambience cues land at their planned moment
+   * instead of all stacking at 0:00. */
+  readonly startSeconds?: number;
 }
 
 export interface GeneratedAudioIntent {
