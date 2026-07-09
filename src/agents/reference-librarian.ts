@@ -92,9 +92,14 @@ export class ReferenceLibrarian {
     const role = this.normalizeRole(payload.role, providerReference.kind);
     this.assertCompatible(role, providerReference.kind, index);
 
-    const label = this.cleanString(payload.label) || `${role}_${index + 1}`;
     const priority = payload.priority === "supporting" ? "supporting" : "primary";
     const selection = this.normalizeSelection(payload.selection, index);
+    // Fall back to the character id (a stable per-character identity) rather than a meaningless
+    // positional "identity_N", so the @image handle in the compiled prompt names WHICH character it
+    // is and the handle->named-subject link survives for multi-character shots (final-audit gap [2]).
+    const label = this.cleanString(payload.label)
+      || (selection?.characterId ? selection.characterId : undefined)
+      || `${role}_${index + 1}`;
 
     return {
       role,

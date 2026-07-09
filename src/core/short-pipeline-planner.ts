@@ -2221,8 +2221,14 @@ function inferPlatform(prompt: string): ShortPipelinePlatform {
 }
 
 function inferDuration(prompt: string): number {
-  const match = prompt.match(/\b([1-5]?\d)\s*(?:s|sec|secs|second|seconds)\b/i);
-  return match?.[1] ? Number(match[1]) : 30;
+  // Minutes first, and full 1-3 digit seconds, so "2 min" / "90-second" / "120s" no longer silently
+  // fall back to 30s (the old /[1-5]?\d/ only matched 0-59 seconds). clampDuration bounds the result.
+  const minuteMatch = prompt.match(/\b(\d{1,3})\s*(?:min|mins|minute|minutes)\b/i);
+  if (minuteMatch?.[1]) {
+    return Number(minuteMatch[1]) * 60;
+  }
+  const secondMatch = prompt.match(/\b(\d{1,3})\s*(?:s|sec|secs|second|seconds)\b/i);
+  return secondMatch?.[1] ? Number(secondMatch[1]) : 30;
 }
 
 function clampDuration(value: number, min: number, max: number): number {
@@ -2251,8 +2257,21 @@ function inferGoal(prompt: string, productBrief: ProductUrlBrief | undefined): s
 }
 
 function inferAudience(prompt: string): string {
-  const match = prompt.match(/\bfor\s+([^,.!?]{3,80})/i);
-  return cleanText(match?.[1], 120) ?? "target buyer";
+  // Prefer an explicit audience cue; otherwise take the LAST "for <clause>" that is not a format word
+  // (video/ad/reel/…), so "a video for gen z gamers" -> "gen z gamers" not "a video ..." (gap [10]).
+  const cue = prompt.match(/\b(?:targeting|aimed at|audience[:\s]+)([^,.!?]{3,80})/i);
+  if (cue?.[1]) {
+    return cleanText(cue[1], 120) ?? "target buyer";
+  }
+  const formatWord = /^(?:a|an|the)?\s*(?:video|ad|advert|advertisement|reel|reels|clip|short|shorts|tiktok|youtube|post|content|campaign|story)\b/i;
+  let audience: string | undefined;
+  for (const clauseMatch of prompt.matchAll(/\bfor\s+((?:(?!\bfor\b)[^,.!?]){3,80})/gi)) {
+    const clause = (clauseMatch[1] ?? "").trim();
+    if (clause && !formatWord.test(clause)) {
+      audience = clause;
+    }
+  }
+  return cleanText(audience, 120) ?? "target buyer";
 }
 
 function inferOffer(prompt: string, productBrief: ProductUrlBrief | undefined): string | undefined {

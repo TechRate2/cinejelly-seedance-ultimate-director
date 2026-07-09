@@ -42,5 +42,14 @@ export function buildNegativePrompt(shot: ShotContract): string {
     constraints.add("no unapproved voice likeness");
     constraints.add("no protected song imitation");
   }
+  // With 2+ identity references in one shot, UNCONDITIONALLY guard against the model blending faces
+  // or assigning the wrong face to the wrong person — structural presence of multiple characters, not
+  // just an LLM-assigned multi_character_blocking risk, must trigger the anti-swap clause (gap [3]).
+  if (shot.references.filter((reference) => reference.role === "identity").length >= 2) {
+    constraints.add("no character merging");
+    constraints.add("no blocking confusion");
+    constraints.add("no face swapping between characters");
+    constraints.add("keep each named character's face true to their own reference, never blended");
+  }
   return [...constraints].join(", ");
 }

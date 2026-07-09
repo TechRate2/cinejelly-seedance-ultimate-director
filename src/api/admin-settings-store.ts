@@ -310,7 +310,10 @@ export class AdminSettingsStore {
     }
 
     if (patch.studio !== undefined) {
-      this.state.studio = this.validatedStudio(patch.studio);
+      // MERGE like the models branch: an admin who PUTs only { studio: { announcement } } must not
+      // wipe featuredImages (and vice-versa). validatedStudio returns only the fields present in the
+      // patch, so absent fields keep their current value instead of being replaced away (gap [4]).
+      this.state.studio = { ...this.state.studio, ...this.validatedStudio(patch.studio) };
       changes.push("studio=đã cập nhật");
     }
 
