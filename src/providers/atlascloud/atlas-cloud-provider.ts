@@ -239,7 +239,7 @@ export class AtlasCloudProvider implements ModelProvider {
    * submit/poll contract as video so downstream polling, cost ledger, and redaction reuse
    * the existing machinery. Requires ATLASCLOUD_IMAGE_MODEL (settings.models.imageModel).
    */
-  public generateImage(request: ImageGenerationRequest, signal?: AbortSignal): Promise<Prediction> {
+  public async generateImage(request: ImageGenerationRequest, signal?: AbortSignal): Promise<Prediction> {
     if (request.provider !== ATLAS_PROVIDER_NAME) {
       throw new ProviderError({
         code: "UNSUPPORTED_SETTING",
@@ -263,7 +263,7 @@ export class AtlasCloudProvider implements ModelProvider {
     }
     const startedAt = now();
     const payload = this.toAtlasImagePayload(request);
-    return this.trackProviderCall(
+    const submitted = await this.trackProviderCall(
       "image.submit",
       request.modelId,
       request.metadata?.graphNodeId,
@@ -278,6 +278,23 @@ export class AtlasCloudProvider implements ModelProvider {
         return this.requireKnownPredictionId(mapPrediction(response, request.modelId, startedAt), "image generation");
       },
       (prediction) => this.predictionLedgerMetadata(prediction)
+    );
+    // Poll to terminal like video/audio. Atlas image generation is an ASYNC prediction: the submit
+    // returns status "running" with no output URL, so returning it directly (the old behaviour) meant
+    // every keyframe-first still and character-anchor portrait was submitted AND billed but never
+    // usable — bindKeyframesToShots/bindPortraitsToCast require "succeeded" — so the flagship identity
+    // anchoring was structurally dead and drove cross-clip drift (final live-audit gap #1/#16).
+    if (submitted.status !== "running") {
+      return submitted;
+    }
+    return this.waitForPrediction(
+      submitted.predictionId,
+      signal,
+      {
+        modelId: request.modelId,
+        ...(request.metadata ? { metadata: request.metadata } : {})
+      },
+      "image.wait_for_prediction"
     );
   }
 
@@ -530,13 +547,14 @@ export class AtlasCloudProvider implements ModelProvider {
   public async waitForPrediction(
     predictionId: string,
     signal?: AbortSignal,
-    context?: PredictionPollingContext
+    context?: PredictionPollingContext,
+    operationLabel: string = "video.wait_for_prediction"
   ): Promise<Prediction> {
     const startedAt = now();
     let latestMetadata: LedgerMetadata = { predictionId };
 
     return this.trackProviderCall(
-      "video.wait_for_prediction",
+      operationLabel,
       context?.modelId,
       context?.metadata?.graphNodeId,
       startedAt,

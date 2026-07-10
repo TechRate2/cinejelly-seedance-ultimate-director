@@ -53,17 +53,46 @@ export function normalizeRenderRequest(
     workDirectory,
     artifactDirectory: body.artifactDirectory
       ? resolveInsideOutputRoot(outputRoot, body.artifactDirectory, "artifactDirectory")
-      : join(workDirectory, "artifacts")
+      : join(workDirectory, "artifacts"),
+    // Frame-sampling output was operator-supplied but never confined, so it could escape the output
+    // root and diverge from the deliverable's directory (final live-audit gap #4). Confine it too.
+    ...(body.frameSamplingOptions?.outputDirectory
+      ? {
+          frameSamplingOptions: {
+            ...body.frameSamplingOptions,
+            outputDirectory: resolveInsideOutputRoot(
+              outputRoot,
+              body.frameSamplingOptions.outputDirectory,
+              "frameSamplingOptions.outputDirectory"
+            )
+          }
+        }
+      : {})
   };
+}
+
+function isInsideOutputRoot(outputRoot: string, candidate: string): boolean {
+  const relativePath = relative(outputRoot, candidate);
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath));
 }
 
 export function resolveInsideOutputRoot(outputRoot: string, value: string, fieldName: string): string {
   if (!value.trim()) {
     throw new RenderRequestNormalizationError(`${fieldName} cannot be empty.`);
   }
-  const resolvedPath = isAbsolute(value) ? resolve(value) : resolve(outputRoot, value);
-  const relativePath = relative(outputRoot, resolvedPath);
-  if (relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))) {
+  let resolvedPath: string;
+  if (isAbsolute(value)) {
+    resolvedPath = resolve(value);
+  } else {
+    // A relative value may be written either relative to the output root ("case/final.mp4") OR with
+    // the output-root prefix already baked in ("assets/output_deliverables/case/final.mp4"). Prefer
+    // the cwd-relative reading when it already lands inside the root, so a root-prefixed path is not
+    // silently DOUBLED (assets/output_deliverables/assets/output_deliverables/...) — the exact bug
+    // that put the first real render's MP4 one directory too deep (final live-audit gap #2).
+    const cwdResolved = resolve(value);
+    resolvedPath = isInsideOutputRoot(outputRoot, cwdResolved) ? cwdResolved : resolve(outputRoot, value);
+  }
+  if (isInsideOutputRoot(outputRoot, resolvedPath)) {
     return resolvedPath;
   }
   throw new RenderRequestNormalizationError(`${fieldName} must stay inside CINEJELLY_OUTPUT_DIR.`);

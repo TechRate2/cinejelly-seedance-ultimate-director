@@ -14,7 +14,7 @@ import type {
   ProjectArtifactValidationReport,
   ProjectArtifactValidationStatus
 } from "../types/artifact.js";
-import { redactText } from "../utils/redaction.js";
+import { containsSecret } from "../utils/redaction.js";
 
 const SUCCESS_REQUIRED_KINDS: readonly ProjectArtifactKind[] = [
   "run_summary",
@@ -437,7 +437,7 @@ export class ProjectArtifactValidator {
         message: "Artifact SHA-256 does not match manifest."
       });
     }
-    if (redactText(text) !== text) {
+    if (containsSecret(text)) {
       checks.push({
         name: "artifact_secret_redaction",
         status: "fail",

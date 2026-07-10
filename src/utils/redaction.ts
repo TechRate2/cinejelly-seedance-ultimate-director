@@ -29,6 +29,19 @@ export function redactText(value: string): string {
   return SECRET_PATTERNS.reduce((current, pattern) => current.replace(pattern, "[REDACTED]"), bounded);
 }
 
+/**
+ * Detect whether text contains a real secret, scanning the FULL string (no length truncation).
+ * Used by artifact validation instead of `redactText(text) !== text`, which truncates at
+ * MAX_REDACT_TEXT_LENGTH and therefore falsely flags ANY artifact larger than that limit even when
+ * it holds no secret (final live-audit gap #3).
+ */
+export function containsSecret(value: string): boolean {
+  return SECRET_PATTERNS.some((pattern) => {
+    pattern.lastIndex = 0;
+    return pattern.test(value);
+  });
+}
+
 export function redactUnknown(value: unknown): unknown {
   return redactValue(value, 0, new WeakSet());
 }
@@ -69,7 +82,10 @@ function redactValue(value: unknown, depth: number, seen: WeakSet<object>): unkn
         __type: "Map",
         entries: [...value.entries()].map(([key, item]) => [
           redactValue(key, depth + 1, seen),
-          SECRET_KEY_PATTERN.test(String(key)) ? "[REDACTED]" : redactValue(item, depth + 1, seen)
+          // Only redact STRING values under a secret-like key. Real credentials are strings; a numeric
+          // value under a key that merely CONTAINS "token" (e.g. completion_tokens usage counts) is not
+          // a secret and wiping it destroys cost-audit data (final live-audit gap #5).
+          SECRET_KEY_PATTERN.test(String(key)) && typeof item === "string" ? "[REDACTED]" : redactValue(item, depth + 1, seen)
         ])
       };
     }
@@ -77,7 +93,9 @@ function redactValue(value: unknown, depth: number, seen: WeakSet<object>): unkn
       return { __type: "Set", values: [...value.values()].map((item) => redactValue(item, depth + 1, seen)) };
     }
     const entries = Object.entries(value as Record<string, unknown>).map(([key, item]) => {
-      if (SECRET_KEY_PATTERN.test(key)) {
+      // Only redact STRING values under a secret-like key (see the Map branch above) — this preserves
+      // numeric usage counters like completion_tokens/total_tokens for cost auditing (gap #5).
+      if (SECRET_KEY_PATTERN.test(key) && typeof item === "string") {
         return [key, "[REDACTED]"] as const;
       }
       return [key, redactValue(item, depth + 1, seen)] as const;
