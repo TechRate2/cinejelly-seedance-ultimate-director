@@ -81,6 +81,18 @@ export class MediaInspector {
     if (videoStream && (!videoStream.width || !videoStream.height)) {
       findings.push("Video stream is missing width or height.");
     }
+    // Video-track truncation check (symmetric to the audio one): a container whose duration is padded
+    // by audio can hide a short/truncated VIDEO stream, so the gate would pass a video that visually
+    // ends early. Flag when the video stream runs materially shorter than the container (final
+    // live-audit gaps #7/#17). Only shorter-than-container matters (a longer video-track is benign).
+    if (
+      videoStream &&
+      metadata.durationSeconds &&
+      videoStream.durationSeconds &&
+      metadata.durationSeconds - videoStream.durationSeconds > 1.5
+    ) {
+      findings.push("Video stream duration is more than 1.5s shorter than the container; the video track may be truncated or corrupt.");
+    }
     if (audio.findings.length > 0) {
       findings.push(...audio.findings);
     }

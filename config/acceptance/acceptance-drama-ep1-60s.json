@@ -18,17 +18,21 @@
     "seriesId": "acceptance_demo_series",
     "episodeNumber": "1"
   },
-  "outputPath": "assets/output_deliverables/acceptance/drama-ep1/final.mp4",
-  "workDirectory": "assets/output_deliverables/acceptance/drama-ep1/work",
-  "artifactDirectory": "assets/output_deliverables/acceptance/drama-ep1/artifacts",
+  "outputPath": "acceptance/drama-ep1/final.mp4",
+  "workDirectory": "acceptance/drama-ep1/work",
+  "artifactDirectory": "acceptance/drama-ep1/artifacts",
   "semanticVisualInspectionOptions": {
     "enabled": true,
-    "expectations": ["nhan vat giu nguyen guong mat giua cac canh", "khong artifact AI lo lieu", "ket cliffhanger khong bi tu ket lang"],
+    "expectations": [
+      "nhan vat giu nguyen guong mat giua cac canh",
+      "khong artifact AI lo lieu",
+      "ket cliffhanger khong bi tu ket lang"
+    ],
     "maxFrames": 3
   },
   "frameSamplingOptions": {
     "enabled": true,
-    "outputDirectory": "assets/output_deliverables/acceptance/drama-ep1/frames",
+    "outputDirectory": "acceptance/drama-ep1/frames",
     "intervalSeconds": 6,
     "maxFrames": 8
   }

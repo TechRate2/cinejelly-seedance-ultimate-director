@@ -15,17 +15,21 @@
     "niche": "beauty_skincare",
     "creativeMode": "ugc_review"
   },
-  "outputPath": "assets/output_deliverables/acceptance/ugc-27s/final.mp4",
-  "workDirectory": "assets/output_deliverables/acceptance/ugc-27s/work",
-  "artifactDirectory": "assets/output_deliverables/acceptance/ugc-27s/artifacts",
+  "outputPath": "acceptance/ugc-27s/final.mp4",
+  "workDirectory": "acceptance/ugc-27s/work",
+  "artifactDirectory": "acceptance/ugc-27s/artifacts",
   "semanticVisualInspectionOptions": {
     "enabled": true,
-    "expectations": ["khong lech mat nguoi", "san pham khong meo mo", "khong artifact AI lo lieu"],
+    "expectations": [
+      "khong lech mat nguoi",
+      "san pham khong meo mo",
+      "khong artifact AI lo lieu"
+    ],
     "maxFrames": 3
   },
   "frameSamplingOptions": {
     "enabled": true,
-    "outputDirectory": "assets/output_deliverables/acceptance/ugc-27s/frames",
+    "outputDirectory": "acceptance/ugc-27s/frames",
     "intervalSeconds": 4,
     "maxFrames": 6
   }

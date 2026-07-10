@@ -22,6 +22,8 @@ import type { Phase6ValidationReadinessReport } from "../types/preflight.js";
 import { writeFileEnsuringDirectory } from "../utils/files.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { createDirectorRuntime } from "./director-factory.js";
+import { validateConfiguredAtlasModels } from "./atlas-model-preflight.js";
+import { loadAtlasCloudSettings } from "../config/runtime-config.js";
 import { normalizeRenderRequest } from "./render-request-normalizer.js";
 import { RuntimePreflight } from "./runtime-preflight.js";
 import { Phase6ValidationReadinessReporter } from "./validation-readiness-report.js";
@@ -35,6 +37,7 @@ type PaidRenderValidationStatus =
   | "blocked_by_readiness_warnings"
   | "blocked_by_spend_confirmation"
   | "blocked_by_atlas_billing"
+  | "blocked_by_model_validation"
   | "completed"
   | "completed_with_artifact_validation_warning"
   | "completed_with_artifact_validation_failure"
@@ -175,6 +178,26 @@ export async function runPaidRenderValidationCli(
       nextActions: atlasBillingGate.checks
         .filter((check) => check.status === "fail")
         .map((check) => check.message)
+    }), options);
+  }
+
+  // Pre-spend model-existence probe (no spend): a stale-but-well-formed model id passes readiness and
+  // the billing gate but fails at the first live provider call after burning the LLM plan call and
+  // keyframe images. Block a confirmed-missing model id here instead (final live-audit gap #6).
+  const modelValidation = await validateConfiguredAtlasModels(loadAtlasCloudSettings(env));
+  if (!modelValidation.ok) {
+    return emitReport(report({
+      status: "blocked_by_model_validation",
+      readiness,
+      requestId: normalizedRequest.metadata?.requestId,
+      atlasBillingGate,
+      nextActions: [
+        ...modelValidation.missing.map(
+          (missing) =>
+            `Configured ${missing.field} "${missing.modelId}" is not on the account's ${missing.endpoint} model list; set a valid model id (GET /models to list available ids) before paid render.`
+        ),
+        ...modelValidation.notes
+      ]
     }), options);
   }
 

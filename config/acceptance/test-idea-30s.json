@@ -19,12 +19,12 @@
     "storyboardReviewedAt": "2026-07-10T01:30:00.000Z",
     "storyboardApprovalNotes": "Operator-approved for end-to-end pipeline test render."
   },
-  "outputPath": "assets/output_deliverables/test-idea-30s/final.mp4",
-  "workDirectory": "assets/output_deliverables/test-idea-30s/work",
-  "artifactDirectory": "assets/output_deliverables/test-idea-30s/artifacts",
+  "outputPath": "test-idea-30s/final.mp4",
+  "workDirectory": "test-idea-30s/work",
+  "artifactDirectory": "test-idea-30s/artifacts",
   "frameSamplingOptions": {
     "enabled": true,
-    "outputDirectory": "assets/output_deliverables/test-idea-30s/frames",
+    "outputDirectory": "test-idea-30s/frames",
     "intervalSeconds": 4,
     "maxFrames": 8
   }
