@@ -16,6 +16,7 @@ import {
   ARC_ROLE_DIRECTIVES,
   buildDurationScript,
   CLIFFHANGER_ENDING_ARC_DIRECTIVE,
+  VOICEOVER_WORDS_PER_SECOND,
   type VideoArcRole
 } from "../core/duration-scripting.js";
 import { resolveSeedanceDna } from "../core/seedance-dna.js";
@@ -494,15 +495,18 @@ export class SeedancePromptCompiler {
     ].filter((anchor): anchor is string => Boolean(anchor));
     return [
       `Boundary choreography: stage this ${role} clip with a readable first frame, clear middle action, and stable final frame.`,
+      // A mid-video clip must ENTER ALREADY IN MOTION, continuing the previous clip's momentum —
+      // opening each clip on a static pose before moving is the #1 cause of the stiff, slow,
+      // "posed AI ad" rhythm; real creator footage never resets between cuts (live-render feedback).
       hasPreviousState
-        ? "Entry: match the prior endpoint before introducing new motion; keep the same screen direction, lens distance, subject scale, lighting color, and product/KOL state."
-        : "Entry: open on a stable readable first frame before the camera or subject starts moving.",
+        ? "Entry: enter ALREADY MID-MOTION, continuing the previous clip's action, camera momentum, screen direction, lens distance, subject scale, lighting color, and product/KOL state exactly — do NOT pause on a static opening pose or restart the action."
+        : "Entry: open mid-action on the strongest readable instant — the subject already moving or reacting, never settling into position first.",
       "Middle: add one concrete visible state change tied to the shot intent, not a repeated pose, idle product hold, or style-only flourish.",
       hasNextState
-        ? "Exit: finish the action early enough to hold the final 0.5s as a clean next-shot handle with subject and product still visible."
+        ? "Exit: keep the action's energy alive into the final 0.5s — a clean next-shot handle with subject and product visible, but still breathing with natural micro-movement, never a frozen pose."
         : this.isCliffhangerShot(shot)
           ? "Exit: hold the final 0.5s on the unresolved cliffhanger frame — technically clean (no whip, blur, blink, or crop) while the story stays deliberately unresolved."
-          : "Exit: hold the final 0.5s as a clean review/delivery handle with no unresolved whip, blur, blink, or cropped product.",
+          : "Exit: settle the final 0.5s as a clean delivery handle with natural micro-movement (breathing, small gesture), no frozen mannequin pose, no unresolved whip, blur, blink, or cropped product.",
       primaryAnchors.length > 0
         ? `Anchor lock during entry and exit: preserve ${primaryAnchors.join(", ")} before camera motion, style, source-video rhythm, or audio energy.`
         : undefined,
@@ -639,7 +643,7 @@ export class SeedancePromptCompiler {
 
   private voiceoverWordBudget(durationSeconds: number): number {
     const seconds = Number.isFinite(durationSeconds) ? Math.max(1, durationSeconds) : 4;
-    return Math.max(3, Math.floor(seconds * 2.4));
+    return Math.max(3, Math.floor(seconds * VOICEOVER_WORDS_PER_SECOND));
   }
 
   private buildInspectionExpectations(shot: ShotContract, bindingPlan: PromptBindingPlan): readonly string[] {

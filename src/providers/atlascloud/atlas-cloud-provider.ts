@@ -262,10 +262,11 @@ export class AtlasCloudProvider implements ModelProvider {
       });
     }
     const startedAt = now();
+    const effectiveModelId = this.effectiveImageModelId(request);
     const payload = this.toAtlasImagePayload(request);
     const submitted = await this.trackProviderCall(
       "image.submit",
-      request.modelId,
+      effectiveModelId,
       request.metadata?.graphNodeId,
       startedAt,
       async (recordRetry) => {
@@ -275,7 +276,7 @@ export class AtlasCloudProvider implements ModelProvider {
           signal,
           recordRetry
         );
-        return this.requireKnownPredictionId(mapPrediction(response, request.modelId, startedAt), "image generation");
+        return this.requireKnownPredictionId(mapPrediction(response, effectiveModelId, startedAt), "image generation");
       },
       (prediction) => this.predictionLedgerMetadata(prediction)
     );
@@ -291,7 +292,7 @@ export class AtlasCloudProvider implements ModelProvider {
       submitted.predictionId,
       signal,
       {
-        modelId: request.modelId,
+        modelId: effectiveModelId,
         ...(request.metadata ? { metadata: request.metadata } : {})
       },
       "image.wait_for_prediction"
@@ -505,20 +506,48 @@ export class AtlasCloudProvider implements ModelProvider {
     return undefined;
   }
 
+  /**
+   * Pick the effective image model for a request: reference-carrying requests (keyframes conditioned
+   * on cast portraits / product images) route to the reference-capable slug when configured
+   * (e.g. google/nano-banana-2/reference-to-image), because text-to-image slugs do not honor
+   * reference_images. Plain requests keep the primary image model.
+   */
+  private effectiveImageModelId(request: ImageGenerationRequest): string {
+    const referenceModel = this.settings.models.imageReferenceModel?.trim();
+    if (referenceModel && request.references.length > 0) {
+      return referenceModel;
+    }
+    return request.modelId;
+  }
+
+  /** Diffusion-style knobs (negative_prompt/guidance) only apply to models that support them. */
+  private imageModelSupportsDiffusionControls(modelId: string): boolean {
+    return !/gpt-image|nano-banana|gemini/i.test(modelId);
+  }
+
   private toAtlasImagePayload(request: ImageGenerationRequest): Record<string, unknown> {
+    const modelId = this.effectiveImageModelId(request);
     const references = request.references.map((reference) => this.toAtlasReference(reference));
     const referenceImages = references
       .filter((reference) => reference.type === "image" || reference.role === "identity" || reference.role === "product")
       .map((reference) => reference.url)
       .filter((url): url is string => Boolean(url));
+    const supportsDiffusionControls = this.imageModelSupportsDiffusionControls(modelId);
+    // Instruction-native models (gpt-image, nano-banana/gemini) take avoid-lists as prompt text, not
+    // a negative_prompt field — fold the negatives in so the constraints still apply.
+    const prompt = !supportsDiffusionControls && request.negativePrompt
+      ? `${request.prompt} Strictly avoid: ${request.negativePrompt}.`
+      : request.prompt;
     return {
-      model: request.modelId,
-      prompt: request.prompt,
-      ...(request.negativePrompt ? { negative_prompt: request.negativePrompt } : {}),
+      model: modelId,
+      prompt,
+      ...(supportsDiffusionControls && request.negativePrompt ? { negative_prompt: request.negativePrompt } : {}),
       // "adaptive" is a video-side concept; omit ratio and let the image model decide.
       ...(request.settings.ratio !== "adaptive" ? { ratio: request.settings.ratio } : {}),
       ...(request.settings.seed !== undefined ? { seed: request.settings.seed } : {}),
-      ...(request.settings.guidanceScale !== undefined ? { guidance_scale: request.settings.guidanceScale } : {}),
+      ...(supportsDiffusionControls && request.settings.guidanceScale !== undefined
+        ? { guidance_scale: request.settings.guidanceScale }
+        : {}),
       ...(referenceImages.length > 0 ? { reference_images: referenceImages.slice(0, 9) } : {}),
       metadata: request.metadata
     };

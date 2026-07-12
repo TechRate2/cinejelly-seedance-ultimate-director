@@ -57,8 +57,15 @@ export interface ProviderModelSettings {
   readonly seedanceMiniModel?: string;
   readonly seedanceStandardModel: string;
   readonly seedanceFastModel: string;
-  /** Optional still-image model (e.g. Seedream) for keyframe-first generation. */
+  /** Optional still-image model (e.g. nano-banana-pro) for keyframe-first generation. */
   readonly imageModel?: string;
+  /**
+   * Optional reference-capable image model (e.g. google/nano-banana-2/reference-to-image) used
+   * whenever an image request carries identity/product reference images, so keyframes conditioned
+   * on cast-portrait anchors run through a model that actually honors references. Falls back to
+   * imageModel when unset.
+   */
+  readonly imageReferenceModel?: string;
   /** Optional speech-to-text model for subtitle generation from user audio. */
   readonly speechModel?: string;
 }

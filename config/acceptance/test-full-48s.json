@@ -1,0 +1,31 @@
+{
+  "userInput": "Video UGC 48 giay phong cach KOL TikTok quay dien thoai cam tay, HAI co gai chau A tre trung dau 20 tuoi la Linh va Mai (hai nguoi KHAC NHAU, khong nham lan khuon mat), guong mat xinh tu nhien, than thai than thien nang dong. Mo dau (hook): Linh dang ngoi an uong thi lo tay lam do ly nuoc va dinh dau ra ban, nhan mat boi roi 'chet roi'. Mai buoc toi cuoi, rut goi giay an Topgia dua cho Linh. Linh lau vet do, bat ngo vui vi to giay dai mem khong rach khong vun. Can canh chung minh to giay Topgia dai va mem. Ket: ca Linh va Mai cuoi tuoi, Mai gio ngon cai khuyen dung Topgia. Cung bac ro rang: su co -> Mai cuu nguy bang Topgia -> chung minh giay dai mem -> chot ca hai khuyen dung. Giu chat photoreal, anh sang tu nhien trong nha, quay dien thoai cam tay hoi rung, giong nu tieng Viet than thien. Can canh to giay an va goi Topgia o nhip chung minh. Khong hien chu tren video. Linh la nguoi lam do, Mai la nguoi dua giay va khuyen dung; giu khuon mat moi nguoi nhat quan xuyen suot.",
+  "settings": {
+    "durationTargetSeconds": 48,
+    "ratio": "9:16",
+    "resolution": "720p",
+    "qualityMode": "economy",
+    "audioMode": "native",
+    "tier": "fast",
+    "maxCostUsd": 8
+  },
+  "metadata": {
+    "acceptanceBatch": "test",
+    "acceptanceCase": "idea_only_topgia_two_char_48s",
+    "niche": "household_goods",
+    "creativeMode": "ugc_review",
+    "storyboardApproval": "operator_approved",
+    "storyboardReviewer": "operator-test",
+    "storyboardReviewedAt": "2026-07-10T02:00:00.000Z",
+    "storyboardApprovalNotes": "Operator-approved for full-function end-to-end pipeline test render (2 characters)."
+  },
+  "outputPath": "test-full-48s/final.mp4",
+  "workDirectory": "test-full-48s/work",
+  "artifactDirectory": "test-full-48s/artifacts",
+  "frameSamplingOptions": {
+    "enabled": true,
+    "outputDirectory": "test-full-48s/frames",
+    "intervalSeconds": 4,
+    "maxFrames": 12
+  }
+}

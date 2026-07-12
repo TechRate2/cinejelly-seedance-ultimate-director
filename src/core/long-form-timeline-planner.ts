@@ -3,6 +3,7 @@
  * It translates continuity, agentic-video timing, and batch-output ideas into CineJelly-owned evidence.
  */
 
+import { VOICEOVER_WORDS_PER_SECOND } from "./duration-scripting.js";
 import type { GeneratedAudioIntent } from "../types/audio.js";
 import type { CaptionCue } from "../types/caption.js";
 import type { LongFormContinuityPlan, LongFormContinuitySequence } from "../types/long-form-continuity.js";
@@ -716,7 +717,7 @@ export class LongFormTimelinePlanner {
 
   private voiceoverWordBudget(durationSeconds: number): number {
     const seconds = Number.isFinite(durationSeconds) ? Math.max(1, durationSeconds) : 4;
-    return Math.max(3, Math.floor(seconds * 2.4));
+    return Math.max(3, Math.floor(seconds * VOICEOVER_WORDS_PER_SECOND));
   }
 }
 

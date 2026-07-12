@@ -175,7 +175,7 @@ export function buildOperatorTopupPage(): string {
       <strong>🤖 Model AI</strong>
       <div class="muted">Để trống = dùng mặc định trong .env. Chỉ đổi khi bạn biết model mới.</div>
       <div class="row"><input id="model-video" placeholder="Model video (Seedance)"></div>
-      <div class="row"><input id="model-image" placeholder="Model ảnh (Seedream)"></div>
+      <div class="row"><input id="model-image" placeholder="Model ảnh (text-to-image)"><input id="model-image-reference" placeholder="Model ảnh tham chiếu (reference-to-image)"></div>
       <div class="row"><input id="model-llm" placeholder="Model ngôn ngữ (LLM)"><input id="model-speech" placeholder="Model giọng nói"></div>
     </div>
     <div class="card">
@@ -424,6 +424,7 @@ export function buildOperatorTopupPage(): string {
       document.getElementById("set-bank-info").value = currentSettings.topupBankInfo || "";
       document.getElementById("model-video").value = (currentSettings.models && currentSettings.models.videoModel) || "";
       document.getElementById("model-image").value = (currentSettings.models && currentSettings.models.imageModel) || "";
+      document.getElementById("model-image-reference").value = (currentSettings.models && currentSettings.models.imageReferenceModel) || "";
       document.getElementById("model-llm").value = (currentSettings.models && currentSettings.models.llmModel) || "";
       document.getElementById("model-speech").value = (currentSettings.models && currentSettings.models.speechModel) || "";
       document.getElementById("studio-announcement").value = (currentSettings.studio && currentSettings.studio.announcement) || "";
@@ -584,6 +585,7 @@ export function buildOperatorTopupPage(): string {
         models: {
           videoModel: document.getElementById("model-video").value.trim(),
           imageModel: document.getElementById("model-image").value.trim(),
+          imageReferenceModel: document.getElementById("model-image-reference").value.trim(),
           llmModel: document.getElementById("model-llm").value.trim(),
           speechModel: document.getElementById("model-speech").value.trim()
         },

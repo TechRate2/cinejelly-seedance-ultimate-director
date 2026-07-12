@@ -228,7 +228,7 @@ export class ShotPlanner {
         // so it is spoken exactly once and never re-delivered across the beat's sub-clips.
         ...(beat.spokenLine && chunk.index === 0 ? { spokenLine: beat.spokenLine } : {}),
         timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none", chunk.index, chunks.length, settings.ratio),
-        transitionIntent: this.transitionIntentForChunk(beat, storyRole, chunk.index, chunks.length),
+        transitionIntent: this.transitionIntentForChunk(beat, storyRole, chunk.index, chunks.length, this.creativeModeFromMetadata(metadata)),
         references: beat.references,
         continuity: beat.continuity,
         risks: beat.risks,
@@ -522,11 +522,23 @@ export class ShotPlanner {
     return `${action}; continue the beat without changing identity, product, or environment anchors`;
   }
 
+  /** Creator-style formats cut hard between clips; soft dissolves read as slow/produced/fake. */
+  private creativeModeFromMetadata(metadata: ProviderMetadata | undefined): string | undefined {
+    const value =
+      metadata?.shortViralCreativeMode ?? metadata?.creativeMode ?? metadata?.shortDirectorCreativeMode;
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  }
+
+  private isNativeCutCreativeMode(creativeMode: string | undefined): boolean {
+    return creativeMode === "ugc_review" || creativeMode === "testimonial" || creativeMode === "demo";
+  }
+
   private transitionIntentForChunk(
     beat: BeatPlan,
     storyRole: StoryArcRole,
     chunkIndex: number,
-    totalChunks: number
+    totalChunks: number,
+    creativeMode?: string
   ): string {
     const motionIntent = this.transitionMotionIntent(beat);
     const roleIntent = storyRole === "hook"
@@ -535,15 +547,22 @@ export class ShotPlanner {
         ? "land on a resolved product/result frame with no visual reset"
         : "preserve viewer information flow across the edit boundary";
     if (totalChunks === 1) {
+      // UGC/creator formats: request a native hard cut so assembly picks a near-instant boundary
+      // (TikTok jump-cut rhythm) instead of a soft dissolve that reads as slow and produced.
+      const editStyle = this.isNativeCutCreativeMode(creativeMode)
+        ? "Boundary edit: quick native hard cut between clips (TikTok jump-cut rhythm), no soft crossfade"
+        : "Preserve clean start and end handles for seamless match cut, xfade, and last-frame chaining";
       return [
         motionIntent,
-        `Preserve clean start and end handles for seamless match cut, xfade, and last-frame chaining; ${roleIntent}.`
+        `${editStyle}; ${roleIntent}.`
       ].filter(Boolean).join(" ");
     }
     if (chunkIndex === 0) {
       return [
         motionIntent,
-        "End with a stable visible anchor that can drive the next chunk without a jump cut."
+        // Phrased without the words "jump cut" so the transition engine's hard-cut intent regex can
+        // never mistake this intra-beat continuity request for an editorial cut instruction.
+        "End with a stable visible anchor so the next chunk continues seamlessly with no visual reset."
       ].filter(Boolean).join(" ");
     }
     if (chunkIndex === totalChunks - 1) {

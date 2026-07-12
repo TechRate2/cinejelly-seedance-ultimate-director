@@ -314,6 +314,103 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// Quality-batch behaviors (image models, multi-char split, pacing, hard cuts)
+// ------------------------------------------------------------------
+{
+  const { splitCharacterIdentities } = await import(`${base}/core/keyframe-first-planner.js`);
+  // Multi-character split: "Linh, Mai" = 2 people; descriptions stay ONE person
+  check("split: 'Linh, Mai' -> 2 people", splitCharacterIdentities("Linh, Mai").length === 2, JSON.stringify(splitCharacterIdentities("Linh, Mai")));
+  check("split: 'Linh và Mai' -> 2 people", splitCharacterIdentities("Linh và Mai").length === 2, "");
+  check("split: 'Linh, tired' stays 1 (appositive guard)", splitCharacterIdentities("Linh, tired").length === 1, JSON.stringify(splitCharacterIdentities("Linh, tired")));
+  check("split: 'An, the founder' stays 1 (appositive guard)", splitCharacterIdentities("An, the founder").length === 1, "");
+  check("split: 'woman with glasses' stays 1", splitCharacterIdentities("woman with glasses").length === 1, "");
+  check("split: 'Linh and Linh' dedups to 1", splitCharacterIdentities("Linh and Linh").length === 1, "");
+
+  // One beat naming two people -> 2 anchors, and the shot gets BOTH identity refs
+  const { bindCharacterAnchorsToShots } = await import(`${base}/core/keyframe-first-planner.js`);
+  const duoShot = (id, identity, refs) => ({ shotId: id, sceneId: "s", beatId: "b" + id, durationSeconds: 6, intent: "x",
+    subject: "two friends", action: "a", camera: "m", lighting: "l", references: refs || [], continuity: { identity }, risks: [], metadata: {} });
+  const duoShots = [duoShot("d1", "Linh, Mai"), duoShot("d2", "Linh, Mai")];
+  const duoAnchors = planCharacterAnchors(duoShots);
+  check("anchors: one beat 'Linh, Mai' x2 shots -> 2 per-person anchors", duoAnchors.length === 2 && duoAnchors.every((a) => a.shotIds.length === 2),
+    JSON.stringify(duoAnchors.map((a) => a.characterKey)));
+  const duoBound = bindCharacterAnchorsToShots({ shots: duoShots, anchors: [
+    { characterKey: "linh", name: "Linh", uri: "https://x/linh.png" }, { characterKey: "mai", name: "Mai", uri: "https://x/mai.png" }] });
+  const duoRefs = duoBound.shots[0].references.filter((r) => r.role === "identity").map((r) => r.label).sort();
+  check("bind: multi-char shot carries BOTH portraits", JSON.stringify(duoRefs) === JSON.stringify(["Linh", "Mai"]), JSON.stringify(duoRefs));
+  // Mixed shot: uploaded KOL (Anna) + invented co-char (Mai) -> Mai still anchored
+  const annaRef = { role: "identity", label: "Anna", priority: "primary", selection: { characterId: "anna" },
+    providerReference: { kind: "image", uri: "https://cdn.x/anna.png", role: "identity", label: "Anna" } };
+  const mixedShots = [duoShot("m1", "Anna, Mai", [annaRef]), duoShot("m2", "Anna, Mai", [annaRef])];
+  const mixedAnchors = planCharacterAnchors(mixedShots);
+  check("anchors: mixed real+invented -> only invented co-char anchored", mixedAnchors.length === 1 && mixedAnchors[0].characterKey === "mai",
+    JSON.stringify(mixedAnchors.map((a) => a.characterKey)));
+  const mixedBound = bindCharacterAnchorsToShots({ shots: mixedShots, anchors: [{ characterKey: "mai", name: "Mai", uri: "https://x/mai.png" }] });
+  const mixedRefs = mixedBound.shots[0].references.filter((r) => r.role === "identity").map((r) => r.label).sort();
+  check("bind: mixed shot keeps Anna's real ref AND gains Mai's portrait", JSON.stringify(mixedRefs) === JSON.stringify(["Anna", "Mai"]), JSON.stringify(mixedRefs));
+}
+
+{
+  // Transition hard-cut branch: UGC intent -> near-instant cut; negated/continuity intents stay soft
+  const { TransitionEngine } = await import(`${base}/core/transition-engine.js`);
+  const engine = new TransitionEngine();
+  const select = (intent) => engine.selectBoundaryTransition("auto", intent);
+  const ugc = select("Boundary edit: quick native hard cut between clips (TikTok jump-cut rhythm), no soft crossfade; protect the cold-open energy.");
+  check("transition: UGC intent -> intent_native_hard_cut", ugc.reasonCodes.includes("intent_native_hard_cut"), JSON.stringify(ugc.reasonCodes));
+  const intra = select("End with a stable visible anchor so the next chunk continues seamlessly with no visual reset.");
+  check("transition: intra-beat continuity NOT hard cut", !intra.reasonCodes.includes("intent_native_hard_cut"), JSON.stringify(intra.reasonCodes));
+  const negated = select("keep continuity without a jump cut across the boundary");
+  check("transition: negated 'without a jump cut' NOT hard cut", !negated.reasonCodes.includes("intent_native_hard_cut"), JSON.stringify(negated.reasonCodes));
+  const soft = select("Preserve clean start and end handles for seamless match cut, xfade, and last-frame chaining.");
+  check("transition: non-UGC seamless intent stays dissolve", soft.kind === "dissolve", soft.kind);
+}
+
+{
+  // Atlas image payload: reference-model routing + instruction-native control gating
+  const { AtlasCloudProvider } = await import(`${base}/providers/atlascloud/atlas-cloud-provider.js`);
+  const provider = new AtlasCloudProvider({
+    apiKey: "test-key", apiBaseUrl: "https://api.atlascloud.ai/v1", assetBaseUrl: "https://api.atlascloud.ai/api/v1",
+    models: { llmModel: "m", seedanceStandardModel: "v", seedanceFastModel: "vf",
+      imageModel: "google/nano-banana-pro/text-to-image", imageReferenceModel: "google/nano-banana-2/reference-to-image" },
+    requestTimeoutMs: 1000, maxJsonResponseBytes: 100000, pollingIntervalMs: 100, pollingTimeoutMs: 1000
+  });
+  const identityRef = { kind: "image", uri: "https://cdn.x/linh.png", role: "identity", label: "Linh" };
+  const baseReq = { provider: "atlascloud", modelId: "google/nano-banana-pro/text-to-image", prompt: "p",
+    negativePrompt: "no oversaturated colors", references: [], settings: { ratio: "9:16", guidanceScale: 7 } };
+  const plain = provider.toAtlasImagePayload(baseReq);
+  check("payload: no refs -> primary image model", plain.model === "google/nano-banana-pro/text-to-image", String(plain.model));
+  check("payload: nano-banana folds negatives into prompt (no negative_prompt field)", plain.negative_prompt === undefined && String(plain.prompt).includes("Strictly avoid"), "");
+  check("payload: nano-banana drops guidance_scale", plain.guidance_scale === undefined, "");
+  const withRefs = provider.toAtlasImagePayload({ ...baseReq, references: [identityRef] });
+  check("payload: ref-carrying request -> reference model", withRefs.model === "google/nano-banana-2/reference-to-image", String(withRefs.model));
+  check("payload: reference_images populated", Array.isArray(withRefs.reference_images) && withRefs.reference_images.length === 1, "");
+  const many = provider.toAtlasImagePayload({ ...baseReq, references: Array.from({ length: 12 }, (_, i) => ({ ...identityRef, uri: `https://cdn.x/${i}.png` })) });
+  check("payload: reference_images capped at 9", many.reference_images.length === 9, String(many.reference_images.length));
+  const seedream = provider.toAtlasImagePayload({ ...baseReq, modelId: "bytedance/seedream-v4.5" });
+  check("payload: seedream keeps negative_prompt + guidance (diffusion)", seedream.negative_prompt === "no oversaturated colors" && seedream.guidance_scale === 7, "");
+}
+
+{
+  // Prompt rewrites: anti-saturation keyframe + mid-motion entry survive
+  const { planKeyframeRequests } = await import(`${base}/core/keyframe-first-planner.js`);
+  const kfShot = { shotId: "k1", sceneId: "s", beatId: "b", durationSeconds: 6, intent: "x", subject: "Linh",
+    action: "wipes the spill", camera: "handheld", lighting: "soft", references: [], continuity: {}, risks: [], metadata: {} };
+  const kf = planKeyframeRequests({ shots: [kfShot], provider: "atlascloud", imageModelId: "m",
+    settings: { tier: "fast", resolution: "720p", qualityMode: "economy", ratio: "9:16", durationTargetSeconds: 6, audioMode: "native", bitrateMode: "standard", watermark: false, returnLastFrame: true } })[0];
+  check("keyframe prompt: anti-saturation color directive present", kf.request.prompt.includes("unedited smartphone photo"), "");
+  check("keyframe negative: blocks oversaturation/HDR", kf.request.negativePrompt.includes("no oversaturated colors"), "");
+
+  const settings = settingsFor(24, "economy");
+  const meta = { shortViralCreativeMode: "ugc_review" };
+  const plan = await new StoryArchitect(fakeLlm({}), "f").plan({ projectId: "d", userInput: "x", settings, references: [], metadata: meta });
+  const shots = new ShotPlanner().plan({ projectId: "d", scenes: plan.scenes, settings, metadata: meta });
+  const midPrompt = compiler.compile({ shot: shots[1], settings, modelId: "bytedance/seedance-2.0/reference-to-video", provider: "atlascloud" }).prompt;
+  check("prompt: mid-video clip enters ALREADY MID-MOTION", midPrompt.includes("enter ALREADY MID-MOTION"), "");
+  check("prompt: UGC DNA carries real-creator rhythm", midPrompt.includes("TikTok-native cut-to-cut energy"), "");
+  check("prompt: word budget uses 2.8 wps (6s -> 16 words)", midPrompt.includes(`about ${Math.max(3, Math.floor(shots[1].durationSeconds * 2.8))} spoken words`), "");
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;

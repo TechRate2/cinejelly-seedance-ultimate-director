@@ -177,7 +177,7 @@ const productionContractsReady = timeline.segments.every((segment) =>
   segment.productionContract &&
   segment.productionContract.timingGoal.includes(`${segment.startSecond}-${segment.endSecond}s`) &&
   segment.productionContract.requiredVisualChange.length > 20 &&
-  segment.productionContract.voiceoverLine.split(/\s+/).filter(Boolean).length <= Math.max(3, Math.floor(segment.durationSeconds * 2.4)) &&
+  segment.productionContract.voiceoverLine.split(/\s+/).filter(Boolean).length <= Math.max(3, Math.floor(segment.durationSeconds * 2.8)) &&
   segment.productionContract.nativeAudioPrompt.includes("Do not copy protected songs") &&
   segment.productionContract.endpointJob.includes("stable") &&
   segment.productionContract.providerSettingSummary.includes("bitrate=high") &&

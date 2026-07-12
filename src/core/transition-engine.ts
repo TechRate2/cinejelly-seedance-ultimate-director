@@ -203,6 +203,21 @@ export class TransitionEngine {
       };
     }
     const normalizedIntent = intent?.toLowerCase() ?? "";
+    // Native hard cut for UGC/creator rhythm: an explicit editorial cut instruction beats every soft
+    // transition — a visible dissolve between handheld clips reads as slow, produced, and fake
+    // (live-render feedback). The 0.08s floor in boundaryDurationSeconds yields ~2 frames:
+    // perceptually a straight cut while still masking a 1-frame endpoint mismatch.
+    // Negation guard: "without a jump cut" / "avoid hard cuts" must NOT trigger this branch — the
+    // intra-beat continuity intent says exactly that and needs a soft boundary (diff-review fix).
+    const cutPhrase = /(?:hard|jump|native|direct|quick|snap) cut/;
+    const negatedCutPhrase = /(?:no|not|without|avoid|never)(?:\s+\w+){0,2}\s+(?:hard|jump|native|direct|quick|snap) cuts?/;
+    if (cutPhrase.test(normalizedIntent) && !negatedCutPhrase.test(normalizedIntent)) {
+      return {
+        kind: "fade",
+        durationScale: 0.12,
+        reasonCodes: ["auto_transition", "intent_native_hard_cut"]
+      };
+    }
     if (/whip|blur|rush|fast pan|snap pan|speed ramp|motion smear|camera whip/.test(normalizedIntent)) {
       return {
         kind: "hblur",

@@ -15,6 +15,14 @@
  * guidance; original condensed direction, no verbatim upstream text.
  */
 
+/**
+ * Shared narration pace for every voiceover word budget (short compiler AND long-form timeline).
+ * ~2.8 words/second matches natural conversational delivery; the old 2.4 forced sparse, slow
+ * narration that read as stilted next to real creator speech (live-render feedback). One constant so
+ * a beat's audio-script budget and its compiled video-prompt budget can never disagree.
+ */
+export const VOICEOVER_WORDS_PER_SECOND = 2.8;
+
 export type DurationBeatRole = "hook" | "development" | "proof_peak" | "settle";
 
 export interface DurationBeat {

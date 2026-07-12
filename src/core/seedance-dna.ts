@@ -40,7 +40,7 @@ export const SEEDANCE_ANATOMY_DIRECTIVE =
  */
 export const CREATIVE_MODE_DNA: Record<ShortViralCreativeMode, string> = {
   ugc_review:
-    "Handheld phone framing with slight natural sway and auto-exposure shifts, creator eye-line into lens, real skin/hand texture, micro-pauses before product contact, imperfect casual timing; avoid studio polish, tripod-locked stillness, and plastic skin. First 1.5s hook: creator mid-reaction or mid-action already involving the product, never a slow settle-in.",
+    "Handheld phone framing with slight natural sway and auto-exposure shifts, creator eye-line into lens, real skin/hand texture, micro-pauses before product contact, imperfect casual timing; avoid studio polish, tripod-locked stillness, and plastic skin. Real-creator rhythm: quick spontaneous reactions, speech overlapping action, small restless movements between lines, TikTok-native cut-to-cut energy — never slow-motion pacing, never a posed pause, never theatrical acting; it must feel like one real person filmed this in one casual take. First 1.5s hook: creator mid-reaction or mid-action already involving the product, never a slow settle-in.",
   product_ad:
     "Premium but grounded: motivated key light, shallow depth of field, stable recognizable product geometry, one clean hero move (rotate/reveal/contact) and a settled end frame; keep packaging, label, and scale locked. First 1.5s hook: the product already in motion or being reached for, promise of the payoff visible.",
   demo:
