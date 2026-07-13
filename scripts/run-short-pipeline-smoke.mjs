@@ -539,15 +539,15 @@ const compiledShortStoryboardPrompts = shortStoryboardShots.map((shot) =>
 const shortStoryboardPromptContractDiagnostics = compiledShortStoryboardPrompts.map((prompt) => ({
   shotId: prompt.shotId,
   hasSeedanceMode: prompt.prompt.includes("Seedance mode contract:"),
-  hasPacingContract: prompt.prompt.includes("Pacing contract:"),
+  // Compacted prompt anatomy: Pacing/Motion-continuity/Inter-shot-bridge/Boundary-choreography
+  // merged into single Runtime + Boundary contracts (live-render forensics).
+  hasRuntimeContract: prompt.prompt.includes("Runtime contract:"),
   hasTimeline: prompt.prompt.includes("Timeline:"),
-  hasMotionContinuity: prompt.prompt.includes("Motion continuity:"),
-  hasInterShotBridge: prompt.prompt.includes("Inter-shot bridge:"),
-  hasBoundaryChoreography: prompt.prompt.includes("Boundary choreography:"),
+  hasBoundaryContract: prompt.prompt.includes("Boundary: this clip must cut together with adjacent clips as one continuous film."),
   hasFinalFrameContract: prompt.prompt.includes("Final-frame contract:"),
   hasAudioProductionPlan: prompt.prompt.includes("Audio production plan:"),
-  hasNativeProviderAudioGuidance: prompt.prompt.includes("native provider audio is enabled"),
-  hasShotNarrationBudget: prompt.prompt.includes("keep narration under about"),
+  hasOriginalAudioGuidance: prompt.prompt.includes("Generate only original ambience/music/voice on this shot's timing"),
+  hasShotNarrationBudget: prompt.prompt.includes("Keep narration under about"),
   hasBeatSpokenWordBudget: prompt.prompt.includes("words for this beat"),
   generateAudio: prompt.videoRequest.settings.generateAudio
 }));
@@ -695,9 +695,9 @@ const checks = [
     authorizedSourceVideoPrompt.prompt.includes("@image1 -> identity/image") &&
     authorizedSourceVideoPrompt.prompt.includes("@image2 -> product/image") &&
     authorizedSourceVideoPrompt.prompt.includes("@video1 -> source_video_structure/video") &&
-    authorizedSourceVideoPrompt.prompt.includes("Primary anchors: preserve @image1 -> identity/image=Remake KOL; @image2 -> product/image=Remake serum pack before style, motion, camera, audio, or source-video structure.") &&
-    authorizedSourceVideoPrompt.prompt.includes("Supporting references: @video1 -> source_video_structure/video=Approved trend source video guide rhythm, camera, style, and audio only after primary anchors are stable.") &&
-    authorizedSourceVideoPrompt.prompt.includes("use source/reference video only for rhythm") &&
+    authorizedSourceVideoPrompt.prompt.includes("Primary anchors: lock identity, product, and endpoint references before style, motion, camera, audio, or source-video structure.") &&
+    authorizedSourceVideoPrompt.prompt.includes("Supporting references (@video1) guide rhythm, camera, style, and audio only after primary anchors are stable.") &&
+    authorizedSourceVideoPrompt.prompt.includes("Use source/reference video only for rhythm") &&
     authorizedSourceVideoPrompt.negativePrompt.includes("no copied source-video face identity") &&
     authorizedSourceVideoPrompt.negativePrompt.includes("no copied source-video transcript") &&
     authorizedSourceVideoPrompt.negativePrompt.includes("no copied source-video music or melody") &&
@@ -921,12 +921,13 @@ const checks = [
     : fail("explicit_storyboard_mode_overrides_single_recommendation", "Expected explicit storyboard mode to preserve multi-scene planning."),
   shortStoryboardShots.length === 3 &&
     shortStoryboardShots.every((shot) => (shot.timeline?.length ?? 0) === 3) &&
-    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Seedance mode contract:") && prompt.prompt.includes("Pacing contract:") && prompt.prompt.includes("Timeline:")) &&
+    compiledShortStoryboardPrompts.every((prompt) => prompt.prompt.includes("Seedance mode contract:") && prompt.prompt.includes("Runtime contract:") && prompt.prompt.includes("Timeline:")) &&
   compiledShortStoryboardPrompts.every((prompt) =>
-    prompt.prompt.includes("Motion continuity:") &&
-    prompt.prompt.includes("Inter-shot bridge:") &&
-    prompt.prompt.includes("Boundary choreography:") &&
-    prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints") &&
+    // Compacted prompt anatomy (live-render forensics): the old Pacing/Motion-continuity/Inter-shot
+    // bridge/Boundary-choreography quartet merged into single Runtime + Boundary contracts.
+    prompt.prompt.includes("Runtime contract:") &&
+    prompt.prompt.includes("Boundary: this clip must cut together with adjacent clips as one continuous film.") &&
+    prompt.prompt.includes("do not rely on postproduction crossfade to hide mismatched endpoints") &&
     prompt.prompt.includes("Final-frame contract:")
   ) &&
     compiledShortStoryboardPrompts.every((prompt) => prompt.negativePrompt.includes("no visible captions") && prompt.negativePrompt.includes("no frozen static product pose")) &&
@@ -937,8 +938,8 @@ const checks = [
     compiledShortStoryboardPrompts.every((prompt) => prompt.videoRequest.settings.generateAudio === true) &&
     compiledShortStoryboardPrompts.every((prompt) =>
       prompt.prompt.includes("Audio production plan:") &&
-      prompt.prompt.includes("native provider audio is enabled") &&
-      prompt.prompt.includes("keep narration under about") &&
+      prompt.prompt.includes("Generate only original ambience/music/voice on this shot's timing") &&
+      prompt.prompt.includes("Keep narration under about") &&
       prompt.prompt.includes("words for this beat") &&
       !prompt.prompt.includes("Audio: Silent")
     )

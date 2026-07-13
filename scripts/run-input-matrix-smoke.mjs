@@ -408,6 +408,17 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   check("prompt: mid-video clip enters ALREADY MID-MOTION", midPrompt.includes("enter ALREADY MID-MOTION"), "");
   check("prompt: UGC DNA carries real-creator rhythm", midPrompt.includes("TikTok-native cut-to-cut energy"), "");
   check("prompt: word budget uses 2.8 wps (6s -> 16 words)", midPrompt.includes(`about ${Math.max(3, Math.floor(shots[1].durationSeconds * 2.8))} spoken words`), "");
+
+  // Prompt COMPACTION contract (live-render forensics): every functional signal exactly once, no
+  // duplication, no inverted labels, and a hard length budget so bloat regressions surface here.
+  const compiledAll = shots.map((s) => compiler.compile({ shot: s, settings, modelId: "bytedance/seedance-2.0/reference-to-video", provider: "atlascloud" }).prompt);
+  check("compaction: every prompt <= 8000 chars (was 9-11k in paid run 2)", compiledAll.every((p) => p.length <= 8000),
+    `max=${Math.max(...compiledAll.map((p) => p.length))}`);
+  check("compaction: no double periods", compiledAll.every((p) => !/[^.]\.\.(?!\.)/.test(p)), "");
+  check("compaction: no 'Atlas aliases' plumbing in prompt", compiledAll.every((p) => !p.includes("Atlas aliases")), "");
+  check("compaction: no inverted 'Start state: end on'", compiledAll.every((p) => !p.includes("Start state:") && !p.includes("End state: start from")), "");
+  check("compaction: home camera stated at most twice (Camera line + <=1 delta)", compiledAll.every((p, i) => p.split(shots[i].camera.trim()).length - 1 <= 2),
+    "");
 }
 
 // ------------------------------------------------------------------

@@ -187,9 +187,12 @@ export class ShotPlanner {
       shot.continuity.style ? `style=${shot.continuity.style}` : undefined
     ].filter((anchor): anchor is string => Boolean(anchor));
     const anchorLine = anchors.length > 0 ? anchors.join("; ") : `subject=${shot.subject}`;
+    // Neutral phrasing: no leading directional verb. The compiler adds the direction via its label
+    // ("Continue from the previous shot's end: ..." / "Hand off to the next shot's start: ..."), so
+    // the old "Start state: end on identity=Mai" inversion can no longer occur (live-render fix).
     return phase === "start"
-      ? `start from ${anchorLine}; continue the prior motion with matching camera direction, lighting, and product/KOL scale`
-      : `end on ${anchorLine}; hold a stable edit handle with product/KOL/result legible`;
+      ? `${anchorLine} — motion continuing with matching camera direction, lighting, and product/KOL scale`
+      : `${anchorLine} — a stable edit handle with product/KOL/result legible`;
   }
 
   private planBeat(
@@ -548,13 +551,15 @@ export class ShotPlanner {
         : "preserve viewer information flow across the edit boundary";
     if (totalChunks === 1) {
       // UGC/creator formats: request a native hard cut so assembly picks a near-instant boundary
-      // (TikTok jump-cut rhythm) instead of a soft dissolve that reads as slow and produced.
-      const editStyle = this.isNativeCutCreativeMode(creativeMode)
-        ? "Boundary edit: quick native hard cut between clips (TikTok jump-cut rhythm), no soft crossfade"
-        : "Preserve clean start and end handles for seamless match cut, xfade, and last-frame chaining";
+      // (TikTok jump-cut rhythm) instead of a soft dissolve that reads as slow and produced. The
+      // motion-bridge suggestion is OMITTED for hard-cut formats — telling the model to build a
+      // zoom/whip bridge AND hard-cut the boundary is contradictory (live-render forensics).
+      if (this.isNativeCutCreativeMode(creativeMode)) {
+        return `Boundary edit: quick native hard cut between clips (TikTok jump-cut rhythm), no soft crossfade; ${roleIntent}.`;
+      }
       return [
         motionIntent,
-        `${editStyle}; ${roleIntent}.`
+        `Preserve clean start and end handles for seamless match cut, xfade, and last-frame chaining; ${roleIntent}.`
       ].filter(Boolean).join(" ");
     }
     if (chunkIndex === 0) {

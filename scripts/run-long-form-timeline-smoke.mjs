@@ -203,11 +203,13 @@ const providerSettingPolicyReady = timeline.providerSettingPolicy.resolution ===
   timeline.providerSettingPolicy.returnLastFrame === true &&
   timeline.providerSettingPolicy.lastFrameChainingPreferred === true;
 const compiledPromptStoryArcReady = compiledLongPrompts.every((prompt) =>
-  prompt.prompt.includes("Pacing contract:") &&
+  // Compacted prompt anatomy (live-render forensics): Pacing/Boundary-choreography merged into the
+  // single Runtime + Boundary contracts.
+  prompt.prompt.includes("Runtime contract:") &&
   prompt.prompt.includes("Story arc:") &&
   prompt.prompt.includes("Timeline:") &&
-    prompt.prompt.includes("Boundary choreography:") &&
-    prompt.prompt.includes("Do not rely on postproduction crossfade to hide inconsistent generated endpoints")
+    prompt.prompt.includes("Boundary: this clip must cut together with adjacent clips as one continuous film.") &&
+    prompt.prompt.includes("do not rely on postproduction crossfade to hide mismatched endpoints")
 );
 const compiledPromptProviderSettingsReady = compiledLongPrompts.every((prompt) =>
   prompt.videoRequest.settings.resolution === "720p" &&
