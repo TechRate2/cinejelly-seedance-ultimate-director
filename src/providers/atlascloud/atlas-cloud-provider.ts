@@ -10,7 +10,9 @@ import { defaultSeedanceProviderCapability } from "../../config/seedance-capabil
 import type {
   AudioGenerationCapability,
   AudioGenerationRequest,
+  AvatarVideoRequest,
   ImageGenerationRequest,
+  SpeechSynthesisRequest,
   SpeechTranscriptionRequest,
   SpeechTranscriptionResult,
   AudioGenerationResult,
@@ -296,6 +298,113 @@ export class AtlasCloudProvider implements ModelProvider {
         ...(request.metadata ? { metadata: request.metadata } : {})
       },
       "image.wait_for_prediction"
+    );
+  }
+
+  /**
+   * Audio-first TTS for TALKING shots (ElevenLabs-class via Atlas /model/generateAudio). Submits the
+   * verbatim line and polls to terminal, so the caller receives a ready audio URL to drive the avatar
+   * model. Ledger ops: tts.submit + tts.wait_for_prediction.
+   */
+  public async synthesizeSpeech(request: SpeechSynthesisRequest, signal?: AbortSignal): Promise<Prediction> {
+    if (!request.modelId?.trim()) {
+      throw new ProviderError({
+        code: "MODEL_UNAVAILABLE",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Speech synthesis needs a configured TTS model (ATLASCLOUD_TTS_MODEL)."
+      });
+    }
+    if (!request.text?.trim()) {
+      throw new ProviderError({
+        code: "INVALID_SCHEMA",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Speech synthesis text cannot be empty."
+      });
+    }
+    const startedAt = now();
+    const payload: Record<string, unknown> = {
+      model: request.modelId,
+      text: request.text,
+      ...(request.voice ? { voice: request.voice } : {}),
+      ...(request.languageCode ? { language_code: request.languageCode } : {}),
+      ...(request.stability !== undefined ? { stability: request.stability } : {}),
+      metadata: request.metadata
+    };
+    const submitted = await this.trackProviderCall(
+      "tts.submit",
+      request.modelId,
+      request.metadata?.graphNodeId,
+      startedAt,
+      async (recordRetry) => {
+        const response = await withRetry(
+          () => this.http.postJson<unknown>(this.url(this.settings.assetBaseUrl, "/model/generateAudio"), payload, signal),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+        return this.requireKnownPredictionId(mapPrediction(response, request.modelId, startedAt), "speech synthesis");
+      },
+      (prediction) => this.predictionLedgerMetadata(prediction)
+    );
+    if (submitted.status !== "running") {
+      return submitted;
+    }
+    return this.waitForPrediction(
+      submitted.predictionId,
+      signal,
+      {
+        modelId: request.modelId,
+        ...(request.metadata ? { metadata: request.metadata } : {})
+      },
+      "tts.wait_for_prediction"
+    );
+  }
+
+  /**
+   * Audio-driven avatar video for TALKING shots (OmniHuman-class via Atlas /model/generateVideo:
+   * image_url + audio_url -> lip-synced, emoting character clip whose length follows the audio).
+   * Submit-only, mirroring the other video modes — the render producer polls waitForPrediction.
+   */
+  public async generateAvatarVideo(request: AvatarVideoRequest, signal?: AbortSignal): Promise<Prediction> {
+    if (!request.modelId?.trim()) {
+      throw new ProviderError({
+        code: "MODEL_UNAVAILABLE",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Avatar generation needs a configured avatar model (ATLASCLOUD_AVATAR_MODEL)."
+      });
+    }
+    if (!/^https:\/\//.test(request.imageUrl) || !/^https:\/\//.test(request.audioUrl)) {
+      throw new ProviderError({
+        code: "INVALID_SCHEMA",
+        provider: ATLAS_PROVIDER_NAME,
+        message: "Avatar generation needs HTTPS imageUrl and audioUrl inputs."
+      });
+    }
+    const startedAt = now();
+    const payload: Record<string, unknown> = {
+      model: request.modelId,
+      image_url: request.imageUrl,
+      audio_url: request.audioUrl,
+      ...(request.prompt?.trim() ? { prompt: request.prompt.slice(0, 2_000) } : {}),
+      ...(request.outputResolution ? { output_resolution: request.outputResolution } : {}),
+      ...(request.seed !== undefined ? { seed: request.seed } : {}),
+      metadata: request.metadata
+    };
+    return this.trackProviderCall(
+      "avatar.submit",
+      request.modelId,
+      request.metadata?.graphNodeId,
+      startedAt,
+      async (recordRetry) => {
+        const response = await withRetry(
+          () => this.http.postJson<unknown>(this.url(this.settings.assetBaseUrl, "/model/generateVideo"), payload, signal),
+          DEFAULT_RETRY_POLICY,
+          signal,
+          recordRetry
+        );
+        return this.requireKnownPredictionId(mapPrediction(response, request.modelId, startedAt), "avatar generation");
+      },
+      (prediction) => this.predictionLedgerMetadata(prediction)
     );
   }
 

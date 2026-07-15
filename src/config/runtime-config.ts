@@ -119,6 +119,9 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
   const imageModel = optionalStringEnv("ATLASCLOUD_IMAGE_MODEL", env);
   const imageReferenceModel = optionalStringEnv("ATLASCLOUD_IMAGE_REFERENCE_MODEL", env);
   const speechModel = optionalStringEnv("ATLASCLOUD_SPEECH_MODEL", env);
+  const avatarModel = optionalStringEnv("ATLASCLOUD_AVATAR_MODEL", env);
+  const ttsModel = optionalStringEnv("ATLASCLOUD_TTS_MODEL", env);
+  const ttsVoice = optionalStringEnv("ATLASCLOUD_TTS_VOICE", env);
   return {
     apiKey: requireEnv("ATLASCLOUD_API_KEY", env),
     ...(llmApiKey ? { llmApiKey } : {}),
@@ -141,6 +144,9 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
       ...(imageModel ? { imageModel } : {}),
       ...(imageReferenceModel ? { imageReferenceModel } : {}),
       ...(speechModel ? { speechModel } : {}),
+      ...(avatarModel ? { avatarModel } : {}),
+      ...(ttsModel ? { ttsModel } : {}),
+      ...(ttsVoice ? { ttsVoice } : {}),
       seedanceStandardModel: requireEnv("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", env),
       seedanceFastModel: requireEnv("ATLASCLOUD_SEEDANCE_FAST_MODEL", env)
     },

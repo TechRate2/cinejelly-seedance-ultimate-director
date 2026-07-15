@@ -28,6 +28,34 @@ export class RenderProducer {
   }
 
   public async render(compiledPrompt: CompiledPrompt, signal?: AbortSignal): Promise<RenderProducerResult> {
+    // TALKING shot: route to the audio-driven avatar model (image + pre-generated TTS voiceover) so
+    // lip-sync/expression/gesture follow real speech. B-roll/action shots keep the general model.
+    if (compiledPrompt.avatarPlan && typeof this.videoProvider.generateAvatarVideo === "function") {
+      const plan = compiledPrompt.avatarPlan;
+      const initial = await this.videoProvider.generateAvatarVideo(
+        {
+          provider: "atlascloud",
+          modelId: plan.modelId,
+          imageUrl: plan.imageUrl,
+          audioUrl: plan.audioUrl,
+          ...(plan.prompt ? { prompt: plan.prompt } : {}),
+          ...(plan.outputResolution ? { outputResolution: plan.outputResolution } : {}),
+          ...(plan.seed !== undefined ? { seed: plan.seed } : {}),
+          ...(compiledPrompt.videoRequest.metadata ? { metadata: compiledPrompt.videoRequest.metadata } : {})
+        },
+        signal
+      );
+      const prediction = initial.status === "succeeded"
+        ? initial
+        : await this.videoProvider.waitForPrediction(initial.predictionId, signal, {
+            modelId: plan.modelId,
+            ...(compiledPrompt.videoRequest.metadata ? { metadata: compiledPrompt.videoRequest.metadata } : {})
+          });
+      return {
+        compiledPrompt,
+        prediction: this.normalizeCompletedPrediction(prediction, plan.modelId)
+      };
+    }
     this.validateCapability(compiledPrompt);
     const preparedPrompt = await this.prepareReferences(compiledPrompt, signal);
     const initialPrediction = await this.submit(preparedPrompt, signal);

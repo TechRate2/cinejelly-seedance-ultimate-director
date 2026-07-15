@@ -9,10 +9,12 @@ import type {
   AudioGenerationResult,
   AssetRegistration,
   AssetRegistrationRequest,
+  AvatarVideoRequest,
   ChatRequest,
   ChatResponse,
   ImageGenerationRequest,
   Prediction,
+  SpeechSynthesisRequest,
   SpeechTranscriptionRequest,
   SpeechTranscriptionResult,
   PredictionPollingContext,
@@ -42,6 +44,25 @@ export interface VideoProvider {
   getPrediction(predictionId: string, signal?: AbortSignal, context?: PredictionPollingContext): Promise<Prediction>;
   waitForPrediction(predictionId: string, signal?: AbortSignal, context?: PredictionPollingContext): Promise<Prediction>;
   capabilities(modelId?: string): readonly ProviderCapability[];
+  /**
+   * Optional audio-driven avatar generation for TALKING shots (submit-only; callers poll via
+   * waitForPrediction like the other video modes). Feature-check before use.
+   */
+  generateAvatarVideo?(request: AvatarVideoRequest, signal?: AbortSignal): Promise<Prediction>;
+  /**
+   * Optional text-to-speech that voices a talking shot's verbatim line BEFORE avatar generation
+   * (audio-first). Polls to terminal internally and resolves with the audio output URL.
+   */
+  synthesizeSpeech?(request: SpeechSynthesisRequest, signal?: AbortSignal): Promise<Prediction>;
+}
+
+/**
+ * Provider-neutral text-to-speech for voicing talking shots (audio-first avatar pipeline).
+ * Implementations poll to terminal and resolve with the audio output URL in the prediction.
+ */
+export interface SpeechSynthesisProvider {
+  readonly name: string;
+  synthesizeSpeech(request: SpeechSynthesisRequest, signal?: AbortSignal): Promise<Prediction>;
 }
 
 /**

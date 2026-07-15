@@ -198,6 +198,20 @@ export interface PromptCompilerInput {
   readonly maxProviderReferences?: number;
 }
 
+/**
+ * Audio-first avatar render plan for a TALKING shot. When present, the render producer routes the
+ * shot to the audio-driven avatar model (portrait/keyframe image + pre-generated TTS voiceover)
+ * instead of the general video model, so lip-sync, expression, and gesture follow the real speech.
+ */
+export interface CompiledPromptAvatarPlan {
+  readonly modelId: string;
+  readonly imageUrl: string;
+  readonly audioUrl: string;
+  readonly prompt?: string;
+  readonly outputResolution?: 720 | 1080;
+  readonly seed?: number;
+}
+
 export interface CompiledPrompt {
   readonly shotId: string;
   readonly prompt: string;
@@ -208,4 +222,5 @@ export interface CompiledPrompt {
   readonly inspectionExpectations: readonly string[];
   readonly repairHints: readonly string[];
   readonly videoRequest: VideoGenerationRequest;
+  readonly avatarPlan?: CompiledPromptAvatarPlan;
 }

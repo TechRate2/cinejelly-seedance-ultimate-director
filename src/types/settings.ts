@@ -68,6 +68,17 @@ export interface ProviderModelSettings {
   readonly imageReferenceModel?: string;
   /** Optional speech-to-text model for subtitle generation from user audio. */
   readonly speechModel?: string;
+  /**
+   * Optional audio-driven avatar model (e.g. bytedance/avatar-omni-human-v1.5) for TALKING shots:
+   * portrait image + TTS voiceover audio -> lip-synced, emoting, gesturing character video. This is
+   * the Topview-class architecture move — general video models render b-roll/action, but a person
+   * speaking to camera is routed here so delivery stops feeling stiff and emotionless.
+   */
+  readonly avatarModel?: string;
+  /** Optional text-to-speech model (e.g. elevenlabs/v3/text-to-speech) that voices talking shots. */
+  readonly ttsModel?: string;
+  /** Optional TTS voice id/name (multilingual voices: Bella, Charlie, Liam, Jessica). */
+  readonly ttsVoice?: string;
 }
 
 export interface AtlasCloudRuntimeSettings {

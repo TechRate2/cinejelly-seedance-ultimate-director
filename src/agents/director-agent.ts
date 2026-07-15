@@ -31,6 +31,7 @@ import {
   type CharacterAnchorPlan,
   type PortraitCastMember
 } from "../core/keyframe-first-planner.js";
+import { avatarOutputResolution, buildAvatarPrompt, decideAvatarShot } from "../core/avatar-shot-planner.js";
 import { planSocialPublishingMetadata } from "../core/social-publishing-planner.js";
 import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
 import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
@@ -91,7 +92,7 @@ import type { CompiledPrompt, ShotContract } from "../types/prompt.js";
 import type { AudioGenerationCapability, Prediction, ProviderMetadata } from "../types/provider.js";
 import type { ReviewApprovalReport } from "../types/review-approval.js";
 import type { VideoRenderStrategyPlan } from "../types/video-render-strategy.js";
-import type { AudioProvider, ImageProvider } from "../providers/contracts.js";
+import type { AudioProvider, ImageProvider, SpeechSynthesisProvider } from "../providers/contracts.js";
 import type {
   ProductionStageEvidenceValue,
   ProductionStageName,
@@ -145,6 +146,7 @@ export class DirectorAgent {
   private readonly audioGenerationCapabilities: readonly AudioGenerationCapability[];
   private readonly audioProvider: AudioProvider | undefined;
   private readonly imageProvider: ImageProvider | undefined;
+  private readonly speechProvider: SpeechSynthesisProvider | undefined;
   private readonly stageProgressReporter: ProductionStageProgressReporter | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
   private stageProgressSequence = 0;
@@ -188,6 +190,7 @@ export class DirectorAgent {
     readonly audioGenerationCapabilities?: readonly AudioGenerationCapability[];
     readonly audioProvider?: AudioProvider;
     readonly imageProvider?: ImageProvider;
+    readonly speechProvider?: SpeechSynthesisProvider;
     readonly stageProgressReporter?: ProductionStageProgressReporter;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
@@ -227,6 +230,7 @@ export class DirectorAgent {
     this.audioGenerationCapabilities = input.audioGenerationCapabilities ?? [];
     this.audioProvider = input.audioProvider;
     this.imageProvider = input.imageProvider;
+    this.speechProvider = input.speechProvider;
     this.stageProgressReporter = input.stageProgressReporter;
     this.atlasSettings = input.atlasSettings;
   }
@@ -428,6 +432,17 @@ export class DirectorAgent {
           ...(signal ? { signal } : {})
         })
       : shots;
+
+    // Talking-shot routing (Topview-class architecture): shots with a verbatim spoken line and a
+    // character image are voiced FIRST (TTS) and routed to the audio-driven avatar model, so
+    // lip-sync, expression, and gesture follow the real speech. B-roll keeps the general model.
+    // Fail-open per shot: any TTS failure leaves that shot on its normal video path.
+    await this.runTalkingShotStage({
+      shots: renderReadyShots,
+      compiledPrompts,
+      settings: intake.settings,
+      ...(signal ? { signal } : {})
+    });
 
     this.reportStageProgress("source_material", "running", "Planning source-material briefs and resolving configured adapters.");
     const materialSourcingPlan = this.materialSourcingPlanner.plan({
@@ -1947,6 +1962,91 @@ export class DirectorAgent {
       keyframeSkippedCount: binding.skippedShotIds.length
     });
     return binding.shots;
+  }
+
+  /**
+   * Audio-first voicing for TALKING shots: synthesize each verbatim spoken line via TTS, then stamp
+   * an avatarPlan onto the shot's compiled prompt so the render producer routes it to the
+   * audio-driven avatar model (image + audio -> lip-synced, emoting clip). Fail-open per shot.
+   */
+  private async runTalkingShotStage(input: {
+    readonly shots: readonly ShotContract[];
+    readonly compiledPrompts: CompiledPrompt[];
+    readonly settings: FlexibleSeedanceSettings;
+    readonly signal?: AbortSignal;
+  }): Promise<void> {
+    const avatarModel = this.atlasSettings.models.avatarModel?.trim();
+    const ttsModel = this.atlasSettings.models.ttsModel?.trim();
+    const speechProvider = this.speechProvider;
+    if (!avatarModel || !ttsModel || !speechProvider) {
+      return;
+    }
+    const talkingShots = input.shots
+      .map((shot) => ({ shot, decision: decideAvatarShot(shot) }))
+      .filter((entry) => entry.decision.talking && Boolean(entry.decision.imageUrl));
+    if (talkingShots.length === 0) {
+      return;
+    }
+    this.reportStageProgress("render", "running", "Voicing talking shots (audio-first TTS) before avatar generation.", {
+      talkingShotCount: talkingShots.length
+    });
+    let avatarRoutedCount = 0;
+    for (const { shot, decision } of talkingShots) {
+      try {
+        const spokenLine = shot.spokenLine?.trim();
+        if (!spokenLine) {
+          continue;
+        }
+        const tts = await speechProvider.synthesizeSpeech(
+          {
+            provider: "atlascloud",
+            modelId: ttsModel,
+            text: spokenLine,
+            ...(this.atlasSettings.models.ttsVoice ? { voice: this.atlasSettings.models.ttsVoice } : {}),
+            metadata: {
+              ...(shot.metadata ?? {}),
+              shotId: shot.shotId,
+              talkingShot: "true"
+            }
+          },
+          input.signal
+        );
+        const audioUrl = tts.status === "succeeded"
+          ? tts.outputUrls.find((url) => /^https:\/\//.test(url))
+          : undefined;
+        if (!audioUrl) {
+          continue;
+        }
+        const promptIndex = input.compiledPrompts.findIndex((prompt) => prompt.shotId === shot.shotId);
+        if (promptIndex < 0) {
+          continue;
+        }
+        const existing = input.compiledPrompts[promptIndex];
+        if (!existing) {
+          continue;
+        }
+        input.compiledPrompts[promptIndex] = {
+          ...existing,
+          avatarPlan: {
+            modelId: avatarModel,
+            imageUrl: decision.imageUrl as string,
+            audioUrl,
+            prompt: buildAvatarPrompt(shot),
+            outputResolution: avatarOutputResolution(input.settings),
+            ...(input.settings.seed !== undefined ? { seed: input.settings.seed } : {})
+          }
+        };
+        avatarRoutedCount += 1;
+      } catch {
+        // Fail-open: this talking shot stays on the general video path.
+      }
+    }
+    this.reportStageProgress(
+      "render",
+      avatarRoutedCount === talkingShots.length ? "running" : "warn",
+      "Talking-shot voicing completed.",
+      { talkingShotCount: talkingShots.length, avatarRoutedCount }
+    );
   }
 
   /**

@@ -422,6 +422,43 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// Talking-shot avatar routing (Topview-class architecture): spoken shots -> TTS-first + avatar model
+// ------------------------------------------------------------------
+{
+  const { decideAvatarShot, buildAvatarPrompt, avatarOutputResolution } = await import(`${base}/core/avatar-shot-planner.js`);
+  const { RenderProducer } = await import(`${base}/agents/render-producer.js`);
+  const avShot = (over) => ({ shotId: "s1", sceneId: "sc", beatId: "b", durationSeconds: 8, intent: "x", subject: "Linh",
+    action: "talks to camera", camera: "selfie handheld", lighting: "soft", references: [], continuity: { identity: "Linh" }, risks: [], metadata: {}, ...over });
+  const kfRef = { role: "first_frame", label: "kf", priority: "primary", providerReference: { kind: "image", uri: "https://cdn.x/kf.png", role: "first_frame", label: "kf" } };
+  const identityRef = { role: "identity", label: "Linh", priority: "primary", providerReference: { kind: "image", uri: "https://cdn.x/linh.png", role: "identity", label: "Linh" } };
+  const talk = decideAvatarShot(avShot({ spokenLine: "Ồ, mềm thật!", references: [kfRef, identityRef] }));
+  check("avatar: spoken shot -> talking, in-scene keyframe preferred", talk.talking && talk.imageUrl === "https://cdn.x/kf.png", JSON.stringify(talk));
+  check("avatar: identity portrait fallback", decideAvatarShot(avShot({ spokenLine: "Hi", references: [identityRef] })).imageUrl === "https://cdn.x/linh.png", "");
+  check("avatar: no spokenLine -> broll", decideAvatarShot(avShot({ references: [kfRef] })).talking === false, "");
+  check("avatar: no https image -> broll (fail-open)", decideAvatarShot(avShot({ spokenLine: "Hi" })).talking === false, "");
+  const hint = buildAvatarPrompt(avShot({ spokenLine: "Hi", references: [kfRef] }));
+  check("avatar: hint compact, no timing contracts", hint.length <= 2000 && !hint.includes("Runtime contract"), "");
+  check("avatar: resolution map", avatarOutputResolution({ resolution: "720p" }) === 720 && avatarOutputResolution({ resolution: "1080p-SR" }) === 1080, "");
+
+  const routed = [];
+  const stub = { name: "atlascloud",
+    generateAvatarVideo: async (req) => { routed.push(["avatar", req.audioUrl]); return { provider: "atlascloud", predictionId: "p1", modelId: req.modelId, status: "succeeded", outputUrls: ["https://cdn.x/clip.mp4"], raw: {} }; },
+    generateImageToVideo: async (req) => { routed.push(["i2v", null]); return { provider: "atlascloud", predictionId: "p2", modelId: req.modelId, status: "succeeded", outputUrls: ["https://cdn.x/b.mp4"], raw: {} }; },
+    generateTextToVideo: async () => { throw new Error("x"); }, generateReferenceToVideo: async () => { throw new Error("x"); },
+    editVideo: async () => { throw new Error("x"); }, extendVideo: async () => { throw new Error("x"); },
+    getPrediction: async () => { throw new Error("x"); }, waitForPrediction: async () => { throw new Error("no poll needed"); },
+    capabilities: () => [{ modelId: "m", provider: "atlascloud", modes: ["image_to_video"], ratios: ["9:16"], resolutions: ["720p"], durations: [8], references: ["image", "first_frame"], maxDurationSeconds: 15 }] };
+  const producer = new RenderProducer(stub);
+  const cp = { shotId: "s1", prompt: "p", negativePrompt: "n", references: [], bindingPlan: { providerReferences: [], sortedReferences: [], roleScopes: [], conflicts: [] }, inspectionExpectations: [], repairHints: [],
+    videoRequest: { provider: "atlascloud", modelId: "m", mode: "image_to_video", prompt: "p", references: [], settings: { durationSeconds: 8, resolution: "720p", ratio: "9:16", generateAudio: true, bitrateMode: "standard", watermark: false, returnLastFrame: true }, metadata: {} } };
+  const avatarRun = await producer.render({ ...cp, avatarPlan: { modelId: "bytedance/avatar-omni-human-v1.5", imageUrl: "https://cdn.x/kf.png", audioUrl: "https://cdn.x/voice.mp3", outputResolution: 720 } });
+  check("avatar routing: avatarPlan -> generateAvatarVideo with the TTS audio", routed.length === 1 && routed[0][0] === "avatar" && routed[0][1] === "https://cdn.x/voice.mp3", JSON.stringify(routed));
+  check("avatar routing: prediction flows back", avatarRun.prediction.outputUrls[0] === "https://cdn.x/clip.mp4", "");
+  await producer.render(cp);
+  check("avatar routing: no avatarPlan -> normal video path", routed.length === 2 && routed[1][0] === "i2v", JSON.stringify(routed));
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;

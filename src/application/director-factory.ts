@@ -95,6 +95,7 @@ export function createDirectorRuntime(
       audioGenerationCapabilities: atlasProvider.audioCapabilities(),
       audioProvider: atlasProvider,
       imageProvider: atlasProvider,
+      speechProvider: atlasProvider,
       ...(options.stageProgressReporter ? { stageProgressReporter: options.stageProgressReporter } : {}),
       ...(sourceVideoAutoAnalyzer
         ? {

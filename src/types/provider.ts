@@ -136,6 +136,45 @@ export interface ImageGenerationRequest {
 }
 
 /**
+ * Provider-neutral text-to-speech request that voices a TALKING shot's verbatim line BEFORE video
+ * generation (audio-first): the resulting audio drives the avatar model, so pacing and emotion
+ * follow real speech instead of a video model guessing delivery.
+ */
+export interface SpeechSynthesisRequest {
+  readonly provider: ProviderName;
+  readonly modelId: string;
+  /** The exact line to speak — verbatim, already in the target language. */
+  readonly text: string;
+  /** Optional provider voice id/name; multilingual voices handle Vietnamese. */
+  readonly voice?: string;
+  /** Optional BCP-47 hint; multilingual voices usually auto-detect. */
+  readonly languageCode?: string;
+  /** 0..1 delivery stability (lower = more expressive). */
+  readonly stability?: number;
+  readonly metadata?: ProviderMetadata;
+}
+
+/**
+ * Audio-driven avatar video request (OmniHuman-class): one portrait/keyframe image + a voiceover
+ * audio track -> a lip-synced, emoting, gesturing clip of that character speaking. Used for TALKING
+ * shots only; b-roll/action shots keep the general video models.
+ */
+export interface AvatarVideoRequest {
+  readonly provider: ProviderName;
+  readonly modelId: string;
+  /** HTTPS URL of the character image (in-scene keyframe preferred, portrait anchor fallback). */
+  readonly imageUrl: string;
+  /** HTTPS URL of the driving voiceover audio (<=15s recommended, 60s max). */
+  readonly audioUrl: string;
+  /** Optional short action/scene/expression hint (<=2000 chars). */
+  readonly prompt?: string;
+  /** Output resolution (720 or 1080). */
+  readonly outputResolution?: 720 | 1080;
+  readonly seed?: number;
+  readonly metadata?: ProviderMetadata;
+}
+
+/**
  * Provider-neutral speech-to-text (transcription) request. Used to derive timed subtitle
  * cues from user-supplied narration/source audio. The audio must be a clean https:// or
  * asset:// URI already admitted by the normal reference-safety rules.
