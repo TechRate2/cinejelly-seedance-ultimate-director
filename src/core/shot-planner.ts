@@ -28,6 +28,8 @@ export interface BeatPlan {
   readonly audioIntent?: string;
   /** Verbatim author-supplied dialogue/narration line for this beat (script-first mode). */
   readonly spokenLine?: string;
+  /** One visible emotional/situational turn (state A -> state B) this beat plays (craft law). */
+  readonly emotionalTurn?: string;
   readonly durationSeconds: number;
   readonly risks: readonly ContinuityRisk[];
   readonly references: readonly PromptReference[];
@@ -230,6 +232,7 @@ export class ShotPlanner {
         // A verbatim scripted line belongs to the beat as a whole; assign it to the FIRST clip only
         // so it is spoken exactly once and never re-delivered across the beat's sub-clips.
         ...(beat.spokenLine && chunk.index === 0 ? { spokenLine: beat.spokenLine } : {}),
+        ...(beat.emotionalTurn ? { emotionalTurn: beat.emotionalTurn } : {}),
         timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none", chunk.index, chunks.length, settings.ratio),
         transitionIntent: this.transitionIntentForChunk(beat, storyRole, chunk.index, chunks.length, this.creativeModeFromMetadata(metadata)),
         references: beat.references,

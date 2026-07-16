@@ -84,6 +84,9 @@ export class SeedancePromptCompiler {
       this.buildBoundarySection(shot, bindingPlan),
       `Scene subject: ${shot.subject}.`,
       `Action: ${this.providerActionText(shot.action)}.`,
+      shot.emotionalTurn
+        ? `Emotional turn: ${this.stripTerminalPunctuation(shot.emotionalTurn)} — play the shift visibly (face, hands, posture) within this clip.`
+        : undefined,
       `Camera: ${shot.camera}.`,
       this.buildShotGrammarSection(shot),
       `Lighting: ${shot.lighting}.`,
@@ -626,7 +629,7 @@ export class SeedancePromptCompiler {
       // Verbatim scripted line first, quoted and marked do-not-change, emitted exactly as authored
       // (never through providerActionText's normalizer/truncator) so script-first dialogue survives.
       shot.spokenLine
-        ? `Spoken line (VERBATIM — deliver word-for-word, do not paraphrase, translate, or shorten): "${shot.spokenLine}".`
+        ? `Dialogue is in the character's own language; keep it exactly as written and keep all other direction in English. Spoken line (VERBATIM — deliver word-for-word, do not paraphrase, translate, or shorten): "${shot.spokenLine}".`
         : undefined,
       shot.audioIntent ? `Audio production plan: ${this.stripTerminalPunctuation(shot.audioIntent)}.` : undefined,
       `Generate only original ambience/music/voice on this shot's timing — no protected songs, melodies, transcripts, or voices. Keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s with micro-pauses around product contact or reactions; the visual story must read without audio.`

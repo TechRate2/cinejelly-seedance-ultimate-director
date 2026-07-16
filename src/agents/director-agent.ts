@@ -1997,12 +1997,19 @@ export class DirectorAgent {
         if (!spokenLine) {
           continue;
         }
+        // Language hint: explicit request metadata wins, else detect Vietnamese from diacritics so
+        // TTS pronunciation never relies on blind auto-detect (final-upgrade VN fix).
+        const metadataLanguage = typeof shot.metadata?.shortAudioLanguage === "string"
+          ? shot.metadata.shortAudioLanguage.trim()
+          : typeof shot.metadata?.voiceLanguage === "string" ? shot.metadata.voiceLanguage.trim() : "";
+        const languageCode = metadataLanguage || (/[ăâđêôơưà-ỹĂÂĐÊÔƠƯÀ-Ỹ]/u.test(spokenLine) ? "vi" : "");
         const tts = await speechProvider.synthesizeSpeech(
           {
             provider: "atlascloud",
             modelId: ttsModel,
             text: spokenLine,
             ...(this.atlasSettings.models.ttsVoice ? { voice: this.atlasSettings.models.ttsVoice } : {}),
+            ...(languageCode ? { languageCode } : {}),
             metadata: {
               ...(shot.metadata ?? {}),
               shotId: shot.shotId,

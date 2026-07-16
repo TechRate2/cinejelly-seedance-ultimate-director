@@ -40,6 +40,24 @@ export function looksLikeUserScript(userInput: string): boolean {
 const SCRIPT_FIRST_DIRECTIVE =
   "SCRIPT-FIRST MODE: the user input contains a finished script. Treat it as the authoritative screenplay: keep its scene order, events, and any dialogue/narration lines VERBATIM in their original language (do not rewrite, translate, paraphrase, or invent new lines). Put each beat's exact spoken dialogue/narration line into that beat's `spokenLine` field word-for-word (leave `spokenLine` empty for beats with no spoken line); use `action` only for the visual staging, never to paraphrase the spoken line. Your job is only to decompose the script into scenes/beats with timing and to design the visual staging (subject state, camera, lighting, audio rhythm) around the user's own lines.";
 
+/**
+ * Hard language contract (final-upgrade design, mined from real paid-run artifacts): visual fields in
+ * English (video models follow English direction most reliably), spoken lines ONLY in the user's
+ * language with full diacritics and natural SPOKEN register — the split that previously happened by
+ * accident is now law. Vietnamese-specific spoken markers included because it is the primary market.
+ */
+export const LANGUAGE_CONTRACT_DIRECTIVE =
+  "LANGUAGE CONTRACT (obey exactly): Write EVERY visual and production field — premise, title, purpose, action, subject, camera, lighting, style, audioIntent, and all continuity values — in ENGLISH, because the video model follows English direction most reliably. Write each beat's `spokenLine` ONLY in the user's language (the language of the user's brief or pasted script), reproduced with FULL correct diacritics and natural spoken punctuation; never translate, romanize, or strip diacritics from it. Write spoken lines the way a real person TALKS to a phone camera, not the way text is WRITTEN: short breathing clauses, everyday words, natural sentence-final particles. For Vietnamese use spoken markers (nhé, nha, đấy, đó, luôn, á, ạ, mà, thôi), relationship-correct casual pronouns (mình/tớ/cậu; chị/em, anh/em — not the flat written tôi/bạn), and real spoken openers (Ôi, Ơ, Trời ơi). Stiff written-formal sentences read as AI instantly — forbidden.";
+
+/**
+ * Scriptwriting craft law (mined from ViMax/micro-drama screenwriter prompts, SkyReels expression
+ * grammar, and the top community Seedance prompts): the difference between an alive script and a
+ * stiff one is one visible emotional turn per beat, physical tells instead of named emotions, and
+ * dialogue with subtext. Register-aware so one engine serves cinematic AND phone-KOL output.
+ */
+export const SCRIPT_CRAFT_DIRECTIVE =
+  "You are a professional screenwriter, not a shot-list generator. REGISTER — pick ONE writing voice for the whole video and never mix: professional_cinematic (composed performances, motivated blocking, designed light, restrained dialogue with subtext, one deliberate camera move per beat — the craft is invisible) or natural_phone_kol (a real person talking to their own phone — selfie framing, genuine micro-shake, in-camera sound, filler words and self-interruption in speech, no scored music, no grade, no slow-motion — it must look UN-crafted, like a friend's clip). If not told, infer: review/testimonial/how-to/vlog -> natural_phone_kol; story/brand-film/drama/product-hero -> professional_cinematic. ONE-TURN RULE: every beat carries exactly ONE visible emotional or situational turn (state A -> state B the viewer can SEE); write it into the beat's `emotionalTurn` field (e.g. \"skeptical -> quietly impressed\"), and each beat must pick up the emotional state the previous beat ended on so the whole video traces one feeling, not a montage. SHOW DON'T TELL: never name an emotion in `action` — convert it to a physical tell (not \"she is angry\" but \"she clenches her fist, nails digging into her palm\"; not \"surprised\" but \"a 0.3s freeze, then her eyes widen\"). No metaphors or similes in action/camera — write only what the lens physically sees. DIALOGUE: spoken lines are real speech — one breath long, subtext over statement (a character says less than they mean), never brochure copy, never a feature list; micro-pauses and self-corrections are welcome.";
+
 interface StoryPlanJson {
   readonly premise: string;
   readonly targetDurationSeconds: number;
@@ -88,6 +106,7 @@ const STORY_PLAN_SCHEMA = {
                 style: { type: "string" },
                 audioIntent: { type: "string" },
                 spokenLine: { type: "string" },
+                emotionalTurn: { type: "string" },
                 durationSeconds: { type: "number" },
                 risks: { type: "array", items: { type: "string" } },
                 identity: { type: "string" },
@@ -138,6 +157,7 @@ export class StoryArchitect {
               (looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true"
                 ? `${SCRIPT_FIRST_DIRECTIVE} `
                 : "") +
+              `${SCRIPT_CRAFT_DIRECTIVE} ${LANGUAGE_CONTRACT_DIRECTIVE} ` +
               "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, continuity, and audioIntent when audio is not none. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. For longer videos, avoid a loose montage: each section must advance the argument, proof, emotion, or product understanding. Make every action concrete enough to film: visible subject state, physical product contact or proof action, camera movement, audio rhythm, and an endpoint that can cut or crossfade into the next beat. Keep voiceover concise enough for the beat duration. The `references` array lists every uploaded asset the user supplied, each with its role (identity=a specific character, product, environment, wardrobe, voice, style) and label; treat it as the cast and prop roster. Deliberately schedule these across beats — set each beat's continuity.identity/product/environment to the matching reference label so a distinct character enters/leaves on purpose (e.g. character A in the opening beats, character B enters at the turn) and the hero product is bound to the beats where it must appear; never merge two identity references into one character. Give EACH distinct character (including invented ones with no uploaded reference) a SHORT STABLE label — a name or role such as \"Linh\" or \"the founder\" — and set every beat's `identity` to that EXACT same label for every beat the character appears in. Never describe the same recurring person with two different identity strings (e.g. \"young woman\" in one beat and \"the girl\" in another); reuse the one label verbatim, so the pipeline recognizes it as one person and keeps their face consistent across shots. When a beat features SEVERAL characters, list their labels separated by commas (e.g. identity: \"Linh, Mai\") — never invent a combined name; each listed person keeps their own locked face. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
           },
           {
@@ -222,6 +242,9 @@ export class StoryArchitect {
     const spokenLine = typeof payload.spokenLine === "string" && payload.spokenLine.trim()
       ? payload.spokenLine.trim()
       : undefined;
+    const emotionalTurn = typeof payload.emotionalTurn === "string" && payload.emotionalTurn.trim()
+      ? payload.emotionalTurn.trim()
+      : undefined;
 
     return {
       beatId: typeof payload.beatId === "string" ? payload.beatId : `scene_${sceneIndex + 1}_beat_${beatIndex + 1}`,
@@ -233,6 +256,7 @@ export class StoryArchitect {
       ...(style ? { style } : {}),
       ...(audioIntent ? { audioIntent } : {}),
       ...(spokenLine ? { spokenLine } : {}),
+      ...(emotionalTurn ? { emotionalTurn } : {}),
       durationSeconds: this.readNumber(payload.durationSeconds, Math.max(8, Math.min(15, intake.settings.durationTargetSeconds / 12))),
       risks: this.readRisks(payload.risks),
       references: intake.references,

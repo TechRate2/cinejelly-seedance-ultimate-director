@@ -180,6 +180,8 @@ export interface ShotContract {
    * as written and is never normalized, truncated, or duplicated across a beat's sub-clips.
    */
   readonly spokenLine?: string;
+  /** One visible emotional turn (state A -> state B) the beat must play — the anti-stiffness craft law. */
+  readonly emotionalTurn?: string;
   readonly transitionIntent?: string;
   readonly timeline?: readonly TimelineSegment[];
   readonly references: readonly PromptReference[];
