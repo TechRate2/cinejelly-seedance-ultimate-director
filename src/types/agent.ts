@@ -54,6 +54,8 @@ export interface CineJellyProjectRequest {
 }
 
 export interface IntakeResult {
+  /** Deep-brief understanding from the Creative Brief Analyst (enhancer; absent = legacy behavior). */
+  readonly creativeIntent?: import("./creative-intent.js").CreativeIntent;
   readonly projectId: string;
   readonly userInput: string;
   readonly settings: FlexibleSeedanceSettings;

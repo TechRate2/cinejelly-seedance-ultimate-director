@@ -32,6 +32,7 @@ import {
   type PortraitCastMember
 } from "../core/keyframe-first-planner.js";
 import { avatarOutputResolution, buildAvatarPrompt, decideAvatarShot } from "../core/avatar-shot-planner.js";
+import type { CreativeBriefAnalyst } from "./creative-brief-analyst.js";
 import { planSocialPublishingMetadata } from "../core/social-publishing-planner.js";
 import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
 import { LongFormContinuityPlanner } from "../core/long-form-continuity-planner.js";
@@ -147,6 +148,7 @@ export class DirectorAgent {
   private readonly audioProvider: AudioProvider | undefined;
   private readonly imageProvider: ImageProvider | undefined;
   private readonly speechProvider: SpeechSynthesisProvider | undefined;
+  private readonly creativeBriefAnalyst: CreativeBriefAnalyst | undefined;
   private readonly stageProgressReporter: ProductionStageProgressReporter | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
   private stageProgressSequence = 0;
@@ -191,6 +193,7 @@ export class DirectorAgent {
     readonly audioProvider?: AudioProvider;
     readonly imageProvider?: ImageProvider;
     readonly speechProvider?: SpeechSynthesisProvider;
+    readonly creativeBriefAnalyst?: CreativeBriefAnalyst;
     readonly stageProgressReporter?: ProductionStageProgressReporter;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
@@ -231,6 +234,7 @@ export class DirectorAgent {
     this.audioProvider = input.audioProvider;
     this.imageProvider = input.imageProvider;
     this.speechProvider = input.speechProvider;
+    this.creativeBriefAnalyst = input.creativeBriefAnalyst;
     this.stageProgressReporter = input.stageProgressReporter;
     this.atlasSettings = input.atlasSettings;
   }
@@ -238,7 +242,21 @@ export class DirectorAgent {
   public async run(request: CineJellyProjectRequest, signal?: AbortSignal): Promise<DirectorRunResult> {
     this.reportStageProgress("plan", "running", "Preparing intake, story plan, shot plan, and reference selection.");
     const preparedRequest = await this.prepareRequestForIntake(request, signal);
-    const intake = this.intakeDirector.intake(preparedRequest);
+    const baseIntake = this.intakeDirector.intake(preparedRequest);
+    // Deep brief understanding (Topview-class analyst stage): one structured LLM call decides
+    // register/story-engine/style DNA BEFORE scripting. Fail-open — the analyst's own fallback is
+    // deterministic, and an absent analyst leaves legacy behavior untouched.
+    const creativeIntent = this.creativeBriefAnalyst
+      ? await this.creativeBriefAnalyst.analyze(baseIntake, signal)
+      : undefined;
+    const intake = creativeIntent ? { ...baseIntake, creativeIntent } : baseIntake;
+    if (creativeIntent) {
+      this.reportStageProgress("plan", "running", "Creative intent resolved before scripting.", {
+        register: creativeIntent.register,
+        genre: creativeIntent.genre,
+        language: creativeIntent.language
+      });
+    }
     const storyPlan = await this.storyArchitect.plan(intake, signal);
     const continuityLedger = this.continuityLedgerBuilder.build({
       intake,

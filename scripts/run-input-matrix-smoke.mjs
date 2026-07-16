@@ -488,6 +488,35 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// Creative Brief Analyst (deep-brief understanding stage): coercion + deterministic fallback
+// ------------------------------------------------------------------
+{
+  const { CreativeBriefAnalyst } = await import(`${base}/agents/creative-brief-analyst.js`);
+  const intake = { projectId: "d", userInput: "Làm video quảng cáo giấy ăn Topgia cho mẹ bỉm", settings: settingsFor(24, "economy"), references: [], metadata: { shortViralCreativeMode: "ugc_review" } };
+  const goodLlm = { name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured() { return { provider: "atlascloud", modelId: "f", content: "{}", raw: {}, latencyMs: 0, value: {
+      register: "professional_cinematic", genre: "family melodrama ad", niche: "household tissue for young mothers",
+      audience: "Vietnamese moms 25-35", language: "vi", tone: "tender, warm", emotionArc: "tired -> touched -> relieved",
+      pacingProfile: "slow-burn cinematic", visualWorld: "small Hanoi apartment kitchen at dusk",
+      storyEngine: { conflict: "a exhausted mother facing one more mess", stakes: "her patience in front of her child", payoff: "one strong tissue saves the moment" },
+      styleDna: { optics: "50mm close focus on hands", moodWords: ["tender", "quiet"] } } }; } };
+  const analyst = new CreativeBriefAnalyst(goodLlm, "f");
+  const intent = await analyst.analyze(intake);
+  check("analyst: coerces full intent", intent.register === "professional_cinematic" && intent.language === "vi" && intent.storyEngine.payoff.includes("tissue"), JSON.stringify(intent.storyEngine));
+  check("analyst: styleDna carried with register", intent.styleDna?.register === "professional_cinematic" && intent.styleDna?.optics === "50mm close focus on hands", "");
+  const badLlm = { name: "f", capabilities: () => [], async chat() { throw new Error("down"); }, async structured() { throw new Error("down"); } };
+  const fallbackIntent = await new CreativeBriefAnalyst(badLlm, "f").analyze(intake);
+  check("analyst: LLM failure -> deterministic fallback (fail-open)", fallbackIntent.register === "natural_phone_kol" && fallbackIntent.language === "vi", JSON.stringify({ r: fallbackIntent.register, l: fallbackIntent.language }));
+
+  // Story Architect honors the analyst's register as the beat styleDna fallback register
+  const scriptLlm = fakeLlm({});
+  const plan = await new StoryArchitect(scriptLlm, "f").plan({ ...intake, creativeIntent: intent });
+  const beat = plan.scenes[0]?.beats[0];
+  check("analyst->architect: intent register beats creativeMode for styleDna base", !beat?.styleDna || beat.styleDna.register === "professional_cinematic", JSON.stringify(beat?.styleDna || null));
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;

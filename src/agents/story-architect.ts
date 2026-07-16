@@ -175,6 +175,9 @@ export class StoryArchitect {
                 ? `${SCRIPT_FIRST_DIRECTIVE} `
                 : "") +
               `${SCRIPT_CRAFT_DIRECTIVE} ${LANGUAGE_CONTRACT_DIRECTIVE} ` +
+              (intake.creativeIntent
+                ? `CREATIVE INTENT (decided by the brief analyst — obey it): register=${intake.creativeIntent.register}; spoken language=${intake.creativeIntent.language}; tone=${intake.creativeIntent.tone}; pacing=${intake.creativeIntent.pacingProfile}. Visual world: ${intake.creativeIntent.visualWorld}. Story engine — conflict: ${intake.creativeIntent.storyEngine.conflict}; stakes: ${intake.creativeIntent.storyEngine.stakes}; payoff: ${intake.creativeIntent.storyEngine.payoff}. Emotional arc to trace across the beats: ${intake.creativeIntent.emotionArc}. The hook must open on the conflict/stakes; the ending must land the payoff. `
+                : "") +
               "STYLE DNA: return your chosen register in the top-level `register` field, and for each beat author `styleDna` — SHORT concrete niche specifics for optics, lighting, palette, motion, performance, and audioFeel (e.g. macro serum-on-skin glisten for beauty; fabric drape in motion for fashion). This is where ALL category detail lives — physical, camera-real wording only; never booster words like 8K, masterpiece, or hyper-detailed. " +
               "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, continuity, and audioIntent when audio is not none. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. For longer videos, avoid a loose montage: each section must advance the argument, proof, emotion, or product understanding. Make every action concrete enough to film: visible subject state, physical product contact or proof action, camera movement, audio rhythm, and an endpoint that can cut or crossfade into the next beat. Keep voiceover concise enough for the beat duration. The `references` array lists every uploaded asset the user supplied, each with its role (identity=a specific character, product, environment, wardrobe, voice, style) and label; treat it as the cast and prop roster. Deliberately schedule these across beats — set each beat's continuity.identity/product/environment to the matching reference label so a distinct character enters/leaves on purpose (e.g. character A in the opening beats, character B enters at the turn) and the hero product is bound to the beats where it must appear; never merge two identity references into one character. Give EACH distinct character (including invented ones with no uploaded reference) a SHORT STABLE label — a name or role such as \"Linh\" or \"the founder\" — and set every beat's `identity` to that EXACT same label for every beat the character appears in. Never describe the same recurring person with two different identity strings (e.g. \"young woman\" in one beat and \"the girl\" in another); reuse the one label verbatim, so the pipeline recognizes it as one person and keeps their face consistent across shots. When a beat features SEVERAL characters, list their labels separated by commas (e.g. identity: \"Linh, Mai\") — never invent a combined name; each listed person keeps their own locked face. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
           },
@@ -190,6 +193,22 @@ export class StoryArchitect {
                 .slice(0, 24)
                 .map((reference) => ({ role: reference.role, label: reference.label })),
               referenceCount: intake.references.length,
+              ...(intake.creativeIntent
+                ? {
+                    creativeIntent: {
+                      register: intake.creativeIntent.register,
+                      genre: intake.creativeIntent.genre,
+                      niche: intake.creativeIntent.niche,
+                      audience: intake.creativeIntent.audience,
+                      language: intake.creativeIntent.language,
+                      tone: intake.creativeIntent.tone,
+                      emotionArc: intake.creativeIntent.emotionArc,
+                      pacingProfile: intake.creativeIntent.pacingProfile,
+                      visualWorld: intake.creativeIntent.visualWorld,
+                      storyEngine: intake.creativeIntent.storyEngine
+                    }
+                  }
+                : {}),
               ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: this.sourceVideoBrief(intake.sourceVideoAnalysis) } : {})
             })
           }
@@ -212,7 +231,7 @@ export class StoryArchitect {
     }
     const register: StyleRegister | undefined = isStyleRegister(value.register)
       ? value.register
-      : registerForCreativeMode(
+      : intake.creativeIntent?.register ?? registerForCreativeMode(
           typeof intake.metadata?.shortViralCreativeMode === "string"
             ? intake.metadata.shortViralCreativeMode
             : typeof intake.metadata?.creativeMode === "string" ? intake.metadata.creativeMode : undefined

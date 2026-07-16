@@ -8,6 +8,7 @@ import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider
 import { ProviderCostLedger, type CostLedgerRecordReporter } from "../providers/cost-ledger.js";
 import { DirectorAgent } from "../agents/director-agent.js";
 import { RenderProducer } from "../agents/render-producer.js";
+import { CreativeBriefAnalyst } from "../agents/creative-brief-analyst.js";
 import { StoryArchitect } from "../agents/story-architect.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
 import { LocalMaterialLibraryAdapter } from "../core/local-material-library-adapter.js";
@@ -39,6 +40,7 @@ export function createDirectorRuntime(
   const ledger = new ProviderCostLedger(options.providerLedgerReporter);
   const atlasProvider = new AtlasCloudProvider(settings.atlasCloud, ledger);
   const storyArchitect = new StoryArchitect(atlasProvider, settings.atlasCloud.models.llmModel);
+  const creativeBriefAnalyst = new CreativeBriefAnalyst(atlasProvider, settings.atlasCloud.models.llmModel);
   const renderProducer = new RenderProducer(atlasProvider, atlasProvider);
   const renderCostGate = new RenderCostGate(settings.costEstimation);
   const semanticVisualInspector = new SemanticVisualInspector(atlasProvider, settings.atlasCloud.models.llmModel);
@@ -96,6 +98,7 @@ export function createDirectorRuntime(
       audioProvider: atlasProvider,
       imageProvider: atlasProvider,
       speechProvider: atlasProvider,
+      creativeBriefAnalyst,
       ...(options.stageProgressReporter ? { stageProgressReporter: options.stageProgressReporter } : {}),
       ...(sourceVideoAutoAnalyzer
         ? {
