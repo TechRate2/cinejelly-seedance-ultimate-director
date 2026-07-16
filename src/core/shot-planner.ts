@@ -8,6 +8,7 @@ import type {
   PromptReference,
   ShotContract,
   ShotContinuity,
+  StyleDna,
   TimelineSegment
 } from "../types/prompt.js";
 import type { ProviderMetadata } from "../types/provider.js";
@@ -30,6 +31,8 @@ export interface BeatPlan {
   readonly spokenLine?: string;
   /** One visible emotional/situational turn (state A -> state B) this beat plays (craft law). */
   readonly emotionalTurn?: string;
+  /** LLM-authored style DNA for this beat (register + axis overrides). */
+  readonly styleDna?: StyleDna;
   readonly durationSeconds: number;
   readonly risks: readonly ContinuityRisk[];
   readonly references: readonly PromptReference[];
@@ -233,6 +236,7 @@ export class ShotPlanner {
         // so it is spoken exactly once and never re-delivered across the beat's sub-clips.
         ...(beat.spokenLine && chunk.index === 0 ? { spokenLine: beat.spokenLine } : {}),
         ...(beat.emotionalTurn ? { emotionalTurn: beat.emotionalTurn } : {}),
+        ...(beat.styleDna ? { styleDna: beat.styleDna } : {}),
         timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none", chunk.index, chunks.length, settings.ratio),
         transitionIntent: this.transitionIntentForChunk(beat, storyRole, chunk.index, chunks.length, this.creativeModeFromMetadata(metadata)),
         references: beat.references,

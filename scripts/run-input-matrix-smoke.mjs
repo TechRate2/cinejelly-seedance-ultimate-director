@@ -459,6 +459,35 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// Two-register style engine (final upgrade): register frame + styleDna precedence
+// ------------------------------------------------------------------
+{
+  const { registerForCreativeMode, registerGrammarPromptLine } = await import(`${base}/core/register-grammar.js`);
+  check("register: ugc_review -> natural_phone_kol", registerForCreativeMode("ugc_review") === "natural_phone_kol", "");
+  check("register: product_ad -> professional_cinematic", registerForCreativeMode("product_ad") === "professional_cinematic", "");
+  check("register: unknown mode -> undefined (legacy fallback)", registerForCreativeMode("mystery_mode") === undefined, "");
+  const kolLine = registerGrammarPromptLine("natural_phone_kol");
+  check("register: KOL frame is anti-cinematic", kolLine.includes("NO cinematic bokeh") && kolLine.includes("NO scored music"), "");
+
+  const settings = settingsFor(24, "economy");
+  const meta = { shortViralCreativeMode: "ugc_review", shortViralNiche: "household_goods" };
+  const plan = await new StoryArchitect(fakeLlm({}), "f").plan({ projectId: "d", userInput: "x", settings, references: [], metadata: meta });
+  const shots = new ShotPlanner().plan({ projectId: "d", scenes: plan.scenes, settings, metadata: meta });
+  const p1 = compiler.compile({ shot: shots[0], settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("register: compiled ugc prompt carries the KOL register frame", p1.includes("Style register: natural phone-shot / KOL."), "");
+  check("register: legacy DNA still fires when LLM authored no styleDna axes", p1.includes("Creative-mode DNA"), "");
+  // Authored styleDna suppresses legacy tables and emits axis overrides
+  const dnaShot = { ...shots[0], styleDna: { register: "natural_phone_kol", optics: "macro tissue-fiber close focus", avoid: ["studio gloss"] } };
+  const p2 = compiler.compile({ shot: dnaShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("register: authored styleDna emits axis override", p2.includes("Optics (this video): macro tissue-fiber close focus"), "");
+  check("register: authored styleDna suppresses legacy DNA tables", !p2.includes("Creative-mode DNA"), "");
+  // Vietnamese spoken line triggers the dialogue-light clause
+  const viShot = { ...shots[0], spokenLine: "Ồ, mềm mà không rách thật!" };
+  const p3 = compiler.compile({ shot: viShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("register: VN spoken line appends dialogue-light clause", p3.includes("Dialogue-light language mode"), "");
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;

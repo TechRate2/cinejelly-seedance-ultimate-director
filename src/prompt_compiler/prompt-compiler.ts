@@ -20,6 +20,11 @@ import {
   type VideoArcRole
 } from "../core/duration-scripting.js";
 import { resolveSeedanceDna } from "../core/seedance-dna.js";
+import {
+  DIALOGUE_LIGHT_LANGUAGE_CLAUSE,
+  registerForCreativeMode,
+  registerGrammarPromptLine
+} from "../core/register-grammar.js";
 import { cinematicGrammarPromptLine } from "../core/seedance-cinematic-grammar.js";
 import { shotGrammarFromMetadata, shotGrammarPromptLine } from "../core/shot-grammar.js";
 import { buildNegativePrompt } from "./negative-constraints.js";
@@ -93,8 +98,7 @@ export class SeedancePromptCompiler {
       shot.style ? `Style: ${shot.style}.` : undefined,
       shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline, shot) : undefined,
       this.buildAudioProductionSection(shot),
-      this.buildNicheDnaSection(shot),
-      this.buildCinematicGrammarSection(shot),
+      this.buildRegisterSection(shot),
       this.buildFinalFrameSection(shot, bindingPlan),
       this.buildRealismGuardrailsSection()
     ];
@@ -375,6 +379,52 @@ export class SeedancePromptCompiler {
       "Do not end on a blur, mid-blink, hidden product, cropped face, or empty frame."
     ].filter((line): line is string => Boolean(line));
     return clauses.join(" ");
+  }
+
+  /**
+   * Two-register style engine (final-upgrade design): the REGISTER_GRAMMAR block is the invariant
+   * frame (professional_cinematic vs natural_phone_kol, anti-AI-look guards built in); the
+   * LLM-authored StyleDna supplies ALL per-request niche specifics as axis overrides; the legacy
+   * CREATIVE_MODE_DNA/NICHE_DNA lookups fire ONLY when no styleDna/register exists (fallback path,
+   * preserving old behavior for callers that do not author style).
+   */
+  private buildRegisterSection(shot: ShotContract): string | undefined {
+    const dna = shot.styleDna;
+    const creativeMode =
+      this.stringMetadata(shot, "shortViralCreativeMode") ??
+      this.stringMetadata(shot, "shortDirectorCreativeMode") ??
+      this.stringMetadata(shot, "creativeMode");
+    const register = dna?.register ?? registerForCreativeMode(creativeMode);
+    if (!register) {
+      // Legacy fallback: exactly the two sections this engine replaced.
+      return [this.buildNicheDnaSection(shot), this.buildCinematicGrammarSection(shot)]
+        .filter((line): line is string => Boolean(line && line.trim()))
+        .join("\n");
+    }
+    const overrides = dna
+      ? [
+          dna.optics ? `Optics (this video): ${dna.optics}` : undefined,
+          dna.lighting ? `Lighting look: ${dna.lighting}` : undefined,
+          dna.palette ? `Palette: ${dna.palette}` : undefined,
+          dna.motion ? `Motion: ${dna.motion}` : undefined,
+          dna.performance ? `Performance: ${dna.performance}` : undefined,
+          dna.audioFeel ? `Audio-feel: ${dna.audioFeel}` : undefined,
+          dna.moodWords?.length ? `Mood: ${dna.moodWords.join(", ")}.` : undefined,
+          dna.avoid?.length ? `Avoid: ${dna.avoid.join(", ")}.` : undefined
+        ].filter((line): line is string => Boolean(line))
+      : [];
+    // With authored styleDna the legacy tables stay silent; without it they add niche color under
+    // the register frame (transition path for callers that resolve a register but author nothing).
+    const legacy = dna ? [] : [this.buildNicheDnaSection(shot)].filter((line): line is string => Boolean(line && line.trim()));
+    const spokenLanguage = this.stringMetadata(shot, "shortAudioLanguage") ?? this.stringMetadata(shot, "voiceLanguage");
+    const weakLipSyncLanguage = spokenLanguage === "vi" ||
+      Boolean(shot.spokenLine && /[ăâđêôơưà-ỹĂÂĐÊÔƠƯÀ-Ỹ]/u.test(shot.spokenLine));
+    return [
+      registerGrammarPromptLine(register),
+      ...overrides,
+      ...legacy,
+      weakLipSyncLanguage ? DIALOGUE_LIGHT_LANGUAGE_CLAUSE : undefined
+    ].filter((line): line is string => Boolean(line)).join(" ");
   }
 
   /**

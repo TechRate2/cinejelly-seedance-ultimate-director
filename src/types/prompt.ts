@@ -144,6 +144,25 @@ export interface PromptBindingPlan {
   readonly compressionNotes: readonly PromptCompressionNote[];
 }
 
+export type StyleRegister = "professional_cinematic" | "natural_phone_kol";
+
+/**
+ * Per-request style DNA AUTHORED by the LLM for THIS brief (analyst or scriptwriter) — replaces the
+ * fixed per-niche lookup tables as the primary style source. Each axis overrides/extends the
+ * invariant REGISTER_GRAMMAR frame; absent axes fall back to the register text alone.
+ */
+export interface StyleDna {
+  readonly register: StyleRegister;
+  readonly optics?: string;
+  readonly lighting?: string;
+  readonly palette?: string;
+  readonly motion?: string;
+  readonly performance?: string;
+  readonly audioFeel?: string;
+  readonly moodWords?: readonly string[];
+  readonly avoid?: readonly string[];
+}
+
 export interface TimelineSegment {
   readonly startSecond: number;
   readonly endSecond: number;
@@ -182,6 +201,8 @@ export interface ShotContract {
   readonly spokenLine?: string;
   /** One visible emotional turn (state A -> state B) the beat must play — the anti-stiffness craft law. */
   readonly emotionalTurn?: string;
+  /** LLM-authored per-request style DNA (register + axis overrides); legacy DNA tables are fallback-only. */
+  readonly styleDna?: StyleDna;
   readonly transitionIntent?: string;
   readonly timeline?: readonly TimelineSegment[];
   readonly references: readonly PromptReference[];

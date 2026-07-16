@@ -11,6 +11,8 @@ import type { BeatPlan, ScenePlan } from "../core/shot-planner.js";
 import { USER_SCRIPT_OPEN_MARKER } from "../core/simple-brief-resolver.js";
 import { nichePlaybookDirective, SEEDANCE_MASTERY_DIRECTIVE } from "../core/niche-playbooks.js";
 import { antiSlopDirective } from "../core/anti-slop-lexicon.js";
+import { isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
+import type { StyleDna, StyleRegister } from "../types/prompt.js";
 
 /**
  * Detect a pasted, already-written script inside free-form user input so the planner can
@@ -61,6 +63,7 @@ export const SCRIPT_CRAFT_DIRECTIVE =
 interface StoryPlanJson {
   readonly premise: string;
   readonly targetDurationSeconds: number;
+  readonly register?: unknown;
   readonly scenes: readonly unknown[];
 }
 
@@ -83,6 +86,7 @@ const STORY_PLAN_SCHEMA = {
   properties: {
     premise: { type: "string" },
     targetDurationSeconds: { type: "number" },
+    register: { type: "string", enum: ["professional_cinematic", "natural_phone_kol"] },
     scenes: {
       type: "array",
       items: {
@@ -107,6 +111,19 @@ const STORY_PLAN_SCHEMA = {
                 audioIntent: { type: "string" },
                 spokenLine: { type: "string" },
                 emotionalTurn: { type: "string" },
+                styleDna: {
+                  type: "object",
+                  properties: {
+                    optics: { type: "string" },
+                    lighting: { type: "string" },
+                    palette: { type: "string" },
+                    motion: { type: "string" },
+                    performance: { type: "string" },
+                    audioFeel: { type: "string" },
+                    moodWords: { type: "array", items: { type: "string" } },
+                    avoid: { type: "array", items: { type: "string" } }
+                  }
+                },
                 durationSeconds: { type: "number" },
                 risks: { type: "array", items: { type: "string" } },
                 identity: { type: "string" },
@@ -158,6 +175,7 @@ export class StoryArchitect {
                 ? `${SCRIPT_FIRST_DIRECTIVE} `
                 : "") +
               `${SCRIPT_CRAFT_DIRECTIVE} ${LANGUAGE_CONTRACT_DIRECTIVE} ` +
+              "STYLE DNA: return your chosen register in the top-level `register` field, and for each beat author `styleDna` — SHORT concrete niche specifics for optics, lighting, palette, motion, performance, and audioFeel (e.g. macro serum-on-skin glisten for beauty; fabric drape in motion for fashion). This is where ALL category detail lives — physical, camera-real wording only; never booster words like 8K, masterpiece, or hyper-detailed. " +
               "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, continuity, and audioIntent when audio is not none. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. For longer videos, avoid a loose montage: each section must advance the argument, proof, emotion, or product understanding. Make every action concrete enough to film: visible subject state, physical product contact or proof action, camera movement, audio rhythm, and an endpoint that can cut or crossfade into the next beat. Keep voiceover concise enough for the beat duration. The `references` array lists every uploaded asset the user supplied, each with its role (identity=a specific character, product, environment, wardrobe, voice, style) and label; treat it as the cast and prop roster. Deliberately schedule these across beats — set each beat's continuity.identity/product/environment to the matching reference label so a distinct character enters/leaves on purpose (e.g. character A in the opening beats, character B enters at the turn) and the hero product is bound to the beats where it must appear; never merge two identity references into one character. Give EACH distinct character (including invented ones with no uploaded reference) a SHORT STABLE label — a name or role such as \"Linh\" or \"the founder\" — and set every beat's `identity` to that EXACT same label for every beat the character appears in. Never describe the same recurring person with two different identity strings (e.g. \"young woman\" in one beat and \"the girl\" in another); reuse the one label verbatim, so the pipeline recognizes it as one person and keeps their face consistent across shots. When a beat features SEVERAL characters, list their labels separated by commas (e.g. identity: \"Linh, Mai\") — never invent a combined name; each listed person keeps their own locked face. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
           },
           {
@@ -192,7 +210,14 @@ export class StoryArchitect {
     if (!value.premise || !Array.isArray(value.scenes)) {
       throw new Error("Story Architect response is missing premise or scenes.");
     }
-    const scenes = value.scenes.map((scene, sceneIndex) => this.coerceScene(scene, sceneIndex, intake));
+    const register: StyleRegister | undefined = isStyleRegister(value.register)
+      ? value.register
+      : registerForCreativeMode(
+          typeof intake.metadata?.shortViralCreativeMode === "string"
+            ? intake.metadata.shortViralCreativeMode
+            : typeof intake.metadata?.creativeMode === "string" ? intake.metadata.creativeMode : undefined
+        );
+    const scenes = value.scenes.map((scene, sceneIndex) => this.coerceScene(scene, sceneIndex, intake, register));
     const usableScenes = scenes.length > 0 ? scenes : [this.fallbackScene(intake, 0)];
     const workflowScenes = this.singleClipRequested(intake)
       ? [this.singleClipScene(usableScenes, intake)]
@@ -207,13 +232,58 @@ export class StoryArchitect {
     };
   }
 
-  private coerceScene(scene: unknown, sceneIndex: number, intake: IntakeResult): ScenePlan {
+  /** LLM-authored per-beat style DNA; requires a resolved register to anchor the axes. */
+  private coerceStyleDna(value: unknown, register: StyleRegister | undefined): StyleDna | undefined {
+    if (!register) {
+      return undefined;
+    }
+    const payload = value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+    const text = (key: string): string | undefined =>
+      typeof payload[key] === "string" && (payload[key] as string).trim() ? (payload[key] as string).trim() : undefined;
+    const list = (key: string): readonly string[] | undefined => {
+      const raw = payload[key];
+      if (!Array.isArray(raw)) {
+        return undefined;
+      }
+      const cleaned = raw.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim()).slice(0, 8);
+      return cleaned.length > 0 ? cleaned : undefined;
+    };
+    const optics = text("optics");
+    const lighting = text("lighting");
+    const palette = text("palette");
+    const motion = text("motion");
+    const performance = text("performance");
+    const audioFeel = text("audioFeel");
+    const moodWords = list("moodWords");
+    const avoid = list("avoid");
+    // A register alone is NOT authored DNA — without at least one axis the legacy niche/mode tables
+    // must still fire under the register frame, or briefs where the LLM skips styleDna lose all
+    // category color (caught by the input-matrix harness).
+    if (!optics && !lighting && !palette && !motion && !performance && !audioFeel && !moodWords && !avoid) {
+      return undefined;
+    }
+    return {
+      register,
+      ...(optics ? { optics } : {}),
+      ...(lighting ? { lighting } : {}),
+      ...(palette ? { palette } : {}),
+      ...(motion ? { motion } : {}),
+      ...(performance ? { performance } : {}),
+      ...(audioFeel ? { audioFeel } : {}),
+      ...(moodWords ? { moodWords } : {}),
+      ...(avoid ? { avoid } : {})
+    };
+  }
+
+  private coerceScene(scene: unknown, sceneIndex: number, intake: IntakeResult, register?: StyleRegister): ScenePlan {
     const payload = scene && typeof scene === "object" ? (scene as Record<string, unknown>) : {};
     const rawBeats = Array.isArray(payload.beats) ? payload.beats : [];
     const sceneId = typeof payload.sceneId === "string" ? payload.sceneId : `scene_${sceneIndex + 1}`;
     const title = typeof payload.title === "string" ? payload.title : `Scene ${sceneIndex + 1}`;
     const beats = rawBeats.length > 0
-      ? rawBeats.map((beat, beatIndex) => this.coerceBeat(beat, sceneIndex, beatIndex, intake))
+      ? rawBeats.map((beat, beatIndex) => this.coerceBeat(beat, sceneIndex, beatIndex, intake, register))
       : [this.fallbackBeat(sceneId, title, sceneIndex, 0, intake)];
 
     return {
@@ -227,7 +297,8 @@ export class StoryArchitect {
     beat: unknown,
     sceneIndex: number,
     beatIndex: number,
-    intake: IntakeResult
+    intake: IntakeResult,
+    register?: StyleRegister
   ): BeatPlan {
     const payload = beat && typeof beat === "object" ? (beat as Record<string, unknown>) : {};
     const style = typeof payload.style === "string" ? payload.style : undefined;
@@ -245,6 +316,7 @@ export class StoryArchitect {
     const emotionalTurn = typeof payload.emotionalTurn === "string" && payload.emotionalTurn.trim()
       ? payload.emotionalTurn.trim()
       : undefined;
+    const styleDna = this.coerceStyleDna(payload.styleDna, register);
 
     return {
       beatId: typeof payload.beatId === "string" ? payload.beatId : `scene_${sceneIndex + 1}_beat_${beatIndex + 1}`,
@@ -257,6 +329,7 @@ export class StoryArchitect {
       ...(audioIntent ? { audioIntent } : {}),
       ...(spokenLine ? { spokenLine } : {}),
       ...(emotionalTurn ? { emotionalTurn } : {}),
+      ...(styleDna ? { styleDna } : {}),
       durationSeconds: this.readNumber(payload.durationSeconds, Math.max(8, Math.min(15, intake.settings.durationTargetSeconds / 12))),
       risks: this.readRisks(payload.risks),
       references: intake.references,

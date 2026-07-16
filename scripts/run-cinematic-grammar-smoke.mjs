@@ -44,9 +44,11 @@ function shot(mode, extra = {}) {
   };
 }
 const cinematicPrompt = compiler.compile({ shot: shot("cinematic"), settings: { ...DEFAULT_SEEDANCE_SETTINGS }, modelId: "seedance-2-0", provider: "atlascloud" }).prompt;
-check("compiler_emits_cinematography", cinematicPrompt.includes("Cinematography:") && cinematicPrompt.includes("anamorphic"));
+// Register engine (final upgrade): mapped creative modes emit the REGISTER frame instead of the
+// legacy Cinematography line — professional_cinematic covers optics/light/color/motion.
+check("compiler_emits_cinematic_register", cinematicPrompt.includes("Style register: professional cinematic.") && cinematicPrompt.includes("shallow depth of field"));
 const ugcPrompt = compiler.compile({ shot: shot("ugc_review"), settings: { ...DEFAULT_SEEDANCE_SETTINGS }, modelId: "seedance-2-0", provider: "atlascloud" }).prompt;
-check("compiler_ugc_grammar_differs", ugcPrompt.includes("no heavy grade") && !ugcPrompt.includes("anamorphic"));
+check("compiler_ugc_register_differs", ugcPrompt.includes("Style register: natural phone-shot / KOL.") && ugcPrompt.includes("NO cinematic bokeh") && !ugcPrompt.includes("Style register: professional cinematic."));
 
 // Reference disambiguation appears when identity/product references are bound.
 const identityShot = {
