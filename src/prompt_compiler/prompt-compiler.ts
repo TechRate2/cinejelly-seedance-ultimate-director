@@ -22,11 +22,15 @@ import {
 import { resolveSeedanceDna } from "../core/seedance-dna.js";
 import {
   DIALOGUE_LIGHT_LANGUAGE_CLAUSE,
+  DIALOGUE_LIGHT_VERBATIM_CLAUSE,
   registerForCreativeMode,
-  registerGrammarPromptLine
+  registerGrammarPromptLine,
+  type StyleRegister
 } from "../core/register-grammar.js";
 import { cinematicGrammarPromptLine } from "../core/seedance-cinematic-grammar.js";
 import { shotGrammarFromMetadata, shotGrammarPromptLine } from "../core/shot-grammar.js";
+import { BEAT_CONTINUATION_SENTINEL } from "../core/shot-planner.js";
+import { containsVietnameseDiacritics } from "../core/spoken-language.js";
 import { buildNegativePrompt } from "./negative-constraints.js";
 import { buildPromptBindingPlan, describeReferenceBindingsFromPlan } from "./reference-binding.js";
 import { buildRepairHints } from "./repair-hints.js";
@@ -79,6 +83,8 @@ export class SeedancePromptCompiler {
    * per boundary, and three tight merged contracts (runtime, boundary, realism).
    */
   private buildPrompt(shot: ShotContract, bindingPlan: PromptBindingPlan, providerMode: ProviderMode): string {
+    // Resolved ONCE so the register frame and the realism guardrails can never disagree.
+    const register = this.resolveStyleRegister(shot);
     const sections = [
       this.buildReferenceHandlePrelude(bindingPlan, providerMode),
       `Video brief: ${shot.durationSeconds}s ${this.providerModeLabel(providerMode)} clip.`,
@@ -98,9 +104,9 @@ export class SeedancePromptCompiler {
       shot.style ? `Style: ${shot.style}.` : undefined,
       shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline, shot) : undefined,
       this.buildAudioProductionSection(shot),
-      this.buildRegisterSection(shot),
+      this.buildRegisterSection(shot, register),
       this.buildFinalFrameSection(shot, bindingPlan),
-      this.buildRealismGuardrailsSection()
+      this.buildRealismGuardrailsSection(register)
     ];
 
     return sections.filter((section): section is string => Boolean(section && section.trim())).join("\n");
@@ -291,9 +297,15 @@ export class SeedancePromptCompiler {
         ? CLIFFHANGER_ENDING_ARC_DIRECTIVE
         : ARC_ROLE_DIRECTIVES[arcRole]
       : undefined;
+    // Mirror buildFinalFrameSection's continuation detection: a mid-beat clip must NOT be told to
+    // settle while the final-frame contract tells it to end mid-motion (audit: self-contradiction
+    // on every continuation clip in long-form videos).
+    const continuationExit = this.isContinuationExit(shot);
     const finalBeatClause = cliffhanger
       ? `the final beat holds the unresolved cliffhanger frame at ${shot.durationSeconds}s`
-      : `the final beat must still be purposeful motion that settles cleanly at ${shot.durationSeconds}s`;
+      : continuationExit
+        ? `the final beat keeps the action visibly in progress at ${shot.durationSeconds}s — this clip hands off mid-motion to the next clip, so do not settle or resolve`
+        : `the final beat must still be purposeful motion that settles cleanly at ${shot.durationSeconds}s`;
     const referenceRoles = new Set(bindingPlan.providerReferences.map((reference) => reference.role ?? reference.kind));
     const sourceGuided = referenceRoles.has("source_video_structure") ||
       referenceRoles.has("video") ||
@@ -316,6 +328,14 @@ export class SeedancePromptCompiler {
   /** Whether this shot is the video's final shot with a requested cliffhanger ending. */
   private isCliffhangerShot(shot: ShotContract): boolean {
     return this.isCliffhangerEndingShot(shot, this.videoArcRole(shot));
+  }
+
+  /**
+   * Whether this clip ends mid-beat (the next clip continues the same unbroken action). The shot
+   * planner marks it in the last timeline segment; runtime and final-frame contracts must agree.
+   */
+  private isContinuationExit(shot: ShotContract): boolean {
+    return Boolean(shot.timeline?.[shot.timeline.length - 1]?.action?.includes(BEAT_CONTINUATION_SENTINEL));
   }
 
 
@@ -365,9 +385,7 @@ export class SeedancePromptCompiler {
     // A mid-beat continuation clip must NOT settle (the next clip continues the same unbroken
     // action) — emitting "finish on a stable frame" for it contradicted the phasing plan and read
     // as one instruction the model could not reconcile (live-render forensics finding).
-    const continuationExit = Boolean(
-      shot.timeline?.[shot.timeline.length - 1]?.action?.includes("is not the beat's end")
-    );
+    const continuationExit = this.isContinuationExit(shot);
     const headline = cliffhanger
       ? "Final-frame contract (cliffhanger): finish on a stable, legible frame of the UNRESOLVED moment — the confrontation frozen, the reveal half-seen, the reply unspoken; do not resolve the action."
       : continuationExit
@@ -388,43 +406,66 @@ export class SeedancePromptCompiler {
    * CREATIVE_MODE_DNA/NICHE_DNA lookups fire ONLY when no styleDna/register exists (fallback path,
    * preserving old behavior for callers that do not author style).
    */
-  private buildRegisterSection(shot: ShotContract): string | undefined {
+  private buildRegisterSection(shot: ShotContract, register: StyleRegister | undefined): string | undefined {
     const dna = shot.styleDna;
-    const creativeMode =
-      this.stringMetadata(shot, "shortViralCreativeMode") ??
-      this.stringMetadata(shot, "shortDirectorCreativeMode") ??
-      this.stringMetadata(shot, "creativeMode");
-    const register = dna?.register ?? registerForCreativeMode(creativeMode);
     if (!register) {
       // Legacy fallback: exactly the two sections this engine replaced.
       return [this.buildNicheDnaSection(shot), this.buildCinematicGrammarSection(shot)]
         .filter((line): line is string => Boolean(line && line.trim()))
         .join("\n");
     }
+    // Each override line ends with a period so the axes never run together as one run-on sentence.
+    const axis = (label: string, value: string | undefined): string | undefined =>
+      value ? `${label}: ${this.stripTerminalPunctuation(value)}.` : undefined;
     const overrides = dna
       ? [
-          dna.optics ? `Optics (this video): ${dna.optics}` : undefined,
-          dna.lighting ? `Lighting look: ${dna.lighting}` : undefined,
-          dna.palette ? `Palette: ${dna.palette}` : undefined,
-          dna.motion ? `Motion: ${dna.motion}` : undefined,
-          dna.performance ? `Performance: ${dna.performance}` : undefined,
-          dna.audioFeel ? `Audio-feel: ${dna.audioFeel}` : undefined,
+          axis("Optics (this video)", dna.optics),
+          axis("Lighting look", dna.lighting),
+          axis("Palette", dna.palette),
+          axis("Motion", dna.motion),
+          axis("Performance", dna.performance),
+          axis("Audio-feel", dna.audioFeel),
           dna.moodWords?.length ? `Mood: ${dna.moodWords.join(", ")}.` : undefined,
           dna.avoid?.length ? `Avoid: ${dna.avoid.join(", ")}.` : undefined
         ].filter((line): line is string => Boolean(line))
       : [];
-    // With authored styleDna the legacy tables stay silent; without it they add niche color under
-    // the register frame (transition path for callers that resolve a register but author nothing).
-    const legacy = dna ? [] : [this.buildNicheDnaSection(shot)].filter((line): line is string => Boolean(line && line.trim()));
-    const spokenLanguage = this.stringMetadata(shot, "shortAudioLanguage") ?? this.stringMetadata(shot, "voiceLanguage");
-    const weakLipSyncLanguage = spokenLanguage === "vi" ||
-      Boolean(shot.spokenLine && /[ăâđêôơưà-ỹĂÂĐÊÔƠƯÀ-Ỹ]/u.test(shot.spokenLine));
+    // Authored AXES silence the legacy tables; a register-only DNA (register resolved upstream but
+    // no axes written) still gets legacy niche color under the register frame, so threading the
+    // register through the plan never costs category detail (audit #2).
+    const hasAuthoredAxes = overrides.length > 0;
+    const legacy = hasAuthoredAxes
+      ? []
+      : [this.buildNicheDnaSection(shot)].filter((line): line is string => Boolean(line && line.trim()));
+    const spokenLanguage = this.stringMetadata(shot, "shortAudioLanguage")
+      ?? this.stringMetadata(shot, "voiceLanguage")
+      ?? this.stringMetadata(shot, "analystVoiceLanguage");
+    const weakLipSyncLanguage = spokenLanguage === "vi" || containsVietnameseDiacritics(shot.spokenLine);
     return [
-      registerGrammarPromptLine(register),
+      // When the DNA authored its own audioFeel, the override REPLACES the register's audio axis
+      // instead of stacking a second audio directive on top of it (audit #16).
+      registerGrammarPromptLine(register, { omitAudioFeel: Boolean(dna?.audioFeel) }),
       ...overrides,
       ...legacy,
-      weakLipSyncLanguage ? DIALOGUE_LIGHT_LANGUAGE_CLAUSE : undefined
+      // Verbatim scripted lines must not receive the "keep it short" instruction — that fought the
+      // do-not-shorten mandate in the audio section (audit #17).
+      weakLipSyncLanguage
+        ? (shot.spokenLine ? DIALOGUE_LIGHT_VERBATIM_CLAUSE : DIALOGUE_LIGHT_LANGUAGE_CLAUSE)
+        : undefined
     ].filter((line): line is string => Boolean(line)).join(" ");
+  }
+
+  /** The shot's effective style register: authored DNA first, then the legacy creative-mode map. */
+  private resolveStyleRegister(shot: ShotContract): StyleRegister | undefined {
+    return shot.styleDna?.register ?? registerForCreativeMode(this.creativeModeMetadata(shot));
+  }
+
+  /** The one metadata-key chain for creative mode — every section resolves it identically. */
+  private creativeModeMetadata(shot: ShotContract): string | undefined {
+    return (
+      this.stringMetadata(shot, "shortViralCreativeMode") ??
+      this.stringMetadata(shot, "shortDirectorCreativeMode") ??
+      this.stringMetadata(shot, "creativeMode")
+    );
   }
 
   /**
@@ -437,10 +478,7 @@ export class SeedancePromptCompiler {
     // (via the render handoff -> intake -> shot planner). Accept the direct keys too so
     // long-form/direct callers can opt in.
     const niche = this.stringMetadata(shot, "shortViralNiche") ?? this.stringMetadata(shot, "niche");
-    const creativeMode =
-      this.stringMetadata(shot, "shortViralCreativeMode") ??
-      this.stringMetadata(shot, "shortDirectorCreativeMode") ??
-      this.stringMetadata(shot, "creativeMode");
+    const creativeMode = this.creativeModeMetadata(shot);
     if (!niche && !creativeMode) {
       return undefined;
     }
@@ -458,11 +496,7 @@ export class SeedancePromptCompiler {
    * once the CRAFT anatomy is complete. Mode-keyed; falls back to a grounded default.
    */
   private buildCinematicGrammarSection(shot: ShotContract): string {
-    const creativeMode =
-      this.stringMetadata(shot, "shortViralCreativeMode") ??
-      this.stringMetadata(shot, "shortDirectorCreativeMode") ??
-      this.stringMetadata(shot, "creativeMode");
-    return cinematicGrammarPromptLine(creativeMode);
+    return cinematicGrammarPromptLine(this.creativeModeMetadata(shot));
   }
 
   private stringMetadata(shot: ShotContract, key: string): string | undefined {
@@ -477,11 +511,17 @@ export class SeedancePromptCompiler {
    * organic motion, and explicit artifact suppression. It targets the "does not look real"
    * failure mode that separates raw text-to-video from commercial-grade cinematic output.
    */
-  private buildRealismGuardrailsSection(): string {
+  private buildRealismGuardrailsSection(register: StyleRegister | undefined): string {
     // Compact 3-sentence form (was a 7-sentence wall duplicating the negative prompt — the
     // exhaustive banned-artifact list lives in negativePrompt, per live-render forensics).
+    // The capture sentence is register-aware: the cinematic wording (motivated light, cinematic
+    // capture, speculars) actively fought the natural_phone_kol register's anti-cinematic guards
+    // (audit #8); the artifact-suppression sentences are register-neutral and always apply.
+    const captureSentence = register === "natural_phone_kol"
+      ? "Realism guardrails: photoreal phone-camera capture, not CGI, cartoon, or an obvious AI render — real phone-sensor depth and motion blur, unshaped available light with accurate contact shadows, true material microtexture (skin pores, fabric weave, glass, condensation)."
+      : "Realism guardrails: photoreal cinematic capture, not CGI, cartoon, or an obvious AI render — real lens depth-of-field and motion blur, motivated light with accurate contact shadows and physically based speculars, true material microtexture (skin pores, fabric weave, glass, condensation).";
     return [
-      "Realism guardrails: photoreal cinematic capture, not CGI, cartoon, or an obvious AI render — real lens depth-of-field and motion blur, motivated light with accurate contact shadows and physically based speculars, true material microtexture (skin pores, fabric weave, glass, condensation).",
+      captureSentence,
       "Motion stays organic with natural weight and small secondary micro-movements; no extra or fused fingers, morphing edges, temporal flicker, warped logos/text, or melting geometry.",
       "No visible generated text, captions, subtitles, watermark, or fake UI unless explicitly requested."
     ].join(" ");

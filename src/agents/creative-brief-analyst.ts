@@ -12,6 +12,7 @@ import type { IntakeResult } from "../types/agent.js";
 import type { CreativeIntent } from "../types/creative-intent.js";
 import type { StyleDna, StyleRegister } from "../types/prompt.js";
 import { isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
+import { containsVietnameseDiacritics, normalizeSpokenLanguageCode } from "../core/spoken-language.js";
 
 const CREATIVE_INTENT_SCHEMA = {
   type: "object",
@@ -53,6 +54,8 @@ const CREATIVE_INTENT_SCHEMA = {
 
 const ANALYST_SYSTEM_PROMPT =
   "You are CineJelly's Creative Brief Analyst. Read the user brief and any product/reference facts and decide the creative intent BEFORE any script is written. Return JSON only for the CreativeIntent schema. Choose ONE register: professional_cinematic (premium, filmic, motivated lighting, deliberate camera) or natural_phone_kol (a real person filmed this in one casual take on a phone — handheld sway, auto-exposure, no studio polish, never AI-looking). Write styleDna as short concrete camera/lighting/palette/motion/performance/audio direction specific to THIS brief — physical and camera-real, never marketing adjectives or booster words (no 8K, masterpiece, hyper-detailed); this replaces any fixed template. Fill storyEngine with the REAL conflict, what is at stake for the person on screen, and the payoff that resolves it, so the video holds attention. emotionArc is the whole-video feeling start -> turn -> end. Set language to the language the on-screen people SPEAK (the brief's language, e.g. 'vi' for Vietnamese); all visual direction stays English regardless. niche and genre are free text — be specific, not categorical.";
+
+export { normalizeSpokenLanguageCode };
 
 interface CreativeIntentJson {
   readonly register?: unknown;
@@ -127,7 +130,10 @@ export class CreativeBriefAnalyst {
       genre: text(value.genre, fallback.genre),
       niche: text(value.niche, fallback.niche),
       audience: text(value.audience, fallback.audience),
-      language: text(value.language, fallback.language),
+      // Normalized to a short code ("vi", "es") so the talking-shot TTS stage can consume it as a
+      // languageCode directly (audit: analyst language was orphaned and TTS fell back to a
+      // Vietnamese-only diacritic regex that mis-tagged Spanish/French as "vi").
+      language: normalizeSpokenLanguageCode(text(value.language, fallback.language)) ?? fallback.language,
       tone: text(value.tone, fallback.tone),
       emotionArc: text(value.emotionArc, fallback.emotionArc),
       pacingProfile: text(value.pacingProfile, fallback.pacingProfile),
@@ -189,7 +195,7 @@ export class CreativeBriefAnalyst {
       typeof intake.metadata?.shortViralNiche === "string" ? intake.metadata.shortViralNiche
         : typeof intake.metadata?.niche === "string" ? intake.metadata.niche : "general commercial video";
     const register = registerForCreativeMode(creativeMode) ?? "natural_phone_kol";
-    const language = /[ăâđêôơưà-ỹĂÂĐÊÔƠƯÀ-Ỹ]/u.test(intake.userInput) ? "vi" : "en";
+    const language = containsVietnameseDiacritics(intake.userInput) ? "vi" : "en";
     return {
       schemaVersion: "cinejelly.creative-intent.v1",
       register,

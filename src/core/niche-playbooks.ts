@@ -53,7 +53,7 @@ const PLAYBOOKS: Record<string, NichePlaybook> = {
       "high-speed whip-pan rush through a fantastical world straight into the protagonist",
       "shouted signature line delivered with explosive force on frame one"
     ],
-    beatTemplate: "8-12 rhythm-driven cuts of 1-2s each: power stance -> rapid action chain (kick/object-POV/impact) -> elegant aftermath frame that invites a loop",
+    beatTemplate: "3-4 beats of 4-6s, each packing 2-3 rhythm cuts inside its per-second timeline (min 4s beats): power stance -> rapid action chain (kick/object-POV/impact) -> aftermath frame that invites a loop",
     cameraPlaybook: "diagonal low-angle power stances, crash zooms, impact-frame orbits, match cuts; continuous kinetic motion — never a slideshow of stills",
     audioSignature: "BGM with an explicit mood and BPM, an SFX list per impact (glitch stingers, energy hums), one shouted quotable line marked as modifiable; cuts land on the beat",
     referenceStrategy: "use the character turnaround sheet (front/back/side) as the only identity source; when a storyboard/control sheet is supplied, follow its shots exactly but NEVER render the sheet, its panels, or annotations",
@@ -67,7 +67,7 @@ const PLAYBOOKS: Record<string, NichePlaybook> = {
       "first-person POV tilt-up that reveals something impossible, treated casually",
       "ASMR whisper opener ('I found a hidden...') before the music or reveal drops"
     ],
-    beatTemplate: "15s in per-second choreography: hook line -> handheld exploration/proof beats of 2-3s -> reaction -> payoff or twist; end on a natural cutoff, not a produced outro",
+    beatTemplate: "15s in per-second choreography: hook line -> handheld exploration/proof beats of 4-6s each packing 2-3 quick proof actions inside the clip -> reaction -> payoff or twist; end on a natural cutoff, not a produced outro",
     cameraPlaybook: "handheld selfie-stick wide-angle with genuine micro-shake, autofocus hunt, digital zoom, phone-sensor character; no stabilized cinematic moves at all",
     audioSignature: "in-camera ambience only (breathing, cloth, street rumble) with sparse quoted natural dialogue; no scored music unless the format is a beat-synced hyperlapse",
     referenceStrategy: "the creator photo is the identity anchor — preserve the exact face and stated details (accessories stay on the same wrist/side) through every second; product appears in-hand, never floating",
@@ -95,7 +95,7 @@ const PLAYBOOKS: Record<string, NichePlaybook> = {
       "extreme close-up on one detail (an eye, a mask sealing) that ignites the sequence",
       "total stillness with dread — something colossal is about to appear"
     ],
-    beatTemplate: "labeled shots of 3-5s escalating to a cataclysm then a calm reveal; optionally one true unbroken continuous shot with no cuts for maximum spectacle",
+    beatTemplate: "labeled shots of 4-6s escalating to a cataclysm then a calm reveal; optionally one true unbroken continuous shot with no cuts for maximum spectacle",
     cameraPlaybook: "sweeping wide establish -> whip into high-speed tracking -> orbit the hero -> crash-zoom or speed-ramp at impact -> aerial pull-back finale revealing scale",
     audioSignature: "SFX-forward design (roars, shockwaves, structural groans) over a swelling score with low-frequency weight; slow-motion at impact then snap back to full speed on the beat",
     referenceStrategy: "single character reference with an explicit identity-preservation clause (face, glasses, beard survive every frame); grounded-anatomy clause when realism matters",
@@ -109,7 +109,7 @@ const PLAYBOOKS: Record<string, NichePlaybook> = {
       "deadpan setup line delivered straight to camera",
       "escalating running gag introduced innocently in shot one"
     ],
-    beatTemplate: "two-beat reversal (0-7s setup, 7-15s absurd payoff) or micro-gag ladder (2s beats) ending on a freeze or told-you-so look to camera",
+    beatTemplate: "two-beat reversal (0-7s setup, 7-15s absurd payoff) or micro-gag ladder of 4-6s beats landing 2-3 gags inside each clip, ending on a freeze or told-you-so look to camera",
     cameraPlaybook: "explicitly static locked camera for deadpan (no zoom, no pan, no shake); jump cuts for escalation; one whip-pan reserved for the reveal",
     audioSignature: "quoted comic dialogue with timestamped bickering, exaggerated prop SFX, and often NO music — silence sells the deadpan; a single sting on the punchline",
     referenceStrategy: "recurring cast via character handles for series potential; prop safety framed explicitly (plastic props, adults only, no harm)",
@@ -123,7 +123,7 @@ const PLAYBOOKS: Record<string, NichePlaybook> = {
       "top-down drop of a fresh ingredient landing in light",
       "the finished dish first, then rewind into the process"
     ],
-    beatTemplate: "up to 12 numbered process beats of 1-1.5s in strict cooking order, closing on a slow orbit of the finished dish and one human reaction",
+    beatTemplate: "numbered process steps in strict cooking order packed 2-3 per 4-6s beat (each step timed inside the clip's per-second timeline), closing on a slow orbit of the finished dish and one human reaction",
     cameraPlaybook: "extreme macro and overhead process shots with match cuts on shape and motion; slow push-in on steam; closing orbit; vertical slow-motion reserved for the money shot",
     audioSignature: "ASMR SFX list written explicitly (chop, sizzle, bubble, ceramic clink) over a BPM-matched cozy BGM; one reveal sting; sound carries the appetite",
     referenceStrategy: "same chef/hands across every beat; when a storyboard is supplied follow all shots exactly without rendering the sheet; product packaging accurate when branded",
@@ -137,7 +137,7 @@ const PLAYBOOKS: Record<string, NichePlaybook> = {
       "beat-drop freeze then explode into choreography",
       "an unexpected performer (age/identity subversion) owning the frame instantly"
     ],
-    beatTemplate: "4 beats across 15s: intro attitude (0-3) -> verse with lip-sync (3-7) -> choreography escalation (7-11) -> climax where the music cuts abruptly and the performer holds the freeze (11-15)",
+    beatTemplate: "3 beats across 15s: intro attitude flowing into the verse with lip-sync (0-5) -> choreography escalation (5-10) -> climax where the music cuts abruptly and the performer holds the freeze (10-15)",
     cameraPlaybook: "medium push-in alternating with close-ups on the beat, low-angle authority shots, one 360-degree orbit, full-body pull-back for the dance reveal; every cut lands on the count",
     audioSignature: "embedded lyric lines in brackets with tempo and attitude notes; genre-specific BGM (trap 808s, city-pop); the abrupt-stop freeze is an audio event",
     referenceStrategy: "performer identity locked across outfit/set changes; choreography sheets act as count maps (16 counts per 10s), never rendered on screen",
@@ -165,7 +165,7 @@ const PLAYBOOKS: Record<string, NichePlaybook> = {
       "aerial fly-through diving into street level where the guide is already walking",
       "one sensory place detail (steam, lanterns, waves) before any wide establishing shot"
     ],
-    beatTemplate: "either a beat-synced hyperlapse (hard cuts every 0.5s, one look/outfit evolution per location) or 5 narrative districts of ~3s each ending on a pull-back reveal of the whole world",
+    beatTemplate: "either a beat-synced hyperlapse rendered INSIDE 4-6s clips (rapid in-clip location flips on the beat, one look/outfit evolution per location) or 3-4 narrative districts of 4-5s each ending on a pull-back reveal of the whole world",
     cameraPlaybook: "selfie hyperlapse with hard beat cuts, tracking walkthroughs, emotional close-ups on discoveries, one grand pull-back finale; location variety IS the camera story",
     audioSignature: "upbeat driving BGM stitched with per-location ambience (markets, birds, water); the whisper-to-drop transition is the audio hook",
     referenceStrategy: "strict identity consistency across every location (face, accessories on the same side); outfits may change per location but the person never drifts",
@@ -179,7 +179,7 @@ const PLAYBOOKS: Record<string, NichePlaybook> = {
       "a charged object or garment beginning to move on its own",
       "before-state and a countdown cue (music riser, inhale, drumstick click)"
     ],
-    beatTemplate: "before-state (2-3s) -> transformation in continuous motion with the body/object never decomposing (5-8s) -> after-state strut/hold (3-4s) -> loopable final frame matching the opening angle",
+    beatTemplate: "before-state held inside the opening 4-5s beat -> transformation in continuous motion with the body/object never decomposing (5-8s) -> after-state strut/hold of 4-5s -> loopable final frame matching the opening angle",
     cameraPlaybook: "hold one continuous angle or slow orbit THROUGH the transformation so the change reads as real; speed-ramp at the peak; match the final framing to the first for loop-bait",
     audioSignature: "a single riser into an impact hit at the transformation peak, then a confident groove; fabric/energy SFX detailed explicitly",
     referenceStrategy: "image-1-to-image-2 morph contract: start state and end state each anchored to a reference, with an explicit clause that the subject never dissolves or decomposes mid-change",

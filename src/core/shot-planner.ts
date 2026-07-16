@@ -18,6 +18,13 @@ import { planDurationChunks } from "./chunking.js";
 import { assignVideoArcRoles } from "./duration-scripting.js";
 import { planShotFramingSequence, type ArcRoleName } from "./shot-grammar.js";
 
+/**
+ * Sentinel phrase embedded in a continuation clip's final timeline action. The prompt compiler
+ * detects it (runtime + final-frame contracts must both switch to mid-motion handoff), so producer
+ * and consumers share this ONE constant — rewording the prose can never silently break detection.
+ */
+export const BEAT_CONTINUATION_SENTINEL = "is not the beat's end";
+
 export interface BeatPlan {
   readonly beatId: string;
   readonly purpose: string;
@@ -371,7 +378,7 @@ export class ShotPlanner {
 
   // A sub-clip that is NOT the last of its beat: leave the action unresolved so the next clip continues.
   private continuationHandleAction(beat: BeatPlan, chunkIndex: number, totalChunks: number): string {
-    return `Clip ${chunkIndex + 1} of ${totalChunks} is not the beat's end: leave the action mid-progress on a clean continuation handle so the next clip picks up seamlessly. Do not settle, resolve, or return to a neutral end frame — keep advancing the same continuous action: ${beat.action}`;
+    return `Clip ${chunkIndex + 1} of ${totalChunks} ${BEAT_CONTINUATION_SENTINEL}: leave the action mid-progress on a clean continuation handle so the next clip picks up seamlessly. Do not settle, resolve, or return to a neutral end frame — keep advancing the same continuous action: ${beat.action}`;
   }
 
   // Per-shot audio intent for a chunked beat: continuation clips must not re-deliver lines already

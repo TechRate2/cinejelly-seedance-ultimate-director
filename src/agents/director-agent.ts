@@ -32,6 +32,7 @@ import {
   type PortraitCastMember
 } from "../core/keyframe-first-planner.js";
 import { avatarOutputResolution, buildAvatarPrompt, decideAvatarShot } from "../core/avatar-shot-planner.js";
+import { containsVietnameseDiacritics } from "../core/spoken-language.js";
 import type { CreativeBriefAnalyst } from "./creative-brief-analyst.js";
 import { planSocialPublishingMetadata } from "../core/social-publishing-planner.js";
 import { LongFormAgentReviewPlanner } from "../core/long-form-agent-review-planner.js";
@@ -249,7 +250,26 @@ export class DirectorAgent {
     const creativeIntent = this.creativeBriefAnalyst
       ? await this.creativeBriefAnalyst.analyze(baseIntake, signal)
       : undefined;
-    const intake = creativeIntent ? { ...baseIntake, creativeIntent } : baseIntake;
+    // The analyst's spoken-language decision becomes shot metadata under its OWN key
+    // (analystVoiceLanguage) so the talking-shot TTS stage can voice Spanish as "es" (audit #6)
+    // WITHOUT outranking either an explicit request language or the per-line Vietnamese-diacritic
+    // detection — the analyst may be a fail-open whole-video guess, so per-line evidence wins
+    // (cross-review: stamping voiceLanguage directly regressed EN briefs with VN dialogue).
+    const analystVoiceLanguage =
+      creativeIntent?.language?.trim() &&
+      typeof baseIntake.metadata?.shortAudioLanguage !== "string" &&
+      typeof baseIntake.metadata?.voiceLanguage !== "string"
+        ? creativeIntent.language.trim()
+        : undefined;
+    const intake = creativeIntent
+      ? {
+          ...baseIntake,
+          creativeIntent,
+          ...(analystVoiceLanguage
+            ? { metadata: { ...(baseIntake.metadata ?? {}), analystVoiceLanguage } }
+            : {})
+        }
+      : baseIntake;
     if (creativeIntent) {
       this.reportStageProgress("plan", "running", "Creative intent resolved before scripting.", {
         register: creativeIntent.register,
@@ -400,12 +420,33 @@ export class DirectorAgent {
     const characterAnchors = keyframeFirstEnabled && this.imageProvider && this.atlasSettings.models.imageModel?.trim()
       ? planCharacterAnchors(shots)
       : [];
+    // Talking-shot spend (TTS + audio-driven avatar renders) is counted into the SAME pre-spend
+    // gate as everything else (audit #9: it previously executed after the only budget assert and
+    // was absent from the cost model, so maxCostUsd did not bound it). Counting is an upper bound
+    // over PLAUSIBLE routes: a spoken shot can only reach the avatar model with a character image,
+    // which exists either because keyframe-first will mint one or the shot already carries an
+    // HTTPS identity/first-frame reference. Shots with no possible image path cost $0 here —
+    // counting them would hard-block runs whose avatar spend is provably zero (cross-review).
+    const talkingRoutingConfigured = Boolean(
+      this.atlasSettings.models.avatarModel?.trim() &&
+      this.atlasSettings.models.ttsModel?.trim() &&
+      this.speechProvider
+    );
+    const plannedTalkingShots = talkingRoutingConfigured
+      ? shots.filter((shot) =>
+          Boolean(shot.spokenLine?.trim()) && (keyframeFirstEnabled || decideAvatarShot(shot).talking)
+        )
+      : [];
     const costEstimate = this.renderCostGate.estimate({
       compiledPrompts,
       settings: intake.settings,
       plannedTestTakeCount,
       plannedTestTakeRenderSeconds: plannedTestTakeCount * SEEDANCE_TEST_TAKE_DURATION_SECONDS,
-      plannedKeyframeImageCount: keyframeFirstEnabled ? shots.length + characterAnchors.length : 0
+      plannedKeyframeImageCount: keyframeFirstEnabled ? shots.length + characterAnchors.length : 0,
+      plannedTalkingShotCount: plannedTalkingShots.length,
+      plannedAvatarRenderSeconds: plannedTalkingShots.reduce((sum, shot) => sum + shot.durationSeconds, 0),
+      // One architect call plus the analyst call when that stage is wired (audit #9, minor part).
+      plannedLlmPlanCallCount: 1 + (this.creativeBriefAnalyst ? 1 : 0)
     });
     this.renderCostGate.assertWithinBudget(costEstimate);
 
@@ -2015,12 +2056,19 @@ export class DirectorAgent {
         if (!spokenLine) {
           continue;
         }
-        // Language hint: explicit request metadata wins, else detect Vietnamese from diacritics so
-        // TTS pronunciation never relies on blind auto-detect (final-upgrade VN fix).
+        // Language precedence: explicit request metadata wins; then PER-LINE Vietnamese-diacritic
+        // evidence (this exact line is Vietnamese, whatever the whole video speaks); then the
+        // analyst's whole-video language (covers es/ja/... and diacritic-free VN lines). The
+        // analyst hint never outranks per-line evidence because its fail-open fallback is a guess.
         const metadataLanguage = typeof shot.metadata?.shortAudioLanguage === "string"
           ? shot.metadata.shortAudioLanguage.trim()
           : typeof shot.metadata?.voiceLanguage === "string" ? shot.metadata.voiceLanguage.trim() : "";
-        const languageCode = metadataLanguage || (/[ăâđêôơưà-ỹĂÂĐÊÔƠƯÀ-Ỹ]/u.test(spokenLine) ? "vi" : "");
+        const analystLanguage = typeof shot.metadata?.analystVoiceLanguage === "string"
+          ? shot.metadata.analystVoiceLanguage.trim()
+          : "";
+        const languageCode = metadataLanguage
+          || (containsVietnameseDiacritics(spokenLine) ? "vi" : "")
+          || analystLanguage;
         const tts = await speechProvider.synthesizeSpeech(
           {
             provider: "atlascloud",

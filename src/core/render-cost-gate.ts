@@ -23,8 +23,14 @@ export class RenderCostGate {
     readonly plannedTestTakeCount?: number;
     readonly plannedTestTakeRenderSeconds?: number;
     readonly plannedKeyframeImageCount?: number;
+    readonly plannedTalkingShotCount?: number;
+    readonly plannedAvatarRenderSeconds?: number;
+    readonly plannedLlmPlanCallCount?: number;
   }): RenderCostEstimate {
     const plannedKeyframeImageCount = input.plannedKeyframeImageCount ?? 0;
+    const plannedTalkingShotCount = input.plannedTalkingShotCount ?? 0;
+    const plannedAvatarRenderSeconds = input.plannedAvatarRenderSeconds ?? 0;
+    const plannedLlmPlanCallCount = input.plannedLlmPlanCallCount ?? 1;
     const candidateCount = candidateCountForQuality(input.settings.qualityMode);
     const repairAttemptCount = repairAttemptCountForQuality(input.settings.qualityMode);
     const plannedTestTakeCount = input.plannedTestTakeCount ?? 0;
@@ -40,13 +46,20 @@ export class RenderCostGate {
     const referenceRegistrationCount = this.countRegisterableReferences(input.compiledPrompts);
     const estimatedRenderCostUsd = this.multiply(plannedRenderSeconds, this.settings.renderCostUsdPerSecond);
     const estimatedAssetRegistrationCostUsd = this.multiply(referenceRegistrationCount, this.settings.assetRegistrationCostUsd);
-    const estimatedLlmCostUsd = this.settings.llmPlanCostUsd;
+    const estimatedLlmCostUsd = this.multiply(plannedLlmPlanCallCount, this.settings.llmPlanCostUsd);
     const estimatedKeyframeImageCostUsd = this.multiply(plannedKeyframeImageCount, this.settings.imageGenerationCostUsd);
+    // Talking-shot spend: per-line TTS plus the audio-driven avatar model's per-second rate. The
+    // avatar seconds ADD to (never replace) the general render estimate — deliberate upper bound so
+    // the gate can only block sooner, never overspend (audit #9).
+    const estimatedTtsCostUsd = this.multiply(plannedTalkingShotCount, this.settings.ttsSynthesisCostUsd);
+    const estimatedAvatarRenderCostUsd = this.multiply(plannedAvatarRenderSeconds, this.settings.avatarRenderCostUsdPerSecond);
     const estimatedSubtotalUsd = this.sumDefined([
       estimatedRenderCostUsd,
       estimatedAssetRegistrationCostUsd,
       estimatedLlmCostUsd,
-      estimatedKeyframeImageCostUsd
+      estimatedKeyframeImageCostUsd,
+      estimatedTtsCostUsd,
+      estimatedAvatarRenderCostUsd
     ]);
     const estimatedTotalCostUsd = estimatedSubtotalUsd === undefined
       ? undefined
@@ -54,6 +67,9 @@ export class RenderCostGate {
     const findings = this.findings({
       hasRenderRate: this.settings.renderCostUsdPerSecond !== undefined,
       plannedRenderSeconds,
+      plannedTalkingShotCount,
+      hasTtsRate: this.settings.ttsSynthesisCostUsd !== undefined,
+      hasAvatarRate: this.settings.avatarRenderCostUsdPerSecond !== undefined,
       ...(input.settings.maxCostUsd !== undefined ? { maxCostUsd: input.settings.maxCostUsd } : {}),
       ...(estimatedTotalCostUsd !== undefined ? { estimatedTotalCostUsd } : {})
     });
@@ -71,11 +87,16 @@ export class RenderCostGate {
       plannedRepairRenderSeconds,
       plannedRenderSeconds,
       plannedKeyframeImageCount,
+      plannedTalkingShotCount,
+      plannedAvatarRenderSeconds,
+      plannedLlmPlanCallCount,
       referenceRegistrationCount,
       ...(estimatedRenderCostUsd !== undefined ? { estimatedRenderCostUsd } : {}),
       ...(estimatedAssetRegistrationCostUsd !== undefined ? { estimatedAssetRegistrationCostUsd } : {}),
       ...(estimatedLlmCostUsd !== undefined ? { estimatedLlmCostUsd } : {}),
       ...(estimatedKeyframeImageCostUsd !== undefined ? { estimatedKeyframeImageCostUsd } : {}),
+      ...(estimatedTtsCostUsd !== undefined ? { estimatedTtsCostUsd } : {}),
+      ...(estimatedAvatarRenderCostUsd !== undefined ? { estimatedAvatarRenderCostUsd } : {}),
       ...(estimatedTotalCostUsd !== undefined ? { estimatedTotalCostUsd } : {}),
       ...(input.settings.maxCostUsd !== undefined ? { maxCostUsd: input.settings.maxCostUsd } : {}),
       findings
@@ -94,10 +115,28 @@ export class RenderCostGate {
     readonly estimatedTotalCostUsd?: number;
     readonly hasRenderRate: boolean;
     readonly plannedRenderSeconds: number;
+    readonly plannedTalkingShotCount: number;
+    readonly hasTtsRate: boolean;
+    readonly hasAvatarRate: boolean;
   }): readonly string[] {
     const findings: string[] = [];
     if (input.plannedRenderSeconds <= 0) {
       findings.push("No render seconds were planned.");
+    }
+    // Per-rate messages so the operator knows exactly which component is uncounted. When a hard
+    // maxCostUsd cap is set, an unpriced talking component makes the cap unenforceable — that is
+    // a BLOCK (message must mention maxCostUsd for status()), mirroring the missing-render-rate
+    // rule; without a cap it is a loud warn.
+    const missingTalkingRates = [
+      ...(input.hasTtsRate ? [] : ["CINEJELLY_TTS_COST_USD (TTS spend not counted)"]),
+      ...(input.hasAvatarRate ? [] : ["CINEJELLY_AVATAR_COST_USD_PER_SECOND (avatar spend not counted)"])
+    ];
+    if (input.plannedTalkingShotCount > 0 && missingTalkingRates.length > 0) {
+      findings.push(
+        input.maxCostUsd !== undefined
+          ? `maxCostUsd is set but talking shots are planned without ${missingTalkingRates.join(" and ")}; the cap cannot bound talking-shot spend.`
+          : `Talking shots are planned but ${missingTalkingRates.join(" and ")} — that spend is not counted in the USD estimate.`
+      );
     }
     if (input.maxCostUsd !== undefined && !input.hasRenderRate) {
       findings.push("maxCostUsd is set but CINEJELLY_RENDER_COST_USD_PER_SECOND is not configured.");

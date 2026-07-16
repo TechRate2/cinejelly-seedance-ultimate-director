@@ -84,8 +84,15 @@ export function isStyleRegister(value: unknown): value is StyleRegister {
   return value === "professional_cinematic" || value === "natural_phone_kol";
 }
 
-/** Compact single-paragraph register frame for the compiled prompt. */
-export function registerGrammarPromptLine(register: StyleRegister): string {
+/**
+ * Compact single-paragraph register frame for the compiled prompt.
+ * `omitAudioFeel` drops the register's audio axis when the shot carries an authored styleDna
+ * audioFeel override, so audio direction is stated once (override replaces frame, not stacks on it).
+ */
+export function registerGrammarPromptLine(
+  register: StyleRegister,
+  options?: { readonly omitAudioFeel?: boolean }
+): string {
   const grammar = REGISTER_GRAMMAR[register];
   return [
     `Style register: ${REGISTER_LABEL[register]}.`,
@@ -94,7 +101,7 @@ export function registerGrammarPromptLine(register: StyleRegister): string {
     grammar.color,
     grammar.motion,
     grammar.performance,
-    grammar.audioFeel
+    ...(options?.omitAudioFeel ? [] : [grammar.audioFeel])
   ].join(" ");
 }
 
@@ -105,3 +112,10 @@ export function registerGrammarPromptLine(register: StyleRegister): string {
  */
 export const DIALOGUE_LIGHT_LANGUAGE_CLAUSE =
   "Dialogue-light language mode: keep any spoken line short and front-loaded, let expression, gesture, and blocking carry the meaning, and treat lip-shape matching as approximate — the beat must read fully with the sound off.";
+
+/**
+ * Variant for shots that carry a VERBATIM scripted spokenLine: the "keep it short" instruction
+ * would fight the do-not-shorten mandate, so this form targets delivery and lip-shape only.
+ */
+export const DIALOGUE_LIGHT_VERBATIM_CLAUSE =
+  "Dialogue-light language mode: deliver the scripted line in full exactly as written (do not shorten it); treat lip-shape matching as approximate and let expression, gesture, and blocking carry the meaning — the beat must still read with the sound off.";

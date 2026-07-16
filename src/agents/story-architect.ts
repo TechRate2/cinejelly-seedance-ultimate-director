@@ -160,6 +160,9 @@ export class StoryArchitect {
         ? { creativeMode: (intake.metadata.shortViralCreativeMode ?? intake.metadata.creativeMode) as string }
         : {})
     });
+    // One predicate drives BOTH the script-first directive and its precedence override so the
+    // pair can never drift apart (they are meaningless without each other).
+    const scriptFirstMode = looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true";
     const response = await this.llmProvider.structured<StoryPlanJson, typeof STORY_PLAN_SCHEMA>(
       {
         modelId: this.modelId,
@@ -171,10 +174,14 @@ export class StoryArchitect {
           {
             role: "system",
             content:
-              (looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true"
-                ? `${SCRIPT_FIRST_DIRECTIVE} `
-                : "") +
+              (scriptFirstMode ? `${SCRIPT_FIRST_DIRECTIVE} ` : "") +
               `${SCRIPT_CRAFT_DIRECTIVE} ${LANGUAGE_CONTRACT_DIRECTIVE} ` +
+              // Script-first precedence (audit #4): without this line, the language contract's
+              // "rewrite spoken lines as natural speech with particles" instruction collides with
+              // the verbatim mandate in the same system prompt and the model picks unpredictably.
+              (scriptFirstMode
+                ? "PRECEDENCE: SCRIPT-FIRST MODE overrides every spoken-line rewriting rule above — the user's own dialogue/narration lines go into `spokenLine` VERBATIM (no added particles, no re-punctuation, no naturalization, no shortening); the LANGUAGE CONTRACT's and DIALOGUE craft's rewrite guidance applies ONLY to beats where the user wrote no line. "
+                : "") +
               (intake.creativeIntent
                 ? `CREATIVE INTENT (decided by the brief analyst — obey it): register=${intake.creativeIntent.register}; spoken language=${intake.creativeIntent.language}; tone=${intake.creativeIntent.tone}; pacing=${intake.creativeIntent.pacingProfile}. Visual world: ${intake.creativeIntent.visualWorld}. Story engine — conflict: ${intake.creativeIntent.storyEngine.conflict}; stakes: ${intake.creativeIntent.storyEngine.stakes}; payoff: ${intake.creativeIntent.storyEngine.payoff}. Emotional arc to trace across the beats: ${intake.creativeIntent.emotionArc}. The hook must open on the conflict/stakes; the ending must land the payoff. `
                 : "") +
@@ -335,7 +342,18 @@ export class StoryArchitect {
     const emotionalTurn = typeof payload.emotionalTurn === "string" && payload.emotionalTurn.trim()
       ? payload.emotionalTurn.trim()
       : undefined;
-    const styleDna = this.coerceStyleDna(payload.styleDna, register);
+    // Style DNA precedence (audit #1/#2): beat-authored axes win; otherwise the analyst's
+    // whole-video styleDna is inherited — but ONLY when its register agrees with the resolved
+    // register (axes written for the phone register under a cinematic frame would contradict each
+    // other; on disagreement the plan's register wins and the axes are dropped, cross-review);
+    // otherwise a bare {register} still travels so the compiler's register frame fires even when
+    // the scriptwriter wrote no axes and no creativeMode metadata exists. The compiler keeps
+    // legacy niche color for axis-less DNA, so this never costs category detail.
+    const intentDna = intake.creativeIntent?.styleDna;
+    const intentDnaUsable = intentDna && (register === undefined || intentDna.register === register);
+    const styleDna = this.coerceStyleDna(payload.styleDna, register)
+      ?? (intentDnaUsable ? intentDna : undefined)
+      ?? (register ? { register } : undefined);
 
     return {
       beatId: typeof payload.beatId === "string" ? payload.beatId : `scene_${sceneIndex + 1}_beat_${beatIndex + 1}`,
@@ -410,6 +428,23 @@ export class StoryArchitect {
       .filter((action) => action.trim().length > 0)
       .slice(0, 6)
       .join(" Then ");
+    // Collapsing to one clip must not discard the later beats' verbatim dialogue (audit #5): the
+    // merged beat speaks ALL the scripted lines in order, and its emotional turn spans the whole
+    // arc (first turn's start -> last turn's end).
+    const spokenLines = beats
+      .map((beat) => beat.spokenLine?.trim())
+      .filter((line): line is string => Boolean(line));
+    const mergedSpokenLine = spokenLines.join(" ");
+    const turns = beats
+      .map((beat) => beat.emotionalTurn?.trim())
+      .filter((turn): turn is string => Boolean(turn));
+    const firstTurn = turns[0];
+    const lastTurn = turns[turns.length - 1];
+    // LLMs write the turn arrow as "->", "→", or "=>" interchangeably — split on all of them.
+    const TURN_ARROW = /\s*(?:->|→|=>|⇒)\s*/;
+    const mergedEmotionalTurn = firstTurn && lastTurn && firstTurn !== lastTurn
+      ? `${(firstTurn.split(TURN_ARROW)[0] ?? firstTurn).trim()} -> ${(lastTurn.split(TURN_ARROW).pop() ?? lastTurn).trim()}`
+      : firstTurn;
     const risks = [...new Set(beats.flatMap((beat) => beat.risks))];
     const continuity = beats.reduce<BeatPlan["continuity"]>((accumulator, beat) => ({
       ...accumulator,
@@ -425,6 +460,8 @@ export class StoryArchitect {
           beatId: "single_clip_beat_1",
           purpose: "render the approved short plan as one continuous provider clip",
           action: this.singleClipActionArc(actionArc || firstBeat.action, intake),
+          ...(mergedSpokenLine ? { spokenLine: mergedSpokenLine } : {}),
+          ...(mergedEmotionalTurn ? { emotionalTurn: mergedEmotionalTurn } : {}),
           durationSeconds: intake.settings.durationTargetSeconds,
           risks,
           references: intake.references,

@@ -517,6 +517,182 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// Total-audit regression locks (Topview-V2 deep audit): 11 confirmed defects, each pinned here
+// ------------------------------------------------------------------
+{
+  const { readFileSync } = await import("node:fs");
+  const settings = settingsFor(24, "economy");
+  const bareShot = (over) => ({ shotId: "a1", sceneId: "sc", beatId: "b", durationSeconds: 8, intent: "x", subject: "Linh",
+    action: "pours water into a glass", camera: "handheld medium", lighting: "soft window light", references: [], continuity: {}, risks: [], metadata: {}, ...over });
+
+  // audit#7 — runtime contract must agree with the final-frame contract on continuation clips
+  const contShot = bareShot({ timeline: [
+    { startSecond: 0, endSecond: 4, action: "keeps pouring steadily" },
+    { startSecond: 4, endSecond: 8, action: "the pour continues; this exit is not the beat's end" }
+  ] });
+  const contPrompt = compiler.compile({ shot: contShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("audit#7: continuation clip runtime does NOT order settling", !contPrompt.includes("settles cleanly"), "");
+  check("audit#7: continuation clip runtime orders mid-motion handoff", contPrompt.includes("keeps the action visibly in progress"), "");
+  const settleShot = bareShot({ timeline: [{ startSecond: 0, endSecond: 8, action: "finishes the pour and sets the glass down" }] });
+  const settlePrompt = compiler.compile({ shot: settleShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("audit#7: settling clip still orders a clean settle", settlePrompt.includes("settles cleanly"), "");
+
+  // audit#8 — realism guardrails follow the register instead of always speaking cinema
+  const kolShot = bareShot({ styleDna: { register: "natural_phone_kol" } });
+  const kolPrompt = compiler.compile({ shot: kolShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("audit#8: KOL guardrails speak phone capture", kolPrompt.includes("photoreal phone-camera capture"), "");
+  check("audit#8: KOL guardrails drop cinematic speculars", !kolPrompt.includes("physically based speculars"), "");
+  const cineShot = bareShot({ styleDna: { register: "professional_cinematic" } });
+  const cinePrompt = compiler.compile({ shot: cineShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("audit#8: cinematic guardrails keep cinematic capture", cinePrompt.includes("photoreal cinematic capture"), "");
+
+  // audit#16 — authored audioFeel REPLACES the register audio axis; overrides end with periods
+  const audioDnaShot = bareShot({ metadata: { shortViralCreativeMode: "ugc_review" },
+    styleDna: { register: "natural_phone_kol", optics: "grainy 26mm phone lens", audioFeel: "raw phone mic hiss" } });
+  const audioPrompt = compiler.compile({ shot: audioDnaShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("audit#16: authored audioFeel emitted once as override", audioPrompt.includes("Audio-feel: raw phone mic hiss."), "");
+  check("audit#16: register audio axis suppressed when audioFeel authored", !audioPrompt.includes("In-camera sound only"), "");
+  check("audit#16: override axes end with sentence periods", audioPrompt.includes("Optics (this video): grainy 26mm phone lens."), "");
+  const noAudioDnaShot = bareShot({ styleDna: { register: "natural_phone_kol", optics: "grainy 26mm phone lens" } });
+  const noAudioPrompt = compiler.compile({ shot: noAudioDnaShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("audit#16: register audio axis present when no override", noAudioPrompt.includes("In-camera sound only"), "");
+
+  // audit#17 — verbatim spoken lines get the delivery-only dialogue-light clause
+  const verbatimShot = bareShot({ styleDna: { register: "natural_phone_kol" }, spokenLine: "Ồ, mềm mà không rách thật luôn á!" });
+  const verbatimPrompt = compiler.compile({ shot: verbatimShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("audit#17: verbatim line -> deliver-in-full clause", verbatimPrompt.includes("deliver the scripted line in full exactly as written"), "");
+  check("audit#17: verbatim line never told to keep it short", !verbatimPrompt.includes("keep any spoken line short and front-loaded"), "");
+  const viNoLineShot = bareShot({ styleDna: { register: "natural_phone_kol" }, metadata: { voiceLanguage: "vi" } });
+  const viNoLinePrompt = compiler.compile({ shot: viNoLineShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("audit#17: VN audio without scripted line keeps the short-and-front-loaded rule", viNoLinePrompt.includes("keep any spoken line short and front-loaded"), "");
+
+  // audit#1/#2 — analyst styleDna inherited by beats; bare register still reaches the compiler
+  const intentBase = { schemaVersion: "cinejelly.creative-intent.v1", register: "professional_cinematic", genre: "g", niche: "n",
+    audience: "a", language: "vi", tone: "t", emotionArc: "e", pacingProfile: "p", visualWorld: "v",
+    storyEngine: { conflict: "c", stakes: "s", payoff: "pay" } };
+  const intentWithDna = { ...intentBase, styleDna: { register: "professional_cinematic", optics: "50mm close focus on hands" } };
+  const inheritPlan = await new StoryArchitect(fakeLlm({}), "f").plan({ projectId: "d", userInput: "x", settings, references: [], metadata: {}, creativeIntent: intentWithDna });
+  const inheritBeat = inheritPlan.scenes[0]?.beats[0];
+  check("audit#1: analyst styleDna inherited when scriptwriter authors none",
+    inheritBeat?.styleDna?.optics === "50mm close focus on hands" && inheritBeat?.styleDna?.register === "professional_cinematic",
+    JSON.stringify(inheritBeat?.styleDna || null));
+  const barePlan = await new StoryArchitect(fakeLlm({}), "f").plan({ projectId: "d", userInput: "x", settings, references: [], metadata: {}, creativeIntent: intentBase });
+  const bareShots = new ShotPlanner().plan({ projectId: "d", scenes: barePlan.scenes, settings, metadata: {} });
+  const barePrompt = compiler.compile({ shot: bareShots[0], settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("audit#2: intent register reaches the compiler with no creativeMode metadata and no axes",
+    barePrompt.includes("Style register: professional cinematic."), "");
+
+  // audit#4 — script-first precedence clause fires only for pasted scripts
+  let recordedSystem = "";
+  const recorderLlm = { name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured(req) {
+      recordedSystem = (req.messages || []).find((m) => m.role === "system")?.content ?? "";
+      return fakeLlm({}).structured();
+    } };
+  const scriptInput = ["INT. BẾP - TỐI", "LINH: Ôi, hết giấy ăn rồi!", "MAI: Dùng thử Topgia đi.", "LINH: Mềm thật đấy!"].join("\n");
+  await new StoryArchitect(recorderLlm, "f").plan({ projectId: "d", userInput: scriptInput, settings, references: [], metadata: {} });
+  check("audit#4: pasted script -> PRECEDENCE clause overrides spoken-line rewriting", recordedSystem.includes("PRECEDENCE: SCRIPT-FIRST MODE"), "");
+  await new StoryArchitect(recorderLlm, "f").plan({ projectId: "d", userInput: "một video về trà sen", settings, references: [], metadata: {} });
+  check("audit#4: plain brief -> no script-first precedence clause", !recordedSystem.includes("PRECEDENCE: SCRIPT-FIRST MODE"), "");
+
+  // audit#5 — single-clip collapse keeps every beat's verbatim line, in order
+  const singleLlm = { name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured() { return { provider: "atlascloud", modelId: "f", content: "{}", raw: {}, latencyMs: 0, value: { premise: "p", targetDurationSeconds: 12, scenes: [{ sceneId: "s1", title: "S", beats: [
+      { beatId: "b1", purpose: "hook", action: "a1", subject: "Linh", camera: "c", lighting: "l", durationSeconds: 4, spokenLine: "Một.", emotionalTurn: "tired -> curious" },
+      { beatId: "b2", purpose: "demo", action: "a2", subject: "Linh", camera: "c", lighting: "l", durationSeconds: 4, spokenLine: "Hai.", emotionalTurn: "curious -> surprised" },
+      { beatId: "b3", purpose: "payoff", action: "a3", subject: "Linh", camera: "c", lighting: "l", durationSeconds: 4, spokenLine: "Ba.", emotionalTurn: "surprised -> relieved" }
+    ] }] } }; } };
+  const singlePlan = await new StoryArchitect(singleLlm, "f").plan({ projectId: "d", userInput: "x", settings: settingsFor(12, "economy"), references: [], metadata: { workflowMode: "single" } });
+  const singleBeat = singlePlan.scenes[0]?.beats[0];
+  check("audit#5: single-clip collapse concatenates ALL spoken lines in order", singleBeat?.spokenLine === "Một. Hai. Ba.", String(singleBeat?.spokenLine));
+  check("audit#5: single-clip emotional turn spans the whole arc", singleBeat?.emotionalTurn === "tired -> relieved", String(singleBeat?.emotionalTurn));
+  check("audit#5: single-clip is one beat at full duration", singlePlan.scenes.length === 1 && singlePlan.scenes[0].beats.length === 1 && singleBeat?.durationSeconds === 12, "");
+
+  // audit#6 — analyst language normalized to a code and threaded toward TTS
+  const { normalizeSpokenLanguageCode, CreativeBriefAnalyst } = await import(`${base}/agents/creative-brief-analyst.js`);
+  check("audit#6: language name normalizes to code", normalizeSpokenLanguageCode("Spanish") === "es" && normalizeSpokenLanguageCode("Tiếng Việt") === "vi", "");
+  check("audit#6: regioned/bare codes pass through", normalizeSpokenLanguageCode("es-MX") === "es" && normalizeSpokenLanguageCode("ja") === "ja", "");
+  check("audit#6: unknown language stays undefined (fallback keeps working)", normalizeSpokenLanguageCode("klingon") === undefined, "");
+  const esLlm = { name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured() { return { provider: "atlascloud", modelId: "f", content: "{}", raw: {}, latencyMs: 0, value: {
+      register: "natural_phone_kol", genre: "g", niche: "n", audience: "a", language: "Spanish", tone: "t",
+      emotionArc: "e", pacingProfile: "p", visualWorld: "v", storyEngine: { conflict: "c", stakes: "s", payoff: "p" } } }; } };
+  const esIntent = await new CreativeBriefAnalyst(esLlm, "f").analyze({ projectId: "d", userInput: "haz un video del producto", settings, references: [], metadata: {} });
+  check("audit#6: analyst coerces 'Spanish' -> 'es'", esIntent.language === "es", esIntent.language);
+  const directorSrc = readFileSync(resolve(repoRoot, "src/agents/director-agent.ts"), "utf8");
+  check("audit#6: director stamps analyst language as analystVoiceLanguage metadata", directorSrc.includes("analystVoiceLanguage") && directorSrc.includes("|| analystLanguage"), "");
+  check("audit#6: per-line VN diacritics outrank the analyst whole-video language at TTS",
+    /containsVietnameseDiacritics\(spokenLine\) \? "vi" : ""\)\s*\|\|\s*analystLanguage/.test(directorSrc), "");
+
+  // audit#9 — talking-shot TTS + avatar spend is inside the pre-spend cost gate
+  const { RenderCostGate } = await import(`${base}/core/render-cost-gate.js`);
+  const gatePromptStub = (id, dur) => ({ shotId: id, prompt: "p", negativePrompt: "n", references: [],
+    bindingPlan: { providerReferences: [], sortedReferences: [], roleScopes: [], conflicts: [] }, inspectionExpectations: [], repairHints: [],
+    videoRequest: { provider: "atlascloud", modelId: "m", mode: "text_to_video", prompt: "p", references: [],
+      settings: { durationSeconds: dur, resolution: "720p", ratio: "9:16", generateAudio: true, bitrateMode: "standard", watermark: false, returnLastFrame: true } } });
+  const costGate = new RenderCostGate({ renderCostUsdPerSecond: 0.1, llmPlanCostUsd: 0.05, ttsSynthesisCostUsd: 0.05, avatarRenderCostUsdPerSecond: 0.12, costBufferMultiplier: 1 });
+  const talkEst = costGate.estimate({ compiledPrompts: [gatePromptStub("s1", 8), gatePromptStub("s2", 8)], settings: { qualityMode: "economy" },
+    plannedTalkingShotCount: 2, plannedAvatarRenderSeconds: 16, plannedLlmPlanCallCount: 2 });
+  const near = (a, b) => typeof a === "number" && Math.abs(a - b) < 1e-9;
+  check("audit#9: TTS cost counted per talking shot", near(talkEst.estimatedTtsCostUsd, 0.1), String(talkEst.estimatedTtsCostUsd));
+  check("audit#9: avatar seconds costed at the avatar rate", near(talkEst.estimatedAvatarRenderCostUsd, 1.92), String(talkEst.estimatedAvatarRenderCostUsd));
+  check("audit#9: LLM plan cost scales by call count (architect + analyst)", near(talkEst.estimatedLlmCostUsd, 0.1), String(talkEst.estimatedLlmCostUsd));
+  check("audit#9: total includes talking-shot spend", near(talkEst.estimatedTotalCostUsd, (talkEst.estimatedRenderCostUsd ?? 0) + 0.1 + 1.92 + 0.1), String(talkEst.estimatedTotalCostUsd));
+  const blockEst = costGate.estimate({ compiledPrompts: [gatePromptStub("s1", 8)], settings: { qualityMode: "economy", maxCostUsd: 1 },
+    plannedTalkingShotCount: 1, plannedAvatarRenderSeconds: 8, plannedLlmPlanCallCount: 2 });
+  check("audit#9: maxCostUsd now blocks on avatar-driven overflow", blockEst.status === "block", blockEst.status);
+  const bareGate = new RenderCostGate({ renderCostUsdPerSecond: 0.1, costBufferMultiplier: 1 });
+  const warnEst = bareGate.estimate({ compiledPrompts: [gatePromptStub("s1", 8)], settings: { qualityMode: "economy" }, plannedTalkingShotCount: 1, plannedAvatarRenderSeconds: 8 });
+  check("audit#9: unpriced talking spend surfaces as a loud finding", warnEst.findings.some((f) => f.includes("spend is not counted in the USD estimate")) && warnEst.status !== "block", warnEst.status);
+  check("audit#9: director wires talking counts into the gate", directorSrc.includes("plannedTalkingShotCount: plannedTalkingShots.length") && directorSrc.includes("plannedLlmPlanCallCount: 1 + (this.creativeBriefAnalyst"), "");
+
+  // Cross-review round (adversarial review of the audit fixes): 7 confirmed follow-up defects
+  const { normalizeSpokenLanguageCode: norm2 } = await import(`${base}/core/spoken-language.js`);
+  check("review: country codes corrected to language codes", norm2("VN") === "vi" && norm2("jp") === "ja" && norm2("KR") === "ko" && norm2("cn") === "zh", "");
+  // Gate must BLOCK when a hard cap is set but talking spend is unpriced (cap unenforceable)
+  const capEst = bareGate.estimate({ compiledPrompts: [gatePromptStub("s1", 8)], settings: { qualityMode: "economy", maxCostUsd: 50 }, plannedTalkingShotCount: 1, plannedAvatarRenderSeconds: 8 });
+  check("review: maxCostUsd + unpriced talking spend -> BLOCK (cap not enforceable)", capEst.status === "block" && capEst.findings.some((f) => f.includes("cannot bound talking-shot spend")), capEst.status);
+  // Per-rate accuracy: only the missing rate is named
+  const ttsOnlyGate = new RenderCostGate({ renderCostUsdPerSecond: 0.1, ttsSynthesisCostUsd: 0.05, costBufferMultiplier: 1 });
+  const ttsOnlyEst = ttsOnlyGate.estimate({ compiledPrompts: [gatePromptStub("s1", 8)], settings: { qualityMode: "economy" }, plannedTalkingShotCount: 1, plannedAvatarRenderSeconds: 8 });
+  check("review: one configured rate is counted and NOT reported missing",
+    near(ttsOnlyEst.estimatedTtsCostUsd, 0.05) && ttsOnlyEst.findings.some((f) => f.includes("AVATAR_COST_USD_PER_SECOND") && !f.includes("CINEJELLY_TTS_COST_USD")), JSON.stringify(ttsOnlyEst.findings));
+  // Gate only counts avatar spend on plausible routes (keyframe-first OR an existing https image)
+  check("review: gate counts avatar spend only for plausible image routes", directorSrc.includes("keyframeFirstEnabled || decideAvatarShot(shot).talking"), "");
+  // Register mismatch: intent DNA axes are NOT inherited under a different plan register
+  const kolIntentDna = { ...intentBase, register: "natural_phone_kol", styleDna: { register: "natural_phone_kol", optics: "grainy 26mm phone lens" } };
+  const cineOverrideLlm = { name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured() { const r = await fakeLlm({}).structured(); return { ...r, value: { ...r.value, register: "professional_cinematic" } }; } };
+  const clashPlan = await new StoryArchitect(cineOverrideLlm, "f").plan({ projectId: "d", userInput: "x", settings, references: [], metadata: {}, creativeIntent: kolIntentDna });
+  const clashBeat = clashPlan.scenes[0]?.beats[0];
+  check("review: mismatched-register intent DNA dropped, bare plan register kept",
+    clashBeat?.styleDna?.register === "professional_cinematic" && clashBeat?.styleDna?.optics === undefined, JSON.stringify(clashBeat?.styleDna || null));
+  // Unicode arrow in emotional turns still merges to a clean two-state arc
+  const arrowLlm = { name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured() { return { provider: "atlascloud", modelId: "f", content: "{}", raw: {}, latencyMs: 0, value: { premise: "p", targetDurationSeconds: 12, scenes: [{ sceneId: "s1", title: "S", beats: [
+      { beatId: "b1", purpose: "hook", action: "a1", subject: "L", camera: "c", lighting: "l", durationSeconds: 4, emotionalTurn: "tired → curious" },
+      { beatId: "b2", purpose: "payoff", action: "a2", subject: "L", camera: "c", lighting: "l", durationSeconds: 4, emotionalTurn: "surprised ⇒ relieved" }
+    ] }] } }; } };
+  const arrowPlan = await new StoryArchitect(arrowLlm, "f").plan({ projectId: "d", userInput: "x", settings: settingsFor(12, "economy"), references: [], metadata: { workflowMode: "single" } });
+  check("review: unicode-arrow turns merge to a two-state arc", arrowPlan.scenes[0]?.beats[0]?.emotionalTurn === "tired -> relieved", String(arrowPlan.scenes[0]?.beats[0]?.emotionalTurn));
+  // Shared sentinel: producer prose and compiler detection use one constant
+  const { BEAT_CONTINUATION_SENTINEL } = await import(`${base}/core/shot-planner.js`);
+  check("review: continuation sentinel is a shared constant", typeof BEAT_CONTINUATION_SENTINEL === "string" &&
+    readFileSync(resolve(repoRoot, "src/prompt_compiler/prompt-compiler.ts"), "utf8").includes("BEAT_CONTINUATION_SENTINEL"), "");
+
+  // audit#3 — no playbook demands a cut cadence below the 4s provider floor
+  const playbookSrc = readFileSync(resolve(repoRoot, "src/core/niche-playbooks.ts"), "utf8");
+  const forbiddenCadence = ["1-2s", "2-3s", "3-5s", "2s beats", "1-1.5s", "~3s each", "every 0.5s"];
+  check("audit#3: playbook templates respect the 4s beat floor", forbiddenCadence.every((c) => !playbookSrc.includes(c)),
+    forbiddenCadence.filter((c) => playbookSrc.includes(c)).join(","));
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;
