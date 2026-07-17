@@ -1127,6 +1127,12 @@ export function buildShortPipelineCreatePage(): string {
           <div id="redub-result" style="margin-top:10px"></div>
         </div>
       </div>
+      <nav class="template-tabs" id="main-nav" style="margin:10px 0 2px;flex-wrap:wrap" aria-label="Điều hướng sản phẩm">
+        <button class="template-tab active" type="button" id="nav-create" data-i18n="nav.create">🎬 Tạo video AI</button>
+        <button class="template-tab" type="button" id="nav-series" data-i18n="nav.series">📺 Phim dài tập</button>
+        <button class="template-tab" type="button" id="nav-dub" data-i18n="nav.dub">🌐 Lồng tiếng &amp; Phụ đề</button>
+        <button class="template-tab" type="button" id="nav-mine" data-i18n="nav.mine">📁 Video của tôi</button>
+      </nav>
       <section class="hero">
         <div>
           <div id="studio-announcement-banner" hidden style="margin-bottom:10px;padding:10px 14px;border-radius:10px;background:rgba(143,92,255,.16);border:1px solid rgba(143,92,255,.4);font-size:13px"></div>
@@ -1453,6 +1459,25 @@ export function buildShortPipelineCreatePage(): string {
         <div id="render-status" class="detail" style="margin-top:10px" data-i18n="ap.statusIdle">No render job yet. Load a session contract, optionally prepare the review packet, then create the render job. Without approved and confirmed review the job is created paused for review with no provider spend.</div>
       </section>
 
+      <section class="panel" id="series-panel" hidden>
+        <div class="panel-head"><div class="panel-title" data-i18n="series.title">📺 Phim dài tập (drama 30–70 tập)</div></div>
+        <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.series">Nhập cốt truyện + dàn nhân vật một lần. Hệ thống giữ "kinh thánh truyện": mặt nhân vật, bối cảnh và diễn biến THẬT của từng tập được ghi sổ — tập sau tự nối tiếp đúng khung hình cuối và cliffhanger của tập trước. Mỗi tập: Xem trước brief (miễn phí) → Render (báo giá credits, xác nhận mới trừ tiền; tập lỗi hoàn theo chính sách).</p></details>
+        <div class="grid-3">
+          <label class="field" style="grid-column: span 3"><span data-i18n="series.premise">Cốt truyện</span><textarea id="series-premise" data-i18n-placeholder="series.premisePh" placeholder="VD: Nữ giúp việc bị cả nhà coi thường hoá ra là ái nữ tập đoàn trở về báo thù..." style="min-height:64px"></textarea></label>
+          <label class="field"><span data-i18n="series.count">Số tập</span><input id="series-count" type="number" min="1" max="200" value="12"></label>
+          <label class="field"><span data-i18n="series.duration">Thời lượng mỗi tập (giây)</span><input id="series-duration" type="number" min="15" max="480" value="60"></label>
+          <label class="field"><span data-i18n="series.lang">Ngôn ngữ thoại</span><select id="series-lang"><option value="vi" selected>Tiếng Việt</option><option value="en">English</option><option value="zh">中文</option></select></label>
+          <label class="field" style="grid-column: span 3"><span data-i18n="series.cast">Dàn nhân vật (mỗi dòng: Tên | mô tả ngắn)</span><textarea id="series-cast" data-i18n-placeholder="series.castPh" placeholder="Linh | 23 tuổi, mắt kiên định, tóc đen dài&#10;Bà Trần | quản gia khắc nghiệt trung niên" style="min-height:56px"></textarea></label>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+          <button class="cj-primary" type="button" id="series-create" data-i18n="series.create">📖 Tạo bộ phim</button>
+          <button class="mini-btn" type="button" id="series-preview" disabled data-i18n="series.preview">👁 Xem trước tập kế (miễn phí)</button>
+          <button class="ghost-btn" type="button" id="series-render" disabled data-i18n="series.render">🎬 Render tập kế</button>
+        </div>
+        <div id="series-status" class="detail" style="margin-top:10px"></div>
+        <textarea id="series-preview-box" readonly hidden style="width:100%;min-height:130px;margin-top:8px;background:#0d1230;color:#e8ecff;border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:8px;font-size:12px"></textarea>
+      </section>
+
       <section class="panel" id="jobs-panel" hidden>
         <div class="panel-head">
           <div class="panel-title" data-i18n="jp.title">Render Jobs</div>
@@ -1528,7 +1553,15 @@ export function buildShortPipelineCreatePage(): string {
         "set.product": "Sản phẩm / chủ đề", "set.productPh": "Sản phẩm, dịch vụ, kênh hay câu chuyện thật của bạn",
         "set.category": "Ngành hàng", "set.categoryPh": "làm đẹp, thời trang, SaaS, đồ ăn, giáo dục...",
         "set.claim": "Cam kết được phép nói", "set.claimPh": "Chỉ những cam kết bạn chịu trách nhiệm được",
-        "set.quality": "Chất lượng render", "set.channelStyle": "Phong cách kênh (tuỳ chọn)", "cs.none": "— Không dùng —",
+        "set.quality": "Chất lượng render",
+        "nav.create": "🎬 Tạo video AI", "nav.series": "📺 Phim dài tập", "nav.dub": "🌐 Lồng tiếng & Phụ đề", "nav.mine": "📁 Video của tôi",
+        "series.title": "📺 Phim dài tập (drama 30–70 tập)", "series.premise": "Cốt truyện", "series.premisePh": "VD: Nữ giúp việc bị cả nhà coi thường hoá ra là ái nữ tập đoàn trở về báo thù...",
+        "series.count": "Số tập", "series.duration": "Thời lượng mỗi tập (giây)", "series.lang": "Ngôn ngữ thoại", "series.cast": "Dàn nhân vật (mỗi dòng: Tên | mô tả ngắn)", "series.castPh": "Linh | 23 tuổi, mắt kiên định, tóc đen dài",
+        "series.create": "📖 Tạo bộ phim", "series.preview": "👁 Xem trước tập kế (miễn phí)", "series.render": "🎬 Render tập kế",
+        "series.needInput": "Cần cốt truyện và ít nhất 1 nhân vật.", "series.created": "Đã tạo bộ phim:", "series.eps": "tập",
+        "series.previewReady": "Brief tập", "series.epLabel": "TẬP", "series.confirmPrefix": "Render tập", "series.rendering": "Đang render tập", "series.renderWait": "vài phút, đừng đóng trang",
+        "series.epDone": "Xong tập", "series.nextHint": "Bấm Xem trước để soạn tập tiếp theo.",
+        "help.series": "Nhập cốt truyện + dàn nhân vật một lần. Hệ thống giữ 'kinh thánh truyện': mặt nhân vật, bối cảnh và diễn biến THẬT của từng tập được ghi sổ — tập sau tự nối tiếp đúng khung hình cuối và cliffhanger của tập trước. Mỗi tập: Xem trước brief (miễn phí) → Render (báo giá credits, xác nhận mới trừ tiền; tập lỗi hoàn theo chính sách).", "set.channelStyle": "Phong cách kênh (tuỳ chọn)", "cs.none": "— Không dùng —",
         "q.economy": "Tiết kiệm — render 1 bản (rẻ nhất)", "q.standard": "Chuẩn — 2 bản, AI chọn bản đẹp hơn", "q.high": "Cao — 3 bản + sửa lỗi, AI chọn bản tốt nhất", "q.ultimate": "Tối đa — 4 bản + sửa kỹ (đắt nhất)",
         "rb.note": "Backend giữ chặt chi phí: chưa duyệt và chưa xác nhận thì chưa gửi render trả phí.",
         "rb.build": "Tạo kế hoạch video",
@@ -1638,7 +1671,15 @@ export function buildShortPipelineCreatePage(): string {
         "set.product": "Product / subject", "set.productPh": "Your real product, service, channel, or story subject",
         "set.category": "Category", "set.categoryPh": "beauty, fashion, SaaS, food, education...",
         "set.claim": "Allowed claim", "set.claimPh": "Only claims you can approve or substantiate",
-        "set.quality": "Render quality", "set.channelStyle": "Channel style (optional)", "cs.none": "— None —",
+        "set.quality": "Render quality",
+        "nav.create": "🎬 Create AI Video", "nav.series": "📺 Episodic Drama", "nav.dub": "🌐 Dub & Subtitles", "nav.mine": "📁 My Videos",
+        "series.title": "📺 Episodic drama (30–70 episodes)", "series.premise": "Premise", "series.premisePh": "e.g. The despised maid turns out to be the conglomerate heiress back for revenge...",
+        "series.count": "Episodes", "series.duration": "Seconds per episode", "series.lang": "Spoken language", "series.cast": "Cast (one per line: Name | short description)", "series.castPh": "Linh | 23, determined eyes, long black hair",
+        "series.create": "📖 Create series", "series.preview": "👁 Preview next episode (free)", "series.render": "🎬 Render next episode",
+        "series.needInput": "Premise and at least one cast member required.", "series.created": "Series created:", "series.eps": "episodes",
+        "series.previewReady": "Episode brief", "series.epLabel": "EPISODE", "series.confirmPrefix": "Render episode", "series.rendering": "Rendering episode", "series.renderWait": "a few minutes, keep this tab open",
+        "series.epDone": "Episode done:", "series.nextHint": "Press Preview to draft the next episode.",
+        "help.series": "Enter the premise + cast once. The system keeps a story bible: faces, world, and what REALLY happened each episode are recorded — the next episode resumes exactly from the previous end frame and cliffhanger. Per episode: Preview the brief (free) → Render (credits quoted, charged only after you confirm; failed episodes refund per policy).", "set.channelStyle": "Channel style (optional)", "cs.none": "— None —",
         "q.economy": "Economy — 1 render pass (cheapest)", "q.standard": "Standard — 2 passes, AI picks the better", "q.high": "High — 3 passes + repairs, AI picks the best", "q.ultimate": "Ultimate — 4 passes + deep repairs (priciest)",
         "rb.note": "Backend keeps provider spend locked until the plan is approved and explicitly confirmed.",
         "rb.build": "Build video plan",
@@ -1748,7 +1789,15 @@ export function buildShortPipelineCreatePage(): string {
         "set.product": "产品 / 主题", "set.productPh": "你的真实产品、服务、频道或故事主题",
         "set.category": "品类", "set.categoryPh": "美妆、时尚、SaaS、美食、教育…",
         "set.claim": "允许的宣称", "set.claimPh": "只填写你能负责或证实的宣称",
-        "set.quality": "渲染质量", "set.channelStyle": "频道风格（可选）", "cs.none": "— 不使用 —",
+        "set.quality": "渲染质量",
+        "nav.create": "🎬 AI 视频创作", "nav.series": "📺 连续短剧", "nav.dub": "🌐 配音与字幕", "nav.mine": "📁 我的视频",
+        "series.title": "📺 连续短剧（30–70 集）", "series.premise": "故事前提", "series.premisePh": "例：被全家轻视的女佣其实是集团千金，回来复仇...",
+        "series.count": "集数", "series.duration": "每集时长（秒）", "series.lang": "对白语言", "series.cast": "角色表（每行：姓名 | 简介）", "series.castPh": "Linh | 23岁，眼神坚定，黑长发",
+        "series.create": "📖 创建剧集", "series.preview": "👁 预览下一集（免费）", "series.render": "🎬 渲染下一集",
+        "series.needInput": "需要故事前提和至少一个角色。", "series.created": "剧集已创建：", "series.eps": "集",
+        "series.previewReady": "分集脚本", "series.epLabel": "第", "series.confirmPrefix": "渲染第", "series.rendering": "正在渲染第", "series.renderWait": "需要几分钟，请勿关闭页面",
+        "series.epDone": "完成第", "series.nextHint": "点预览起草下一集。",
+        "help.series": "输入一次故事前提+角色表。系统维护「剧集圣经」：角色面孔、世界观与每集真实剧情都会记录——下一集从上一集的最后画面和悬念处精确续写。每集：预览脚本（免费）→ 渲染（先报价，确认后才扣费；失败按政策退款）。", "set.channelStyle": "频道风格（可选）", "cs.none": "— 不使用 —",
         "q.economy": "经济 — 渲染1版（最便宜）", "q.standard": "标准 — 2版，AI 选更好的", "q.high": "高 — 3版+修复，AI 选最佳", "q.ultimate": "至尊 — 4版+深度修复（最贵）",
         "rb.note": "后端严格锁定成本：未审核确认前不会提交付费渲染。",
         "rb.build": "生成视频方案",
@@ -2121,6 +2170,112 @@ export function buildShortPipelineCreatePage(): string {
         });
       });
     });
+    // ---- Điều hướng sản phẩm: 4 đích rõ ràng, mỗi đích một việc.
+    function activateNav(id) {
+      ["nav-create", "nav-series", "nav-dub", "nav-mine"].forEach(function (navId) {
+        const node = document.getElementById(navId);
+        if (node) { node.classList.toggle("active", navId === id); }
+      });
+    }
+    document.getElementById("nav-create").addEventListener("click", function () {
+      activateNav("nav-create");
+      document.getElementById("series-panel").hidden = true;
+      const composer = document.getElementById("prompt");
+      if (composer) { composer.scrollIntoView({ behavior: "smooth", block: "center" }); composer.focus(); }
+    });
+    document.getElementById("nav-series").addEventListener("click", function () {
+      activateNav("nav-series");
+      const panel = document.getElementById("series-panel");
+      panel.hidden = false;
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    document.getElementById("nav-dub").addEventListener("click", function () {
+      activateNav("nav-dub");
+      redubJobId = "";
+      document.getElementById("redub-job-line").hidden = true;
+      openRedubModal();
+    });
+    document.getElementById("nav-mine").addEventListener("click", function () {
+      activateNav("nav-mine");
+      const panel = document.getElementById("jobs-panel");
+      panel.hidden = false;
+      loadJobs();
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    // ---- Phim dài tập: tạo bộ → xem trước tập kế (miễn phí) → render (báo giá, xác nhận mới trừ).
+    let seriesId = "";
+    let seriesEpisodeNumber = 0;
+    function setSeriesStatus(text) { document.getElementById("series-status").textContent = text; }
+    function parseSeriesCast() {
+      return document.getElementById("series-cast").value.split("\n")
+        .map(function (line) { return line.trim(); })
+        .filter(Boolean)
+        .slice(0, 8)
+        .map(function (line, index) {
+          const parts = line.split("|");
+          const name = (parts[0] || "").trim();
+          const description = (parts[1] || "").trim() || name;
+          const characterId = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || ("nv_" + (index + 1));
+          return { characterId, name, castRole: index === 0 ? "protagonist" : "support", description };
+        })
+        .filter(function (member) { return member.name; });
+    }
+    document.getElementById("series-create").addEventListener("click", async function () {
+      const premise = document.getElementById("series-premise").value.trim();
+      const cast = parseSeriesCast();
+      if (!premise || cast.length === 0) { setSeriesStatus(t("series.needInput")); return; }
+      try {
+        const created = await apiFetch("/v1/series", { method: "POST", body: JSON.stringify({
+          premise,
+          episodeCount: Math.max(1, Math.min(200, Number(document.getElementById("series-count").value) || 12)),
+          episodeDurationSeconds: Math.max(15, Math.min(480, Number(document.getElementById("series-duration").value) || 60)),
+          language: document.getElementById("series-lang").value,
+          cast
+        }) });
+        seriesId = created.seriesId;
+        document.getElementById("series-preview").disabled = false;
+        setSeriesStatus(t("series.created") + " " + created.seriesId + " (" + created.episodeCount + " " + t("series.eps") + ")");
+      } catch (error) { setSeriesStatus("⚠ " + (error instanceof Error ? error.message : String(error))); }
+    });
+    document.getElementById("series-preview").addEventListener("click", async function () {
+      if (!seriesId) { return; }
+      try {
+        const preview = await apiFetch("/v1/series/" + encodeURIComponent(seriesId) + "/episodes/next/preview", { method: "POST", body: JSON.stringify({}) });
+        seriesEpisodeNumber = preview.episodeNumber;
+        const box = document.getElementById("series-preview-box");
+        box.value = t("series.epLabel") + " " + preview.episodeNumber + "\n\n" + preview.userInput;
+        box.hidden = false;
+        document.getElementById("series-render").disabled = false;
+        setSeriesStatus(t("series.previewReady") + " " + preview.episodeNumber + ".");
+      } catch (error) { setSeriesStatus("⚠ " + (error instanceof Error ? error.message : String(error))); }
+    });
+    document.getElementById("series-render").addEventListener("click", async function () {
+      if (!seriesId) { return; }
+      const renderButton = document.getElementById("series-render");
+      renderButton.disabled = true;
+      try {
+        const quoted = await apiFetch("/v1/series/" + encodeURIComponent(seriesId) + "/episodes/next", { method: "POST", body: JSON.stringify({}) });
+        if (quoted && quoted.status === "quote" && quoted.quote) {
+          const okToPay = window.confirm(t("series.confirmPrefix") + " " + quoted.episodeNumber + ": " + Number(quoted.quote.credits || 0).toLocaleString("vi-VN") + " credits. " + t("redub.confirmSuffix"));
+          if (!okToPay) { setSeriesStatus(t("redub.cancelled")); return; }
+          setSeriesStatus(t("series.rendering") + " " + quoted.episodeNumber + "... (" + t("series.renderWait") + ")");
+          const rendered = await apiFetch("/v1/series/" + encodeURIComponent(seriesId) + "/episodes/next", { method: "POST", body: JSON.stringify({ acknowledgedCredits: quoted.quote.credits }) });
+          setSeriesStatus("✅ " + t("series.epDone") + " " + rendered.episodeNumber + " (project " + rendered.projectId + ", -" + (rendered.creditsCharged || 0) + " credits). " + t("series.nextHint"));
+          refreshAccount();
+        } else if (quoted && quoted.episodeNumber) {
+          // Key vận hành: render chạy thẳng không cần quote.
+          setSeriesStatus("✅ " + t("series.epDone") + " " + quoted.episodeNumber + ".");
+        }
+        document.getElementById("series-preview").disabled = false;
+        document.getElementById("series-preview-box").hidden = true;
+      } catch (error) {
+        setSeriesStatus("⚠ " + (error instanceof Error ? error.message : String(error)));
+      } finally {
+        renderButton.disabled = false;
+      }
+    });
+
     updatePromptCount();
     updateEstimatedCost();
     // Danh sách "Phong cách kênh" đã lưu (nếu đăng nhập): nạp im lặng, lỗi thì bỏ qua.

@@ -47,10 +47,10 @@ export class SeriesEpisodeDirector {
   }
 
   /** Create (or return) the series' continuity record. No spend — planning is pure. */
-  public async startSeries(request: SeriesDramaRequest): Promise<SeriesContinuityRecord> {
+  public async startSeries(request: SeriesDramaRequest, ownerUserId?: string): Promise<SeriesContinuityRecord> {
     const plan = planSeriesDrama(request);
     // Persist the request WITH the resolved seriesId so every later re-plan is deterministic.
-    return this.store.create({ ...request, seriesId: plan.bible.seriesId }, plan.bible);
+    return this.store.create({ ...request, seriesId: plan.bible.seriesId }, plan.bible, ownerUserId);
   }
 
   /**

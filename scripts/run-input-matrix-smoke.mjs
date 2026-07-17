@@ -863,8 +863,15 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   check("uiround: talking-shot milestone surfaced to customers", serverSrc2.includes("progressHighlights") && pageSrc.includes("job.progressHighlights"), "");
 
   // Series routes: operator-gated, preview no-spend, renders recorded back into continuity
-  check("uiround: series routes exist and are operator-gated",
-    serverSrc2.includes('requestUrl.pathname === "/v1/series"') && serverSrc2.includes("cần key vận hành") && serverSrc2.includes("episodes\\/next(\\/preview)?"), "");
+  check("uiround: series routes exist with ownership + quote/ack billing for customers",
+    serverSrc2.includes('requestUrl.pathname === "/v1/series"') && serverSrc2.includes("assertSeriesOwnership") &&
+    serverSrc2.includes("episodes\\/next(\\/preview)?") && serverSrc2.includes('status: "quote"') &&
+    serverSrc2.includes("series_${seriesId}_ep") && serverSrc2.includes('reason: "tập phim render lỗi"'), "");
+  check("uiround: customers cannot inject series metadata; storyboard stamped server-side",
+    serverSrc2.includes("...(seriesUserId ? {} : body.metadata ?? {})") && serverSrc2.includes('seriesUserId ? { storyboardApproval: "operator_approved" }'), "");
+  const pageSrc2 = readFileSync(resolve(repoRoot, "src/api/short-pipeline-create-page.ts"), "utf8");
+  check("uiround: main nav has 4 destinations wired", ["nav-create", "nav-series", "nav-dub", "nav-mine"].every((id) => pageSrc2.includes('id="' + id + '"') && pageSrc2.includes('getElementById("' + id + '").addEventListener')), "");
+  check("uiround: series studio UI flow create->preview->quote->render", pageSrc2.includes('id="series-panel"') && pageSrc2.includes('"/v1/series/"') && pageSrc2.includes("acknowledgedCredits: quoted.quote.credits"), "");
   check("uiround: series render goes through normalize+admission and records the episode",
     serverSrc2.includes("normalizeRenderRequest(episodeRequest") && serverSrc2.includes("recordRenderedEpisode("), "");
   check("uiround: talking-shot stage rethrows on abort", directorSrc2.includes("A real user abort must stop the whole stage"), "");

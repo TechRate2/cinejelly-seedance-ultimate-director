@@ -1861,12 +1861,19 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       const seriesIdMatch = requestUrl.pathname.match(/^\/v1\/series\/([A-Za-z0-9_-]{1,120})$/);
       const seriesNextMatch = requestUrl.pathname.match(/^\/v1\/series\/([A-Za-z0-9_-]{1,120})\/episodes\/next(\/preview)?$/);
       if (requestUrl.pathname === "/v1/series" || seriesIdMatch || seriesNextMatch) {
-        if (!authDecision.principal || authDecision.principal.kind === "user") {
-          throw new UserAccountError(
-            "Chức năng phim dài tập đang ở giai đoạn vận hành — cần key vận hành (operator).",
-            authDecision.principal ? 403 : 401
-          );
+        if (!authDecision.principal) {
+          throw new UserAccountError("Cần đăng nhập tài khoản để dùng chức năng phim dài tập.", 401);
         }
+        const seriesUserId =
+          authDecision.principal.kind === "user" && authDecision.principal.userId
+            ? authDecision.principal.userId
+            : undefined;
+        // Sở hữu: khách chỉ thấy/chạy series của chính mình; key vận hành thấy tất cả.
+        const assertSeriesOwnership = (record: { readonly ownerUserId?: string } | undefined): void => {
+          if (!record || (seriesUserId && record.ownerUserId !== seriesUserId)) {
+            throw new UserAccountError("Series không tồn tại.", 404);
+          }
+        };
         const seriesOutputRoot = process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables";
         const seriesStore = new SeriesContinuityStore({ outputRoot: seriesOutputRoot });
         const composeOnlyDirector = new SeriesEpisodeDirector({
@@ -1880,7 +1887,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             throw new UserAccountError("Body cần premise (chuỗi) và cast (mảng nhân vật).", 400);
           }
           // planSeriesDrama tự validate sâu (số tập 1-200, độ dài tập 15-480s, cast hợp lệ, URI an toàn).
-          const record = await composeOnlyDirector.startSeries(body as SeriesDramaRequest);
+          const record = await composeOnlyDirector.startSeries(body as SeriesDramaRequest, seriesUserId);
           sendJson(response, 201, {
             seriesId: record.seriesId,
             episodeCount: record.request.episodeCount,
@@ -1893,12 +1900,14 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         }
         if (request.method === "GET" && seriesIdMatch) {
           const record = await seriesStore.load(seriesIdMatch[1] ?? "");
-          sendJson(response, record ? 200 : 404, record ?? { error: "Series không tồn tại." }, requestContext);
+          assertSeriesOwnership(record);
+          sendJson(response, 200, record, requestContext);
           return;
         }
         if (request.method === "POST" && seriesNextMatch) {
           const seriesId = seriesNextMatch[1] ?? "";
           const previewOnly = Boolean(seriesNextMatch[2]);
+          assertSeriesOwnership(await seriesStore.load(seriesId));
           const composed = await composeOnlyDirector.composeNextEpisode(seriesId);
           if (previewOnly) {
             // Không tốn tiền: trả brief tập kế tiếp (kèm recap thật) để duyệt trước khi render.
@@ -1913,16 +1922,43 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             return;
           }
           assertJsonContentType(request);
-          const body = await readJsonBody<{ metadata?: Record<string, string> }>(request, maxBodyBytes);
+          const body = await readJsonBody<{ metadata?: Record<string, string>; acknowledgedCredits?: number }>(request, maxBodyBytes);
+          // Khách không được tự tiêm metadata (vd tự duyệt storyboard); operator thì được.
           const episodeRequest = {
             ...composed.request,
-            metadata: { ...(composed.request.metadata ?? {}), ...(body.metadata ?? {}) }
+            metadata: {
+              ...(composed.request.metadata ?? {}),
+              ...(seriesUserId ? {} : body.metadata ?? {}),
+              // Tập phim của khách: brief đã được xem trước + xác nhận giá; storyboard nội bộ được
+              // đóng dấu duyệt để render đồng bộ không kẹt gate vận hành (cost gate vẫn nguyên).
+              ...(seriesUserId ? { storyboardApproval: "operator_approved" } : {})
+            }
           };
           const normalizedEpisode = normalizeRenderRequest(episodeRequest, {
             requestId: requestContext.requestId,
             env: process.env
           });
           requestAdmission.assertAcceptable(normalizedEpisode);
+          // Khách: báo giá trước — chỉ trừ tiền khi client xác nhận đúng con số (như redub).
+          let episodeCharge: { readonly userId: string; readonly credits: number } | undefined;
+          if (seriesUserId) {
+            episodeCharge = planUserRenderCharge({
+              principal: authDecision.principal,
+              store: userAccountStore,
+              pricing: adminSettingsStore.pricing(),
+              pipelineCost: adminSettingsStore.pipelineCost(),
+              request: normalizedEpisode
+            });
+            if (episodeCharge && Number(body.acknowledgedCredits) !== episodeCharge.credits) {
+              sendJson(response, 200, {
+                status: "quote",
+                seriesId,
+                episodeNumber: composed.episodeNumber,
+                quote: { credits: episodeCharge.credits }
+              }, requestContext);
+              return;
+            }
+          }
           const episodeLease = syncRenderGate.tryAcquire();
           if (!episodeLease.allowed) {
             sendJson(response, episodeLease.statusCode, {
@@ -1930,6 +1966,10 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               retryAfterSeconds: episodeLease.retryAfterSeconds
             }, requestContext, retryAfterHeaders(episodeLease.retryAfterSeconds));
             return;
+          }
+          const episodeJobId = `series_${seriesId}_ep${composed.episodeNumber}`;
+          if (episodeCharge) {
+            userAccountStore.chargeRender({ userId: episodeCharge.userId, jobId: episodeJobId, credits: episodeCharge.credits });
           }
           try {
             const episodeRuntime = createDirectorRuntime();
@@ -1953,9 +1993,23 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               projectId: episodeResult.projectId,
               recordedEpisodes: updatedRecord.episodeStates.length,
               episodeState: updatedRecord.episodeStates[updatedRecord.episodeStates.length - 1],
+              ...(episodeCharge
+                ? { creditsCharged: episodeCharge.credits, balanceCredits: userAccountStore.balanceOf(episodeCharge.userId) }
+                : {}),
               artifacts: toApiProjectArtifactBundle(episodeArtifacts)
             }, requestContext);
             return;
+          } catch (episodeError) {
+            // Tập lỗi: hoàn credits theo đúng chính sách chung (auto hoàn ngay / manual vào hàng chờ).
+            if (episodeCharge) {
+              const episodePolicy = adminSettingsStore.refundPolicy();
+              if (episodePolicy === "auto") {
+                userAccountStore.refundRender({ userId: episodeCharge.userId, jobId: episodeJobId, reason: "tập phim render lỗi" });
+              } else if (episodePolicy === "manual") {
+                userAccountStore.queueRefundRequest({ userId: episodeCharge.userId, jobId: episodeJobId, reason: "tập phim render lỗi" });
+              }
+            }
+            throw episodeError;
           } finally {
             episodeLease.release();
           }

@@ -33,6 +33,8 @@ export interface SeriesCastRecord extends SeriesCastMember {
 export interface SeriesContinuityRecord {
   readonly schemaVersion: "cinejelly.series-continuity.v1";
   readonly seriesId: string;
+  /** Customer owner (userId) — absent for operator-created series. Routes enforce it. */
+  readonly ownerUserId?: string;
   readonly request: SeriesDramaRequest;
   readonly bible: SeriesBible;
   readonly cast: readonly SeriesCastRecord[];
@@ -67,7 +69,11 @@ export class SeriesContinuityStore {
     }
   }
 
-  public async create(request: SeriesDramaRequest, bible: SeriesBible): Promise<SeriesContinuityRecord> {
+  public async create(
+    request: SeriesDramaRequest,
+    bible: SeriesBible,
+    ownerUserId?: string
+  ): Promise<SeriesContinuityRecord> {
     const existing = await this.load(bible.seriesId);
     if (existing) {
       return existing;
@@ -76,6 +82,7 @@ export class SeriesContinuityStore {
     const record: SeriesContinuityRecord = {
       schemaVersion: "cinejelly.series-continuity.v1",
       seriesId: bible.seriesId,
+      ...(ownerUserId ? { ownerUserId } : {}),
       request,
       bible,
       cast: bible.cast.map((member) => ({ ...member, firstAppearedEpisode: 1 })),
