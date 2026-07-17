@@ -27,6 +27,7 @@ import { RedubExecutor } from "../core/redub-executor.js";
 import { SeriesContinuityStore } from "../core/series-continuity-store.js";
 import { SeriesEpisodeDirector } from "../application/series-episode-director.js";
 import type { SeriesDramaRequest } from "../core/series-drama-planner.js";
+import { createStableId } from "../utils/ids.js";
 import { MediaInspector } from "../core/media-inspector.js";
 import { captionCuesToSrt } from "../core/subtitle-translator.js";
 import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider.js";
@@ -626,6 +627,10 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   // Mỗi tài khoản chỉ một yêu cầu dịch/thuyết minh chạy tại một thời điểm (chặn double-click
   // gây trừ tiền hai lần và giới hạn chi phí provider).
   const redubInFlight = new Set<string>();
+  // Per-series render in-flight guard: a second episode render for the SAME series while one is
+  // running is rejected (409), so concurrent same-episode submits can never double-charge or
+  // double-spend even if the sync concurrency knob is raised (security audit).
+  const seriesRenderInFlight = new Set<string>();
   const renderProviderLeaseService = renderProviderLeaseServiceConfig(process.env);
   const productionGraphResumeQueueService = productionGraphResumeQueueServiceConfig(process.env);
   const shutdownCoordinator = new ApiShutdownCoordinator();
@@ -1886,8 +1891,28 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           if (typeof body.premise !== "string" || !Array.isArray(body.cast)) {
             throw new UserAccountError("Body cần premise (chuỗi) và cast (mảng nhân vật).", 400);
           }
+          // Namespace the seriesId PER OWNER so a customer can never collide with (read or squat)
+          // another tenant's series by supplying/guessing an id — the client-chosen id is a slug
+          // INSIDE the owner's namespace, never a global key (security audit: cross-tenant read).
+          const namespacedSeriesId = seriesUserId
+            ? `u${seriesUserId.replace(/[^A-Za-z0-9]/g, "").slice(0, 32)}_${
+                (typeof body.seriesId === "string" ? body.seriesId.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60) : "") ||
+                createStableId("s", `${body.premise}:${body.episodeCount ?? ""}`)
+              }`
+            : body.seriesId;
+          const seriesRequestBody: SeriesDramaRequest = {
+            ...(body as SeriesDramaRequest),
+            ...(namespacedSeriesId ? { seriesId: namespacedSeriesId } : {})
+          };
           // planSeriesDrama tự validate sâu (số tập 1-200, độ dài tập 15-480s, cast hợp lệ, URI an toàn).
-          const record = await composeOnlyDirector.startSeries(body as SeriesDramaRequest, seriesUserId);
+          const record = await composeOnlyDirector.startSeries(seriesRequestBody, seriesUserId);
+          // The returned record may be a PRE-EXISTING series (create is idempotent by id). Only echo
+          // it when the caller actually owns it, so a namespace/id collision can never leak another
+          // owner's cast/metadata.
+          const createdOwnerOk = seriesUserId ? record.ownerUserId === seriesUserId : !record.ownerUserId;
+          if (!createdOwnerOk) {
+            throw new UserAccountError("Series ID này đã tồn tại, hãy chọn tên khác.", 409);
+          }
           sendJson(response, 201, {
             seriesId: record.seriesId,
             episodeCount: record.request.episodeCount,
@@ -1959,6 +1984,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               return;
             }
           }
+          // Serialize renders for ONE series: a second episode render while one is running is
+          // rejected here, so two confirmed submits can never both charge + spend on the same
+          // not-yet-recorded episode (the load-modify-write duplicate guard alone would let both
+          // through). This runs BEFORE the charge, so a rejected concurrent request never pays.
+          if (seriesRenderInFlight.has(seriesId)) {
+            throw new UserAccountError("Series này đang render một tập — chờ xong rồi gửi tiếp.", 409);
+          }
           const episodeLease = syncRenderGate.tryAcquire();
           if (!episodeLease.allowed) {
             sendJson(response, episodeLease.statusCode, {
@@ -1967,7 +1999,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }, requestContext, retryAfterHeaders(episodeLease.retryAfterSeconds));
             return;
           }
-          const episodeJobId = `series_${seriesId}_ep${composed.episodeNumber}`;
+          seriesRenderInFlight.add(seriesId);
+          // Unique-per-ATTEMPT job id (like sync_<requestId>/redub_<uuid>): the episode number only
+          // advances on success, so a stable id would let a second FAILED-then-retried attempt reuse
+          // the same job — where refund fires only once per job id, silently double-charging the
+          // retry (money audit HIGH). A per-attempt id pairs each charge with its own refund.
+          const episodeJobId = `series_${seriesId}_ep${composed.episodeNumber}_${requestContext.requestId}`;
           if (episodeCharge) {
             userAccountStore.chargeRender({ userId: episodeCharge.userId, jobId: episodeJobId, credits: episodeCharge.credits });
           }
@@ -2012,6 +2049,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             throw episodeError;
           } finally {
             episodeLease.release();
+            seriesRenderInFlight.delete(seriesId);
           }
         }
         throw new UserAccountError("Route series không hỗ trợ method này.", 404);

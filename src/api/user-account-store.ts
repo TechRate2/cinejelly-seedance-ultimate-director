@@ -812,6 +812,21 @@ export class UserAccountStore {
     if (!Number.isFinite(input.credits) || input.credits <= 0) {
       throw new UserAccountError("Số credits tính phí không hợp lệ.", 400);
     }
+    // Guard against charging twice for the SAME job while a prior charge is still OUTSTANDING
+    // (not yet refunded) — a concurrent double-submit reuses that charge instead of paying again.
+    // A charge that was already refunded (a failed render being retried) is NOT reused, so a
+    // genuine retry after a refund charges correctly (stable series episode jobIds rely on this).
+    const outstandingCharge = this.state.entries.find(
+      (entry) => entry.userId === input.userId && entry.jobId === input.jobId && entry.type === "render_charge"
+    );
+    const chargeRefunded = outstandingCharge
+      ? this.state.entries.some(
+          (entry) => entry.userId === input.userId && entry.jobId === input.jobId && entry.type === "render_refund"
+        )
+      : false;
+    if (outstandingCharge && !chargeRefunded) {
+      return outstandingCharge;
+    }
     const balance = this.balanceOf(input.userId);
     if (balance < input.credits) {
       throw new UserAccountError(

@@ -913,6 +913,51 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// Tri-role audit (hacker/user/admin) regression locks
+// ------------------------------------------------------------------
+{
+  const { readFileSync } = await import("node:fs");
+  const serverSrc3 = readFileSync(resolve(repoRoot, "src/api/server.ts"), "utf8");
+  const pageSrc3 = readFileSync(resolve(repoRoot, "src/api/short-pipeline-create-page.ts"), "utf8");
+
+  // HACKER#1: series id namespaced per owner + ownership re-check on create (no cross-tenant read/squat)
+  check("tri: series id namespaced per owner + create ownership re-check",
+    serverSrc3.includes("`u${seriesUserId.replace") && serverSrc3.includes("const createdOwnerOk = seriesUserId ? record.ownerUserId === seriesUserId"), "");
+  // HACKER#2 / ADMIN#2: per-series in-flight lock before charge, released in finally
+  check("tri: per-series render in-flight lock (before charge) + release",
+    serverSrc3.includes("seriesRenderInFlight.has(seriesId)") && serverSrc3.includes("seriesRenderInFlight.add(seriesId)") && serverSrc3.includes("seriesRenderInFlight.delete(seriesId)"), "");
+  check("tri: in-flight check precedes chargeRender", serverSrc3.indexOf("seriesRenderInFlight.has(seriesId)") < serverSrc3.indexOf("jobId: episodeJobId, credits: episodeCharge.credits"), "");
+  // ADMIN#1: per-attempt episode jobId so refund pairs per attempt (retry no longer double-charges)
+  check("tri: episode jobId unique per attempt (requestId suffix)", serverSrc3.includes("`series_${seriesId}_ep${composed.episodeNumber}_${requestContext.requestId}`"), "");
+
+  // chargeRender: reuses only an OUTSTANDING (non-refunded) charge; refunded charge -> genuine retry charges again
+  const { UserAccountStore } = await import(`${base}/api/user-account-store.js`);
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join: joinPath } = await import("node:path");
+  const acctStore = new UserAccountStore({ storePath: joinPath(mkdtempSync(resolve(tmpdir(), "cinejelly-acct-")), "acct.json") });
+  const acct = await acctStore.register({ email: "audit@cinejelly.test", password: "pw123456" });
+  const acctId = acct.user.userId;
+  acctStore.adminAdjust({ email: "audit@cinejelly.test", credits: 1000, note: "seed" });
+  acctStore.chargeRender({ userId: acctId, jobId: "job_x", credits: 200 });
+  acctStore.chargeRender({ userId: acctId, jobId: "job_x", credits: 200 });
+  check("tri: concurrent same-job charge dedupes (outstanding charge reused)", acctStore.balanceOf(acctId) === 800, String(acctStore.balanceOf(acctId)));
+  acctStore.refundRender({ userId: acctId, jobId: "job_x", reason: "fail" });
+  check("tri: refund restores balance", acctStore.balanceOf(acctId) === 1000, String(acctStore.balanceOf(acctId)));
+  acctStore.chargeRender({ userId: acctId, jobId: "job_x", credits: 200 });
+  check("tri: retry after refund charges again (no free render)", acctStore.balanceOf(acctId) === 800, String(acctStore.balanceOf(acctId)));
+
+  // USER#1: channel-style dropdown reads real summary fields; USER#2: no duplicate set.quality label collision
+  check("tri: channel-style dropdown reads channelName/seriesName/niche", pageSrc3.includes("profile.channelName || profile.seriesName || profile.niche"), "");
+  check("tri: quality field uses its own i18n key (no set.quality collision)",
+    pageSrc3.includes('data-i18n="set.renderPasses"') && (pageSrc3.match(/data-i18n="set\.quality"/g) || []).length === 1, "");
+  ["set.renderPasses"].forEach((key) => {
+    const perLocale = (pageSrc3.match(new RegExp('"' + key.replace(".", "\\.") + '":', "g")) || []).length;
+    check(`tri: i18n key ${key} present in all 3 locales`, perLocale === 3, String(perLocale));
+  });
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;

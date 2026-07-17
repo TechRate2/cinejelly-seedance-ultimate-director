@@ -1307,7 +1307,7 @@ export function buildShortPipelineCreatePage(): string {
             <label class="field"><span data-i18n="set.product">Product</span><input id="product-title" data-i18n-placeholder="set.productPh" placeholder="Your real product, service, channel, or story subject"></label>
             <label class="field"><span data-i18n="set.category">Category</span><input id="category" data-i18n-placeholder="set.categoryPh" placeholder="beauty, fashion, SaaS, food, education..."></label>
             <label class="field" style="grid-column: span 2"><span data-i18n="set.claim">Allowed claim</span><input id="claim" data-i18n-placeholder="set.claimPh" placeholder="Only claims you can approve or substantiate"></label>
-            <label class="field"><span data-i18n="set.quality">Chất lượng render</span>
+            <label class="field"><span data-i18n="set.renderPasses">Chất lượng render</span>
               <select id="quality-mode">
                 <option value="economy" selected data-i18n="q.economy">Tiết kiệm — render 1 bản (rẻ nhất)</option>
                 <option value="standard" data-i18n="q.standard">Chuẩn — 2 bản, AI chọn bản đẹp hơn</option>
@@ -1553,7 +1553,7 @@ export function buildShortPipelineCreatePage(): string {
         "set.product": "Sản phẩm / chủ đề", "set.productPh": "Sản phẩm, dịch vụ, kênh hay câu chuyện thật của bạn",
         "set.category": "Ngành hàng", "set.categoryPh": "làm đẹp, thời trang, SaaS, đồ ăn, giáo dục...",
         "set.claim": "Cam kết được phép nói", "set.claimPh": "Chỉ những cam kết bạn chịu trách nhiệm được",
-        "set.quality": "Chất lượng render",
+        "set.renderPasses": "Chất lượng render",
         "nav.create": "🎬 Tạo video AI", "nav.series": "📺 Phim dài tập", "nav.dub": "🌐 Lồng tiếng & Phụ đề", "nav.mine": "📁 Video của tôi",
         "series.title": "📺 Phim dài tập (drama 30–70 tập)", "series.premise": "Cốt truyện", "series.premisePh": "VD: Nữ giúp việc bị cả nhà coi thường hoá ra là ái nữ tập đoàn trở về báo thù...",
         "series.count": "Số tập", "series.duration": "Thời lượng mỗi tập (giây)", "series.lang": "Ngôn ngữ thoại", "series.cast": "Dàn nhân vật (mỗi dòng: Tên | mô tả ngắn)", "series.castPh": "Linh | 23 tuổi, mắt kiên định, tóc đen dài",
@@ -1671,7 +1671,7 @@ export function buildShortPipelineCreatePage(): string {
         "set.product": "Product / subject", "set.productPh": "Your real product, service, channel, or story subject",
         "set.category": "Category", "set.categoryPh": "beauty, fashion, SaaS, food, education...",
         "set.claim": "Allowed claim", "set.claimPh": "Only claims you can approve or substantiate",
-        "set.quality": "Render quality",
+        "set.renderPasses": "Render quality",
         "nav.create": "🎬 Create AI Video", "nav.series": "📺 Episodic Drama", "nav.dub": "🌐 Dub & Subtitles", "nav.mine": "📁 My Videos",
         "series.title": "📺 Episodic drama (30–70 episodes)", "series.premise": "Premise", "series.premisePh": "e.g. The despised maid turns out to be the conglomerate heiress back for revenge...",
         "series.count": "Episodes", "series.duration": "Seconds per episode", "series.lang": "Spoken language", "series.cast": "Cast (one per line: Name | short description)", "series.castPh": "Linh | 23, determined eyes, long black hair",
@@ -1789,7 +1789,7 @@ export function buildShortPipelineCreatePage(): string {
         "set.product": "产品 / 主题", "set.productPh": "你的真实产品、服务、频道或故事主题",
         "set.category": "品类", "set.categoryPh": "美妆、时尚、SaaS、美食、教育…",
         "set.claim": "允许的宣称", "set.claimPh": "只填写你能负责或证实的宣称",
-        "set.quality": "渲染质量",
+        "set.renderPasses": "渲染质量",
         "nav.create": "🎬 AI 视频创作", "nav.series": "📺 连续短剧", "nav.dub": "🌐 配音与字幕", "nav.mine": "📁 我的视频",
         "series.title": "📺 连续短剧（30–70 集）", "series.premise": "故事前提", "series.premisePh": "例：被全家轻视的女佣其实是集团千金，回来复仇...",
         "series.count": "集数", "series.duration": "每集时长（秒）", "series.lang": "对白语言", "series.cast": "角色表（每行：姓名 | 简介）", "series.castPh": "Linh | 23岁，眼神坚定，黑长发",
@@ -2286,13 +2286,14 @@ export function buildShortPipelineCreatePage(): string {
         const listResp = await fetch("/v1/short-pipeline/channel-styles", { headers: authHeaders() });
         if (!listResp.ok) { return; }
         const payload = await listResp.json();
-        const profiles = payload.profiles || payload.records || payload.channelStyles || [];
+        const profiles = payload.channelStyles || payload.profiles || payload.records || [];
         profiles.forEach(function (profile) {
           const id = profile.profileId || profile.id || "";
           if (!id) { return; }
           const option = document.createElement("option");
           option.value = id;
-          option.textContent = profile.name || profile.label || id;
+          // Server summary fields are channelName/seriesName/niche (không phải name/label).
+          option.textContent = profile.channelName || profile.seriesName || profile.niche || profile.name || id;
           select.appendChild(option);
         });
       } catch (error) {
