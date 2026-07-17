@@ -23,6 +23,7 @@ import {
 import { buildRenderSettingsDescriptor } from "../application/render-settings-descriptor.js";
 import { UPLOAD_FILE_NAME_PATTERN, buildUploadUri, uploadsDirectoryFor } from "../core/upload-reference.js";
 import { VideoRedubPlanner } from "../core/video-redub-planner.js";
+import { RedubExecutor } from "../core/redub-executor.js";
 import { MediaInspector } from "../core/media-inspector.js";
 import { captionCuesToSrt } from "../core/subtitle-translator.js";
 import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider.js";
@@ -1331,6 +1332,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           voiceStyle?: string;
           originalAudioTreatment?: string;
           acknowledgedCredits?: number;
+          renderVideo?: boolean;
         }>(request, maxBodyBytes);
         const languagePattern = /^[a-z]{2}(-[a-z0-9]{2,8})?$/;
         const dubLanguage = typeof body.dubLanguage === "string" ? body.dubLanguage.trim().toLowerCase() : "";
@@ -1354,6 +1356,18 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         if (!redubSpeechModelId || !redubLlmModelId) {
           throw new UserAccountError(
             "Tính năng dịch phụ đề/thuyết minh chưa được bật trên hệ thống (chủ hệ thống cần điền model nhận dạng giọng nói ATLASCLOUD_SPEECH_MODEL trong .env hoặc mục Model của Trung tâm quản trị).",
+            503
+          );
+        }
+        // renderVideo=true: không chỉ lập kế hoạch mà THI HÀNH luôn — đọc giọng thuyết minh
+        // (ElevenLabs qua Atlas, tiếng Việt chuẩn) rồi trộn vào video (giảm nhỏ tiếng gốc hoặc
+        // thay hẳn) + xuất file phụ đề. Cần model TTS — kiểm tra TRƯỚC khi trừ tiền.
+        const redubRenderVideo = body.renderVideo === true;
+        const redubTtsModelId = (process.env.ATLASCLOUD_TTS_MODEL ?? "").trim();
+        const redubTtsVoice = (process.env.ATLASCLOUD_TTS_VOICE ?? "").trim();
+        if (redubRenderVideo && !redubTtsModelId) {
+          throw new UserAccountError(
+            "Lồng tiếng thành video cần model đọc giọng (chủ hệ thống cần điền ATLASCLOUD_TTS_MODEL trong .env).",
             503
           );
         }
@@ -1510,6 +1524,51 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             },
             redubAbort.signal
           );
+          // renderVideo: thi hành lồng tiếng — đọc TTS từng đoạn, trộn vào video, lưu file
+          // trong thư mục output (redub/<redubId>/). Kết quả là FILE thật, không chỉ text.
+          let redubOutputs:
+            | {
+                readonly dubbedVideoPath: string;
+                readonly narrationTrackCount: number;
+                readonly subtitleFiles: readonly { readonly language: string; readonly path: string }[];
+                readonly dubScriptPath: string;
+              }
+            | undefined;
+          if (redubRenderVideo) {
+            if (!redubProbePath) {
+              throw new Error("Không xác định được file video nguồn cục bộ để lồng tiếng.");
+            }
+            const redubDeliverDir = resolve(
+              process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables",
+              "redub",
+              redubId
+            );
+            await mkdir(redubDeliverDir, { recursive: true });
+            const executed = await new RedubExecutor().execute({
+              plan: redubPlan,
+              sourceVideoPath: redubProbePath,
+              workDirectory: redubDeliverDir,
+              outputVideoPath: join(redubDeliverDir, "dubbed.mp4"),
+              speechProvider: localizationProvider,
+              ttsModelId: redubTtsModelId,
+              ...(redubTtsVoice ? { ttsVoice: redubTtsVoice } : {}),
+              signal: redubAbort.signal
+            });
+            const subtitleFiles: { readonly language: string; readonly path: string }[] = [];
+            for (const track of redubPlan.subtitleTracks) {
+              const subtitlePath = join(redubDeliverDir, `subtitles-${track.language}.srt`);
+              await writeFile(subtitlePath, captionCuesToSrt(track.cues), "utf8");
+              subtitleFiles.push({ language: track.language, path: subtitlePath });
+            }
+            const dubScriptPath = join(redubDeliverDir, "dub-script.txt");
+            await writeFile(dubScriptPath, redubPlan.ttsIntents.map((intent) => intent.prompt).join("\n\n"), "utf8");
+            redubOutputs = {
+              dubbedVideoPath: executed.outputPath,
+              narrationTrackCount: executed.narrationTrackCount,
+              subtitleFiles,
+              dubScriptPath
+            };
+          }
           if (redubAbort.signal.aborted || response.writableEnded || response.destroyed) {
             // Client vanished during the work: we cannot deliver the result, so treat it as
             // a failure and let the catch refund/queue instead of silently keeping the money.
@@ -1527,6 +1586,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               cueCount: track.cues.length,
               srt: captionCuesToSrt(track.cues)
             })),
+            ...(redubOutputs ? { outputs: redubOutputs } : {}),
             ...(redubCharge
               ? { creditsCharged: redubCharge.credits, balanceCredits: userAccountStore.balanceOf(redubCharge.userId) }
               : {})

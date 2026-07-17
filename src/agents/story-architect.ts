@@ -65,6 +65,9 @@ interface StoryPlanJson {
   readonly targetDurationSeconds: number;
   readonly register?: unknown;
   readonly scenes: readonly unknown[];
+  readonly episodeSummary?: unknown;
+  readonly episodeEndState?: unknown;
+  readonly cliffhanger?: unknown;
 }
 
 const KNOWN_RISKS = new Set<string>([
@@ -87,6 +90,9 @@ const STORY_PLAN_SCHEMA = {
     premise: { type: "string" },
     targetDurationSeconds: { type: "number" },
     register: { type: "string", enum: ["professional_cinematic", "natural_phone_kol"] },
+    episodeSummary: { type: "string" },
+    episodeEndState: { type: "string" },
+    cliffhanger: { type: "string" },
     scenes: {
       type: "array",
       items: {
@@ -182,6 +188,9 @@ export class StoryArchitect {
               (scriptFirstMode
                 ? "PRECEDENCE: SCRIPT-FIRST MODE overrides every spoken-line rewriting rule above — the user's own dialogue/narration lines go into `spokenLine` VERBATIM (no added particles, no re-punctuation, no naturalization, no shortening); the LANGUAGE CONTRACT's and DIALOGUE craft's rewrite guidance applies ONLY to beats where the user wrote no line. "
                 : "") +
+              (typeof intake.metadata?.seriesId === "string" && intake.metadata.seriesId.trim()
+                ? "SERIES MODE: this is one episode of an ongoing series. Also return three top-level fields the next episode is written from: `episodeSummary` (2-3 sentences of what visibly happened this episode), `episodeEndState` (the exact visible state at the final frame — who is where, holding what, feeling what), and `cliffhanger` (the unresolved hook, empty string if this episode resolves). Honor any PREVIOUSLY-ON recap in the brief: continue those facts exactly, never contradict or re-introduce established characters. "
+                : "") +
               (intake.creativeIntent
                 ? `CREATIVE INTENT (decided by the brief analyst — obey it): register=${intake.creativeIntent.register}; spoken language=${intake.creativeIntent.language}; tone=${intake.creativeIntent.tone}; pacing=${intake.creativeIntent.pacingProfile}. Visual world: ${intake.creativeIntent.visualWorld}. Story engine — conflict: ${intake.creativeIntent.storyEngine.conflict}; stakes: ${intake.creativeIntent.storyEngine.stakes}; payoff: ${intake.creativeIntent.storyEngine.payoff}. Emotional arc to trace across the beats: ${intake.creativeIntent.emotionArc}. The hook must open on the conflict/stakes; the ending must land the payoff. `
                 : "") +
@@ -251,10 +260,19 @@ export class StoryArchitect {
     const boundedScenes = this.limitBeatsToDurationCapacity(workflowScenes, intake);
     const normalizedScenes = this.normalizeDurations(boundedScenes, intake.settings.durationTargetSeconds);
 
+    const optionalText = (candidate: unknown): string | undefined =>
+      typeof candidate === "string" && candidate.trim() ? candidate.trim() : undefined;
+    const episodeSummary = optionalText(value.episodeSummary);
+    const episodeEndState = optionalText(value.episodeEndState);
+    const cliffhanger = optionalText(value.cliffhanger);
+
     return {
       premise: value.premise,
       targetDurationSeconds: intake.settings.durationTargetSeconds,
-      scenes: normalizedScenes
+      scenes: normalizedScenes,
+      ...(episodeSummary ? { episodeSummary } : {}),
+      ...(episodeEndState ? { episodeEndState } : {}),
+      ...(cliffhanger ? { cliffhanger } : {})
     };
   }
 

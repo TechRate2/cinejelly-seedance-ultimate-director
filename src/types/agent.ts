@@ -69,6 +69,12 @@ export interface StoryPlan {
   readonly premise: string;
   readonly targetDurationSeconds: number;
   readonly scenes: readonly ScenePlan[];
+  /** Series mode (metadata.seriesId): 2-3 sentences of what happened, for the continuity store. */
+  readonly episodeSummary?: string;
+  /** Series mode: the exact visible state at the final frame — the next episode resumes from it. */
+  readonly episodeEndState?: string;
+  /** Series mode: the unresolved hook the next episode must pick up. */
+  readonly cliffhanger?: string;
 }
 
 export interface RenderCandidate {

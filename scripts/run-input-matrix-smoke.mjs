@@ -693,6 +693,123 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// Dub/sub executor (lồng tiếng review-phim) + series continuity (batch 4)
+// ------------------------------------------------------------------
+{
+  const { readFileSync } = await import("node:fs");
+  const { RedubExecutor, DUB_ORIGINAL_BED_VOLUME } = await import(`${base}/core/redub-executor.js`);
+  const ttsCalls = [];
+  const speechStub = {
+    async synthesizeSpeech(req) {
+      ttsCalls.push({ text: req.text, languageCode: req.languageCode, voice: req.voice });
+      if (req.text.includes("FAIL_ME")) { throw new Error("provider down"); }
+      return { provider: "atlascloud", predictionId: "t", modelId: req.modelId, status: "succeeded", outputUrls: [`https://cdn.x/${ttsCalls.length}.mp3`], raw: {} };
+    }
+  };
+  let mixInput;
+  const mixStub = { async mix(input) { mixInput = input; return { outputPath: input.outputVideoPath, trackCount: input.tracks.length, mixedAt: new Date(), mode: input.options.mode }; } };
+  const dubPlan = (treatment) => ({
+    projectId: "redub_t", sourceLanguage: "zh", dubLanguage: "vi", sourceCues: [], dubCues: [], subtitleTracks: [],
+    originalAudioTreatment: treatment,
+    ttsIntents: [
+      { intentId: "seg1", kind: "tts_narration", prompt: "Cô ấy mở hộp quà.", startSecond: 1.2, language: "vi", volume: 1 },
+      { intentId: "seg2", kind: "tts_narration", prompt: "Và mọi thứ thay đổi.", startSecond: 8.5, language: "vi" }
+    ],
+    summary: { segmentCount: 2, totalSpeechSeconds: 6, subtitleLanguages: ["vi"] }
+  });
+  const dubRun = await new RedubExecutor().execute({
+    plan: dubPlan("duck_under_dub"), sourceVideoPath: "C:/src.mp4", workDirectory: "C:/wd", outputVideoPath: "C:/out/dubbed.mp4",
+    speechProvider: speechStub, ttsModelId: "elevenlabs/v3/text-to-speech", ttsVoice: "Jessica", audioMixEngine: mixStub
+  });
+  check("dub: every narration segment synthesized in the dub language", ttsCalls.length === 2 && ttsCalls.every((c) => c.languageCode === "vi" && c.voice === "Jessica"), JSON.stringify(ttsCalls));
+  check("dub: narration tracks keep per-segment timing", mixInput.tracks.length === 2 && mixInput.tracks[0].startSeconds === 1.2 && mixInput.tracks[1].startSeconds === 8.5 && mixInput.tracks.every((t) => t.role === "narration"), "");
+  check("dub: duck_under_dub keeps original audio low under the voice", mixInput.options.mode === "mix" && mixInput.includeOriginalAudio === true && mixInput.options.originalVolume === DUB_ORIGINAL_BED_VOLUME, "");
+  check("dub: result reports the mixed file", dubRun.outputPath === "C:/out/dubbed.mp4" && dubRun.narrationTrackCount === 2, "");
+  await new RedubExecutor().execute({
+    plan: dubPlan("replace"), sourceVideoPath: "C:/src.mp4", workDirectory: "C:/wd", outputVideoPath: "C:/out/dubbed.mp4",
+    speechProvider: speechStub, ttsModelId: "m", audioMixEngine: mixStub
+  });
+  check("dub: replace drops the original audio entirely", mixInput.options.mode === "replace" && mixInput.includeOriginalAudio === false && mixInput.options.originalVolume === 0, "");
+  let dubFailed = false;
+  try {
+    await new RedubExecutor().execute({
+      plan: { ...dubPlan("duck_under_dub"), ttsIntents: [ ...dubPlan("duck_under_dub").ttsIntents, { intentId: "seg3", kind: "tts_narration", prompt: "FAIL_ME", startSecond: 12 } ] },
+      sourceVideoPath: "C:/src.mp4", workDirectory: "C:/wd", outputVideoPath: "C:/out/dubbed.mp4",
+      speechProvider: speechStub, ttsModelId: "m", audioMixEngine: mixStub
+    });
+  } catch (error) { dubFailed = String(error).includes("silent holes"); }
+  check("dub: any failed segment fails the whole dub (no silent holes)", dubFailed, "");
+  const serverSrc = readFileSync(resolve(repoRoot, "src/api/server.ts"), "utf8");
+  check("dub: redub route executes renderVideo via RedubExecutor + persists SRT files",
+    serverSrc.includes("new RedubExecutor().execute") && serverSrc.includes("subtitles-${track.language}.srt") && serverSrc.includes("ATLASCLOUD_TTS_MODEL") , "");
+
+  // --- Series continuity: store + episode director ---
+  const { SeriesContinuityStore } = await import(`${base}/core/series-continuity-store.js`);
+  const { SeriesEpisodeDirector } = await import(`${base}/application/series-episode-director.js`);
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const storeRoot = mkdtempSync(resolve(tmpdir(), "cinejelly-series-"));
+  const store = new SeriesContinuityStore({ outputRoot: storeRoot });
+  const seriesRequest = {
+    premise: "Nữ giúp việc bị coi thường hoá ra là ái nữ tập đoàn.",
+    genre: "revenge melodrama", language: "vi", episodeCount: 3, episodeDurationSeconds: 60,
+    cast: [
+      { characterId: "linh_lead", name: "Linh", castRole: "protagonist", description: "23t, mắt kiên định", identityReferenceUri: "https://cdn.x/linh.png" },
+      { characterId: "ba_tran", name: "Bà Trần", castRole: "antagonist", description: "quản gia khắc nghiệt" }
+    ]
+  };
+  const runs = [];
+  const directorStub = {
+    async run(request) {
+      runs.push(request);
+      return {
+        projectId: `ep_${runs.length}`,
+        storyPlan: {
+          premise: `Tập ${runs.length} premise`, targetDurationSeconds: 60, scenes: [],
+          episodeSummary: `Tập ${runs.length}: Linh phát hiện bí mật thứ ${runs.length}.`,
+          episodeEndState: `Linh đứng trước cửa phòng ${runs.length}, tay cầm chìa khoá.`,
+          ...(runs.length < 3 ? { cliffhanger: `Cánh cửa ${runs.length} hé mở.` } : {})
+        }
+      };
+    }
+  };
+  const episodeDirector = new SeriesEpisodeDirector({ director: directorStub, store });
+  const created = await episodeDirector.startSeries(seriesRequest);
+  check("series: continuity record created with cast ledger", created.cast.length === 2 && created.cast[0].firstAppearedEpisode === 1 && created.episodeStates.length === 0, "");
+  const ep1 = await episodeDirector.renderNextEpisode(created.seriesId);
+  check("series: ep1 has no PREVIOUSLY ON block", ep1.episodeNumber === 1 && !runs[0].userInput.includes("PREVIOUSLY ON"), "");
+  check("series: ep1 carries pinned identity reference", (runs[0].references ?? []).some((r) => r.label === "linh_lead" && r.providerReference?.uri === "https://cdn.x/linh.png"), "");
+  check("series: ep1 recorded from the architect's REAL fields", ep1.record.episodeStates[0].summary.includes("bí mật thứ 1") && ep1.record.episodeStates[0].endState.includes("phòng 1") && ep1.record.episodeStates[0].cliffhanger === "Cánh cửa 1 hé mở.", JSON.stringify(ep1.record.episodeStates[0]));
+  const ep2 = await episodeDirector.renderNextEpisode(created.seriesId);
+  check("series: ep2 brief resumes EXACTLY from ep1's real end state", runs[1].userInput.includes("PREVIOUSLY ON") && runs[1].userInput.includes("phòng 1") && runs[1].userInput.includes("Cánh cửa 1 hé mở."), "");
+  check("series: ep2 metadata carries the recap", typeof runs[1].metadata?.seriesRecap === "string" && runs[1].metadata.seriesRecap.includes("phòng 1"), "");
+  await episodeDirector.renderNextEpisode(created.seriesId);
+  check("series: episode numbering advances and persists", ep2.episodeNumber === 2 && (await store.load(created.seriesId)).episodeStates.length === 3, "");
+  let seriesDone = false;
+  try { await episodeDirector.renderNextEpisode(created.seriesId); } catch (error) { seriesDone = String(error).includes("complete"); }
+  check("series: finished series refuses a 4th episode", seriesDone, "");
+  let dupRejected = false;
+  try { await store.recordEpisode(created.seriesId, { episodeNumber: 2, projectId: "x", summary: "s", endState: "e", macroPhase: "escalation", recordedAt: new Date().toISOString() }); } catch { dupRejected = true; }
+  check("series: duplicate episode recording rejected", dupRejected, "");
+  check("series: recap keeps rolling window shape", (store.recapFor((await store.load(created.seriesId)))).includes("Resume EXACTLY from this state:"), "");
+
+  // Architect series-mode fields: schema requested + coerced when metadata.seriesId present
+  let seriesSystem = "";
+  const seriesLlm = { name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured(req) {
+      seriesSystem = (req.messages || []).find((m) => m.role === "system")?.content ?? "";
+      const r = await fakeLlm({}).structured();
+      return { ...r, value: { ...r.value, episodeSummary: "Tóm tắt tập.", episodeEndState: "Cô đứng im.", cliffhanger: "Tiếng gõ cửa." } };
+    } };
+  const seriesPlan = await new StoryArchitect(seriesLlm, "f").plan({ projectId: "d", userInput: "x", settings: settingsFor(60, "economy"), references: [], metadata: { seriesId: "series_t", episodeNumber: "2" } });
+  check("series: architect asked for episode fields in series mode", seriesSystem.includes("SERIES MODE"), "");
+  check("series: architect coerces episodeSummary/endState/cliffhanger", seriesPlan.episodeSummary === "Tóm tắt tập." && seriesPlan.episodeEndState === "Cô đứng im." && seriesPlan.cliffhanger === "Tiếng gõ cửa.", "");
+  await new StoryArchitect(seriesLlm, "f").plan({ projectId: "d", userInput: "x", settings: settingsFor(30, "economy"), references: [], metadata: {} });
+  check("series: non-series briefs get no SERIES MODE directive", !seriesSystem.includes("SERIES MODE"), "");
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;
