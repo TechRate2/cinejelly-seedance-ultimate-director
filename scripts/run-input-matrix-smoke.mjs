@@ -810,6 +810,102 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// UI+backend commercial round (workflow audit + self-verified candidates): regression locks
+// ------------------------------------------------------------------
+{
+  const { readFileSync } = await import("node:fs");
+  const pageSrc = readFileSync(resolve(repoRoot, "src/api/short-pipeline-create-page.ts"), "utf8");
+  const serverSrc2 = readFileSync(resolve(repoRoot, "src/api/server.ts"), "utf8");
+  const mixSrc = readFileSync(resolve(repoRoot, "src/core/audio-mix-engine.ts"), "utf8");
+  const directorSrc2 = readFileSync(resolve(repoRoot, "src/agents/director-agent.ts"), "utf8");
+
+  // amix loudness: no 1/N auto-scaling + limiter guard
+  check("uiround: amix disables 1/N normalize and adds a limiter", mixSrc.includes("normalize=0") && mixSrc.includes("alimiter=limit=0.97"), "");
+
+  // RedubExecutor fail-fast: segment 2 fails -> segment 3's TTS is never bought
+  const { RedubExecutor } = await import(`${base}/core/redub-executor.js`);
+  const boughtTexts = [];
+  const failFastSpeech = { async synthesizeSpeech(req) {
+    boughtTexts.push(req.text);
+    if (req.text === "FAIL_ME") { throw new Error("down"); }
+    return { provider: "atlascloud", predictionId: "t", modelId: req.modelId, status: "succeeded", outputUrls: ["https://cdn.x/a.mp3"], raw: {} };
+  } };
+  let failFast = false;
+  try {
+    await new RedubExecutor().execute({
+      plan: { projectId: "r", sourceLanguage: "zh", dubLanguage: "vi", sourceCues: [], dubCues: [], subtitleTracks: [], originalAudioTreatment: "duck_under_dub",
+        ttsIntents: [
+          { intentId: "s1", kind: "tts_narration", prompt: "ok một" },
+          { intentId: "s2", kind: "tts_narration", prompt: "FAIL_ME" },
+          { intentId: "s3", kind: "tts_narration", prompt: "không bao giờ mua" }
+        ], summary: { segmentCount: 3, totalSpeechSeconds: 9, subtitleLanguages: [] } },
+      sourceVideoPath: "C:/s.mp4", workDirectory: "C:/w", outputVideoPath: "C:/o.mp4",
+      speechProvider: failFastSpeech, ttsModelId: "m", audioMixEngine: { async mix() { throw new Error("must not mix"); } }
+    });
+  } catch (error) { failFast = String(error).includes("silent holes"); }
+  check("uiround: dub fail-fast stops buying TTS after the first failure", failFast && boughtTexts.length === 2 && !boughtTexts.includes("không bao giờ mua"), JSON.stringify(boughtTexts));
+
+  // Server: renderVideo surcharge + owner-scoped download route + downloads payload
+  check("uiround: renderVideo billed with surcharge", serverSrc2.includes("REDUB_RENDER_VIDEO_SURCHARGE") && serverSrc2.includes("redubBillableSeconds * redubSurcharge"), "");
+  check("uiround: redub outputs delivered as authenticated download URLs", serverSrc2.includes("/files/dubbed.mp4") && serverSrc2.includes("owner.json") && serverSrc2.includes("REDUB_DOWNLOADABLE_FILE"), "");
+
+  // Create page: paid-confirm and captions are separate labels; dead tabs wired; quality + channel-style live
+  check("uiround: confirm-render and caption-toggle have their own labels", pageSrc.includes('for="confirm-render"') && pageSrc.includes('for="caption-toggle"'), "");
+  check("uiround: top tabs wired (My Creations/History)", pageSrc.includes('getElementById("tab-mine").addEventListener') && pageSrc.includes('getElementById("tab-history").addEventListener'), "");
+  check("uiround: gallery filter tabs wired via data-template-filter", pageSrc.includes("data-template-filter") && pageSrc.includes("dataset.templateFilter"), "");
+  check("uiround: template cards carry data-category", (pageSrc.match(/data-category="/g) || []).length >= 7, "");
+  check("uiround: quality select sends settings.qualityMode and drives the estimate",
+    pageSrc.includes('id="quality-mode"') && pageSrc.includes("settings: { qualityMode }") && pageSrc.includes("meteredCredits(seconds, estimateTier, selectedQuality)"), "");
+  check("uiround: channel style select feeds channelStyleProfileId", pageSrc.includes('id="channel-style"') && pageSrc.includes("channelStyleProfileId ? { channelStyleProfileId }"), "");
+  check("uiround: redub modal can execute the real dub and download it",
+    pageSrc.includes('id="redub-render-video"') && pageSrc.includes("body.renderVideo = true") && pageSrc.includes("redub.downloadVideo"), "");
+  check("uiround: help.redub no longer denies auto-dub in any locale", !pageSrc.includes("KHÔNG tự lồng tiếng") && !pageSrc.includes("does NOT auto-voice") && !pageSrc.includes("不会自动为视频配音"), "");
+  check("uiround: talking-shot milestone surfaced to customers", serverSrc2.includes("progressHighlights") && pageSrc.includes("job.progressHighlights"), "");
+
+  // Series routes: operator-gated, preview no-spend, renders recorded back into continuity
+  check("uiround: series routes exist and are operator-gated",
+    serverSrc2.includes('requestUrl.pathname === "/v1/series"') && serverSrc2.includes("cần key vận hành") && serverSrc2.includes("episodes\\/next(\\/preview)?"), "");
+  check("uiround: series render goes through normalize+admission and records the episode",
+    serverSrc2.includes("normalizeRenderRequest(episodeRequest") && serverSrc2.includes("recordRenderedEpisode("), "");
+  check("uiround: talking-shot stage rethrows on abort", directorSrc2.includes("A real user abort must stop the whole stage"), "");
+
+  // Series behavior: cast growth from real scenes + per-series serialization of concurrent calls
+  const { SeriesContinuityStore } = await import(`${base}/core/series-continuity-store.js`);
+  const { SeriesEpisodeDirector } = await import(`${base}/application/series-episode-director.js`);
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const growthStore = new SeriesContinuityStore({ outputRoot: mkdtempSync(resolve(tmpdir(), "cinejelly-series2-")) });
+  let growthRuns = 0;
+  const growthDirector = new SeriesEpisodeDirector({
+    store: growthStore,
+    director: { async run() {
+      growthRuns += 1;
+      return { projectId: `ep_${growthRuns}`, storyPlan: {
+        premise: "p", targetDurationSeconds: 60,
+        episodeSummary: `Tập ${growthRuns} xong.`, episodeEndState: `Trạng thái ${growthRuns}.`,
+        scenes: [{ sceneId: "s1", title: "S", beats: [{ beatId: "b1", purpose: "x", action: "a", subject: "s", camera: "c", lighting: "l", durationSeconds: 4, risks: [], references: [], continuity: { identity: "Linh, Cô Hàng Xóm" } }] }]
+      } };
+    } }
+  });
+  const growthRecord = await growthDirector.startSeries({
+    premise: "Người giúp việc bí ẩn.", episodeCount: 2, episodeDurationSeconds: 60, language: "vi",
+    cast: [{ characterId: "linh_lead", name: "Linh", castRole: "protagonist", description: "23t" }]
+  });
+  const [g1, g2] = await Promise.all([
+    growthDirector.renderNextEpisode(growthRecord.seriesId),
+    growthDirector.renderNextEpisode(growthRecord.seriesId)
+  ]);
+  const growthFinal = await growthStore.load(growthRecord.seriesId);
+  check("uiround: concurrent next-episode calls serialize to eps 1 and 2",
+    [g1.episodeNumber, g2.episodeNumber].sort().join(",") === "1,2" && growthFinal.episodeStates.length === 2, JSON.stringify([g1.episodeNumber, g2.episodeNumber]));
+  check("uiround: mid-series cast growth recorded name-only with stable label",
+    growthFinal.cast.some((member) => member.name === "Cô Hàng Xóm" && member.firstAppearedEpisode >= 1) &&
+    growthFinal.cast.filter((member) => member.name === "Cô Hàng Xóm").length === 1 &&
+    !growthFinal.cast.some((member) => member.name.toLowerCase() === "linh" && member.characterId !== "linh_lead"),
+    JSON.stringify(growthFinal.cast.map((member) => member.characterId)));
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;

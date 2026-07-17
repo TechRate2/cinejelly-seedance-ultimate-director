@@ -38,6 +38,8 @@ export interface SeriesEpisodeRenderResult {
 export class SeriesEpisodeDirector {
   private readonly director: EpisodeDirectorRunner;
   private readonly store: SeriesContinuityStore;
+  /** Per-series render chain: two renderNextEpisode calls for one series run strictly in order. */
+  private readonly seriesLocks = new Map<string, Promise<unknown>>();
 
   public constructor(options: { readonly director: EpisodeDirectorRunner; readonly store: SeriesContinuityStore }) {
     this.director = options.director;
@@ -86,12 +88,75 @@ export class SeriesEpisodeDirector {
 
   /** Render the next episode through the normal pipeline and record its real outcome. */
   public async renderNextEpisode(seriesId: string, signal?: AbortSignal): Promise<SeriesEpisodeRenderResult> {
+    // Serialize per series: concurrent calls would both compose "episode N" and double-render
+    // (the store rejects the duplicate record, but only AFTER the second paid render ran).
+    const previous = this.seriesLocks.get(seriesId) ?? Promise.resolve();
+    const run = previous.catch(() => undefined).then(() => this.renderNextEpisodeSerialized(seriesId, signal));
+    this.seriesLocks.set(seriesId, run);
+    try {
+      return await run;
+    } finally {
+      if (this.seriesLocks.get(seriesId) === run) {
+        this.seriesLocks.delete(seriesId);
+      }
+    }
+  }
+
+  private async renderNextEpisodeSerialized(seriesId: string, signal?: AbortSignal): Promise<SeriesEpisodeRenderResult> {
     const record = await this.requireRecord(seriesId);
     const { episodeNumber, request } = await this.composeNextEpisode(seriesId);
     const result = await this.director.run(request, signal);
     const state = this.episodeStateFrom(record, episodeNumber, request, result);
-    const updated = await this.store.recordEpisode(seriesId, state);
+    const updated = await this.store.recordEpisode(seriesId, state, this.castGrowthFrom(record, result));
     return { episodeNumber, result, record: updated };
+  }
+
+  /**
+   * Record an episode that was rendered OUTSIDE renderNextEpisode (e.g. an HTTP route that
+   * normalizes/gates the composed request itself before running the director).
+   */
+  public async recordRenderedEpisode(
+    seriesId: string,
+    episodeNumber: number,
+    request: CineJellyProjectRequest,
+    result: DirectorRunResult
+  ): Promise<SeriesContinuityRecord> {
+    const record = await this.requireRecord(seriesId);
+    const state = this.episodeStateFrom(record, episodeNumber, request, result);
+    return this.store.recordEpisode(seriesId, state, this.castGrowthFrom(record, result));
+  }
+
+  /**
+   * Cast growth (vimax pattern): characters the scriptwriter introduced this episode that are not
+   * in the ledger yet — recorded name-only so their LABEL stays stable in every later episode's
+   * brief (their face gets pinned once a portrait exists; existing faces are never replaced).
+   */
+  private castGrowthFrom(
+    record: SeriesContinuityRecord,
+    result: DirectorRunResult
+  ): readonly { characterId: string; name: string; castRole: "support"; description: string }[] {
+    const known = new Set(record.cast.flatMap((member) => [member.characterId.toLowerCase(), member.name.toLowerCase()]));
+    const discovered = new Map<string, string>();
+    for (const scene of result.storyPlan.scenes) {
+      for (const beat of scene.beats) {
+        const identity = beat.continuity?.identity;
+        if (!identity) {
+          continue;
+        }
+        for (const label of identity.split(",").map((part) => part.trim()).filter(Boolean)) {
+          const key = label.toLowerCase();
+          if (!known.has(key) && !discovered.has(key) && label.length <= 60) {
+            discovered.set(key, label);
+          }
+        }
+      }
+    }
+    return [...discovered.values()].map((name) => ({
+      characterId: name.toLowerCase().replace(/[^a-z0-9]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "new_character",
+      name,
+      castRole: "support" as const,
+      description: `Introduced mid-series; keep the same face and presentation as their first appearance.`
+    }));
   }
 
   private episodeStateFrom(

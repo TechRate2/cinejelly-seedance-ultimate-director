@@ -47,9 +47,12 @@ export class RedubExecutor {
       throw new Error("Redub plan has no narration segments to synthesize.");
     }
 
+    // FAIL-FAST all-or-nothing: the dub is worthless with even one silent hole, so the first
+    // failed segment aborts the whole execution IMMEDIATELY — buying TTS for the remaining
+    // segments after a failure would be pure wasted provider spend (cross-audit).
     const tracks: AudioMixTrack[] = [];
-    const failedIntentIds: string[] = [];
     for (const intent of intents) {
+      let audioUrl: string | undefined;
       try {
         const speech = await input.speechProvider.synthesizeSpeech(
           {
@@ -66,31 +69,29 @@ export class RedubExecutor {
           },
           input.signal
         );
-        const audioUrl = speech.status === "succeeded"
+        audioUrl = speech.status === "succeeded"
           ? speech.outputUrls.find((url) => /^https:\/\//.test(url))
           : undefined;
-        if (!audioUrl) {
-          failedIntentIds.push(intent.intentId);
-          continue;
-        }
-        tracks.push({
-          trackId: intent.intentId,
-          sourceUrlOrPath: audioUrl,
-          role: "narration",
-          volume: intent.volume ?? 1,
-          ...(intent.startSecond !== undefined ? { startSeconds: intent.startSecond } : {})
-        });
       } catch (error) {
         if (input.signal?.aborted) {
           throw error;
         }
-        failedIntentIds.push(intent.intentId);
+        throw new Error(
+          `Redub voice synthesis failed at segment ${intent.intentId} (${tracks.length}/${intents.length} done); a dub with silent holes is not deliverable. ${String(error)}`
+        );
       }
-    }
-    if (failedIntentIds.length > 0) {
-      throw new Error(
-        `Redub voice synthesis failed for ${failedIntentIds.length}/${intents.length} segment(s) (${failedIntentIds.slice(0, 5).join(", ")}); a dub with silent holes is not deliverable.`
-      );
+      if (!audioUrl) {
+        throw new Error(
+          `Redub voice synthesis returned no audio for segment ${intent.intentId} (${tracks.length}/${intents.length} done); a dub with silent holes is not deliverable.`
+        );
+      }
+      tracks.push({
+        trackId: intent.intentId,
+        sourceUrlOrPath: audioUrl,
+        role: "narration",
+        volume: intent.volume ?? 1,
+        ...(intent.startSecond !== undefined ? { startSeconds: intent.startSecond } : {})
+      });
     }
 
     const treatment = input.plan.originalAudioTreatment;

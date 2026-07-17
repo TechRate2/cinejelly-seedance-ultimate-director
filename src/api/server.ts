@@ -24,6 +24,9 @@ import { buildRenderSettingsDescriptor } from "../application/render-settings-de
 import { UPLOAD_FILE_NAME_PATTERN, buildUploadUri, uploadsDirectoryFor } from "../core/upload-reference.js";
 import { VideoRedubPlanner } from "../core/video-redub-planner.js";
 import { RedubExecutor } from "../core/redub-executor.js";
+import { SeriesContinuityStore } from "../core/series-continuity-store.js";
+import { SeriesEpisodeDirector } from "../application/series-episode-director.js";
+import type { SeriesDramaRequest } from "../core/series-drama-planner.js";
 import { MediaInspector } from "../core/media-inspector.js";
 import { captionCuesToSrt } from "../core/subtitle-translator.js";
 import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider.js";
@@ -1456,9 +1459,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         let redubCharge: { readonly userId: string; readonly credits: number } | undefined;
         if (authDecision.principal.kind === "user" && authDecision.principal.userId) {
           const redubPricing = adminSettingsStore.pricing();
+          // renderVideo thi hành thêm 1 lệnh đọc giọng TTS trả phí CHO TỪNG ĐOẠN lời thoại —
+          // phụ phí nhân hệ số để giá khách trả luôn phủ đủ chi phí provider (audit tiền).
+          // Khách vẫn xác nhận đúng con số cuối qua vòng acknowledgedCredits.
+          const redubSurcharge = redubRenderVideo ? REDUB_RENDER_VIDEO_SURCHARGE : 1;
           const redubCredits = Math.max(
             redubPricing.minimumChargeCredits,
-            Math.ceil(redubPricing.creditsPerRenderSecond * redubBillableSeconds)
+            Math.ceil(redubPricing.creditsPerRenderSecond * redubBillableSeconds * redubSurcharge)
           );
           // Honest pre-charge quote. Redub is billed by the SOURCE video's REAL duration, which the
           // browser cannot know until we probe the file here — so the first call NEVER charges: it
@@ -1528,10 +1535,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           // trong thư mục output (redub/<redubId>/). Kết quả là FILE thật, không chỉ text.
           let redubOutputs:
             | {
-                readonly dubbedVideoPath: string;
                 readonly narrationTrackCount: number;
-                readonly subtitleFiles: readonly { readonly language: string; readonly path: string }[];
-                readonly dubScriptPath: string;
+                readonly downloads: readonly { readonly kind: string; readonly language?: string; readonly url: string }[];
               }
             | undefined;
           if (redubRenderVideo) {
@@ -1544,6 +1549,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               redubId
             );
             await mkdir(redubDeliverDir, { recursive: true });
+            // Chủ sở hữu ghi xuống đĩa để route tải file kiểm tra được sau khi server khởi động lại.
+            const redubOwnerId =
+              authDecision.principal.kind === "user" && authDecision.principal.userId
+                ? authDecision.principal.userId
+                : "operator";
+            await writeFile(join(redubDeliverDir, "owner.json"), JSON.stringify({ userId: redubOwnerId }), "utf8");
             const executed = await new RedubExecutor().execute({
               plan: redubPlan,
               sourceVideoPath: redubProbePath,
@@ -1554,20 +1565,21 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               ...(redubTtsVoice ? { ttsVoice: redubTtsVoice } : {}),
               signal: redubAbort.signal
             });
-            const subtitleFiles: { readonly language: string; readonly path: string }[] = [];
+            const downloads: { readonly kind: string; readonly language?: string; readonly url: string }[] = [
+              { kind: "dubbed_video", url: `/v1/redub/${redubId}/files/dubbed.mp4` }
+            ];
             for (const track of redubPlan.subtitleTracks) {
-              const subtitlePath = join(redubDeliverDir, `subtitles-${track.language}.srt`);
-              await writeFile(subtitlePath, captionCuesToSrt(track.cues), "utf8");
-              subtitleFiles.push({ language: track.language, path: subtitlePath });
+              const subtitleName = `subtitles-${track.language}.srt`;
+              await writeFile(join(redubDeliverDir, subtitleName), captionCuesToSrt(track.cues), "utf8");
+              downloads.push({ kind: "subtitles", language: track.language, url: `/v1/redub/${redubId}/files/${subtitleName}` });
             }
-            const dubScriptPath = join(redubDeliverDir, "dub-script.txt");
-            await writeFile(dubScriptPath, redubPlan.ttsIntents.map((intent) => intent.prompt).join("\n\n"), "utf8");
-            redubOutputs = {
-              dubbedVideoPath: executed.outputPath,
-              narrationTrackCount: executed.narrationTrackCount,
-              subtitleFiles,
-              dubScriptPath
-            };
+            await writeFile(
+              join(redubDeliverDir, "dub-script.txt"),
+              redubPlan.ttsIntents.map((intent) => intent.prompt).join("\n\n"),
+              "utf8"
+            );
+            downloads.push({ kind: "dub_script", url: `/v1/redub/${redubId}/files/dub-script.txt` });
+            redubOutputs = { narrationTrackCount: executed.narrationTrackCount, downloads };
           }
           if (redubAbort.signal.aborted || response.writableEnded || response.destroyed) {
             // Client vanished during the work: we cannot deliver the result, so treat it as
@@ -1841,6 +1853,170 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           return;
         }
         sendVideoStream(response, uploadedPath, uploadedStat.size, { contentType, inline: true });
+        return;
+      }
+      // ---- Phim dài tập (series) — bề mặt vận hành: mọi tập render qua đầy đủ cổng chi phí/duyệt.
+      // Đang gate bằng key vận hành: tài khoản khách chưa có surface billing cho series, nên KHÔNG
+      // tồn tại đường nào để khách chạy series không bill (audit tiền).
+      const seriesIdMatch = requestUrl.pathname.match(/^\/v1\/series\/([A-Za-z0-9_-]{1,120})$/);
+      const seriesNextMatch = requestUrl.pathname.match(/^\/v1\/series\/([A-Za-z0-9_-]{1,120})\/episodes\/next(\/preview)?$/);
+      if (requestUrl.pathname === "/v1/series" || seriesIdMatch || seriesNextMatch) {
+        if (!authDecision.principal || authDecision.principal.kind === "user") {
+          throw new UserAccountError(
+            "Chức năng phim dài tập đang ở giai đoạn vận hành — cần key vận hành (operator).",
+            authDecision.principal ? 403 : 401
+          );
+        }
+        const seriesOutputRoot = process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables";
+        const seriesStore = new SeriesContinuityStore({ outputRoot: seriesOutputRoot });
+        const composeOnlyDirector = new SeriesEpisodeDirector({
+          director: { run: async () => { throw new Error("compose-only series director was asked to render"); } },
+          store: seriesStore
+        });
+        if (request.method === "POST" && requestUrl.pathname === "/v1/series") {
+          assertJsonContentType(request);
+          const body = await readJsonBody<Partial<SeriesDramaRequest>>(request, maxBodyBytes);
+          if (typeof body.premise !== "string" || !Array.isArray(body.cast)) {
+            throw new UserAccountError("Body cần premise (chuỗi) và cast (mảng nhân vật).", 400);
+          }
+          // planSeriesDrama tự validate sâu (số tập 1-200, độ dài tập 15-480s, cast hợp lệ, URI an toàn).
+          const record = await composeOnlyDirector.startSeries(body as SeriesDramaRequest);
+          sendJson(response, 201, {
+            seriesId: record.seriesId,
+            episodeCount: record.request.episodeCount,
+            episodeDurationSeconds: record.request.episodeDurationSeconds,
+            cast: record.cast.map((member) => ({ characterId: member.characterId, name: member.name, castRole: member.castRole })),
+            recordedEpisodes: record.episodeStates.length,
+            createdAt: record.createdAt
+          }, requestContext);
+          return;
+        }
+        if (request.method === "GET" && seriesIdMatch) {
+          const record = await seriesStore.load(seriesIdMatch[1] ?? "");
+          sendJson(response, record ? 200 : 404, record ?? { error: "Series không tồn tại." }, requestContext);
+          return;
+        }
+        if (request.method === "POST" && seriesNextMatch) {
+          const seriesId = seriesNextMatch[1] ?? "";
+          const previewOnly = Boolean(seriesNextMatch[2]);
+          const composed = await composeOnlyDirector.composeNextEpisode(seriesId);
+          if (previewOnly) {
+            // Không tốn tiền: trả brief tập kế tiếp (kèm recap thật) để duyệt trước khi render.
+            sendJson(response, 200, {
+              seriesId,
+              episodeNumber: composed.episodeNumber,
+              userInput: composed.request.userInput,
+              settings: composed.request.settings,
+              metadata: composed.request.metadata,
+              referenceCount: composed.request.references?.length ?? 0
+            }, requestContext);
+            return;
+          }
+          assertJsonContentType(request);
+          const body = await readJsonBody<{ metadata?: Record<string, string> }>(request, maxBodyBytes);
+          const episodeRequest = {
+            ...composed.request,
+            metadata: { ...(composed.request.metadata ?? {}), ...(body.metadata ?? {}) }
+          };
+          const normalizedEpisode = normalizeRenderRequest(episodeRequest, {
+            requestId: requestContext.requestId,
+            env: process.env
+          });
+          requestAdmission.assertAcceptable(normalizedEpisode);
+          const episodeLease = syncRenderGate.tryAcquire();
+          if (!episodeLease.allowed) {
+            sendJson(response, episodeLease.statusCode, {
+              error: episodeLease.message,
+              retryAfterSeconds: episodeLease.retryAfterSeconds
+            }, requestContext, retryAfterHeaders(episodeLease.retryAfterSeconds));
+            return;
+          }
+          try {
+            const episodeRuntime = createDirectorRuntime();
+            const episodeResult = await episodeRuntime.director.run(normalizedEpisode, requestLifecycle.signal);
+            const episodeArtifactDirectory =
+              normalizedEpisode.artifactDirectory || join(normalizedEpisode.workDirectory || ".", "artifacts");
+            const episodeArtifacts = await artifactStore.writeRunArtifacts({
+              result: episodeResult,
+              costLedger: episodeRuntime.ledger.list(),
+              artifactDirectory: episodeArtifactDirectory
+            });
+            const updatedRecord = await composeOnlyDirector.recordRenderedEpisode(
+              seriesId,
+              composed.episodeNumber,
+              normalizedEpisode,
+              episodeResult
+            );
+            sendJson(response, 200, {
+              seriesId,
+              episodeNumber: composed.episodeNumber,
+              projectId: episodeResult.projectId,
+              recordedEpisodes: updatedRecord.episodeStates.length,
+              episodeState: updatedRecord.episodeStates[updatedRecord.episodeStates.length - 1],
+              artifacts: toApiProjectArtifactBundle(episodeArtifacts)
+            }, requestContext);
+            return;
+          } finally {
+            episodeLease.release();
+          }
+        }
+        throw new UserAccountError("Route series không hỗ trợ method này.", 404);
+      }
+      const redubFileMatch = requestUrl.pathname.match(/^\/v1\/redub\/(redub_[0-9a-f-]{36})\/files\/([^/]+)$/);
+      if (request.method === "GET" && redubFileMatch) {
+        // Tải kết quả lồng tiếng: chỉ chủ sở hữu (owner.json ghi lúc render) hoặc key vận hành.
+        if (!authDecision.principal) {
+          sendJson(response, 401, { error: "Cần đăng nhập để tải kết quả lồng tiếng." }, requestContext);
+          return;
+        }
+        const redubFileId = redubFileMatch[1] ?? "";
+        const redubFileName = decodeURIComponent(redubFileMatch[2] ?? "");
+        if (!REDUB_DOWNLOADABLE_FILE.test(redubFileName)) {
+          sendJson(response, 404, { error: "File lồng tiếng không tồn tại." }, requestContext);
+          return;
+        }
+        const redubFilesRoot = resolve(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables", "redub");
+        const redubFileDir = resolve(redubFilesRoot, redubFileId);
+        const redubFilePath = resolve(redubFileDir, redubFileName);
+        if (!redubFileDir.startsWith(redubFilesRoot + sep) || !redubFilePath.startsWith(redubFileDir + sep)) {
+          sendJson(response, 404, { error: "File lồng tiếng không tồn tại." }, requestContext);
+          return;
+        }
+        let redubOwner: string | undefined;
+        try {
+          const ownerRaw = JSON.parse(readFileSync(join(redubFileDir, "owner.json"), "utf8")) as { userId?: unknown };
+          redubOwner = typeof ownerRaw.userId === "string" ? ownerRaw.userId : undefined;
+        } catch {
+          redubOwner = undefined;
+        }
+        const isOperatorPrincipal = authDecision.principal.kind !== "user";
+        const isOwner =
+          authDecision.principal.kind === "user" && Boolean(authDecision.principal.userId) &&
+          authDecision.principal.userId === redubOwner;
+        if (!redubOwner || (!isOwner && !isOperatorPrincipal)) {
+          sendJson(response, 404, { error: "File lồng tiếng không tồn tại." }, requestContext);
+          return;
+        }
+        let redubFileStat;
+        try {
+          redubFileStat = await stat(redubFilePath);
+        } catch {
+          redubFileStat = undefined;
+        }
+        if (!redubFileStat?.isFile()) {
+          sendJson(response, 404, { error: "File lồng tiếng không tồn tại." }, requestContext);
+          return;
+        }
+        if (redubFileName.endsWith(".mp4")) {
+          sendVideoStream(response, redubFilePath, redubFileStat.size);
+        } else {
+          response.writeHead(200, {
+            "Content-Type": redubFileName.endsWith(".srt") ? "text/plain; charset=utf-8" : "text/plain; charset=utf-8",
+            "Content-Length": redubFileStat.size,
+            "Content-Disposition": `attachment; filename="${redubFileName}"`
+          });
+          createReadStream(redubFilePath).pipe(response);
+        }
         return;
       }
       const jobDeliverableMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)\/deliverable$/);
@@ -3575,7 +3751,7 @@ function customerAutoRunEnabled(principal: ReturnType<ApiAuthGuard["authorize"]>
 function jobSummaryForPrincipal(
   summary: RenderJobSummary,
   principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]
-): RenderJobSummary {
+): RenderJobSummary & { readonly progressHighlights?: readonly string[] } {
   if (principal?.kind !== "user") {
     return summary;
   }
@@ -3607,8 +3783,27 @@ function jobSummaryForPrincipal(
   void _artifacts;
   void _artifactValidation;
   void _result;
-  void _stageProgressEvents;
-  return { ...safe, hasError: false };
+  // Customer-safe progress highlights: a WHITELIST of quality milestones (talking-shot avatar
+  // routing, keyframe anchoring) rendered as friendly copy — never raw internal stage events.
+  const progressHighlights = (_stageProgressEvents ?? [])
+    .map((event) => {
+      if (typeof event.message !== "string") {
+        return "";
+      }
+      const evidence = (event.evidence ?? {}) as Record<string, unknown>;
+      if (event.message.includes("Talking-shot voicing completed")) {
+        const routed = Number(evidence.avatarRoutedCount ?? 0);
+        const total = Number(evidence.talkingShotCount ?? 0);
+        return total > 0 ? `🎤 ${routed}/${total} cảnh nói được lồng tiếng khớp môi (avatar AI)` : "";
+      }
+      if (event.message.includes("Keyframe still generation completed")) {
+        return "🖼 Đã tạo ảnh mở đầu từng cảnh (khóa nhận diện nhân vật/sản phẩm)";
+      }
+      return "";
+    })
+    .filter((line): line is string => Boolean(line))
+    .slice(-4);
+  return { ...safe, hasError: false, ...(progressHighlights.length > 0 ? { progressHighlights } : {}) };
 }
 
 /**
@@ -3721,6 +3916,13 @@ function planUserRenderCharge(input: {
  * Hằng số này chỉ là mức tối thiểu dự phòng khi không đọc được thời lượng (ffprobe lỗi).
  */
 const REDUB_FALLBACK_SECONDS = 5;
+/** Hệ số phụ phí khi renderVideo=true (thi hành lồng tiếng thật: TTS trả phí mỗi đoạn + trộn). */
+const REDUB_RENDER_VIDEO_SURCHARGE = (() => {
+  const parsed = Number(process.env.CINEJELLY_REDUB_RENDER_SURCHARGE || "1.5");
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1.5;
+})();
+/** Tên file được phép tải về từ một thư mục redub — chặn mọi tên khác (path traversal). */
+const REDUB_DOWNLOADABLE_FILE = /^(dubbed\.mp4|dub-script\.txt|subtitles-[a-z]{2}(?:-[a-z0-9]{2,8})?\.srt)$/;
 
 /** Hard cap on redub source length so provider spend can never outrun the credits charged. */
 const REDUB_MAX_SOURCE_SECONDS = 600;

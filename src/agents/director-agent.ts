@@ -2110,7 +2110,12 @@ export class DirectorAgent {
           }
         };
         avatarRoutedCount += 1;
-      } catch {
+      } catch (error) {
+        // A real user abort must stop the whole stage — swallowing it would keep buying TTS
+        // for the remaining talking shots after cancellation (cross-audit).
+        if (input.signal?.aborted) {
+          throw error;
+        }
         // Fail-open: this talking shot stays on the general video path.
       }
     }

@@ -1080,7 +1080,7 @@ export function buildShortPipelineCreatePage(): string {
       <div class="cj-modal" id="redub-modal" hidden>
         <div class="cj-modal-card">
           <div class="cj-modal-head"><strong data-i18n="redub.title">🌐 Phụ đề đa ngữ + Kịch bản lồng tiếng</strong><button type="button" class="ghost-btn" data-close-modal="redub-modal">✕</button></div>
-          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.redub">Chọn video (tải từ máy bằng 📁, hoặc bấm 🌐 trên video đã render). Chọn ngôn ngữ. Hệ thống nghe → dịch và TRẢ VỀ: (1) file phụ đề .srt cho từng ngôn ngữ, (2) kịch bản lồng tiếng khớp thời gian để BẠN tự thu âm hoặc giao cho người đọc. LƯU Ý: chức năng này KHÔNG tự lồng tiếng vào video — nó xuất phụ đề và kịch bản.</p></details>
+          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.redub">Chọn video (tải từ máy bằng 📁, hoặc bấm 🌐 trên video đã render). Chọn ngôn ngữ. Hệ thống nghe → dịch → và khi bật '🔊 Lồng tiếng tự động' sẽ ĐỌC GIỌNG AI + TRỘN thẳng vào video, trả về file dubbed.mp4 kèm phụ đề .srt từng ngôn ngữ và kịch bản thuyết minh. Tiếng gốc được hạ nhỏ dưới giọng đọc (kiểu review phim) hoặc thay hẳn — chọn ở ô 'Âm thanh gốc'. Bỏ chọn lồng tiếng nếu chỉ cần phụ đề + kịch bản (rẻ hơn).</p></details>
           <label class="field"><span data-i18n="redub.source">Video nguồn</span><div class="field-row"><input id="redub-source" data-i18n-placeholder="redub.sourcePh" placeholder="Bấm 📁 để tải video lên, hoặc nút 🌐 trên video đã render" readonly><button type="button" class="upload-btn" data-upload-for="redub-source" data-upload-accept="video/mp4,video/quicktime,audio/mpeg,audio/wav" title="Tải video/audio từ máy">📁</button></div></label>
           <div id="redub-job-line" class="detail" hidden></div>
           <div class="grid-2">
@@ -1119,6 +1119,8 @@ export function buildShortPipelineCreatePage(): string {
               <option value="replace" data-i18n="redub.mixReplace">Thay hẳn bằng thuyết minh mới</option>
             </select>
           </label>
+          <label class="cj-check" style="margin-top:6px"><input type="checkbox" id="redub-render-video" checked><span data-i18n="redub.renderVideo">🔊 Lồng tiếng tự động vào video (nhận file dubbed.mp4)</span></label>
+          <div class="detail" data-i18n="redub.renderVideoHint">Bỏ chọn nếu chỉ cần phụ đề + kịch bản (rẻ hơn). Khi chọn, giọng AI tiếng Việt đọc thuyết minh và trộn thẳng vào video.</div>
           <div class="detail" id="redub-price-line"></div>
           <div class="cj-modal-error" id="redub-error" hidden></div>
           <button type="button" class="cj-primary" id="redub-run" data-i18n="redub.run">🌐 Dịch &amp; tạo phụ đề</button>
@@ -1299,6 +1301,17 @@ export function buildShortPipelineCreatePage(): string {
             <label class="field"><span data-i18n="set.product">Product</span><input id="product-title" data-i18n-placeholder="set.productPh" placeholder="Your real product, service, channel, or story subject"></label>
             <label class="field"><span data-i18n="set.category">Category</span><input id="category" data-i18n-placeholder="set.categoryPh" placeholder="beauty, fashion, SaaS, food, education..."></label>
             <label class="field" style="grid-column: span 2"><span data-i18n="set.claim">Allowed claim</span><input id="claim" data-i18n-placeholder="set.claimPh" placeholder="Only claims you can approve or substantiate"></label>
+            <label class="field"><span data-i18n="set.quality">Chất lượng render</span>
+              <select id="quality-mode">
+                <option value="economy" selected data-i18n="q.economy">Tiết kiệm — render 1 bản (rẻ nhất)</option>
+                <option value="standard" data-i18n="q.standard">Chuẩn — 2 bản, AI chọn bản đẹp hơn</option>
+                <option value="high" data-i18n="q.high">Cao — 3 bản + sửa lỗi, AI chọn bản tốt nhất</option>
+                <option value="ultimate" data-i18n="q.ultimate">Tối đa — 4 bản + sửa kỹ (đắt nhất)</option>
+              </select>
+            </label>
+            <label class="field"><span data-i18n="set.channelStyle">Phong cách kênh (tuỳ chọn)</span>
+              <select id="channel-style"><option value="" data-i18n="cs.none">— Không dùng —</option></select>
+            </label>
             <label class="field visually-hidden"><span>Project ID</span><input id="project-id" value="short_create_shell"></label>
           </div>
           <div class="render-bar">
@@ -1311,48 +1324,48 @@ export function buildShortPipelineCreatePage(): string {
         <section class="right-stack">
           <div class="tabs-shell">
             <div class="template-tabs">
-              <button class="template-tab active" type="button" data-i18n="rs.starters">Pattern Starters</button>
-              <button class="template-tab" type="button" data-i18n="rs.mine">My Creations</button>
-              <button class="template-tab" type="button" data-i18n="rs.history">History</button>
+              <button class="template-tab active" type="button" id="tab-starters" data-i18n="rs.starters">Pattern Starters</button>
+              <button class="template-tab" type="button" id="tab-mine" data-i18n="rs.mine">My Creations</button>
+              <button class="template-tab" type="button" id="tab-history" data-i18n="rs.history">History</button>
             </div>
             <button class="ghost-btn" type="button" id="prepare-approval" disabled>Prepare Packet</button>
           </div>
           <div class="panel gallery">
             <div class="gallery-head">
               <div class="panel-title" data-i18n="rs.starters">Pattern Starters</div>
-              <div class="template-tabs">
-                <button class="template-tab active" type="button">All</button>
-                <button class="template-tab" type="button">UGC</button>
-                <button class="template-tab" type="button">Fashion</button>
-                <button class="template-tab" type="button">Product</button>
+              <div class="template-tabs" id="template-filter-tabs">
+                <button class="template-tab active" type="button" data-template-filter="all">All</button>
+                <button class="template-tab" type="button" data-template-filter="ugc">UGC</button>
+                <button class="template-tab" type="button" data-template-filter="fashion">Fashion</button>
+                <button class="template-tab" type="button" data-template-filter="product">Product</button>
               </div>
             </div>
             <div class="template-grid">
-              <button class="template-card" type="button" data-template-apply="fashion_transform">
+              <button class="template-card" type="button" data-template-apply="fashion_transform" data-category="fashion">
                 <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(255,79,232,.32), rgba(17,183,255,.14))"><div class="template-tags"><span class="tag">Hot</span><span class="tag">15s</span></div></div>
                 <div class="template-body"><div class="template-name">Fashion Transformation</div><div class="template-meta">Before/After | UGC Style</div></div>
               </button>
-              <button class="template-card" type="button" data-template-apply="skincare_ugc">
+              <button class="template-card" type="button" data-template-apply="skincare_ugc" data-category="ugc">
                 <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(54,242,170,.28), rgba(255,79,232,.12))"><div class="template-tags"><span class="tag">Trending</span><span class="tag">20s</span></div></div>
                 <div class="template-body"><div class="template-name">Skincare UGC Review</div><div class="template-meta">Beauty | Proof-led</div></div>
               </button>
-              <button class="template-card" type="button" data-template-apply="streetwear_reveal">
+              <button class="template-card" type="button" data-template-apply="streetwear_reveal" data-category="fashion">
                 <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(143,92,255,.3), rgba(17,183,255,.14))"><div class="template-tags"><span class="tag">New</span><span class="tag">12s</span></div></div>
                 <div class="template-body"><div class="template-name">Streetwear Reveal</div><div class="template-meta">Trend | Fast cuts</div></div>
               </button>
-              <button class="template-card" type="button" data-template-apply="breaking_news_ad">
+              <button class="template-card" type="button" data-template-apply="breaking_news_ad" data-category="ugc">
                 <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(244,184,77,.3), rgba(255,91,114,.16))"><div class="template-tags"><span class="tag">Viral</span><span class="tag">15s</span></div></div>
                 <div class="template-body"><div class="template-name">Breaking News Ad</div><div class="template-meta">News hook | Product angle</div></div>
               </button>
-              <button class="template-card" type="button" data-template-apply="product_reveal">
+              <button class="template-card" type="button" data-template-apply="product_reveal" data-category="product">
                 <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(17,183,255,.3), rgba(54,242,170,.14))"><div class="template-tags"><span class="tag">Popular</span><span class="tag">15s</span></div></div>
                 <div class="template-body"><div class="template-name">Product Unboxing</div><div class="template-meta">Ecommerce | Reveal</div></div>
               </button>
-              <button class="template-card" type="button" data-template-apply="cinematic_story">
+              <button class="template-card" type="button" data-template-apply="cinematic_story" data-category="product">
                 <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(143,92,255,.32), rgba(244,184,77,.14))"><div class="template-tags"><span class="tag">Cinematic</span><span class="tag">30s</span></div></div>
                 <div class="template-body"><div class="template-name">Cinematic Short Story</div><div class="template-meta">Film look | Emotional payoff</div></div>
               </button>
-              <button class="template-card" type="button" data-template-apply="production_bible_story">
+              <button class="template-card" type="button" data-template-apply="production_bible_story" data-category="product">
                 <div class="template-img" style="--template-img:linear-gradient(135deg, rgba(255,79,232,.24), rgba(244,184,77,.16))"><div class="template-tags"><span class="tag">Series</span><span class="tag">90s</span></div></div>
                 <div class="template-body"><div class="template-name">Production Bible Sequence</div><div class="template-meta">Long sequence | Consistent identity</div></div>
               </button>
@@ -1429,10 +1442,10 @@ export function buildShortPipelineCreatePage(): string {
         </div>
         <label class="field" style="margin-top:12px"><span>Packet</span><textarea id="approval-packet" wrap="soft" readonly></textarea></label>
         <div class="grid-3" style="margin-top:12px;align-items:end">
-          <label class="field"><span data-i18n="ap.spend">Provider spend</span>
-            <span class="detail" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="confirm-render"><span data-i18n="ap.confirm">Confirm paid render submission</span></span>
-            <span class="detail" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="caption-toggle"><span data-i18n="ap.captions">Phụ đề tự động từ voice (khớp kịch bản, không tốn thêm)</span></span>
-          </label>
+          <div class="field"><span data-i18n="ap.spend">Provider spend</span>
+            <label class="detail" for="confirm-render" style="display:flex;gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="confirm-render"><span data-i18n="ap.confirm">Confirm paid render submission</span></label>
+            <label class="detail" for="caption-toggle" style="display:flex;gap:8px;align-items:center;margin-top:6px;cursor:pointer"><input type="checkbox" id="caption-toggle"><span data-i18n="ap.captions">Phụ đề tự động từ voice (khớp kịch bản, không tốn thêm)</span></label>
+          </div>
           <button class="ghost-btn" type="button" id="submit-render" disabled data-i18n="ap.create">Create Render Job</button>
           <div id="credit-estimate" hidden></div>
           <button class="mini-btn" type="button" id="stop-polling" disabled data-i18n="ap.stop">Stop Watching Job</button>
@@ -1515,6 +1528,8 @@ export function buildShortPipelineCreatePage(): string {
         "set.product": "Sản phẩm / chủ đề", "set.productPh": "Sản phẩm, dịch vụ, kênh hay câu chuyện thật của bạn",
         "set.category": "Ngành hàng", "set.categoryPh": "làm đẹp, thời trang, SaaS, đồ ăn, giáo dục...",
         "set.claim": "Cam kết được phép nói", "set.claimPh": "Chỉ những cam kết bạn chịu trách nhiệm được",
+        "set.quality": "Chất lượng render", "set.channelStyle": "Phong cách kênh (tuỳ chọn)", "cs.none": "— Không dùng —",
+        "q.economy": "Tiết kiệm — render 1 bản (rẻ nhất)", "q.standard": "Chuẩn — 2 bản, AI chọn bản đẹp hơn", "q.high": "Cao — 3 bản + sửa lỗi, AI chọn bản tốt nhất", "q.ultimate": "Tối đa — 4 bản + sửa kỹ (đắt nhất)",
         "rb.note": "Backend giữ chặt chi phí: chưa duyệt và chưa xác nhận thì chưa gửi render trả phí.",
         "rb.build": "Tạo kế hoạch video",
         "rs.starters": "Mẫu có sẵn", "rs.mine": "Video của tôi", "rs.history": "Lịch sử", "rs.quick": "Mẹo nhanh",
@@ -1561,7 +1576,10 @@ export function buildShortPipelineCreatePage(): string {
         "help.settings": "Thời lượng × chất lượng quyết định giá credits (hiện ngay dưới nút tạo). 9:16 cho TikTok/Reels. 'Giọng đọc' chọn ngôn ngữ thuyết minh; phụ đề bật ở bước cuối.",
         "help.topup": "Chọn gói → chuyển khoản đúng nội dung hiển thị → bấm nút xác nhận. Quản trị viên duyệt là credits vào tài khoản (thường vài phút). Lỡ gửi trùng sẽ tự gộp, không mất tiền hai lần.",
         "help.approval": "Bấm 'Tạo video' là hệ thống trừ credits và đưa video vào hàng chờ (một số video được đội ngũ duyệt nhanh trước khi chạy). Video lỗi xử lý theo chính sách hoàn credits ghi ngay dưới nút.",
-        "help.redub": "Chọn video (tải từ máy bằng 📁, hoặc bấm 🌐 trên video đã render). Chọn ngôn ngữ. Hệ thống nghe → dịch và TRẢ VỀ: (1) file phụ đề .srt cho từng ngôn ngữ, (2) kịch bản lồng tiếng khớp thời gian để BẠN tự thu âm hoặc giao cho người đọc. LƯU Ý: chức năng này KHÔNG tự lồng tiếng vào video — nó xuất phụ đề và kịch bản.",
+        "help.redub": "Chọn video (tải từ máy bằng 📁, hoặc bấm 🌐 trên video đã render). Chọn ngôn ngữ. Hệ thống nghe → dịch → và khi bật '🔊 Lồng tiếng tự động' sẽ ĐỌC GIỌNG AI + TRỘN thẳng vào video, trả về file dubbed.mp4 kèm phụ đề .srt từng ngôn ngữ và kịch bản thuyết minh. Tiếng gốc được hạ nhỏ dưới giọng đọc (kiểu review phim) hoặc thay hẳn — chọn ở ô 'Âm thanh gốc'. Bỏ chọn lồng tiếng nếu chỉ cần phụ đề + kịch bản (rẻ hơn).",
+        "redub.renderVideo": "🔊 Lồng tiếng tự động vào video (nhận file dubbed.mp4)",
+        "redub.renderVideoHint": "Bỏ chọn nếu chỉ cần phụ đề + kịch bản (rẻ hơn). Khi chọn, giọng AI tiếng Việt đọc thuyết minh và trộn thẳng vào video.",
+        "redub.downloadVideo": "⬇ Tải video đã lồng tiếng (dubbed.mp4)",
         "redub.title": "🌐 Phụ đề đa ngữ + Kịch bản lồng tiếng", "redub.source": "Video nguồn",
         "redub.sourcePh": "Bấm 📁 để tải video lên, hoặc nút 🌐 trên video đã render",
         "redub.fromJob": "Nguồn: video đã render", "redub.srcLang": "Ngôn ngữ gốc", "redub.auto": "Tự nhận diện",
@@ -1620,6 +1638,8 @@ export function buildShortPipelineCreatePage(): string {
         "set.product": "Product / subject", "set.productPh": "Your real product, service, channel, or story subject",
         "set.category": "Category", "set.categoryPh": "beauty, fashion, SaaS, food, education...",
         "set.claim": "Allowed claim", "set.claimPh": "Only claims you can approve or substantiate",
+        "set.quality": "Render quality", "set.channelStyle": "Channel style (optional)", "cs.none": "— None —",
+        "q.economy": "Economy — 1 render pass (cheapest)", "q.standard": "Standard — 2 passes, AI picks the better", "q.high": "High — 3 passes + repairs, AI picks the best", "q.ultimate": "Ultimate — 4 passes + deep repairs (priciest)",
         "rb.note": "Backend keeps provider spend locked until the plan is approved and explicitly confirmed.",
         "rb.build": "Build video plan",
         "rs.starters": "Pattern starters", "rs.mine": "My creations", "rs.history": "History", "rs.quick": "Quick tips",
@@ -1666,7 +1686,10 @@ export function buildShortPipelineCreatePage(): string {
         "help.settings": "Duration × quality sets the credit price (shown under the create button). Use 9:16 for TikTok/Reels. 'Voiceover' picks the narration language; captions toggle on in the final step.",
         "help.topup": "Pick a package → transfer with the shown reference → press confirm. Credits arrive once the admin approves (usually minutes). Duplicate submissions merge safely — you never pay twice.",
         "help.approval": "'Create video' deducts credits and queues the video (some pass a quick team review first). Failed videos follow the refund policy shown under the button.",
-        "help.redub": "Pick a video (upload with 📁, or press 🌐 on a finished video). Choose languages. The system listens → translates and RETURNS: (1) a .srt subtitle file per language, (2) a time-synced dubbing script for YOU to record or hand to a voice actor. NOTE: this does NOT auto-voice the video — it exports subtitles and a script.",
+        "help.redub": "Pick a video (upload with 📁, or press 🌐 on a finished video). Choose languages. The system listens → translates → and with '🔊 Auto-dub' enabled it VOICES the narration with AI and MIXES it into the video, returning dubbed.mp4 plus per-language .srt subtitles and the dubbing script. The original audio is ducked under the voice (review-film style) or fully replaced — pick under 'Original audio'. Untick auto-dub if you only need subtitles + script (cheaper).",
+        "redub.renderVideo": "🔊 Auto-dub the video (get dubbed.mp4)",
+        "redub.renderVideoHint": "Untick if you only need subtitles + the script (cheaper). When ticked, an AI voice reads the narration and it is mixed straight into the video.",
+        "redub.downloadVideo": "⬇ Download dubbed video (dubbed.mp4)",
         "redub.title": "🌐 Multi-language subtitles + Dubbing script", "redub.source": "Source video",
         "redub.sourcePh": "Press 📁 to upload, or the 🌐 button on a finished video",
         "redub.fromJob": "Source: rendered video", "redub.srcLang": "Original language", "redub.auto": "Auto detect",
@@ -1725,6 +1748,8 @@ export function buildShortPipelineCreatePage(): string {
         "set.product": "产品 / 主题", "set.productPh": "你的真实产品、服务、频道或故事主题",
         "set.category": "品类", "set.categoryPh": "美妆、时尚、SaaS、美食、教育…",
         "set.claim": "允许的宣称", "set.claimPh": "只填写你能负责或证实的宣称",
+        "set.quality": "渲染质量", "set.channelStyle": "频道风格（可选）", "cs.none": "— 不使用 —",
+        "q.economy": "经济 — 渲染1版（最便宜）", "q.standard": "标准 — 2版，AI 选更好的", "q.high": "高 — 3版+修复，AI 选最佳", "q.ultimate": "至尊 — 4版+深度修复（最贵）",
         "rb.note": "后端严格锁定成本：未审核确认前不会提交付费渲染。",
         "rb.build": "生成视频方案",
         "rs.starters": "模板库", "rs.mine": "我的作品", "rs.history": "历史", "rs.quick": "快速提示",
@@ -1771,7 +1796,10 @@ export function buildShortPipelineCreatePage(): string {
         "help.settings": "时长 × 画质决定积分价格（创建按钮下方实时显示）。TikTok/Reels 用 9:16。'配音'选择解说语言；字幕在最后一步开启。",
         "help.topup": "选择套餐 → 按显示内容转账 → 点确认。管理员审核后积分到账（通常几分钟）。重复提交会自动合并，不会重复扣款。",
         "help.approval": "点击'生成视频'即扣除积分并进入队列（部分视频需团队快速审核）。失败视频按按钮下方的退款政策处理。",
-        "help.redub": "选择视频（用 📁 上传，或对已完成视频点 🌐）。选择语言。系统听写 → 翻译并返回：(1) 每种语言的 .srt 字幕文件，(2) 对齐时间轴的配音脚本，供您自己录音或交给配音员。注意：本功能不会自动为视频配音，只导出字幕和脚本。",
+        "help.redub": "选择视频（用 📁 上传，或对已完成视频点 🌐）。选择语言。系统听写 → 翻译 → 勾选“🔊 自动配音”后，AI 语音朗读解说并直接混入视频，返回 dubbed.mp4、各语言 .srt 字幕和配音脚本。原声在解说下方压低（影评风格）或完全替换——在“原声处理”中选择。只需字幕+脚本时取消勾选（更便宜）。",
+        "redub.renderVideo": "🔊 自动为视频配音（获得 dubbed.mp4）",
+        "redub.renderVideoHint": "只需字幕+脚本时取消勾选（更便宜）。勾选后 AI 语音朗读解说并直接混入视频。",
+        "redub.downloadVideo": "⬇ 下载配音视频 (dubbed.mp4)",
         "redub.title": "🌐 多语字幕 + 配音脚本", "redub.source": "源视频",
         "redub.sourcePh": "点 📁 上传视频，或在已完成视频上点 🌐",
         "redub.fromJob": "来源：已渲染视频", "redub.srcLang": "原语言", "redub.auto": "自动识别",
@@ -2057,8 +2085,65 @@ export function buildShortPipelineCreatePage(): string {
       openRedubModal();
     });
     document.getElementById("redub-run").addEventListener("click", runRedub);
+    // Top tabs: My Creations mở danh sách video, History cuộn tới phiên gần đây, Starters là mặc định.
+    function activateTopTab(tab) {
+      ["tab-starters", "tab-mine", "tab-history"].forEach(function (id) {
+        const node = document.getElementById(id);
+        if (node) { node.classList.toggle("active", id === tab); }
+      });
+    }
+    document.getElementById("tab-starters").addEventListener("click", function () {
+      activateTopTab("tab-starters");
+      const grid = document.querySelector(".template-grid");
+      if (grid) { grid.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    });
+    document.getElementById("tab-mine").addEventListener("click", function () {
+      activateTopTab("tab-mine");
+      const panel = document.getElementById("jobs-panel");
+      panel.hidden = false;
+      loadJobs();
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    document.getElementById("tab-history").addEventListener("click", function () {
+      activateTopTab("tab-history");
+      const sessions = document.getElementById("sessions");
+      if (sessions) { sessions.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    });
+    // Bộ lọc mẫu: All/UGC/Fashion/Product ẩn-hiện thẻ theo data-category.
+    document.querySelectorAll("#template-filter-tabs [data-template-filter]").forEach(function (tabButton) {
+      tabButton.addEventListener("click", function () {
+        const filter = tabButton.dataset.templateFilter;
+        document.querySelectorAll("#template-filter-tabs .template-tab").forEach(function (node) {
+          node.classList.toggle("active", node === tabButton);
+        });
+        document.querySelectorAll(".template-card[data-template-apply]").forEach(function (card) {
+          card.style.display = filter === "all" || card.dataset.category === filter ? "" : "none";
+        });
+      });
+    });
     updatePromptCount();
     updateEstimatedCost();
+    // Danh sách "Phong cách kênh" đã lưu (nếu đăng nhập): nạp im lặng, lỗi thì bỏ qua.
+    (async function loadChannelStyles() {
+      const select = document.getElementById("channel-style");
+      if (!select) { return; }
+      try {
+        const listResp = await fetch("/v1/short-pipeline/channel-styles", { headers: authHeaders() });
+        if (!listResp.ok) { return; }
+        const payload = await listResp.json();
+        const profiles = payload.profiles || payload.records || payload.channelStyles || [];
+        profiles.forEach(function (profile) {
+          const id = profile.profileId || profile.id || "";
+          if (!id) { return; }
+          const option = document.createElement("option");
+          option.value = id;
+          option.textContent = profile.name || profile.label || id;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        void error;
+      }
+    })();
 
     let jobPollTimer = null;
     let jobPollDelayMs = 3000;
@@ -2111,10 +2196,14 @@ export function buildShortPipelineCreatePage(): string {
       try {
         const confirmRender = document.getElementById("confirm-render").checked;
         const captionsOn = document.getElementById("caption-toggle").checked;
+        const qualitySelect = document.getElementById("quality-mode");
+        const qualityMode = qualitySelect ? qualitySelect.value : "economy";
         const review = collectReviewApproval();
         const body = {
           ...(review ? { reviewApprovalGate: review.gate, reviewApprovalCheckpoints: review.checkpoints } : {}),
           ...(captionsOn ? { captionPreference: "narration_subtitles" } : {}),
+          // Chất lượng khách chọn quyết định số bản render (best-of-N) và được tính đúng giá đó.
+          settings: { qualityMode },
           confirmRenderSubmission: confirmRender
         };
         const endpoint = endpoints.render.replace("{sessionId}", encodeURIComponent(activeSessionId));
@@ -2318,6 +2407,8 @@ export function buildShortPipelineCreatePage(): string {
       const voiceStyle = document.getElementById("redub-voice-style").value.trim();
       if (voiceStyle) { body.voiceStyle = voiceStyle; }
       body.originalAudioTreatment = document.getElementById("redub-audio-treatment").value;
+      const renderVideoBox = document.getElementById("redub-render-video");
+      if (renderVideoBox && renderVideoBox.checked) { body.renderVideo = true; }
       const runButton = document.getElementById("redub-run");
       if (runButton.dataset.busy === "true") { return; }
       runButton.dataset.busy = "true";
@@ -2380,6 +2471,37 @@ export function buildShortPipelineCreatePage(): string {
       container.appendChild(summaryLine);
       const buttonRow = document.createElement("div");
       buttonRow.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px";
+      // Kết quả lồng tiếng thật: nút tải dubbed.mp4 (+ file phụ đề/kịch bản) qua route có xác thực.
+      const downloads = (payload.outputs && payload.outputs.downloads) || [];
+      downloads.forEach(function (item) {
+        const downloadButton = document.createElement("button");
+        downloadButton.type = "button";
+        downloadButton.className = item.kind === "dubbed_video" ? "cj-primary" : "mini-btn";
+        downloadButton.textContent = item.kind === "dubbed_video"
+          ? t("redub.downloadVideo")
+          : "⬇ " + (item.kind === "subtitles" ? ".srt " + String(item.language || "").toUpperCase() : t("redub.script"));
+        downloadButton.addEventListener("click", async function () {
+          downloadButton.disabled = true;
+          try {
+            const fileResp = await fetch(item.url, { headers: authHeaders() });
+            if (!fileResp.ok) { throw new Error("HTTP " + fileResp.status); }
+            const blob = await fileResp.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = objectUrl;
+            link.download = item.url.split("/").pop() || "download";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 10000);
+          } catch (error) {
+            showError(error instanceof Error ? error.message : String(error));
+          } finally {
+            downloadButton.disabled = false;
+          }
+        });
+        buttonRow.appendChild(downloadButton);
+      });
       (payload.subtitles || []).forEach(function (track) {
         const trackButton = document.createElement("button");
         trackButton.type = "button";
@@ -2425,7 +2547,11 @@ export function buildShortPipelineCreatePage(): string {
       const status = job.status || "unknown";
       // Show the same friendly, localized label as the Jobs list — never the raw internal status
       // string or the /v1/... URL (unpolished + confusing for a non-technical customer).
-      setRenderStatus("⏳ " + customerStatusLabel(status));
+      // progressHighlights: cột mốc chất lượng an toàn (lồng tiếng khớp môi, ảnh khóa nhân vật).
+      const highlights = Array.isArray(job.progressHighlights) && job.progressHighlights.length
+        ? " • " + job.progressHighlights[job.progressHighlights.length - 1]
+        : "";
+      setRenderStatus("⏳ " + customerStatusLabel(status) + highlights);
       if (status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected" || status === "blocked") {
         if (accountInfo && accountInfo.account) {
           var autoRefund = accountInfo && accountInfo.refundPolicy === "auto";
@@ -2746,6 +2872,8 @@ export function buildShortPipelineCreatePage(): string {
       });
       const durationInput = document.getElementById("duration");
       if (durationInput) { durationInput.addEventListener("input", updateCreditEstimate); }
+      const qualityInput = document.getElementById("quality-mode");
+      if (qualityInput) { qualityInput.addEventListener("change", updateCreditEstimate); }
     }
 
     function renderTopupModal() {
@@ -2977,12 +3105,13 @@ export function buildShortPipelineCreatePage(): string {
         box.hidden = false;
         return;
       }
-      // Has credits → show the real metered estimate. Customer short renders are charged at
-      // qualityMode "economy" and the plan's tier (mini for a simple no-reference short), so mirror
-      // THAT profile instead of standard/standard — otherwise the number is several times too high
-      // and the gate below falsely blocks customers who can actually afford it (final-audit finding [6]).
+      // Has credits → show the real metered estimate. Mirror EXACTLY what will be billed: the
+      // plan's cheapest tier and the QUALITY the customer selected (economy default; picking a
+      // best-of-N tier raises both the render passes and this number in lockstep).
       const estimateTier = (pp && pp.cheapestTier) || "mini";
-      const credits = meteredCredits(seconds, estimateTier, "economy");
+      const qualityNode = document.getElementById("quality-mode");
+      const selectedQuality = qualityNode ? qualityNode.value : "economy";
+      const credits = meteredCredits(seconds, estimateTier, selectedQuality);
       const vnd = creditsToVnd(credits);
       const refundHint = (accountInfo.refundPolicy === "auto") ? t("ce.refundAuto") : t("ce.refundManual");
       const gate = balance < credits ? (" — " + t("ce.needTopup")) : "";
@@ -3026,10 +3155,13 @@ export function buildShortPipelineCreatePage(): string {
       const seedanceSettings = seedanceSettingsPayload();
       const preferredTemplateId = preferredTemplateIdPayload();
       const visualBible = visualBiblePayload();
+      const channelStyleSelect = document.getElementById("channel-style");
+      const channelStyleProfileId = channelStyleSelect ? channelStyleSelect.value : "";
       return {
         projectId: document.getElementById("project-id").value.trim(),
         userPrompt: document.getElementById("prompt").value.trim(),
         ...(preferredTemplateId ? { preferredTemplateId } : {}),
+        ...(channelStyleProfileId ? { channelStyleProfileId } : {}),
         targetPlatform: document.getElementById("platform").value,
         targetDurationSeconds: Number(document.getElementById("duration").value),
         targetAspectRatio: document.getElementById("aspect-ratio").value,

@@ -204,7 +204,13 @@ export class AudioMixEngine {
     if (audioLabels.length === 1) {
       filterParts.push(`${audioLabels[0]}anull${outputLabel}`);
     } else {
-      filterParts.push(`${audioLabels.join("")}amix=inputs=${audioLabels.length}:duration=first:dropout_transition=2${outputLabel}`);
+      // normalize=0: amix's default scales EVERY input by 1/N, so a dub with 20 timed narration
+      // segments (each its own input) played the voice at ~5% volume — near-inaudible (audit).
+      // Segments are time-disjoint via adelay, so without auto-scaling the levels stay authored;
+      // the limiter catches the moments where overlapping tracks (voice over bed) sum past 1.0.
+      filterParts.push(
+        `${audioLabels.join("")}amix=inputs=${audioLabels.length}:duration=first:dropout_transition=2:normalize=0,alimiter=limit=0.97${outputLabel}`
+      );
     }
 
     args.push(
