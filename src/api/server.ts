@@ -1865,7 +1865,8 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       // tồn tại đường nào để khách chạy series không bill (audit tiền).
       const seriesIdMatch = requestUrl.pathname.match(/^\/v1\/series\/([A-Za-z0-9_-]{1,120})$/);
       const seriesNextMatch = requestUrl.pathname.match(/^\/v1\/series\/([A-Za-z0-9_-]{1,120})\/episodes\/next(\/preview)?$/);
-      if (requestUrl.pathname === "/v1/series" || seriesIdMatch || seriesNextMatch) {
+      const seriesVideoMatch = requestUrl.pathname.match(/^\/v1\/series\/([A-Za-z0-9_-]{1,120})\/episodes\/(\d{1,4})\/video$/);
+      if (requestUrl.pathname === "/v1/series" || seriesIdMatch || seriesNextMatch || seriesVideoMatch) {
         if (!authDecision.principal) {
           throw new UserAccountError("Cần đăng nhập tài khoản để dùng chức năng phim dài tập.", 401);
         }
@@ -1923,6 +1924,59 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           }, requestContext);
           return;
         }
+        if (request.method === "GET" && requestUrl.pathname === "/v1/series") {
+          // "Bộ phim của tôi": danh sách series của khách (mới nhất trước). Operator không liệt kê ở
+          // đây (dùng file record trực tiếp).
+          if (!seriesUserId) {
+            sendJson(response, 200, { series: [] }, requestContext);
+            return;
+          }
+          const owned = await seriesStore.listByOwner(seriesUserId);
+          sendJson(response, 200, {
+            series: owned.map((record) => ({
+              seriesId: record.seriesId,
+              premise: record.request.premise,
+              episodeCount: record.request.episodeCount,
+              episodeDurationSeconds: record.request.episodeDurationSeconds,
+              recordedEpisodes: record.episodeStates.length,
+              episodes: record.episodeStates.map((state) => ({
+                episodeNumber: state.episodeNumber,
+                summary: state.summary,
+                ...(state.cliffhanger ? { cliffhanger: state.cliffhanger } : {}),
+                hasVideo: Boolean(state.videoPath),
+                ...(state.videoPath ? { videoUrl: `/v1/series/${record.seriesId}/episodes/${state.episodeNumber}/video` } : {})
+              })),
+              createdAt: record.createdAt,
+              updatedAt: record.updatedAt
+            }))
+          }, requestContext);
+          return;
+        }
+        if (request.method === "GET" && seriesVideoMatch) {
+          // Tải video một tập đã render: chỉ chủ sở hữu, đường dẫn khoanh trong output root.
+          const videoSeriesId = seriesVideoMatch[1] ?? "";
+          const videoEpisodeNumber = Number(seriesVideoMatch[2] ?? "0");
+          const videoRecord = await seriesStore.load(videoSeriesId);
+          assertSeriesOwnership(videoRecord);
+          const episodeState = videoRecord?.episodeStates.find((state) => state.episodeNumber === videoEpisodeNumber);
+          const seriesVideoRoot = resolve(seriesOutputRoot);
+          const resolvedVideoPath = episodeState?.videoPath ? resolve(episodeState.videoPath) : undefined;
+          const videoInsideRoot = Boolean(
+            resolvedVideoPath && (resolvedVideoPath === seriesVideoRoot || resolvedVideoPath.startsWith(seriesVideoRoot + sep))
+          );
+          let episodeVideoStat;
+          try {
+            episodeVideoStat = resolvedVideoPath && videoInsideRoot ? await stat(resolvedVideoPath) : undefined;
+          } catch {
+            episodeVideoStat = undefined;
+          }
+          if (!resolvedVideoPath || !videoInsideRoot || !episodeVideoStat?.isFile()) {
+            sendJson(response, 404, { error: "Video tập này chưa sẵn sàng." }, requestContext);
+            return;
+          }
+          sendVideoStream(response, resolvedVideoPath, episodeVideoStat.size);
+          return;
+        }
         if (request.method === "GET" && seriesIdMatch) {
           const record = await seriesStore.load(seriesIdMatch[1] ?? "");
           assertSeriesOwnership(record);
@@ -1949,8 +2003,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           assertJsonContentType(request);
           const body = await readJsonBody<{ metadata?: Record<string, string>; acknowledgedCredits?: number }>(request, maxBodyBytes);
           // Khách không được tự tiêm metadata (vd tự duyệt storyboard); operator thì được.
+          // Video tập landing trong thư mục series (dưới output root) để route tải phục vụ được.
+          const episodeDir = resolve(seriesOutputRoot, "series", seriesId, `ep${composed.episodeNumber}`);
           const episodeRequest = {
             ...composed.request,
+            outputPath: join(episodeDir, "final.mp4"),
+            workDirectory: episodeDir,
+            artifactDirectory: join(episodeDir, "artifacts"),
             metadata: {
               ...(composed.request.metadata ?? {}),
               ...(seriesUserId ? {} : body.metadata ?? {}),
@@ -2024,12 +2083,16 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               normalizedEpisode,
               episodeResult
             );
+            const renderedEpisodeState = updatedRecord.episodeStates[updatedRecord.episodeStates.length - 1];
             sendJson(response, 200, {
               seriesId,
               episodeNumber: composed.episodeNumber,
               projectId: episodeResult.projectId,
               recordedEpisodes: updatedRecord.episodeStates.length,
-              episodeState: updatedRecord.episodeStates[updatedRecord.episodeStates.length - 1],
+              episodeState: renderedEpisodeState,
+              ...(renderedEpisodeState?.videoPath
+                ? { videoUrl: `/v1/series/${seriesId}/episodes/${composed.episodeNumber}/video` }
+                : {}),
               ...(episodeCharge
                 ? { creditsCharged: episodeCharge.credits, balanceCredits: userAccountStore.balanceOf(episodeCharge.userId) }
                 : {}),

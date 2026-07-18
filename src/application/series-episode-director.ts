@@ -183,6 +183,7 @@ export class SeriesEpisodeDirector {
       endState: endState || summary,
       ...(cliffhanger ? { cliffhanger } : {}),
       macroPhase,
+      ...(result.deliverable?.outputPath ? { videoPath: result.deliverable.outputPath } : {}),
       recordedAt: new Date().toISOString()
     };
   }

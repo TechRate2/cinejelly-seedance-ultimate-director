@@ -9,7 +9,7 @@
  *   - a rolling arc summary so late episodes stay coherent without replaying every recap.
  */
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { SeriesBible, SeriesCastMember, SeriesDramaRequest, SeriesMacroPhase } from "./series-drama-planner.js";
 
@@ -23,6 +23,8 @@ export interface SeriesEpisodeState {
   /** The unresolved hook the next episode must pick up (absent when the episode resolves). */
   readonly cliffhanger?: string;
   readonly macroPhase: SeriesMacroPhase;
+  /** Absolute path to the rendered episode video (under the output root) so it can be downloaded. */
+  readonly videoPath?: string;
   readonly recordedAt: string;
 }
 
@@ -67,6 +69,34 @@ export class SeriesContinuityStore {
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * Every series owned by a customer (newest first). Operator listing (ownerUserId === undefined)
+   * is intentionally NOT supported here — operators use the full record files directly.
+   */
+  public async listByOwner(ownerUserId: string): Promise<readonly SeriesContinuityRecord[]> {
+    let files: readonly string[];
+    try {
+      files = await readdir(this.seriesDirectory);
+    } catch {
+      return [];
+    }
+    const records: SeriesContinuityRecord[] = [];
+    for (const file of files) {
+      if (!file.endsWith(".json")) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(await readFile(join(this.seriesDirectory, file), "utf8")) as SeriesContinuityRecord;
+        if (parsed.schemaVersion === "cinejelly.series-continuity.v1" && parsed.ownerUserId === ownerUserId) {
+          records.push(parsed);
+        }
+      } catch {
+        // Skip unreadable/corrupt series files rather than failing the whole listing.
+      }
+    }
+    return records.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   }
 
   public async create(

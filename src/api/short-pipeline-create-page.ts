@@ -1476,6 +1476,8 @@ export function buildShortPipelineCreatePage(): string {
         </div>
         <div id="series-status" class="detail" style="margin-top:10px"></div>
         <textarea id="series-preview-box" readonly hidden style="width:100%;min-height:130px;margin-top:8px;background:#0d1230;color:#e8ecff;border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:8px;font-size:12px"></textarea>
+        <div class="panel-head" style="margin-top:14px"><div class="panel-title" data-i18n="series.mine">📚 Bộ phim của tôi</div><button class="mini-btn" type="button" id="series-refresh" data-i18n="series.refresh">Tải lại</button></div>
+        <div id="series-list"><div class="empty" data-i18n="series.none">Chưa có bộ phim nào. Tạo bộ phim ở trên.</div></div>
       </section>
 
       <section class="panel" id="jobs-panel" hidden>
@@ -1561,6 +1563,7 @@ export function buildShortPipelineCreatePage(): string {
         "series.needInput": "Cần cốt truyện và ít nhất 1 nhân vật.", "series.created": "Đã tạo bộ phim:", "series.eps": "tập",
         "series.previewReady": "Brief tập", "series.epLabel": "TẬP", "series.confirmPrefix": "Render tập", "series.rendering": "Đang render tập", "series.renderWait": "vài phút, đừng đóng trang",
         "series.epDone": "Xong tập", "series.nextHint": "Bấm Xem trước để soạn tập tiếp theo.",
+        "series.mine": "📚 Bộ phim của tôi", "series.refresh": "Tải lại", "series.none": "Chưa có bộ phim nào. Tạo bộ phim ở trên.", "series.loginFirst": "Đăng nhập để xem bộ phim của bạn.", "series.downloadEp": "⬇ Tải tập", "series.resume": "▶ Soạn tập tiếp", "series.resumed": "Đang tiếp bộ:",
         "help.series": "Nhập cốt truyện + dàn nhân vật một lần. Hệ thống giữ 'kinh thánh truyện': mặt nhân vật, bối cảnh và diễn biến THẬT của từng tập được ghi sổ — tập sau tự nối tiếp đúng khung hình cuối và cliffhanger của tập trước. Mỗi tập: Xem trước brief (miễn phí) → Render (báo giá credits, xác nhận mới trừ tiền; tập lỗi hoàn theo chính sách).", "set.channelStyle": "Phong cách kênh (tuỳ chọn)", "cs.none": "— Không dùng —",
         "q.economy": "Tiết kiệm — render 1 bản (rẻ nhất)", "q.standard": "Chuẩn — 2 bản, AI chọn bản đẹp hơn", "q.high": "Cao — 3 bản + sửa lỗi, AI chọn bản tốt nhất", "q.ultimate": "Tối đa — 4 bản + sửa kỹ (đắt nhất)",
         "rb.note": "Backend giữ chặt chi phí: chưa duyệt và chưa xác nhận thì chưa gửi render trả phí.",
@@ -1679,6 +1682,7 @@ export function buildShortPipelineCreatePage(): string {
         "series.needInput": "Premise and at least one cast member required.", "series.created": "Series created:", "series.eps": "episodes",
         "series.previewReady": "Episode brief", "series.epLabel": "EPISODE", "series.confirmPrefix": "Render episode", "series.rendering": "Rendering episode", "series.renderWait": "a few minutes, keep this tab open",
         "series.epDone": "Episode done:", "series.nextHint": "Press Preview to draft the next episode.",
+        "series.mine": "📚 My series", "series.refresh": "Reload", "series.none": "No series yet. Create one above.", "series.loginFirst": "Log in to see your series.", "series.downloadEp": "⬇ Download", "series.resume": "▶ Next episode", "series.resumed": "Resuming series:",
         "help.series": "Enter the premise + cast once. The system keeps a story bible: faces, world, and what REALLY happened each episode are recorded — the next episode resumes exactly from the previous end frame and cliffhanger. Per episode: Preview the brief (free) → Render (credits quoted, charged only after you confirm; failed episodes refund per policy).", "set.channelStyle": "Channel style (optional)", "cs.none": "— None —",
         "q.economy": "Economy — 1 render pass (cheapest)", "q.standard": "Standard — 2 passes, AI picks the better", "q.high": "High — 3 passes + repairs, AI picks the best", "q.ultimate": "Ultimate — 4 passes + deep repairs (priciest)",
         "rb.note": "Backend keeps provider spend locked until the plan is approved and explicitly confirmed.",
@@ -1797,6 +1801,7 @@ export function buildShortPipelineCreatePage(): string {
         "series.needInput": "需要故事前提和至少一个角色。", "series.created": "剧集已创建：", "series.eps": "集",
         "series.previewReady": "分集脚本", "series.epLabel": "第", "series.confirmPrefix": "渲染第", "series.rendering": "正在渲染第", "series.renderWait": "需要几分钟，请勿关闭页面",
         "series.epDone": "完成第", "series.nextHint": "点预览起草下一集。",
+        "series.mine": "📚 我的剧集", "series.refresh": "刷新", "series.none": "还没有剧集，请在上方创建。", "series.loginFirst": "登录后查看你的剧集。", "series.downloadEp": "⬇ 下载", "series.resume": "▶ 下一集", "series.resumed": "继续剧集：",
         "help.series": "输入一次故事前提+角色表。系统维护「剧集圣经」：角色面孔、世界观与每集真实剧情都会记录——下一集从上一集的最后画面和悬念处精确续写。每集：预览脚本（免费）→ 渲染（先报价，确认后才扣费；失败按政策退款）。", "set.channelStyle": "频道风格（可选）", "cs.none": "— 不使用 —",
         "q.economy": "经济 — 渲染1版（最便宜）", "q.standard": "标准 — 2版，AI 选更好的", "q.high": "高 — 3版+修复，AI 选最佳", "q.ultimate": "至尊 — 4版+深度修复（最贵）",
         "rb.note": "后端严格锁定成本：未审核确认前不会提交付费渲染。",
@@ -2188,6 +2193,7 @@ export function buildShortPipelineCreatePage(): string {
       const panel = document.getElementById("series-panel");
       panel.hidden = false;
       panel.scrollIntoView({ behavior: "smooth", block: "start" });
+      loadMySeries();
     });
     document.getElementById("nav-dub").addEventListener("click", function () {
       activateNav("nav-dub");
@@ -2263,9 +2269,11 @@ export function buildShortPipelineCreatePage(): string {
           const rendered = await apiFetch("/v1/series/" + encodeURIComponent(seriesId) + "/episodes/next", { method: "POST", body: JSON.stringify({ acknowledgedCredits: quoted.quote.credits }) });
           setSeriesStatus("✅ " + t("series.epDone") + " " + rendered.episodeNumber + " (project " + rendered.projectId + ", -" + (rendered.creditsCharged || 0) + " credits). " + t("series.nextHint"));
           refreshAccount();
+          loadMySeries();
         } else if (quoted && quoted.episodeNumber) {
           // Key vận hành: render chạy thẳng không cần quote.
           setSeriesStatus("✅ " + t("series.epDone") + " " + quoted.episodeNumber + ".");
+          loadMySeries();
         }
         document.getElementById("series-preview").disabled = false;
         document.getElementById("series-preview-box").hidden = true;
@@ -2275,6 +2283,73 @@ export function buildShortPipelineCreatePage(): string {
         renderButton.disabled = false;
       }
     });
+    document.getElementById("series-refresh").addEventListener("click", loadMySeries);
+    // Tải file video (route có xác thực) → blob → lưu về máy. Dùng chung cho tập phim + về sau.
+    async function authedDownload(url, filename) {
+      const resp = await fetch(url, { headers: authHeaders() });
+      if (!resp.ok) { throw new Error("HTTP " + resp.status); }
+      const blob = await resp.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 15000);
+    }
+    async function loadMySeries() {
+      const container = document.getElementById("series-list");
+      if (!container) { return; }
+      if (!readSessionToken()) { container.innerHTML = ""; const e = document.createElement("div"); e.className = "empty"; e.textContent = t("series.loginFirst"); container.appendChild(e); return; }
+      try {
+        const payload = await apiFetch("/v1/series", { method: "GET" });
+        const list = (payload && payload.series) || [];
+        container.textContent = "";
+        if (list.length === 0) { const e = document.createElement("div"); e.className = "empty"; e.textContent = t("series.none"); container.appendChild(e); return; }
+        list.forEach(function (s) {
+          const card = document.createElement("div");
+          card.className = "panel";
+          card.style.cssText = "margin-top:8px;padding:10px";
+          const head = document.createElement("div");
+          head.style.cssText = "font-weight:600;margin-bottom:4px";
+          head.textContent = "📺 " + String(s.premise || s.seriesId).slice(0, 80) + " — " + (s.recordedEpisodes || 0) + "/" + (s.episodeCount || "?") + " " + t("series.eps");
+          card.appendChild(head);
+          (s.episodes || []).forEach(function (ep) {
+            const row = document.createElement("div");
+            row.className = "detail";
+            row.style.cssText = "display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap";
+            const label = document.createElement("span");
+            label.textContent = t("series.epLabel") + " " + ep.episodeNumber + ": " + String(ep.summary || "").slice(0, 70);
+            row.appendChild(label);
+            if (ep.hasVideo && ep.videoUrl) {
+              const dl = document.createElement("button");
+              dl.type = "button"; dl.className = "mini-btn"; dl.textContent = t("series.downloadEp");
+              dl.addEventListener("click", async function () {
+                dl.disabled = true;
+                try { await authedDownload(ep.videoUrl, s.seriesId + "_ep" + ep.episodeNumber + ".mp4"); }
+                catch (error) { showError(error instanceof Error ? error.message : String(error)); }
+                finally { dl.disabled = false; }
+              });
+              row.appendChild(dl);
+            }
+            card.appendChild(row);
+          });
+          const resumeButton = document.createElement("button");
+          resumeButton.type = "button"; resumeButton.className = "mini-btn"; resumeButton.style.marginTop = "6px";
+          resumeButton.textContent = t("series.resume");
+          resumeButton.addEventListener("click", function () {
+            seriesId = s.seriesId;
+            document.getElementById("series-preview").disabled = false;
+            setSeriesStatus(t("series.resumed") + " " + s.seriesId + " (" + (s.recordedEpisodes || 0) + "/" + (s.episodeCount || "?") + ").");
+          });
+          card.appendChild(resumeButton);
+          container.appendChild(card);
+        });
+      } catch (error) {
+        void error;
+      }
+    }
 
     updatePromptCount();
     updateEstimatedCost();

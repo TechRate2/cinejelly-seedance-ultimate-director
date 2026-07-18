@@ -958,6 +958,56 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// Series customer surface completion: listByOwner + episode videoPath + download route
+// ------------------------------------------------------------------
+{
+  const { readFileSync } = await import("node:fs");
+  const { SeriesContinuityStore } = await import(`${base}/core/series-continuity-store.js`);
+  const { SeriesEpisodeDirector } = await import(`${base}/application/series-episode-director.js`);
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const storeRoot = mkdtempSync(resolve(tmpdir(), "cinejelly-serieslist-"));
+  const store = new SeriesContinuityStore({ outputRoot: storeRoot });
+
+  // Two owners, one series each + one operator series → listByOwner isolates per owner
+  const reqA = { premise: "A phim", episodeCount: 2, episodeDurationSeconds: 60, cast: [{ characterId: "a", name: "An", castRole: "protagonist", description: "x" }] };
+  const dirA = new SeriesEpisodeDirector({ store, director: { run: async () => { throw new Error("no"); } } });
+  const recA = await dirA.startSeries({ ...reqA, seriesId: "uAAA_one" }, "userA");
+  await dirA.startSeries({ ...reqA, seriesId: "uBBB_two", premise: "B phim" }, "userB");
+  await dirA.startSeries({ ...reqA, seriesId: "op_three", premise: "Op phim" }); // operator, no owner
+  const listA = await store.listByOwner("userA");
+  check("series-list: listByOwner returns only that owner's series", listA.length === 1 && listA[0].seriesId === "uAAA_one", JSON.stringify(listA.map((r) => r.seriesId)));
+  check("series-list: operator series excluded from any customer listing", (await store.listByOwner("userB")).every((r) => r.ownerUserId === "userB"), "");
+
+  // episodeStateFrom records the deliverable video path
+  const recordDir = new SeriesEpisodeDirector({
+    store,
+    director: { async run() {
+      return { projectId: "ep_1", storyPlan: { premise: "p", targetDurationSeconds: 60, episodeSummary: "Tập 1.", episodeEndState: "Cuối 1.", scenes: [] },
+        deliverable: { projectId: "ep_1", outputPath: `${storeRoot}/series/uAAA_one/ep1/final.mp4`, outputByteSize: 1, outputSha256: "x", clipCount: 1, assembledAt: new Date(), inspection: {} } };
+    } }
+  });
+  const rendered = await recordDir.renderNextEpisode("uAAA_one");
+  const st = rendered.record.episodeStates[0];
+  check("series-list: episode records the deliverable videoPath", st.videoPath === `${storeRoot}/series/uAAA_one/ep1/final.mp4`, String(st.videoPath));
+
+  // Route wiring + security in server source
+  const serverSrc4 = readFileSync(resolve(repoRoot, "src/api/server.ts"), "utf8");
+  check("series-list: GET /v1/series list route (owner-scoped)", serverSrc4.includes('request.method === "GET" && requestUrl.pathname === "/v1/series"') && serverSrc4.includes("seriesStore.listByOwner(seriesUserId)"), "");
+  check("series-list: episode video download route present + ownership + path-confined",
+    serverSrc4.includes("seriesVideoMatch") && serverSrc4.includes("episodes\\/(\\d{1,4})\\/video") &&
+    serverSrc4.includes("assertSeriesOwnership(videoRecord)") && serverSrc4.includes("resolvedVideoPath.startsWith(seriesVideoRoot + sep)"), "");
+  check("series-list: episode render lands the video under the series output folder",
+    serverSrc4.includes('resolve(seriesOutputRoot, "series", seriesId, `ep${composed.episodeNumber}`)') && serverSrc4.includes('outputPath: join(episodeDir, "final.mp4")'), "");
+  const pageSrc4 = readFileSync(resolve(repoRoot, "src/api/short-pipeline-create-page.ts"), "utf8");
+  check("series-list: UI loads my series + authed per-episode download", pageSrc4.includes("function loadMySeries") && pageSrc4.includes("authedDownload(ep.videoUrl") && pageSrc4.includes('id="series-list"'), "");
+  ["series.mine", "series.downloadEp", "series.resume"].forEach((key) => {
+    const n = (pageSrc4.match(new RegExp('"' + key.replace(".", "\\.") + '":', "g")) || []).length;
+    check(`series-list: i18n ${key} in all 3 locales`, n === 3, String(n));
+  });
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;
