@@ -58,6 +58,14 @@ export class RuntimePreflight {
       this.present("ATLASCLOUD_SEEDANCE_STANDARD_MODEL", this.env.ATLASCLOUD_SEEDANCE_STANDARD_MODEL),
       this.present("ATLASCLOUD_SEEDANCE_FAST_MODEL", this.env.ATLASCLOUD_SEEDANCE_FAST_MODEL),
       this.optionalModelId("ATLASCLOUD_SEEDANCE_MINI_MODEL", this.env.ATLASCLOUD_SEEDANCE_MINI_MODEL),
+      // Feature models: each gates an ADVANCED capability. Absent = that feature is simply off
+      // (never a hard fail), but the operator must see WHICH features are live before launch —
+      // e.g. a missing ATLASCLOUD_SPEECH_MODEL silently 503s the whole Dub/Subtitle surface.
+      this.featureModel("ATLASCLOUD_IMAGE_MODEL", this.env.ATLASCLOUD_IMAGE_MODEL, "Keyframe-first ảnh mở đầu (khóa nhận diện nhân vật/sản phẩm)"),
+      this.featureModel("ATLASCLOUD_IMAGE_REFERENCE_MODEL", this.env.ATLASCLOUD_IMAGE_REFERENCE_MODEL, "Keyframe theo ảnh tham chiếu tải lên"),
+      this.featureModel("ATLASCLOUD_AVATAR_MODEL", this.env.ATLASCLOUD_AVATAR_MODEL, "Cảnh nhân vật nói — avatar khớp môi (OmniHuman)"),
+      this.featureModel("ATLASCLOUD_TTS_MODEL", this.env.ATLASCLOUD_TTS_MODEL, "Đọc giọng thuyết minh (TTS) cho talking-shot + lồng tiếng video"),
+      this.featureModel("ATLASCLOUD_SPEECH_MODEL", this.env.ATLASCLOUD_SPEECH_MODEL, "Lồng tiếng / Phụ đề: nhận dạng giọng nói (STT) từ video có sẵn"),
       this.apiAuthCheck(),
       this.optionalPort("PORT", this.env.PORT),
       this.optionalAtlasEndpointUrl("ATLASCLOUD_LLM_BASE_URL", this.env.ATLASCLOUD_LLM_BASE_URL, ATLAS_LLM_PATH),
@@ -619,6 +627,20 @@ export class RuntimePreflight {
     return issues.length > 0
       ? { name, status: "fail", message: issues.join(" ") }
       : { name, status: "pass", message: `${name} is configured.` };
+  }
+
+  /**
+   * Advanced-feature model: reports whether the feature it gates is live. Absent is a WARN (the
+   * feature is off, the rest of the platform works), a malformed id is a FAIL.
+   */
+  private featureModel(name: string, value: string | undefined, feature: string): PreflightCheck {
+    if (!value?.trim()) {
+      return { name, status: "warn", message: `${name} chưa đặt → TÍNH NĂNG TẮT: ${feature}. (Đặt model tương ứng trong .env để bật.)` };
+    }
+    const issues = this.modelIdIssues(name, [value.trim()]);
+    return issues.length > 0
+      ? { name, status: "fail", message: issues.join(" ") }
+      : { name, status: "pass", message: `${name} bật: ${feature}.` };
   }
 
   private apiAuthCheck(): PreflightCheck {
