@@ -25,6 +25,7 @@ import {
   DIALOGUE_LIGHT_VERBATIM_CLAUSE,
   registerForCreativeMode,
   registerGrammarPromptLine,
+  type RegisterAxis,
   type StyleRegister
 } from "../core/register-grammar.js";
 import { cinematicGrammarPromptLine } from "../core/seedance-cinematic-grammar.js";
@@ -88,7 +89,7 @@ export class SeedancePromptCompiler {
     const sections = [
       this.buildReferenceHandlePrelude(bindingPlan, providerMode),
       `Video brief: ${shot.durationSeconds}s ${this.providerModeLabel(providerMode)} clip.`,
-      `Creative intent: ${shot.intent}.`,
+      this.buildCreativeIntentLine(shot),
       this.buildProviderModeContractSection(providerMode, bindingPlan),
       this.buildContinuitySection(shot, bindingPlan),
       this.buildRuntimeSection(shot, bindingPlan),
@@ -110,6 +111,19 @@ export class SeedancePromptCompiler {
     ];
 
     return sections.filter((section): section is string => Boolean(section && section.trim())).join("\n");
+  }
+
+  /**
+   * The "Creative intent" line sits at the TOP of the prompt where Seedance weights early tokens
+   * heavily. shot.intent is often the beat's internal production purpose ("advance the story with a
+   * clear commercial beat") — bland filler. When the beat authored an emotional turn, lead with THAT
+   * (the real creative goal of the shot) instead of the pipeline purpose (audit).
+   */
+  private buildCreativeIntentLine(shot: ShotContract): string {
+    if (shot.emotionalTurn && shot.emotionalTurn.trim()) {
+      return `Creative intent: land the shift ${this.stripTerminalPunctuation(shot.emotionalTurn)} so the viewer feels it.`;
+    }
+    return `Creative intent: ${shot.intent}.`;
   }
 
   private buildReferenceHandlePrelude(bindingPlan: PromptBindingPlan, providerMode: ProviderMode): string | undefined {
@@ -436,14 +450,26 @@ export class SeedancePromptCompiler {
     const legacy = hasAuthoredAxes
       ? []
       : [this.buildNicheDnaSection(shot)].filter((line): line is string => Boolean(line && line.trim()));
+    // Every axis the DNA overrides is dropped from the register frame so it is stated ONCE (the
+    // override wins), never twice with a possibly-conflicting register default (audit).
+    const omitAxes: RegisterAxis[] = dna
+      ? ([
+          dna.optics ? "optics" : undefined,
+          dna.lighting ? "lighting" : undefined,
+          dna.palette ? "color" : undefined,
+          dna.motion ? "motion" : undefined,
+          dna.performance ? "performance" : undefined,
+          dna.audioFeel ? "audioFeel" : undefined
+        ].filter(Boolean) as RegisterAxis[])
+      : [];
     const spokenLanguage = this.stringMetadata(shot, "shortAudioLanguage")
       ?? this.stringMetadata(shot, "voiceLanguage")
       ?? this.stringMetadata(shot, "analystVoiceLanguage");
     const weakLipSyncLanguage = spokenLanguage === "vi" || containsVietnameseDiacritics(shot.spokenLine);
     return [
-      // When the DNA authored its own audioFeel, the override REPLACES the register's audio axis
-      // instead of stacking a second audio directive on top of it (audit #16).
-      registerGrammarPromptLine(register, { omitAudioFeel: Boolean(dna?.audioFeel) }),
+      // Each authored axis REPLACES the register default (omitted above) instead of stacking a
+      // second, possibly-contradicting sentence on top of it (audit).
+      registerGrammarPromptLine(register, { omit: omitAxes }),
       ...overrides,
       ...legacy,
       // Verbatim scripted lines must not receive the "keep it short" instruction — that fought the

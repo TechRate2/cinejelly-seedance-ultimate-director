@@ -85,6 +85,11 @@ export class ApiRateLimiter {
   }
 
   private limitClassFor(pathname: string, method: string | undefined): ApiRateLimitClass | undefined {
+    // GET /v1/series scans every tenant's series file per request (O(all series)); flooding it is a
+    // cheap-to-send / expensive-to-serve DoS, so it is the one GET that is rate-limited (audit).
+    if (method === "GET") {
+      return pathname === "/v1/series" ? "account" : undefined;
+    }
     if (method !== "POST") {
       return undefined;
     }
@@ -92,18 +97,26 @@ export class ApiRateLimiter {
       pathname === "/v1/render" ||
       pathname === "/v1/render-jobs" ||
       pathname === "/v1/short-pipeline/render-jobs" ||
-      /^\/v1\/short-pipeline\/conversation-sessions\/[^/]+\/render-jobs$/.test(pathname)
+      /^\/v1\/short-pipeline\/conversation-sessions\/[^/]+\/render-jobs$/.test(pathname) ||
+      // Paid/work-intensive planning + execution POSTs: each spawns an ffprobe (redub) or a full
+      // render (series episode), so they belong under the render limit (audit: unbounded spawn DoS).
+      pathname === "/v1/redub/plans" ||
+      /^\/v1\/series\/[^/]+\/episodes\/next(\/preview)?$/.test(pathname)
     ) {
       return "render";
     }
     if (
       // Brute-force/flood targets: scrypt per login attempt, store write per registration,
-      // disk write per upload — limited, but generously enough for real onboarding.
+      // disk write per upload — limited, but generously enough for real onboarding. Also the
+      // planning POSTs (session build, product-URL fetch, series create) which each do real work.
       pathname === "/v1/account/register" ||
       pathname === "/v1/account/login" ||
       pathname === "/v1/account/change-password" ||
       pathname === "/v1/account/topups" ||
-      pathname === "/v1/uploads"
+      pathname === "/v1/uploads" ||
+      pathname === "/v1/series" ||
+      pathname === "/v1/short-pipeline/conversation-sessions" ||
+      pathname === "/v1/short-pipeline/product-url-plan"
     ) {
       return "account";
     }

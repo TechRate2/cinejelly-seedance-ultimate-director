@@ -84,25 +84,30 @@ export function isStyleRegister(value: unknown): value is StyleRegister {
   return value === "professional_cinematic" || value === "natural_phone_kol";
 }
 
+export type RegisterAxis = "optics" | "lighting" | "color" | "motion" | "performance" | "audioFeel";
+
 /**
  * Compact single-paragraph register frame for the compiled prompt.
- * `omitAudioFeel` drops the register's audio axis when the shot carries an authored styleDna
- * audioFeel override, so audio direction is stated once (override replaces frame, not stacks on it).
+ * `omit` drops any axis the shot's authored styleDna overrides, so each axis is stated EXACTLY once
+ * (the override replaces the register default instead of stacking a second, possibly-conflicting
+ * sentence on top of it — audit: five axes were double-printed whenever styleDna existed).
  */
 export function registerGrammarPromptLine(
   register: StyleRegister,
-  options?: { readonly omitAudioFeel?: boolean }
+  options?: { readonly omit?: readonly RegisterAxis[] }
 ): string {
   const grammar = REGISTER_GRAMMAR[register];
+  const omit = new Set(options?.omit ?? []);
+  const axis = (name: RegisterAxis, text: string): string | undefined => (omit.has(name) ? undefined : text);
   return [
     `Style register: ${REGISTER_LABEL[register]}.`,
-    grammar.optics,
-    grammar.lighting,
-    grammar.color,
-    grammar.motion,
-    grammar.performance,
-    ...(options?.omitAudioFeel ? [] : [grammar.audioFeel])
-  ].join(" ");
+    axis("optics", grammar.optics),
+    axis("lighting", grammar.lighting),
+    axis("color", grammar.color),
+    axis("motion", grammar.motion),
+    axis("performance", grammar.performance),
+    axis("audioFeel", grammar.audioFeel)
+  ].filter((line): line is string => Boolean(line)).join(" ");
 }
 
 /**

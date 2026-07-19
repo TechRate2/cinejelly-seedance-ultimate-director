@@ -69,6 +69,8 @@ export interface StoryPlan {
   readonly premise: string;
   readonly targetDurationSeconds: number;
   readonly scenes: readonly ScenePlan[];
+  /** Per-character appearance sheets (label → concrete face/body description) for identity anchoring. */
+  readonly cast?: readonly { readonly label: string; readonly appearance: string }[];
   /** Series mode (metadata.seriesId): 2-3 sentences of what happened, for the continuity store. */
   readonly episodeSummary?: string;
   /** Series mode: the exact visible state at the final frame — the next episode resumes from it. */

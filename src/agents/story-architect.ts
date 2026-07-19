@@ -49,7 +49,7 @@ const SCRIPT_FIRST_DIRECTIVE =
  * accident is now law. Vietnamese-specific spoken markers included because it is the primary market.
  */
 export const LANGUAGE_CONTRACT_DIRECTIVE =
-  "LANGUAGE CONTRACT (obey exactly): Write EVERY visual and production field — premise, title, purpose, action, subject, camera, lighting, style, audioIntent, and all continuity values — in ENGLISH, because the video model follows English direction most reliably. Write each beat's `spokenLine` ONLY in the user's language (the language of the user's brief or pasted script), reproduced with FULL correct diacritics and natural spoken punctuation; never translate, romanize, or strip diacritics from it. Write spoken lines the way a real person TALKS to a phone camera, not the way text is WRITTEN: short breathing clauses, everyday words, natural sentence-final particles. For Vietnamese use spoken markers (nhé, nha, đấy, đó, luôn, á, ạ, mà, thôi), relationship-correct casual pronouns (mình/tớ/cậu; chị/em, anh/em — not the flat written tôi/bạn), and real spoken openers (Ôi, Ơ, Trời ơi). Stiff written-formal sentences read as AI instantly — forbidden.";
+  "LANGUAGE CONTRACT (obey exactly): Write EVERY visual and production field — premise, title, purpose, action, subject, camera, lighting, style, audioIntent, and all continuity values — in ENGLISH, because the video model follows English direction most reliably. Write each beat's `spokenLine` ONLY in the user's language (the language of the user's brief or pasted script), reproduced with FULL correct diacritics and natural spoken punctuation; never translate, romanize, or strip diacritics from it. Write spoken lines the way a real person TALKS to a phone camera, not the way text is WRITTEN: short breathing clauses, everyday words, natural sentence-final particles. For Vietnamese use spoken markers (nhé, nha, đấy, đó, luôn, á, ạ, mà, thôi), relationship-correct casual pronouns (mình/tớ/cậu; chị/em, anh/em — not the flat written tôi/bạn), and real spoken openers (Ôi, Ơ, Trời ơi). Stiff written-formal sentences read as AI instantly — forbidden. CONCRETE EXAMPLE — FORBIDDEN (written/stiff, reads as AI subtitle): \"Tôi rất thích sản phẩm này vì nó rất hiệu quả và tiện lợi.\" REQUIRED (spoken/alive, a real person to their phone): \"Ôi cái này mình xài mê luôn á, tiện dã man ý.\" Every spoken line must pass this bar: if it could be a written product description, rewrite it until it sounds like a friend talking.";
 
 /**
  * Scriptwriting craft law (mined from ViMax/micro-drama screenwriter prompts, SkyReels expression
@@ -68,6 +68,7 @@ interface StoryPlanJson {
   readonly episodeSummary?: unknown;
   readonly episodeEndState?: unknown;
   readonly cliffhanger?: unknown;
+  readonly cast?: unknown;
 }
 
 const KNOWN_RISKS = new Set<string>([
@@ -93,6 +94,17 @@ const STORY_PLAN_SCHEMA = {
     episodeSummary: { type: "string" },
     episodeEndState: { type: "string" },
     cliffhanger: { type: "string" },
+    cast: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["label", "appearance"],
+        properties: {
+          label: { type: "string" },
+          appearance: { type: "string" }
+        }
+      }
+    },
     scenes: {
       type: "array",
       items: {
@@ -194,6 +206,23 @@ export class StoryArchitect {
               (intake.creativeIntent
                 ? `CREATIVE INTENT (decided by the brief analyst — obey it): register=${intake.creativeIntent.register}; spoken language=${intake.creativeIntent.language}; tone=${intake.creativeIntent.tone}; pacing=${intake.creativeIntent.pacingProfile}. Visual world: ${intake.creativeIntent.visualWorld}. Story engine — conflict: ${intake.creativeIntent.storyEngine.conflict}; stakes: ${intake.creativeIntent.storyEngine.stakes}; payoff: ${intake.creativeIntent.storyEngine.payoff}. Emotional arc to trace across the beats: ${intake.creativeIntent.emotionArc}. The hook must open on the conflict/stakes; the ending must land the payoff. `
                 : "") +
+              // Style coherence (audit): the analyst already decided a whole-video look; show it to the
+              // scriptwriter as a BIBLE to specialize, instead of letting the writer re-invent style
+              // blind and contradict it (the two LLM stages must produce ONE coherent look).
+              (intake.creativeIntent?.styleDna
+                ? `STYLE BIBLE (from the brief analyst — the whole video's look; each beat's styleDna must SPECIALIZE this for that moment, never contradict it): ${[
+                    intake.creativeIntent.styleDna.optics ? `optics=${intake.creativeIntent.styleDna.optics}` : undefined,
+                    intake.creativeIntent.styleDna.lighting ? `lighting=${intake.creativeIntent.styleDna.lighting}` : undefined,
+                    intake.creativeIntent.styleDna.palette ? `palette=${intake.creativeIntent.styleDna.palette}` : undefined,
+                    intake.creativeIntent.styleDna.motion ? `motion=${intake.creativeIntent.styleDna.motion}` : undefined,
+                    intake.creativeIntent.styleDna.performance ? `performance=${intake.creativeIntent.styleDna.performance}` : undefined,
+                    intake.creativeIntent.styleDna.audioFeel ? `audioFeel=${intake.creativeIntent.styleDna.audioFeel}` : undefined
+                  ].filter(Boolean).join("; ")}. `
+                : "") +
+              // Per-character appearance sheet (audit HIGH: invented faces were built from the scene
+              // line and drifted/looked generic). Force a real face description per character so the
+              // identity anchor portrait has a clean, specific source of truth.
+              "CAST APPEARANCE: return a top-level `cast` array — one entry per DISTINCT character (same labels you use in beat `identity`), each { label, appearance } where `appearance` is a SHORT concrete FACE/BODY sheet in English (ethnicity, age range, face shape, hair, build, one memorable feature, and signature wardrobe) — e.g. { label: \"Linh\", appearance: \"Vietnamese woman, late 20s, oval face, shoulder-length straight black hair, warm eyes, small mole on left cheek, slim build, cream linen blouse\" }. Describe the FACE and PERSON only, never the scene or props. This is the single source of truth that keeps each face identical across every shot; be specific enough that the same person is unmistakable. " +
               "STYLE DNA: return your chosen register in the top-level `register` field, and for each beat author `styleDna` — SHORT concrete niche specifics for optics, lighting, palette, motion, performance, and audioFeel (e.g. macro serum-on-skin glisten for beauty; fabric drape in motion for fashion). This is where ALL category detail lives — physical, camera-real wording only; never booster words like 8K, masterpiece, or hyper-detailed. " +
               "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, continuity, and audioIntent when audio is not none. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. For longer videos, avoid a loose montage: each section must advance the argument, proof, emotion, or product understanding. Make every action concrete enough to film: visible subject state, physical product contact or proof action, camera movement, audio rhythm, and an endpoint that can cut or crossfade into the next beat. Keep voiceover concise enough for the beat duration. The `references` array lists every uploaded asset the user supplied, each with its role (identity=a specific character, product, environment, wardrobe, voice, style) and label; treat it as the cast and prop roster. Deliberately schedule these across beats — set each beat's continuity.identity/product/environment to the matching reference label so a distinct character enters/leaves on purpose (e.g. character A in the opening beats, character B enters at the turn) and the hero product is bound to the beats where it must appear; never merge two identity references into one character. Give EACH distinct character (including invented ones with no uploaded reference) a SHORT STABLE label — a name or role such as \"Linh\" or \"the founder\" — and set every beat's `identity` to that EXACT same label for every beat the character appears in. Never describe the same recurring person with two different identity strings (e.g. \"young woman\" in one beat and \"the girl\" in another); reuse the one label verbatim, so the pipeline recognizes it as one person and keeps their face consistent across shots. When a beat features SEVERAL characters, list their labels separated by commas (e.g. identity: \"Linh, Mai\") — never invent a combined name; each listed person keeps their own locked face. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
           },
@@ -265,6 +294,7 @@ export class StoryArchitect {
     const episodeSummary = optionalText(value.episodeSummary);
     const episodeEndState = optionalText(value.episodeEndState);
     const cliffhanger = optionalText(value.cliffhanger);
+    const cast = this.coerceCast(value.cast);
 
     return {
       premise: value.premise,
@@ -272,8 +302,33 @@ export class StoryArchitect {
       scenes: normalizedScenes,
       ...(episodeSummary ? { episodeSummary } : {}),
       ...(episodeEndState ? { episodeEndState } : {}),
-      ...(cliffhanger ? { cliffhanger } : {})
+      ...(cliffhanger ? { cliffhanger } : {}),
+      ...(cast.length > 0 ? { cast } : {})
     };
+  }
+
+  /** Per-character appearance sheets: the clean face source-of-truth for identity anchoring. */
+  private coerceCast(value: unknown): readonly { readonly label: string; readonly appearance: string }[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    const seen = new Set<string>();
+    const cast: { readonly label: string; readonly appearance: string }[] = [];
+    for (const entry of value) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const record = entry as Record<string, unknown>;
+      const label = typeof record.label === "string" ? record.label.trim() : "";
+      const appearance = typeof record.appearance === "string" ? record.appearance.trim() : "";
+      const key = label.toLowerCase();
+      if (!label || !appearance || seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      cast.push({ label, appearance: appearance.slice(0, 400) });
+    }
+    return cast.slice(0, 12);
   }
 
   /** LLM-authored per-beat style DNA; requires a resolved register to anchor the axes. */

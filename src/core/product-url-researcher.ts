@@ -10,7 +10,7 @@ import type {
   ProductUrlSourceEvidence
 } from "../types/short-pipeline.js";
 import { internalSourcePatternOrigins } from "./private-source-pattern-registry.js";
-import { isLocalHost, hostnameResolvesToPrivate } from "../utils/ssrf-guard.js";
+import { isLocalHost, hostnameResolvesToPrivate, ssrfSafeFetch } from "../utils/ssrf-guard.js";
 
 const SOURCE_PATTERN_ORIGINS = internalSourcePatternOrigins([
   "calesthio_openmontage",
@@ -774,17 +774,11 @@ async function globalFetch(url: string, init: {
   readonly signal: AbortSignal;
   readonly headers: Record<string, string>;
 }): Promise<ResponseLike> {
-  // SSRF hardening at the network boundary: before any real request leaves the box, resolve
-  // the target host and refuse if it points at a private/internal/loopback address — this
-  // catches a public-looking domain whose DNS A/AAAA record aims at an internal service.
-  let host = "";
-  try {
-    host = new URL(url).hostname;
-  } catch {
-    throw new Error("Invalid product URL.");
-  }
-  if (await hostnameResolvesToPrivate(host)) {
-    throw new Error("Product URL host resolves to a private or internal network address.");
-  }
-  return fetch(url, init);
+  // SSRF hardening at the network boundary. redirect:"follow" is UNSAFE here — a public-looking
+  // page can 302 to an internal host and the request to that host is issued before any post-fetch
+  // check sees it (security audit). ssrfSafeFetch re-validates EVERY hop (https + public DNS)
+  // with redirect:"manual" before issuing it — the same guard audio-mix/assembly already use.
+  const { redirect: _redirect, ...safeInit } = init;
+  void _redirect;
+  return ssrfSafeFetch(url, safeInit, { label: "Product URL" });
 }

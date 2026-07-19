@@ -1008,6 +1008,82 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// FINAL LAUNCH AUDIT (user/admin/hacker) — quality + UI + security regression locks
+// ------------------------------------------------------------------
+{
+  const { readFileSync } = await import("node:fs");
+  const { StoryArchitect } = await import(`${base}/agents/story-architect.js`);
+  const { planCharacterAnchors, planKeyframeRequests, planCastPortraitRequests } = await import(`${base}/core/keyframe-first-planner.js`);
+  const { registerGrammarPromptLine } = await import(`${base}/core/register-grammar.js`);
+
+  // Q1: StoryArchitect coerces the per-character cast appearance sheet
+  const castLlm = { name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "x", modelId: "m" }; },
+    async structured() { return { provider: "x", modelId: "m", content: "{}", raw: {}, latencyMs: 0, value: {
+      premise: "p", targetDurationSeconds: 20, register: "natural_phone_kol",
+      cast: [{ label: "Linh", appearance: "Vietnamese woman, late 20s, oval face, long black hair, small mole left cheek" }, { label: "Linh", appearance: "dup should drop" }, { label: "", appearance: "no label drop" }],
+      scenes: [{ sceneId: "s1", title: "T", beats: [{ beatId: "b1", purpose: "hook", action: "a", subject: "Linh", camera: "c", lighting: "l", durationSeconds: 6, identity: "Linh" }] }] } }; } };
+  const castPlan = await new StoryArchitect(castLlm, "m").plan({ projectId: "q", userInput: "x", settings: settingsFor(20, "economy"), references: [], metadata: {} });
+  check("launch Q1: cast appearance sheet coerced, deduped, empties dropped", Array.isArray(castPlan.cast) && castPlan.cast.length === 1 && castPlan.cast[0].label === "Linh" && castPlan.cast[0].appearance.includes("oval face"), JSON.stringify(castPlan.cast));
+
+  // Q1: planCharacterAnchors uses the appearance map as staticFeatures; portrait prompt uses it as the anchor
+  const anchorShots = [1, 2].map((n) => ({ shotId: "s" + n, sceneId: "sc", beatId: "b" + n, durationSeconds: 6, intent: "x", subject: "a young woman at a sink", action: "act", camera: "c", lighting: "l", references: [], continuity: { identity: "Linh" }, risks: [], metadata: {} }));
+  const appearanceMap = new Map([["linh", "Vietnamese woman late 20s oval face long black hair"]]);
+  const anchors = planCharacterAnchors(anchorShots, undefined, appearanceMap);
+  check("launch Q1: anchor uses appearance sheet as staticFeatures (not scene subject)", anchors.length === 1 && anchors[0].staticFeatures === "Vietnamese woman late 20s oval face long black hair", JSON.stringify(anchors[0] || null));
+  const portraitPlans = planCastPortraitRequests({ cast: [{ characterId: "linh", name: "Linh", description: "a young woman at a sink", staticFeatures: "Vietnamese woman late 20s oval face" }], provider: "atlascloud", imageModelId: "google/nano-banana-pro/text-to-image" });
+  check("launch Q1: portrait 'Locked identity anchor' uses the clean face sheet", portraitPlans[0].request.prompt.includes("Locked identity anchor: Vietnamese woman late 20s oval face"), "");
+
+  // Q2: per-shot keyframe prompt carries the identity-preservation clause when an identity image is bound
+  const kfIdShot = { ...anchorShots[0], references: [{ role: "identity", label: "Linh", providerReference: { kind: "image", uri: "https://cdn.x/linh.png", role: "identity", label: "Linh" }, priority: "primary" }] };
+  const kfPlans = planKeyframeRequests({ shots: [kfIdShot], provider: "atlascloud", imageModelId: "google/nano-banana-pro/text-to-image", settings: settingsFor(20, "economy") });
+  check("launch Q2: keyframe prompt instructs exact-face preservation when identity ref present", kfPlans[0].request.prompt.includes("EXACT same individuals") && kfPlans[0].request.prompt.includes("do NOT beautify"), "");
+  const kfNoId = planKeyframeRequests({ shots: [anchorShots[0]], provider: "atlascloud", imageModelId: "google/nano-banana-pro/text-to-image", settings: settingsFor(20, "economy") });
+  check("launch Q2: no identity clause when no identity ref (b-roll)", !kfNoId[0].request.prompt.includes("EXACT same individuals"), "");
+
+  // Q3: scriptwriter system prompt shows the analyst styleDna as a STYLE BIBLE
+  let sysCap = "";
+  const bibleLlm = { name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "x", modelId: "m" }; },
+    async structured(req) { sysCap = (req.messages || []).find((m) => m.role === "system")?.content ?? ""; return castLlm.structured(); } };
+  await new StoryArchitect(bibleLlm, "m").plan({ projectId: "q", userInput: "x", settings: settingsFor(20, "economy"), references: [], metadata: {}, creativeIntent: { schemaVersion: "v1", register: "natural_phone_kol", genre: "g", niche: "n", audience: "a", language: "vi", tone: "t", emotionArc: "e", pacingProfile: "p", visualWorld: "v", storyEngine: { conflict: "c", stakes: "s", payoff: "p" }, styleDna: { register: "natural_phone_kol", optics: "26mm phone lens", lighting: "window light" } } });
+  check("launch Q3: analyst styleDna passed to scriptwriter as STYLE BIBLE", sysCap.includes("STYLE BIBLE") && sysCap.includes("26mm phone lens"), "");
+  check("launch Q3+Q1: scriptwriter asked for CAST APPEARANCE sheet", sysCap.includes("CAST APPEARANCE"), "");
+
+  // Q4: register axes are NOT double-printed when styleDna overrides them
+  const cShot = { shotId: "z", sceneId: "sc", beatId: "b", durationSeconds: 8, intent: "x", subject: "s", action: "a", camera: "c", lighting: "l", references: [], continuity: {}, risks: [], metadata: {}, styleDna: { register: "natural_phone_kol", optics: "grainy 26mm phone lens", lighting: "harsh noon sun" } };
+  const cPrompt = compiler.compile({ shot: cShot, settings: settingsFor(20, "economy"), modelId: "m", provider: "atlascloud" }).prompt;
+  check("launch Q4: authored optics override present", cPrompt.includes("Optics (this video): grainy 26mm phone lens."), "");
+  check("launch Q4: register default optics NOT also printed (deduped)", !cPrompt.includes("near-deep focus with only mild natural depth"), "");
+  const noDnaLine = registerGrammarPromptLine("natural_phone_kol");
+  check("launch Q4: full register frame still emits all axes when nothing omitted", noDnaLine.includes("near-deep focus") && noDnaLine.includes("In-camera sound only"), "");
+
+  // Q6: LANGUAGE_CONTRACT carries the concrete VN forbidden->required exemplar
+  const architectSrc = readFileSync(resolve(repoRoot, "src/agents/story-architect.ts"), "utf8");
+  check("launch Q6: VN spoken exemplar (forbidden vs required) in language contract", architectSrc.includes("FORBIDDEN (written/stiff") && architectSrc.includes("mình xài mê luôn"), "");
+
+  // Q9: creative-intent line leads with the emotional turn when present
+  const turnShot = { ...cShot, emotionalTurn: "skeptical -> delighted" };
+  const turnPrompt = compiler.compile({ shot: turnShot, settings: settingsFor(20, "economy"), modelId: "m", provider: "atlascloud" }).prompt;
+  check("launch Q9: creative intent leads with the emotional turn", turnPrompt.includes("Creative intent: land the shift skeptical -> delighted"), "");
+
+  // U1/U2: create-flow confirm dialog + dead-checkbox hide + estimate refresh
+  const pageSrc = readFileSync(resolve(repoRoot, "src/api/short-pipeline-create-page.ts"), "utf8");
+  check("launch U1: customer render shows a cost confirm dialog before charging", pageSrc.includes("confirm.renderPrefix") && pageSrc.includes("window.confirm(msg)"), "");
+  check("launch U1: confirm-render checkbox hidden for customers (operator-only)", pageSrc.includes("confirmRenderLabel.style.display = operatorMode"), "");
+  check("launch U2: credit estimate refreshes after template + mode change", (pageSrc.match(/updateCreditEstimate\(\);/g) || []).length >= 3, "");
+
+  // S1: product-url researcher uses ssrfSafeFetch (per-hop guard), not redirect:follow
+  const researcherSrc = readFileSync(resolve(repoRoot, "src/core/product-url-researcher.ts"), "utf8");
+  check("launch S1: product-url fetch routed through ssrfSafeFetch (no blind redirect follow)", researcherSrc.includes("return ssrfSafeFetch(url, safeInit"), "");
+
+  // S2/S3: rate limiter covers redub/series/planning POSTs + GET /v1/series
+  const rlSrc = readFileSync(resolve(repoRoot, "src/api/api-rate-limit.ts"), "utf8");
+  check("launch S2: redub + series-episode POSTs rate-limited under render class", rlSrc.includes('pathname === "/v1/redub/plans"') && rlSrc.includes("episodes\\/next(\\/preview)?"), "");
+  check("launch S3: GET /v1/series rate-limited (anti tenant-scan flood)", rlSrc.includes('method === "GET"') && rlSrc.includes('pathname === "/v1/series" ? "account"'), "");
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;

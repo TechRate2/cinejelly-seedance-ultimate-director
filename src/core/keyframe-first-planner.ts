@@ -367,6 +367,8 @@ export interface CharacterAnchorPlan {
   readonly characterKey: string;
   readonly name: string;
   readonly description: string;
+  /** Clean face/body sheet authored by the scriptwriter (storyPlan.cast) — the identity anchor. */
+  readonly staticFeatures?: string;
   readonly shotIds: readonly string[];
 }
 
@@ -399,7 +401,8 @@ function shotIdentityReferenceKeys(shot: ShotContract): Set<string> {
  */
 export function planCharacterAnchors(
   shots: readonly ShotContract[],
-  maxCharacters: number = MAX_ANCHOR_CHARACTERS
+  maxCharacters: number = MAX_ANCHOR_CHARACTERS,
+  castAppearance?: ReadonlyMap<string, string>
 ): readonly CharacterAnchorPlan[] {
   const groups = new Map<
     string,
@@ -443,10 +446,12 @@ export function planCharacterAnchors(
     if (group.hasIdentityRef || group.shotIds.length < MIN_SHOTS_FOR_ANCHOR) {
       continue;
     }
+    const appearance = castAppearance?.get(characterKey);
     candidates.push({
       characterKey,
       name: group.name,
       description: group.description || group.name,
+      ...(appearance ? { staticFeatures: appearance } : {}),
       shotIds: group.shotIds
     });
   }
@@ -513,9 +518,21 @@ function keyframePromptFor(shot: ShotContract): string {
         ...(creativeMode ? { creativeMode } : {})
       }).promptLines
     : [];
+  // Identity preservation: when an identity/first-frame reference image is bound to this shot, the
+  // still MUST reproduce that exact face — image models (nano-banana/Gemini-class) bind identity far
+  // more strongly when the TEXT says so, not just from the attached reference (audit HIGH). The
+  // structural anatomy guard lives here as POSITIVE text because a separate negativePrompt field is
+  // often ignored by these image models.
+  const hasIdentityImage = shot.references.some(
+    (reference) => reference.role === "identity" || reference.role === "first_frame"
+  );
+  const identityClause = hasIdentityImage
+    ? "The person(s) shown in the attached identity reference are the EXACT same individuals — reproduce their face, bone structure, hairline, skin tone, and distinguishing features precisely; do NOT beautify, smooth, re-age, restyle, or change ethnicity. Anatomy stays correct: natural hands with five fingers, no extra or fused limbs, no warped features."
+    : undefined;
   return [
     `Single photoreal still frame: the OPENING frame of this shot, already mid-action with immediate visual tension (never an empty establishing frame).`,
     `Subject: ${shot.subject}.`,
+    identityClause,
     `Moment: the first instant of "${shot.action}".`,
     `Camera: ${shot.camera}. Lighting: ${shot.lighting}.`,
     shot.style ? `Style: ${shot.style}.` : undefined,

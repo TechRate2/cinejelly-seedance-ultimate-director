@@ -25,6 +25,7 @@ import {
   bindCharacterAnchorsToShots,
   bindKeyframesToShots,
   bindPortraitsToCast,
+  normalizeCharacterKey,
   planCastPortraitRequests,
   planCharacterAnchors,
   planKeyframeRequests,
@@ -417,8 +418,17 @@ export class DirectorAgent {
     // portrait each so their identity stays stable across the video (final-audit gap #2). Bounded,
     // and counted into the cost gate BEFORE spend — this can only raise the estimate (the safe
     // direction: the gate blocks sooner, never overspends). Uploaded-face requests plan zero anchors.
+    // Map each scripted character's appearance sheet (storyPlan.cast) to its normalized key so the
+    // anchor portrait uses a clean, specific face description instead of the scene subject line.
+    const castAppearance = new Map<string, string>();
+    for (const member of storyPlan.cast ?? []) {
+      const key = normalizeCharacterKey(member.label);
+      if (key && member.appearance.trim()) {
+        castAppearance.set(key, member.appearance.trim());
+      }
+    }
     const characterAnchors = keyframeFirstEnabled && this.imageProvider && this.atlasSettings.models.imageModel?.trim()
-      ? planCharacterAnchors(shots)
+      ? planCharacterAnchors(shots, undefined, castAppearance)
       : [];
     // Talking-shot spend (TTS + audio-driven avatar renders) is counted into the SAME pre-spend
     // gate as everything else (audit #9: it previously executed after the only budget assert and
@@ -2140,7 +2150,10 @@ export class DirectorAgent {
     const cast: readonly PortraitCastMember[] = input.anchors.map((anchor) => ({
       characterId: anchor.characterKey,
       name: anchor.name,
-      description: anchor.description
+      description: anchor.description,
+      // The scriptwriter's per-character appearance sheet becomes the portrait's "Locked identity
+      // anchor" (audit HIGH: without it the anchor was built from the scene line and drifted).
+      ...(anchor.staticFeatures ? { staticFeatures: anchor.staticFeatures } : {})
     }));
     const portraitPlans = planCastPortraitRequests({
       cast,

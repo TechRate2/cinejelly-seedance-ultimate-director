@@ -1563,7 +1563,7 @@ export function buildShortPipelineCreatePage(): string {
         "series.needInput": "Cần cốt truyện và ít nhất 1 nhân vật.", "series.created": "Đã tạo bộ phim:", "series.eps": "tập",
         "series.previewReady": "Brief tập", "series.epLabel": "TẬP", "series.confirmPrefix": "Render tập", "series.rendering": "Đang render tập", "series.renderWait": "vài phút, đừng đóng trang",
         "series.epDone": "Xong tập", "series.nextHint": "Bấm Xem trước để soạn tập tiếp theo.",
-        "series.mine": "📚 Bộ phim của tôi", "series.refresh": "Tải lại", "series.none": "Chưa có bộ phim nào. Tạo bộ phim ở trên.", "series.loginFirst": "Đăng nhập để xem bộ phim của bạn.", "series.downloadEp": "⬇ Tải tập", "series.resume": "▶ Soạn tập tiếp", "series.resumed": "Đang tiếp bộ:",
+        "series.mine": "📚 Bộ phim của tôi", "series.refresh": "Tải lại", "series.none": "Chưa có bộ phim nào. Tạo bộ phim ở trên.", "series.loginFirst": "Đăng nhập để xem bộ phim của bạn.", "series.downloadEp": "⬇ Tải tập", "series.resume": "▶ Soạn tập tiếp", "series.resumed": "Đang tiếp bộ:", "confirm.renderPrefix": "Tạo video này sẽ trừ khoảng", "confirm.renderSuffix": "Đồng ý tạo và trừ credits?", "toast.starterLoaded": "Đã nạp mẫu:",
         "help.series": "Nhập cốt truyện + dàn nhân vật một lần. Hệ thống giữ 'kinh thánh truyện': mặt nhân vật, bối cảnh và diễn biến THẬT của từng tập được ghi sổ — tập sau tự nối tiếp đúng khung hình cuối và cliffhanger của tập trước. Mỗi tập: Xem trước brief (miễn phí) → Render (báo giá credits, xác nhận mới trừ tiền; tập lỗi hoàn theo chính sách).", "set.channelStyle": "Phong cách kênh (tuỳ chọn)", "cs.none": "— Không dùng —",
         "q.economy": "Tiết kiệm — render 1 bản (rẻ nhất)", "q.standard": "Chuẩn — 2 bản, AI chọn bản đẹp hơn", "q.high": "Cao — 3 bản + sửa lỗi, AI chọn bản tốt nhất", "q.ultimate": "Tối đa — 4 bản + sửa kỹ (đắt nhất)",
         "rb.note": "Backend giữ chặt chi phí: chưa duyệt và chưa xác nhận thì chưa gửi render trả phí.",
@@ -1595,8 +1595,8 @@ export function buildShortPipelineCreatePage(): string {
         "poll.failedPrefix": "❌ Video bị lỗi — ", "poll.tryAgain": ". Hãy thử lại.",
         "poll.canceledPrefix": "Video đã hủy — ", "poll.rejectedPrefix": "Video bị từ chối duyệt — ",
         "poll.held": "Video tạm giữ để kiểm tra thêm — đội ngũ sẽ xử lý sớm.",
-        "poll.reviewWait": "⏳ Video đang chờ đội ngũ kiểm duyệt (thường vài phút). Credits đã được giữ — KHÔNG cần gửi lại. Trang sẽ tự cập nhật.",
-        "poll.finishing": "⏳ Video đang được xử lý và hoàn thiện, vui lòng chờ trong giây lát. Credits đã được giữ — trang sẽ tự cập nhật khi xong.",
+        "poll.reviewWait": "⏳ Video đang chờ đội ngũ kiểm duyệt (thường vài phút). Credits đã trừ, sẽ HOÀN lại nếu video lỗi — KHÔNG cần gửi lại. Trang sẽ tự cập nhật.",
+        "poll.finishing": "⏳ Video đang được xử lý và hoàn thiện, vui lòng chờ trong giây lát. Credits đã trừ, sẽ hoàn nếu lỗi — trang sẽ tự cập nhật khi xong.",
         "err.loginFirst": "Hãy đăng nhập tài khoản (nút Đăng nhập phía trên) trước khi tải file lên.",
         "err.uploadTooBig": "File quá lớn (tối đa 25MB). Hãy nén ảnh/video rồi thử lại.",
         "err.needSession": "Hãy tạo hoặc mở một phiên trò chuyện trước khi tạo video.",
@@ -1682,7 +1682,7 @@ export function buildShortPipelineCreatePage(): string {
         "series.needInput": "Premise and at least one cast member required.", "series.created": "Series created:", "series.eps": "episodes",
         "series.previewReady": "Episode brief", "series.epLabel": "EPISODE", "series.confirmPrefix": "Render episode", "series.rendering": "Rendering episode", "series.renderWait": "a few minutes, keep this tab open",
         "series.epDone": "Episode done:", "series.nextHint": "Press Preview to draft the next episode.",
-        "series.mine": "📚 My series", "series.refresh": "Reload", "series.none": "No series yet. Create one above.", "series.loginFirst": "Log in to see your series.", "series.downloadEp": "⬇ Download", "series.resume": "▶ Next episode", "series.resumed": "Resuming series:",
+        "series.mine": "📚 My series", "series.refresh": "Reload", "series.none": "No series yet. Create one above.", "series.loginFirst": "Log in to see your series.", "series.downloadEp": "⬇ Download", "series.resume": "▶ Next episode", "series.resumed": "Resuming series:", "confirm.renderPrefix": "Creating this video will charge about", "confirm.renderSuffix": "Create and charge credits?", "toast.starterLoaded": "Starter loaded:",
         "help.series": "Enter the premise + cast once. The system keeps a story bible: faces, world, and what REALLY happened each episode are recorded — the next episode resumes exactly from the previous end frame and cliffhanger. Per episode: Preview the brief (free) → Render (credits quoted, charged only after you confirm; failed episodes refund per policy).", "set.channelStyle": "Channel style (optional)", "cs.none": "— None —",
         "q.economy": "Economy — 1 render pass (cheapest)", "q.standard": "Standard — 2 passes, AI picks the better", "q.high": "High — 3 passes + repairs, AI picks the best", "q.ultimate": "Ultimate — 4 passes + deep repairs (priciest)",
         "rb.note": "Backend keeps provider spend locked until the plan is approved and explicitly confirmed.",
@@ -1714,8 +1714,8 @@ export function buildShortPipelineCreatePage(): string {
         "poll.failedPrefix": "❌ The video failed — ", "poll.tryAgain": ". Please try again.",
         "poll.canceledPrefix": "Video canceled — ", "poll.rejectedPrefix": "Video rejected in review — ",
         "poll.held": "The video is held for an extra check — the team will handle it shortly.",
-        "poll.reviewWait": "⏳ Your video is waiting for the team review (usually minutes). Credits are already reserved — do NOT resubmit. This page updates automatically.",
-        "poll.finishing": "⏳ Your video is being processed and finished — please wait a moment. Credits are reserved; this page updates automatically when it is ready.",
+        "poll.reviewWait": "⏳ Your video is waiting for the team review (usually minutes). Credits are charged, refunded if it fails — do NOT resubmit. This page updates automatically.",
+        "poll.finishing": "⏳ Your video is being processed and finished — please wait a moment. Credits are charged, refunded on failure; this page updates automatically when it is ready.",
         "err.loginFirst": "Please log in (button above) before uploading files.",
         "err.uploadTooBig": "File too large (max 25MB). Compress it and try again.",
         "err.needSession": "Create or open a chat session before creating a video.",
@@ -1801,7 +1801,7 @@ export function buildShortPipelineCreatePage(): string {
         "series.needInput": "需要故事前提和至少一个角色。", "series.created": "剧集已创建：", "series.eps": "集",
         "series.previewReady": "分集脚本", "series.epLabel": "第", "series.confirmPrefix": "渲染第", "series.rendering": "正在渲染第", "series.renderWait": "需要几分钟，请勿关闭页面",
         "series.epDone": "完成第", "series.nextHint": "点预览起草下一集。",
-        "series.mine": "📚 我的剧集", "series.refresh": "刷新", "series.none": "还没有剧集，请在上方创建。", "series.loginFirst": "登录后查看你的剧集。", "series.downloadEp": "⬇ 下载", "series.resume": "▶ 下一集", "series.resumed": "继续剧集：",
+        "series.mine": "📚 我的剧集", "series.refresh": "刷新", "series.none": "还没有剧集，请在上方创建。", "series.loginFirst": "登录后查看你的剧集。", "series.downloadEp": "⬇ 下载", "series.resume": "▶ 下一集", "series.resumed": "继续剧集：", "confirm.renderPrefix": "创建此视频将扣除约", "confirm.renderSuffix": "确认创建并扣除credits？", "toast.starterLoaded": "已加载模板：",
         "help.series": "输入一次故事前提+角色表。系统维护「剧集圣经」：角色面孔、世界观与每集真实剧情都会记录——下一集从上一集的最后画面和悬念处精确续写。每集：预览脚本（免费）→ 渲染（先报价，确认后才扣费；失败按政策退款）。", "set.channelStyle": "频道风格（可选）", "cs.none": "— 不使用 —",
         "q.economy": "经济 — 渲染1版（最便宜）", "q.standard": "标准 — 2版，AI 选更好的", "q.high": "高 — 3版+修复，AI 选最佳", "q.ultimate": "至尊 — 4版+深度修复（最贵）",
         "rb.note": "后端严格锁定成本：未审核确认前不会提交付费渲染。",
@@ -1833,8 +1833,8 @@ export function buildShortPipelineCreatePage(): string {
         "poll.failedPrefix": "❌ 视频生成失败 — ", "poll.tryAgain": "。请重试。",
         "poll.canceledPrefix": "视频已取消 — ", "poll.rejectedPrefix": "视频未通过审核 — ",
         "poll.held": "视频暂被保留以进一步检查 — 团队会尽快处理。",
-        "poll.reviewWait": "⏳ 视频正在等待团队审核（通常几分钟）。积分已预留 — 无需重复提交。页面会自动更新。",
-        "poll.finishing": "⏳ 视频正在处理和完善中，请稍候。积分已预留 — 完成后页面会自动更新。",
+        "poll.reviewWait": "⏳ 视频正在等待团队审核（通常几分钟）。积分已扣除，失败将退还 — 无需重复提交。页面会自动更新。",
+        "poll.finishing": "⏳ 视频正在处理和完善中，请稍候。积分已扣除，失败将退还 — 完成后页面会自动更新。",
         "err.loginFirst": "请先登录（上方按钮）再上传文件。",
         "err.uploadTooBig": "文件太大（最大 25MB），请压缩后重试。",
         "err.needSession": "创建视频前请先创建或打开一个会话。",
@@ -2415,6 +2415,21 @@ export function buildShortPipelineCreatePage(): string {
       if (submitButton.disabled) {
         return;
       }
+      // Money confirmation for CUSTOMERS: this click charges credits, so show the exact cost and
+      // require an explicit OK first (mirrors Series/Dub). Operators keep the checkbox-driven flow.
+      const isOperator = (function () { const k = document.getElementById("api-key"); return Boolean(k && k.value.trim()) && !(accountInfo && accountInfo.account); })();
+      const qualitySelectEl = document.getElementById("quality-mode");
+      const qualityModeSel = qualitySelectEl ? qualitySelectEl.value : "economy";
+      if (!isOperator && accountInfo && accountInfo.account) {
+        const durEl = document.getElementById("duration");
+        const secs = Math.max(1, Number(durEl && durEl.value ? durEl.value : 15) || 15);
+        const tier = (accountInfo.pipelinePricing && accountInfo.pipelinePricing.cheapestTier) || "mini";
+        const estCredits = meteredCredits(secs, tier, qualityModeSel);
+        const vnd = creditsToVnd(estCredits);
+        const msg = t("confirm.renderPrefix") + " ~" + estCredits.toLocaleString("vi-VN") + " credits"
+          + (vnd ? " (~" + vnd.toLocaleString("vi-VN") + "đ)" : "") + ". " + t("confirm.renderSuffix");
+        if (!window.confirm(msg)) { return; }
+      }
       submitButton.disabled = true;
       const submitLabel = submitButton.textContent;
       submitButton.textContent = "Đang gửi...";
@@ -2425,10 +2440,10 @@ export function buildShortPipelineCreatePage(): string {
         window.__cjRenderIdempotencyKey = "ui_" + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now() + "_" + Math.random().toString(16).slice(2));
       }
       try {
-        const confirmRender = document.getElementById("confirm-render").checked;
+        // Customers confirmed via the dialog above; operators use the explicit checkbox.
+        const confirmRender = isOperator ? document.getElementById("confirm-render").checked : true;
         const captionsOn = document.getElementById("caption-toggle").checked;
-        const qualitySelect = document.getElementById("quality-mode");
-        const qualityMode = qualitySelect ? qualitySelect.value : "economy";
+        const qualityMode = qualityModeSel;
         const review = collectReviewApproval();
         const body = {
           ...(review ? { reviewApprovalGate: review.gate, reviewApprovalCheckpoints: review.checkpoints } : {}),
@@ -3257,6 +3272,12 @@ export function buildShortPipelineCreatePage(): string {
         const wrap = field && field.closest ? field.closest("label") : null;
         if (wrap) { wrap.style.display = operatorMode ? "" : "none"; }
       });
+      // The "Confirm paid render" checkbox is an OPERATOR review control (customers confirm via the
+      // cost dialog on submit); hiding it for customers removes a dead control that implied an
+      // unmet payment gate (audit HIGH).
+      const confirmRenderBox = document.getElementById("confirm-render");
+      const confirmRenderLabel = confirmRenderBox && confirmRenderBox.closest ? confirmRenderBox.closest("label") : null;
+      if (confirmRenderLabel) { confirmRenderLabel.style.display = operatorMode ? "" : "none"; }
       const usdCard = document.getElementById("usd-cost-card");
       if (usdCard) { usdCard.style.display = operatorMode ? "" : "none"; }
       const prepareBtn = document.getElementById("prepare-approval");
@@ -3740,7 +3761,8 @@ export function buildShortPipelineCreatePage(): string {
       });
       updatePromptCount();
       updateEstimatedCost();
-      showSuccess("Pattern starter loaded: " + template.title + ".");
+      updateCreditEstimate();
+      showSuccess(t("toast.starterLoaded") + " " + template.title + ".");
     }
 
     function setWorkflowMode(mode) {
@@ -3767,6 +3789,7 @@ export function buildShortPipelineCreatePage(): string {
         document.getElementById("reference-summary").value = "Learn the public reference structure only: hook job, shot timing, camera movement, edit rhythm, acting beats, audio rhythm, and payoff. Replace creator, product, background, props, claims, captions, and voice with user-approved inputs.";
       }
       updateEstimatedCost();
+      updateCreditEstimate();
     }
 
     // Not an AI call — appends a proven 4-beat structure template (localized) to the brief.
