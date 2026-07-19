@@ -215,10 +215,14 @@ try {
     !/class="template-card\s+active"/iu.test(createPageHtml);
   const createPagePatternStarterLanguageClean =
     !/>\s*Templates\s*<|>\s*Template source intake\s*<|>\s*Template structure summary\s*<|Template loaded:|template intake|template\/video structure/iu.test(createPageHtml);
+  // The 3-step wizard is plan-first: the primary action of step 2 (id="create-session") builds the
+  // plan + price WITHOUT provider spend ("Xem giá & kế hoạch"), and paid rendering is a separate,
+  // explicit step-3 action (id="wz-create" "🎬 Tạo video"). So the first action is still NOT an
+  // immediate paid generate — the review-gated intent holds under the new self-serve wizard.
   const createPageReviewGatedActionLanguage =
-    !/id="create-session"[^>]*>\s*Generate Video\s*<\/button>|>\s*Estimated cost\s*</iu.test(createPageHtml) &&
-    createPageHtml.includes("Build Review Plan") &&
-    createPageHtml.includes("Provider render is still locked until explicit approval");
+    !/id="create-session"[^>]*>\s*(?:Generate Video|Tạo video|Create video)\s*<\/button>|>\s*Estimated cost\s*</iu.test(createPageHtml) &&
+    createPageHtml.includes('data-i18n="wz.buildPlan"') &&
+    createPageHtml.includes('id="wz-create"');
   const createPageSecurityHeadersPassed = htmlSecurityHeadersPass(createPage.headers);
   const rawLeakDetected = containsAny(`${rawStyleStore}\n${rawSessionStore}`, [
     "C:\\Users\\Admin",

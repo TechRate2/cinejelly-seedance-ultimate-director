@@ -975,6 +975,30 @@ export function buildShortPipelineCreatePage(): string {
       border-radius: 8px;
     }
     ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.03); }
+    /* ---- Wizard (Topview-style guided 3-step create flow) ---- */
+    .wizard-steps { display:flex; gap:8px; margin:4px 0 18px; }
+    .wizard-steps .wstep { flex:1; display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); font-size:13px; color:rgba(232,236,255,.6); transition:all .2s; }
+    .wizard-steps .wstep .wnum { display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:rgba(255,255,255,.1); font-weight:700; font-size:12px; flex:0 0 auto; }
+    .wizard-steps .wstep.active { background:linear-gradient(135deg, rgba(255,79,232,.22), rgba(17,183,255,.16)); border-color:rgba(143,92,255,.5); color:#fff; }
+    .wizard-steps .wstep.active .wnum { background:linear-gradient(135deg,#ff4fe8,#8f5cff); color:#fff; }
+    .wizard-steps .wstep.done .wnum { background:linear-gradient(135deg,#36f2aa,#11b7ff); color:#04122a; }
+    .wizard-steps .wstep.done { color:rgba(232,236,255,.85); }
+    .wizard-step { display:none; animation:wfade .25s ease; }
+    .wizard-step.wizard-active { display:block; }
+    @keyframes wfade { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+    .wizard-nav { display:flex; gap:12px; align-items:center; margin-top:18px; padding-top:16px; border-top:1px solid rgba(255,255,255,.08); }
+    .wizard-nav .spacer { flex:1; }
+    .wizard-nav .primary { font-size:15px; padding:12px 22px; }
+    .wizard-review { background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:16px; }
+    .wizard-review .rv-row { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:14px; }
+    .wizard-review .rv-row:last-child { border-bottom:0; }
+    .wizard-review .rv-row .rv-k { color:rgba(232,236,255,.6); }
+    .wizard-review .rv-row .rv-v { font-weight:600; text-align:right; }
+    .wizard-price { display:flex; align-items:baseline; gap:10px; margin:14px 0; padding:14px 16px; border-radius:12px; background:linear-gradient(135deg, rgba(54,242,170,.12), rgba(17,183,255,.08)); border:1px solid rgba(54,242,170,.25); }
+    .wizard-price .wp-amount { font-size:26px; font-weight:800; }
+    .wizard-adv { margin-top:14px; }
+    .wizard-adv > summary { cursor:pointer; font-size:13px; color:rgba(232,236,255,.6); padding:8px 0; }
+    @media (max-width: 720px) { .wizard-steps { flex-direction:column; } .wizard-steps .wstep { font-size:12px; } }
   </style>
 </head>
 <body>
@@ -1155,6 +1179,12 @@ export function buildShortPipelineCreatePage(): string {
             <button class="mode-btn" type="button" data-mode-button="production_bible" data-i18n="mode.long">Long</button>
           </div>
           <input id="workflow-mode" class="visually-hidden" value="short_video">
+          <div class="wizard-steps" id="wizard-steps">
+            <div class="wstep active" data-wstep="1"><span class="wnum">1</span><span data-i18n="wz.s1">Ý tưởng</span></div>
+            <div class="wstep" data-wstep="2"><span class="wnum">2</span><span data-i18n="wz.s2">Hình ảnh &amp; tuỳ chọn</span></div>
+            <div class="wstep" data-wstep="3"><span class="wnum">3</span><span data-i18n="wz.s3">Xem lại &amp; tạo</span></div>
+          </div>
+          <div class="wizard-step wizard-active" data-step="1">
           <div class="section-divider"></div>
           <div class="panel-head">
             <div class="panel-title"><span class="step-badge">1</span><span data-i18n="s1.title">Tell CineJelly your idea</span></div>
@@ -1174,6 +1204,8 @@ export function buildShortPipelineCreatePage(): string {
             <div class="char-count"><span id="prompt-count">0</span> / 2000</div>
           </div>
 
+          </div><!-- /wizard-step 1 -->
+          <div class="wizard-step" data-step="2">
           <div class="panel-head">
             <div class="panel-title"><span class="step-badge">2</span><span data-i18n="s2.title">Add references</span></div>
             <button class="mini-btn" type="button" id="clear-reference-fields" data-i18n="s2.clear">Clear</button>
@@ -1322,8 +1354,22 @@ export function buildShortPipelineCreatePage(): string {
           </div>
           <div class="render-bar">
             <div class="cost-card" id="usd-cost-card"><small>Preflight estimate</small><strong id="estimated-cost">$2.40</strong></div>
-            <div class="detail" data-i18n="rb.note">Backend keeps provider spend locked until approval packet and explicit render confirmation are ready.</div>
-            <button type="submit" id="create-session" class="primary" data-i18n="rb.build">Build Review Plan</button>
+            <div id="credit-estimate-inline" class="detail"></div>
+            <button type="submit" id="create-session" class="primary" data-i18n="wz.buildPlan">Xem giá &amp; kế hoạch →</button>
+          </div>
+          </div><!-- /wizard-step 2 -->
+          <div class="wizard-step" data-step="3">
+          <div class="panel-head"><div class="panel-title"><span class="step-badge">✓</span><span data-i18n="wz.reviewTitle">Xem lại &amp; tạo video</span></div></div>
+          <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="wz.reviewHelp">Kiểm lại tóm tắt kế hoạch và giá credits bên dưới. Bấm "🎬 Tạo video" là hệ thống trừ credits và bắt đầu dựng video (đủ credit sẽ chạy ngay). Muốn sửa thì Quay lại.</p></details>
+          <div class="wizard-review" id="wizard-review"><div class="detail" data-i18n="wz.reviewEmpty">Bấm "Xem giá & kế hoạch" ở bước trước để tạo kế hoạch.</div></div>
+          <div class="wizard-price" id="wizard-price" hidden><span class="wp-amount" id="wizard-price-amount">—</span><span class="detail" id="wizard-price-note"></span></div>
+          <label class="detail" for="caption-toggle-wz" style="display:flex;gap:8px;align-items:center;margin-top:10px;cursor:pointer"><input type="checkbox" id="caption-toggle-wz"><span data-i18n="ap.captions">Phụ đề tự động từ voice (khớp kịch bản, không tốn thêm)</span></label>
+          </div><!-- /wizard-step 3 -->
+          <div class="wizard-nav" id="wizard-nav">
+            <button class="ghost-btn" type="button" id="wz-back" data-i18n="wz.back" hidden>← Quay lại</button>
+            <div class="spacer"></div>
+            <button class="primary" type="button" id="wz-next" data-i18n="wz.next">Tiếp →</button>
+            <button class="primary" type="button" id="wz-create" data-i18n="wz.create" hidden>🎬 Tạo video</button>
           </div>
         </form>
 
@@ -1563,7 +1609,7 @@ export function buildShortPipelineCreatePage(): string {
         "series.needInput": "Cần cốt truyện và ít nhất 1 nhân vật.", "series.created": "Đã tạo bộ phim:", "series.eps": "tập",
         "series.previewReady": "Brief tập", "series.epLabel": "TẬP", "series.confirmPrefix": "Render tập", "series.rendering": "Đang render tập", "series.renderWait": "vài phút, đừng đóng trang",
         "series.epDone": "Xong tập", "series.nextHint": "Bấm Xem trước để soạn tập tiếp theo.",
-        "series.mine": "📚 Bộ phim của tôi", "series.refresh": "Tải lại", "series.none": "Chưa có bộ phim nào. Tạo bộ phim ở trên.", "series.loginFirst": "Đăng nhập để xem bộ phim của bạn.", "series.downloadEp": "⬇ Tải tập", "series.resume": "▶ Soạn tập tiếp", "series.resumed": "Đang tiếp bộ:", "confirm.renderPrefix": "Tạo video này sẽ trừ khoảng", "confirm.renderSuffix": "Đồng ý tạo và trừ credits?", "toast.starterLoaded": "Đã nạp mẫu:",
+        "series.mine": "📚 Bộ phim của tôi", "series.refresh": "Tải lại", "series.none": "Chưa có bộ phim nào. Tạo bộ phim ở trên.", "series.loginFirst": "Đăng nhập để xem bộ phim của bạn.", "series.downloadEp": "⬇ Tải tập", "series.resume": "▶ Soạn tập tiếp", "series.resumed": "Đang tiếp bộ:", "confirm.renderPrefix": "Tạo video này sẽ trừ khoảng", "wz.s1": "Ý tưởng", "wz.s2": "Hình ảnh & tuỳ chọn", "wz.s3": "Xem lại & tạo", "wz.next": "Tiếp →", "wz.back": "← Quay lại", "wz.buildPlan": "Xem giá & kế hoạch →", "wz.building": "Đang tạo kế hoạch...", "wz.create": "🎬 Tạo video", "wz.reviewTitle": "Xem lại & tạo video", "wz.reviewHelp": "Kiểm lại tóm tắt kế hoạch và giá credits bên dưới. Bấm \"🎬 Tạo video\" là hệ thống trừ credits và bắt đầu dựng (đủ credit sẽ chạy ngay). Muốn sửa thì Quay lại.", "wz.reviewEmpty": "Bấm \"Xem giá & kế hoạch\" ở bước trước để tạo kế hoạch.", "wz.rIdea": "Ý tưởng", "wz.rPlatform": "Nền tảng", "wz.rDuration": "Thời lượng", "wz.rQuality": "Chất lượng", "wz.rAudio": "Giọng đọc", "wz.rRefs": "Số ảnh tham chiếu", "wz.priceRefund": "trừ khi tạo, hoàn nếu lỗi", "ap.statusTitle": "Trạng thái video", "confirm.renderSuffix": "Đồng ý tạo và trừ credits?", "toast.starterLoaded": "Đã nạp mẫu:",
         "help.series": "Nhập cốt truyện + dàn nhân vật một lần. Hệ thống giữ 'kinh thánh truyện': mặt nhân vật, bối cảnh và diễn biến THẬT của từng tập được ghi sổ — tập sau tự nối tiếp đúng khung hình cuối và cliffhanger của tập trước. Mỗi tập: Xem trước brief (miễn phí) → Render (báo giá credits, xác nhận mới trừ tiền; tập lỗi hoàn theo chính sách).", "set.channelStyle": "Phong cách kênh (tuỳ chọn)", "cs.none": "— Không dùng —",
         "q.economy": "Tiết kiệm — render 1 bản (rẻ nhất)", "q.standard": "Chuẩn — 2 bản, AI chọn bản đẹp hơn", "q.high": "Cao — 3 bản + sửa lỗi, AI chọn bản tốt nhất", "q.ultimate": "Tối đa — 4 bản + sửa kỹ (đắt nhất)",
         "rb.note": "Backend giữ chặt chi phí: chưa duyệt và chưa xác nhận thì chưa gửi render trả phí.",
@@ -1682,7 +1728,7 @@ export function buildShortPipelineCreatePage(): string {
         "series.needInput": "Premise and at least one cast member required.", "series.created": "Series created:", "series.eps": "episodes",
         "series.previewReady": "Episode brief", "series.epLabel": "EPISODE", "series.confirmPrefix": "Render episode", "series.rendering": "Rendering episode", "series.renderWait": "a few minutes, keep this tab open",
         "series.epDone": "Episode done:", "series.nextHint": "Press Preview to draft the next episode.",
-        "series.mine": "📚 My series", "series.refresh": "Reload", "series.none": "No series yet. Create one above.", "series.loginFirst": "Log in to see your series.", "series.downloadEp": "⬇ Download", "series.resume": "▶ Next episode", "series.resumed": "Resuming series:", "confirm.renderPrefix": "Creating this video will charge about", "confirm.renderSuffix": "Create and charge credits?", "toast.starterLoaded": "Starter loaded:",
+        "series.mine": "📚 My series", "series.refresh": "Reload", "series.none": "No series yet. Create one above.", "series.loginFirst": "Log in to see your series.", "series.downloadEp": "⬇ Download", "series.resume": "▶ Next episode", "series.resumed": "Resuming series:", "confirm.renderPrefix": "Creating this video will charge about", "wz.s1": "Idea", "wz.s2": "Images & options", "wz.s3": "Review & create", "wz.next": "Next →", "wz.back": "← Back", "wz.buildPlan": "See price & plan →", "wz.building": "Building plan...", "wz.create": "🎬 Create video", "wz.reviewTitle": "Review & create", "wz.reviewHelp": "Check the plan summary and credit price below. Press \"🎬 Create video\" to charge credits and start rendering (runs immediately if you have enough credits). Go Back to edit.", "wz.reviewEmpty": "Press \"See price & plan\" on the previous step to build the plan.", "wz.rIdea": "Idea", "wz.rPlatform": "Platform", "wz.rDuration": "Duration", "wz.rQuality": "Quality", "wz.rAudio": "Voiceover", "wz.rRefs": "Reference images", "wz.priceRefund": "charged on create, refunded on failure", "ap.statusTitle": "Video status", "confirm.renderSuffix": "Create and charge credits?", "toast.starterLoaded": "Starter loaded:",
         "help.series": "Enter the premise + cast once. The system keeps a story bible: faces, world, and what REALLY happened each episode are recorded — the next episode resumes exactly from the previous end frame and cliffhanger. Per episode: Preview the brief (free) → Render (credits quoted, charged only after you confirm; failed episodes refund per policy).", "set.channelStyle": "Channel style (optional)", "cs.none": "— None —",
         "q.economy": "Economy — 1 render pass (cheapest)", "q.standard": "Standard — 2 passes, AI picks the better", "q.high": "High — 3 passes + repairs, AI picks the best", "q.ultimate": "Ultimate — 4 passes + deep repairs (priciest)",
         "rb.note": "Backend keeps provider spend locked until the plan is approved and explicitly confirmed.",
@@ -1801,7 +1847,7 @@ export function buildShortPipelineCreatePage(): string {
         "series.needInput": "需要故事前提和至少一个角色。", "series.created": "剧集已创建：", "series.eps": "集",
         "series.previewReady": "分集脚本", "series.epLabel": "第", "series.confirmPrefix": "渲染第", "series.rendering": "正在渲染第", "series.renderWait": "需要几分钟，请勿关闭页面",
         "series.epDone": "完成第", "series.nextHint": "点预览起草下一集。",
-        "series.mine": "📚 我的剧集", "series.refresh": "刷新", "series.none": "还没有剧集，请在上方创建。", "series.loginFirst": "登录后查看你的剧集。", "series.downloadEp": "⬇ 下载", "series.resume": "▶ 下一集", "series.resumed": "继续剧集：", "confirm.renderPrefix": "创建此视频将扣除约", "confirm.renderSuffix": "确认创建并扣除credits？", "toast.starterLoaded": "已加载模板：",
+        "series.mine": "📚 我的剧集", "series.refresh": "刷新", "series.none": "还没有剧集，请在上方创建。", "series.loginFirst": "登录后查看你的剧集。", "series.downloadEp": "⬇ 下载", "series.resume": "▶ 下一集", "series.resumed": "继续剧集：", "confirm.renderPrefix": "创建此视频将扣除约", "wz.s1": "创意", "wz.s2": "图片和选项", "wz.s3": "确认并创建", "wz.next": "下一步 →", "wz.back": "← 返回", "wz.buildPlan": "查看价格和方案 →", "wz.building": "正在生成方案...", "wz.create": "🎬 创建视频", "wz.reviewTitle": "确认并创建", "wz.reviewHelp": "请检查下方的方案摘要和积分价格。点击\"🎬 创建视频\"将扣除积分并开始渲染（积分足够即刻运行）。想修改请返回。", "wz.reviewEmpty": "在上一步点击\"查看价格和方案\"以生成方案。", "wz.rIdea": "创意", "wz.rPlatform": "平台", "wz.rDuration": "时长", "wz.rQuality": "画质", "wz.rAudio": "配音", "wz.rRefs": "参考图片数", "wz.priceRefund": "创建时扣除，失败退还", "ap.statusTitle": "视频状态", "confirm.renderSuffix": "确认创建并扣除credits？", "toast.starterLoaded": "已加载模板：",
         "help.series": "输入一次故事前提+角色表。系统维护「剧集圣经」：角色面孔、世界观与每集真实剧情都会记录——下一集从上一集的最后画面和悬念处精确续写。每集：预览脚本（免费）→ 渲染（先报价，确认后才扣费；失败按政策退款）。", "set.channelStyle": "频道风格（可选）", "cs.none": "— 不使用 —",
         "q.economy": "经济 — 渲染1版（最便宜）", "q.standard": "标准 — 2版，AI 选更好的", "q.high": "高 — 3版+修复，AI 选最佳", "q.ultimate": "至尊 — 4版+深度修复（最贵）",
         "rb.note": "后端严格锁定成本：未审核确认前不会提交付费渲染。",
@@ -2350,6 +2396,76 @@ export function buildShortPipelineCreatePage(): string {
         void error;
       }
     }
+
+    // ---- Wizard 3 bước (Topview-style): mỗi lúc hiện 1 bước, dẫn dắt khách không rành ----
+    let wizardStep = 1;
+    function showWizardStep(n) {
+      wizardStep = n;
+      document.querySelectorAll(".wizard-step").forEach(function (el) { el.classList.toggle("wizard-active", Number(el.dataset.step) === n); });
+      document.querySelectorAll("#wizard-steps .wstep").forEach(function (el) {
+        const s = Number(el.dataset.wstep);
+        el.classList.toggle("active", s === n);
+        el.classList.toggle("done", s < n);
+      });
+      const back = document.getElementById("wz-back"), next = document.getElementById("wz-next"), create = document.getElementById("wz-create");
+      back.hidden = n === 1; next.hidden = n === 3; create.hidden = n !== 3;
+      next.textContent = n === 2 ? t("wz.buildPlan") : t("wz.next");
+      // Nút "Xem giá & kế hoạch" gốc trong render-bar chỉ dành operator; khách dùng nút wizard.
+      const rb = document.getElementById("create-session"); if (rb) { rb.style.display = "none"; }
+      if (n === 3) { updateWizardReview(); }
+      const form = document.getElementById("brief-form"); if (form && form.scrollIntoView) { form.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    }
+    function updateWizardReview() {
+      const box = document.getElementById("wizard-review");
+      const g = function (id) { const e = document.getElementById(id); return e ? (e.value || "").trim() : ""; };
+      const qSel = document.getElementById("quality-mode");
+      const qLabel = qSel && qSel.options[qSel.selectedIndex] ? qSel.options[qSel.selectedIndex].textContent : "";
+      const refCount = ["kol-reference", "product-reference", "background-reference", "reference-url", "wardrobe-reference", "first-frame-reference", "last-frame-reference"].filter(function (id) { return g(id); }).length;
+      const rows = [
+        [t("wz.rIdea"), (g("prompt") || "—").slice(0, 90)],
+        [t("wz.rPlatform"), g("platform") || "tiktok"],
+        [t("wz.rDuration"), (g("duration") || "15") + "s"],
+        [t("wz.rQuality"), qLabel],
+        [t("wz.rAudio"), (document.getElementById("audio") || {}).value || "vi"],
+        [t("wz.rRefs"), String(refCount)]
+      ];
+      box.textContent = "";
+      rows.forEach(function (r) {
+        const row = document.createElement("div"); row.className = "rv-row";
+        const k = document.createElement("span"); k.className = "rv-k"; k.textContent = r[0];
+        const v = document.createElement("span"); v.className = "rv-v"; v.textContent = r[1];
+        row.appendChild(k); row.appendChild(v); box.appendChild(row);
+      });
+      // Giá credits (nếu đăng nhập): dùng đúng công thức đang trừ.
+      const price = document.getElementById("wizard-price"), amt = document.getElementById("wizard-price-amount"), note = document.getElementById("wizard-price-note");
+      if (accountInfo && accountInfo.account) {
+        const secs = Math.max(1, Number(g("duration") || 15) || 15);
+        const tier = (accountInfo.pipelinePricing && accountInfo.pipelinePricing.cheapestTier) || "mini";
+        const credits = meteredCredits(secs, tier, qSel ? qSel.value : "economy");
+        const vnd = creditsToVnd(credits);
+        amt.textContent = "~" + credits.toLocaleString("vi-VN") + " credits";
+        note.textContent = (vnd ? "(~" + vnd.toLocaleString("vi-VN") + "đ) " : "") + t("wz.priceRefund") + " • " + t("ce.balance") + " " + accountInfo.account.balanceCredits.toLocaleString("vi-VN") + " 💎";
+        price.hidden = false;
+      } else { price.hidden = true; }
+    }
+    document.getElementById("wz-next").addEventListener("click", async function () {
+      if (wizardStep === 1) { showWizardStep(2); return; }
+      if (wizardStep === 2) {
+        const next = document.getElementById("wz-next");
+        next.disabled = true; next.textContent = t("wz.building");
+        try { await createSession(); if (activeSessionId) { showWizardStep(3); } }
+        catch (error) { void error; }
+        finally { next.disabled = false; next.textContent = t("wz.buildPlan"); }
+      }
+    });
+    document.getElementById("wz-back").addEventListener("click", function () { if (wizardStep > 1) { showWizardStep(wizardStep - 1); } });
+    document.getElementById("wz-create").addEventListener("click", function () {
+      // Đồng bộ tuỳ chọn phụ đề của bước 3 sang checkbox mà submitRender đọc, rồi tạo video.
+      const wz = document.getElementById("caption-toggle-wz"), main = document.getElementById("caption-toggle");
+      if (wz && main) { main.checked = wz.checked; }
+      submitRender();
+    });
+    showWizardStep(1);
 
     updatePromptCount();
     updateEstimatedCost();
@@ -3278,6 +3394,21 @@ export function buildShortPipelineCreatePage(): string {
       const confirmRenderBox = document.getElementById("confirm-render");
       const confirmRenderLabel = confirmRenderBox && confirmRenderBox.closest ? confirmRenderBox.closest("label") : null;
       if (confirmRenderLabel) { confirmRenderLabel.style.display = operatorMode ? "" : "none"; }
+      // Ẩn các panel kỹ thuật (backend contract) + controls duyệt của operator cho khách — khách chỉ
+      // thấy wizard 3 bước sạch sẽ. render-status vẫn hiện để khách theo dõi tiến độ video.
+      const jargonGrid = document.querySelector(".contract-grid");
+      if (jargonGrid) { jargonGrid.style.display = operatorMode ? "" : "none"; }
+      ["approval-packet", "submit-render", "credit-estimate", "prepare-approval"].forEach(function (id) {
+        const el = document.getElementById(id);
+        const wrap = el && el.closest ? (el.closest("label") || el) : el;
+        if (wrap) { wrap.style.display = operatorMode ? "" : "none"; }
+      });
+      const captionMain = document.getElementById("caption-toggle");
+      const captionMainLabel = captionMain && captionMain.closest ? captionMain.closest("label") : null;
+      if (captionMainLabel) { captionMainLabel.style.display = operatorMode ? "" : "none"; }
+      // Tiêu đề "Approval Packet" → "Trạng thái video" cho khách.
+      const apTitle = document.querySelector('[data-i18n="ap.title"]');
+      if (apTitle) { apTitle.setAttribute("data-i18n", operatorMode ? "ap.title" : "ap.statusTitle"); apTitle.textContent = t(operatorMode ? "ap.title" : "ap.statusTitle"); }
       const usdCard = document.getElementById("usd-cost-card");
       if (usdCard) { usdCard.style.display = operatorMode ? "" : "none"; }
       const prepareBtn = document.getElementById("prepare-approval");
