@@ -124,3 +124,12 @@ export const DIALOGUE_LIGHT_LANGUAGE_CLAUSE =
  */
 export const DIALOGUE_LIGHT_VERBATIM_CLAUSE =
   "Dialogue-light language mode: deliver the scripted line in full exactly as written (do not shorten it); treat lip-shape matching as approximate and let expression, gesture, and blocking carry the meaning — the beat must still read with the sound off.";
+
+/**
+ * Talking-head naturalness (mined from micro-drama practice: ko-dialogue-melodrama-structure). The
+ * single biggest AI-tell on a spoken shot is an over-animated, over-scored talking head, so during a
+ * spoken line keep mouth movement small and natural, hold the camera and head still, and let the
+ * voice sit in clean quiet — no music swelling under the line. Applied to any shot with a spokenLine.
+ */
+export const TALKING_HEAD_NATURALNESS_CLAUSE =
+  "Talking-head naturalness: during the spoken line keep mouth movement small and natural (no exaggerated over-articulation), hold the head and camera steady with only micro-motion, keep the eyeline consistent, and leave the voice in clean quiet — no music swelling under the line, no theatrical gestures. Natural micro-expressions and a small breath read as real; a bobbing, over-mouthing head reads as AI.";

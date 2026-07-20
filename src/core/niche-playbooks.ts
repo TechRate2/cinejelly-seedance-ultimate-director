@@ -339,23 +339,85 @@ export function resolveNichePlaybook(input: {
   readonly niche?: string;
   readonly creativeMode?: string;
 }): NichePlaybook {
+  return resolveNichePlaybookMatch(input).playbook;
+}
+
+/**
+ * Resolve a family playbook AND report whether a SPECIFIC family matched (vs falling to the generic
+ * grounded playbook). Callers with a CreativeIntent use `matched=false` to compose a per-brief custom
+ * playbook instead of shipping the generic one — the antidote to "generic when the niche is unknown".
+ */
+export function resolveNichePlaybookMatch(input: {
+  readonly niche?: string;
+  readonly creativeMode?: string;
+}): { readonly playbook: NichePlaybook; readonly matched: boolean } {
   const keys = [input.niche, input.creativeMode]
     .map((value) => value?.trim().toLowerCase())
     .filter((value): value is string => Boolean(value));
   for (const key of keys) {
     const family = FAMILY_BY_KEY[key];
     if (family && Object.hasOwn(PLAYBOOKS, family)) {
-      return PLAYBOOKS[family] as NichePlaybook;
+      return { playbook: PLAYBOOKS[family] as NichePlaybook, matched: true };
     }
   }
   for (const key of keys) {
     for (const { family, pattern } of FAMILY_KEYWORDS) {
       if (pattern.test(key) && Object.hasOwn(PLAYBOOKS, family)) {
-        return PLAYBOOKS[family] as NichePlaybook;
+        return { playbook: PLAYBOOKS[family] as NichePlaybook, matched: true };
       }
     }
   }
-  return GROUNDED_PLAYBOOK;
+  return { playbook: GROUNDED_PLAYBOOK, matched: false };
+}
+
+/**
+ * Compose a per-brief CUSTOM playbook from the analyst's CreativeIntent when no fixed family fits
+ * (open-niche antidote, mined from openmontage's playbook-generator pattern). Deterministic and FREE
+ * — it reuses the intent the analyst already produced, never a new LLM call. So a "real-estate
+ * walkthrough" or "B2B SaaS explainer" gets a tailored formula instead of the generic grounded one.
+ */
+export function composeCustomPlaybook(intent: {
+  readonly register: string;
+  readonly genre: string;
+  readonly niche: string;
+  readonly tone: string;
+  readonly emotionArc: string;
+  readonly pacingProfile: string;
+  readonly visualWorld: string;
+  readonly storyEngine: { readonly conflict: string; readonly stakes: string; readonly payoff: string };
+  readonly styleDna?: { readonly optics?: string; readonly motion?: string; readonly audioFeel?: string; readonly palette?: string };
+}): NichePlaybook {
+  const isKol = intent.register === "natural_phone_kol";
+  const slug = intent.niche.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "custom";
+  return {
+    family: `custom:${slug}`,
+    hookFormulas: [
+      `open on the conflict — ${intent.storyEngine.conflict} — visible in the very first frame`,
+      `lead with what's at stake: ${intent.storyEngine.stakes}`,
+      isKol
+        ? "a real person addresses the camera with a candid line that names the problem"
+        : "a charged detail or motivated push-in that plants the tension before any context"
+    ],
+    beatTemplate: `${isKol ? "fast phone-native beats" : "measured cinematic beats"} tracing the emotion ${intent.emotionArc}: hook on the conflict -> proof/turn where ${intent.storyEngine.stakes} is felt -> payoff that lands ${intent.storyEngine.payoff} on a readable final frame (pacing: ${intent.pacingProfile})`,
+    cameraPlaybook: intent.styleDna?.optics || intent.styleDna?.motion
+      ? `${intent.styleDna?.optics ?? ""}${intent.styleDna?.optics && intent.styleDna?.motion ? "; " : ""}${intent.styleDna?.motion ?? ""}`.trim()
+      : isKol
+        ? "handheld phone framing, one imperfect reframe per beat, no gimbal glide"
+        : "vary shot size each beat, one motivated camera move per beat, settle on a stable end frame",
+    audioSignature: intent.styleDna?.audioFeel
+      ? intent.styleDna.audioFeel
+      : isKol
+        ? "in-camera sound and close phone-mic voice; no scored bed"
+        : "motivated ambience plus concise voiceover; one audio accent at the emotional peak",
+    referenceStrategy: "identity and product references anchor every shot they appear in; take only the subject from each reference, never its background or lighting",
+    viralTriggers: [
+      `a ${intent.tone} moment worth rewatching in ${intent.visualWorld}`,
+      `the visible turn where ${intent.storyEngine.payoff} pays off the ${intent.storyEngine.conflict}`
+    ],
+    avoid: isKol
+      ? "any produced/graded/slow-mo look, posed presenting, or empty establishing shots — it must feel un-crafted"
+      : "static shots that overstay, monotone pacing, generic stock-feeling framing, endings that just stop"
+  };
 }
 
 /**
@@ -380,8 +442,14 @@ export function resolveNicheBeatProfile(input: {
 export function nichePlaybookDirective(input: {
   readonly niche?: string;
   readonly creativeMode?: string;
+  readonly creativeIntent?: Parameters<typeof composeCustomPlaybook>[0];
 }): string {
-  const playbook = resolveNichePlaybook(input);
+  const match = resolveNichePlaybookMatch(input);
+  // Unknown niche + an analyst intent → tailor a custom playbook instead of the generic grounded
+  // one, so open/rare niches still get a specific formula (#3 smart-niche upgrade).
+  const playbook = !match.matched && input.creativeIntent
+    ? composeCustomPlaybook(input.creativeIntent)
+    : match.playbook;
   const beat = resolveNicheBeatProfile(input);
   const lines = [
     `NICHE PLAYBOOK (${playbook.family}) — script to this family's proven formula:`,

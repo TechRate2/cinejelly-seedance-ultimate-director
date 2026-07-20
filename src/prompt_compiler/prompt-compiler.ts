@@ -25,6 +25,7 @@ import {
   DIALOGUE_LIGHT_VERBATIM_CLAUSE,
   registerForCreativeMode,
   registerGrammarPromptLine,
+  TALKING_HEAD_NATURALNESS_CLAUSE,
   type RegisterAxis,
   type StyleRegister
 } from "../core/register-grammar.js";
@@ -747,6 +748,9 @@ export class SeedancePromptCompiler {
       shot.spokenLine
         ? `Dialogue is in the character's own language; keep it exactly as written and keep all other direction in English. Spoken line (VERBATIM — deliver word-for-word, do not paraphrase, translate, or shorten): "${shot.spokenLine}".`
         : undefined,
+      // Anti-AI-tell for talking shots: small mouth movement, steady head/camera, no music under the
+      // line (micro-drama naturalness, #5 upgrade). Only when the shot actually has a spoken line.
+      shot.spokenLine ? TALKING_HEAD_NATURALNESS_CLAUSE : undefined,
       shot.audioIntent ? `Audio production plan: ${this.stripTerminalPunctuation(shot.audioIntent)}.` : undefined,
       `Generate only original ambience/music/voice on this shot's timing — no protected songs, melodies, transcripts, or voices. Keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s with micro-pauses around product contact or reactions; the visual story must read without audio.`
     ]

@@ -94,6 +94,11 @@ export class CreativeBriefAnalyst {
                 userInput: intake.userInput,
                 settings: intake.settings,
                 references: intake.references.slice(0, 24).map((reference) => ({ role: reference.role, label: reference.label })),
+                // What the uploaded assets ACTUALLY look like (vision pass) — ground palette/style/
+                // visual-world in the real product/face, not just its label (#1 upgrade).
+                ...(intake.referenceVisualDescriptors && intake.referenceVisualDescriptors.length > 0
+                  ? { referenceVisuals: intake.referenceVisualDescriptors.slice(0, 8) }
+                  : {}),
                 ...(intake.metadata?.niche ? { nicheHint: intake.metadata.niche } : {}),
                 ...(intake.metadata?.shortViralNiche ? { nicheHint: intake.metadata.shortViralNiche } : {}),
                 ...(intake.metadata?.shortViralCreativeMode ? { creativeModeHint: intake.metadata.shortViralCreativeMode } : {})

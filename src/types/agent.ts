@@ -61,6 +61,9 @@ export interface IntakeResult {
   readonly settings: FlexibleSeedanceSettings;
   readonly modelPreferences?: ModelPreferences;
   readonly references: readonly PromptReference[];
+  /** Vision descriptors of uploaded image references (palette/material/logo/appearance), so the
+   *  brief analyst decides style grounded in the REAL asset, not just its role+label. Fail-open. */
+  readonly referenceVisualDescriptors?: readonly { readonly label: string; readonly descriptor: string }[];
   readonly metadata?: Record<string, string>;
   readonly sourceVideoAnalysis?: SourceVideoDeconstruction;
 }

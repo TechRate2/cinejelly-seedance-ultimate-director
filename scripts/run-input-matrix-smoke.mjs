@@ -647,7 +647,7 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   const bareGate = new RenderCostGate({ renderCostUsdPerSecond: 0.1, costBufferMultiplier: 1 });
   const warnEst = bareGate.estimate({ compiledPrompts: [gatePromptStub("s1", 8)], settings: { qualityMode: "economy" }, plannedTalkingShotCount: 1, plannedAvatarRenderSeconds: 8 });
   check("audit#9: unpriced talking spend surfaces as a loud finding", warnEst.findings.some((f) => f.includes("spend is not counted in the USD estimate")) && warnEst.status !== "block", warnEst.status);
-  check("audit#9: director wires talking counts into the gate", directorSrc.includes("plannedTalkingShotCount: plannedTalkingShots.length") && directorSrc.includes("plannedLlmPlanCallCount: 1 + (this.creativeBriefAnalyst"), "");
+  check("audit#9: director wires talking counts into the gate", directorSrc.includes("plannedTalkingShotCount: plannedTalkingShots.length") && directorSrc.includes("plannedLlmPlanCallCount:") && directorSrc.includes("this.creativeBriefAnalyst ? 1 : 0"), "");
 
   // Cross-review round (adversarial review of the audit fixes): 7 confirmed follow-up defects
   const { normalizeSpokenLanguageCode: norm2 } = await import(`${base}/core/spoken-language.js`);
@@ -1081,6 +1081,85 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   const rlSrc = readFileSync(resolve(repoRoot, "src/api/api-rate-limit.ts"), "utf8");
   check("launch S2: redub + series-episode POSTs rate-limited under render class", rlSrc.includes('pathname === "/v1/redub/plans"') && rlSrc.includes("episodes\\/next(\\/preview)?"), "");
   check("launch S3: GET /v1/series rate-limited (anti tenant-scan flood)", rlSrc.includes('method === "GET"') && rlSrc.includes('pathname === "/v1/series" ? "account"'), "");
+}
+
+// ------------------------------------------------------------------
+// QUALITY UPGRADES (niche custom playbook, micro-drama, script-enhancer, reference-vision)
+// ------------------------------------------------------------------
+{
+  const { readFileSync } = await import("node:fs");
+  const { nichePlaybookDirective, resolveNichePlaybookMatch } = await import(`${base}/core/niche-playbooks.js`);
+  const { ScriptEnhancer } = await import(`${base}/agents/script-enhancer.js`);
+  const { ReferenceVisionAnalyst } = await import(`${base}/agents/reference-vision-analyst.js`);
+
+  // #3 smart niche: unknown niche -> custom playbook composed from intent; known niche -> fixed family
+  check("upg#3: unknown niche does NOT match a fixed family", resolveNichePlaybookMatch({ niche: "real estate walkthrough" }).matched === false, "");
+  check("upg#3: known niche still matches its family", resolveNichePlaybookMatch({ creativeMode: "ugc_review" }).matched === true, "");
+  const customDir = nichePlaybookDirective({ niche: "luxury apartment walkthrough", creativeIntent: {
+    register: "professional_cinematic", genre: "real-estate tour", niche: "luxury apartment walkthrough", tone: "aspirational", emotionArc: "curious -> impressed",
+    pacingProfile: "measured", visualWorld: "sunlit apartment", storyEngine: { conflict: "buyers can't picture living there", stakes: "the sale", payoff: "they see themselves home" },
+    styleDna: { optics: "wide 24mm gliding dolly", audioFeel: "quiet room tone" } } });
+  check("upg#3: unknown niche gets a TAILORED custom playbook (not generic grounded)", customDir.includes("custom:luxury_apartment_walkthrough") && customDir.includes("buyers can't picture living there") && customDir.includes("wide 24mm gliding dolly"), "");
+  check("upg#3: without intent, unknown niche falls back to grounded (no crash)", nichePlaybookDirective({ niche: "totally unknown xyz" }).includes("grounded_general"), "");
+
+  // #5 micro-drama: talking-head naturalness clause fires only for spoken shots
+  const talkShot = { shotId: "s", sceneId: "sc", beatId: "b", durationSeconds: 8, intent: "x", subject: "Linh", action: "talks", camera: "selfie", lighting: "window", references: [], continuity: {}, risks: [], metadata: {}, spokenLine: "Ôi mềm thật nha", styleDna: { register: "natural_phone_kol" } };
+  const talkP = compiler.compile({ shot: talkShot, settings: settingsFor(20, "economy"), modelId: "m", provider: "atlascloud" }).prompt;
+  check("upg#5: talking shot gets naturalness clause (small mouth, no music under line)", talkP.includes("keep mouth movement small") && talkP.includes("no music swelling under the line"), "");
+  const brollP = compiler.compile({ shot: { ...talkShot, spokenLine: undefined }, settings: settingsFor(20, "economy"), modelId: "m", provider: "atlascloud" }).prompt;
+  check("upg#5: b-roll (no line) gets NO talking-head clause", !brollP.includes("keep mouth movement small"), "");
+
+  // #2 script-enhancer: merge-by-beatId, structure-preserving, script-first-safe, fail-open
+  const enhPlan = { premise: "p", targetDurationSeconds: 20, scenes: [{ sceneId: "s1", title: "S", beats: [
+    { beatId: "b1", purpose: "hook", action: "she is happy", subject: "Linh", camera: "c", lighting: "l", durationSeconds: 6, spokenLine: "Tôi thích cái này", emotionalTurn: "x", risks: [], references: [], continuity: {} },
+    { beatId: "b2", purpose: "demo", action: "product shown", subject: "Linh", camera: "c", lighting: "l", durationSeconds: 6, risks: [], references: [], continuity: {} }
+  ] }] };
+  const enhIntake = { projectId: "q", userInput: "x", settings: {}, references: [], creativeIntent: { register: "natural_phone_kol", tone: "gần gũi", emotionArc: "e", language: "vi" } };
+  const enhLlm = { name: "f", capabilities: () => [], async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "x", modelId: "m" }; },
+    async structured() { return { provider: "x", modelId: "m", content: "{}", raw: {}, latencyMs: 0, value: { beats: [
+      { beatId: "b1", action: "she clenches a fist, eyes crinkling", spokenLine: "Ôi mình mê luôn á", emotionalTurn: "dửng dưng -> mê" },
+      { beatId: "b2", spokenLine: "MUST NOT be added", action: "hands rotate the bottle" },
+      { beatId: "ghost", action: "ignored" }
+    ] } }; } };
+  const enhanced = await new ScriptEnhancer(enhLlm, "m").enhance(enhPlan, enhIntake, false);
+  const eb1 = enhanced.scenes[0].beats[0], eb2 = enhanced.scenes[0].beats[1];
+  check("upg#2: enhancer polishes action/spokenLine/turn by beatId", eb1.action.includes("clenches a fist") && eb1.spokenLine.includes("mê luôn á") && eb1.emotionalTurn.includes("->"), "");
+  check("upg#2: enhancer never adds dialogue to a silent b-roll beat", eb2.spokenLine === undefined && eb2.action.includes("rotate the bottle"), "");
+  check("upg#2: enhancer preserves structure + ignores ghost beats", enhanced.scenes.length === 1 && enhanced.scenes[0].beats.length === 2, "");
+  const enhScriptFirst = await new ScriptEnhancer(enhLlm, "m").enhance(enhPlan, enhIntake, true);
+  check("upg#2: script-first keeps verbatim spokenLine, still polishes action", enhScriptFirst.scenes[0].beats[0].spokenLine === "Tôi thích cái này" && enhScriptFirst.scenes[0].beats[0].action.includes("clenches"), "");
+  const enhBad = { name: "f", capabilities: () => [], async chat() { throw new Error("x"); }, async structured() { throw new Error("x"); } };
+  const enhFail = await new ScriptEnhancer(enhBad, "m").enhance(enhPlan, enhIntake, false);
+  check("upg#2: enhancer fail-open returns original plan unchanged", enhFail.scenes[0].beats[0].action === "she is happy", "");
+
+  // #1 reference-vision: only https images sent, coerce known labels, fail-open, no-image = no cost
+  let visSent = 0;
+  const visLlm = { name: "f", capabilities: () => [], async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "x", modelId: "m" }; },
+    async structured(req) { const parts = req.messages[0].content; visSent = Array.isArray(parts) ? parts.filter((p) => p.type === "image_url").length : 0;
+      return { provider: "x", modelId: "m", content: "{}", raw: {}, latencyMs: 0, value: { assets: [ { label: "serum", descriptor: "frosted glass, teal label AQUA" }, { label: "ghost", descriptor: "drop me" } ] } }; } };
+  const visRefs = [
+    { role: "product", label: "serum", providerReference: { kind: "image", uri: "https://cdn.x/s.png", role: "product", label: "serum" } },
+    { role: "identity", label: "linh", providerReference: { kind: "image", uri: "asset://linh" } },
+    { role: "style", label: "mb", providerReference: { kind: "video", uri: "https://cdn.x/v.mp4" } }
+  ];
+  const visDesc = await new ReferenceVisionAnalyst(visLlm, "m").describe(visRefs, {});
+  check("upg#1: vision sends ONLY https image refs (1 of 3)", visSent === 1, String(visSent));
+  check("upg#1: vision coerces known-label descriptor, drops unknown", visDesc.length === 1 && visDesc[0].label === "serum" && visDesc[0].descriptor.includes("AQUA"), "");
+  // Role-prefixed / index-prefixed label echo still binds to the canonical label (cross-audit LOW #3)
+  const visLlm2 = { name: "f", capabilities: () => [], async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "x", modelId: "m" }; },
+    async structured() { return { provider: "x", modelId: "m", content: "{}", raw: {}, latencyMs: 0, value: { assets: [ { label: 'product:"serum"', descriptor: "teal bottle" } ] } }; } };
+  const visDesc2 = await new ReferenceVisionAnalyst(visLlm2, "m").describe(visRefs, {});
+  check("upg#1: role-prefixed label echo still binds to canonical label", visDesc2.length === 1 && visDesc2[0].label === "serum", JSON.stringify(visDesc2));
+  check("upg#1: vision no https image -> empty (zero extra cost)", (await new ReferenceVisionAnalyst(visLlm, "m").describe([{ role: "product", label: "x", providerReference: { kind: "image", uri: "asset://x" } }], {})).length === 0, "");
+  check("upg#1: vision fail-open -> empty", (await new ReferenceVisionAnalyst(enhBad, "m").describe(visRefs, {})).length === 0, "");
+
+  // Wiring: analyst reads vision descriptors; director runs vision->analyst->enhancer; cost counts them
+  const analystSrc = readFileSync(resolve(repoRoot, "src/agents/creative-brief-analyst.js".replace(".js", ".ts")), "utf8");
+  check("upg#1: analyst payload includes referenceVisuals", analystSrc.includes("referenceVisuals"), "");
+  const dirSrc = readFileSync(resolve(repoRoot, "src/agents/director-agent.ts"), "utf8");
+  check("upg: director runs vision -> analyst -> enhancer, all fail-open", /referenceVisionAnalyst!?\.describe/.test(dirSrc) && dirSrc.includes("this.scriptEnhancer.enhance") && dirSrc.includes("visionEligible"), "");
+  check("upg: cost gate counts analyst+enhancer+vision LLM calls (vision counted when CALL made)", dirSrc.includes("this.scriptEnhancer ? 1 : 0") && dirSrc.includes("visionEligible ? 1 : 0"), "");
+  check("upg#2 fix: known metadata niche fed FIRST for fixed-family match", readFileSync(resolve(repoRoot, "src/agents/story-architect.ts"), "utf8").includes("intake.metadata?.shortViralNiche ?? intake.metadata?.niche ?? intake.creativeIntent?.niche"), "");
 }
 
 // ------------------------------------------------------------------

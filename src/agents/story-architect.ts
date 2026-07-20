@@ -171,12 +171,17 @@ export class StoryArchitect {
     // planning instruction, so scripts are born with the winning hook/beats/audio/reference
     // strategy for their niche instead of a generic arc.
     const playbookDirective = nichePlaybookDirective({
-      ...(intake.metadata?.shortViralNiche ?? intake.metadata?.niche
-        ? { niche: (intake.metadata.shortViralNiche ?? intake.metadata.niche) as string }
+      // Feed the KNOWN metadata niche key FIRST so a fixed family (e.g. beauty_skincare ->
+      // commercial_product) still matches its proven playbook; the analyst's free-text niche is only
+      // the fallback and the CUSTOM playbook (composed from creativeIntent) fires only when neither
+      // the metadata niche key nor the creativeMode resolves a fixed family (cross-audit LOW #2).
+      ...(intake.metadata?.shortViralNiche ?? intake.metadata?.niche ?? intake.creativeIntent?.niche
+        ? { niche: (intake.metadata?.shortViralNiche ?? intake.metadata?.niche ?? intake.creativeIntent?.niche) as string }
         : {}),
       ...(intake.metadata?.shortViralCreativeMode ?? intake.metadata?.creativeMode
         ? { creativeMode: (intake.metadata.shortViralCreativeMode ?? intake.metadata.creativeMode) as string }
-        : {})
+        : {}),
+      ...(intake.creativeIntent ? { creativeIntent: intake.creativeIntent } : {})
     });
     // One predicate drives BOTH the script-first directive and its precedence override so the
     // pair can never drift apart (they are meaningless without each other).

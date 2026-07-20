@@ -109,7 +109,9 @@ import { redactUnknown } from "../utils/redaction.js";
 import { SeedancePromptCompiler } from "../prompt_compiler/prompt-compiler.js";
 import { IntakeDirector } from "./intake-director.js";
 import { RenderProducer } from "./render-producer.js";
-import { StoryArchitect } from "./story-architect.js";
+import { StoryArchitect, looksLikeUserScript } from "./story-architect.js";
+import { ScriptEnhancer } from "./script-enhancer.js";
+import { ReferenceVisionAnalyst } from "./reference-vision-analyst.js";
 
 export class DirectorAgent {
   private readonly intakeDirector: IntakeDirector;
@@ -151,6 +153,8 @@ export class DirectorAgent {
   private readonly imageProvider: ImageProvider | undefined;
   private readonly speechProvider: SpeechSynthesisProvider | undefined;
   private readonly creativeBriefAnalyst: CreativeBriefAnalyst | undefined;
+  private readonly referenceVisionAnalyst: ReferenceVisionAnalyst | undefined;
+  private readonly scriptEnhancer: ScriptEnhancer | undefined;
   private readonly stageProgressReporter: ProductionStageProgressReporter | undefined;
   private readonly atlasSettings: AtlasCloudRuntimeSettings;
   private stageProgressSequence = 0;
@@ -196,6 +200,8 @@ export class DirectorAgent {
     readonly imageProvider?: ImageProvider;
     readonly speechProvider?: SpeechSynthesisProvider;
     readonly creativeBriefAnalyst?: CreativeBriefAnalyst;
+    readonly referenceVisionAnalyst?: ReferenceVisionAnalyst;
+    readonly scriptEnhancer?: ScriptEnhancer;
     readonly stageProgressReporter?: ProductionStageProgressReporter;
   }) {
     this.intakeDirector = input.intakeDirector ?? new IntakeDirector();
@@ -237,6 +243,8 @@ export class DirectorAgent {
     this.imageProvider = input.imageProvider;
     this.speechProvider = input.speechProvider;
     this.creativeBriefAnalyst = input.creativeBriefAnalyst;
+    this.referenceVisionAnalyst = input.referenceVisionAnalyst;
+    this.scriptEnhancer = input.scriptEnhancer;
     this.stageProgressReporter = input.stageProgressReporter;
     this.atlasSettings = input.atlasSettings;
   }
@@ -244,7 +252,29 @@ export class DirectorAgent {
   public async run(request: CineJellyProjectRequest, signal?: AbortSignal): Promise<DirectorRunResult> {
     this.reportStageProgress("plan", "running", "Preparing intake, story plan, shot plan, and reference selection.");
     const preparedRequest = await this.prepareRequestForIntake(request, signal);
-    const baseIntake = this.intakeDirector.intake(preparedRequest);
+    const baseIntakeRaw = this.intakeDirector.intake(preparedRequest);
+    // Reference vision grounding (#1 upgrade): LOOK at the uploaded product/face/scene images and
+    // attach short visual descriptors, so the analyst decides palette/style/visual-world from the
+    // REAL asset, not just its label. Fail-open + only runs when https image refs exist (text-only
+    // briefs pay nothing extra).
+    // A vision call is MADE (and billed) whenever an https image reference exists — count on that,
+    // not on whether descriptors came back, so the cost estimate reflects the call even when the
+    // vision pass fails open to [] (cross-audit LOW #1).
+    const visionEligible = Boolean(
+      this.referenceVisionAnalyst &&
+      baseIntakeRaw.references.some(
+        (reference) =>
+          reference.providerReference.kind === "image" &&
+          typeof reference.providerReference.uri === "string" &&
+          /^https:\/\//i.test(reference.providerReference.uri)
+      )
+    );
+    const referenceVisualDescriptors = visionEligible
+      ? await this.referenceVisionAnalyst!.describe(baseIntakeRaw.references, baseIntakeRaw.metadata, signal)
+      : [];
+    const baseIntake = referenceVisualDescriptors.length > 0
+      ? { ...baseIntakeRaw, referenceVisualDescriptors }
+      : baseIntakeRaw;
     // Deep brief understanding (Topview-class analyst stage): one structured LLM call decides
     // register/story-engine/style DNA BEFORE scripting. Fail-open — the analyst's own fallback is
     // deterministic, and an absent analyst leaves legacy behavior untouched.
@@ -278,7 +308,18 @@ export class DirectorAgent {
         language: creativeIntent.language
       });
     }
-    const storyPlan = await this.storyArchitect.plan(intake, signal);
+    const rawStoryPlan = await this.storyArchitect.plan(intake, signal);
+    // Pre-render script polish (#2 quality upgrade): tighten continuity + naturalize dialogue +
+    // firm up each emotional turn WITHOUT changing structure, before a single provider dollar is
+    // spent. Fail-open — an absent enhancer or any error leaves the plan exactly as written.
+    const storyPlan = this.scriptEnhancer
+      ? await this.scriptEnhancer.enhance(
+          rawStoryPlan,
+          intake,
+          looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true",
+          signal
+        )
+      : rawStoryPlan;
     const continuityLedger = this.continuityLedgerBuilder.build({
       intake,
       storyPlan
@@ -456,7 +497,11 @@ export class DirectorAgent {
       plannedTalkingShotCount: plannedTalkingShots.length,
       plannedAvatarRenderSeconds: plannedTalkingShots.reduce((sum, shot) => sum + shot.durationSeconds, 0),
       // One architect call plus the analyst call when that stage is wired (audit #9, minor part).
-      plannedLlmPlanCallCount: 1 + (this.creativeBriefAnalyst ? 1 : 0)
+      plannedLlmPlanCallCount:
+        1 +
+        (this.creativeBriefAnalyst ? 1 : 0) +
+        (this.scriptEnhancer ? 1 : 0) +
+        (visionEligible ? 1 : 0)
     });
     this.renderCostGate.assertWithinBudget(costEstimate);
 
