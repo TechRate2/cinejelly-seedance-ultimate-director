@@ -145,11 +145,25 @@ const withoutKeyframes = gate.estimate({ compiledPrompts: [promptStub("s1"), pro
 check("cost_counts_keyframes", withKeyframes.plannedKeyframeImageCount === 2 && withKeyframes.estimatedKeyframeImageCostUsd === 0.06);
 check("cost_total_includes_keyframes", (withKeyframes.estimatedTotalCostUsd ?? 0) - (withoutKeyframes.estimatedTotalCostUsd ?? 0) > 0.059);
 
+// --- 5b. Planning-phase hard cap: LLM planning calls bounded by maxCostUsd BEFORE they run.
+const throwsErr = (fn) => { try { fn(); return false; } catch { return true; } };
+const planningGate = new RenderCostGate({ renderCostUsdPerSecond: 0.1, llmPlanCostUsd: 0.05, costBufferMultiplier: 1 });
+// 4 planned LLM calls x $0.05 x 1.0 buffer = $0.20 planning cost.
+check("planning_cap_blocks_when_planning_over_cap", throwsErr(() => planningGate.assertPlanningWithinBudget({ plannedLlmPlanCallCount: 4, maxCostUsd: 0.1 })));
+check("planning_cap_passes_when_cap_covers", !throwsErr(() => planningGate.assertPlanningWithinBudget({ plannedLlmPlanCallCount: 4, maxCostUsd: 5 })));
+check("planning_cap_noop_without_cap", !throwsErr(() => planningGate.assertPlanningWithinBudget({ plannedLlmPlanCallCount: 999 })));
+const unpricedLlmGate = new RenderCostGate({ renderCostUsdPerSecond: 0.1, costBufferMultiplier: 1 });
+check("planning_cap_noop_when_llm_unpriced", !throwsErr(() => unpricedLlmGate.assertPlanningWithinBudget({ plannedLlmPlanCallCount: 999, maxCostUsd: 0.01 })));
+
 // --- 6. Director wiring (source-level): the loop invokes the stages this smoke validates.
 const directorSource = readFileSync(new URL("../src/agents/director-agent.ts", import.meta.url), "utf8");
 check("director_invokes_keyframe_stage", directorSource.includes("runKeyframeFirstStage") && directorSource.includes("plannedKeyframeImageCount: keyframeFirstEnabled"));
 check("director_invokes_video_consistency", directorSource.includes("inspectVideoConsistency"));
 check("director_returns_social_publishing", directorSource.includes("socialPublishing: planSocialPublishingMetadata"));
+// Planning-phase hard cap is invoked BEFORE the first LLM planning call (reference-vision describe).
+check("director_pre_checks_planning_cap_before_first_llm_call",
+  directorSource.includes("assertPlanningWithinBudget") &&
+  directorSource.indexOf("assertPlanningWithinBudget") < directorSource.indexOf("this.referenceVisionAnalyst!.describe"));
 
 // --- 7. Pre-spend gate ordering (source-level regression lock). The three fail-closed long-form
 // gates (timeline/creative/readiness) MUST be computed exactly once and BEFORE the first provider

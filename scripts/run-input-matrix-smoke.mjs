@@ -647,7 +647,7 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   const bareGate = new RenderCostGate({ renderCostUsdPerSecond: 0.1, costBufferMultiplier: 1 });
   const warnEst = bareGate.estimate({ compiledPrompts: [gatePromptStub("s1", 8)], settings: { qualityMode: "economy" }, plannedTalkingShotCount: 1, plannedAvatarRenderSeconds: 8 });
   check("audit#9: unpriced talking spend surfaces as a loud finding", warnEst.findings.some((f) => f.includes("spend is not counted in the USD estimate")) && warnEst.status !== "block", warnEst.status);
-  check("audit#9: director wires talking counts into the gate", directorSrc.includes("plannedTalkingShotCount: plannedTalkingShots.length") && directorSrc.includes("plannedLlmPlanCallCount:") && directorSrc.includes("this.creativeBriefAnalyst ? 1 : 0"), "");
+  check("audit#9: director wires talking counts into the gate", directorSrc.includes("plannedTalkingShotCount: plannedTalkingShots.length") && directorSrc.includes("const plannedLlmPlanCallCount =") && directorSrc.includes("this.creativeBriefAnalyst ? 1 : 0"), "");
 
   // Cross-review round (adversarial review of the audit fixes): 7 confirmed follow-up defects
   const { normalizeSpokenLanguageCode: norm2 } = await import(`${base}/core/spoken-language.js`);

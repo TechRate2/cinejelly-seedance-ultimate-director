@@ -269,6 +269,21 @@ export class DirectorAgent {
           /^https:\/\//i.test(reference.providerReference.uri)
       )
     );
+    // Budget hard-cap for the planning phase (openmontage estimate->reserve pattern): the LLM
+    // calls below (vision, analyst, architect, enhancer) spend BEFORE the full pre-render cost gate
+    // runs, so bound them by maxCostUsd HERE — a cap too small to even cover planning must block
+    // before the first provider call, not after it. Same count the full gate uses (hoisted so both
+    // stay in sync); this blocks a subset of what the full gate would block, just earlier, so no
+    // currently-passing run newly fails.
+    const plannedLlmPlanCallCount =
+      1 +
+      (this.creativeBriefAnalyst ? 1 : 0) +
+      (this.scriptEnhancer ? 1 : 0) +
+      (visionEligible ? 1 : 0);
+    this.renderCostGate.assertPlanningWithinBudget({
+      plannedLlmPlanCallCount,
+      ...(baseIntakeRaw.settings.maxCostUsd !== undefined ? { maxCostUsd: baseIntakeRaw.settings.maxCostUsd } : {})
+    });
     const referenceVisualDescriptors = visionEligible
       ? await this.referenceVisionAnalyst!.describe(baseIntakeRaw.references, baseIntakeRaw.metadata, signal)
       : [];
@@ -496,12 +511,9 @@ export class DirectorAgent {
       plannedKeyframeImageCount: keyframeFirstEnabled ? shots.length + characterAnchors.length : 0,
       plannedTalkingShotCount: plannedTalkingShots.length,
       plannedAvatarRenderSeconds: plannedTalkingShots.reduce((sum, shot) => sum + shot.durationSeconds, 0),
-      // One architect call plus the analyst call when that stage is wired (audit #9, minor part).
-      plannedLlmPlanCallCount:
-        1 +
-        (this.creativeBriefAnalyst ? 1 : 0) +
-        (this.scriptEnhancer ? 1 : 0) +
-        (visionEligible ? 1 : 0)
+      // Architect + analyst + enhancer + vision, computed once above (hoisted for the planning-phase
+      // hard cap) so the pre-spend gate and the early cap can never disagree on the LLM call count.
+      plannedLlmPlanCallCount
     });
     this.renderCostGate.assertWithinBudget(costEstimate);
 

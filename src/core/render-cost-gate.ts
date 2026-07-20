@@ -110,6 +110,33 @@ export class RenderCostGate {
     throw new Error(`Render cost gate blocked production. ${estimate.findings.join(" ")}`);
   }
 
+  /**
+   * Planning-phase hard cap. The LLM planning calls (reference vision, creative-brief analyst,
+   * story architect, script enhancer) run BEFORE the full pre-render gate, so a hard maxCostUsd
+   * cap must be checked against their cost before the first call — otherwise a cap too small to
+   * even cover planning is only discovered after that spend. This blocks EXACTLY the subset the
+   * full gate would also block (planning cost is part of that gate's total), just earlier; a normal
+   * cap that covers the render dwarfs planning, so it is a no-op for real caps. Only enforced when
+   * llmPlanCostUsd is configured — mirroring the main gate, which drops an unpriced LLM component
+   * from the total rather than blocking on it (an uncounted component cannot be over the cap).
+   */
+  public assertPlanningWithinBudget(input: {
+    readonly plannedLlmPlanCallCount: number;
+    readonly maxCostUsd?: number;
+  }): void {
+    if (input.maxCostUsd === undefined || this.settings.llmPlanCostUsd === undefined) {
+      return;
+    }
+    const plannedPlanningCostUsd = this.roundMoney(
+      input.plannedLlmPlanCallCount * this.settings.llmPlanCostUsd * this.settings.costBufferMultiplier
+    );
+    if (plannedPlanningCostUsd > input.maxCostUsd) {
+      throw new Error(
+        `Render cost gate blocked production. Planned LLM planning cost ${plannedPlanningCostUsd} USD exceeds maxCostUsd ${input.maxCostUsd} USD before any provider call.`
+      );
+    }
+  }
+
   private findings(input: {
     readonly maxCostUsd?: number;
     readonly estimatedTotalCostUsd?: number;
