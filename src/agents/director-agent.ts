@@ -1113,9 +1113,13 @@ export class DirectorAgent {
       throw new Error(this.describePreflightBlock([preflight]));
     }
 
+    // Carry the already-PAID avatar routing (TTS+image) onto the recompiled prompt — the compiler
+    // never re-emits avatarPlan, so without this a talking shot that is also last-frame-chained would
+    // discard its voiced avatar and render on the stiff general path (deep-audit MEDIUM).
+    const chainedAvatarPlan = this.renderItemCompiledPrompt(input.item).avatarPlan;
     return {
       shot: chainedShot,
-      compiledPrompt,
+      compiledPrompt: chainedAvatarPlan ? { ...compiledPrompt, avatarPlan: chainedAvatarPlan } : compiledPrompt,
       preflight
     };
   }
@@ -1166,9 +1170,11 @@ export class DirectorAgent {
       bindingPlan: compiledPrompt.bindingPlan,
       ledger: input.continuityLedger
     });
+    // Preserve the already-paid avatar routing across the recompile (deep-audit MEDIUM).
+    const fallbackAvatarPlan = this.renderItemCompiledPrompt(input.item).avatarPlan;
     return {
       shot: fallbackShot,
-      compiledPrompt,
+      compiledPrompt: fallbackAvatarPlan ? { ...compiledPrompt, avatarPlan: fallbackAvatarPlan } : compiledPrompt,
       preflight
     };
   }
@@ -2021,7 +2027,12 @@ export class DirectorAgent {
           try {
             const prediction = await imageProvider.generateImage(planned.request, input.signal);
             return { shotId: planned.shotId, prediction };
-          } catch {
+          } catch (error) {
+            // A real user abort must stop the whole stage — swallowing it would keep buying keyframe
+            // images for the remaining shots after cancellation (deep-audit: mirror the talking stage).
+            if (input.signal?.aborted) {
+              throw error;
+            }
             return undefined;
           }
         })
@@ -2217,7 +2228,11 @@ export class DirectorAgent {
           try {
             const prediction = await input.imageProvider.generateImage(planned.request, input.signal);
             return { characterId: planned.characterId, prediction, isPrimary: planned.isPrimary };
-          } catch {
+          } catch (error) {
+            // Stop portrait spend on a real cancel (deep-audit: mirror the talking/keyframe stages).
+            if (input.signal?.aborted) {
+              throw error;
+            }
             return undefined;
           }
         })

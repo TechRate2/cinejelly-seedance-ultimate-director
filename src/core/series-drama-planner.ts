@@ -19,6 +19,7 @@ import type { CineJellyProjectRequest } from "../types/agent.js";
 import type { AspectRatio } from "../types/settings.js";
 import type { PromptReference } from "../types/prompt.js";
 import { assignVideoArcRoles, planDurationBeats, type DurationBeat } from "./duration-scripting.js";
+import { isLocalHost } from "../utils/ssrf-guard.js";
 import { createStableId } from "../utils/ids.js";
 
 export type SeriesMacroPhase = "setup" | "escalation" | "midpoint_reversal" | "crisis" | "finale";
@@ -102,6 +103,7 @@ const MIN_EPISODES = 1;
 const MAX_EPISODES = 200;
 const MIN_EPISODE_SECONDS = 15;
 const MAX_EPISODE_SECONDS = 480;
+const MAX_CAST_MEMBERS = 40;
 
 const PHASE_CONFLICT: Record<SeriesMacroPhase, string> = {
   setup:
@@ -415,13 +417,26 @@ function validateRequest(request: SeriesDramaRequest): void {
   if (!Array.isArray(request.cast) || request.cast.length === 0) {
     throw new Error("At least one cast member is required so identity can stay locked across episodes.");
   }
+  // Bound cast size: planSeriesDrama rebuilds every episode's continuity anchors over the full cast
+  // on every (free) preview/compose, so an unbounded cast is an event-loop DoS (deep-audit MEDIUM).
+  if (request.cast.length > MAX_CAST_MEMBERS) {
+    throw new Error(`A series can have at most ${MAX_CAST_MEMBERS} cast members.`);
+  }
   for (const member of request.cast) {
     if (!member.characterId?.trim() || !member.name?.trim() || !member.description?.trim()) {
       throw new Error("Every cast member needs characterId, name, and description.");
     }
     const uri = member.identityReferenceUri?.trim();
-    if (uri && !/^(https:\/\/|asset:\/\/)/.test(uri)) {
-      throw new Error(`Cast identity reference for ${member.characterId} must be a clean https:// or asset:// URI.`);
+    if (uri) {
+      if (!/^(https:\/\/|asset:\/\/)/.test(uri)) {
+        throw new Error(`Cast identity reference for ${member.characterId} must be a clean https:// or asset:// URI.`);
+      }
+      // SSRF: this URI later becomes an image param the model fetches — reject internal/private hosts.
+      let host = "";
+      try { host = new URL(uri).hostname; } catch { host = ""; }
+      if (uri.startsWith("https://") && (!host || isLocalHost(host))) {
+        throw new Error(`Cast identity reference for ${member.characterId} must not point at an internal or private host.`);
+      }
     }
   }
 }

@@ -1980,7 +1980,28 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         if (request.method === "GET" && seriesIdMatch) {
           const record = await seriesStore.load(seriesIdMatch[1] ?? "");
           assertSeriesOwnership(record);
-          sendJson(response, 200, record, requestContext);
+          // Project a curated DTO — never echo raw episodeState.videoPath (absolute host paths) or
+          // cast identity URIs to the client (deep-audit LOW: internal-layout disclosure).
+          sendJson(response, 200, {
+            seriesId: record!.seriesId,
+            premise: record!.request.premise,
+            genre: record!.bible.genre,
+            episodeCount: record!.request.episodeCount,
+            episodeDurationSeconds: record!.request.episodeDurationSeconds,
+            language: record!.bible.language,
+            cast: record!.cast.map((member) => ({ characterId: member.characterId, name: member.name, castRole: member.castRole, firstAppearedEpisode: member.firstAppearedEpisode })),
+            recordedEpisodes: record!.episodeStates.length,
+            episodes: record!.episodeStates.map((state) => ({
+              episodeNumber: state.episodeNumber,
+              summary: state.summary,
+              ...(state.cliffhanger ? { cliffhanger: state.cliffhanger } : {}),
+              macroPhase: state.macroPhase,
+              hasVideo: Boolean(state.videoPath),
+              ...(state.videoPath ? { videoUrl: `/v1/series/${record!.seriesId}/episodes/${state.episodeNumber}/video` } : {})
+            })),
+            createdAt: record!.createdAt,
+            updatedAt: record!.updatedAt
+          }, requestContext);
           return;
         }
         if (request.method === "POST" && seriesNextMatch) {
@@ -2064,10 +2085,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           // the same job — where refund fires only once per job id, silently double-charging the
           // retry (money audit HIGH). A per-attempt id pairs each charge with its own refund.
           const episodeJobId = `series_${seriesId}_ep${composed.episodeNumber}_${requestContext.requestId}`;
-          if (episodeCharge) {
-            userAccountStore.chargeRender({ userId: episodeCharge.userId, jobId: episodeJobId, credits: episodeCharge.credits });
-          }
           try {
+            // chargeRender re-validates balance and can THROW 402; it MUST be inside the try so the
+            // finally always releases the render slot + in-flight flag (deep-audit HIGH: a throw here
+            // before the try leaked both, wedging the series and exhausting the global render gate).
+            if (episodeCharge) {
+              userAccountStore.chargeRender({ userId: episodeCharge.userId, jobId: episodeJobId, credits: episodeCharge.credits });
+            }
             const episodeRuntime = createDirectorRuntime();
             const episodeResult = await episodeRuntime.director.run(normalizedEpisode, requestLifecycle.signal);
             const episodeArtifactDirectory =

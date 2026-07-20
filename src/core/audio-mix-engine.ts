@@ -150,7 +150,10 @@ export class AudioMixEngine {
     // so a 44.1kHz music bed against 48kHz original audio would fail filter negotiation.
     const normalize = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo";
     if (includeOriginal) {
-      filterParts.push(`[0:a]${normalize},volume=${this.safeVolume(input.options.originalVolume)}[a0]`);
+      // apad the original bed too: with amix duration=first, an un-padded original that ends before
+      // the video (trailing outro/title card) would cut the whole dubbed.mp4 short via -shortest
+      // (deep-audit MEDIUM). Padded, the mix spans the full video length.
+      filterParts.push(`[0:a]${normalize},volume=${this.safeVolume(input.options.originalVolume)},apad[a0]`);
       audioLabels.push("[a0]");
     }
     // apad on every supplied track: a music bed shorter than the video pads with silence

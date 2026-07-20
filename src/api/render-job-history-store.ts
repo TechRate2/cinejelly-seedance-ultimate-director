@@ -117,8 +117,18 @@ export class RenderJobHistoryStore {
       throw new Error("Render job history file must be valid JSON.");
     }
     const history = this.historyFile(parsed);
-    return history.jobs
-      .map((job) => this.storedSummary(job))
+    // Parse each job record INDIVIDUALLY and drop the ones that fail validation (schema drift, a
+    // future status/stage not in the allowlist, corruption) instead of throwing the whole batch —
+    // one bad record must not make the entire customer job list unreadable (deep-audit MEDIUM).
+    const summaries: RenderJobStoredSummary[] = [];
+    for (const job of history.jobs) {
+      try {
+        summaries.push(this.storedSummary(job));
+      } catch {
+        // Skip this record; keep the rest.
+      }
+    }
+    return summaries
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .slice(0, this.historyLimit);
   }

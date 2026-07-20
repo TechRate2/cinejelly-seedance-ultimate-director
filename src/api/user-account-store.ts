@@ -461,6 +461,13 @@ export class UserAccountStore {
     const displayName = sanitizeDisplayName(input.displayName) ?? email.split("@")[0] ?? "Creator";
     const salt = randomBytes(16);
     const hash = await hashPasswordAsync(input.password, salt);
+    // Re-check AFTER the scrypt await (which yields the event loop): two concurrent registers for the
+    // same email both passed the pre-await check, and without this both would push a duplicate user
+    // record for one email — later .find(email) picks the first and orphans the second + its credits
+    // (deep-audit LOW: register had no equivalent of loginInFlight).
+    if (this.state.users.some((existing) => existing.email === email)) {
+      throw new UserAccountError("Email này đã có tài khoản. Hãy đăng nhập.", 409);
+    }
     const user: UserRecord = {
       userId: `user_${randomBytes(8).toString("hex")}`,
       email,

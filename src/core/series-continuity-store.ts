@@ -9,7 +9,7 @@
  *   - a rolling arc summary so late episodes stay coherent without replaying every recap.
  */
 
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { SeriesBible, SeriesCastMember, SeriesDramaRequest, SeriesMacroPhase } from "./series-drama-planner.js";
 
@@ -52,9 +52,27 @@ const RECENT_EPISODE_WINDOW = 3;
 
 export class SeriesContinuityStore {
   private readonly seriesDirectory: string;
+  /** Per-series write serialization so a read-modify-write (create/recordEpisode) is atomic within
+   *  this process regardless of caller — the HTTP recordRenderedEpisode path bypasses the director's
+   *  own lock, and two overlapping records would else drop an episode / corrupt the file (audit HIGH). */
+  private readonly writeLocks = new Map<string, Promise<unknown>>();
+  private tempCounter = 0;
 
   public constructor(options: { readonly outputRoot: string }) {
     this.seriesDirectory = resolve(options.outputRoot, "series");
+  }
+
+  private async withSeriesLock<T>(seriesId: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.writeLocks.get(seriesId) ?? Promise.resolve();
+    const run = previous.catch(() => undefined).then(fn);
+    this.writeLocks.set(seriesId, run);
+    try {
+      return await run;
+    } finally {
+      if (this.writeLocks.get(seriesId) === run) {
+        this.writeLocks.delete(seriesId);
+      }
+    }
   }
 
   public pathFor(seriesId: string): string {
@@ -62,13 +80,21 @@ export class SeriesContinuityStore {
   }
 
   public async load(seriesId: string): Promise<SeriesContinuityRecord | undefined> {
+    let raw: string;
     try {
-      const raw = await readFile(this.pathFor(seriesId), "utf8");
-      const parsed = JSON.parse(raw) as SeriesContinuityRecord;
-      return parsed.schemaVersion === "cinejelly.series-continuity.v1" ? parsed : undefined;
-    } catch {
-      return undefined;
+      raw = await readFile(this.pathFor(seriesId), "utf8");
+    } catch (error) {
+      // ENOENT = the series genuinely does not exist -> undefined (create() may make it). Any OTHER
+      // read error is surfaced so a transient/permission fault is never mistaken for "absent".
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return undefined;
+      }
+      throw error;
     }
+    // A present-but-corrupt file must NOT read as "absent" — that would let create() overwrite and
+    // reset a real 30-70-episode series to episode 0 (deep-audit HIGH). Surface the corruption.
+    const parsed = JSON.parse(raw) as SeriesContinuityRecord;
+    return parsed.schemaVersion === "cinejelly.series-continuity.v1" ? parsed : undefined;
   }
 
   /**
@@ -104,24 +130,26 @@ export class SeriesContinuityStore {
     bible: SeriesBible,
     ownerUserId?: string
   ): Promise<SeriesContinuityRecord> {
-    const existing = await this.load(bible.seriesId);
-    if (existing) {
-      return existing;
-    }
-    const now = new Date().toISOString();
-    const record: SeriesContinuityRecord = {
-      schemaVersion: "cinejelly.series-continuity.v1",
-      seriesId: bible.seriesId,
-      ...(ownerUserId ? { ownerUserId } : {}),
-      request,
-      bible,
-      cast: bible.cast.map((member) => ({ ...member, firstAppearedEpisode: 1 })),
-      episodeStates: [],
-      createdAt: now,
-      updatedAt: now
-    };
-    await this.save(record);
-    return record;
+    return this.withSeriesLock(bible.seriesId, async () => {
+      const existing = await this.load(bible.seriesId);
+      if (existing) {
+        return existing;
+      }
+      const now = new Date().toISOString();
+      const record: SeriesContinuityRecord = {
+        schemaVersion: "cinejelly.series-continuity.v1",
+        seriesId: bible.seriesId,
+        ...(ownerUserId ? { ownerUserId } : {}),
+        request,
+        bible,
+        cast: bible.cast.map((member) => ({ ...member, firstAppearedEpisode: 1 })),
+        episodeStates: [],
+        createdAt: now,
+        updatedAt: now
+      };
+      await this.save(record);
+      return record;
+    });
   }
 
   /**
@@ -134,29 +162,33 @@ export class SeriesContinuityStore {
     state: SeriesEpisodeState,
     castGrowth: readonly SeriesCastMember[] = []
   ): Promise<SeriesContinuityRecord> {
-    const record = await this.load(seriesId);
-    if (!record) {
-      throw new Error(`Series ${seriesId} has no continuity record — call create() first.`);
-    }
-    if (record.episodeStates.some((existing) => existing.episodeNumber === state.episodeNumber)) {
-      throw new Error(`Episode ${state.episodeNumber} of series ${seriesId} is already recorded.`);
-    }
-    const knownIds = new Set(record.cast.map((member) => member.characterId));
-    const grown = castGrowth
-      .filter((member) => member.characterId && !knownIds.has(member.characterId))
-      .map((member) => ({ ...member, firstAppearedEpisode: state.episodeNumber }));
-    const episodeStates = [...record.episodeStates, state].sort((a, b) => a.episodeNumber - b.episodeNumber);
-    const updated: SeriesContinuityRecord = {
-      ...record,
-      cast: [...record.cast, ...grown],
-      episodeStates,
-      ...(episodeStates.length > RECENT_EPISODE_WINDOW
-        ? { arcSummary: buildArcSummary(episodeStates) }
-        : {}),
-      updatedAt: new Date().toISOString()
-    };
-    await this.save(updated);
-    return updated;
+    // Serialize the whole read-modify-write so overlapping records (e.g. the HTTP path, which
+    // bypasses the director's own lock) can't both load the same base and drop an episode (audit HIGH).
+    return this.withSeriesLock(seriesId, async () => {
+      const record = await this.load(seriesId);
+      if (!record) {
+        throw new Error(`Series ${seriesId} has no continuity record — call create() first.`);
+      }
+      if (record.episodeStates.some((existing) => existing.episodeNumber === state.episodeNumber)) {
+        throw new Error(`Episode ${state.episodeNumber} of series ${seriesId} is already recorded.`);
+      }
+      const knownIds = new Set(record.cast.map((member) => member.characterId));
+      const grown = castGrowth
+        .filter((member) => member.characterId && !knownIds.has(member.characterId))
+        .map((member) => ({ ...member, firstAppearedEpisode: state.episodeNumber }));
+      const episodeStates = [...record.episodeStates, state].sort((a, b) => a.episodeNumber - b.episodeNumber);
+      const updated: SeriesContinuityRecord = {
+        ...record,
+        cast: [...record.cast, ...grown],
+        episodeStates,
+        ...(episodeStates.length > RECENT_EPISODE_WINDOW
+          ? { arcSummary: buildArcSummary(episodeStates) }
+          : {}),
+        updatedAt: new Date().toISOString()
+      };
+      await this.save(updated);
+      return updated;
+    });
   }
 
   public nextEpisodeNumber(record: SeriesContinuityRecord): number {
@@ -192,9 +224,17 @@ export class SeriesContinuityStore {
   private async save(record: SeriesContinuityRecord): Promise<void> {
     const path = this.pathFor(record.seriesId);
     await mkdir(dirname(path), { recursive: true });
-    const tempPath = `${path}.tmp`;
-    await writeFile(tempPath, JSON.stringify(record, null, 2) + "\n", "utf8");
-    await rename(tempPath, path);
+    // UNIQUE temp path per write (pid + counter) so two writers never interleave into one shared
+    // .tmp and rename garbled JSON — matches every other store in the repo (audit HIGH).
+    this.tempCounter += 1;
+    const tempPath = `${path}.${process.pid}.${this.tempCounter}.tmp`;
+    try {
+      await writeFile(tempPath, JSON.stringify(record, null, 2) + "\n", "utf8");
+      await rename(tempPath, path);
+    } catch (error) {
+      await rm(tempPath, { force: true }).catch(() => undefined);
+      throw error;
+    }
   }
 }
 

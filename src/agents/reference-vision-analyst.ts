@@ -14,6 +14,7 @@
 import type { LlmProvider } from "../providers/contracts.js";
 import type { PromptReference } from "../types/prompt.js";
 import type { ProviderMetadata } from "../types/provider.js";
+import { isLocalHost } from "../utils/ssrf-guard.js";
 
 const MAX_VISION_REFERENCES = 6;
 
@@ -62,7 +63,7 @@ export class ReferenceVisionAnalyst {
     metadata: ProviderMetadata | undefined,
     signal?: AbortSignal
   ): Promise<readonly ReferenceVisualDescriptor[]> {
-    const images = references
+    const httpsImages = references
       .filter(
         (reference) =>
           reference.providerReference.kind === "image" &&
@@ -70,6 +71,18 @@ export class ReferenceVisionAnalyst {
           /^https:\/\//i.test(reference.providerReference.uri)
       )
       .slice(0, MAX_VISION_REFERENCES);
+    // SSRF: the image URL is fetched server-side by the multimodal model. Never hand it an internal/
+    // private host — skip any reference whose host is a loopback/private/link-local literal (incl.
+    // CGNAT) (deep-audit: reference-URI SSRF). Synchronous literal check (admission already applies
+    // the same at request time); a public domain that DNS-resolves to private is a documented residual
+    // (follow-up: IP-pinned fetch). Fail-open: skipping just means no descriptor for that image.
+    const images = httpsImages.filter((reference) => {
+      try {
+        return !isLocalHost(new URL(reference.providerReference.uri as string).hostname);
+      } catch {
+        return false;
+      }
+    });
     if (images.length === 0) {
       return [];
     }

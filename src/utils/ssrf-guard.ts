@@ -27,6 +27,8 @@ function isPrivateIpv4(ip: string): boolean {
     (first === 169 && second === 254) ||
     (first === 172 && second >= 16 && second <= 31) ||
     (first === 192 && second === 168) ||
+    (first === 100 && second >= 64 && second <= 127) || // CGNAT 100.64.0.0/10 (RFC 6598) — routable to internal infra
+    (first === 198 && (second === 18 || second === 19)) || // benchmarking 198.18.0.0/15
     first >= 224 // multicast / reserved — never a legitimate fetch target
   );
 }

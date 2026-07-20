@@ -1407,11 +1407,25 @@ export class RenderJobManager {
     if (!this.historyStore) {
       return;
     }
-    const restored = this.historyStore.load();
-    for (const summary of restored) {
-      this.jobs.set(summary.jobId, this.fromStoredSummary(summary));
+    // Never let one corrupt/drifted history record throw out of the manager CONSTRUCTOR and break
+    // boot (deep-audit MEDIUM): degrade to an empty history if the whole file is unreadable, and
+    // skip individual records that fail to reconstruct rather than losing the entire job list.
+    let restored: ReturnType<NonNullable<typeof this.historyStore>["load"]>;
+    try {
+      restored = this.historyStore.load();
+    } catch {
+      return;
     }
-    if (restored.length > 0) {
+    let restoredCount = 0;
+    for (const summary of restored) {
+      try {
+        this.jobs.set(summary.jobId, this.fromStoredSummary(summary));
+        restoredCount += 1;
+      } catch {
+        // Skip a single malformed record; keep the rest of the customer's job history usable.
+      }
+    }
+    if (restoredCount > 0) {
       this.persistHistory();
     }
   }

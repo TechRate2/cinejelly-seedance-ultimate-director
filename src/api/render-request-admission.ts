@@ -13,6 +13,7 @@ import type { ProviderCapability } from "../types/provider.js";
 import { SOURCE_VIDEO_ANALYSIS_LIMITS } from "../types/source-video.js";
 import type { ModelPreferences, SpeedTier } from "../types/settings.js";
 import { isUploadUri } from "../core/upload-reference.js";
+import { isLocalHost } from "../utils/ssrf-guard.js";
 
 // Word-bounded "auth" so benign keys like "author"/"authuser" are not rejected as
 // credential-like, while real "auth"/"authorization" tokens still match.
@@ -854,6 +855,13 @@ export class RenderRequestAdmission {
     }
     if (parsed.protocol !== "https:" && parsed.protocol !== "asset:") {
       throw new RenderRequestAdmissionError(`${fieldName} must use https, asset://, or an uploaded upload:// handle.`);
+    }
+    // SSRF: an https reference URL becomes an image_url for the vision analyst AND an image param for
+    // the generation models, both of which fetch it server-side. Reject an internal/loopback/private
+    // host literal here (deep-audit: reference-URI SSRF) so a customer cannot make the platform probe
+    // internal services. (A public domain that DNS-rebinds to private is caught at fetch time.)
+    if (parsed.protocol === "https:" && isLocalHost(parsed.hostname)) {
+      throw new RenderRequestAdmissionError(`${fieldName} must not point at an internal or private host.`);
     }
     if (parsed.username || parsed.password) {
       throw new RenderRequestAdmissionError(`${fieldName} must not include embedded credentials.`);

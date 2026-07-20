@@ -1163,6 +1163,88 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
 }
 
 // ------------------------------------------------------------------
+// DEEP-AUDIT FIXES (pre-launch): SSRF, series atomicity/lock, abort, avatarPlan, DoS bounds
+// ------------------------------------------------------------------
+{
+  const { readFileSync } = await import("node:fs");
+  const { isLocalHost } = await import(`${base}/utils/ssrf-guard.js`);
+  // SSRF host classification incl. CGNAT + benchmark ranges
+  check("da-ssrf: private/internal hosts classified (incl CGNAT 100.64/10, 198.18/15)",
+    isLocalHost("169.254.169.254") && isLocalHost("10.0.0.5") && isLocalHost("127.0.0.1") && isLocalHost("100.64.0.1") && isLocalHost("198.18.0.1") && isLocalHost("localhost") && isLocalHost("::1"), "");
+  check("da-ssrf: public hosts NOT blocked", !isLocalHost("cdn.example.com") && !isLocalHost("8.8.8.8") && !isLocalHost("99.99.99.99"), "");
+  // Reference-vision analyst skips internal-host images (SSRF), keeps public
+  const { ReferenceVisionAnalyst } = await import(`${base}/agents/reference-vision-analyst.js`);
+  let visImages = 0;
+  const visSpy = { name: "f", capabilities: () => [], async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "x", modelId: "m" }; },
+    async structured(req) { const parts = req.messages[0].content; visImages = Array.isArray(parts) ? parts.filter((p) => p.type === "image_url").length : 0; return { provider: "x", modelId: "m", content: "{}", raw: {}, latencyMs: 0, value: { assets: [] } }; } };
+  const mixedRefs = [
+    { role: "product", label: "ok", providerReference: { kind: "image", uri: "https://cdn.example.com/p.png", role: "product", label: "ok" } },
+    { role: "identity", label: "evil", providerReference: { kind: "image", uri: "https://169.254.169.254/", role: "identity", label: "evil" } },
+    { role: "product", label: "evil2", providerReference: { kind: "image", uri: "https://10.0.0.5/x.png", role: "product", label: "evil2" } }
+  ];
+  await new ReferenceVisionAnalyst(visSpy, "m").describe(mixedRefs, {});
+  check("da-ssrf: vision analyst skips internal-host images, sends only the public one", visImages === 1, String(visImages));
+  // Admission rejects internal-host https reference; series cast rejects internal + bounds size
+  const admissionSrc = readFileSync(resolve(repoRoot, "src/api/render-request-admission.ts"), "utf8");
+  check("da-ssrf: admission blocks internal-host https reference URI", admissionSrc.includes("isLocalHost(parsed.hostname)"), "");
+  const dramaSrc = readFileSync(resolve(repoRoot, "src/core/series-drama-planner.ts"), "utf8");
+  check("da-ssrf+dos: series cast blocks internal host + MAX_CAST bound", dramaSrc.includes("MAX_CAST_MEMBERS") && dramaSrc.includes("isLocalHost(host)"), "");
+  const { planSeriesDrama } = await import(`${base}/core/series-drama-planner.js`);
+  let castRejected = false;
+  try { planSeriesDrama({ premise: "p", episodeCount: 2, episodeDurationSeconds: 60, cast: Array.from({ length: 41 }, (_, i) => ({ characterId: "c" + i, name: "N" + i, castRole: "support", description: "d" })) }); } catch { castRejected = true; }
+  check("da-dos: >40 cast members rejected at plan time", castRejected, "");
+  let evilUriRejected = false;
+  try { planSeriesDrama({ premise: "p", episodeCount: 2, episodeDurationSeconds: 60, cast: [{ characterId: "c", name: "N", castRole: "protagonist", description: "d", identityReferenceUri: "https://169.254.169.254/" }] }); } catch { evilUriRejected = true; }
+  check("da-ssrf: series cast internal identity URI rejected", evilUriRejected, "");
+
+  // Series render: chargeRender is INSIDE the try (finally always releases lock+slot)
+  const serverSrc5 = readFileSync(resolve(repoRoot, "src/api/server.ts"), "utf8");
+  check("da-series: chargeRender moved inside try (no lock/slot leak on 402)",
+    serverSrc5.includes("chargeRender re-validates balance and can THROW 402; it MUST be inside the try"), "");
+  check("da-series: GET /v1/series/:id returns curated DTO, not raw record", serverSrc5.includes("Project a curated DTO — never echo raw episodeState.videoPath"), "");
+
+  // Series store: unique temp path + per-series write lock + load distinguishes ENOENT vs corrupt
+  const { SeriesContinuityStore } = await import(`${base}/core/series-continuity-store.js`);
+  const { SeriesEpisodeDirector } = await import(`${base}/application/series-episode-director.js`);
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join: joinP } = await import("node:path");
+  const daRoot = mkdtempSync(resolve(tmpdir(), "cinejelly-da-"));
+  const daStore = new SeriesContinuityStore({ outputRoot: daRoot });
+  const storeSrc = readFileSync(resolve(repoRoot, "src/core/series-continuity-store.ts"), "utf8");
+  check("da-store: unique temp path per write (pid+counter)", storeSrc.includes("`${path}.${process.pid}.${this.tempCounter}.tmp`"), "");
+  check("da-store: per-series write lock serializes RMW", storeSrc.includes("withSeriesLock") && storeSrc.includes("this.writeLocks"), "");
+  check("da-store: load distinguishes ENOENT (absent) from corrupt (surface)", storeSrc.includes('error as NodeJS.ErrnoException).code === "ENOENT"'), "");
+  // Concurrent recordEpisode serialize (no dropped episode) via the store lock
+  const daDir = new SeriesEpisodeDirector({ store: daStore, director: { async run() { throw new Error("no"); } } });
+  const rec = await daDir.startSeries({ premise: "P", episodeCount: 3, episodeDurationSeconds: 60, cast: [{ characterId: "a", name: "A", castRole: "protagonist", description: "x" }] }, "u1");
+  await Promise.all([
+    daStore.recordEpisode(rec.seriesId, { episodeNumber: 1, projectId: "p1", summary: "s1", endState: "e1", macroPhase: "setup", recordedAt: new Date().toISOString() }),
+    daStore.recordEpisode(rec.seriesId, { episodeNumber: 2, projectId: "p2", summary: "s2", endState: "e2", macroPhase: "setup", recordedAt: new Date().toISOString() })
+  ]);
+  const daFinal = await daStore.load(rec.seriesId);
+  check("da-store: concurrent recordEpisode keeps BOTH episodes (no lost update)", daFinal.episodeStates.length === 2, String(daFinal.episodeStates.length));
+  // Corrupt file surfaces (not silently 'absent')
+  writeFileSync(daStore.pathFor("corrupt_series"), "{ this is not json", "utf8");
+  let corruptSurfaced = false;
+  try { await daStore.load("corrupt_series"); } catch { corruptSurfaced = true; }
+  check("da-store: corrupt-but-present series surfaces (never treated as absent/reset)", corruptSurfaced, "");
+
+  // Image-abort rethrow (mirror talking stage) + avatarPlan carried across chaining
+  const dirSrc2 = readFileSync(resolve(repoRoot, "src/agents/director-agent.ts"), "utf8");
+  check("da-abort: image + portrait gen rethrow on signal.aborted", (dirSrc2.match(/if \(input\.signal\?\.aborted\) \{\s*throw error;/g) || []).length >= 2, "");
+  check("da-avatar: avatarPlan carried onto recompiled chained/fallback prompt", dirSrc2.includes("chainedAvatarPlan") && dirSrc2.includes("fallbackAvatarPlan"), "");
+
+  // Duck dub original bed apad; job history resilient load; register re-check
+  const mixSrc2 = readFileSync(resolve(repoRoot, "src/core/audio-mix-engine.ts"), "utf8");
+  check("da-dub: duck original bed apad'd so dub spans full video", mixSrc2.includes("volume=${this.safeVolume(input.options.originalVolume)},apad[a0]"), "");
+  const jobMgrSrc = readFileSync(resolve(repoRoot, "src/api/render-job-manager.ts"), "utf8");
+  check("da-boot: restoreHistory degrades to empty on load failure, skips bad records", jobMgrSrc.includes("degrade to an empty history") && jobMgrSrc.includes("Skip a single malformed record"), "");
+  const acctSrc = readFileSync(resolve(repoRoot, "src/api/user-account-store.ts"), "utf8");
+  check("da-race: register re-checks email after scrypt await", acctSrc.includes("Re-check AFTER the scrypt await"), "");
+}
+
+// ------------------------------------------------------------------
 // Report
 // ------------------------------------------------------------------
 const passCount = results.filter((r) => r.status === "pass").length;
