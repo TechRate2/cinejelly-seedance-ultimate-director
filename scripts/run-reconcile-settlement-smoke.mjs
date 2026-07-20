@@ -6,7 +6,7 @@
  * without it the delivered video would be refunded (the bug). Pure store logic; no spend/network.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UserAccountStore, loadRenderCreditPricing } from "../dist/api/user-account-store.js";
@@ -63,6 +63,25 @@ try {
   store2.chargeRender({ userId: u2, jobId: "job_x", credits: 100 });
   const r2 = store2.reconcileRenderCharges(() => undefined, { mode: "refund" });
   check("control_unmarked_charge_is_refunded", r2 === 1 && store2.balanceOf(u2) === 1000, `${r2}:${store2.balanceOf(u2)}`);
+
+  // Redub uses render_charge with a redub_ jobId (prefix-agnostic store), so the SAME reconcile
+  // machinery applies: a delivered redub (settled marker) keeps its charge; a redub charged but never
+  // delivered (crash between charge and response, no marker, recent) is an orphan and is refunded.
+  const store4 = new UserAccountStore({ storePath: join(workDir, "accounts4.json"), pricing: loadRenderCreditPricing(process.env) });
+  const reg4 = await store4.register({ email: "redub@test.local", password: "Redub-Test-1234" });
+  const u4 = reg4.user.userId;
+  const t4 = store4.requestTopupForPackage({ userId: u4, creditPackage: PACK }); store4.decideTopup({ topupId: t4.topupId, approve: true });
+  store4.chargeRender({ userId: u4, jobId: "redub_delivered", credits: 100 });
+  store4.chargeRender({ userId: u4, jobId: "redub_crashed", credits: 100 });
+  store4.markRenderSettled({ userId: u4, jobId: "redub_delivered" }); // delivery marker stamped on success
+  const redubRefunds = store4.reconcileRenderCharges((jobId) => undefined, { mode: "refund" });
+  check("redub_crashed_orphan_refunded_delivered_kept", redubRefunds === 1 && store4.balanceOf(u4) === 900, `refunds=${redubRefunds} bal=${store4.balanceOf(u4)}`);
+
+  // Server wiring lock: redub success MUST stamp the settled marker, and the boot reconcile MUST NOT
+  // blanket-treat redub_* as "succeeded" (that old shortcut left every crashed redub charged forever).
+  const serverSrc = readFileSync(new URL("../src/api/server.ts", import.meta.url), "utf8");
+  check("server_redub_success_marks_settled", /markRenderSettled\(\{\s*userId:\s*redubCharge\.userId,\s*jobId:\s*redubId\s*\}\)/.test(serverSrc));
+  check("server_reconcile_no_longer_forces_redub_succeeded", !serverSrc.includes('jobId.startsWith("redub_") ? "succeeded"'));
 } finally {
   rmSync(workDir, { recursive: true, force: true });
 }

@@ -612,11 +612,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   // owner keeps the credits, so reconciliation is skipped entirely.
   if (adminSettingsStore.refundPolicy() !== "off") {
     userAccountStore.reconcileRenderCharges(
-      (jobId) =>
-        // Phí dịch phụ đề/thuyết minh (redub_*) tính và trả kết quả ngay trong một request —
-        // không có job nền để đối soát; lỗi giữa chừng đã hoàn/vào hàng chờ ngay tại route,
-        // nên coi như đã tất toán (trường hợp sập máy đúng lúc chạy: admin cộng bù thủ công).
-        jobId.startsWith("redub_") ? "succeeded" : jobManager.statusOfAny(jobId),
+      // Redub has no background job to poll; its charge is now settled durably via a render_settled
+      // marker stamped on delivery (same primitive as renders). Report "unknown" here so reconcile
+      // decides from that marker + charge age: a DELIVERED redub (marker present) keeps its charge,
+      // while a redub charged but never delivered — a crash between charge and delivery — is a recent
+      // unmarked orphan and gets refunded/queued per policy instead of silently kept (was: blanket
+      // "succeeded", which required manual admin compensation for every crash-during-redub).
+      (jobId) => jobManager.statusOfAny(jobId),
       { mode: adminSettingsStore.refundPolicy() === "auto" ? "refund" : "queue" }
     );
   }
@@ -1590,6 +1592,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             // Client vanished during the work: we cannot deliver the result, so treat it as
             // a failure and let the catch refund/queue instead of silently keeping the money.
             throw redubAbort.signal.reason ?? new Error("Không gửi được kết quả dịch/thuyết minh (mất kết nối).");
+          }
+          if (redubCharge) {
+            // Durable delivery marker (same primitive renders use on success): the dub/subtitles were
+            // produced and are about to be delivered, so a post-restart reconcile must KEEP this charge.
+            // Without it, a redub interrupted by a crash AFTER charging looks identical to a delivered
+            // one — this marker is exactly what distinguishes "delivered" from "crashed mid-flight".
+            userAccountStore.markRenderSettled({ userId: redubCharge.userId, jobId: redubId });
           }
           sendJson(response, 200, {
             redubId,
