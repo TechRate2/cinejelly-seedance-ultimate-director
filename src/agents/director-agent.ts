@@ -532,6 +532,131 @@ export class DirectorAgent {
       throw new Error(this.describePreflightBlock(blockingPreflightReports));
     }
 
+    // ---- PRE-SPEND FAIL-CLOSED GATES (deep-audit HIGH + validate-before-spend pattern) ----
+    // The long-form timeline/creative/readiness gates are fail-closed and their own messages say
+    // "before provider spend" — so they MUST run before the keyframe-image and TTS provider calls
+    // below. They are computed here from a PRE-keyframe render schedule (built from `shots`); the
+    // schedule is rebuilt from the keyframe-bound shots after the spend, for the actual render.
+    const postproductionAssetPlan = this.postproductionAssetPlanner.plan({
+      projectId: intake.projectId,
+      ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
+      ...(preparedRequest.captionOptions ? { captionOptions: preparedRequest.captionOptions } : {}),
+      ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
+      ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {}),
+      ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {}),
+      audioGenerationCapabilities: this.audioGenerationCapabilities,
+      generatedAudioExecutionMode: this.canExecuteGeneratedAudio(preparedRequest) ? "execute" : "planned_only"
+    });
+    const candidateCount = candidateCountForQuality(intake.settings.qualityMode);
+    const repairAttemptCount = repairAttemptCountForQuality(intake.settings.qualityMode);
+    const strategySequentialReasons = this.strategySequentialReasons(videoRenderStrategyPlan);
+    const buildRenderScheduleItems = (scheduleShots: readonly ShotContract[]): readonly RenderScheduleItem<{
+      readonly compiledPrompt: CompiledPrompt;
+      readonly preflight: GuardianReport;
+      readonly shouldRunTestTake: boolean;
+    }>[] => compiledPrompts.map((compiledPrompt, promptIndex) => {
+      const shot = scheduleShots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
+      const preflight = preflightReports[promptIndex];
+      if (!shot) {
+        throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
+      }
+      if (!preflight) {
+        throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
+      }
+      return {
+        index: promptIndex,
+        shot,
+        ...(strategySequentialReasons.length > 0 ? { forceSequentialReasons: strategySequentialReasons } : {}),
+        value: {
+          compiledPrompt,
+          preflight,
+          shouldRunTestTake: this.shouldRunTestTake(shot, intake.settings)
+        }
+      };
+    });
+    const preSpendSchedulePlan = this.renderScheduler.plan(buildRenderScheduleItems(shots));
+    // Build + fail-closed-assert the three long-form release gates (timeline -> creative
+    // intelligence -> readiness). Defined once, invoked twice: here with the PRE-keyframe schedule
+    // so a blocked long-form job spends nothing, and again after keyframe binding with the real
+    // schedule (below) so the delivered evidence reflects the actual image-to-video scheduling and
+    // any keyframe-introduced regression still fails closed before the far larger render spend. The
+    // gate decision is invariant to keyframe binding, so the second pass is fidelity + defence-in-
+    // depth; all three planners are no-spend/no-network, so the second build costs only CPU.
+    const assertLongFormReleaseGates = (
+      gateSchedulePlan: typeof preSpendSchedulePlan,
+      spendStage: "pre_spend" | "pre_render"
+    ) => {
+      const spendLabel = spendStage === "pre_spend" ? "before any provider spend" : "before render spend";
+      const timelinePlan = this.longFormTimelinePlanner.build({
+        projectId: intake.projectId,
+        targetDurationSeconds: storyPlan.targetDurationSeconds,
+        shots,
+        continuityPlan: longFormContinuityPlan,
+        renderSchedulePlan: gateSchedulePlan,
+        postproductionAssetPlan,
+        ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
+        ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {}),
+        seedanceSettings: intake.settings
+      });
+      if (!timelinePlan.releaseGateSummary.canProceedToRender) {
+        this.reportStageProgress("render", "blocked", `Long-form timeline blocked render scheduling ${spendLabel}.`, {
+          longFormTimelineIssueCount: timelinePlan.issueCount,
+          longFormTimelineBlockingIssueCount: timelinePlan.blockingIssueCount
+        });
+        throw new Error(`Long-form timeline blocked render scheduling ${spendLabel}.`);
+      }
+      const creativeIntelligencePlan = this.longFormCreativeIntelligencePlanner.build({
+        projectId: intake.projectId,
+        userInput: preparedRequest.userInput,
+        storyPlan,
+        shots,
+        continuityPlan: longFormContinuityPlan,
+        agentReview: longFormAgentReview,
+        videoRenderStrategyPlan,
+        timelinePlan,
+        postproductionAssetPlan,
+        ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: intake.sourceVideoAnalysis } : {})
+      });
+      if (!creativeIntelligencePlan.releaseGateSummary.canProceedToRender) {
+        this.reportStageProgress("render", "blocked", `Long-form creative intelligence blocked render ${spendLabel}.`, {
+          longFormCreativeStatus: creativeIntelligencePlan.status,
+          longFormCreativeQualityScore: creativeIntelligencePlan.qualityScore,
+          longFormCreativeFindingCount: creativeIntelligencePlan.findingCount,
+          longFormCreativeBlockingFindingCount: creativeIntelligencePlan.blockingFindingCount
+        });
+        throw new Error(this.describeLongFormCreativeIntelligenceBlock(creativeIntelligencePlan));
+      }
+      const readinessPlan = this.longFormReadinessPlanner.build({
+        projectId: intake.projectId,
+        userInput: preparedRequest.userInput,
+        storyPlan,
+        shots,
+        continuityPlan: longFormContinuityPlan,
+        agentReview: longFormAgentReview,
+        videoRenderStrategyPlan,
+        timelinePlan,
+        creativeIntelligencePlan,
+        renderSchedulePlan: gateSchedulePlan,
+        postproductionAssetPlan,
+        ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: intake.sourceVideoAnalysis } : {})
+      });
+      if (!readinessPlan.releaseGateSummary.canProceedToRender) {
+        this.reportStageProgress("render", "blocked", `Long-form readiness blocked render ${spendLabel}.`, {
+          longFormReadinessStatus: readinessPlan.status,
+          longFormReadinessIntentKind: readinessPlan.intentRoute.intentKind,
+          longFormReadinessCoherenceScore: readinessPlan.coherence.overallScore,
+          longFormReadinessRepairQueueCount: readinessPlan.repairQueue.length,
+          longFormReadinessBlockingRepairCount: readinessPlan.repairQueue.filter((repair) => repair.blocksRender).length
+        });
+        throw new Error(this.describeLongFormReadinessBlock(readinessPlan));
+      }
+      return { timelinePlan, creativeIntelligencePlan, readinessPlan };
+    };
+    // Pre-spend guard: block a doomed long-form job BEFORE the keyframe-image and TTS provider
+    // calls below, using a render schedule built from the pre-keyframe shots.
+    assertLongFormReleaseGates(preSpendSchedulePlan, "pre_spend");
+    // ---- END PRE-SPEND GATES. From here, provider money may be spent. ----
+
     // Keyframe-first: generate an approved still opening frame per shot, then flip each
     // bound shot to image-to-video. Runs only after every pre-spend gate above has passed
     // (cost estimate already includes the planned keyframe images) and fails open per shot.
@@ -587,16 +712,6 @@ export class DirectorAgent {
         materialValidationStatus: materialSourceValidation.status
       }
     );
-    const postproductionAssetPlan = this.postproductionAssetPlanner.plan({
-      projectId: intake.projectId,
-      ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
-      ...(preparedRequest.captionOptions ? { captionOptions: preparedRequest.captionOptions } : {}),
-      ...(preparedRequest.audioTracks ? { audioTracks: preparedRequest.audioTracks } : {}),
-      ...(preparedRequest.audioMixOptions ? { audioMixOptions: preparedRequest.audioMixOptions } : {}),
-      ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {}),
-      audioGenerationCapabilities: this.audioGenerationCapabilities,
-      generatedAudioExecutionMode: this.canExecuteGeneratedAudio(preparedRequest) ? "execute" : "planned_only"
-    });
     const productionGraph = this.productionGraphBuilder.build({
       intake,
       storyPlan,
@@ -606,97 +721,18 @@ export class DirectorAgent {
       materialSourcingPlan
     });
 
-    const candidateCount = candidateCountForQuality(intake.settings.qualityMode);
-    const repairAttemptCount = repairAttemptCountForQuality(intake.settings.qualityMode);
-    const strategySequentialReasons = this.strategySequentialReasons(videoRenderStrategyPlan);
-    const renderScheduleItems: readonly RenderScheduleItem<{
-      readonly compiledPrompt: CompiledPrompt;
-      readonly preflight: GuardianReport;
-      readonly shouldRunTestTake: boolean;
-    }>[] = compiledPrompts.map((compiledPrompt, promptIndex) => {
-      const shot = renderReadyShots.find((candidate) => candidate.shotId === compiledPrompt.shotId);
-      const preflight = preflightReports[promptIndex];
-      if (!shot) {
-        throw new Error(`Compiled prompt has no matching shot: ${compiledPrompt.shotId}`);
-      }
-      if (!preflight) {
-        throw new Error(`Missing preflight report for compiled prompt: ${compiledPrompt.shotId}`);
-      }
-      return {
-        index: promptIndex,
-        shot,
-        ...(strategySequentialReasons.length > 0 ? { forceSequentialReasons: strategySequentialReasons } : {}),
-        value: {
-          compiledPrompt,
-          preflight,
-          shouldRunTestTake: this.shouldRunTestTake(shot, intake.settings)
-        }
-      };
-    });
+    // Rebuild the render schedule from the keyframe-bound shots (image-to-video flips). The
+    // long-form timeline/creative/readiness gates already ran fail-closed above, before any
+    // keyframe-image or TTS provider spend, using the pre-keyframe schedule (identical wave
+    // structure — keyframe binding only adds a still reference, it never changes shot count,
+    // duration, or ordering).
+    const renderScheduleItems = buildRenderScheduleItems(renderReadyShots);
     const renderSchedulePlan = this.renderScheduler.plan(renderScheduleItems);
-    const longFormTimelinePlan = this.longFormTimelinePlanner.build({
-      projectId: intake.projectId,
-      targetDurationSeconds: storyPlan.targetDurationSeconds,
-      shots,
-      continuityPlan: longFormContinuityPlan,
-      renderSchedulePlan,
-      postproductionAssetPlan,
-      ...(preparedRequest.captionCues ? { captionCues: preparedRequest.captionCues } : {}),
-      ...(preparedRequest.generatedAudioIntents ? { generatedAudioIntents: preparedRequest.generatedAudioIntents } : {}),
-      seedanceSettings: intake.settings
-    });
-    if (!longFormTimelinePlan.releaseGateSummary.canProceedToRender) {
-      this.reportStageProgress("render", "blocked", "Long-form timeline blocked render scheduling before provider spend.", {
-        longFormTimelineIssueCount: longFormTimelinePlan.issueCount,
-        longFormTimelineBlockingIssueCount: longFormTimelinePlan.blockingIssueCount
-      });
-      throw new Error("Long-form timeline blocked render scheduling before provider spend.");
-    }
-    const longFormCreativeIntelligencePlan = this.longFormCreativeIntelligencePlanner.build({
-      projectId: intake.projectId,
-      userInput: preparedRequest.userInput,
-      storyPlan,
-      shots,
-      continuityPlan: longFormContinuityPlan,
-      agentReview: longFormAgentReview,
-      videoRenderStrategyPlan,
-      timelinePlan: longFormTimelinePlan,
-      postproductionAssetPlan,
-      ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: intake.sourceVideoAnalysis } : {})
-    });
-    if (!longFormCreativeIntelligencePlan.releaseGateSummary.canProceedToRender) {
-      this.reportStageProgress("render", "blocked", "Long-form creative intelligence blocked render before provider spend.", {
-        longFormCreativeStatus: longFormCreativeIntelligencePlan.status,
-        longFormCreativeQualityScore: longFormCreativeIntelligencePlan.qualityScore,
-        longFormCreativeFindingCount: longFormCreativeIntelligencePlan.findingCount,
-        longFormCreativeBlockingFindingCount: longFormCreativeIntelligencePlan.blockingFindingCount
-      });
-      throw new Error(this.describeLongFormCreativeIntelligenceBlock(longFormCreativeIntelligencePlan));
-    }
-    const longFormReadinessPlan = this.longFormReadinessPlanner.build({
-      projectId: intake.projectId,
-      userInput: preparedRequest.userInput,
-      storyPlan,
-      shots,
-      continuityPlan: longFormContinuityPlan,
-      agentReview: longFormAgentReview,
-      videoRenderStrategyPlan,
-      timelinePlan: longFormTimelinePlan,
-      creativeIntelligencePlan: longFormCreativeIntelligencePlan,
-      renderSchedulePlan,
-      postproductionAssetPlan,
-      ...(intake.sourceVideoAnalysis ? { sourceVideoAnalysis: intake.sourceVideoAnalysis } : {})
-    });
-    if (!longFormReadinessPlan.releaseGateSummary.canProceedToRender) {
-      this.reportStageProgress("render", "blocked", "Long-form readiness blocked render before provider spend.", {
-        longFormReadinessStatus: longFormReadinessPlan.status,
-        longFormReadinessIntentKind: longFormReadinessPlan.intentRoute.intentKind,
-        longFormReadinessCoherenceScore: longFormReadinessPlan.coherence.overallScore,
-        longFormReadinessRepairQueueCount: longFormReadinessPlan.repairQueue.length,
-        longFormReadinessBlockingRepairCount: longFormReadinessPlan.repairQueue.filter((repair) => repair.blocksRender).length
-      });
-      throw new Error(this.describeLongFormReadinessBlock(longFormReadinessPlan));
-    }
+    // Authoritative post-keyframe re-gate on the REAL render schedule: refreshes the delivered
+    // long-form evidence to the actual image-to-video scheduling and fails closed before the
+    // (largest) render spend if keyframe binding introduced any blocking condition.
+    const { timelinePlan: longFormTimelinePlan, creativeIntelligencePlan: longFormCreativeIntelligencePlan, readinessPlan: longFormReadinessPlan } =
+      assertLongFormReleaseGates(renderSchedulePlan, "pre_render");
     this.reportStageProgress("render", "running", "Rendering scheduled shots and candidates.", {
       scheduledShotCount: compiledPrompts.length,
       renderScheduleBatchCount: renderSchedulePlan.batchCount,

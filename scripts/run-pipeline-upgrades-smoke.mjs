@@ -151,6 +151,35 @@ check("director_invokes_keyframe_stage", directorSource.includes("runKeyframeFir
 check("director_invokes_video_consistency", directorSource.includes("inspectVideoConsistency"));
 check("director_returns_social_publishing", directorSource.includes("socialPublishing: planSocialPublishingMetadata"));
 
+// --- 7. Pre-spend gate ordering (source-level regression lock). The three fail-closed long-form
+// gates (timeline/creative/readiness) MUST be computed exactly once and BEFORE the first provider
+// spend — the keyframe-image stage. Their own block message says "before provider spend"; this
+// locks that promise against a future refactor accidentally moving a gate back after the spend or
+// re-introducing a post-spend duplicate. keyframe is the earliest paid stage (keyframe → talking/TTS
+// → render), so gate-before-keyframe proves gate-before-all-spend.
+const keyframeSpendAt = directorSource.indexOf("await this.runKeyframeFirstStage({");
+check("gate_order_keyframe_call_present", keyframeSpendAt > -1);
+// Each planner is built inside ONE shared gate routine (no ad-hoc duplicate) whose definition sits
+// before the keyframe spend.
+for (const [label, needle] of [
+  ["timeline", "this.longFormTimelinePlanner.build({"],
+  ["creative", "this.longFormCreativeIntelligencePlanner.build({"],
+  ["readiness", "this.longFormReadinessPlanner.build({"]
+]) {
+  const at = directorSource.indexOf(needle);
+  const last = directorSource.lastIndexOf(needle);
+  check(`gate_${label}_built_once`, at > -1 && at === last, `at=${at} last=${last}`);
+  check(`gate_${label}_before_spend`, at > -1 && keyframeSpendAt > -1 && at < keyframeSpendAt, `gate=${at} spend=${keyframeSpendAt}`);
+}
+// The gate routine is INVOKED with the pre-keyframe schedule BEFORE the keyframe/TTS spend (so a
+// blocked long-form job spends nothing)...
+const preSpendCallAt = directorSource.indexOf('assertLongFormReleaseGates(preSpendSchedulePlan, "pre_spend")');
+check("gate_pre_spend_invoked_before_keyframe", preSpendCallAt > -1 && keyframeSpendAt > -1 && preSpendCallAt < keyframeSpendAt, `call=${preSpendCallAt} spend=${keyframeSpendAt}`);
+// ...and re-invoked with the REAL render schedule AFTER keyframe binding (delivered-evidence fidelity
+// + defence-in-depth before the largest spend).
+const preRenderCallAt = directorSource.indexOf('assertLongFormReleaseGates(renderSchedulePlan, "pre_render")');
+check("gate_pre_render_reasserted_after_keyframe", preRenderCallAt > -1 && preRenderCallAt > keyframeSpendAt, `call=${preRenderCallAt} spend=${keyframeSpendAt}`);
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.pipeline-upgrades-smoke.v1",
