@@ -682,6 +682,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         // balancer/Docker healthcheck does not restart-loop the container on a transient DB blip);
         // the body carries the real state + fix for a human/dashboard to see.
         const databaseUnreachable = userAccountStore.hasHydrationFailed();
+        const orphanedAccounts = userAccountStore.orphanedJsonAccountCount();
         sendJson(
           response,
           200,
@@ -692,7 +693,15 @@ export function startServer(port = readPort(process.env.PORT)): Server {
                 message:
                   "Không kết nối được cơ sở dữ liệu tài khoản — kiểm tra CINEJELLY_POSTGRES_URL / Neon (có thể đang ngủ hoặc sai chuỗi kết nối) rồi khởi động lại máy chủ."
               }
-            : { status: "ok" },
+            : orphanedAccounts > 0
+              ? {
+                  status: "degraded",
+                  database: "unmigrated",
+                  message:
+                    `Đã đổi loại cơ sở dữ liệu nhưng ${orphanedAccounts} tài khoản cũ còn nằm trong file user-accounts.json chưa được chuyển sang. ` +
+                    'Dữ liệu KHÔNG mất — chạy "npm run db:migrate" để chuyển, hoặc đổi lại CINEJELLY_DATABASE_KIND=json.'
+                }
+              : { status: "ok" },
           requestContext
         );
         return;

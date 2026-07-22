@@ -32,10 +32,17 @@ export interface AtlasModelValidationResult {
   readonly checkedModelCount: number;
   readonly missing: readonly MissingModel[];
   readonly probeSkipped: boolean;
+  /** True when Atlas rejected the API key (HTTP 401/403) — a wrong/expired key, not a network blip. */
+  readonly keyAuthFailed: boolean;
   readonly notes: readonly string[];
 }
 
-async function fetchModelIds(baseUrl: string, apiKey: string, signal?: AbortSignal): Promise<Set<string> | undefined> {
+type ModelListResult =
+  | { readonly status: "ok"; readonly ids: Set<string> }
+  | { readonly status: "auth_failed" }
+  | { readonly status: "unreachable" };
+
+async function fetchModelIds(baseUrl: string, apiKey: string, signal?: AbortSignal): Promise<ModelListResult> {
   const url = `${baseUrl.replace(/\/+$/, "")}/models`;
   try {
     const response = await fetch(url, {
@@ -43,8 +50,12 @@ async function fetchModelIds(baseUrl: string, apiKey: string, signal?: AbortSign
       headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
       ...(signal ? { signal } : {})
     });
+    // 401/403 = the key itself is wrong/expired — a distinct, actionable failure (vs a network blip).
+    if (response.status === 401 || response.status === 403) {
+      return { status: "auth_failed" };
+    }
     if (!response.ok) {
-      return undefined;
+      return { status: "unreachable" };
     }
     const body = (await response.json()) as { data?: unknown; models?: unknown };
     const rows = Array.isArray(body.data) ? body.data : Array.isArray(body.models) ? body.models : [];
@@ -55,9 +66,9 @@ async function fetchModelIds(baseUrl: string, apiKey: string, signal?: AbortSign
         ids.add(id.trim());
       }
     }
-    return ids;
+    return { status: "ok", ids };
   } catch {
-    return undefined;
+    return { status: "unreachable" };
   }
 }
 
@@ -65,16 +76,22 @@ export async function validateConfiguredAtlasModels(
   settings: AtlasCloudRuntimeSettings,
   signal?: AbortSignal
 ): Promise<AtlasModelValidationResult> {
-  const [llmIds, mediaIds] = await Promise.all([
+  const [llm, media] = await Promise.all([
     fetchModelIds(settings.apiBaseUrl, settings.llmApiKey ?? settings.apiKey, signal),
     fetchModelIds(settings.assetBaseUrl, settings.apiKey, signal)
   ]);
+  const llmIds = llm.status === "ok" ? llm.ids : undefined;
+  const mediaIds = media.status === "ok" ? media.ids : undefined;
+  const keyAuthFailed = llm.status === "auth_failed" || media.status === "auth_failed";
 
   const notes: string[] = [];
-  if (!llmIds) {
+  if (keyAuthFailed) {
+    notes.push("Atlas rejected the API key (401/403): ATLASCLOUD_API_KEY sai hoặc hết hạn.");
+  }
+  if (!llmIds && !keyAuthFailed) {
     notes.push("Could not list LLM models (GET {apiBaseUrl}/models); llmModel existence not verified.");
   }
-  if (!mediaIds) {
+  if (!mediaIds && !keyAuthFailed) {
     notes.push("Could not list media models (GET {assetBaseUrl}/models); video/image model existence not verified.");
   }
 
@@ -108,10 +125,11 @@ export async function validateConfiguredAtlasModels(
   checkMedia("ttsModel", settings.models.ttsModel);
 
   return {
-    ok: missing.length === 0,
+    ok: missing.length === 0 && !keyAuthFailed,
     checkedModelCount: checked,
     missing,
     probeSkipped: !llmIds && !mediaIds,
+    keyAuthFailed,
     notes
   };
 }

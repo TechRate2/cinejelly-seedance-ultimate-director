@@ -36,7 +36,7 @@ import {
   type PersistedAccountState
 } from "./account-persistence.js";
 
-const STORE_SCHEMA_VERSION = "cinejelly.user-account-store.v1";
+export const STORE_SCHEMA_VERSION = "cinejelly.user-account-store.v1";
 const DEFAULT_OUTPUT_DIR = "assets/output_deliverables";
 const DEFAULT_STORE_FILE = "user-accounts.json";
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
@@ -398,6 +398,13 @@ export class UserAccountStore {
   // Resolves when durable state is fully loaded (immediately for json/sqlite; after the boot load +
   // reload for postgres). `ready()` returns it so callers can await a hydrated store.
   private readonly hydrationPromise: Promise<void>;
+  // > 0 when the DB backend was switched (kind != json) but its store is EMPTY while an old
+  // user-accounts.json still holds accounts — an un-migrated switch. The data is SAFE (still in the
+  // json file, and the write-guard above prevents a wipe) but not loaded; the operator must run
+  // `npm run db:migrate`. Surfaced on boot, at /health, and to the operator.
+  private orphanedJsonUserCount = 0;
+  // Path of the JSON account file — used only for the orphan-detection check.
+  private readonly jsonStorePath: string | undefined;
   private readonly balances = new Map<string, number>();
   private readonly loginFailures = new Map<string, { count: number; firstAt: number }>();
   // Emails with a login verification currently in flight. Serialising to one attempt per email
@@ -410,11 +417,14 @@ export class UserAccountStore {
     readonly driver?: AccountPersistenceDriver;
     readonly packages?: readonly CreditPackage[];
     readonly pricing?: RenderCreditPricing;
+    /** JSON account-file path, for the "switched DB but old json still has accounts" orphan check. */
+    readonly jsonStorePath?: string;
   }) {
     if (!input.driver && !input.storePath) {
       throw new Error("UserAccountStore needs a persistence driver or a JSON store path.");
     }
     this.driver = input.driver ?? new JsonFileAccountDriver(input.storePath as string);
+    this.jsonStorePath = input.jsonStorePath ?? input.storePath;
     this.packages = input.packages ?? DEFAULT_CREDIT_PACKAGES;
     this.pricing = input.pricing ?? loadRenderCreditPricing();
     this.state = this.loadState();
@@ -437,6 +447,11 @@ export class UserAccountStore {
             error instanceof Error ? error.message : error
           );
         });
+    // Sync drivers (json/sqlite) are fully loaded now, so the orphan check can run immediately; the
+    // postgres path runs it inside hydrate() once its async load completes.
+    if (this.hydrated) {
+      this.detectOrphanedJsonStore();
+    }
   }
 
   private rebuildBalances(): void {
@@ -457,6 +472,38 @@ export class UserAccountStore {
     this.state = this.loadState();
     this.rebuildBalances();
     this.hydrated = true;
+    this.detectOrphanedJsonStore();
+  }
+
+  /**
+   * Detect an un-migrated DB switch: a non-json backend loaded EMPTY while the old user-accounts.json
+   * still holds accounts. The data is safe (the write-guard prevents a wipe and the json file is intact)
+   * but invisible until migrated, so warn loudly and expose it for /health + the operator.
+   */
+  private detectOrphanedJsonStore(): void {
+    if (this.driver.kind === "json" || this.state.users.length > 0 || !this.jsonStorePath) {
+      return;
+    }
+    try {
+      const jsonState = new JsonFileAccountDriver(this.jsonStorePath).load();
+      const jsonUserCount = jsonState?.users?.length ?? 0;
+      if (jsonUserCount > 0) {
+        this.orphanedJsonUserCount = jsonUserCount;
+        console.warn(
+          `\n[CẢNH BÁO] Đang chạy CINEJELLY_DATABASE_KIND=${this.driver.kind} nhưng cơ sở dữ liệu này ĐANG RỖNG, ` +
+            `trong khi file cũ ${this.jsonStorePath} còn ${jsonUserCount} tài khoản. Dữ liệu KHÔNG mất (vẫn ở file json) ` +
+            `nhưng chưa được chuyển sang — khách hàng cũ sẽ thấy như bị mất tài khoản. Chạy "npm run db:migrate" để chuyển, ` +
+            `hoặc đổi lại CINEJELLY_DATABASE_KIND=json.\n`
+        );
+      }
+    } catch {
+      // The json file is unreadable/absent — no orphan to claim.
+    }
+  }
+
+  /** Diagnosis surface: number of accounts stranded in an old JSON file after an un-migrated DB switch. */
+  public orphanedJsonAccountCount(): number {
+    return this.orphanedJsonUserCount;
   }
 
   public static fromEnv(env: NodeJS.ProcessEnv = process.env): UserAccountStore {
@@ -467,7 +514,8 @@ export class UserAccountStore {
         schemaVersion: STORE_SCHEMA_VERSION
       }),
       packages: loadCreditPackages(env),
-      pricing: loadRenderCreditPricing(env)
+      pricing: loadRenderCreditPricing(env),
+      jsonStorePath: readUserAccountStorePath(env)
     });
   }
 

@@ -46,6 +46,12 @@ export interface AccountPersistenceDriver {
   appendCreditEntries(state: PersistedAccountState): void;
   /** Resolves when the driver is fully ready (postgres finishes its async boot load). */
   ready(): Promise<void>;
+  /**
+   * Resolves once all queued writes have been flushed durably. Synchronous drivers (json/sqlite) write
+   * inline so this resolves immediately; the async postgres driver awaits its serialized write chain.
+   * Used by the migration tool to guarantee data is committed before the process exits.
+   */
+  flush(): Promise<void>;
 }
 
 export type DatabaseKind = "json" | "sqlite" | "postgres";
@@ -93,6 +99,10 @@ export class JsonFileAccountDriver implements AccountPersistenceDriver {
   }
 
   public ready(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  public flush(): Promise<void> {
     return Promise.resolve();
   }
 }
@@ -231,6 +241,10 @@ export class SqliteAccountDriver implements AccountPersistenceDriver {
     return Promise.resolve();
   }
 
+  public flush(): Promise<void> {
+    return Promise.resolve();
+  }
+
   private replaceAll(table: string, keyColumn: string, records: unknown[], keyOf: (record: unknown) => string): void {
     this.database.exec(`DELETE FROM ${table};`);
     const insert = this.database.prepare(`INSERT INTO ${table} (${keyColumn}, record) VALUES (?, ?)`);
@@ -340,6 +354,11 @@ export class PostgresAccountDriver implements AccountPersistenceDriver {
 
   public ready(): Promise<void> {
     return this.bootReady;
+  }
+
+  public flush(): Promise<void> {
+    // Await the serialized write chain so every queued snapshot/append has committed.
+    return this.writeChain.then(() => undefined);
   }
 
   private async appendEntriesOnly(state: PersistedAccountState): Promise<void> {
