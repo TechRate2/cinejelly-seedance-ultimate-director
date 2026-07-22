@@ -848,7 +848,8 @@ export class UserAccountStore {
       note: `Trừ ${input.credits} credits cho video ${input.jobId}`,
       jobId: input.jobId
     });
-    this.persist();
+    // Entry-only mutation: only the ledger grew, so append it without rewriting the mutable tables.
+    this.appendLedger();
     return entry;
   }
 
@@ -875,7 +876,8 @@ export class UserAccountStore {
       note: `Đã giao video ${input.jobId}`,
       jobId: input.jobId
     });
-    this.persist();
+    // Entry-only mutation: append the settlement marker without rewriting the mutable tables.
+    this.appendLedger();
   }
 
   /**
@@ -1020,7 +1022,9 @@ export class UserAccountStore {
       note: `Hoàn ${-charge.credits} credits (${input.reason}) cho video ${input.jobId}`,
       jobId: input.jobId
     });
-    this.persist();
+    // Entry-only mutation: append the refund without rewriting the mutable tables. When refundRender
+    // is nested inside decideRefundRequest, that caller persists the refundRequest change separately.
+    this.appendLedger();
     return entry;
   }
 
@@ -1134,6 +1138,17 @@ export class UserAccountStore {
 
   private persist(): void {
     this.driver.persist(this.state);
+  }
+
+  /**
+   * Durably persist ONLY newly-appended credit entries, for a mutation that changed nothing but the
+   * append-only ledger (chargeRender / markRenderSettled / refundRender). Row-backed drivers insert
+   * just the new rows and skip rewriting the bounded mutable tables — turning a charge from an O(all)
+   * table rewrite (catastrophic over a network DB) into a single INSERT. Must be called ONLY when no
+   * mutable collection changed; every other mutation uses persist().
+   */
+  private appendLedger(): void {
+    this.driver.appendCreditEntries(this.state);
   }
 }
 

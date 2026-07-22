@@ -34,6 +34,16 @@ export interface AccountPersistenceDriver {
   load(): PersistedAccountState | undefined;
   /** Persist the full current state after a mutation. Must never throw into the caller. */
   persist(state: PersistedAccountState): void;
+  /**
+   * Fast path for an APPEND-ONLY ledger mutation (a charge/settle/refund that only appended credit
+   * entries and touched no other collection). Row-backed drivers (sqlite/postgres) INSERT just the
+   * new entries and SKIP rewriting the bounded mutable tables entirely — so a charge costs one INSERT,
+   * not a full rewrite of users+sessions+topups+refunds (which, on a remote DB like Neon, was O(all)
+   * sequential network round-trips per charge). The single-file JSON driver has no cheaper option than
+   * a whole-file write, so it falls back to persist(). Callers MUST only use this when no mutable
+   * collection changed. Must never throw into the caller.
+   */
+  appendCreditEntries(state: PersistedAccountState): void;
   /** Resolves when the driver is fully ready (postgres finishes its async boot load). */
   ready(): Promise<void>;
 }
@@ -75,6 +85,13 @@ export class JsonFileAccountDriver implements AccountPersistenceDriver {
     renameSync(tempPath, this.storePath);
   }
 
+  public appendCreditEntries(state: PersistedAccountState): void {
+    // Single-file model: entries live in the same file as everything else, so there is no cheaper
+    // option than the normal whole-file write. This is the dev/default backend at dev-scale data,
+    // so the O(all) write is a non-issue; the fast path matters for the row-backed SQL drivers.
+    this.persist(state);
+  }
+
   public ready(): Promise<void> {
     return Promise.resolve();
   }
@@ -98,6 +115,11 @@ export class SqliteAccountDriver implements AccountPersistenceDriver {
   public readonly kind = "sqlite" as const;
   private readonly database: SqliteDatabaseLike;
   private readonly schemaVersion: string;
+  // The credit ledger (account_credit_entries) is APPEND-ONLY — entries are never modified or
+  // removed. So persist() inserts only the rows appended since the last write instead of rewriting
+  // every row (the old DELETE-all + INSERT-all was O(all) per charge). This tracks how many entries
+  // are already durable; it is set from the loaded count on boot and advanced after each commit.
+  private persistedEntryCount = 0;
 
   public constructor(input: { readonly databasePath: string; readonly schemaVersion: string }) {
     this.schemaVersion = input.schemaVersion;
@@ -133,11 +155,13 @@ export class SqliteAccountDriver implements AccountPersistenceDriver {
       return undefined;
     }
     const parse = (rows: { record: string }[]): unknown[] => rows.map((row) => JSON.parse(row.record) as unknown);
+    const parsedEntries = parse(entries);
+    this.persistedEntryCount = parsedEntries.length;
     return {
       schemaVersion: this.schemaVersion,
       users: parse(users),
       sessions: parse(sessions),
-      entries: parse(entries),
+      entries: parsedEntries,
       topups: parse(topups),
       refundRequests: parse(refundRequests)
     };
@@ -153,12 +177,10 @@ export class SqliteAccountDriver implements AccountPersistenceDriver {
         state.sessions,
         (record) => (record as { tokenSha256: string }).tokenSha256
       );
-      this.replaceAll(
-        "account_credit_entries",
-        "entry_id",
-        state.entries,
-        (record) => (record as { entryId: string }).entryId
-      );
+      // Append-only ledger: insert only the new tail (entries are never modified/removed), so a
+      // charge costs one INSERT, not a full-table rewrite. INSERT OR IGNORE keeps it idempotent if a
+      // prior attempt advanced no further than a rolled-back commit.
+      this.appendNewEntries(state.entries);
       this.replaceAll("account_topups", "topup_id", state.topups, (record) => (record as { topupId: string }).topupId);
       this.replaceAll(
         "account_refund_requests",
@@ -167,9 +189,41 @@ export class SqliteAccountDriver implements AccountPersistenceDriver {
         (record) => (record as { refundRequestId: string }).refundRequestId
       );
       this.database.exec("COMMIT;");
+      this.persistedEntryCount = state.entries.length;
     } catch (error) {
       this.database.exec("ROLLBACK;");
       throw error;
+    }
+  }
+
+  public appendCreditEntries(state: PersistedAccountState): void {
+    // Ledger-only fast path: append the new entries and DO NOT touch the mutable tables — the caller
+    // guarantees a charge/settle/refund changed nothing else. One INSERT per new entry, no full-table
+    // rewrites.
+    if (state.entries.length <= this.persistedEntryCount) {
+      return;
+    }
+    this.database.exec("BEGIN IMMEDIATE;");
+    try {
+      this.appendNewEntries(state.entries);
+      this.database.exec("COMMIT;");
+      this.persistedEntryCount = state.entries.length;
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  private appendNewEntries(entries: readonly unknown[]): void {
+    if (entries.length <= this.persistedEntryCount) {
+      return;
+    }
+    const insert = this.database.prepare(
+      "INSERT OR IGNORE INTO account_credit_entries (entry_id, record) VALUES (?, ?)"
+    );
+    for (let index = this.persistedEntryCount; index < entries.length; index += 1) {
+      const record = entries[index];
+      insert.run((record as { entryId: string }).entryId, JSON.stringify(record));
     }
   }
 
@@ -202,6 +256,10 @@ export class PostgresAccountDriver implements AccountPersistenceDriver {
   private readonly bootReady: Promise<void>;
   private loaded: PersistedAccountState | undefined;
   private writeChain: Promise<void> = Promise.resolve();
+  // Append-only ledger cursor (see SqliteAccountDriver): how many credit entries are already durable,
+  // so each write INSERTs only the new tail instead of a full DELETE-all + re-INSERT — the latter was
+  // O(all) SEQUENTIAL network round-trips per charge, catastrophic on a managed/remote DB (e.g. Neon).
+  private persistedEntryCount = 0;
 
   public constructor(input: { readonly connectionString: string; readonly schemaVersion: string }) {
     this.schemaVersion = input.schemaVersion;
@@ -240,11 +298,13 @@ export class PostgresAccountDriver implements AccountPersistenceDriver {
     ]);
     const parse = (rows: { record: string }[]): unknown[] => rows.map((row) => JSON.parse(row.record) as unknown);
     if (users.rows.length || sessions.rows.length || entries.rows.length || topups.rows.length || refundRequests.rows.length) {
+      const parsedEntries = parse(entries.rows);
+      this.persistedEntryCount = parsedEntries.length;
       this.loaded = {
         schemaVersion: this.schemaVersion,
         users: parse(users.rows),
         sessions: parse(sessions.rows),
-        entries: parse(entries.rows),
+        entries: parsedEntries,
         topups: parse(topups.rows),
         refundRequests: parse(refundRequests.rows)
       };
@@ -267,8 +327,47 @@ export class PostgresAccountDriver implements AccountPersistenceDriver {
       });
   }
 
+  public appendCreditEntries(state: PersistedAccountState): void {
+    // Ledger-only fast path: queue an INSERT of just the new entries, skipping the mutable-table
+    // rewrites. Deep-copied like persist() so a later in-memory mutation cannot corrupt the snapshot.
+    const snapshot = JSON.parse(JSON.stringify(state)) as PersistedAccountState;
+    this.writeChain = this.writeChain
+      .then(() => this.appendEntriesOnly(snapshot))
+      .catch((error: unknown) => {
+        console.error("[account-persistence] postgres ledger append failed:", error instanceof Error ? error.message : error);
+      });
+  }
+
   public ready(): Promise<void> {
     return this.bootReady;
+  }
+
+  private async appendEntriesOnly(state: PersistedAccountState): Promise<void> {
+    if (!this.pool || state.entries.length <= this.persistedEntryCount) {
+      return;
+    }
+    await this.pool.query("BEGIN");
+    try {
+      await this.insertNewEntries(state);
+      await this.pool.query("COMMIT");
+      this.persistedEntryCount = state.entries.length;
+    } catch (error) {
+      await this.pool.query("ROLLBACK");
+      throw error;
+    }
+  }
+
+  private async insertNewEntries(state: PersistedAccountState): Promise<void> {
+    // Append-only ledger: INSERT only the tail beyond persistedEntryCount. ON CONFLICT DO NOTHING is
+    // idempotent if a prior attempt committed some rows before failing. writeChain serialises writes
+    // and each snapshot's entries is a superset of the last, so slicing from the cursor is correct.
+    for (let index = this.persistedEntryCount; index < state.entries.length; index += 1) {
+      const record = state.entries[index];
+      await this.pool?.query(
+        "INSERT INTO account_credit_entries VALUES ($1, $2) ON CONFLICT (entry_id) DO NOTHING",
+        [(record as { entryId: string }).entryId, JSON.stringify(record)]
+      );
+    }
   }
 
   private async writeSnapshot(state: PersistedAccountState): Promise<void> {
@@ -285,7 +384,8 @@ export class PostgresAccountDriver implements AccountPersistenceDriver {
     try {
       await writeTable("account_users", state.users, (record) => (record as { userId: string }).userId);
       await writeTable("account_sessions", state.sessions, (record) => (record as { tokenSha256: string }).tokenSha256);
-      await writeTable("account_credit_entries", state.entries, (record) => (record as { entryId: string }).entryId);
+      // Append-only ledger: INSERT only the new tail instead of deleting and re-inserting every row.
+      await this.insertNewEntries(state);
       await writeTable("account_topups", state.topups, (record) => (record as { topupId: string }).topupId);
       await writeTable(
         "account_refund_requests",
@@ -293,6 +393,7 @@ export class PostgresAccountDriver implements AccountPersistenceDriver {
         (record) => (record as { refundRequestId: string }).refundRequestId
       );
       await this.pool.query("COMMIT");
+      this.persistedEntryCount = state.entries.length;
     } catch (error) {
       await this.pool.query("ROLLBACK");
       throw error;
