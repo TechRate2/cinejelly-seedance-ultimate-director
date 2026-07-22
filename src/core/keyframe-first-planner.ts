@@ -363,6 +363,43 @@ export function splitCharacterIdentities(identity: string | undefined): readonly
   return unique;
 }
 
+/**
+ * Keep only the identity references the beat actually casts, so a multi-character UPLOAD does not
+ * condition every shot's keyframe/render on every uploaded face (which blends them). The architect
+ * gives each beat the full roster and sets continuity.identity to the matching label(s) — comma-
+ * separated for several characters. Identity references are matched by characterId/label against that
+ * cast. STRICTLY fail-safe: narrows ONLY when there are 2+ identity refs to disambiguate, the beat
+ * names a cast, and at least one identity ref matches — otherwise the shot is returned UNCHANGED so a
+ * face is never dropped on a guess. Non-identity references (product/environment/wardrobe/voice/style)
+ * are always kept; single-face UGC and invented characters (no uploaded identity ref) are untouched.
+ */
+export function narrowShotReferencesToCast(shot: ShotContract): ShotContract {
+  const identityReferences = shot.references.filter((reference) => reference.role === "identity");
+  if (identityReferences.length < 2) {
+    return shot;
+  }
+  const cast = new Set(
+    splitCharacterIdentities(shot.continuity.identity).map((name) => normalizeCharacterKey(name)).filter(Boolean)
+  );
+  if (cast.size === 0) {
+    return shot;
+  }
+  const keptIdentityReferences = new Set(
+    identityReferences.filter((reference) =>
+      cast.has(normalizeCharacterKey(reference.selection?.characterId ?? reference.label))
+    )
+  );
+  if (keptIdentityReferences.size === 0) {
+    return shot;
+  }
+  return {
+    ...shot,
+    references: shot.references.filter(
+      (reference) => reference.role !== "identity" || keptIdentityReferences.has(reference)
+    )
+  };
+}
+
 export interface CharacterAnchorPlan {
   readonly characterKey: string;
   readonly name: string;

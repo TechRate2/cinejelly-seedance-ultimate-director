@@ -4,7 +4,15 @@
  * never disagree about the same line (cross-review: the diacritic regex was copy-pasted 3x).
  */
 
-const VIETNAMESE_DIACRITICS = /[ăâđêôơưà-ỹĂÂĐÊÔƠƯÀ-Ỹ]/u;
+// Vietnamese-DISTINCTIVE letters only: horn (ơ ư), breve (ă), stroke-d (đ), and the Latin Extended
+// Additional block U+1EA0–U+1EF9 (Vietnamese dot-below / hook-above / horn tone vowels). This
+// deliberately does NOT include the plain grave/acute/circumflex/tilde accents à á â ã è é ê ì í ò ó
+// ô õ ù ú ñ ç ü (U+00C0–U+00FF) that Vietnamese SHARES with Spanish/French/Portuguese/German/Italian/
+// Turkish — matching those made EVERY accented European line falsely read as Vietnamese and voiced with
+// a Vietnamese TTS model (wrong pronunciation). Real Vietnamese text almost always carries a horn/breve/
+// đ or a dot-below/hook tone; a rare line with only shared accents falls through to the analyst's
+// language decision (full-brief context) instead of forcing "vi".
+const VIETNAMESE_DIACRITICS = /[ăĂđĐơƠưƯẠ-ỹ]/u;
 
 export function containsVietnameseDiacritics(text: string | undefined): boolean {
   return Boolean(text && VIETNAMESE_DIACRITICS.test(text));

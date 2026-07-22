@@ -26,6 +26,7 @@ import {
   bindKeyframesToShots,
   bindPortraitsToCast,
   normalizeCharacterKey,
+  narrowShotReferencesToCast,
   planCastPortraitRequests,
   planCharacterAnchors,
   planKeyframeRequests,
@@ -349,7 +350,15 @@ export class DirectorAgent {
       intake.settings,
       preparedRequest.transitionSettings
     );
-    const shots = this.referenceSelectionPlanner.planForShots({ shots: plannedShots });
+    // Narrow each shot's identity references to the character(s) the beat actually casts BEFORE
+    // reference-selection and keyframe planning. The architect stamps every beat with the FULL uploaded
+    // roster and sets continuity.identity to the matching label(s); without narrowing, a shot cast as
+    // "Linh" still carries Mai's uploaded face, so the keyframe/render conditions on BOTH faces and
+    // blends them. Fail-safe: only narrows when 2+ identity refs need disambiguating AND the cast labels
+    // actually match, otherwise the shot is left untouched (never drop a face on a guess).
+    const shots = this.referenceSelectionPlanner.planForShots({
+      shots: plannedShots.map((shot) => narrowShotReferencesToCast(shot))
+    });
     const longFormContinuityPlan = this.longFormContinuityPlanner.build({
       projectId: intake.projectId,
       storyPlan,

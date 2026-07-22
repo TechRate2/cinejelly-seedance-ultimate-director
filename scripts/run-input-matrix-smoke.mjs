@@ -650,8 +650,14 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   check("audit#9: director wires talking counts into the gate", directorSrc.includes("plannedTalkingShotCount: plannedTalkingShots.length") && directorSrc.includes("const plannedLlmPlanCallCount =") && directorSrc.includes("this.creativeBriefAnalyst ? 1 : 0"), "");
 
   // Cross-review round (adversarial review of the audit fixes): 7 confirmed follow-up defects
-  const { normalizeSpokenLanguageCode: norm2 } = await import(`${base}/core/spoken-language.js`);
+  const { normalizeSpokenLanguageCode: norm2, containsVietnameseDiacritics: hasVn } = await import(`${base}/core/spoken-language.js`);
   check("review: country codes corrected to language codes", norm2("VN") === "vi" && norm2("jp") === "ja" && norm2("KR") === "ko" && norm2("cn") === "zh", "");
+  // Vietnamese detector must catch REAL Vietnamese (horn/breve/đ/dot-below tones) but NOT accented
+  // European text — the over-broad à-ỹ range used to tag Spanish/French/etc as Vietnamese and voice
+  // them with a Vietnamese TTS model (audit HIGH-F).
+  check("lang: real Vietnamese detected", hasVn("được người dùng") && hasVn("Tôi rất thích sản phẩm này") && hasVn("chương trình khuyến mãi"), "");
+  check("lang: accented European NOT mis-tagged Vietnamese",
+    !hasVn("Está increíble") && !hasVn("C'est déjà l'été très bête") && !hasVn("solução prática") && !hasVn("Schöner größere") && !hasVn("È così più però") && !hasVn("çünkü bugün"), "");
   // Gate must BLOCK when a hard cap is set but talking spend is unpriced (cap unenforceable)
   const capEst = bareGate.estimate({ compiledPrompts: [gatePromptStub("s1", 8)], settings: { qualityMode: "economy", maxCostUsd: 50 }, plannedTalkingShotCount: 1, plannedAvatarRenderSeconds: 8 });
   check("review: maxCostUsd + unpriced talking spend -> BLOCK (cap not enforceable)", capEst.status === "block" && capEst.findings.some((f) => f.includes("cannot bound talking-shot spend")), capEst.status);

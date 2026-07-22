@@ -7,7 +7,7 @@
  * No network, no provider calls, no spend.
  */
 
-import { bindKeyframesToShots, planKeyframeRequests } from "../dist/core/keyframe-first-planner.js";
+import { bindKeyframesToShots, planKeyframeRequests, narrowShotReferencesToCast } from "../dist/core/keyframe-first-planner.js";
 import { SeedancePromptCompiler } from "../dist/prompt_compiler/prompt-compiler.js";
 import { DEFAULT_SEEDANCE_SETTINGS } from "../dist/types/settings.js";
 
@@ -169,6 +169,29 @@ const noGrammarCompiled = compiler.compile({
   provider: "atlascloud"
 });
 check("grammar_absent_without_metadata", !noGrammarCompiled.prompt.includes("Framing grammar"));
+
+// --- Multi-character reference narrowing (audit HIGH-E): a beat cast as one character must not carry
+// every uploaded face into its keyframe/render (which blends them). Fail-safe when ambiguous.
+const idRef = (name) => ({ role: "identity", label: name, priority: "primary", providerReference: { kind: "image", uri: `https://cdn.example/${name}.png` }, selection: { characterId: name.toLowerCase() } });
+const productRef = { role: "product", label: "Serum", priority: "primary", providerReference: { kind: "image", uri: "https://cdn.example/serum.png" } };
+const castShot = (identity, references) => ({ shotId: "s1", sceneId: "sc1", intent: "demo", action: "a", subject: "creator", camera: "handheld", lighting: "soft", durationSeconds: 6, risks: [], references, continuity: identity ? { identity } : {}, metadata: {} });
+const rolesOf = (shot) => shot.references.map((r) => `${r.role}:${r.label}`);
+
+// Two uploaded faces, beat cast as "Linh" -> only Linh's face kept, product kept.
+const narrowed = narrowShotReferencesToCast(castShot("Linh", [idRef("Linh"), idRef("Mai"), productRef]));
+check("narrow_multiface_keeps_only_cast_identity", JSON.stringify(rolesOf(narrowed).sort()) === JSON.stringify(["identity:Linh", "product:Serum"].sort()), rolesOf(narrowed).join(","));
+// Beat cast as "Linh, Mai" -> both faces kept.
+const narrowedBoth = narrowShotReferencesToCast(castShot("Linh, Mai", [idRef("Linh"), idRef("Mai"), productRef]));
+check("narrow_multicast_keeps_all_named", narrowedBoth.references.filter((r) => r.role === "identity").length === 2);
+// Single identity ref -> untouched (nothing to disambiguate).
+const single = narrowShotReferencesToCast(castShot("Linh", [idRef("Linh"), productRef]));
+check("narrow_singleface_untouched", single.references.length === 2);
+// Cast label matches no uploaded face -> keep ALL identities (never drop on a guess).
+const noMatch = narrowShotReferencesToCast(castShot("young woman", [idRef("Linh"), idRef("Mai"), productRef]));
+check("narrow_no_match_keeps_all_failsafe", noMatch.references.filter((r) => r.role === "identity").length === 2);
+// No cast identity at all -> untouched.
+const noCast = narrowShotReferencesToCast(castShot(undefined, [idRef("Linh"), idRef("Mai")]));
+check("narrow_no_cast_untouched", noCast.references.length === 2);
 
 const failed = checks.filter((item) => !item.pass);
 const report = {
