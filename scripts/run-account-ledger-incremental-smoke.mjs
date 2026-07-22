@@ -157,6 +157,62 @@ try {
   //    ops only) no matter how many charges run.
   check("fast_path_used_for_ledger_mutations", mock.appendCalls >= 12, `appendCalls=${mock.appendCalls}`);
   check("charges_did_not_rewrite_mutable_tables", mock.mutableRewrites <= 4 && mock.mutableRewrites < mock.appendCalls, `mutableRewrites=${mock.mutableRewrites} appendCalls=${mock.appendCalls} persistCalls=${mock.persistCalls}`);
+
+  // 7. Postgres-like ASYNC boot must NOT wipe existing accounts. The postgres driver loads after an
+  //    await, so at construction load() returns undefined and the store is EMPTY; without the hydration
+  //    guard the first write would DELETE-and-replace the mutable tables with that empty snapshot and
+  //    wipe every existing account. This seeds an existing DB, boots a store against an async driver,
+  //    and proves: reads are empty pre-hydration, writes are BLOCKED (503) pre-hydration, the seeded
+  //    accounts survive, and after ready() the real balance is restored.
+  const seedMock = new MockIncrementalDriver();
+  const seedStore = new UserAccountStore({ driver: seedMock, pricing });
+  const seedReg = await seedStore.register({ email: "existing@test.local", password: "Existing-Test-1234" });
+  const seedTop = seedStore.requestTopupForPackage({ userId: seedReg.user.userId, creditPackage: PACK });
+  seedStore.decideTopup({ topupId: seedTop.topupId, approve: true });
+  const seededBalance = seedStore.balanceOf(seedReg.user.userId);
+  const seededState = seedMock.load();
+
+  class AsyncPostgresLikeMock {
+    constructor(state) {
+      this.kind = "postgres";
+      this.bootDone = false;
+      this.durable = clone(state);
+      this.persistedEntryCount = (this.durable.entries ?? []).length;
+      // Deferred boot: the test controls exactly WHEN the async load completes, so the "write during
+      // boot" is deterministic (no race with a microtask-resolved ready()).
+      this.releaseBoot = null;
+      this.readyPromise = new Promise((resolve) => { this.releaseBoot = resolve; }).then(() => { this.bootDone = true; });
+    }
+    load() { return this.bootDone ? clone(this.durable) : undefined; }
+    ready() { return this.readyPromise; }
+    persist(state) {
+      this.durable.users = clone(state.users);
+      this.durable.sessions = clone(state.sessions);
+      this.durable.topups = clone(state.topups);
+      this.durable.refundRequests = clone(state.refundRequests ?? []);
+      this.appendCreditEntries(state);
+    }
+    appendCreditEntries(state) {
+      for (let i = this.persistedEntryCount; i < state.entries.length; i += 1) this.durable.entries.push(clone(state.entries[i]));
+      this.persistedEntryCount = state.entries.length;
+    }
+  }
+
+  const asyncMock = new AsyncPostgresLikeMock(seededState);
+  const bootStore = new UserAccountStore({ driver: asyncMock, pricing });
+  check("async_boot_starts_unhydrated", bootStore.isHydrated() === false);
+  check("async_boot_reads_empty_before_hydration", bootStore.balanceOf(seedReg.user.userId) === 0, String(bootStore.balanceOf(seedReg.user.userId)));
+  // A sync write (topup request) during boot must be REFUSED before it can persist the empty snapshot.
+  let toppedDuringBoot = false;
+  try { bootStore.requestTopupForPackage({ userId: seedReg.user.userId, creditPackage: PACK }); toppedDuringBoot = true; } catch { /* expected 503 */ }
+  check("async_boot_write_blocked_pre_hydration", toppedDuringBoot === false);
+  check("async_boot_seeded_account_survives", asyncMock.durable.users.some((u) => u.userId === seedReg.user.userId) && asyncMock.durable.users.length === 1);
+  // Complete the async boot and let the store hydrate.
+  asyncMock.releaseBoot();
+  await bootStore.ready();
+  check("async_boot_hydrates_real_balance", bootStore.isHydrated() === true && bootStore.balanceOf(seedReg.user.userId) === seededBalance, `${bootStore.balanceOf(seedReg.user.userId)} vs ${seededBalance}`);
+  const postHydrateReg = await bootStore.register({ email: "after@test.local", password: "After-Test-1234" });
+  check("async_boot_writes_work_after_hydration", Boolean(postHydrateReg.user.userId) && asyncMock.durable.users.some((u) => u.userId === seedReg.user.userId));
 } finally {
   rmSync(workDir, { recursive: true, force: true });
 }

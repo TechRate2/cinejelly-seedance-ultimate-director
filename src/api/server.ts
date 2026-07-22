@@ -2117,6 +2117,15 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               episodeResult
             );
             const renderedEpisodeState = updatedRecord.episodeStates[updatedRecord.episodeStates.length - 1];
+            if (episodeCharge) {
+              // Durable delivery marker (same primitive as renders `:590` and redub `:1601`): the
+              // episode video is recorded and about to be delivered, so a post-restart reconcile must
+              // KEEP this charge. A series episode is an INLINE director run, never a jobManager job, so
+              // statusOfAny(episodeJobId) is undefined — without this marker the delivered-and-charged
+              // episode looks like a crash orphan and gets refunded/queued on the next restart (a free
+              // episode). This closes the same class of gap fixed for redub in f07fe16.
+              userAccountStore.markRenderSettled({ userId: episodeCharge.userId, jobId: episodeJobId });
+            }
             sendJson(response, 200, {
               seriesId,
               episodeNumber: composed.episodeNumber,
@@ -3329,10 +3338,12 @@ function shortPipelineRenderJobBodyFromBody(
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
     ...(body.references ? { references: body.references } : {}),
-    ...(body.metadata ? { metadata: body.metadata } : {}),
-    ...(body.outputPath ? { outputPath: body.outputPath } : {}),
-    ...(body.workDirectory ? { workDirectory: body.workDirectory } : {}),
-    ...(body.artifactDirectory ? { artifactDirectory: body.artifactDirectory } : {})
+    ...(body.metadata ? { metadata: body.metadata } : {})
+    // SECURITY: client-supplied outputPath/workDirectory/artifactDirectory are DELIBERATELY dropped on
+    // the self-serve render routes. normalizeRenderRequest always defaults them to a safe per-request
+    // path under the output root; accepting them let a paying customer point the MP4 write at an in-root
+    // state file (e.g. user-accounts.json) and corrupt the billing DB / DoS boot. Operators that need a
+    // custom path use the direct /v1/render routes; the series route server-chooses its paths too.
   };
 }
 
@@ -3379,10 +3390,9 @@ function shortPipelineConversationSessionRenderJobBodyFromBody(
     ...(body.settings ? { settings: body.settings } : {}),
     ...(body.modelPreferences ? { modelPreferences: body.modelPreferences } : {}),
     ...(body.references ? { references: body.references } : {}),
-    ...(body.metadata ? { metadata: body.metadata } : {}),
-    ...(body.outputPath ? { outputPath: body.outputPath } : {}),
-    ...(body.workDirectory ? { workDirectory: body.workDirectory } : {}),
-    ...(body.artifactDirectory ? { artifactDirectory: body.artifactDirectory } : {})
+    ...(body.metadata ? { metadata: body.metadata } : {})
+    // SECURITY: see shortPipelineRenderJobBodyFromBody — client-supplied output/work/artifact paths are
+    // dropped so a customer cannot redirect the render write onto an in-root state file (billing DB).
   };
 }
 

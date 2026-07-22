@@ -82,6 +82,9 @@ try {
   const serverSrc = readFileSync(new URL("../src/api/server.ts", import.meta.url), "utf8");
   check("server_redub_success_marks_settled", /markRenderSettled\(\{\s*userId:\s*redubCharge\.userId,\s*jobId:\s*redubId\s*\}\)/.test(serverSrc));
   check("server_reconcile_no_longer_forces_redub_succeeded", !serverSrc.includes('jobId.startsWith("redub_") ? "succeeded"'));
+  // Series episodes are inline director runs (never jobManager jobs, so statusOfAny is undefined) —
+  // the success path MUST stamp the settled marker or a delivered episode is refunded on restart.
+  check("server_series_episode_success_marks_settled", /markRenderSettled\(\{\s*userId:\s*episodeCharge\.userId,\s*jobId:\s*episodeJobId\s*\}\)/.test(serverSrc));
 } finally {
   rmSync(workDir, { recursive: true, force: true });
 }

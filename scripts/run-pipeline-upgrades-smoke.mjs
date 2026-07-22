@@ -16,6 +16,7 @@ import { planSocialPublishingMetadata } from "../dist/core/social-publishing-pla
 import { looksLikeUserScript } from "../dist/agents/story-architect.js";
 import { resolveSimpleBrief, USER_SCRIPT_OPEN_MARKER } from "../dist/core/simple-brief-resolver.js";
 import { RenderCostGate } from "../dist/core/render-cost-gate.js";
+import { SeedancePromptCompiler } from "../dist/prompt_compiler/prompt-compiler.js";
 
 const checks = [];
 function check(name, pass, detail) {
@@ -164,6 +165,24 @@ check("director_returns_social_publishing", directorSource.includes("socialPubli
 check("director_pre_checks_planning_cap_before_first_llm_call",
   directorSource.includes("assertPlanningWithinBudget") &&
   directorSource.indexOf("assertPlanningWithinBudget") < directorSource.indexOf("this.referenceVisionAnalyst!.describe"));
+
+// --- 8. Keyframe-first must actually REACH the render. reference-selection freezes selectedReferences
+// BEFORE the keyframe is minted; the compiler binds from that frozen set, so if the keyframe recompile
+// keeps the stale referenceSelectionPlan the paid first_frame keyframe is silently dropped from the
+// video request. This reproduces the bug (stale plan → keyframe gone) and locks the fix (recompile
+// strips the plan → keyframe reaches the provider).
+const kfCompiler = new SeedancePromptCompiler();
+const kfIdentity = { role: "identity", label: "Linh", priority: "primary", providerReference: { kind: "image", uri: "https://cdn.example/linh.png" }, selection: { characterId: "linh" } };
+const kfFrame = { role: "first_frame", label: "keyframe", priority: "primary", providerReference: { kind: "image", uri: "https://cdn.example/kf.png" } };
+const kfSettings = { tier: "fast", resolution: "720p", qualityMode: "economy", ratio: "9:16", durationTargetSeconds: 15, audioMode: "native", bitrateMode: "standard", watermark: false, returnLastFrame: true };
+const kfBaseShot = { shotId: "s1", sceneId: "sc1", intent: "demo", action: "creator shows product", subject: "creator", camera: "handheld", lighting: "soft", durationSeconds: 6, risks: [], references: [kfIdentity, kfFrame], continuity: {}, metadata: {} };
+const kfShotStale = { ...kfBaseShot, referenceSelectionPlan: { selectedReferences: [kfIdentity], droppedReferences: [], conflicts: [], roleScopes: [] } };
+const rolesStale = kfCompiler.compile({ shot: kfShotStale, settings: kfSettings, modelId: "bytedance/seedance-2.0", provider: "atlascloud" }).videoRequest.references.map((r) => r.role);
+check("keyframe_dropped_when_stale_plan_retained", !rolesStale.includes("first_frame"), JSON.stringify(rolesStale));
+const { referenceSelectionPlan: _stalePlan, ...kfShotStripped } = kfShotStale;
+const rolesStripped = kfCompiler.compile({ shot: kfShotStripped, settings: kfSettings, modelId: "bytedance/seedance-2.0", provider: "atlascloud" }).videoRequest.references.map((r) => r.role);
+check("keyframe_reaches_render_when_plan_stripped", rolesStripped.includes("first_frame"), JSON.stringify(rolesStripped));
+check("director_keyframe_recompile_strips_selection_plan", directorSource.includes("referenceSelectionPlan: _staleSelectionPlan"));
 
 // --- 7. Pre-spend gate ordering (source-level regression lock). The three fail-closed long-form
 // gates (timeline/creative/readiness) MUST be computed exactly once and BEFORE the first provider

@@ -387,7 +387,14 @@ export class UserAccountStore {
   private readonly driver: AccountPersistenceDriver;
   private readonly packages: readonly CreditPackage[];
   private readonly pricing: RenderCreditPricing;
-  private readonly state: StoreState;
+  // Reassigned once by hydrate() for async (postgres) drivers after their boot load completes.
+  private state: StoreState;
+  // False only while an async (postgres) driver is still loading; writes are blocked until true so an
+  // empty boot snapshot can never overwrite durable account data.
+  private hydrated = true;
+  // Resolves when durable state is fully loaded (immediately for json/sqlite; after the boot load +
+  // reload for postgres). `ready()` returns it so callers can await a hydrated store.
+  private readonly hydrationPromise: Promise<void>;
   private readonly balances = new Map<string, number>();
   private readonly loginFailures = new Map<string, { count: number; firstAt: number }>();
   // Emails with a login verification currently in flight. Serialising to one attempt per email
@@ -408,9 +415,44 @@ export class UserAccountStore {
     this.packages = input.packages ?? DEFAULT_CREDIT_PACKAGES;
     this.pricing = input.pricing ?? loadRenderCreditPricing();
     this.state = this.loadState();
+    this.rebuildBalances();
+    // The postgres driver loads ASYNCHRONOUSLY: its boot() populates load() only after an await, so at
+    // construction time load() returned undefined and this.state is EMPTY. Re-hydrate once the driver is
+    // ready, and BLOCK writes until then — otherwise the first persist() would DELETE-and-replace the
+    // mutable tables with the empty snapshot and WIPE every existing account (silent data-loss on every
+    // restart, exactly on the managed-SQL backend the deploy guide recommends for growth). Synchronous
+    // drivers (json/sqlite) load fully in the constructor, so they are hydrated immediately.
+    this.hydrated = this.driver.kind !== "postgres";
+    this.hydrationPromise = this.hydrated
+      ? Promise.resolve()
+      : this.hydrate().catch((error: unknown) => {
+          // Boot load failed (DB unreachable): stay un-hydrated so writes keep returning 503 instead of
+          // wiping data; the node needs a reachable DB and a restart to recover.
+          console.error(
+            "[user-account-store] account hydrate failed:",
+            error instanceof Error ? error.message : error
+          );
+        });
+  }
+
+  private rebuildBalances(): void {
+    this.balances.clear();
     for (const entry of this.state.entries) {
       this.balances.set(entry.userId, (this.balances.get(entry.userId) ?? 0) + entry.credits);
     }
+  }
+
+  /**
+   * Re-read durable state once an asynchronous driver (postgres) has finished its boot load, then
+   * unblock writes. If the boot load REJECTS (DB unreachable), `hydrated` stays false so writes remain
+   * blocked (a clear 503) rather than persisting an empty snapshot over real data — the node needs its
+   * database to serve accounts, so refusing is the safe state until it is restarted with a reachable DB.
+   */
+  private async hydrate(): Promise<void> {
+    await this.driver.ready();
+    this.state = this.loadState();
+    this.rebuildBalances();
+    this.hydrated = true;
   }
 
   public static fromEnv(env: NodeJS.ProcessEnv = process.env): UserAccountStore {
@@ -425,9 +467,9 @@ export class UserAccountStore {
     });
   }
 
-  /** Resolves when the durability driver finished its boot load (postgres is async). */
+  /** Resolves when the store is fully hydrated (driver boot load + in-memory reload complete). */
   public ready(): Promise<void> {
-    return this.driver.ready();
+    return this.hydrationPromise;
   }
 
   /** Which durability backend this store runs on (json | sqlite | postgres). */
@@ -1136,7 +1178,24 @@ export class UserAccountStore {
     };
   }
 
+  /** True once durable state is loaded (always true for json/sqlite; after boot load for postgres). */
+  public isHydrated(): boolean {
+    return this.hydrated;
+  }
+
+  private assertHydrated(): void {
+    if (!this.hydrated) {
+      throw new UserAccountError(
+        "Hệ thống tài khoản đang tải dữ liệu từ cơ sở dữ liệu, vui lòng thử lại sau vài giây.",
+        503
+      );
+    }
+  }
+
   private persist(): void {
+    // Block until the async boot load has hydrated real state — persisting the empty boot snapshot
+    // would DELETE-and-replace the mutable tables and wipe every existing account.
+    this.assertHydrated();
     this.driver.persist(this.state);
   }
 
@@ -1148,6 +1207,7 @@ export class UserAccountStore {
    * mutable collection changed; every other mutation uses persist().
    */
   private appendLedger(): void {
+    this.assertHydrated();
     this.driver.appendCreditEntries(this.state);
   }
 }

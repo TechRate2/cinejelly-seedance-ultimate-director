@@ -2102,8 +2102,16 @@ export class DirectorAgent {
       if (promptIndex < 0 || !updatedShot) {
         continue;
       }
+      // Strip the stale reference-selection plan before recompiling. reference-selection ran BEFORE
+      // the keyframe existed and froze `selectedReferences` to the pre-keyframe set; the compiler
+      // binds from `referenceSelectionPlan.selectedReferences` when present, so keeping the plan would
+      // silently DROP the freshly-added first_frame keyframe (and character-anchor identity) from the
+      // video request — the paid keyframe would never reach the render. Recompiling from the updated
+      // `references` (the compiler re-applies the provider reference cap) lets it through, mirroring
+      // the last-frame chain path which strips the plan for the same reason.
+      const { referenceSelectionPlan: _staleSelectionPlan, ...updatedShotForKeyframe } = updatedShot;
       input.compiledPrompts[promptIndex] = this.promptCompiler.compile({
-        shot: updatedShot,
+        shot: updatedShotForKeyframe,
         settings: input.settings,
         modelId: input.modelId,
         provider: "atlascloud",
