@@ -92,6 +92,7 @@
     "validation:ssrf-guard": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-ssrf-guard-smoke.mjs",
     "validation:reconcile-settlement": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-reconcile-settlement-smoke.mjs",
     "validation:account-ledger-incremental": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-account-ledger-incremental-smoke.mjs",
+    "validation:output-retention-janitor": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-output-retention-janitor-smoke.mjs",
     "validation:commercial-policy": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-commercial-policy-smoke.mjs",
     "validation:render-scheduler": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-render-scheduler-smoke.mjs",
     "validation:mixed-output-assembly": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-mixed-output-assembly-smoke.mjs",

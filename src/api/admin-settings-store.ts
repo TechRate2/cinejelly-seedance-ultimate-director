@@ -359,6 +359,10 @@ export class AdminSettingsStore {
       throw new UserAccountError(`Danh sách gói phải có 1-${MAX_PACKAGES} gói.`, 400);
     }
     const seen = new Set<string>();
+    // Provider-cost basis per credit (1 credit ≈ this much Atlas spend). Used to reject a package that
+    // sells credits BELOW cost — a fat-fingered price (e.g. a dropped zero: "28000 credits for $1")
+    // would otherwise save silently and lose money on every subsequent video.
+    const creditCostBasisUsd = this.pipelineCost().creditCostBasisUsd;
     return value.map((item, index) => {
       const record = item as Partial<CreditPackage>;
       const packageId = typeof record.packageId === "string" ? record.packageId.trim() : "";
@@ -389,6 +393,19 @@ export class AdminSettingsStore {
       const priceUsd = hasUsd ? Math.round(rawUsd * 100) / 100 : rawVnd / DEFAULT_USD_TO_VND;
       if (priceUsd <= 0 || priceUsd > 100_000) {
         throw new UserAccountError(`Gói ${index + 1}: giá USD phải là số dương hợp lý.`, 400);
+      }
+      // LOSS GUARD: catch a fat-fingered price that loses money on every render (e.g. a dropped zero).
+      // A regular pack must sell each credit AT OR ABOVE its provider-cost basis. A trial pack
+      // (oncePerAccount) is allowed to be a deliberate loss-leader, so it only trips on an absurd
+      // near-zero price (10% of cost) — not on a normal promo discount. Break-even / thin margin is fine.
+      const isTrialPack = (record as { oncePerAccount?: unknown }).oncePerAccount === true;
+      const usdPerCredit = priceUsd / credits;
+      const lossFloorUsd = isTrialPack ? creditCostBasisUsd * 0.1 : creditCostBasisUsd;
+      if (creditCostBasisUsd > 0 && usdPerCredit < lossFloorUsd) {
+        throw new UserAccountError(
+          `Gói ${index + 1} ("${label}"): mỗi credit đang bán ${usdPerCredit.toFixed(5)} USD — ${isTrialPack ? "quá thấp bất thường" : "DƯỚI giá vốn"} (~${creditCostBasisUsd} USD/credit). Kiểm tra lại giá gói / số credits (thường là gõ nhầm rớt số 0).`,
+          400
+        );
       }
       const priceVnd = hasVnd ? Math.floor(rawVnd) : Math.round(priceUsd * DEFAULT_USD_TO_VND);
       const bonusNote = typeof record.bonusNote === "string" ? record.bonusNote.trim().slice(0, 80) : "";

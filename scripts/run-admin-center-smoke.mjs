@@ -63,6 +63,15 @@ try {
   rejectedBadPackage = true;
 }
 check("settings_rejects_bad_package_id", rejectedBadPackage);
+// Loss guard: a regular package selling credits BELOW provider cost (e.g. a dropped-zero typo:
+// 28000 credits for $1) must be rejected so the operator can't accidentally save a money-losing price.
+let rejectedLossPackage = false;
+try {
+  settings.update({ packages: [{ packageId: "goi_lo", label: "Lỗ", credits: 28000, priceUsd: 1 }] }, "test");
+} catch {
+  rejectedLossPackage = true;
+}
+check("settings_rejects_below_cost_package", rejectedLossPackage);
 let rejectedBadModel = false;
 try {
   settings.update({ models: { videoModel: "has spaces and $" } }, "test");
@@ -132,7 +141,7 @@ try {
   const put = await req("PUT", "/v1/admin/settings", {
     creditsPerRenderSecond: 25,
     usdToVnd: 27000,
-    packages: [{ packageId: "goi_test", label: "Gói Test", credits: 999, priceUsd: 3 }]
+    packages: [{ packageId: "goi_test", label: "Gói Test", credits: 200, priceUsd: 3 }]
   }, admin);
   check("operator_edits_settings", put.status === 200 && put.payload.settings.pricing.creditsPerRenderSecond === 25);
   const afterMe = await req("GET", "/v1/account/me", undefined, custSession);

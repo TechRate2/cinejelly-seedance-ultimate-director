@@ -57,7 +57,7 @@ Khách nạp tiền: chọn gói → chuyển khoản theo hướng dẫn trên 
 - Tăng số video chạy song song: `CINEJELLY_API_JOB_CONCURRENCY=4` (mặc định 1). Atlas chạy bất đồng bộ nên nâng 3-8 là chạy được nhiều video cùng lúc.
 - Khi có khách đều: chuyển `CINEJELLY_DATABASE_KIND=sqlite` (bền hơn file JSON).
 - Nới giới hạn chống-spam khi lượng khách thật tăng: `CINEJELLY_API_RATE_LIMIT_MAX_REQUESTS`.
-- **Dọn ổ đĩa:** video/ảnh khách tải lên không tự xoá — đặt lịch xoá file cũ trong thư mục output định kỳ để ổ không đầy.
+- **Dọn ổ đĩa (tự động):** đặt `CINEJELLY_OUTPUT_RETENTION_DAYS=30` (hoặc số ngày bạn muốn) để hệ thống TỰ xoá video render cũ hơn ngần đó ngày, ổ không bao giờ đầy. An toàn tuyệt đối: chỉ xoá kết quả render cũ (thư mục `work/`, `redub/`), KHÔNG bao giờ đụng file tài khoản/tiền, ảnh khách tải lên, backup, hay video phim-dài-tập. Mặc định TẮT (vì xoá video khách cũ là lựa chọn của bạn). Ảnh khách tải lên (`uploads/`) vẫn cần dọn tay nếu muốn.
 
 ## Sao lưu tiền + tài khoản (quan trọng!)
 
@@ -70,7 +70,8 @@ Bản sao nằm trong thư mục `backups/` kèm file hướng dẫn phục hồ
 ## Khi có sự cố
 
 - Server sập/khởi động lại: job đang chạy dở của khách được đối soát lại khi bật lên. Với chính sách mặc định "manual" (có lợi cho bạn), các job đó **vào hàng chờ hoàn tiền** ở `/operator/admin` để bạn duyệt (không tự hoàn). Đặt `CINEJELLY_REFUND_POLICY=auto` thì mới tự hoàn ngay. **Mẹo:** tránh khởi động lại/deploy khi đang có video của khách chạy dở hoặc chờ duyệt; sau mỗi lần khởi động lại, ghé mục hoàn tiền để duyệt các ca vừa vào hàng chờ.
-- Sau khi deploy hoặc đổi `.env`: chạy `npm run doctor` (hoặc mở `https://tenmien.com/v1/preflight` với khóa quản trị) để chắc chắn key Atlas + model + ffmpeg đều OK **trước khi** mời khách — server vẫn "sống" (`/health` xanh) kể cả khi thiếu key, chỉ đến lúc khách tạo video mới lộ lỗi.
+- Sau khi deploy hoặc đổi `.env`: chạy `npm run doctor` để kiểm **trước khi** mời khách. Nó kiểm: có đủ key/model chưa, **cấu hình cơ sở dữ liệu** (json/sqlite/postgres — báo rõ nếu sai, VD sqlite cần Node ≥ 22.5, postgres thiếu URL/gói pg), **dung lượng ổ đĩa còn trống**, và ffmpeg. LƯU Ý: doctor kiểm *có điền và đúng định dạng*; còn key Atlas có **thật sự hợp lệ** hay model có tồn tại trên tài khoản Atlas thì chỉ chắc chắn khi chạy render thật (bước nghiệm thu). Server vẫn "sống" kể cả khi thiếu key.
+- **Kiểm tra "sống" nhanh:** mở `https://tenmien.com/health`. Thấy `{"status":"ok"}` = ổn. Thấy `{"status":"degraded","database":"unreachable",...}` = **mất kết nối cơ sở dữ liệu** (Neon đang ngủ / sai `CINEJELLY_POSTGRES_URL`) — sửa rồi khởi động lại. (Khi DB mất kết nối, khách sẽ không đăng ký/nạp/đăng nhập được và báo lỗi nêu rõ nguyên nhân, không phải "thử lại sau" mơ hồ.)
 - Đặt sau proxy riêng (nginx…) thay vì Caddy đi kèm: BẮT BUỘC bật `CINEJELLY_TRUST_PROXY_HEADERS=true`, nếu không mọi khách bị gộp chung một hạn mức chống-spam (cả web chỉ còn ~6 lệnh tạo video/phút). Bản Docker đi kèm đã bật sẵn.
 - Quên khóa quản trị: mở file `.env` trên máy chủ, dòng `CINEJELLY_API_AUTH_TOKEN`.
 - Muốn tặng/trừ credits thủ công: trang `/operator/admin`, mục "Cộng/trừ credits thủ công".

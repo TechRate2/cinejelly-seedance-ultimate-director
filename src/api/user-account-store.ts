@@ -392,6 +392,9 @@ export class UserAccountStore {
   // False only while an async (postgres) driver is still loading; writes are blocked until true so an
   // empty boot snapshot can never overwrite durable account data.
   private hydrated = true;
+  // Set true when the boot load REJECTED (DB unreachable) — distinguishes a transient "still loading"
+  // 503 from a hard "database is down, fix it and restart" outage so the operator sees the real cause.
+  private hydrationFailed = false;
   // Resolves when durable state is fully loaded (immediately for json/sqlite; after the boot load +
   // reload for postgres). `ready()` returns it so callers can await a hydrated store.
   private readonly hydrationPromise: Promise<void>;
@@ -428,8 +431,9 @@ export class UserAccountStore {
       : this.hydrate().catch((error: unknown) => {
           // Boot load failed (DB unreachable): stay un-hydrated so writes keep returning 503 instead of
           // wiping data; the node needs a reachable DB and a restart to recover.
+          this.hydrationFailed = true;
           console.error(
-            "[user-account-store] account hydrate failed:",
+            "[user-account-store] account hydrate failed (database unreachable):",
             error instanceof Error ? error.message : error
           );
         });
@@ -1184,12 +1188,26 @@ export class UserAccountStore {
   }
 
   private assertHydrated(): void {
-    if (!this.hydrated) {
+    if (this.hydrated) {
+      return;
+    }
+    if (this.hydrationFailed) {
+      // Hard outage: the boot load rejected, so this never recovers on its own — name the cause + fix.
       throw new UserAccountError(
-        "Hệ thống tài khoản đang tải dữ liệu từ cơ sở dữ liệu, vui lòng thử lại sau vài giây.",
+        "Không kết nối được cơ sở dữ liệu tài khoản. Kiểm tra CINEJELLY_POSTGRES_URL / Neon (có thể đang ngủ hoặc sai chuỗi kết nối), rồi khởi động lại máy chủ.",
         503
       );
     }
+    // Still loading (transient): the async boot load will finish shortly and unblock writes.
+    throw new UserAccountError(
+      "Hệ thống tài khoản đang tải dữ liệu từ cơ sở dữ liệu, vui lòng thử lại sau vài giây.",
+      503
+    );
+  }
+
+  /** Diagnosis surface: has the boot load hard-failed (DB unreachable)? Distinct from still-loading. */
+  public hasHydrationFailed(): boolean {
+    return this.hydrationFailed;
   }
 
   private persist(): void {

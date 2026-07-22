@@ -33,6 +33,7 @@ import { captionCuesToSrt } from "../core/subtitle-translator.js";
 import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider.js";
 import { ProviderCostLedger } from "../providers/cost-ledger.js";
 import { loadRuntimeSettings } from "../config/runtime-config.js";
+import { OutputRetentionJanitor } from "../core/output-retention-janitor.js";
 import {
   UserAccountError,
   UserAccountStore,
@@ -626,6 +627,16 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   // and force-fails any held past the deadline (billing then settles per the refund policy —
   // auto refunds, manual queues, "off" keeps the credits — so the job is never stuck forever).
   jobManager.startOperatorHoldSweep();
+  // Auto disk-janitor: periodically delete OLD render output (work/ and redub/ dirs past the retention
+  // window) so a solo operator's disk never silently fills — once full, renders AND account writes
+  // fail. DISABLED unless CINEJELLY_OUTPUT_RETENTION_DAYS > 0 (auto-deleting old customer videos is a
+  // conscious choice). Allowlist-only: it NEVER touches user-accounts.json / admin-settings.json /
+  // uploads / backups / series episodes (proven by run-output-retention-janitor-smoke).
+  const outputRetentionJanitor = new OutputRetentionJanitor({
+    outputRoot: resolve(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables"),
+    retentionDays: Number(process.env.CINEJELLY_OUTPUT_RETENTION_DAYS)
+  });
+  outputRetentionJanitor.start();
   // Mỗi tài khoản chỉ một yêu cầu dịch/thuyết minh chạy tại một thời điểm (chặn double-click
   // gây trừ tiền hai lần và giới hạn chi phí provider).
   const redubInFlight = new Set<string>();
@@ -666,7 +677,24 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/health") {
-        sendJson(response, 200, { status: "ok" }, requestContext);
+        // Report the account-database connection so a runtime outage is VISIBLE here instead of the
+        // page staying green while every login/payment silently 503s. Stays HTTP 200 (so a load
+        // balancer/Docker healthcheck does not restart-loop the container on a transient DB blip);
+        // the body carries the real state + fix for a human/dashboard to see.
+        const databaseUnreachable = userAccountStore.hasHydrationFailed();
+        sendJson(
+          response,
+          200,
+          databaseUnreachable
+            ? {
+                status: "degraded",
+                database: "unreachable",
+                message:
+                  "Không kết nối được cơ sở dữ liệu tài khoản — kiểm tra CINEJELLY_POSTGRES_URL / Neon (có thể đang ngủ hoặc sai chuỗi kết nối) rồi khởi động lại máy chủ."
+              }
+            : { status: "ok" },
+          requestContext
+        );
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/preflight") {
@@ -2573,7 +2601,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       );
     }
   });
-  registerShutdownHandlers(server, jobManager, shutdownCoordinator);
+  registerShutdownHandlers(server, jobManager, shutdownCoordinator, outputRetentionJanitor);
   return server;
 }
 
@@ -4292,7 +4320,8 @@ function productionGraphResumeQueueOperationFor(pathname: string): string | unde
 function registerShutdownHandlers(
   server: Server,
   jobManager: RenderJobManager,
-  shutdownCoordinator: ApiShutdownCoordinator
+  shutdownCoordinator: ApiShutdownCoordinator,
+  outputRetentionJanitor: OutputRetentionJanitor
 ): void {
   let shuttingDown = false;
   const shutdown = (signal: NodeJS.Signals): void => {
@@ -4302,6 +4331,7 @@ function registerShutdownHandlers(
     shuttingDown = true;
     const reason = `CineJelly API received ${signal}; canceling active render work for deployment shutdown.`;
     jobManager.stopOperatorHoldSweep();
+    outputRetentionJanitor.stop();
     const abortedRequestCount = shutdownCoordinator.abortActiveRequests(reason);
     const canceledJobs = jobManager.cancelAll(reason);
     console.log(
@@ -4320,5 +4350,24 @@ function registerShutdownHandlers(
 }
 
 if (process.argv[1] && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1])) {
-  startServer();
+  try {
+    startServer();
+  } catch (error) {
+    // Turn a SYNCHRONOUS boot failure (bad DB config, schema mismatch, missing prerequisite like
+    // sqlite-on-old-Node or postgres-without-pg/URL) into ONE clean Vietnamese line + a non-zero exit,
+    // instead of the raw English stack trace a non-technical operator cannot read or act on.
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error(
+      `\n========================================\n` +
+        `[LỖI KHỞI ĐỘNG] Máy chủ KHÔNG khởi động được.\n` +
+        `  Nguyên nhân: ${detail}\n` +
+        `  Cách xử lý:\n` +
+        `   1) Mở file .env, kiểm tra cấu hình cơ sở dữ liệu (CINEJELLY_DATABASE_KIND / CINEJELLY_POSTGRES_URL)\n` +
+        `      và các dòng [BẮT BUỘC].\n` +
+        `   2) Chạy "npm run doctor" để dò lỗi cụ thể.\n` +
+        `   3) Sửa xong khởi động lại.\n` +
+        `========================================\n`
+    );
+    process.exit(1);
+  }
 }
