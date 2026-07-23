@@ -19,6 +19,7 @@ import { MediaInspector } from "../core/media-inspector.js";
 import { RenderCostGate } from "../core/render-cost-gate.js";
 import { RenderedCandidateVisualInspector } from "../core/rendered-candidate-visual-inspector.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
+import { ImageAnchorVerifier } from "../core/image-anchor-verifier.js";
 import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
 import type { ProductionStageProgressReporter } from "../types/stage.js";
 import { RuntimePreflight } from "./runtime-preflight.js";
@@ -52,6 +53,9 @@ export function createDirectorRuntime(
   const renderProducer = new RenderProducer(atlasProvider, atlasProvider);
   const renderCostGate = new RenderCostGate(settings.costEstimation);
   const semanticVisualInspector = new SemanticVisualInspector(atlasProvider, settings.atlasCloud.models.llmModel);
+  // Pre-video-spend image check (ViMax economy): portraits/keyframes are verified by the VISION
+  // model (an "eyes" task — llmModel, not the writer model) before dollars render on them.
+  const imageAnchorVerifier = new ImageAnchorVerifier(atlasProvider, settings.atlasCloud.models.llmModel);
   const candidateMediaInspector = new MediaInspector();
   const renderedCandidateVisualInspector = new RenderedCandidateVisualInspector({
     mediaInspector: candidateMediaInspector,
@@ -101,6 +105,7 @@ export function createDirectorRuntime(
           },
       materialSourceAdapters,
       assemblyEngine,
+      imageAnchorVerifier,
       renderConcurrency: settings.renderConcurrency,
       audioGenerationCapabilities: atlasProvider.audioCapabilities(),
       audioProvider: atlasProvider,

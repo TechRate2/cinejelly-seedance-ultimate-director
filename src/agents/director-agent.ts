@@ -20,7 +20,7 @@ import { selectAssemblyClipsForRenderedShots } from "../core/assembly-output-sel
 import { ConsistencyGuardian } from "../core/consistency-guardian.js";
 import { ContinuityLedgerBuilder } from "../core/continuity-ledger-builder.js";
 import { DeliveryGate } from "../core/delivery-gate.js";
-import { selectOrExtractLastFrameReference, type EndpointFrameQualityEvidence } from "../core/endpoint-frame-chain.js";
+import { isImageOutputUrl, selectOrExtractLastFrameReference, type EndpointFrameQualityEvidence } from "../core/endpoint-frame-chain.js";
 import {
   bindCharacterAnchorsToShots,
   bindKeyframesToShots,
@@ -66,6 +66,7 @@ import {
   type RenderScheduleSequentialReason
 } from "../core/render-scheduler.js";
 import { SemanticVisualInspector } from "../core/semantic-visual-inspector.js";
+import { ImageAnchorVerifier } from "../core/image-anchor-verifier.js";
 import { ShotPlanner } from "../core/shot-planner.js";
 import { StoryboardApprovalGate } from "../core/storyboard-approval-gate.js";
 import { SourceVideoAutoAnalyzer } from "../core/source-video-auto-analyzer.js";
@@ -146,6 +147,7 @@ export class DirectorAgent {
   private readonly assemblyEngine: AssemblyEngine;
   private readonly deliveryGate: DeliveryGate;
   private readonly semanticVisualInspector: SemanticVisualInspector | undefined;
+  private readonly imageAnchorVerifier: ImageAnchorVerifier | undefined;
   private readonly renderedCandidateVisualInspector: RenderedCandidateVisualInspector | undefined;
   private readonly sourceVideoAutoAnalyzer: SourceVideoAutoAnalyzer | undefined;
   private readonly sourceVideoAutoAnalysisSettings: SourceVideoAutoAnalysisSettings | undefined;
@@ -193,6 +195,8 @@ export class DirectorAgent {
     readonly assemblyEngine?: AssemblyEngine;
     readonly deliveryGate?: DeliveryGate;
     readonly semanticVisualInspector?: SemanticVisualInspector;
+    /** Optional pre-video-spend image check (ViMax economy): verify portraits/keyframes for cents before dollars render on them. */
+    readonly imageAnchorVerifier?: ImageAnchorVerifier;
     readonly renderedCandidateVisualInspector?: RenderedCandidateVisualInspector;
     readonly sourceVideoAutoAnalyzer?: SourceVideoAutoAnalyzer;
     readonly sourceVideoAutoAnalysisSettings?: SourceVideoAutoAnalysisSettings;
@@ -236,6 +240,7 @@ export class DirectorAgent {
     this.assemblyEngine = input.assemblyEngine ?? new AssemblyEngine();
     this.deliveryGate = input.deliveryGate ?? new DeliveryGate();
     this.semanticVisualInspector = input.semanticVisualInspector;
+    this.imageAnchorVerifier = input.imageAnchorVerifier;
     this.renderedCandidateVisualInspector = input.renderedCandidateVisualInspector;
     this.sourceVideoAutoAnalyzer = input.sourceVideoAutoAnalyzer;
     this.sourceVideoAutoAnalysisSettings = input.sourceVideoAutoAnalysisSettings;
@@ -2100,6 +2105,86 @@ export class DirectorAgent {
         }
       }
     }
+    // Pre-video-spend keyframe verification (ViMax economy, fidelity gap #2), face-critical shots
+    // only (those carrying identity references): the keyframe becomes the video's first frame, so a
+    // wrong/blended face here poisons every paid candidate. Fail → regenerate ONCE; fail again →
+    // DROP the keyframe (the shot falls back to reference-to-video with the identity refs attached
+    // directly — the safe pre-keyframe path) and warn. "skipped" verdicts change nothing (fail-open).
+    if (this.imageAnchorVerifier && results.length > 0) {
+      const requestByShotId = new Map(requests.map((planned) => [planned.shotId, planned]));
+      const shotById = new Map(anchoredShots.map((shot) => [shot.shotId, shot]));
+      const droppedShotIds: string[] = [];
+      let keyframeVerifiedCount = 0;
+      let keyframeRegeneratedCount = 0;
+      for (let index = results.length - 1; index >= 0; index -= 1) {
+        const entry = results[index]!;
+        const shot = shotById.get(entry.shotId);
+        const identityUrls = (shot?.references ?? [])
+          .filter((reference) => reference.role === "identity")
+          .map((reference) => reference.providerReference.uri)
+          .filter((uri): uri is string => typeof uri === "string" && /^https:\/\//.test(uri));
+        if (!shot || identityUrls.length === 0) {
+          continue;
+        }
+        const imageUrl = entry.prediction.outputUrls.find((url) => isImageOutputUrl(url));
+        if (!imageUrl) {
+          continue;
+        }
+        const expectation = [
+          `Subject: ${shot.subject}.`,
+          this.identityExpectation(shot)
+        ].filter((part): part is string => Boolean(part)).join(" ");
+        const verdict = await this.imageAnchorVerifier.verify(
+          { imageUrl, kind: "shot_keyframe", expectation, identityReferenceUrls: identityUrls },
+          input.signal
+        );
+        keyframeVerifiedCount += 1;
+        if (verdict.status !== "fail") {
+          continue;
+        }
+        const plan = requestByShotId.get(entry.shotId);
+        let resolved = false;
+        if (plan) {
+          try {
+            const retried = await imageProvider.generateImage(plan.request, input.signal);
+            const retriedUrl = retried.outputUrls.find((url) => isImageOutputUrl(url));
+            if (retriedUrl) {
+              const retryVerdict = await this.imageAnchorVerifier.verify(
+                { imageUrl: retriedUrl, kind: "shot_keyframe", expectation, identityReferenceUrls: identityUrls },
+                input.signal
+              );
+              if (retryVerdict.status !== "fail") {
+                results[index] = { ...entry, prediction: retried };
+                keyframeRegeneratedCount += 1;
+                resolved = true;
+              }
+            }
+          } catch (error) {
+            if (input.signal?.aborted) {
+              throw error;
+            }
+          }
+        }
+        if (!resolved) {
+          // A confirmed-wrong face as the first frame is WORSE than no keyframe: drop it so the
+          // identity references reach the video model directly instead of a poisoned still.
+          droppedShotIds.push(entry.shotId);
+          results.splice(index, 1);
+        }
+      }
+      if (keyframeVerifiedCount > 0) {
+        this.reportStageProgress("render", droppedShotIds.length > 0 ? "warn" : "running",
+          droppedShotIds.length > 0
+            ? "Some keyframes contradicted their identity references even after one regeneration and were dropped; those shots render from the identity references directly."
+            : "Face-critical keyframes verified against identity references before video spend.",
+          {
+            keyframeVerifiedCount,
+            keyframeRegeneratedCount,
+            keyframeDroppedCount: droppedShotIds.length
+          }
+        );
+      }
+    }
     const binding = bindKeyframesToShots({ shots: anchoredShots, results });
     // Recompile every shot that changed: those bound to a keyframe AND those that only received a
     // character-anchor identity reference (so the anchor still reaches the video request even when
@@ -2262,6 +2347,12 @@ export class DirectorAgent {
    * Generate one shared identity portrait per recurring invented character (fail-open, batched).
    * Returns only the characters whose front-view portrait succeeded, as {characterKey, name, uri}.
    */
+  /** Identity wording for the keyframe check, from the shot's continuity prose when present. */
+  private identityExpectation(shot: ShotContract): string | undefined {
+    const identity = shot.continuity.identity?.trim();
+    return identity ? `Named identity to preserve: ${identity}.` : undefined;
+  }
+
   private async generateCharacterAnchorPortraits(input: {
     readonly anchors: readonly CharacterAnchorPlan[];
     readonly imageProvider: ImageProvider;
@@ -2306,6 +2397,84 @@ export class DirectorAgent {
         if (entry) {
           portraitResults.push(entry);
         }
+      }
+    }
+    // Pre-video-spend verification (ViMax economy, fidelity gap #2): one vision look at each PRIMARY
+    // portrait against its locked appearance sheet, BEFORE keyframes and video condition on it. A
+    // failed portrait is regenerated ONCE; a twice-failed portrait is KEPT with a warning — an
+    // imperfect but consistent anchor still beats every shot re-inventing the face, and the operator
+    // review sees the warning. "skipped" (verifier unavailable) changes nothing (fail-open).
+    if (this.imageAnchorVerifier) {
+      const anchorByCharacter = new Map(input.anchors.map((anchor) => [anchor.characterKey, anchor]));
+      const planByCharacter = new Map(
+        portraitPlans.filter((plan) => plan.isPrimary).map((plan) => [plan.characterId, plan])
+      );
+      let verifiedCount = 0;
+      let regeneratedCount = 0;
+      let unresolvedFailures = 0;
+      for (let index = 0; index < portraitResults.length; index += 1) {
+        const entry = portraitResults[index]!;
+        if (!entry.isPrimary) {
+          continue;
+        }
+        const anchor = anchorByCharacter.get(entry.characterId);
+        const imageUrl = entry.prediction.outputUrls.find((url) => isImageOutputUrl(url));
+        if (!anchor || !imageUrl) {
+          continue;
+        }
+        const expectation = [anchor.name, anchor.description, anchor.staticFeatures]
+          .filter((part): part is string => Boolean(part?.trim()))
+          .join(" — ");
+        const verdict = await this.imageAnchorVerifier.verify(
+          { imageUrl, kind: "character_portrait", expectation },
+          input.signal
+        );
+        verifiedCount += 1;
+        if (verdict.status !== "fail") {
+          continue;
+        }
+        const plan = planByCharacter.get(entry.characterId);
+        if (!plan) {
+          unresolvedFailures += 1;
+          continue;
+        }
+        try {
+          const retried = await input.imageProvider.generateImage(plan.request, input.signal);
+          const retriedUrl = retried.outputUrls.find((url) => isImageOutputUrl(url));
+          const retryVerdict = retriedUrl
+            ? await this.imageAnchorVerifier.verify(
+                { imageUrl: retriedUrl, kind: "character_portrait", expectation },
+                input.signal
+              )
+            : undefined;
+          if (retriedUrl && retryVerdict?.status !== "fail") {
+            portraitResults[index] = { ...entry, prediction: retried };
+            regeneratedCount += 1;
+          } else {
+            // Keep the better of two known-imperfect portraits: the retried one when it exists.
+            if (retriedUrl) {
+              portraitResults[index] = { ...entry, prediction: retried };
+            }
+            unresolvedFailures += 1;
+          }
+        } catch (error) {
+          if (input.signal?.aborted) {
+            throw error;
+          }
+          unresolvedFailures += 1;
+        }
+      }
+      if (verifiedCount > 0) {
+        this.reportStageProgress("render", unresolvedFailures > 0 ? "warn" : "running",
+          unresolvedFailures > 0
+            ? "Some character portraits still contradict their appearance sheet after one regeneration; they are kept as the video's single anchor but flagged for operator review."
+            : "Character anchor portraits verified against their appearance sheets before video spend.",
+          {
+            portraitVerifiedCount: verifiedCount,
+            portraitRegeneratedCount: regeneratedCount,
+            portraitUnresolvedFailureCount: unresolvedFailures
+          }
+        );
       }
     }
     const nameByKey = new Map(input.anchors.map((anchor) => [anchor.characterKey, anchor.name]));
