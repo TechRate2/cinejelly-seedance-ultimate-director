@@ -87,6 +87,28 @@ const agreeing = compiler.compile({
 });
 check("agreeing_mode_dna_kept_under_register", agreeing.prompt.includes("Creative-mode DNA (ugc_review)"));
 
+// 3c. Single-clip contradiction fixes (audit #5 follow-up): a VERBATIM spokenLine suppresses the
+// word CAPS ("do not shorten" must never sit next to "keep under N words"); and a full_video clip
+// with no neighbors gets NO "cut together with adjacent clips" boundary bookkeeping.
+const verbatimShot = compiler.compile({
+  shot: {
+    ...shotFixture({ videoArcRole: "full_video" }),
+    spokenLine: "Line one. Line two. Line three.",
+    transitionIntent: "hand off to the next proof beat",
+    timeline: [
+      { startSecond: 0, endSecond: 4, action: "hook", audioCue: "spoken hook starts" },
+      { startSecond: 4, endSecond: 8, action: "proof", audioCue: "narration supports" }
+    ]
+  },
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS },
+  modelId: "seedance-2-0-smoke",
+  provider: "atlascloud"
+});
+check("verbatim_line_suppresses_word_caps", !verbatimShot.prompt.includes("Keep narration under about") && !verbatimShot.prompt.includes("words for this beat") && verbatimShot.prompt.includes("Pace the scripted line naturally"));
+check("full_video_clip_has_no_adjacent_clip_boundary", !verbatimShot.prompt.includes("cut together with adjacent clips"));
+// (The keep-budget-for-free-narration case is asserted for real in run-short-pipeline-smoke's
+// storyboard prompt contract — its beats have audioIntent and no spokenLine.)
+
 // 4. Unknown niches fall back to grounded realism instead of failing.
 const unknown = resolveSeedanceDna({ niche: "quantum_farming" });
 check("unknown_niche_falls_back", unknown.nicheDirective === GENERIC_NICHE_DNA);

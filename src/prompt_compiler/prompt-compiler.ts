@@ -609,6 +609,13 @@ export class SeedancePromptCompiler {
   private buildBoundarySection(shot: ShotContract, bindingPlan: PromptBindingPlan): string | undefined {
     const previousState = shot.continuity.previousShotEndState;
     const nextState = shot.continuity.nextShotStartState;
+    // A whole-video-in-one-clip shot has NO adjacent clips: telling it to "cut together with adjacent
+    // clips" and hand off "to the next proof beat" (a transitionIntent leaked from the shot template)
+    // is contradictory bookkeeping that pushes the ending to feel unresolved (single-clip audit). The
+    // final-frame contract already governs how a full video ends.
+    if (this.videoArcRole(shot) === "full_video" && !previousState && !nextState) {
+      return undefined;
+    }
     const hasEndpointReference = bindingPlan.providerReferences.some((reference) =>
       reference.role === "first_frame" ||
       reference.role === "last_frame" ||
@@ -705,7 +712,9 @@ export class SeedancePromptCompiler {
         `Beat ${index + 1}, ${segment.startSecond}-${segment.endSecond}s: ${this.providerActionText(dedupedAction)}`,
         cameraDelta,
         audioDelta,
-        segment.audioCue
+        // Per-beat word caps are for model-authored narration only: with a VERBATIM spokenLine the
+        // caps would contradict the do-not-shorten mandate (the merged single-clip line spans beats).
+        segment.audioCue && !shot.spokenLine
           ? `keep spoken words within about ${this.voiceoverWordBudget(segmentDuration)} words for this beat`
           : undefined
       ].filter((part): part is string => Boolean(part));
@@ -809,7 +818,13 @@ export class SeedancePromptCompiler {
       // line (micro-drama naturalness, #5 upgrade). Only when the shot actually has a spoken line.
       shot.spokenLine ? TALKING_HEAD_NATURALNESS_CLAUSE : undefined,
       shot.audioIntent ? `Audio production plan: ${this.stripTerminalPunctuation(shot.audioIntent)}.` : undefined,
-      `Generate only original ambience/music/voice on this shot's timing — no protected songs, melodies, transcripts, or voices. Keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s with micro-pauses around product contact or reactions; the visual story must read without audio.`
+      // A VERBATIM scripted line must not also receive a word CAP — "do not shorten" next to "keep
+      // under N words" is a direct self-contradiction whenever the line is longer (single-clip merge
+      // audit): with a spokenLine the pacing guidance drops the cap; the cap applies only to free
+      // narration the model authors itself.
+      shot.spokenLine
+        ? `Generate only original ambience/music/voice on this shot's timing — no protected songs, melodies, transcripts, or voices. Pace the scripted line naturally across the ${shot.durationSeconds}s with micro-pauses around product contact or reactions; the visual story must read without audio.`
+        : `Generate only original ambience/music/voice on this shot's timing — no protected songs, melodies, transcripts, or voices. Keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s with micro-pauses around product contact or reactions; the visual story must read without audio.`
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");
