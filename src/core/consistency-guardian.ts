@@ -640,13 +640,18 @@ export class ConsistencyGuardian {
 
   private validatePromptDensity(prompt: string, negativePrompt: string): readonly GuardianFinding[] {
     const findings: GuardianFinding[] = [];
-    if (prompt.length > 2500) {
+    // The compiled anatomy runs ~5,000 chars BY DESIGN (register frame + continuity/runtime/boundary
+    // contracts the corpus prompts don't need). The old 2,500 threshold fired on EVERY prompt — an
+    // always-on warn trains operators to ignore warns. 6,000 fires only on genuine bloat; the CI
+    // regression lock (short-pipeline smoke) pins compiled lengths so the 9-11K catastrophe that
+    // wrecked the first paid runs can never creep back silently.
+    if (prompt.length > 6000) {
       findings.push({
         stage: "preflight",
         status: "warn",
         severity: "S2",
         checkpoint: "prompt_density",
-        evidence: `Prompt length is ${prompt.length} characters.`,
+        evidence: `Prompt length is ${prompt.length} characters — above the ~5K compiled anatomy; boilerplate is likely duplicated.`,
         repair: "Compress prompt to directorial essentials before rendering."
       });
     }

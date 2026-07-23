@@ -62,6 +62,26 @@ check("translator_missing_line_falls_back_to_source", tracks[2].cues[2].text ===
 check("translator_instruction_has_three_steps", /STEP 1 TRANSLATE/.test(llmCalls[0].instruction) && /STEP 2 REFLECT/.test(llmCalls[0].instruction) && /STEP 3 ADAPT/.test(llmCalls[0].instruction));
 check("translator_empty_inputs_safe", (await translator.translate({ cues: [], targetLanguages: ["vi"], modelId: "m" })).length === 0);
 
+// ---- Silent-fallback telemetry + base-language matching (repo-fidelity gap #8). ----
+// Fallbacks are now COUNTED per track (ja had one missing line above), not silent.
+check("translator_counts_fallbacks", tracks[2].fallbackCueCount === 1 && tracks[0].fallbackCueCount === 0, JSON.stringify(tracks.map((t) => [t.language, t.fallbackCueCount])));
+// Over-limit cues (42 chars / ~17 cps) are counted, never mutated.
+const longCueTracks = await translator.translate({
+  cues: [{ startSecond: 0, endSecond: 1, text: "câu này cực kỳ dài và chắc chắn vượt quá bốn mươi hai ký tự cho phép của phụ đề chuẩn" }],
+  targetLanguages: ["vi"], modelId: "m", mode: "subtitle"
+});
+check("translator_counts_over_limit_cues", longCueTracks[0].overLimitCueCount === 1 && longCueTracks[0].cues[0].text.length > 42, `${longCueTracks[0].overLimitCueCount}`);
+// A region-variant answer ("vi-VN" for requested "vi") must still match — the old exact-match lookup
+// silently dropped the WHOLE translated track and shipped source-language text.
+const regionLlm = {
+  async structured(request) {
+    const payload = JSON.parse(request.messages[1].content);
+    return { value: { tracks: [{ language: "vi-VN", lines: payload.cues.map((cue) => `[vi] ${cue.text}`) }] } };
+  }
+};
+const regionTracks = await new SubtitleTranslator(regionLlm).translate({ cues, targetLanguages: ["vi"], modelId: "m" });
+check("translator_matches_region_variant_language", regionTracks[0].cues[0].text.startsWith("[vi]") && regionTracks[0].fallbackCueCount === 0, JSON.stringify(regionTracks[0].cues[0]));
+
 // ---- Fake speech provider for the re-dub planner. ----
 const fakeSpeech = {
   name: "fake-speech",

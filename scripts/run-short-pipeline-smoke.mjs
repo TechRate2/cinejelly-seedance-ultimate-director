@@ -536,6 +536,13 @@ const compiledShortStoryboardPrompts = shortStoryboardShots.map((shot) =>
     provider: "atlascloud"
   })
 );
+// CI LENGTH LOCK (repo-fidelity gap #4): the first paid runs shipped 9,187–11,369-char prompts (the
+// proven corpus max is 6,972) and produced the owner's bad results. Today's anatomy compiles ~5K by
+// design; this lock fails the suite if any compiled prompt creeps past 6,500 so that regression can
+// never ship silently again.
+const PROMPT_LENGTH_CEILING = 6_500;
+const oversizedPrompts = compiledShortStoryboardPrompts.filter((prompt) => prompt.prompt.length > PROMPT_LENGTH_CEILING);
+
 const shortStoryboardPromptContractDiagnostics = compiledShortStoryboardPrompts.map((prompt) => ({
   shotId: prompt.shotId,
   hasSeedanceMode: prompt.prompt.includes("Seedance mode contract:"),
@@ -651,6 +658,9 @@ const checks = [
   reviewRequiredPlan.noSpend && !reviewRequiredPlan.networkCallsMade && !reviewRequiredPlan.providerCallsMade
     ? pass("no_spend_no_network", "Short-pipeline planning does not call network, Atlas, render, or provider paths.")
     : fail("no_spend_no_network", "Expected no-spend, no-network, no-provider planning."),
+  oversizedPrompts.length === 0
+    ? pass("compiled_prompt_length_lock", `All ${compiledShortStoryboardPrompts.length} compiled prompts under ${PROMPT_LENGTH_CEILING} chars (max ${Math.max(...compiledShortStoryboardPrompts.map((p) => p.prompt.length))}).`)
+    : fail("compiled_prompt_length_lock", `${oversizedPrompts.length} compiled prompt(s) exceed ${PROMPT_LENGTH_CEILING} chars: ${oversizedPrompts.map((p) => `${p.shotId}=${p.prompt.length}`).join(", ")} — the 9-11K bloat that ruined the paid runs is creeping back.`),
   reviewRequiredPlan.directorPlan?.schemaVersion === "cinejelly.short-director.v1" &&
     reviewRequiredPlan.directorPlan.recommendedWorkflowMode === "storyboard_multishot" &&
     reviewRequiredPlan.directorPlan.reviewPolicy.checkpointPolicy === "pause_before_provider_spend" &&

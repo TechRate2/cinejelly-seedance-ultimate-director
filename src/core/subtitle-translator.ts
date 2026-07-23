@@ -33,6 +33,18 @@ export interface SubtitleTranslationInput {
 export interface TranslatedSubtitleTrack {
   readonly language: string;
   readonly cues: readonly CaptionCue[];
+  /**
+   * Cues that fell back to the SOURCE text (missing/empty translation). Silent fallback was the
+   * repo-fidelity audit's gap #8: a whole batch could ship in the source language — and in dub mode
+   * then be TTS'd with the wrong-language voice — while looking "successful". Surfaced so callers
+   * can warn instead of shipping it quietly.
+   */
+  readonly fallbackCueCount: number;
+  /**
+   * Cues whose single line exceeds the subtitle limits (over 42 chars or over ~17 chars/second).
+   * Counted, never mutated — truncating meaning is worse than a long line; renderers decide.
+   */
+  readonly overLimitCueCount: number;
 }
 
 const MAX_CUES_PER_CALL = 80;
@@ -76,6 +88,7 @@ export class SubtitleTranslator {
     const targetLanguages = [...new Set(input.targetLanguages.map((language) => language.trim().toLowerCase()).filter(Boolean))];
     const batches = chunk(input.cues, MAX_CUES_PER_CALL);
     const trackCues = new Map<string, CaptionCue[]>(targetLanguages.map((language) => [language, []]));
+    const fallbackCounts = new Map<string, number>(targetLanguages.map((language) => [language, 0]));
 
     for (const batch of batches) {
       const response = await this.llmProvider.structured<TranslationResponse, typeof TRANSLATION_SCHEMA>(
@@ -107,13 +120,18 @@ export class SubtitleTranslator {
         },
         signal
       );
-      this.mergeBatch(trackCues, targetLanguages, batch, response.value);
+      this.mergeBatch(trackCues, fallbackCounts, targetLanguages, batch, response.value);
     }
 
-    return targetLanguages.map((language) => ({
-      language,
-      cues: trackCues.get(language) ?? []
-    }));
+    return targetLanguages.map((language) => {
+      const cues = trackCues.get(language) ?? [];
+      return {
+        language,
+        cues,
+        fallbackCueCount: fallbackCounts.get(language) ?? 0,
+        overLimitCueCount: cues.filter((cue) => isOverSubtitleLimit(cue)).length
+      };
+    });
   }
 
   private instruction(
@@ -136,25 +154,46 @@ export class SubtitleTranslator {
 
   private mergeBatch(
     trackCues: Map<string, CaptionCue[]>,
+    fallbackCounts: Map<string, number>,
     targetLanguages: readonly string[],
     batch: readonly CaptionCue[],
     response: TranslationResponse
   ): void {
     for (const language of targetLanguages) {
-      const track = response.tracks.find((candidate) => candidate.language.trim().toLowerCase() === language);
+      // BASE-language matching (audit gap #8): the LLM legitimately answers "vi-VN"/"vi_VN" for a
+      // requested "vi" — an exact-match lookup silently discarded the whole translated track and
+      // shipped every cue in the SOURCE language while looking successful.
+      const track = response.tracks.find((candidate) => baseLanguage(candidate.language) === baseLanguage(language));
       const lines = track?.lines ?? [];
       const merged = trackCues.get(language) as CaptionCue[];
       batch.forEach((cue, index) => {
         const translated = typeof lines[index] === "string" ? lines[index].trim() : "";
+        if (!translated) {
+          fallbackCounts.set(language, (fallbackCounts.get(language) ?? 0) + 1);
+        }
         merged.push({
           ...cue,
           // Fail-safe: an empty/missing translation falls back to the source line so a
-          // track can never silently lose a cue or drift out of sync.
+          // track can never silently lose a cue or drift out of sync — now COUNTED, not silent.
           text: translated || cue.text
         });
       });
     }
   }
+}
+
+/** "vi", "vi-VN", "vi_VN", "VI" → "vi" — region/case variants must never break track matching. */
+function baseLanguage(value: string): string {
+  return value.trim().toLowerCase().split(/[-_]/)[0] ?? "";
+}
+
+/** Broadcast-limit check for a single subtitle cue (length + reading speed), count-only. */
+function isOverSubtitleLimit(cue: CaptionCue): boolean {
+  if (cue.text.length > MAX_LINE_CHARACTERS) {
+    return true;
+  }
+  const seconds = Math.max(0.1, cue.endSecond - cue.startSecond);
+  return cue.text.length / seconds > MAX_CHARACTERS_PER_SECOND;
 }
 
 /** Render cues as a standard .srt file (1-based index, `HH:MM:SS,mmm --> HH:MM:SS,mmm`). */

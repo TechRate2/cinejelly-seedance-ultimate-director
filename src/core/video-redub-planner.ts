@@ -56,6 +56,8 @@ export interface VideoRedubPlan {
     readonly segmentCount: number;
     readonly totalSpeechSeconds: number;
     readonly subtitleLanguages: readonly string[];
+    /** Vietnamese warnings when a track fell back to source text or breaks subtitle limits (audit #8). */
+    readonly translationWarnings?: readonly string[];
   };
 }
 
@@ -145,19 +147,41 @@ export class VideoRedubPlanner {
       ...(request.voiceStyle?.trim() ? { voiceStyle: request.voiceStyle.trim() } : {})
     }));
 
+    // Keep the REAL dub track (with its fallback/limit telemetry) instead of rebuilding a bare one.
+    const dubTrack: TranslatedSubtitleTrack = dubTracks[0]
+      ?? { language: dubLanguage, cues: dubCues, fallbackCueCount: 0, overLimitCueCount: 0 };
+    const allTracks = [dubTrack, ...subtitleOnlyTracks];
+    // Silent-fallback telemetry (audit #8): a track that quietly shipped source-language text — which
+    // dub mode would then TTS with the wrong-language voice — must be VISIBLE to the caller/customer.
+    const translationWarnings = allTracks.flatMap((track) => {
+      const warnings: string[] = [];
+      if (track.fallbackCueCount > 0) {
+        warnings.push(
+          `Bản dịch "${track.language}" có ${track.fallbackCueCount}/${track.cues.length} câu chưa dịch được (đang giữ nguyên tiếng gốc). Nên chạy lại hoặc kiểm tra trước khi dùng.`
+        );
+      }
+      if (track.overLimitCueCount > 0) {
+        warnings.push(
+          `Phụ đề "${track.language}" có ${track.overLimitCueCount} câu dài quá chuẩn đọc (42 ký tự / ~17 ký tự mỗi giây) — có thể hiện quá nhanh để đọc kịp.`
+        );
+      }
+      return warnings;
+    });
+
     return {
       projectId: request.projectId,
       sourceLanguage: transcription.language ?? request.sourceLanguage ?? "auto",
       dubLanguage,
       sourceCues,
       dubCues,
-      subtitleTracks: [{ language: dubLanguage, cues: dubCues }, ...subtitleOnlyTracks],
+      subtitleTracks: allTracks,
       ttsIntents,
       originalAudioTreatment: request.originalAudioTreatment ?? "duck_under_dub",
       summary: {
         segmentCount: utterances.length,
         totalSpeechSeconds: round2(utterances.reduce((sum, utterance) => sum + (utterance.endSecond - utterance.startSecond), 0)),
-        subtitleLanguages: [dubLanguage, ...extraLanguages]
+        subtitleLanguages: [dubLanguage, ...extraLanguages],
+        ...(translationWarnings.length > 0 ? { translationWarnings } : {})
       }
     };
   }
