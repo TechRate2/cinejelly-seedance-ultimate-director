@@ -83,6 +83,13 @@ export class SeedancePromptCompiler {
    * ~22% creative signal. This layout states every functional signal EXACTLY ONCE: one reference
    * map, one camera statement (timeline emits deltas only), one transition, one continuity handoff
    * per boundary, and three tight merged contracts (runtime, boundary, realism).
+   *
+   * SECTION ORDER IS DELIBERATE — do not reorder without a paid A/B. An audit proposed front-loading
+   * subject/action/camera ahead of the mode/continuity/runtime contracts (Seedance weights early
+   * tokens). Assessed and DEFERRED: the reference map must precede anything that uses its handles,
+   * the creative-intent line already leads, this order was tuned from live-render forensics, and a
+   * reorder changes every prompt while no offline test can measure the visual effect. Revisit only
+   * during a paid acceptance session by A/B-ing a reordered prompt against this one on the same brief.
    */
   private buildPrompt(shot: ShotContract, bindingPlan: PromptBindingPlan, providerMode: ProviderMode): string {
     // Resolved ONCE so the register frame and the realism guardrails can never disagree.
