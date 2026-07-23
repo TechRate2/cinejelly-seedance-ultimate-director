@@ -126,6 +126,7 @@
     "validation:account-billing": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-account-billing-smoke.mjs",
     "validation:upload-route": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-upload-route-smoke.mjs",
     "validation:subtitle-dub": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-subtitle-dub-smoke.mjs",
+    "validation:dub-duration-fit": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-dub-duration-fit-smoke.mjs",
     "validation:niche-playbooks": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-niche-playbooks-smoke.mjs",
     "validation:cinematic-grammar": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-cinematic-grammar-smoke.mjs",
     "validation:pipeline-100": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-pipeline-100-smoke.mjs",

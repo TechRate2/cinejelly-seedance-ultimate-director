@@ -1635,6 +1635,11 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             | {
                 readonly narrationTrackCount: number;
                 readonly downloads: readonly { readonly kind: string; readonly language?: string; readonly url: string }[];
+                readonly durationFit?: {
+                  readonly fittedCount: number;
+                  readonly maxTempoApplied: number;
+                  readonly warnings: readonly string[];
+                };
               }
             | undefined;
           if (redubRenderVideo) {
@@ -1661,6 +1666,9 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               speechProvider: localizationProvider,
               ttsModelId: redubTtsModelId,
               ...(redubTtsVoice ? { ttsVoice: redubTtsVoice } : {}),
+              // Duration-fit enforcement: measure each synthesized segment and speed up overlong ones
+              // (atempo, natural cap) so a long Vietnamese rendering never plays over the next segment.
+              mediaProber: new MediaInspector(),
               signal: redubAbort.signal
             });
             const downloads: { readonly kind: string; readonly language?: string; readonly url: string }[] = [
@@ -1677,7 +1685,21 @@ export function startServer(port = readPort(process.env.PORT)): Server {
               "utf8"
             );
             downloads.push({ kind: "dub_script", url: `/v1/redub/${redubId}/files/dub-script.txt` });
-            redubOutputs = { narrationTrackCount: executed.narrationTrackCount, downloads };
+            redubOutputs = {
+              narrationTrackCount: executed.narrationTrackCount,
+              downloads,
+              // Surface duration-fit outcomes honestly: how many segments were sped up and any
+              // still-overflowing segments (Vietnamese warning text ready for the customer UI).
+              ...(executed.durationFit
+                ? {
+                    durationFit: {
+                      fittedCount: executed.durationFit.fittedCount,
+                      maxTempoApplied: executed.durationFit.maxTempoApplied,
+                      warnings: executed.durationFit.warnings
+                    }
+                  }
+                : {})
+            };
           }
           if (redubAbort.signal.aborted || response.writableEnded || response.destroyed) {
             // Client vanished during the work: we cannot deliver the result, so treat it as

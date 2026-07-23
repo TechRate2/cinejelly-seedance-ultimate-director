@@ -33,10 +33,12 @@ export class AudioMixEngine {
     if (!input.options.enabled || input.tracks.length === 0) {
       throw new Error("Audio mix requires enabled options and at least one audio track.");
     }
+    if (input.materializedTrackPaths && input.materializedTrackPaths.length !== input.tracks.length) {
+      throw new Error("materializedTrackPaths must match tracks one-to-one when provided.");
+    }
     await ensureDirectory(input.workDirectory);
-    const localTracks = await Promise.all(
-      input.tracks.map((track, index) => this.materializeTrack(input.projectId, input.workDirectory, track, index, signal))
-    );
+    const localTracks = input.materializedTrackPaths
+      ?? await this.materializeTracks(input.projectId, input.workDirectory, input.tracks, signal);
     const args = this.buildFfmpegArgs(input, localTracks);
     await runProcess(readMediaToolCommand("ffmpeg"), args, signal);
 
@@ -46,6 +48,24 @@ export class AudioMixEngine {
       mixedAt: new Date(),
       mode: input.options.mode
     };
+  }
+
+  /**
+   * Download/copy every track into the work directory and return the local path per track (same
+   * order). Public so callers that must MEASURE the files before mixing (dubbing duration-fit probes
+   * each synthesized segment with ffprobe) reuse the exact SSRF-guarded download path, then hand the
+   * files back via `materializedTrackPaths`.
+   */
+  public async materializeTracks(
+    projectId: string,
+    workDirectory: string,
+    tracks: readonly AudioMixTrack[],
+    signal?: AbortSignal
+  ): Promise<readonly string[]> {
+    await ensureDirectory(workDirectory);
+    return Promise.all(
+      tracks.map((track, index) => this.materializeTrack(projectId, workDirectory, track, index, signal))
+    );
   }
 
   private async materializeTrack(
@@ -165,7 +185,11 @@ export class AudioMixEngine {
       // instead of every track stacking at 0:00. Silence is prepended before apad pads the tail.
       const startMs = Math.max(0, Math.round((track.startSeconds ?? 0) * 1000));
       const delay = startMs > 0 ? `,adelay=${startMs}:all=1` : "";
-      filterParts.push(`[${inputIndex}:a]${normalize},volume=${this.safeVolume(track.volume)}${delay},apad[t${inputIndex}]`);
+      // atempo BEFORE adelay: tempo compresses the segment's content; the delay is wall-clock
+      // placement and must not be scaled. Used by dubbing duration-fit for overlong segments.
+      const tempo = this.safeTempo(track.tempo);
+      const tempoFilter = tempo !== undefined ? `,atempo=${tempo}` : "";
+      filterParts.push(`[${inputIndex}:a]${normalize},volume=${this.safeVolume(track.volume)}${tempoFilter}${delay},apad[t${inputIndex}]`);
     });
     // Sidechain ducking: when narration and music are both present, the first narration
     // track drives a compressor on every music track so the voice stays intelligible.
@@ -240,6 +264,19 @@ export class AudioMixEngine {
       throw new Error("Audio track volume must be a non-negative number.");
     }
     return Math.min(volume, 4);
+  }
+
+  /** Validate an optional atempo ratio; 1/undefined → no filter. Single-instance ffmpeg range is 0.5–2. */
+  private safeTempo(tempo: number | undefined): number | undefined {
+    if (tempo === undefined) {
+      return undefined;
+    }
+    if (!Number.isFinite(tempo) || tempo < 0.5 || tempo > 2) {
+      throw new Error("Audio track tempo must be within ffmpeg's single-stage atempo range 0.5–2.");
+    }
+    // Round to 3 decimals for a stable filtergraph string; treat ~1 as "no change".
+    const rounded = Math.round(tempo * 1000) / 1000;
+    return Math.abs(rounded - 1) < 0.001 ? undefined : rounded;
   }
 
   private isRemoteUrl(value: string): boolean {

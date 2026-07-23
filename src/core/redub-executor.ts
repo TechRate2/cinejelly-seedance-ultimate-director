@@ -16,6 +16,12 @@ import type { VideoRedubPlan } from "./video-redub-planner.js";
 import type { AudioMixTrack } from "../types/audio.js";
 import type { SpeechSynthesisProvider } from "../providers/contracts.js";
 import { AudioMixEngine } from "./audio-mix-engine.js";
+import { planDubDurationFit, type DubFitPlan } from "./dub-duration-fit.js";
+
+/** The one slice of MediaInspector the duration-fit needs (injectable for no-network tests). */
+export interface RedubMediaProber {
+  probe(path: string, signal?: AbortSignal): Promise<{ readonly durationSeconds?: number }>;
+}
 
 /** Original-audio bed level under the narration for duck_under_dub (review-film convention). */
 export const DUB_ORIGINAL_BED_VOLUME = 0.2;
@@ -30,6 +36,14 @@ export interface RedubExecutionInput {
   readonly ttsModelId: string;
   readonly ttsVoice?: string;
   readonly audioMixEngine?: AudioMixEngine;
+  /**
+   * When provided, enables DURATION-FIT: each synthesized segment is downloaded, measured with
+   * ffprobe, and sped up (atempo, capped at a natural ratio) when it would overlap the next segment
+   * — the enforcement layer the dubbing methodology requires (Vietnamese renderings of dense source
+   * speech routinely run long). Omitted = legacy behavior (no fit), so existing callers/tests are
+   * unchanged; the server passes a real MediaInspector.
+   */
+  readonly mediaProber?: RedubMediaProber;
   readonly signal?: AbortSignal;
 }
 
@@ -38,6 +52,8 @@ export interface RedubExecutionResult {
   readonly narrationTrackCount: number;
   readonly originalAudioTreatment: "duck_under_dub" | "replace";
   readonly mixMode: "mix" | "replace";
+  /** Present when duration-fit ran (mediaProber supplied): what was measured/sped/warned. */
+  readonly durationFit?: DubFitPlan;
 }
 
 export class RedubExecutor {
@@ -94,9 +110,42 @@ export class RedubExecutor {
       });
     }
 
+    // DURATION-FIT (methodology enforcement): download + measure each synthesized segment, then
+    // speed up any segment that would overlap its successor. Without this, an overlong Vietnamese
+    // rendering of dense source speech plays OVER the next segment (repo-fidelity audit gap #1).
+    let durationFit: DubFitPlan | undefined;
+    let materializedTrackPaths: readonly string[] | undefined;
+    const mixEngine = input.audioMixEngine ?? new AudioMixEngine({});
+    if (input.mediaProber) {
+      materializedTrackPaths = await mixEngine.materializeTracks(
+        input.plan.projectId,
+        input.workDirectory,
+        tracks,
+        input.signal
+      );
+      const measured = await Promise.all(
+        materializedTrackPaths.map((path) => input.mediaProber!.probe(path, input.signal))
+      );
+      const videoDuration = (await input.mediaProber.probe(input.sourceVideoPath, input.signal)).durationSeconds;
+      durationFit = planDubDurationFit({
+        segments: tracks.map((track, index) => ({
+          intentId: track.trackId,
+          ...(track.startSeconds !== undefined ? { startSecond: track.startSeconds } : {}),
+          measuredDurationSeconds: measured[index]?.durationSeconds ?? 0
+        })),
+        ...(videoDuration !== undefined ? { videoDurationSeconds: videoDuration } : {})
+      });
+      const tempoByIntentId = new Map(durationFit.segments.map((segment) => [segment.intentId, segment.tempo]));
+      for (let index = 0; index < tracks.length; index += 1) {
+        const tempo = tempoByIntentId.get(tracks[index]!.trackId);
+        if (tempo !== undefined && tempo > 1) {
+          tracks[index] = { ...tracks[index]!, tempo };
+        }
+      }
+    }
+
     const treatment = input.plan.originalAudioTreatment;
     const mixMode: "mix" | "replace" = treatment === "replace" ? "replace" : "mix";
-    const mixEngine = input.audioMixEngine ?? new AudioMixEngine({});
     const mixed = await mixEngine.mix(
       {
         projectId: input.plan.projectId,
@@ -104,6 +153,7 @@ export class RedubExecutor {
         outputVideoPath: input.outputVideoPath,
         workDirectory: input.workDirectory,
         tracks,
+        ...(materializedTrackPaths ? { materializedTrackPaths } : {}),
         options: {
           enabled: true,
           mode: mixMode,
@@ -119,7 +169,8 @@ export class RedubExecutor {
       outputPath: mixed.outputPath,
       narrationTrackCount: tracks.length,
       originalAudioTreatment: treatment,
-      mixMode
+      mixMode,
+      ...(durationFit ? { durationFit } : {})
     };
   }
 }
