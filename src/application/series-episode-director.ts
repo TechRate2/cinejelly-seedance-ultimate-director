@@ -24,6 +24,7 @@ import {
   type SeriesContinuityRecord,
   type SeriesEpisodeState
 } from "../core/series-continuity-store.js";
+import { extractEpisodeEndFrame } from "../core/endpoint-frame-chain.js";
 
 export interface EpisodeDirectorRunner {
   run(request: CineJellyProjectRequest, signal?: AbortSignal): Promise<DirectorRunResult>;
@@ -68,6 +69,12 @@ export class SeriesEpisodeDirector {
     }
     const base = episodeRenderRequestFor(plan, episodeNumber);
     const recap = this.store.recapFor(record);
+    // Cross-episode VISUAL conditioning (repo-fidelity gap #3): the previous episode's recorded
+    // video is mined for its best end frame, attached as a STYLE reference — real wardrobe/location/
+    // grade continuity instead of prose-only recaps. Style (not first_frame) so an episode that
+    // opens in a new place is guided, never forced to literally continue the exact frame. Fail-open:
+    // any extraction problem composes the episode exactly as before.
+    const endFrameReference = await this.previousEpisodeEndFrameReference(record, episodeNumber);
     const request: CineJellyProjectRequest = {
       ...base,
       // The REAL previously-on block outranks the planner's templated recap hook: it is what
@@ -76,11 +83,15 @@ export class SeriesEpisodeDirector {
       userInput: recap
         ? `${base.userInput}\nPREVIOUSLY ON (authoritative — continue these facts exactly): ${recap}`
         : base.userInput,
-      references: this.mergedIdentityReferences(base.references ?? [], record),
+      references: [
+        ...this.mergedIdentityReferences(base.references ?? [], record),
+        ...(endFrameReference ? [endFrameReference] : [])
+      ],
       metadata: {
         ...(base.metadata ?? {}),
         ...(recap ? { seriesRecap: recap } : {}),
-        ...(record.arcSummary ? { seriesArcSummary: record.arcSummary } : {})
+        ...(record.arcSummary ? { seriesArcSummary: record.arcSummary } : {}),
+        ...(endFrameReference ? { seriesPreviousEndFrame: "true" } : {})
       }
     };
     return { episodeNumber, request };
@@ -213,6 +224,48 @@ export class SeriesEpisodeDirector {
         selection: { characterId: member.characterId, authorized: true }
       }));
     return [...base, ...grown];
+  }
+
+  /**
+   * Style reference from the LAST recorded episode's end frame. Uses the most recent episode state
+   * that has a videoPath (an episode may have failed to record one). Fail-open by design.
+   */
+  private async previousEpisodeEndFrameReference(
+    record: SeriesContinuityRecord,
+    nextEpisodeNumber: number
+  ): Promise<PromptReference | undefined> {
+    const previous = [...record.episodeStates]
+      .filter((state) => state.videoPath?.trim())
+      .sort((left, right) => right.episodeNumber - left.episodeNumber)[0];
+    if (!previous?.videoPath) {
+      return undefined;
+    }
+    try {
+      const frame = await extractEpisodeEndFrame({
+        videoPath: previous.videoPath,
+        episodeNumber: previous.episodeNumber,
+        workDirectory: this.store.workDirectoryFor(record.seriesId)
+      });
+      if (!frame) {
+        return undefined;
+      }
+      const label = `Tập ${previous.episodeNumber} — khung hình cuối (giữ trang phục, bối cảnh, tông màu)`;
+      return {
+        role: "style",
+        label,
+        providerReference: {
+          kind: "image",
+          uri: frame.outputPath,
+          label,
+          role: "style"
+        },
+        priority: "supporting",
+        selection: { authorized: true, sourceShotId: `episode_${previous.episodeNumber}` }
+      };
+    } catch {
+      // Extraction must never block an episode render — prose recap continuity still applies.
+      return undefined;
+    }
   }
 
   private async requireRecord(seriesId: string): Promise<SeriesContinuityRecord> {

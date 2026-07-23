@@ -160,6 +160,31 @@ interface ExtractedEndpointFrameCandidate {
   readonly score: number;
 }
 
+/**
+ * Cross-EPISODE end-frame extraction (repo-fidelity gap #3): mine a finished episode's video for its
+ * best final frame so the NEXT episode can carry real wardrobe/location/grade continuity instead of
+ * prose-only recaps. Reuses the exact multi-offset + detail-scored machinery the shot-to-shot chain
+ * trusts. Returns the local frame path, or undefined when the video yields no usable frame.
+ */
+export async function extractEpisodeEndFrame(input: {
+  readonly videoPath: string;
+  readonly episodeNumber: number;
+  readonly workDirectory: string;
+  readonly signal?: AbortSignal;
+}): Promise<{ readonly outputPath: string; readonly offsetSeconds: number; readonly score: number } | undefined> {
+  const selected = await extractBestLastFrameImage({
+    sourceUrlOrPath: input.videoPath,
+    sourceShotId: `episode_${input.episodeNumber}`,
+    targetShotId: `episode_${input.episodeNumber + 1}`,
+    workDirectory: input.workDirectory,
+    ...(input.signal ? { signal: input.signal } : {})
+  });
+  if (!selected) {
+    return undefined;
+  }
+  return { outputPath: selected.outputPath, offsetSeconds: selected.offsetSeconds, score: selected.score };
+}
+
 async function extractBestLastFrameImage(input: {
   readonly sourceUrlOrPath: string;
   readonly sourceShotId: string;

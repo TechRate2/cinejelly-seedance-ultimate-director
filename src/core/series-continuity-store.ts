@@ -62,6 +62,11 @@ export class SeriesContinuityStore {
     this.seriesDirectory = resolve(options.outputRoot, "series");
   }
 
+  /** Work directory for a series' derived assets (episode end frames), beside its record. */
+  public workDirectoryFor(seriesId: string): string {
+    return resolve(this.seriesDirectory, "derived", seriesId.replace(/[^a-zA-Z0-9_-]+/g, "_"));
+  }
+
   private async withSeriesLock<T>(seriesId: string, fn: () => Promise<T>): Promise<T> {
     const previous = this.writeLocks.get(seriesId) ?? Promise.resolve();
     const run = previous.catch(() => undefined).then(fn);

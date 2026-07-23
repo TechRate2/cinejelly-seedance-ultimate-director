@@ -822,6 +822,17 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   check("series: duplicate episode recording rejected", dupRejected, "");
   check("series: recap keeps rolling window shape", (store.recapFor((await store.load(created.seriesId)))).includes("Resume EXACTLY from this state:"), "");
 
+  // Cross-episode VISUAL conditioning (fidelity gap #3): composing the next episode after a recorded
+  // one attempts the end-frame extraction FAIL-OPEN — recorded videoPaths in this smoke point at
+  // nonexistent files, so extraction fails and the compose must still succeed WITHOUT the style ref.
+  // (Real extraction requires ffmpeg + a real video; the wiring itself is asserted in source below.)
+  const secondSeries = await episodeDirector.startSeries({ ...seriesRequest, premise: "Bản sao kiểm tra khung hình cuối." });
+  await store.recordEpisode(secondSeries.seriesId, { episodeNumber: 1, projectId: "p1", summary: "s", endState: "e", macroPhase: "setup", videoPath: "C:/nonexistent/ep1.mp4", recordedAt: new Date().toISOString() });
+  const composed2 = await episodeDirector.composeNextEpisode(secondSeries.seriesId);
+  check("series: end-frame extraction fails open (missing video still composes)", composed2.episodeNumber === 2 && !composed2.request.metadata?.seriesPreviousEndFrame, "");
+  const episodeDirectorSrc = (await import("node:fs")).readFileSync(resolve(repoRoot, "src/application/series-episode-director.ts"), "utf8");
+  check("series: end-frame wired as STYLE ref (not first_frame)", episodeDirectorSrc.includes("extractEpisodeEndFrame") && episodeDirectorSrc.includes('role: "style"') && !episodeDirectorSrc.includes('role: "first_frame"'), "");
+
   // Architect series-mode fields: schema requested + coerced when metadata.seriesId present
   let seriesSystem = "";
   const seriesLlm = { name: "f", capabilities: () => [],
