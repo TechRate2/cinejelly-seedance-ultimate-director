@@ -135,6 +135,14 @@ try {
   check("customer_cannot_read_refunds", (await req("GET", "/v1/admin/refunds", undefined, custSession)).status === 403);
   check("anon_cannot_read_settings", (await req("GET", "/v1/admin/settings")).status >= 401);
 
+  // ---- System-health tab: operator-only, returns plain-VN rows + overall ----
+  check("customer_cannot_read_system_health", (await req("GET", "/v1/admin/system-health", undefined, custSession)).status === 403);
+  check("anon_cannot_read_system_health", (await req("GET", "/v1/admin/system-health")).status >= 401);
+  const health = await req("GET", "/v1/admin/system-health", undefined, admin);
+  check("operator_reads_system_health", health.status === 200 && ["ok", "warn", "fail"].includes(health.payload.overall) && Array.isArray(health.payload.rows) && health.payload.rows.length > 0, `overall=${health.payload?.overall} rows=${health.payload?.rows?.length}`);
+  check("system_health_has_atlas_and_database_rows", (health.payload.rows || []).some((r) => r.key === "atlas") && (health.payload.rows || []).some((r) => r.key === "database"));
+  check("system_health_leaks_no_admin_token", !JSON.stringify(health.payload).includes("admin_center_token"));
+
   // ---- Operator edits pricing + packages; the customer sees it immediately ----
   const beforeMe = await req("GET", "/v1/account/me", undefined, custSession);
   check("customer_sees_default_price", beforeMe.payload.renderPricing?.creditsPerRenderSecond === 10, `${beforeMe.payload.renderPricing?.creditsPerRenderSecond}`);

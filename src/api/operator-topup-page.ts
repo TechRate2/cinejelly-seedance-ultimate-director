@@ -76,6 +76,7 @@ export function buildOperatorTopupPage(): string {
     <button class="tab active" data-tab="money">💰 Tiền</button>
     <button class="tab" data-tab="customers">👥 Khách hàng</button>
     <button class="tab" data-tab="settings">⚙️ Cấu hình</button>
+    <button class="tab" data-tab="health">🩺 Sức khỏe</button>
   </div>
 
   <div class="panel active" id="panel-money">
@@ -187,6 +188,16 @@ export function buildOperatorTopupPage(): string {
     <div class="card">
       <button id="save-settings" class="primary" style="width:100%">💾 Lưu toàn bộ cấu hình</button>
       <div class="muted" id="audit-line" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-health">
+    <div class="card">
+      <strong>🩺 Sức khỏe hệ thống</strong>
+      <div class="muted">Kiểm tra nhanh (chỉ đọc, không đổi gì): key/model Atlas còn dùng được không, cơ sở dữ liệu, ổ đĩa còn trống, ffmpeg. Nếu có ô ĐỎ, làm theo dòng "cách sửa" ngay dưới ô đó.</div>
+      <div class="row"><button id="check-health" class="primary">🩺 Kiểm tra ngay</button></div>
+      <div class="muted" id="health-status" style="margin-top:8px"></div>
+      <div id="health-rows" style="margin-top:8px"></div>
     </div>
   </div>
 
@@ -558,6 +569,43 @@ export function buildOperatorTopupPage(): string {
         return;
       }
       renderAtlasPricing(payload, tableEl, statusEl);
+    });
+    document.getElementById("check-health").addEventListener("click", async function () {
+      var statusEl = document.getElementById("health-status");
+      var rowsEl = document.getElementById("health-rows");
+      if (!keyInput.value.trim()) { say("Dán khóa quản trị trước.", false); return; }
+      statusEl.textContent = "Đang kiểm tra sức khỏe hệ thống (gọi thử Atlas không tốn tiền)...";
+      rowsEl.innerHTML = "";
+      var res;
+      try {
+        res = await fetch("/v1/admin/system-health", { headers: headers() });
+      } catch (e) {
+        statusEl.textContent = "Lỗi mạng khi kiểm tra.";
+        return;
+      }
+      var payload = await res.json();
+      if (!res.ok) {
+        statusEl.textContent = (payload.error || "Không kiểm tra được — cần dán đúng khóa quản trị.");
+        return;
+      }
+      statusEl.textContent = payload.overall === "ok"
+        ? "✅ Mọi thứ ổn — sẵn sàng mời khách."
+        : payload.overall === "warn"
+          ? "⚠️ Có mục cần lưu ý (xem bên dưới)."
+          : "❌ Có VẤN ĐỀ cần sửa trước khi mời khách (xem ô ĐỎ bên dưới).";
+      (payload.rows || []).forEach(function (row) {
+        var color = row.status === "ok" ? "#2e7d32" : (row.status === "warn" ? "#ef6c00" : "#c62828");
+        var card = document.createElement("div");
+        card.style.padding = "8px"; card.style.marginTop = "6px"; card.style.borderRadius = "8px";
+        card.style.borderLeft = "4px solid " + color; card.style.background = "rgba(127,127,127,0.08)";
+        var head = document.createElement("div");
+        head.style.fontWeight = "600";
+        head.textContent = (row.status === "ok" ? "✅ " : (row.status === "warn" ? "⚠️ " : "❌ ")) + row.label;
+        var body = document.createElement("div");
+        body.className = "muted"; body.style.marginTop = "2px"; body.textContent = row.message;
+        card.appendChild(head); card.appendChild(body);
+        rowsEl.appendChild(card);
+      });
     });
     document.getElementById("save-settings").addEventListener("click", async function () {
       var packages = [];

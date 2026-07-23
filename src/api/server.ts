@@ -34,6 +34,8 @@ import { AtlasCloudProvider } from "../providers/atlascloud/atlas-cloud-provider
 import { ProviderCostLedger } from "../providers/cost-ledger.js";
 import { loadRuntimeSettings } from "../config/runtime-config.js";
 import { OutputRetentionJanitor } from "../core/output-retention-janitor.js";
+import { validateConfiguredAtlasModels } from "../application/atlas-model-preflight.js";
+import { buildOperatorHealthReport } from "../application/operator-health-report.js";
 import {
   UserAccountError,
   UserAccountStore,
@@ -648,6 +650,51 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const productionGraphResumeQueueService = productionGraphResumeQueueServiceConfig(process.env);
   const shutdownCoordinator = new ApiShutdownCoordinator();
 
+  // Operator "🩺 Sức khỏe hệ thống" report: preflight + a NO-SPEND live Atlas key/model probe + DB
+  // reachability + un-migrated-switch orphan, in plain Vietnamese with a fix per red row. Cached 30s so
+  // the operator clicking the button repeatedly cannot hammer Atlas. Exposes only STATUS, never secrets.
+  const SYSTEM_HEALTH_TTL_MS = 30_000;
+  let systemHealthCache: { at: number; report: Awaited<ReturnType<typeof buildOperatorHealthReport>> } | undefined;
+  const buildSystemHealth = async (signal?: AbortSignal): Promise<ReturnType<typeof buildOperatorHealthReport>> => {
+    const nowMs = Date.now();
+    if (systemHealthCache && nowMs - systemHealthCache.at < SYSTEM_HEALTH_TTL_MS) {
+      return systemHealthCache.report;
+    }
+    const preflightReport = await preflight.run(signal);
+    // loadRuntimeSettings THROWS when a required var (e.g. ATLASCLOUD_API_KEY) is missing — but the
+    // health check must still work in that state (and report it), so guard it. hasApiKey is read from
+    // the raw env so a missing key is a clear red row, not a 500.
+    const hasApiKey = Boolean(process.env.ATLASCLOUD_API_KEY?.trim());
+    let atlasCloud: ReturnType<typeof loadRuntimeSettings>["atlasCloud"] | undefined;
+    try {
+      atlasCloud = loadRuntimeSettings(process.env).atlasCloud;
+    } catch {
+      atlasCloud = undefined;
+    }
+    let atlas: Awaited<ReturnType<typeof validateConfiguredAtlasModels>> | undefined;
+    if (atlasCloud?.apiKey?.trim()) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15_000);
+      try {
+        atlas = await validateConfiguredAtlasModels(atlasCloud, controller.signal);
+      } catch {
+        atlas = undefined; // fail-open: a network hiccup surfaces as a warn row, never a crash
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    const report = buildOperatorHealthReport({
+      preflightChecks: preflightReport.checks,
+      atlas,
+      hasApiKey,
+      databaseUnreachable: userAccountStore.hasHydrationFailed(),
+      orphanedAccountCount: userAccountStore.orphanedJsonAccountCount(),
+      nowIso: new Date(nowMs).toISOString()
+    });
+    systemHealthCache = { at: nowMs, report };
+    return report;
+  };
+
   const server = createServer(async (request, response) => {
     const requestContext = createApiRequestContext(request);
     const requestLifecycle = createHttpRequestLifecycle(request, response);
@@ -709,6 +756,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "GET" && requestUrl.pathname === "/v1/preflight") {
         const report = await preflight.run(requestLifecycle.signal);
         sendJson(response, report.status === "fail" ? 503 : 200, report, requestContext);
+        return;
+      }
+      if (request.method === "GET" && requestUrl.pathname === "/v1/admin/system-health") {
+        // Operator-only (deployment token). Plain-Vietnamese green/amber/red health for the admin UI.
+        assertDeploymentPrincipal(authDecision.principal, "Deployment API token is required for system health.");
+        const health = await buildSystemHealth(requestLifecycle.signal);
+        sendJson(response, 200, health, requestContext);
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/validation-readiness") {
