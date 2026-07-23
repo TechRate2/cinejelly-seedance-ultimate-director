@@ -47,8 +47,13 @@ const cinematicPrompt = compiler.compile({ shot: shot("cinematic"), settings: { 
 // Register engine (final upgrade): mapped creative modes emit the REGISTER frame instead of the
 // legacy Cinematography line — professional_cinematic covers optics/light/color/motion.
 check("compiler_emits_cinematic_register", cinematicPrompt.includes("Style register: professional cinematic.") && cinematicPrompt.includes("shallow depth of field"));
+// Craft FLOOR (audit #4): the cinematic register now ALSO re-attaches the Seedance-reliable film
+// vocabulary (was lost on the register path) when styleDna hasn't authored the look.
+check("cinematic_register_keeps_film_vocab_floor", cinematicPrompt.includes("Cinematography:") && /anamorphic|rack focus|grade/.test(cinematicPrompt));
 const ugcPrompt = compiler.compile({ shot: shot("ugc_review"), settings: { ...DEFAULT_SEEDANCE_SETTINGS }, modelId: "seedance-2-0", provider: "atlascloud" }).prompt;
 check("compiler_ugc_register_differs", ugcPrompt.includes("Style register: natural phone-shot / KOL.") && ugcPrompt.includes("NO cinematic bokeh") && !ugcPrompt.includes("Style register: professional cinematic."));
+// The film-look floor is cinematic-only — a natural phone/KOL shot must NOT get anamorphic/grade language.
+check("ugc_gets_no_cinematic_floor", !ugcPrompt.includes("Cinematography:"));
 
 // Reference disambiguation appears when identity/product references are bound.
 const identityShot = {

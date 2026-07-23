@@ -467,12 +467,22 @@ export class SeedancePromptCompiler {
       ?? this.stringMetadata(shot, "voiceLanguage")
       ?? this.stringMetadata(shot, "analystVoiceLanguage");
     const weakLipSyncLanguage = spokenLanguage === "vi" || containsVietnameseDiacritics(shot.spokenLine);
+    // Craft FLOOR: the professional_cinematic register frame carries a deliberately GENERIC optics/color
+    // ("shallow depth of field", "cohesive palette"). The Seedance-reliable film vocabulary (rack focus,
+    // anamorphic character, teal-and-orange / bleach-bypass grade, 35mm grain) lived only in the legacy
+    // !register branch, so the main path lost it (audit #4). Re-attach it as a floor for cinematic —
+    // BUT only when styleDna did not already author the look (optics+palette), so an authored per-video
+    // grade still wins and the two never stack a contradictory grade.
+    const cinematicCraftFloor = register === "professional_cinematic" && !(dna?.optics && dna?.palette)
+      ? this.buildCinematicGrammarSection(shot)
+      : undefined;
     return [
       // Each authored axis REPLACES the register default (omitted above) instead of stacking a
       // second, possibly-contradicting sentence on top of it (audit).
       registerGrammarPromptLine(register, { omit: omitAxes }),
       ...overrides,
       ...legacy,
+      cinematicCraftFloor,
       // Verbatim scripted lines must not receive the "keep it short" instruction — that fought the
       // do-not-shorten mandate in the audio section (audit #17).
       weakLipSyncLanguage
