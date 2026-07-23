@@ -446,11 +446,15 @@ export class SeedancePromptCompiler {
       : [];
     // Authored AXES silence the legacy tables; a register-only DNA (register resolved upstream but
     // no axes written) still gets legacy niche color under the register frame, so threading the
-    // register through the plan never costs category detail (audit #2).
+    // register through the plan never costs category detail (audit #2). The resolved register is the
+    // single source of truth for STYLE (audit #12): a keyword-classified creative mode that maps to
+    // the OPPOSITE register (e.g. keyword "premium"->product_ad under an analyst-chosen phone-KOL
+    // register) is dropped from the DNA lookup, so its cinematic/UGC style language can never sit
+    // under a contradicting register frame — niche texture is kept either way.
     const hasAuthoredAxes = overrides.length > 0;
     const legacy = hasAuthoredAxes
       ? []
-      : [this.buildNicheDnaSection(shot)].filter((line): line is string => Boolean(line && line.trim()));
+      : [this.buildNicheDnaSection(shot, register)].filter((line): line is string => Boolean(line && line.trim()));
     // Every axis the DNA overrides is dropped from the register frame so it is stated ONCE (the
     // override wins), never twice with a possibly-conflicting register default (audit).
     const omitAxes: RegisterAxis[] = dna
@@ -472,9 +476,11 @@ export class SeedancePromptCompiler {
     // anamorphic character, teal-and-orange / bleach-bypass grade, 35mm grain) lived only in the legacy
     // !register branch, so the main path lost it (audit #4). Re-attach it as a floor for cinematic —
     // BUT only when styleDna did not already author the look (optics+palette), so an authored per-video
-    // grade still wins and the two never stack a contradictory grade.
+    // grade still wins and the two never stack a contradictory grade. The floor follows the REGISTER,
+    // not the keyword mode: when the keyword classifier disagrees with the resolved register (audit
+    // #12) the cinematic vocabulary is still the right floor for a cinematic register.
     const cinematicCraftFloor = register === "professional_cinematic" && !(dna?.optics && dna?.palette)
-      ? this.buildCinematicGrammarSection(shot)
+      ? cinematicGrammarPromptLine(this.registerAgreedCreativeMode(shot, register) ?? "cinematic")
       : undefined;
     return [
       // Each authored axis REPLACES the register default (omitted above) instead of stacking a
@@ -496,6 +502,21 @@ export class SeedancePromptCompiler {
     return shot.styleDna?.register ?? registerForCreativeMode(this.creativeModeMetadata(shot));
   }
 
+  /**
+   * The shot's creative mode, but ONLY when it does not contradict the resolved register (audit #12).
+   * A mode with no register mapping (unknown/neutral) passes through; a mode bound to the OPPOSITE
+   * register (keyword classifier vs analyst disagreement) returns undefined so the register frame
+   * stays the single stylistic voice.
+   */
+  private registerAgreedCreativeMode(shot: ShotContract, register: StyleRegister): string | undefined {
+    const mode = this.creativeModeMetadata(shot);
+    if (!mode) {
+      return undefined;
+    }
+    const modeRegister = registerForCreativeMode(mode);
+    return modeRegister === undefined || modeRegister === register ? mode : undefined;
+  }
+
   /** The one metadata-key chain for creative mode — every section resolves it identically. */
   private creativeModeMetadata(shot: ShotContract): string | undefined {
     return (
@@ -510,12 +531,17 @@ export class SeedancePromptCompiler {
    * or `creativeMode` so the final provider prompt gets category-specific physical direction
    * (e.g. macro skin texture for beauty, fit-in-motion for fashion). No-ops otherwise.
    */
-  private buildNicheDnaSection(shot: ShotContract): string | undefined {
+  private buildNicheDnaSection(shot: ShotContract, register?: StyleRegister): string | undefined {
     // The short pipeline stamps niche/creative-mode onto shot metadata under these keys
     // (via the render handoff -> intake -> shot planner). Accept the direct keys too so
-    // long-form/direct callers can opt in.
+    // long-form/direct callers can opt in. When a register is resolved it is the single source of
+    // truth for style (audit #12): a keyword mode bound to the opposite register is dropped here so
+    // its style language never contradicts the register frame (legacy !register callers pass none —
+    // unchanged behavior).
     const niche = this.stringMetadata(shot, "shortViralNiche") ?? this.stringMetadata(shot, "niche");
-    const creativeMode = this.creativeModeMetadata(shot);
+    const creativeMode = register
+      ? this.registerAgreedCreativeMode(shot, register)
+      : this.creativeModeMetadata(shot);
     if (!niche && !creativeMode) {
       return undefined;
     }

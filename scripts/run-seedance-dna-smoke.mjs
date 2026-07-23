@@ -69,6 +69,24 @@ check("short_keys_fire_mode_dna", shortKeys.prompt.includes("Creative-mode DNA (
 const directKeys = compile({ niche: "food_beverage", creativeMode: "cinematic" });
 check("direct_keys_fire_dna", directKeys.prompt.includes("Niche DNA (food_beverage)") && directKeys.prompt.includes("Creative-mode DNA (cinematic)"));
 
+// 3b. Register is the single source of truth for STYLE (audit #12): a keyword creative mode bound to
+// the OPPOSITE register is dropped from the DNA lookup (its cinematic language must never sit under a
+// phone-KOL register frame), while niche texture is kept; an AGREEING mode still fires.
+const conflicted = compiler.compile({
+  shot: { ...shotFixture({ shortViralNiche: "beauty_skincare", shortViralCreativeMode: "product_ad" }), styleDna: { register: "natural_phone_kol" } },
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS },
+  modelId: "seedance-2-0-smoke",
+  provider: "atlascloud"
+});
+check("conflicting_mode_dna_dropped_under_register", !conflicted.prompt.includes("Creative-mode DNA (product_ad)") && conflicted.prompt.includes("Niche DNA (beauty_skincare)") && conflicted.prompt.includes("Style register: natural phone-shot / KOL."));
+const agreeing = compiler.compile({
+  shot: { ...shotFixture({ shortViralNiche: "beauty_skincare", shortViralCreativeMode: "ugc_review" }), styleDna: { register: "natural_phone_kol" } },
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS },
+  modelId: "seedance-2-0-smoke",
+  provider: "atlascloud"
+});
+check("agreeing_mode_dna_kept_under_register", agreeing.prompt.includes("Creative-mode DNA (ugc_review)"));
+
 // 4. Unknown niches fall back to grounded realism instead of failing.
 const unknown = resolveSeedanceDna({ niche: "quantum_farming" });
 check("unknown_niche_falls_back", unknown.nicheDirective === GENERIC_NICHE_DNA);
