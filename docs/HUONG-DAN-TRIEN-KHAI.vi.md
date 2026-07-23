@@ -2,7 +2,16 @@
 
 Đọc từ trên xuống, làm theo từng bước là chạy được. Chỉ có 3 việc: điền file cấu hình → bật server → mở web.
 
-## Bước 1 — Điền file cấu hình (chỉ 1 file duy nhất)
+## Bước 1 — Điền file cấu hình
+
+**Cách dễ nhất — hỏi-đáp, KHÔNG cần sửa file (khuyên dùng cho người không rành code):**
+```
+npm install
+npm run setup
+```
+Nó hỏi bạn vài câu bằng tiếng Việt (key Atlas, thông tin chuyển khoản, tên miền, loại cơ sở dữ liệu), **tự tạo khóa quản trị mạnh**, rồi ghi file `.env` giúp bạn. Nếu đã có `.env`, nó hỏi trước khi ghi đè (Enter = giữ nguyên). Xong thì làm tiếp Bước 2.
+
+**Cách thủ công (nếu muốn tự sửa file):**
 
 1. Chép file `.env.production.template` thành file mới tên `.env` (cùng thư mục).
 2. Mở `.env`, điền các dòng có chữ **[BAT BUOC]**:
@@ -66,6 +75,13 @@ Chạy mỗi ngày (hoặc đặt lịch tự động):
 npm run backup:data
 ```
 Bản sao nằm trong thư mục `backups/` kèm file hướng dẫn phục hồi tiếng Việt. Với Docker, dữ liệu nằm trong volume `cinejelly-output` — không mất khi khởi động lại container.
+
+## Cập nhật lên bản mới (1 lệnh, an toàn)
+
+```
+npm run update
+```
+Tự động: **sao lưu trước** → tải bản mới (git pull) → build → chạy doctor kiểm tra. Nếu có bước lỗi thì DỪNG ngay (dữ liệu đã sao lưu, bản đang chạy vẫn nguyên cho tới khi bạn khởi động lại). Xong thì khởi động lại: `npm start` hoặc `docker compose up -d --build`.
 
 ## Khi có sự cố
 
