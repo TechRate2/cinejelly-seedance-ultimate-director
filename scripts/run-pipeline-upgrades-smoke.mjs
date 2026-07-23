@@ -94,6 +94,28 @@ const coverageReport = guardian.inspectVideoConsistency({
 });
 check("gate_coverage_warns", coverageReport.findings.some((f) => f.checkpoint === "character_lock_coverage"));
 
+// PRODUCTION shape regression (repo-fidelity audit bug): continuity.identity is a PROSE STRING —
+// the old code iterated it letter-by-letter, minting one bogus "character" per LETTER. The prose
+// shape must yield exactly ONE coverage warning, never per-letter noise.
+const proseCoverageReport = guardian.inspectVideoConsistency({
+  projectId: "proj_cov_prose",
+  shots: [
+    shotWith({ shotId: "s1", identityContinuity: "Linh — 23t, mắt kiên định" }),
+    shotWith({ shotId: "s2", identityContinuity: "Linh — 23t, mắt kiên định" })
+  ]
+});
+const proseCoverageFindings = proseCoverageReport.findings.filter((f) => f.checkpoint === "character_lock_coverage");
+check("gate_prose_identity_one_warning_no_letter_noise", proseCoverageFindings.length === 1, `count=${proseCoverageFindings.length}`);
+// An anchored video with prose identity produces NO coverage warning.
+const proseAnchoredReport = guardian.inspectVideoConsistency({
+  projectId: "proj_cov_prose_ok",
+  shots: [
+    shotWith({ shotId: "s1", identityContinuity: "Linh — 23t", identityUri: "https://cdn.example/linh.png", characterId: "linh", view: "front" }),
+    shotWith({ shotId: "s2", identityContinuity: "Linh — 23t", identityUri: "https://cdn.example/linh.png", characterId: "linh", view: "front" })
+  ]
+});
+check("gate_prose_identity_anchored_clean", !proseAnchoredReport.findings.some((f) => f.checkpoint === "character_lock_coverage"));
+
 const monotoneReport = guardian.inspectVideoConsistency({
   projectId: "proj_mono",
   shots: ["s1", "s2", "s3", "s4"].map((shotId) => shotWith({ shotId, shotType: "medium_shot" }))

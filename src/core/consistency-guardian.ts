@@ -23,6 +23,7 @@ import {
   internalSourcePatternSnapshotPath
 } from "./private-source-pattern-registry.js";
 import { slopDensityScore } from "./anti-slop-lexicon.js";
+import { normalizeCharacterKey, splitCharacterIdentities } from "./keyframe-first-planner.js";
 
 export class ConsistencyGuardian {
   public inspectStoryboard(input: StoryboardInspectionInput): GuardianReport {
@@ -126,26 +127,23 @@ export class ConsistencyGuardian {
       }
     }
 
-    // Video-level coverage: a character demanded by identity continuity in 2+ shots but
-    // never anchored anywhere loses its face silently even when no single shot flags risk.
-    const demandCounts = new Map<string, number>();
-    for (const shot of shots) {
-      for (const characterId of shot.continuity.identity ?? []) {
-        const key = this.normalizedKey(characterId);
-        demandCounts.set(key, (demandCounts.get(key) ?? 0) + 1);
-      }
-    }
-    for (const [characterKey, demandCount] of demandCounts) {
-      if (demandCount >= 2 && !assetsByCharacter.has(characterKey)) {
-        findings.push({
-          stage: "preflight",
-          status: "warn",
-          severity: "S2",
-          checkpoint: "character_lock_coverage",
-          evidence: `Character "${characterKey}" appears in ${demandCount} shots with identity continuity but has no identity reference anywhere in the video.`,
-          repair: "Attach one canonical portrait for this character so every shot renders the same face."
-        });
-      }
+    // Video-level coverage: shots demand identity continuity but the video anchors NO identity
+    // reference at all — the face is invented per clip and drifts silently. continuity.identity is
+    // a PROSE string ("preserve Linh — 23t..."), not a character list; the old loop iterated it
+    // character-by-character, minting one bogus "character" per LETTER and spamming warn noise on
+    // every multi-shot video (repo-fidelity audit, real bug). Matching prose to reference keys
+    // reliably is not possible here (characterId "linh_lead" vs prose "Linh"), so this check now
+    // claims only what it can prove: identity demanded somewhere + zero identity anchors anywhere.
+    const identityDemandShotCount = shots.filter((shot) => this.identityProse(shot.continuity.identity)).length;
+    if (identityDemandShotCount >= 2 && assetsByCharacter.size === 0) {
+      findings.push({
+        stage: "preflight",
+        status: "warn",
+        severity: "S2",
+        checkpoint: "character_lock_coverage",
+        evidence: `${identityDemandShotCount} shots demand identity continuity but the video carries no identity reference at all; each clip will invent its own face.`,
+        repair: "Attach one canonical portrait per recurring character so every shot renders the same face."
+      });
     }
     return findings;
   }
@@ -177,6 +175,22 @@ export class ConsistencyGuardian {
       ];
     }
     return [];
+  }
+
+  /**
+   * continuity.identity is a prose STRING in production (ShotContinuity type); some older callers/
+   * fixtures pass an array of names — accept both so the check never crashes or letter-iterates.
+   */
+  private identityProse(value: unknown): string | undefined {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed || undefined;
+    }
+    if (Array.isArray(value)) {
+      const joined = value.filter((item): item is string => typeof item === "string").join(", ").trim();
+      return joined || undefined;
+    }
+    return undefined;
   }
 
   private normalizedKey(value: string): string {
@@ -534,9 +548,17 @@ export class ConsistencyGuardian {
   private validateContinuity(input: PreflightInput): readonly GuardianFinding[] {
     const findings: GuardianFinding[] = [];
 
+    // Per-character matching (multi-face fix): the ledger's characterId is a normalized character
+    // key and its requiredReferenceLabels are that character's OWN labels — so a single-character
+    // shot (whose references were deliberately narrowed to its cast) is only required to carry the
+    // characters it actually names, never the absent character's labels.
+    const shotCharacterKeys = new Set(
+      splitCharacterIdentities(this.identityProse(input.shot.continuity.identity)).map((name) => normalizeCharacterKey(name)).filter(Boolean)
+    );
     for (const character of input.ledger.characters) {
-      const requiresCharacter = input.shot.continuity.identity?.includes(character.characterId);
-      if (!requiresCharacter) {
+      const characterKey = normalizeCharacterKey(character.characterId);
+      const requiresCharacter = characterKey.length > 0 && shotCharacterKeys.has(characterKey);
+      if (!requiresCharacter || character.requiredReferenceLabels.length === 0) {
         continue;
       }
       const labels = new Set(input.shot.references.map((reference) => reference.label));
@@ -547,8 +569,8 @@ export class ConsistencyGuardian {
           status: "repair",
           severity: "S1",
           checkpoint: "character_bible_reference",
-          evidence: `Missing character bible reference labels: ${missingLabels.join(", ")}.`,
-          repair: "Attach required character bible references before rendering."
+          evidence: `Shot names character "${character.identityDescription}" but is missing that character's reference labels: ${missingLabels.join(", ")}.`,
+          repair: "Attach the named character's bible reference before rendering."
         });
       }
     }
