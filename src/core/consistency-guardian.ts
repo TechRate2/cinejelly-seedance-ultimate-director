@@ -22,6 +22,7 @@ import {
   internalSourcePatternOrigin,
   internalSourcePatternSnapshotPath
 } from "./private-source-pattern-registry.js";
+import { slopDensityScore } from "./anti-slop-lexicon.js";
 
 export class ConsistencyGuardian {
   public inspectStoryboard(input: StoryboardInspectionInput): GuardianReport {
@@ -40,6 +41,7 @@ export class ConsistencyGuardian {
       ...this.validateBindingPlan(input.bindingPlan),
       ...this.validateContinuity(input),
       ...this.validatePromptDensity(input.prompt, input.negativePrompt),
+      ...this.validateAuthoredSlop(input.shot),
       ...this.validateTimeline(input.shot)
     ];
 
@@ -566,6 +568,52 @@ export class ConsistencyGuardian {
     }
 
     return findings;
+  }
+
+  /**
+   * Anti-slop enforcement (audit #2): the anti-slop lexicon was advice-only — antiSlopDirective tells
+   * the writer LLM to avoid filler, but nothing CHECKED the result, so "stunning, cinematic, 8K,
+   * masterpiece" in an authored field flowed to the provider unchallenged and pushed the render toward
+   * generic over-processed output. This scores the LLM-AUTHORED free-text fields (the fields the
+   * compiler quotes verbatim), NOT the assembled prompt — the assembled prompt legitimately contains
+   * register/section vocabulary ("Style register: professional cinematic") that would false-positive.
+   * Score-only WARN: deliberately no rewriting (a prior rewrite design broke grammar and blinded the
+   * style-bible drift check, per the lexicon's own module doc).
+   */
+  private validateAuthoredSlop(shot: ShotContract): readonly GuardianFinding[] {
+    const authored: readonly { readonly field: string; readonly text: string | undefined }[] = [
+      { field: "action", text: shot.action },
+      { field: "camera", text: shot.camera },
+      { field: "lighting", text: shot.lighting },
+      { field: "style", text: shot.style }
+    ];
+    const offenders: string[] = [];
+    let worst: "tighten" | "rewrite" | undefined;
+    for (const { field, text } of authored) {
+      if (!text?.trim()) {
+        continue;
+      }
+      const score = slopDensityScore(text);
+      if (score.verdict === "tighten" || score.verdict === "rewrite") {
+        offenders.push(`${field} (${score.slopCount} filler term${score.slopCount === 1 ? "" : "s"}, verdict ${score.verdict})`);
+        if (score.verdict === "rewrite" || worst === undefined) {
+          worst = score.verdict;
+        }
+      }
+    }
+    if (offenders.length === 0) {
+      return [];
+    }
+    return [
+      {
+        stage: "preflight",
+        status: "warn",
+        severity: worst === "rewrite" ? "S2" : "S3",
+        checkpoint: "authored_slop_density",
+        evidence: `LLM-authored shot fields carry generic filler that reads as AI slop: ${offenders.join("; ")}.`,
+        repair: "Regenerate the flagged fields with concrete cinematography (lens, angle, light direction, a number) instead of empty boosters."
+      }
+    ];
   }
 
   private validatePromptDensity(prompt: string, negativePrompt: string): readonly GuardianFinding[] {

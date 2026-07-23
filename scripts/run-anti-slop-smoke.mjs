@@ -87,6 +87,37 @@ check("directive_lists_banned_terms", /stunning|masterpiece|8K/i.test(dir));
 const architectSrc = readFileSync(new URL("../src/agents/story-architect.ts", import.meta.url), "utf8");
 check("story_architect_injects_anti_slop", architectSrc.includes("antiSlopDirective("));
 
+// ---- Part I: ENFORCEMENT (audit #2) — the guardian scores LLM-authored shot fields pre-spend. ----
+// Score-only warn: slop in authored fields surfaces as a finding; a clean shot stays clean; and a
+// warn NEVER blocks spend (only block/repair do), so this is visibility, not a new failure mode.
+const { ConsistencyGuardian } = await import("../dist/core/consistency-guardian.js");
+const guardian = new ConsistencyGuardian();
+const baseShot = {
+  shotId: "slop_gate_shot",
+  durationSeconds: 6,
+  intent: "hook",
+  subject: "creator with serum",
+  action: "creator lifts the serum toward the lens and taps the cap twice",
+  camera: "handheld phone close-up at arm's length",
+  lighting: "window daylight from the left",
+  references: [],
+  risks: [],
+  continuity: {}
+};
+const emptyLedger = { characters: [], styles: [] };
+const cleanReport = guardian.preflight({ shot: baseShot, prompt: "p", negativePrompt: "", ledger: emptyLedger });
+check("clean_authored_fields_no_slop_finding", !cleanReport.findings.some((f) => f.checkpoint === "authored_slop_density"));
+const sloppyReport = guardian.preflight({
+  shot: { ...baseShot, camera: "stunning cinematic epic camera", style: "breathtaking masterpiece 8k vibe" },
+  prompt: "p",
+  negativePrompt: "",
+  ledger: emptyLedger
+});
+const slopFinding = sloppyReport.findings.find((f) => f.checkpoint === "authored_slop_density");
+check("sloppy_authored_fields_flagged", Boolean(slopFinding) && slopFinding.status === "warn", JSON.stringify(slopFinding ?? null));
+check("slop_finding_names_fields", Boolean(slopFinding) && /camera/.test(slopFinding.evidence) && /style/.test(slopFinding.evidence));
+check("slop_gate_warn_never_blocks", sloppyReport.status === "warn" || sloppyReport.status === "pass", sloppyReport.status);
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.anti-slop-smoke.v1",
