@@ -51,6 +51,11 @@ function compile(metadata, settingsOverride = {}) {
 const plain = compile(undefined);
 check("no_metadata_no_dna", !plain.prompt.includes("Niche DNA ("));
 check("realism_guardrails_always_on", plain.prompt.includes("Realism guardrails:"));
+// 1b. Audio is NEVER left blank even with no audioIntent/spokenLine — otherwise Seedance dubs a
+// generic library score over the clip. And it must never phrase it as "Audio: Silent".
+check("audio_floor_never_blank", plain.prompt.includes("Audio design:") && !plain.prompt.includes("Audio: Silent"));
+// 1c. The always-on anti-AI-look floor now guards the two loudest human tells: waxy skin + dead eyes.
+check("antiai_skin_and_eye_floor", plain.prompt.includes("never waxy, plastic") && plain.prompt.includes("living eyes"));
 
 // 2. Short-pipeline metadata keys fire the DNA section end-to-end.
 const shortKeys = compile({ shortViralNiche: "beauty_skincare", shortViralCreativeMode: "ugc_review" });

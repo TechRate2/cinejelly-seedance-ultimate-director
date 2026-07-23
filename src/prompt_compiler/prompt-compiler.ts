@@ -105,7 +105,7 @@ export class SeedancePromptCompiler {
       `Lighting: ${shot.lighting}.`,
       shot.style ? `Style: ${shot.style}.` : undefined,
       shot.timeline && shot.timeline.length > 0 ? this.buildTimelineSection(shot.timeline, shot) : undefined,
-      this.buildAudioProductionSection(shot),
+      this.buildAudioProductionSection(shot, register),
       this.buildRegisterSection(shot, register),
       this.buildFinalFrameSection(shot, bindingPlan),
       this.buildRealismGuardrailsSection(register)
@@ -550,6 +550,10 @@ export class SeedancePromptCompiler {
     return [
       captureSentence,
       "Motion stays organic with natural weight and small secondary micro-movements; no extra or fused fingers, morphing edges, temporal flicker, warped logos/text, or melting geometry.",
+      // The loudest human AI-tells are waxy skin and dead eyes (research: pxz.ai negative-prompt study,
+      // "In Ictu Oculi" blink forensics). State them as a POSITIVE floor since Seedance weights the
+      // prompt over the negative field, always-on regardless of register.
+      "Any person keeps natural skin with visible pores, fine lines and subtle asymmetry — never waxy, plastic, over-smoothed, airbrushed, or doll-like — and living eyes with a true catchlight and natural blink, never dead, glassy, or vacant.",
       "No visible generated text, captions, subtitles, watermark, or fake UI unless explicitly requested."
     ].join(" ");
   }
@@ -737,9 +741,19 @@ export class SeedancePromptCompiler {
     return `${clipped.slice(0, boundary > maxChars * 0.6 ? boundary : maxChars).trim()}...`;
   }
 
-  private buildAudioProductionSection(shot: ShotContract): string | undefined {
+  private buildAudioProductionSection(shot: ShotContract, register?: StyleRegister): string | undefined {
+    // Seedance never leaves audio blank: when generate_audio is on and the prompt says nothing about
+    // sound, the model invents a generic library score (the "scored like a car advert" default). So a
+    // silent-intent b-roll shot with no audioIntent MUST still state its intended sound — otherwise
+    // Seedance dubs stock music over a "filmed on a phone" clip and breaks the natural register
+    // (research: fal.ai Seedance 2.0 prompting guide). Emit a register-appropriate sound design floor.
     if (!shot.audioIntent && !shot.spokenLine) {
-      return undefined;
+      const soundFloor = register === "natural_phone_kol"
+        ? "Audio design: real in-camera phone sound only — room tone and natural contact noise, NO added or background music, no scored bed; it must sound recorded on the phone, not dubbed."
+        : register === "professional_cinematic"
+          ? "Audio design: motivated diegetic ambience and light foley sized to the action; no library/stock music bed unless specified, and any score stays subtle under the moment."
+          : "Audio design: natural diegetic ambience and foley for this action; no added background music unless specified.";
+      return `${soundFloor} Generate only original ambience/sound on this shot's timing — no protected songs, melodies, transcripts, or voices.`;
     }
     const wordBudget = this.voiceoverWordBudget(shot.durationSeconds);
     return [

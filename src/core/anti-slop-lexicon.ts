@@ -179,10 +179,16 @@ export function listSlopTerms(): readonly string[] {
  * into the Story Architect instruction alongside the niche playbook + mastery rules.
  */
 export function antiSlopDirective(): string {
-  const banned = SLOP_ENTRIES.map((entry) => entry.term).slice(0, 14).join(", ");
+  // Name at least one exemplar from EVERY bucket (was a flat slice(0,14) that never reached the
+  // empty_atmosphere / vague_quality buckets, so "cinematic, dreamy, moody, epic, vibrant,
+  // hyperrealistic, photorealistic" were never explicitly banned — the boosters research flags most).
+  const buckets: readonly SlopBucket[] = ["superlative", "resolution_theater", "ai_self_praise", "empty_atmosphere", "vague_quality"];
+  const banned = buckets
+    .flatMap((bucket) => SLOP_ENTRIES.filter((entry) => entry.bucket === bucket).slice(0, 4).map((entry) => entry.term))
+    .join(", ");
   return [
     "ANTI-SLOP: never pad a shot with empty boosters",
-    `(${banned}, "8K/4K/ultra-HD", "masterpiece", "award-winning", "trending on artstation").`,
+    `(${banned}).`,
     "They read as generic AI slop and push the model toward over-processed output.",
     "Instead name the concrete cause — the lens, angle, rig, light direction+quality, and a number:",
     'not "cinematic" but "85mm, shallow depth of field, hard 45-degree key with amber gel";',
