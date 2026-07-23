@@ -17,6 +17,7 @@ import type { AtlasCloudRuntimeSettings } from "../types/settings.js";
 export interface MissingModel {
   readonly field:
     | "llmModel"
+    | "creativeLlmModel"
     | "seedanceStandardModel"
     | "seedanceFastModel"
     | "imageModel"
@@ -117,6 +118,7 @@ export async function validateConfiguredAtlasModels(
   };
 
   checkLlm("llmModel", settings.models.llmModel);
+  checkLlm("creativeLlmModel", settings.models.creativeLlmModel);
   checkMedia("seedanceStandardModel", settings.models.seedanceStandardModel);
   checkMedia("seedanceFastModel", settings.models.seedanceFastModel);
   checkMedia("imageModel", settings.models.imageModel);

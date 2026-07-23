@@ -55,6 +55,8 @@ export interface AdminModelOverrides {
   readonly imageModel?: string;
   readonly imageReferenceModel?: string;
   readonly llmModel?: string;
+  /** "Writer" model for the creative text stages (script/styleDna/dialogue); empty = share llmModel. */
+  readonly creativeLlmModel?: string;
   readonly speechModel?: string;
 }
 
@@ -246,6 +248,9 @@ export class AdminSettingsStore {
     if (models.llmModel) {
       target.ATLASCLOUD_LLM_MODEL = models.llmModel;
     }
+    if (models.creativeLlmModel) {
+      target.ATLASCLOUD_CREATIVE_LLM_MODEL = models.creativeLlmModel;
+    }
     if (models.speechModel) {
       target.ATLASCLOUD_SPEECH_MODEL = models.speechModel;
     }
@@ -430,7 +435,7 @@ export class AdminSettingsStore {
     }
     const record = value as Record<string, unknown>;
     const result: Record<string, string> = {};
-    for (const key of ["videoModel", "imageModel", "imageReferenceModel", "llmModel", "speechModel"]) {
+    for (const key of ["videoModel", "imageModel", "imageReferenceModel", "llmModel", "creativeLlmModel", "speechModel"]) {
       const raw = record[key];
       if (raw === undefined || raw === null || raw === "") {
         continue;

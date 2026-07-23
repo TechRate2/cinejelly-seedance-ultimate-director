@@ -177,7 +177,8 @@ export function buildOperatorTopupPage(): string {
       <div class="muted">Để trống = dùng mặc định trong .env. Chỉ đổi khi bạn biết model mới.</div>
       <div class="row"><input id="model-video" placeholder="Model video (Seedance)"></div>
       <div class="row"><input id="model-image" placeholder="Model ảnh (text-to-image)"><input id="model-image-reference" placeholder="Model ảnh tham chiếu (reference-to-image)"></div>
-      <div class="row"><input id="model-llm" placeholder="Model ngôn ngữ (LLM)"><input id="model-speech" placeholder="Model giọng nói"></div>
+      <div class="row"><input id="model-llm" placeholder="Model CON MẮT (xem ảnh/video — LLM vision)"><input id="model-creative-llm" placeholder="Model NGƯỜI VIẾT kịch bản (nên dùng model mạnh)"></div>
+      <div class="row"><input id="model-speech" placeholder="Model giọng nói"></div>
     </div>
     <div class="card">
       <strong>📣 Nội dung Studio khách thấy</strong>
@@ -437,6 +438,7 @@ export function buildOperatorTopupPage(): string {
       document.getElementById("model-image").value = (currentSettings.models && currentSettings.models.imageModel) || "";
       document.getElementById("model-image-reference").value = (currentSettings.models && currentSettings.models.imageReferenceModel) || "";
       document.getElementById("model-llm").value = (currentSettings.models && currentSettings.models.llmModel) || "";
+      document.getElementById("model-creative-llm").value = (currentSettings.models && currentSettings.models.creativeLlmModel) || "";
       document.getElementById("model-speech").value = (currentSettings.models && currentSettings.models.speechModel) || "";
       document.getElementById("studio-announcement").value = (currentSettings.studio && currentSettings.studio.announcement) || "";
       document.getElementById("studio-images").value = ((currentSettings.studio && currentSettings.studio.featuredImages) || []).join(", ");
@@ -635,6 +637,7 @@ export function buildOperatorTopupPage(): string {
           imageModel: document.getElementById("model-image").value.trim(),
           imageReferenceModel: document.getElementById("model-image-reference").value.trim(),
           llmModel: document.getElementById("model-llm").value.trim(),
+          creativeLlmModel: document.getElementById("model-creative-llm").value.trim(),
           speechModel: document.getElementById("model-speech").value.trim()
         },
         studio: {

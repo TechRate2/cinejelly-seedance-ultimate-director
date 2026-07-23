@@ -54,6 +54,14 @@ export interface ModelPreferences {
 
 export interface ProviderModelSettings {
   readonly llmModel: string;
+  /**
+   * Optional dedicated "writer" model for the CREATIVE TEXT stages (Creative Brief Analyst styleDna,
+   * Story Architect script/dialogue, Script Enhancer). These stages set the ceiling on script logic,
+   * natural human voice, and per-request styleDna quality, so production should point them at a strong
+   * frontier model even when `llmModel` stays a cheaper vision model for the image/frame INSPECTION
+   * stages. Falls back to `llmModel` when unset, so existing deployments are unchanged.
+   */
+  readonly creativeLlmModel?: string;
   readonly seedanceMiniModel?: string;
   readonly seedanceStandardModel: string;
   readonly seedanceFastModel: string;

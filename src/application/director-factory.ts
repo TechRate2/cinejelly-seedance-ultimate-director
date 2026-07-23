@@ -41,10 +41,14 @@ export function createDirectorRuntime(
   const settings = loadRuntimeSettings(env);
   const ledger = new ProviderCostLedger(options.providerLedgerReporter);
   const atlasProvider = new AtlasCloudProvider(settings.atlasCloud, ledger);
-  const storyArchitect = new StoryArchitect(atlasProvider, settings.atlasCloud.models.llmModel);
-  const creativeBriefAnalyst = new CreativeBriefAnalyst(atlasProvider, settings.atlasCloud.models.llmModel);
+  // The creative TEXT stages (script, styleDna, dialogue) set the quality ceiling, so they run on the
+  // dedicated "writer" model when one is configured; the vision stages (reference/semantic inspection)
+  // stay on llmModel. Falls back to llmModel when no writer model is set — existing deploys unchanged.
+  const creativeModel = settings.atlasCloud.models.creativeLlmModel ?? settings.atlasCloud.models.llmModel;
+  const storyArchitect = new StoryArchitect(atlasProvider, creativeModel);
+  const creativeBriefAnalyst = new CreativeBriefAnalyst(atlasProvider, creativeModel);
   const referenceVisionAnalyst = new ReferenceVisionAnalyst(atlasProvider, settings.atlasCloud.models.llmModel);
-  const scriptEnhancer = new ScriptEnhancer(atlasProvider, settings.atlasCloud.models.llmModel);
+  const scriptEnhancer = new ScriptEnhancer(atlasProvider, creativeModel);
   const renderProducer = new RenderProducer(atlasProvider, atlasProvider);
   const renderCostGate = new RenderCostGate(settings.costEstimation);
   const semanticVisualInspector = new SemanticVisualInspector(atlasProvider, settings.atlasCloud.models.llmModel);

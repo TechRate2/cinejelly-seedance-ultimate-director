@@ -115,6 +115,7 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
   const seedanceCapabilities = parseCapabilitiesEnv(env.ATLASCLOUD_SEEDANCE_CAPABILITIES_JSON);
   const generatedAudioCapabilities = parseAudioCapabilitiesEnv(env.ATLASCLOUD_GENERATED_AUDIO_CAPABILITIES_JSON);
   const llmApiKey = optionalStringEnv("ATLASCLOUD_LLM_API_KEY", env);
+  const creativeLlmModel = optionalStringEnv("ATLASCLOUD_CREATIVE_LLM_MODEL", env);
   const seedanceMiniModel = optionalStringEnv("ATLASCLOUD_SEEDANCE_MINI_MODEL", env);
   const imageModel = optionalStringEnv("ATLASCLOUD_IMAGE_MODEL", env);
   const imageReferenceModel = optionalStringEnv("ATLASCLOUD_IMAGE_REFERENCE_MODEL", env);
@@ -140,6 +141,7 @@ export function loadAtlasCloudSettings(env: NodeJS.ProcessEnv = process.env): At
     ),
     models: {
       llmModel: requireEnv("ATLASCLOUD_LLM_MODEL", env),
+      ...(creativeLlmModel ? { creativeLlmModel } : {}),
       ...(seedanceMiniModel ? { seedanceMiniModel } : {}),
       ...(imageModel ? { imageModel } : {}),
       ...(imageReferenceModel ? { imageReferenceModel } : {}),

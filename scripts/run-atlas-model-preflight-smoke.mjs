@@ -19,7 +19,8 @@ const settings = {
   assetBaseUrl: "https://api.atlascloud.ai/api/v1",
   apiKey: "test-key",
   models: {
-    llmModel: "anthropic/claude-sonnet-4.5",
+    llmModel: "qwen/qwen3-vl-30b-a3b-thinking",
+    creativeLlmModel: "anthropic/claude-sonnet-4.5",
     seedanceStandardModel: "bytedance/seedance-2.0/reference-to-video",
     seedanceFastModel: "bytedance/seedance-2.0-fast/reference-to-video",
     imageModel: "google/nano-banana-pro/text-to-image",
@@ -29,6 +30,7 @@ const settings = {
 };
 const allModelIds = [
   settings.models.llmModel,
+  settings.models.creativeLlmModel,
   settings.models.seedanceStandardModel,
   settings.models.seedanceFastModel,
   settings.models.imageModel,
@@ -53,11 +55,23 @@ try {
   check("missing_model_detected", missing.ok === false && missing.missing.some((m) => m.modelId === settings.models.imageModel), JSON.stringify(missing.missing));
   check("missing_not_flagged_as_authfailed", missing.keyAuthFailed === false);
 
+  // 2b. A missing "writer" model (creativeLlmModel) is caught on the LLM endpoint — doctor stops a
+  // false-green when the strong creative model is mistyped/removed, not just the vision llmModel.
+  const withoutCreative = allModelIds.filter((id) => id !== settings.models.creativeLlmModel);
+  stub(async () => modelsBody(withoutCreative));
+  const missingCreative = await validateConfiguredAtlasModels(settings);
+  check(
+    "missing_creative_model_detected_on_llm_endpoint",
+    missingCreative.ok === false &&
+      missingCreative.missing.some((m) => m.field === "creativeLlmModel" && m.endpoint === "llm"),
+    JSON.stringify(missingCreative.missing)
+  );
+
   // 3. Valid key, all configured models present -> ok, nothing missing.
   stub(async () => modelsBody(allModelIds));
   const ok = await validateConfiguredAtlasModels(settings);
   check("all_models_present_ok", ok.ok === true && ok.missing.length === 0 && ok.keyAuthFailed === false, `checked=${ok.checkedModelCount}`);
-  check("checked_all_configured_models", ok.checkedModelCount === 6, `checked=${ok.checkedModelCount}`);
+  check("checked_all_configured_models", ok.checkedModelCount === 7, `checked=${ok.checkedModelCount}`);
 
   // 4. Network failure (fetch throws) -> fail-OPEN: probeSkipped, not keyAuthFailed, not a hard "missing".
   stub(async () => { throw new Error("ENETUNREACH"); });
