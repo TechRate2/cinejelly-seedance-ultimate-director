@@ -56,6 +56,9 @@ check("realism_guardrails_always_on", plain.prompt.includes("Realism guardrails:
 check("audio_floor_never_blank", plain.prompt.includes("Audio design:") && !plain.prompt.includes("Audio: Silent"));
 // 1c. The always-on anti-AI-look floor now guards the two loudest human tells: waxy skin + dead eyes.
 check("antiai_skin_and_eye_floor", plain.prompt.includes("never waxy, plastic") && plain.prompt.includes("living eyes"));
+// 1d. An UNRESOLVED register gets the NEUTRAL capture wording, not the cinematic gloss ("speculars")
+// that would impose an AI-ad look on an unlabeled brief (audit #9).
+check("unresolved_register_neutral_capture", plain.prompt.includes("photoreal camera capture") && !plain.prompt.includes("physically based speculars"));
 
 // 2. Short-pipeline metadata keys fire the DNA section end-to-end.
 const shortKeys = compile({ shortViralNiche: "beauty_skincare", shortViralCreativeMode: "ugc_review" });

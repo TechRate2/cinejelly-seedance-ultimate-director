@@ -554,9 +554,16 @@ export class SeedancePromptCompiler {
     // The capture sentence is register-aware: the cinematic wording (motivated light, cinematic
     // capture, speculars) actively fought the natural_phone_kol register's anti-cinematic guards
     // (audit #8); the artifact-suppression sentences are register-neutral and always apply.
+    // Three-way, not binary: an UNRESOLVED register used to fall through to the CINEMATIC capture
+    // wording (motivated speculars, cinematic depth), which imposes a glossy film look on an unlabeled
+    // UGC/phone brief and fails the "is this real?" test (audit #9). Cinematic gloss is the wording most
+    // likely to read as an AI ad, so an unknown register gets a NEUTRAL photoreal sentence instead —
+    // committing to neither cinematic speculars nor phone-sensor character.
     const captureSentence = register === "natural_phone_kol"
       ? "Realism guardrails: photoreal phone-camera capture, not CGI, cartoon, or an obvious AI render — real phone-sensor depth and motion blur, unshaped available light with accurate contact shadows, true material microtexture (skin pores, fabric weave, glass, condensation)."
-      : "Realism guardrails: photoreal cinematic capture, not CGI, cartoon, or an obvious AI render — real lens depth-of-field and motion blur, motivated light with accurate contact shadows and physically based speculars, true material microtexture (skin pores, fabric weave, glass, condensation).";
+      : register === "professional_cinematic"
+        ? "Realism guardrails: photoreal cinematic capture, not CGI, cartoon, or an obvious AI render — real lens depth-of-field and motion blur, motivated light with accurate contact shadows and physically based speculars, true material microtexture (skin pores, fabric weave, glass, condensation)."
+        : "Realism guardrails: photoreal camera capture, not CGI, cartoon, or an obvious AI render — real lens depth and natural motion blur, physically motivated light with accurate contact shadows, true material microtexture (skin pores, fabric weave, glass, condensation).";
     return [
       captureSentence,
       "Motion stays organic with natural weight and small secondary micro-movements; no extra or fused fingers, morphing edges, temporal flicker, warped logos/text, or melting geometry.",
