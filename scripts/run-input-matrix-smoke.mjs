@@ -485,6 +485,29 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   const viShot = { ...shots[0], spokenLine: "Ồ, mềm mà không rách thật!" };
   const p3 = compiler.compile({ shot: viShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
   check("register: VN spoken line appends dialogue-light clause", p3.includes("Dialogue-light language mode"), "");
+
+  // Register-derived craft fallbacks (audit #6): when the LLM omits camera/lighting, the coerced beat
+  // gets the REGISTER's concrete language, not the old "stable cinematic camera" platitude — a phone
+  // register never receives a cinematic word, and the fallback text itself is slop-free.
+  const omittingLlm = {
+    name: "fake-omitting-llm",
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured() {
+      return { provider: "atlascloud", modelId: "f", content: "{}", raw: {}, latencyMs: 0,
+        value: { premise: "p", targetDurationSeconds: 12, scenes: [{ sceneId: "s1", title: "S1", beats: [
+          { beatId: "b1", purpose: "hook", action: "creator shows the product", subject: "creator", durationSeconds: 12, risks: [] }
+        ] }] } };
+    },
+    capabilities() { return []; }
+  };
+  const kolFallbackPlan = await new StoryArchitect(omittingLlm, "f").plan({ projectId: "d", userInput: "kol", settings: settingsFor(12, "economy"), references: [], metadata: { shortViralCreativeMode: "ugc_review" } });
+  const kolBeat = kolFallbackPlan.scenes[0]?.beats[0];
+  check("fallback craft: KOL register -> phone camera default", Boolean(kolBeat?.camera.includes("handheld phone framing")) && !/cinematic/i.test(kolBeat?.camera ?? ""), kolBeat?.camera ?? "");
+  check("fallback craft: KOL register -> found-light default", Boolean(kolBeat?.lighting.includes("found window or room light")), kolBeat?.lighting ?? "");
+  const cineFallbackPlan = await new StoryArchitect(omittingLlm, "f").plan({ projectId: "d", userInput: "ad", settings: settingsFor(12, "economy"), references: [], metadata: { shortViralCreativeMode: "product_ad" } });
+  const cineBeat = cineFallbackPlan.scenes[0]?.beats[0];
+  check("fallback craft: cinematic register -> motivated-move default", Boolean(cineBeat?.camera.includes("one motivated move")), cineBeat?.camera ?? "");
+  check("fallback craft: defaults carry no slop terms", !/\b(cinematic|stunning|epic|masterpiece)\b/i.test(`${kolBeat?.camera} ${kolBeat?.lighting} ${cineBeat?.camera} ${cineBeat?.lighting}`), "");
 }
 
 // ------------------------------------------------------------------

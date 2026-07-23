@@ -287,11 +287,11 @@ export class StoryArchitect {
             : typeof intake.metadata?.creativeMode === "string" ? intake.metadata.creativeMode : undefined
         );
     const scenes = value.scenes.map((scene, sceneIndex) => this.coerceScene(scene, sceneIndex, intake, register));
-    const usableScenes = scenes.length > 0 ? scenes : [this.fallbackScene(intake, 0)];
+    const usableScenes = scenes.length > 0 ? scenes : [this.fallbackScene(intake, 0, register)];
     const workflowScenes = this.singleClipRequested(intake)
-      ? [this.singleClipScene(usableScenes, intake)]
+      ? [this.singleClipScene(usableScenes, intake, register)]
       : usableScenes;
-    const boundedScenes = this.limitBeatsToDurationCapacity(workflowScenes, intake);
+    const boundedScenes = this.limitBeatsToDurationCapacity(workflowScenes, intake, register);
     const normalizedScenes = this.normalizeDurations(boundedScenes, intake.settings.durationTargetSeconds);
 
     const optionalText = (candidate: unknown): string | undefined =>
@@ -388,7 +388,7 @@ export class StoryArchitect {
     const title = typeof payload.title === "string" ? payload.title : `Scene ${sceneIndex + 1}`;
     const beats = rawBeats.length > 0
       ? rawBeats.map((beat, beatIndex) => this.coerceBeat(beat, sceneIndex, beatIndex, intake, register))
-      : [this.fallbackBeat(sceneId, title, sceneIndex, 0, intake)];
+      : [this.fallbackBeat(sceneId, title, sceneIndex, 0, intake, register)];
 
     return {
       sceneId,
@@ -438,8 +438,8 @@ export class StoryArchitect {
       purpose: this.readString(payload.purpose, "advance the story with a clear commercial beat"),
       action: this.readString(payload.action, "show a clear visual action that fulfills the beat"),
       subject: this.readString(payload.subject, "the primary subject described by the user"),
-      camera: this.readString(payload.camera, "stable cinematic camera with clear composition"),
-      lighting: this.readString(payload.lighting, "coherent cinematic lighting"),
+      camera: this.readString(payload.camera, this.defaultCraft(register).camera),
+      lighting: this.readString(payload.lighting, this.defaultCraft(register).lighting),
       ...(style ? { style } : {}),
       ...(audioIntent ? { audioIntent } : {}),
       ...(spokenLine ? { spokenLine } : {}),
@@ -457,23 +457,51 @@ export class StoryArchitect {
     };
   }
 
-  private fallbackScene(intake: IntakeResult, sceneIndex: number): ScenePlan {
+  /**
+   * Register-derived craft defaults for LLM-omitted camera/lighting fields (audit #6). The old
+   * fallbacks were flavorless platitudes ("stable cinematic camera", "coherent cinematic lighting")
+   * that landed VERBATIM in the compiled Camera:/Lighting: lines and read as generic stock AI — and
+   * imposed a cinematic word on phone-KOL beats. These defaults speak each register's own concrete
+   * language (agreeing with the compiler's register frame by construction) and are slop-free, so the
+   * guardian's authored_slop_density gate stays quiet on system-generated text.
+   */
+  private defaultCraft(register: StyleRegister | undefined): { readonly camera: string; readonly lighting: string } {
+    if (register === "natural_phone_kol") {
+      return {
+        camera: "handheld phone framing at arm's length with natural micro-shake and one small reframe",
+        lighting: "found window or room light with true auto-exposure shifts"
+      };
+    }
+    if (register === "professional_cinematic") {
+      return {
+        camera: "steady framing with one motivated move (a slow push-in) and a clean focal plane",
+        lighting: "soft motivated key light with gentle fill and rim separation"
+      };
+    }
+    return {
+      camera: "steady eye-level framing with one deliberate reframe toward the action",
+      lighting: "natural motivated light with accurate contact shadows"
+    };
+  }
+
+  private fallbackScene(intake: IntakeResult, sceneIndex: number, register?: StyleRegister): ScenePlan {
     const sceneId = `scene_${sceneIndex + 1}`;
     return {
       sceneId,
       title: "Core Production Scene",
-      beats: [this.fallbackBeat(sceneId, "Core Production Scene", sceneIndex, 0, intake)]
+      beats: [this.fallbackBeat(sceneId, "Core Production Scene", sceneIndex, 0, intake, register)]
     };
   }
 
-  private fallbackBeat(sceneId: string, sceneTitle: string, sceneIndex: number, beatIndex: number, intake: IntakeResult): BeatPlan {
+  private fallbackBeat(sceneId: string, sceneTitle: string, sceneIndex: number, beatIndex: number, intake: IntakeResult, register?: StyleRegister): BeatPlan {
+    const craft = this.defaultCraft(register);
     return {
       beatId: `${sceneId}_beat_${beatIndex + 1}`,
       purpose: "turn the user's input into a clear commercial visual beat",
       action: `visualize the main idea from the user input with a coherent beginning, middle, and end: ${intake.userInput}`,
       subject: "the primary subject described by the user",
-      camera: "stable cinematic camera with clear subject framing",
-      lighting: "coherent commercial cinematic lighting",
+      camera: craft.camera,
+      lighting: craft.lighting,
       style: sceneTitle,
       durationSeconds: intake.settings.durationTargetSeconds,
       risks: [],
@@ -498,9 +526,9 @@ export class StoryArchitect {
     return metadata.shortPipelineRecommendedWorkflowMode === "single_clip";
   }
 
-  private singleClipScene(scenes: readonly ScenePlan[], intake: IntakeResult): ScenePlan {
+  private singleClipScene(scenes: readonly ScenePlan[], intake: IntakeResult, register?: StyleRegister): ScenePlan {
     const beats = scenes.flatMap((scene) => scene.beats);
-    const firstBeat = beats[0] ?? this.fallbackBeat("single_clip_scene", "Single Clip", 0, 0, intake);
+    const firstBeat = beats[0] ?? this.fallbackBeat("single_clip_scene", "Single Clip", 0, 0, intake, register);
     const actionArc = beats
       .map((beat) => beat.action)
       .filter((action) => action.trim().length > 0)
@@ -592,7 +620,7 @@ export class StoryArchitect {
     }));
   }
 
-  private limitBeatsToDurationCapacity(scenes: readonly ScenePlan[], intake: IntakeResult): readonly ScenePlan[] {
+  private limitBeatsToDurationCapacity(scenes: readonly ScenePlan[], intake: IntakeResult, register?: StyleRegister): readonly ScenePlan[] {
     const maxBeats = Math.max(1, Math.floor(intake.settings.durationTargetSeconds / MIN_BEAT_DURATION_SECONDS));
     let remaining = maxBeats;
     const bounded: ScenePlan[] = [];
@@ -608,7 +636,7 @@ export class StoryArchitect {
       }
     }
 
-    return bounded.length > 0 ? bounded : [this.fallbackScene(intake, 0)];
+    return bounded.length > 0 ? bounded : [this.fallbackScene(intake, 0, register)];
   }
 
   private readString(value: unknown, fallback: string): string {
