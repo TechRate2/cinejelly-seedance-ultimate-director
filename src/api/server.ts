@@ -131,7 +131,7 @@ import {
   SerializedRenderProviderHandoffLeaseStore
 } from "./render-provider-handoff-lease-service.js";
 import { FileRenderProviderHandoffLeaseStore } from "./render-provider-handoff.js";
-import { renderRequestAdmissionFromEnv, RenderRequestAdmissionError } from "./render-request-admission.js";
+import { renderRequestAdmissionFromEnv, RenderRequestAdmissionError, ContentSafetyError } from "./render-request-admission.js";
 import {
   attachRequestContextHeaders,
   createApiRequestContext,
@@ -2853,6 +2853,7 @@ function readPositiveInteger(value: string | undefined, fallback: number): numbe
 function errorStatusCode(error: unknown): number {
   return error instanceof UserAccountError ||
     error instanceof RenderRequestAdmissionError ||
+    error instanceof ContentSafetyError ||
     error instanceof RenderRequestNormalizationError ||
     error instanceof RenderJobCapacityError ||
     error instanceof RenderJobIdempotencyConflictError ||

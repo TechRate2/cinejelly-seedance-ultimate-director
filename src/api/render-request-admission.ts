@@ -14,6 +14,7 @@ import { SOURCE_VIDEO_ANALYSIS_LIMITS } from "../types/source-video.js";
 import type { ModelPreferences, SpeedTier } from "../types/settings.js";
 import { isUploadUri } from "../core/upload-reference.js";
 import { isLocalHost } from "../utils/ssrf-guard.js";
+import { screenContentSafety, contentSafetyBlockMessage } from "../core/content-safety-gate.js";
 
 // Word-bounded "auth" so benign keys like "author"/"authuser" are not rejected as
 // credential-like, while real "auth"/"authorization" tokens still match.
@@ -86,6 +87,19 @@ export class RenderRequestAdmissionError extends Error {
   }
 }
 
+/** Thrown when a brief violates the content-safety policy — blocked BEFORE any provider spend. */
+export class ContentSafetyError extends Error {
+  public readonly statusCode = 422;
+  /** The prohibited category, for the operator audit log. */
+  public readonly category: string | undefined;
+
+  public constructor(message: string, category?: string) {
+    super(message);
+    this.name = "ContentSafetyError";
+    this.category = category;
+  }
+}
+
 export class RenderRequestAdmission {
   private readonly allowedSeedanceModelIds: readonly string[];
   private readonly seedanceCapabilities: readonly ProviderCapability[];
@@ -126,6 +140,7 @@ export class RenderRequestAdmission {
   public assertAcceptable(body: unknown): void {
     const payload = this.objectPayload(body, "Request body must be a JSON object.");
     this.assertUserInput(payload.userInput);
+    this.assertContentSafety(payload);
     const settings = this.assertSettings(payload.settings);
     const modelPreferences = this.assertModelPreferences(payload.modelPreferences);
     this.assertSeedanceCapabilityCompatibility(settings, modelPreferences);
@@ -151,6 +166,26 @@ export class RenderRequestAdmission {
     }
     if (value.length > this.maxUserInputCharacters) {
       throw new RenderRequestAdmissionError(`userInput exceeds ${this.maxUserInputCharacters} characters.`);
+    }
+  }
+
+  /**
+   * Deterministic content-safety screen BEFORE any provider spend — the always-on floor that works
+   * even with auto-run on and no operator review (MVP launch blocker). Screens the brief + reference
+   * labels for clearly-prohibited categories; legitimate commercial content passes untouched.
+   */
+  private assertContentSafety(payload: Record<string, unknown>): void {
+    const referenceLabels = Array.isArray(payload.references)
+      ? payload.references
+          .map((reference) => (reference && typeof reference === "object" ? (reference as Record<string, unknown>).label : undefined))
+          .filter((label): label is string => typeof label === "string")
+      : [];
+    const verdict = screenContentSafety({
+      userInput: typeof payload.userInput === "string" ? payload.userInput : "",
+      referenceLabels
+    });
+    if (!verdict.allowed) {
+      throw new ContentSafetyError(contentSafetyBlockMessage(verdict), verdict.category);
     }
   }
 

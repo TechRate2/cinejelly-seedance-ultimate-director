@@ -1379,6 +1379,7 @@ export function buildShortPipelineCreatePage(): string {
             <button class="primary" type="button" id="wz-next" data-i18n="wz.next">Tiếp →</button>
             <button class="primary" type="button" id="wz-create" data-i18n="wz.create" hidden>🎬 Tạo video</button>
           </div>
+          <div class="muted" style="font-size:11px;margin-top:6px" data-i18n="wz.acceptableUse">Bằng việc tạo video, bạn xác nhận nội dung KHÔNG vi phạm pháp luật hoặc chính sách (cấm nội dung tình dục trẻ em, khiêu dâm, bạo lực đẫm máu, khủng bố, hàng cấm). Yêu cầu vi phạm sẽ bị từ chối.</div>
         </form>
 
         <section class="right-stack">
@@ -1659,7 +1660,7 @@ export function buildShortPipelineCreatePage(): string {
         "err.loginCreate": "Hãy đăng nhập (nút Đăng nhập / Đăng ký phía trên) trước khi tạo video.",
         "err.needIdea": "Hãy nhập ý tưởng video trước khi tạo.",
         "ce.cost": "Chi phí ước tính:", "ce.balance": "số dư:", "ce.from": "🎬 Video AI từ chỉ", "ce.needTopup": "⚠️ nạp thêm để tạo",
-        "ce.refundAuto": "Video lỗi được hoàn credits tự động.", "ce.refundManual": "Video lỗi sẽ được đội ngũ xem xét hoàn credits.",
+        "ce.refundAuto": "Video lỗi được hoàn credits tự động.", "wz.acceptableUse": "Bằng việc tạo video, bạn xác nhận nội dung KHÔNG vi phạm pháp luật hoặc chính sách (cấm nội dung tình dục trẻ em, khiêu dâm, bạo lực đẫm máu, khủng bố, hàng cấm). Yêu cầu vi phạm sẽ bị từ chối.", "ce.refundManual": "Video lỗi sẽ được đội ngũ xem xét hoàn credits.",
         "help.t": "💡 Hướng dẫn nhanh",
         "help.idea": "Viết như kể cho một người bạn: bán gì / cho ai / video trông thế nào / cú chốt là gì. Càng cụ thể sản phẩm + cảm xúc, video càng dễ viral. Viết tiếng Việt, Trung hay Anh đều được.",
         "help.ref": "Ảnh KOL = khoá gương mặt; ảnh sản phẩm = khoá sản phẩm; ảnh bối cảnh = khoá không gian; video mẫu = chỉ học cấu trúc nhịp (không sao chép nội dung). Bấm 📁 để tải từ điện thoại/máy tính — hệ thống tự điền, không cần link.",
@@ -1778,7 +1779,7 @@ export function buildShortPipelineCreatePage(): string {
         "err.loginCreate": "Please log in (Log in / Sign up above) before creating a video.",
         "err.needIdea": "Please describe your video idea first.",
         "ce.cost": "Estimated cost:", "ce.balance": "balance:", "ce.from": "🎬 AI video from just", "ce.needTopup": "⚠️ top up to create",
-        "ce.refundAuto": "Failed videos are refunded automatically.", "ce.refundManual": "Failed videos are reviewed by the team for a refund.",
+        "ce.refundAuto": "Failed videos are refunded automatically.", "wz.acceptableUse": "By creating a video you confirm the content does not break the law or policy (no child-sexual, pornographic, graphic-violence, terrorism, or illegal-goods content). Violating requests are rejected.", "ce.refundManual": "Failed videos are reviewed by the team for a refund.",
         "help.t": "💡 Quick guide",
         "help.idea": "Write like you are telling a friend: what you sell / for whom / how the video should look / the payoff. The more specific the product + emotion, the more viral the result. Vietnamese, Chinese, or English all work.",
         "help.ref": "KOL image locks the face; product image locks the product; scene locks the space; a source video teaches structure only (never copied). Press 📁 to upload from phone/PC — fields fill in automatically.",
@@ -1897,7 +1898,7 @@ export function buildShortPipelineCreatePage(): string {
         "err.loginCreate": "请先登录（上方 登录/注册）再创建视频。",
         "err.needIdea": "请先输入视频创意。",
         "ce.cost": "预计费用：", "ce.balance": "余额：", "ce.from": "🎬 AI 视频低至", "ce.needTopup": "⚠️ 充值后才能生成",
-        "ce.refundAuto": "失败视频将自动退还积分。", "ce.refundManual": "失败视频将由团队审核后退还积分。",
+        "ce.refundAuto": "失败视频将自动退还积分。", "wz.acceptableUse": "创建视频即表示您确认内容不违反法律或政策（禁止儿童色情、色情、血腥暴力、恐怖主义、违禁品内容）。违规请求将被拒绝。", "ce.refundManual": "失败视频将由团队审核后退还积分。",
         "help.t": "💡 快速指南",
         "help.idea": "像跟朋友聊天一样描述：卖什么 / 给谁看 / 视频长什么样 / 结尾亮点。产品和情绪越具体，越容易爆。支持越南语、中文、英文。",
         "help.ref": "达人图锁定人脸；产品图锁定产品；场景图锁定空间；参考视频只学结构节奏（不抄内容）。点 📁 从手机/电脑上传，字段自动填写。",
