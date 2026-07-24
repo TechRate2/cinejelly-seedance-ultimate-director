@@ -844,6 +844,11 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
     } };
   const seriesPlan = await new StoryArchitect(seriesLlm, "f").plan({ projectId: "d", userInput: "x", settings: settingsFor(60, "economy"), references: [], metadata: { seriesId: "series_t", episodeNumber: "2" } });
   check("series: architect asked for episode fields in series mode", seriesSystem.includes("SERIES MODE"), "");
+  // Hook + flow law (retention research): 14-word hook cap, But/Therefore beat joins, AI-text tells
+  // banned — must reach the writer's system prompt on every plan.
+  check("architect: hook law + flow spine + AI-tell bans injected", seriesSystem.includes("HOOK LAW") && seriesSystem.includes("AT MOST 14 words") && seriesSystem.includes("BUT or THEREFORE") && seriesSystem.includes("không chỉ X mà còn Y"), "");
+  const enhancerSrc2 = (await import("node:fs")).readFileSync(resolve(repoRoot, "src/agents/script-enhancer.ts"), "utf8");
+  check("enhancer: humanize pass enforces hook cap + AI-tell strike list", enhancerSrc2.includes("HUMANIZE PASS") && enhancerSrc2.includes("at most 14 words") && enhancerSrc2.includes("game-changer"), "");
   check("series: architect coerces episodeSummary/endState/cliffhanger", seriesPlan.episodeSummary === "Tóm tắt tập." && seriesPlan.episodeEndState === "Cô đứng im." && seriesPlan.cliffhanger === "Tiếng gõ cửa.", "");
   await new StoryArchitect(seriesLlm, "f").plan({ projectId: "d", userInput: "x", settings: settingsFor(30, "economy"), references: [], metadata: {} });
   check("series: non-series briefs get no SERIES MODE directive", !seriesSystem.includes("SERIES MODE"), "");

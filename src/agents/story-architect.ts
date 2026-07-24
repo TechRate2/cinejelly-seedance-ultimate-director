@@ -60,6 +60,14 @@ export const LANGUAGE_CONTRACT_DIRECTIVE =
 export const SCRIPT_CRAFT_DIRECTIVE =
   "You are a professional screenwriter, not a shot-list generator. REGISTER — pick ONE writing voice for the whole video and never mix: professional_cinematic (composed performances, motivated blocking, designed light, restrained dialogue with subtext, one deliberate camera move per beat — the craft is invisible) or natural_phone_kol (a real person talking to their own phone — selfie framing, genuine micro-shake, in-camera sound, filler words and self-interruption in speech, no scored music, no grade, no slow-motion — it must look UN-crafted, like a friend's clip). If not told, infer: review/testimonial/how-to/vlog -> natural_phone_kol; story/brand-film/drama/product-hero -> professional_cinematic. ONE-TURN RULE: every beat carries exactly ONE visible emotional or situational turn (state A -> state B the viewer can SEE); write it into the beat's `emotionalTurn` field (e.g. \"skeptical -> quietly impressed\"), and each beat must pick up the emotional state the previous beat ended on so the whole video traces one feeling, not a montage. SHOW DON'T TELL: never name an emotion in `action` — convert it to a physical tell (not \"she is angry\" but \"she clenches her fist, nails digging into her palm\"; not \"surprised\" but \"a 0.3s freeze, then her eyes widen\"). No metaphors or similes in action/camera — write only what the lens physically sees. DIALOGUE: spoken lines are real speech — one breath long, subtext over statement (a character says less than they mean), never brochure copy, never a feature list; micro-pauses and self-corrections are welcome.";
 
+/**
+ * Hook + flow law (mined from short-form retention research: hook-rate studies, the But/Therefore
+ * rule, loop-bait structure, and documented AI-text tells). Small, hard, checkable rules — the
+ * difference between a scroll-past and a watch-through is decided in the first line and the joins.
+ */
+export const HOOK_AND_FLOW_DIRECTIVE =
+  "HOOK LAW (first beat): the first spoken line is AT MOST 14 words, lands inside the first 1.5 seconds, and contains something CONCRETE — a number, a named result, a direct question, or a visible contradiction; never open with greetings, self-introductions, or context-setting (\"xin chào mọi người, hôm nay...\" is forbidden — start mid-value). FLOW SPINE: connect beats with BUT or THEREFORE logic (a complication or a consequence), never \"and then\" chaining — if two adjacent beats could swap order without anyone noticing, rewrite one of them. LOOP ENDING: when the format allows, let the final frame or final line answer or mirror the hook so the video invites an instant rewatch. AI-TEXT TELLS (forbidden in every language): forced rule-of-three lists, the \"không chỉ X mà còn Y / not just X but Y\" parallelism, buzzwords (nâng tầm, tối ưu, trải nghiệm đỉnh cao, giải pháp hoàn hảo, elevate, seamless, game-changer), and any sentence a real person would never SAY out loud — read every spoken line aloud in your head; if it sounds like ad copy, rewrite it shorter and more direct.";
+
 interface StoryPlanJson {
   readonly premise: string;
   readonly targetDurationSeconds: number;
@@ -198,7 +206,7 @@ export class StoryArchitect {
             role: "system",
             content:
               (scriptFirstMode ? `${SCRIPT_FIRST_DIRECTIVE} ` : "") +
-              `${SCRIPT_CRAFT_DIRECTIVE} ${LANGUAGE_CONTRACT_DIRECTIVE} ` +
+              `${SCRIPT_CRAFT_DIRECTIVE} ${LANGUAGE_CONTRACT_DIRECTIVE} ${HOOK_AND_FLOW_DIRECTIVE} ` +
               // Script-first precedence (audit #4): without this line, the language contract's
               // "rewrite spoken lines as natural speech with particles" instruction collides with
               // the verbatim mandate in the same system prompt and the model picks unpredictably.
