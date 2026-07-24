@@ -470,6 +470,12 @@ function creativeModeFrom(
   format: AudienceNicheFormat
 ): ShortViralCreativeMode {
   const combined = `${prompt} ${template?.category ?? ""}`.toLowerCase();
+  // EXPLICIT style choice (customer "Phong cách" select appends a machine tag): absolute priority
+  // over every keyword heuristic below — a review-worded brief with [style:cinematic] IS cinematic.
+  const explicit = /\[style:(ugc|cinematic|story|demo|education|testimonial|comparison|problem_solution|product_ad)\]/.exec(combined);
+  if (explicit) {
+    return explicit[1] === "ugc" ? "ugc_review" : (explicit[1] as ShortViralCreativeMode);
+  }
   if (/\bugc|review|creator|influencer|native\b/.test(combined)) return "ugc_review";
   if (/testimonial|customer story/.test(combined)) return "testimonial";
   if (/compare|versus|vs|before after|before\/after/.test(combined)) return "comparison";

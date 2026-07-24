@@ -541,7 +541,21 @@ const vietnameseCreativeLearning = vietnameseCopyRiskPlan.viralIntelligence.crea
 const vietnameseSelectedIdea = vietnameseCreativeLearning.candidates.find((candidate) => candidate.ideaId === vietnameseCreativeLearning.selectedIdeaId);
 const newTaxonomyPlans = [newsExplainerPlan, podcastClipPlan, fashionTryOnPlan, mobileAppPlan];
 
+// EXPLICIT style tag (customer "Phong cách" select): a review-worded brief with [style:cinematic]
+// must come out CINEMATIC — the tag has absolute priority over keyword heuristics.
+const explicitStylePlan = planner.buildPlan({
+  projectId: "short_viral_style_tag",
+  requestId: "req_short_viral_style_tag",
+  generatedAt,
+  userPrompt: "Create a 20 second review ad for busy skincare buyers, native creator energy. [style:cinematic]",
+  targetPlatform: "tiktok",
+  targetDurationSeconds: 20
+});
+
 const checks = [
+  explicitStylePlan.viralIntelligence.nicheStrategy.creativeMode === "cinematic"
+    ? pass("explicit_style_tag_overrides_keywords", "A review-worded brief with [style:cinematic] plans as cinematic — the customer's style choice always wins.")
+    : fail("explicit_style_tag_overrides_keywords", `Expected cinematic, got ${explicitStylePlan.viralIntelligence.nicheStrategy.creativeMode}.`),
   viralPlan.noSpend && !viralPlan.networkCallsMade && !viralPlan.providerCallsMade &&
     viralPlan.viralIntelligence.noSpend && !viralPlan.viralIntelligence.networkCallsMade && !viralPlan.viralIntelligence.providerCallsMade
     ? pass("no_spend_no_network", "Short viral intelligence runs as deterministic no-spend planning evidence.")

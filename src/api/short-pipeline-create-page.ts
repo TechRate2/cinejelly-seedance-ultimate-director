@@ -1310,6 +1310,16 @@ export function buildShortPipelineCreatePage(): string {
           <div class="section-divider"></div>
           <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.settings">Thời lượng × chất lượng quyết định giá credits (hiện ngay dưới nút tạo). 9:16 cho TikTok/Reels. "Giọng đọc" chọn ngôn ngữ thuyết minh; phụ đề bật ở bước cuối.</p></details>
           <div class="settings-bar">
+            <label class="field"><span data-i18n="set.styleRegister">Phong cách</span>
+              <select id="style-register">
+                <option value="auto" selected data-i18n="style.auto">Tự động (AI chọn)</option>
+                <option value="ugc" data-i18n="style.ugc">📱 Tự nhiên như người quay</option>
+                <option value="cinematic" data-i18n="style.cinematic">🎬 Điện ảnh</option>
+                <option value="story" data-i18n="style.story">📖 Kể chuyện</option>
+                <option value="demo" data-i18n="style.demo">🔧 Demo sản phẩm</option>
+                <option value="education" data-i18n="style.education">🎓 Hướng dẫn</option>
+              </select>
+            </label>
             <label class="field"><span data-i18n="set.duration">Duration</span><input id="duration" type="number" min="15" max="480" value="15"></label>
             <label class="field"><span data-i18n="set.aspect">Aspect ratio</span><select id="aspect-ratio"><option value="9:16" selected>9:16</option><option value="16:9">16:9</option><option value="1:1">1:1</option></select></label>
             <label class="field"><span data-i18n="set.quality">Quality / model</span>
@@ -1577,7 +1587,7 @@ export function buildShortPipelineCreatePage(): string {
         "s1.starter": "Mẫu nhanh", "s1.rewrite": "Thêm cấu trúc", "s1.productStarter": "Mẫu sản phẩm",
         "s1.beatAlt": " Chia rõ 4 beat: 0-3s hook, 3-7s proof/demo, 7-12s transformation/result, 12-15s payoff ổn định. Giữ chuyển động tự nhiên, không chữ trên màn hình, audio có nhịp nhưng visual vẫn hiểu được nếu tắt tiếng.",
         "s1.beatMain": " Bổ sung hook trong 1 giây đầu, proof/demo ở giữa, payoff cuối rõ ràng, nhịp TikTok tự nhiên, không chữ trên màn hình, endpoint sạch để review hoặc nối cảnh.",
-        "s2.title": "Thêm tham chiếu (ảnh/video)", "s2.clear": "Xoá hết", "s2.costRough": "Ước tính sơ bộ (giá thật hiện khi xác nhận)",
+        "s2.title": "Thêm tham chiếu (ảnh/video)", "s2.clear": "Xoá hết", "set.styleRegister": "Phong cách", "style.auto": "Tự động (AI chọn)", "style.ugc": "📱 Tự nhiên như người quay", "style.cinematic": "🎬 Điện ảnh", "style.story": "📖 Kể chuyện", "style.demo": "🔧 Demo sản phẩm", "style.education": "🎓 Hướng dẫn", "s2.costRough": "Ước tính sơ bộ (giá thật hiện khi xác nhận)",
         "s2.kol": "KOL / Nhân vật", "s2.imgRef": "ảnh tham chiếu", "s2.product": "Sản phẩm", "s2.scene": "Bối cảnh", "s2.bg": "ảnh nền",
         "s2.source": "Video mẫu", "s2.pattern": "học cấu trúc", "s2.voice": "Giọng / Ghi chú", "s2.voiceS": "định hướng giọng",
         "s2.kolUri": "Ảnh KOL / nhân vật", "s2.productUri": "Ảnh sản phẩm", "s2.bgUri": "Ảnh bối cảnh", "s2.srcUrl": "Link video mẫu",
@@ -1696,7 +1706,7 @@ export function buildShortPipelineCreatePage(): string {
         "s1.starter": "Starter", "s1.rewrite": "Add structure", "s1.productStarter": "Product starter",
         "s1.beatAlt": " Split into 4 beats: 0-3s hook, 3-7s proof/demo, 7-12s transformation/result, 12-15s stable payoff. Keep motion natural, no on-screen text, audio has rhythm but the visual still reads with sound off.",
         "s1.beatMain": " Add a hook in the first second, proof/demo in the middle, a clear payoff at the end, natural TikTok pacing, no on-screen text, a clean endpoint for review or scene chaining.",
-        "s2.title": "Add references", "s2.clear": "Clear", "s2.costRough": "Rough estimate (exact price shown at confirmation)",
+        "s2.title": "Add references", "s2.clear": "Clear", "set.styleRegister": "Style", "style.auto": "Auto (AI decides)", "style.ugc": "📱 Natural creator-shot", "style.cinematic": "🎬 Cinematic", "style.story": "📖 Story", "style.demo": "🔧 Product demo", "style.education": "🎓 Tutorial", "s2.costRough": "Rough estimate (exact price shown at confirmation)",
         "s2.kol": "KOL / Talent", "s2.imgRef": "image reference", "s2.product": "Product", "s2.scene": "Scene", "s2.bg": "background",
         "s2.source": "Source video", "s2.pattern": "pattern intake", "s2.voice": "Voice / Notes", "s2.voiceS": "audio intent",
         "s2.kolUri": "KOL image", "s2.productUri": "Product image", "s2.bgUri": "Scene/background image", "s2.srcUrl": "Source video URL",
@@ -1815,7 +1825,7 @@ export function buildShortPipelineCreatePage(): string {
         "s1.starter": "快速模板", "s1.rewrite": "添加结构", "s1.productStarter": "产品模板",
         "s1.beatAlt": " 分为四段：0-3秒钩子，3-7秒证明/演示，7-12秒转变/效果，12-15秒稳定收尾。保持自然运动，无屏幕文字，音频有节奏但静音时画面仍可理解。",
         "s1.beatMain": " 在第一秒加入钩子，中间放证明/演示，结尾清晰收尾，自然的 TikTok 节奏，无屏幕文字，干净的结束点便于审核或续接场景。",
-        "s2.title": "添加参考素材", "s2.clear": "清空", "s2.costRough": "粗略估算（确认时显示准确价格）",
+        "s2.title": "添加参考素材", "s2.clear": "清空", "set.styleRegister": "风格", "style.auto": "自动（AI 决定）", "style.ugc": "📱 真人实拍感", "style.cinematic": "🎬 电影感", "style.story": "📖 故事叙事", "style.demo": "🔧 产品演示", "style.education": "🎓 教程", "s2.costRough": "粗略估算（确认时显示准确价格）",
         "s2.kol": "达人 / 人物", "s2.imgRef": "参考图片", "s2.product": "产品", "s2.scene": "场景", "s2.bg": "背景",
         "s2.source": "参考视频", "s2.pattern": "学习结构", "s2.voice": "配音 / 备注", "s2.voiceS": "配音意图",
         "s2.kolUri": "达人图片", "s2.productUri": "产品图片", "s2.bgUri": "场景背景图", "s2.srcUrl": "参考视频链接",
@@ -3550,9 +3560,13 @@ export function buildShortPipelineCreatePage(): string {
       const visualBible = visualBiblePayload();
       const channelStyleSelect = document.getElementById("channel-style");
       const channelStyleProfileId = channelStyleSelect ? channelStyleSelect.value : "";
+      // "Phong cách" select: an explicit style choice appends a machine tag the planner's classifier
+      // honors with ABSOLUTE priority over its keyword heuristics ("auto" appends nothing).
+      const styleSelect = document.getElementById("style-register");
+      const styleTag = styleSelect && styleSelect.value && styleSelect.value !== "auto" ? " [style:" + styleSelect.value + "]" : "";
       return {
         projectId: document.getElementById("project-id").value.trim(),
-        userPrompt: document.getElementById("prompt").value.trim(),
+        userPrompt: document.getElementById("prompt").value.trim() + styleTag,
         ...(preferredTemplateId ? { preferredTemplateId } : {}),
         ...(channelStyleProfileId ? { channelStyleProfileId } : {}),
         targetPlatform: document.getElementById("platform").value,
