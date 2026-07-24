@@ -462,33 +462,39 @@ export class SeedancePromptCompiler {
     const legacy = hasAuthoredAxes
       ? []
       : [this.buildNicheDnaSection(shot, register)].filter((line): line is string => Boolean(line && line.trim()));
-    // Every axis the DNA overrides is dropped from the register frame so it is stated ONCE (the
-    // override wins), never twice with a possibly-conflicting register default (audit).
-    const omitAxes: RegisterAxis[] = dna
-      ? ([
-          dna.optics ? "optics" : undefined,
-          dna.lighting ? "lighting" : undefined,
-          dna.palette ? "color" : undefined,
-          dna.motion ? "motion" : undefined,
-          dna.performance ? "performance" : undefined,
-          dna.audioFeel ? "audioFeel" : undefined
-        ].filter(Boolean) as RegisterAxis[])
-      : [];
-    const spokenLanguage = this.stringMetadata(shot, "shortAudioLanguage")
-      ?? this.stringMetadata(shot, "voiceLanguage")
-      ?? this.stringMetadata(shot, "analystVoiceLanguage");
-    const weakLipSyncLanguage = spokenLanguage === "vi" || containsVietnameseDiacritics(shot.spokenLine);
     // Craft FLOOR: the professional_cinematic register frame carries a deliberately GENERIC optics/color
     // ("shallow depth of field", "cohesive palette"). The Seedance-reliable film vocabulary (rack focus,
     // anamorphic character, teal-and-orange / bleach-bypass grade, 35mm grain) lived only in the legacy
     // !register branch, so the main path lost it (audit #4). Re-attach it as a floor for cinematic —
-    // BUT only when styleDna did not already author the look (optics+palette), so an authored per-video
-    // grade still wins and the two never stack a contradictory grade. The floor follows the REGISTER,
-    // not the keyword mode: when the keyword classifier disagrees with the resolved register (audit
-    // #12) the cinematic vocabulary is still the right floor for a cinematic register.
-    const cinematicCraftFloor = register === "professional_cinematic" && !(dna?.optics && dna?.palette)
+    // ONLY when styleDna authored NO part of the look (optics/lighting/palette), so an authored grade
+    // still wins and the two never stack. The floor follows the REGISTER, not the keyword mode.
+    const authoredCinematicLook = Boolean(dna?.optics || dna?.lighting || dna?.palette);
+    const cinematicCraftFloor = register === "professional_cinematic" && !authoredCinematicLook
       ? cinematicGrammarPromptLine(this.registerAgreedCreativeMode(shot, register) ?? "cinematic")
       : undefined;
+    // Every axis the DNA overrides is dropped from the register frame so it is stated ONCE (the
+    // override wins), never twice with a possibly-conflicting register default (audit). AND when the
+    // cinematic craft floor fires it already carries optics+lighting+colour-grade in SPECIFIC film
+    // vocabulary, so drop the register frame's GENERIC optics/lighting/color too — otherwise a
+    // cinematic shot printed those axes twice (~600-900 chars of redundancy; the single biggest bloat
+    // source measured on a real multi-reference cinematic prompt — cross-audit #5).
+    const omitAxes: RegisterAxis[] = [
+      ...(dna
+        ? ([
+            dna.optics ? "optics" : undefined,
+            dna.lighting ? "lighting" : undefined,
+            dna.palette ? "color" : undefined,
+            dna.motion ? "motion" : undefined,
+            dna.performance ? "performance" : undefined,
+            dna.audioFeel ? "audioFeel" : undefined
+          ].filter(Boolean) as RegisterAxis[])
+        : []),
+      ...(cinematicCraftFloor ? (["optics", "lighting", "color"] as RegisterAxis[]) : [])
+    ];
+    const spokenLanguage = this.stringMetadata(shot, "shortAudioLanguage")
+      ?? this.stringMetadata(shot, "voiceLanguage")
+      ?? this.stringMetadata(shot, "analystVoiceLanguage");
+    const weakLipSyncLanguage = spokenLanguage === "vi" || containsVietnameseDiacritics(shot.spokenLine);
     return [
       // Each authored axis REPLACES the register default (omitted above) instead of stacking a
       // second, possibly-contradicting sentence on top of it (audit).

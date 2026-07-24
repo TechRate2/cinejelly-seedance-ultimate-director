@@ -50,6 +50,9 @@ check("compiler_emits_cinematic_register", cinematicPrompt.includes("Style regis
 // Craft FLOOR (audit #4): the cinematic register now ALSO re-attaches the Seedance-reliable film
 // vocabulary (was lost on the register path) when styleDna hasn't authored the look.
 check("cinematic_register_keeps_film_vocab_floor", cinematicPrompt.includes("Cinematography:") && /anamorphic|rack focus|grade/.test(cinematicPrompt));
+// Cross-audit #5: when the film-vocab floor fires it carries optics/lighting/grade, so the register
+// frame's GENERIC optics ("Cinema-camera capture: …") must be OMITTED — not printed a second time.
+check("cinematic_floor_omits_duplicate_register_optics", !cinematicPrompt.includes("Cinema-camera capture") && (cinematicPrompt.match(/shallow depth of field/g) || []).length <= 1);
 const ugcPrompt = compiler.compile({ shot: shot("ugc_review"), settings: { ...DEFAULT_SEEDANCE_SETTINGS }, modelId: "seedance-2-0", provider: "atlascloud" }).prompt;
 check("compiler_ugc_register_differs", ugcPrompt.includes("Style register: natural phone-shot / KOL.") && ugcPrompt.includes("NO cinematic bokeh") && !ugcPrompt.includes("Style register: professional cinematic."));
 // The film-look floor is cinematic-only — a natural phone/KOL shot must NOT get anamorphic/grade language.

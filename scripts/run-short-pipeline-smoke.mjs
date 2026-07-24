@@ -540,7 +540,10 @@ const compiledShortStoryboardPrompts = shortStoryboardShots.map((shot) =>
 // proven corpus max is 6,972) and produced the owner's bad results. Today's anatomy compiles ~5K by
 // design; this lock fails the suite if any compiled prompt creeps past 6,500 so that regression can
 // never ship silently again.
-const PROMPT_LENGTH_CEILING = 6_500;
+// Single shared ceiling with run-input-matrix-smoke (cross-audit #3 — was 6500 here vs 8000 there).
+// 8000 catches the 9-11K catastrophe that ruined paid-run 2 while allowing a genuinely complex
+// cinematic multi-reference shot (measured worst case ~7.1K: 2 faces + product + endpoint + timeline).
+const PROMPT_LENGTH_CEILING = 8_000;
 const oversizedPrompts = compiledShortStoryboardPrompts.filter((prompt) => prompt.prompt.length > PROMPT_LENGTH_CEILING);
 
 const shortStoryboardPromptContractDiagnostics = compiledShortStoryboardPrompts.map((prompt) => ({
