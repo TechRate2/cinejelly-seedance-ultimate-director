@@ -73,7 +73,7 @@ export function buildOperatorTopupPage(): string {
   </div>
 
   <div class="tabs">
-    <button class="tab active" data-tab="money">💰 Tiền</button>
+    <button class="tab active" data-tab="money">💰 Tiền <span id="badge-money" style="display:none;background:#c62828;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px"></span></button>
     <button class="tab" data-tab="customers">👥 Khách hàng</button>
     <button class="tab" data-tab="settings">⚙️ Cấu hình</button>
     <button class="tab" data-tab="health">🩺 Sức khỏe</button>
@@ -200,6 +200,10 @@ export function buildOperatorTopupPage(): string {
       <div class="muted" id="health-status" style="margin-top:8px"></div>
       <div id="health-rows" style="margin-top:8px"></div>
     </div>
+    <div class="card">
+      <strong>💳 Số dư Atlas (nhà cung cấp trả trước)</strong>
+      <div class="muted" style="margin-top:6px">Atlas Cloud tính tiền TRẢ TRƯỚC — hệ thống KHÔNG đọc được số dư từ xa. <b>Hãy tự kiểm tra số dư trên trang Atlas định kỳ.</b> Dấu hiệu HẾT tiền: video khách <b>đột nhiên toàn báo lỗi / vào mục "Video đang treo"</b> ở tab Tiền dù mọi ô sức khỏe vẫn xanh → nạp thêm tiền vào tài khoản Atlas. Đặt cảnh báo số dư thấp ngay trên trang Atlas là tốt nhất.</div>
+    </div>
   </div>
 
   <script>
@@ -261,10 +265,21 @@ export function buildOperatorTopupPage(): string {
       return row;
     }
 
+    // Action-awareness badge (MVP audit A1): the owner must SEE waiting work — pending top-ups, refund
+    // requests, videos to review, stuck jobs — without scrolling, or paid customers wait unseen.
+    var pendingCounts = { topups: 0, refunds: 0, review: 0, holds: 0 };
+    function updateMoneyBadge() {
+      var total = pendingCounts.topups + pendingCounts.refunds + pendingCounts.review + pendingCounts.holds;
+      var badge = document.getElementById("badge-money");
+      if (!badge) { return; }
+      if (total > 0) { badge.textContent = String(total); badge.style.display = "inline-block"; document.title = "(" + total + ") CineJelly Quản trị"; }
+      else { badge.style.display = "none"; document.title = "CineJelly Quản trị"; }
+    }
     async function loadTopups() {
       var res = await fetch("/v1/admin/topups", { headers: headers() });
       if (!res.ok) { say((await res.json()).error || "Không tải được.", false); return; }
       var payload = await res.json();
+      pendingCounts.topups = (payload.pending || []).length; updateMoneyBadge();
       renderQueue("topup-list", payload.pending, "Không có yêu cầu nạp nào. 🎉", function (t) {
         return actionRow(
           t.email + " — " + vnd(t.credits) + " credits (" + vnd(t.amountVnd) + "đ)",
@@ -288,6 +303,7 @@ export function buildOperatorTopupPage(): string {
       var res = await fetch("/v1/admin/refunds", { headers: headers() });
       if (!res.ok) { return; }
       var payload = await res.json();
+      pendingCounts.refunds = (payload.pending || []).length; updateMoneyBadge();
       renderQueue("refund-list", payload.pending, "Không có yêu cầu hoàn tiền nào. 🎉", function (r) {
         return actionRow(
           r.email + " — hoàn " + vnd(Math.abs(r.credits)) + " credits",
@@ -312,6 +328,7 @@ export function buildOperatorTopupPage(): string {
       if (!res.ok) { return; }
       var payload = await res.json();
       var paused = (payload.jobs || []).filter(function (j) { return j.status === "paused_for_review"; });
+      pendingCounts.review = paused.length; updateMoneyBadge();
       renderQueue("review-list", paused, "Không có video nào chờ duyệt. 🎉", function (j) {
         return actionRow(
           (j.userInputPreview || j.jobId).slice(0, 90),
@@ -344,6 +361,7 @@ export function buildOperatorTopupPage(): string {
       var res = await fetch("/v1/admin/operator-holds", { headers: headers() });
       if (!res.ok) { return; }
       var payload = await res.json();
+      pendingCounts.holds = (payload.holds || []).length; updateMoneyBadge();
       renderQueue("hold-list", payload.holds, "Không có video nào đang treo. 🎉", function (j) {
         var reason = j.operatorHoldReason || "Cấu hình hệ thống chưa đủ.";
         var attempts = j.operatorHoldAttempts ? " • đã thử " + j.operatorHoldAttempts + " lần" : "";
@@ -654,7 +672,7 @@ export function buildOperatorTopupPage(): string {
     });
 
     document.getElementById("load-btn").addEventListener("click", loadAll);
-    setInterval(function () { if (keyInput.value.trim()) { loadTopups(); loadRefunds(); loadReviewQueue(); } }, 60000);
+    setInterval(function () { if (keyInput.value.trim()) { loadTopups(); loadRefunds(); loadReviewQueue(); loadOperatorHolds(); } }, 60000);
   </script>
 </body>
 </html>`;
