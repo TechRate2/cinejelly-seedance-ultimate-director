@@ -18,6 +18,19 @@ import { isLocalHost } from "../utils/ssrf-guard.js";
 
 const MAX_VISION_REFERENCES = 6;
 
+/** What the image ACTUALLY shows, judged from the pixels (NOT the slot the user put it in). */
+export type DetectedReferenceKind =
+  | "person_face"
+  | "product_object"
+  | "scene_environment"
+  | "logo_text"
+  | "style_board"
+  | "unclear";
+
+const DETECTED_KINDS: readonly DetectedReferenceKind[] = [
+  "person_face", "product_object", "scene_environment", "logo_text", "style_board", "unclear"
+];
+
 const VISION_SCHEMA = {
   type: "object",
   required: ["assets"],
@@ -26,10 +39,11 @@ const VISION_SCHEMA = {
       type: "array",
       items: {
         type: "object",
-        required: ["label", "descriptor"],
+        required: ["label", "descriptor", "detectedKind"],
         properties: {
           label: { type: "string" },
-          descriptor: { type: "string" }
+          descriptor: { type: "string" },
+          detectedKind: { type: "string", enum: [...DETECTED_KINDS] }
         }
       }
     }
@@ -39,6 +53,7 @@ const VISION_SCHEMA = {
 interface VisionAssetJson {
   readonly label?: unknown;
   readonly descriptor?: unknown;
+  readonly detectedKind?: unknown;
 }
 interface VisionJson {
   readonly assets?: readonly VisionAssetJson[];
@@ -47,6 +62,56 @@ interface VisionJson {
 export interface ReferenceVisualDescriptor {
   readonly label: string;
   readonly descriptor: string;
+  /** Content classification from the pixels — used to catch a mis-slotted upload before spend. */
+  readonly detectedKind?: DetectedReferenceKind;
+}
+
+export interface ReferenceRoleMismatch {
+  readonly label: string;
+  readonly declaredRole: string;
+  readonly detectedKind: DetectedReferenceKind;
+  /** Plain-Vietnamese message telling the customer which slot to fix. */
+  readonly message: string;
+}
+
+/**
+ * Compare each reference's DECLARED role (from the UI slot) against what the vision analyst SAW in the
+ * pixels, and flag only the two HIGH-CONFIDENCE contradictions that waste a paid render: a product/
+ * object sitting in the KOL/identity slot, and a human face sitting in the product slot. Other kinds
+ * (scene/style/logo/unclear) are ambiguous and never flagged, so a legitimate upload is never blocked.
+ */
+export function reconcileReferenceRoles(
+  references: readonly PromptReference[],
+  descriptors: readonly ReferenceVisualDescriptor[]
+): readonly ReferenceRoleMismatch[] {
+  const kindByLabel = new Map(descriptors.filter((d) => d.detectedKind).map((d) => [d.label, d.detectedKind!]));
+  const mismatches: ReferenceRoleMismatch[] = [];
+  for (const reference of references) {
+    if (reference.providerReference.kind !== "image") {
+      continue;
+    }
+    const detectedKind = kindByLabel.get(reference.label);
+    if (!detectedKind) {
+      continue;
+    }
+    const role = reference.role;
+    if (role === "identity" && detectedKind === "product_object") {
+      mismatches.push({
+        label: reference.label,
+        declaredRole: role,
+        detectedKind,
+        message: "Ảnh bạn để ở ô KOL (người) trông giống một SẢN PHẨM/ĐỒ VẬT, không phải mặt người. Có thể bạn để nhầm ô — hãy đưa ảnh sản phẩm sang ô Sản phẩm, và để ảnh MẶT người ở ô KOL, rồi tạo lại."
+      });
+    } else if (role === "product" && detectedKind === "person_face") {
+      mismatches.push({
+        label: reference.label,
+        declaredRole: role,
+        detectedKind,
+        message: "Ảnh bạn để ở ô Sản phẩm trông giống MẶT NGƯỜI, không phải sản phẩm. Có thể bạn để nhầm ô — hãy đưa ảnh mặt sang ô KOL, và để ảnh SẢN PHẨM ở ô Sản phẩm, rồi tạo lại."
+      });
+    }
+  }
+  return mismatches;
 }
 
 export class ReferenceVisionAnalyst {
@@ -91,7 +156,7 @@ export class ReferenceVisionAnalyst {
         {
           modelId: this.modelId,
           instruction:
-            "You are a product/scene visual analyst. For EACH attached reference image, return a SHORT concrete descriptor (one clause) of what it actually shows: dominant colors/palette, real material/finish, any readable logo or label text (quote it exactly), the subject's key appearance, and the lighting mood. Physical, camera-real wording only — never marketing adjectives. Match each descriptor to the asset's `label`. Return the SAME labels you were given.",
+            "You are a product/scene visual analyst. For EACH attached reference image return: (1) a SHORT concrete descriptor (one clause) of what it actually shows — dominant colors/palette, real material/finish, any readable logo or label text quoted exactly, the subject's key appearance, lighting mood; physical camera-real wording, never marketing adjectives. (2) `detectedKind` — classify what the image PRIMARILY shows, judging ONLY from the pixels, IGNORING the role you were told: person_face (a human face/person is the main subject) | product_object (a physical product/object/packaging is the main subject) | scene_environment (a location/room/background with no dominant single subject) | logo_text (mostly a logo/text/graphic) | style_board (a mood/reference collage) | unclear. Be honest even if it contradicts the stated role. Match each entry to the asset's `label`; return the SAME labels you were given.",
           schema: VISION_SCHEMA,
           messages: [
             {
@@ -144,7 +209,10 @@ export class ReferenceVisionAnalyst {
         continue;
       }
       seen.add(canonical);
-      out.push({ label: canonical, descriptor: descriptor.slice(0, 300) });
+      const detectedKind = DETECTED_KINDS.includes(asset.detectedKind as DetectedReferenceKind)
+        ? (asset.detectedKind as DetectedReferenceKind)
+        : undefined;
+      out.push({ label: canonical, descriptor: descriptor.slice(0, 300), ...(detectedKind ? { detectedKind } : {}) });
     }
     return out;
   }

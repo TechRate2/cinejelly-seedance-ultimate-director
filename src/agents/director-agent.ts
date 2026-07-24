@@ -113,7 +113,7 @@ import { IntakeDirector } from "./intake-director.js";
 import { RenderProducer } from "./render-producer.js";
 import { StoryArchitect, looksLikeUserScript } from "./story-architect.js";
 import { ScriptEnhancer } from "./script-enhancer.js";
-import { ReferenceVisionAnalyst } from "./reference-vision-analyst.js";
+import { ReferenceVisionAnalyst, reconcileReferenceRoles } from "./reference-vision-analyst.js";
 
 export class DirectorAgent {
   private readonly intakeDirector: IntakeDirector;
@@ -293,6 +293,15 @@ export class DirectorAgent {
     const referenceVisualDescriptors = visionEligible
       ? await this.referenceVisionAnalyst!.describe(baseIntakeRaw.references, baseIntakeRaw.metadata, signal)
       : [];
+    // Content-based reference-role check BEFORE any keyframe/video spend (input-audit + ViMax pattern):
+    // the vision analyst just looked at the pixels, so catch a mis-slotted upload — a product in the
+    // KOL slot, a face in the product slot — and HALT here (only the cheap planning calls have run;
+    // the job fails and refunds per policy) instead of paying to render the wrong asset as the face.
+    // High-confidence only; fail-open when vision could not run, so a legit render is never blocked.
+    const roleMismatches = reconcileReferenceRoles(baseIntakeRaw.references, referenceVisualDescriptors);
+    if (roleMismatches.length > 0) {
+      throw new Error(roleMismatches.map((mismatch) => mismatch.message).join(" "));
+    }
     const baseIntake = referenceVisualDescriptors.length > 0
       ? { ...baseIntakeRaw, referenceVisualDescriptors }
       : baseIntakeRaw;
