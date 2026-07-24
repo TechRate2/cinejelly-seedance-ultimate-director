@@ -833,6 +833,24 @@ export class UserAccountStore {
     return decided;
   }
 
+  /**
+   * A customer cancels their OWN still-pending top-up request (e.g. picked the wrong package). No
+   * money has moved yet — a pending top-up is only a request — so this just removes the request. Scoped
+   * to the owner and to pending state; an approved/rejected/other-user's top-up cannot be cancelled.
+   */
+  public cancelPendingTopup(input: { readonly userId: string; readonly topupId: string }): void {
+    const index = this.state.topups.findIndex((topup) => topup.topupId === input.topupId);
+    const existing = index >= 0 ? this.state.topups[index] : undefined;
+    if (!existing || existing.userId !== input.userId) {
+      throw new UserAccountError("Yêu cầu nạp không tồn tại.", 404);
+    }
+    if (existing.status !== "pending") {
+      throw new UserAccountError("Chỉ hủy được yêu cầu nạp đang chờ duyệt.", 409);
+    }
+    this.state.topups.splice(index, 1);
+    this.persist();
+  }
+
   /** One-line business health for the operator desk. */
   public revenueSummary(): {
     readonly customerCount: number;

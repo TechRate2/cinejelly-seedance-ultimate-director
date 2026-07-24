@@ -1398,6 +1398,18 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(response, 200, { topups: userAccountStore.topupsOf(userId) }, requestContext);
         return;
       }
+      if (request.method === "POST" && requestUrl.pathname === "/v1/account/topups/cancel") {
+        // Customer cancels their OWN still-pending top-up (wrong package / mistyped note). No money has
+        // moved — a pending top-up is only a request — so this just withdraws it (customer-journey B4).
+        const { userId } = requireUserPrincipal(authDecision.principal);
+        const cancelBody = await readJsonBody<{ topupId?: string }>(request, maxBodyBytes);
+        if (!cancelBody.topupId || typeof cancelBody.topupId !== "string") {
+          throw new UserAccountError("Thiếu topupId.", 400);
+        }
+        userAccountStore.cancelPendingTopup({ userId, topupId: cancelBody.topupId });
+        sendJson(response, 200, { canceled: true, topups: userAccountStore.topupsOf(userId) }, requestContext);
+        return;
+      }
       if (request.method === "POST" && requestUrl.pathname === "/v1/redub/plans") {
         // Dịch phụ đề / thuyết minh lại video (ví dụ video tiếng Trung -> lồng tiếng Việt +
         // phụ đề nhiều nước). Khách đăng nhập trả phí cố định; key vận hành dùng tự do.
