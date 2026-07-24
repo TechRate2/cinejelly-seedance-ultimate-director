@@ -23,7 +23,8 @@ export interface MissingModel {
     | "imageModel"
     | "imageReferenceModel"
     | "avatarModel"
-    | "ttsModel";
+    | "ttsModel"
+    | "speechModel";
   readonly modelId: string;
   readonly endpoint: "llm" | "media";
 }
@@ -125,6 +126,7 @@ export async function validateConfiguredAtlasModels(
   checkMedia("imageReferenceModel", settings.models.imageReferenceModel);
   checkMedia("avatarModel", settings.models.avatarModel);
   checkMedia("ttsModel", settings.models.ttsModel);
+  checkMedia("speechModel", settings.models.speechModel);
 
   return {
     ok: missing.length === 0 && !keyAuthFailed,

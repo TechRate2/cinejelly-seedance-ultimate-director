@@ -25,7 +25,8 @@ const settings = {
     seedanceFastModel: "bytedance/seedance-2.0-fast/reference-to-video",
     imageModel: "google/nano-banana-pro/text-to-image",
     avatarModel: "bytedance/avatar-omni-human-v1.5",
-    ttsModel: "elevenlabs/v3/text-to-speech"
+    ttsModel: "elevenlabs/v3/text-to-speech",
+    speechModel: "openai/whisper-large-v3"
   }
 };
 const allModelIds = [
@@ -35,7 +36,8 @@ const allModelIds = [
   settings.models.seedanceFastModel,
   settings.models.imageModel,
   settings.models.avatarModel,
-  settings.models.ttsModel
+  settings.models.ttsModel,
+  settings.models.speechModel
 ];
 
 const realFetch = globalThis.fetch;
@@ -71,7 +73,7 @@ try {
   stub(async () => modelsBody(allModelIds));
   const ok = await validateConfiguredAtlasModels(settings);
   check("all_models_present_ok", ok.ok === true && ok.missing.length === 0 && ok.keyAuthFailed === false, `checked=${ok.checkedModelCount}`);
-  check("checked_all_configured_models", ok.checkedModelCount === 7, `checked=${ok.checkedModelCount}`);
+  check("checked_all_configured_models", ok.checkedModelCount === 8, `checked=${ok.checkedModelCount}`);
 
   // 4. Network failure (fetch throws) -> fail-OPEN: probeSkipped, not keyAuthFailed, not a hard "missing".
   stub(async () => { throw new Error("ENETUNREACH"); });
