@@ -132,6 +132,7 @@ import {
 } from "./render-provider-handoff-lease-service.js";
 import { FileRenderProviderHandoffLeaseStore } from "./render-provider-handoff.js";
 import { renderRequestAdmissionFromEnv, RenderRequestAdmissionError, ContentSafetyError } from "./render-request-admission.js";
+import { assertRenderDiskAvailable, RenderDiskUnavailableError } from "../utils/disk-space.js";
 import {
   attachRequestContextHeaders,
   createApiRequestContext,
@@ -977,6 +978,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         });
         assertShortPipelineRenderHandoffAllowed(handoff, { allowSelfGeneratedVisualBible: true });
         requestAdmission.assertAcceptable(handoff.request);
+        await assertRenderDiskAvailable(process.env);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest
           ? createRequestFingerprint({ sessionId: record.sessionId, body })
@@ -1169,6 +1171,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         });
         assertShortPipelineRenderHandoffAllowed(handoff, { allowSelfGeneratedVisualBible: true });
         requestAdmission.assertAcceptable(handoff.request);
+        await assertRenderDiskAvailable(process.env);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
         const normalizedRequest = normalizeRenderRequest(handoff.request, {
@@ -2854,6 +2857,7 @@ function errorStatusCode(error: unknown): number {
   return error instanceof UserAccountError ||
     error instanceof RenderRequestAdmissionError ||
     error instanceof ContentSafetyError ||
+    error instanceof RenderDiskUnavailableError ||
     error instanceof RenderRequestNormalizationError ||
     error instanceof RenderJobCapacityError ||
     error instanceof RenderJobIdempotencyConflictError ||

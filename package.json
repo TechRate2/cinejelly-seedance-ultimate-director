@@ -129,6 +129,7 @@
     "validation:dub-duration-fit": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-dub-duration-fit-smoke.mjs",
     "validation:image-anchor-verifier": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-image-anchor-verifier-smoke.mjs",
     "validation:content-safety": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-content-safety-smoke.mjs",
+    "validation:disk-guard": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-disk-guard-smoke.mjs",
     "validation:niche-playbooks": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-niche-playbooks-smoke.mjs",
     "validation:cinematic-grammar": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-cinematic-grammar-smoke.mjs",
     "validation:pipeline-100": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-pipeline-100-smoke.mjs",
