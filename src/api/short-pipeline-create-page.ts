@@ -1022,8 +1022,6 @@ export function buildShortPipelineCreatePage(): string {
       <button class="nav-item" type="button" data-mode-button="storyboard_multishot"><span class="nav-ico">▣</span><span>Product Scenes</span></button>
       <button class="nav-item" type="button" data-mode-button="production_bible"><span class="nav-ico">▤</span><span>Director Long</span></button>
       <div class="nav-section">Control</div>
-      <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">≋</span><span>Voice Lab</span></button>
-      <button class="nav-item" type="button" disabled aria-disabled="true"><span class="nav-ico">✧</span><span>Brand Kit</span></button>
       <button class="nav-item" type="button" id="nav-jobs"><span class="nav-ico">▥</span><span>Jobs</span></button>
       <div class="sidebar-card">
         <strong>Project Control</strong>
@@ -1188,7 +1186,7 @@ export function buildShortPipelineCreatePage(): string {
           <div class="section-divider"></div>
           <div class="panel-head">
             <div class="panel-title"><span class="step-badge">1</span><span data-i18n="s1.title">Tell CineJelly your idea</span></div>
-            <button class="mini-btn" type="button" data-enhance-prompt data-i18n="s1.enhance">AI Enhance</button>
+            <button class="mini-btn" type="button" data-enhance-prompt data-i18n="s1.enhance">✨ Thêm cấu trúc 4 nhịp</button>
           </div>
           <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.idea">Viết như kể cho một người bạn: bán gì / cho ai / video trông thế nào / cú chốt là gì. Càng cụ thể sản phẩm + cảm xúc, video càng dễ viral. Viết tiếng Việt, Trung hay Anh đều được.</p></details>
           <label class="field">
@@ -1198,7 +1196,7 @@ export function buildShortPipelineCreatePage(): string {
           <div class="composer-tools">
             <div class="tool-row">
               <button class="mini-btn" type="button" data-template-apply="fashion_transform" data-i18n="s1.starter">Starter</button>
-              <button class="mini-btn" type="button" data-enhance-prompt data-i18n="s1.rewrite">Rewrite</button>
+              <button class="mini-btn" type="button" data-enhance-prompt data-i18n="s1.rewrite">Thêm cấu trúc</button>
               <button class="mini-btn" type="button" data-template-apply="product_reveal" data-i18n="s1.productStarter">Product Starter</button>
             </div>
             <div class="char-count"><span id="prompt-count">0</span> / 2000</div>
@@ -1287,7 +1285,7 @@ export function buildShortPipelineCreatePage(): string {
 
           <div class="section-divider"></div>
           <div class="panel-head">
-            <div class="panel-title"><span class="step-badge">4</span><span data-i18n="s4.title">AI Storyboard</span></div>
+            <div class="panel-title"><span class="step-badge">4</span><span data-i18n="s4.title">Khung nhịp mẫu</span></div>
             <button class="mini-btn" type="button" id="refresh-contract" disabled data-i18n="s4.refresh">Refresh Contract</button>
           </div>
           <div class="storyboard">
@@ -1353,7 +1351,7 @@ export function buildShortPipelineCreatePage(): string {
             <label class="field visually-hidden"><span>Project ID</span><input id="project-id" value="short_create_shell"></label>
           </div>
           <div class="render-bar">
-            <div class="cost-card" id="usd-cost-card"><small>Preflight estimate</small><strong id="estimated-cost">$2.40</strong></div>
+            <div class="cost-card" id="usd-cost-card" title="Con số tham khảo nhanh — giá CHÍNH XÁC bằng credits sẽ hiện ở hộp xác nhận trước khi trừ tiền."><small data-i18n="s2.costRough">Ước tính sơ bộ (giá thật hiện khi xác nhận)</small><strong id="estimated-cost">$2.40</strong></div>
             <div id="credit-estimate-inline" class="detail"></div>
             <button type="submit" id="create-session" class="primary" data-i18n="wz.buildPlan">Xem giá &amp; kế hoạch →</button>
           </div>
@@ -1506,7 +1504,7 @@ export function buildShortPipelineCreatePage(): string {
       </section>
 
       <section class="panel" id="series-panel" hidden>
-        <div class="panel-head"><div class="panel-title" data-i18n="series.title">📺 Phim dài tập (drama 30–70 tập)</div></div>
+        <div class="panel-head"><div class="panel-title" data-i18n="series.title">📺 Phim dài tập (1–200 tập)</div></div>
         <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.series">Nhập cốt truyện + dàn nhân vật một lần. Hệ thống giữ "kinh thánh truyện": mặt nhân vật, bối cảnh và diễn biến THẬT của từng tập được ghi sổ — tập sau tự nối tiếp đúng khung hình cuối và cliffhanger của tập trước. Mỗi tập: Xem trước brief (miễn phí) → Render (báo giá credits, xác nhận mới trừ tiền; tập lỗi hoàn theo chính sách).</p></details>
         <div class="grid-3">
           <label class="field" style="grid-column: span 3"><span data-i18n="series.premise">Cốt truyện</span><textarea id="series-premise" data-i18n-placeholder="series.premisePh" placeholder="VD: Nữ giúp việc bị cả nhà coi thường hoá ra là ái nữ tập đoàn trở về báo thù..." style="min-height:64px"></textarea></label>
@@ -1579,7 +1577,7 @@ export function buildShortPipelineCreatePage(): string {
         "s1.starter": "Mẫu nhanh", "s1.rewrite": "Thêm cấu trúc", "s1.productStarter": "Mẫu sản phẩm",
         "s1.beatAlt": " Chia rõ 4 beat: 0-3s hook, 3-7s proof/demo, 7-12s transformation/result, 12-15s payoff ổn định. Giữ chuyển động tự nhiên, không chữ trên màn hình, audio có nhịp nhưng visual vẫn hiểu được nếu tắt tiếng.",
         "s1.beatMain": " Bổ sung hook trong 1 giây đầu, proof/demo ở giữa, payoff cuối rõ ràng, nhịp TikTok tự nhiên, không chữ trên màn hình, endpoint sạch để review hoặc nối cảnh.",
-        "s2.title": "Thêm tham chiếu (ảnh/video)", "s2.clear": "Xoá hết",
+        "s2.title": "Thêm tham chiếu (ảnh/video)", "s2.clear": "Xoá hết", "s2.costRough": "Ước tính sơ bộ (giá thật hiện khi xác nhận)",
         "s2.kol": "KOL / Nhân vật", "s2.imgRef": "ảnh tham chiếu", "s2.product": "Sản phẩm", "s2.scene": "Bối cảnh", "s2.bg": "ảnh nền",
         "s2.source": "Video mẫu", "s2.pattern": "học cấu trúc", "s2.voice": "Giọng / Ghi chú", "s2.voiceS": "định hướng giọng",
         "s2.kolUri": "Ảnh KOL / nhân vật", "s2.productUri": "Ảnh sản phẩm", "s2.bgUri": "Ảnh bối cảnh", "s2.srcUrl": "Link video mẫu",
@@ -1592,7 +1590,7 @@ export function buildShortPipelineCreatePage(): string {
         "s3.learning": "Chính sách học", "s3.structOnly": "Chỉ học cấu trúc và nhịp", "s3.closeRemake": "Remake sát (đã có bản quyền)",
         "s3.platform": "Nền tảng đăng", "s3.flexible": "Linh hoạt", "s3.summary": "Tóm tắt cấu trúc video mẫu",
         "s3.summaryPh": "Dán cấu trúc video mẫu: hook, nhịp, diễn xuất, góc máy, nhịp cắt, nhịp audio và cú chốt. CineJelly áp cấu trúc vào KOL, sản phẩm, bối cảnh CỦA BẠN.",
-        "s4.title": "Storyboard AI", "s4.refresh": "Tải lại contract",
+        "s4.title": "Khung nhịp mẫu (storyboard thật hiện sau khi tạo)", "s4.refresh": "Tải lại contract",
         "s4.b1": "1 Mở màn", "s4.b1n": "Vấn đề / trạng thái trước", "s4.b2": "2 Bằng chứng", "s4.b2n": "Sản phẩm / hành động",
         "s4.b3": "3 Biến đổi", "s4.b3n": "Thay đổi / kết quả", "s4.b4": "4 Chốt", "s4.b4n": "Sau / CTA nhẹ",
         "set.duration": "Thời lượng (giây)", "set.aspect": "Tỉ lệ khung", "set.quality": "Chất lượng / model", "set.audio": "Giọng đọc",
@@ -1603,7 +1601,7 @@ export function buildShortPipelineCreatePage(): string {
         "set.claim": "Cam kết được phép nói", "set.claimPh": "Chỉ những cam kết bạn chịu trách nhiệm được",
         "set.renderPasses": "Chất lượng render",
         "nav.create": "🎬 Tạo video AI", "nav.series": "📺 Phim dài tập", "nav.dub": "🌐 Lồng tiếng & Phụ đề", "nav.mine": "📁 Video của tôi",
-        "series.title": "📺 Phim dài tập (drama 30–70 tập)", "series.premise": "Cốt truyện", "series.premisePh": "VD: Nữ giúp việc bị cả nhà coi thường hoá ra là ái nữ tập đoàn trở về báo thù...",
+        "series.title": "📺 Phim dài tập (1–200 tập)", "series.premise": "Cốt truyện", "series.premisePh": "VD: Nữ giúp việc bị cả nhà coi thường hoá ra là ái nữ tập đoàn trở về báo thù...",
         "series.count": "Số tập", "series.duration": "Thời lượng mỗi tập (giây)", "series.lang": "Ngôn ngữ thoại", "series.cast": "Dàn nhân vật (mỗi dòng: Tên | mô tả ngắn)", "series.castPh": "Linh | 23 tuổi, mắt kiên định, tóc đen dài",
         "series.create": "📖 Tạo bộ phim", "series.preview": "👁 Xem trước tập kế (miễn phí)", "series.render": "🎬 Render tập kế",
         "series.needInput": "Cần cốt truyện và ít nhất 1 nhân vật.", "series.created": "Đã tạo bộ phim:", "series.eps": "tập",
@@ -1698,7 +1696,7 @@ export function buildShortPipelineCreatePage(): string {
         "s1.starter": "Starter", "s1.rewrite": "Add structure", "s1.productStarter": "Product starter",
         "s1.beatAlt": " Split into 4 beats: 0-3s hook, 3-7s proof/demo, 7-12s transformation/result, 12-15s stable payoff. Keep motion natural, no on-screen text, audio has rhythm but the visual still reads with sound off.",
         "s1.beatMain": " Add a hook in the first second, proof/demo in the middle, a clear payoff at the end, natural TikTok pacing, no on-screen text, a clean endpoint for review or scene chaining.",
-        "s2.title": "Add references", "s2.clear": "Clear",
+        "s2.title": "Add references", "s2.clear": "Clear", "s2.costRough": "Rough estimate (exact price shown at confirmation)",
         "s2.kol": "KOL / Talent", "s2.imgRef": "image reference", "s2.product": "Product", "s2.scene": "Scene", "s2.bg": "background",
         "s2.source": "Source video", "s2.pattern": "pattern intake", "s2.voice": "Voice / Notes", "s2.voiceS": "audio intent",
         "s2.kolUri": "KOL image", "s2.productUri": "Product image", "s2.bgUri": "Scene/background image", "s2.srcUrl": "Source video URL",
@@ -1711,7 +1709,7 @@ export function buildShortPipelineCreatePage(): string {
         "s3.learning": "Learning policy", "s3.structOnly": "Structure and rhythm only", "s3.closeRemake": "Rights-cleared close remake",
         "s3.platform": "Publish platform", "s3.flexible": "Flexible", "s3.summary": "Source pattern summary",
         "s3.summaryPh": "Paste the public pattern/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly adapts it to YOUR KOL, product, and background.",
-        "s4.title": "AI Storyboard", "s4.refresh": "Refresh contract",
+        "s4.title": "Beat template (real storyboard appears after planning)", "s4.refresh": "Refresh contract",
         "s4.b1": "1 Hook", "s4.b1n": "Problem / before state", "s4.b2": "2 Proof", "s4.b2n": "Product / action",
         "s4.b3": "3 Transform", "s4.b3n": "Change / result", "s4.b4": "4 Payoff", "s4.b4n": "After / soft CTA",
         "set.duration": "Duration (s)", "set.aspect": "Aspect ratio", "set.quality": "Quality / model", "set.audio": "Voiceover",
@@ -1722,7 +1720,7 @@ export function buildShortPipelineCreatePage(): string {
         "set.claim": "Allowed claim", "set.claimPh": "Only claims you can approve or substantiate",
         "set.renderPasses": "Render quality",
         "nav.create": "🎬 Create AI Video", "nav.series": "📺 Episodic Drama", "nav.dub": "🌐 Dub & Subtitles", "nav.mine": "📁 My Videos",
-        "series.title": "📺 Episodic drama (30–70 episodes)", "series.premise": "Premise", "series.premisePh": "e.g. The despised maid turns out to be the conglomerate heiress back for revenge...",
+        "series.title": "📺 Episodic drama (1–200 episodes)", "series.premise": "Premise", "series.premisePh": "e.g. The despised maid turns out to be the conglomerate heiress back for revenge...",
         "series.count": "Episodes", "series.duration": "Seconds per episode", "series.lang": "Spoken language", "series.cast": "Cast (one per line: Name | short description)", "series.castPh": "Linh | 23, determined eyes, long black hair",
         "series.create": "📖 Create series", "series.preview": "👁 Preview next episode (free)", "series.render": "🎬 Render next episode",
         "series.needInput": "Premise and at least one cast member required.", "series.created": "Series created:", "series.eps": "episodes",
@@ -1817,7 +1815,7 @@ export function buildShortPipelineCreatePage(): string {
         "s1.starter": "快速模板", "s1.rewrite": "添加结构", "s1.productStarter": "产品模板",
         "s1.beatAlt": " 分为四段：0-3秒钩子，3-7秒证明/演示，7-12秒转变/效果，12-15秒稳定收尾。保持自然运动，无屏幕文字，音频有节奏但静音时画面仍可理解。",
         "s1.beatMain": " 在第一秒加入钩子，中间放证明/演示，结尾清晰收尾，自然的 TikTok 节奏，无屏幕文字，干净的结束点便于审核或续接场景。",
-        "s2.title": "添加参考素材", "s2.clear": "清空",
+        "s2.title": "添加参考素材", "s2.clear": "清空", "s2.costRough": "粗略估算（确认时显示准确价格）",
         "s2.kol": "达人 / 人物", "s2.imgRef": "参考图片", "s2.product": "产品", "s2.scene": "场景", "s2.bg": "背景",
         "s2.source": "参考视频", "s2.pattern": "学习结构", "s2.voice": "配音 / 备注", "s2.voiceS": "配音意图",
         "s2.kolUri": "达人图片", "s2.productUri": "产品图片", "s2.bgUri": "场景背景图", "s2.srcUrl": "参考视频链接",
@@ -1830,7 +1828,7 @@ export function buildShortPipelineCreatePage(): string {
         "s3.learning": "学习策略", "s3.structOnly": "仅学习结构和节奏", "s3.closeRemake": "已授权近似翻拍",
         "s3.platform": "发布平台", "s3.flexible": "灵活", "s3.summary": "参考视频结构摘要",
         "s3.summaryPh": "粘贴参考视频结构：开场钩子、节奏、表演、运镜、剪辑节奏、音频节奏和结尾。CineJelly 会套用到你自己的达人、产品和场景上。",
-        "s4.title": "AI 分镜", "s4.refresh": "刷新契约",
+        "s4.title": "节奏模板（生成后显示真实分镜）", "s4.refresh": "刷新契约",
         "s4.b1": "1 开场钩子", "s4.b1n": "问题 / 之前状态", "s4.b2": "2 证明", "s4.b2n": "产品 / 动作",
         "s4.b3": "3 转变", "s4.b3n": "变化 / 结果", "s4.b4": "4 收尾", "s4.b4n": "之后 / 轻CTA",
         "set.duration": "时长（秒）", "set.aspect": "画面比例", "set.quality": "画质 / 模型", "set.audio": "配音",
@@ -1841,7 +1839,7 @@ export function buildShortPipelineCreatePage(): string {
         "set.claim": "允许的宣称", "set.claimPh": "只填写你能负责或证实的宣称",
         "set.renderPasses": "渲染质量",
         "nav.create": "🎬 AI 视频创作", "nav.series": "📺 连续短剧", "nav.dub": "🌐 配音与字幕", "nav.mine": "📁 我的视频",
-        "series.title": "📺 连续短剧（30–70 集）", "series.premise": "故事前提", "series.premisePh": "例：被全家轻视的女佣其实是集团千金，回来复仇...",
+        "series.title": "📺 连续短剧（1–200 集）", "series.premise": "故事前提", "series.premisePh": "例：被全家轻视的女佣其实是集团千金，回来复仇...",
         "series.count": "集数", "series.duration": "每集时长（秒）", "series.lang": "对白语言", "series.cast": "角色表（每行：姓名 | 简介）", "series.castPh": "Linh | 23岁，眼神坚定，黑长发",
         "series.create": "📖 创建剧集", "series.preview": "👁 预览下一集（免费）", "series.render": "🎬 渲染下一集",
         "series.needInput": "需要故事前提和至少一个角色。", "series.created": "剧集已创建：", "series.eps": "集",
@@ -2831,6 +2829,18 @@ export function buildShortPipelineCreatePage(): string {
         " | " + segments + " " + t("redub.segments") +
         (payload.creditsCharged ? " | -" + payload.creditsCharged + " credits" : "");
       container.appendChild(summaryLine);
+      // Cảnh báo trung thực từ máy chủ: câu chưa dịch được / phụ đề quá dài / đoạn lồng phải tăng tốc
+      // vẫn tràn — khách thấy NGAY thay vì phát hiện lỗi sau khi đăng video.
+      const warningTexts = []
+        .concat((payload.summary && payload.summary.translationWarnings) || [])
+        .concat((payload.outputs && payload.outputs.durationFit && payload.outputs.durationFit.warnings) || []);
+      warningTexts.forEach(function (warningText) {
+        const warningLine = document.createElement("div");
+        warningLine.className = "detail";
+        warningLine.style.cssText = "margin-top:6px;color:#ffb74d";
+        warningLine.textContent = "⚠ " + warningText;
+        container.appendChild(warningLine);
+      });
       const buttonRow = document.createElement("div");
       buttonRow.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;margin-top:8px";
       // Kết quả lồng tiếng thật: nút tải dubbed.mp4 (+ file phụ đề/kịch bản) qua route có xác thực.
