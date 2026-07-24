@@ -2,6 +2,21 @@
 
 Đọc từ trên xuống, làm theo từng bước là chạy được. Chỉ có 3 việc: điền file cấu hình → bật server → mở web.
 
+## Bước 0 — Cài máy chủ lần đầu (VPS Ubuntu trắng)
+
+Nếu máy chủ chưa có gì, chạy các lệnh này TRƯỚC (chỉ làm 1 lần):
+```
+sudo apt update && sudo apt install -y git ffmpeg
+# Cài Node 22 LTS (bắt buộc: chạy server cần Node ≥ 20.19; nếu dùng lưu dữ liệu "sqlite" cần Node ≥ 22.5):
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
+# Nếu định dùng Docker (khuyên dùng khi bán thật):
+sudo apt install -y docker.io docker-compose-plugin
+# Tải mã nguồn về:
+git clone https://github.com/TechRate2/cinejelly-seedance-ultimate-director.git
+cd cinejelly-seedance-ultimate-director
+```
+> Dùng Docker (Cách B ở Bước 2) thì KHÔNG cần cài Node/ffmpeg riêng — bản Docker đã có sẵn tất cả bên trong. Cài Node/ffmpeg ở trên chỉ cần cho Cách A (chạy trực tiếp) và cho các lệnh `npm run setup/doctor/update`.
+
 ## Bước 1 — Điền file cấu hình
 
 **Cách dễ nhất — hỏi-đáp, KHÔNG cần sửa file (khuyên dùng cho người không rành code):**
@@ -14,7 +29,7 @@ Nó hỏi bạn vài câu bằng tiếng Việt (key Atlas, thông tin chuyển 
 **Cách thủ công (nếu muốn tự sửa file):**
 
 1. Chép file `.env.production.template` thành file mới tên `.env` (cùng thư mục).
-2. Mở `.env`, điền các dòng có chữ **[BAT BUOC]**:
+2. Mở `.env`, điền các dòng có nhãn **[BẮT BUỘC]** (tìm chữ "BAT" trong file):
    - `ATLASCLOUD_API_KEY=` → key Atlas Cloud thật của bạn (thứ tốn tiền để tạo video).
    - `CINEJELLY_API_AUTH_TOKEN=` → khóa quản trị, tự đặt một chuỗi dài ≥ 24 ký tự bất kỳ (ví dụ gõ lung tung 30 ký tự). **Đây là chìa khóa admin — không đưa cho ai.**
    - `CINEJELLY_TOPUP_BANK_INFO=` → số tài khoản ngân hàng của bạn để khách chuyển tiền nạp credits.
@@ -26,15 +41,18 @@ Nó hỏi bạn vài câu bằng tiếng Việt (key Atlas, thông tin chuyển 
 ```
 npm install
 npm run build
+npm run doctor    # kiểm key/model Atlas + cơ sở dữ liệu + ffmpeg + số tài khoản — ô đỏ thì sửa
 npm start
 ```
-Thấy "CineJelly API listening on port 8787" là xong.
+Thấy "CineJelly API listening on port 8787" là xong. Mở trình duyệt vào **`http://<địa-chỉ-IP-máy-chủ>:8787`** (VD `http://123.45.67.89:8787`). Nếu không mở được, mở cổng 8787 trên tường lửa VPS: `sudo ufw allow 8787`. (Chưa có tên miền/HTTPS ở cách này — chỉ hợp thử nghiệm.)
 
-**Cách B — Docker (khuyên dùng khi bán thật, tự chạy lại khi lỗi):**
+**Cách B — Docker (khuyên dùng khi bán thật, tự chạy lại khi lỗi, có tên miền + HTTPS):**
 ```
-docker compose up -d
+docker compose up -d --build
 ```
-(Cần điền thêm `CINEJELLY_PUBLIC_HOST=tenmiencuaban.com` trong `.env` — Caddy tự lo HTTPS/ổ khóa xanh.)
+(Cần điền thêm `CINEJELLY_PUBLIC_HOST=tenmiencuaban.com` trong `.env` — Caddy tự lo HTTPS/ổ khóa xanh. Trỏ tên miền về IP máy chủ trước, và mở cổng 80+443: `sudo ufw allow 80,443/tcp`.)
+
+> **Dùng Neon/Postgres (SQL ngoài) + Docker:** thư viện `pg` không cài sẵn. Trước khi `docker compose up`, chạy `npm install pg` một lần (bản Docker sẽ build lại và có `pg`). Nếu sau này `npm run update` báo lỗi git vì `package.json` bị đổi, chạy `git stash` rồi update rồi `git stash pop`. Không dùng SQL ngoài thì bỏ qua đoạn này (mặc định lưu bằng file json, chạy ngay).
 
 ## Bước 3 — Dùng hằng ngày
 
@@ -47,7 +65,7 @@ Khách nạp tiền: chọn gói → chuyển khoản theo hướng dẫn trên 
 
 **Ngôn ngữ giao diện:** khách tự chọn VI / EN / 中文 bằng ô chọn trên thanh đầu trang (máy nhớ lựa chọn). Mỗi nhóm tuỳ chọn đều có mục "💡 Hướng dẫn nhanh" bấm ra đọc được, thu gọn lại được.
 
-**Dịch phụ đề / thuyết minh video có sẵn (nút 🌐 Sub/Dub):** khách tải video lên (VD video tiếng Trung) hoặc bấm 🌐 trên video đã render → chọn ngôn ngữ thuyết minh + các phụ đề muốn xuất (VI/EN/中文/日本/한국) → hệ thống nghe, dịch, viết lời thuyết minh khớp thời gian và trả file phụ đề `.srt` từng ngôn ngữ + kịch bản đọc. Cần bật model nhận dạng giọng nói trước: Trung tâm quản trị → Cài đặt → Model → điền model speech (VD `openai/whisper-large-v3` — kiểm tra ID trong catalog Atlas). Chưa bật thì nút này báo lỗi rõ ràng và không trừ tiền ai. Phí mỗi lần dịch = giá 5 giây video; lỗi giữa chừng vào hàng chờ hoàn tiền cho bạn duyệt.
+**Dịch phụ đề / thuyết minh video có sẵn (nút 🌐 Sub/Dub):** khách tải video lên (VD video tiếng Trung) hoặc bấm 🌐 trên video đã render → chọn ngôn ngữ thuyết minh + các phụ đề muốn xuất (VI/EN/中文/日本/한국) → hệ thống nghe, dịch, viết lời thuyết minh khớp thời gian và trả file phụ đề `.srt` từng ngôn ngữ + kịch bản đọc. **Model nhận giọng đã BẬT SẴN trong bản mẫu** (`openai/whisper-large-v3`) nên nút này chạy được ngay — chỉ cần đổi khi Atlas ra model mới (Trung tâm quản trị → Cài đặt → Model). Nếu vì lý do gì model bị bỏ trống, nút này báo lỗi rõ ràng và không trừ tiền ai. Phí mỗi lần dịch = giá 5 giây video; lỗi giữa chừng vào hàng chờ hoàn tiền cho bạn duyệt. Nếu đoạn thuyết minh dài hơn khung thời gian, hệ thống tự tăng tốc nhẹ cho vừa và báo "đoạn X nên rút gọn".
 
 **Chính sách kinh doanh (bật trong `.env` hoặc tab Cấu hình):**
 - **Tiền mặt luôn ở lại ngân hàng bạn** — hệ thống không bao giờ chuyển tiền mặt ngược về khách ở bất kỳ chế độ nào. "Hoàn tiền" chỉ là trả CREDITS (điểm) về ví khách.
@@ -74,7 +92,13 @@ Chạy mỗi ngày (hoặc đặt lịch tự động):
 ```
 npm run backup:data
 ```
-Bản sao nằm trong thư mục `backups/` kèm file hướng dẫn phục hồi tiếng Việt. Với Docker, dữ liệu nằm trong volume `cinejelly-output` — không mất khi khởi động lại container.
+Bản sao nằm trong thư mục `backups/` kèm file hướng dẫn phục hồi tiếng Việt.
+
+**⚠ Nếu bạn chạy bằng Docker (Cách B):** dữ liệu tiền/tài khoản nằm TRONG volume `cinejelly-output`, nên lệnh `npm run backup:data` chạy trên máy chủ (ngoài container) sẽ **không thấy dữ liệu**. Dùng lệnh này để sao lưu volume ra file:
+```
+docker run --rm -v cinejelly-output:/data -v "$PWD/backups":/backup alpine tar czf /backup/cinejelly-backup-$(date +%F).tar.gz -C /data .
+```
+Dữ liệu Docker không mất khi khởi động lại container; lệnh trên là để có bản sao mang đi nơi khác.
 
 ## Cập nhật lên bản mới (1 lệnh, an toàn)
 
