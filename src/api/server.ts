@@ -800,7 +800,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         request.method === "GET" &&
         (requestUrl.pathname === "/short/create" || requestUrl.pathname === "/short/create-video")
       ) {
-        sendHtml(response, 200, buildShortPipelineCreatePage());
+        sendHtml(response, 200, buildShortPipelineCreatePage({ ...(process.env.CINEJELLY_SUPPORT_CONTACT ? { supportContact: process.env.CINEJELLY_SUPPORT_CONTACT } : {}) }));
         return;
       }
       if (request.method === "GET" && requestUrl.pathname === "/v1/short-pipeline/video-pipes") {

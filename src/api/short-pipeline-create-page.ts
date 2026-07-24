@@ -5,7 +5,13 @@
  * localStorage (with a forget button for shared computers) and sent only on /v1 calls.
  */
 
-export function buildShortPipelineCreatePage(): string {
+export function buildShortPipelineCreatePage(options: { readonly supportContact?: string } = {}): string {
+  // The support contact is shown on the LOGGED-OUT login modal (forgot-password recovery, MVP audit A2).
+  // Escaped so an operator-configured value can never inject markup into the page.
+  const supportContact = (options.supportContact ?? "").trim();
+  const supportContactSafe = supportContact
+    ? supportContact.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c))
+    : "người bán (chủ hệ thống)";
   return String.raw`<!doctype html>
 <html lang="en">
 <head>
@@ -1072,6 +1078,7 @@ export function buildShortPipelineCreatePage(): string {
           <div class="cj-modal-error" id="auth-error" hidden></div>
           <button type="button" class="cj-primary" id="auth-submit" data-i18n="auth.login">Đăng nhập</button>
           <small style="color:#9aa3c7" data-i18n="auth.note">Tạo tài khoản miễn phí, nạp credits là tạo được video ngay. Không cần API key.</small>
+          <small style="color:#9aa3c7;display:block;margin-top:6px" id="auth-forgot"><span data-i18n="auth.forgot">Quên mật khẩu? Liên hệ hỗ trợ để được cấp lại:</span> <b id="auth-support">__SUPPORT_CONTACT__</b></small>
         </div>
       </div>
       <div class="cj-modal" id="password-modal" hidden>
@@ -1691,7 +1698,7 @@ export function buildShortPipelineCreatePage(): string {
         "top.redubTitle": "Export multi-language subtitles + a dubbing script from an existing video",
         "auth.login": "Log in", "auth.register": "Create account", "auth.password": "Password",
         "auth.pwPh": "At least 8 characters", "auth.name": "Display name (optional)",
-        "auth.note": "Free account — top up credits and start creating right away. No API key needed.",
+        "auth.note": "Free account — top up credits and start creating right away. No API key needed.", "auth.forgot": "Forgot your password? Contact support to reset it:",
         "auth.okLogin": "Logged in!", "auth.okRegister": "Account created! Top up credits to start creating videos.",
         "pw.title": "🔑 Change password", "pw.current": "Current password", "pw.new": "New password (min 8 characters)",
         "pw.submit": "Change password", "pw.note": "Other devices will need to log in again. Forgot it? Contact support for a reset.",
@@ -1810,7 +1817,7 @@ export function buildShortPipelineCreatePage(): string {
         "top.redubTitle": "为现有视频导出多语字幕 + 配音脚本",
         "auth.login": "登录", "auth.register": "注册账号", "auth.password": "密码",
         "auth.pwPh": "至少8个字符", "auth.name": "昵称（可选）",
-        "auth.note": "免费注册，充值积分即可开始创作，无需 API key。",
+        "auth.note": "免费注册，充值积分即可开始创作，无需 API key。", "auth.forgot": "忘记密码？联系客服重置：",
         "auth.okLogin": "登录成功！", "auth.okRegister": "注册成功！充值积分即可开始创作视频。",
         "pw.title": "🔑 修改密码", "pw.current": "当前密码", "pw.new": "新密码（至少8个字符）",
         "pw.submit": "修改密码", "pw.note": "修改后其他设备需重新登录。忘记密码请联系客服重置。",
@@ -4026,5 +4033,5 @@ export function buildShortPipelineCreatePage(): string {
     }
   </script>
 </body>
-</html>`;
+</html>`.split("__SUPPORT_CONTACT__").join(supportContactSafe);
 }
