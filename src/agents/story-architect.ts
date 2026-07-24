@@ -198,11 +198,19 @@ export class StoryArchitect {
     // One predicate drives BOTH the script-first directive and its precedence override so the
     // pair can never drift apart (they are meaningless without each other).
     const scriptFirstMode = looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true";
+    // Long-form beat-density floor (cross-audit B4): the render layer chunks every beat into 4-15s
+    // clips, so a long video with too FEW authored beats survives (it renders) but reads as a stretched
+    // short — the same 3 actions tiled across 4 minutes. Give the writer a deterministic beat-count
+    // target scaled to the runtime (no beat may own more than ~15s of screen time) so long-form gets a
+    // genuinely rich arc, not a padded one. Gated to true long-form (>45s); shorts keep their tight
+    // hook/proof/payoff structure already spelled out below.
+    const durationDensityGuidance = this.longFormBeatDensityGuidance(intake.settings.durationTargetSeconds);
     const response = await this.llmProvider.structured<StoryPlanJson, typeof STORY_PLAN_SCHEMA>(
       {
         modelId: this.modelId,
         instruction:
           "Create a production-ready video scene plan. Use reusable production primitives, not hardcoded niche templates. Allocate the full requested duration into a complete beginning, middle, and ending: short commercial inputs need hook/problem, proof/demo, and payoff/soft next-step; long-form inputs need setup, development, proof escalation, and resolved close. Every beat must include a concrete visible state change, timed audio intent when audio is enabled, and an endpoint that the next beat can continue without a visible jump cut. " +
+          durationDensityGuidance +
           `${playbookDirective} ${SEEDANCE_MASTERY_DIRECTIVE} ${antiSlopDirective()}`,
         schema: STORY_PLAN_SCHEMA,
         messages: [
@@ -299,6 +307,21 @@ export class StoryArchitect {
       return text.trim();
     }
     return words.slice(0, maxWords).join(" ").replace(/[,;:—-]+$/, "").trim();
+  }
+
+  /**
+   * Deterministic beat-count target for long-form so the LLM can't hand a multi-minute runtime just a
+   * handful of beats (cross-audit B4). Floor = one beat per ~12s (no beat should own more than the 15s
+   * render-clip ceiling), soft upper = one per ~7s (rich cutting without over-fragmenting). Empty for
+   * ≤45s, where the tight hook/proof/payoff structure below already governs the beat count.
+   */
+  private longFormBeatDensityGuidance(durationTargetSeconds: number): string {
+    if (!Number.isFinite(durationTargetSeconds) || durationTargetSeconds <= 45) {
+      return "";
+    }
+    const minBeats = Math.ceil(durationTargetSeconds / 12);
+    const softMaxBeats = Math.ceil(durationTargetSeconds / 7);
+    return `LONG-FORM DENSITY: this is a ${Math.round(durationTargetSeconds)}s video — decompose it into at least ${minBeats} distinct beats (aim ${minBeats}-${softMaxBeats}), each a NEW visible action or story turn. No single beat may carry more than ~15 seconds of screen time; if a stretch would run longer, split it into separate beats with fresh action so the video reads as a rich developing arc, never the same few shots stretched thin. `;
   }
 
   private resolvedRegisterHint(intake: IntakeResult): StyleRegister | undefined {
