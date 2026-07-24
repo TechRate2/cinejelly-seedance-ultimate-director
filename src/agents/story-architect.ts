@@ -611,8 +611,19 @@ export class StoryArchitect {
     // runtime (cross-audit B5): ~2.8 words/second. Keep the OPENING lines (the hook + the first turn,
     // the most important words) and trim the tail to the budget, instead of cramming an unspeakable
     // wall of narration into a 15s clip. The uncapped join fed a 40-word-budget clip 100+ words.
+    //
+    // SCRIPT-FIRST EXCEPTION (self-audit regression guard): when the customer PASTED their own finished
+    // script, every spokenLine is their exact words under a hard VERBATIM promise (SCRIPT_FIRST_DIRECTIVE
+    // + the compiler's "deliver word-for-word, do not shorten" contract). Capping there would silently
+    // truncate the customer's own script AND contradict the verbatim line the compiler still emits — so
+    // the budget applies ONLY to lines the model authored itself. An over-long pasted script for a tiny
+    // duration is the customer's own choice (they can pick a longer runtime); we never drop their words.
+    const scriptFirstMode = looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true";
     const singleClipWordBudget = Math.max(6, Math.floor(intake.settings.durationTargetSeconds * 2.8));
-    const mergedSpokenLine = this.capToWordBudget(spokenLines.join(" "), singleClipWordBudget);
+    const joinedSpokenLines = spokenLines.join(" ");
+    const mergedSpokenLine = scriptFirstMode
+      ? joinedSpokenLines
+      : this.capToWordBudget(joinedSpokenLines, singleClipWordBudget);
     const turns = beats
       .map((beat) => beat.emotionalTurn?.trim())
       .filter((turn): turn is string => Boolean(turn));

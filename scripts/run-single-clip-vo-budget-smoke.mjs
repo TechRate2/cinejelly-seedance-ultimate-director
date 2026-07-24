@@ -92,6 +92,23 @@ const shortPlan = await shortArchitect.plan({
 const shortClipLine = shortPlan.scenes[0]?.beats[0]?.spokenLine ?? "";
 check("short_vo_passthrough_unchanged", shortClipLine === `${shortLine} ${shortLine}`, `line="${shortClipLine}"`);
 
+// --- 3. SCRIPT-FIRST verbatim guard (self-audit regression): when the customer PASTED their own
+// finished script, an over-long merged line must be preserved WORD-FOR-WORD — never capped — because
+// the compiler still emits it under a "deliver verbatim, do not shorten" contract. Same 5 long beats,
+// but metadata.scriptFirst="true": the join must survive uncapped even though it exceeds the budget.
+const scriptFirstArchitect = new StoryArchitect(fakeProviderWithBeats([longLine, longLine, longLine, longLine, longLine]), "fake");
+const scriptFirstPlan = await scriptFirstArchitect.plan({
+  projectId: "single_clip_vo_budget_script_first",
+  userInput: "Kịch bản khách dán vào.",
+  settings: baseSettings,
+  references: [],
+  metadata: { ...singleClipMetadata, scriptFirst: "true" }
+});
+const scriptFirstClipLine = scriptFirstPlan.scenes[0]?.beats[0]?.spokenLine ?? "";
+const expectedVerbatim = [longLine, longLine, longLine, longLine, longLine].join(" ");
+check("script_first_preserves_verbatim", scriptFirstClipLine === expectedVerbatim, `words=${wordCount(scriptFirstClipLine)} (uncapped, > ${budget})`);
+check("script_first_exceeds_budget_uncapped", wordCount(scriptFirstClipLine) > budget, `words=${wordCount(scriptFirstClipLine)}`);
+
 const failed = checks.filter((c) => !c.pass);
 const report = {
   schemaVersion: "cinejelly.single-clip-vo-budget-smoke.v1",
