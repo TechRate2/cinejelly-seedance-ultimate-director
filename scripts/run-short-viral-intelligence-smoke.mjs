@@ -790,7 +790,6 @@ const report = {
     endpointsCovered: [
       "/v1/short-pipeline/plan",
       "/v1/short-pipeline/conversation",
-      "/v1/short-pipeline/product-url-plan",
       "/v1/short-pipeline/render-jobs"
     ]
   },

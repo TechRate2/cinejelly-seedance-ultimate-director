@@ -1103,43 +1103,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/short-pipeline/product-url-plan") {
-        assertJsonContentType(request);
-        const body = await readJsonBody<ShortPipelineProductUrlPlanRequestBody>(request, maxBodyBytes);
-        const productUrlBody = shortPipelineProductUrlPlanBodyFromBody(
-          body,
-          requestContext.requestId,
-          shortChannelStyleLibraryStore,
-          clientFilter(authDecision.principal)
-        );
-        const productUrl = productUrlBody.planInput.product?.productUrl;
-        if (!productUrl) {
-          throw new RenderRequestAdmissionError("Short pipeline product URL plan requires product.productUrl.");
-        }
-        const research = await productUrlResearcher.research({
-          productUrl,
-          ...(productUrlBody.planInput.userPrompt ? { userPrompt: productUrlBody.planInput.userPrompt } : {}),
-          confirmLiveNetwork: productUrlBody.confirmLiveNetwork,
-          ...(productUrlBody.maxProductUrlBytes ? { maxBytes: productUrlBody.maxProductUrlBytes } : {}),
-          ...(productUrlBody.productResearchTimeoutMs ? { timeoutMs: productUrlBody.productResearchTimeoutMs } : {})
-        });
-        const safeResearch = safeProductUrlResearchSummary(research);
-        if (research.status !== "ready" || !research.snapshot) {
-          sendJson(response, 422, {
-            error: "Product URL research is not ready for short-pipeline planning.",
-            productUrlResearch: safeResearch
-          }, requestContext);
-          return;
-        }
-        const plan = shortPipelinePlanner.buildPlan({
-          ...productUrlBody.planInput,
-          product: {
-            ...productUrlBody.planInput.product,
-            snapshot: mergeProductUrlSnapshots(research.snapshot, productUrlBody.planInput.product?.snapshot)
-          }
-        });
-        sendJson(response, plan.status === "blocked" ? 422 : 200, {
-          productUrlResearch: safeResearch,
-          plan
+        // RETIRED by owner decision (2026-07-23): live product-URL scraping is complex, fragile, and
+        // routinely anti-botted by commerce platforms — customers describe the product or upload a
+        // sample video/image instead (those paths carry the same planning power without the fetch
+        // risk). The internal researcher stays for typed product SNAPSHOTS supplied by the caller;
+        // only the live-fetch HTTP surface is closed.
+        sendJson(response, 410, {
+          error: "Tính năng phân tích link sản phẩm đã ngừng: hãy nhập mô tả sản phẩm hoặc tải ảnh/video mẫu lên (chính xác hơn và không bị chặn bot)."
         }, requestContext);
         return;
       }
