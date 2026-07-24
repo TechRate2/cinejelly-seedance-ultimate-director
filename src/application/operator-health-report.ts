@@ -42,6 +42,9 @@ export function buildOperatorHealthReport(input: {
   readonly hasApiKey: boolean;
   readonly databaseUnreachable: boolean;
   readonly orphanedAccountCount: number;
+  /** True when CINEJELLY_TOPUP_BANK_INFO is empty or still the unfilled placeholder — the money path
+   * is silently blocked (customers can't top up) while everything else looks green (deploy audit A4). */
+  readonly bankInfoMissing?: boolean;
   readonly nowIso: string;
 }): OperatorHealthReport {
   const byName = new Map(input.preflightChecks.map((check) => [check.name, check]));
@@ -109,6 +112,16 @@ export function buildOperatorHealthReport(input: {
       label: feature.label,
       status: check.status === "fail" ? "fail" : check.status === "warn" ? "warn" : "ok",
       message: check.status === "pass" ? "Đang bật." : check.message
+    });
+  }
+
+  // 6. Bank/top-up config — customers cannot pay until a real account replaces the placeholder.
+  if (input.bankInfoMissing) {
+    rows.push({
+      key: "topup_bank",
+      label: "Tài khoản nhận tiền (nạp credits)",
+      status: "fail",
+      message: "Chưa điền số tài khoản nhận tiền THẬT — khách KHÔNG nạp được credits (mọi lượt nạp bị chặn). Điền CINEJELLY_TOPUP_BANK_INFO trong .env (hoặc Cấu hình → Thông tin chuyển khoản), viết đầy đủ ngân hàng + số TK + tên chủ TK."
     });
   }
 
