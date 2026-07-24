@@ -18,6 +18,7 @@ import type { PromptReference, ShotContract } from "../types/prompt.js";
 import type { FlexibleSeedanceSettings } from "../types/settings.js";
 import { isImageOutputUrl } from "./endpoint-frame-chain.js";
 import { resolveSeedanceDna } from "./seedance-dna.js";
+import { registerForCreativeMode, type StyleRegister } from "./register-grammar.js";
 
 // "wardrobe" is included so the OPENING frame the whole shot animates from is anchored on the
 // signature-wardrobe reference too — otherwise the seed still is generated with no outfit anchor and
@@ -566,6 +567,28 @@ function keyframePromptFor(shot: ShotContract): string {
   const identityClause = hasIdentityImage
     ? "The person(s) shown in the attached identity reference are the EXACT same individuals — reproduce their face, bone structure, hairline, skin tone, and distinguishing features precisely; do NOT beautify, smooth, re-age, restyle, or change ethnicity. Anatomy stays correct: natural hands with five fingers, no extra or fused limbs, no warped features."
     : undefined;
+  // Register-aware capture identity (research: naming the capture DEVICE beats the word "realistic";
+  // deliberate imperfection — slight asymmetry, stray hairs, off-center framing — is what makes a
+  // frame read as human-shot, not AI). The old single "unedited smartphone photo" color line was
+  // register-BLIND: right for phone-KOL, wrong for a cinematic keyframe (which should read as a
+  // cinema frame grab, not a phone snap). The keyframe sets the look of the whole downstream clip.
+  const register: StyleRegister | undefined = shot.styleDna?.register ?? registerForCreativeMode(creativeMode);
+  const captureLines = register === "natural_phone_kol"
+    ? [
+        "Capture: shot on a modern phone's camera at arm's length or casually propped — near-deep focus, slight wide perspective, tiny handheld framing error (slightly off-center, a touch of tilt).",
+        "Human imperfection (this is what makes it read as REAL): subtle natural facial asymmetry, a few stray hairs, natural un-retouched skin with visible pores, lived-in background with 2-3 believable everyday objects slightly out of place — never a staged studio set.",
+        "Color: exactly like an unedited phone photo — accurate white balance, restrained saturation, soft organic contrast; absolutely no vivid mode, no HDR halo, no beauty filter, no over-sharpening."
+      ]
+    : register === "professional_cinematic"
+      ? [
+          "Capture: a frame grab from a cinema camera — 35-85mm equivalent, shallow depth of field with a clean focal plane, motivated shaped light with accurate contact shadows.",
+          "Color: deliberate filmic grade with gentle highlight roll-off and true skin tones — cohesive palette, never over-saturated, no HDR gloss, no plastic skin; real material microtexture (skin pores, fabric weave, product surfaces).",
+          "Keep one believable human imperfection in frame (a loose hair, natural skin texture, slight fabric wrinkle) — polished, not sterile."
+        ]
+      : [
+          "Real lens optics with natural depth of field, physically accurate light and shadows, true material microtexture (skin pores, fabric weave, product surfaces).",
+          "Color: natural true-to-life color balance — accurate white balance, restrained saturation, soft organic contrast, slight ambient imperfection; no vivid mode, no HDR halo, no punchy filter, no over-sharpening."
+        ];
   return [
     `Single photoreal still frame: the OPENING frame of this shot, already mid-action with immediate visual tension (never an empty establishing frame).`,
     `Subject: ${shot.subject}.`,
@@ -574,10 +597,8 @@ function keyframePromptFor(shot: ShotContract): string {
     `Camera: ${shot.camera}. Lighting: ${shot.lighting}.`,
     shot.style ? `Style: ${shot.style}.` : undefined,
     ...dnaLines,
-    "Real lens optics with natural depth of field, physically accurate light and shadows, true material microtexture (skin pores, fabric weave, product surfaces); composition must be strong enough to hold as the first frame of a commercial video.",
-    // Color science: the frame must read as an UNEDITED smartphone capture, not an AI showcase image.
-    // Over-saturated/over-sharp keyframes poison every downstream image-to-video clip with a fake look.
-    "Color: natural true-to-life color balance exactly like an unedited smartphone photo — accurate white balance, restrained saturation, soft organic contrast, slight ambient imperfection; absolutely no vivid mode, no HDR halo, no punchy filter, no over-sharpening."
+    ...captureLines,
+    "Composition must be strong enough to hold as the first frame of a commercial video."
   ]
     .filter((line): line is string => Boolean(line))
     .join(" ");

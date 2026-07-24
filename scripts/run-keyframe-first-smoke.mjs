@@ -62,6 +62,16 @@ const first = plans[0].request;
 check("prompt_is_opening_frame", first.prompt.includes("OPENING frame") && first.prompt.includes(shots[0].subject));
 check("prompt_carries_niche_dna", first.prompt.includes("Niche DNA (beauty_skincare)"));
 check("identity_ref_passes_through", first.references.some((ref) => ref.role === "identity"));
+// Register-aware capture authenticity: a UGC shot's keyframe reads as a real phone photo WITH
+// deliberate human imperfection (research: named device + asymmetry/stray-hair beats "realistic");
+// a cinematic shot's keyframe reads as a cinema frame grab, never a phone snap; neutral stays neutral.
+check("ugc_keyframe_phone_capture_with_imperfection", first.prompt.includes("arm's length") && first.prompt.includes("stray hairs") && !first.prompt.includes("cinema camera"));
+check("neutral_keyframe_stays_neutral", plans[1].request.prompt.includes("Real lens optics") && !plans[1].request.prompt.includes("stray hairs"));
+const cinematicPlan = planKeyframeRequests({
+  shots: [{ ...shots[1], shotId: "shot_kf_cine", metadata: { shortViralCreativeMode: "cinematic" } }],
+  provider: "atlascloud", imageModelId: "seedream-smoke", settings: { ...DEFAULT_SEEDANCE_SETTINGS }
+});
+check("cinematic_keyframe_reads_as_cinema_frame", cinematicPlan[0].request.prompt.includes("frame grab from a cinema camera") && !cinematicPlan[0].request.prompt.includes("unedited phone photo"));
 check("ratio_and_seed_propagate", first.settings.ratio === "9:16" && first.settings.seed === 77);
 check("negative_prompt_blocks_artifacts", (first.negativePrompt ?? "").includes("warped hands"));
 check("metadata_marks_keyframe_first", first.metadata?.keyframeFirst === true && first.metadata?.shotId === "shot_kf_1");
