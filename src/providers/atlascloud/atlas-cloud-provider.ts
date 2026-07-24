@@ -779,8 +779,14 @@ export class AtlasCloudProvider implements ModelProvider {
           };
         }
         const uploadHandlePath = resolveUploadUriToPath(request.uri, this.settings.uploadsOutputRoot ?? "assets/output_deliverables");
+        // Only https / asset:// / upload:// are valid asset references. Falling back to readFile on a
+        // raw request.uri was a latent arbitrary-local-read foot-gun (security audit LOW-2): reject any
+        // URI that is not a sandbox-resolved upload handle instead of reading an attacker-influenced path.
+        if (!uploadHandlePath) {
+          throw new Error(`Unsupported asset reference URI: only https, asset://, and upload:// handles are accepted.`);
+        }
         const formData = new FormData();
-        const file = await readFile(uploadHandlePath ?? request.uri);
+        const file = await readFile(uploadHandlePath);
         formData.set("file", new Blob([file]), basename(request.uri));
         const response = await withRetry(
           () =>

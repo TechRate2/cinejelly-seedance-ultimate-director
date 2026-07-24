@@ -56,11 +56,6 @@ import { ProjectArtifactValidator } from "../core/project-artifact-validator.js"
 import { ProjectArtifactStore } from "../core/project-artifact-store.js";
 import { ReviewApprovalSystem } from "../core/review-approval-system.js";
 import { buildLongDirectorUiContract } from "../core/long-director-ui-contract.js";
-import {
-  mergeProductUrlSnapshots,
-  ProductUrlResearcher,
-  safeProductUrlResearchSummary
-} from "../core/product-url-researcher.js";
 import { ShortPipelineConversationEngine } from "../core/short-pipeline-conversation.js";
 import { buildShortMvpUiContract } from "../core/short-mvp-ui-contract.js";
 import { ShortPipelinePlanner } from "../core/short-pipeline-planner.js";
@@ -328,21 +323,8 @@ interface ShortPipelinePlanRequestBody extends ShortPipelinePlanInput {
   readonly settings?: CineJellyProjectRequest["settings"];
 }
 
-interface ShortPipelineProductUrlPlanRequestBody extends ShortPipelinePlanRequestBody {
-  readonly confirmLiveNetwork?: boolean;
-  readonly maxProductUrlBytes?: number;
-  readonly productResearchTimeoutMs?: number;
-}
-
 interface LongDirectorUiContractRequestBody {
   readonly longFormCreativeIntelligencePlan?: LongFormCreativeIntelligencePlan;
-}
-
-interface NormalizedShortPipelineProductUrlPlanBody {
-  readonly planInput: ShortPipelinePlanInput;
-  readonly confirmLiveNetwork: boolean;
-  readonly maxProductUrlBytes?: number;
-  readonly productResearchTimeoutMs?: number;
 }
 
 interface ShortPipelineRenderJobRequestBody {
@@ -441,6 +423,20 @@ class ShortPipelineRenderHandoffError extends Error {
   }
 }
 
+/**
+ * True when the top-up bank info is empty or STILL the unfilled template placeholder. Matches only
+ * the exact placeholder parenthetical "(dien ngan hang + so tai khoan + ten chu TK)", never the bare
+ * substrings — Vietnamese bank details are conventionally typed unaccented, so a real "So tai khoan:
+ * 0123 …" must NOT be mistaken for a placeholder (deploy audit A4). Shared by the top-up money guard
+ * and the operator health check so both agree.
+ */
+function bankInfoIsPlaceholder(bankInfo: string | undefined): boolean {
+  if (!bankInfo || !bankInfo.trim()) {
+    return true;
+  }
+  return /\(\s*dien ngan hang\s*\+\s*so tai khoan\s*\+\s*ten chu tk\s*\)/i.test(bankInfo);
+}
+
 function assertShortPipelineRenderHandoffAllowed(handoff: ShortPipelineRenderHandoff): void {
   if (!handoff.summary.canUseAsRenderJobHandoff) {
     throw new ShortPipelineRenderHandoffError(handoff.summary.releaseBlocker);
@@ -499,7 +495,6 @@ export function startServer(port = readPort(process.env.PORT)): Server {
   const artifactValidator = new ProjectArtifactValidator();
   const shortPipelinePlanner = new ShortPipelinePlanner();
   const shortPipelineConversationEngine = new ShortPipelineConversationEngine({ planner: shortPipelinePlanner });
-  const productUrlResearcher = new ProductUrlResearcher();
   const reviewApprovalSystem = new ReviewApprovalSystem();
   const shortPipelineSessionStore = shortPipelineSessionStoreConfig(process.env);
   const shortChannelStyleLibraryStore = shortChannelStyleLibraryStoreConfig(process.env);
@@ -689,6 +684,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       hasApiKey,
       databaseUnreachable: userAccountStore.hasHydrationFailed(),
       orphanedAccountCount: userAccountStore.orphanedJsonAccountCount(),
+      bankInfoMissing: bankInfoIsPlaceholder(adminSettingsStore.topupBankInfo()),
       nowIso: new Date(nowMs).toISOString()
     });
     systemHealthCache = { at: nowMs, report };
@@ -1356,7 +1352,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       if (request.method === "POST" && requestUrl.pathname === "/v1/account/topups") {
         const { userId } = requireUserPrincipal(authDecision.principal);
         const configuredBankInfo = adminSettingsStore.topupBankInfo();
-        if (!configuredBankInfo || /dien ngan hang|so tai khoan/i.test(configuredBankInfo)) {
+        if (bankInfoIsPlaceholder(configuredBankInfo)) {
           // The money path must never show a placeholder: block until the operator fills
           // the real bank account in .env (CINEJELLY_TOPUP_BANK_INFO).
           throw new UserAccountError(
@@ -3331,49 +3327,6 @@ function resolveShortChannelStyleInput(
     throw new ShortChannelStyleProfileNotFoundError();
   }
   return record.input;
-}
-
-function shortPipelineProductUrlPlanBodyFromBody(
-  body: ShortPipelineProductUrlPlanRequestBody,
-  requestId: string,
-  channelStyleStore: ShortChannelStyleLibraryStore | undefined,
-  clientScope: { readonly clientId?: string }
-): NormalizedShortPipelineProductUrlPlanBody {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw new RenderRequestAdmissionError("Short pipeline product URL plan request body must be a JSON object.");
-  }
-  const planInput = shortPipelinePlanInputFromBody({
-    projectId: body.projectId,
-    ...(body.requestId ? { requestId: body.requestId } : {}),
-    ...(body.userPrompt ? { userPrompt: body.userPrompt } : {}),
-    ...(body.product ? { product: body.product } : {}),
-    ...(body.brandKit ? { brandKit: body.brandKit } : {}),
-    ...(body.channelStyle ? { channelStyle: body.channelStyle } : {}),
-    ...(body.channelStyleProfileId ? { channelStyleProfileId: body.channelStyleProfileId } : {}),
-    ...(body.mediaReferences ? { mediaReferences: body.mediaReferences } : {}),
-    ...(body.referenceVideoLearning ? { referenceVideoLearning: body.referenceVideoLearning } : {}),
-    ...(body.preferredTemplateId ? { preferredTemplateId: body.preferredTemplateId } : {}),
-    ...(body.allowTemplateSuggestions !== undefined ? { allowTemplateSuggestions: body.allowTemplateSuggestions } : {}),
-    ...(body.targetPlatform ? { targetPlatform: body.targetPlatform } : {}),
-    ...(body.targetDurationSeconds !== undefined ? { targetDurationSeconds: body.targetDurationSeconds } : {}),
-    ...(body.visualBible ? { visualBible: body.visualBible } : {}),
-    ...(body.generatedAt ? { generatedAt: body.generatedAt } : {})
-  }, requestId, channelStyleStore, clientScope);
-  if (!planInput.product || typeof planInput.product !== "object" || Array.isArray(planInput.product)) {
-    throw new RenderRequestAdmissionError("Short pipeline product URL plan requires a product object.");
-  }
-  if (typeof planInput.product.productUrl !== "string" || !planInput.product.productUrl.trim()) {
-    throw new RenderRequestAdmissionError("Short pipeline product URL plan requires product.productUrl.");
-  }
-  const confirmLiveNetwork = optionalBoolean(body.confirmLiveNetwork, "confirmLiveNetwork") ?? false;
-  const maxProductUrlBytes = optionalPositiveInteger(body.maxProductUrlBytes, "maxProductUrlBytes");
-  const productResearchTimeoutMs = optionalPositiveInteger(body.productResearchTimeoutMs, "productResearchTimeoutMs");
-  return {
-    planInput,
-    confirmLiveNetwork,
-    ...(maxProductUrlBytes !== undefined ? { maxProductUrlBytes } : {}),
-    ...(productResearchTimeoutMs !== undefined ? { productResearchTimeoutMs } : {})
-  };
 }
 
 function shortPipelineRenderJobBodyFromBody(

@@ -49,6 +49,17 @@ async function req(method, path, body, headers = {}) {
 // ---- Settings store validation (direct) ----
 const settings = new AdminSettingsStore({ settingsPath: join(workDir, "settings-direct.json"), env: { CINEJELLY_OUTPUT_DIR: workDir } });
 check("settings_default_refund_policy_is_manual", settings.refundPolicy() === "manual");
+
+// DEFAULT-DENY INVARIANT (security audit MED-1): the /v1 auth guard only AUTHENTICATES; per-route
+// authorization lives in each handler. That is fail-open by construction — a future /v1/admin route
+// added without assertDeploymentPrincipal would be silently reachable by any paying customer. This
+// source invariant fails the suite the moment an admin route ships without its deployment guard.
+{
+  const serverSource = (await import("node:fs")).readFileSync(new URL("../src/api/server.ts", import.meta.url), "utf8");
+  const adminRouteMatches = [...serverSource.matchAll(/pathname === "(\/v1\/admin\/[^"]*)"/g)];
+  const unguarded = adminRouteMatches.filter((m) => !serverSource.slice(m.index, m.index + 1500).includes("assertDeploymentPrincipal")).map((m) => m[1]);
+  check("every_admin_route_has_deployment_guard", adminRouteMatches.length >= 10 && unguarded.length === 0, `routes=${adminRouteMatches.length}, unguarded=${unguarded.join(",")}`);
+}
 let rejectedBadPrice = false;
 try {
   settings.update({ creditsPerRenderSecond: -5 }, "test");
