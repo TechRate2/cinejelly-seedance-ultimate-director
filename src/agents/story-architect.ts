@@ -292,6 +292,15 @@ export class StoryArchitect {
    * same way coerceStoryPlan resolves the final register: explicit [style:X] tag → analyst intent →
    * creative-mode map. Available at directive-build time (before the LLM authors its own register).
    */
+  /** Trim spoken text to at most `maxWords`, cutting at a word boundary (keeps the opening). */
+  private capToWordBudget(text: string, maxWords: number): string {
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length <= maxWords) {
+      return text.trim();
+    }
+    return words.slice(0, maxWords).join(" ").replace(/[,;:—-]+$/, "").trim();
+  }
+
   private resolvedRegisterHint(intake: IntakeResult): StyleRegister | undefined {
     const explicit = explicitStyleTagRegister(intake.userInput);
     if (explicit) {
@@ -575,7 +584,12 @@ export class StoryArchitect {
     const spokenLines = beats
       .map((beat) => beat.spokenLine?.trim())
       .filter((line): line is string => Boolean(line));
-    const mergedSpokenLine = spokenLines.join(" ");
+    // A single clip physically cannot speak every beat's dialogue if they sum past what fits its
+    // runtime (cross-audit B5): ~2.8 words/second. Keep the OPENING lines (the hook + the first turn,
+    // the most important words) and trim the tail to the budget, instead of cramming an unspeakable
+    // wall of narration into a 15s clip. The uncapped join fed a 40-word-budget clip 100+ words.
+    const singleClipWordBudget = Math.max(6, Math.floor(intake.settings.durationTargetSeconds * 2.8));
+    const mergedSpokenLine = this.capToWordBudget(spokenLines.join(" "), singleClipWordBudget);
     const turns = beats
       .map((beat) => beat.emotionalTurn?.trim())
       .filter((turn): turn is string => Boolean(turn));
