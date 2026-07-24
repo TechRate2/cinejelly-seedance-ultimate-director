@@ -62,11 +62,20 @@ try {
 } catch { aborted = true; }
 check("abort_propagates", aborted);
 
+// 5b. Uploaded identity-reference kind: rule text targets upload defects (no face / multiple people /
+// blur / covered face) and the director wires it as a WARN-only pre-spend check.
+const uploadV = await new ImageAnchorVerifier(llmStub({ status: "fail", reason: "two people in frame" }), "m").verify({
+  imageUrl: "https://cdn.x/upload.jpg", kind: "identity_reference", expectation: "one sharp face"
+});
+check("identity_reference_kind_supported", uploadV.status === "fail" && uploadV.kind === "identity_reference");
+check("identity_reference_rules_target_upload_defects", calls[calls.length - 1].messages[1].content[0].text.includes("customer-UPLOADED IDENTITY REFERENCE") && calls[calls.length - 1].messages[1].content[0].text.includes("multiple people"));
+
 // 6. Director policy is wired in source (retry once; portraits KEEP on double-fail, keyframes DROP).
 const directorSrc = readFileSync(new URL("../src/agents/director-agent.ts", import.meta.url), "utf8");
 check("director_wires_verifier", directorSrc.includes("this.imageAnchorVerifier"));
 check("portrait_policy_keep_with_warning", directorSrc.includes("kept as the video's single anchor but flagged for operator review"));
 check("keyframe_policy_drop_on_double_fail", directorSrc.includes("droppedShotIds.push(entry.shotId)") && directorSrc.includes("results.splice(index, 1)"));
+check("upload_quality_check_warn_only", directorSrc.includes('kind: "identity_reference"') && directorSrc.includes("identityUploadFailedCount"));
 const factorySrc = readFileSync(new URL("../src/application/director-factory.ts", import.meta.url), "utf8");
 check("factory_wires_verifier_on_vision_model", factorySrc.includes("new ImageAnchorVerifier(atlasProvider, settings.atlasCloud.models.llmModel)"));
 

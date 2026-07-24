@@ -2046,6 +2046,39 @@ export class DirectorAgent {
       return input.shots;
     }
 
+    // Uploaded-identity QUALITY check (fidelity gap #7 completion): a blurry/multi-person/covered
+    // KOL photo poisons the entire video's face anchoring, and today it sails straight into spend.
+    // One vision look per UNIQUE uploaded identity URL (cap 4), WARN-only — it is the customer's own
+    // photo and the operator review gate sees the warning; "skipped" changes nothing (fail-open).
+    if (this.imageAnchorVerifier) {
+      const uploadedIdentityUrls = [...new Set(
+        input.shots.flatMap((shot) => shot.references)
+          .filter((reference) => reference.role === "identity")
+          .map((reference) => reference.providerReference.uri)
+          .filter((uri): uri is string => typeof uri === "string" && /^https:\/\//.test(uri))
+      )].slice(0, 4);
+      const badUploads: string[] = [];
+      for (const url of uploadedIdentityUrls) {
+        const verdict = await this.imageAnchorVerifier.verify(
+          {
+            imageUrl: url,
+            kind: "identity_reference",
+            expectation: "One clearly visible, sharp human face usable as the video's identity anchor."
+          },
+          input.signal
+        );
+        if (verdict.status === "fail") {
+          badUploads.push(verdict.reason);
+        }
+      }
+      if (badUploads.length > 0) {
+        this.reportStageProgress("render", "warn",
+          "Ảnh nhận diện (KOL) tải lên có vấn đề — mặt trong video có thể không giống hoặc bị trôi. Nên thay bằng 1 ảnh chân dung rõ nét, một người, nhìn thẳng. / Uploaded identity photo issue: " + badUploads.join("; "),
+          { identityUploadCheckedCount: uploadedIdentityUrls.length, identityUploadFailedCount: badUploads.length }
+        );
+      }
+    }
+
     // Character-anchor pass (final-audit gap #2): generate ONE shared portrait per recurring invented
     // character with no uploaded face, then attach it as an identity reference on that character's
     // shots BEFORE per-shot keyframes, so every keyframe and the video model share one canonical face

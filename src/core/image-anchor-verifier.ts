@@ -17,7 +17,7 @@ import type { LlmProvider } from "../providers/contracts.js";
 export interface ImageAnchorCheckInput {
   /** HTTPS URL of the generated image to verify (Atlas asset URL). */
   readonly imageUrl: string;
-  readonly kind: "character_portrait" | "shot_keyframe";
+  readonly kind: "character_portrait" | "shot_keyframe" | "identity_reference";
   /** What the image MUST show — cast appearance sheet or the shot's subject/identity brief. */
   readonly expectation: string;
   /** Uploaded/canonical identity images the anchor must show the SAME person as, when any. */
@@ -65,7 +65,9 @@ export class ImageAnchorVerifier {
     const rules = [
       input.kind === "character_portrait"
         ? "This is a CHARACTER ANCHOR PORTRAIT: exactly one person, face clearly visible and sharp, matching the locked appearance sheet below."
-        : "This is a SHOT KEYFRAME: the frame the video will start from; the subject and any named person/product must match the expectation below.",
+        : input.kind === "identity_reference"
+          ? "This is a customer-UPLOADED IDENTITY REFERENCE photo that will lock a person's face across a whole video. It must contain exactly ONE clearly visible, reasonably sharp human face (front or near-front). FAIL on: no visible face, multiple people, a face too small/blurry to anchor identity, heavy beauty-filter distortion, or the face mostly covered (mask/sunglasses/hair)."
+          : "This is a SHOT KEYFRAME: the frame the video will start from; the subject and any named person/product must match the expectation below.",
       identityUrls.length > 0
         ? "The FIRST image is the generated anchor; every FOLLOWING image is a canonical identity reference — the generated anchor must show the SAME person (face structure, features), or fail."
         : undefined,
