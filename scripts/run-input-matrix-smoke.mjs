@@ -397,7 +397,10 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
     action: "wipes the spill", camera: "handheld", lighting: "soft", references: [], continuity: {}, risks: [], metadata: {} };
   const kf = planKeyframeRequests({ shots: [kfShot], provider: "atlascloud", imageModelId: "m",
     settings: { tier: "fast", resolution: "720p", qualityMode: "economy", ratio: "9:16", durationTargetSeconds: 6, audioMode: "native", bitrateMode: "standard", watermark: false, returnLastFrame: true } })[0];
-  check("keyframe prompt: anti-saturation color directive present", kf.request.prompt.includes("unedited smartphone photo"), "");
+  // Register-aware since the capture-authenticity upgrade: a NEUTRAL (no-register) shot gets the
+  // neutral anti-saturation wording; the "unedited phone photo" phrasing now belongs to the
+  // natural_phone_kol register only (asserted in run-keyframe-first-smoke).
+  check("keyframe prompt: anti-saturation color directive present", kf.request.prompt.includes("restrained saturation") && kf.request.prompt.includes("no vivid mode"), "");
   check("keyframe negative: blocks oversaturation/HDR", kf.request.negativePrompt.includes("no oversaturated colors"), "");
 
   const settings = settingsFor(24, "economy");
