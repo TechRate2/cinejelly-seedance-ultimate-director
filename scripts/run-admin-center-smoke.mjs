@@ -101,6 +101,13 @@ check("settings_reject_bad_refund_policy", rejectedBadPolicy);
 settings.update({ refundPolicy: "manual" }, "test");
 check("settings_audit_trail_records", settings.snapshot().auditTrail.length >= 1);
 
+// pipelineCost markup is now UI-editable (admin audit B1: was .env-only) — persists + applies + validates.
+settings.update({ pipelineCost: { overheadMultiplier: 1.5, minimumChargeCredits: 50 } }, "test");
+check("pipeline_cost_markup_persists_and_applies", settings.pipelineCost().overheadMultiplier === 1.5 && settings.pipelineCost().minimumChargeCredits === 50 && settings.snapshot().pipelineCost.overheadMultiplier === 1.5);
+let rejectedBadOverhead = false;
+try { settings.update({ pipelineCost: { overheadMultiplier: 0.5 } }, "test"); } catch { rejectedBadOverhead = true; }
+check("pipeline_cost_rejects_below_cost_markup", rejectedBadOverhead && settings.pipelineCost().overheadMultiplier === 1.5);
+
 // ---- Model overrides MERGE, never wipe (data-loss guard) ----
 // Enable Sub/Dub by setting only the speech model (as the Model tab / a direct API PUT does).
 settings.update({ models: { speechModel: "openai/whisper-large-v3" } }, "test");

@@ -141,8 +141,16 @@ export function buildOperatorTopupPage(): string {
       </div>
     </div>
     <div class="card">
+      <strong>💰 Giá bán video (markup lời)</strong>
+      <div class="muted">GIÁ VIDEO = chi phí gốc × hệ số này. 1 = bán đúng giá gốc (không lời), 1.5 = cộng 50% lời, 2 = gấp đôi. Đây là cách chỉnh LỜI dễ nhất — đổi ngay, không cần sửa file/khởi động lại.</div>
+      <div class="row">
+        <input id="set-overhead-multiplier" type="number" step="0.05" min="1" max="50" placeholder="Hệ số giá (vd 1.5)">
+        <input id="set-min-charge-credits" type="number" step="1" min="0" placeholder="Giá tối thiểu / video (credits)">
+      </div>
+    </div>
+    <div class="card">
       <strong>💵 Giá redub / giá cũ (credits/giây)</strong>
-      <div class="muted">Áp cho DỊCH/LỒNG TIẾNG (redub) và chế độ giá theo-giây cũ. LƯU Ý: khi bật giá pipeline (mặc định hiện tại), GIÁ VIDEO do chi phí pipeline thật quyết định — đặt trong .env (CINEJELLY_VIDEO_COST_USD_PER_SECOND_*, PIPELINE_OVERHEAD_MULTIPLIER, CREDIT_COST_BASIS_USD) rồi khởi động lại; sửa ô này KHÔNG đổi giá video.</div>
+      <div class="muted">Áp cho DỊCH/LỒNG TIẾNG (redub) và chế độ giá theo-giây cũ. Chi tiết chi phí gốc theo tier vẫn đặt trong .env (CINEJELLY_VIDEO_COST_USD_PER_SECOND_*); ô này KHÔNG đổi giá video (dùng ô "markup lời" ở trên).</div>
       <div class="row"><input id="set-credits-per-second" type="number" step="0.1" placeholder="credits / giây"></div>
       <div class="muted" style="margin-top:10px">Tỉ giá USD → VND (giá gói tính theo USD; số tiền khách chuyển = USD × tỉ giá):</div>
       <div class="row"><input id="set-usd-to-vnd" type="number" step="100" placeholder="ví dụ 27000"></div>
@@ -446,6 +454,9 @@ export function buildOperatorTopupPage(): string {
       document.getElementById("set-refund-policy").value = currentSettings.refundPolicy;
       document.getElementById("set-credits-per-second").value = currentSettings.pricing.creditsPerRenderSecond;
       document.getElementById("set-usd-to-vnd").value = currentSettings.usdToVnd || 27000;
+      var pc = currentSettings.pipelineCost || {};
+      if (pc.overheadMultiplier !== undefined) { document.getElementById("set-overhead-multiplier").value = pc.overheadMultiplier; }
+      if (pc.minimumChargeCredits !== undefined) { document.getElementById("set-min-charge-credits").value = pc.minimumChargeCredits; }
       var mult = currentSettings.pricing.qualityMultipliers || {};
       ["draft", "standard", "high", "ultimate"].forEach(function (q) {
         var el = document.getElementById("mult-" + q);
@@ -643,11 +654,17 @@ export function buildOperatorTopupPage(): string {
         if (v !== "") { multipliers[q] = Number(v); }
       });
       var images = document.getElementById("studio-images").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      var overheadVal = document.getElementById("set-overhead-multiplier").value;
+      var minChargeVal = document.getElementById("set-min-charge-credits").value;
+      var pipelineCost = {};
+      if (overheadVal !== "") { pipelineCost.overheadMultiplier = Number(overheadVal); }
+      if (minChargeVal !== "") { pipelineCost.minimumChargeCredits = Number(minChargeVal); }
       var patch = {
         refundPolicy: document.getElementById("set-refund-policy").value,
         creditsPerRenderSecond: Number(document.getElementById("set-credits-per-second").value),
         usdToVnd: Number(document.getElementById("set-usd-to-vnd").value),
         qualityMultipliers: multipliers,
+        ...(Object.keys(pipelineCost).length ? { pipelineCost: pipelineCost } : {}),
         packages: packages,
         topupBankInfo: document.getElementById("set-bank-info").value.trim(),
         models: {

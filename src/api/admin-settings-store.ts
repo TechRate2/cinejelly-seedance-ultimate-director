@@ -216,6 +216,7 @@ export class AdminSettingsStore {
     readonly topupBankInfo: string;
     readonly models: AdminModelOverrides;
     readonly studio: AdminStudioContent;
+    readonly pipelineCost: PipelineCostConfig;
     readonly auditTrail: readonly { at: string; action: string; detail: string }[];
   } {
     return {
@@ -226,6 +227,7 @@ export class AdminSettingsStore {
       topupBankInfo: this.topupBankInfo(),
       models: this.models(),
       studio: this.studio(),
+      pipelineCost: this.pipelineCost(),
       auditTrail: this.state.auditTrail.slice(-30).reverse()
     };
   }
@@ -326,6 +328,16 @@ export class AdminSettingsStore {
       changes.push("studio=đã cập nhật");
     }
 
+    if (patch.pipelineCost !== undefined) {
+      // The CORE video price knob was previously .env-only (admin audit B1): the field existed in the
+      // patch type but had no apply branch, so a non-technical owner could not retune their margin from
+      // the panel. Now the overhead/markup multiplier and minimum-charge floor are UI-editable and
+      // live-applied. MERGE so a partial patch keeps the other cost fields.
+      const override = this.validatedPipelineCost(patch.pipelineCost);
+      this.state.pipelineCost = { ...this.state.pipelineCost, ...override };
+      changes.push(`pipelineCost=${JSON.stringify(this.state.pipelineCost)}`);
+    }
+
     if (changes.length === 0) {
       throw new UserAccountError("Không có thay đổi hợp lệ nào trong yêu cầu.", 400);
     }
@@ -338,6 +350,30 @@ export class AdminSettingsStore {
       this.state.auditTrail.splice(0, this.state.auditTrail.length - MAX_AUDIT_ENTRIES);
     }
     this.persist();
+  }
+
+  private validatedPipelineCost(value: unknown): PipelineCostOverride {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new UserAccountError("pipelineCost phải là object.", 400);
+    }
+    const record = value as Record<string, unknown>;
+    const result: PipelineCostOverride = {};
+    if (record.overheadMultiplier !== undefined && record.overheadMultiplier !== "") {
+      const overhead = Number(record.overheadMultiplier);
+      // 1 = bán đúng giá gốc (không lời); >1 = có markup. Chặn 1..50 để không lỡ tay đặt lỗ hoặc quá cao.
+      if (!Number.isFinite(overhead) || overhead < 1 || overhead > 50) {
+        throw new UserAccountError("Hệ số giá (markup) phải từ 1 đến 50 (1 = giá gốc, 2 = gấp đôi).", 400);
+      }
+      result.overheadMultiplier = Math.round(overhead * 100) / 100;
+    }
+    if (record.minimumChargeCredits !== undefined && record.minimumChargeCredits !== "") {
+      const minCredits = Number(record.minimumChargeCredits);
+      if (!Number.isFinite(minCredits) || minCredits < 0 || minCredits > 100000) {
+        throw new UserAccountError("Giá tối thiểu mỗi video (credits) phải từ 0 đến 100000.", 400);
+      }
+      result.minimumChargeCredits = Math.round(minCredits);
+    }
+    return result;
   }
 
   private validatedMultipliers(value: unknown): Record<string, number> {
