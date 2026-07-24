@@ -76,8 +76,8 @@ function printHelp() {
   console.log(`Run CineJelly's local no-spend validation smoke.
 
 Usage:
-  npm.cmd run validation:local-smoke
-  npm.cmd run validation:local-smoke -- --request assets/output_deliverables/phase6-validation/request.json
+  npm run validation:local-smoke
+  npm run validation:local-smoke -- --request assets/output_deliverables/phase6-validation/request.json
 
 Options:
   --request <path>       Request path to create and validate. Default: ${defaultRequestPath}
@@ -339,8 +339,8 @@ async function main() {
     },
     nextActions: [
       "Run or reuse paid Atlas validation only after explicit operator approval.",
-      `Run npm.cmd run validation:paid-render -- --request <request-json> --confirm-paid-spend --atlas-billing-report ${defaultAtlasBillingReportPath} only for the approved paid validation request.`,
-      "Run npm.cmd run validate:artifacts -- <artifact-directory> after artifacts are written.",
+      `Run npm run validation:paid-render -- --request <request-json> --confirm-paid-spend --atlas-billing-report ${defaultAtlasBillingReportPath} only for the approved paid validation request.`,
+      "Run npm run validate:artifacts -- <artifact-directory> after artifacts are written.",
       "Complete manual artifact, video, and redaction review before customer traffic."
     ]
   };

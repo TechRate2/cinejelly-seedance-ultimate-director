@@ -227,8 +227,42 @@ function printSummary(values, mediaResults, capabilityStatus) {
   if (missingRequired.includes("ATLASCLOUD_API_KEY")) {
     console.log("Next: open .env and add your Atlas Cloud API key.");
   }
-  console.log(runningDoctor ? "Next: doctor will continue with no-spend validation." : "Then run: npm.cmd run doctor");
+  console.log(runningDoctor ? "Next: doctor will continue with no-spend validation." : "Then run: npm run doctor");
   console.log("Before customer release, verify model IDs and capability JSON against the current Atlas catalog.");
+}
+
+/**
+ * Write the env WITHOUT destroying an existing owner-annotated .env (deploy audit A3): doctor runs
+ * this on every invocation, and regenerating the file stripped every Vietnamese annotation, the Neon
+ * how-to, and every commented-out option — the exact file a non-coder was taught to edit. So when a
+ * .env already exists, PRESERVE it byte-for-byte and only APPEND keys it does not already define
+ * (detected ffmpeg/ffprobe paths, capability JSON). Only a first-time run (no .env) generates fresh.
+ */
+function writeEnv(values) {
+  if (!existsSync(envPath)) {
+    writeFileSync(envPath, renderEnv(values), { encoding: "utf8" });
+    return;
+  }
+  const original = readFileSync(envPath, "utf8");
+  const definedKeys = new Set(
+    original
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#") && line.includes("="))
+      .map((line) => line.slice(0, line.indexOf("=")).trim())
+  );
+  const additions = [...values.keys()].filter((key) => !definedKeys.has(key) && values.get(key)?.trim());
+  if (additions.length === 0) {
+    return; // Nothing new — leave the owner's file completely untouched.
+  }
+  const appended = [
+    original.replace(/\s*$/, "\n"),
+    "",
+    "# ---- Added by setup:local (detected values; your edits above are preserved) ----",
+    ...additions.map((key) => `${key}=${values.get(key)}`),
+    ""
+  ].join("\n");
+  writeFileSync(envPath, appended, { encoding: "utf8" });
 }
 
 const values = readEnvFile();
@@ -239,5 +273,5 @@ const mediaResults = [
   await fillMediaTool(values, "CINEJELLY_FFMPEG_PATH", "ffmpeg"),
   await fillMediaTool(values, "CINEJELLY_FFPROBE_PATH", "ffprobe")
 ];
-writeFileSync(envPath, renderEnv(values), { encoding: "utf8" });
+writeEnv(values);
 printSummary(values, mediaResults, capabilityStatus);

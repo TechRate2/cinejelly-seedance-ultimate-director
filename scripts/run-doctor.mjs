@@ -147,6 +147,6 @@ async function main() {
 
 main().catch((error) => {
   console.error(`\n[doctor] FAIL: ${error instanceof Error ? error.message : String(error)}`);
-  console.error("[doctor] Next: fix the reported setup/preflight issue, then rerun npm.cmd run doctor.");
+  console.error("[doctor] Next: fix the reported setup/preflight issue, then rerun npm run doctor.");
   process.exitCode = 1;
 });
