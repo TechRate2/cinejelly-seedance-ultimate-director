@@ -437,10 +437,21 @@ function bankInfoIsPlaceholder(bankInfo: string | undefined): boolean {
   return /\(\s*dien ngan hang\s*\+\s*so tai khoan\s*\+\s*ten chu tk\s*\)/i.test(bankInfo);
 }
 
-function assertShortPipelineRenderHandoffAllowed(handoff: ShortPipelineRenderHandoff): void {
-  if (!handoff.summary.canUseAsRenderJobHandoff) {
-    throw new ShortPipelineRenderHandoffError(handoff.summary.releaseBlocker);
+function assertShortPipelineRenderHandoffAllowed(
+  handoff: ShortPipelineRenderHandoff,
+  options: { readonly allowSelfGeneratedVisualBible?: boolean } = {}
+): void {
+  if (handoff.summary.canUseAsRenderJobHandoff) {
+    return;
   }
+  // Self-serve customer render: when the ONLY blocker is the visual-bible asset gate, proceed — the
+  // director's keyframe-first stage generates the character portraits + keyframes during render, so a
+  // customer picking Long/UGC/≥60s no longer dead-ends at the final click. A genuine plan block
+  // (unsafe/conflicting evidence) still stops render (blockedOnlyByVisualBibleAssets is false there).
+  if (options.allowSelfGeneratedVisualBible && handoff.summary.blockedOnlyByVisualBibleAssets) {
+    return;
+  }
+  throw new ShortPipelineRenderHandoffError(handoff.summary.releaseBlocker);
 }
 
 class ShortPipelineSessionStoreUnavailableError extends Error {
@@ -964,7 +975,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(handoffBody.captionPreference ? { captionPreference: handoffBody.captionPreference } : {}),
           ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
-        assertShortPipelineRenderHandoffAllowed(handoff);
+        assertShortPipelineRenderHandoffAllowed(handoff, { allowSelfGeneratedVisualBible: true });
         requestAdmission.assertAcceptable(handoff.request);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest
@@ -1156,7 +1167,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           ...(handoffBody.captionPreference ? { captionPreference: handoffBody.captionPreference } : {}),
           ...(handoffBody.audio ? { audio: handoffBody.audio } : {})
         });
-        assertShortPipelineRenderHandoffAllowed(handoff);
+        assertShortPipelineRenderHandoffAllowed(handoff, { allowSelfGeneratedVisualBible: true });
         requestAdmission.assertAcceptable(handoff.request);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;

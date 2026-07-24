@@ -239,15 +239,22 @@ try {
       !unsafeApproved.body.workspaceBillingReservation
       ? pass("unsafe_review_blocks_session_handoff", "Unsafe approved-looking review evidence is blocked and does not reserve spend.")
       : fail("unsafe_review_blocks_session_handoff", "Expected unsafe review evidence to create a blocked job without spend reservation."),
+    // SELF-SERVE self-generation (customer-journey blocker #1 fix): a customer picking a visual-bible
+    // mode (Long / UGC / >=60s) must NOT dead-end — the render proceeds and the director's keyframe
+    // stage self-generates the portraits/keyframes. So a visual-bible-gated session/direct render now
+    // CREATES a job (not a 422 "assets not approved" wall). The no-spend planning contract still
+    // reports canUseAsRenderJobHandoff=false (unchanged; asserted in run-short-pipeline-smoke).
     visualBibleSession.statusCode === 201 &&
-      visualBibleSessionRender.statusCode === 422 &&
-      String(visualBibleSessionRender.body.error ?? "").includes("Visual Bible/reference assets")
-      ? pass("session_visual_bible_asset_gate_blocks_job_creation", "Stored sessions that require Visual Bible/reference assets cannot create render jobs before those assets are approved.")
-      : fail("session_visual_bible_asset_gate_blocks_job_creation", "Expected Visual Bible-gated stored session render handoff to return 422 before job creation."),
-    visualBibleDirectRender.statusCode === 422 &&
-      String(visualBibleDirectRender.body.error ?? "").includes("Visual Bible/reference assets")
-      ? pass("direct_visual_bible_asset_gate_blocks_job_creation", "Direct short render-job API also enforces the Visual Bible asset gate before creating a render job.")
-      : fail("direct_visual_bible_asset_gate_blocks_job_creation", "Expected direct Visual Bible-gated render handoff to return 422 before job creation."),
+      visualBibleSessionRender.statusCode === 202 &&
+      Boolean(visualBibleSessionRender.body.jobId) &&
+      !String(visualBibleSessionRender.body.error ?? "").includes("Visual Bible/reference assets")
+      ? pass("session_visual_bible_self_serve_render_proceeds", "A visual-bible-gated stored session render now creates a job (keyframe stage self-generates the assets) instead of dead-ending the customer.")
+      : fail("session_visual_bible_self_serve_render_proceeds", `Expected visual-bible session render to create a job, got ${visualBibleSessionRender.statusCode} ${JSON.stringify(visualBibleSessionRender.body).slice(0,160)}.`),
+    visualBibleDirectRender.statusCode === 202 &&
+      Boolean(visualBibleDirectRender.body.jobId) &&
+      !String(visualBibleDirectRender.body.error ?? "").includes("Visual Bible/reference assets")
+      ? pass("direct_visual_bible_self_serve_render_proceeds", "The direct short render-job API also proceeds for a visual-bible mode (self-generating assets), no customer dead-end.")
+      : fail("direct_visual_bible_self_serve_render_proceeds", `Expected direct visual-bible render to create a job, got ${visualBibleDirectRender.statusCode} ${JSON.stringify(visualBibleDirectRender.body).slice(0,160)}.`),
     clientBSubmit.statusCode === 404
       ? pass("client_scope_prevents_cross_session_render", "A different client key cannot render from another client's stored session.")
       : fail("client_scope_prevents_cross_session_render", "Expected client B render-from-session to return 404."),

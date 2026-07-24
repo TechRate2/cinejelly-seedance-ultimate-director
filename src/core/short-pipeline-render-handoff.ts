@@ -67,6 +67,14 @@ export interface ShortPipelineRenderHandoff {
     readonly captionCueCount: number;
     readonly generatedAudioIntentCount: number;
     readonly canUseAsRenderJobHandoff: boolean;
+    /**
+     * True when the plan is render-ready in every respect EXCEPT the visual-bible asset gate — i.e.
+     * the ONLY thing stopping the handoff is "reference/bible assets not pre-approved". The self-serve
+     * customer render path may proceed on this because the director's keyframe-first stage generates
+     * those portraits/keyframes DURING render; the advanced operator workflow still treats it as a
+     * block. A genuine plan block (unsafe/conflicting evidence) is NOT this and always stops render.
+     */
+    readonly blockedOnlyByVisualBibleAssets: boolean;
     readonly canReleaseToCustomerTraffic: false;
     readonly releaseBlocker: string;
   };
@@ -136,9 +144,11 @@ const SHORT_RENDER_METADATA_PRIORITY_KEYS = [
 export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandoffInput): ShortPipelineRenderHandoff {
   const plan = input.plan;
   const visualBibleBlocksRender = plan.visualBiblePlan.releaseGateSummary.blocksRenderUntilAssetsApproved;
-  const canUseAsRenderJobHandoff = plan.status !== "blocked" &&
-    plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence &&
-    !visualBibleBlocksRender;
+  const renderReadyExceptVisualBible = plan.status !== "blocked" &&
+    plan.releaseGateSummary.canUseAsNoSpendPlanningEvidence;
+  const canUseAsRenderJobHandoff = renderReadyExceptVisualBible && !visualBibleBlocksRender;
+  // Render-ready in every respect except the (self-generatable) visual-bible asset gate.
+  const blockedOnlyByVisualBibleAssets = renderReadyExceptVisualBible && visualBibleBlocksRender;
   const visualTextPolicy = plan.visualTextPolicy ?? defaultVisualTextPolicy();
   const audioPolicy = resolveAudioPolicy(input.audio, plan.audioPolicy ?? defaultAudioPolicyForPlan(plan));
   const captionCues: readonly CaptionCue[] =
@@ -301,6 +311,7 @@ export function buildShortPipelineRenderHandoff(input: ShortPipelineRenderHandof
       captionCueCount: captionCues.length,
       generatedAudioIntentCount: generatedAudioIntents.length,
       canUseAsRenderJobHandoff,
+      blockedOnlyByVisualBibleAssets,
       canReleaseToCustomerTraffic: false,
       releaseBlocker: canUseAsRenderJobHandoff
         ? "Short-pipeline handoff can create an async render job, but customer traffic still requires render success, artifact validation, manual media review, deployment evidence, and business-readiness approval."
