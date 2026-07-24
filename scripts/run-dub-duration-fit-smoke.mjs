@@ -103,6 +103,31 @@ const legacy = await new RedubExecutor().execute({
 });
 check("no_prober_no_fit_legacy_path", legacy.durationFit === undefined && legacyMixInput.materializedTrackPaths === undefined && legacyMixInput.tracks.every((t) => t.tempo === undefined));
 
+// ---- Generated-audio narration tempo-fit (MPT-invariant completion): a fittable overrun is
+// tempo-fitted with a WARN instead of hard-rejected; beyond the natural cap still blocks. ----
+const { GeneratedAudioOutputValidator } = await import("../dist/core/generated-audio-output-validator.js");
+const gaValidator = new GeneratedAudioOutputValidator();
+const gaCase = (measuredSeconds) => ({
+  intent: { intentId: "n1", kind: "tts_narration", prompt: "x", volume: 1, startSecond: 2 },
+  plannedItem: {
+    intentId: "n1", kind: "tts_narration", provider: "atlascloud", modelId: "tts-m",
+    request: { provider: "atlascloud", modelId: "tts-m", prompt: "x", settings: { durationSeconds: 8, outputFormat: "mp3" } }
+  },
+  result: {
+    intentId: "n1", kind: "tts_narration", provider: "atlascloud", modelId: "tts-m",
+    status: "succeeded", outputUrl: "https://cdn.x/n1.mp3", durationSeconds: measuredSeconds, raw: {}
+  }
+});
+const fitted = gaValidator.validate(gaCase(9.6)); // 1.2x -> fit
+check("narration_overrun_tempo_fitted_not_rejected",
+  fitted.status === "approved" && fitted.tempoFit?.ratio === 1.2 && fitted.audioTrack?.tempo === 1.2,
+  JSON.stringify({ status: fitted.status, tempoFit: fitted.tempoFit, tempo: fitted.audioTrack?.tempo }));
+const chipmunk = gaValidator.validate(gaCase(12.5)); // ~1.56x -> beyond cap
+check("narration_extreme_overrun_still_blocks",
+  chipmunk.status === "rejected" && chipmunk.issues.some((i) => i.code === "duration_exceeds_plan"), JSON.stringify(chipmunk.issues.map((i) => i.code)));
+const exact = gaValidator.validate(gaCase(8.4)); // within 1s tolerance -> untouched
+check("narration_within_tolerance_untouched", exact.status === "approved" && exact.audioTrack?.tempo === undefined);
+
 // ---- Mix-engine filtergraph: atempo sits between volume and adelay (content scaled, placement not) ----
 import { readFileSync } from "node:fs";
 check("engine_applies_atempo_before_adelay", /volume=\$\{[^}]+\}\$\{tempoFilter\}\$\{delay\}/.test(readFileSync(new URL("../src/core/audio-mix-engine.ts", import.meta.url), "utf8")));

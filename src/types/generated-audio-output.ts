@@ -46,6 +46,16 @@ export interface GeneratedAudioOutputValidationReport {
   readonly assetResolution?: GeneratedAudioAssetResolutionReport;
   readonly issueCount: number;
   readonly issues: readonly GeneratedAudioOutputValidationIssue[];
+  /**
+   * Present when the audio ran longer than planned but within the natural atempo cap: the track is
+   * tempo-fitted at mix time instead of rejected (the MoneyPrinterTurbo accommodate-don't-clip
+   * invariant, adapted to a fixed-length video). Transparency without flipping status.
+   */
+  readonly tempoFit?: {
+    readonly ratio: number;
+    readonly measuredSeconds: number;
+    readonly plannedSeconds: number;
+  };
   readonly audioTrack?: AudioMixTrack;
 }
 
