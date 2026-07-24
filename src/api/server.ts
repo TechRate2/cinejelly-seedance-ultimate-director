@@ -979,6 +979,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         assertShortPipelineRenderHandoffAllowed(handoff, { allowSelfGeneratedVisualBible: true });
         requestAdmission.assertAcceptable(handoff.request);
         await assertRenderDiskAvailable(process.env);
+        assertUserRenderConcurrency(jobManager, authDecision.principal);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest
           ? createRequestFingerprint({ sessionId: record.sessionId, body })
@@ -1172,6 +1173,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         assertShortPipelineRenderHandoffAllowed(handoff, { allowSelfGeneratedVisualBible: true });
         requestAdmission.assertAcceptable(handoff.request);
         await assertRenderDiskAvailable(process.env);
+        assertUserRenderConcurrency(jobManager, authDecision.principal);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
         const normalizedRequest = normalizeRenderRequest(handoff.request, {
@@ -3974,6 +3976,37 @@ async function uploadsDirectoryUsage(dir: string): Promise<{ readonly totalBytes
     }
   }
   return { totalBytes, fileCount };
+}
+
+/** Max renders one customer can have in flight at once, so a single funded user can't starve the
+ *  global queue (pipeline audit B1 fairness gap). Configurable; 0/unset falls back to a safe default. */
+const MAX_CONCURRENT_RENDERS_PER_USER = (() => {
+  const raw = Number.parseInt((process.env.CINEJELLY_MAX_CONCURRENT_RENDERS_PER_USER ?? "").trim(), 10);
+  return Number.isSafeInteger(raw) && raw > 0 ? raw : 3;
+})();
+const RENDER_IN_FLIGHT_STATUSES = new Set([
+  "queued", "running", "paused_for_review", "paused_for_operator", "paused_for_revision", "blocked"
+]);
+
+/** Refuse a NEW customer render (before charge) when the user already has the max in flight. */
+function assertUserRenderConcurrency(
+  manager: RenderJobManager,
+  principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]
+): void {
+  if (principal?.kind !== "user") {
+    return; // Operator/client paths keep the global-only limit.
+  }
+  const filter = clientFilter(principal);
+  if (!filter.clientId) {
+    return;
+  }
+  const inFlight = manager.list(filter).filter((job) => RENDER_IN_FLIGHT_STATUSES.has(job.status)).length;
+  if (inFlight >= MAX_CONCURRENT_RENDERS_PER_USER) {
+    throw new UserAccountError(
+      `Bạn đang có ${inFlight} video đang xử lý (tối đa ${MAX_CONCURRENT_RENDERS_PER_USER} cùng lúc). Đợi một video xong rồi tạo tiếp nhé — bạn KHÔNG bị trừ tiền cho yêu cầu này.`,
+      429
+    );
+  }
 }
 
 function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]): { readonly clientId?: string } {
