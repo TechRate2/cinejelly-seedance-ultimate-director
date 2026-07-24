@@ -178,6 +178,7 @@ export class StoryArchitect {
     // proven Seedance prompt corpus) plus cross-family mastery rules become part of the
     // planning instruction, so scripts are born with the winning hook/beats/audio/reference
     // strategy for their niche instead of a generic arc.
+    const registerHint = this.resolvedRegisterHint(intake);
     const playbookDirective = nichePlaybookDirective({
       // Feed the KNOWN metadata niche key FIRST so a fixed family (e.g. beauty_skincare ->
       // commercial_product) still matches its proven playbook; the analyst's free-text niche is only
@@ -189,7 +190,10 @@ export class StoryArchitect {
       ...(intake.metadata?.shortViralCreativeMode ?? intake.metadata?.creativeMode
         ? { creativeMode: (intake.metadata.shortViralCreativeMode ?? intake.metadata.creativeMode) as string }
         : {}),
-      ...(intake.creativeIntent ? { creativeIntent: intake.creativeIntent } : {})
+      ...(intake.creativeIntent ? { creativeIntent: intake.creativeIntent } : {}),
+      // The RESOLVED register so the playbook can't contradict it (cross-audit A1): an explicit
+      // [style:X] tag or the analyst's register wins, else derive it from the creative mode.
+      ...(registerHint ? { register: registerHint } : {})
     });
     // One predicate drives BOTH the script-first directive and its precedence override so the
     // pair can never drift apart (they are meaningless without each other).
@@ -281,6 +285,25 @@ export class StoryArchitect {
     );
 
     return this.coerceStoryPlan(response.value, intake);
+  }
+
+  /**
+   * The register used to keep the niche playbook from contradicting it (cross-audit A1), computed the
+   * same way coerceStoryPlan resolves the final register: explicit [style:X] tag → analyst intent →
+   * creative-mode map. Available at directive-build time (before the LLM authors its own register).
+   */
+  private resolvedRegisterHint(intake: IntakeResult): StyleRegister | undefined {
+    const explicit = explicitStyleTagRegister(intake.userInput);
+    if (explicit) {
+      return explicit;
+    }
+    if (intake.creativeIntent?.register && isStyleRegister(intake.creativeIntent.register)) {
+      return intake.creativeIntent.register;
+    }
+    const creativeMode = typeof intake.metadata?.shortViralCreativeMode === "string"
+      ? intake.metadata.shortViralCreativeMode
+      : typeof intake.metadata?.creativeMode === "string" ? intake.metadata.creativeMode : undefined;
+    return registerForCreativeMode(creativeMode);
   }
 
   private coerceStoryPlan(value: StoryPlanJson, intake: IntakeResult): StoryPlan {

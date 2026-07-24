@@ -443,14 +443,29 @@ export function nichePlaybookDirective(input: {
   readonly niche?: string;
   readonly creativeMode?: string;
   readonly creativeIntent?: Parameters<typeof composeCustomPlaybook>[0];
+  /** The RESOLVED style register — makes playbook selection register-aware (cross-audit A1). */
+  readonly register?: "professional_cinematic" | "natural_phone_kol";
 }): string {
   const match = resolveNichePlaybookMatch(input);
   // Unknown niche + an analyst intent → tailor a custom playbook instead of the generic grounded
   // one, so open/rare niches still get a specific formula (#3 smart-niche upgrade).
-  const playbook = !match.matched && input.creativeIntent
+  const nicheFirstPlaybook = !match.matched && input.creativeIntent
     ? composeCustomPlaybook(input.creativeIntent)
     : match.playbook;
-  const beat = resolveNicheBeatProfile(input);
+  const nicheFirstBeat = resolveNicheBeatProfile(input);
+  // REGISTER-AWARE OVERRIDE (cross-audit A1): niche-first resolution hands a skincare/food/fashion
+  // REVIEW (creativeMode → natural_phone_kol) a cinematic/scored niche family (commercial_product,
+  // food_asmr, sports_fitness…) whose formula — orbits, macro rack focus, a BGM beat-sync bed — flatly
+  // contradicts the phone-KOL register the SAME brief resolves ("NO cinematic bokeh, in-camera sound,
+  // NO scored music"). When the register is phone-KOL but the resolved family wants a music bed, use
+  // the authentic phone-KOL playbook instead (the niche's texture still comes from niche-DNA in the
+  // compiler). Families that are already phone-compatible (ugc_pov_authentic, deadpan comedy — no
+  // music bed) are kept. The cinematic register keeps the niche-first family unchanged.
+  const registerContradictsMusic = input.register === "natural_phone_kol" && nicheFirstBeat.scoresToMusic;
+  const playbook = registerContradictsMusic ? (PLAYBOOKS["ugc_pov_authentic"] as NichePlaybook) : nicheFirstPlaybook;
+  const beat = registerContradictsMusic
+    ? (BEAT_PROFILE_BY_FAMILY["ugc_pov_authentic"] as NicheBeatProfile)
+    : nicheFirstBeat;
   const lines = [
     `NICHE PLAYBOOK (${playbook.family}) — script to this family's proven formula:`,
     `Hook (pick ONE and commit): ${playbook.hookFormulas.join(" | ")}.`,

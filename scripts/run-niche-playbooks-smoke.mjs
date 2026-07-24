@@ -86,6 +86,18 @@ for (const { input } of REPRESENTATIVE) {
   }
 }
 check("directives_compact_and_structured", oversized.length === 0, oversized.join(", "));
+
+// --- 3b. REGISTER-AWARE playbook (cross-audit A1): a skincare/food REVIEW resolves niche-first to a
+// cinematic scored family (commercial_product/food_asmr), but its register is natural_phone_kol — the
+// playbook must switch to the authentic phone formula, NOT hand a scored-ad directive to a phone brief.
+const skincareReview = { niche: "beauty_skincare", creativeMode: "ugc_review" };
+const nicheFirst = nichePlaybookDirective(skincareReview);
+const registerAware = nichePlaybookDirective({ ...skincareReview, register: "natural_phone_kol" });
+check("review_niche_first_would_be_commercial", /NICHE PLAYBOOK \(commercial_product\)/.test(nicheFirst) && /Beat sync/.test(nicheFirst));
+check("review_phone_register_switches_to_authentic", /NICHE PLAYBOOK \(ugc_pov_authentic\)/.test(registerAware) && !/Beat sync/.test(registerAware));
+// A cinematic register keeps the niche-first family (a real cinematic product ad still gets the ad playbook).
+const foodAd = nichePlaybookDirective({ niche: "food_beverage", creativeMode: "product_ad", register: "professional_cinematic" });
+check("cinematic_register_keeps_niche_family", /NICHE PLAYBOOK \(food_asmr\)/.test(foodAd));
 check("mastery_directive_covers_core_rules", /emotional pacing curve/.test(SEEDANCE_MASTERY_DIRECTIVE) && /lip-sync/.test(SEEDANCE_MASTERY_DIRECTIVE) && /drift/.test(SEEDANCE_MASTERY_DIRECTIVE) && /never render the sheet/.test(SEEDANCE_MASTERY_DIRECTIVE) && SEEDANCE_MASTERY_DIRECTIVE.length < 1200);
 
 // --- 4. Story Architect injects both directives.
