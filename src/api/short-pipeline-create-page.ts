@@ -1651,7 +1651,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         "jp.stDone": "✅ Xong", "jp.stProcessing": "⏳ Đang hoàn thiện", "jp.stFailed": "Không thành công",
         "jp.view": "Xem", "jp.dl": "Tải", "jp.watch": "Theo dõi", "jp.subdub": "Phụ đề đa ngữ / thuyết minh",
         "jp.dlStarted": "Đã bắt đầu tải video.", "jp.dlFail": "Không tải được video (job chưa xong hoặc file đã dọn).",
-        "poll.checkFail": "Không kiểm tra được trạng thái video. Hãy đăng nhập lại rồi mở 🎬 Video.",
+        "poll.checkFail": "Không kiểm tra được trạng thái video. Hãy đăng nhập lại rồi mở 🎬 Video.", "poll.reconnecting": "Mạng chập chờn, đang thử kết nối lại... (video vẫn đang chạy)",
         "poll.done": "🎉 Video đã xong! Mở 🎬 Video để xem và tải về.",
         "poll.refundAuto": "credits đã được hoàn tự động", "poll.refundManual": "yêu cầu hoàn credits đã được gửi tới đội ngũ để xử lý",
         "poll.failedPrefix": "❌ Video bị lỗi — ", "poll.tryAgain": ". Hãy thử lại.",
@@ -1770,7 +1770,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         "jp.stDone": "✅ Done", "jp.stProcessing": "⏳ Finishing", "jp.stFailed": "Unsuccessful",
         "jp.view": "Play", "jp.dl": "Download", "jp.watch": "Track", "jp.subdub": "Multi-language subs / dub",
         "jp.dlStarted": "Download started.", "jp.dlFail": "Could not fetch the video (job not finished or file cleaned up).",
-        "poll.checkFail": "Could not check the job status. Log in again and open 🎬 Video.",
+        "poll.checkFail": "Could not check the job status. Log in again and open 🎬 Video.", "poll.reconnecting": "Network hiccup, reconnecting... (your video is still running)",
         "poll.done": "🎉 Your video is ready! Open 🎬 Video to watch and download.",
         "poll.refundAuto": "credits were refunded automatically", "poll.refundManual": "a credit-refund request was sent to the team for review",
         "poll.failedPrefix": "❌ The video failed — ", "poll.tryAgain": ". Please try again.",
@@ -1889,7 +1889,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         "jp.stDone": "✅ 完成", "jp.stProcessing": "⏳ 处理中", "jp.stFailed": "未成功",
         "jp.view": "播放", "jp.dl": "下载", "jp.watch": "跟踪", "jp.subdub": "多语字幕 / 配音",
         "jp.dlStarted": "开始下载。", "jp.dlFail": "无法获取视频（任务未完成或文件已清理）。",
-        "poll.checkFail": "无法查询视频状态，请重新登录后打开 🎬 视频。",
+        "poll.checkFail": "无法查询视频状态，请重新登录后打开 🎬 视频。", "poll.reconnecting": "网络波动，正在重连...（视频仍在生成）",
         "poll.done": "🎉 视频完成！打开 🎬 视频即可观看和下载。",
         "poll.refundAuto": "积分已自动退还", "poll.refundManual": "退款申请已提交给团队处理",
         "poll.failedPrefix": "❌ 视频生成失败 — ", "poll.tryAgain": "。请重试。",
@@ -2510,6 +2510,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
 
     let jobPollTimer = null;
     let jobPollDelayMs = 3000;
+    let jobPollFailures = 0;
 
     function setRenderStatus(text) {
       const node = document.getElementById("render-status");
@@ -2930,7 +2931,17 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
       let job;
       try {
         job = await apiFetch(statusUrl);
+        jobPollFailures = 0;
       } catch (error) {
+        // Self-heal on a transient network blip: the render keeps running server-side, so retry a few
+        // times before giving up instead of killing the tracker on the first hiccup and (wrongly)
+        // telling a still-logged-in customer to re-login (MVP audit B1).
+        jobPollFailures = (jobPollFailures || 0) + 1;
+        if (jobPollFailures <= 5) {
+          setRenderStatus("⏳ " + t("poll.reconnecting"));
+          jobPollTimer = setTimeout(() => pollRenderJob(statusUrl), 4000);
+          return;
+        }
         stopJobPolling(t("poll.checkFail"));
         return;
       }
@@ -2942,7 +2953,16 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         ? " • " + job.progressHighlights[job.progressHighlights.length - 1]
         : "";
       setRenderStatus("⏳ " + customerStatusLabel(status) + highlights);
-      if (status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected" || status === "blocked") {
+      // "blocked" is NOT terminal server-side — it is re-reviewable and an operator can un-block it,
+      // after which it succeeds. So keep polling (customer sees the reassuring "held" copy) instead of
+      // freezing the tracker forever (MVP audit B2). Only truly-terminal states stop the poller.
+      if (status === "blocked") {
+        setRenderStatus("⏳ " + (accountInfo && accountInfo.account ? t("poll.held") : customerStatusLabel(status)));
+        jobPollDelayMs = 15000;
+        jobPollTimer = setTimeout(() => pollRenderJob(statusUrl), jobPollDelayMs);
+        return;
+      }
+      if (status === "succeeded" || status === "failed" || status === "canceled" || status === "rejected") {
         if (accountInfo && accountInfo.account) {
           var autoRefund = accountInfo && accountInfo.refundPolicy === "auto";
           var refundNote = autoRefund ? t("poll.refundAuto") : t("poll.refundManual");
@@ -2950,8 +2970,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
             ? t("poll.done")
             : status === "failed" ? t("poll.failedPrefix") + refundNote + t("poll.tryAgain")
             : status === "canceled" ? t("poll.canceledPrefix") + refundNote + "."
-            : status === "rejected" ? t("poll.rejectedPrefix") + refundNote + "."
-            : t("poll.held");
+            : t("poll.rejectedPrefix") + refundNote + ".";
           stopJobPolling(terminalCopy);
           refreshAccount();
           if (status === "succeeded") { loadJobs(); }

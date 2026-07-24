@@ -1867,8 +1867,14 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const extension = extensionMatch?.[1] === "jpeg" ? "jpg" : extensionMatch?.[1];
         const kind = extension ? UPLOAD_KIND_BY_EXTENSION[extension] : undefined;
         if (!extension || !kind) {
+          // Vietnamese + iPhone HEIC guidance (MVP audit C): HEIC is the default iPhone photo format
+          // and the #1 rejected upload for VN mobile users — image models can't read it, so tell the
+          // customer exactly how to fix it instead of a raw English "unsupported type".
+          const isHeic = extension === "heic" || extension === "heif";
           sendJson(response, 415, {
-            error: "Unsupported upload type. Allowed: png, jpg, jpeg, webp, mp4, mov, mp3, wav, m4a (send the original file name in the X-File-Name header)."
+            error: isHeic
+              ? "Ảnh iPhone định dạng HEIC chưa hỗ trợ. Cách sửa nhanh: mở Cài đặt iPhone → Camera → Định dạng → chọn \"Tương thích nhất\" rồi chụp lại (ảnh sẽ là JPG); hoặc chụp màn hình ảnh rồi tải ảnh chụp màn hình đó lên."
+              : "Định dạng file không hỗ trợ. Chỉ nhận ẢNH (png, jpg, webp), VIDEO (mp4, mov) hoặc ÂM THANH (mp3, wav, m4a). Hãy đổi sang một trong các định dạng này."
           }, requestContext);
           return;
         }
