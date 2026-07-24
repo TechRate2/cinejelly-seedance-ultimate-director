@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -17,6 +17,30 @@ const unsafeDir = resolve(workDir, "unsafe");
 const safeReportPath = resolve(workDir, "safe-review-evidence-readiness-report.json");
 const unsafeReportPath = resolve(workDir, "unsafe-review-evidence-readiness-report.json");
 const unsafeNeedle = "https://review.example.invalid/frame.png?token=director_guard_secret";
+
+// This guard validates review-evidence bindings AGAINST A REAL PAID-RENDER REPORT — it is a release
+// gate that stays red BY DESIGN until `npm run validation:paid-render` has produced that evidence.
+// Fail with a self-explaining report instead of a raw ENOENT stack (operability).
+if (!existsSync(paidRenderReportPath)) {
+  const blockedReport = {
+    schemaVersion: "cinejelly.director-style-review-evidence-guard-smoke.v1",
+    generatedAt: new Date().toISOString(),
+    status: "blocked_missing_paid_render_evidence",
+    noSpend: true,
+    message:
+      "THIẾU BẰNG CHỨNG: chưa có assets/output_deliverables/phase6-validation/paid-render-report.json. " +
+      "Đây là cổng phát hành — nó chỉ XANH sau khi chạy nghiệm thu tiền thật (npm run validation:paid-render, cần xác nhận chi phí). " +
+      "Không phải lỗi code.",
+    nextActions: [
+      "Run `npm run validation:paid-render -- --request <request.json>` (paid, requires explicit confirmation) to produce the evidence this guard validates.",
+      "Until then this suite failing is EXPECTED and correct — do not force it green."
+    ]
+  };
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, JSON.stringify(blockedReport, null, 2) + "\n", "utf8");
+  console.log(JSON.stringify(blockedReport, null, 2));
+  process.exit(1);
+}
 
 rmSync(workDir, { recursive: true, force: true });
 mkdirSync(safeDir, { recursive: true });
