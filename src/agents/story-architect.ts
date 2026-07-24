@@ -11,7 +11,7 @@ import type { BeatPlan, ScenePlan } from "../core/shot-planner.js";
 import { USER_SCRIPT_OPEN_MARKER } from "../core/simple-brief-resolver.js";
 import { nichePlaybookDirective, SEEDANCE_MASTERY_DIRECTIVE } from "../core/niche-playbooks.js";
 import { antiSlopDirective } from "../core/anti-slop-lexicon.js";
-import { isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
+import { explicitStyleTagRegister, isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
 import type { StyleDna, StyleRegister } from "../types/prompt.js";
 
 /**
@@ -287,13 +287,17 @@ export class StoryArchitect {
     if (!value.premise || !Array.isArray(value.scenes)) {
       throw new Error("Story Architect response is missing premise or scenes.");
     }
-    const register: StyleRegister | undefined = isStyleRegister(value.register)
-      ? value.register
-      : intake.creativeIntent?.register ?? registerForCreativeMode(
-          typeof intake.metadata?.shortViralCreativeMode === "string"
-            ? intake.metadata.shortViralCreativeMode
-            : typeof intake.metadata?.creativeMode === "string" ? intake.metadata.creativeMode : undefined
-        );
+    // The customer's explicit "Phong cách" pick OUTRANKS the LLM-authored register AND the analyst's
+    // creativeIntent (cross-audit #1): otherwise a "review"-worded brief with [style:cinematic] gets a
+    // phone-KOL register here and the compiler then strips the cinematic direction as "disagreeing".
+    const register: StyleRegister | undefined = explicitStyleTagRegister(intake.userInput)
+      ?? (isStyleRegister(value.register)
+        ? value.register
+        : intake.creativeIntent?.register ?? registerForCreativeMode(
+            typeof intake.metadata?.shortViralCreativeMode === "string"
+              ? intake.metadata.shortViralCreativeMode
+              : typeof intake.metadata?.creativeMode === "string" ? intake.metadata.creativeMode : undefined
+          ));
     const scenes = value.scenes.map((scene, sceneIndex) => this.coerceScene(scene, sceneIndex, intake, register));
     const usableScenes = scenes.length > 0 ? scenes : [this.fallbackScene(intake, 0, register)];
     const workflowScenes = this.singleClipRequested(intake)

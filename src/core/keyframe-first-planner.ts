@@ -320,8 +320,17 @@ function isCharacterLabelLike(part: string, allowArticleRole: boolean): boolean 
  * pseudo-character both generates a useless merged portrait and mis-anchors the shot (live-render
  * finding: scene with both women got a single "Linh and Mai" identity). Single names pass through.
  */
-export function splitCharacterIdentities(identity: string | undefined): readonly string[] {
-  const trimmed = identity?.trim();
+export function splitCharacterIdentities(identity: unknown): readonly string[] {
+  // Accept BOTH shapes of continuity.identity (cross-audit #2): production coerces it to a prose
+  // string, but some builders/fixtures/LLM pass-throughs supply an array of names. Passing an array
+  // in used to throw on `.trim()` and abort the whole plan; normalize both here so every reader
+  // (guardian, ledger, narrowing, anchor-planner) agrees on one input contract.
+  const raw = Array.isArray(identity)
+    ? identity.filter((item): item is string => typeof item === "string").join(", ")
+    : typeof identity === "string"
+      ? identity
+      : undefined;
+  const trimmed = raw?.trim();
   if (!trimmed) {
     return [];
   }

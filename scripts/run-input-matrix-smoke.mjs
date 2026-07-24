@@ -511,6 +511,44 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   const cineBeat = cineFallbackPlan.scenes[0]?.beats[0];
   check("fallback craft: cinematic register -> motivated-move default", Boolean(cineBeat?.camera.includes("one motivated move")), cineBeat?.camera ?? "");
   check("fallback craft: defaults carry no slop terms", !/\b(cinematic|stunning|epic|masterpiece)\b/i.test(`${kolBeat?.camera} ${kolBeat?.lighting} ${cineBeat?.camera} ${cineBeat?.lighting}`), "");
+
+  // EXPLICIT "Phong cách" lock (cross-audit #1): a review-worded brief with [style:cinematic] where
+  // the LLM AUTHORS the OPPOSITE register (natural_phone_kol) must still resolve to
+  // professional_cinematic — the customer's pick outranks the model. Asserted on the RESOLVED register
+  // (beat.styleDna.register), not just the classifier's creativeMode.
+  const wrongRegisterLlm = {
+    name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured() {
+      return { provider: "atlascloud", modelId: "f", content: "{}", raw: {}, latencyMs: 0, value: {
+        premise: "p", targetDurationSeconds: 12, register: "natural_phone_kol",
+        scenes: [{ sceneId: "s1", title: "S1", beats: [
+          { beatId: "b1", purpose: "hook", action: "creator reviews the serum", subject: "creator", durationSeconds: 12, risks: [], styleDna: { optics: "handheld phone" } }
+        ] }]
+      } };
+    }
+  };
+  const lockPlan = await new StoryArchitect(wrongRegisterLlm, "f").plan({ projectId: "d", userInput: "native creator review of the serum [style:cinematic]", settings: settingsFor(12, "economy"), references: [], metadata: {} });
+  const lockBeat = lockPlan.scenes[0]?.beats[0];
+  check("explicit style tag overrides LLM-authored register (architect)", lockBeat?.styleDna?.register === "professional_cinematic", `got ${lockBeat?.styleDna?.register}`);
+  // No tag -> the LLM's authored register is respected (lock only fires on an explicit pick).
+  const noLockPlan = await new StoryArchitect(wrongRegisterLlm, "f").plan({ projectId: "d", userInput: "native creator review of the serum", settings: settingsFor(12, "economy"), references: [], metadata: {} });
+  check("no tag -> LLM register respected", noLockPlan.scenes[0]?.beats[0]?.styleDna?.register === "natural_phone_kol", `got ${noLockPlan.scenes[0]?.beats[0]?.styleDna?.register}`);
+
+  const { CreativeBriefAnalyst: CBA } = await import(`${base}/agents/creative-brief-analyst.js`);
+  const analystWrongRegisterLlm = {
+    name: "f", capabilities: () => [],
+    async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
+    async structured() {
+      return { provider: "atlascloud", modelId: "f", content: "{}", raw: {}, latencyMs: 0, value: {
+        register: "natural_phone_kol", genre: "review", niche: "skincare", audience: "buyers", language: "vi",
+        tone: "warm", emotionArc: "a -> b", pacingProfile: "fast", visualWorld: "bathroom",
+        storyEngine: { conflict: "c", stakes: "s", payoff: "p" }
+      } };
+    }
+  };
+  const lockedIntent = await new CBA(analystWrongRegisterLlm, "f").analyze({ projectId: "d", userInput: "review of the serum [style:cinematic]", settings: settingsFor(12, "economy"), references: [], metadata: {} });
+  check("explicit style tag overrides LLM-authored register (analyst)", lockedIntent.register === "professional_cinematic", `got ${lockedIntent.register}`);
 }
 
 // ------------------------------------------------------------------

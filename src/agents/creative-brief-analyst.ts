@@ -11,7 +11,7 @@ import type { LlmProvider } from "../providers/contracts.js";
 import type { IntakeResult } from "../types/agent.js";
 import type { CreativeIntent } from "../types/creative-intent.js";
 import type { StyleDna, StyleRegister } from "../types/prompt.js";
-import { isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
+import { explicitStyleTagRegister, isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
 import { containsVietnameseDiacritics, normalizeSpokenLanguageCode } from "../core/spoken-language.js";
 
 const CREATIVE_INTENT_SCHEMA = {
@@ -124,7 +124,9 @@ export class CreativeBriefAnalyst {
     const fallback = this.fallback(intake);
     const text = (candidate: unknown, orElse: string): string =>
       typeof candidate === "string" && candidate.trim() ? candidate.trim() : orElse;
-    const register: StyleRegister = isStyleRegister(value.register) ? value.register : fallback.register;
+    // The customer's explicit "Phong cách" pick OUTRANKS the LLM's authored register (cross-audit #1).
+    const register: StyleRegister = explicitStyleTagRegister(intake.userInput)
+      ?? (isStyleRegister(value.register) ? value.register : fallback.register);
     const engine = value.storyEngine && typeof value.storyEngine === "object" && !Array.isArray(value.storyEngine)
       ? (value.storyEngine as Record<string, unknown>)
       : {};

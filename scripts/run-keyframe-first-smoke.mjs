@@ -7,7 +7,7 @@
  * No network, no provider calls, no spend.
  */
 
-import { bindKeyframesToShots, planKeyframeRequests, narrowShotReferencesToCast } from "../dist/core/keyframe-first-planner.js";
+import { bindKeyframesToShots, planKeyframeRequests, narrowShotReferencesToCast, splitCharacterIdentities } from "../dist/core/keyframe-first-planner.js";
 import { SeedancePromptCompiler } from "../dist/prompt_compiler/prompt-compiler.js";
 import { DEFAULT_SEEDANCE_SETTINGS } from "../dist/types/settings.js";
 
@@ -72,6 +72,10 @@ const cinematicPlan = planKeyframeRequests({
   provider: "atlascloud", imageModelId: "seedream-smoke", settings: { ...DEFAULT_SEEDANCE_SETTINGS }
 });
 check("cinematic_keyframe_reads_as_cinema_frame", cinematicPlan[0].request.prompt.includes("frame grab from a cinema camera") && !cinematicPlan[0].request.prompt.includes("unedited phone photo"));
+
+// continuity.identity ARRAY shape must not crash any reader (cross-audit #2): the guardian handled it,
+// but splitCharacterIdentities (used by narrowing + ledger) threw on `.trim()`. Both shapes normalize now.
+check("split_identities_accepts_array_shape", JSON.stringify(splitCharacterIdentities(["Linh", "Mai"])) === JSON.stringify(["Linh", "Mai"]) && JSON.stringify(splitCharacterIdentities("Linh and Mai")) === JSON.stringify(["Linh", "Mai"]) && splitCharacterIdentities(undefined).length === 0 && splitCharacterIdentities({}).length === 0);
 check("ratio_and_seed_propagate", first.settings.ratio === "9:16" && first.settings.seed === 77);
 check("negative_prompt_blocks_artifacts", (first.negativePrompt ?? "").includes("warped hands"));
 check("metadata_marks_keyframe_first", first.metadata?.keyframeFirst === true && first.metadata?.shotId === "shot_kf_1");

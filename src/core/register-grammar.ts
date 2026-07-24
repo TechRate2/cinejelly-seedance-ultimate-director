@@ -84,6 +84,25 @@ export function isStyleRegister(value: unknown): value is StyleRegister {
   return value === "professional_cinematic" || value === "natural_phone_kol";
 }
 
+/**
+ * The register LOCKED by the customer's explicit "Phong cách" choice, parsed from the [style:X] tag
+ * the UI appends to the brief. Returns undefined for "auto" (no tag) so the LLM keeps inferring.
+ * When present it must OUTRANK any LLM-authored register (cross-audit finding #1: the explicit choice
+ * previously sat at the bottom of precedence, so a "review"-worded cinematic brief still rendered as
+ * phone-KOL — the customer's pick was silently discarded).
+ */
+export function explicitStyleTagRegister(text: string | undefined): StyleRegister | undefined {
+  if (!text) {
+    return undefined;
+  }
+  const match = /\[style:(ugc|cinematic|story|demo|education|testimonial|comparison|problem_solution|product_ad)\]/i.exec(text);
+  if (!match) {
+    return undefined;
+  }
+  const tag = match[1]!.toLowerCase();
+  return registerForCreativeMode(tag === "ugc" ? "ugc_review" : tag);
+}
+
 export type RegisterAxis = "optics" | "lighting" | "color" | "motion" | "performance" | "audioFeel";
 
 /**
