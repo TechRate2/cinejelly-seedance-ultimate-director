@@ -111,7 +111,8 @@ import { redactUnknown } from "../utils/redaction.js";
 import { SeedancePromptCompiler } from "../prompt_compiler/prompt-compiler.js";
 import { IntakeDirector } from "./intake-director.js";
 import { RenderProducer } from "./render-producer.js";
-import { StoryArchitect, looksLikeUserScript } from "./story-architect.js";
+import { StoryArchitect, isScriptFirstRequest } from "./story-architect.js";
+import { CustomerActionableError } from "../core/customer-actionable-error.js";
 import { ScriptEnhancer } from "./script-enhancer.js";
 import { ReferenceVisionAnalyst, reconcileReferenceRoles } from "./reference-vision-analyst.js";
 
@@ -300,7 +301,10 @@ export class DirectorAgent {
     // High-confidence only; fail-open when vision could not run, so a legit render is never blocked.
     const roleMismatches = reconcileReferenceRoles(baseIntakeRaw.references, referenceVisualDescriptors);
     if (roleMismatches.length > 0) {
-      throw new Error(roleMismatches.map((mismatch) => mismatch.message).join(" "));
+      // CustomerActionableError: the API's customer job summary exposes THIS message as
+      // customerGuidance (plain-VN fix-your-upload copy) — a generic "failed" would trap the
+      // customer in an identical-retry loop (deep-audit: guard message never reached the customer).
+      throw new CustomerActionableError(roleMismatches.map((mismatch) => mismatch.message).join(" "));
     }
     const baseIntake = referenceVisualDescriptors.length > 0
       ? { ...baseIntakeRaw, referenceVisualDescriptors }
@@ -346,7 +350,7 @@ export class DirectorAgent {
       ? await this.scriptEnhancer.enhance(
           rawStoryPlan,
           intake,
-          looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true",
+          isScriptFirstRequest(intake.userInput, intake.metadata),
           signal
         )
       : rawStoryPlan;

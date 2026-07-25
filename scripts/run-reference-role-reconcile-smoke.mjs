@@ -41,6 +41,22 @@ check("environment_role_not_checked", reconcileReferenceRoles([ref("Bg", "enviro
 m = reconcileReferenceRoles([ref("KOL", "identity"), ref("Serum", "product")], [desc("KOL", "person_face"), desc("Serum", "person_face")]);
 check("only_mismatched_ref_flags", m.length === 1 && m[0].label === "Serum");
 
+// DUPLICATE labels are ambiguous — never flag either reference (adversarial-audit #1: a product
+// photo's detectedKind was attributed to the correctly-slotted face sharing its label -> false
+// block of a paying job). Fail-open on ambiguity.
+m = reconcileReferenceRoles(
+  [ref("Mai", "product"), ref("Mai", "identity")],
+  [desc("Mai", "product_object")]
+);
+check("duplicate_labels_never_flag", m.length === 0, JSON.stringify(m));
+
+// Unique labels still flag normally even when another PAIR of refs is duplicated.
+m = reconcileReferenceRoles(
+  [ref("Mai", "product"), ref("Mai", "identity"), ref("Serum", "product")],
+  [desc("Mai", "product_object"), desc("Serum", "person_face")]
+);
+check("dup_pair_ignored_unique_still_flags", m.length === 1 && m[0].label === "Serum");
+
 const failed = checks.filter((c) => !c.pass);
 const report = { schemaVersion: "cinejelly.reference-role-reconcile-smoke.v1", status: failed.length === 0 ? "pass" : "fail", checkCount: checks.length, failedCount: failed.length, checks, noSpend: true };
 console.log(JSON.stringify(report, null, 2));

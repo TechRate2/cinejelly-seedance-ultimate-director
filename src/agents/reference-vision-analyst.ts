@@ -85,9 +85,22 @@ export function reconcileReferenceRoles(
   descriptors: readonly ReferenceVisualDescriptor[]
 ): readonly ReferenceRoleMismatch[] {
   const kindByLabel = new Map(descriptors.filter((d) => d.detectedKind).map((d) => [d.label, d.detectedKind!]));
+  // Labels are the ONLY join key between a reference and what the vision model saw — and nothing
+  // upstream ever uniquifies customer/API-supplied labels. When two references share one label, a
+  // descriptor cannot be attributed to either with confidence: binding it to both falsely blocked
+  // a correctly-slotted paid job (product photo's kind attributed to the face sharing its label)
+  // AND masked the real mis-slot (adversarial-audit #1). Ambiguous labels fail OPEN — never guess
+  // with the customer's money.
+  const labelCounts = new Map<string, number>();
+  for (const reference of references) {
+    labelCounts.set(reference.label, (labelCounts.get(reference.label) ?? 0) + 1);
+  }
   const mismatches: ReferenceRoleMismatch[] = [];
   for (const reference of references) {
     if (reference.providerReference.kind !== "image") {
+      continue;
+    }
+    if ((labelCounts.get(reference.label) ?? 0) > 1) {
       continue;
     }
     const detectedKind = kindByLabel.get(reference.label);
@@ -198,7 +211,23 @@ export class ReferenceVisionAnalyst {
     // the canonical label the pipeline uses so downstream lookups by label keep working.
     const normalize = (raw: string): string =>
       raw.toLowerCase().replace(/^\s*\d+[.)]\s*/, "").replace(/^[a-z_]+\s*:\s*/, "").replace(/[()"']/g, "").trim();
-    const canonicalByNormalized = new Map(images.map((reference) => [normalize(reference.label), reference.label]));
+    // Two DIFFERENT labels can normalize to the same key ("product: Mai" and "Mai") — a last-wins
+    // map then re-canonicalized one image's descriptor onto the OTHER reference's label, cross-
+    // attributing content between references (adversarial-audit #1 variant). An ambiguous
+    // normalized key binds to NO canonical label: losing a descriptor is fail-open; binding it to
+    // the wrong reference poisons both the brief grounding and the role guard.
+    const canonicalByNormalized = new Map<string, string>();
+    const ambiguousNormalized = new Set<string>();
+    for (const reference of images) {
+      const key = normalize(reference.label);
+      if (canonicalByNormalized.has(key) && canonicalByNormalized.get(key) !== reference.label) {
+        ambiguousNormalized.add(key);
+      }
+      canonicalByNormalized.set(key, reference.label);
+    }
+    for (const key of ambiguousNormalized) {
+      canonicalByNormalized.delete(key);
+    }
     const out: ReferenceVisualDescriptor[] = [];
     const seen = new Set<string>();
     for (const asset of Array.isArray(value.assets) ? value.assets : []) {

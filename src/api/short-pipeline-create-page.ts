@@ -2579,9 +2579,14 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         const captionsOn = document.getElementById("caption-toggle").checked;
         const qualityMode = qualityModeSel;
         const review = collectReviewApproval();
+        // Gửi lại đúng các ảnh/video tham chiếu đang có trên form: bản kế hoạch chỉ lưu mã băm của
+        // link https (chính sách riêng tư), nên server cần bản gốc lúc render để khớp lại — thiếu nó
+        // link https dán tay bị âm thầm bỏ khỏi video (audit: session route thiếu mediaReferenceInputs).
+        const renderMediaReferences = mediaReferencesPayload();
         const body = {
           ...(review ? { reviewApprovalGate: review.gate, reviewApprovalCheckpoints: review.checkpoints } : {}),
           ...(captionsOn ? { captionPreference: "narration_subtitles" } : {}),
+          ...(renderMediaReferences.length ? { mediaReferences: renderMediaReferences } : {}),
           // Chất lượng khách chọn quyết định số bản render (best-of-N) và được tính đúng giá đó.
           settings: { qualityMode },
           confirmRenderSubmission: confirmRender
@@ -2967,9 +2972,15 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         if (accountInfo && accountInfo.account) {
           var autoRefund = accountInfo && accountInfo.refundPolicy === "auto";
           var refundNote = autoRefund ? t("poll.refundAuto") : t("poll.refundManual");
+          // Hướng dẫn khách tự sửa (server chỉ gửi trường này cho lỗi khách sửa được — ví dụ ảnh để
+          // nhầm ô KOL/Sản phẩm). Không có nó, khách chỉ thấy "bị lỗi, thử lại" và lặp lại y nguyên.
+          var guidance = typeof job.customerGuidance === "string" && job.customerGuidance ? job.customerGuidance : "";
+          const failedCopy = guidance
+            ? t("poll.failedPrefix") + refundNote + ". " + guidance
+            : t("poll.failedPrefix") + refundNote + t("poll.tryAgain");
           const terminalCopy = status === "succeeded"
             ? t("poll.done")
-            : status === "failed" ? t("poll.failedPrefix") + refundNote + t("poll.tryAgain")
+            : status === "failed" ? failedCopy
             : status === "canceled" ? t("poll.canceledPrefix") + refundNote + "."
             : t("poll.rejectedPrefix") + refundNote + ".";
           stopJobPolling(terminalCopy);

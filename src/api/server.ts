@@ -957,11 +957,21 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             "confirmRenderSubmission=true is required before approved short-pipeline session review evidence can queue a render job."
           );
         }
+        // The stored plan hash-redacts pasted https media URIs (privacy: media URLs never persist in
+        // the session store), so the render call must RE-SUPPLY the raw inputs for recovery — the
+        // handoff only accepts one whose SHA-256 matches the plan, so a tampered URI can never be
+        // injected. Without this, a pasted https product/KOL image was silently dropped and the paid
+        // render proceeded without its anchor (deep-audit: session-route reference drop).
+        const renderMediaReferenceInputs = mediaReferencesFromBody(
+          (body as Record<string, unknown>).mediaReferences,
+          "mediaReferences"
+        );
         const handoff = buildShortPipelineRenderHandoff({
           plan,
           ...(handoffBody.reviewApproval ? { reviewApproval: handoffBody.reviewApproval } : {}),
           ...(handoffBody.settings ? { settings: handoffBody.settings } : {}),
           ...(handoffBody.modelPreferences ? { modelPreferences: handoffBody.modelPreferences } : {}),
+          ...(renderMediaReferenceInputs ? { mediaReferenceInputs: renderMediaReferenceInputs } : {}),
           ...(handoffBody.references ? { references: handoffBody.references } : {}),
           metadata: {
             ...handoffBody.metadata,
@@ -4052,7 +4062,7 @@ function customerAutoRunEnabled(principal: ReturnType<ApiAuthGuard["authorize"]>
 function jobSummaryForPrincipal(
   summary: RenderJobSummary,
   principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]
-): RenderJobSummary & { readonly progressHighlights?: readonly string[] } {
+): RenderJobSummary & { readonly progressHighlights?: readonly string[]; readonly customerGuidance?: string } {
   if (principal?.kind !== "user") {
     return summary;
   }
@@ -4084,6 +4094,16 @@ function jobSummaryForPrincipal(
   void _artifacts;
   void _artifactValidation;
   void _result;
+  // Customer-actionable guidance: internal diagnostics stay stripped, but an error the CUSTOMER
+  // must fix themselves (e.g. product photo dropped into the KOL slot — caught pre-spend by the
+  // reference-role guard) is useless if hidden: they just see "failed, try again" and hit the same
+  // wall forever. Only errors the pipeline explicitly typed as CustomerActionableError expose their
+  // message — plain-Vietnamese fix-it copy authored for customers, never stack traces or config.
+  const customerGuidance =
+    _error && typeof _error === "object" && (_error as { name?: unknown }).name === "CustomerActionableError" &&
+    typeof (_error as { message?: unknown }).message === "string"
+      ? ((_error as { message: string }).message)
+      : undefined;
   // Customer-safe progress highlights: a WHITELIST of quality milestones (talking-shot avatar
   // routing, keyframe anchoring) rendered as friendly copy — never raw internal stage events.
   const progressHighlights = (_stageProgressEvents ?? [])
@@ -4104,7 +4124,12 @@ function jobSummaryForPrincipal(
     })
     .filter((line): line is string => Boolean(line))
     .slice(-4);
-  return { ...safe, hasError: false, ...(progressHighlights.length > 0 ? { progressHighlights } : {}) };
+  return {
+    ...safe,
+    hasError: false,
+    ...(customerGuidance ? { customerGuidance } : {}),
+    ...(progressHighlights.length > 0 ? { progressHighlights } : {})
+  };
 }
 
 /**
