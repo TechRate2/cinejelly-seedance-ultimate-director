@@ -31,7 +31,7 @@ import {
 } from "../core/register-grammar.js";
 import { cinematicGrammarPromptLine } from "../core/seedance-cinematic-grammar.js";
 import { shotGrammarFromMetadata, shotGrammarPromptLine } from "../core/shot-grammar.js";
-import { BEAT_CONTINUATION_SENTINEL } from "../core/shot-planner.js";
+import { BEAT_CONTINUATION_SENTINEL, CONTINUATION_AUDIO_MARKER } from "../core/shot-planner.js";
 import { containsVietnameseDiacritics } from "../core/spoken-language.js";
 import { buildNegativePrompt } from "./negative-constraints.js";
 import { buildPromptBindingPlan, describeReferenceBindingsFromPlan } from "./reference-binding.js";
@@ -562,7 +562,24 @@ export class SeedancePromptCompiler {
       ...(niche ? { niche } : {}),
       ...(creativeMode ? { creativeMode } : {})
     }).promptLines;
-    return lines.length > 0 ? lines.join(" ") : undefined;
+    // The creative MODE is register-gated above, but the NICHE directive used to pass through
+    // unconditionally — handing the phone-KOL register cinematic niche language in the same
+    // paragraph ("filmic premium look, color grade" beside "NO film grade"; "smooth walkthrough
+    // parallax" beside "NO gimbal smoothness"; "cuts synced to beats" beside "NO scored music") —
+    // contradiction-probe #3. Under the phone register, drop a NICHE line whose vocabulary is
+    // inherently cinematic/scored/stabilized. Two deliberate bounds: (1) only "Niche DNA" lines are
+    // filtered — the mode line was already register-AGREED above, and its text legitimately NAMES
+    // the forbidden looks in negations ("never slow-motion pacing"); (2) negated phrases are
+    // stripped before matching, so prohibition language never counts as cinematic vocabulary.
+    // Compatible niche texture (subject matter, macro detail, ingredients) passes untouched; the
+    // cinematic register keeps everything.
+    const phoneIncompatible =
+      /\b(cinematic|filmic|film grade|color grade|graded|bokeh|shallow depth|anamorphic|gimbal|dolly|crane|jib|parallax|slow[- ]?motion|speed ramp|synced to beats|beat-?sync\w*|scored?\b|orchestral)/i;
+    const affirmativeText = (line: string): string => line.replace(/\b(?:never|no|not)\b[^,;.]*/gi, "");
+    const keptLines = register === "natural_phone_kol"
+      ? lines.filter((line) => !line.startsWith("Niche DNA (") || !phoneIncompatible.test(affirmativeText(line)))
+      : lines;
+    return keptLines.length > 0 ? keptLines.join(" ") : undefined;
   }
 
   /**
@@ -726,8 +743,10 @@ export class SeedancePromptCompiler {
         cameraDelta,
         audioDelta,
         // Per-beat word caps are for model-authored narration only: with a VERBATIM spokenLine the
-        // caps would contradict the do-not-shorten mandate (the merged single-clip line spans beats).
-        segment.audioCue && !shot.spokenLine
+        // caps would contradict the do-not-shorten mandate (the merged single-clip line spans beats)
+        // — and a continuation sub-clip of that beat is STILL delivering the scripted line, so it
+        // gets no cap either (contradiction-probe #5).
+        segment.audioCue && !shot.spokenLine && !shot.spokenLineContinuation
           ? `keep spoken words within about ${this.voiceoverWordBudget(segmentDuration)} words for this beat`
           : undefined
       ].filter((part): part is string => Boolean(part));
@@ -757,7 +776,14 @@ export class SeedancePromptCompiler {
     if (!audioCue?.trim()) {
       return undefined;
     }
-    const base = audioIntent?.trim();
+    // On continuation sub-clips the SHOT's audio intent carries the planner's CONTINUATION suffix
+    // while the timeline cues were built from the un-suffixed BEAT intent — compare against the
+    // suffix-free base or the dedup never matches and the full base is re-printed in every beat
+    // (contradiction-probe #5: ~600 wasted chars per continuation shot, one real shot blew the
+    // 8,000-char ceiling).
+    const rawBase = audioIntent?.trim();
+    const markerIndex = rawBase ? rawBase.indexOf(CONTINUATION_AUDIO_MARKER) : -1;
+    const base = markerIndex >= 0 ? rawBase!.slice(0, markerIndex).trim() : rawBase;
     if (base && audioCue.startsWith(base)) {
       const tail = audioCue.slice(base.length).replace(/^\s*;\s*/, "").trim();
       return tail ? `audio: ${tail}` : undefined;
@@ -834,10 +860,14 @@ export class SeedancePromptCompiler {
       // A VERBATIM scripted line must not also receive a word CAP — "do not shorten" next to "keep
       // under N words" is a direct self-contradiction whenever the line is longer (single-clip merge
       // audit): with a spokenLine the pacing guidance drops the cap; the cap applies only to free
-      // narration the model authors itself.
+      // narration the model authors itself. A continuation sub-clip of a spokenLine beat is STILL
+      // delivering that scripted narration (the line rides the first sub-clip), so it gets the
+      // continuation pacing sentence, never the cap (contradiction-probe #5).
       shot.spokenLine
         ? `Generate only original ambience/music/voice on this shot's timing — no protected songs, melodies, transcripts, or voices. Pace the scripted line naturally across the ${shot.durationSeconds}s with micro-pauses around product contact or reactions; the visual story must read without audio.`
-        : `Generate only original ambience/music/voice on this shot's timing — no protected songs, melodies, transcripts, or voices. Keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s with micro-pauses around product contact or reactions; the visual story must read without audio.`
+        : shot.spokenLineContinuation
+          ? `Generate only original ambience/music/voice on this shot's timing — no protected songs, melodies, transcripts, or voices. Continue the beat's scripted narration seamlessly across the ${shot.durationSeconds}s without repeating lines already spoken; the visual story must read without audio.`
+          : `Generate only original ambience/music/voice on this shot's timing — no protected songs, melodies, transcripts, or voices. Keep narration under about ${wordBudget} spoken words for ${shot.durationSeconds}s with micro-pauses around product contact or reactions; the visual story must read without audio.`
     ]
       .filter((line): line is string => Boolean(line))
       .join(" ");

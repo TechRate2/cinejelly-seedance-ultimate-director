@@ -12,6 +12,8 @@ import { USER_SCRIPT_OPEN_MARKER } from "../core/simple-brief-resolver.js";
 import { nichePlaybookDirective, SEEDANCE_MASTERY_DIRECTIVE } from "../core/niche-playbooks.js";
 import { antiSlopDirective } from "../core/anti-slop-lexicon.js";
 import { explicitStyleTagRegister, isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
+import { capToSpeakableWords } from "../core/duration-scripting.js";
+import { MAX_CLIP_SECONDS } from "../core/chunking.js";
 import type { StyleDna, StyleRegister } from "../types/prompt.js";
 
 /**
@@ -37,6 +39,19 @@ export function looksLikeUserScript(userInput: string): boolean {
       /^\[\d{1,2}:?\d{0,2}\s*[-–]\s*\d{1,2}:?\d{0,2}s?\]/u.test(line)
   );
   return scriptLike.length >= 3;
+}
+
+/**
+ * The ONE predicate for "the customer supplied a finished script" — shared by the plan directive,
+ * the single-clip merge, and the enhancer gate so the three sites can never drift apart
+ * (adversarial-audit #6: the predicate had been re-derived in three places). Accepts the metadata
+ * flag as either the string "true" (short-pipeline route stringifies metadata) or a raw boolean
+ * (the direct render route passes JSON metadata through untyped — adversarial-audit #4: a literal
+ * `true` used to silently disable the verbatim guarantee).
+ */
+export function isScriptFirstRequest(userInput: string, metadata: IntakeResult["metadata"] | undefined): boolean {
+  const flag = metadata?.scriptFirst as unknown;
+  return looksLikeUserScript(userInput) || flag === "true" || flag === true;
 }
 
 const SCRIPT_FIRST_DIRECTIVE =
@@ -197,7 +212,7 @@ export class StoryArchitect {
     });
     // One predicate drives BOTH the script-first directive and its precedence override so the
     // pair can never drift apart (they are meaningless without each other).
-    const scriptFirstMode = looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true";
+    const scriptFirstMode = isScriptFirstRequest(intake.userInput, intake.metadata);
     // Long-form beat-density floor (cross-audit B4): the render layer chunks every beat into 4-15s
     // clips, so a long video with too FEW authored beats survives (it renders) but reads as a stretched
     // short — the same 3 actions tiled across 4 minutes. Give the writer a deterministic beat-count
@@ -300,15 +315,6 @@ export class StoryArchitect {
    * same way coerceStoryPlan resolves the final register: explicit [style:X] tag → analyst intent →
    * creative-mode map. Available at directive-build time (before the LLM authors its own register).
    */
-  /** Trim spoken text to at most `maxWords`, cutting at a word boundary (keeps the opening). */
-  private capToWordBudget(text: string, maxWords: number): string {
-    const words = text.split(/\s+/).filter(Boolean);
-    if (words.length <= maxWords) {
-      return text.trim();
-    }
-    return words.slice(0, maxWords).join(" ").replace(/[,;:—-]+$/, "").trim();
-  }
-
   /**
    * Deterministic beat-count target for long-form so the LLM can't hand a multi-minute runtime just a
    * handful of beats (cross-audit B4). Floor = one beat per ~12s (no beat should own more than the 15s
@@ -321,7 +327,7 @@ export class StoryArchitect {
     }
     const minBeats = Math.ceil(durationTargetSeconds / 12);
     const softMaxBeats = Math.ceil(durationTargetSeconds / 7);
-    return `LONG-FORM DENSITY: this is a ${Math.round(durationTargetSeconds)}s video — decompose it into at least ${minBeats} distinct beats (aim ${minBeats}-${softMaxBeats}), each a NEW visible action or story turn. No single beat may carry more than ~15 seconds of screen time; if a stretch would run longer, split it into separate beats with fresh action so the video reads as a rich developing arc, never the same few shots stretched thin. `;
+    return `LONG-FORM DENSITY: this is a ${durationTargetSeconds}s video — decompose it into at least ${minBeats} distinct beats (aim ${minBeats}-${softMaxBeats}), each a NEW visible action or story turn. No single beat may carry more than ~15 seconds of screen time; if a stretch would run longer, split it into separate beats with fresh action so the video reads as a rich developing arc, never the same few shots stretched thin. `;
   }
 
   private resolvedRegisterHint(intake: IntakeResult): StyleRegister | undefined {
@@ -342,17 +348,15 @@ export class StoryArchitect {
     if (!value.premise || !Array.isArray(value.scenes)) {
       throw new Error("Story Architect response is missing premise or scenes.");
     }
-    // The customer's explicit "Phong cách" pick OUTRANKS the LLM-authored register AND the analyst's
-    // creativeIntent (cross-audit #1): otherwise a "review"-worded brief with [style:cinematic] gets a
-    // phone-KOL register here and the compiler then strips the cinematic direction as "disagreeing".
-    const register: StyleRegister | undefined = explicitStyleTagRegister(intake.userInput)
-      ?? (isStyleRegister(value.register)
-        ? value.register
-        : intake.creativeIntent?.register ?? registerForCreativeMode(
-            typeof intake.metadata?.shortViralCreativeMode === "string"
-              ? intake.metadata.shortViralCreativeMode
-              : typeof intake.metadata?.creativeMode === "string" ? intake.metadata.creativeMode : undefined
-          ));
+    // Deterministic register precedence (adversarial-audit #2): the SAME hint that selected the
+    // niche playbook and shaped the scripting directive also decides the final register — customer
+    // [style:X] tag > analyst intent > creative-mode map (cross-audit #1 kept: the customer's pick
+    // still outranks everything). The LLM's self-authored register fills in ONLY when no
+    // deterministic signal exists; letting it outrank the hint meant a script written under the
+    // phone-KOL playbook could compile under a cinematic frame whenever the model defied its own
+    // directive (or vice versa) — the directive and the final frame must be the same decision.
+    const register: StyleRegister | undefined = this.resolvedRegisterHint(intake)
+      ?? (isStyleRegister(value.register) ? value.register : undefined);
     const scenes = value.scenes.map((scene, sceneIndex) => this.coerceScene(scene, sceneIndex, intake, register));
     const usableScenes = scenes.length > 0 ? scenes : [this.fallbackScene(intake, 0, register)];
     const workflowScenes = this.singleClipRequested(intake)
@@ -475,7 +479,7 @@ export class StoryArchitect {
     const style = typeof payload.style === "string" ? payload.style : undefined;
     const audioIntent = typeof payload.audioIntent === "string" && payload.audioIntent.trim()
       ? payload.audioIntent.trim()
-      : this.defaultAudioIntent(payload, intake);
+      : this.defaultAudioIntent(payload, intake, register);
     const identity = typeof payload.identity === "string" ? payload.identity : undefined;
     const product = typeof payload.product === "string" ? payload.product : undefined;
     const environment = typeof payload.environment === "string" ? payload.environment : undefined;
@@ -581,6 +585,14 @@ export class StoryArchitect {
   }
 
   private singleClipRequested(intake: IntakeResult): boolean {
+    // A provider clip physically tops out at MAX_CLIP_SECONDS. An explicit "single" request beyond
+    // that cannot be honored — the chunker would split the collapsed beat anyway and the entire
+    // merged dialogue would ride the first sub-clip (adversarial-audit #3: 60s "single" crammed a
+    // 168-word budget onto one ≤15s clip). Fall back to the normal multi-beat plan, which renders
+    // as one continuous arc across clips — the closest real thing to what was asked.
+    if (intake.settings.durationTargetSeconds > MAX_CLIP_SECONDS) {
+      return false;
+    }
     const metadata = intake.metadata ?? {};
     const rawMode = metadata.workflowMode ?? metadata.renderMode ?? metadata.videoMode ?? metadata.mode;
     const normalized = rawMode?.trim().toLowerCase().replace(/[\s-]+/g, "_");
@@ -608,9 +620,9 @@ export class StoryArchitect {
       .map((beat) => beat.spokenLine?.trim())
       .filter((line): line is string => Boolean(line));
     // A single clip physically cannot speak every beat's dialogue if they sum past what fits its
-    // runtime (cross-audit B5): ~2.8 words/second. Keep the OPENING lines (the hook + the first turn,
-    // the most important words) and trim the tail to the budget, instead of cramming an unspeakable
-    // wall of narration into a 15s clip. The uncapped join fed a 40-word-budget clip 100+ words.
+    // runtime (cross-audit B5): capToSpeakableWords keeps the OPENING lines (the hook + the first
+    // turn, the most important words) and trims the tail to the shared VO cadence, instead of
+    // cramming an unspeakable wall of narration into a 15s clip.
     //
     // SCRIPT-FIRST EXCEPTION (self-audit regression guard): when the customer PASTED their own finished
     // script, every spokenLine is their exact words under a hard VERBATIM promise (SCRIPT_FIRST_DIRECTIVE
@@ -618,12 +630,11 @@ export class StoryArchitect {
     // truncate the customer's own script AND contradict the verbatim line the compiler still emits — so
     // the budget applies ONLY to lines the model authored itself. An over-long pasted script for a tiny
     // duration is the customer's own choice (they can pick a longer runtime); we never drop their words.
-    const scriptFirstMode = looksLikeUserScript(intake.userInput) || intake.metadata?.scriptFirst === "true";
-    const singleClipWordBudget = Math.max(6, Math.floor(intake.settings.durationTargetSeconds * 2.8));
+    const scriptFirstMode = isScriptFirstRequest(intake.userInput, intake.metadata);
     const joinedSpokenLines = spokenLines.join(" ");
     const mergedSpokenLine = scriptFirstMode
       ? joinedSpokenLines
-      : this.capToWordBudget(joinedSpokenLines, singleClipWordBudget);
+      : capToSpeakableWords(joinedSpokenLines, intake.settings.durationTargetSeconds);
     const turns = beats
       .map((beat) => beat.emotionalTurn?.trim())
       .filter((turn): turn is string => Boolean(turn));
@@ -726,18 +737,31 @@ export class StoryArchitect {
     return typeof value === "string" && value.trim() ? value.trim() : fallback;
   }
 
-  private defaultAudioIntent(payload: Record<string, unknown>, intake: IntakeResult): string | undefined {
+  // Register-aware defaults (contradiction-probe #1): the phone-KOL register's audio axis is
+  // "in-camera sound only, NO scored music" — a default that injects a "music bed" under that
+  // register put two opposite audio instructions in the SAME compiled prompt (and Seedance's
+  // documented failure mode is scoring it like a car advert). Cinematic/neutral defaults keep a
+  // bed but pin it UNDER the voice ("never swells"), which also agrees verbatim with the
+  // talking-head naturalness clause ("no music swelling under the line").
+  private defaultAudioIntent(payload: Record<string, unknown>, intake: IntakeResult, register?: StyleRegister): string | undefined {
     if (intake.settings.audioMode === "none") {
       return undefined;
     }
+    const phone = register === "natural_phone_kol";
     const purpose = typeof payload.purpose === "string" ? payload.purpose.toLowerCase() : "";
     if (/\bhook\b|opening|first/.test(purpose)) {
-      return "guided voiceover starts immediately with a sharp hook, low-volume music bed, and no dead air";
+      return phone
+        ? "the voice opens the clip immediately over real in-camera room tone — no music bed, no dead air"
+        : "guided voiceover starts immediately with a sharp hook and no dead air; any music stays low under the voice and never swells";
     }
     if (/\bpayoff\b|result|cta|ending|close/.test(purpose)) {
-      return "guided voiceover resolves under the visual payoff with a soft next-step line and clean music tail";
+      return phone
+        ? "the voice lands the final line over in-camera sound only with a natural settle — no music tail"
+        : "guided voiceover resolves under the visual payoff with a soft next-step line; music stays under the voice and fades clean";
     }
-    return "guided voiceover supports the visible demo or proof action, with subtle ambience and product/contact SFX where useful";
+    return phone
+      ? "guided voiceover supports the visible demo or proof action over natural room tone and real contact noise"
+      : "guided voiceover supports the visible demo or proof action, with subtle ambience and product/contact SFX where useful";
   }
 
   private singleClipActionArc(action: string, intake: IntakeResult): string {

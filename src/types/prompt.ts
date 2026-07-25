@@ -199,6 +199,12 @@ export interface ShotContract {
    * as written and is never normalized, truncated, or duplicated across a beat's sub-clips.
    */
   readonly spokenLine?: string;
+  /**
+   * True on the 2nd+ sub-clip of a beat whose verbatim spokenLine rides the FIRST sub-clip: this
+   * clip is still delivering that scripted narration, so word caps must not apply here either —
+   * they would contradict the beat-level verbatim contract mid-delivery.
+   */
+  readonly spokenLineContinuation?: boolean;
   /** One visible emotional turn (state A -> state B) the beat must play — the anti-stiffness craft law. */
   readonly emotionalTurn?: string;
   /** LLM-authored per-request style DNA (register + axis overrides); legacy DNA tables are fallback-only. */

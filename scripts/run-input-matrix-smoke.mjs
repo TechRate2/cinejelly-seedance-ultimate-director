@@ -732,15 +732,22 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
     near(ttsOnlyEst.estimatedTtsCostUsd, 0.05) && ttsOnlyEst.findings.some((f) => f.includes("AVATAR_COST_USD_PER_SECOND") && !f.includes("CINEJELLY_TTS_COST_USD")), JSON.stringify(ttsOnlyEst.findings));
   // Gate only counts avatar spend on plausible routes (keyframe-first OR an existing https image)
   check("review: gate counts avatar spend only for plausible image routes", directorSrc.includes("keyframeFirstEnabled || decideAvatarShot(shot).talking"), "");
-  // Register mismatch: intent DNA axes are NOT inherited under a different plan register
+  // Register precedence (adversarial-audit #2): the deterministic hint (analyst intent) that chose
+  // the playbook/directive also decides the FINAL register — the LLM's self-authored register can no
+  // longer defy it (a script written under the phone-KOL playbook must compile under the phone
+  // frame). With hint and final register agreeing, the intent's DNA axes are inherited.
   const kolIntentDna = { ...intentBase, register: "natural_phone_kol", styleDna: { register: "natural_phone_kol", optics: "grainy 26mm phone lens" } };
   const cineOverrideLlm = { name: "f", capabilities: () => [],
     async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },
     async structured() { const r = await fakeLlm({}).structured(); return { ...r, value: { ...r.value, register: "professional_cinematic" } }; } };
   const clashPlan = await new StoryArchitect(cineOverrideLlm, "f").plan({ projectId: "d", userInput: "x", settings, references: [], metadata: {}, creativeIntent: kolIntentDna });
   const clashBeat = clashPlan.scenes[0]?.beats[0];
-  check("review: mismatched-register intent DNA dropped, bare plan register kept",
-    clashBeat?.styleDna?.register === "professional_cinematic" && clashBeat?.styleDna?.optics === undefined, JSON.stringify(clashBeat?.styleDna || null));
+  check("review: deterministic hint outranks LLM-authored register; matching intent DNA inherited",
+    clashBeat?.styleDna?.register === "natural_phone_kol" && clashBeat?.styleDna?.optics === "grainy 26mm phone lens", JSON.stringify(clashBeat?.styleDna || null));
+  // The LLM-authored register still fills in when NO deterministic signal exists (no tag/intent/mode).
+  const noHintPlan = await new StoryArchitect(cineOverrideLlm, "f").plan({ projectId: "d", userInput: "x", settings, references: [], metadata: {} });
+  check("review: LLM-authored register used when no deterministic hint exists",
+    noHintPlan.scenes[0]?.beats[0]?.styleDna?.register === "professional_cinematic", JSON.stringify(noHintPlan.scenes[0]?.beats[0]?.styleDna || null));
   // Unicode arrow in emotional turns still merges to a clean two-state arc
   const arrowLlm = { name: "f", capabilities: () => [],
     async chat() { return { content: "{}", raw: {}, latencyMs: 0, provider: "atlascloud", modelId: "f" }; },

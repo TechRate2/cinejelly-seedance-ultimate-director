@@ -11,6 +11,7 @@
 import type { LlmProvider } from "../providers/contracts.js";
 import type { IntakeResult, StoryPlan } from "../types/agent.js";
 import type { BeatPlan, ScenePlan } from "../core/shot-planner.js";
+import { capToSpeakableWords } from "../core/duration-scripting.js";
 
 const ENHANCER_SCHEMA = {
   type: "object",
@@ -133,7 +134,11 @@ export class ScriptEnhancer {
         ...beat,
         ...(action ? { action } : {}),
         // Only replace an EXISTING spoken line — never add dialogue to a silent (b-roll) beat.
-        ...(spokenLine && beat.spokenLine ? { spokenLine } : {}),
+        // Re-cap the polished line to what the beat's runtime can speak: the enhancer runs AFTER
+        // the architect's duration budgeting, so an uncapped rewrite could silently undo it
+        // (adversarial-audit #5). Script-first verbatim lines never reach this branch —
+        // preserveSpokenLines already zeroed `spokenLine` above.
+        ...(spokenLine && beat.spokenLine ? { spokenLine: capToSpeakableWords(spokenLine, beat.durationSeconds) } : {}),
         ...(emotionalTurn ? { emotionalTurn } : {})
       };
     };

@@ -109,6 +109,35 @@ const expectedVerbatim = [longLine, longLine, longLine, longLine, longLine].join
 check("script_first_preserves_verbatim", scriptFirstClipLine === expectedVerbatim, `words=${wordCount(scriptFirstClipLine)} (uncapped, > ${budget})`);
 check("script_first_exceeds_budget_uncapped", wordCount(scriptFirstClipLine) > budget, `words=${wordCount(scriptFirstClipLine)}`);
 
+// --- 4. BOOLEAN scriptFirst flag (adversarial-audit #4): the direct API route passes raw JSON where
+// scriptFirst arrives as a literal boolean `true`; the shared predicate must honor it identically —
+// silently capping a customer's pasted script because the flag wasn't a string is the exact
+// regression the exception exists to prevent.
+const boolFlagArchitect = new StoryArchitect(fakeProviderWithBeats([longLine, longLine, longLine, longLine, longLine]), "fake");
+const boolFlagPlan = await boolFlagArchitect.plan({
+  projectId: "single_clip_vo_budget_bool_flag",
+  userInput: "Kịch bản khách dán vào.",
+  settings: baseSettings,
+  references: [],
+  metadata: { ...singleClipMetadata, scriptFirst: true }
+});
+const boolFlagLine = boolFlagPlan.scenes[0]?.beats[0]?.spokenLine ?? "";
+check("boolean_script_first_flag_preserves_verbatim", boolFlagLine === expectedVerbatim, `words=${wordCount(boolFlagLine)}`);
+
+// --- 5. Explicit "single" workflow beyond the 15s provider-clip ceiling is NOT collapsed
+// (adversarial-audit #3): a 60s "single" would chunk anyway and cram the whole merged line onto the
+// first ≤15s sub-clip. The plan must stay multi-beat instead.
+const sixtyArchitect = new StoryArchitect(fakeProviderWithBeats([longLine, longLine, longLine]), "fake");
+const sixtyPlan = await sixtyArchitect.plan({
+  projectId: "single_clip_vo_budget_60s_explicit_single",
+  userInput: "Làm 1 clip 60 giây.",
+  settings: { ...baseSettings, durationTargetSeconds: 60 },
+  references: [],
+  metadata: { workflowMode: "single" }
+});
+const sixtyBeatCount = sixtyPlan.scenes.flatMap((scene) => scene.beats).length;
+check("explicit_single_over_15s_not_collapsed", sixtyBeatCount > 1, `beats=${sixtyBeatCount}`);
+
 const failed = checks.filter((c) => !c.pass);
 const report = {
   schemaVersion: "cinejelly.single-clip-vo-budget-smoke.v1",

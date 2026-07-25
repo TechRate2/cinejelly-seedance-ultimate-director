@@ -23,6 +23,26 @@
  */
 export const VOICEOVER_WORDS_PER_SECOND = 2.8;
 
+/**
+ * Trim spoken text to what `durationSeconds` can physically deliver at the shared VO cadence,
+ * cutting at a word boundary (keeps the opening — the hook carries the most important words) and
+ * stripping any punctuation left dangling at the cut. Under-budget text passes through untouched
+ * (original internal spacing preserved). Non-finite durations cap nothing: silently deleting all
+ * dialogue on a bad input is worse than an over-long line (adversarial-audit #7).
+ */
+export function capToSpeakableWords(text: string, durationSeconds: number): string {
+  const trimmed = text.trim();
+  if (!Number.isFinite(durationSeconds)) {
+    return trimmed;
+  }
+  const maxWords = Math.max(6, Math.floor(durationSeconds * VOICEOVER_WORDS_PER_SECOND));
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) {
+    return trimmed;
+  }
+  return words.slice(0, maxWords).join(" ").replace(/[,;:—-]+$/, "").trim();
+}
+
 export type DurationBeatRole = "hook" | "development" | "proof_peak" | "settle";
 
 export interface DurationBeat {

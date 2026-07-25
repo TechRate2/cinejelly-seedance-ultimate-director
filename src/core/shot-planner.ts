@@ -25,6 +25,15 @@ import { planShotFramingSequence, type ArcRoleName } from "./shot-grammar.js";
  */
 export const BEAT_CONTINUATION_SENTINEL = "is not the beat's end";
 
+/**
+ * Marker that starts the continuation suffix chunkAudioIntent appends to sub-clips after the first.
+ * The prompt compiler strips everything from this marker before its timeline audio-delta dedup —
+ * without the shared constant the dedup silently broke on continuation chunks and re-printed the
+ * full base audio plan in every timeline beat (contradiction-probe #5: +~600 chars per shot,
+ * one real shot compiled past the 8,000-char ceiling).
+ */
+export const CONTINUATION_AUDIO_MARKER = "; CONTINUATION (clip ";
+
 export interface BeatPlan {
   readonly beatId: string;
   readonly purpose: string;
@@ -240,8 +249,12 @@ export class ShotPlanner {
         ...(beat.style ? { style: beat.style } : {}),
         ...(beat.audioIntent ? { audioIntent: this.chunkAudioIntent(beat.audioIntent, chunk.index, chunks.length) } : {}),
         // A verbatim scripted line belongs to the beat as a whole; assign it to the FIRST clip only
-        // so it is spoken exactly once and never re-delivered across the beat's sub-clips.
+        // so it is spoken exactly once and never re-delivered across the beat's sub-clips. Later
+        // sub-clips carry the continuation flag instead, so the compiler knows they are still
+        // delivering that scripted narration and must not re-apply word caps to it
+        // (contradiction-probe #5: "continue the same narration" + "keep under 16 words" clashed).
         ...(beat.spokenLine && chunk.index === 0 ? { spokenLine: beat.spokenLine } : {}),
+        ...(beat.spokenLine && chunk.index > 0 ? { spokenLineContinuation: true } : {}),
         ...(beat.emotionalTurn ? { emotionalTurn: beat.emotionalTurn } : {}),
         ...(beat.styleDna ? { styleDna: beat.styleDna } : {}),
         timeline: this.timelineForChunk(beat, storyRole, chunk.durationSeconds, settings.audioMode !== "none", chunk.index, chunks.length, settings.ratio),
@@ -383,11 +396,14 @@ export class ShotPlanner {
 
   // Per-shot audio intent for a chunked beat: continuation clips must not re-deliver lines already
   // spoken earlier in the same beat, otherwise a scripted line is instructed N times across sub-clips.
+  // The suffix explicitly OVERRIDES any "starts/opening hook" phrasing in the base intent — the base
+  // was written for the whole beat, and on clip 2+ "start with a sharp hook" beside "continue
+  // seamlessly, do not restart" was a direct self-contradiction (contradiction-probe #5).
   private chunkAudioIntent(audioIntent: string, chunkIndex: number, totalChunks: number): string {
     if (totalChunks <= 1 || chunkIndex === 0) {
       return audioIntent;
     }
-    return `${audioIntent}; CONTINUATION (clip ${chunkIndex + 1} of ${totalChunks}) — continue the same narration seamlessly from the previous clip and do not repeat any line already spoken earlier in this beat`;
+    return `${audioIntent}${CONTINUATION_AUDIO_MARKER}${chunkIndex + 1} of ${totalChunks}) — this continuation note overrides any "starts/opening hook" phrasing above: continue the same narration seamlessly from the previous clip, do not restart the delivery, and do not repeat any line already spoken earlier in this beat`;
   }
 
   private openingTimelineAction(role: StoryArcRole, beat: BeatPlan): string {
@@ -495,6 +511,9 @@ export class ShotPlanner {
     return beat.camera;
   }
 
+  // Register-aware (contradiction-probe #1/#4): under the phone-KOL register the audio axis is
+  // "in-camera sound only, NO scored music" — the fallback base and the payoff/handle notes must not
+  // re-introduce a music bed the register just forbade in the same prompt.
   private timelineAudioCue(
     role: StoryArcRole,
     phase: "opening" | "middle" | "ending",
@@ -502,7 +521,10 @@ export class ShotPlanner {
     opensBeat: boolean,
     closesBeat: boolean
   ): string {
-    const base = beat.audioIntent ?? "guided voiceover with low music bed and natural room tone";
+    const phone = beat.styleDna?.register === "natural_phone_kol";
+    const base = beat.audioIntent ?? (phone
+      ? "guided voiceover over real in-camera room tone — no music bed"
+      : "guided voiceover with low music bed and natural room tone");
     if (phase === "opening") {
       if (!opensBeat) {
         return `${base}; continue the narration seamlessly from the previous clip, no restart and no dead air`;
@@ -513,10 +535,14 @@ export class ShotPlanner {
     }
     if (phase === "ending") {
       if (!closesBeat) {
-        return `${base}; leave a clean transition handle, do not resolve the music or voiceover yet`;
+        return phone
+          ? `${base}; leave a clean transition handle, do not resolve the voiceover yet`
+          : `${base}; leave a clean transition handle, do not resolve the music or voiceover yet`;
       }
       return role === "payoff"
-        ? `${base}; music resolves under the visual payoff`
+        ? (phone
+            ? `${base}; the voice lands the payoff over in-camera sound, natural settle`
+            : `${base}; music resolves under the visual payoff`)
         : `${base}; leave a clean transition handle`;
     }
     return `${base}; narration supports visible action and leaves space for product/contact SFX`;

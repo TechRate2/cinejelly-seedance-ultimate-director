@@ -44,6 +44,7 @@ import type {
 import { hasCopyRiskIntent } from "../utils/copy-risk-intent.js";
 import { createStableId } from "../utils/ids.js";
 import { resolveSeedanceDna, SEEDANCE_ANATOMY_DIRECTIVE } from "./seedance-dna.js";
+import { registerForCreativeMode } from "./register-grammar.js";
 import {
   internalSourcePatternOrigins,
   SHORT_AGENT_SOURCE_PATTERN_IDS
@@ -700,7 +701,10 @@ function musicCueFor(sceneItem: ShortPipelineScenePlan, mode: ShortViralCreative
       ? "restrained cinematic bed resolves softly"
       : "premium low-volume cinematic pulse under dialogue";
   }
-  if (mode === "ugc_review") {
+  // Every phone-register mode (ugc_review, testimonial, …) gets the platform-native cue — the
+  // register's audio axis allows at most a single trending/platform bed, never a scored ad bed;
+  // testimonial used to fall through to the generic "music bed" default (contradiction-probe #1).
+  if (registerForCreativeMode(mode) === "natural_phone_kol") {
     return sceneItem.role === "hook"
       ? "quiet platform-native bed starts under the first word"
       : "low-volume social bed stays behind natural creator speech";

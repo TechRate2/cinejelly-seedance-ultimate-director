@@ -43,8 +43,16 @@ export function normalizeRenderRequest(
 
   return {
     ...body,
+    // Metadata contract is Record<string,string>, but this route accepts raw JSON where a client
+    // can pass booleans/numbers (e.g. scriptFirst: true) that then fail every `=== "string"` /
+    // `=== "true"` check downstream (adversarial-audit #4). Stringify non-string values exactly
+    // like the short-pipeline route's safeMetadata does; drop null/undefined.
     metadata: {
-      ...(body.metadata ?? {}),
+      ...Object.fromEntries(
+        Object.entries(body.metadata ?? {})
+          .filter(([, value]) => value !== undefined && value !== null)
+          .map(([key, value]) => [key, typeof value === "string" ? value : String(value)])
+      ),
       requestId
     },
     outputPath: body.outputPath
