@@ -624,7 +624,12 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   // audit#17 — verbatim spoken lines get the delivery-only dialogue-light clause
   const verbatimShot = bareShot({ styleDna: { register: "natural_phone_kol" }, spokenLine: "Ồ, mềm mà không rách thật luôn á!" });
   const verbatimPrompt = compiler.compile({ shot: verbatimShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
-  check("audit#17: verbatim line -> deliver-in-full clause", verbatimPrompt.includes("deliver the scripted line in full exactly as written"), "");
+  // The verbatim delivery mandate lives ONCE in the audio section ("Spoken line (VERBATIM ...");
+  // the dialogue-light clause now carries only its unique signal (lip-shape approximate + reads
+  // with sound off) instead of restating the mandate a third time (redundancy-audit R3).
+  check("audit#17: verbatim mandate lives in the audio section", verbatimPrompt.includes("Spoken line (VERBATIM"), "");
+  check("audit#17: dialogue-light keeps its unique lip-shape signal", verbatimPrompt.includes("treat lip-shape matching as approximate"), "");
+  check("audit#17: dialogue-light no longer restates the delivery mandate", !verbatimPrompt.includes("deliver the scripted line in full exactly as written"), "");
   check("audit#17: verbatim line never told to keep it short", !verbatimPrompt.includes("keep any spoken line short and front-loaded"), "");
   const viNoLineShot = bareShot({ styleDna: { register: "natural_phone_kol" }, metadata: { voiceLanguage: "vi" } });
   const viNoLinePrompt = compiler.compile({ shot: viNoLineShot, settings, modelId: "m", provider: "atlascloud" }).prompt;

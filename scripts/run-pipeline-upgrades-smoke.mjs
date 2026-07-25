@@ -226,14 +226,16 @@ for (const [label, needle] of [
   check(`gate_${label}_built_once`, at > -1 && at === last, `at=${at} last=${last}`);
   check(`gate_${label}_before_spend`, at > -1 && keyframeSpendAt > -1 && at < keyframeSpendAt, `gate=${at} spend=${keyframeSpendAt}`);
 }
-// The gate routine is INVOKED with the pre-keyframe schedule BEFORE the keyframe/TTS spend (so a
-// blocked long-form job spends nothing)...
-const preSpendCallAt = directorSource.indexOf('assertLongFormReleaseGates(preSpendSchedulePlan, "pre_spend")');
-check("gate_pre_spend_invoked_before_keyframe", preSpendCallAt > -1 && keyframeSpendAt > -1 && preSpendCallAt < keyframeSpendAt, `call=${preSpendCallAt} spend=${keyframeSpendAt}`);
-// ...and re-invoked with the REAL render schedule AFTER keyframe binding (delivered-evidence fidelity
-// + defence-in-depth before the largest spend).
+// The gate battery is INVOKED exactly ONCE — post-keyframe, on the REAL render schedule, before
+// the (largest) render spend. The old second pre-keyframe pass was provably unable to block
+// anything the earlier agent-review/strategy gates hadn't already thrown on (redundancy-audit R1):
+// double CPU + three dead throw sites on every render, removed by design.
 const preRenderCallAt = directorSource.indexOf('assertLongFormReleaseGates(renderSchedulePlan, "pre_render")');
-check("gate_pre_render_reasserted_after_keyframe", preRenderCallAt > -1 && preRenderCallAt > keyframeSpendAt, `call=${preRenderCallAt} spend=${keyframeSpendAt}`);
+const lastGateCallAt = directorSource.lastIndexOf("assertLongFormReleaseGates(");
+const gateDefinitionAt = directorSource.indexOf("const assertLongFormReleaseGates = (");
+check("gate_battery_single_invocation", preRenderCallAt > -1 && lastGateCallAt === preRenderCallAt, `call=${preRenderCallAt} last=${lastGateCallAt} def=${gateDefinitionAt}`);
+check("gate_no_pre_spend_double_pass", !directorSource.includes('assertLongFormReleaseGates(preSpendSchedulePlan'), "");
+check("gate_pre_render_after_keyframe_before_render", preRenderCallAt > keyframeSpendAt && preRenderCallAt < directorSource.indexOf("this.renderScheduler.run("), `call=${preRenderCallAt} spend=${keyframeSpendAt}`);
 
 const failed = checks.filter((item) => !item.pass);
 const report = {

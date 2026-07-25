@@ -613,16 +613,14 @@ export class DirectorAgent {
         }
       };
     });
-    const preSpendSchedulePlan = this.renderScheduler.plan(buildRenderScheduleItems(shots));
     // Build + fail-closed-assert the three long-form release gates (timeline -> creative
-    // intelligence -> readiness). Defined once, invoked twice: here with the PRE-keyframe schedule
-    // so a blocked long-form job spends nothing, and again after keyframe binding with the real
-    // schedule (below) so the delivered evidence reflects the actual image-to-video scheduling and
-    // any keyframe-introduced regression still fails closed before the far larger render spend. The
-    // gate decision is invariant to keyframe binding, so the second pass is fidelity + defence-in-
-    // depth; all three planners are no-spend/no-network, so the second build costs only CPU.
+    // intelligence -> readiness) ONCE, after keyframe binding, on the REAL render schedule.
+    // (Redundancy-audit R1: the old second pre-keyframe pass could never block anything the
+    // earlier agent-review/strategy gates hadn't already thrown on — the gate decision is
+    // invariant to keyframe binding — so the double build was pure CPU + three extra dead throw
+    // sites on every render. The single authoritative pass keeps the full delivered evidence.)
     const assertLongFormReleaseGates = (
-      gateSchedulePlan: typeof preSpendSchedulePlan,
+      gateSchedulePlan: ReturnType<typeof this.renderScheduler.plan>,
       spendStage: "pre_spend" | "pre_render"
     ) => {
       const spendLabel = spendStage === "pre_spend" ? "before any provider spend" : "before render spend";
@@ -691,10 +689,8 @@ export class DirectorAgent {
       }
       return { timelinePlan, creativeIntelligencePlan, readinessPlan };
     };
-    // Pre-spend guard: block a doomed long-form job BEFORE the keyframe-image and TTS provider
-    // calls below, using a render schedule built from the pre-keyframe shots.
-    assertLongFormReleaseGates(preSpendSchedulePlan, "pre_spend");
     // ---- END PRE-SPEND GATES. From here, provider money may be spent. ----
+    // (The long-form release-gate battery runs ONCE, post-keyframe, on the real schedule — R1.)
 
     // Keyframe-first: generate an approved still opening frame per shot, then flip each
     // bound shot to image-to-video. Runs only after every pre-spend gate above has passed
@@ -1116,6 +1112,21 @@ export class DirectorAgent {
       return {
         shot: input.item.shot,
         compiledPrompt: this.renderItemCompiledPrompt(input.item),
+        preflight: this.renderItemPreflight(input.item)
+      };
+    }
+    // A shot already routed to the AVATAR model renders ONLY from its avatarPlan (keyframe image +
+    // TTS audio): render() never reads the compiled prompt, references, or a chained first-frame on
+    // that branch, and has no general-path fallback. The sidecar selection + recompile +
+    // re-preflight below were pure dead weight for it — worse, their two throw sites (chaining
+    // "required" with no sidecar; re-preflight block) fired AFTER earlier shots were already paid,
+    // the worst mid-spend failure mode on an all-talking short (redundancy-audit R2/R9). Skip
+    // straight to the already-approved prompt; non-avatar shots keep full chaining.
+    const preChainCompiled = this.renderItemCompiledPrompt(input.item);
+    if (preChainCompiled.avatarPlan) {
+      return {
+        shot: input.item.shot,
+        compiledPrompt: preChainCompiled,
         preflight: this.renderItemPreflight(input.item)
       };
     }
@@ -2192,7 +2203,13 @@ export class DirectorAgent {
         let resolved = false;
         if (plan) {
           try {
-            const retried = await imageProvider.generateImage(plan.request, input.signal);
+            // Feedback-injected regeneration (repo-mining round 2, VideoClaw pattern): the retry
+            // carries the verifier's CONCRETE failure reason instead of blindly re-rolling the same
+            // prompt — the correction converges in one attempt far more often than luck does.
+            const retried = await imageProvider.generateImage(
+              this.withVerifierCorrection(plan.request, verdict.reason),
+              input.signal
+            );
             const retriedUrl = retried.outputUrls.find((url) => isImageOutputUrl(url));
             if (retriedUrl) {
               const retryVerdict = await this.imageAnchorVerifier.verify(
@@ -2399,6 +2416,23 @@ export class DirectorAgent {
     return identity ? `Named identity to preserve: ${identity}.` : undefined;
   }
 
+  /**
+   * Append the anchor verifier's concrete failure reason to a rejected image request's prompt so
+   * the ONE retry attacks the actual defect (VideoClaw's feedback-injected regeneration) instead of
+   * re-rolling the identical prompt and hoping. Bounded and scoped: everything else in the request
+   * (references, size, model) stays byte-identical.
+   */
+  private withVerifierCorrection<T extends { readonly prompt: string }>(request: T, reason: string | undefined): T {
+    const trimmed = reason?.trim();
+    if (!trimmed) {
+      return request;
+    }
+    return {
+      ...request,
+      prompt: `${request.prompt}\nCORRECTION — the previous attempt was rejected by review for exactly this defect: ${trimmed.slice(0, 300)}. Fix that defect; keep the subject, composition, framing, and style otherwise unchanged.`
+    };
+  }
+
   private async generateCharacterAnchorPortraits(input: {
     readonly anchors: readonly CharacterAnchorPlan[];
     readonly imageProvider: ImageProvider;
@@ -2485,7 +2519,12 @@ export class DirectorAgent {
           continue;
         }
         try {
-          const retried = await input.imageProvider.generateImage(plan.request, input.signal);
+          // Feedback-injected regeneration (VideoClaw pattern): retry with the reviewer's concrete
+          // defect appended, not a blind re-roll of the identical prompt.
+          const retried = await input.imageProvider.generateImage(
+            this.withVerifierCorrection(plan.request, verdict.reason),
+            input.signal
+          );
           const retriedUrl = retried.outputUrls.find((url) => isImageOutputUrl(url));
           const retryVerdict = retriedUrl
             ? await this.imageAnchorVerifier.verify(

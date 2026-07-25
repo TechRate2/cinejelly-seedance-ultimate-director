@@ -135,14 +135,17 @@ export function registerGrammarPromptLine(
  * shot's audio language is flagged weak — the language itself stays data, not hardcode.
  */
 export const DIALOGUE_LIGHT_LANGUAGE_CLAUSE =
-  "Dialogue-light language mode: keep any spoken line short and front-loaded, let expression, gesture, and blocking carry the meaning, and treat lip-shape matching as approximate — the beat must read fully with the sound off.";
+  "Dialogue-light language mode: keep any spoken line short and front-loaded, let expression and blocking carry the meaning, and treat lip-shape matching as approximate — the beat must read fully with the sound off.";
 
 /**
- * Variant for shots that carry a VERBATIM scripted spokenLine: the "keep it short" instruction
- * would fight the do-not-shorten mandate, so this form targets delivery and lip-shape only.
+ * Variant for shots that carry a VERBATIM scripted spokenLine. Deliberately says NOTHING about
+ * delivering/shortening the line — the audio section of the SAME prompt already carries the
+ * "deliver word-for-word, do not shorten" verbatim contract, and restating it here tripled the
+ * mandate (redundancy-audit R3); only the lip-shape/read-with-sound-off signal is unique. Also no
+ * "gesture carries meaning" — it pulled against the talking-head clause's "no theatrical gestures".
  */
 export const DIALOGUE_LIGHT_VERBATIM_CLAUSE =
-  "Dialogue-light language mode: deliver the scripted line in full exactly as written (do not shorten it); treat lip-shape matching as approximate and let expression, gesture, and blocking carry the meaning — the beat must still read with the sound off.";
+  "Dialogue-light language mode: treat lip-shape matching as approximate; expression and blocking carry the meaning, and the beat must still read with the sound off.";
 
 /**
  * Talking-head naturalness (mined from micro-drama practice: ko-dialogue-melodrama-structure). The
