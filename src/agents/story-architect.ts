@@ -263,7 +263,7 @@ export class StoryArchitect {
               // line and drifted/looked generic). Force a real face description per character so the
               // identity anchor portrait has a clean, specific source of truth.
               "CAST APPEARANCE: return a top-level `cast` array — one entry per DISTINCT character (same labels you use in beat `identity`), each { label, appearance } where `appearance` is a SHORT concrete FACE/BODY sheet in English (ethnicity, age range, face shape, hair, build, one memorable feature, and signature wardrobe) — e.g. { label: \"Linh\", appearance: \"Vietnamese woman, late 20s, oval face, shoulder-length straight black hair, warm eyes, small mole on left cheek, slim build, cream linen blouse\" }. Describe the FACE and PERSON only, never the scene or props. This is the single source of truth that keeps each face identical across every shot; be specific enough that the same person is unmistakable. " +
-              "STYLE DNA: return your chosen register in the top-level `register` field, and for each beat author `styleDna` — SHORT concrete niche specifics for optics, lighting, palette, motion, performance, and audioFeel (e.g. macro serum-on-skin glisten for beauty; fabric drape in motion for fashion). This is where ALL category detail lives — physical, camera-real wording only; never booster words like 8K, masterpiece, or hyper-detailed. " +
+              "STYLE DNA: return your chosen register in the top-level `register` field, and for each beat author `styleDna` — SHORT concrete niche specifics for optics, lighting, palette, motion, performance, and audioFeel (e.g. macro serum-on-skin glisten for beauty; fabric drape in motion for fashion). This is where ALL category detail lives — physical, camera-real wording only (the anti-slop directive's banned-booster list applies here). " +
               "You are CineJelly's Story Architect. Return JSON only. Each scene must contain beats with beatId, purpose, action, subject, camera, lighting, durationSeconds, risks, references, continuity, and audioIntent when audio is not none. For 15-60s short videos, do not waste the duration on repeated static product macro shots: the plan must include an opening hook/problem, a middle demo/proof action, and an ending payoff/result or soft next-step implication. For longer videos, avoid a loose montage: each section must advance the argument, proof, emotion, or product understanding. Make every action concrete enough to film: visible subject state, physical product contact or proof action, camera movement, audio rhythm, and an endpoint that can cut or crossfade into the next beat. Keep voiceover concise enough for the beat duration. The `references` array lists every uploaded asset the user supplied, each with its role (identity=a specific character, product, environment, wardrobe, voice, style) and label; treat it as the cast and prop roster. Deliberately schedule these across beats — set each beat's continuity.identity/product/environment to the matching reference label so a distinct character enters/leaves on purpose (e.g. character A in the opening beats, character B enters at the turn) and the hero product is bound to the beats where it must appear; never merge two identity references into one character. Give EACH distinct character (including invented ones with no uploaded reference) a SHORT STABLE label — a name or role such as \"Linh\" or \"the founder\" — and set every beat's `identity` to that EXACT same label for every beat the character appears in. Never describe the same recurring person with two different identity strings (e.g. \"young woman\" in one beat and \"the girl\" in another); reuse the one label verbatim, so the pipeline recognizes it as one person and keeps their face consistent across shots. When a beat features SEVERAL characters, list their labels separated by commas (e.g. identity: \"Linh, Mai\") — never invent a combined name; each listed person keeps their own locked face. If sourceVideoAnalysis is present, use it only for original pacing, structure, camera grammar, and style transformation; do not copy exact shots, transcript wording, likenesses, logos, or protected expression."
           },
           {
@@ -307,7 +307,90 @@ export class StoryArchitect {
       signal
     );
 
-    return this.coerceStoryPlan(response.value, intake);
+    const completedValue = await this.continueLongPlanIfTruncated(response.value, intake, signal);
+    return this.coerceStoryPlan(completedValue, intake);
+  }
+
+  /**
+   * Anti-truncation continuation for LONG plans (LocalMiniDrama pattern, repo-mining round 2): a
+   * multi-minute request can come back with a fraction of the demanded beats (max-token cut or a
+   * lazy model). One follow-up call asks the model to CONTINUE the same story from the last planned
+   * beat — with a compact anti-duplication summary of everything already planned — and the merge
+   * keeps only scenes with UNSEEN sceneIds, so an echo of the old scenes is a no-op. Bounded to one
+   * continuation, fail-open on any error: a short plan still renders (chunking + normalize stretch
+   * it), it just reads thin — so this is a quality rescue, never a blocker.
+   */
+  private async continueLongPlanIfTruncated(
+    value: StoryPlanJson,
+    intake: IntakeResult,
+    signal?: AbortSignal
+  ): Promise<StoryPlanJson> {
+    const duration = intake.settings.durationTargetSeconds;
+    if (!Number.isFinite(duration) || duration < 120 || !Array.isArray(value.scenes)) {
+      return value;
+    }
+    const rawScenes = value.scenes as readonly Record<string, unknown>[];
+    const rawBeatCount = rawScenes.reduce(
+      (sum, scene) => sum + (Array.isArray(scene?.beats) ? scene.beats.length : 0),
+      0
+    );
+    const minBeats = Math.ceil(duration / 12);
+    if (rawBeatCount === 0 || rawBeatCount >= Math.ceil(minBeats / 2)) {
+      return value;
+    }
+    try {
+      const plannedSummary = rawScenes
+        .flatMap((scene) => (Array.isArray(scene?.beats) ? (scene.beats as readonly Record<string, unknown>[]) : []))
+        .map((beat, index) => {
+          const purpose = typeof beat?.purpose === "string" ? beat.purpose : "beat";
+          const action = typeof beat?.action === "string" ? beat.action.slice(0, 90) : "";
+          return `${index + 1}. [${purpose}] ${action}`;
+        })
+        .join("\n")
+        .slice(0, 2_000);
+      const response = await this.llmProvider.structured<StoryPlanJson, typeof STORY_PLAN_SCHEMA>(
+        {
+          modelId: this.modelId,
+          instruction:
+            `CONTINUE an interrupted scene plan for a ${duration}s video. Beats 1-${rawBeatCount} are already planned (summary below) — do NOT repeat, rewrite, or re-title them. Continue the SAME story from beat ${rawBeatCount + 1}, adding roughly ${Math.max(2, minBeats - rawBeatCount)} NEW beats in NEW scenes (new sceneIds numbered after the existing ones) that develop and then resolve the story across the remaining runtime. Same JSON schema; return ONLY the new scenes. ` +
+            `${SEEDANCE_MASTERY_DIRECTIVE}`,
+          schema: STORY_PLAN_SCHEMA,
+          messages: [
+            {
+              role: "user",
+              content: JSON.stringify({
+                alreadyPlannedBeats: plannedSummary,
+                userInput: intake.userInput.slice(0, 1_500),
+                settings: { durationTargetSeconds: duration }
+              })
+            }
+          ],
+          metadata: {
+            ...(intake.metadata ?? {}),
+            projectId: intake.projectId,
+            graphNodeId: "story_plan_continuation"
+          }
+        },
+        signal
+      );
+      const continuationScenes = Array.isArray(response.value?.scenes)
+        ? (response.value.scenes as readonly Record<string, unknown>[])
+        : [];
+      const seenSceneIds = new Set(
+        rawScenes.map((scene) => (typeof scene?.sceneId === "string" ? scene.sceneId : "")).filter(Boolean)
+      );
+      const freshScenes = continuationScenes.filter((scene) => {
+        const sceneId = typeof scene?.sceneId === "string" ? scene.sceneId : "";
+        const hasBeats = Array.isArray(scene?.beats) && scene.beats.length > 0;
+        return hasBeats && (!sceneId || !seenSceneIds.has(sceneId));
+      });
+      if (freshScenes.length === 0) {
+        return value;
+      }
+      return { ...value, scenes: [...rawScenes, ...freshScenes] as StoryPlanJson["scenes"] };
+    } catch {
+      return value;
+    }
   }
 
   /**
@@ -327,7 +410,40 @@ export class StoryArchitect {
     }
     const minBeats = Math.ceil(durationTargetSeconds / 12);
     const softMaxBeats = Math.ceil(durationTargetSeconds / 7);
-    return `LONG-FORM DENSITY: this is a ${durationTargetSeconds}s video — decompose it into at least ${minBeats} distinct beats (aim ${minBeats}-${softMaxBeats}), each a NEW visible action or story turn. No single beat may carry more than ~15 seconds of screen time; if a stretch would run longer, split it into separate beats with fresh action so the video reads as a rich developing arc, never the same few shots stretched thin. `;
+    // ≥120s must also arrive as ≥3 SCENES: the long-form review gate hard-requires three sequence
+    // movements (setup/development/payoff), and until this line nothing ever TOLD the model that —
+    // the job died pre-spend on LLM scene grouping (redundancy-audit R7).
+    const sceneStructure = durationTargetSeconds >= 120
+      ? `Group the beats into at least 3 scenes — a setup movement, a development movement, and a payoff movement — each scene a distinct location/phase of the story. `
+      : "";
+    return `LONG-FORM DENSITY: this is a ${durationTargetSeconds}s video — decompose it into at least ${minBeats} distinct beats (aim ${minBeats}-${softMaxBeats}), each a NEW visible action or story turn. ${sceneStructure}No single beat may carry more than ~15 seconds of screen time; if a stretch would run longer, split it into separate beats with fresh action so the video reads as a rich developing arc, never the same few shots stretched thin. `;
+  }
+
+  /**
+   * Deterministic backstop for the long-form review gate: a ≥120s plan that still arrived with
+   * fewer than 3 scenes is REGROUPED in code — contiguous beats split into setup / development /
+   * payoff movements, order untouched — instead of hard-failing the paid job on LLM scene grouping
+   * (redundancy-audit R7: the gate demanded 3 sequences while nothing guaranteed them). The LLM is
+   * also told the rule (density guidance), so this fires only when it disobeys; fewer than 3 beats
+   * stays as-is (a degenerate plan should still surface, not be padded into fake structure).
+   */
+  private ensureLongFormSceneStructure(scenes: readonly ScenePlan[], intake: IntakeResult): readonly ScenePlan[] {
+    if (intake.settings.durationTargetSeconds < 120 || scenes.length >= 3) {
+      return scenes;
+    }
+    const beats = scenes.flatMap((scene) => scene.beats);
+    if (beats.length < 3) {
+      return scenes;
+    }
+    const third = Math.ceil(beats.length / 3);
+    const movements: readonly { readonly sceneId: string; readonly title: string; readonly beats: readonly BeatPlan[] }[] = [
+      { sceneId: "sequence_1_setup", title: "Setup", beats: beats.slice(0, third) },
+      { sceneId: "sequence_2_development", title: "Development", beats: beats.slice(third, third * 2) },
+      { sceneId: "sequence_3_payoff", title: "Payoff", beats: beats.slice(third * 2) }
+    ];
+    return movements
+      .filter((movement) => movement.beats.length > 0)
+      .map((movement) => ({ sceneId: movement.sceneId, title: movement.title, beats: movement.beats }));
   }
 
   private resolvedRegisterHint(intake: IntakeResult): StyleRegister | undefined {
@@ -363,7 +479,8 @@ export class StoryArchitect {
       ? [this.singleClipScene(usableScenes, intake, register)]
       : usableScenes;
     const boundedScenes = this.limitBeatsToDurationCapacity(workflowScenes, intake, register);
-    const normalizedScenes = this.normalizeDurations(boundedScenes, intake.settings.durationTargetSeconds);
+    const sequencedScenes = this.ensureLongFormSceneStructure(boundedScenes, intake);
+    const normalizedScenes = this.normalizeDurations(sequencedScenes, intake.settings.durationTargetSeconds);
 
     const optionalText = (candidate: unknown): string | undefined =>
       typeof candidate === "string" && candidate.trim() ? candidate.trim() : undefined;
