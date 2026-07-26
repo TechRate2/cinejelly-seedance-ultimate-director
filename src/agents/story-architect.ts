@@ -361,7 +361,12 @@ export class StoryArchitect {
       .flatMap((scene) => (Array.isArray(scene?.beats) ? (scene.beats as readonly Record<string, unknown>[]) : []))
       .reduce((sum, beat) => sum + (typeof beat?.spokenLine === "string" ? countWords(beat.spokenLine) : 0), 0);
     const scheduledSpeechSeconds = spokenWords / TALKING_WORDS_PER_SECOND;
-    if (spokenWords === 0 || scheduledSpeechSeconds >= duration * 0.85) {
+    // Trigger ABOVE the delivery gate's short-block tolerance (adversarial-audit F2): the gate blocks
+    // a delivered talking video shorter than ~90% of the ordered duration (DURATION_SHORT_BLOCK_
+    // TOLERANCE 0.10). A 0.85 trigger left a dead-zone — a plan measuring 86-89% of target got NO
+    // top-up yet failed delivery after the paid render. Fire at <92% so anything that would fail
+    // delivery gets a top-up attempt first.
+    if (spokenWords === 0 || scheduledSpeechSeconds >= duration * 0.92) {
       return value;
     }
     const missingSeconds = Math.max(2, Math.round(duration - scheduledSpeechSeconds));
@@ -722,7 +727,10 @@ export class StoryArchitect {
       : this.defaultAudioIntent(payload, intake, register);
     const identity = typeof payload.identity === "string" ? payload.identity : undefined;
     const product = typeof payload.product === "string" ? payload.product : undefined;
-    const environment = typeof payload.environment === "string" ? payload.environment : undefined;
+    // Length-cap environment like cast.appearance (adversarial-audit F4): it now flows into the
+    // keyframe + avatar image prompts, and an LLM echoing the whole customer brief verbatim would
+    // bloat those prompts. 300 chars is plenty for a setting description.
+    const environment = typeof payload.environment === "string" ? payload.environment.slice(0, 300) : undefined;
     // Verbatim scripted line: preserved EXACTLY as the model returned it (only outer whitespace
     // trimmed) so a script-first user's dialogue/narration is never paraphrased downstream (gap #6).
     const spokenLine = typeof payload.spokenLine === "string" && payload.spokenLine.trim()
@@ -927,6 +935,21 @@ export class StoryArchitect {
     const minFor = (beat: BeatPlan): number =>
       beat.spokenLine?.trim() ? TALKING_MIN_BEAT_DURATION_SECONDS : MIN_BEAT_DURATION_SECONDS;
     const minTotal = allBeats.reduce((sum, beat) => sum + minFor(beat), 0);
+    // Belt-and-suspenders (adversarial-audit F1): the capacity cap now keeps the floor-sum ≤ target,
+    // but if a caller ever hands normalizeDurations more beats than the target can hold at their
+    // floors, distribute the target PROPORTIONALLY to the floors instead of pinning each to its floor
+    // (which would overshoot). Guarantees the returned durations sum ≈ target for any beat mix.
+    if (minTotal > targetDurationSeconds) {
+      let beatCursor = 0;
+      return scenes.map((scene) => ({
+        ...scene,
+        beats: scene.beats.map((beat) => {
+          beatCursor += 1;
+          const share = (minFor(beat) / minTotal) * targetDurationSeconds;
+          return { ...beat, durationSeconds: Math.max(1, Math.round(share)) };
+        })
+      }));
+    }
     const distributableSeconds = Math.max(0, Math.round(targetDurationSeconds - minTotal));
     const weights = allBeats.map((beat) => Math.max(0, beat.durationSeconds - minFor(beat)));
     const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
@@ -966,27 +989,40 @@ export class StoryArchitect {
     return register === "natural_phone_kol" && intake.settings.audioMode !== "none";
   }
 
-  private limitBeatsToDurationCapacity(scenes: readonly ScenePlan[], intake: IntakeResult, register?: StyleRegister): readonly ScenePlan[] {
-    // Talking-dominated plans use the lower talking floor so enough short spoken beats survive to
-    // fill the runtime; b-roll keeps the 4s floor (a b-roll clip really is that long).
-    const minBeatSeconds = this.isTalkingDominatedPlan(intake, register)
-      ? TALKING_MIN_BEAT_DURATION_SECONDS
-      : MIN_BEAT_DURATION_SECONDS;
-    const maxBeats = Math.max(1, Math.floor(intake.settings.durationTargetSeconds / minBeatSeconds));
-    let remaining = maxBeats;
-    const bounded: ScenePlan[] = [];
+  /** The per-beat duration floor normalizeDurations will apply — 2s for a spoken (avatar) beat, 4s for b-roll. */
+  private beatDurationFloor(beat: BeatPlan): number {
+    return beat.spokenLine?.trim() ? TALKING_MIN_BEAT_DURATION_SECONDS : MIN_BEAT_DURATION_SECONDS;
+  }
 
+  private limitBeatsToDurationCapacity(scenes: readonly ScenePlan[], intake: IntakeResult, register?: StyleRegister): readonly ScenePlan[] {
+    // Cap by the SUM of each beat's ACTUAL per-beat floor (2s spoken / 4s b-roll), not a single
+    // register-wide floor × count (adversarial-audit F1): a MIXED talking plan (spoken beats + silent
+    // b-roll cutaways) counted every beat at the 2s talking floor but normalizeDurations floors the
+    // silent ones at 4s, so the sum blew past the target (5 spoken + 4 b-roll = 26s on an 18s order),
+    // feeding a wrong number to both the cost gate and the delivery gate. Accumulate real floors and
+    // stop before the running floor-sum would exceed the ordered duration; always keep ≥1 beat.
+    const target = intake.settings.durationTargetSeconds;
+    let floorSum = 0;
+    let kept = 0;
+    const bounded: ScenePlan[] = [];
     for (const scene of scenes) {
-      if (remaining <= 0) {
-        break;
+      const beats: BeatPlan[] = [];
+      for (const beat of scene.beats) {
+        const nextFloor = this.beatDurationFloor(beat);
+        if (kept >= 1 && floorSum + nextFloor > target) {
+          break;
+        }
+        beats.push(beat);
+        floorSum += nextFloor;
+        kept += 1;
       }
-      const beats = scene.beats.slice(0, remaining);
-      remaining -= beats.length;
       if (beats.length > 0) {
         bounded.push({ ...scene, beats });
       }
+      if (beats.length < scene.beats.length) {
+        break;
+      }
     }
-
     return bounded.length > 0 ? bounded : [this.fallbackScene(intake, 0, register)];
   }
 

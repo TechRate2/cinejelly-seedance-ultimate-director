@@ -1013,7 +1013,11 @@ export class UserAccountStore {
     // after the crash, and every refund/settle marker is written after its charge — so nothing
     // actionable lives outside the window. Unparseable timestamps stay in scope (fail-safe).
     // (2) Refund/settle markers become one-pass Sets, killing the inner scans entirely.
-    const RECONCILE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+    // 30-day window (widened from 7 — adversarial-audit F6): a charge whose render FAILED but was
+    // never refunded in real time (server down for the whole failure→refund gap) must still be
+    // reconciled on the next boot; a week-long outage could otherwise age a real refund out of scope.
+    // Still bounded so the scan stays linear; the settled/refunded marker Sets prevent double-refund.
+    const RECONCILE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
     const reconcileCutoff = Date.now() - RECONCILE_WINDOW_MS;
     const recentEntries = this.state.entries.filter((entry) => {
       const at = Date.parse(entry.at);

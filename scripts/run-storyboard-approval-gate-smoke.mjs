@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -83,7 +83,18 @@ async function main() {
   });
   const artifactValidation = await new ProjectArtifactValidator().validate(artifacts.artifactDirectory);
 
+  // Launch-blocker source invariant: CUSTOMER_AUTO_RUN must ALSO stamp storyboardApproval, or the
+  // in-director storyboard gate throws on every >1-shot customer render (auto-run only skipped the
+  // job-level review pause). Both customer render routes must feed normalizeRenderRequest through
+  // stampAutoRunStoryboardApproval; the stamp adds storyboardApproval:"approved" only when auto-run.
+  const serverSource = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "..", "src/api/server.ts"), "utf8");
+  const stampSites = (serverSource.match(/stampAutoRunStoryboardApproval\(\s*\n?\s*normalizeRenderRequest\(handoff\.request/g) || []).length;
+  const stampDefines = serverSource.includes('storyboardApproval: "approved"') && serverSource.includes('storyboardApprovalSource: "customer_auto_run"');
+
   const checks = [
+    stampSites === 2 && stampDefines
+      ? pass("auto_run_stamps_storyboard_approval", "Both customer render routes stamp storyboard approval under CUSTOMER_AUTO_RUN so multi-shot renders are not gate-blocked.")
+      : fail("auto_run_stamps_storyboard_approval", `Expected 2 stamped customer routes + the auto-run stamp helper; saw sites=${stampSites} defines=${stampDefines}.`),
     pending?.status === "approval_required" && pending.releaseGateSummary.canRenderAfterReview === false
       ? pass("pending_blocks_render", "Pending storyboard checkpoints pause before render.")
       : fail("pending_blocks_render", "Expected pending storyboard checkpoints to block render."),

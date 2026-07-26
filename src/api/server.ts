@@ -1036,10 +1036,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const requestFingerprint = idempotencyKeyDigest
           ? createRequestFingerprint({ sessionId: record.sessionId, body })
           : undefined;
-        const normalizedRequest = normalizeRenderRequest(handoff.request, {
-          requestId: requestContext.requestId,
-          env: process.env
-        });
+        const normalizedRequest = stampAutoRunStoryboardApproval(
+          normalizeRenderRequest(handoff.request, {
+            requestId: requestContext.requestId,
+            env: process.env
+          }),
+          authDecision.principal
+        );
         workspaceBillingGate.assertRenderAllowed({
           principal: authDecision.principal,
           request: normalizedRequest,
@@ -1228,10 +1231,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         assertUserRenderConcurrency(jobManager, authDecision.principal);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
-        const normalizedRequest = normalizeRenderRequest(handoff.request, {
-          requestId: requestContext.requestId,
-          env: process.env
-        });
+        const normalizedRequest = stampAutoRunStoryboardApproval(
+          normalizeRenderRequest(handoff.request, {
+            requestId: requestContext.requestId,
+            env: process.env
+          }),
+          authDecision.principal
+        );
         workspaceBillingGate.assertRenderAllowed({
           principal: authDecision.principal,
           request: normalizedRequest,
@@ -4138,6 +4144,33 @@ function clientFilter(principal: ReturnType<ApiAuthGuard["authorize"]>["principa
  */
 function customerAutoRunEnabled(principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]): boolean {
   return (process.env.CINEJELLY_CUSTOMER_AUTO_RUN ?? "").trim().toLowerCase() === "true" && principal?.kind === "user";
+}
+
+/**
+ * When CUSTOMER_AUTO_RUN is on, stamp storyboard approval into the render request metadata so the
+ * in-director storyboard-approval gate (which fires on ANY multi-shot render) passes — WITHOUT this,
+ * auto-run only skipped the job-level review pause while the storyboard gate still threw "blocked
+ * provider spend" on every >1-shot customer render, so a paying customer's normal multi-shot video
+ * queued, spent on planning/keyframes, then failed with no video (launch blocker: only single-clip
+ * shorts and Series completed). Mirrors what Series already self-stamps. Marked source
+ * "customer_auto_run" for honest provenance (auto-approved by policy, not a human operator). No-op
+ * when auto-run is off (operators keep the real review gate).
+ */
+function stampAutoRunStoryboardApproval<T extends { readonly metadata?: Record<string, string> }>(
+  request: T,
+  principal: ReturnType<ApiAuthGuard["authorize"]>["principal"]
+): T {
+  if (!customerAutoRunEnabled(principal)) {
+    return request;
+  }
+  return {
+    ...request,
+    metadata: {
+      ...(request.metadata ?? {}),
+      storyboardApproval: "approved",
+      storyboardApprovalSource: "customer_auto_run"
+    }
+  };
 }
 
 /**

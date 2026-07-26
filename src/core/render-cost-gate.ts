@@ -39,9 +39,17 @@ export class RenderCostGate {
       (sum, prompt) => sum + prompt.videoRequest.settings.durationSeconds,
       0
     );
+    // A TALKING shot renders on the AVATAR model, not the general video model — its seconds are
+    // priced separately below as plannedAvatarRenderSeconds. Counting them in BOTH places (base
+    // render × candidate/repair AND avatar seconds) double-counted the most expensive shots and
+    // inflated the estimate ~4× (paid-acceptance forensics: $6.07 gate estimate for a ~$1.4 clip),
+    // false-blocking legit talking renders. Subtract the avatar seconds from the general-render base
+    // so each talking shot is priced ONCE (as avatar); the candidate/repair multiplier applies only
+    // to the remaining b-roll seconds (avatar shots don't run best-of-N/repair).
+    const plannedGeneralRenderSeconds = Math.max(0, plannedSinglePassRenderSeconds - plannedAvatarRenderSeconds);
     const plannedClipCount = input.compiledPrompts.length * (candidateCount + repairAttemptCount) + plannedTestTakeCount;
-    const plannedCandidateRenderSeconds = plannedSinglePassRenderSeconds * candidateCount;
-    const plannedRepairRenderSeconds = plannedSinglePassRenderSeconds * repairAttemptCount;
+    const plannedCandidateRenderSeconds = plannedGeneralRenderSeconds * candidateCount;
+    const plannedRepairRenderSeconds = plannedGeneralRenderSeconds * repairAttemptCount;
     const plannedRenderSeconds = plannedCandidateRenderSeconds + plannedRepairRenderSeconds + plannedTestTakeRenderSeconds;
     const referenceRegistrationCount = this.countRegisterableReferences(input.compiledPrompts);
     const estimatedRenderCostUsd = this.multiply(plannedRenderSeconds, this.settings.renderCostUsdPerSecond);
@@ -67,6 +75,7 @@ export class RenderCostGate {
     const findings = this.findings({
       hasRenderRate: this.settings.renderCostUsdPerSecond !== undefined,
       plannedRenderSeconds,
+      plannedAvatarRenderSeconds,
       plannedTalkingShotCount,
       hasTtsRate: this.settings.ttsSynthesisCostUsd !== undefined,
       hasAvatarRate: this.settings.avatarRenderCostUsdPerSecond !== undefined,
@@ -142,12 +151,16 @@ export class RenderCostGate {
     readonly estimatedTotalCostUsd?: number;
     readonly hasRenderRate: boolean;
     readonly plannedRenderSeconds: number;
+    readonly plannedAvatarRenderSeconds: number;
     readonly plannedTalkingShotCount: number;
     readonly hasTtsRate: boolean;
     readonly hasAvatarRate: boolean;
   }): readonly string[] {
     const findings: string[] = [];
-    if (input.plannedRenderSeconds <= 0) {
+    // A PURE-talking render legitimately has 0 general render seconds (every shot renders on the
+    // avatar model) — that is NOT "nothing planned" (cost-gate avatar double-count fix): only flag
+    // when there is neither general render nor any avatar/talking work.
+    if (input.plannedRenderSeconds <= 0 && input.plannedAvatarRenderSeconds <= 0 && input.plannedTalkingShotCount <= 0) {
       findings.push("No render seconds were planned.");
     }
     // Per-rate messages so the operator knows exactly which component is uncounted. When a hard

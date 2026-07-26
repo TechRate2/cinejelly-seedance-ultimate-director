@@ -69,16 +69,21 @@ export function buildAvatarPrompt(shot: ShotContract): string {
   // the talking shot lost the phone-KOL performance direction the rest of the pipeline built and
   // came out flat. The model reads the AUDIO for delivery, but a visible-emotion + performance line
   // shapes the facial acting on top.
-  const emotionalTurn = shot.emotionalTurn?.trim();
-  const performance = shot.styleDna?.performance?.trim();
+  // Cap each LLM-authored field and put the load-bearing UGC-delivery clause FIRST
+  // (adversarial-audit F3): environment/emotionalTurn/performance are un-sliced upstream, so a
+  // verbose LLM value could push the critical delivery instruction past the 2000-char cut. Leading
+  // with it + per-field caps means it can never be truncated away.
+  const cap = (text: string | undefined, n: number): string | undefined => text?.trim().slice(0, n) || undefined;
+  const emotionalTurn = cap(shot.emotionalTurn, 200);
+  const performance = cap(shot.styleDna?.performance, 200);
   const parts = [
-    `${shot.subject}.`,
-    `${shot.action.replace(/[.\s]+$/u, "")}.`,
-    environment ? `Set inside: ${environment} — keep this real location as the background, not a studio backdrop.` : undefined,
+    "Natural spontaneous UGC delivery: real facial emotion matching the speech, small hand gestures, handheld phone energy — never a stiff presenter pose.",
+    `${cap(shot.subject, 400)}.`,
+    `${cap(shot.action, 400)?.replace(/[.\s]+$/u, "")}.`,
+    environment ? `Set inside: ${cap(environment, 300)} — keep this real location as the background, not a studio backdrop.` : undefined,
     emotionalTurn ? `Play this emotional turn visibly on the face: ${emotionalTurn}.` : undefined,
     performance ? `Performance: ${performance}.` : undefined,
-    `Camera: ${shot.camera}.`,
-    "Natural spontaneous UGC delivery: real facial emotion matching the speech, small hand gestures, handheld phone energy — never a stiff presenter pose."
+    `Camera: ${cap(shot.camera, 300)}.`
   ];
   return parts.filter((part): part is string => Boolean(part)).join(" ").slice(0, 2_000);
 }

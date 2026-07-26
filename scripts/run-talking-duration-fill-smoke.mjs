@@ -91,6 +91,24 @@ const capLlm2 = {
 await plan(capLlm2, baseSettings, { creativeMode: "product_ad" }, "cinematic product film");
 check("non_talking_no_talking_density", !/TALKING VIDEO DENSITY/.test(brollInstruction));
 
+// --- 4b. MIXED plan (talking + silent b-roll beats) must NOT overshoot the target
+// (adversarial-audit F1): the count-cap now accumulates real per-beat floors (2s spoken / 4s
+// b-roll), so 5 spoken + 4 b-roll on an 18s order can't sum to 26s. Total stays <= target.
+const mixedLlm = {
+  name: "f", async chat() { return { provider: "a", modelId: "f", content: "{}", raw: {}, latencyMs: 0 }; },
+  async structured() {
+    const spoken = [1, 2, 3, 4, 5].map((i) => beat(i, FULL_LINE));
+    const silent = [6, 7, 8, 9].map((i) => ({ beatId: `b${i}`, purpose: "broll", action: `broll ${i}`, subject: "product macro", camera: "macro", lighting: "soft", durationSeconds: 6, risks: [] }));
+    return { provider: "a", modelId: "f", content: "{}", raw: {}, value: { premise: "p", register: "natural_phone_kol", targetDurationSeconds: 18, scenes: [{ sceneId: "s1", title: "t", beats: [...spoken, ...silent] }] }, latencyMs: 0 };
+  },
+  capabilities() { return []; }
+};
+const pm = await plan(mixedLlm);
+const bm = pm.scenes.flatMap((s) => s.beats);
+const mixedSum = bm.reduce((a, b) => a + b.durationSeconds, 0);
+check("mixed_plan_never_overshoots_target", mixedSum <= 18, `sum=${mixedSum}`);
+check("mixed_plan_keeps_some_beats", bm.length >= 1);
+
 // --- 5. Script-first talking plan is NOT extended (verbatim customer lines are not ours to pad).
 const scriptFirst = fakeLlm([SHORT_LINE, SHORT_LINE], 5);
 await plan(scriptFirst, baseSettings, { shortViralCreativeMode: "ugc_review", scriptFirst: "true" }, "kịch bản khách dán");
