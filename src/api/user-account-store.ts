@@ -1006,19 +1006,38 @@ export class UserAccountStore {
     const mode = options?.mode ?? "refund";
     const KEEP_STATUSES = new Set(["queued", "running", "succeeded", "paused_for_review", "paused_for_revision"]);
     let refunded = 0;
-    const charges = this.state.entries.filter((entry) => entry.type === "render_charge" && entry.jobId);
-    for (const charge of charges) {
-      const jobId = charge.jobId as string;
-      const alreadyRefunded = this.state.entries.some(
-        (entry) => entry.type === "render_refund" && entry.jobId === jobId && entry.userId === charge.userId
-      );
-      if (alreadyRefunded) {
+    // Bounded, linear reconcile (durability-audit F3): the old shape scanned ALL ledger entries
+    // per charge (O(charges × entries) — quadratic boot slowdown as the ledger grows forever).
+    // (1) Only entries from the last 7 days participate: an unknown-status charge older than 48h
+    // is skipped by the guard below anyway, a known-status crash gap is caught by the FIRST boot
+    // after the crash, and every refund/settle marker is written after its charge — so nothing
+    // actionable lives outside the window. Unparseable timestamps stay in scope (fail-safe).
+    // (2) Refund/settle markers become one-pass Sets, killing the inner scans entirely.
+    const RECONCILE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+    const reconcileCutoff = Date.now() - RECONCILE_WINDOW_MS;
+    const recentEntries = this.state.entries.filter((entry) => {
+      const at = Date.parse(entry.at);
+      return !Number.isFinite(at) || at >= reconcileCutoff;
+    });
+    const refundedKeys = new Set<string>();
+    const settledKeys = new Set<string>();
+    for (const entry of recentEntries) {
+      if (!entry.jobId) {
         continue;
       }
-      const alreadySettled = this.state.entries.some(
-        (entry) => entry.type === "render_settled" && entry.jobId === jobId && entry.userId === charge.userId
-      );
-      if (alreadySettled) {
+      if (entry.type === "render_refund") {
+        refundedKeys.add(`${entry.userId}:${entry.jobId}`);
+      } else if (entry.type === "render_settled") {
+        settledKeys.add(`${entry.userId}:${entry.jobId}`);
+      }
+    }
+    const charges = recentEntries.filter((entry) => entry.type === "render_charge" && entry.jobId);
+    for (const charge of charges) {
+      const jobId = charge.jobId as string;
+      if (refundedKeys.has(`${charge.userId}:${jobId}`)) {
+        continue;
+      }
+      if (settledKeys.has(`${charge.userId}:${jobId}`)) {
         // Durably-delivered video (marked on success): never refund, even after it aged out of the
         // in-memory job history and now reports an unknown status. This is the F2 fix — without it,
         // a delivered charge younger than 48h but evicted from the 100-entry history looked "crashed".

@@ -76,11 +76,13 @@ export class ApiRateLimiter {
       return { allowed: true };
     }
 
+    const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAtMs - nowMs) / 1000));
     return {
       allowed: false,
       statusCode: 429,
-      retryAfterSeconds: Math.max(1, Math.ceil((current.resetAtMs - nowMs) / 1000)),
-      message: "Too many render requests. Retry after the current rate-limit window."
+      retryAfterSeconds,
+      // Customer-visible on a VN-first platform — Vietnamese leads, short English tail.
+      message: `Bạn thao tác quá nhanh — vui lòng đợi ${retryAfterSeconds} giây rồi thử lại. (Too many requests; retry in ${retryAfterSeconds}s.)`
     };
   }
 

@@ -398,7 +398,7 @@ export class RenderJobManager {
     if (initialStatus === "queued") {
       this.queue.push(jobId);
     }
-    this.persistHistory();
+    this.persistHistory({ immediate: true });
     this.pruneHistory();
     if (initialStatus === "queued") {
       this.pumpQueue();
@@ -1382,7 +1382,10 @@ export class RenderJobManager {
       ...current,
       ...effectivePatch
     } as RenderJobRecord);
-    this.persistHistory();
+    // Status changes (especially INTO a terminal state) must hit disk immediately — boot reconcile
+    // reads this file to decide refunds. Detail-only patches (artifacts, ledger) may coalesce.
+    const statusChanged = effectivePatch.status !== undefined && effectivePatch.status !== current.status;
+    this.persistHistory(statusChanged ? { immediate: true } : undefined);
   }
 
   private pruneHistory(): void {
@@ -1400,7 +1403,7 @@ export class RenderJobManager {
       this.jobs.delete(record.jobId);
       this.deleteIdempotencyForJob(record.jobId);
     }
-    this.persistHistory();
+    this.persistHistory({ immediate: true });
   }
 
   private restoreHistory(): void {
@@ -1426,11 +1429,41 @@ export class RenderJobManager {
       }
     }
     if (restoredCount > 0) {
-      this.persistHistory();
+      this.persistHistory({ immediate: true });
     }
   }
 
-  private persistHistory(): void {
+  // Debounced history persistence (durability-audit F4): stage-progress events and provider-ledger
+  // entries fired a FULL history rebuild+write per event — write amplification that stalls the event
+  // loop as retained jobs accumulate. Money-relevant writes (terminal status transitions, prune,
+  // restore) stay IMMEDIATE so boot reconcile never sees a stale terminal state; telemetry churn
+  // coalesces into one write per 500ms window. The timer is unref'd (never keeps the process alive)
+  // and a pending flush is folded into any immediate write.
+  private historyPersistTimer: NodeJS.Timeout | undefined;
+
+  private persistHistory(options?: { readonly immediate?: boolean }): void {
+    if (!this.historyStore) {
+      return;
+    }
+    if (options?.immediate) {
+      if (this.historyPersistTimer) {
+        clearTimeout(this.historyPersistTimer);
+        this.historyPersistTimer = undefined;
+      }
+      this.flushHistoryNow();
+      return;
+    }
+    if (this.historyPersistTimer) {
+      return;
+    }
+    this.historyPersistTimer = setTimeout(() => {
+      this.historyPersistTimer = undefined;
+      this.flushHistoryNow();
+    }, 500);
+    this.historyPersistTimer.unref?.();
+  }
+
+  private flushHistoryNow(): void {
     if (!this.historyStore) {
       return;
     }

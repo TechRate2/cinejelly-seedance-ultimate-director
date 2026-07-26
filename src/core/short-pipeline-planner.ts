@@ -1618,7 +1618,11 @@ function mediaUriEvidence(uri: string): {
   return {
     status: "ready",
     uriPolicy: "clean_https_hashed",
-    uriSha256: sha256(uri),
+    // Hash the SAME canonical form render-time recovery hashes (whitespace-collapsed + trimmed —
+    // security-audit F4): the plan used to hash the raw string while recovery hashed the cleaned
+    // one, so a pasted URI carrying stray whitespace could never match its own hash and the
+    // customer's reference was silently dropped from the paid render.
+    uriSha256: sha256(uri.replace(/\s+/g, " ").trim()),
     sourceHost: parsed.hostname.toLowerCase(),
     providerReady: true
   };

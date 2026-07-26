@@ -5,6 +5,7 @@
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { pipeline } from "node:stream";
 import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import {
   createServer,
@@ -713,7 +714,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       const rateLimitDecision = apiRateLimiter.check(request, requestUrl.pathname, request.method);
       if (!rateLimitDecision.allowed) {
         sendJson(response, rateLimitDecision.statusCode ?? 429, {
-          error: rateLimitDecision.message ?? "Too many requests.",
+          error: rateLimitDecision.message ?? "Bạn thao tác quá nhanh — vui lòng thử lại sau ít giây. (Too many requests.)",
           retryAfterSeconds: rateLimitDecision.retryAfterSeconds
         }, requestContext, retryAfterHeaders(rateLimitDecision.retryAfterSeconds));
         return;
@@ -2335,7 +2336,12 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             "Content-Length": redubFileStat.size,
             "Content-Disposition": `attachment; filename="${redubFileName}"`
           });
-          createReadStream(redubFilePath).pipe(response);
+          // pipeline, not bare pipe — see sendVideoStream (durability-audit F2/F5).
+          pipeline(createReadStream(redubFilePath), response, (error) => {
+            if (error && !response.destroyed) {
+              response.destroy();
+            }
+          });
         }
         return;
       }
@@ -2589,20 +2595,30 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           renderLease.release();
           throw reservationError;
         }
-        const syncUserCharge = planUserRenderCharge({
-          principal: authDecision.principal,
-          store: userAccountStore,
-          pricing: adminSettingsStore.pricing(),
-          pipelineCost: adminSettingsStore.pipelineCost(),
-          request: normalizedRequest
-        });
         const syncJobId = `sync_${requestContext.requestId}`;
-        if (syncUserCharge) {
-          userAccountStore.chargeRender({
-            userId: syncUserCharge.userId,
-            jobId: syncJobId,
-            credits: syncUserCharge.credits
+        let syncUserCharge: ReturnType<typeof planUserRenderCharge>;
+        try {
+          syncUserCharge = planUserRenderCharge({
+            principal: authDecision.principal,
+            store: userAccountStore,
+            pricing: adminSettingsStore.pricing(),
+            pipelineCost: adminSettingsStore.pipelineCost(),
+            request: normalizedRequest
           });
+          if (syncUserCharge) {
+            userAccountStore.chargeRender({
+              userId: syncUserCharge.userId,
+              jobId: syncJobId,
+              credits: syncUserCharge.credits
+            });
+          }
+        } catch (chargeError: unknown) {
+          // A routine 402 (insufficient credits) / 403 here happens BEFORE the render try/finally
+          // below, so the concurrency slot must be released on this path too — otherwise one
+          // broke customer wedges the whole sync+series channel until restart (durability-audit
+          // F1: with default concurrency 1 this was a permanent, silent outage).
+          renderLease.release();
+          throw chargeError;
         }
         let costLedger: readonly CostLedgerEntry[] = [];
         let runtime: ReturnType<typeof createDirectorRuntime> | undefined;
@@ -2697,6 +2713,23 @@ export function startServer(port = readPort(process.env.PORT)): Server {
     }
   });
   registerShutdownHandlers(server, jobManager, shutdownCoordinator, outputRetentionJanitor);
+  // Process-level failure policy (durability-audit F2): before this, NO handler existed anywhere —
+  // any unhandled rejection/exception crashed with whatever Node printed, cancelling every running
+  // render. We keep the crash-and-restart semantics (state may be corrupt; Docker restarts us) but
+  // log a LOUD, greppable line first so the operator can tell crash-loops from clean restarts.
+  // Registered once per process (guard against double-registration under test harnesses).
+  const globalWithFlag = globalThis as { __cinejellyFailurePolicyInstalled?: boolean };
+  if (!globalWithFlag.__cinejellyFailurePolicyInstalled) {
+    globalWithFlag.__cinejellyFailurePolicyInstalled = true;
+    process.on("unhandledRejection", (reason) => {
+      console.error("[FATAL unhandledRejection] Server sập vì lỗi không được bắt — Docker sẽ tự khởi động lại.", reason);
+      process.exit(1);
+    });
+    process.on("uncaughtException", (error) => {
+      console.error("[FATAL uncaughtException] Server sập vì lỗi không được bắt — Docker sẽ tự khởi động lại.", error);
+      process.exit(1);
+    });
+  }
   return server;
 }
 
@@ -2824,7 +2857,15 @@ function sendVideoStream(
     "Content-Length": String(fileSizeBytes),
     "Content-Disposition": `${disposition}; filename="${basename(filePath).replace(/["\\]/g, "")}"`
   });
-  createReadStream(filePath).pipe(response);
+  // stream.pipeline, never bare .pipe (durability-audit F2/F5): a raw pipe has NO error handler, so
+  // a stat→open race with the retention janitor (or any disk EIO) crashed the WHOLE process — and a
+  // client abort left the source ReadStream parked open until GC. pipeline destroys both sides and
+  // funnels every error into one callback.
+  pipeline(createReadStream(filePath), response, (error) => {
+    if (error && !response.destroyed) {
+      response.destroy();
+    }
+  });
 }
 
 /** Read a raw (non-JSON) request body with a hard byte cap. */

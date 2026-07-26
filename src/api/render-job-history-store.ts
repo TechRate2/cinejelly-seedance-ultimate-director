@@ -135,6 +135,26 @@ export class RenderJobHistoryStore {
 
   public save(summaries: readonly RenderJobSummary[]): void {
     const jobs = summaries
+      // The stored record persists only light fields (hasResult/hasCostLedger/hasArtifacts…
+      // booleans are computed upstream and survive as their own fields), yet the redaction walk
+      // below used to deep-scan the FULL result/artifacts/costLedger/artifactValidation payloads
+      // (100KB–1MB per job) through three regex passes and then discard them (durability-audit
+      // F4: per-persist event-loop stalls growing with retained bytes). Strip the heavy payloads
+      // BEFORE redaction — nothing persisted changes.
+      .map((summary) => {
+        const {
+          result: _result,
+          artifacts: _artifacts,
+          costLedger: _costLedger,
+          artifactValidation: _artifactValidation,
+          ...light
+        } = summary as RenderJobSummary & { readonly [key: string]: unknown };
+        void _result;
+        void _artifacts;
+        void _costLedger;
+        void _artifactValidation;
+        return light as unknown as RenderJobSummary;
+      })
       .map((summary) => this.publicStoredSummary(summary))
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .slice(0, this.historyLimit);
