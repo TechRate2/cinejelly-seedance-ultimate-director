@@ -61,6 +61,20 @@ const REGISTER_LABEL: Record<StyleRegister, string> = {
   natural_phone_kol: "natural phone-shot / KOL"
 };
 
+/**
+ * Real camera + lens gear anchor per register (mined from ai-shortfilm-prompts, Seedance-tuned):
+ * naming concrete film gear ("shot on ARRI Alexa with vintage Cooke primes") binds the model's
+ * training to genuine cinema imagery far more strongly than the word "cinematic" — and pinning a
+ * specific phone camera keeps the phone register from drifting toward a polished studio look. Emitted
+ * once in the register section; a shot's own authored optics still layers on top.
+ */
+export const GEAR_ANCHOR_BY_REGISTER: Record<StyleRegister, string> = {
+  professional_cinematic:
+    "Capture gear: shot on a professional cinema camera with vintage prime lenses (ARRI Alexa / Sony Venice body, Cooke S4 or vintage anamorphic primes) — real film optics, natural lens breathing and organic bokeh, fine filmic grain.",
+  natural_phone_kol:
+    "Capture gear: shot handheld on a recent flagship phone's main camera (iPhone 15 Pro-class) — natural phone-lens perspective, real auto-exposure and autofocus behaviour, no cinema rig, no color grade."
+};
+
 /** Map the legacy creative modes onto a register so existing callers get the right frame for free. */
 export function registerForCreativeMode(creativeMode: string | undefined): StyleRegister | undefined {
   switch (creativeMode) {

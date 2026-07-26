@@ -497,5 +497,7 @@ export const SEEDANCE_MASTERY_DIRECTIVE = [
   "Anchor identity explicitly: name the locked features (face, hair, accessories and which side they sit on) and repeat that they must not drift, duplicate, or flicker across cuts.",
   "Give every reference one explicit job (identity / product / style / start frame) and state what NOT to take from it; when a storyboard is supplied, follow its panel order exactly but never render the sheet.",
   "Scaffold time in explicit second ranges; each beat states camera, action, and audio together.",
-  "End on a designed final frame: a loopable match to the opening, a freeze on the payoff, or a settled hero shot — never just stop."
+  // Anti-AI realism discipline (mined from ai-shortfilm-prompts, Seedance-tuned): the model's default is TOO clean, which reads as fake.
+  "Realism through imperfection: give each recurring subject/prop >=2 lived-in imperfections (worn collar, stray hair, faint blemish, scuff) and restate them every time it appears — flawless surfaces read as AI.",
+  "End on a designed but RESTRAINED final frame (loopable opening-match, payoff freeze, or settled hero shot); never just stop, and never pile effects or new motion onto the closer — over-produced endings are the clearest AI tell."
 ].join(" ");

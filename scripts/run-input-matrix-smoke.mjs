@@ -620,6 +620,11 @@ for (const ratio of ["9:16", "16:9", "1:1", "adaptive"]) {
   const noAudioDnaShot = bareShot({ styleDna: { register: "natural_phone_kol", optics: "grainy 26mm phone lens" } });
   const noAudioPrompt = compiler.compile({ shot: noAudioDnaShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
   check("audit#16: register audio axis present when no override", noAudioPrompt.includes("In-camera sound only"), "");
+  // Camera+lens gear anchor (mined ai-shortfilm): named real gear reaches the compiled prompt per register.
+  check("gear anchor: phone register names a real phone camera", noAudioPrompt.includes("flagship phone's main camera") && noAudioPrompt.includes("iPhone 15 Pro-class"), "");
+  const cineGearShot = bareShot({ styleDna: { register: "professional_cinematic" } });
+  const cineGearPrompt = compiler.compile({ shot: cineGearShot, settings, modelId: "m", provider: "atlascloud" }).prompt;
+  check("gear anchor: cinematic register names a real cinema camera+lens", cineGearPrompt.includes("professional cinema camera") && /ARRI Alexa|Cooke|anamorphic/.test(cineGearPrompt), "");
 
   // audit#17 — verbatim spoken lines get the delivery-only dialogue-light clause
   const verbatimShot = bareShot({ styleDna: { register: "natural_phone_kol" }, spokenLine: "Ồ, mềm mà không rách thật luôn á!" });

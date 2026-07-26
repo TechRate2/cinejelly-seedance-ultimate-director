@@ -98,12 +98,16 @@ check("review_phone_register_switches_to_authentic", /NICHE PLAYBOOK \(ugc_pov_a
 // A cinematic register keeps the niche-first family (a real cinematic product ad still gets the ad playbook).
 const foodAd = nichePlaybookDirective({ niche: "food_beverage", creativeMode: "product_ad", register: "professional_cinematic" });
 check("cinematic_register_keeps_niche_family", /NICHE PLAYBOOK \(food_asmr\)/.test(foodAd));
-check("mastery_directive_covers_core_rules", /emotional pacing curve/.test(SEEDANCE_MASTERY_DIRECTIVE) && /lip-sync/.test(SEEDANCE_MASTERY_DIRECTIVE) && /drift/.test(SEEDANCE_MASTERY_DIRECTIVE) && /never render the sheet/.test(SEEDANCE_MASTERY_DIRECTIVE) && SEEDANCE_MASTERY_DIRECTIVE.length < 1200);
+check("mastery_directive_covers_core_rules", /emotional pacing curve/.test(SEEDANCE_MASTERY_DIRECTIVE) && /lip-sync/.test(SEEDANCE_MASTERY_DIRECTIVE) && /drift/.test(SEEDANCE_MASTERY_DIRECTIVE) && /never render the sheet/.test(SEEDANCE_MASTERY_DIRECTIVE) && SEEDANCE_MASTERY_DIRECTIVE.length < 1300);
+// Anti-AI realism discipline (mined from ai-shortfilm-prompts): >=2 imperfection anchors + a restrained closer.
+check("mastery_directive_has_antiai_realism", /imperfection/.test(SEEDANCE_MASTERY_DIRECTIVE) && /RESTRAINED/.test(SEEDANCE_MASTERY_DIRECTIVE) && /read as AI|reads as AI|AI tell/.test(SEEDANCE_MASTERY_DIRECTIVE));
 
 // --- 4. Story Architect injects both directives.
 const architectSource = readFileSync(new URL("../src/agents/story-architect.ts", import.meta.url), "utf8");
 check("story_architect_injects_playbook", architectSource.includes("nichePlaybookDirective(") && architectSource.includes("SEEDANCE_MASTERY_DIRECTIVE"));
 check("story_architect_reads_niche_metadata", architectSource.includes("shortViralNiche") && architectSource.includes("shortViralCreativeMode"));
+// Retention spine (mined short-form virality): a labeled emotional curve + a mid-video pattern-interrupt.
+check("hook_directive_has_retention_spine", architectSource.includes("RETENTION SPINE") && architectSource.includes("PATTERN-INTERRUPT") && architectSource.includes("one-third mark"));
 
 // --- 5. Corpus gained the entertainment families and retrieves them.
 function corpusQuery(niche, prompt) {

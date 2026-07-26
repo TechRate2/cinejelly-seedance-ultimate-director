@@ -23,6 +23,7 @@ import { resolveSeedanceDna } from "../core/seedance-dna.js";
 import {
   DIALOGUE_LIGHT_LANGUAGE_CLAUSE,
   DIALOGUE_LIGHT_VERBATIM_CLAUSE,
+  GEAR_ANCHOR_BY_REGISTER,
   registerForCreativeMode,
   registerGrammarPromptLine,
   TALKING_HEAD_NATURALNESS_CLAUSE,
@@ -496,6 +497,9 @@ export class SeedancePromptCompiler {
       ?? this.stringMetadata(shot, "analystVoiceLanguage");
     const weakLipSyncLanguage = spokenLanguage === "vi" || containsVietnameseDiacritics(shot.spokenLine);
     return [
+      // Real camera+lens gear anchor (mined, Seedance-tuned): named gear binds the model to genuine
+      // film/phone imagery better than the word "cinematic". Emitted once, ahead of the axes.
+      GEAR_ANCHOR_BY_REGISTER[register],
       // Each authored axis REPLACES the register default (omitted above) instead of stacking a
       // second, possibly-contradicting sentence on top of it (audit).
       registerGrammarPromptLine(register, { omit: omitAxes }),
