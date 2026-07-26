@@ -73,6 +73,34 @@ const cinematicPlan = planKeyframeRequests({
 });
 check("cinematic_keyframe_reads_as_cinema_frame", cinematicPlan[0].request.prompt.includes("frame grab from a cinema camera") && !cinematicPlan[0].request.prompt.includes("unedited phone photo"));
 
+// ENVIRONMENT FIDELITY (paid-acceptance forensics): the customer's setting lives in
+// continuity.environment and MUST reach the keyframe image prompt as a strong positive Setting line
+// — before the fix it was stranded (bedroom brief rendered as a grey studio sweep).
+const envShot = {
+  ...shots[0], shotId: "shot_kf_env",
+  continuity: { environment: "sunlit bedroom by a window, unmade bed, morning window light" }
+};
+const envPlan = planKeyframeRequests({ shots: [envShot], provider: "atlascloud", imageModelId: "seedream-smoke", settings: { ...DEFAULT_SEEDANCE_SETTINGS, ratio: "9:16" } });
+check("keyframe_binds_environment_as_setting",
+  envPlan[0].request.prompt.includes("Setting:") &&
+  envPlan[0].request.prompt.includes("sunlit bedroom by a window") &&
+  /never a plain studio backdrop/i.test(envPlan[0].request.prompt));
+check("keyframe_without_environment_omits_setting", !plans[0].request.prompt.includes("Setting:"));
+
+// ANTI-STUDIO ANCHOR: the identity portrait (attached as the identity ref on every shot) must no
+// longer seed the word "studio" — reference-to-image copied that backdrop across the whole video.
+const { planCastPortraitRequests: planPortraits } = await import("../dist/core/keyframe-first-planner.js");
+const antiStudioPortraits = planPortraits({
+  cast: [{ characterId: "linh", name: "Linh", description: "Vietnamese woman", staticFeatures: "oval face", isPrimary: true }],
+  provider: "atlascloud", imageModelId: "seedream-smoke", seed: 3
+});
+check("portrait_no_longer_seeds_studio", !antiStudioPortraits[0].request.prompt.includes("studio light") && antiStudioPortraits[0].request.prompt.includes("identity-isolation reference only"));
+
+// AVATAR prompt carries the environment too (OmniHuman keeps the room while animating).
+const { buildAvatarPrompt } = await import("../dist/core/avatar-shot-planner.js");
+check("avatar_prompt_carries_environment", buildAvatarPrompt(envShot).includes("Set inside:") && buildAvatarPrompt(envShot).includes("sunlit bedroom"));
+check("avatar_prompt_without_environment_omits_it", !buildAvatarPrompt(shots[1]).includes("Set inside:"));
+
 // continuity.identity ARRAY shape must not crash any reader (cross-audit #2): the guardian handled it,
 // but splitCharacterIdentities (used by narrowing + ledger) threw on `.trim()`. Both shapes normalize now.
 check("split_identities_accepts_array_shape", JSON.stringify(splitCharacterIdentities(["Linh", "Mai"])) === JSON.stringify(["Linh", "Mai"]) && JSON.stringify(splitCharacterIdentities("Linh and Mai")) === JSON.stringify(["Linh", "Mai"]) && splitCharacterIdentities(undefined).length === 0 && splitCharacterIdentities({}).length === 0);

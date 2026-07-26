@@ -59,13 +59,19 @@ function avatarImageUrlFor(shot: ShotContract): string | undefined {
  * contracts, no reference plumbing (those confuse audio-driven models).
  */
 export function buildAvatarPrompt(shot: ShotContract): string {
+  // Carry the ENVIRONMENT into the avatar model too: OmniHuman animates the driving keyframe but a
+  // stated setting keeps it from drifting the background toward a neutral studio while it moves
+  // (paid-acceptance forensics: talking clips lost the ordered bedroom). Kept short — the model
+  // reads the audio for delivery.
+  const environment = shot.continuity?.environment?.trim();
   const parts = [
     `${shot.subject}.`,
     `${shot.action.replace(/[.\s]+$/u, "")}.`,
+    environment ? `Set inside: ${environment} — keep this real location as the background, not a studio backdrop.` : undefined,
     `Camera: ${shot.camera}.`,
     "Natural spontaneous UGC delivery: real facial emotion matching the speech, small hand gestures, handheld phone energy — never a stiff presenter pose."
   ];
-  return parts.join(" ").slice(0, 2_000);
+  return parts.filter((part): part is string => Boolean(part)).join(" ").slice(0, 2_000);
 }
 
 /** Map pipeline resolution settings onto the avatar model's 720/1080 options. */

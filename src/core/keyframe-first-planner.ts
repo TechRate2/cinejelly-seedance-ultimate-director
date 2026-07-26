@@ -197,7 +197,12 @@ export function planCastPortraitRequests(input: {
           provider: input.provider,
           modelId: input.imageModelId,
           prompt: [
-            `Photoreal character identity portrait of ${member.name}: ${PORTRAIT_VIEW_DIRECTIVES[view]}, neutral relaxed expression, even soft studio light, plain neutral background.`,
+            // Identity-ISOLATION reference, NOT the video's setting: flat even light + uncluttered
+            // background so the face reads cleanly. Deliberately avoids the word "studio" — this
+            // portrait is attached as the identity reference on every shot, and reference-to-image
+            // copied its backdrop, seeding a studio look across the whole video (paid-acceptance
+            // forensics). The real environment comes from each shot's own keyframe Setting line.
+            `Photoreal character identity portrait of ${member.name}: ${PORTRAIT_VIEW_DIRECTIVES[view]}, neutral relaxed expression, flat even lighting on a plain uncluttered background (identity-isolation reference only — this background is NOT the video's real setting).`,
             `Locked identity anchor: ${member.staticFeatures?.trim() || member.description}.`,
             member.dynamicFeatures?.trim() ? `Current presentation: ${member.dynamicFeatures}.` : undefined,
             view === "front"
@@ -598,10 +603,22 @@ function keyframePromptFor(shot: ShotContract): string {
           "Real lens optics with natural depth of field, physically accurate light and shadows, true material microtexture (skin pores, fabric weave, product surfaces).",
           "Color: natural true-to-life color balance — accurate white balance, restrained saturation, soft organic contrast, slight ambient imperfection; no vivid mode, no HDR halo, no punchy filter, no over-sharpening."
         ];
+  // The customer's ENVIRONMENT (e.g. "phòng ngủ ánh sáng cửa sổ buổi sáng") lives in
+  // continuity.environment but historically never reached the keyframe prompt — so the still was
+  // generated on the identity portrait's plain studio backdrop and the whole clip inherited a
+  // "studio sweep" look instead of the ordered location (paid-acceptance forensics: bedroom brief
+  // rendered as a grey seamless studio). Bind it as a STRONG POSITIVE setting so the image model
+  // places the subject inside the real room, overriding the neutral background of the attached
+  // identity reference.
+  const environment = shot.continuity?.environment?.trim();
+  const settingClause = environment
+    ? `Setting: the subject is physically inside this exact real location which fills the frame — ${environment}. Never a plain studio backdrop, seamless paper sweep, cyclorama, or neutral void wall.`
+    : undefined;
   return [
     `Single photoreal still frame: the OPENING frame of this shot, already mid-action with immediate visual tension (never an empty establishing frame).`,
     `Subject: ${shot.subject}.`,
     identityClause,
+    settingClause,
     `Moment: the first instant of "${shot.action}".`,
     `Camera: ${shot.camera}. Lighting: ${shot.lighting}.`,
     shot.style ? `Style: ${shot.style}.` : undefined,
