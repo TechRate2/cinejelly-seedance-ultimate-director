@@ -57,8 +57,18 @@ const requestIdHeaderPresent = Boolean(healthResponse.headers.get("x-cinejelly-r
 const checks = [
   check(
     "http_health_json_response_available",
-    healthResponse.statusCode === 200 && healthPayload?.status === "ok",
-    "Local /health JSON response is available through the real API sender."
+    // Enriched /health (launch-ops audit): reports ok ONLY when everything is green — in this
+    // smoke's env there is deliberately no provider key, so "degraded" with the enriched fields
+    // is the CORRECT answer. Assert the contract shape, not green-ness.
+    healthResponse.statusCode === 200 &&
+      (healthPayload?.status === "ok" || healthPayload?.status === "degraded") &&
+      typeof healthPayload?.pendingTopups === "number" &&
+      typeof healthPayload?.pendingRefunds === "number" &&
+      typeof healthPayload?.failedJobsLast24h === "number" &&
+      typeof healthPayload?.providerConfigured === "boolean" &&
+      typeof healthPayload?.disk === "string" &&
+      (healthPayload?.janitor === "on" || healthPayload?.janitor === "off"),
+    "Local /health JSON response is available through the real API sender with the enriched monitoring fields."
   ),
   check(
     "http_json_security_headers_present",

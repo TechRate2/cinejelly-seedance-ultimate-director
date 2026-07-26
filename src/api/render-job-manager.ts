@@ -1146,6 +1146,17 @@ export class RenderJobManager {
     return this.jobs.get(jobId)?.status;
   }
 
+  /** Cheap health signal for the no-auth /health endpoint: failed jobs updated since `sinceMs`. */
+  public countFailedSince(sinceMs: number): number {
+    let count = 0;
+    for (const record of this.jobs.values()) {
+      if (record.status === "failed" && record.updatedAt.getTime() >= sinceMs) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
   private async tryWriteFailureArtifacts(input: {
     readonly request: CineJellyProjectRequest;
     readonly costLedger: readonly CostLedgerEntry[];

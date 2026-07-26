@@ -17,6 +17,13 @@ services:
       - cinejelly-reference-inputs:/app/assets/reference_inputs
     expose:
       - "8787"
+    # Giới hạn log để chạy nhiều tuần không đầy ổ (durability-audit F6): mặc định Docker giữ log
+    # json-file KHÔNG giới hạn.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   caddy:
     image: caddy:2.8-alpine
@@ -33,6 +40,11 @@ services:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   cinejelly-output:

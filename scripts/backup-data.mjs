@@ -40,13 +40,15 @@ const targets = [
     : []),
   ...(jobHistoryPath ? [{ source: jobHistoryPath, label: "Lịch sử job render (video khách đã tạo)" }] : []),
   { source: process.env.CINEJELLY_ADMIN_SETTINGS_PATH?.trim() || join(outputDir, "admin-settings.json"), label: "Cấu hình admin (giá/gói/model/bank)" },
-  ...(process.env.CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH?.trim()
-    ? [{ source: process.env.CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH.trim(), label: "Phiên tạo video (bản nháp)" }]
-    : []),
-  ...(process.env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH?.trim()
-    ? [{ source: process.env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH.trim(), label: "Thư viện phong cách kênh" }]
-    : [])
+  // DEFAULT paths too, not only env overrides (launch-ops audit: with no env override these two
+  // stores were silently SKIPPED while the script still printed "ok").
+  { source: process.env.CINEJELLY_SHORT_PIPELINE_SESSION_STORE_PATH?.trim() || join(outputDir, "short-pipeline-sessions.json"), label: "Phiên tạo video (bản nháp)" },
+  { source: process.env.CINEJELLY_SHORT_CHANNEL_STYLE_LIBRARY_PATH?.trim() || join(outputDir, "short-channel-styles.json"), label: "Thư viện phong cách kênh" }
 ];
+// Phim dài tập: toàn bộ trạng thái series trả tiền (bible + cast + tiến độ tập) nằm trong thư mục
+// series/ — mất nó là mất tính liên tục mọi bộ phim của khách (launch-ops audit: lỗ hổng backup
+// nặng nhất).
+const seriesDirectory = join(outputDir, "series");
 
 const copied = [];
 for (const target of targets) {
@@ -63,6 +65,18 @@ if (existsSync(uploadsDir)) {
   cpSync(uploadsDir, join(backupDir, "uploads"), { recursive: true });
   copied.push(`Ảnh/video khách tải lên: ${uploadCount} file`);
 }
+if (existsSync(seriesDirectory)) {
+  const seriesCount = readdirSync(seriesDirectory).length;
+  cpSync(seriesDirectory, join(backupDir, "series"), { recursive: true });
+  copied.push(`Phim dài tập (bible + tiến độ): ${seriesCount} mục`);
+}
+// Postgres không nằm trong file nào ở đây — cảnh báo TO thay vì im lặng in "ok" (launch-ops audit).
+if ((process.env.CINEJELLY_DATABASE_KIND || "").trim() === "postgres") {
+  console.warn(
+    "[CẢNH BÁO] Đang dùng CINEJELLY_DATABASE_KIND=postgres: sổ tài khoản + credits KHÔNG nằm trong bản backup này. " +
+      "Phải chạy pg_dump riêng (xem HUONG-DAN-PHUC-HOI.txt), nếu không mất máy chủ Postgres là mất tiền của khách."
+  );
+}
 
 writeFileSync(
   join(backupDir, "HUONG-DAN-PHUC-HOI.txt"),
@@ -73,6 +87,8 @@ writeFileSync(
     "   - user-accounts.json hoặc .sqlite -> đặt đúng tên cũ ngay trong thư mục trên",
     "   - job-history.json -> đặt vào thư mục con: " + outputDir + "/render-jobs/",
     "   - admin-settings.json -> ngay trong thư mục trên; thư mục uploads -> uploads/",
+    "   - short-pipeline-sessions.json + short-channel-styles.json -> ngay trong thư mục trên",
+    "   - thư mục series -> " + outputDir + "/series/ (phim dài tập: mất là mất tính liên tục các bộ phim)",
     "3. Bật lại server. Số dư + tài khoản + lịch sử video khách trở lại nguyên vẹn.",
     "",
     "Nên chạy backup mỗi ngày (Windows Task Scheduler / cron): npm run backup:data",

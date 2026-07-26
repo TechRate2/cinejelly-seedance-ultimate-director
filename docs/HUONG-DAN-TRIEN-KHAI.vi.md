@@ -100,6 +100,25 @@ docker run --rm -v cinejelly-output:/data -v "$PWD/backups":/backup alpine tar c
 ```
 Dữ liệu Docker không mất khi khởi động lại container; lệnh trên là để có bản sao mang đi nơi khác.
 
+**Đặt lịch tự động mỗi đêm + chép sang nơi khác (BẮT BUỘC trước khi kinh doanh):** trên VPS Linux, chạy `crontab -e` rồi thêm 2 dòng (đổi đường dẫn cho đúng máy bạn):
+```
+30 2 * * * cd /duong-dan/du-an && docker run --rm -v cinejelly-output:/data -v "$PWD/backups":/backup alpine tar czf /backup/cinejelly-backup-$(date +\%F).tar.gz -C /data .
+0 3 * * * scp /duong-dan/du-an/backups/cinejelly-backup-$(date +\%F).tar.gz ban@may-khac:/backup/  # hoặc rclone copy ... lên Google Drive
+```
+Backup để chung một máy với dữ liệu gốc = hỏng máy là mất cả hai. Thư mục `backups/` cũng cần thỉnh thoảng xoá bản quá cũ cho đỡ đầy ổ.
+
+## 3 mặc định trong file mẫu `.env` bạn PHẢI biết trước ngày đầu
+
+| Biến | File mẫu đặt | Nghĩa là gì |
+|---|---|---|
+| `CINEJELLY_OUTPUT_RETENTION_DAYS=14` | **BẬT 14 ngày** | Video render cũ hơn 14 ngày bị TỰ XOÁ (chỉ file tạm `work/`, `redub/` — không đụng tiền/tài khoản/uploads). Muốn giữ lâu hơn thì tăng số; muốn tắt hẳn thì xoá dòng này (ổ sẽ tự đầy — phải dọn tay). |
+| `CINEJELLY_CUSTOMER_AUTO_RUN=true` | **BẬT** | Khách bấm tạo là trừ credits + chạy NGAY, không có bước bạn duyệt trước. Tắt (`false`) thì mọi job chờ bạn duyệt — nhớ vào duyệt kẻo khách đợi. |
+| `CINEJELLY_PIPELINE_PRICING=true` | **BẬT** | Giá tính theo công thức chi phí (video+ảnh+giọng nói) nhân hệ số lãi — chỉnh hệ số trong `/operator/admin`. |
+
+**`CINEJELLY_SUPPORT_CONTACT` (đừng để trống):** điền Zalo/số điện thoại/email hỗ trợ của bạn vào biến này trong `.env`. Nó hiện ngay trên màn hình đăng nhập — là đường duy nhất để khách quên mật khẩu liên hệ bạn cấp lại. Để trống thì khách chỉ thấy chữ chung chung "người bán (chủ hệ thống)" và không biết tìm bạn ở đâu.
+
+**Theo dõi từ điện thoại (miễn phí):** tạo tài khoản UptimeRobot, thêm monitor loại HTTP(s) trỏ vào `https://ten-mien-cua-ban/health`, chọn "Keyword" và điền từ khóa `"status":"ok"`, kiểm tra mỗi 5 phút. Khi server sập, đầy ổ, thiếu API key, hay có hàng chờ hoàn tiền — chữ `ok` biến mất và UptimeRobot báo về điện thoại bạn. Trang `/health` giờ hiển thị: ổ đĩa còn bao nhiêu GB, đã cấu hình key chưa, bộ dọn ổ bật/tắt, số đơn nạp tiền + hoàn tiền đang chờ, số video lỗi 24h qua.
+
 ## Cập nhật lên bản mới (1 lệnh, an toàn)
 
 ```

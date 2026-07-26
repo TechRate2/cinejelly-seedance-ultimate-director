@@ -13,7 +13,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
     ? supportContact.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c))
     : "người bán (chủ hệ thống)";
   return String.raw`<!doctype html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1021,20 +1021,20 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
           <div class="brand-sub">Studio</div>
         </div>
       </div>
-      <div class="nav-section">Creation</div>
-      <button class="nav-item active" type="button" data-mode-button="short_video"><span class="nav-ico">◇</span><span>Short Studio</span></button>
-      <button class="nav-item" type="button" data-mode-button="video_remake"><span class="nav-ico">↻</span><span>Video Remake</span></button>
-      <button class="nav-item" type="button" data-mode-button="product_kol_ugc"><span class="nav-ico">□</span><span>UGC Ads</span></button>
-      <button class="nav-item" type="button" data-mode-button="storyboard_multishot"><span class="nav-ico">▣</span><span>Product Scenes</span></button>
-      <button class="nav-item" type="button" data-mode-button="production_bible"><span class="nav-ico">▤</span><span>Director Long</span></button>
-      <div class="nav-section">Control</div>
-      <button class="nav-item" type="button" id="nav-jobs"><span class="nav-ico">▥</span><span>Jobs</span></button>
+      <div class="nav-section">Sáng tạo</div>
+      <button class="nav-item active" type="button" data-mode-button="short_video"><span class="nav-ico">◇</span><span>Video ngắn</span></button>
+      <button class="nav-item" type="button" data-mode-button="video_remake"><span class="nav-ico">↻</span><span>Làm lại video</span></button>
+      <button class="nav-item" type="button" data-mode-button="product_kol_ugc"><span class="nav-ico">□</span><span>Quảng cáo UGC</span></button>
+      <button class="nav-item" type="button" data-mode-button="storyboard_multishot"><span class="nav-ico">▣</span><span>Bối cảnh sản phẩm</span></button>
+      <button class="nav-item" type="button" data-mode-button="production_bible"><span class="nav-ico">▤</span><span>Phim dài (Đạo diễn)</span></button>
+      <div class="nav-section">Điều khiển</div>
+      <button class="nav-item" type="button" id="nav-jobs"><span class="nav-ico">▥</span><span>Video của tôi</span></button>
       <div class="sidebar-card">
-        <strong>Project Control</strong>
-        <div class="detail">Status <span id="side-status">idle</span></div>
+        <strong>Bảng dự án</strong>
+        <div class="detail">Trạng thái <span id="side-status">chờ</span></div>
         <div class="meter"><span></span></div>
-        <div class="detail">Scenes <span id="side-scenes">0</span> | Pending <span id="side-pending">0</span></div>
-        <div class="detail">Provider <span id="side-provider">locked</span></div>
+        <div class="detail">Cảnh <span id="side-scenes">0</span> | Đang chờ <span id="side-pending">0</span></div>
+        <div class="detail">Kết nối render <span id="side-provider">khoá</span></div>
       </div>
       <div class="sidebar-bottom"><span>⚙</span><span>?</span><span>↗</span></div>
     </aside>

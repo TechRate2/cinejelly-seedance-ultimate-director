@@ -6,7 +6,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { pipeline } from "node:stream";
-import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
@@ -133,7 +133,7 @@ import {
 } from "./render-provider-handoff-lease-service.js";
 import { FileRenderProviderHandoffLeaseStore } from "./render-provider-handoff.js";
 import { renderRequestAdmissionFromEnv, RenderRequestAdmissionError, ContentSafetyError } from "./render-request-admission.js";
-import { assertRenderDiskAvailable, RenderDiskUnavailableError } from "../utils/disk-space.js";
+import { assertRenderDiskAvailable, freeDiskGb, RenderDiskUnavailableError } from "../utils/disk-space.js";
 import {
   attachRequestContextHeaders,
   createApiRequestContext,
@@ -558,11 +558,26 @@ export function startServer(port = readPort(process.env.PORT)): Server {
       // Single-flight seed: concurrent first-callers await ONE scan instead of each launching their
       // own full readdir+stat (which would recreate the O(n) storm F14 removed, x uploadGate width).
       if (!uploadsUsage.seedPromise) {
-        uploadsUsage.seedPromise = uploadsDirectoryUsage(dir).then((scanned) => {
+        uploadsUsage.seedPromise = (async () => {
+          // Sweep orphan .part files left by a crash mid-upload BEFORE counting usage
+          // (durability-audit F7): they are never referenced by any handle and would otherwise
+          // sit forever and inflate the quota tally. Best-effort — a failed unlink must never
+          // break the usage seed.
+          try {
+            const names = await readdir(dir);
+            await Promise.all(
+              names
+                .filter((name) => name.endsWith(".part"))
+                .map((name) => unlink(join(dir, name)).catch(() => undefined))
+            );
+          } catch {
+            // Directory may not exist yet — the scan below handles that on its own.
+          }
+          const scanned = await uploadsDirectoryUsage(dir);
           uploadsUsage.totalBytes = scanned.totalBytes;
           uploadsUsage.fileCount = scanned.fileCount;
           uploadsUsage.initialized = true;
-        });
+        })();
       }
       await uploadsUsage.seedPromise;
     }
@@ -739,25 +754,51 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         // the body carries the real state + fix for a human/dashboard to see.
         const databaseUnreachable = userAccountStore.hasHydrationFailed();
         const orphanedAccounts = userAccountStore.orphanedJsonAccountCount();
+        // Launch-ops audit: this is the ONLY no-auth endpoint an uptime monitor (solo operator's
+        // phone) can poll — it used to stay "ok" while disk ran out, the provider key was missing,
+        // or refunds piled up. Enrich it with cheap in-RAM/env signals and emit the literal
+        // status "ok" ONLY when everything is green, so a free keyword monitor alerts on any
+        // degradation. Still always HTTP 200 (no restart-loops on transient blips).
+        const freeGb = await freeDiskGb(process.env).catch(() => -1);
+        const diskState = freeGb < 0 ? "unknown" : freeGb < 1 ? "low" : "ok";
+        const providerConfigured = Boolean(process.env.ATLASCLOUD_API_KEY?.trim());
+        const retentionDaysRaw = Number.parseFloat(process.env.CINEJELLY_OUTPUT_RETENTION_DAYS ?? "");
+        const janitorOn = Number.isFinite(retentionDaysRaw) && retentionDaysRaw > 0;
+        const pendingTopupCount = userAccountStore.pendingTopups().length;
+        const pendingRefundCount = userAccountStore.pendingRefundRequests().length;
+        const failedLast24h = jobManager.countFailedSince(Date.now() - 24 * 60 * 60 * 1000);
+        const database = databaseUnreachable ? "unreachable" : orphanedAccounts > 0 ? "unmigrated" : "ok";
+        const allGreen = database === "ok" && diskState !== "low" && providerConfigured;
         sendJson(
           response,
           200,
-          databaseUnreachable
-            ? {
-                status: "degraded",
-                database: "unreachable",
-                message:
-                  "Không kết nối được cơ sở dữ liệu tài khoản — kiểm tra CINEJELLY_POSTGRES_URL / Neon (có thể đang ngủ hoặc sai chuỗi kết nối) rồi khởi động lại máy chủ."
-              }
-            : orphanedAccounts > 0
+          {
+            status: allGreen ? "ok" : "degraded",
+            database,
+            disk: diskState,
+            ...(freeGb >= 0 ? { freeDiskGb: Math.round(freeGb * 10) / 10 } : {}),
+            providerConfigured,
+            janitor: janitorOn ? "on" : "off",
+            pendingTopups: pendingTopupCount,
+            pendingRefunds: pendingRefundCount,
+            failedJobsLast24h: failedLast24h,
+            ...(database === "unreachable"
               ? {
-                  status: "degraded",
-                  database: "unmigrated",
                   message:
-                    `Đã đổi loại cơ sở dữ liệu nhưng ${orphanedAccounts} tài khoản cũ còn nằm trong file user-accounts.json chưa được chuyển sang. ` +
-                    'Dữ liệu KHÔNG mất — chạy "npm run db:migrate" để chuyển, hoặc đổi lại CINEJELLY_DATABASE_KIND=json.'
+                    "Không kết nối được cơ sở dữ liệu tài khoản — kiểm tra CINEJELLY_POSTGRES_URL / Neon (có thể đang ngủ hoặc sai chuỗi kết nối) rồi khởi động lại máy chủ."
                 }
-              : { status: "ok" },
+              : database === "unmigrated"
+                ? {
+                    message:
+                      `Đã đổi loại cơ sở dữ liệu nhưng ${orphanedAccounts} tài khoản cũ còn nằm trong file user-accounts.json chưa được chuyển sang. ` +
+                      'Dữ liệu KHÔNG mất — chạy "npm run db:migrate" để chuyển, hoặc đổi lại CINEJELLY_DATABASE_KIND=json.'
+                  }
+                : !providerConfigured
+                  ? { message: "Chưa có ATLASCLOUD_API_KEY — khách tạo video sẽ lỗi. Điền key trong .env rồi khởi động lại." }
+                  : diskState === "low"
+                    ? { message: "Ổ đĩa còn dưới 1GB — render sẽ bị chặn. Dọn bớt uploads/ hoặc mở rộng ổ." }
+                    : {})
+          },
           requestContext
         );
         return;
@@ -1312,7 +1353,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
                 ? { workspaceBillingReservation: commercialReservation.workspaceBillingReservation }
                 : {})
             }
-          : { error: "Render job not found." }, requestContext);
+          : { error: "Không tìm thấy video này — kiểm tra lại danh sách Video của tôi. (Render job not found.)" }, requestContext);
         return;
       }
       if (request.method === "POST" && requestUrl.pathname === "/v1/account/register") {
@@ -1914,7 +1955,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const uploadMaxBytes = readPositiveInteger(process.env.CINEJELLY_UPLOAD_MAX_BYTES, DEFAULT_UPLOAD_MAX_BYTES);
         const body = await readRawBody(request, uploadMaxBytes);
         if (body.length === 0) {
-          sendJson(response, 400, { error: "Upload body is empty." }, requestContext);
+          sendJson(response, 400, { error: "Tệp tải lên rỗng — hãy chọn lại ảnh/video. (Upload body is empty.)" }, requestContext);
           return;
         }
         const uploadsDir = uploadsDirectoryFor(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
@@ -1942,7 +1983,13 @@ export function startServer(port = readPort(process.env.PORT)): Server {
             }, requestContext);
             return;
           }
-          await writeFile(join(uploadsDir, storedFileName), body);
+          // tmp+rename (durability-audit F7): a crash mid-write used to leave a half-written file
+          // under the FINAL name forever (never referenced, never cleaned, poisons the handle if
+          // ever reused). The rename is atomic on the same volume; orphan .part files are swept at
+          // boot.
+          const uploadTempPath = join(uploadsDir, `${storedFileName}.part`);
+          await writeFile(uploadTempPath, body);
+          await rename(uploadTempPath, join(uploadsDir, storedFileName));
           recordUpload(uploaderId, body.length);
         } catch (uploadError) {
           // Never leak a raw filesystem error (which carries absolute local paths) to a customer.
@@ -1970,24 +2017,24 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         const requestedExtension = requestedName.split(".").pop() ?? "";
         const contentType = UPLOAD_CONTENT_TYPES[requestedExtension];
         if (!UPLOAD_FILE_NAME_PATTERN.test(requestedName) || !contentType) {
-          sendJson(response, 404, { error: "Uploaded file not found." }, requestContext);
+          sendJson(response, 404, { error: "Không tìm thấy tệp đã tải lên — hãy tải lại ảnh/video. (Uploaded file not found.)" }, requestContext);
           return;
         }
         const uploadsRoot = uploadsDirectoryFor(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
         const uploadedPath = resolve(uploadsRoot, requestedName);
         if (!uploadedPath.startsWith(uploadsRoot + sep)) {
-          sendJson(response, 404, { error: "Uploaded file not found." }, requestContext);
+          sendJson(response, 404, { error: "Không tìm thấy tệp đã tải lên — hãy tải lại ảnh/video. (Uploaded file not found.)" }, requestContext);
           return;
         }
         let uploadedStat;
         try {
           uploadedStat = await stat(uploadedPath);
         } catch {
-          sendJson(response, 404, { error: "Uploaded file not found." }, requestContext);
+          sendJson(response, 404, { error: "Không tìm thấy tệp đã tải lên — hãy tải lại ảnh/video. (Uploaded file not found.)" }, requestContext);
           return;
         }
         if (!uploadedStat.isFile()) {
-          sendJson(response, 404, { error: "Uploaded file not found." }, requestContext);
+          sendJson(response, 404, { error: "Không tìm thấy tệp đã tải lên — hãy tải lại ảnh/video. (Uploaded file not found.)" }, requestContext);
           return;
         }
         sendVideoStream(response, uploadedPath, uploadedStat.size, { contentType, inline: true });
@@ -2357,18 +2404,18 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           resolvedPath && (resolvedPath === outputRoot || resolvedPath.startsWith(outputRoot + sep))
         );
         if (!resolvedPath || !insideOutputRoot) {
-          sendJson(response, 404, { error: "Render job deliverable not found." }, requestContext);
+          sendJson(response, 404, { error: "Video chưa sẵn sàng tải hoặc đã bị dọn theo hạn lưu trữ. (Deliverable not found.)" }, requestContext);
           return;
         }
         let deliverableStat;
         try {
           deliverableStat = await stat(resolvedPath);
         } catch {
-          sendJson(response, 404, { error: "Render job deliverable not found." }, requestContext);
+          sendJson(response, 404, { error: "Video chưa sẵn sàng tải hoặc đã bị dọn theo hạn lưu trữ. (Deliverable not found.)" }, requestContext);
           return;
         }
         if (!deliverableStat.isFile()) {
-          sendJson(response, 404, { error: "Render job deliverable not found." }, requestContext);
+          sendJson(response, 404, { error: "Video chưa sẵn sàng tải hoặc đã bị dọn theo hạn lưu trữ. (Deliverable not found.)" }, requestContext);
           return;
         }
         sendVideoStream(response, resolvedPath, deliverableStat.size);
@@ -2380,7 +2427,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(
           response,
           job ? 200 : 404,
-          job ? jobSummaryForPrincipal(job, authDecision.principal) : { error: "Render job not found." },
+          job ? jobSummaryForPrincipal(job, authDecision.principal) : { error: "Không tìm thấy video này — kiểm tra lại danh sách Video của tôi. (Render job not found.)" },
           requestContext
         );
         return;
@@ -2390,7 +2437,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         sendJson(
           response,
           job ? 202 : 404,
-          job ? jobSummaryForPrincipal(job, authDecision.principal) : { error: "Render job not found." },
+          job ? jobSummaryForPrincipal(job, authDecision.principal) : { error: "Không tìm thấy video này — kiểm tra lại danh sách Video của tôi. (Render job not found.)" },
           requestContext
         );
         return;
