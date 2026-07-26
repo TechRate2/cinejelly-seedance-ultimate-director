@@ -136,6 +136,31 @@ check("full_clip_passes", fullClip.status === "pass");
 const probeError = await proberInspector(0, { throwError: true }).inspectCandidate({ shot, compiledPrompt: compiledPromptFixture, prediction: basePrediction, candidateIndex: 4, curation });
 check("probe_error_fail_safe", probeError.status === "pass");
 
+// AVATAR shots (paid-acceptance forensics 2026-07-26): the clip's authoritative runtime is the TTS
+// AUDIO length, not the planned beat seconds — a 4s-planned beat whose speech lasts ~3s correctly
+// returns a ~3s clip and must PASS. A clip shorter than its OWN audio still trips the gate.
+const avatarPromptFixture = {
+  shotId: "shot_avatar_dur",
+  inspectionExpectations: [],
+  videoRequest: { settings: { durationSeconds: 4 } },
+  avatarPlan: { modelId: "avatar-m", imageUrl: "https://example.com/kf.png", audioUrl: "https://example.com/voice.mp3" }
+};
+function avatarProberInspector(byUrl) {
+  return new RenderedCandidateVisualInspector({
+    mediaInspector: { sampleFrames: async () => [{ path: "C:/tmp/f.jpg", index: 0 }] },
+    semanticVisualInspector: { inspect: async (frames) => ({ status: "pass", findings: [], frameCount: frames.length, reviewedFrames: frames }) },
+    mediaProber: { probe: async (url) => ({ durationSeconds: byUrl(url) }) }
+  });
+}
+// Clip 3.0s vs planned 4s but audio 3.0s -> matches its speech -> PASS (this exact case S1-failed the real run).
+const avatarMatchesAudio = await avatarProberInspector((url) => (url.endsWith(".mp3") ? 3.0 : 3.0))
+  .inspectCandidate({ shot: { shotId: "shot_avatar_dur" }, compiledPrompt: avatarPromptFixture, prediction: basePrediction, candidateIndex: 5, curation });
+check("avatar_clip_matching_audio_passes", avatarMatchesAudio.status === "pass", avatarMatchesAudio.status);
+// Clip 1.8s vs its own 3.0s audio -> genuinely truncated speech -> rerender.
+const avatarTruncated = await avatarProberInspector((url) => (url.endsWith(".mp3") ? 3.0 : 1.8))
+  .inspectCandidate({ shot: { shotId: "shot_avatar_dur" }, compiledPrompt: avatarPromptFixture, prediction: basePrediction, candidateIndex: 6, curation });
+check("avatar_clip_shorter_than_audio_rerenders", avatarTruncated.status === "rerender" && avatarTruncated.findings.some((f) => f.checkpoint === "visual_duration_shortfall"), avatarTruncated.status);
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.duration-scripting-smoke.v1",

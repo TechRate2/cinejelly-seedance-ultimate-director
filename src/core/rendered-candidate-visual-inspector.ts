@@ -157,9 +157,32 @@ export class RenderedCandidateVisualInspector {
     if (!this.mediaProber) {
       return undefined;
     }
-    const requestedSeconds = compiledPrompt.videoRequest.settings.durationSeconds;
+    let requestedSeconds = compiledPrompt.videoRequest.settings.durationSeconds;
     if (!Number.isFinite(requestedSeconds) || requestedSeconds <= 0) {
       return undefined;
+    }
+    // AVATAR shots: the clip's authoritative runtime is its TTS AUDIO length — the avatar model
+    // animates exactly the speech, so a 4s-planned beat whose natural spoken line lasts ~3s
+    // CORRECTLY returns a ~3s clip. Measuring it against the planned beat seconds S1-blocked the
+    // whole job on the first paid acceptance run (2026-07-26) with economy's zero repair budget.
+    // Compare against the audio instead; planned-vs-actual drift is assembly's job (duration
+    // compensation). Audio probe failure falls back fail-safe to no finding, matching the video
+    // probe's error semantics.
+    const avatarAudioUrl = compiledPrompt.avatarPlan?.audioUrl;
+    if (avatarAudioUrl) {
+      try {
+        const audioMetadata = await this.mediaProber.probe(avatarAudioUrl, signal);
+        const audioSeconds = audioMetadata.durationSeconds;
+        if (audioSeconds === undefined || !Number.isFinite(audioSeconds) || audioSeconds <= 0) {
+          return undefined;
+        }
+        requestedSeconds = audioSeconds;
+      } catch (error: unknown) {
+        if (signal?.aborted) {
+          throw error;
+        }
+        return undefined;
+      }
     }
     let actualSeconds: number | undefined;
     try {
