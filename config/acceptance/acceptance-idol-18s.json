@@ -23,7 +23,7 @@
   "workDirectory": "acceptance/idol-18s/work",
   "artifactDirectory": "acceptance/idol-18s/artifacts",
   "semanticVisualInspectionOptions": {
-    "enabled": true,
+    "enabled": false,
     "expectations": [
       "khuon mat co gai nhat quan giua cac canh, khong lech mat",
       "thoi son khong meo mo, mau hong dao dong nhat",

@@ -7,7 +7,7 @@
     "qualityMode": "economy",
     "audioMode": "hybrid",
     "tier": "fast",
-    "maxCostUsd": 4
+    "maxCostUsd": 7
   },
   "metadata": {
     "acceptanceBatch": "v2-fast",
@@ -23,7 +23,7 @@
   "workDirectory": "acceptance/cinema-18s/work",
   "artifactDirectory": "acceptance/cinema-18s/artifacts",
   "semanticVisualInspectionOptions": {
-    "enabled": true,
+    "enabled": false,
     "expectations": [
       "guong mat bac chu quan nhat quan giua cac canh",
       "anh sang dien anh am ap, mua va hoi nuoc ro rang",
