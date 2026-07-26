@@ -133,6 +133,7 @@
     "validation:reference-role-reconcile": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-reference-role-reconcile-smoke.mjs",
     "validation:single-clip-vo-budget": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-single-clip-vo-budget-smoke.mjs",
     "validation:long-form-beat-density": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-long-form-beat-density-smoke.mjs",
+    "validation:talking-duration-fill": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-talking-duration-fill-smoke.mjs",
     "validation:register-audio-coherence": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-register-audio-coherence-smoke.mjs",
     "validation:upload-intake-and-guidance": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-upload-intake-and-guidance-smoke.mjs",
     "validation:niche-playbooks": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-niche-playbooks-smoke.mjs",

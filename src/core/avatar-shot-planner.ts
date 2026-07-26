@@ -64,10 +64,19 @@ export function buildAvatarPrompt(shot: ShotContract): string {
   // (paid-acceptance forensics: talking clips lost the ordered bedroom). Kept short — the model
   // reads the audio for delivery.
   const environment = shot.continuity?.environment?.trim();
+  // Carry the beat's EMOTIONAL TURN and the register's PERFORMANCE axis into the hint (quality
+  // scan): the avatar path replaces the rich compiled prompt with this thin hint, so without these
+  // the talking shot lost the phone-KOL performance direction the rest of the pipeline built and
+  // came out flat. The model reads the AUDIO for delivery, but a visible-emotion + performance line
+  // shapes the facial acting on top.
+  const emotionalTurn = shot.emotionalTurn?.trim();
+  const performance = shot.styleDna?.performance?.trim();
   const parts = [
     `${shot.subject}.`,
     `${shot.action.replace(/[.\s]+$/u, "")}.`,
     environment ? `Set inside: ${environment} — keep this real location as the background, not a studio backdrop.` : undefined,
+    emotionalTurn ? `Play this emotional turn visibly on the face: ${emotionalTurn}.` : undefined,
+    performance ? `Performance: ${performance}.` : undefined,
     `Camera: ${shot.camera}.`,
     "Natural spontaneous UGC delivery: real facial emotion matching the speech, small hand gestures, handheld phone energy — never a stiff presenter pose."
   ];

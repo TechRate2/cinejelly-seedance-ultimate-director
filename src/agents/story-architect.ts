@@ -106,6 +106,15 @@ const KNOWN_RISKS = new Set<string>([
   "transition"
 ]);
 const MIN_BEAT_DURATION_SECONDS = 4;
+// Talking (avatar) beats are speech-bound: the OmniHuman clip lasts exactly its TTS line, so a
+// talking video's runtime = total spoken words / speech-rate. A phone-KOL line is naturally short
+// (~2-2.5s), so talking beats need a LOWER floor than b-roll — otherwise the 4s floor caps an 18s
+// video at 4 beats (floor(18/4)) and it can never hold enough short lines to fill the runtime
+// (paid-acceptance forensics 2026-07-26: 18s ordered rendered 7.3s). VN ElevenLabs measured ≈4
+// words/sec.
+const TALKING_MIN_BEAT_DURATION_SECONDS = 2;
+const TALKING_WORDS_PER_SECOND = 4;
+const countWords = (text: string): number => text.split(/\s+/).filter(Boolean).length;
 
 const STORY_PLAN_SCHEMA = {
   type: "object",
@@ -220,12 +229,22 @@ export class StoryArchitect {
     // genuinely rich arc, not a padded one. Gated to true long-form (>45s); shorts keep their tight
     // hook/proof/payoff structure already spelled out below.
     const durationDensityGuidance = this.longFormBeatDensityGuidance(intake.settings.durationTargetSeconds);
+    // Talking-video beat-count floor: an avatar clip lasts only its spoken line (~2-2.5s), so an
+    // 18s talking video needs ~7-8 short-line beats to fill the runtime — NOT 3 long beats. This is
+    // the reliable lever (the economy LLM writes many short lines happily) that the "write longer
+    // lines" law could not force. Deterministically enforced after the plan too (continuation loop
+    // + capacity), but stating it up front makes the first pass land close.
+    const talkingDensityGuidance = this.talkingBeatDensityGuidance(
+      intake.settings.durationTargetSeconds,
+      this.isTalkingDominatedPlan(intake, registerHint)
+    );
     const response = await this.llmProvider.structured<StoryPlanJson, typeof STORY_PLAN_SCHEMA>(
       {
         modelId: this.modelId,
         instruction:
           "Create a production-ready video scene plan. Use reusable production primitives, not hardcoded niche templates. Allocate the full requested duration into a complete beginning, middle, and ending: short commercial inputs need hook/problem, proof/demo, and payoff/soft next-step; long-form inputs need setup, development, proof escalation, and resolved close. Every beat must include a concrete visible state change, timed audio intent when audio is enabled, and an endpoint that the next beat can continue without a visible jump cut. " +
           durationDensityGuidance +
+          talkingDensityGuidance +
           `${playbookDirective} ${SEEDANCE_MASTERY_DIRECTIVE} ${antiSlopDirective()}`,
         schema: STORY_PLAN_SCHEMA,
         messages: [
@@ -307,8 +326,96 @@ export class StoryArchitect {
       signal
     );
 
-    const completedValue = await this.continueLongPlanIfTruncated(response.value, intake, signal);
-    return this.coerceStoryPlan(completedValue, intake);
+    const longCompleted = await this.continueLongPlanIfTruncated(response.value, intake, signal);
+    const talkingCompleted = await this.continueTalkingPlanIfShort(longCompleted, intake, registerHint, signal);
+    return this.coerceStoryPlan(talkingCompleted, intake);
+  }
+
+  /**
+   * Deterministic teeth for talking-video duration (paid-acceptance forensics): an avatar clip lasts
+   * only its spoken line, so the delivered runtime ≈ total spoken words / 4. Measure the scheduled
+   * speech of the LLM's plan; if it covers less than 85% of the ordered duration, issue ONE bounded
+   * continuation asking for enough extra short talking beats to cover the missing seconds — and merge
+   * only unseen sceneIds (echo = no-op). This is what the prompt-only "write longer lines" law could
+   * not guarantee: it MEASURES the result and re-drives, instead of asking-and-hoping. Fail-open: any
+   * error leaves the plan as-is (a short talking video still renders; the delivery gate handles the
+   * residual). Skips script-first (verbatim customer lines are not ours to pad).
+   */
+  private async continueTalkingPlanIfShort(
+    value: StoryPlanJson,
+    intake: IntakeResult,
+    register?: StyleRegister,
+    signal?: AbortSignal
+  ): Promise<StoryPlanJson> {
+    const duration = intake.settings.durationTargetSeconds;
+    if (
+      !this.isTalkingDominatedPlan(intake, register) ||
+      isScriptFirstRequest(intake.userInput, intake.metadata) ||
+      !Number.isFinite(duration) || duration < 8 || duration > 45 ||
+      !Array.isArray(value.scenes)
+    ) {
+      return value;
+    }
+    const rawScenes = value.scenes as readonly Record<string, unknown>[];
+    const spokenWords = rawScenes
+      .flatMap((scene) => (Array.isArray(scene?.beats) ? (scene.beats as readonly Record<string, unknown>[]) : []))
+      .reduce((sum, beat) => sum + (typeof beat?.spokenLine === "string" ? countWords(beat.spokenLine) : 0), 0);
+    const scheduledSpeechSeconds = spokenWords / TALKING_WORDS_PER_SECOND;
+    if (spokenWords === 0 || scheduledSpeechSeconds >= duration * 0.85) {
+      return value;
+    }
+    const missingSeconds = Math.max(2, Math.round(duration - scheduledSpeechSeconds));
+    const extraBeats = Math.max(1, Math.ceil(missingSeconds / 2.5));
+    try {
+      const summary = rawScenes
+        .flatMap((scene) => (Array.isArray(scene?.beats) ? (scene.beats as readonly Record<string, unknown>[]) : []))
+        .map((beat, index) => `${index + 1}. ${typeof beat?.spokenLine === "string" ? beat.spokenLine.slice(0, 80) : "(no line)"}`)
+        .join("\n")
+        .slice(0, 1_500);
+      const existingSceneCount = rawScenes.length;
+      const response = await this.llmProvider.structured<StoryPlanJson, typeof STORY_PLAN_SCHEMA>(
+        {
+          modelId: this.modelId,
+          instruction:
+            `EXTEND a talking-head video plan that is too SHORT. The person's clip lasts only their spoken line, so the current plan only fills ~${Math.round(scheduledSpeechSeconds)}s of the ordered ${duration}s. Add ${extraBeats} NEW talking beats in NEW scenes (sceneIds numbered after the existing ${existingSceneCount}), each with its own natural spoken sentence (~8-11 words, ~4 words/second) continuing the SAME person and topic — do NOT repeat lines already written (listed below). Return ONLY the new scenes in the same JSON schema. ` +
+            `${SEEDANCE_MASTERY_DIRECTIVE}`,
+          schema: STORY_PLAN_SCHEMA,
+          messages: [
+            {
+              role: "user",
+              content: JSON.stringify({
+                linesAlreadyWritten: summary,
+                userInput: intake.userInput.slice(0, 1_200),
+                settings: { durationTargetSeconds: duration }
+              })
+            }
+          ],
+          metadata: {
+            ...(intake.metadata ?? {}),
+            projectId: intake.projectId,
+            graphNodeId: "story_plan_talking_extension"
+          }
+        },
+        signal
+      );
+      const continuationScenes = Array.isArray(response.value?.scenes)
+        ? (response.value.scenes as readonly Record<string, unknown>[])
+        : [];
+      const seenSceneIds = new Set(
+        rawScenes.map((scene) => (typeof scene?.sceneId === "string" ? scene.sceneId : "")).filter(Boolean)
+      );
+      const freshScenes = continuationScenes.filter((scene) => {
+        const sceneId = typeof scene?.sceneId === "string" ? scene.sceneId : "";
+        const hasBeats = Array.isArray(scene?.beats) && scene.beats.length > 0;
+        return hasBeats && (!sceneId || !seenSceneIds.has(sceneId));
+      });
+      if (freshScenes.length === 0) {
+        return value;
+      }
+      return { ...value, scenes: [...rawScenes, ...freshScenes] as StoryPlanJson["scenes"] };
+    } catch {
+      return value;
+    }
   }
 
   /**
@@ -417,6 +524,22 @@ export class StoryArchitect {
       ? `Group the beats into at least 3 scenes — a setup movement, a development movement, and a payoff movement — each scene a distinct location/phase of the story. `
       : "";
     return `LONG-FORM DENSITY: this is a ${durationTargetSeconds}s video — decompose it into at least ${minBeats} distinct beats (aim ${minBeats}-${softMaxBeats}), each a NEW visible action or story turn. ${sceneStructure}No single beat may carry more than ~15 seconds of screen time; if a stretch would run longer, split it into separate beats with fresh action so the video reads as a rich developing arc, never the same few shots stretched thin. `;
+  }
+
+  /**
+   * Beat-count floor for TALKING videos (avatar/phone-KOL with audio): each avatar clip lasts only
+   * its spoken line (~2-2.5s), so the runtime = total speech. An 18s talking video therefore needs
+   * ~7-8 short-line beats, not 3 long ones. This works WITH the economy LLM's nature (it writes many
+   * short natural lines happily) instead of against it (the "write longer lines" law it ignored).
+   * Enforced deterministically after the plan by the capacity change + continuation loop; this line
+   * makes the first pass land close. Empty when not talking-dominated.
+   */
+  private talkingBeatDensityGuidance(durationTargetSeconds: number, talkingDominated: boolean): string {
+    if (!talkingDominated || !Number.isFinite(durationTargetSeconds) || durationTargetSeconds < 8) {
+      return "";
+    }
+    const minBeats = Math.max(2, Math.ceil(durationTargetSeconds / 2.5));
+    return `TALKING VIDEO DENSITY: this is a ${durationTargetSeconds}s spoken/talking-head video — the on-screen person's clip lasts only as long as their line, so to fill ${durationTargetSeconds} seconds you MUST write at least ${minBeats} short talking beats, each a complete natural spoken sentence (a real person talks ~4 words/second, so ~8-11 words per beat). Prefer MANY short beats over a few long ones; every beat carries its own spoken line. `;
   }
 
   /**
@@ -796,9 +919,16 @@ export class StoryArchitect {
     if (allBeats.length === 0) {
       return scenes;
     }
-    const minTotal = allBeats.length * MIN_BEAT_DURATION_SECONDS;
+    // Per-beat minimum: a talking (spokenLine) beat may go down to the talking floor (~2s) because
+    // its rendered avatar clip is only as long as its short line; forcing it to 4s would both bloat
+    // the cost estimate AND make 8 short beats sum to 32s on an 18s order. B-roll beats keep the 4s
+    // floor. Without this, the capacity fix above (which allows more talking beats) would break the
+    // duration math.
+    const minFor = (beat: BeatPlan): number =>
+      beat.spokenLine?.trim() ? TALKING_MIN_BEAT_DURATION_SECONDS : MIN_BEAT_DURATION_SECONDS;
+    const minTotal = allBeats.reduce((sum, beat) => sum + minFor(beat), 0);
     const distributableSeconds = Math.max(0, Math.round(targetDurationSeconds - minTotal));
-    const weights = allBeats.map((beat) => Math.max(0, beat.durationSeconds - MIN_BEAT_DURATION_SECONDS));
+    const weights = allBeats.map((beat) => Math.max(0, beat.durationSeconds - minFor(beat)));
     const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
     const exactExtras = weights.map((weight) =>
       weightTotal > 0 ? (distributableSeconds * weight) / weightTotal : distributableSeconds / allBeats.length
@@ -821,7 +951,7 @@ export class StoryArchitect {
     return scenes.map((scene, sceneIndex) => ({
       ...scene,
       beats: scene.beats.map((beat) => {
-        const durationSeconds = MIN_BEAT_DURATION_SECONDS + (floorExtras[beatCursor] ?? 0);
+        const durationSeconds = minFor(beat) + (floorExtras[beatCursor] ?? 0);
         beatCursor += 1;
         return {
           ...beat,
@@ -831,8 +961,18 @@ export class StoryArchitect {
     }));
   }
 
+  /** True when this plan is expected to be talking-head/avatar-dominated (its runtime is speech-bound). */
+  private isTalkingDominatedPlan(intake: IntakeResult, register?: StyleRegister): boolean {
+    return register === "natural_phone_kol" && intake.settings.audioMode !== "none";
+  }
+
   private limitBeatsToDurationCapacity(scenes: readonly ScenePlan[], intake: IntakeResult, register?: StyleRegister): readonly ScenePlan[] {
-    const maxBeats = Math.max(1, Math.floor(intake.settings.durationTargetSeconds / MIN_BEAT_DURATION_SECONDS));
+    // Talking-dominated plans use the lower talking floor so enough short spoken beats survive to
+    // fill the runtime; b-roll keeps the 4s floor (a b-roll clip really is that long).
+    const minBeatSeconds = this.isTalkingDominatedPlan(intake, register)
+      ? TALKING_MIN_BEAT_DURATION_SECONDS
+      : MIN_BEAT_DURATION_SECONDS;
+    const maxBeats = Math.max(1, Math.floor(intake.settings.durationTargetSeconds / minBeatSeconds));
     let remaining = maxBeats;
     const bounded: ScenePlan[] = [];
 

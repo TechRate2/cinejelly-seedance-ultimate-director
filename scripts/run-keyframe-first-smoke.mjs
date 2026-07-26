@@ -100,6 +100,11 @@ check("portrait_no_longer_seeds_studio", !antiStudioPortraits[0].request.prompt.
 const { buildAvatarPrompt } = await import("../dist/core/avatar-shot-planner.js");
 check("avatar_prompt_carries_environment", buildAvatarPrompt(envShot).includes("Set inside:") && buildAvatarPrompt(envShot).includes("sunlit bedroom"));
 check("avatar_prompt_without_environment_omits_it", !buildAvatarPrompt(shots[1]).includes("Set inside:"));
+// Avatar hint carries the beat's emotional turn + register performance (quality scan): the thin
+// avatar hint replaces the rich compiled prompt on talking shots, so these must ride along.
+const perfShot = { ...envShot, emotionalTurn: "tò mò -> thích thú", styleDna: { register: "natural_phone_kol", performance: "spontaneous, filler words, small restless movements" } };
+check("avatar_prompt_carries_emotional_turn", buildAvatarPrompt(perfShot).includes("emotional turn") && buildAvatarPrompt(perfShot).includes("tò mò"));
+check("avatar_prompt_carries_performance", buildAvatarPrompt(perfShot).includes("Performance:") && buildAvatarPrompt(perfShot).includes("filler words"));
 
 // continuity.identity ARRAY shape must not crash any reader (cross-audit #2): the guardian handled it,
 // but splitCharacterIdentities (used by narrowing + ledger) threw on `.trim()`. Both shapes normalize now.

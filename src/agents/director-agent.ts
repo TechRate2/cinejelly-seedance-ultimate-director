@@ -2348,6 +2348,12 @@ export class DirectorAgent {
         const languageCode = metadataLanguage
           || (containsVietnameseDiacritics(spokenLine) ? "vi" : "")
           || analystLanguage;
+        // Expressive delivery for the phone-KOL register (quality scan): the avatar model reads the
+        // AUDIO for its facial performance, so a flat TTS default made the whole talking shot read
+        // flat. natural_phone_kol gets lower stability (more expressive/animated) than a cinematic/
+        // narration voice. Only set when the register is phone-KOL, else leave the provider default.
+        const shotRegister = shot.styleDna?.register;
+        const ttsStability = shotRegister === "natural_phone_kol" ? 0.3 : undefined;
         const tts = await speechProvider.synthesizeSpeech(
           {
             provider: "atlascloud",
@@ -2355,6 +2361,7 @@ export class DirectorAgent {
             text: spokenLine,
             ...(this.atlasSettings.models.ttsVoice ? { voice: this.atlasSettings.models.ttsVoice } : {}),
             ...(languageCode ? { languageCode } : {}),
+            ...(ttsStability !== undefined ? { stability: ttsStability } : {}),
             metadata: {
               ...(shot.metadata ?? {}),
               shotId: shot.shotId,
