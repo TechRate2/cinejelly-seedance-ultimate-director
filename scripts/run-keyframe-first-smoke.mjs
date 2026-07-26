@@ -105,6 +105,12 @@ check("avatar_prompt_without_environment_omits_it", !buildAvatarPrompt(shots[1])
 const perfShot = { ...envShot, emotionalTurn: "tò mò -> thích thú", styleDna: { register: "natural_phone_kol", performance: "spontaneous, filler words, small restless movements" } };
 check("avatar_prompt_carries_emotional_turn", buildAvatarPrompt(perfShot).includes("emotional turn") && buildAvatarPrompt(perfShot).includes("tò mò"));
 check("avatar_prompt_carries_performance", buildAvatarPrompt(perfShot).includes("Performance:") && buildAvatarPrompt(perfShot).includes("filler words"));
+// Full visual DNA (optics/lighting/palette/motion) + avoid ride into the avatar hint, not just performance.
+const dnaShot = { ...envShot, styleDna: { register: "natural_phone_kol", optics: "grainy 26mm phone lens", lighting: "window daylight", palette: "muted warm tones", motion: "handheld micro-shake", avoid: ["studio gloss", "beauty filter"] } };
+const dnaPrompt = buildAvatarPrompt(dnaShot);
+check("avatar_prompt_carries_full_look", dnaPrompt.includes("Look:") && dnaPrompt.includes("grainy 26mm phone lens") && dnaPrompt.includes("window daylight") && dnaPrompt.includes("handheld micro-shake"));
+check("avatar_prompt_carries_avoid", dnaPrompt.includes("Avoid:") && dnaPrompt.includes("beauty filter"));
+check("avatar_prompt_ugc_clause_never_truncated", buildAvatarPrompt(dnaShot).startsWith("Natural spontaneous UGC delivery"));
 
 // continuity.identity ARRAY shape must not crash any reader (cross-audit #2): the guardian handled it,
 // but splitCharacterIdentities (used by narrowing + ledger) threw on `.trim()`. Both shapes normalize now.

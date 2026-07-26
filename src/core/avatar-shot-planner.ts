@@ -76,6 +76,20 @@ export function buildAvatarPrompt(shot: ShotContract): string {
   const cap = (text: string | undefined, n: number): string | undefined => text?.trim().slice(0, n) || undefined;
   const emotionalTurn = cap(shot.emotionalTurn, 200);
   const performance = cap(shot.styleDna?.performance, 200);
+  // Carry the full VISUAL styleDna axes into the avatar hint (quality upgrade): OmniHuman animates
+  // the keyframe but a stated look keeps optics/lighting/color/motion from drifting toward a generic
+  // render while it moves. Previously ONLY performance rode along, so the talking shot lost the
+  // register/niche look the compiler built for every OTHER shot — the UGC path came out visually
+  // flatter than its own b-roll. audioFeel is skipped (the model reads the real audio); avoid-words
+  // become a short negative tail. Each axis capped so the load-bearing UGC clause is never truncated.
+  const dna = shot.styleDna;
+  const look = [
+    cap(dna?.optics, 150),
+    cap(dna?.lighting, 150),
+    cap(dna?.palette, 120),
+    cap(dna?.motion, 120)
+  ].filter((axis): axis is string => Boolean(axis)).join("; ");
+  const avoid = dna?.avoid && dna.avoid.length > 0 ? cap(dna.avoid.join(", "), 200) : undefined;
   const parts = [
     "Natural spontaneous UGC delivery: real facial emotion matching the speech, small hand gestures, handheld phone energy — never a stiff presenter pose.",
     `${cap(shot.subject, 400)}.`,
@@ -83,7 +97,9 @@ export function buildAvatarPrompt(shot: ShotContract): string {
     environment ? `Set inside: ${cap(environment, 300)} — keep this real location as the background, not a studio backdrop.` : undefined,
     emotionalTurn ? `Play this emotional turn visibly on the face: ${emotionalTurn}.` : undefined,
     performance ? `Performance: ${performance}.` : undefined,
-    `Camera: ${cap(shot.camera, 300)}.`
+    look ? `Look: ${look}.` : undefined,
+    `Camera: ${cap(shot.camera, 300)}.`,
+    avoid ? `Avoid: ${avoid}.` : undefined
   ];
   return parts.filter((part): part is string => Boolean(part)).join(" ").slice(0, 2_000);
 }
