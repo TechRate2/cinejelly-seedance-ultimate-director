@@ -108,6 +108,8 @@ check("story_architect_injects_playbook", architectSource.includes("nichePlayboo
 check("story_architect_reads_niche_metadata", architectSource.includes("shortViralNiche") && architectSource.includes("shortViralCreativeMode"));
 // Retention spine (mined short-form virality): a labeled emotional curve + a mid-video pattern-interrupt.
 check("hook_directive_has_retention_spine", architectSource.includes("RETENTION SPINE") && architectSource.includes("PATTERN-INTERRUPT") && architectSource.includes("one-third mark"));
+// Open-loop / curiosity-gap hook (mined short-form retention): hook opens a loop the payoff closes.
+check("hook_directive_has_open_loop_rule", architectSource.includes("OPEN-LOOP RULE") && architectSource.includes("curiosity gap") && architectSource.includes("must NOT give away the ending"));
 
 // --- 5. Corpus gained the entertainment families and retrieves them.
 function corpusQuery(niche, prompt) {
