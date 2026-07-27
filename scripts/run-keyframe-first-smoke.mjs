@@ -96,6 +96,25 @@ const antiStudioPortraits = planPortraits({
 });
 check("portrait_no_longer_seeds_studio", !antiStudioPortraits[0].request.prompt.includes("studio light") && antiStudioPortraits[0].request.prompt.includes("identity-isolation reference only"));
 
+// VERBATIM IDENTITY LOCK: the same character's exact appearance sheet is restated word-for-word in
+// EVERY shot's keyframe (the fix for face/wardrobe drift by shot 3-4 seen in the real render).
+const appearanceSheet = "Vietnamese woman, late 20s, oval face, straight black hair with a centre part, cream ribbed knit sweater";
+const castMap = new Map([["linh", appearanceSheet]]);
+const identityRefShared = { role: "identity", label: "Linh", providerReference: { kind: "image", uri: "https://cdn.example.com/linh.png", role: "identity", label: "Linh" } };
+const lockShot = (id) => ({ shotId: id, sceneId: "sc1", intent: "demo", subject: "the creator", action: `beat ${id}`, camera: "handheld phone", lighting: "window", durationSeconds: 6, risks: [], references: [identityRefShared], continuity: { identity: "Linh" }, metadata: {} });
+const lockPlans = planKeyframeRequests({ shots: [lockShot("k1"), lockShot("k2")], provider: "atlascloud", imageModelId: "seedream-smoke", settings: { ...DEFAULT_SEEDANCE_SETTINGS }, castAppearance: castMap });
+check("identity_lock_present_in_keyframe", lockPlans[0].request.prompt.includes("Identity lock") && lockPlans[0].request.prompt.includes(appearanceSheet));
+check("identity_lock_verbatim_identical_across_shots",
+  lockPlans[0].request.prompt.includes(appearanceSheet) && lockPlans[1].request.prompt.includes(appearanceSheet));
+// No cast map (uploaded-face flow) -> fail-open to the generic clause, no lock line.
+const noLock = planKeyframeRequests({ shots: [lockShot("k3")], provider: "atlascloud", imageModelId: "seedream-smoke", settings: { ...DEFAULT_SEEDANCE_SETTINGS } });
+check("identity_lock_fail_open_without_cast", !noLock[0].request.prompt.includes("Identity lock"));
+// Multi-character shot restates BOTH sheets.
+const twoCast = new Map([["linh", appearanceSheet], ["mai", "Vietnamese woman, 30s, round face, shoulder bob, navy blazer"]]);
+const twoShot = { ...lockShot("k4"), continuity: { identity: "Linh, Mai" } };
+const twoPlan = planKeyframeRequests({ shots: [twoShot], provider: "atlascloud", imageModelId: "seedream-smoke", settings: { ...DEFAULT_SEEDANCE_SETTINGS }, castAppearance: twoCast });
+check("identity_lock_covers_all_characters_in_multi_shot", twoPlan[0].request.prompt.includes("cream ribbed knit sweater") && twoPlan[0].request.prompt.includes("navy blazer"));
+
 // AVATAR prompt carries the environment too (OmniHuman keeps the room while animating).
 const { buildAvatarPrompt } = await import("../dist/core/avatar-shot-planner.js");
 check("avatar_prompt_carries_environment", buildAvatarPrompt(envShot).includes("Set inside:") && buildAvatarPrompt(envShot).includes("sunlit bedroom"));

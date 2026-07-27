@@ -49,6 +49,8 @@ export function planKeyframeRequests(input: {
   readonly provider: ProviderName;
   readonly imageModelId: string;
   readonly settings: FlexibleSeedanceSettings;
+  /** Per-character appearance sheets (normalized label -> the exact face/hair/wardrobe text), restated VERBATIM in every shot's keyframe so identity can't drift shot-to-shot. */
+  readonly castAppearance?: ReadonlyMap<string, string>;
 }): readonly KeyframeRequestPlan[] {
   if (!input.imageModelId?.trim()) {
     throw new Error("planKeyframeRequests needs a configured image model id.");
@@ -58,7 +60,7 @@ export function planKeyframeRequests(input: {
     request: {
       provider: input.provider,
       modelId: input.imageModelId,
-      prompt: keyframePromptFor(shot),
+      prompt: keyframePromptFor(shot, input.castAppearance),
       negativePrompt: KEYFRAME_NEGATIVE_PROMPT,
       references: shot.references
         .filter((reference) => KEYFRAME_REFERENCE_ROLES.has(reference.role))
@@ -558,7 +560,7 @@ export function bindCharacterAnchorsToShots(input: {
   return { shots, anchoredShotIds };
 }
 
-function keyframePromptFor(shot: ShotContract): string {
+function keyframePromptFor(shot: ShotContract, castAppearance?: ReadonlyMap<string, string>): string {
   const niche = stringMetadata(shot, "shortViralNiche") ?? stringMetadata(shot, "niche");
   const creativeMode =
     stringMetadata(shot, "shortViralCreativeMode") ??
@@ -581,6 +583,32 @@ function keyframePromptFor(shot: ShotContract): string {
   const identityClause = hasIdentityImage
     ? "The person(s) shown in the attached identity reference are the EXACT same individuals — reproduce their face, bone structure, hairline, skin tone, and distinguishing features precisely; do NOT beautify, smooth, re-age, restyle, or change ethnicity. Anatomy stays correct: natural hands with five fingers, no extra or fused limbs, no warped features."
     : undefined;
+  // VERBATIM identity lock (mined ai-shortfilm project-planner): each keyframe is an INDEPENDENT
+  // image generation, so restating the SAME exact appearance sheet (face + hair + fixed wardrobe)
+  // in every shot is what actually holds a character constant — rephrasing or relying only on the
+  // reference image is the #1 cause of face/wardrobe drift by shot 3-4 (the real paid render showed
+  // a shifting mole + a changing shirt colour). Look up this shot's identity label(s) and paste
+  // their sheet(s) word-for-word. Deduped, capped, and only when a sheet exists (else fail-open to
+  // the generic clause + reference image).
+  const identityLockLine = ((): string | undefined => {
+    if (!castAppearance || castAppearance.size === 0) {
+      return undefined;
+    }
+    const seen = new Set<string>();
+    const sheets: string[] = [];
+    for (const label of splitCharacterIdentities(shot.continuity?.identity)) {
+      const key = normalizeCharacterKey(label);
+      const sheet = key ? castAppearance.get(key) : undefined;
+      if (sheet && !seen.has(key)) {
+        seen.add(key);
+        sheets.push(`${label.trim()} — ${sheet.trim()}`);
+      }
+    }
+    if (sheets.length === 0) {
+      return undefined;
+    }
+    return `Identity lock (reproduce these EXACT people, same face and same fixed wardrobe, in every shot): ${sheets.join(" | ").slice(0, 700)}.`;
+  })();
   // Register-aware capture identity (research: naming the capture DEVICE beats the word "realistic";
   // deliberate imperfection — slight asymmetry, stray hairs, off-center framing — is what makes a
   // frame read as human-shot, not AI). The old single "unedited smartphone photo" color line was
@@ -617,6 +645,7 @@ function keyframePromptFor(shot: ShotContract): string {
   return [
     `Single photoreal still frame: the OPENING frame of this shot, already mid-action with immediate visual tension (never an empty establishing frame).`,
     `Subject: ${shot.subject}.`,
+    identityLockLine,
     identityClause,
     settingClause,
     `Moment: the first instant of "${shot.action}".`,

@@ -702,6 +702,7 @@ export class DirectorAgent {
           settings: intake.settings,
           modelId,
           characterAnchors,
+          ...(castAppearance.size > 0 ? { castAppearance } : {}),
           ...(providerSupportedReferenceKinds ? { providerSupportedReferenceKinds } : {}),
           ...(signal ? { signal } : {})
         })
@@ -2061,6 +2062,7 @@ export class DirectorAgent {
     readonly settings: FlexibleSeedanceSettings;
     readonly modelId: string;
     readonly characterAnchors?: readonly CharacterAnchorPlan[];
+    readonly castAppearance?: ReadonlyMap<string, string>;
     readonly providerSupportedReferenceKinds?: readonly import("../types/provider.js").ReferenceKind[];
     readonly signal?: AbortSignal;
   }): Promise<readonly ShotContract[]> {
@@ -2135,7 +2137,9 @@ export class DirectorAgent {
       shots: anchoredShots,
       provider: "atlascloud",
       imageModelId,
-      settings: input.settings
+      settings: input.settings,
+      // Restate each character's appearance sheet VERBATIM in every keyframe (identity-lock fix).
+      ...(input.castAppearance ? { castAppearance: input.castAppearance } : {})
     });
     const results: { readonly shotId: string; readonly prediction: Prediction }[] = [];
     const batchSize = 3;
