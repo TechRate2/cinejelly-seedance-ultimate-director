@@ -14,8 +14,18 @@
 // language decision (full-brief context) instead of forcing "vi".
 const VIETNAMESE_DIACRITICS = /[ăĂđĐơƠưƯẠ-ỹ]/u;
 
+/**
+ * Both detectors below normalize to NFC first, because the characters above are the PRECOMPOSED
+ * forms. Vietnamese text reaches us decomposed often enough that this is a mainstream case, not an
+ * edge one: Unikey's "Unicode tổ hợp" mode, and anything typed or copied on macOS/iOS, arrive as a
+ * base letter plus combining marks — which match none of these ranges. Nothing earlier in the
+ * request path normalizes, so a decomposed brief read as non-Vietnamese, the analyst's fallback
+ * labelled the job "en", and that label went into the scriptwriter's prompt: the customer got a
+ * video whose dialogue was written AND voiced in English. Normalizing at the detector makes the two
+ * spellings of the same sentence indistinguishable from here on.
+ */
 export function containsVietnameseDiacritics(text: string | undefined): boolean {
-  return Boolean(text && VIETNAMESE_DIACRITICS.test(text));
+  return Boolean(text && VIETNAMESE_DIACRITICS.test(text.normalize("NFC")));
 }
 
 /**
@@ -44,7 +54,9 @@ export function normalizeSpokenLanguageCode(value: string | undefined): string |
   if (!value?.trim()) {
     return undefined;
   }
-  const raw = value.trim().toLowerCase();
+  // NFC before the table lookup: "tiếng việt" typed in decomposed form is a different string to the
+  // precomposed key above and would silently fall through to undefined.
+  const raw = value.trim().toLowerCase().normalize("NFC");
   const codeLike = raw.match(/^([a-z]{2,3})(?:[-_][a-z0-9]{2,8})?$/i);
   if (codeLike?.[1]) {
     const code = codeLike[1];

@@ -41,6 +41,17 @@ export interface CandidateVisualCuration {
   readonly workDirectory: string;
   readonly frameIntervalSeconds?: number;
   readonly maxFramesPerCandidate?: number;
+  /**
+   * Rank candidates, but never let a cosmetic note spend money or fail a delivery.
+   *
+   * Set when curation was switched on automatically rather than asked for. The vision model
+   * routinely returns an overall "pass" alongside an S2 note like "framing sits slightly left";
+   * mapped to a repair, that note buys another render, and if the note recurs the job is failed
+   * outright — after every clip has been paid for, with manual refunds. That is a fine trade when
+   * the customer explicitly asked for visual QC, and a bad one when the pipeline volunteered it. S0
+   * and S1 (wrong face, deformation, broken frame) still act in both modes: those are real defects.
+   */
+  readonly advisoryOnly?: boolean;
 }
 
 interface FrameSamplerLike {
@@ -127,7 +138,10 @@ export class RenderedCandidateVisualInspector {
         },
         input.signal
       );
-      return this.toReport(input.shot.shotId, [...durationFindings, ...this.toGuardianFindings(semanticReport)]);
+      return this.toReport(input.shot.shotId, [
+        ...durationFindings,
+        ...this.toGuardianFindings(semanticReport, input.curation.advisoryOnly === true)
+      ]);
     } catch (error: unknown) {
       if (input.signal?.aborted) {
         throw error;
@@ -228,7 +242,10 @@ export class RenderedCandidateVisualInspector {
     return prediction.outputUrls.find((url) => !isImageOutputUrl(url)) ?? undefined;
   }
 
-  private toGuardianFindings(report: SemanticVisualInspectionReport): readonly GuardianFinding[] {
+  private toGuardianFindings(
+    report: SemanticVisualInspectionReport,
+    advisoryOnly: boolean
+  ): readonly GuardianFinding[] {
     if (report.findings.length === 0 && report.status !== "pass") {
       return [
         this.infraFinding(
@@ -238,18 +255,22 @@ export class RenderedCandidateVisualInspector {
         )
       ];
     }
-    return report.findings.map((finding) => this.toGuardianFinding(finding));
+    return report.findings.map((finding) => this.toGuardianFinding(finding, advisoryOnly));
   }
 
-  private toGuardianFinding(finding: SemanticVisualFinding): GuardianFinding {
+  private toGuardianFinding(finding: SemanticVisualFinding, advisoryOnly: boolean): GuardianFinding {
+    // In advisory mode a cosmetic note still ranks candidates but must not buy a re-render or fail a
+    // delivery. Only S2/S3 are softened: S0/S1 are real defects and act in every mode.
+    const cosmetic = finding.severity === "S2" || finding.severity === "S3";
+    const softened = advisoryOnly && cosmetic;
     return {
       stage: "render",
-      status: this.statusForSeverity(finding.severity),
+      status: softened ? "warn" : this.statusForSeverity(finding.severity),
       severity: finding.severity,
       checkpoint: `visual_${finding.checkpoint.trim().replace(/\s+/g, "_").toLowerCase()}`,
       evidence: finding.evidence,
       repair: finding.recommendation,
-      repairScope: "render"
+      repairScope: softened ? "none" : "render"
     };
   }
 

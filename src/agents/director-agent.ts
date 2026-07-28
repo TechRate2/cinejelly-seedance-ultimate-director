@@ -12,7 +12,7 @@ import {
   seedanceResolutionHeight,
   usesTestTakesForQuality
 } from "../config/seedance-settings.js";
-import { planDurationCompensation, TALKING_WORDS_PER_SECOND } from "../core/duration-scripting.js";
+import { countSpeechUnits, planDurationCompensation, TALKING_WORDS_PER_SECOND } from "../core/duration-scripting.js";
 import { DURATION_SHORT_BLOCK_TOLERANCE } from "../core/delivery-gate.js";
 import { DEFAULT_TRANSITION_SETTINGS } from "../core/transition-engine.js";
 import type { TransitionSettings } from "../types/transition.js";
@@ -122,6 +122,11 @@ import { ReferenceVisionAnalyst, reconcileReferenceRoles } from "./reference-vis
  * Structural (not a class import) so tests can hand in a stub and the director never depends on
  * ffprobe being present: every caller treats a missing prober as "measurement unavailable".
  */
+/** Per-track deadline for measuring a synthesized voice file; the shared runner's default is 30 min. */
+const VOICE_TRACK_PROBE_TIMEOUT_MS = 15_000;
+/** How many voice tracks are measured at once — enough to hide latency, few enough to stay polite. */
+const VOICE_TRACK_PROBE_CONCURRENCY = 6;
+
 export interface SpeechDurationProber {
   probe(pathOrUrl: string, signal?: AbortSignal): Promise<{ readonly durationSeconds?: number }>;
 }
@@ -553,13 +558,18 @@ export class DirectorAgent {
     const plannedVerifierVisionCallCount = keyframeFirstEnabled && this.imageAnchorVerifier
       ? (shots.length + characterAnchors.length) * 2
       : 0;
-    // Best-of-N curation now runs automatically whenever more than one candidate is paid for, so
-    // its vision calls must be in the estimate too (one per candidate per shot) — the gate stays
-    // an upper bound and can only block sooner, never overspend.
-    const plannedCandidateCurationVisionCallCount =
-      this.renderedCandidateVisualInspector && candidateCountForQuality(intake.settings.qualityMode) > 1
-        ? shots.length * candidateCountForQuality(intake.settings.qualityMode)
+    // Best-of-N curation now runs automatically whenever more than one candidate is paid for, so its
+    // vision calls must be in the estimate too. REPAIR takes are curated as well, so the bound is
+    // candidates PLUS repair attempts — counting only the originals understated the worst case by
+    // (shots x repairAttempts) calls and could let a job whose ceiling sits just under maxCostUsd
+    // slip past the only budget check that runs before any money is spent. This is the same
+    // candidate+repair shape the render cost gate already uses for the video side.
+    const curationTakesPerShot =
+      candidateCountForQuality(intake.settings.qualityMode) > 1
+        ? candidateCountForQuality(intake.settings.qualityMode) + repairAttemptCountForQuality(intake.settings.qualityMode)
         : 0;
+    const plannedCandidateCurationVisionCallCount =
+      this.renderedCandidateVisualInspector ? shots.length * curationTakesPerShot : 0;
     // PRE-SPEND DELIVERABLE-DURATION ASSERT (cost-architecture audit). An avatar-routed shot's clip
     // lasts exactly its spoken line, so the DELIVERED runtime is knowable right here — and this is
     // the first point that knows WHICH shots will actually be avatar-routed (plannedTalkingShots),
@@ -568,7 +578,12 @@ export class DirectorAgent {
     // incident burned $2.77 per attempt to learn what this arithmetic knows for the price of the
     // planning calls already made. Same tolerance as the delivery gate, so it can only stop what
     // delivery would have stopped anyway.
-    this.assertDeliverableDurationBeforeSpend(shots, plannedTalkingShots, intake.settings.durationTargetSeconds);
+    this.assertDeliverableDurationBeforeSpend(
+      shots,
+      plannedTalkingShots,
+      intake.settings.durationTargetSeconds,
+      preparedRequest.transitionSettings
+    );
     const costEstimate = this.renderCostGate.estimate({
       compiledPrompts,
       settings: intake.settings,
@@ -767,6 +782,7 @@ export class DirectorAgent {
       shots: renderReadyShots,
       compiledPrompts,
       settings: intake.settings,
+      ...(preparedRequest.transitionSettings ? { transitionSettings: preparedRequest.transitionSettings } : {}),
       ...(signal ? { signal } : {})
     });
 
@@ -1732,7 +1748,14 @@ export class DirectorAgent {
         maxFrames: 2
       },
       workDirectory,
-      maxFramesPerCandidate: 2
+      maxFramesPerCandidate: 2,
+      // ADVISORY, because the customer did not ask for visual QC — the pipeline volunteered it.
+      // The vision model routinely returns an overall "pass" with a cosmetic S2 note ("framing sits
+      // slightly left"); treated as a repair that note buys another render, and if it recurs on the
+      // retry the whole job is failed AFTER every clip is paid for, with refunds handled by hand.
+      // Turning a quality nicety into a way to lose a paid render is not a trade worth making
+      // silently. Ranking still uses every finding; S0/S1 defects still trigger repair as before.
+      advisoryOnly: true
     };
   }
 
@@ -2417,6 +2440,7 @@ export class DirectorAgent {
     readonly shots: readonly ShotContract[];
     readonly compiledPrompts: CompiledPrompt[];
     readonly settings: FlexibleSeedanceSettings;
+    readonly transitionSettings?: TransitionSettings;
     readonly signal?: AbortSignal;
   }): Promise<void> {
     const avatarModel = this.atlasSettings.models.avatarModel?.trim();
@@ -2437,6 +2461,7 @@ export class DirectorAgent {
     let avatarRoutedCount = 0;
     /** shotId -> real spoken length of the voice track we bought (seconds), when measurable. */
     const measuredSpeechSeconds = new Map<string, number>();
+    const voiceTracksToMeasure: { readonly shotId: string; readonly audioUrl: string }[] = [];
     for (const { shot, decision } of talkingShots) {
       try {
         const spokenLine = shot.spokenLine?.trim();
@@ -2504,20 +2529,9 @@ export class DirectorAgent {
           }
         };
         avatarRoutedCount += 1;
-        // MEASURE the voice we just bought, while it is still cheap to stop. An avatar clip runs for
-        // exactly its audio's length, so this number — not any words-per-second estimate — is the
-        // shot's real runtime. Fail-open per shot: an unreadable probe simply leaves that shot
-        // unmeasured rather than blocking a render over a missing ffprobe.
-        if (this.speechDurationProber) {
-          try {
-            const measured = (await this.speechDurationProber.probe(audioUrl, input.signal)).durationSeconds;
-            if (typeof measured === "number" && Number.isFinite(measured) && measured > 0) {
-              measuredSpeechSeconds.set(shot.shotId, measured);
-            }
-          } catch {
-            // Measurement is advisory; never fail a paid render because the prober tripped.
-          }
-        }
+        // Queue the voice track for measurement AFTER the loop. Probing inline made one network read
+        // per shot, strictly serial, inside the stage that is already the slowest part of a render.
+        voiceTracksToMeasure.push({ shotId: shot.shotId, audioUrl });
       } catch (error) {
         // A real user abort must stop the whole stage — swallowing it would keep buying TTS
         // for the remaining talking shots after cancellation (cross-audit).
@@ -2533,11 +2547,13 @@ export class DirectorAgent {
       "Talking-shot voicing completed.",
       { talkingShotCount: talkingShots.length, avatarRoutedCount }
     );
+    await this.measureVoiceTracks(voiceTracksToMeasure, measuredSpeechSeconds, input.signal);
     this.assertMeasuredSpeechFillsRuntime({
       shots: input.shots,
       talkingShotIds: talkingShots.map((entry) => entry.shot.shotId),
       measuredSpeechSeconds,
-      targetDurationSeconds: input.settings.durationTargetSeconds
+      targetDurationSeconds: input.settings.durationTargetSeconds,
+      ...(input.transitionSettings ? { transitionSettings: input.transitionSettings } : {})
     });
   }
 
@@ -2554,21 +2570,92 @@ export class DirectorAgent {
    * would have passed. Shots that could not be measured are counted at their planned duration, so a
    * missing prober can never manufacture a shortfall.
    */
+  /**
+   * Measure the voice tracks this render just bought, in bounded parallel with a hard per-track
+   * deadline.
+   *
+   * Every property here is defensive. ffprobe reads the provider's https URL directly, and the
+   * shared process runner's default deadline is thirty MINUTES — on a long talking video that is
+   * one unbounded network read per shot (an 8-minute video plans dozens), each able to pin the whole
+   * job, and with a single worker that stalls every other customer in the queue behind it. A short
+   * deadline plus a concurrency cap keeps a slow CDN to a bounded delay instead of an outage.
+   *
+   * Every failure mode is silent by design: measurement is advisory, and an unmeasured shot is
+   * simply counted at its planned duration by the caller, so a missing ffprobe or a flaky CDN can
+   * never manufacture a shortfall and reject a paying customer's render.
+   */
+  private async measureVoiceTracks(
+    tracks: readonly { readonly shotId: string; readonly audioUrl: string }[],
+    into: Map<string, number>,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const prober = this.speechDurationProber;
+    if (!prober || tracks.length === 0) {
+      return;
+    }
+    const measureOne = async (track: { readonly shotId: string; readonly audioUrl: string }): Promise<void> => {
+      // An explicit timer rather than AbortSignal.timeout(): that helper's timer is deliberately
+      // unref'd, so it cannot hold the process open and a stalled probe would never be cut short in
+      // any context where this work is the only thing left running. A plain setTimeout keeps the
+      // deadline real and is cleared on every exit path, so it never delays a finished render.
+      const controller = new AbortController();
+      const abortNow = (): void => controller.abort();
+      const timer = setTimeout(abortNow, VOICE_TRACK_PROBE_TIMEOUT_MS);
+      signal?.addEventListener("abort", abortNow, { once: true });
+      try {
+        const measured = (await prober.probe(track.audioUrl, controller.signal)).durationSeconds;
+        if (typeof measured === "number" && Number.isFinite(measured) && measured > 0) {
+          into.set(track.shotId, measured);
+        }
+      } catch {
+        // Unreadable or too slow: leave it unmeasured. A user abort is handled by the caller, which
+        // checks input.signal before it does anything else with the result.
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", abortNow);
+      }
+    };
+    for (let start = 0; start < tracks.length; start += VOICE_TRACK_PROBE_CONCURRENCY) {
+      if (signal?.aborted) {
+        return;
+      }
+      await Promise.all(tracks.slice(start, start + VOICE_TRACK_PROBE_CONCURRENCY).map(measureOne));
+    }
+  }
+
+  /**
+   * Seconds the finished file LOSES to crossfades. Every boundary overlaps its two clips, so the
+   * assembled runtime is the sum of the clips minus one transition per boundary. Any pre-spend
+   * duration check that compares a raw sum against the delivery gate's floor is therefore optimistic
+   * by exactly this much, and the gap is a band where the check passes, the money is spent, and the
+   * gate then rejects the finished video — 0.7s wide on an 18s/3-shot order, 27.65s on a 480s/80-shot
+   * one. withDurationCompensation already does this arithmetic; these checks must agree with it.
+   */
+  private transitionOverlapSecondsFor(shotCount: number, transitionSettings: TransitionSettings | undefined): number {
+    const effective = transitionSettings ?? DEFAULT_TRANSITION_SETTINGS;
+    return shotCount > 1 && effective.enabled ? (shotCount - 1) * effective.durationSeconds : 0;
+  }
+
   private assertMeasuredSpeechFillsRuntime(input: {
     readonly shots: readonly ShotContract[];
     readonly talkingShotIds: readonly string[];
     readonly measuredSpeechSeconds: ReadonlyMap<string, number>;
     readonly targetDurationSeconds?: number;
+    readonly transitionSettings?: TransitionSettings;
   }): void {
     const target = input.targetDurationSeconds;
     if (!Number.isFinite(target) || (target ?? 0) <= 0 || input.measuredSpeechSeconds.size === 0) {
       return;
     }
     const talking = new Set(input.talkingShotIds);
-    const deliverableSeconds = input.shots.reduce((total, shot) => {
+    const clipSecondsTotal = input.shots.reduce((total, shot) => {
       const measured = input.measuredSpeechSeconds.get(shot.shotId);
       return total + (talking.has(shot.shotId) && measured !== undefined ? measured : shot.durationSeconds);
     }, 0);
+    const deliverableSeconds = Math.max(
+      0,
+      clipSecondsTotal - this.transitionOverlapSecondsFor(input.shots.length, input.transitionSettings)
+    );
     const floor = (target as number) * (1 - DURATION_SHORT_BLOCK_TOLERANCE);
     if (deliverableSeconds >= floor) {
       return;
@@ -2596,7 +2683,8 @@ export class DirectorAgent {
   private assertDeliverableDurationBeforeSpend(
     shots: readonly ShotContract[],
     plannedTalkingShots: readonly ShotContract[],
-    targetDurationSeconds: number
+    targetDurationSeconds: number,
+    transitionSettings?: TransitionSettings
   ): void {
     if (!Number.isFinite(targetDurationSeconds) || targetDurationSeconds <= 0 || plannedTalkingShots.length === 0) {
       return;
@@ -2606,10 +2694,18 @@ export class DirectorAgent {
       if (!talkingShotIds.has(shot.shotId)) {
         return sum + shot.durationSeconds;
       }
-      const words = (shot.spokenLine ?? "").split(/\s+/).filter(Boolean).length;
-      return sum + words / TALKING_WORDS_PER_SECOND;
+      // Spoken UNITS, not whitespace tokens: a space-less Chinese or Japanese line counted as one
+      // word, so this check estimated seconds of speech as a fraction of a second and hard-refused
+      // every CJK talking order — a shipped, sellable option — with a message blaming the customer.
+      return sum + countSpeechUnits(shot.spokenLine ?? "") / TALKING_WORDS_PER_SECOND;
     }, 0);
-    if (estimatedSeconds >= targetDurationSeconds * (1 - DURATION_SHORT_BLOCK_TOLERANCE)) {
+    // Same crossfade subtraction as the measured check — a pre-spend estimate that ignores it is
+    // optimistic by one transition per boundary and lets a doomed plan through.
+    const deliverableEstimateSeconds = Math.max(
+      0,
+      estimatedSeconds - this.transitionOverlapSecondsFor(shots.length, transitionSettings)
+    );
+    if (deliverableEstimateSeconds >= targetDurationSeconds * (1 - DURATION_SHORT_BLOCK_TOLERANCE)) {
       return;
     }
     const estimated = Math.max(1, Math.round(estimatedSeconds));

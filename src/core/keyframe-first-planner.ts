@@ -274,17 +274,30 @@ const CHARACTER_ARTICLE_PREFIX = /^(?:the|a|an)\s+/i;
  * Normalize a free-text character identity into a stable grouping key so "the founder", "Founder",
  * and "  founder " collapse to ONE character instead of fragmenting into separate anchors (which
  * would both waste image spend and fail to anchor consistently).
+ *
+ * The English article is stripped ONLY when what follows it is lowercase in the ORIGINAL label —
+ * i.e. the label reads as a description ("the founder", "a woman in a red coat") rather than a
+ * proper name. "An", "A" and "The" are all ordinary Vietnamese name syllables, so stripping them
+ * unconditionally merged real, distinct people: "An Khang" produced the key "khang", identical to a
+ * different character actually named Khang, and "A Phủ" / "A Sử" / "An Nhiên" / "Thế Anh" lost
+ * their first syllable the same way. Merged characters share one portrait, and in a series that
+ * face is pinned permanently — the two people become one on screen for good, with no way back.
+ *
+ * A diacritics test is not enough here: Vietnamese names are routinely typed without diacritics, so
+ * "An Khang" is pure ASCII. Capitalisation is the signal that actually separates the two cases. The
+ * cost of the guard is that a SHOUTED description ("THE FOUNDER") no longer collapses onto "the
+ * founder" — one extra portrait, against two real people permanently sharing a face.
  */
 export function normalizeCharacterKey(identity: string | undefined): string {
   if (!identity) {
     return "";
   }
-  return identity
-    .trim()
-    .toLowerCase()
-    .replace(CHARACTER_ARTICLE_PREFIX, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  const trimmed = identity.trim();
+  const article = CHARACTER_ARTICLE_PREFIX.exec(trimmed);
+  const remainder = article ? trimmed.slice(article[0].length) : "";
+  const readsAsDescription = remainder.length > 0 && remainder[0] === remainder[0]?.toLowerCase();
+  const base = article && readsAsDescription ? remainder : trimmed;
+  return base.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 // Multi-character separators across the languages we plan in: "Linh and Mai", "Linh và Mai",

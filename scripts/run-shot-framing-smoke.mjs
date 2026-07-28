@@ -173,6 +173,57 @@ check("planner_wires_speaking_beats_front_view",
   talkingPositions.length > 0 && talkingPositions.every((p) => p === "front_view"),
   `${talkingPositions.length} talking shots: ${[...new Set(talkingPositions)].join(",")}`);
 
+// VOCABULARY COVERAGE (audit fix). Two different enums name the creative mode and BOTH reach the
+// shot planner. Only one was listed in the palettes, so every value of the other silently fell
+// through to the crewed default — the palettes were dead code on the real customer path while these
+// tests passed, because the tests called planShotFramingSequence directly with viral-enum names.
+// Any mode added to either enum from now on fails here until it is given a palette.
+const VIRAL_MODES = ["ugc_review", "product_ad", "demo", "testimonial", "problem_solution", "comparison", "education", "story", "cinematic"];
+const DIRECTOR_MODES = ["ugc_ad", "product_review", "product_demo", "explainer", "cinematic_reveal", "native_social_story"];
+const defaultShape = planShotFramingSequence({ arcRoles: arcRolesFor(8) }).map((g) => `${g.shotType}/${g.shotPosition}`).join("|");
+const unmapped = [...VIRAL_MODES, ...DIRECTOR_MODES].filter((mode) =>
+  planShotFramingSequence({ arcRoles: arcRolesFor(8), creativeMode: mode }).map((g) => `${g.shotType}/${g.shotPosition}`).join("|") === defaultShape);
+check("every_creative_mode_has_its_own_palette", unmapped.length === 0, unmapped.join(",") || "all mapped");
+// The selfie-register names in BOTH vocabularies must stay physically possible.
+const SELFIE_MODES = ["ugc_review", "testimonial", "ugc_ad", "product_review"];
+for (const mode of SELFIE_MODES) {
+  const impossible = planShotFramingSequence({ arcRoles: arcRolesFor(8), creativeMode: mode })
+    .filter((g) => IMPOSSIBLE_FOR_SELFIE.has(g.shotPosition)).map((g) => g.shotPosition);
+  check(`${mode}_selfie_positions_are_possible`, impossible.length === 0, impossible.join(",") || "none");
+}
+
+// END-TO-END ON THE REAL CUSTOMER PATH. Everything above exercises the planner directly, which is
+// exactly how a broken handoff stayed invisible: the style keys were being dropped between the short
+// pipeline and the renderer, so none of it reached production. This drives the actual chain —
+// ShortPipelinePlanner -> buildShortPipelineRenderHandoff -> ShotPlanner — for a selfie brief.
+const { ShortPipelinePlanner } = await import("../dist/core/short-pipeline-planner.js");
+const { buildShortPipelineRenderHandoff } = await import("../dist/core/short-pipeline-render-handoff.js");
+const selfiePlan = new ShortPipelinePlanner().buildPlan({
+  projectId: "framing_e2e",
+  requestId: "req_framing_e2e",
+  userPrompt: "Video 18 giay kieu KOL tu quay bang dien thoai, co gai review son duong, noi thang vao camera",
+  settings: { durationTargetSeconds: 18, ratio: "9:16", resolution: "720p" }
+});
+const handoffMetadata = buildShortPipelineRenderHandoff({ plan: selfiePlan, includeGeneratedAudioIntents: true }).request.metadata ?? {};
+// The metadata is capped at a fixed number of entries; the style keys must win a slot every time.
+check("handoff_keeps_creative_mode", handoffMetadata.shortViralCreativeMode === selfiePlan.viralIntelligence?.nicheStrategy?.creativeMode,
+  `${handoffMetadata.shortViralCreativeMode} vs planner ${selfiePlan.viralIntelligence?.nicheStrategy?.creativeMode}`);
+check("handoff_keeps_niche", typeof handoffMetadata.shortViralNiche === "string" && handoffMetadata.shortViralNiche.length > 0,
+  String(handoffMetadata.shortViralNiche));
+const e2eBeats = Array.from({ length: 8 }, (_unused, i) => beat(`e${i + 1}`, "Creator talks about the balm to camera", "proof"));
+const e2eShots = planner.plan({
+  projectId: "framing_e2e",
+  scenes: [{ sceneId: "scene_e2e", beats: e2eBeats }],
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS, durationTargetSeconds: 24 },
+  metadata: handoffMetadata
+});
+const e2eImpossible = e2eShots.filter((shot) => IMPOSSIBLE_FOR_SELFIE.has(String(shot.metadata?.shotPosition)));
+check("e2e_selfie_brief_has_no_impossible_camera", e2eImpossible.length === 0,
+  e2eImpossible.map((shot) => `${shot.shotId}:${shot.metadata?.shotPosition}`).join(",") || "none");
+const e2eWides = e2eShots.filter((shot) => ["long_shot", "full_shot"].includes(String(shot.metadata?.shotType)));
+check("e2e_selfie_brief_has_no_wide_shots", e2eWides.length === 0,
+  e2eWides.map((shot) => `${shot.shotId}:${shot.metadata?.shotType}`).join(",") || "none");
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.shot-framing-smoke.v1",

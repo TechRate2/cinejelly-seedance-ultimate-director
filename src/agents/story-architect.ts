@@ -13,7 +13,7 @@ import { nichePlaybookDirective, SEEDANCE_MASTERY_DIRECTIVE } from "../core/nich
 import { antiSlopDirective } from "../core/anti-slop-lexicon.js";
 import { CustomerActionableError } from "../core/customer-actionable-error.js";
 import { explicitStyleTagRegister, isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
-import { capToSpeakableWords, TALKING_WORDS_PER_SECOND } from "../core/duration-scripting.js";
+import { capToSpeakableWords, countSpeechUnits, TALKING_WORDS_PER_SECOND } from "../core/duration-scripting.js";
 import { MAX_CLIP_SECONDS } from "../core/chunking.js";
 import type { StyleDna, StyleRegister } from "../types/prompt.js";
 
@@ -114,7 +114,9 @@ const MIN_BEAT_DURATION_SECONDS = 4;
 // (paid-acceptance forensics 2026-07-26: 18s ordered rendered 7.3s). VN ElevenLabs measured ≈4
 // words/sec.
 const TALKING_MIN_BEAT_DURATION_SECONDS = 2;
-const countWords = (text: string): number => text.split(/\s+/).filter(Boolean).length;
+// Not a whitespace split: Chinese and Japanese are written without spaces, so a whole sentence
+// counted as one word and every CJK talking plan was scheduled at a fraction of its real length.
+const countWords = (text: string): number => countSpeechUnits(text);
 
 const STORY_PLAN_SCHEMA = {
   type: "object",

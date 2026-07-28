@@ -103,6 +103,17 @@ const SHORT_RENDER_METADATA_PRIORITY_KEYS = [
   "shortPipelineReviewStatus",
   "shortPipelineSource",
   "shortViralIntelligenceId",
+  // The two keys that decide HOW THE VIDEO IS SHOT. They must sit high in this list, not be left to
+  // the alphabetical spillover below: the priority list is longer than the entry cap, so anything
+  // that falls through to the spillover is competing for the handful of remaining slots. Measured
+  // before they were listed here: 4 out of 4 realistic briefs produced exactly 50 entries with
+  // BOTH keys missing, every time. Losing shortViralCreativeMode silently swaps the shot planner
+  // onto shortDirectorCreativeMode — a DIFFERENT vocabulary whose values match no palette — so a
+  // phone-selfie video was framed with the full crewed camera rotation and the render prompt asked
+  // for a camera standing behind someone filming themselves. Losing shortViralNiche silently drops
+  // the niche-DNA section from the compiled prompt.
+  "shortViralCreativeMode",
+  "shortViralNiche",
   "shortViralPlatformFocus",
   "shortCreativePatternLearningId",
   "shortAudienceNicheTrendPosture",

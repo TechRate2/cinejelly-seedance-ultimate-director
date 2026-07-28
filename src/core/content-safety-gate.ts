@@ -47,13 +47,31 @@ interface CategoryRule {
   readonly patterns: readonly RegExp[];
 }
 
-/** Lowercase + strip Vietnamese diacritics so "trẻ em" and "tre em" both match. */
+/**
+ * Lowercase + strip Vietnamese diacritics so "trẻ em" and "tre em" both match, then flatten ALL
+ * punctuation to a single space.
+ *
+ * The punctuation step is load-bearing, not cosmetic. The proximity rules bridge two signals with
+ * `[\s\w]{0,40}`, which admits only ASCII word characters and whitespace — so a single comma broke
+ * the match and walked the brief straight past the ABSOLUTE minor-safety prohibition. Measured
+ * before this line existed: "tre em khoa than" was blocked, while "tre em, khoa than",
+ * "tre em: khoa than", "tre em - khoa than", "tre em. khoa than" and "tre em (khoa than)" were all
+ * admitted into the paid pipeline. Vietnamese prose is comma-heavy, so the bypassing form was the
+ * COMMON one. Flattening here fixes every rule at once instead of patching each pattern.
+ *
+ * Deliberately fail-closed: collapsing sentence punctuation lets the proximity window reach across
+ * a full stop, so a legitimate brief that names both signals within ~40 characters is now refused.
+ * For a prohibition that exists to keep child sexual content out of a commercial render pipeline,
+ * an occasional refused brief the operator can review is the correct side to err on. `\p{L}\p{N}`
+ * rather than `a-z0-9` so non-Latin scripts survive normalization instead of being blanked.
+ */
 function normalize(text: string): string {
   return text
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/đ/g, "d")
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -43,6 +43,13 @@ export function normalizeRenderRequest(
 
   return {
     ...body,
+    // Unicode normalization belongs HERE, once, at the boundary — not scattered across every reader.
+    // Vietnamese arrives decomposed from mainstream sources (Unikey's "Unicode tổ hợp" mode, and
+    // anything typed or pasted from macOS/iOS), and a decomposed brief is a different string to the
+    // precomposed one everywhere downstream: it failed the Vietnamese-language detector, so the job
+    // was labelled English and the customer received a video written and voiced in English. From
+    // this line on, one sentence has exactly one spelling.
+    userInput: body.userInput.normalize("NFC"),
     // Metadata contract is Record<string,string>, but this route accepts raw JSON where a client
     // can pass booleans/numbers (e.g. scriptFirst: true) that then fail every `=== "string"` /
     // `=== "true"` check downstream (adversarial-audit #4). Stringify non-string values exactly

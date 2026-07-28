@@ -216,7 +216,19 @@ const MODE_SHOT_TYPE_PALETTE: Record<string, readonly ShotType[]> = {
   education: ["medium_shot", "full_shot", "close_up", "medium_shot"],
   // Story/cinematic: full expressive range including wides.
   story: ["full_shot", "medium_shot", "close_up", "long_shot", "medium_shot"],
-  cinematic: ["long_shot", "medium_shot", "close_up", "full_shot", "extreme_close_up"]
+  cinematic: ["long_shot", "medium_shot", "close_up", "full_shot", "extreme_close_up"],
+  // ---- ShortDirectorCreativeMode vocabulary ----
+  // Two different enums name the creative mode, and BOTH reach the shot planner: the viral one
+  // above (ugc_review, ...) and the director one here (ugc_ad, ...). Only the viral names were
+  // listed, so whenever the planner saw a director name it silently fell through to the default
+  // palette — a phone-selfie video framed with long shots and the full crewed camera rotation.
+  // These entries make the fallback correct even when the other vocabulary is the one that arrives.
+  ugc_ad: ["close_up", "medium_shot", "close_up", "extreme_close_up"],
+  product_review: ["close_up", "medium_shot", "close_up", "extreme_close_up"],
+  product_demo: ["medium_shot", "close_up", "full_shot", "medium_shot"],
+  explainer: ["medium_shot", "full_shot", "close_up", "medium_shot"],
+  cinematic_reveal: ["long_shot", "medium_shot", "close_up", "full_shot", "extreme_close_up"],
+  native_social_story: ["medium_shot", "close_up", "full_shot", "medium_shot"]
 };
 
 /**
@@ -261,7 +273,15 @@ const MODE_POSITION_PALETTE: Record<string, readonly ShotPosition[]> = {
   comparison: ["front_view", "over_the_shoulder", "side_view", "front_view"],
   problem_solution: ["front_view", "side_view", "over_the_shoulder", "front_view"],
   education: ["front_view", "side_view", "over_the_shoulder", "front_view"],
-  product_ad: ["front_view", "side_view", "over_the_shoulder", "front_view"]
+  product_ad: ["front_view", "side_view", "over_the_shoulder", "front_view"],
+  // ShortDirectorCreativeMode vocabulary — see the note on MODE_SHOT_TYPE_PALETTE. `ugc_ad` and
+  // `product_review` are the selfie-register names in this enum and must never roam behind the
+  // subject; `cinematic_reveal` is genuinely crewed and is deliberately left to POSITION_CYCLE.
+  ugc_ad: ["front_view", "front_view", "side_view", "front_view"],
+  product_review: ["front_view", "front_view", "side_view", "front_view"],
+  product_demo: ["front_view", "over_the_shoulder", "side_view", "front_view"],
+  explainer: ["front_view", "side_view", "over_the_shoulder", "front_view"],
+  native_social_story: ["front_view", "side_view", "over_the_shoulder", "front_view"]
 };
 
 /**

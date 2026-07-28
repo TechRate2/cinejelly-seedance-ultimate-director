@@ -185,10 +185,19 @@ export class SeriesContinuityStore {
       if (record.episodeStates.some((existing) => existing.episodeNumber === state.episodeNumber)) {
         throw new Error(`Episode ${state.episodeNumber} of series ${seriesId} is already recorded.`);
       }
+      // knownIds grows AS the batch is filtered. Checking against a frozen snapshot let two new
+      // characters that happened to share an id both enter the ledger under that one id, after
+      // which their two different portraits fought over the same slot — the identity-mixing failure
+      // this store exists to prevent.
       const knownIds = new Set(record.cast.map((member) => member.characterId));
-      const grown = castGrowth
-        .filter((member) => member.characterId && !knownIds.has(member.characterId))
-        .map((member) => ({ ...member, firstAppearedEpisode: state.episodeNumber }));
+      const grown: SeriesCastRecord[] = [];
+      for (const member of castGrowth) {
+        if (!member.characterId || knownIds.has(member.characterId)) {
+          continue;
+        }
+        knownIds.add(member.characterId);
+        grown.push({ ...member, firstAppearedEpisode: state.episodeNumber });
+      }
       const episodeStates = [...record.episodeStates, state].sort((a, b) => a.episodeNumber - b.episodeNumber);
       // Pin each character's face from this episode's bound portraits (match on characterId or name,
       // normalized), but ONLY where none is pinned yet.
@@ -216,9 +225,36 @@ export class SeriesContinuityStore {
           .replace(/đ/g, "d")
           .replace(/[^a-z0-9]+/g, "_")
           .replace(/^_+|_+$/g, "");
+      // The ambiguity universe is EVERY name in play this episode — the portraits AND the cast's own
+      // names and ids — not just portrait-vs-portrait. Checking only portraits against each other
+      // left the common case wide open: a cast of "Dũng" (male lead) and "Dung" (female lead) where
+      // only Dũng recurred enough to earn a portrait produces exactly ONE anchor, so the guard had
+      // nothing to compare and the accent-folding fallback happily handed Dũng's face to Dung.
+      const foldGroups = new Map<string, Set<string>>();
+      const noteName = (value: string | undefined): void => {
+        const exact = exactKey(value ?? "");
+        const folded = foldedKey(value ?? "");
+        if (!exact || !folded) {
+          return;
+        }
+        const group = foldGroups.get(folded) ?? new Set<string>();
+        group.add(exact);
+        foldGroups.set(folded, group);
+      };
+      const castInPlay = [...record.cast, ...grown];
+      for (const anchor of identityAnchors) {
+        noteName(anchor.characterKey);
+        noteName(anchor.label);
+      }
+      for (const member of castInPlay) {
+        noteName(member.characterId);
+        noteName(member.name);
+      }
+
       const anchorByExact = new Map<string, string>();
       const anchorByFolded = new Map<string, string>();
-      const ambiguousFolded = new Set<string>();
+      /** Exact keys claimed by two different portraits — refuse rather than pick one at random. */
+      const ambiguousExact = new Set<string>();
       for (const anchor of identityAnchors) {
         if (!anchor.uri) {
           continue;
@@ -228,43 +264,74 @@ export class SeriesContinuityStore {
           if (!exact) {
             continue;
           }
-          if (!anchorByExact.has(exact)) {
+          const claimedExact = anchorByExact.get(exact);
+          if (claimedExact === undefined) {
             anchorByExact.set(exact, anchor.uri);
+          } else if (claimedExact !== anchor.uri) {
+            ambiguousExact.add(exact);
           }
           const folded = foldedKey(candidate ?? "");
           if (!folded) {
             continue;
           }
-          const claimed = anchorByFolded.get(folded);
-          if (claimed === undefined) {
+          const claimedFolded = anchorByFolded.get(folded);
+          if (claimedFolded === undefined) {
             anchorByFolded.set(folded, anchor.uri);
-          } else if (claimed !== anchor.uri) {
-            ambiguousFolded.add(folded);
           }
         }
       }
-      const anchorUriFor = (value: string | undefined): string | undefined => {
-        if (!value?.trim()) {
-          return undefined;
-        }
-        const exact = anchorByExact.get(exactKey(value));
-        if (exact) {
-          return exact;
-        }
-        const folded = foldedKey(value);
-        return folded && !ambiguousFolded.has(folded) ? anchorByFolded.get(folded) : undefined;
+      /** A folded key is safe only when exactly ONE distinct real name folds onto it. */
+      const foldedIsSafe = (folded: string): boolean => (foldGroups.get(folded)?.size ?? 0) <= 1;
+      const exactUriFor = (value: string | undefined): string | undefined => {
+        const exact = exactKey(value ?? "");
+        return exact && !ambiguousExact.has(exact) ? anchorByExact.get(exact) : undefined;
       };
+      const foldedUriFor = (value: string | undefined): string | undefined => {
+        const folded = foldedKey(value ?? "");
+        return folded && foldedIsSafe(folded) ? anchorByFolded.get(folded) : undefined;
+      };
+      // Which cast member each NAME belongs to. Portraits are produced from a character's label, so
+      // the name is the authoritative key; characterId is free operator/customer text that happens
+      // to be usable as a secondary hint.
+      const memberOwningNameKey = new Map<string, string>();
+      for (const member of castInPlay) {
+        const key = exactKey(member.name ?? "");
+        if (key && !memberOwningNameKey.has(key)) {
+          memberOwningNameKey.set(key, member.characterId);
+        }
+      }
       const withPinnedFaces = <T extends SeriesCastMember>(members: readonly T[]): readonly T[] =>
         members.map((member) => {
           if (member.identityReferenceUri?.trim()) {
             return member;
           }
-          const uri = anchorUriFor(member.characterId) ?? anchorUriFor(member.name);
+          // The member's OWN NAME is tried first and wins outright. Resolving characterId first let
+          // an id typed as "dung" for a character named "Dũng" exact-match a DIFFERENT character
+          // actually called "Dung" and take that stranger's portrait, while the character's own
+          // correct match was never consulted.
+          //
+          // characterId is only consulted when the name found nothing, and then only if that id is
+          // not already some OTHER character's name — an id that collides with a different cast
+          // member's name carries no information about who this person is, and following it is
+          // exactly how one character ends up wearing another's face permanently.
+          const idIsSafe = ((): boolean => {
+            const key = exactKey(member.characterId ?? "");
+            if (!key) {
+              return false;
+            }
+            const owner = memberOwningNameKey.get(key);
+            return owner === undefined || owner === member.characterId;
+          })();
+          const uri =
+            exactUriFor(member.name) ??
+            (idIsSafe ? exactUriFor(member.characterId) : undefined) ??
+            foldedUriFor(member.name) ??
+            (idIsSafe ? foldedUriFor(member.characterId) : undefined);
           return uri ? { ...member, identityReferenceUri: uri } : member;
         });
       const updated: SeriesContinuityRecord = {
         ...record,
-        cast: withPinnedFaces([...record.cast, ...grown]),
+        cast: withPinnedFaces(castInPlay),
         episodeStates,
         ...(episodeStates.length > RECENT_EPISODE_WINDOW
           ? { arcSummary: buildArcSummary(episodeStates) }

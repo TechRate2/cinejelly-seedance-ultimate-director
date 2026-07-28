@@ -162,12 +162,34 @@ export class SeriesEpisodeDirector {
         }
       }
     }
-    return [...discovered.values()].map((name) => ({
-      characterId: name.toLowerCase().replace(/[^a-z0-9]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "new_character",
-      name,
-      castRole: "support" as const,
-      description: `Introduced mid-series; keep the same face and presentation as their first appearance.`
-    }));
+    // Fold diacritics rather than deleting the letters that carry them, then de-duplicate. Slugging
+    // straight to [a-z0-9] gave "Bác Hùng" and "Bác Hằng" the SAME id "b_c_h_ng" and reduced "Đức"
+    // to "c" — and because the continuity store skips any character whose id it already knows, the
+    // second person was silently dropped from the cast ledger along with the portrait already paid
+    // for, then re-invented (and re-billed) with a new face every following episode. A numeric
+    // suffix keeps two genuinely different names apart when they do fold together.
+    const usedIds = new Set<string>();
+    return [...discovered.values()].map((name) => {
+      const base = name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/đ/g, "d")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 56) || "new_character";
+      let characterId = base;
+      for (let suffix = 2; usedIds.has(characterId); suffix += 1) {
+        characterId = `${base}_${suffix}`;
+      }
+      usedIds.add(characterId);
+      return {
+        characterId,
+        name,
+        castRole: "support" as const,
+        description: `Introduced mid-series; keep the same face and presentation as their first appearance.`
+      };
+    });
   }
 
   private episodeStateFrom(

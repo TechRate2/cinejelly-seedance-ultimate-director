@@ -37,6 +37,62 @@ export const VOICEOVER_WORDS_PER_SECOND = 2.8;
  */
 export const TALKING_WORDS_PER_SECOND = 4;
 
+/** Han, kana and halfwidth-kana — scripts that carry a spoken syllable per CHARACTER, not per word. */
+const SPEECH_UNIT_CJK = /[぀-ヿ㐀-䶿一-鿿豈-﫿ｦ-ﾟ]/u;
+
+/**
+ * How many spoken units a line contains — the thing the rate above is actually per-second OF.
+ *
+ * Splitting on whitespace is right for Vietnamese and English, where a token is roughly a syllable
+ * or a short word. It is catastrophically wrong for Chinese and Japanese, which are written without
+ * spaces: a whole sentence counted as ONE token, so a 60-second Chinese talking script was estimated
+ * at a couple of seconds and the pre-spend duration check refused the job — with a Vietnamese error
+ * telling the customer their script was too short. Chinese voiceover is a shipped, sellable option
+ * in the UI, so every Chinese or Japanese talking order was rejected outright, and the message
+ * blamed the customer for it.
+ *
+ * Counting CJK per character and everything else per whitespace token handles mixed text too
+ * ("iPhone 15 很好" = 4 units), and leaves Vietnamese and English behaviour byte-identical.
+ */
+export function countSpeechUnits(text: string): number {
+  let units = 0;
+  let insideWord = false;
+  for (const character of text.trim()) {
+    if (/\s/u.test(character)) {
+      insideWord = false;
+    } else if (SPEECH_UNIT_CJK.test(character)) {
+      units += 1;
+      insideWord = false;
+    } else if (!insideWord) {
+      units += 1;
+      insideWord = true;
+    }
+  }
+  return units;
+}
+
+/** Cut a line to at most `maxUnits` spoken units, counting the same way `countSpeechUnits` does. */
+function sliceToSpeechUnits(text: string, maxUnits: number): string {
+  let units = 0;
+  let insideWord = false;
+  let cutAt = text.length;
+  let index = 0;
+  for (const character of text) {
+    const isSpace = /\s/u.test(character);
+    const isCjk = !isSpace && SPEECH_UNIT_CJK.test(character);
+    if (!isSpace && (isCjk || !insideWord)) {
+      if (units === maxUnits) {
+        cutAt = index;
+        break;
+      }
+      units += 1;
+    }
+    insideWord = !isSpace && !isCjk;
+    index += character.length;
+  }
+  return text.slice(0, cutAt);
+}
+
 /**
  * Trim spoken text to what `durationSeconds` can physically deliver, cutting at a word boundary
  * (keeps the opening — the hook carries the most important words) and stripping any punctuation
@@ -58,12 +114,11 @@ export function capToSpeakableWords(
     return trimmed;
   }
   const rate = Number.isFinite(wordsPerSecond) && wordsPerSecond > 0 ? wordsPerSecond : VOICEOVER_WORDS_PER_SECOND;
-  const maxWords = Math.max(6, Math.floor(durationSeconds * rate));
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) {
+  const maxUnits = Math.max(6, Math.floor(durationSeconds * rate));
+  if (countSpeechUnits(trimmed) <= maxUnits) {
     return trimmed;
   }
-  return words.slice(0, maxWords).join(" ").replace(/[,;:—-]+$/, "").trim();
+  return sliceToSpeechUnits(trimmed, maxUnits).replace(/[,;:—-]+$/, "").trim();
 }
 
 export type DurationBeatRole = "hook" | "development" | "proof_peak" | "settle";

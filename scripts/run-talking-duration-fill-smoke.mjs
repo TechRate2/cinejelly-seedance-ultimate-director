@@ -141,7 +141,10 @@ check("no_duplicate_speech_rate_constants",
 // knows which shots will actually be avatar-routed). Source invariant: it must run before the
 // keyframe/TTS stages and throw a CustomerActionableError, mirroring the delivery gate's tolerance.
 const directorSource = readFileSync(new URL("../src/agents/director-agent.ts", import.meta.url), "utf8");
-const assertAt = directorSource.indexOf("assertDeliverableDurationBeforeSpend(shots, plannedTalkingShots");
+// Match the CALL, not one particular formatting of its arguments — the previous pattern pinned the
+// whole argument list onto a single line, so wrapping the call (to pass transition settings) made
+// this ordering check silently report "not found" instead of reporting the real ordering.
+const assertAt = directorSource.indexOf("this.assertDeliverableDurationBeforeSpend(");
 const keyframeAt = directorSource.indexOf("runKeyframeFirstStage({");
 const ttsAt = directorSource.indexOf("runTalkingShotStage({");
 check("pre_spend_duration_assert_exists", assertAt > -1, `at=${assertAt}`);

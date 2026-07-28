@@ -206,12 +206,98 @@ await amb2.recordEpisode("face_amb2", epState(1, "setup"), [], [
 check("ambiguous_fold_refuses_to_guess", (await amb2.load("face_amb2")).cast[0].identityReferenceUri === undefined,
   String((await amb2.load("face_amb2")).cast[0].identityReferenceUri));
 
-// The director must actually expose what it bound, or nothing above can ever be fed.
-const { readFileSync: readSrc } = await import("node:fs");
-const directorSrc = readSrc(new URL("../src/agents/director-agent.ts", import.meta.url), "utf8");
-check("director_returns_bound_character_anchors", directorSrc.includes("characterAnchors: boundCharacterAnchors"));
-const episodeDirectorSrc = readSrc(new URL("../src/application/series-episode-director.ts", import.meta.url), "utf8");
-check("episode_director_persists_anchors", episodeDirectorSrc.includes("result.characterAnchors"));
+// AMBIGUITY MUST BE JUDGED AGAINST THE WHOLE CAST, not portrait-vs-portrait. The common shape is a
+// cast of two similar names where only ONE earned a portrait this episode: with a single anchor
+// there is nothing to collide with, so the accent-folding fallback used to hand that face to the
+// other character. "Dũng" (nam) and "Dung" (nu) are two different, very ordinary Vietnamese names.
+const dungStore = new SeriesContinuityStore({ outputRoot: mkdtempSync(joinPath(tmpdir(), "series-face-dung-")) });
+await dungStore.create({ seriesId: "face_dung", premise: "p", episodeCount: 3 }, {
+  seriesId: "face_dung", title: "T", world: "w", tone: "t", consistencyContract: "c",
+  cast: [
+    { characterId: "c1", name: "Dũng", castRole: "lead", description: "nam chinh" },
+    { characterId: "c2", name: "Dung", castRole: "support", description: "nu chinh" }
+  ]
+});
+await dungStore.recordEpisode("face_dung", epState(1, "setup"), [], [
+  { characterKey: "dũng", label: "Dũng", uri: "https://cdn.example/dung-nam.png" }
+]);
+const dungCast = (await dungStore.load("face_dung")).cast;
+const faceOf = (id) => dungCast.find((m) => m.characterId === id)?.identityReferenceUri;
+check("single_anchor_still_pins_its_own_character", faceOf("c1") === "https://cdn.example/dung-nam.png", String(faceOf("c1")));
+check("single_anchor_does_not_leak_onto_a_lookalike", faceOf("c2") === undefined, String(faceOf("c2")));
+
+// characterId is free text. An id typed without diacritics can exact-match a DIFFERENT character's
+// name; the member's OWN name must win, and an outright conflict must pin nothing.
+const idStore = new SeriesContinuityStore({ outputRoot: mkdtempSync(joinPath(tmpdir(), "series-face-id-")) });
+await idStore.create({ seriesId: "face_id", premise: "p", episodeCount: 3 }, {
+  seriesId: "face_id", title: "T", world: "w", tone: "t", consistencyContract: "c",
+  cast: [
+    { characterId: "dung", name: "Dũng", castRole: "lead", description: "nam chinh" },
+    { characterId: "c2", name: "Dung", castRole: "support", description: "nu chinh" }
+  ]
+});
+await idStore.recordEpisode("face_id", epState(1, "setup"), [], [
+  { characterKey: "dũng", label: "Dũng", uri: "https://cdn.example/id-nam.png" },
+  { characterKey: "dung", label: "Dung", uri: "https://cdn.example/id-nu.png" }
+]);
+const idCast = (await idStore.load("face_id")).cast;
+const idFace = (id) => idCast.find((m) => m.characterId === id)?.identityReferenceUri;
+check("own_name_beats_a_colliding_character_id", idFace("dung") === "https://cdn.example/id-nam.png", String(idFace("dung")));
+check("second_character_keeps_its_own_face", idFace("c2") === "https://cdn.example/id-nu.png", String(idFace("c2")));
+check("no_portrait_is_shared_by_two_characters",
+  new Set(idCast.map((m) => m.identityReferenceUri).filter(Boolean)).size === idCast.filter((m) => m.identityReferenceUri).length);
+
+// Mid-series discovery must not collapse two names into one ledger row. This drives the REAL
+// castGrowthFrom + recordEpisode path (the one the HTTP route uses), not a hand-written anchor list.
+const { SeriesEpisodeDirector } = await import("../dist/application/series-episode-director.js");
+const growthStore = new SeriesContinuityStore({ outputRoot: mkdtempSync(joinPath(tmpdir(), "series-face-growth-")) });
+await growthStore.create({
+  seriesId: "face_growth", premise: "p", episodeCount: 5, episodeDurationSeconds: 60,
+  cast: [{ characterId: "linh", name: "Linh", castRole: "protagonist", description: "nu chinh" }]
+}, {
+  seriesId: "face_growth", title: "T", world: "w", tone: "t", consistencyContract: "c",
+  cast: [{ characterId: "linh", name: "Linh", castRole: "lead", description: "nu chinh" }]
+});
+const growthDirector = new SeriesEpisodeDirector({ store: growthStore, director: { run: async () => { throw new Error("unused"); } } });
+const runResultWith = (identities) => ({
+  storyPlan: { scenes: [{ sceneId: "s1", beats: identities.map((identity, i) => ({ beatId: `b${i}`, continuity: { identity } })) }] },
+  characterAnchors: [
+    { characterKey: "bác hùng", label: "Bác Hùng", uri: "https://cdn.example/g-hung.png" },
+    { characterKey: "bác hằng", label: "Bác Hằng", uri: "https://cdn.example/g-hang.png" },
+    { characterKey: "đức", label: "Đức", uri: "https://cdn.example/g-duc.png" }
+  ]
+});
+await growthDirector.recordRenderedEpisode("face_growth", 1,
+  { projectId: "p1", userInput: "u", settings: { durationTargetSeconds: 30 } },
+  runResultWith(["Bác Hùng", "Bác Hằng", "Đức"]));
+const growthCast = (await growthStore.load("face_growth")).cast;
+const growthNames = growthCast.map((m) => m.name);
+check("midseries_growth_keeps_every_distinct_name",
+  ["Bác Hùng", "Bác Hằng", "Đức"].every((name) => growthNames.includes(name)),
+  growthNames.join(","));
+check("midseries_growth_ids_are_distinct",
+  new Set(growthCast.map((m) => m.characterId)).size === growthCast.length,
+  growthCast.map((m) => m.characterId).join(","));
+const growthFace = (name) => growthCast.find((m) => m.name === name)?.identityReferenceUri;
+check("midseries_growth_pins_each_own_face",
+  growthFace("Bác Hùng") === "https://cdn.example/g-hung.png" &&
+  growthFace("Bác Hằng") === "https://cdn.example/g-hang.png" &&
+  growthFace("Đức") === "https://cdn.example/g-duc.png",
+  `${growthFace("Bác Hùng")} | ${growthFace("Bác Hằng")} | ${growthFace("Đức")}`);
+
+// The character grouping key must not eat the first syllable of a Vietnamese name. "An"/"A"/"The"
+// are ordinary name syllables, and stripping them as English articles merged real, distinct people
+// ("An Khang" -> "khang", colliding with a character literally named Khang) — which in a series
+// means one permanently wearing the other's face.
+const { normalizeCharacterKey } = await import("../dist/core/keyframe-first-planner.js");
+check("vietnamese_name_keeps_its_first_syllable",
+  normalizeCharacterKey("An Khang") !== normalizeCharacterKey("Khang") &&
+  normalizeCharacterKey("A Phủ") !== normalizeCharacterKey("Phủ") &&
+  normalizeCharacterKey("The Anh") !== normalizeCharacterKey("Anh"),
+  `${normalizeCharacterKey("An Khang")} / ${normalizeCharacterKey("A Phủ")} / ${normalizeCharacterKey("The Anh")}`);
+check("english_description_still_collapses",
+  normalizeCharacterKey("the founder") === "founder" && normalizeCharacterKey("An entrepreneur") === "entrepreneur",
+  `${normalizeCharacterKey("the founder")} / ${normalizeCharacterKey("An entrepreneur")}`);
 
 const failed = checks.filter((item) => !item.pass);
 const report = {

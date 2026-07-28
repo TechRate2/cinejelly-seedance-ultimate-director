@@ -21,6 +21,16 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const base = "file://" + repoRoot.replace(/\\/g, "/") + "/dist";
 const { DirectorAgent } = await import(`${base}/agents/director-agent.js`);
 const { DURATION_SHORT_BLOCK_TOLERANCE } = await import(`${base}/core/delivery-gate.js`);
+const { DEFAULT_TRANSITION_SETTINGS } = await import(`${base}/core/transition-engine.js`);
+
+// The delivered file is the sum of the clips MINUS one crossfade per boundary. Every expectation
+// below derives from this, rather than hard-coding numbers that silently rot when the assembler's
+// transition defaults change.
+const overlapFor = (shotCount) =>
+  shotCount > 1 && DEFAULT_TRANSITION_SETTINGS.enabled ? (shotCount - 1) * DEFAULT_TRANSITION_SETTINGS.durationSeconds : 0;
+const DELIVERY_FLOOR_18S = 18 * (1 - DURATION_SHORT_BLOCK_TOLERANCE);
+/** Per-shot voice length that makes a 3-shot render DELIVER exactly `deliveredSeconds`. */
+const perShotForDelivered = (deliveredSeconds) => (deliveredSeconds + overlapFor(3)) / 3;
 
 const checks = [];
 const check = (name, pass, detail) => checks.push({ name, pass: Boolean(pass), ...(detail !== undefined ? { detail: String(detail) } : {}) });
@@ -104,7 +114,11 @@ check("short_measured_speech_blocks", short.error !== undefined, short.error?.me
 check("short_block_is_customer_actionable", short.error?.name === "CustomerActionableError", short.error?.name);
 check("short_block_message_is_vietnamese_and_actionable",
   typeof short.error?.message === "string" && short.error.message.includes("giây") && short.error.message.includes("tạo lại"));
-check("short_block_states_measured_length", short.error?.message?.includes("7.2"), short.error?.message);
+// The message must quote the DELIVERED length (clips minus crossfades), which is what the customer
+// would actually have received — not the raw sum, which no one ever sees.
+const shortDelivered = (Math.round((2.4 * 3 - overlapFor(3)) * 10) / 10).toString();
+check("short_block_states_delivered_length", short.error?.message?.includes(shortDelivered),
+  `expected "${shortDelivered}" in: ${short.error?.message}`);
 // The voice tracks were bought (cents) but the guard fired before the stage handed anything to the
 // renderer — proof the expensive half is what gets saved.
 check("short_block_happens_after_tts_but_before_render", short.speechProvider.callCount === 3, short.speechProvider.callCount);
@@ -117,12 +131,14 @@ check("adequate_speech_routes_all_shots_to_avatar",
 
 // --- 3. INSIDE the delivery gate's own tolerance must NOT block — otherwise the guard rejects
 // renders the gate itself would have accepted.
-const justInside = (18 * (1 - DURATION_SHORT_BLOCK_TOLERANCE) + 0.3) / 3;
+const justInside = perShotForDelivered(DELIVERY_FLOOR_18S + 0.3);
 const inside = await runStage({ measuredSeconds: justInside });
-check("within_delivery_tolerance_does_not_block", inside.error === undefined, `${(justInside * 3).toFixed(2)}s vs 18s: ${inside.error?.message ?? "passed"}`);
-const justOutside = (18 * (1 - DURATION_SHORT_BLOCK_TOLERANCE) - 0.5) / 3;
+check("within_delivery_tolerance_does_not_block", inside.error === undefined,
+  `delivers ${(justInside * 3 - overlapFor(3)).toFixed(2)}s vs floor ${DELIVERY_FLOOR_18S.toFixed(2)}s: ${inside.error?.message ?? "passed"}`);
+const justOutside = perShotForDelivered(DELIVERY_FLOOR_18S - 0.5);
 const outside = await runStage({ measuredSeconds: justOutside });
-check("just_outside_delivery_tolerance_blocks", outside.error !== undefined, `${(justOutside * 3).toFixed(2)}s vs 18s`);
+check("just_outside_delivery_tolerance_blocks", outside.error !== undefined,
+  `delivers ${(justOutside * 3 - overlapFor(3)).toFixed(2)}s vs floor ${DELIVERY_FLOOR_18S.toFixed(2)}s`);
 
 // --- 4. FAIL-OPEN. Measurement is advisory infrastructure: no prober, or a prober that cannot read
 // the file, must never manufacture a shortfall and block a paying customer's render.
@@ -161,6 +177,75 @@ check("no_target_duration_never_blocks", noTarget.error === undefined, noTarget.
 const silentShots = talkingShots().map(({ spokenLine: _drop, ...rest }) => rest);
 const silent = await runStage({ measuredSeconds: 1, shots: silentShots });
 check("b_roll_only_plan_buys_no_voice", silent.error === undefined && silent.speechProvider.callCount === 0, silent.speechProvider.callCount);
+
+// --- 8. CROSSFADE BLIND SPOT. The delivered file is the sum of the clips MINUS one transition per
+// boundary, so a guard that compares the raw sum against the gate's floor passes a batch the gate
+// then rejects — after every avatar render is paid for. The guard and the delivery gate must reach
+// the same verdict at every point across the band, or the money is spent for nothing.
+const bandMismatches = [];
+for (const perShot of [5.30, 5.35, 5.40, 5.45, 5.50, 5.55, 5.60, 5.65, 5.70, 6.0]) {
+  const guardBlocked = (await runStage({ measuredSeconds: perShot })).error !== undefined;
+  // What the finished file will actually measure, by the same arithmetic the assembler uses.
+  const deliveredSeconds = perShot * 3 - overlapFor(3);
+  const gateWouldBlock = deliveredSeconds < 18 * (1 - DURATION_SHORT_BLOCK_TOLERANCE);
+  if (guardBlocked !== gateWouldBlock) {
+    bandMismatches.push(`${perShot}s/shot -> delivered ${deliveredSeconds.toFixed(2)}s: guard=${guardBlocked} gate=${gateWouldBlock}`);
+  }
+}
+check("guard_agrees_with_delivery_gate_across_the_band", bandMismatches.length === 0, bandMismatches.join(" | ") || "all 10 points agree");
+// The exact point the audit found: 3 x 5.45s = 16.35s raw (above the 16.2s floor) but 15.65s
+// delivered (below it). The raw-sum guard let this through and the render was bought in full.
+const crossfadeTrap = await runStage({ measuredSeconds: 5.45 });
+check("crossfade_trap_is_blocked_before_spend", crossfadeTrap.error !== undefined,
+  `raw ${(5.45 * 3).toFixed(2)}s, delivered ${(5.45 * 3 - overlapFor(3)).toFixed(2)}s`);
+
+// --- 9. A STALLED READ MUST NOT PIN THE JOB. ffprobe reads the provider URL over the network and
+// the shared runner's default deadline is 30 MINUTES; with one worker, one stalled read freezes the
+// queue for every other customer too. The stage must give up quickly and carry on unmeasured.
+class HangingProber {
+  calls = 0;
+  async probe(_url, signal) {
+    this.calls += 1;
+    return new Promise((_resolve, reject) => {
+      if (signal) {
+        signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      }
+      // Never resolves on its own — only the deadline can end it.
+    });
+  }
+}
+const hangingProber = new HangingProber();
+const hangingAgent = new DirectorAgent({ atlasSettings: atlasSettings(), speechProvider: new StubSpeechProvider(), speechDurationProber: hangingProber });
+const hangingShots = talkingShots(3);
+const startedAt = Date.now();
+let hangingError;
+try {
+  await hangingAgent.runTalkingShotStage({ shots: hangingShots, compiledPrompts: compiledPromptsFor(hangingShots), settings: { durationTargetSeconds: 18 } });
+} catch (caught) {
+  hangingError = caught;
+}
+const elapsedMs = Date.now() - startedAt;
+check("stalled_probe_gives_up_quickly", elapsedMs < 25_000, `${elapsedMs}ms`);
+check("stalled_probe_does_not_block_the_render", hangingError === undefined, hangingError?.message);
+check("stalled_probe_still_attempted_every_track", hangingProber.calls === 3, hangingProber.calls);
+
+// --- 10. Measurement runs in parallel rather than one blocking read per shot end to end.
+class SlowProber {
+  inFlight = 0;
+  peak = 0;
+  async probe() {
+    this.inFlight += 1;
+    this.peak = Math.max(this.peak, this.inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    this.inFlight -= 1;
+    return { durationSeconds: 6 };
+  }
+}
+const slowProber = new SlowProber();
+const slowShots = talkingShots(6);
+await new DirectorAgent({ atlasSettings: atlasSettings(), speechProvider: new StubSpeechProvider(), speechDurationProber: slowProber })
+  .runTalkingShotStage({ shots: slowShots, compiledPrompts: compiledPromptsFor(slowShots), settings: { durationTargetSeconds: 36 } });
+check("voice_tracks_are_measured_in_parallel", slowProber.peak > 1, `peak concurrency ${slowProber.peak}`);
 
 const failed = checks.filter((item) => !item.pass);
 const report = {
