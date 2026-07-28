@@ -489,9 +489,16 @@ function staticUiShellChecks() {
     ),
     check(
       "short_create_shell_review_gated_action_language",
+      // The INTENT is fixed: the first button must promise a plan and a price, never an immediate
+      // render, and the page must say in so many words that nothing is charged before approval.
+      // The wording is not: this rule used to demand the literal English "Build Review Plan", so it
+      // went red the day the shell was translated to Vietnamese ("Xem giá & kế hoạch") even though
+      // the copy was still correct — a stale assertion reporting a problem that did not exist, in a
+      // check nothing routinely ran. It now accepts either language and still refuses
+      // generate-now labels.
       !misleadingGenerationActionPattern.test(shortCreatePageText) &&
-        /Build Review Plan/u.test(shortCreatePageText) &&
-        /Provider render is still locked until explicit approval/u.test(shortCreatePageText),
+        /Build Review Plan|Xem giá (?:&amp;|&) kế hoạch/u.test(shortCreatePageText) &&
+        /Provider render is still locked until explicit approval|chưa duyệt và chưa xác nhận thì chưa gửi render trả/u.test(shortCreatePageText),
       "Short create shell labels the first action as review-gated planning, not immediate provider generation.",
       "Short create shell must not imply that creating a session immediately spends provider credits or renders a video."
     ),

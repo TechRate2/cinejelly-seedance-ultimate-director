@@ -981,7 +981,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
       border-radius: 8px;
     }
     ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.03); }
-    /* ---- Wizard (Topview-style guided 3-step create flow) ---- */
+    /* ---- Wizard: guided 3-step create flow ---- */
     .wizard-steps { display:flex; gap:8px; margin:4px 0 18px; }
     .wizard-steps .wstep { flex:1; display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); font-size:13px; color:rgba(232,236,255,.6); transition:all .2s; }
     .wizard-steps .wstep .wnum { display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:rgba(255,255,255,.1); font-weight:700; font-size:12px; flex:0 0 auto; }
@@ -2415,7 +2415,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
       }
     }
 
-    // ---- Wizard 3 bước (Topview-style): mỗi lúc hiện 1 bước, dẫn dắt khách không rành ----
+    // ---- Wizard 3 bước: mỗi lúc hiện 1 bước, dẫn dắt khách không rành ----
     let wizardStep = 1;
     function showWizardStep(n) {
       wizardStep = n;

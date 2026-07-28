@@ -21,6 +21,9 @@
     "node": ">=20.19.0"
   },
   "scripts": {
+    "test": "node scripts/run-all-checks.mjs",
+    "check": "node scripts/run-all-checks.mjs",
+    "check:fast": "node scripts/run-all-checks.mjs --no-build",
     "setup:local": "node scripts/setup-local-env.mjs",
     "setup:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
     "doctor": "node scripts/run-doctor.mjs",

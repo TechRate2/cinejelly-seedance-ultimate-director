@@ -35,6 +35,27 @@ The current primary upstream snapshots are:
 | `external/upstream/moneyprinterturbo` | `harry0703/MoneyPrinterTurbo` | Staged one-input pipeline, material sourcing, batch outputs, subtitles/TTS/BGM, task progress, API/CLI/WebUI. |
 | `external/upstream/directorbench` | `jiaminchen-1031/DirectorBench` | Checkpoint-level long-form diagnosis across script, visual, audio, cross-modal, stability, and transition quality. |
 | `external/upstream/director` | `video-db/Director` | Chat-style media reasoning, dynamic agent/tool orchestration, typed content outputs, progress updates, and media workflow UI patterns. |
+| `external/upstream/skyreels-v2` | `SkyworkAI/SkyReels-V2` | **Reference only, no code reuse.** Short-drama methodology: hook density, reversal rhythm, SkyCaptioner structured shot-caption fields. Ships a non-standard model-card license. |
+| `external/upstream/open-ai-ugc` | `Anil-matcha/Open-AI-UGC` | **Reference only, no code reuse.** Minimal-input UGC studio UX shape. No license file in the snapshot, so all rights are reserved by its authors. |
+| `external/upstream/open-ai-micro-drama-generator` | `Anil-matcha/Open-AI-Micro-Drama-Generator` | **Reference only, no code reuse.** Multi-agent micro-drama pipeline shape (screenwriter -> storyboard -> still frames -> video). No license file in the snapshot, so all rights are reserved by its authors. |
+
+### Reference-only snapshots
+
+Three snapshots above are marked **reference only**. They may be read to understand an approach; no
+line of their code may be copied or translated into CineJelly source, because their licenses do not
+grant that right — two ship no license file at all, which reserves every right to their authors, and
+SkyReels ships a non-standard model-card license.
+
+`npm run validation:snapshot-parity` enforces the distinction. A reference-only snapshot must be
+inventoried here and in `EXTERNAL_SOURCE_SNAPSHOTS.md`, and must NOT have a source-lineage record in
+`src/core/source-logic-translation-records.ts` — a lineage record asserts that product logic was
+translated from the snapshot, which is precisely what must never happen for these. The audit also
+fails on any snapshot directory that appears on disk without being declared here, which is how these
+three went ungoverned until the 2026-07-28 audit.
+
+The strictest license in the set is `openmontage` (**AGPL-3.0**). AGPL is copyleft: importing or
+translating its code into this product would oblige the whole product to be released under AGPL.
+Treat it as behaviour notes only unless a lawyer says otherwise.
 
 ## Required Git Subtree Commands
 

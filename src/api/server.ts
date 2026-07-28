@@ -775,7 +775,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         // or refunds piled up. Enrich it with cheap in-RAM/env signals and emit the literal
         // status "ok" ONLY when everything is green, so a free keyword monitor alerts on any
         // degradation. Still always HTTP 200 (no restart-loops on transient blips).
-        const freeGb = await freeDiskGb(process.env).catch(() => -1);
+        const freeGb = await freeDiskGb(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables").catch(() => -1);
         const diskState = freeGb < 0 ? "unknown" : freeGb < 1 ? "low" : "ok";
         const providerConfigured = Boolean(process.env.ATLASCLOUD_API_KEY?.trim());
         const retentionDaysRaw = Number.parseFloat(process.env.CINEJELLY_OUTPUT_RETENTION_DAYS ?? "");
@@ -1046,7 +1046,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         });
         assertShortPipelineRenderHandoffAllowed(handoff, { allowSelfGeneratedVisualBible: true });
         requestAdmission.assertAcceptable(handoff.request);
-        await assertRenderDiskAvailable(process.env);
+        await assertRenderDiskAvailable(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
         assertUserRenderConcurrency(jobManager, authDecision.principal);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest
@@ -1243,7 +1243,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
         });
         assertShortPipelineRenderHandoffAllowed(handoff, { allowSelfGeneratedVisualBible: true });
         requestAdmission.assertAcceptable(handoff.request);
-        await assertRenderDiskAvailable(process.env);
+        await assertRenderDiskAvailable(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
         assertUserRenderConcurrency(jobManager, authDecision.principal);
         const idempotencyKeyDigest = readIdempotencyKeyDigest(request);
         const requestFingerprint = idempotencyKeyDigest ? createRequestFingerprint(body) : undefined;
@@ -2397,21 +2397,14 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           sendJson(response, 404, { error: "File lồng tiếng không tồn tại." }, requestContext);
           return;
         }
-        if (redubFileName.endsWith(".mp4")) {
-          sendVideoStream(response, redubFilePath, redubFileStat.size);
-        } else {
-          response.writeHead(200, {
-            "Content-Type": redubFileName.endsWith(".srt") ? "text/plain; charset=utf-8" : "text/plain; charset=utf-8",
-            "Content-Length": redubFileStat.size,
-            "Content-Disposition": `attachment; filename="${redubFileName}"`
-          });
-          // pipeline, not bare pipe — see sendVideoStream (durability-audit F2/F5).
-          pipeline(createReadStream(redubFilePath), response, (error) => {
-            if (error && !response.destroyed) {
-              response.destroy();
-            }
-          });
-        }
+        // Subtitle/text downloads go through the SAME sender as the video. Writing this response by
+        // hand meant it shipped without BASE_SECURITY_HEADERS — no nosniff, no frame-deny — which is
+        // precisely the per-route drift the sender helpers exist to prevent, and it is worse on a
+        // text/plain attachment than on an mp4 because a sniffing browser can be talked into
+        // treating one as markup.
+        sendVideoStream(response, redubFilePath, redubFileStat.size, {
+          ...(redubFileName.endsWith(".mp4") ? {} : { contentType: "text/plain; charset=utf-8" })
+        });
         return;
       }
       const jobDeliverableMatch = requestUrl.pathname.match(/^\/v1\/render-jobs\/([^/]+)\/deliverable$/);

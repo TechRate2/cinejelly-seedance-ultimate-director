@@ -10,17 +10,17 @@ const checks = [];
 const check = (name, pass, detail) => checks.push({ name, pass: Boolean(pass), ...(detail !== undefined ? { detail: String(detail) } : {}) });
 
 // Real disk on this machine is readable and has space → guard does not throw.
-const gb = await freeDiskGb(process.env);
+const gb = await freeDiskGb(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables");
 check("free_disk_readable", typeof gb === "number" && gb > 0, `${gb}`);
 let threw = false;
-try { await assertRenderDiskAvailable(process.env); } catch { threw = true; }
+try { await assertRenderDiskAvailable(process.env.CINEJELLY_OUTPUT_DIR || "assets/output_deliverables"); } catch { threw = true; }
 check("normal_disk_does_not_block", threw === false);
 
 // Fail-open: an unreadable output dir (returns -1) must NOT block.
 const badEnv = { ...process.env, CINEJELLY_OUTPUT_DIR: "\0::invalid::" };
-const badGb = await freeDiskGb(badEnv);
+const badGb = await freeDiskGb(badEnv.CINEJELLY_OUTPUT_DIR);
 let threwBad = false;
-try { await assertRenderDiskAvailable(badEnv); } catch { threwBad = true; }
+try { await assertRenderDiskAvailable(badEnv.CINEJELLY_OUTPUT_DIR); } catch { threwBad = true; }
 check("fails_open_on_unreadable_disk", badGb === -1 && threwBad === false, `gb=${badGb}`);
 
 // The block error is a 503 with a no-charge, Vietnamese message.

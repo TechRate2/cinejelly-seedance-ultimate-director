@@ -24,12 +24,19 @@ export class RenderDiskUnavailableError extends Error {
   }
 }
 
-/** Free GB on the volume holding the output directory; -1 when it cannot be read (never blocks then). */
-export async function freeDiskGb(env: NodeJS.ProcessEnv = process.env): Promise<number> {
-  const outputDirectory = resolve(env.CINEJELLY_OUTPUT_DIR?.trim() || "assets/output_deliverables");
+/**
+ * Free GB on the volume holding `outputDirectory`; -1 when it cannot be read (never blocks then).
+ *
+ * The directory is passed IN rather than resolved from the environment here. Reading configuration
+ * inside a low-level helper hides a deployment-wide setting in a file nobody thinks to look at, and
+ * the repository keeps environment reads inside the API/application/config boundary for exactly
+ * that reason — `npm run validation:source-structure` fails when one leaks out.
+ */
+export async function freeDiskGb(outputDirectory: string): Promise<number> {
+  const resolvedDirectory = resolve(outputDirectory);
   try {
-    await mkdir(outputDirectory, { recursive: true });
-    const stats = await statfs(outputDirectory);
+    await mkdir(resolvedDirectory, { recursive: true });
+    const stats = await statfs(resolvedDirectory);
     return (stats.bavail * stats.bsize) / 1024 ** 3;
   } catch {
     return -1;
@@ -40,8 +47,8 @@ export async function freeDiskGb(env: NodeJS.ProcessEnv = process.env): Promise<
  * Throw RenderDiskUnavailableError when free disk is below the render floor. Fail-OPEN: if disk can't
  * be read (returns -1), it never blocks — an unreadable statfs must not stop a legitimate render.
  */
-export async function assertRenderDiskAvailable(env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  const freeGb = await freeDiskGb(env);
+export async function assertRenderDiskAvailable(outputDirectory: string): Promise<void> {
+  const freeGb = await freeDiskGb(outputDirectory);
   if (freeGb >= 0 && freeGb < MIN_FREE_GB_FOR_RENDER) {
     throw new RenderDiskUnavailableError(freeGb);
   }

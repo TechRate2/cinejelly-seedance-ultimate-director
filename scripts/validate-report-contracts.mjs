@@ -774,17 +774,29 @@ function validateSnapshotParityAuditSemantics(report) {
   if (report?.summary?.inventoryCoverageCount !== report?.summary?.expectedSnapshotCount) {
     issues.push("$.summary.inventoryCoverageCount: expected every configured snapshot to be covered by inventory docs.");
   }
-  if (report?.summary?.sourceLineageCoverageCount !== report?.summary?.expectedSnapshotCount) {
-    issues.push("$.summary.sourceLineageCoverageCount: expected every configured snapshot to have source-lineage coverage.");
+  // Reference-only snapshots are excluded from lineage and parity expectations BY DESIGN. A lineage
+  // record asserts that product logic was translated from a snapshot, and a parity estimate says how
+  // much of it we reproduced — both are false claims for a snapshot whose license forbids copying.
+  // Demanding them would push someone to invent one.
+  const inventory = Array.isArray(report?.snapshotInventory) ? report.snapshotInventory : [];
+  const translatedSnapshots = inventory.filter((item) => item?.referenceOnly !== true);
+  if (report?.summary?.sourceLineageCoverageCount !== translatedSnapshots.length) {
+    issues.push("$.summary.sourceLineageCoverageCount: expected every non-reference-only snapshot to have source-lineage coverage.");
   }
   const functionalEstimates = Array.isArray(report?.functionalParityEstimates) ? report.functionalParityEstimates : [];
-  if (functionalEstimates.length !== report?.summary?.expectedSnapshotCount) {
-    issues.push("$.functionalParityEstimates: expected one functional parity estimate per configured snapshot.");
+  if (functionalEstimates.length !== translatedSnapshots.length) {
+    issues.push("$.functionalParityEstimates: expected one functional parity estimate per non-reference-only snapshot.");
+  }
+  const referenceOnlyWithEstimate = inventory
+    .filter((item) => item?.referenceOnly === true)
+    .filter((item) => functionalEstimates.some((estimate) => estimate?.id === item?.id));
+  if (referenceOnlyWithEstimate.length > 0) {
+    issues.push(`$.functionalParityEstimates: reference-only snapshots must have NO parity estimate (${referenceOnlyWithEstimate.map((item) => item.id).join(", ")}).`);
   }
   if (Number(report?.summary?.functionalParityEstimateCount ?? -1) !== functionalEstimates.filter((item) => item?.status === "estimated").length) {
     issues.push("$.summary.functionalParityEstimateCount: expected to equal estimated functionalParityEstimates length.");
   }
-  for (const snapshot of Array.isArray(report?.snapshotInventory) ? report.snapshotInventory : []) {
+  for (const snapshot of translatedSnapshots) {
     const estimate = functionalEstimates.find((item) => item?.id === snapshot?.id);
     if (!estimate) {
       issues.push(`$.functionalParityEstimates: expected estimate for snapshot ${snapshot?.id}.`);
