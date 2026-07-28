@@ -11,7 +11,7 @@
 import type { LlmProvider } from "../providers/contracts.js";
 import type { IntakeResult, StoryPlan } from "../types/agent.js";
 import type { BeatPlan, ScenePlan } from "../core/shot-planner.js";
-import { capToSpeakableWords } from "../core/duration-scripting.js";
+import { capToSpeakableWords, TALKING_WORDS_PER_SECOND } from "../core/duration-scripting.js";
 
 const ENHANCER_SCHEMA = {
   type: "object",
@@ -138,7 +138,7 @@ export class ScriptEnhancer {
         // the architect's duration budgeting, so an uncapped rewrite could silently undo it
         // (adversarial-audit #5). Script-first verbatim lines never reach this branch —
         // preserveSpokenLines already zeroed `spokenLine` above.
-        ...(spokenLine && beat.spokenLine ? { spokenLine: capToSpeakableWords(spokenLine, beat.durationSeconds) } : {}),
+        ...(spokenLine && beat.spokenLine ? { spokenLine: capToSpeakableWords(spokenLine, beat.durationSeconds, TALKING_WORDS_PER_SECOND) } : {}),
         ...(emotionalTurn ? { emotionalTurn } : {})
       };
     };

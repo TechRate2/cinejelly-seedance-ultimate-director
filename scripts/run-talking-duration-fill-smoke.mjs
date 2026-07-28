@@ -117,6 +117,26 @@ const scriptFirst = fakeLlm([SHORT_LINE, SHORT_LINE], 5);
 await plan(scriptFirst, baseSettings, { shortViralCreativeMode: "ugc_review", scriptFirst: "true" }, "kịch bản khách dán");
 check("script_first_not_extended", scriptFirst.calls() === 1, `llmCalls=${scriptFirst.calls()}`);
 
+// --- 5b. END-TO-END SPEECH RATE (architect -> enhancer). The architect schedules a talking beat at
+// TALKING_WORDS_PER_SECOND (4 w/s for VN TTS), so the ScriptEnhancer's re-cap MUST use the same rate.
+// Capping direct speech at the narration rate (2.8) silently deletes ~30% of every line, so an 18s
+// order delivers ~12s — and the pre-spend assert then blocks every talking video.
+const { capToSpeakableWords, TALKING_WORDS_PER_SECOND: RATE } = await import("../dist/core/duration-scripting.js");
+check("talking_rate_constant_shared", RATE === 4, `rate=${RATE}`);
+const line13 = "ôi cái son dưỡng này mình xài cả tuần rồi mê lắm nha"; // 13 words
+const beatSeconds = 13 / 4; // exactly what the architect schedules for this line
+const capped = capToSpeakableWords(line13, beatSeconds, RATE);
+check("enhancer_recap_preserves_scheduled_speech",
+  capped.split(/\s+/).filter(Boolean).length >= 12,
+  `kept=${capped.split(/\s+/).filter(Boolean).length}/13`);
+const enhancerSource = readFileSync(new URL("../src/agents/script-enhancer.ts", import.meta.url), "utf8");
+check("enhancer_uses_talking_rate_for_spoken_lines", /capToSpeakableWords\([^)]*TALKING_WORDS_PER_SECOND/.test(enhancerSource));
+const architectSrc = readFileSync(new URL("../src/agents/story-architect.ts", import.meta.url), "utf8");
+const directorSrc2 = readFileSync(new URL("../src/agents/director-agent.ts", import.meta.url), "utf8");
+check("no_duplicate_speech_rate_constants",
+  !/const TALKING_WORDS_PER_SECOND = \d/.test(architectSrc) && !/const DELIVERABLE_SPEECH_WORDS_PER_SECOND = \d/.test(directorSrc2),
+  "rate must be imported from duration-scripting, not re-declared");
+
 // --- 6. PRE-SPEND DELIVERABLE-DURATION ASSERT lives in the DIRECTOR (it is the first place that
 // knows which shots will actually be avatar-routed). Source invariant: it must run before the
 // keyframe/TTS stages and throw a CustomerActionableError, mirroring the delivery gate's tolerance.
@@ -127,7 +147,10 @@ const ttsAt = directorSource.indexOf("runTalkingShotStage({");
 check("pre_spend_duration_assert_exists", assertAt > -1, `at=${assertAt}`);
 check("pre_spend_duration_assert_runs_before_keyframe_and_tts", assertAt > -1 && assertAt < keyframeAt && assertAt < ttsAt, `assert=${assertAt} keyframe=${keyframeAt} tts=${ttsAt}`);
 check("pre_spend_duration_assert_is_customer_actionable", /throw new CustomerActionableError\(\s*`Kịch bản chỉ đủ khoảng/.test(directorSource));
-check("pre_spend_tolerance_mirrors_delivery_gate", directorSource.includes("DELIVERABLE_DURATION_SHORTFALL_TOLERANCE = 0.1"));
+// Tolerance is now imported from the delivery gate (single source of truth), not re-declared.
+const deliverySource = readFileSync(new URL("../src/core/delivery-gate.ts", import.meta.url), "utf8");
+check("tolerance_exported_from_delivery_gate", /export const DURATION_SHORT_BLOCK_TOLERANCE = 0\.1;/.test(deliverySource));
+check("pre_spend_imports_shared_tolerance", /import \{ DURATION_SHORT_BLOCK_TOLERANCE \} from "\.\.\/core\/delivery-gate\.js";/.test(directorSource) && !/const DELIVERABLE_DURATION_SHORTFALL_TOLERANCE/.test(directorSource));
 // Cost estimate must count the verifier's regenerations + its vision calls (was 4 images/3 calls
 // estimated vs 8 images/11 calls really paid in the incident).
 check("cost_estimate_counts_verifier_regens", directorSource.includes("(shots.length + characterAnchors.length) * (this.imageAnchorVerifier ? 2 : 1)"));

@@ -73,7 +73,10 @@ const longPlan = await longArchitect.plan({
   metadata: singleClipMetadata
 });
 const longClipLine = longPlan.scenes[0]?.beats[0]?.spokenLine ?? "";
-const budget = Math.floor(15 * 2.8); // 42
+// A merged single-clip line is DIRECT SPEECH (TTS/avatar), so it is capped at the talking rate
+// (4 w/s measured on VN TTS), not the 2.8 narration-budget rate: a 15s clip really can speak 60
+// Vietnamese words. Capping at 2.8 here deleted ~30% of every line and shipped short videos.
+const budget = Math.floor(15 * 4); // 60
 check("collapsed_to_single_clip", longPlan.scenes.length === 1 && longPlan.scenes[0]?.beats.length === 1);
 check("long_vo_capped_to_budget", wordCount(longClipLine) <= budget && wordCount(longClipLine) > 0, `words=${wordCount(longClipLine)} budget=${budget}`);
 check("long_vo_keeps_opening_hook", longClipLine.startsWith("này mọi người ơi"), longClipLine.slice(0, 40));

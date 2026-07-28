@@ -16,7 +16,12 @@ const DURATION_BLOCK_TOLERANCE = 0.15;
  * "thiếu thời lượng" defect customers notice immediately, while modest overshoot is
  * usually acceptable padding.
  */
-const DURATION_SHORT_BLOCK_TOLERANCE = 0.1;
+/**
+ * Short-side block threshold for the DELIVERED video. Exported as the SINGLE source of truth: any
+ * pre-spend predictor that stops a job early must use this exact number, or it either blocks jobs
+ * delivery would have accepted (lost revenue) or lets doomed jobs burn the full render (lost money).
+ */
+export const DURATION_SHORT_BLOCK_TOLERANCE = 0.1;
 
 export class DeliveryGate {
   public evaluate(input: {

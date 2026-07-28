@@ -12,7 +12,8 @@ import {
   seedanceResolutionHeight,
   usesTestTakesForQuality
 } from "../config/seedance-settings.js";
-import { planDurationCompensation } from "../core/duration-scripting.js";
+import { planDurationCompensation, TALKING_WORDS_PER_SECOND } from "../core/duration-scripting.js";
+import { DURATION_SHORT_BLOCK_TOLERANCE } from "../core/delivery-gate.js";
 import { DEFAULT_TRANSITION_SETTINGS } from "../core/transition-engine.js";
 import type { TransitionSettings } from "../types/transition.js";
 import { AssemblyEngine } from "../core/assembly-engine.js";
@@ -116,10 +117,6 @@ import { CustomerActionableError } from "../core/customer-actionable-error.js";
 import { ScriptEnhancer } from "./script-enhancer.js";
 import { ReferenceVisionAnalyst, reconcileReferenceRoles } from "./reference-vision-analyst.js";
 
-/** Measured Vietnamese TTS pace; an avatar clip runs exactly its line, so this converts words -> delivered seconds. */
-const DELIVERABLE_SPEECH_WORDS_PER_SECOND = 4;
-/** Must mirror delivery-gate.ts DURATION_SHORT_BLOCK_TOLERANCE — the pre-spend assert may only stop what delivery would stop. */
-const DELIVERABLE_DURATION_SHORTFALL_TOLERANCE = 0.1;
 
 export class DirectorAgent {
   private readonly intakeDirector: IntakeDirector;
@@ -2472,9 +2469,9 @@ export class DirectorAgent {
         return sum + shot.durationSeconds;
       }
       const words = (shot.spokenLine ?? "").split(/\s+/).filter(Boolean).length;
-      return sum + words / DELIVERABLE_SPEECH_WORDS_PER_SECOND;
+      return sum + words / TALKING_WORDS_PER_SECOND;
     }, 0);
-    if (estimatedSeconds >= targetDurationSeconds * (1 - DELIVERABLE_DURATION_SHORTFALL_TOLERANCE)) {
+    if (estimatedSeconds >= targetDurationSeconds * (1 - DURATION_SHORT_BLOCK_TOLERANCE)) {
       return;
     }
     const estimated = Math.max(1, Math.round(estimatedSeconds));

@@ -13,7 +13,7 @@ import { nichePlaybookDirective, SEEDANCE_MASTERY_DIRECTIVE } from "../core/nich
 import { antiSlopDirective } from "../core/anti-slop-lexicon.js";
 import { CustomerActionableError } from "../core/customer-actionable-error.js";
 import { explicitStyleTagRegister, isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
-import { capToSpeakableWords } from "../core/duration-scripting.js";
+import { capToSpeakableWords, TALKING_WORDS_PER_SECOND } from "../core/duration-scripting.js";
 import { MAX_CLIP_SECONDS } from "../core/chunking.js";
 import type { StyleDna, StyleRegister } from "../types/prompt.js";
 
@@ -114,13 +114,6 @@ const MIN_BEAT_DURATION_SECONDS = 4;
 // (paid-acceptance forensics 2026-07-26: 18s ordered rendered 7.3s). VN ElevenLabs measured ≈4
 // words/sec.
 const TALKING_MIN_BEAT_DURATION_SECONDS = 2;
-const TALKING_WORDS_PER_SECOND = 4;
-/**
- * Must mirror delivery-gate.ts DURATION_SHORT_BLOCK_TOLERANCE (0.10). The plan-stage assert may only
- * reject what the delivery gate would ALSO reject — a stricter value here would kill plans that
- * would have shipped fine.
- */
-const PLAN_DURATION_SHORTFALL_TOLERANCE = 0.1;
 const countWords = (text: string): number => text.split(/\s+/).filter(Boolean).length;
 
 const STORY_PLAN_SCHEMA = {
@@ -889,7 +882,7 @@ export class StoryArchitect {
     const joinedSpokenLines = spokenLines.join(" ");
     const mergedSpokenLine = scriptFirstMode
       ? joinedSpokenLines
-      : capToSpeakableWords(joinedSpokenLines, intake.settings.durationTargetSeconds);
+      : capToSpeakableWords(joinedSpokenLines, intake.settings.durationTargetSeconds, TALKING_WORDS_PER_SECOND);
     const turns = beats
       .map((beat) => beat.emotionalTurn?.trim())
       .filter((turn): turn is string => Boolean(turn));

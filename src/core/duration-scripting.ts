@@ -21,21 +21,44 @@
  * narration that read as stilted next to real creator speech (live-render feedback). One constant so
  * a beat's audio-script budget and its compiled video-prompt budget can never disagree.
  */
+/**
+ * Narration pace for MODEL-AUTHORED voiceover guidance (the "keep narration under N words" budget
+ * written into a prompt). Deliberately conservative — under-filling a prompt budget is harmless.
+ */
 export const VOICEOVER_WORDS_PER_SECOND = 2.8;
 
 /**
- * Trim spoken text to what `durationSeconds` can physically deliver at the shared VO cadence,
- * cutting at a word boundary (keeps the opening — the hook carries the most important words) and
- * stripping any punctuation left dangling at the cut. Under-budget text passes through untouched
- * (original internal spacing preserved). Non-finite durations cap nothing: silently deleting all
- * dialogue on a bad input is worse than an over-long line (adversarial-audit #7).
+ * DIRECT SPEECH pace — a character's scripted line spoken by TTS (measured on Vietnamese
+ * ElevenLabs output). This is the ONE rate that decides real delivered runtime, because an
+ * avatar/OmniHuman clip lasts exactly as long as its audio. Every component that schedules,
+ * re-caps, or predicts spoken-line duration MUST import this constant: when the architect
+ * scheduled at 4 w/s while the script enhancer re-capped at the 2.8 narration rate, ~31% of every
+ * line was silently deleted and an 18s order delivered ~12s.
  */
-export function capToSpeakableWords(text: string, durationSeconds: number): string {
+export const TALKING_WORDS_PER_SECOND = 4;
+
+/**
+ * Trim spoken text to what `durationSeconds` can physically deliver, cutting at a word boundary
+ * (keeps the opening — the hook carries the most important words) and stripping any punctuation
+ * left dangling at the cut. Under-budget text passes through untouched (original internal spacing
+ * preserved). Non-finite durations cap nothing: silently deleting all dialogue on a bad input is
+ * worse than an over-long line (adversarial-audit #7).
+ *
+ * `wordsPerSecond` MUST match the rate the caller used to SCHEDULE that duration. Pass
+ * TALKING_WORDS_PER_SECOND for a character's scripted line (TTS/avatar); the 2.8 narration default
+ * only fits model-authored voiceover budgets.
+ */
+export function capToSpeakableWords(
+  text: string,
+  durationSeconds: number,
+  wordsPerSecond: number = VOICEOVER_WORDS_PER_SECOND
+): string {
   const trimmed = text.trim();
   if (!Number.isFinite(durationSeconds)) {
     return trimmed;
   }
-  const maxWords = Math.max(6, Math.floor(durationSeconds * VOICEOVER_WORDS_PER_SECOND));
+  const rate = Number.isFinite(wordsPerSecond) && wordsPerSecond > 0 ? wordsPerSecond : VOICEOVER_WORDS_PER_SECOND;
+  const maxWords = Math.max(6, Math.floor(durationSeconds * rate));
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length <= maxWords) {
     return trimmed;
