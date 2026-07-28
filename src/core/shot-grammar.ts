@@ -219,9 +219,26 @@ const MODE_SHOT_TYPE_PALETTE: Record<string, readonly ShotType[]> = {
   cinematic: ["long_shot", "medium_shot", "close_up", "full_shot", "extreme_close_up"]
 };
 
-const DEFAULT_SHOT_TYPE_PALETTE: readonly ShotType[] = ["medium_shot", "close_up", "full_shot"];
+/**
+ * Fallback palette when no creative mode is set — which is exactly the long-form/film path. It used
+ * to be only three mid sizes, so an 8-minute film never got a wide to establish a space or an
+ * extreme close-up for an emotional beat. The full expressive range is the sensible default; the
+ * tight UGC/testimonial palettes above still override it per mode.
+ */
+const DEFAULT_SHOT_TYPE_PALETTE: readonly ShotType[] = ["medium_shot", "close_up", "full_shot", "long_shot", "extreme_close_up"];
 
 const ANGLE_CYCLE: readonly ShotAngle[] = ["eye_level", "eye_level", "low_angle", "high_angle"];
+
+/**
+ * Camera POSITION rotation. Shot size and angle already varied, but every shot in every video came
+ * out `front_view` — 40 of 40 in a 480s probe — because the position was taken from the arc-role
+ * default, which is front_view for all five roles. A whole film shot dead-on, with no
+ * over-the-shoulder for dialogue and no side/behind coverage, is one of the clearest "made by AI"
+ * tells. Hooks and climaxes KEEP front_view (the face carries those beats); the beats in between
+ * rotate through real coverage positions. `point_of_view` and `overhead_view` are deliberately left
+ * out of the cycle: POV changes who the subject is, and overhead is a special-occasion framing.
+ */
+const POSITION_CYCLE: readonly ShotPosition[] = ["front_view", "over_the_shoulder", "side_view", "front_view", "back_view"];
 
 /**
  * Plan a per-shot framing sequence for a whole video with deliberate variation.
@@ -283,7 +300,12 @@ export function planShotFramingSequence(input: {
       cameraMotion = pool.find((motion) => motion !== previousMotion) ?? cameraMotion;
       motionCursor += 1;
     }
-    result.push({ shotType, shotAngle, shotPosition: roleDefault.shotPosition, cameraMotion });
+    // Arc-critical beats stay front-on (the face sells the hook and the climax); the rest rotate
+    // real coverage positions so the video is not 40 dead-on shots in a row.
+    const shotPosition: ShotPosition = arcRole === "opening_hook" || arcRole === "climax"
+      ? roleDefault.shotPosition
+      : POSITION_CYCLE[index % POSITION_CYCLE.length] ?? roleDefault.shotPosition;
+    result.push({ shotType, shotAngle, shotPosition, cameraMotion });
   }
   return result;
 }

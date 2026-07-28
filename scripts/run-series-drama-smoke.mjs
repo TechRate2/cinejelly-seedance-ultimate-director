@@ -124,6 +124,43 @@ check("insecure_identity_uri_rejected", badUriRejected);
 const single = planSeriesDrama({ ...request, episodeCount: 1 });
 check("single_episode_resolves", single.episodes[0].endingStyle === "resolution");
 
+
+// --- FACE PINNING ACROSS EPISODES (Phase 1). An invented character used to get a brand-new face
+// every episode: the store had the identityReferenceUri slot and already reused it, but nothing
+// ever wrote it (only customer uploads did). The director now returns the portraits it actually
+// bound, and recordEpisode backfills them append-only — episode 1 locks the face, later episodes
+// can never overwrite it.
+const { SeriesContinuityStore } = await import("../dist/core/series-continuity-store.js");
+const { mkdtempSync } = await import("node:fs");
+const { tmpdir } = await import("node:os");
+const { join: joinPath } = await import("node:path");
+const seriesRoot = mkdtempSync(joinPath(tmpdir(), "series-face-smoke-"));
+const faceStore = new SeriesContinuityStore({ outputRoot: seriesRoot });
+const faceBible = {
+  seriesId: "face_s1", title: "T", world: "w", tone: "t", consistencyContract: "c",
+  cast: [{ characterId: "linh", name: "Linh", castRole: "lead", description: "nu chinh" }]
+};
+await faceStore.create({ seriesId: "face_s1", premise: "p", episodeCount: 5 }, faceBible);
+const epState = (n, phase) => ({ episodeNumber: n, projectId: `p${n}`, summary: "s", endState: "e", macroPhase: phase, recordedAt: new Date().toISOString() });
+await faceStore.recordEpisode("face_s1", epState(1, "setup"), [], [{ characterKey: "linh", label: "Linh", uri: "https://cdn.example/linh-ep1.png" }]);
+const afterEp1 = await faceStore.load("face_s1");
+check("series_pins_face_from_first_episode", afterEp1.cast[0].identityReferenceUri === "https://cdn.example/linh-ep1.png", String(afterEp1.cast[0].identityReferenceUri));
+await faceStore.recordEpisode("face_s1", epState(2, "escalation"), [], [{ characterKey: "linh", label: "Linh", uri: "https://cdn.example/linh-DIFFERENT.png" }]);
+const afterEp2 = await faceStore.load("face_s1");
+check("series_never_overwrites_a_pinned_face", afterEp2.cast[0].identityReferenceUri === "https://cdn.example/linh-ep1.png", String(afterEp2.cast[0].identityReferenceUri));
+// A character discovered mid-series also gets its face pinned on the episode it appears in.
+await faceStore.recordEpisode("face_s1", epState(3, "escalation"),
+  [{ characterId: "mai", name: "Mai", castRole: "support", description: "ban than" }],
+  [{ characterKey: "mai", label: "Mai", uri: "https://cdn.example/mai-ep3.png" }]);
+const afterEp3 = await faceStore.load("face_s1");
+check("series_pins_face_for_midseries_character", afterEp3.cast.find((m) => m.characterId === "mai")?.identityReferenceUri === "https://cdn.example/mai-ep3.png");
+// The director must actually expose what it bound, or nothing above can ever be fed.
+const { readFileSync: readSrc } = await import("node:fs");
+const directorSrc = readSrc(new URL("../src/agents/director-agent.ts", import.meta.url), "utf8");
+check("director_returns_bound_character_anchors", directorSrc.includes("characterAnchors: boundCharacterAnchors"));
+const episodeDirectorSrc = readSrc(new URL("../src/application/series-episode-director.ts", import.meta.url), "utf8");
+check("episode_director_persists_anchors", episodeDirectorSrc.includes("result.characterAnchors"));
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.series-drama-smoke.v1",

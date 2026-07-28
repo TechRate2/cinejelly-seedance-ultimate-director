@@ -165,7 +165,15 @@ export class SeriesContinuityStore {
   public async recordEpisode(
     seriesId: string,
     state: SeriesEpisodeState,
-    castGrowth: readonly SeriesCastMember[] = []
+    castGrowth: readonly SeriesCastMember[] = [],
+    /**
+     * Identity portraits actually bound during this episode's render. Backfilled onto cast members
+     * that have no face pinned yet, so an INVENTED character keeps episode 1's face for the rest of
+     * the series instead of being re-invented (and re-paid for) every episode. Append-only: an
+     * existing URI — the customer's own upload, or an earlier episode's locked face — is never
+     * overwritten.
+     */
+    identityAnchors: readonly { readonly characterKey: string; readonly label: string; readonly uri: string }[] = []
   ): Promise<SeriesContinuityRecord> {
     // Serialize the whole read-modify-write so overlapping records (e.g. the HTTP path, which
     // bypasses the director's own lock) can't both load the same base and drop an episode (audit HIGH).
@@ -182,9 +190,29 @@ export class SeriesContinuityStore {
         .filter((member) => member.characterId && !knownIds.has(member.characterId))
         .map((member) => ({ ...member, firstAppearedEpisode: state.episodeNumber }));
       const episodeStates = [...record.episodeStates, state].sort((a, b) => a.episodeNumber - b.episodeNumber);
+      // Pin each character's face from this episode's bound portraits (match on characterId or name,
+      // normalized), but ONLY where none is pinned yet.
+      const anchorKey = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]+/gu, "_").replace(/^_+|_+$/g, "");
+      const anchorByKey = new Map<string, string>();
+      for (const anchor of identityAnchors) {
+        for (const candidate of [anchor.characterKey, anchor.label]) {
+          const key = anchorKey(candidate ?? "");
+          if (key && anchor.uri && !anchorByKey.has(key)) {
+            anchorByKey.set(key, anchor.uri);
+          }
+        }
+      }
+      const withPinnedFaces = <T extends SeriesCastMember>(members: readonly T[]): readonly T[] =>
+        members.map((member) => {
+          if (member.identityReferenceUri?.trim()) {
+            return member;
+          }
+          const uri = anchorByKey.get(anchorKey(member.characterId)) ?? anchorByKey.get(anchorKey(member.name));
+          return uri ? { ...member, identityReferenceUri: uri } : member;
+        });
       const updated: SeriesContinuityRecord = {
         ...record,
-        cast: [...record.cast, ...grown],
+        cast: withPinnedFaces([...record.cast, ...grown]),
         episodeStates,
         ...(episodeStates.length > RECENT_EPISODE_WINDOW
           ? { arcSummary: buildArcSummary(episodeStates) }

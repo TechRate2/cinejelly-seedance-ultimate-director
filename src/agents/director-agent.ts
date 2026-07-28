@@ -538,6 +538,13 @@ export class DirectorAgent {
     const plannedVerifierVisionCallCount = keyframeFirstEnabled && this.imageAnchorVerifier
       ? (shots.length + characterAnchors.length) * 2
       : 0;
+    // Best-of-N curation now runs automatically whenever more than one candidate is paid for, so
+    // its vision calls must be in the estimate too (one per candidate per shot) — the gate stays
+    // an upper bound and can only block sooner, never overspend.
+    const plannedCandidateCurationVisionCallCount =
+      this.renderedCandidateVisualInspector && candidateCountForQuality(intake.settings.qualityMode) > 1
+        ? shots.length * candidateCountForQuality(intake.settings.qualityMode)
+        : 0;
     // PRE-SPEND DELIVERABLE-DURATION ASSERT (cost-architecture audit). An avatar-routed shot's clip
     // lasts exactly its spoken line, so the DELIVERED runtime is knowable right here — and this is
     // the first point that knows WHICH shots will actually be avatar-routed (plannedTalkingShots),
@@ -566,7 +573,7 @@ export class DirectorAgent {
       // Architect + analyst + enhancer + vision (hoisted above for the planning-phase hard cap) PLUS
       // the verifier's own vision call per generated image (~2 per image worst case: verify, then
       // re-verify the regeneration) — 11 real calls vs 3 estimated in the incident.
-      plannedLlmPlanCallCount: plannedLlmPlanCallCount + plannedVerifierVisionCallCount
+      plannedLlmPlanCallCount: plannedLlmPlanCallCount + plannedVerifierVisionCallCount + plannedCandidateCurationVisionCallCount
     });
     this.renderCostGate.assertWithinBudget(costEstimate);
 
@@ -834,7 +841,7 @@ export class DirectorAgent {
               : {}),
             ...(signal ? { signal } : {})
           });
-          const visualCuration = this.candidateVisualCurationFor(preparedRequest);
+          const visualCuration = this.candidateVisualCurationFor(preparedRequest, candidateCount);
           const renderedShot = await this.renderShot({
             shot: prepared.shot,
             compiledPrompt: prepared.compiledPrompt,
@@ -997,8 +1004,30 @@ export class DirectorAgent {
       productionGraph: finalProductionGraph
     });
 
+    // Identity portraits bound to this run, keyed per character — Series persists these so episode
+    // 2+ reuses episode 1's face. Without it an invented character got a brand-new face every
+    // episode (the store already had the slot and already knew how to reuse it; nothing wrote it).
+    const boundCharacterAnchors = (() => {
+      const byKey = new Map<string, { characterKey: string; label: string; uri: string }>();
+      for (const shot of renderReadyShots) {
+        for (const reference of shot.references) {
+          if (reference.role !== "identity") {
+            continue;
+          }
+          const uri = reference.providerReference.uri;
+          const key = normalizeCharacterKey(reference.label);
+          if (!key || typeof uri !== "string" || !/^https:\/\//.test(uri) || byKey.has(key)) {
+            continue;
+          }
+          byKey.set(key, { characterKey: key, label: reference.label, uri });
+        }
+      }
+      return [...byKey.values()];
+    })();
+
     return {
       projectId: intake.projectId,
+      characterAnchors: boundCharacterAnchors,
       storyPlan,
       storyboard,
       storyboardPreflight,
@@ -1645,18 +1674,47 @@ export class DirectorAgent {
     });
   }
 
-  private candidateVisualCurationFor(request: CineJellyProjectRequest): CandidateVisualCuration | undefined {
+  /**
+   * Visual curation for BEST-OF-N. The customer is billed per candidate (quality modes render 2-4
+   * takes of every shot), but candidate selection only ranks by inspection status/severity/output
+   * and then falls through to LATENCY — so without curation the extra takes they paid for buy
+   * "reject a broken render", and among the good ones the FASTEST provider response wins rather
+   * than the best-looking one. No product route ever set semanticVisualInspectionOptions, so this
+   * was every multi-candidate render.
+   *
+   * Now: an explicit request option still wins; otherwise curation turns ON automatically as soon
+   * as more than one candidate is being paid for. The cost is a couple of cheap vision calls per
+   * shot against $1.50+ per extra candidate clip (~3% overhead) — and it is what makes the money
+   * already spent actually buy quality. Single-candidate (economy) renders are untouched: with one
+   * take there is nothing to choose between, so no vision call is made.
+   */
+  private candidateVisualCurationFor(
+    request: CineJellyProjectRequest,
+    candidateCount: number
+  ): CandidateVisualCuration | undefined {
     const workDirectory = request.workDirectory ?? request.artifactDirectory;
-    if (
-      !this.renderedCandidateVisualInspector ||
-      !request.semanticVisualInspectionOptions?.enabled ||
-      !workDirectory
-    ) {
+    if (!this.renderedCandidateVisualInspector || !workDirectory) {
+      return undefined;
+    }
+    const explicit = request.semanticVisualInspectionOptions;
+    if (explicit?.enabled) {
+      return { options: explicit, workDirectory };
+    }
+    if (explicit && explicit.enabled === false) {
+      // Explicit opt-out is honored (acceptance harnesses use it to isolate the render path).
+      return undefined;
+    }
+    if (candidateCount <= 1) {
       return undefined;
     }
     return {
-      options: request.semanticVisualInspectionOptions,
-      workDirectory
+      options: {
+        enabled: true,
+        expectations: [],
+        maxFrames: 2
+      },
+      workDirectory,
+      maxFramesPerCandidate: 2
     };
   }
 

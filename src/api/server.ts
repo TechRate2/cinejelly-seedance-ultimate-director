@@ -134,6 +134,7 @@ import {
 import { FileRenderProviderHandoffLeaseStore } from "./render-provider-handoff.js";
 import { renderRequestAdmissionFromEnv, RenderRequestAdmissionError, ContentSafetyError } from "./render-request-admission.js";
 import { assertRenderDiskAvailable, freeDiskGb, RenderDiskUnavailableError } from "../utils/disk-space.js";
+import { renderTermsPage } from "./terms-page.js";
 import {
   attachRequestContextHeaders,
   createApiRequestContext,
@@ -744,6 +745,21 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           response,
           200,
           '<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/short/create"><title>CineJelly</title></head><body><a href="/short/create">Mở CineJelly Studio</a></body></html>'
+        );
+        return;
+      }
+      if (request.method === "GET" && (requestUrl.pathname === "/terms" || requestUrl.pathname === "/dieu-khoan")) {
+        // Purchase terms + refund policy, readable BEFORE registering or topping up. Values are read
+        // from the live config so the page can never promise something the system does not do.
+        const retentionDays = Number.parseFloat(process.env.CINEJELLY_OUTPUT_RETENTION_DAYS ?? "");
+        sendHtml(
+          response,
+          200,
+          renderTermsPage({
+            ...(process.env.CINEJELLY_SUPPORT_CONTACT?.trim() ? { supportContact: process.env.CINEJELLY_SUPPORT_CONTACT.trim() } : {}),
+            refundPolicy: adminSettingsStore.refundPolicy(),
+            ...(Number.isFinite(retentionDays) && retentionDays > 0 ? { outputRetentionDays: retentionDays } : {})
+          })
         );
         return;
       }

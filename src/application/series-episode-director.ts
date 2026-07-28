@@ -118,7 +118,7 @@ export class SeriesEpisodeDirector {
     const { episodeNumber, request } = await this.composeNextEpisode(seriesId);
     const result = await this.director.run(request, signal);
     const state = this.episodeStateFrom(record, episodeNumber, request, result);
-    const updated = await this.store.recordEpisode(seriesId, state, this.castGrowthFrom(record, result));
+    const updated = await this.store.recordEpisode(seriesId, state, this.castGrowthFrom(record, result), result.characterAnchors);
     return { episodeNumber, result, record: updated };
   }
 
@@ -134,7 +134,7 @@ export class SeriesEpisodeDirector {
   ): Promise<SeriesContinuityRecord> {
     const record = await this.requireRecord(seriesId);
     const state = this.episodeStateFrom(record, episodeNumber, request, result);
-    return this.store.recordEpisode(seriesId, state, this.castGrowthFrom(record, result));
+    return this.store.recordEpisode(seriesId, state, this.castGrowthFrom(record, result), result.characterAnchors);
   }
 
   /**

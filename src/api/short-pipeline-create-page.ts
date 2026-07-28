@@ -1386,6 +1386,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
             <button class="primary" type="button" id="wz-next" data-i18n="wz.next">Tiếp →</button>
             <button class="primary" type="button" id="wz-create" data-i18n="wz.create" hidden>🎬 Tạo video</button>
           </div>
+          <div class="muted" style="font-size:11px;margin-top:6px"><a href="/terms" target="_blank" rel="noopener">Điều khoản sử dụng &amp; chính sách hoàn credits</a></div>
           <div class="muted" style="font-size:11px;margin-top:6px" data-i18n="wz.acceptableUse">Bằng việc tạo video, bạn xác nhận nội dung KHÔNG vi phạm pháp luật hoặc chính sách (cấm nội dung tình dục trẻ em, khiêu dâm, bạo lực đẫm máu, khủng bố, hàng cấm). Yêu cầu vi phạm sẽ bị từ chối.</div>
         </form>
 

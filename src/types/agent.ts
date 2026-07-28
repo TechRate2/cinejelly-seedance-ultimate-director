@@ -102,8 +102,21 @@ export interface RenderedShot {
   readonly repairAttemptCount: number;
 }
 
+/** A character's locked identity portrait for this run — persisted so later episodes reuse the same face. */
+export interface DirectorCharacterAnchor {
+  readonly characterKey: string;
+  readonly label: string;
+  readonly uri: string;
+}
+
 export interface DirectorRunResult {
   readonly projectId: string;
+  /**
+   * Identity portraits actually bound to this run's shots (generated anchors for invented
+   * characters, or the customer's own uploads). Series persists these so episode 2+ reuses episode
+   * 1's face instead of inventing a new one each episode.
+   */
+  readonly characterAnchors: readonly DirectorCharacterAnchor[];
   readonly storyPlan: StoryPlan;
   readonly storyboard: Storyboard;
   readonly storyboardPreflight: GuardianReport;

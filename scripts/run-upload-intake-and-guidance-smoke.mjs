@@ -69,6 +69,27 @@ check("session_render_resupplies_media_references",
   serverSource.includes("...(renderMediaReferenceInputs ? { mediaReferenceInputs: renderMediaReferenceInputs } : {})"));
 check("page_resends_media_references_at_render", pageSource.includes("const renderMediaReferences = mediaReferencesPayload();"));
 
+// TERMS PAGE (Phase 1): purchase terms + refund policy must exist, be reachable WITHOUT auth
+// (a buyer reads them before registering), reflect the live refund policy / retention config, and
+// be linked from the create page where the customer commits credits.
+const { renderTermsPage } = await import("../dist/api/terms-page.js");
+const termsAuto = renderTermsPage({ supportContact: "Zalo 0900", refundPolicy: "auto", outputRetentionDays: 14 });
+check("terms_states_auto_refund", termsAuto.includes("hoàn tự động"));
+check("terms_shows_support_contact", termsAuto.includes("Zalo 0900"));
+check("terms_states_retention_days", termsAuto.includes("<strong>14 ngày</strong>"));
+const termsManual = renderTermsPage({ refundPolicy: "manual" });
+check("terms_states_manual_refund", termsManual.includes("đội ngũ xem xét"));
+check("terms_falls_back_to_generic_seller", termsManual.includes("người bán"));
+check("terms_publishes_duration_ceiling", termsManual.includes("480 giây"));
+check("terms_lists_prohibited_content", termsManual.includes("tình dục liên quan trẻ em") && termsManual.includes("hàng cấm"));
+check("terms_escapes_operator_input", !renderTermsPage({ supportContact: "<script>x</script>" }).includes("<script>x</script>"));
+const serverSrcTerms = readFileSync(resolve(repoRoot, "src/api/server.ts"), "utf8");
+check("terms_route_served", serverSrcTerms.includes('requestUrl.pathname === "/terms"') && serverSrcTerms.includes("renderTermsPage("));
+const authSrc = readFileSync(resolve(repoRoot, "src/api/api-auth.ts"), "utf8");
+check("terms_route_is_public", authSrc.includes('if (!pathname.startsWith("/v1/"))'));
+const createPageSrcTerms = readFileSync(resolve(repoRoot, "src/api/short-pipeline-create-page.ts"), "utf8");
+check("create_page_links_terms", createPageSrcTerms.includes('href="/terms"'));
+
 const failed = checks.filter((c) => !c.pass);
 const report = {
   schemaVersion: "cinejelly.upload-intake-and-guidance-smoke.v1",

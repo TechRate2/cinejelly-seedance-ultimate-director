@@ -103,6 +103,21 @@ const pinned = planner.plan({
 });
 check("explicit_grammar_wins", pinned.every((shot) => shot.metadata?.shotType === "long_shot"));
 
+// COVERAGE VARIETY (Phase 1): a film must not be 40 dead-on shots. Camera POSITION now rotates
+// (front / over-the-shoulder / side / back) on non-arc-critical beats, and the default palette
+// (used by the long-form path, which sets no creativeMode) spans wide -> extreme close-up.
+const { assignVideoArcRoles: arcRolesFor } = await import("../dist/core/duration-scripting.js");
+const filmFraming = planShotFramingSequence({ arcRoles: arcRolesFor(40) });
+const positions = new Set(filmFraming.map((g) => g.shotPosition));
+const sizes = new Set(filmFraming.map((g) => g.shotType));
+check("film_uses_multiple_camera_positions", positions.size >= 3, [...positions].join(","));
+check("film_is_not_all_front_view", filmFraming.filter((g) => g.shotPosition === "front_view").length < filmFraming.length * 0.7,
+  `front=${filmFraming.filter((g) => g.shotPosition === "front_view").length}/40`);
+check("film_default_palette_spans_wide_to_extreme_close", sizes.has("long_shot") && sizes.has("extreme_close_up"), [...sizes].join(","));
+// Hooks and climaxes stay front-on — the face carries those beats.
+const hookIdx = arcRolesFor(40).findIndex((r) => r === "opening_hook");
+check("hook_stays_front_view", hookIdx < 0 || filmFraming[hookIdx].shotPosition === "front_view");
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.shot-framing-smoke.v1",
