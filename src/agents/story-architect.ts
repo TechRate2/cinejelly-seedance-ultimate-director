@@ -11,6 +11,7 @@ import type { BeatPlan, ScenePlan } from "../core/shot-planner.js";
 import { USER_SCRIPT_OPEN_MARKER } from "../core/simple-brief-resolver.js";
 import { nichePlaybookDirective, SEEDANCE_MASTERY_DIRECTIVE } from "../core/niche-playbooks.js";
 import { antiSlopDirective } from "../core/anti-slop-lexicon.js";
+import { CustomerActionableError } from "../core/customer-actionable-error.js";
 import { explicitStyleTagRegister, isStyleRegister, registerForCreativeMode } from "../core/register-grammar.js";
 import { capToSpeakableWords } from "../core/duration-scripting.js";
 import { MAX_CLIP_SECONDS } from "../core/chunking.js";
@@ -114,6 +115,12 @@ const MIN_BEAT_DURATION_SECONDS = 4;
 // words/sec.
 const TALKING_MIN_BEAT_DURATION_SECONDS = 2;
 const TALKING_WORDS_PER_SECOND = 4;
+/**
+ * Must mirror delivery-gate.ts DURATION_SHORT_BLOCK_TOLERANCE (0.10). The plan-stage assert may only
+ * reject what the delivery gate would ALSO reject — a stricter value here would kill plans that
+ * would have shipped fine.
+ */
+const PLAN_DURATION_SHORTFALL_TOLERANCE = 0.1;
 const countWords = (text: string): number => text.split(/\s+/).filter(Boolean).length;
 
 const STORY_PLAN_SCHEMA = {
@@ -932,8 +939,9 @@ export class StoryArchitect {
     // the cost estimate AND make 8 short beats sum to 32s on an 18s order. B-roll beats keep the 4s
     // floor. Without this, the capacity fix above (which allows more talking beats) would break the
     // duration math.
-    const minFor = (beat: BeatPlan): number =>
-      beat.spokenLine?.trim() ? TALKING_MIN_BEAT_DURATION_SECONDS : MIN_BEAT_DURATION_SECONDS;
+    // Same speech-aware floor the capacity cap uses, so the two can never disagree: a spoken beat is
+    // floored at its real line length (the avatar clip's actual runtime), b-roll at 4s.
+    const minFor = (beat: BeatPlan): number => this.beatDurationFloor(beat);
     const minTotal = allBeats.reduce((sum, beat) => sum + minFor(beat), 0);
     // Belt-and-suspenders (adversarial-audit F1): the capacity cap now keeps the floor-sum ≤ target,
     // but if a caller ever hands normalizeDurations more beats than the target can hold at their
@@ -989,9 +997,23 @@ export class StoryArchitect {
     return register === "natural_phone_kol" && intake.settings.audioMode !== "none";
   }
 
-  /** The per-beat duration floor normalizeDurations will apply — 2s for a spoken (avatar) beat, 4s for b-roll. */
+  /**
+   * The per-beat duration floor. A SPOKEN (avatar) beat's clip lasts exactly its line, so its floor
+   * is the line's real speech length — NOT a fixed 2s. Using the fixed floor made the capacity cap
+   * over-reserve time per beat (9 beats x 2s on an 18s order) while each beat only delivered ~1.75s,
+   * so a plan written in short natural lines could never fill the runtime no matter how many beats
+   * the top-up loop added. Clamped to a sane 1.5s..15s band. B-roll keeps the 4s floor.
+   */
   private beatDurationFloor(beat: BeatPlan): number {
-    return beat.spokenLine?.trim() ? TALKING_MIN_BEAT_DURATION_SECONDS : MIN_BEAT_DURATION_SECONDS;
+    const line = beat.spokenLine?.trim();
+    if (!line) {
+      return MIN_BEAT_DURATION_SECONDS;
+    }
+    // Rounded to whole seconds: normalizeDurations distributes the remaining time in integers, so a
+    // fractional floor made the per-beat sum miss the ordered duration (a 12s single clip landed at
+    // 12.5s). Never below the 2s talking floor, never above the 15s provider clip ceiling.
+    const speechSeconds = Math.round(countWords(line) / TALKING_WORDS_PER_SECOND);
+    return Math.min(15, Math.max(TALKING_MIN_BEAT_DURATION_SECONDS, speechSeconds));
   }
 
   private limitBeatsToDurationCapacity(scenes: readonly ScenePlan[], intake: IntakeResult, register?: StyleRegister): readonly ScenePlan[] {

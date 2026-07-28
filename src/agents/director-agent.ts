@@ -116,6 +116,11 @@ import { CustomerActionableError } from "../core/customer-actionable-error.js";
 import { ScriptEnhancer } from "./script-enhancer.js";
 import { ReferenceVisionAnalyst, reconcileReferenceRoles } from "./reference-vision-analyst.js";
 
+/** Measured Vietnamese TTS pace; an avatar clip runs exactly its line, so this converts words -> delivered seconds. */
+const DELIVERABLE_SPEECH_WORDS_PER_SECOND = 4;
+/** Must mirror delivery-gate.ts DURATION_SHORT_BLOCK_TOLERANCE — the pre-spend assert may only stop what delivery would stop. */
+const DELIVERABLE_DURATION_SHORTFALL_TOLERANCE = 0.1;
+
 export class DirectorAgent {
   private readonly intakeDirector: IntakeDirector;
   private readonly storyArchitect: StoryArchitect;
@@ -530,17 +535,41 @@ export class DirectorAgent {
           Boolean(shot.spokenLine?.trim()) && (keyframeFirstEnabled || decideAvatarShot(shot).talking)
         )
       : [];
+    // The image-anchor verifier costs a VISION call per generated image, plus one more to re-verify
+    // each regeneration — entirely absent from the old estimate (cost-architecture audit: 11 real
+    // LLM calls vs 3 estimated). Upper bound = 2 per planned base image.
+    const plannedVerifierVisionCallCount = keyframeFirstEnabled && this.imageAnchorVerifier
+      ? (shots.length + characterAnchors.length) * 2
+      : 0;
+    // PRE-SPEND DELIVERABLE-DURATION ASSERT (cost-architecture audit). An avatar-routed shot's clip
+    // lasts exactly its spoken line, so the DELIVERED runtime is knowable right here — and this is
+    // the first point that knows WHICH shots will actually be avatar-routed (plannedTalkingShots),
+    // which the story architect cannot know. The delivery gate rejects anything under 90% of the
+    // order, but only AFTER every image, voice, clip and the assembly are paid for: the real
+    // incident burned $2.77 per attempt to learn what this arithmetic knows for the price of the
+    // planning calls already made. Same tolerance as the delivery gate, so it can only stop what
+    // delivery would have stopped anyway.
+    this.assertDeliverableDurationBeforeSpend(shots, plannedTalkingShots, intake.settings.durationTargetSeconds);
     const costEstimate = this.renderCostGate.estimate({
       compiledPrompts,
       settings: intake.settings,
       plannedTestTakeCount,
       plannedTestTakeRenderSeconds: plannedTestTakeCount * SEEDANCE_TEST_TAKE_DURATION_SECONDS,
-      plannedKeyframeImageCount: keyframeFirstEnabled ? shots.length + characterAnchors.length : 0,
+      // Count the VERIFIER's regenerations too (cost-architecture audit): every generated keyframe
+      // and anchor portrait is checked by the image-anchor verifier and a failing one is regenerated
+      // ONCE — so the real worst case is 2x the base image count, and the real incident paid for 8
+      // images while the gate estimated 4. An estimate that omits half the images makes maxCostUsd a
+      // decorative number instead of a ceiling; count the upper bound so the gate can only block
+      // sooner, never overspend.
+      plannedKeyframeImageCount: keyframeFirstEnabled
+        ? (shots.length + characterAnchors.length) * (this.imageAnchorVerifier ? 2 : 1)
+        : 0,
       plannedTalkingShotCount: plannedTalkingShots.length,
       plannedAvatarRenderSeconds: plannedTalkingShots.reduce((sum, shot) => sum + shot.durationSeconds, 0),
-      // Architect + analyst + enhancer + vision, computed once above (hoisted for the planning-phase
-      // hard cap) so the pre-spend gate and the early cap can never disagree on the LLM call count.
-      plannedLlmPlanCallCount
+      // Architect + analyst + enhancer + vision (hoisted above for the planning-phase hard cap) PLUS
+      // the verifier's own vision call per generated image (~2 per image worst case: verify, then
+      // re-verify the regeneration) — 11 real calls vs 3 estimated in the incident.
+      plannedLlmPlanCallCount: plannedLlmPlanCallCount + plannedVerifierVisionCallCount
     });
     this.renderCostGate.assertWithinBudget(costEstimate);
 
@@ -2422,6 +2451,45 @@ export class DirectorAgent {
    * Returns only the characters whose front-view portrait succeeded, as {characterKey, name, uri}.
    */
   /** Identity wording for the keyframe check, from the shot's continuity prose when present. */
+  /**
+   * Stop a job whose plan provably cannot fill the ordered runtime, BEFORE any provider money.
+   * Avatar-routed shots deliver their spoken line's length (~4 words/second for Vietnamese TTS);
+   * every other shot delivers its planned duration. Fail-closed only below the delivery gate's own
+   * short-side tolerance, and only when talking shots actually exist — a pure b-roll plan delivers
+   * its planned seconds and is never touched here.
+   */
+  private assertDeliverableDurationBeforeSpend(
+    shots: readonly ShotContract[],
+    plannedTalkingShots: readonly ShotContract[],
+    targetDurationSeconds: number
+  ): void {
+    if (!Number.isFinite(targetDurationSeconds) || targetDurationSeconds <= 0 || plannedTalkingShots.length === 0) {
+      return;
+    }
+    const talkingShotIds = new Set(plannedTalkingShots.map((shot) => shot.shotId));
+    const estimatedSeconds = shots.reduce((sum, shot) => {
+      if (!talkingShotIds.has(shot.shotId)) {
+        return sum + shot.durationSeconds;
+      }
+      const words = (shot.spokenLine ?? "").split(/\s+/).filter(Boolean).length;
+      return sum + words / DELIVERABLE_SPEECH_WORDS_PER_SECOND;
+    }, 0);
+    if (estimatedSeconds >= targetDurationSeconds * (1 - DELIVERABLE_DURATION_SHORTFALL_TOLERANCE)) {
+      return;
+    }
+    const estimated = Math.max(1, Math.round(estimatedSeconds));
+    this.reportStageProgress("render", "blocked", "Planned runtime cannot fill the ordered duration; stopped before provider spend.", {
+      estimatedDeliverableSeconds: estimated,
+      targetDurationSeconds: Math.round(targetDurationSeconds),
+      talkingShotCount: plannedTalkingShots.length
+    });
+    throw new CustomerActionableError(
+      `Kịch bản chỉ đủ khoảng ${estimated} giây lời thoại, không đủ ${Math.round(targetDurationSeconds)} giây bạn đặt — ` +
+        `cảnh có người nói dài đúng bằng câu nói, nên hệ thống DỪNG TRƯỚC KHI tốn tiền dựng ảnh và video (bạn không mất phí render). ` +
+        `Hãy thử tạo lại, hoặc chọn thời lượng khoảng ${estimated} giây, hoặc mô tả thêm nội dung để nhân vật có nhiều điều để nói hơn.`
+    );
+  }
+
   private identityExpectation(shot: ShotContract): string | undefined {
     const identity = shot.continuity.identity?.trim();
     return identity ? `Named identity to preserve: ${identity}.` : undefined;

@@ -10,6 +10,7 @@
  * guarantee. Pure: fake in-memory LLM, no network, no render.
  */
 
+import { readFileSync } from "node:fs";
 import { StoryArchitect } from "../dist/agents/story-architect.js";
 
 const checks = [];
@@ -62,7 +63,9 @@ check("durations_sum_to_target", Math.abs(b1.reduce((a, b) => a + b.durationSeco
 const filled = fakeLlm(Array.from({ length: 7 }, () => FULL_LINE), 5);
 const p2 = await plan(filled);
 check("filled_plan_no_continuation", filled.calls() === 1, `llmCalls=${filled.calls()}`);
-check("filled_plan_keeps_all_beats", p2.scenes.flatMap((s) => s.beats).filter((b) => b.spokenLine).length >= 7);
+// 13-word lines = 3s of speech each; an 18s order fits 6, so the capacity cap correctly drops the 7th
+// rather than promising a runtime the clips cannot deliver.
+check("filled_plan_keeps_beats_that_fit", p2.scenes.flatMap((s) => s.beats).filter((b) => b.spokenLine).length >= 6, `beats=${p2.scenes.flatMap((s) => s.beats).length}`);
 
 // --- 3. Non-talking (no register) plan is UNCHANGED: 18s still caps at 4 beats, 4s floor, no talking call.
 const broll = fakeLlm([undefined, undefined, undefined, undefined, undefined, undefined], 5, undefined);
@@ -113,6 +116,22 @@ check("mixed_plan_keeps_some_beats", bm.length >= 1);
 const scriptFirst = fakeLlm([SHORT_LINE, SHORT_LINE], 5);
 await plan(scriptFirst, baseSettings, { shortViralCreativeMode: "ugc_review", scriptFirst: "true" }, "kịch bản khách dán");
 check("script_first_not_extended", scriptFirst.calls() === 1, `llmCalls=${scriptFirst.calls()}`);
+
+// --- 6. PRE-SPEND DELIVERABLE-DURATION ASSERT lives in the DIRECTOR (it is the first place that
+// knows which shots will actually be avatar-routed). Source invariant: it must run before the
+// keyframe/TTS stages and throw a CustomerActionableError, mirroring the delivery gate's tolerance.
+const directorSource = readFileSync(new URL("../src/agents/director-agent.ts", import.meta.url), "utf8");
+const assertAt = directorSource.indexOf("assertDeliverableDurationBeforeSpend(shots, plannedTalkingShots");
+const keyframeAt = directorSource.indexOf("runKeyframeFirstStage({");
+const ttsAt = directorSource.indexOf("runTalkingShotStage({");
+check("pre_spend_duration_assert_exists", assertAt > -1, `at=${assertAt}`);
+check("pre_spend_duration_assert_runs_before_keyframe_and_tts", assertAt > -1 && assertAt < keyframeAt && assertAt < ttsAt, `assert=${assertAt} keyframe=${keyframeAt} tts=${ttsAt}`);
+check("pre_spend_duration_assert_is_customer_actionable", /throw new CustomerActionableError\(\s*`Kịch bản chỉ đủ khoảng/.test(directorSource));
+check("pre_spend_tolerance_mirrors_delivery_gate", directorSource.includes("DELIVERABLE_DURATION_SHORTFALL_TOLERANCE = 0.1"));
+// Cost estimate must count the verifier's regenerations + its vision calls (was 4 images/3 calls
+// estimated vs 8 images/11 calls really paid in the incident).
+check("cost_estimate_counts_verifier_regens", directorSource.includes("(shots.length + characterAnchors.length) * (this.imageAnchorVerifier ? 2 : 1)"));
+check("cost_estimate_counts_verifier_vision_calls", directorSource.includes("plannedLlmPlanCallCount + plannedVerifierVisionCallCount"));
 
 const failed = checks.filter((c) => !c.pass);
 const report = {
