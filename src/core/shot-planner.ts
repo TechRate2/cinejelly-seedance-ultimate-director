@@ -136,6 +136,13 @@ export class ShotPlanner {
     const creativeMode = this.creativeModeFor(shots);
     const framing = planShotFramingSequence({
       arcRoles: arcRoles as readonly ArcRoleName[],
+      // A shot carrying a verbatim spokenLine gets avatar/lip-sync routed downstream, so its
+      // framing must keep the face toward camera — the position planner needs to know which
+      // beats those are before it spends any coverage variety on them.
+      // `spokenLineContinuation` counts too: a long line is chunked across several shots and only
+      // the FIRST carries the text, but the later chunks are the same person still mid-sentence —
+      // cutting behind them halfway through a spoken line is the same physical nonsense.
+      speakingBeats: shots.map((shot) => Boolean(shot.spokenLine?.trim()) || shot.spokenLineContinuation === true),
       ...(creativeMode ? { creativeMode } : {})
     });
     return shots.map((shot, index) => {

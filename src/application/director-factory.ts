@@ -93,6 +93,10 @@ export function createDirectorRuntime(
       renderCostGate,
       semanticVisualInspector,
       renderedCandidateVisualInspector,
+      // Same ffprobe instance the candidate inspector uses: it lets the talking-shot stage MEASURE
+      // the voice tracks it just bought and stop a provably-short video before the avatar renders
+      // (the expensive stage) rather than at the delivery gate (after everything is paid).
+      speechDurationProber: candidateMediaInspector,
       materialPlanningOptions: settings.material.remoteStock.enabled
         ? {
             allowRemoteSources: true,

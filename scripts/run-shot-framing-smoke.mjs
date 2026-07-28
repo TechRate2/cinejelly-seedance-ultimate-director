@@ -118,6 +118,61 @@ check("film_default_palette_spans_wide_to_extreme_close", sizes.has("long_shot")
 const hookIdx = arcRolesFor(40).findIndex((r) => r === "opening_hook");
 check("hook_stays_front_view", hookIdx < 0 || filmFraming[hookIdx].shotPosition === "front_view");
 
+// PHYSICAL POSSIBILITY (Phase 1 audit fix): coverage variety must never ask for a shot the mode's
+// camera CANNOT take. The rotation above was first applied to every mode, which put back_view and
+// over_the_shoulder into phone-selfie videos — the camera there is the subject's own arm, so those
+// shots cannot exist. Two independent locks, because either alone is escapable:
+//   (a) selfie modes never rotate behind or over the shoulder, speaking or not;
+//   (b) any beat with a spokenLine stays front-on in EVERY mode — it becomes a lip-synced avatar
+//       shot, and a keyframe with no visible mouth gives the avatar model nothing to animate.
+const IMPOSSIBLE_FOR_SELFIE = new Set(["back_view", "over_the_shoulder", "overhead_view", "point_of_view"]);
+for (const selfieMode of ["ugc_review", "testimonial"]) {
+  const selfie = planShotFramingSequence({ arcRoles: arcRolesFor(8), creativeMode: selfieMode });
+  const impossible = selfie.filter((g) => IMPOSSIBLE_FOR_SELFIE.has(g.shotPosition)).map((g) => g.shotPosition);
+  check(`${selfieMode}_has_no_physically_impossible_position`, impossible.length === 0, impossible.join(",") || "none");
+}
+// A talking beat is front-on even in a mode whose palette roams — checked against the widest
+// palette (no creativeMode = the crewed long-form default) so the lock is proven, not incidental.
+const everyBeatSpeaks = planShotFramingSequence({
+  arcRoles: arcRolesFor(12),
+  speakingBeats: Array.from({ length: 12 }, () => true)
+});
+check("speaking_beats_always_face_camera",
+  everyBeatSpeaks.every((g) => g.shotPosition === "front_view"),
+  [...new Set(everyBeatSpeaks.map((g) => g.shotPosition))].join(","));
+// ...and the variety is genuinely spent on the SILENT beats rather than lost entirely.
+const halfSpeak = planShotFramingSequence({
+  arcRoles: arcRolesFor(12),
+  speakingBeats: Array.from({ length: 12 }, (_unused, i) => i % 2 === 0)
+});
+check("silent_beats_still_get_coverage_variety",
+  new Set(halfSpeak.filter((_g, i) => i % 2 === 1).map((g) => g.shotPosition)).size >= 2);
+check("speaking_beats_front_when_mixed",
+  halfSpeak.every((g, i) => i % 2 === 1 || g.shotPosition === "front_view"));
+// The planner must actually WIRE spokenLine through — the lock is worthless if only the pure
+// function honours it. A UGC plan whose beats all carry dialogue must come out entirely front-on.
+const talkingScenes = [
+  {
+    sceneId: "scene_talk",
+    beats: ["hook", "proof", "payoff", "proof", "payoff"].map((purpose, i) => ({
+      ...beat(`t${i + 1}`, "Creator talks straight into the phone about the serum", purpose),
+      spokenLine: "Mình dùng cái này ba tuần và da mặt mình thay đổi thật sự luôn đó mọi người ơi."
+    }))
+  }
+];
+const talkingPlan = planner.plan({
+  projectId: "proj_framing_talking",
+  scenes: talkingScenes,
+  settings: { ...DEFAULT_SEEDANCE_SETTINGS, durationTargetSeconds: 24 },
+  metadata: { shortViralCreativeMode: "ugc_review" }
+});
+const talkingPositions = talkingPlan
+  .filter((shot) => String(shot.spokenLine ?? "").trim() || shot.spokenLineContinuation === true)
+  .map((shot) => shot.metadata?.shotPosition);
+check("planner_wires_speaking_beats_front_view",
+  talkingPositions.length > 0 && talkingPositions.every((p) => p === "front_view"),
+  `${talkingPositions.length} talking shots: ${[...new Set(talkingPositions)].join(",")}`);
+
 const failed = checks.filter((item) => !item.pass);
 const report = {
   schemaVersion: "cinejelly.shot-framing-smoke.v1",

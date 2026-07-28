@@ -241,6 +241,30 @@ const ANGLE_CYCLE: readonly ShotAngle[] = ["eye_level", "eye_level", "low_angle"
 const POSITION_CYCLE: readonly ShotPosition[] = ["front_view", "over_the_shoulder", "side_view", "front_view", "back_view"];
 
 /**
+ * Per-mode position palettes. The cycle above is written for a CREWED camera that can stand
+ * anywhere; applied blindly it put `back_view` and `over_the_shoulder` into phone-selfie modes,
+ * where the camera IS the subject's own outstretched arm — a physically impossible shot, and one
+ * of the loudest "this was machine-assembled" tells in exactly the format that sells most.
+ *
+ * So the roam is scoped to what each mode's camera can physically do:
+ *  - selfie registers (ugc_review, testimonial) stay front-on, with an occasional profile for a
+ *    non-speaking reaction/b-roll beat — real KOL footage looks like this;
+ *  - phone modes that film an ACTION rather than a face (demo, comparison, problem_solution,
+ *    education, product_ad) may go over-the-shoulder — the natural "watch what I'm doing / what's
+ *    on my screen" angle — but never behind the presenter;
+ *  - story/cinematic and the no-mode long-form default keep the full crewed cycle.
+ */
+const MODE_POSITION_PALETTE: Record<string, readonly ShotPosition[]> = {
+  ugc_review: ["front_view", "front_view", "side_view", "front_view"],
+  testimonial: ["front_view", "front_view", "side_view", "front_view"],
+  demo: ["front_view", "over_the_shoulder", "side_view", "front_view"],
+  comparison: ["front_view", "over_the_shoulder", "side_view", "front_view"],
+  problem_solution: ["front_view", "side_view", "over_the_shoulder", "front_view"],
+  education: ["front_view", "side_view", "over_the_shoulder", "front_view"],
+  product_ad: ["front_view", "side_view", "over_the_shoulder", "front_view"]
+};
+
+/**
  * Plan a per-shot framing sequence for a whole video with deliberate variation.
  *
  * Two cinematic techniques the leading short-drama agents rely on: (1) framing follows the
@@ -252,9 +276,18 @@ const POSITION_CYCLE: readonly ShotPosition[] = ["front_view", "over_the_shoulde
 export function planShotFramingSequence(input: {
   readonly arcRoles: readonly ArcRoleName[];
   readonly creativeMode?: string;
+  /**
+   * Per-beat flag: this beat carries a VERBATIM spoken line, so it will be avatar/lip-sync routed.
+   * A talking beat must face camera — the avatar model drives the mouth off the keyframe's face, so
+   * a back/over-the-shoulder/profile keyframe would leave it with no mouth to animate. Position
+   * variety is therefore only ever spent on non-speaking beats.
+   */
+  readonly speakingBeats?: readonly boolean[];
 }): readonly ShotGrammar[] {
   const palette =
     (input.creativeMode && MODE_SHOT_TYPE_PALETTE[input.creativeMode]) || DEFAULT_SHOT_TYPE_PALETTE;
+  const positionPalette =
+    (input.creativeMode && MODE_POSITION_PALETTE[input.creativeMode]) || POSITION_CYCLE;
   const result: ShotGrammar[] = [];
   let paletteCursor = 0;
   let motionCursor = 0;
@@ -300,11 +333,14 @@ export function planShotFramingSequence(input: {
       cameraMotion = pool.find((motion) => motion !== previousMotion) ?? cameraMotion;
       motionCursor += 1;
     }
-    // Arc-critical beats stay front-on (the face sells the hook and the climax); the rest rotate
-    // real coverage positions so the video is not 40 dead-on shots in a row.
-    const shotPosition: ShotPosition = arcRole === "opening_hook" || arcRole === "climax"
+    // Arc-critical beats stay front-on (the face sells the hook and the climax), and so does any
+    // beat with a scripted line (it becomes a lip-synced avatar shot — see `speakingBeats`). Every
+    // remaining beat rotates the mode's physically-possible coverage positions, so the video is not
+    // 40 dead-on shots in a row without ever asking for a shot the mode's camera cannot take.
+    const isSpeakingBeat = input.speakingBeats?.[index] === true;
+    const shotPosition: ShotPosition = arcRole === "opening_hook" || arcRole === "climax" || isSpeakingBeat
       ? roleDefault.shotPosition
-      : POSITION_CYCLE[index % POSITION_CYCLE.length] ?? roleDefault.shotPosition;
+      : positionPalette[index % positionPalette.length] ?? roleDefault.shotPosition;
     result.push({ shotType, shotAngle, shotPosition, cameraMotion });
   }
   return result;

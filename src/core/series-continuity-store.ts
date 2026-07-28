@@ -192,22 +192,74 @@ export class SeriesContinuityStore {
       const episodeStates = [...record.episodeStates, state].sort((a, b) => a.episodeNumber - b.episodeNumber);
       // Pin each character's face from this episode's bound portraits (match on characterId or name,
       // normalized), but ONLY where none is pinned yet.
-      const anchorKey = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]+/gu, "_").replace(/^_+|_+$/g, "");
-      const anchorByKey = new Map<string, string>();
+      // Matching a cast member to a portrait is an IDENTITY decision — pinning the wrong URI puts
+      // one character's face on another for the rest of the series, and nothing downstream can
+      // detect it. So the match runs strict-first with a deliberately narrow fallback:
+      //
+      // exactKey keeps letters as written (Unicode-aware, so Vietnamese survives): "Lan" and "Lân"
+      // stay two different people. A plain [a-z0-9] slug — the first cut of this code — was
+      // catastrophic here: it deleted every accented vowel, so "Bác Hùng" and "Bác Hằng" both became
+      // "b_c_h_ng", and any name starting with Đ lost its stem outright ("Đức" -> "c").
+      //
+      // foldedKey additionally strips diacritics, and is consulted ONLY when the exact key misses —
+      // it absorbs harmless spelling drift ("Bác Hùng" vs "Bac Hung") from two sides of the pipeline
+      // that normalize differently. Because folding CAN merge genuinely different names, any folded
+      // key claimed by more than one distinct portrait is marked ambiguous and never matched: an
+      // unpinned face costs one regenerated portrait, a wrongly pinned face ruins the series.
+      const exactKey = (value: string): string =>
+        value.toLowerCase().normalize("NFC").replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/gu, "");
+      const foldedKey = (value: string): string =>
+        value
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/\p{Diacritic}/gu, "")
+          .replace(/đ/g, "d")
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "");
+      const anchorByExact = new Map<string, string>();
+      const anchorByFolded = new Map<string, string>();
+      const ambiguousFolded = new Set<string>();
       for (const anchor of identityAnchors) {
+        if (!anchor.uri) {
+          continue;
+        }
         for (const candidate of [anchor.characterKey, anchor.label]) {
-          const key = anchorKey(candidate ?? "");
-          if (key && anchor.uri && !anchorByKey.has(key)) {
-            anchorByKey.set(key, anchor.uri);
+          const exact = exactKey(candidate ?? "");
+          if (!exact) {
+            continue;
+          }
+          if (!anchorByExact.has(exact)) {
+            anchorByExact.set(exact, anchor.uri);
+          }
+          const folded = foldedKey(candidate ?? "");
+          if (!folded) {
+            continue;
+          }
+          const claimed = anchorByFolded.get(folded);
+          if (claimed === undefined) {
+            anchorByFolded.set(folded, anchor.uri);
+          } else if (claimed !== anchor.uri) {
+            ambiguousFolded.add(folded);
           }
         }
       }
+      const anchorUriFor = (value: string | undefined): string | undefined => {
+        if (!value?.trim()) {
+          return undefined;
+        }
+        const exact = anchorByExact.get(exactKey(value));
+        if (exact) {
+          return exact;
+        }
+        const folded = foldedKey(value);
+        return folded && !ambiguousFolded.has(folded) ? anchorByFolded.get(folded) : undefined;
+      };
       const withPinnedFaces = <T extends SeriesCastMember>(members: readonly T[]): readonly T[] =>
         members.map((member) => {
           if (member.identityReferenceUri?.trim()) {
             return member;
           }
-          const uri = anchorByKey.get(anchorKey(member.characterId)) ?? anchorByKey.get(anchorKey(member.name));
+          const uri = anchorUriFor(member.characterId) ?? anchorUriFor(member.name);
           return uri ? { ...member, identityReferenceUri: uri } : member;
         });
       const updated: SeriesContinuityRecord = {

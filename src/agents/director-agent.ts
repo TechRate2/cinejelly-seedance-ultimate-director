@@ -117,6 +117,14 @@ import { CustomerActionableError } from "../core/customer-actionable-error.js";
 import { ScriptEnhancer } from "./script-enhancer.js";
 import { ReferenceVisionAnalyst, reconcileReferenceRoles } from "./reference-vision-analyst.js";
 
+/**
+ * Minimal structural view of MediaInspector — just enough to measure a synthesized voice track.
+ * Structural (not a class import) so tests can hand in a stub and the director never depends on
+ * ffprobe being present: every caller treats a missing prober as "measurement unavailable".
+ */
+export interface SpeechDurationProber {
+  probe(pathOrUrl: string, signal?: AbortSignal): Promise<{ readonly durationSeconds?: number }>;
+}
 
 export class DirectorAgent {
   private readonly intakeDirector: IntakeDirector;
@@ -152,6 +160,11 @@ export class DirectorAgent {
   private readonly semanticVisualInspector: SemanticVisualInspector | undefined;
   private readonly imageAnchorVerifier: ImageAnchorVerifier | undefined;
   private readonly renderedCandidateVisualInspector: RenderedCandidateVisualInspector | undefined;
+  /**
+   * Measures real media duration (ffprobe). Optional so unit paths stay pure; when present it turns
+   * the talking-shot duration check from an ESTIMATE into a MEASUREMENT before the expensive stage.
+   */
+  private readonly speechDurationProber: SpeechDurationProber | undefined;
   private readonly sourceVideoAutoAnalyzer: SourceVideoAutoAnalyzer | undefined;
   private readonly sourceVideoAutoAnalysisSettings: SourceVideoAutoAnalysisSettings | undefined;
   private readonly audioGenerationCapabilities: readonly AudioGenerationCapability[];
@@ -201,6 +214,7 @@ export class DirectorAgent {
     /** Optional pre-video-spend image check (ViMax economy): verify portraits/keyframes for cents before dollars render on them. */
     readonly imageAnchorVerifier?: ImageAnchorVerifier;
     readonly renderedCandidateVisualInspector?: RenderedCandidateVisualInspector;
+    readonly speechDurationProber?: SpeechDurationProber;
     readonly sourceVideoAutoAnalyzer?: SourceVideoAutoAnalyzer;
     readonly sourceVideoAutoAnalysisSettings?: SourceVideoAutoAnalysisSettings;
     readonly audioGenerationCapabilities?: readonly AudioGenerationCapability[];
@@ -245,6 +259,7 @@ export class DirectorAgent {
     this.semanticVisualInspector = input.semanticVisualInspector;
     this.imageAnchorVerifier = input.imageAnchorVerifier;
     this.renderedCandidateVisualInspector = input.renderedCandidateVisualInspector;
+    this.speechDurationProber = input.speechDurationProber;
     this.sourceVideoAutoAnalyzer = input.sourceVideoAutoAnalyzer;
     this.sourceVideoAutoAnalysisSettings = input.sourceVideoAutoAnalysisSettings;
     this.audioGenerationCapabilities = input.audioGenerationCapabilities ?? [];
@@ -744,7 +759,10 @@ export class DirectorAgent {
     // Talking-shot routing (Topview-class architecture): shots with a verbatim spoken line and a
     // character image are voiced FIRST (TTS) and routed to the audio-driven avatar model, so
     // lip-sync, expression, and gesture follow the real speech. B-roll keeps the general model.
-    // Fail-open per shot: any TTS failure leaves that shot on its normal video path.
+    // Fail-open per shot: any TTS failure leaves that shot on its normal video path. The stage as a
+    // whole CAN throw, once, and deliberately: it measures the voice tracks it just bought and stops
+    // a provably-short video here, where only cents are spent, instead of at the delivery gate after
+    // every avatar render is paid for.
     await this.runTalkingShotStage({
       shots: renderReadyShots,
       compiledPrompts,
@@ -2417,6 +2435,8 @@ export class DirectorAgent {
       talkingShotCount: talkingShots.length
     });
     let avatarRoutedCount = 0;
+    /** shotId -> real spoken length of the voice track we bought (seconds), when measurable. */
+    const measuredSpeechSeconds = new Map<string, number>();
     for (const { shot, decision } of talkingShots) {
       try {
         const spokenLine = shot.spokenLine?.trim();
@@ -2484,6 +2504,20 @@ export class DirectorAgent {
           }
         };
         avatarRoutedCount += 1;
+        // MEASURE the voice we just bought, while it is still cheap to stop. An avatar clip runs for
+        // exactly its audio's length, so this number — not any words-per-second estimate — is the
+        // shot's real runtime. Fail-open per shot: an unreadable probe simply leaves that shot
+        // unmeasured rather than blocking a render over a missing ffprobe.
+        if (this.speechDurationProber) {
+          try {
+            const measured = (await this.speechDurationProber.probe(audioUrl, input.signal)).durationSeconds;
+            if (typeof measured === "number" && Number.isFinite(measured) && measured > 0) {
+              measuredSpeechSeconds.set(shot.shotId, measured);
+            }
+          } catch {
+            // Measurement is advisory; never fail a paid render because the prober tripped.
+          }
+        }
       } catch (error) {
         // A real user abort must stop the whole stage — swallowing it would keep buying TTS
         // for the remaining talking shots after cancellation (cross-audit).
@@ -2498,6 +2532,52 @@ export class DirectorAgent {
       avatarRoutedCount === talkingShots.length ? "running" : "warn",
       "Talking-shot voicing completed.",
       { talkingShotCount: talkingShots.length, avatarRoutedCount }
+    );
+    this.assertMeasuredSpeechFillsRuntime({
+      shots: input.shots,
+      talkingShotIds: talkingShots.map((entry) => entry.shot.shotId),
+      measuredSpeechSeconds,
+      targetDurationSeconds: input.settings.durationTargetSeconds
+    });
+  }
+
+  /**
+   * The money-saving half of the duration contract. `assertDeliverableDurationBeforeSpend` runs on an
+   * ESTIMATE (words per second) before anything is bought; this runs on the MEASURED voice tracks, at
+   * the last moment where stopping is still cheap — TTS costs cents, the avatar renders that follow
+   * cost dollars each, and the delivery gate that used to catch a short video only fires after ALL of
+   * it is spent. That ordering is what turned one under-written script into a full-price render with
+   * nothing deliverable at the end.
+   *
+   * Only the short side matters and only beyond the delivery gate's own tolerance: a video that runs
+   * long is trimmed at assembly, and blocking inside the tolerance band would reject renders the gate
+   * would have passed. Shots that could not be measured are counted at their planned duration, so a
+   * missing prober can never manufacture a shortfall.
+   */
+  private assertMeasuredSpeechFillsRuntime(input: {
+    readonly shots: readonly ShotContract[];
+    readonly talkingShotIds: readonly string[];
+    readonly measuredSpeechSeconds: ReadonlyMap<string, number>;
+    readonly targetDurationSeconds?: number;
+  }): void {
+    const target = input.targetDurationSeconds;
+    if (!Number.isFinite(target) || (target ?? 0) <= 0 || input.measuredSpeechSeconds.size === 0) {
+      return;
+    }
+    const talking = new Set(input.talkingShotIds);
+    const deliverableSeconds = input.shots.reduce((total, shot) => {
+      const measured = input.measuredSpeechSeconds.get(shot.shotId);
+      return total + (talking.has(shot.shotId) && measured !== undefined ? measured : shot.durationSeconds);
+    }, 0);
+    const floor = (target as number) * (1 - DURATION_SHORT_BLOCK_TOLERANCE);
+    if (deliverableSeconds >= floor) {
+      return;
+    }
+    const measuredWholeSeconds = Math.round(deliverableSeconds * 10) / 10;
+    throw new CustomerActionableError(
+      `Lời thoại đọc ra chỉ dài ${measuredWholeSeconds} giây, không đủ cho video ${target} giây bạn đặt. ` +
+        "Hệ thống đã dừng TRƯỚC bước tốn tiền nhất để không tính phí phần đó. " +
+        "Bạn hãy viết mô tả dài hơn (thêm ý cần nói), hoặc chọn thời lượng ngắn hơn cho vừa nội dung, rồi tạo lại."
     );
   }
 

@@ -154,6 +154,58 @@ await faceStore.recordEpisode("face_s1", epState(3, "escalation"),
   [{ characterKey: "mai", label: "Mai", uri: "https://cdn.example/mai-ep3.png" }]);
 const afterEp3 = await faceStore.load("face_s1");
 check("series_pins_face_for_midseries_character", afterEp3.cast.find((m) => m.characterId === "mai")?.identityReferenceUri === "https://cdn.example/mai-ep3.png");
+// VIETNAMESE NAMES (Phase 1 audit fix). Everything above uses ASCII names — which is exactly how
+// the first cut of the key slugger shipped broken: it deleted every accented vowel, so "Bác Hùng"
+// and "Bác Hằng" produced the SAME key (one character wearing the other's face for the whole
+// series) and "Đức" collapsed to "c". The primary market's names must be first-class here.
+const vnStore = new SeriesContinuityStore({ outputRoot: mkdtempSync(joinPath(tmpdir(), "series-face-vn-")) });
+const vnBible = {
+  seriesId: "face_vn", title: "T", world: "w", tone: "t", consistencyContract: "c",
+  cast: [
+    { characterId: "bac_hung", name: "Bác Hùng", castRole: "lead", description: "ong chu quan" },
+    { characterId: "bac_hang", name: "Bác Hằng", castRole: "support", description: "ba chu quan" },
+    { characterId: "duc", name: "Đức", castRole: "support", description: "con trai" }
+  ]
+};
+await vnStore.create({ seriesId: "face_vn", premise: "p", episodeCount: 3 }, vnBible);
+await vnStore.recordEpisode("face_vn", epState(1, "setup"), [], [
+  { characterKey: "bác hùng", label: "Bác Hùng", uri: "https://cdn.example/hung.png" },
+  { characterKey: "bác hằng", label: "Bác Hằng", uri: "https://cdn.example/hang.png" },
+  { characterKey: "đức", label: "Đức", uri: "https://cdn.example/duc.png" }
+]);
+const vnCast = (await vnStore.load("face_vn")).cast;
+const vnFace = (id) => vnCast.find((m) => m.characterId === id)?.identityReferenceUri;
+check("vn_diacritic_names_each_pin_own_face",
+  vnFace("bac_hung") === "https://cdn.example/hung.png" &&
+  vnFace("bac_hang") === "https://cdn.example/hang.png" &&
+  vnFace("duc") === "https://cdn.example/duc.png",
+  `${vnFace("bac_hung")} | ${vnFace("bac_hang")} | ${vnFace("duc")}`);
+check("vn_similar_names_do_not_share_a_face", vnFace("bac_hung") !== vnFace("bac_hang"));
+// Ambiguity must REFUSE to guess: two different people whose names differ only by a diacritic
+// ("Lan" / "Lân") may not be matched through the accent-folding fallback — an unpinned face costs
+// one portrait, a wrongly pinned face ruins every remaining episode.
+const ambStore = new SeriesContinuityStore({ outputRoot: mkdtempSync(joinPath(tmpdir(), "series-face-amb-")) });
+await ambStore.create({ seriesId: "face_amb", premise: "p", episodeCount: 3 }, {
+  seriesId: "face_amb", title: "T", world: "w", tone: "t", consistencyContract: "c",
+  cast: [{ characterId: "nguoi_a", name: "Lan", castRole: "lead", description: "a" }]
+});
+await ambStore.recordEpisode("face_amb", epState(1, "setup"), [], [
+  { characterKey: "lan", label: "Lan", uri: "https://cdn.example/lan.png" },
+  { characterKey: "lân", label: "Lân", uri: "https://cdn.example/lan-khac.png" }
+]);
+check("exact_name_still_matches_despite_a_lookalike", (await ambStore.load("face_amb")).cast[0].identityReferenceUri === "https://cdn.example/lan.png");
+const amb2 = new SeriesContinuityStore({ outputRoot: mkdtempSync(joinPath(tmpdir(), "series-face-amb2-")) });
+await amb2.create({ seriesId: "face_amb2", premise: "p", episodeCount: 3 }, {
+  seriesId: "face_amb2", title: "T", world: "w", tone: "t", consistencyContract: "c",
+  cast: [{ characterId: "nguoi_b", name: "Lán", castRole: "lead", description: "b" }]
+});
+await amb2.recordEpisode("face_amb2", epState(1, "setup"), [], [
+  { characterKey: "lan", label: "Lan", uri: "https://cdn.example/lan.png" },
+  { characterKey: "lân", label: "Lân", uri: "https://cdn.example/lan-khac.png" }
+]);
+check("ambiguous_fold_refuses_to_guess", (await amb2.load("face_amb2")).cast[0].identityReferenceUri === undefined,
+  String((await amb2.load("face_amb2")).cast[0].identityReferenceUri));
+
 // The director must actually expose what it bound, or nothing above can ever be fed.
 const { readFileSync: readSrc } = await import("node:fs");
 const directorSrc = readSrc(new URL("../src/agents/director-agent.ts", import.meta.url), "utf8");
