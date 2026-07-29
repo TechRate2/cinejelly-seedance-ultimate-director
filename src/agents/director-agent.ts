@@ -312,8 +312,14 @@ export class DirectorAgent {
     // before the first provider call, not after it. Same count the full gate uses (hoisted so both
     // stay in sync); this blocks a subset of what the full gate would block, just earlier, so no
     // currently-passing run newly fails.
+    // The architect counts as TWO, not one. When the scheduled speech falls short of the ordered
+    // runtime it makes a second, bounded call to continue the script (story-architect.ts, the
+    // talking-fill and long-form paths) — which is the common case on talking or >=120s orders, not
+    // an exotic one. Counting it as a single call understated the only ceiling that runs before any
+    // provider is touched, and the same expression feeds both this early cap and the full gate
+    // below, so the undercount applied twice.
     const plannedLlmPlanCallCount =
-      1 +
+      2 +
       (this.creativeBriefAnalyst ? 1 : 0) +
       (this.scriptEnhancer ? 1 : 0) +
       (visionEligible ? 1 : 0);
