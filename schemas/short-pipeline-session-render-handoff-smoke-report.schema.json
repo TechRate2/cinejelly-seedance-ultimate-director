@@ -66,8 +66,8 @@
         "unsafeReviewJobId": { "type": "string", "pattern": "^render_job_[0-9a-fA-F-]{36}$" },
         "approvedWithoutConfirmStatusCode": { "const": 422 },
         "planInputOverrideStatusCode": { "const": 400 },
-        "visualBibleSessionRenderStatusCode": { "const": 422 },
-        "visualBibleDirectRenderStatusCode": { "const": 422 },
+        "visualBibleSessionRenderStatusCode": { "const": 202, "description": "202 since 293f232: picking a visual-bible mode (Long / UGC / >=60s) used to dead-end on a 422 'assets not approved' wall, which was the #1 self-serve customer blocker. The render now proceeds and the director's keyframe stage generates the portraits itself. The no-spend planning contract still reports canUseAsRenderJobHandoff=false." },
+        "visualBibleDirectRenderStatusCode": { "const": 202, "description": "See visualBibleSessionRenderStatusCode — same self-serve change, direct-render route." },
         "clientIsolationCheckPassed": { "const": true },
         "rawUrlLeakCheckPassed": { "const": true },
         "localPathLeakCheckPassed": { "const": true },
@@ -134,6 +134,7 @@
           }
         },
         "visualBibleAssetGate": {
+          "description": "Kept under its original name for report compatibility, but since 293f232 this gate no longer BLOCKS: a customer choosing a visual-bible mode (Long / UGC / >=60s) used to hit a 422 dead-end, which was the #1 self-serve blocker. The render now proceeds and the director generates the portraits itself, so both routes answer 202 and nothing is blocked before job creation.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -145,10 +146,10 @@
           ],
           "properties": {
             "sessionCreateStatusCode": { "const": 201 },
-            "sessionRenderStatusCode": { "const": 422 },
-            "directRenderStatusCode": { "const": 422 },
-            "sessionBlockedBeforeJobCreation": { "const": true },
-            "directBlockedBeforeJobCreation": { "const": true }
+            "sessionRenderStatusCode": { "const": 202 },
+            "directRenderStatusCode": { "const": 202 },
+            "sessionBlockedBeforeJobCreation": { "const": false },
+            "directBlockedBeforeJobCreation": { "const": false }
           }
         },
         "clientIsolation": {

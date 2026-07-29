@@ -51,7 +51,8 @@ const REPO_AUDITS = [
   ["audit-snapshot-parity.mjs", "Giấy phép và quản trị 12 repo tham khảo trong external/upstream"],
   ["audit-private-source-lineage-boundary.mjs", "Ranh giới ghi nguồn: mã sản phẩm không được import từ repo tham khảo"],
   ["validate-deployment-package.mjs", "Gói triển khai đủ file để chạy trên máy chủ"],
-  ["validate-report-contracts.mjs", "Báo cáo sinh ra đúng định dạng đã cam kết"]
+  ["validate-report-contracts.mjs", "Báo cáo sinh ra đúng định dạng đã cam kết"],
+  ["audit-backend-system-readiness.mjs", "Mọi lệnh kiểm tra đều được khai báo và phân loại"]
 ];
 
 /**
@@ -61,7 +62,9 @@ const REPO_AUDITS = [
  */
 const AUDIT_KNOWN_DRIFT = new Map([
   ["validate-report-contracts.mjs",
-    "6 báo cáo cũ lệch định dạng đã cam kết (có từ trước 2026-07-28, đang chờ xử lý từng cái)."]
+    "2 báo cáo chỉ sinh ra được sau một lần render trả tiền thật (đánh giá chất lượng đạo diễn). Không phải lỗi."],
+  ["audit-backend-system-readiness.mjs",
+    "Chờ bằng chứng render trả tiền + triển khai thật. Phần mã nguồn và danh mục lệnh đã đạt."]
 ]);
 
 const CHECK_TIMEOUT_MS = 180_000;
@@ -151,6 +154,27 @@ for (let index = 0; index < checkFiles.length; index += CONCURRENCY) {
   results.push(...batchResults);
 }
 
+// Any check that failed gets ONE more run, on its own. Several checks boot a real HTTP server on a
+// real port; run eight at a time they can collide over ports, leases and timing and fail for
+// reasons that have nothing to do with the code. A false alarm is not a harmless cost here — the
+// owner cannot read the code to tell a flake from a break, so a runner that cries wolf is a runner
+// they stop believing. A check that fails alone as well is a genuine failure.
+const firstRoundFailures = results.filter((entry) => !entry.ok);
+if (firstRoundFailures.length > 0) {
+  process.stdout.write(`\n\nChạy lại ${firstRoundFailures.length} bài đã hỏng, lần này từng bài một...`);
+  for (const failure of firstRoundFailures) {
+    const retry = await run(process.execPath, [join("scripts", failure.file)], CHECK_TIMEOUT_MS);
+    if (retry.code === 0) {
+      failure.ok = true;
+      failure.hint = undefined;
+      failure.flaky = true;
+    } else {
+      failure.hint = failureHint(retry);
+    }
+  }
+  process.stdout.write(" xong.");
+}
+
 process.stdout.write(`\n\nĐang chạy ${REPO_AUDITS.length} bài soi toàn dự án...`);
 const auditResults = await Promise.all(
   REPO_AUDITS.map(async ([file, description]) => {
@@ -188,6 +212,14 @@ if (expectedRed.length > 0) {
   for (const entry of expectedRed) {
     console.log(`  - ${entry.file}`);
     console.log(`      ${EXPECTED_RED.get(entry.file)}`);
+  }
+}
+
+const flaky = results.filter((entry) => entry.flaky);
+if (flaky.length > 0) {
+  console.log(`\n${flaky.length} bài hỏng khi chạy song song nhưng ĐẠT khi chạy riêng (chúng dựng máy chủ thật, dễ tranh chấp cổng):\n`);
+  for (const entry of flaky) {
+    console.log(`  ~ ${entry.file}`);
   }
 }
 

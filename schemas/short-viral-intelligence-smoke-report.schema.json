@@ -40,7 +40,8 @@
         "referenceRawLeakCheckPassed": { "type": "boolean" },
         "endpointsCovered": {
           "type": "array",
-          "minItems": 4,
+          "description": "Short-pipeline endpoints this smoke exercises. Was 4 until POST /v1/short-pipeline/product-url-plan was retired by owner decision on 2026-07-23 (live product-URL scraping is fragile and routinely anti-botted); the route now answers 410 and the smoke covers the three that remain.",
+          "minItems": 3,
           "items": { "type": "string" }
         }
       }

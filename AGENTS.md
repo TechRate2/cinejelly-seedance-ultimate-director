@@ -18,8 +18,16 @@ CineJelly Seedance Ultimate Director is a commercial production system for one-i
 
 Use this order:
 
-1. `docs/PROJECT_CONTEXT.md`
-2. One relevant detailed spec:
+1. **`BAN-DO-DU-AN.md` (repository root) — read this first, always.**
+   It is the current map: which file to change for which outcome, the full render sequence marked
+   with which steps cost money and where each gate sits, the license status of every reference
+   snapshot, and what is unfinished. It is maintained; the long-form specs below are not.
+2. **`npm test`** before and after any change. One command, no spend, plain Vietnamese answer.
+3. One relevant detailed spec — treat these as HISTORICAL DESIGN INTENT, not as a description of
+   the code as it stands. Most were last touched on 2026-07-04/05 while the code moved on 124
+   commits across 88 source files, and several name TypeScript types that were never built under
+   those names. When a spec and the code disagree, the code wins and the spec is the bug:
+   - project context (frozen 2026-07-04): `docs/PROJECT_CONTEXT.md`
    - architecture: `docs/ARCHITECTURE_SPEC.md`
    - prompt logic: `docs/PROMPT_COMPILER_DESIGN.md`
    - long-form graph: `docs/PRODUCTION_GRAPH_AND_LONG_FORM.md`
@@ -31,8 +39,8 @@ Use this order:
    - upstream snapshots: `docs/EXTERNAL_SOURCE_SNAPSHOTS.md`
    - faithful source translation: `docs/FAITHFUL_LOGIC_TRANSLATION_PROCESS.md`
    - implementation roadmap: `docs/IMPLEMENTATION_ROADMAP.md`
-3. `docs/UPSTREAM_CONTEXT_ROUTING.md` when upstream snapshot context is needed.
-4. Original external sources under `external/upstream/` only when the change modifies source-derived claims, provider behavior, license-sensitive reuse, or model capability assumptions. Read only the focused upstream files named by the context-routing guide or by `src/core/source-logic-translation-records.ts`; do not scan the whole snapshot tree during normal implementation.
+4. `docs/UPSTREAM_CONTEXT_ROUTING.md` when upstream snapshot context is needed.
+5. Original external sources under `external/upstream/` only when the change modifies source-derived claims, provider behavior, license-sensitive reuse, or model capability assumptions. Read only the focused upstream files named by the context-routing guide or by `src/core/source-logic-translation-records.ts`; do not scan the whole snapshot tree during normal implementation.
 
 ## Snapshot Integration Policy
 

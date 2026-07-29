@@ -1,4 +1,9 @@
 # CineJelly Operator Runbook
+> ⚠️ **TÀI LIỆU THIẾT KẾ — KHÔNG PHẢI MÔ TẢ CODE HIỆN TẠI.**
+> Cập nhật lần cuối: **2026-07-02**. Từ đó tới nay mã nguồn đã đổi rất nhiều.
+> Đọc [`BAN-DO-DU-AN.md`](../BAN-DO-DU-AN.md) để biết dự án HIỆN TẠI ra sao.
+> Khi tài liệu này mâu thuẫn với code, **code đúng** — tài liệu là cái sai.
+
 
 This runbook is the Phase 6 operating checklist for taking CineJelly Seedance Ultimate Director from a validated code foundation to a real provider validation run. It does not contain secrets, sample keys, mock providers, or demo production files.
 

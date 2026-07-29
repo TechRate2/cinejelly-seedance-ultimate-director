@@ -100,7 +100,6 @@ const defaultContracts = [
   contract("short_product_rights_validation", "schemas/short-product-rights-validation-report.schema.json", "assets/output_deliverables/business-readiness/short-product-rights-validation-report.json"),
   contract("short_product_rights_guard", "schemas/short-product-rights-evidence-guard-smoke-report.schema.json", "assets/output_deliverables/business-readiness/short-product-rights-evidence-guard-smoke-report.json"),
   contract("operator_launch_ui_contract_smoke", "schemas/operator-launch-ui-contract-smoke-report.schema.json", "assets/output_deliverables/business-readiness/operator-launch-ui-contract-smoke-report.json"),
-  contract("product_url_extraction_smoke", "schemas/product-url-extraction-smoke-report.schema.json", "assets/output_deliverables/business-readiness/product-url-extraction-smoke-report.json"),
   contract("director_style_semantic_review", "schemas/director-style-semantic-review.schema.json", "assets/output_deliverables/business-readiness/director-style-semantic-review.json"),
   contract("director_style_audio_review", "schemas/director-style-audio-review.schema.json", "assets/output_deliverables/business-readiness/director-style-audio-review.json"),
   contract("director_style_runtime_review", "schemas/director-style-runtime-review.schema.json", "assets/output_deliverables/business-readiness/director-style-runtime-review.json"),

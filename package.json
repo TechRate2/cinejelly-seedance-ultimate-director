@@ -179,7 +179,9 @@
     "ops:create-client-policy": "node scripts/create-api-client-policy-kit.mjs",
     "ops:apply-client-policy-env": "node scripts/apply-client-policy-env.mjs",
     "ops:promote-attestations": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node --env-file-if-exists=.env scripts/promote-operator-attestations.mjs",
-    "start": "node --env-file-if-exists=.env dist/api/server.js"
+    "start": "node --env-file-if-exists=.env dist/api/server.js",
+    "validation:content-safety-punctuation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-content-safety-punctuation-smoke.mjs",
+    "validation:speech-duration-guard": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/run-speech-duration-guard-smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
