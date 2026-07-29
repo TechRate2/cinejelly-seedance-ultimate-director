@@ -14,6 +14,8 @@
  * page can never drift from how the system is actually configured.
  */
 
+import { productName } from "../config/product-identity.js";
+
 const MAX_VIDEO_SECONDS = 480;
 
 function escapeHtml(value: string): string {
@@ -35,6 +37,7 @@ export interface TermsPageOptions {
 }
 
 export function renderTermsPage(options: TermsPageOptions = {}): string {
+  const brand = escapeHtml(productName());
   const support = options.supportContact?.trim()
     ? escapeHtml(options.supportContact.trim())
     : "người bán (chủ hệ thống)";
@@ -54,7 +57,7 @@ export function renderTermsPage(options: TermsPageOptions = {}): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Điều khoản sử dụng &amp; Chính sách hoàn tiền — CineJelly</title>
+<title>Điều khoản sử dụng &amp; Chính sách hoàn tiền — ${brand}</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; line-height:1.65;
@@ -80,7 +83,7 @@ export function renderTermsPage(options: TermsPageOptions = {}): string {
 
   <div class="card">
     <h2>1. Dịch vụ</h2>
-    <p>CineJelly tạo video bằng trí tuệ nhân tạo từ mô tả, ảnh và thiết lập bạn cung cấp. Kết quả do mô hình AI sinh ra nên <strong>có thể khác nhau giữa các lần tạo</strong> và không đảm bảo giống hệt hình dung của bạn.</p>
+    <p>${brand} tạo video bằng trí tuệ nhân tạo từ mô tả, ảnh và thiết lập bạn cung cấp. Kết quả do mô hình AI sinh ra nên <strong>có thể khác nhau giữa các lần tạo</strong> và không đảm bảo giống hệt hình dung của bạn.</p>
     <h2>2. Credits và thanh toán</h2>
     <ul>
       <li>Bạn nạp tiền để nhận <strong>credits</strong>; mỗi lần tạo video sẽ trừ credits theo báo giá hiển thị <em>trước</em> khi bạn xác nhận.</li>

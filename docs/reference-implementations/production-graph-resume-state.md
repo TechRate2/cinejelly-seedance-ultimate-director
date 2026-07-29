@@ -34,9 +34,9 @@ Implementation status as of 2026-06-19: CineJelly-owned TypeScript foundation im
 - `src/api/production-graph-resume-queue-client.ts`
 - `src/api/render-provider-graph-resume-worker.ts`
 - `src/api/server.ts`
-- `scripts/run-production-graph-resume-state-smoke.mjs`
-- `scripts/run-production-graph-resume-queue-service-smoke.mjs`
-- `scripts/run-render-provider-graph-resume-worker-smoke.mjs`
+- `tests/run-production-graph-resume-state-smoke.mjs`
+- `tests/run-production-graph-resume-queue-service-smoke.mjs`
+- `tests/run-render-provider-graph-resume-worker-smoke.mjs`
 - `schemas/production-graph-resume-state-report.schema.json`
 - `schemas/production-graph-resume-queue-service-smoke-report.schema.json`
 - `schemas/render-provider-graph-resume-worker-smoke-report.schema.json`

@@ -35,7 +35,7 @@ Một ô nhập, một nút, một video.
 | Bật máy chủ | `npm start` |
 | Kiểm tra nhanh, không dịch lại mã | `npm run check:fast` |
 
-**`npm test` là lệnh quan trọng nhất.** Nó chạy 93 bài kiểm tra + 5 bài soi toàn dự án,
+**`npm test` là lệnh quan trọng nhất.** Nó chạy 93 bài kiểm tra + 6 bài soi toàn dự án,
 **không tốn một đồng nào**, và trả lời bằng tiếng Việt. Sau khi AI sửa bất cứ thứ gì, chạy lệnh này.
 Nếu nó nói *"Dự án đang ổn"* thì yên tâm. Nếu có bài đỏ, nó ghi rõ đỏ ở đâu và cách xem chi tiết.
 
@@ -171,14 +171,15 @@ src/
 ├── config/        (3 file)   Giá trị mặc định đọc từ biến môi trường.
 └── utils/         (12 file)  Công cụ nhỏ dùng chung.
 
-scripts/     93 bài kiểm tra + ~60 công cụ vận hành/kiểm định
+tests/       93 bài kiểm tra không tốn tiền — lưới an toàn của bạn
+scripts/     ~60 công cụ vận hành + 6 bài soi toàn dự án
 docs/        Tài liệu chi tiết
 external/    12 repo tham khảo (KHÔNG phải code chạy — xem mục 7)
 ```
 
 **Mỗi vùng có README riêng — mở ra là hiểu ngay vùng đó:**
 [`src/`](src/README.md) · [`src/agents/`](src/agents/README.md) · [`src/core/`](src/core/README.md) ·
-[`src/api/`](src/api/README.md) · [`scripts/`](scripts/README.md)
+[`src/api/`](src/api/README.md) · [`tests/`](tests/README.md) · [`scripts/`](scripts/README.md)
 
 **Luật kiến trúc (có máy kiểm tra, `npm test` sẽ báo nếu vi phạm):**
 
@@ -235,7 +236,7 @@ external/    12 repo tham khảo (KHÔNG phải code chạy — xem mục 7)
 | **Ảnh khách tải lên không bao giờ bị xoá** | Thư mục đầy dần → đến lúc mọi khách đều không tải lên được |
 | **Chưa có nhạc nền** | Video hiện chỉ có giọng đọc |
 | **Menu chức năng chưa hiện ra giao diện** | Series, video dài, lồng tiếng **đã có API chạy được** nhưng khách chưa thấy nút bấm nào |
-| **66/265 bài kiểm tra trong một file là "sơn xanh"** | `scripts/run-input-matrix-smoke.mjs` — chúng chỉ tìm chữ trong mã nguồn, không chạy code thật |
+| **66/265 bài kiểm tra trong một file là "sơn xanh"** | `tests/run-input-matrix-smoke.mjs` — chúng chỉ tìm chữ trong mã nguồn, không chạy code thật |
 | Giới hạn tốc độ bị lách ở một đường API | `/v1/short-pipeline/conversation` chạy cùng engine với đường đã giới hạn nhưng không bị chặn |
 
 ---

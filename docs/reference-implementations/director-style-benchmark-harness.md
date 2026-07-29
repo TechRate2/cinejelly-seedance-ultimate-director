@@ -51,7 +51,7 @@ Implementation status as of 2026-06-19: implemented as a CineJelly-owned TypeScr
 - `scripts/create-director-style-review-drafts.mjs`
 - `scripts/create-long-form-manual-quality-review-draft.mjs`
 - `scripts/validate-director-style-review-evidence.mjs`
-- `scripts/run-director-style-review-evidence-guard-smoke.mjs`
+- `tests/run-director-style-review-evidence-guard-smoke.mjs`
 - `scripts/run-director-style-benchmark.mjs`
 - `schemas/director-style-benchmark-report.schema.json`
 - `schemas/director-style-review-drafts-report.schema.json`

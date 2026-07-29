@@ -236,3 +236,4 @@ export * from "./core/series-continuity-store.js";
 export * from "./core/spoken-language.js";
 export * from "./types/creative-intent.js";
 export * from "./utils/disk-space.js";
+export * from "./config/product-identity.js";

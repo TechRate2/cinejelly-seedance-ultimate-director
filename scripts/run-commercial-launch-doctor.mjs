@@ -174,32 +174,32 @@ function buildCommands(options) {
       expectedExitCodes: [0],
       blocksCodeReadiness: true
     }),
-    command("material_source_scoring", ["scripts/run-material-source-scoring-smoke.mjs"], {
+    command("material_source_scoring", ["tests/run-material-source-scoring-smoke.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
     }),
-    command("source_video_auto_analysis_smoke", ["scripts/run-source-video-auto-analysis-smoke.mjs"], {
+    command("source_video_auto_analysis_smoke", ["tests/run-source-video-auto-analysis-smoke.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
     }),
-    command("remote_stock_adapter_smoke", ["scripts/run-remote-stock-adapter-smoke.mjs"], {
+    command("remote_stock_adapter_smoke", ["tests/run-remote-stock-adapter-smoke.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
     }),
-    command("generated_audio_mapping_smoke", ["scripts/run-generated-audio-mapping-smoke.mjs"], {
+    command("generated_audio_mapping_smoke", ["tests/run-generated-audio-mapping-smoke.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
     }),
-    command("short_review_operation_guard", ["scripts/run-short-review-operation-evidence-guard-smoke.mjs"], {
+    command("short_review_operation_guard", ["tests/run-short-review-operation-evidence-guard-smoke.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/short-review-operation-evidence-guard-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
     }),
-    command("short_product_rights_guard", ["scripts/run-short-product-rights-evidence-guard-smoke.mjs"], {
+    command("short_product_rights_guard", ["tests/run-short-product-rights-evidence-guard-smoke.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/short-product-rights-evidence-guard-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true
@@ -207,7 +207,7 @@ function buildCommands(options) {
   ];
   if (!options.skipLocalSmoke) {
     commands.push(
-      command("local_smoke", ["scripts/run-local-validation-smoke.mjs"], {
+      command("local_smoke", ["tests/run-local-validation-smoke.mjs"], {
         reportPath: "assets/output_deliverables/phase6-validation/local-smoke-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
@@ -216,47 +216,47 @@ function buildCommands(options) {
   }
   if (!options.skipProviderHandoffSmokes) {
     commands.push(
-      command("provider_reconciliation", ["scripts/run-render-provider-reconciliation-smoke.mjs"], {
+      command("provider_reconciliation", ["tests/run-render-provider-reconciliation-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/render-provider-reconciliation-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
-      command("provider_handoff", ["scripts/run-render-provider-handoff-smoke.mjs"], {
+      command("provider_handoff", ["tests/run-render-provider-handoff-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/render-provider-handoff-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
-      command("provider_external_lease", ["scripts/run-render-provider-external-lease-smoke.mjs"], {
+      command("provider_external_lease", ["tests/run-render-provider-external-lease-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/render-provider-external-lease-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
-      command("provider_lease_service", ["scripts/run-render-provider-lease-service-smoke.mjs"], {
+      command("provider_lease_service", ["tests/run-render-provider-lease-service-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/render-provider-lease-service-smoke-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
-      command("provider_handoff_actions", ["scripts/run-render-provider-handoff-action-ledger-smoke.mjs"], {
+      command("provider_handoff_actions", ["tests/run-render-provider-handoff-action-ledger-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/render-provider-handoff-action-ledger-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
-      command("production_graph_resume_state", ["scripts/run-production-graph-resume-state-smoke.mjs"], {
+      command("production_graph_resume_state", ["tests/run-production-graph-resume-state-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/production-graph-resume-state-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
-      command("production_graph_resume_queue_service", ["scripts/run-production-graph-resume-queue-service-smoke.mjs"], {
+      command("production_graph_resume_queue_service", ["tests/run-production-graph-resume-queue-service-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/production-graph-resume-queue-service-smoke-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
-      command("provider_graph_resume_worker", ["scripts/run-render-provider-graph-resume-worker-smoke.mjs"], {
+      command("provider_graph_resume_worker", ["tests/run-render-provider-graph-resume-worker-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-worker-smoke-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
       }),
-      command("provider_multi_worker_handoff", ["scripts/run-render-provider-multi-worker-handoff-smoke.mjs"], {
+      command("provider_multi_worker_handoff", ["tests/run-render-provider-multi-worker-handoff-smoke.mjs"], {
         reportPath: "assets/output_deliverables/business-readiness/render-provider-multi-worker-handoff-report.json",
         expectedExitCodes: [0],
         blocksCodeReadiness: true
@@ -319,7 +319,7 @@ function buildCommands(options) {
       expectedExitCodes: [0, 1],
       blocksCodeReadiness: false
     }),
-    command("quality_review_guard", ["scripts/run-director-style-review-evidence-guard-smoke.mjs"], {
+    command("quality_review_guard", ["tests/run-director-style-review-evidence-guard-smoke.mjs"], {
       reportPath: "assets/output_deliverables/business-readiness/director-style-review-evidence-guard-smoke-report.json",
       expectedExitCodes: [0],
       blocksCodeReadiness: true

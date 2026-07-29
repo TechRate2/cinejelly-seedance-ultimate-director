@@ -15,7 +15,7 @@ const defaults = {
 
 const suiteCommands = [
   command("build", ["./node_modules/typescript/bin/tsc", "-p", "tsconfig.json"], { reportPath: undefined }),
-  command("api_response_redaction", ["scripts/run-api-response-redaction-smoke.mjs"], {
+  command("api_response_redaction", ["tests/run-api-response-redaction-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/api-response-redaction-smoke-report.json"
   }),
   command("private_source_lineage_boundary", ["scripts/audit-private-source-lineage-boundary.mjs"], {
@@ -27,66 +27,66 @@ const suiteCommands = [
   command("source_structure", ["scripts/audit-source-structure.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/source-structure-audit-report.json"
   }),
-  command("render_request_contract", ["scripts/run-render-request-contract-smoke.mjs"], {
+  command("render_request_contract", ["tests/run-render-request-contract-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/render-request-contract-smoke-report.json"
   }),
   command("short_prompt_corpus", ["scripts/build-short-prompt-pattern-corpus.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/short-prompt-pattern-corpus-report.json"
   }),
-  command("short_pipeline", ["scripts/run-short-pipeline-smoke.mjs"], {
+  command("short_pipeline", ["tests/run-short-pipeline-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/short-pipeline-smoke-report.json"
   }),
-  command("short_viral_intelligence", ["scripts/run-short-viral-intelligence-smoke.mjs"], {
+  command("short_viral_intelligence", ["tests/run-short-viral-intelligence-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/short-viral-intelligence-smoke-report.json"
   }),
-  command("short_agent_graph", ["scripts/run-short-agent-graph-smoke.mjs"], {
+  command("short_agent_graph", ["tests/run-short-agent-graph-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/short-agent-graph-smoke-report.json"
   }),
-  command("short_mvp_ui_contract", ["scripts/run-short-mvp-ui-contract-smoke.mjs"], {
+  command("short_mvp_ui_contract", ["tests/run-short-mvp-ui-contract-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/short-mvp-ui-contract-smoke-report.json",
     localHttpCallsMade: true
   }),
   command("short_backend_integration", ["scripts/audit-short-backend-integration.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/short-backend-integration-audit-report.json"
   }),
-  command("long_form_timeline", ["scripts/run-long-form-timeline-smoke.mjs"], {
+  command("long_form_timeline", ["tests/run-long-form-timeline-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/long-form-timeline-smoke-report.json"
   }),
-  command("long_form_readiness", ["scripts/run-long-form-readiness-smoke.mjs"], {
+  command("long_form_readiness", ["tests/run-long-form-readiness-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/long-form-readiness-smoke-report.json"
   }),
-  command("video_render_strategy", ["scripts/run-video-render-strategy-smoke.mjs"], {
+  command("video_render_strategy", ["tests/run-video-render-strategy-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/video-render-strategy-smoke-report.json"
   }),
-  command("last_frame_chaining", ["scripts/run-last-frame-chaining-smoke.mjs"], {
+  command("last_frame_chaining", ["tests/run-last-frame-chaining-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/last-frame-chaining-smoke-report.json"
   }),
-  command("source_video_auto_analysis_smoke", ["scripts/run-source-video-auto-analysis-smoke.mjs"], {
+  command("source_video_auto_analysis_smoke", ["tests/run-source-video-auto-analysis-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/source-video-auto-analysis-smoke-report.json"
   }),
-  command("remote_stock_adapter_smoke", ["scripts/run-remote-stock-adapter-smoke.mjs"], {
+  command("remote_stock_adapter_smoke", ["tests/run-remote-stock-adapter-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/remote-stock-adapter-smoke-report.json"
   }),
-  command("material_source_scoring", ["scripts/run-material-source-scoring-smoke.mjs"], {
+  command("material_source_scoring", ["tests/run-material-source-scoring-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/material-source-scoring-smoke-report.json"
   }),
-  command("generated_audio_mapping", ["scripts/run-generated-audio-mapping-smoke.mjs"], {
+  command("generated_audio_mapping", ["tests/run-generated-audio-mapping-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/generated-audio-mapping-smoke-report.json"
   }),
-  command("generated_audio_polling_resilience", ["scripts/run-generated-audio-polling-resilience-smoke.mjs"], {
+  command("generated_audio_polling_resilience", ["tests/run-generated-audio-polling-resilience-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/generated-audio-polling-resilience-smoke-report.json"
   }),
-  command("transition_audio_continuity", ["scripts/run-transition-audio-continuity-smoke.mjs"], {
+  command("transition_audio_continuity", ["tests/run-transition-audio-continuity-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/transition-audio-continuity-smoke-report.json"
   }),
-  command("render_scheduler", ["scripts/run-render-scheduler-smoke.mjs"], {
+  command("render_scheduler", ["tests/run-render-scheduler-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/render-scheduler-smoke-report.json"
   }),
-  command("production_graph_resume_queue_service", ["scripts/run-production-graph-resume-queue-service-smoke.mjs"], {
+  command("production_graph_resume_queue_service", ["tests/run-production-graph-resume-queue-service-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/production-graph-resume-queue-service-smoke-report.json",
     localHttpCallsMade: true
   }),
-  command("render_provider_graph_resume_worker", ["scripts/run-render-provider-graph-resume-worker-smoke.mjs"], {
+  command("render_provider_graph_resume_worker", ["tests/run-render-provider-graph-resume-worker-smoke.mjs"], {
     reportPath: "assets/output_deliverables/business-readiness/render-provider-graph-resume-worker-smoke-report.json",
     localHttpCallsMade: true
   }),

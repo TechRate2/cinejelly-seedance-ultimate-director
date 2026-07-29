@@ -98,7 +98,7 @@ function normalizeProviderItem(source, item, brief) {
 - Done: add remote stock material settings to `src/types/settings.ts`.
 - Done: add remote stock candidate metadata to `src/types/material.ts`.
 - Done: add `src/core/remote-stock-material-adapter.ts` as a CineJelly-owned adapter for Pexels, Pixabay, and commercially approved Coverr.
-- Done: add `scripts/run-remote-stock-adapter-smoke.mjs` and `npm.cmd run validation:remote-stock-adapter-smoke` to prove disabled/no-fetch, Pexels header credential use, Pixabay outbound query-key handling, Coverr commercial approval gating, credential-free HTTPS candidate filtering, short-duration filtering, provider fail-closed behavior, and aggregate `MaterialSourceValidator` approval without stock-provider network calls.
+- Done: add `tests/run-remote-stock-adapter-smoke.mjs` and `npm.cmd run validation:remote-stock-adapter-smoke` to prove disabled/no-fetch, Pexels header credential use, Pixabay outbound query-key handling, Coverr commercial approval gating, credential-free HTTPS candidate filtering, short-duration filtering, provider fail-closed behavior, and aggregate `MaterialSourceValidator` approval without stock-provider network calls.
 - Done: add `schemas/remote-stock-adapter-smoke-report.schema.json`, report-contract semantic validation, and commercial launch doctor coverage for the no-spend adapter smoke.
 - Done: add runtime env parsing for:
   - `CINEJELLY_ENABLE_REMOTE_STOCK_MATERIALS`

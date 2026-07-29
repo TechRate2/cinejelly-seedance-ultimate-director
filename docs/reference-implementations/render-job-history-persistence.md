@@ -115,7 +115,7 @@ function restoreHistory(historyFile): RestoredJob[] {
 - Done: keep live jobs in memory with `detailRetention: "full"`.
 - Done: wire optional `CINEJELLY_API_JOB_HISTORY_PATH` into `src/api/server.ts`.
 - Done: add preflight validation for path writability and existing file schema.
-- Done: add no-provider smoke validation through `scripts/run-render-job-history-smoke.mjs`.
+- Done: add no-provider smoke validation through `tests/run-render-job-history-smoke.mjs`.
 
 ## Validation Checklist
 

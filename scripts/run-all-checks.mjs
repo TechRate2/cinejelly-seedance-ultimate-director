@@ -26,6 +26,8 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scriptsDir = join(repoRoot, "scripts");
+// Behaviour checks live in tests/; scripts/ holds operator tooling and whole-repo audits.
+const testsDir = join(repoRoot, "tests");
 
 /**
  * Checks that are RED ON PURPOSE, with the reason shown to the owner. Each one is blocked on
@@ -133,7 +135,7 @@ if (!skipBuild) {
   console.log("xong.");
 }
 
-const checkFiles = readdirSync(scriptsDir)
+const checkFiles = readdirSync(testsDir)
   .filter((name) => name.startsWith("run-") && name.endsWith("-smoke.mjs"))
   .sort();
 
@@ -144,7 +146,7 @@ for (let index = 0; index < checkFiles.length; index += CONCURRENCY) {
   const batch = checkFiles.slice(index, index + CONCURRENCY);
   const batchResults = await Promise.all(
     batch.map(async (file) => {
-      const result = await run(process.execPath, [join("scripts", file)], CHECK_TIMEOUT_MS);
+      const result = await run(process.execPath, [join("tests", file)], CHECK_TIMEOUT_MS);
       if (!quiet) {
         process.stdout.write(result.code === 0 ? "." : EXPECTED_RED.has(file) ? "-" : "X");
       }
@@ -163,7 +165,7 @@ const firstRoundFailures = results.filter((entry) => !entry.ok);
 if (firstRoundFailures.length > 0) {
   process.stdout.write(`\n\nChạy lại ${firstRoundFailures.length} bài đã hỏng, lần này từng bài một...`);
   for (const failure of firstRoundFailures) {
-    const retry = await run(process.execPath, [join("scripts", failure.file)], CHECK_TIMEOUT_MS);
+    const retry = await run(process.execPath, [join("tests", failure.file)], CHECK_TIMEOUT_MS);
     if (retry.code === 0) {
       failure.ok = true;
       failure.hint = undefined;
@@ -204,7 +206,7 @@ if (regressions.length > 0) {
     console.log(`      ${entry.hint}`);
   }
   console.log("\nCách xem chi tiết một bài:");
-  console.log(`  node scripts/${regressions[0].file}`);
+  console.log(`  node tests/${regressions[0].file}`);
 }
 
 if (expectedRed.length > 0) {

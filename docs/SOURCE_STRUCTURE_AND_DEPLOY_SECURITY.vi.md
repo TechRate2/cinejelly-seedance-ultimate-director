@@ -141,10 +141,10 @@ Backend short UI contract chính:
 Không xóa chỉ vì tên có `smoke`, `audit`, `validation`, hoặc `schema`:
 
 - `scripts/run-backend-system-suite.mjs`
-- `scripts/run-short-pipeline-smoke.mjs`
-- `scripts/run-short-pipeline-conversation-smoke.mjs`
-- `scripts/run-short-mvp-ui-contract-smoke.mjs`
-- `scripts/run-render-request-contract-smoke.mjs`
+- `tests/run-short-pipeline-smoke.mjs`
+- `tests/run-short-pipeline-conversation-smoke.mjs`
+- `tests/run-short-mvp-ui-contract-smoke.mjs`
+- `tests/run-render-request-contract-smoke.mjs`
 - `scripts/audit-source-structure.mjs`
 - `scripts/audit-backend-system-readiness.mjs`
 - `scripts/validate-report-contracts.mjs`
@@ -284,7 +284,7 @@ Kết quả audit ngày 2026-07-02:
 - `scripts/validate-deployment-package.mjs` kiểm tra cả `package.json` lẫn npm package dry-run để package chỉ chứa runtime `dist/`, `README.md`, `package.json`, và `.env.production.template`; entrypoint chỉ trỏ `dist/`, không có lifecycle pack script, và `dist/` không có `.map` nếu đã build. `schemas/` được giữ trong repo làm hợp đồng audit/dev, nhưng không đi vào npm package runtime.
 - Các route HTML tĩnh như `/short/create` và `/operator/launch-dashboard` được API gửi kèm `no-store`, `nosniff`, `DENY` frame, `no-referrer`, permissions policy, và CSP chỉ cho tài nguyên cùng origin; hai UI smoke bắt buộc kiểm header này.
 - `scripts/audit-source-structure.mjs` kiểm tra `src/api/server.ts` để response egress vẫn tập trung ở `sendJson`/`sendHtml`; route-level JSON headers không được ghi đè security base headers.
-- `scripts/run-api-response-redaction-smoke.mjs` chạy local HTTP `/health` để kiểm JSON response có security headers và `X-CineJelly-Request-Id`, đồng thời kiểm redaction source-lineage/local-path.
+- `tests/run-api-response-redaction-smoke.mjs` chạy local HTTP `/health` để kiểm JSON response có security headers và `X-CineJelly-Request-Id`, đồng thời kiểm redaction source-lineage/local-path.
 - `scripts/audit-source-structure.mjs` kiểm tra các npm scripts trong `package.json` để file `scripts/*.mjs`, `scripts/*.ps1`, và source tương ứng của `dist/*.js` entrypoint không bị stale hoặc mất file.
 - `scripts/validate-deployment-package.mjs` kiểm tra Docker/Compose tạo và mount bền cả `/app/assets/output_deliverables` lẫn `/app/assets/reference_inputs`, để output và input media thật không bị nhét vào image hoặc mất khi container restart.
 - `scripts/validate-deployment-package.mjs` cũng chặn `.env.production.template` nếu template chủ động bật tắt auth/rate-limit hoặc bật live source-video/remote-stock gates mặc định.

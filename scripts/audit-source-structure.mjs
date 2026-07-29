@@ -135,6 +135,7 @@ const runtimeEnvReadBoundaryAllowlist = new Set([
   "src/application/render-settings-descriptor.ts",
   "src/application/runtime-preflight.ts",
   "src/application/validation-readiness-entrypoint.ts",
+  "src/config/product-identity.ts",
   "src/config/runtime-config.ts",
   "src/utils/media-tools.ts"
 ]);

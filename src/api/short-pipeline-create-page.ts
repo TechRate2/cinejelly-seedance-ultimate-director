@@ -5,7 +5,12 @@
  * localStorage (with a forget button for shared computers) and sent only on /v1 calls.
  */
 
+import { productName, studioName } from "../config/product-identity.js";
+
 export function buildShortPipelineCreatePage(options: { readonly supportContact?: string } = {}): string {
+  // Product name comes from config so rebranding/white-labelling is a setting, not a code edit.
+  const brand = productName().replace(/[<>"'&]/g, "");
+  const brandStudio = studioName().replace(/[<>"'&]/g, "");
   // The support contact is shown on the LOGGED-OUT login modal (forgot-password recovery, MVP audit A2).
   // Escaped so an operator-configured value can never inject markup into the page.
   const supportContact = (options.supportContact ?? "").trim();
@@ -18,7 +23,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>CineJelly Studio</title>
+  <title>${brandStudio}</title>
   <style>
     :root {
       color-scheme: dark;
@@ -1017,7 +1022,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
       <div class="brand">
         <div class="brand-mark">CJ</div>
         <div>
-          <div class="brand-name">CineJelly</div>
+          <div class="brand-name">${brand}</div>
           <div class="brand-sub">Studio</div>
         </div>
       </div>
@@ -1169,7 +1174,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
           <span class="visually-hidden">Create Short</span>
           <span class="visually-hidden">Video Remake</span>
           <span class="visually-hidden">Creative Ideas</span>
-          <div class="eyebrow" data-i18n="hero.eyebrow">Describe the idea, add references, choose a production pattern, then let CineJelly build the script, storyboard, prompt, review packet, and render handoff.</div>
+          <div class="eyebrow" data-i18n="hero.eyebrow">Describe the idea, add references, choose a production pattern, then let ${brand} build the script, storyboard, prompt, review packet, and render handoff.</div>
         </div>
         <div class="session-line" id="session-line" data-i18n="hero.noSession">No session loaded.</div>
       </section>
@@ -1192,7 +1197,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
           <div class="wizard-step wizard-active" data-step="1">
           <div class="section-divider"></div>
           <div class="panel-head">
-            <div class="panel-title"><span class="step-badge">1</span><span data-i18n="s1.title">Tell CineJelly your idea</span></div>
+            <div class="panel-title"><span class="step-badge">1</span><span data-i18n="s1.title">Tell ${brand} your idea</span></div>
             <button class="mini-btn" type="button" data-enhance-prompt data-i18n="s1.enhance">✨ Thêm cấu trúc 4 nhịp</button>
           </div>
           <details class="cj-help"><summary data-i18n="help.t">💡 Hướng dẫn nhanh</summary><p data-i18n="help.idea">Viết như kể cho một người bạn: bán gì / cho ai / video trông thế nào / cú chốt là gì. Càng cụ thể sản phẩm + cảm xúc, video càng dễ viral. Viết tiếng Việt, Trung hay Anh đều được.</p></details>
@@ -1262,7 +1267,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
           <div class="grid-3">
             <label class="field"><span data-i18n="s3.srcPlatform">Source platform</span>
               <select id="template-source-platform">
-                <option value="internal" data-i18n="s3.pInternal">CineJelly internal</option>
+                <option value="internal" data-i18n="s3.pInternal">${brand} internal</option>
                 <option value="reference_tool_motion" data-i18n="s3.pMotion">Reference-tool motion inspiration</option>
                 <option value="reference_tool_ads" data-i18n="s3.pAds">Reference-tool ad inspiration</option>
                 <option value="tiktok">TikTok / Douyin / Reels</option>
@@ -1287,7 +1292,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
           </div>
           <label class="field" style="margin-top:12px">
             <span data-i18n="s3.summary">Source pattern summary</span>
-            <textarea id="reference-summary" wrap="soft" data-i18n-placeholder="s3.summaryPh" placeholder="Paste the public pattern/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly will adapt the structure to your own KOL, product, and background."></textarea>
+            <textarea id="reference-summary" wrap="soft" data-i18n-placeholder="s3.summaryPh" placeholder="Paste the public pattern/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. ${brand} will adapt the structure to your own KOL, product, and background."></textarea>
           </label>
 
           <div class="section-divider"></div>
@@ -1590,7 +1595,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         "tu.submit": "Tôi đã chuyển khoản — gửi yêu cầu duyệt", "tu.sent": "Đã gửi yêu cầu nạp. Quản trị viên sẽ duyệt và cộng credits sớm nhất.", "tu.history": "📜 Lịch sử giao dịch credits", "tu.noHistory": "Chưa có giao dịch nào.", "tu.kind.topup": "Nạp credits", "tu.kind.render_charge": "Tạo video", "tu.kind.render_refund": "Hoàn credits", "tu.kind.admin_adjust": "Điều chỉnh từ admin",
         "tu.popular": "⭐ Phổ biến nhất", "tu.perVideo": "đ/video", "tu.noExpire": "💎 Credits không bao giờ hết hạn — nạp trước, dùng dần.",
         "hero.h1": "Tạo video AI", "hero.noSession": "Chưa có phiên.",
-        "hero.eyebrow": "Mô tả ý tưởng, thêm ảnh/video tham chiếu, chọn kiểu sản xuất — CineJelly tự viết kịch bản, storyboard, prompt, gói kiểm duyệt và render.",
+        "hero.eyebrow": "Mô tả ý tưởng, thêm ảnh/video tham chiếu, chọn kiểu sản xuất — ${brand} tự viết kịch bản, storyboard, prompt, gói kiểm duyệt và render.",
         "mode.short": "Short", "mode.remake": "Remake", "mode.ugc": "UGC", "mode.long": "Dài",
         "s1.title": "Kể ý tưởng của bạn", "s1.enhance": "✨ Thêm cấu trúc 4 nhịp", "s1.brief": "Ý tưởng video",
         "s1.briefPh": "Mô tả video bạn muốn: ngách, sản phẩm, người/KOL, cấu trúc video mẫu, thời lượng, ngôn ngữ, giọng điệu, bằng chứng và cú chốt.",
@@ -1606,10 +1611,10 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         "s2.wardrobe": "Trang phục", "s2.first": "Khung hình đầu", "s2.last": "Khung hình cuối",
         "s2.rights": "Bản quyền media", "s2.rightsOk": "Đã được duyệt", "s2.rightsReview": "Cần kiểm tra", "s2.rightsUnknown": "Chưa rõ",
         "s3.title": "Học từ video mẫu", "s3.useRemake": "Dùng chế độ Remake", "s3.srcPlatform": "Nền tảng nguồn",
-        "s3.pInternal": "Nội bộ CineJelly", "s3.pMotion": "Cảm hứng chuyển động", "s3.pAds": "Cảm hứng quảng cáo", "s3.pCustom": "Tuỳ chỉnh",
+        "s3.pInternal": "Nội bộ ${brand}", "s3.pMotion": "Cảm hứng chuyển động", "s3.pAds": "Cảm hứng quảng cáo", "s3.pCustom": "Tuỳ chỉnh",
         "s3.learning": "Chính sách học", "s3.structOnly": "Chỉ học cấu trúc và nhịp", "s3.closeRemake": "Remake sát (đã có bản quyền)",
         "s3.platform": "Nền tảng đăng", "s3.flexible": "Linh hoạt", "s3.summary": "Tóm tắt cấu trúc video mẫu",
-        "s3.summaryPh": "Dán cấu trúc video mẫu: hook, nhịp, diễn xuất, góc máy, nhịp cắt, nhịp audio và cú chốt. CineJelly áp cấu trúc vào KOL, sản phẩm, bối cảnh CỦA BẠN.",
+        "s3.summaryPh": "Dán cấu trúc video mẫu: hook, nhịp, diễn xuất, góc máy, nhịp cắt, nhịp audio và cú chốt. ${brand} áp cấu trúc vào KOL, sản phẩm, bối cảnh CỦA BẠN.",
         "s4.title": "Khung nhịp mẫu (storyboard thật hiện sau khi tạo)", "s4.refresh": "Tải lại contract",
         "s4.b1": "1 Mở màn", "s4.b1n": "Vấn đề / trạng thái trước", "s4.b2": "2 Bằng chứng", "s4.b2n": "Sản phẩm / hành động",
         "s4.b3": "3 Biến đổi", "s4.b3n": "Thay đổi / kết quả", "s4.b4": "4 Chốt", "s4.b4n": "Sau / CTA nhẹ",
@@ -1709,9 +1714,9 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         "tu.submit": "I have paid — submit for approval", "tu.sent": "Top-up submitted. The admin will verify and add credits shortly.", "tu.history": "📜 Credit transaction history", "tu.noHistory": "No transactions yet.", "tu.kind.topup": "Top-up", "tu.kind.render_charge": "Create video", "tu.kind.render_refund": "Refund", "tu.kind.admin_adjust": "Admin adjustment",
         "tu.popular": "⭐ Most popular", "tu.perVideo": "đ/video", "tu.noExpire": "💎 Credits never expire — top up once, use anytime.",
         "hero.h1": "Create AI Video", "hero.noSession": "No session loaded.",
-        "hero.eyebrow": "Describe the idea, add references, choose a production pattern — CineJelly builds the script, storyboard, prompt, review packet, and render handoff.",
+        "hero.eyebrow": "Describe the idea, add references, choose a production pattern — ${brand} builds the script, storyboard, prompt, review packet, and render handoff.",
         "mode.short": "Short", "mode.remake": "Remake", "mode.ugc": "UGC", "mode.long": "Long",
-        "s1.title": "Tell CineJelly your idea", "s1.enhance": "✨ Add 4-beat structure", "s1.brief": "Creative brief",
+        "s1.title": "Tell ${brand} your idea", "s1.enhance": "✨ Add 4-beat structure", "s1.brief": "Creative brief",
         "s1.briefPh": "Describe the actual video you want: niche, product, KOL/person, source-video structure, duration, language, tone, proof, and final payoff.",
         "s1.starter": "Starter", "s1.rewrite": "Add structure", "s1.productStarter": "Product starter",
         "s1.beatAlt": " Split into 4 beats: 0-3s hook, 3-7s proof/demo, 7-12s transformation/result, 12-15s stable payoff. Keep motion natural, no on-screen text, audio has rhythm but the visual still reads with sound off.",
@@ -1725,10 +1730,10 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         "s2.wardrobe": "Wardrobe reference", "s2.first": "First frame", "s2.last": "Last frame",
         "s2.rights": "Media rights", "s2.rightsOk": "Operator approved", "s2.rightsReview": "Needs review", "s2.rightsUnknown": "Unknown",
         "s3.title": "Learn from a source video", "s3.useRemake": "Use Remake mode", "s3.srcPlatform": "Source platform",
-        "s3.pInternal": "CineJelly internal", "s3.pMotion": "Motion inspiration", "s3.pAds": "Ad inspiration", "s3.pCustom": "Custom",
+        "s3.pInternal": "${brand} internal", "s3.pMotion": "Motion inspiration", "s3.pAds": "Ad inspiration", "s3.pCustom": "Custom",
         "s3.learning": "Learning policy", "s3.structOnly": "Structure and rhythm only", "s3.closeRemake": "Rights-cleared close remake",
         "s3.platform": "Publish platform", "s3.flexible": "Flexible", "s3.summary": "Source pattern summary",
-        "s3.summaryPh": "Paste the public pattern/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. CineJelly adapts it to YOUR KOL, product, and background.",
+        "s3.summaryPh": "Paste the public pattern/video structure: hook, pacing, acting beats, camera style, edit rhythm, audio rhythm, and payoff. ${brand} adapts it to YOUR KOL, product, and background.",
         "s4.title": "Beat template (real storyboard appears after planning)", "s4.refresh": "Refresh contract",
         "s4.b1": "1 Hook", "s4.b1n": "Problem / before state", "s4.b2": "2 Proof", "s4.b2n": "Product / action",
         "s4.b3": "3 Transform", "s4.b3n": "Change / result", "s4.b4": "4 Payoff", "s4.b4n": "After / soft CTA",
@@ -1828,9 +1833,9 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         "tu.submit": "我已转账 — 提交审核", "tu.sent": "充值申请已提交，管理员核对后将尽快到账。", "tu.history": "📜 积分交易记录", "tu.noHistory": "暂无交易。", "tu.kind.topup": "充值", "tu.kind.render_charge": "生成视频", "tu.kind.render_refund": "退还积分", "tu.kind.admin_adjust": "管理员调整",
         "tu.popular": "⭐ 最受欢迎", "tu.perVideo": "đ/视频", "tu.noExpire": "💎 积分永不过期 — 一次充值，随时使用。",
         "hero.h1": "AI 视频创作", "hero.noSession": "尚未加载会话。",
-        "hero.eyebrow": "描述创意、添加参考素材、选择制作模式 — CineJelly 自动生成脚本、分镜、提示词、审核包并渲染。",
+        "hero.eyebrow": "描述创意、添加参考素材、选择制作模式 — ${brand} 自动生成脚本、分镜、提示词、审核包并渲染。",
         "mode.short": "短视频", "mode.remake": "翻拍", "mode.ugc": "UGC", "mode.long": "长片",
-        "s1.title": "告诉 CineJelly 你的创意", "s1.enhance": "✨ 添加四段结构", "s1.brief": "创意简介",
+        "s1.title": "告诉 ${brand} 你的创意", "s1.enhance": "✨ 添加四段结构", "s1.brief": "创意简介",
         "s1.briefPh": "描述你想要的视频：领域、产品、达人/人物、参考视频结构、时长、语言、语气、卖点证明和结尾亮点。",
         "s1.starter": "快速模板", "s1.rewrite": "添加结构", "s1.productStarter": "产品模板",
         "s1.beatAlt": " 分为四段：0-3秒钩子，3-7秒证明/演示，7-12秒转变/效果，12-15秒稳定收尾。保持自然运动，无屏幕文字，音频有节奏但静音时画面仍可理解。",
@@ -1844,10 +1849,10 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
         "s2.wardrobe": "服装参考", "s2.first": "首帧", "s2.last": "尾帧",
         "s2.rights": "素材版权", "s2.rightsOk": "已审核通过", "s2.rightsReview": "需要审核", "s2.rightsUnknown": "未知",
         "s3.title": "学习参考视频结构", "s3.useRemake": "使用翻拍模式", "s3.srcPlatform": "来源平台",
-        "s3.pInternal": "CineJelly 内部", "s3.pMotion": "动作灵感", "s3.pAds": "广告灵感", "s3.pCustom": "自定义",
+        "s3.pInternal": "${brand} 内部", "s3.pMotion": "动作灵感", "s3.pAds": "广告灵感", "s3.pCustom": "自定义",
         "s3.learning": "学习策略", "s3.structOnly": "仅学习结构和节奏", "s3.closeRemake": "已授权近似翻拍",
         "s3.platform": "发布平台", "s3.flexible": "灵活", "s3.summary": "参考视频结构摘要",
-        "s3.summaryPh": "粘贴参考视频结构：开场钩子、节奏、表演、运镜、剪辑节奏、音频节奏和结尾。CineJelly 会套用到你自己的达人、产品和场景上。",
+        "s3.summaryPh": "粘贴参考视频结构：开场钩子、节奏、表演、运镜、剪辑节奏、音频节奏和结尾。${brand} 会套用到你自己的达人、产品和场景上。",
         "s4.title": "节奏模板（生成后显示真实分镜）", "s4.refresh": "刷新契约",
         "s4.b1": "1 开场钩子", "s4.b1n": "问题 / 之前状态", "s4.b2": "2 证明", "s4.b2n": "产品 / 动作",
         "s4.b3": "3 转变", "s4.b3n": "变化 / 结果", "s4.b4": "4 收尾", "s4.b4n": "之后 / 轻CTA",
@@ -3168,10 +3173,10 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
     function authHeaders() {
       const headers = {};
       const session = readSessionToken();
-      if (session) { headers["X-CineJelly-Session"] = session; }
+      if (session) { headers["X-${brand}-Session"] = session; }
       const keyInput = document.getElementById("api-key");
       const key = keyInput ? keyInput.value.trim() : "";
-      if (key) { headers["X-CineJelly-Api-Key"] = key; }
+      if (key) { headers["X-${brand}-Api-Key"] = key; }
       return headers;
     }
 
@@ -3210,7 +3215,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
           const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
           const payload = await response.json();
           if (!response.ok) { throw new Error(payload.error || "Không thực hiện được, thử lại."); }
-          const issuedToken = response.headers.get("X-CineJelly-Session-Token") || "";
+          const issuedToken = response.headers.get("X-${brand}-Session-Token") || "";
           if (!issuedToken) { throw new Error("Máy chủ không trả phiên đăng nhập. Thử lại."); }
           storeSessionToken(issuedToken);
           authModal.hidden = true;
@@ -3277,7 +3282,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
           });
           const payload = await response.json();
           if (!response.ok) { throw new Error(payload.error || "Không đổi được mật khẩu."); }
-          const issuedToken = response.headers.get("X-CineJelly-Session-Token") || "";
+          const issuedToken = response.headers.get("X-${brand}-Session-Token") || "";
           if (issuedToken) { storeSessionToken(issuedToken); }
           document.getElementById("current-password").value = "";
           document.getElementById("new-password").value = "";

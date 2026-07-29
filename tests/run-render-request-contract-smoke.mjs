@@ -50,7 +50,7 @@ function printHelp() {
   console.log(`Run a no-spend render-request schema/admission contract smoke.
 
 Usage:
-  node scripts/run-render-request-contract-smoke.mjs
+  node tests/run-render-request-contract-smoke.mjs
 
 Options:
   --output <path>        JSON report path. Default: ${defaults.outputPath}
