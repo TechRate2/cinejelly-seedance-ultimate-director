@@ -176,6 +176,10 @@ docs/        Tài liệu chi tiết
 external/    12 repo tham khảo (KHÔNG phải code chạy — xem mục 7)
 ```
 
+**Mỗi vùng có README riêng — mở ra là hiểu ngay vùng đó:**
+[`src/`](src/README.md) · [`src/agents/`](src/agents/README.md) · [`src/core/`](src/core/README.md) ·
+[`src/api/`](src/api/README.md) · [`scripts/`](scripts/README.md)
+
 **Luật kiến trúc (có máy kiểm tra, `npm test` sẽ báo nếu vi phạm):**
 
 - `core/` **không được** đọc biến môi trường và **không được** gọi mạng. Ai cần cấu hình thì
