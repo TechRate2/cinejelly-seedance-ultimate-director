@@ -121,6 +121,30 @@ async function waitForHealth() {
 }
 
 const failed = checks.filter((item) => !item.pass);
+// ---- Part D: the page Content-Security-Policy. ----
+// Nothing checked the CSP, which is how it shipped locking the product's own main feature: the
+// Studio fetches the finished MP4 and plays it from a blob: URL, and with no media-src directive
+// that load fell through to `default-src 'none'` and the browser blocked it silently — the "Xem"
+// button opened a player that never started. Both halves are asserted: the policy must stay
+// deny-by-default AND must permit exactly the media the product itself serves.
+const { readFileSync: readServerSource } = await import("node:fs");
+const serverSource = readServerSource(new URL("../src/api/server.ts", import.meta.url), "utf8");
+const cspBlock = serverSource.slice(
+  serverSource.indexOf("const HTML_CONTENT_SECURITY_POLICY"),
+  serverSource.indexOf("].join(\"; \");", serverSource.indexOf("const HTML_CONTENT_SECURITY_POLICY"))
+);
+check("csp_is_deny_by_default", cspBlock.includes("default-src 'none'"), cspBlock.slice(0, 120));
+check("csp_allows_blob_media_so_the_player_works", /media-src[^"]*blob:/u.test(cspBlock),
+  "media-src directive: " + (cspBlock.match(/"media-src[^"]*"/u)?.[0] ?? "MISSING"));
+check("csp_media_src_is_not_wide_open", !/media-src[^"]*\*/u.test(cspBlock));
+check("csp_still_blocks_framing", cspBlock.includes("frame-ancestors 'none'"));
+check("csp_still_blocks_form_hijack", cspBlock.includes("form-action 'self'"));
+// The player only ever plays media this server produced; if that changes the directive must be
+// revisited deliberately rather than widened by accident.
+check("studio_player_uses_blob_url",
+  readServerSource(new URL("../src/api/short-pipeline-create-page.ts", import.meta.url), "utf8")
+    .includes("video.src = objectUrl"));
+
 const report = {
   schemaVersion: "cinejelly.security-hardening-smoke.v1",
   status: failed.length === 0 ? "pass" : "fail",

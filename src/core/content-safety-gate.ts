@@ -65,6 +65,20 @@ interface CategoryRule {
  * an occasional refused brief the operator can review is the correct side to err on. `\p{L}\p{N}`
  * rather than `a-z0-9` so non-Latin scripts survive normalization instead of being blanked.
  */
+/**
+ * "Nude" is a COLOUR NAME in Vietnamese beauty and fashion copy — "màu nude", "tông nude", "son
+ * nude", "nền nude" all mean beige/skin-tone and are everyday commercial vocabulary. Left in the
+ * sexual signal list it produced the worst possible false positive: an ordinary brief for children's
+ * clothing in a beige colourway was refused and labelled MINOR_SEXUAL, i.e. the platform accused a
+ * paying customer of requesting child sexual content over a colour swatch.
+ *
+ * The colour sense is neutralised before matching, and only in the shapes where it unambiguously
+ * names a colour (preceded by màu/tông/gam/sắc/nền/son, or followed by a colour noun). Bare "nude"
+ * on its own is untouched and still matches, so this narrows a false positive without opening a
+ * bypass — "video khỏa thân" and "nude video" are unaffected.
+ */
+const NUDE_AS_COLOUR = /\b(?:mau|tong|tone|gam|sac|nen|son|phan|ao|vay|do)\s+nude\b|\bnude\s+(?:color|colour|tone|beige)\b/gu;
+
 function normalize(text: string): string {
   return text
     .toLowerCase()
@@ -73,7 +87,8 @@ function normalize(text: string): string {
     .replace(/đ/g, "d")
     .replace(/[^\p{L}\p{N}\s]+/gu, " ")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .replace(NUDE_AS_COLOUR, "beige");
 }
 
 // Sub-signals reused across proximity patterns (already diacritic-stripped to match normalize()).

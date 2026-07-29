@@ -2663,7 +2663,13 @@ export class DirectorAgent {
     const measuredWholeSeconds = Math.round(deliverableSeconds * 10) / 10;
     throw new CustomerActionableError(
       `Lời thoại đọc ra chỉ dài ${measuredWholeSeconds} giây, không đủ cho video ${target} giây bạn đặt. ` +
-        "Hệ thống đã dừng TRƯỚC bước tốn tiền nhất để không tính phí phần đó. " +
+        // Deliberately does NOT promise the customer keeps their credits. The charge is taken up
+        // front, before the job runs, and what happens to it on a stop like this is decided by the
+        // operator's refund policy — the default queues the case for a human rather than returning
+        // it automatically. Saying "you were not charged" here would be false under that default,
+        // and a false money statement is worse than the failure it accompanies.
+        "Hệ thống đã dừng SỚM, trước bước tốn kém nhất, nên phần đó chưa phát sinh chi phí nhà cung cấp. " +
+        "Credits của lần tạo này được xử lý theo chính sách hoàn credits ghi ở trang Điều khoản. " +
         "Bạn hãy viết mô tả dài hơn (thêm ý cần nói), hoặc chọn thời lượng ngắn hơn cho vừa nội dung, rồi tạo lại."
     );
   }

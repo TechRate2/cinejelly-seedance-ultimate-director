@@ -246,6 +246,12 @@ const HTML_CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
   "connect-src 'self'",
   "img-src 'self' data:",
+  // Without this the customer cannot watch the video they paid for. The Studio downloads the
+  // finished MP4 through fetch (allowed by connect-src) and hands the <video> element a blob: URL;
+  // with no media-src directive that load falls back to `default-src 'none'` and the browser blocks
+  // it silently, so the "Xem" button produces a player that never starts. Kept to 'self' and blob:
+  // — the page never plays third-party media, so nothing wider is warranted.
+  "media-src 'self' blob:",
   "style-src 'unsafe-inline'",
   "script-src 'unsafe-inline'"
 ].join("; ");
