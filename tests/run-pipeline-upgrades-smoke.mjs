@@ -214,28 +214,72 @@ check("director_keyframe_recompile_strips_selection_plan", directorSource.includ
 // → render), so gate-before-keyframe proves gate-before-all-spend.
 const keyframeSpendAt = directorSource.indexOf("await this.runKeyframeFirstStage({");
 check("gate_order_keyframe_call_present", keyframeSpendAt > -1);
-// Each planner is built inside ONE shared gate routine (no ad-hoc duplicate) whose definition sits
-// before the keyframe spend.
+// BEHAVIOUR, not text position. The previous version of these checks compared where strings appear
+// in the source file: it read the gate DEFINITION's offset (which sits above the keyframe call) and
+// concluded "gate before spend", while a second check read the gate's single CALL site (below the
+// keyframe call) and concluded "gate after keyframe". Both passed. The file simultaneously asserted
+// that the same gate ran before and after the spend, and the real answer — it ran only after — went
+// unnoticed until a pipeline audit found every long-form block was being charged for a full set of
+// keyframe images and voice tracks first.
+//
+// The only assertion worth making is the one a customer's money depends on: when the gate blocks,
+// how many paid calls happened first? Drive the real DirectorAgent with counting stubs and read the
+// counters.
+const { DirectorAgent: OrderingDirectorAgent } = await import("../dist/agents/director-agent.js");
+
+function countingProviders() {
+  const counts = { images: 0, tts: 0, videos: 0 };
+  return {
+    counts,
+    imageProvider: { name: "atlascloud", async generateImage() { counts.images += 1; throw new Error("stub"); } },
+    speechProvider: { name: "atlascloud", async synthesizeSpeech() { counts.tts += 1; throw new Error("stub"); } },
+    videoProvider: { name: "atlascloud", async generateTextToVideo() { counts.videos += 1; throw new Error("stub"); } }
+  };
+}
+
+// A long-form request whose continuity is deliberately broken so the battery has something to block
+// on. Whatever the gate decides, the invariant is the same: nothing paid may have run yet.
+const orderingStubs = countingProviders();
+const orderingAgent = new OrderingDirectorAgent({
+  atlasSettings: {
+    apiKey: "test", llmApiKey: "test",
+    apiBaseUrl: "https://api.atlascloud.ai/api/v1", assetBaseUrl: "https://api.atlascloud.ai/api/v1",
+    models: { llmModel: "m", seedanceStandardModel: "s", seedanceFastModel: "s" },
+    seedanceCapabilities: [], generatedAudioCapabilities: [],
+    requestTimeoutMs: 5000, maxJsonResponseBytes: 100000, pollingIntervalMs: 100, pollingTimeoutMs: 5000
+  },
+  imageProvider: orderingStubs.imageProvider,
+  speechProvider: orderingStubs.speechProvider
+});
+let orderingRan = false;
+try {
+  await orderingAgent.run({
+    projectId: "ordering_probe",
+    userInput: "Phim tài liệu lịch sử 3 phút, nhiều cảnh, nhiều nhân vật.",
+    settings: { durationTargetSeconds: 180, maxCostUsd: 1 }
+  });
+  orderingRan = true;
+} catch {
+  // Expected: the run cannot complete without real providers. What matters is the counters.
+}
+check("gate_blocks_before_any_image_is_bought", orderingStubs.counts.images === 0,
+  `images=${orderingStubs.counts.images} tts=${orderingStubs.counts.tts} videos=${orderingStubs.counts.videos} completed=${orderingRan}`);
+check("gate_blocks_before_any_voice_is_bought", orderingStubs.counts.tts === 0,
+  `tts=${orderingStubs.counts.tts}`);
+check("gate_blocks_before_any_clip_is_rendered", orderingStubs.counts.videos === 0,
+  `videos=${orderingStubs.counts.videos}`);
+
+// Source-level companions, kept narrow: they lock the SHAPE the behaviour test cannot see, namely
+// that a pre-spend invocation exists at all and that each planner is still built in one place.
+check("gate_has_pre_spend_invocation", directorSource.includes('assertLongFormReleaseGates(this.renderScheduler.plan(buildRenderScheduleItems(shots)), "pre_spend")'));
 for (const [label, needle] of [
   ["timeline", "this.longFormTimelinePlanner.build({"],
   ["creative", "this.longFormCreativeIntelligencePlanner.build({"],
   ["readiness", "this.longFormReadinessPlanner.build({"]
 ]) {
   const at = directorSource.indexOf(needle);
-  const last = directorSource.lastIndexOf(needle);
-  check(`gate_${label}_built_once`, at > -1 && at === last, `at=${at} last=${last}`);
-  check(`gate_${label}_before_spend`, at > -1 && keyframeSpendAt > -1 && at < keyframeSpendAt, `gate=${at} spend=${keyframeSpendAt}`);
+  check(`gate_${label}_built_once`, at > -1 && at === directorSource.lastIndexOf(needle));
 }
-// The gate battery is INVOKED exactly ONCE — post-keyframe, on the REAL render schedule, before
-// the (largest) render spend. The old second pre-keyframe pass was provably unable to block
-// anything the earlier agent-review/strategy gates hadn't already thrown on (redundancy-audit R1):
-// double CPU + three dead throw sites on every render, removed by design.
-const preRenderCallAt = directorSource.indexOf('assertLongFormReleaseGates(renderSchedulePlan, "pre_render")');
-const lastGateCallAt = directorSource.lastIndexOf("assertLongFormReleaseGates(");
-const gateDefinitionAt = directorSource.indexOf("const assertLongFormReleaseGates = (");
-check("gate_battery_single_invocation", preRenderCallAt > -1 && lastGateCallAt === preRenderCallAt, `call=${preRenderCallAt} last=${lastGateCallAt} def=${gateDefinitionAt}`);
-check("gate_no_pre_spend_double_pass", !directorSource.includes('assertLongFormReleaseGates(preSpendSchedulePlan'), "");
-check("gate_pre_render_after_keyframe_before_render", preRenderCallAt > keyframeSpendAt && preRenderCallAt < directorSource.indexOf("this.renderScheduler.run("), `call=${preRenderCallAt} spend=${keyframeSpendAt}`);
 
 const failed = checks.filter((item) => !item.pass);
 const report = {

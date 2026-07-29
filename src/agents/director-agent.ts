@@ -29,6 +29,7 @@ import {
   normalizeCharacterKey,
   narrowShotReferencesToCast,
   planCastPortraitRequests,
+  type PortraitView,
   planCharacterAnchors,
   planKeyframeRequests,
   type CharacterAnchorPlan,
@@ -122,6 +123,13 @@ import { ReferenceVisionAnalyst, reconcileReferenceRoles } from "./reference-vis
  * Structural (not a class import) so tests can hand in a stub and the director never depends on
  * ffprobe being present: every caller treats a missing prober as "measurement unavailable".
  */
+/**
+ * Turnaround views generated for every recurring character. The front view stays the primary
+ * identity anchor; the other two exist so a shot that turns the character has real evidence to
+ * follow instead of the video model inventing a profile.
+ */
+const CHARACTER_PORTRAIT_VIEWS: readonly PortraitView[] = ["front", "three_quarter", "side"];
+
 /** Per-track deadline for measuring a synthesized voice file; the shared runner's default is 30 min. */
 const VOICE_TRACK_PROBE_TIMEOUT_MS = 15_000;
 /** How many voice tracks are measured at once — enough to hide latency, few enough to stay polite. */
@@ -595,8 +603,12 @@ export class DirectorAgent {
       // images while the gate estimated 4. An estimate that omits half the images makes maxCostUsd a
       // decorative number instead of a ceiling; count the upper bound so the gate can only block
       // sooner, never overspend.
+      // Each recurring character now costs one image PER TURNAROUND VIEW, not one image total, so
+      // the character term is multiplied by the view count. Undercounting here would make maxCostUsd
+      // decorative in exactly the case it matters most — a series with a large cast.
       plannedKeyframeImageCount: keyframeFirstEnabled
-        ? (shots.length + characterAnchors.length) * (this.imageAnchorVerifier ? 2 : 1)
+        ? (shots.length + characterAnchors.length * CHARACTER_PORTRAIT_VIEWS.length) *
+          (this.imageAnchorVerifier ? 2 : 1)
         : 0,
       plannedTalkingShotCount: plannedTalkingShots.length,
       plannedAvatarRenderSeconds: plannedTalkingShots.reduce((sum, shot) => sum + shot.durationSeconds, 0),
@@ -752,8 +764,21 @@ export class DirectorAgent {
       }
       return { timelinePlan, creativeIntelligencePlan, readinessPlan };
     };
+    // The long-form release battery is FAIL-CLOSED: when it blocks, the job dies. It therefore has
+    // to run while dying is still free. It did not. A redundancy pass removed what it called a
+    // duplicate second build, but it removed the EARLY one and kept the late one, and left behind a
+    // comment further down claiming the gates "already ran fail-closed above, before any
+    // keyframe-image or TTS provider spend" — which was false: there was exactly one call site, and
+    // it sat after both. Every block was therefore charged for a full set of keyframe images and
+    // voice tracks first.
+    //
+    // Running it here is sound for the reason that same comment gives: keyframe binding only
+    // attaches a still reference to a shot, it never changes shot count, duration or ordering, so
+    // the wave structure it schedules is identical either way. The post-keyframe pass below is kept
+    // — it costs ~80ms and no money — so the delivered evidence still describes the real schedule.
+    assertLongFormReleaseGates(this.renderScheduler.plan(buildRenderScheduleItems(shots)), "pre_spend");
+
     // ---- END PRE-SPEND GATES. From here, provider money may be spent. ----
-    // (The long-form release-gate battery runs ONCE, post-keyframe, on the real schedule — R1.)
 
     // Keyframe-first: generate an approved still opening frame per shot, then flip each
     // bound shot to image-to-video. Runs only after every pre-spend gate above has passed
@@ -825,10 +850,8 @@ export class DirectorAgent {
     });
 
     // Rebuild the render schedule from the keyframe-bound shots (image-to-video flips). The
-    // long-form timeline/creative/readiness gates already ran fail-closed above, before any
-    // keyframe-image or TTS provider spend, using the pre-keyframe schedule (identical wave
-    // structure — keyframe binding only adds a still reference, it never changes shot count,
-    // duration, or ordering).
+    // The pre-spend pass above already ran this battery on the pre-keyframe schedule; this one
+    // refreshes the delivered evidence against the schedule actually used to render.
     const renderScheduleItems = buildRenderScheduleItems(renderReadyShots);
     const renderSchedulePlan = this.renderScheduler.plan(renderScheduleItems);
     // Authoritative post-keyframe re-gate on the REAL render schedule: refreshes the delivered
@@ -2766,7 +2789,14 @@ export class DirectorAgent {
     const portraitPlans = planCastPortraitRequests({
       cast,
       provider: "atlascloud",
-      imageModelId: input.imageModelId
+      imageModelId: input.imageModelId,
+      // Three-quarter and profile views, not just the front. The turnaround support was written and
+      // then never switched on, so every character had exactly ONE reference image — taken head-on.
+      // The moment a shot turned that character even slightly, the video model had no evidence for
+      // what the side of their face looks like and invented it, which is the drift customers read as
+      // "the actor changed". Two extra images per recurring character is a small price for the one
+      // thing a series cannot recover from. Counted in the budget estimate below.
+      views: CHARACTER_PORTRAIT_VIEWS
     });
     if (portraitPlans.length === 0) {
       return [];
