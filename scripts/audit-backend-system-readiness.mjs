@@ -276,6 +276,7 @@ const auditedValidationCommandNames = [
   "validation:ssrf-guard",
   "validation:storyboard-approval-gate",
   "validation:subtitle-dub",
+  "validation:tenant-isolation",
   "validation:talking-duration-fill",
   "validation:transition-audio-continuity",
   "validation:ui-contract-crosscheck",

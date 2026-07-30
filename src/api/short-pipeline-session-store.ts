@@ -13,6 +13,7 @@ import type {
 } from "../types/short-pipeline.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
+import { retainNewestPerClient } from "./tenant-scoped-retention.js";
 
 export const SHORT_PIPELINE_SESSION_STORE_SCHEMA_VERSION = "cinejelly.short-pipeline-session-store.v1";
 export const SHORT_PIPELINE_SESSION_RECORD_SCHEMA_VERSION = "cinejelly.short-pipeline-session-record.v1";
@@ -136,11 +137,13 @@ export class ShortPipelineSessionStore {
       throw new Error("Short-pipeline session store must be valid JSON.");
     }
     const storeFile = this.storeFile(parsed);
+    // Per-CUSTOMER on the READ path too — a global trim here hides other customers' sessions from
+    // every reader, and the next save writes back only what was loaded, making the loss permanent.
     const records = Object.freeze(
-      storeFile.sessions
-        .map((session) => this.storedRecord(session))
-        .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-        .slice(0, this.maxSessions)
+      retainNewestPerClient(
+        storeFile.sessions.map((session) => this.storedRecord(session)),
+        this.maxSessions
+      )
     );
     this.recordsCache = { ...fingerprint, records };
     return records;
@@ -163,12 +166,13 @@ export class ShortPipelineSessionStore {
       updatedAt: now,
       session: this.safeSessionPayload(session)
     };
-    const merged = [
-      record,
-      ...existing.filter((item) => item.sessionId !== record.sessionId)
-    ]
-      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-      .slice(0, this.maxSessions);
+    // Per-CUSTOMER retention. The global trim let one customer evict everyone else's sessions, and
+    // that is worse than data loss here: the render route resolves its plan from the stored session,
+    // so an evicted victim could no longer render the video they had already planned and paid to plan.
+    const merged = retainNewestPerClient(
+      [record, ...existing.filter((item) => item.sessionId !== record.sessionId)],
+      this.maxSessions
+    );
     this.writeRecords(merged);
     return record;
   }

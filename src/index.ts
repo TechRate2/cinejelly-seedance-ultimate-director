@@ -237,3 +237,4 @@ export * from "./core/spoken-language.js";
 export * from "./types/creative-intent.js";
 export * from "./utils/disk-space.js";
 export * from "./config/product-identity.js";
+export * from "./api/tenant-scoped-retention.js";

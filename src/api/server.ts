@@ -171,6 +171,12 @@ const DEFAULT_UPLOAD_MAX_BYTES = 26_214_400;
 const DEFAULT_UPLOADS_TOTAL_MAX_BYTES = 5 * 1024 * 1024 * 1024;
 /** Hard cap on the number of stored uploads so the directory scan and disk stay bounded. */
 const DEFAULT_UPLOADS_MAX_FILES = 5_000;
+/**
+ * Files ONE account may hold in uploads/. The shared ceiling above is what keeps the disk safe; this
+ * is what stops a single account from consuming it. A real customer needs a handful of references per
+ * video, so 300 is generous; overridable via CINEJELLY_UPLOADS_PER_USER_MAX_FILES.
+ */
+const DEFAULT_UPLOADS_PER_USER_MAX_FILES = 300;
 // Per-USER upload byte cap so one account cannot consume the shared global pool and deny uploads to
 // every other tenant (finding F11). The global cap above stays the hard disk guard.
 const DEFAULT_UPLOADS_PER_USER_MAX_BYTES = 1024 * 1024 * 1024;
@@ -559,7 +565,15 @@ export function startServer(port = readPort(process.env.PORT)): Server {
     totalBytes: number;
     fileCount: number;
     perUserBytes: Map<string, number>;
-  } = { initialized: false, seedPromise: null, totalBytes: 0, fileCount: 0, perUserBytes: new Map<string, number>() };
+    // Per-user FILE COUNT, not only bytes. The global ceiling bounds both bytes and count, but the
+    // per-user cap bounded bytes alone — so one free account uploading 1-byte files exhausted the
+    // shared 5,000-file ceiling on 0.0005% of its own 1 GB quota and every other customer's upload
+    // then failed 507 permanently, since the retention janitor deliberately never touches uploads/.
+    // Reproduced: 4,999 one-byte PNGs accepted, the 5,000th refused, an innocent customer's next
+    // 10-byte upload refused. Uploads are how a customer supplies their KOL face or product photo,
+    // so that is the whole product offline until an operator deletes files by hand.
+    perUserFiles: Map<string, number>;
+  } = { initialized: false, seedPromise: null, totalBytes: 0, fileCount: 0, perUserBytes: new Map<string, number>(), perUserFiles: new Map<string, number>() };
   const ensureUploadsUsage = async (dir: string): Promise<{ readonly totalBytes: number; readonly fileCount: number }> => {
     if (!uploadsUsage.initialized) {
       // Single-flight seed: concurrent first-callers await ONE scan instead of each launching their
@@ -595,6 +609,7 @@ export function startServer(port = readPort(process.env.PORT)): Server {
     uploadsUsage.fileCount += 1;
     if (uploaderId) {
       uploadsUsage.perUserBytes.set(uploaderId, (uploadsUsage.perUserBytes.get(uploaderId) ?? 0) + bytes);
+      uploadsUsage.perUserFiles.set(uploaderId, (uploadsUsage.perUserFiles.get(uploaderId) ?? 0) + 1);
     }
   };
   const jobManager = new RenderJobManager({
@@ -2008,6 +2023,19 @@ export function startServer(port = readPort(process.env.PORT)): Server {
           if (uploaderId && (uploadsUsage.perUserBytes.get(uploaderId) ?? 0) + body.length > perUserMaxBytes) {
             sendJson(response, 507, {
               error: "Bạn đã đạt hạn mức dung lượng tải lên của tài khoản — hãy dùng bớt file cũ hoặc liên hệ hỗ trợ."
+            }, requestContext);
+            return;
+          }
+          // FILE-COUNT quota per account, mirroring the byte quota above. Without it the shared
+          // file-count ceiling is a denial-of-service primitive: tiny files cost a customer almost
+          // none of their byte quota while consuming the ceiling that every other customer needs.
+          const perUserMaxFiles = readPositiveInteger(
+            process.env.CINEJELLY_UPLOADS_PER_USER_MAX_FILES,
+            DEFAULT_UPLOADS_PER_USER_MAX_FILES
+          );
+          if (uploaderId && (uploadsUsage.perUserFiles.get(uploaderId) ?? 0) + 1 > perUserMaxFiles) {
+            sendJson(response, 507, {
+              error: "Bạn đã đạt hạn mức SỐ FILE tải lên của tài khoản — hãy dùng lại file đã tải hoặc liên hệ hỗ trợ."
             }, requestContext);
             return;
           }

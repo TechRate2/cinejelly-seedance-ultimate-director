@@ -12,6 +12,7 @@ import type {
 } from "../types/short-channel-style.js";
 import { redactUnknown } from "../utils/redaction.js";
 import { redactApiLocalPaths } from "./api-response-redaction.js";
+import { retainNewestPerClient } from "./tenant-scoped-retention.js";
 
 export const SHORT_CHANNEL_STYLE_LIBRARY_SCHEMA_VERSION = "cinejelly.short-channel-style-library.v1";
 export const SHORT_CHANNEL_STYLE_LIBRARY_RECORD_SCHEMA_VERSION = "cinejelly.short-channel-style-library-record.v1";
@@ -105,14 +106,18 @@ export class ShortChannelStyleLibraryStore {
       input: safeInput,
       profile
     };
-    const merged = [
-      record,
-      ...existing.filter((item) =>
-        !(item.profileId === record.profileId && item.clientId === record.clientId)
-      )
-    ]
-      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-      .slice(0, this.maxProfiles);
+    // Per-CUSTOMER retention. Trimming the global list to the newest N let one customer's writes
+    // evict every other customer's saved profiles — reproduced with a free account posting 205
+    // profiles in 2.7s, after which the victim's own profile returned 404.
+    const merged = retainNewestPerClient(
+      [
+        record,
+        ...existing.filter((item) =>
+          !(item.profileId === record.profileId && item.clientId === record.clientId)
+        )
+      ],
+      this.maxProfiles
+    );
     this.writeRecords(merged);
     return record;
   }
@@ -137,10 +142,13 @@ export class ShortChannelStyleLibraryStore {
       throw new Error("Short channel style library must be valid JSON.");
     }
     const storeFile = this.storeFile(parsed);
-    return storeFile.styles
-      .map((record) => this.storedRecord(record))
-      .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
-      .slice(0, this.maxProfiles);
+    // Per-CUSTOMER on the READ path too, and this is the more dangerous half: a global trim here
+    // hides other customers' records from every reader, and the next save then writes back only what
+    // was loaded — turning "invisible" into "permanently deleted".
+    return retainNewestPerClient(
+      storeFile.styles.map((record) => this.storedRecord(record)),
+      this.maxProfiles
+    );
   }
 
   public list(options: { readonly clientId?: string } = {}): readonly ShortChannelStyleLibrarySummary[] {
