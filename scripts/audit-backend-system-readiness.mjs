@@ -210,6 +210,7 @@ const auditedValidationCommandNames = [
   "validation:pipeline-pricing",
   "validation:pipeline-upgrades",
   "validation:private-source-lineage-boundary",
+  "validation:published-secrets",
   "validation:production-ops",
   "validation:provider-external-lease",
   "validation:provider-graph-resume",

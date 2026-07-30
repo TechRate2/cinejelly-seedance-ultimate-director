@@ -49,6 +49,7 @@ const EXPECTED_RED = new Map([
  * which is exactly what happens to a check no command runs.
  */
 const REPO_AUDITS = [
+  ["audit-published-secrets.mjs", "Không có khoá/bí mật nào có thể lọt lên repo công khai"],
   ["audit-source-structure.mjs", "Cấu trúc mã nguồn (file rác, biến môi trường lọt tầng lõi, thiếu export)"],
   ["audit-snapshot-parity.mjs", "Giấy phép và quản trị 12 repo tham khảo trong external/upstream"],
   ["audit-private-source-lineage-boundary.mjs", "Ranh giới ghi nguồn: mã sản phẩm không được import từ repo tham khảo"],
