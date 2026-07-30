@@ -177,6 +177,9 @@ docs/        Tài liệu chi tiết
 external/    12 repo tham khảo (KHÔNG phải code chạy — xem mục 7)
 ```
 
+**Vì sao code lại làm thế:** [`docs/QUYET-DINH-KY-THUAT.md`](docs/QUYET-DINH-KY-THUAT.md) —
+đọc trước khi sửa. Nhiều đoạn trông vòng vo nhưng tồn tại vì một sự cố đã làm mất tiền thật.
+
 **Mỗi vùng có README riêng — mở ra là hiểu ngay vùng đó:**
 [`src/`](src/README.md) · [`src/agents/`](src/agents/README.md) · [`src/core/`](src/core/README.md) ·
 [`src/api/`](src/api/README.md) · [`tests/`](tests/README.md) · [`scripts/`](scripts/README.md)
