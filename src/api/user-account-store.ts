@@ -383,6 +383,12 @@ export function readUserAccountStorePath(env: NodeJS.ProcessEnv = process.env): 
   return storePath;
 }
 
+/**
+ * Live sessions one account may hold. A person uses a handful of devices; anything beyond that is
+ * accumulated history that only grows the accounts file and slows every session lookup.
+ */
+const MAX_SESSIONS_PER_ACCOUNT = 10;
+
 export class UserAccountStore {
   private readonly driver: AccountPersistenceDriver;
   private readonly packages: readonly CreditPackage[];
@@ -1186,10 +1192,33 @@ export class UserAccountStore {
     return token;
   }
 
+  /**
+   * Drop expired sessions, then cap how many an account may hold at once.
+   *
+   * Only expiry was pruned, and the TTL is thirty days, so a session row was appended on every login
+   * and nothing removed it in between: an account logging in repeatedly grew the accounts file
+   * without limit, and every session lookup scans that list. Nobody needs a hundred live sessions;
+   * a person has a handful of devices. Keeping the newest and dropping the rest is also the
+   * behaviour a customer expects from "sign out everywhere else".
+   */
   private pruneSessions(now: number): void {
     for (let index = this.state.sessions.length - 1; index >= 0; index -= 1) {
       const session = this.state.sessions[index];
       if (session && Date.parse(session.expiresAt) <= now) {
+        this.state.sessions.splice(index, 1);
+      }
+    }
+    const countByUser = new Map<string, number>();
+    for (let index = this.state.sessions.length - 1; index >= 0; index -= 1) {
+      const session = this.state.sessions[index];
+      if (!session) {
+        continue;
+      }
+      // Walking backwards keeps the NEWEST sessions: issueSession appends, so later entries are more
+      // recent. Per user, so one account's logins can never evict another's.
+      const seen = (countByUser.get(session.userId) ?? 0) + 1;
+      countByUser.set(session.userId, seen);
+      if (seen > MAX_SESSIONS_PER_ACCOUNT) {
         this.state.sessions.splice(index, 1);
       }
     }

@@ -50,6 +50,19 @@ export interface SeriesContinuityRecord {
 /** How many most-recent episodes keep FULL summaries in the recap; older ones fold into arcSummary. */
 const RECENT_EPISODE_WINDOW = 3;
 
+/**
+ * Series one customer may own.
+ *
+ * Creation was unbounded, and listing costs a read+parse of EVERY series file belonging to EVERY
+ * customer — each of which holds a bible, a cast ledger and one state per episode. A free account
+ * could therefore make every other customer's series list progressively slower and more expensive
+ * just by creating series, without rendering anything or spending a credit.
+ *
+ * Twenty is far past what a real customer runs at once and cheap to raise deliberately; unbounded
+ * was never a product decision, only an omission.
+ */
+const MAX_SERIES_PER_OWNER = 20;
+
 export class SeriesContinuityStore {
   private readonly seriesDirectory: string;
   /** Per-series write serialization so a read-modify-write (create/recordEpisode) is atomic within
@@ -106,6 +119,15 @@ export class SeriesContinuityStore {
    * Every series owned by a customer (newest first). Operator listing (ownerUserId === undefined)
    * is intentionally NOT supported here — operators use the full record files directly.
    */
+  /**
+   * Every series owned by a customer (newest first).
+   *
+   * Reads and parses every series file in the directory, so its cost grows with the TOTAL number of
+   * series across all customers, not just this customer's. Creation is capped per owner
+   * (MAX_SERIES_PER_OWNER) so that total stays bounded by customers x cap rather than by whatever a
+   * single account decides to create. At a scale where customers x cap becomes slow, this wants an
+   * owner index or an owner-prefixed filename — a deliberate change, not something to bolt on here.
+   */
   public async listByOwner(ownerUserId: string): Promise<readonly SeriesContinuityRecord[]> {
     let files: readonly string[];
     try {
@@ -137,6 +159,17 @@ export class SeriesContinuityStore {
   ): Promise<SeriesContinuityRecord> {
     return this.withSeriesLock(bible.seriesId, async () => {
       const existing = await this.load(bible.seriesId);
+      // Bound creation per owner. Checked only for a genuinely NEW series (an existing id returns
+      // early below), and only for owned records — an operator/CLI run has no ownerUserId and is not
+      // a tenant competing for shared cost.
+      if (!existing && ownerUserId) {
+        const owned = await this.listByOwner(ownerUserId);
+        if (owned.length >= MAX_SERIES_PER_OWNER) {
+          throw new Error(
+            `Bạn đã đạt giới hạn ${MAX_SERIES_PER_OWNER} bộ phim dài tập. Hãy xoá bớt bộ cũ hoặc liên hệ hỗ trợ để nâng giới hạn.`
+          );
+        }
+      }
       if (existing) {
         return existing;
       }
