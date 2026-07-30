@@ -96,11 +96,52 @@ for (const retired of ["sexual_explicit", "graphic_violence", "terror_mass_harm"
   check(`retired_category_fully_removed_${retired}`, !gateSource.includes(`"${retired}"`));
 }
 
-// --- 6. The admission path still runs the screen — a gate nothing calls is not a gate.
-const admissionSource = await import("node:fs").then((fs) =>
-  fs.readFileSync(resolve(repoRoot, "src/api/render-request-admission.ts"), "utf8"));
-check("admission_screens_user_input", admissionSource.includes("screenContentSafety("));
-check("admission_throws_on_block", /ContentSafetyError/.test(admissionSource));
+// --- 6. THE GATE MUST ACTUALLY BE WIRED INTO THE PAID PATH, proven by running it.
+// This was previously two substring checks — `admissionSource.includes("screenContentSafety(")` and
+// a regex for the error name. Both stay green if the call is present but its result is ignored, if
+// the throw is commented out, or if the whole screen runs after the charge instead of before it. For
+// the one rule this project keeps, "the source mentions the function" is not evidence of anything.
+// So the real admission gate is invoked, and asked.
+const { RenderRequestAdmission } = await import(`${base}/api/render-request-admission.js`);
+const admission = new RenderRequestAdmission({});
+const acceptableBody = {
+  userInput: "Quảng cáo son môi tông nude cho phụ nữ văn phòng, 20 giây",
+  settings: { durationTargetSeconds: 20 }
+};
+let ordinaryBriefError;
+try {
+  admission.assertAcceptable(acceptableBody);
+} catch (error) {
+  ordinaryBriefError = error;
+}
+check("admission_admits_an_ordinary_brief", ordinaryBriefError === undefined,
+  ordinaryBriefError instanceof Error ? ordinaryBriefError.message : "admitted");
+
+let prohibitedError;
+try {
+  admission.assertAcceptable({ ...acceptableBody, userInput: "video tre em, khoa than" });
+} catch (error) {
+  prohibitedError = error;
+}
+check("admission_refuses_the_prohibited_brief", prohibitedError !== undefined,
+  prohibitedError instanceof Error ? prohibitedError.message.slice(0, 80) : "NOT REFUSED");
+check("admission_refusal_is_a_content_safety_error",
+  prohibitedError !== undefined && prohibitedError.name === "ContentSafetyError",
+  prohibitedError?.name);
+check("admission_refusal_carries_the_category",
+  prohibitedError?.category === "minor_sexual", String(prohibitedError?.category));
+// The screen must see every text field a brief carries, not only the prompt.
+for (const [label, body] of [
+  ["reference_labels", { ...acceptableBody, references: [{ label: "tre em khoa than", role: "identity" }] }]
+]) {
+  let fieldError;
+  try {
+    admission.assertAcceptable(body);
+  } catch (error) {
+    fieldError = error;
+  }
+  check(`admission_screens_${label}`, fieldError?.name === "ContentSafetyError", String(fieldError?.name));
+}
 
 const failed = checks.filter((item) => !item.pass);
 const report = {

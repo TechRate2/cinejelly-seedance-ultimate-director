@@ -54,12 +54,6 @@ check("settings_default_refund_policy_is_manual", settings.refundPolicy() === "m
 // authorization lives in each handler. That is fail-open by construction — a future /v1/admin route
 // added without assertDeploymentPrincipal would be silently reachable by any paying customer. This
 // source invariant fails the suite the moment an admin route ships without its deployment guard.
-{
-  const serverSource = (await import("node:fs")).readFileSync(new URL("../src/api/server.ts", import.meta.url), "utf8");
-  const adminRouteMatches = [...serverSource.matchAll(/pathname === "(\/v1\/admin\/[^"]*)"/g)];
-  const unguarded = adminRouteMatches.filter((m) => !serverSource.slice(m.index, m.index + 1500).includes("assertDeploymentPrincipal")).map((m) => m[1]);
-  check("every_admin_route_has_deployment_guard", adminRouteMatches.length >= 10 && unguarded.length === 0, `routes=${adminRouteMatches.length}, unguarded=${unguarded.join(",")}`);
-}
 let rejectedBadPrice = false;
 try {
   settings.update({ creditsPerRenderSecond: -5 }, "test");
@@ -141,6 +135,7 @@ const queued2 = store.queueRefundRequest({ userId: u.user.userId, jobId: "job_q2
 store.decideRefundRequest({ refundRequestId: queued2.refundRequestId, approve: false });
 check("refund_dismiss_keeps_money", store.balanceOf(u.user.userId) === 700, `balance=${store.balanceOf(u.user.userId)}`);
 
+const adminServerSource = (await import("node:fs")).readFileSync(new URL("../src/api/server.ts", import.meta.url), "utf8");
 const server = startServer(port);
 try {
   await waitForHealth();
@@ -152,6 +147,27 @@ try {
   check("customer_cannot_write_settings", (await req("PUT", "/v1/admin/settings", { creditsPerRenderSecond: 1 }, custSession)).status === 403);
   check("customer_cannot_read_refunds", (await req("GET", "/v1/admin/refunds", undefined, custSession)).status === 403);
   check("anon_cannot_read_settings", (await req("GET", "/v1/admin/settings")).status >= 401);
+
+  // EVERY admin route, proven by asking. This replaces a check that decided whether a route was
+  // guarded by looking 1,500 characters forward in the source for the word assertDeploymentPrincipal
+  // — a guess that answers wrongly in both directions: a route whose guard sits further away reads as
+  // unguarded, and a genuinely unguarded route sitting near a guarded one reads as safe. The only
+  // honest question is what the server does when a customer asks, so it is asked, on every route.
+  const adminRoutes = [...adminServerSource.matchAll(/pathname === "(\/v1\/admin\/[^"]*)"/g)].map((match) => match[1]);
+  check("admin_route_list_is_not_empty", adminRoutes.length >= 10, `routes=${adminRoutes.length}`);
+  const reachableByCustomer = [];
+  for (const route of adminRoutes) {
+    for (const method of ["GET", "POST", "PUT"]) {
+      const attempt = await req(method, route, method === "GET" ? undefined : {}, custSession);
+      // 403 is the guard doing its job; 401/404/405 also mean the customer got nothing. Any 2xx means
+      // a paying customer reached an operator surface.
+      if (attempt.status >= 200 && attempt.status < 300) {
+        reachableByCustomer.push(`${method} ${route} -> ${attempt.status}`);
+      }
+    }
+  }
+  check("no_admin_route_answers_a_customer", reachableByCustomer.length === 0,
+    reachableByCustomer.slice(0, 5).join(" | ") || `all ${adminRoutes.length} routes refused`);
 
   // ---- System-health tab: operator-only, returns plain-VN rows + overall ----
   check("customer_cannot_read_system_health", (await req("GET", "/v1/admin/system-health", undefined, custSession)).status === 403);
