@@ -824,7 +824,12 @@ export class SeedancePromptCompiler {
       .replace(/\s*;\s*/g, "; ")
       .replace(/\s+/g, " ")
       .trim();
-    return this.stripTerminalPunctuation(this.compactProviderText(normalized, 1_100));
+    // Strip the sentence terminator BEFORE compacting, never after. Reversed, the ellipsis that
+    // compactProviderText appends to mark a cut was itself eaten by `/[.\s]+$/` — so an action longer
+    // than the budget lost its tail AND every trace that a tail had existed. The video model received
+    // a sentence that simply stopped, with the final planned beat of the shot silently deleted and
+    // nothing anywhere saying so.
+    return this.compactProviderText(this.stripTerminalPunctuation(normalized), 1_100);
   }
 
   private compactProviderText(value: string, maxChars: number): string {

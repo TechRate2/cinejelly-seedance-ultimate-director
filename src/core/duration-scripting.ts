@@ -118,7 +118,22 @@ export function capToSpeakableWords(
   if (countSpeechUnits(trimmed) <= maxUnits) {
     return trimmed;
   }
-  return sliceToSpeechUnits(trimmed, maxUnits).replace(/[,;:—-]+$/, "").trim();
+  const clipped = sliceToSpeechUnits(trimmed, maxUnits);
+  // Prefer the last SENTENCE boundary inside the budget. A word-boundary cut leaves the line ending
+  // mid-thought, and the compiler then hands that fragment to the model under a "deliver word-for-word,
+  // do not shorten" contract — so the actor is instructed to perform half a sentence, faithfully.
+  // Ending one sentence early reads as deliberate; ending mid-clause reads as broken.
+  //
+  // Only accepted when it keeps most of the budget: a line whose first sentence ends very early would
+  // otherwise throw away speech the runtime was already paid to carry.
+  const lastSentenceEnd = Math.max(
+    clipped.lastIndexOf("."), clipped.lastIndexOf("!"), clipped.lastIndexOf("?"),
+    clipped.lastIndexOf("…")
+  );
+  if (lastSentenceEnd >= Math.floor(clipped.length * 0.6)) {
+    return clipped.slice(0, lastSentenceEnd + 1).trim();
+  }
+  return clipped.replace(/[,;:—-]+$/, "").trim();
 }
 
 export type DurationBeatRole = "hook" | "development" | "proof_peak" | "settle";
