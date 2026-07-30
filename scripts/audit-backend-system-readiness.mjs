@@ -281,6 +281,7 @@ const auditedValidationCommandNames = [
   "validation:upload-intake-and-guidance",
   "validation:upload-route",
   "validation:video-render-strategy",
+  "validation:wire-contract",
   "validation:workspace-billing",
 ];
 

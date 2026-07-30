@@ -182,7 +182,8 @@
     "start": "node --env-file-if-exists=.env dist/api/server.js",
     "validation:content-safety-punctuation": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-content-safety-punctuation-smoke.mjs",
     "validation:speech-duration-guard": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-speech-duration-guard-smoke.mjs",
-    "validation:render-failure-resilience": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-render-failure-resilience-smoke.mjs"
+    "validation:render-failure-resilience": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-render-failure-resilience-smoke.mjs",
+    "validation:wire-contract": "node ./node_modules/typescript/bin/tsc -p tsconfig.json && node tests/run-wire-contract-smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

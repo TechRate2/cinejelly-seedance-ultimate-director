@@ -3173,10 +3173,10 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
     function authHeaders() {
       const headers = {};
       const session = readSessionToken();
-      if (session) { headers["X-${brand}-Session"] = session; }
+      if (session) { headers["X-CineJelly-Session"] = session; }
       const keyInput = document.getElementById("api-key");
       const key = keyInput ? keyInput.value.trim() : "";
-      if (key) { headers["X-${brand}-Api-Key"] = key; }
+      if (key) { headers["X-CineJelly-Api-Key"] = key; }
       return headers;
     }
 
@@ -3215,7 +3215,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
           const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
           const payload = await response.json();
           if (!response.ok) { throw new Error(payload.error || "Không thực hiện được, thử lại."); }
-          const issuedToken = response.headers.get("X-${brand}-Session-Token") || "";
+          const issuedToken = response.headers.get("X-CineJelly-Session-Token") || "";
           if (!issuedToken) { throw new Error("Máy chủ không trả phiên đăng nhập. Thử lại."); }
           storeSessionToken(issuedToken);
           authModal.hidden = true;
@@ -3282,7 +3282,7 @@ export function buildShortPipelineCreatePage(options: { readonly supportContact?
           });
           const payload = await response.json();
           if (!response.ok) { throw new Error(payload.error || "Không đổi được mật khẩu."); }
-          const issuedToken = response.headers.get("X-${brand}-Session-Token") || "";
+          const issuedToken = response.headers.get("X-CineJelly-Session-Token") || "";
           if (issuedToken) { storeSessionToken(issuedToken); }
           document.getElementById("current-password").value = "";
           document.getElementById("new-password").value = "";
