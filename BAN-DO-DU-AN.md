@@ -2,7 +2,7 @@
 
 > Đọc file này TRƯỚC khi sửa bất cứ thứ gì.
 > Viết cho hai người đọc: **chủ dự án (không đọc code)** và **model AI được nhờ sửa code**.
-> Cập nhật lần cuối: 2026-07-29.
+> Cập nhật lần cuối: 2026-07-31.
 
 ---
 
@@ -35,7 +35,7 @@ Một ô nhập, một nút, một video.
 | Bật máy chủ | `npm start` |
 | Kiểm tra nhanh, không dịch lại mã | `npm run check:fast` |
 
-**`npm test` là lệnh quan trọng nhất.** Nó chạy 93 bài kiểm tra + 6 bài soi toàn dự án,
+**`npm test` là lệnh quan trọng nhất.** Nó chạy 96 bài kiểm tra + 7 bài soi toàn dự án,
 **không tốn một đồng nào**, và trả lời bằng tiếng Việt. Sau khi AI sửa bất cứ thứ gì, chạy lệnh này.
 Nếu nó nói *"Dự án đang ổn"* thì yên tâm. Nếu có bài đỏ, nó ghi rõ đỏ ở đâu và cách xem chi tiết.
 
@@ -171,8 +171,8 @@ src/
 ├── config/        (3 file)   Giá trị mặc định đọc từ biến môi trường.
 └── utils/         (12 file)  Công cụ nhỏ dùng chung.
 
-tests/       93 bài kiểm tra không tốn tiền — lưới an toàn của bạn
-scripts/     ~60 công cụ vận hành + 6 bài soi toàn dự án
+tests/       96 bài kiểm tra không tốn tiền — lưới an toàn của bạn
+scripts/     ~60 công cụ vận hành + 7 bài soi toàn dự án
 docs/        Tài liệu chi tiết
 external/    12 repo tham khảo (KHÔNG phải code chạy — xem mục 7)
 ```
@@ -234,6 +234,8 @@ external/    12 repo tham khảo (KHÔNG phải code chạy — xem mục 7)
 
 | Việc | Vì sao quan trọng |
 |---|---|
+| **Danh sách phim đọc toàn bộ file của mọi khách** | Đã chặn bằng giới hạn 20 bộ/khách, nhưng khi đông khách vẫn cần chỉ mục riêng |
+| **Chưa dùng 3 góc mặt nhân vật** | Code vẽ được nhưng lời nhắc keyframe chưa nhận — bật lên là mặt hết trôi khi quay nghiêng |
 | **Một clip lỗi làm hỏng cả video** | Đang: 1 trong 10 cảnh lỗi → vứt cả 10 clip đã trả tiền. Cần: giữ 9 clip tốt, làm lại 1 cảnh |
 | **Chưa có bộ nhớ đệm** | Chạy lại một yêu cầu giống hệt vẫn trả tiền lại từ đầu |
 | **Ảnh khách tải lên không bao giờ bị xoá** | Thư mục đầy dần → đến lúc mọi khách đều không tải lên được |
