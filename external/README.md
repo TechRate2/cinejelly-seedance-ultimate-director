@@ -1,5 +1,29 @@
 # External Upstream Source Snapshots
 
+> ## NOTICE — THIRD-PARTY CODE, PUBLISHED UNMODIFIED
+>
+> Everything under `external/upstream/` belongs to its original authors, not to this project.
+> Each directory is an **unmodified snapshot** of a public repository, kept here so engineering work
+> can verify claims against the real source instead of depending on live upstream availability.
+> Every upstream `LICENSE` file is preserved in place.
+>
+> **No production code imports from this directory.** That boundary is machine-enforced —
+> `npm run validation:private-source-lineage-boundary`, part of `npm test`, fails if any file under
+> `src/` imports from here.
+>
+> Four snapshots carry **no license file** (`directorbench`, `open-ai-ugc`,
+> `open-ai-micro-drama-generator`, and `skyreels-v2`, which ships a non-standard model-card license).
+> With no license, the authors reserve all rights: they are present for **reading only**, no code or
+> translation of it may enter `src/`, and any author who wants their snapshot removed should open an
+> issue — it will be deleted on request.
+>
+> `openmontage` is **AGPL-3.0**. Redistributing this unmodified snapshot with its license intact is
+> permitted by that license. What is NOT permitted is copying its code into this product, because
+> AGPL would then oblige the whole product to be released under AGPL. It is behaviour notes only.
+>
+> License status per snapshot is in the inventory table below, and
+> `npm run validation:snapshot-parity` fails if a directory appears here without being declared.
+
 `external/upstream/` contains Git Subtree snapshots of upstream projects used for source-fidelity review, copy/adaptation, and product integration planning. These snapshots are stored so CineJelly engineering work can verify claims, copy useful documentation or structures, adapt prompt patterns, and compare long-form video-agent behavior against original public sources without depending on live upstream availability.
 
 ## Integration Boundary
